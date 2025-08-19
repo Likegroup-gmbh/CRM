@@ -1070,10 +1070,19 @@ export class ActionsDropdown {
     modal.querySelector('#assign-staff-confirm').onclick = async () => {
       if (!selectedId) return;
       try {
-        // Speichere Zuordnung in Relationstabelle (Standardname)
-        await window.supabase
+        // Speichere Zuordnung in Relationstabelle (mit role-Feld)
+        const { error: insertError } = await window.supabase
           .from('kampagne_mitarbeiter')
-          .insert({ kampagne_id: kampagneId, mitarbeiter_id: selectedId });
+          .insert({ 
+            kampagne_id: kampagneId, 
+            mitarbeiter_id: selectedId,
+            role: 'projektmanager'  // Standard-Rolle
+          });
+        
+        if (insertError) {
+          console.error('❌ Insert-Fehler:', insertError);
+          throw insertError;
+        }
         // Notification an zugewiesenen Mitarbeiter
         try {
           const { data: kamp } = await window.supabase
@@ -1091,6 +1100,7 @@ export class ActionsDropdown {
           });
           window.dispatchEvent(new Event('notificationsRefresh'));
         } catch (_) {}
+        console.log('✅ Mitarbeiter erfolgreich zugeordnet');
         close();
         window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'kampagne', action: 'staff-assigned', id: kampagneId } }));
         alert('Mitarbeiter zugeordnet.');
