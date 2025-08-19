@@ -1,0 +1,337 @@
+// BulkActionSystem.js (ES6-Modul)
+// Generisches System für Bulk-Aktionen in allen Listen
+
+export class BulkActionSystem {
+  constructor() {
+    this.currentEntityType = null;
+    this.currentListInstance = null;
+    this.boundEventListeners = new Set();
+  }
+
+  // Initialisiere das System
+  init() {
+    console.log('🔧 BulkActionSystem: Initialisiere...');
+    this.bindGlobalEvents();
+  }
+
+  // Registriere eine Liste für Bulk-Aktionen
+  registerList(entityType, listInstance) {
+    console.log(`🔧 BulkActionSystem: Registriere ${entityType} Liste`);
+    
+    // Setze aktuelle Liste wenn sie die aktive ist
+    const currentPath = window.location.pathname;
+    if (currentPath.includes(`/${entityType}`) || currentPath === `/${entityType}`) {
+      this.currentEntityType = entityType;
+      this.currentListInstance = listInstance;
+      console.log(`✅ BulkActionSystem: ${entityType} als aktive Liste gesetzt`);
+    }
+  }
+
+  // Aktualisiere die aktive Liste basierend auf der aktuellen Route
+  updateActiveList() {
+    const currentPath = window.location.pathname;
+    console.log(`🔧 BulkActionSystem: Prüfe aktuelle Route: ${currentPath}`);
+    
+    // Erkenne Entity-Type aus URL
+    const pathSegments = currentPath.split('/').filter(segment => segment);
+    if (pathSegments.length > 0) {
+      const entityType = pathSegments[0];
+      
+      // Prüfe ob wir eine entsprechende Liste haben
+      const listInstanceName = `${entityType}List`;
+      if (window[listInstanceName]) {
+        this.currentEntityType = entityType;
+        this.currentListInstance = window[listInstanceName];
+        console.log(`✅ BulkActionSystem: ${entityType} automatisch erkannt und gesetzt`);
+        return true;
+      }
+    }
+    
+    console.log('❌ BulkActionSystem: Keine passende Liste für aktuelle Route gefunden');
+    return false;
+  }
+
+  // Globale Event-Listener binden
+  bindGlobalEvents() {
+    // Bulk-Actions: Deselect All Button
+    const deselectHandler = (e) => {
+      if (e.target.id === 'btn-deselect-all') {
+        e.preventDefault();
+        this.handleDeselectAll();
+      }
+    };
+    document.addEventListener('click', deselectHandler);
+    this.boundEventListeners.add({ element: document, type: 'click', handler: deselectHandler });
+
+    // Bulk-Actions: Delete Selected Button
+    const deleteHandler = (e) => {
+      if (e.target.id === 'btn-delete-selected') {
+        e.preventDefault();
+        this.handleDeleteSelected();
+      }
+    };
+    document.addEventListener('click', deleteHandler);
+    this.boundEventListeners.add({ element: document, type: 'click', handler: deleteHandler });
+
+    console.log('✅ BulkActionSystem: Globale Event-Listener registriert');
+  }
+
+  // Handle Deselect All
+  handleDeselectAll() {
+    console.log('🔧 BulkActionSystem: Handle Deselect All');
+    
+    // Versuche aktuelle Liste zu finden falls nicht gesetzt
+    if (!this.currentListInstance) {
+      this.updateActiveList();
+    }
+    
+    if (this.currentListInstance && typeof this.currentListInstance.deselectAll === 'function') {
+      console.log(`✅ BulkActionSystem: Rufe deselectAll() für ${this.currentEntityType} auf`);
+      this.currentListInstance.deselectAll();
+    } else {
+      // Fallback: Versuche generisch zu deselektieren
+      console.log('⚠️ BulkActionSystem: Fallback - Generische Deselection');
+      this.genericDeselectAll();
+    }
+  }
+
+  // Handle Delete Selected
+  handleDeleteSelected() {
+    console.log('🔧 BulkActionSystem: Handle Delete Selected');
+    
+    // Versuche aktuelle Liste zu finden falls nicht gesetzt
+    if (!this.currentListInstance) {
+      this.updateActiveList();
+    }
+    
+    if (this.currentListInstance && typeof this.currentListInstance.showDeleteSelectedConfirmation === 'function') {
+      console.log(`✅ BulkActionSystem: Rufe showDeleteSelectedConfirmation() für ${this.currentEntityType} auf`);
+      this.currentListInstance.showDeleteSelectedConfirmation();
+    } else {
+      // Fallback: Versuche generisch zu löschen
+      console.log('⚠️ BulkActionSystem: Fallback - Generische Deletion');
+      this.genericDeleteSelected();
+    }
+  }
+
+  // Generische Deselect-All Funktion
+  genericDeselectAll() {
+    const entityType = this.detectCurrentEntityType();
+    if (!entityType) {
+      console.log('❌ BulkActionSystem: Kann Entity-Type nicht erkennen');
+      return;
+    }
+
+    const config = this.getEntityConfig(entityType);
+    const checkboxes = document.querySelectorAll(config.checkboxSelector);
+    const selectAllCheckbox = document.getElementById(config.selectAllId);
+    
+    // Deselektiere alle Checkboxen
+    checkboxes.forEach(cb => {
+      cb.checked = false;
+    });
+    
+    // Select-All Checkbox zurücksetzen
+    if (selectAllCheckbox) {
+      selectAllCheckbox.checked = false;
+      selectAllCheckbox.indeterminate = false;
+    }
+    
+    // UI-Buttons verstecken
+    this.hideButtons();
+    
+    console.log(`✅ BulkActionSystem: Generische Deselection für ${entityType} abgeschlossen`);
+  }
+
+  // Generische Delete-Selected Funktion
+  genericDeleteSelected() {
+    const entityType = this.detectCurrentEntityType();
+    if (!entityType) {
+      console.log('❌ BulkActionSystem: Kann Entity-Type nicht erkennen');
+      return;
+    }
+
+    const config = this.getEntityConfig(entityType);
+    const checkedBoxes = document.querySelectorAll(`${config.checkboxSelector}:checked`);
+    
+    if (checkedBoxes.length === 0) {
+      alert(`Keine ${config.displayName} ausgewählt.`);
+      return;
+    }
+
+    const message = checkedBoxes.length === 1 
+      ? `Möchten Sie ${config.displayName.slice(0, -1)} wirklich löschen?` 
+      : `Möchten Sie die ${checkedBoxes.length} ausgewählten ${config.displayName} wirklich löschen?`;
+    
+    const confirmed = confirm(`${message}\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`);
+    
+    if (confirmed) {
+      this.performGenericDelete(entityType, checkedBoxes);
+    }
+  }
+
+  // Führe generische Löschung aus
+  async performGenericDelete(entityType, checkedBoxes) {
+    const selectedIds = Array.from(checkedBoxes).map(cb => cb.dataset.id);
+    const totalCount = selectedIds.length;
+    
+    console.log(`🗑️ BulkActionSystem: Lösche ${totalCount} ${entityType}...`);
+    
+    let successCount = 0;
+    let errorCount = 0;
+    const errors = [];
+
+    // Lösche jede Entity einzeln
+    for (const entityId of selectedIds) {
+      try {
+        const result = await window.dataService.deleteEntity(entityType, entityId);
+        
+        if (result.success) {
+          successCount++;
+          console.log(`✅ ${entityType} ${entityId} gelöscht`);
+        } else {
+          errorCount++;
+          errors.push(`${entityType} ${entityId}: ${result.error}`);
+          console.error(`❌ Fehler beim Löschen von ${entityType} ${entityId}:`, result.error);
+        }
+      } catch (error) {
+        errorCount++;
+        errors.push(`${entityType} ${entityId}: ${error.message}`);
+        console.error(`❌ Unerwarteter Fehler beim Löschen von ${entityType} ${entityId}:`, error);
+      }
+    }
+
+    // Ergebnis anzeigen
+    const config = this.getEntityConfig(entityType);
+    let message = '';
+    if (successCount > 0) {
+      message += `✅ ${successCount} ${config.displayName} erfolgreich gelöscht.`;
+    }
+    if (errorCount > 0) {
+      message += `\n❌ ${errorCount} ${config.displayName} konnten nicht gelöscht werden.`;
+      if (errors.length > 0) {
+        message += `\n\nFehler:\n${errors.join('\n')}`;
+      }
+    }
+    
+    alert(message);
+
+    // Auswahl zurücksetzen und Seite neu laden
+    this.genericDeselectAll();
+    
+    // Versuche Liste neu zu laden
+    if (this.currentListInstance && typeof this.currentListInstance.loadAndRender === 'function') {
+      await this.currentListInstance.loadAndRender();
+    } else {
+      // Fallback: Seite neu laden
+      window.location.reload();
+    }
+
+    // Event für andere Komponenten auslösen
+    window.dispatchEvent(new CustomEvent('entityUpdated', {
+      detail: { entity: entityType, action: 'bulk-deleted', count: successCount }
+    }));
+  }
+
+  // Erkenne aktuellen Entity-Type aus der Seite
+  detectCurrentEntityType() {
+    // 1. Aus URL
+    const pathSegments = window.location.pathname.split('/').filter(segment => segment);
+    if (pathSegments.length > 0) {
+      const urlEntityType = pathSegments[0];
+      if (['creator', 'unternehmen', 'kampagne', 'marke', 'auftrag', 'ansprechpartner', 'kooperation'].includes(urlEntityType)) {
+        return urlEntityType;
+      }
+    }
+
+    // 2. Aus verfügbaren Checkboxen
+    const entityTypes = ['creator', 'unternehmen', 'kampagne', 'marke', 'auftrag', 'ansprechpartner', 'kooperation'];
+    for (const entityType of entityTypes) {
+      const config = this.getEntityConfig(entityType);
+      const checkboxes = document.querySelectorAll(config.checkboxSelector);
+      if (checkboxes.length > 0) {
+        console.log(`🔧 BulkActionSystem: Entity-Type ${entityType} aus Checkboxen erkannt`);
+        return entityType;
+      }
+    }
+
+    return null;
+  }
+
+  // Hole Konfiguration für Entity-Type
+  getEntityConfig(entityType) {
+    const configs = {
+      creator: {
+        checkboxSelector: '.creator-check',
+        selectAllId: 'select-all-creators',
+        displayName: 'Creator'
+      },
+      unternehmen: {
+        checkboxSelector: '.unternehmen-check',
+        selectAllId: 'select-all-unternehmen',
+        displayName: 'Unternehmen'
+      },
+      kampagne: {
+        checkboxSelector: '.kampagne-check',
+        selectAllId: 'select-all-kampagnen',
+        displayName: 'Kampagnen'
+      },
+      marke: {
+        checkboxSelector: '.marke-check',
+        selectAllId: 'select-all-marken',
+        displayName: 'Marken'
+      },
+      auftrag: {
+        checkboxSelector: '.auftrag-check',
+        selectAllId: 'select-all-auftraege',
+        displayName: 'Aufträge'
+      },
+      ansprechpartner: {
+        checkboxSelector: '.ansprechpartner-check',
+        selectAllId: 'select-all-ansprechpartner',
+        displayName: 'Ansprechpartner'
+      },
+      kooperation: {
+        checkboxSelector: '.kooperation-check',
+        selectAllId: 'select-all-kooperationen',
+        displayName: 'Kooperationen'
+      }
+    };
+
+    return configs[entityType] || {
+      checkboxSelector: `.${entityType}-check`,
+      selectAllId: `select-all-${entityType}`,
+      displayName: entityType
+    };
+  }
+
+  // Verstecke Bulk-Action Buttons
+  hideButtons() {
+    const selectedCountElement = document.getElementById('selected-count');
+    const deselectBtn = document.getElementById('btn-deselect-all');
+    const deleteBtn = document.getElementById('btn-delete-selected');
+    
+    if (selectedCountElement) {
+      selectedCountElement.style.display = 'none';
+    }
+    
+    if (deselectBtn) {
+      deselectBtn.style.display = 'none';
+    }
+    
+    if (deleteBtn) {
+      deleteBtn.style.display = 'none';
+    }
+  }
+
+  // Cleanup
+  destroy() {
+    this.boundEventListeners.forEach(({ element, type, handler }) => {
+      element.removeEventListener(type, handler);
+    });
+    this.boundEventListeners.clear();
+  }
+}
+
+// Singleton-Instanz erstellen
+export const bulkActionSystem = new BulkActionSystem();

@@ -1,0 +1,2076 @@
+// FormSystem.js (ES6-Modul)
+// Zentrale Formular-Verwaltung für alle Entitäten
+
+import { validatorSystem } from './ValidatorSystem.js';
+
+export class FormSystem {
+  constructor() {
+    this.forms = new Map();
+    this.currentForm = null;
+    this.validator = validatorSystem;
+  }
+
+  // Formular-Konfigurationen für verschiedene Entitäten
+  getFormConfig(entity) {
+    const configs = {
+      creator: {
+        title: 'Neuen Creator anlegen',
+        fields: [
+          { name: 'vorname', label: 'Vorname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
+          { name: 'nachname', label: 'Nachname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
+          { name: 'instagram', label: 'Instagram', type: 'text', required: false, validation: { type: 'text' } },
+          { name: 'instagram_follower', label: 'Instagram Follower', type: 'number', required: false, validation: { type: 'number', min: 0 } },
+          { name: 'tiktok', label: 'TikTok', type: 'text', required: false, validation: { type: 'text' } },
+          { name: 'tiktok_follower', label: 'TikTok Follower', type: 'number', required: false, validation: { type: 'number', min: 0 } },
+          { 
+            name: 'sprachen', 
+            label: 'Sprachen', 
+            type: 'multiselect', 
+            required: false, 
+            options: ['Deutsch', 'Englisch', 'Französisch', 'Spanisch', 'Italienisch'],
+            searchable: true,
+            placeholder: 'Sprachen suchen und auswählen...'
+          },
+          { 
+            name: 'branche', 
+            label: 'Branche', 
+            type: 'multiselect', 
+            required: false, 
+            options: ['Beauty & Fashion', 'Fitness & Gesundheit', 'Food & Lifestyle', 'Gaming', 'Tech', 'Travel'],
+            searchable: true,
+            placeholder: 'Branchen suchen und auswählen...'
+          },
+          { 
+            name: 'creator_type', 
+            label: 'Creator Typ', 
+            type: 'select', 
+            required: false, 
+            options: ['Influencer', 'Content Creator', 'UGC Creator', 'Micro Influencer', 'Macro Influencer'],
+            searchable: true,
+            placeholder: 'Creator-Typ suchen und auswählen...'
+          },
+          { name: 'telefonnummer', label: 'Telefonnummer', type: 'tel', required: false, validation: { type: 'phone' } },
+          { name: 'mail', label: 'Email', type: 'email', required: false, validation: { type: 'email' } },
+          { name: 'portfolio_link', label: 'Portfolio Link', type: 'url', required: false, validation: { type: 'url' } },
+          { name: 'lieferadresse_strasse', label: 'Straße', type: 'text', required: false },
+          { name: 'lieferadresse_hausnummer', label: 'Hausnummer', type: 'text', required: false },
+          { name: 'lieferadresse_plz', label: 'PLZ', type: 'text', required: false },
+          { name: 'lieferadresse_stadt', label: 'Stadt', type: 'text', required: false },
+          { name: 'lieferadresse_land', label: 'Land', type: 'text', required: false },
+          { name: 'notiz', label: 'Notizen', type: 'textarea', required: false }
+        ]
+      },
+      unternehmen: {
+        title: 'Neues Unternehmen anlegen',
+        fields: [
+          { name: 'firmenname', label: 'Firmenname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
+          { name: 'branche', label: 'Branche', type: 'select', required: false, options: ['Beauty & Fashion', 'Fitness & Gesundheit', 'Food & Lifestyle', 'Gaming', 'Tech', 'Travel', 'Business', 'Education'] },
+          { name: 'rechnungsadresse_strasse', label: 'Rechnungsadresse - Straße', type: 'text', required: false },
+          { name: 'rechnungsadresse_hausnummer', label: 'Rechnungsadresse - Hausnummer', type: 'text', required: false },
+          { name: 'rechnungsadresse_plz', label: 'Rechnungsadresse - PLZ', type: 'text', required: false },
+          { name: 'rechnungsadresse_stadt', label: 'Rechnungsadresse - Stadt', type: 'text', required: false },
+          { name: 'rechnungsadresse_land', label: 'Rechnungsadresse - Land', type: 'text', required: false },
+          { name: 'invoice_email', label: 'Rechnungs-Email', type: 'email', required: false, validation: { type: 'email' } },
+          { name: 'webseite', label: 'Webseite', type: 'url', required: false, validation: { type: 'url' } },
+          { name: 'status', label: 'Status', type: 'select', required: false, options: ['Aktiv', 'Inaktiv', 'Prospekt'] }
+        ]
+      },
+      kampagne: {
+        title: 'Neue Kampagne anlegen',
+        fields: [
+          { 
+            name: 'kampagnenname', 
+            label: 'Kampagnenname', 
+            type: 'text', 
+            required: true, 
+            validation: { type: 'text', minLength: 2 },
+            autoGenerate: true,
+            dependsOn: 'auftrag_id',
+            showWhen: 'any'
+          },
+          { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...' },
+          { name: 'marke_id', label: 'Marke', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Marke suchen und auswählen...' },
+          { name: 'auftrag_id', label: 'Auftrag', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Auftrag suchen und auswählen...' },
+          { 
+            name: 'mitarbeiter_ids', 
+            label: 'Zugehörige Mitarbeiter', 
+            type: 'multiselect', 
+            required: false, 
+            options: [], 
+            dynamic: true, 
+            searchable: true, 
+            tagBased: true, 
+            placeholder: 'Mitarbeiter suchen und auswählen...', 
+            table: 'benutzer', // Direkt aus der Benutzer-Tabelle laden
+            displayField: 'name',
+            valueField: 'id',
+            relationTable: 'kampagne_mitarbeiter', // Nur für das Speichern verwendet
+            relationField: 'mitarbeiter_id',
+            filter: "rolle.eq.Mitarbeiter,rolle.eq.admin", // Filter für Mitarbeiter und Admins
+            directQuery: true
+          },
+          { name: 'ziele', label: 'Ziele', type: 'textarea', required: false },
+          { 
+            name: 'art_der_kampagne', 
+            label: 'Art der Kampagne', 
+            type: 'multiselect', 
+            required: false, 
+            options: ['Influencer Kampagne', 'UGC', 'IGC', 'AI'],
+            searchable: true,
+            tagBased: true,
+            placeholder: 'Kampagnenarten suchen und auswählen...'
+          },
+          { name: 'start', label: 'Startdatum', type: 'date', required: false },
+          { name: 'deadline', label: 'Deadline', type: 'date', required: false },
+          { 
+            name: 'drehort_typ_id', 
+            label: 'Drehort', 
+            type: 'select', 
+            required: false, 
+            options: [], 
+            dynamic: true, 
+            searchable: true, 
+            placeholder: 'Drehort-Typ auswählen...',
+            table: 'drehort_typen',
+            displayField: 'name',
+            valueField: 'id',
+            directQuery: true
+          },
+          { 
+            name: 'drehort_beschreibung', 
+            label: 'Drehort Beschreibung', 
+            type: 'textarea', 
+            required: false,
+            dependsOn: 'drehort_typ_id',
+            showWhen: 'Vor Ort Produktion'
+          },
+          { 
+            name: 'kampagne_adressen', 
+            label: 'Adressen', 
+            type: 'custom', 
+            customType: 'addresses',
+            required: false,
+            dependsOn: 'drehort_typ_id',
+            showWhen: 'Vor Ort Produktion'
+          },
+                         {
+                 name: 'status',
+                 label: 'Status',
+                 type: 'select',
+                 required: false,
+                 options: [],
+                 dynamic: true,
+                 searchable: true,
+                 placeholder: 'Status auswählen...',
+                 table: 'kampagne_status',
+                 displayField: 'name',
+                 valueField: 'id',
+                 directQuery: true
+               },
+               {
+                 name: 'plattform_ids',
+                 label: 'Plattformen',
+                 type: 'multiselect',
+                 required: false,
+                 options: [],
+                 dynamic: true,
+                 searchable: true,
+                 tagBased: true,
+                 placeholder: 'Plattformen suchen und auswählen...',
+                 table: 'plattform_typen',
+                 displayField: 'name',
+                 valueField: 'id',
+                 relationTable: 'kampagne_plattformen',
+                 relationField: 'plattform_id',
+                 directQuery: true
+               },
+               {
+                 name: 'format_ids',
+                 label: 'Formate',
+                 type: 'multiselect',
+                 required: false,
+                 options: [],
+                 dynamic: true,
+                 searchable: true,
+                 tagBased: true,
+                 placeholder: 'Formate suchen und auswählen...',
+                 table: 'format_typen',
+                 displayField: 'name',
+                 valueField: 'id',
+                 relationTable: 'kampagne_formate',
+                 relationField: 'format_id',
+                 directQuery: true
+               },
+          { name: 'creatoranzahl', label: 'Creator Anzahl', type: 'number', required: false, validation: { type: 'number', min: 1 } },
+          { name: 'videoanzahl', label: 'Video Anzahl', type: 'number', required: false, validation: { type: 'number', min: 1 } },
+          { name: 'budget_info', label: 'Budget Info', type: 'textarea', required: false }
+        ]
+      },
+      kooperation: {
+        title: 'Neue Kooperation anlegen',
+        fields: [
+          { name: 'creator_id', label: 'Creator', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Creator suchen und auswählen...' },
+          { name: 'kampagne_id', label: 'Kampagne', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Kampagne suchen und auswählen...' },
+          { name: 'status', label: 'Status', type: 'select', required: false, options: ['Angefragt', 'Bestätigt', 'In Bearbeitung', 'Abgeschlossen', 'Storniert'] },
+          { name: 'budget', label: 'Budget', type: 'number', required: false, validation: { type: 'number', min: 0 } },
+          { name: 'start_datum', label: 'Startdatum', type: 'date', required: false },
+          { name: 'end_datum', label: 'Enddatum', type: 'date', required: false },
+          { name: 'notiz', label: 'Notizen', type: 'textarea', required: false }
+        ]
+      },
+      marke: {
+        title: 'Neue Marke anlegen',
+        fields: [
+          { name: 'markenname', label: 'Markenname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
+          { 
+            name: 'unternehmen_id', 
+            label: 'Unternehmen', 
+            type: 'select', 
+            required: false, 
+            options: [], 
+            dynamic: true,
+            searchable: true,
+            placeholder: 'Unternehmen suchen und auswählen...'
+          },
+          { 
+            name: 'branche', 
+            label: 'Branche', 
+            type: 'select', 
+            required: false, 
+            options: ['Beauty & Fashion', 'Fitness & Gesundheit', 'Food & Lifestyle', 'Gaming', 'Tech', 'Travel'],
+            searchable: true,
+            placeholder: 'Branche auswählen...'
+          },
+          { name: 'webseite', label: 'Webseite', type: 'url', required: false, validation: { type: 'url' } }
+        ]
+      },
+      auftrag: {
+        title: 'Neuen Auftrag anlegen',
+        sections: [
+          {
+            title: 'Grundinformationen',
+            fields: [
+              { name: 'auftragsname', label: 'Auftragsname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
+              { 
+                name: 'unternehmen_id', 
+                label: 'Unternehmen', 
+                type: 'select', 
+                required: true, 
+                options: [], 
+                dynamic: true,
+                searchable: true,
+                placeholder: 'Unternehmen suchen und auswählen...'
+              },
+              { 
+                name: 'marke_id', 
+                label: 'Marke', 
+                type: 'select', 
+                required: false, 
+                options: [], 
+                dynamic: true,
+                searchable: true,
+                placeholder: 'Marke suchen und auswählen...'
+              },
+              { 
+                name: 'status', 
+                label: 'Status', 
+                type: 'select', 
+                required: false, 
+                options: ['Beauftragt', 'In Produktion', 'Abgeschlossen', 'Storniert'],
+                searchable: true,
+                placeholder: 'Status auswählen...'
+              },
+                        { 
+            name: 'auftragtype', 
+            label: 'Auftragstyp', 
+            type: 'select', 
+            required: false, 
+            options: ['Jahreskooperation', 'Test Case', 'Follow-Up', 'Kampagne', 'Eventkampagne', 'Rahmenvertrag', 'Projektbasiert', 'Agenturpartnerschaft'],
+            searchable: true,
+            placeholder: 'Auftragstyp auswählen...'
+          },
+              { 
+                name: 'art_der_kampagne', 
+                label: 'Art der Kampagne', 
+                type: 'multiselect',
+                tagBased: true,
+                required: false, 
+                options: ['Influencer Kampagne', 'UGC Kampagne', 'Paid', 'Organisch'],
+                searchable: true,
+                placeholder: 'Kampagnenart(en) auswählen...'
+              }
+            ]
+          },
+          {
+            title: 'Zeitplan',
+            fields: [
+              { name: 'start', label: 'Startdatum', type: 'date', required: false },
+              { name: 'ende', label: 'Enddatum', type: 'date', required: false }
+            ]
+          },
+          {
+            title: 'Kampagnen & Videos',
+            fields: [
+              { name: 'kampagnenanzahl', label: 'Anzahl Kampagnen', type: 'number', required: false, validation: { type: 'number', min: 1 } },
+              { name: 'gesamtanzahl_videos', label: 'Gesamtanzahl Videos', type: 'number', required: false, validation: { type: 'number', min: 0 } },
+              { name: 'ugc_organic', label: 'UGC Organic', type: 'number', required: false, validation: { type: 'number', min: 0 } },
+              { name: 'ugc_pro_organic', label: 'UGC Pro Organic', type: 'number', required: false, validation: { type: 'number', min: 0 } },
+              { name: 'ugc_paid', label: 'UGC Paid', type: 'number', required: false, validation: { type: 'number', min: 0 } },
+              { name: 'ugc_paid_pro', label: 'UGC Paid Pro', type: 'number', required: false, validation: { type: 'number', min: 0 } },
+              { name: 'influencer', label: 'Influencer', type: 'number', required: false, validation: { type: 'number', min: 0 } },
+              { name: 'vor_ort_produktion', label: 'Vor-Ort-Produktion', type: 'number', required: false, validation: { type: 'number', min: 0 } },
+              { name: 'cut_down', label: 'Cut Down', type: 'number', required: false, validation: { type: 'number', min: 0 } }
+            ]
+          },
+          {
+            title: 'Budget & Rechnung',
+            fields: [
+              { name: 'bruttobetrag', label: 'Bruttobetrag (€)', type: 'number', required: false, validation: { type: 'number', min: 0 }, data: { calculate: 'deckungsbeitrag' } },
+              { name: 'nettobetrag', label: 'Nettobetrag (€)', type: 'number', required: false, validation: { type: 'number', min: 0 } },
+              { name: 'deckungsbeitrag_prozent', label: 'Deckungsbeitrag (%)', type: 'number', required: false, validation: { type: 'number', min: 0, max: 100 }, data: { calculate: 'deckungsbeitrag' } },
+              { name: 'deckungsbeitrag_betrag', label: 'Deckungsbeitrag (€)', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true },
+              { name: 'creator_budget', label: 'Creator Budget (€)', type: 'number', required: false, validation: { type: 'number', min: 0 } },
+              { name: 're_faelligkeit', label: 'RE-Fälligkeit', type: 'date', required: false },
+              { name: 're_nr', label: 'RE. Nr', type: 'text', required: false },
+              { name: 'po', label: 'PO', type: 'text', required: false },
+              { name: 'rechnung_gestellt', label: 'Rechnung gestellt', type: 'toggle', required: false },
+              { name: 'ueberwiesen', label: 'Überwiesen', type: 'toggle', required: false },
+              { name: 'budgetverteilung', label: 'Budgetverteilung', type: 'textarea', required: false }
+            ]
+          },
+          {
+            title: 'Zusätzliche Informationen',
+            fields: [
+              { 
+                name: 'format_anpassung', 
+                label: 'Format-Anpassung', 
+                type: 'multiselect',
+                tagBased: true,
+                required: false,
+                options: ['16:9', '9:16', '1:1', '4:5', '4:3'],
+                searchable: true,
+                placeholder: 'Format(e) auswählen...'
+              }
+            ]
+          }
+        ]
+      }
+    };
+
+    return configs[entity] || null;
+  }
+
+  // Formular rendern
+  renderForm(entity, data = null) {
+    const config = this.getFormConfig(entity);
+    if (!config) {
+      throw new Error(`Keine Formular-Konfiguration für Entity gefunden: ${entity}`);
+    }
+
+    const isEdit = !!data;
+    const title = isEdit ? `${config.title} bearbeiten` : config.title;
+
+    let html = `
+      <div class="form-container">
+        <div class="form-header">
+          <h2>${title}</h2>
+          <button class="btn-close" onclick="formSystem.closeForm()">×</button>
+        </div>
+        
+        <form id="${entity}-form" class="entity-form">
+    `;
+
+    // Prüfe ob Sektionen vorhanden sind
+    if (config.sections) {
+      config.sections.forEach(section => {
+        html += `
+          <div class="form-section">
+            <h3 class="section-title">${section.title}</h3>
+          <div class="form-grid">
+        `;
+        
+        section.fields.forEach(field => {
+          const value = data ? data[field.name] : '';
+          const fieldHtml = this.renderField(field, value);
+          html += fieldHtml;
+        });
+        
+        html += `
+          </div>
+          </div>
+        `;
+      });
+    } else {
+      // Fallback für alte Struktur ohne Sektionen
+      html += `<div class="form-grid">`;
+      config.fields.forEach(field => {
+        const value = data ? data[field.name] : '';
+        const fieldHtml = this.renderField(field, value);
+        html += fieldHtml;
+      });
+      html += `</div>`;
+    }
+
+    html += `
+          <div class="form-actions">
+            <button type="button" class="btn-secondary" onclick="formSystem.closeForm()">Abbrechen</button>
+            <button type="submit" class="btn-primary">${isEdit ? 'Aktualisieren' : 'Erstellen'}</button>
+          </div>
+        </form>
+      </div>
+    `;
+
+    return html;
+  }
+
+  // Formular rendern (ohne Modal)
+  renderFormOnly(entity, data = null) {
+    const config = this.getFormConfig(entity);
+    if (!config) {
+      throw new Error(`Keine Formular-Konfiguration für Entity gefunden: ${entity}`);
+    }
+
+    const isEdit = !!data;
+    const title = isEdit ? `${config.title} bearbeiten` : config.title;
+
+    let html = `
+      <div class="form-container form-page">
+        <form id="${entity}-form" class="entity-form">
+    `;
+
+    // Prüfe ob Sektionen vorhanden sind
+    if (config.sections) {
+      config.sections.forEach(section => {
+        html += `
+          <div class="form-section">
+            <h3 class="section-title">${section.title}</h3>
+            <div class="form-grid">
+        `;
+        
+        section.fields.forEach(field => {
+          const value = data ? data[field.name] : '';
+          const fieldHtml = this.renderField(field, value);
+          html += fieldHtml;
+        });
+        
+        html += `
+            </div>
+          </div>
+        `;
+      });
+    } else {
+      // Fallback für alte Struktur ohne Sektionen
+      html += `<div class="form-grid">`;
+      config.fields.forEach(field => {
+        const value = data ? data[field.name] : '';
+        const fieldHtml = this.renderField(field, value);
+        html += fieldHtml;
+      });
+      html += `</div>`;
+    }
+
+    html += `
+          <div class="form-actions">
+            <button type="button" class="btn-secondary" onclick="window.navigateTo('/${entity}')">Abbrechen</button>
+            <button type="submit" class="btn-primary">${isEdit ? 'Aktualisieren' : 'Erstellen'}</button>
+          </div>
+        </form>
+      </div>
+    `;
+
+    return html;
+  }
+
+  // Einzelnes Feld rendern
+  renderField(field, value = '') {
+    const fieldId = `field-${field.name}`;
+    const required = field.required ? 'required' : '';
+    const requiredMark = field.required ? '<span class="required">*</span>' : '';
+
+    switch (field.type) {
+      case 'text':
+      case 'email':
+      case 'tel':
+      case 'url':
+        const textDependsOn = field.dependsOn ? `data-depends-on="${field.dependsOn}"` : '';
+        const textShowWhen = field.showWhen ? `data-show-when="${field.showWhen}"` : '';
+        const autoGenerateAttr = field.autoGenerate ? `data-auto-generate="true"` : '';
+        const readonlyAttr = field.readonly ? 'readonly' : '';
+        
+        const placeholder = field.placeholder ? `placeholder="${field.placeholder}"` : '';
+        const initialStyle = field.dependsOn ? 'style="display: none;"' : '';
+        return `
+          <div class="form-field" ${textDependsOn} ${textShowWhen} ${initialStyle}>
+            <label for="${fieldId}">${field.label} ${requiredMark}</label>
+            <input type="${field.type}" id="${fieldId}" name="${field.name}" value="${this.validator.sanitizeHtml(value)}" ${required} ${autoGenerateAttr} ${readonlyAttr} ${placeholder}>
+            ${field.autoGenerate ? '<small style="color: #6b7280; font-size: 12px;">Wird automatisch generiert</small>' : ''}
+          </div>
+        `;
+
+      case 'number':
+        const readonly = field.readonly ? 'readonly' : '';
+        return `
+          <div class="form-field">
+            <label for="${fieldId}">${field.label} ${requiredMark}</label>
+            <input type="number" id="${fieldId}" name="${field.name}" value="${value}" ${required} ${readonly}>
+          </div>
+        `;
+
+      case 'date':
+        return `
+          <div class="form-field">
+            <label for="${fieldId}">${field.label} ${requiredMark}</label>
+            <input type="date" id="${fieldId}" name="${field.name}" value="${value}" ${required}>
+          </div>
+        `;
+
+      case 'textarea':
+        const textareaDependsOn = field.dependsOn ? `data-depends-on="${field.dependsOn}"` : '';
+        const textareaShowWhen = field.showWhen ? `data-show-when="${field.showWhen}"` : '';
+        return `
+          <div class="form-field form-field-full" ${textareaDependsOn} ${textareaShowWhen}>
+            <label for="${fieldId}">${field.label} ${requiredMark}</label>
+            <textarea id="${fieldId}" name="${field.name}" rows="4" ${required}>${this.validator.sanitizeHtml(value)}</textarea>
+          </div>
+        `;
+
+      case 'select':
+        const options = field.options.map(option => {
+          const selected = value === option ? 'selected' : '';
+          return `<option value="${option}" ${selected}>${option}</option>`;
+        }).join('');
+        
+        // Prüfe ob searchable aktiviert ist
+        if (field.searchable) {
+          return `
+            <div class="form-field">
+              <label for="${fieldId}">${field.label} ${requiredMark}</label>
+              <select id="${fieldId}" name="${field.name}" ${required} data-searchable="true" data-placeholder="${field.placeholder || 'Bitte wählen...'}">
+                <option value="">${field.placeholder || 'Bitte wählen...'}</option>
+                ${options}
+              </select>
+            </div>
+          `;
+        }
+        
+        return `
+          <div class="form-field">
+            <label for="${fieldId}">${field.label} ${requiredMark}</label>
+            <select id="${fieldId}" name="${field.name}" ${required}>
+              <option value="">Bitte wählen...</option>
+              ${options}
+            </select>
+          </div>
+        `;
+
+      case 'multiselect':
+        const selectedValues = Array.isArray(value) ? value : (value ? value.split(',') : []);
+        
+        // Für dynamische Felder erstmal leere Optionen
+        let multiOptions = '';
+        if (!field.dynamic) {
+          multiOptions = field.options.map(option => {
+            const selected = selectedValues.includes(option) ? 'selected' : '';
+            return `<option value="${option}" ${selected}>${option}</option>`;
+          }).join('');
+        }
+        
+        // Prüfe ob Tag-basiert aktiviert ist
+        if (field.tagBased) {
+          return `
+            <div class="form-field">
+              <label for="${fieldId}">${field.label} ${requiredMark}</label>
+              <select id="${fieldId}" name="${field.name}" multiple ${required} data-searchable="true" data-tag-based="true" data-placeholder="${field.placeholder || 'Bitte wählen...'}">
+                ${multiOptions}
+              </select>
+            </div>
+          `;
+        }
+        
+        // Prüfe ob searchable aktiviert ist
+        if (field.searchable) {
+          return `
+            <div class="form-field">
+              <label for="${fieldId}">${field.label} ${requiredMark}</label>
+              <select id="${fieldId}" name="${field.name}" multiple ${required} data-searchable="true" data-placeholder="${field.placeholder || 'Bitte wählen...'}">
+                ${multiOptions}
+              </select>
+            </div>
+          `;
+        }
+        
+        return `
+          <div class="form-field">
+            <label for="${fieldId}">${field.label} ${requiredMark}</label>
+            <select id="${fieldId}" name="${field.name}" multiple ${required}>
+              ${multiOptions}
+            </select>
+          </div>
+        `;
+
+      case 'custom':
+        if (field.customType === 'addresses') {
+          return this.renderAddressesField(field, value);
+        }
+        return `
+          <div class="form-field">
+            <label for="${fieldId}">${field.label} ${requiredMark}</label>
+            <div class="custom-field">Custom field type "${field.customType}" not implemented</div>
+          </div>
+        `;
+
+      default:
+        return `
+          <div class="form-field">
+            <label for="${fieldId}">${field.label} ${requiredMark}</label>
+            <input type="text" id="${fieldId}" name="${field.name}" value="${this.validator.sanitizeHtml(value)}" ${required}>
+          </div>
+        `;
+
+      case 'toggle':
+        const isChecked = value === 'true' || value === true ? 'checked' : '';
+        return `
+          <div class="form-field">
+            <label class="toggle-label" for="${fieldId}">
+              <span class="toggle-text">${field.label} ${requiredMark}</span>
+              <div class="toggle-switch">
+                <input type="checkbox" id="${fieldId}" name="${field.name}" ${isChecked} ${required}>
+                <span class="toggle-slider"></span>
+              </div>
+            </label>
+          </div>
+        `;
+    }
+  }
+
+  // Adressen-Feld rendern
+  renderAddressesField(field, value = '') {
+    const fieldId = `field-${field.name}`;
+    const required = field.dependsOn ? `data-depends-on="${field.dependsOn}"` : '';
+    const showWhen = field.showWhen ? `data-show-when="${field.showWhen}"` : '';
+    
+    return `
+      <div class="form-field form-field-full" ${required} ${showWhen}>
+        <label for="${fieldId}" style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">${field.label}</label>
+        <div class="addresses-container" id="${fieldId}">
+          <div class="addresses-list" style="margin-bottom: 16px;">
+            <!-- Adressen werden hier dynamisch hinzugefügt -->
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm add-address-btn" style="
+            background: #6b7280;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: background-color 0.2s;
+          " onmouseover="this.style.background='#4b5563'" onmouseout="this.style.background='#6b7280'">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 16px; height: 16px;">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+            Adresse hinzufügen
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  // Formular öffnen
+  async openForm(entity, data = null) {
+    try {
+      const formHtml = this.renderForm(entity, data);
+      
+      // Modal erstellen
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+        <div class="modal-content">
+          ${formHtml}
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+      this.currentForm = { entity, data, modal };
+
+      // Events binden
+      await this.bindFormEvents(entity, data);
+
+      console.log(`✅ Formular geöffnet: ${entity}`);
+    } catch (error) {
+      console.error('❌ Fehler beim Öffnen des Formulars:', error);
+    }
+  }
+
+  // Formular schließen
+  closeForm() {
+    if (this.currentForm && this.currentForm.modal) {
+      document.body.removeChild(this.currentForm.modal);
+      this.currentForm = null;
+      console.log('✅ Formular geschlossen');
+    }
+  }
+
+  // Formular-Events binden
+  async bindFormEvents(entity, data) {
+    const form = document.getElementById(`${entity}-form`);
+    if (!form) return;
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      await this.handleFormSubmit(entity, data);
+    };
+
+    // Close-Button Event
+    const closeBtn = form.querySelector('.btn-close');
+    if (closeBtn) {
+      closeBtn.onclick = () => this.closeForm();
+    }
+
+    // Searchable Select-Felder initialisieren
+    this.initializeSearchableSelects(form);
+
+    // Dynamische Daten für Formular laden
+    await this.loadDynamicFormData(entity, form);
+
+    // Abhängige Felder einrichten (nach dem Laden der dynamischen Daten)
+    this.setupDependentFields(form);
+
+    // Adressen-Felder einrichten
+    this.setupAddressesFields(form);
+
+    // Auto-Generierung für Kampagnenname einrichten
+    this.setupAutoGeneration(form);
+
+    // Deckungsbeitrag-Berechnung für Auftrag-Formulare
+    if (entity === 'auftrag') {
+      const bruttobetragInput = form.querySelector('input[name="bruttobetrag"]');
+      const deckungsbeitragProzentInput = form.querySelector('input[name="deckungsbeitrag_prozent"]');
+      const deckungsbeitragBetragInput = form.querySelector('input[name="deckungsbeitrag_betrag"]');
+
+      if (bruttobetragInput && deckungsbeitragProzentInput && deckungsbeitragBetragInput) {
+        const calculateDeckungsbeitrag = () => {
+          const bruttobetrag = parseFloat(bruttobetragInput.value) || 0;
+          const prozent = parseFloat(deckungsbeitragProzentInput.value) || 0;
+          const deckungsbeitrag = (bruttobetrag * prozent) / 100;
+          deckungsbeitragBetragInput.value = deckungsbeitrag.toFixed(2);
+        };
+
+        bruttobetragInput.addEventListener('input', calculateDeckungsbeitrag);
+        deckungsbeitragProzentInput.addEventListener('input', calculateDeckungsbeitrag);
+      }
+    }
+  }
+
+  // Abhängige Felder verwalten
+  setupDependentFields(form) {
+    const dependentFields = form.querySelectorAll('[data-depends-on]');
+    
+    dependentFields.forEach(field => {
+      const dependsOn = field.dataset.dependsOn;
+      const showWhen = field.dataset.showWhen;
+      const parentField = form.querySelector(`[name="${dependsOn}"]`);
+      
+      if (parentField) {
+        const toggleField = () => {
+          const parentValue = parentField.value;
+          console.log(`🔍 Prüfe abhängiges Feld: ${dependsOn} = "${parentValue}", showWhen = "${showWhen}"`);
+          
+          // Für Select-Felder den angezeigten Text verwenden
+          let shouldShow = false;
+          if (parentField.tagName === 'SELECT') {
+            const selectedOption = parentField.selectedOptions[0];
+            const displayText = selectedOption ? selectedOption.textContent : '';
+            shouldShow = showWhen ? displayText.includes(showWhen) : !!parentValue;
+            console.log(`🔍 Select-Feld: "${displayText}" enthält "${showWhen}" = ${shouldShow}`);
+          } else {
+            shouldShow = showWhen ? 
+              (parentValue === showWhen || parentValue.includes(showWhen)) : 
+              !!parentValue;
+          }
+          
+          const fieldContainer = field.closest('.form-field');
+          if (fieldContainer) {
+            fieldContainer.style.display = shouldShow ? 'block' : 'none';
+            console.log(`🔍 Feld ${field.dataset.dependsOn} ${shouldShow ? 'angezeigt' : 'versteckt'}`);
+            
+            // Auto-Generierung für Kampagnenname
+            if (shouldShow && field.dataset.autoGenerate === 'true') {
+              this.autoGenerateKampagnenname(form, parentValue);
+            }
+          }
+        };
+        
+        parentField.addEventListener('change', toggleField);
+        toggleField(); // Initial state
+      }
+    });
+  }
+
+  // Kampagnenname automatisch generieren
+  async autoGenerateKampagnenname(form, auftragId) {
+    try {
+      if (!auftragId) return;
+
+      console.log(`🔧 Generiere Kampagnenname für Auftrag: ${auftragId}`);
+
+      // 1. Auftrag-Details laden
+      const { data: auftrag, error: auftragError } = await window.supabase
+        .from('auftrag')
+        .select(`
+          *,
+          unternehmen:unternehmen_id(firmenname),
+          marke:marke_id(markenname)
+        `)
+        .eq('id', auftragId)
+        .single();
+
+      if (auftragError || !auftrag) {
+        console.error('❌ Fehler beim Laden des Auftrags:', auftragError);
+        return;
+      }
+
+      // 2. Bestehende Kampagnen für diesen Auftrag zählen
+      const { data: existingKampagnen, error: kampagnenError } = await window.supabase
+        .from('kampagne')
+        .select('id')
+        .eq('auftrag_id', auftragId);
+
+      if (kampagnenError) {
+        console.error('❌ Fehler beim Zählen der Kampagnen:', kampagnenError);
+        return;
+      }
+
+      const kampagnenCount = existingKampagnen.length;
+      const currentKampagneNummer = kampagnenCount + 1;
+      const maxKampagnen = auftrag.kampagnenanzahl || 1;
+
+      // 3. Deadline aus dem Formular holen
+      const deadlineInput = form.querySelector('input[name="deadline"]');
+      const deadline = deadlineInput ? deadlineInput.value : '';
+
+      // 4. Kampagnenname generieren
+      const firmenname = auftrag.unternehmen?.firmenname || 'Unbekannte Firma';
+      
+      let kampagnenname = `${firmenname} - ${currentKampagneNummer}/${maxKampagnen}`;
+      
+      if (deadline) {
+        const deadlineDate = new Date(deadline);
+        const formattedDeadline = deadlineDate.toLocaleDateString('de-DE');
+        kampagnenname += ` - ${formattedDeadline}`;
+      }
+
+      // 5. Kampagnenname-Feld aktualisieren
+      const kampagnennameInput = form.querySelector('input[name="kampagnenname"]');
+      if (kampagnennameInput) {
+        kampagnennameInput.value = kampagnenname;
+        console.log(`✅ Kampagnenname generiert: ${kampagnenname}`);
+      }
+
+    } catch (error) {
+      console.error('❌ Fehler beim Generieren des Kampagnennamens:', error);
+    }
+  }
+
+  // Adressen-Felder einrichten
+  setupAddressesFields(form) {
+    const addressesContainers = form.querySelectorAll('.addresses-container');
+    
+    addressesContainers.forEach(container => {
+      const addBtn = container.querySelector('.add-address-btn');
+      const addressesList = container.querySelector('.addresses-list');
+      
+      if (addBtn && addressesList) {
+        addBtn.addEventListener('click', () => {
+          this.addAddressRow(addressesList);
+        });
+      }
+    });
+  }
+
+  // Neue Adresszeile hinzufügen
+  addAddressRow(addressesList) {
+    const addressId = `address-${Date.now()}`;
+    const addressHtml = `
+      <div class="address-item" data-address-id="${addressId}" style="
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+        background: #f9fafb;
+      ">
+        <div class="address-header" style="
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 16px;
+          padding-bottom: 8px;
+          border-bottom: 1px solid #e5e7eb;
+        ">
+          <h4 style="margin: 0; color: #374151; font-size: 16px; font-weight: 600;">Adresse</h4>
+          <button type="button" class="btn btn-danger btn-sm remove-address-btn" 
+                  onclick="this.closest('.address-item').remove()"
+                  style="
+                    background: #ef4444;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    cursor: pointer;
+                    font-size: 12px;
+                  ">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 14px; height: 14px;">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+            Entfernen
+          </button>
+        </div>
+        <div class="address-fields" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-field" style="grid-column: 1 / -1;">
+            <label style="display: block; margin-bottom: 4px; font-weight: 500; color: #374151;">Adressname</label>
+            <input type="text" name="adressname_${addressId}" placeholder="z.B. Hauptbüro, Filiale München" 
+                   style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;">
+          </div>
+          <div class="form-field">
+            <label style="display: block; margin-bottom: 4px; font-weight: 500; color: #374151;">Straße</label>
+            <input type="text" name="strasse_${addressId}" placeholder="Musterstraße" 
+                   style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;">
+          </div>
+          <div class="form-field">
+            <label style="display: block; margin-bottom: 4px; font-weight: 500; color: #374151;">Hausnummer</label>
+            <input type="text" name="hausnummer_${addressId}" placeholder="123" 
+                   style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;">
+          </div>
+          <div class="form-field">
+            <label style="display: block; margin-bottom: 4px; font-weight: 500; color: #374151;">PLZ</label>
+            <input type="text" name="plz_${addressId}" placeholder="12345" 
+                   style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;">
+          </div>
+          <div class="form-field">
+            <label style="display: block; margin-bottom: 4px; font-weight: 500; color: #374151;">Stadt</label>
+            <input type="text" name="stadt_${addressId}" placeholder="Musterstadt" 
+                   style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;">
+          </div>
+          <div class="form-field">
+            <label style="display: block; margin-bottom: 4px; font-weight: 500; color: #374151;">Land</label>
+            <input type="text" name="land_${addressId}" placeholder="Deutschland" 
+                   style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;">
+          </div>
+          <div class="form-field" style="grid-column: 1 / -1;">
+            <label style="display: block; margin-bottom: 4px; font-weight: 500; color: #374151;">Notiz</label>
+            <textarea name="notiz_${addressId}" rows="2" placeholder="Zusätzliche Informationen" 
+                      style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px; resize: vertical;"></textarea>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    addressesList.insertAdjacentHTML('beforeend', addressHtml);
+  }
+
+  // Auto-Generierung einrichten
+  setupAutoGeneration(form) {
+    // Deadline-Änderung überwachen
+    const deadlineInput = form.querySelector('input[name="deadline"]');
+    if (deadlineInput) {
+      deadlineInput.addEventListener('change', () => {
+        const auftragSelect = form.querySelector('select[name="auftrag_id"]');
+        if (auftragSelect && auftragSelect.value) {
+          this.autoGenerateKampagnenname(form, auftragSelect.value);
+        }
+      });
+    }
+  }
+
+  // Optionen über direkte Supabase-Abfrage laden
+  async loadDirectQueryOptions(field, form) {
+    try {
+      if (!field.table) {
+        console.warn('⚠️ Keine Tabelle für direktes Laden definiert:', field.name);
+        return [];
+      }
+
+      // Daten aus der angegebenen Tabelle laden
+      const query = window.supabase
+        .from(field.table)
+        .select('*');
+
+      // Filter anwenden, wenn vorhanden
+      if (field.filter) {
+        query.or(field.filter);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error(`❌ Fehler beim Laden der Daten aus ${field.table}:`, error);
+        return [];
+      }
+
+      // Optionen aus den geladenen Daten erstellen
+      const options = data.map(item => ({
+        value: item[field.valueField || 'id'],
+        label: item[field.displayField || 'name'] || 'Unbekannt'
+      }));
+
+      // Bestehende Verknüpfungen laden (für Edit-Modus)
+      if (form.dataset.entityId && field.relationTable && field.relationField) {
+        const entityId = form.dataset.entityId;
+        // Korrekte Entity-Feld-Namen für verschiedene Verknüpfungstabellen
+        let entityField;
+        if (field.name === 'mitarbeiter_ids') {
+          entityField = 'kampagne_id';
+        } else if (field.name === 'plattform_ids') {
+          entityField = 'kampagne_id';
+        } else if (field.name === 'format_ids') {
+          entityField = 'kampagne_id';
+        } else {
+          entityField = field.name.replace('_ids', '_id');
+        }
+        
+        const { data: existingLinks, error: existingError } = await window.supabase
+          .from(field.relationTable)
+          .select(field.relationField)
+          .eq(entityField, entityId);
+
+        if (!existingError && existingLinks.length > 0) {
+          const selectedIds = existingLinks.map(link => link[field.relationField]);
+          options.forEach(option => {
+            if (selectedIds.includes(option.value)) {
+              option.selected = true;
+            }
+          });
+        }
+      }
+
+      return options;
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der direkten Optionen:', error);
+      return [];
+    }
+  }
+
+  // Verknüpfungstabellen verarbeiten
+  async handleRelationTables(entity, entityId, submitData, form) {
+    try {
+      const config = this.getFormConfig(entity);
+      if (!config) return;
+
+      // Alle Felder durchgehen
+      let allFields = [];
+      if (config.sections) {
+        config.sections.forEach(section => {
+          allFields = allFields.concat(section.fields);
+        });
+      } else {
+        allFields = config.fields;
+      }
+
+      for (const field of allFields) {
+        if (field.relationTable && field.relationField) {
+          const fieldValue = submitData[field.name];
+          if (fieldValue) {
+            await this.handleRelationTable(entityId, field, fieldValue);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Fehler beim Verarbeiten der Verknüpfungstabellen:', error);
+    }
+  }
+
+  // Einzelne Verknüpfungstabelle verarbeiten
+  async handleRelationTable(entityId, field, fieldValue) {
+    try {
+      const relationTable = field.relationTable;
+      const relationField = field.relationField;
+      // Korrekte Entity-Feld-Namen für verschiedene Verknüpfungstabellen
+      let entityField;
+      if (field.name === 'mitarbeiter_ids') {
+        entityField = 'kampagne_id';
+      } else if (field.name === 'plattform_ids') {
+        entityField = 'kampagne_id';
+      } else if (field.name === 'format_ids') {
+        entityField = 'kampagne_id';
+      } else {
+        entityField = `${field.name.replace('_ids', '_id')}`;
+      }
+      
+      // Bestehende Verknüpfungen löschen
+      const deleteQuery = `DELETE FROM ${relationTable} WHERE ${entityField} = $1`;
+      await window.dataService.executeQuery(deleteQuery, [entityId]);
+      
+      // Neue Verknüpfungen hinzufügen
+      if (Array.isArray(fieldValue)) {
+        for (const value of fieldValue) {
+          const insertQuery = `INSERT INTO ${relationTable} (${entityField}, ${relationField}) VALUES ($1, $2)`;
+          await window.dataService.executeQuery(insertQuery, [entityId, value]);
+        }
+      } else if (typeof fieldValue === 'string' && fieldValue.includes(',')) {
+        // Komma-getrennte Werte
+        const values = fieldValue.split(',').map(v => v.trim());
+        for (const value of values) {
+          const insertQuery = `INSERT INTO ${relationTable} (${entityField}, ${relationField}) VALUES ($1, $2)`;
+          await window.dataService.executeQuery(insertQuery, [entityId, value]);
+        }
+      }
+      
+      console.log(`✅ Verknüpfungstabelle ${relationTable} aktualisiert für ${entityId}`);
+    } catch (error) {
+      console.error(`❌ Fehler beim Verarbeiten der Verknüpfungstabelle ${field.relationTable}:`, error);
+    }
+  }
+
+  // Select-Optionen aktualisieren
+  updateSelectOptions(selectElement, options, field) {
+    console.log('🔧 Update Select-Optionen für:', field.name, 'mit', options.length, 'Optionen');
+    
+    // Prüfe ob es ein searchable Select ist
+    if (selectElement.dataset.searchable === 'true') {
+      console.log('🔧 Reinitialisiere Auto-Suggestion für:', field.name);
+      this.reinitializeSearchableSelect(selectElement, options, field);
+      return;
+    }
+    
+    // Leere das Select
+    selectElement.innerHTML = '';
+    
+    // Füge Standard-Option hinzu
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = field.placeholder || 'Bitte wählen...';
+    selectElement.appendChild(defaultOption);
+    
+    // Füge neue Optionen hinzu
+    options.forEach(option => {
+      const optionElement = document.createElement('option');
+      optionElement.value = option.value;
+      optionElement.textContent = option.label;
+      selectElement.appendChild(optionElement);
+    });
+  }
+
+  // Searchable Select neu initialisieren (für abhängige Dropdowns)
+  reinitializeSearchableSelect(selectElement, options, field) {
+    console.log('🔧 Reinitialize für:', field.name, 'mit', options.length, 'Optionen');
+    
+    // Finde das Formular
+    const form = selectElement.closest('form');
+    if (!form) {
+      console.error('❌ Formular nicht gefunden für', field.name);
+      return;
+    }
+    
+    // Entferne ALLE bestehenden Auto-Suggestion Container für dieses Feld
+    const existingContainers = form.querySelectorAll(`.searchable-select-container select[name="${field.name}"]`);
+    existingContainers.forEach(container => {
+      const parentContainer = container.closest('.searchable-select-container');
+      if (parentContainer) {
+        console.log('🔧 Entferne bestehenden Container für', field.name);
+        parentContainer.remove();
+      }
+    });
+    
+    // Verwende das übergebene selectElement direkt
+    const targetSelect = selectElement;
+    
+    // Leere das Select
+    targetSelect.innerHTML = '';
+    
+    // Füge Standard-Option hinzu
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = field.placeholder || 'Bitte wählen...';
+    targetSelect.appendChild(defaultOption);
+    
+    // Füge neue Optionen hinzu
+    options.forEach(option => {
+      const optionElement = document.createElement('option');
+      optionElement.value = option.value;
+      optionElement.textContent = option.label;
+      targetSelect.appendChild(optionElement);
+    });
+    
+    // Initialisiere Auto-Suggestion neu
+    console.log('🔧 Initialisiere Auto-Suggestion neu für', field.name);
+    this.createSearchableSelect(targetSelect, options, field);
+  }
+
+  // Searchable Select-Felder initialisieren
+  initializeSearchableSelects(form) {
+    const searchableSelects = form.querySelectorAll('select[data-searchable="true"]');
+    
+    // Entferne zuerst alle bestehenden Container
+    const existingContainers = form.querySelectorAll('.searchable-select-container');
+    existingContainers.forEach(container => {
+      container.remove();
+    });
+    
+    searchableSelects.forEach(select => {
+      // Prüfe ob bereits ein Container für dieses Select existiert
+      const existingContainer = form.querySelector(`.searchable-select-container select[name="${select.name}"]`);
+      if (existingContainer) {
+        console.log(`⚠️ Container für ${select.name} existiert bereits, überspringe...`);
+        return;
+      }
+      
+      const options = Array.from(select.options).map(option => ({
+        value: option.value,
+        label: option.textContent
+      })).filter(option => option.value !== ''); // Leere Optionen filtern
+      
+      if (options.length > 0) {
+        this.createSearchableSelect(select, options, {
+          name: select.name,
+          type: select.multiple ? 'multiselect' : 'select',
+          tagBased: select.dataset.tagBased === 'true',
+          placeholder: select.dataset.placeholder || 'Bitte wählen...'
+        });
+      }
+    });
+  }
+
+  // Dynamische Daten für Formular laden
+  async loadDynamicFormData(entity, form) {
+    try {
+      const config = this.getFormConfig(entity);
+      if (!config) return;
+
+      // Dynamische Felder identifizieren (aus Sektionen oder direkten Feldern)
+      let dynamicFields = [];
+      
+      if (config.sections) {
+        // Neue Struktur mit Sektionen
+        config.sections.forEach(section => {
+          const sectionDynamicFields = section.fields.filter(field => field.dynamic);
+          dynamicFields = dynamicFields.concat(sectionDynamicFields);
+        });
+      } else {
+        // Alte Struktur ohne Sektionen
+        dynamicFields = config.fields.filter(field => field.dynamic);
+      }
+      
+      for (const field of dynamicFields) {
+        await this.loadFieldOptions(entity, field, form);
+      }
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der dynamischen Formular-Daten:', error);
+    }
+  }
+
+  // Optionen für ein Feld laden
+  async loadFieldOptions(entity, field, form) {
+    try {
+      let options = [];
+      
+      // Prüfe ob das Feld direkte Supabase-Abfragen verwendet
+      if (field.directQuery) {
+        options = await this.loadDirectQueryOptions(field, form);
+        // Nach dem Laden der Optionen das Select-Element aktualisieren
+        const selectElement = form.querySelector(`select[name="${field.name}"]`);
+        if (selectElement) {
+          this.updateSelectOptions(selectElement, options, field);
+        }
+        return;
+      }
+
+      // Spezielle Behandlung für verschiedene Feld-Typen
+      switch (field.name) {
+        case 'unternehmen_id':
+          // Unternehmen für alle Entitäten laden (Marken, Aufträge, etc.)
+          const unternehmen = await window.dataService.loadEntities('unternehmen');
+          options = unternehmen.map(u => ({
+            value: u.id,
+            label: u.firmenname || 'Unbekanntes Unternehmen'
+          }));
+          break;
+        
+        case 'creator_id':
+          // Creator für Kooperationen laden
+          const creator = await window.dataService.loadEntities('creator');
+          options = creator.map(c => ({
+            value: c.id,
+            label: `${c.vorname} ${c.nachname}` || 'Unbekannter Creator'
+          }));
+          break;
+        
+        case 'kampagne_id':
+          // Kampagnen laden
+          const kampagnen = await window.dataService.loadEntities('kampagne');
+          options = kampagnen.map(k => ({
+            value: k.id,
+            label: k.kampagnenname || 'Unbekannte Kampagne'
+          }));
+          break;
+        
+        case 'marke_id':
+          // Marken laden - alle Marken
+          const marken = await window.dataService.loadEntities('marke');
+          options = marken.map(m => ({
+            value: m.id,
+            label: m.markenname || 'Unbekannte Marke'
+          }));
+          break;
+        
+                case 'auftrag_id':
+          // Aufträge laden - alle Aufträge
+          const auftraege = await window.dataService.loadEntities('auftrag');
+          options = auftraege.map(a => ({
+            value: a.id,
+            label: a.auftragsname || 'Unbekannter Auftrag'
+          }));
+          break;
+        
+        case 'branche':
+          // Branchen aus Supabase laden
+          if (window.dataService) {
+            try {
+              // Lade Branchen über FilterSystem
+              const filterData = await window.dataService.loadFilterData('marke');
+              if (filterData.branche && filterData.branche.length > 0) {
+                options = filterData.branche;
+              } else {
+                // Fallback-Branchen falls keine in der DB vorhanden
+                const fallbackBranchen = [
+                  'Beauty & Fashion',
+                  'Fitness & Gesundheit', 
+                  'Food & Lifestyle',
+                  'Gaming',
+                  'Tech',
+                  'Travel',
+                  'Business',
+                  'Education'
+                ];
+                options = fallbackBranchen.map(branche => ({
+                  value: branche,
+                  label: branche
+                }));
+              }
+            } catch (error) {
+              console.error('❌ Fehler beim Laden der Branchen aus Supabase:', error);
+              // Fallback zu Standard-Branchen
+              const fallbackBranchen = [
+                'Beauty & Fashion',
+                'Fitness & Gesundheit', 
+                'Food & Lifestyle',
+                'Gaming',
+                'Tech',
+                'Travel',
+                'Business',
+                'Education'
+              ];
+              options = fallbackBranchen.map(branche => ({
+                value: branche,
+                label: branche
+              }));
+            }
+          }
+          break;
+        
+        default:
+          // Standard: Versuche Filter-Daten zu laden
+          if (window.dataService) {
+            const filterData = await window.dataService.loadFilterData(entity);
+            if (filterData[field.name]) {
+              options = filterData[field.name].map(option => ({
+                value: option.value || option,
+                label: option.label || option
+              }));
+            }
+          }
+          break;
+      }
+
+      // Nach dem Laden der Optionen das Select-Element aktualisieren
+      const selectElement = form.querySelector(`select[name="${field.name}"]`);
+      if (selectElement) {
+        this.updateSelectOptions(selectElement, options, field);
+      }
+
+    } catch (error) {
+      console.error(`❌ Fehler beim Laden der Optionen für ${field.name}:`, error);
+    }
+  }
+
+  // Auto-Suggestion Select erstellen
+  createSearchableSelect(selectElement, options, field) {
+    // Prüfe ob es ein Tag-basiertes Multiselect sein soll
+    const isTagBased = field.type === 'multiselect' && (field.tagBased || selectElement.dataset.tagBased === 'true');
+    
+    if (isTagBased) {
+      return this.createTagBasedSelect(selectElement, options, field);
+    } else {
+      return this.createSimpleSelect(selectElement, options, field);
+    }
+  }
+
+  // Einfache Auto-Suggestion Select erstellen
+  createSimpleSelect(selectElement, options, field) {
+    // Container für das neue Element
+    const container = document.createElement('div');
+    container.className = 'searchable-select-container';
+    container.style.position = 'relative';
+    
+    // Input-Feld für Suche
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'searchable-select-input';
+    input.placeholder = field.placeholder || 'Suchen und auswählen...';
+    input.style.cssText = `
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      background: white;
+      cursor: pointer;
+    `;
+    
+    // Dropdown-Liste
+    const dropdown = document.createElement('div');
+    dropdown.className = 'searchable-select-dropdown';
+    dropdown.style.cssText = `
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      max-height: 200px;
+      overflow-y: auto;
+      background: white;
+      border: 1px solid #ddd;
+      border-top: none;
+      border-radius: 0 0 4px 4px;
+      z-index: 1000;
+      display: none;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    `;
+    
+    // Verstecktes Select für Form-Submission
+    const hiddenSelect = document.createElement('select');
+    hiddenSelect.name = selectElement.name;
+    hiddenSelect.id = selectElement.id;
+    hiddenSelect.style.display = 'none';
+    
+    // Debug: Log der Select-Erstellung
+    console.log(`🔧 Verstecktes Select erstellt für ${field.name}:`, hiddenSelect.name);
+    
+    // Dropdown-Optionen erstellen
+    const createDropdownItems = (filteredOptions = options) => {
+      dropdown.innerHTML = '';
+      
+      if (filteredOptions.length === 0) {
+        const noResults = document.createElement('div');
+        noResults.textContent = 'Keine Ergebnisse';
+        noResults.style.cssText = `
+          padding: 8px 12px;
+          color: #666;
+          font-style: italic;
+        `;
+        dropdown.appendChild(noResults);
+        return;
+      }
+      
+      filteredOptions.forEach(option => {
+        const item = document.createElement('div');
+        item.className = 'searchable-select-item';
+        item.textContent = option.label;
+        item.dataset.value = option.value;
+        item.style.cssText = `
+          padding: 8px 12px;
+          cursor: pointer;
+          border-bottom: 1px solid #f0f0f0;
+        `;
+        
+        // Hover-Effekt
+        item.addEventListener('mouseenter', () => {
+          item.style.backgroundColor = '#f5f5f5';
+        });
+        
+        item.addEventListener('mouseleave', () => {
+          item.style.backgroundColor = 'white';
+        });
+        
+        // Klick-Handler
+        item.addEventListener('click', () => {
+          input.value = option.label;
+          
+          // Werteübertragung zum versteckten Select
+          hiddenSelect.value = option.value;
+          
+          // Alternative: Option zum Select hinzufügen und auswählen
+          const optionElement = document.createElement('option');
+          optionElement.value = option.value;
+          optionElement.textContent = option.label;
+          optionElement.selected = true;
+          
+          // Bestehende Optionen löschen und neue hinzufügen
+          hiddenSelect.innerHTML = '';
+          hiddenSelect.appendChild(optionElement);
+          
+          dropdown.style.display = 'none';
+          
+          // Debug: Log der Auswahl
+          console.log(`✅ ${field.name} ausgewählt:`, option.value);
+          console.log(`🔧 Verstecktes Select ${field.name} gesetzt auf:`, hiddenSelect.value);
+          console.log(`🔧 Verstecktes Select ${field.name} selected option:`, hiddenSelect.selectedOptions[0]?.value);
+          
+          // Event auslösen
+          const changeEvent = new Event('change', { bubbles: true, cancelable: true });
+          hiddenSelect.dispatchEvent(changeEvent);
+          
+          // Zusätzlich: Input-Event auslösen für bessere Kompatibilität
+          const inputEvent = new Event('input', { bubbles: true });
+          input.dispatchEvent(inputEvent);
+          
+          // Verzögerte Überprüfung
+          setTimeout(() => {
+            console.log(`🔍 Verstecktes Select ${field.name} nach Setzen:`, hiddenSelect.value);
+            console.log(`🔍 Verstecktes Select ${field.name} selected option:`, hiddenSelect.selectedOptions[0]?.value);
+          }, 100);
+        });
+        
+        dropdown.appendChild(item);
+      });
+    };
+    
+    // Input-Events
+    input.addEventListener('focus', () => {
+      dropdown.style.display = 'block';
+      createDropdownItems();
+    });
+    
+    input.addEventListener('input', (e) => {
+      const searchTerm = e.target.value.toLowerCase();
+      const filteredOptions = options.filter(option => 
+        option.label.toLowerCase().includes(searchTerm)
+      );
+      createDropdownItems(filteredOptions);
+    });
+    
+    // Click-Outside Handler
+    document.addEventListener('click', (e) => {
+      if (!container.contains(e.target)) {
+        dropdown.style.display = 'none';
+      }
+    });
+    
+    // Escape-Key Handler
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        dropdown.style.display = 'none';
+      }
+    });
+    
+    // Elemente zusammenbauen
+    container.appendChild(input);
+    container.appendChild(dropdown);
+    container.appendChild(hiddenSelect);
+    
+    // Originales Select ersetzen
+    selectElement.parentNode.replaceChild(container, selectElement);
+    
+    // Verstecktes Select an das Formular binden
+    const form = container.closest('form');
+    if (form) {
+      // Prüfe ob das Select bereits im Formular existiert
+      const existingSelect = form.querySelector(`select[name="${hiddenSelect.name}"]`);
+      if (existingSelect) {
+        // Ersetze das bestehende Select
+        existingSelect.parentNode.replaceChild(hiddenSelect, existingSelect);
+        console.log(`✅ Bestehendes Select ersetzt: ${hiddenSelect.name}`);
+      } else {
+        // Füge das neue Select hinzu
+        form.appendChild(hiddenSelect);
+        console.log(`✅ Neues Select an Formular gebunden: ${hiddenSelect.name}`);
+      }
+      
+      // Debug: Prüfe alle Selects im Formular
+      const allSelects = form.querySelectorAll('select');
+      console.log(`🔍 Alle Selects im Formular nach Bindung:`, allSelects.length);
+      allSelects.forEach(select => {
+        console.log(`  - ${select.name}: ${select.value}`);
+      });
+    } else {
+      console.warn(`⚠️ Formular nicht gefunden für ${field.name}`);
+    }
+    
+    console.log(`✅ Auto-Suggestion Select erstellt für ${field.name}`);
+  }
+
+  // Tag-basierte Auto-Suggestion Select erstellen
+  createTagBasedSelect(selectElement, options, field) {
+    // Container für das neue Element
+    const container = document.createElement('div');
+    container.className = 'searchable-select-container tag-based-select';
+    container.style.position = 'relative';
+    
+    // Input-Feld für Suche
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'searchable-select-input';
+    input.placeholder = field.placeholder || 'Suchen und Tags hinzufügen...';
+    input.style.cssText = `
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      background: white;
+      cursor: pointer;
+    `;
+    
+    // Tags-Container
+    const tagsContainer = document.createElement('div');
+    tagsContainer.className = 'tags-container';
+    tagsContainer.style.cssText = `
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 4px;
+      min-height: 24px;
+    `;
+    
+    // Dropdown-Liste
+    const dropdown = document.createElement('div');
+    dropdown.className = 'searchable-select-dropdown';
+    dropdown.style.cssText = `
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      max-height: 200px;
+      overflow-y: auto;
+      background: white;
+      border: 1px solid #ddd;
+      border-top: none;
+      border-radius: 0 0 4px 4px;
+    `;
+    
+    // Verstecktes Select für Form-Submission
+    const hiddenSelect = document.createElement('select');
+    hiddenSelect.name = selectElement.name;
+    hiddenSelect.id = selectElement.id;
+    hiddenSelect.multiple = true;
+    hiddenSelect.style.display = 'none';
+    
+    // Ausgewählte Werte verwalten
+    const selectedValues = new Set();
+    
+    // Tag erstellen
+    const createTag = (value, label) => {
+      const tag = document.createElement('div');
+      tag.className = 'tag';
+      tag.style.cssText = `
+        background: #e3f2fd;
+        color: #1976d2;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        cursor: default;
+      `;
+      
+      const tagText = document.createElement('span');
+      tagText.textContent = label;
+      
+      const removeBtn = document.createElement('span');
+      removeBtn.textContent = '×';
+      removeBtn.style.cssText = `
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 14px;
+        line-height: 1;
+      `;
+      
+      removeBtn.addEventListener('click', () => {
+        selectedValues.delete(value);
+        tagsContainer.removeChild(tag);
+        updateHiddenSelect();
+      });
+      
+      tag.appendChild(tagText);
+      tag.appendChild(removeBtn);
+      
+      return tag;
+    };
+    
+    // Verstecktes Select aktualisieren
+    const updateHiddenSelect = () => {
+      hiddenSelect.innerHTML = '';
+      selectedValues.forEach(value => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.selected = true;
+        hiddenSelect.appendChild(option);
+      });
+      
+      // Event auslösen
+      const event = new Event('change', { bubbles: true });
+      hiddenSelect.dispatchEvent(event);
+    };
+    
+    // Dropdown-Optionen erstellen
+    const createDropdownItems = (filteredOptions = options) => {
+      dropdown.innerHTML = '';
+      
+      if (filteredOptions.length === 0) {
+        const noResults = document.createElement('div');
+        noResults.textContent = 'Keine Ergebnisse';
+        noResults.style.cssText = `
+          padding: 8px 12px;
+          color: #666;
+          font-style: italic;
+        `;
+        dropdown.appendChild(noResults);
+        return;
+      }
+      
+      filteredOptions.forEach(option => {
+        // Prüfe ob bereits ausgewählt
+        if (selectedValues.has(option.value)) {
+          return;
+        }
+        
+        const item = document.createElement('div');
+        item.className = 'searchable-select-item';
+        item.textContent = option.label;
+        item.dataset.value = option.value;
+        item.style.cssText = `
+          padding: 8px 12px;
+          cursor: pointer;
+          border-bottom: 1px solid #f0f0f0;
+        `;
+        
+        // Hover-Effekt
+        item.addEventListener('mouseenter', () => {
+          item.style.backgroundColor = '#f5f5f5';
+        });
+        
+        item.addEventListener('mouseleave', () => {
+          item.style.backgroundColor = 'white';
+        });
+        
+        // Klick-Handler
+        item.addEventListener('click', () => {
+          selectedValues.add(option.value);
+          
+          // Tag erstellen und hinzufügen
+          const tag = createTag(option.value, option.label);
+          tagsContainer.appendChild(tag);
+          
+          // Input leeren
+          input.value = '';
+          
+          // Dropdown schließen
+          dropdown.style.display = 'none';
+          
+          // Verstecktes Select aktualisieren
+          updateHiddenSelect();
+          
+          console.log(`✅ Tag hinzugefügt: ${option.value}`);
+        });
+        
+        dropdown.appendChild(item);
+      });
+    };
+    
+    // Input-Events
+    input.addEventListener('focus', () => {
+      dropdown.style.display = 'block';
+      createDropdownItems();
+    });
+    
+    input.addEventListener('input', (e) => {
+      const searchTerm = e.target.value.toLowerCase();
+      const filteredOptions = options.filter(option => 
+        option.label.toLowerCase().includes(searchTerm) && !selectedValues.has(option.value)
+      );
+      createDropdownItems(filteredOptions);
+    });
+    
+    // Click-Outside Handler
+    document.addEventListener('click', (e) => {
+      if (!container.contains(e.target)) {
+        dropdown.style.display = 'none';
+      }
+    });
+    
+    // Escape-Key Handler
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        dropdown.style.display = 'none';
+      }
+    });
+    
+    // Elemente zusammenbauen
+    container.appendChild(input);
+    container.appendChild(tagsContainer);
+    container.appendChild(dropdown);
+    container.appendChild(hiddenSelect);
+    
+    // Originales Select ersetzen
+    selectElement.parentNode.replaceChild(container, selectElement);
+    
+    // Verstecktes Select an das Formular binden
+    const form = container.closest('form');
+    if (form) {
+      const existingSelect = form.querySelector(`select[name="${hiddenSelect.name}"]`);
+      if (existingSelect) {
+        existingSelect.parentNode.replaceChild(hiddenSelect, existingSelect);
+      } else {
+        form.appendChild(hiddenSelect);
+      }
+    }
+    
+    console.log(`✅ Tag-basierte Auto-Suggestion Select erstellt für ${field.name}`);
+  }
+
+  // Formular-Submit behandeln
+  async handleFormSubmit(entity, data) {
+    try {
+      const form = document.getElementById(`${entity}-form`);
+      const formData = new FormData(form);
+      const submitData = {};
+
+      // FormData zu Objekt konvertieren
+      for (const [key, value] of formData.entries()) {
+        if (key.includes('[]')) {
+          // Multi-Select behandeln
+          const cleanKey = key.replace('[]', '');
+          if (!submitData[cleanKey]) {
+            submitData[cleanKey] = [];
+          }
+          submitData[cleanKey].push(value);
+        } else {
+          // Leere Werte zu null konvertieren
+          submitData[key] = value === '' ? null : value;
+        }
+      }
+      
+      // Zusätzlich: Versteckte Select-Felder manuell sammeln
+      const hiddenSelects = form.querySelectorAll('select[style*="display: none"]');
+      console.log(`🔍 Gefundene versteckte Selects:`, hiddenSelects.length);
+      
+      hiddenSelects.forEach(select => {
+        console.log(`🔧 Verstecktes Select ${select.name}:`, select.value);
+        if (select.value && select.value !== '') {
+          submitData[select.name] = select.value;
+          console.log(`✅ Verstecktes Select ${select.name} hinzugefügt:`, select.value);
+        } else {
+          console.log(`⚠️ Verstecktes Select ${select.name} hat keinen Wert`);
+        }
+      });
+      
+      // Alternative: Alle Select-Felder im Formular prüfen
+      const allSelects = form.querySelectorAll('select');
+      console.log(`🔍 Alle Select-Felder im Formular:`, allSelects.length);
+      
+      allSelects.forEach(select => {
+        console.log(`  - Select ${select.name}: ${select.value} (display: ${select.style.display})`);
+        if (select.style.display === 'none' || select.style.display === 'none') {
+          console.log(`🔧 Verstecktes Select gefunden: ${select.name} = ${select.value}`);
+          if (select.value && select.value !== '') {
+            submitData[select.name] = select.value;
+            console.log(`✅ Select ${select.name} hinzugefügt:`, select.value);
+          }
+        }
+      });
+      
+      // Zusätzlich: Direkte Suche nach den spezifischen Feldern
+      const unternehmenSelect = form.querySelector('select[name="unternehmen_id"]');
+      const brancheSelect = form.querySelector('select[name="branche"]');
+      
+      if (unternehmenSelect) {
+        const unternehmenValue = unternehmenSelect.value || unternehmenSelect.selectedOptions[0]?.value;
+        if (unternehmenValue) {
+          submitData.unternehmen_id = unternehmenValue;
+          console.log(`✅ Unternehmen direkt hinzugefügt:`, unternehmenValue);
+        } else {
+          console.log(`⚠️ Unternehmen Select hat keinen Wert:`, unternehmenSelect.value, unternehmenSelect.selectedOptions[0]?.value);
+        }
+      }
+      
+      if (brancheSelect) {
+        const brancheValue = brancheSelect.value || brancheSelect.selectedOptions[0]?.value;
+        if (brancheValue) {
+          submitData.branche = brancheValue;
+          console.log(`✅ Branche direkt hinzugefügt:`, brancheValue);
+        } else {
+          console.log(`⚠️ Branche Select hat keinen Wert:`, brancheSelect.value, brancheSelect.selectedOptions[0]?.value);
+        }
+      }
+      
+      // Debug: Log der gesammelten FormData
+      console.log('📝 Gesammelte FormData:', submitData);
+
+      // Validierung
+      const config = this.getFormConfig(entity);
+      const validationRules = {};
+      
+      // Validierungsregeln sammeln (aus Sektionen oder direkten Feldern)
+      let allFields = [];
+      
+      if (config.sections) {
+        // Neue Struktur mit Sektionen
+        config.sections.forEach(section => {
+          allFields = allFields.concat(section.fields);
+        });
+      } else {
+        // Alte Struktur ohne Sektionen
+        allFields = config.fields;
+      }
+      
+      allFields.forEach(field => {
+        if (field.validation) {
+          validationRules[field.name] = field.validation;
+        }
+        if (field.required) {
+          validationRules[field.name] = { ...validationRules[field.name], required: true };
+        }
+      });
+
+      const validation = this.validator.validateForm(submitData, validationRules);
+      
+      if (!validation.isValid) {
+        this.showValidationErrors(validation.errors);
+        return;
+      }
+
+      // Service-Aufruf - Verwende DataService direkt
+      let result;
+      if (data) {
+        // Update
+        result = await window.dataService.updateEntity(entity, data.id, submitData);
+      } else {
+        // Create
+        result = await window.dataService.createEntity(entity, submitData);
+      }
+      
+      // Verknüpfungstabellen verarbeiten
+      if (result.success && result.id) {
+        await this.handleRelationTables(entity, result.id, submitData, form);
+      }
+
+      // Adressen verarbeiten (falls vorhanden)
+      if (entity === 'kampagne' && result.success && result.id) {
+        await this.handleKampagneAddresses(result.id, form);
+      }
+
+      if (result.success) {
+        this.closeForm();
+        this.showSuccessMessage(data ? 'Erfolgreich aktualisiert' : 'Erfolgreich erstellt');
+        
+        // Event auslösen für Listen-Update
+        window.dispatchEvent(new CustomEvent('entityUpdated', {
+          detail: { entity, action: data ? 'updated' : 'created', data: result }
+        }));
+        
+        // Für Seiten-Formulare: Zurück zur Übersicht navigieren
+        if (!this.currentForm || !this.currentForm.modal) {
+          setTimeout(() => {
+            window.navigateTo(`/${entity}`);
+          }, 1500);
+        }
+      } else {
+        throw new Error(result.error || 'Unbekannter Fehler');
+      }
+
+    } catch (error) {
+      console.error('❌ Formular-Submit Fehler:', error);
+      this.showErrorMessage(error.message);
+    }
+  }
+
+  // Kampagne-Adressen verarbeiten
+  async handleKampagneAddresses(kampagneId, form) {
+    try {
+      const addressItems = form.querySelectorAll('.address-item');
+      const addresses = [];
+
+      addressItems.forEach(item => {
+        const addressId = item.dataset.addressId;
+        const address = {
+          kampagne_id: kampagneId,
+          adressname: form.querySelector(`[name="adressname_${addressId}"]`)?.value || '',
+          strasse: form.querySelector(`[name="strasse_${addressId}"]`)?.value || '',
+          hausnummer: form.querySelector(`[name="hausnummer_${addressId}"]`)?.value || '',
+          plz: form.querySelector(`[name="plz_${addressId}"]`)?.value || '',
+          stadt: form.querySelector(`[name="stadt_${addressId}"]`)?.value || '',
+          land: form.querySelector(`[name="land_${addressId}"]`)?.value || '',
+          notiz: form.querySelector(`[name="notiz_${addressId}"]`)?.value || ''
+        };
+
+        // Nur hinzufügen wenn mindestens ein Feld ausgefüllt ist
+        if (address.adressname || address.strasse || address.stadt) {
+          addresses.push(address);
+        }
+      });
+
+      if (addresses.length > 0) {
+        // Bestehende Adressen löschen
+        await window.dataService.executeQuery(
+          'DELETE FROM kampagne_adressen WHERE kampagne_id = $1',
+          [kampagneId]
+        );
+
+        // Neue Adressen einfügen
+        for (const address of addresses) {
+          await window.dataService.executeQuery(
+            `INSERT INTO kampagne_adressen 
+             (kampagne_id, adressname, strasse, hausnummer, plz, stadt, land, notiz) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [address.kampagne_id, address.adressname, address.strasse, address.hausnummer, 
+             address.plz, address.stadt, address.land, address.notiz]
+          );
+        }
+
+        console.log(`✅ ${addresses.length} Adressen für Kampagne ${kampagneId} gespeichert`);
+      }
+    } catch (error) {
+      console.error('❌ Fehler beim Speichern der Adressen:', error);
+    }
+  }
+
+  // Validierungsfehler anzeigen
+  showValidationErrors(errors) {
+    // Alte Fehler entfernen
+    document.querySelectorAll('.field-error').forEach(el => el.remove());
+
+    // Neue Fehler anzeigen
+    Object.entries(errors).forEach(([field, message]) => {
+      const fieldElement = document.querySelector(`[name="${field}"]`);
+      if (fieldElement) {
+        const errorElement = document.createElement('div');
+        errorElement.className = 'field-error';
+        errorElement.textContent = message;
+        fieldElement.parentNode.appendChild(errorElement);
+      }
+    });
+  }
+
+  // Erfolgsmeldung anzeigen
+  showSuccessMessage(message) {
+    // Toast oder Notification implementieren
+    console.log('✅', message);
+  }
+
+  // Fehlermeldung anzeigen
+  showErrorMessage(message) {
+    // Toast oder Notification implementieren
+    console.error('❌', message);
+  }
+}
+
+// Exportiere Instanz
+export const formSystem = new FormSystem();
+
+// Globale Verfügbarkeit für Kompatibilität
+if (typeof window !== 'undefined') {
+  window.formSystem = formSystem;
+}
+

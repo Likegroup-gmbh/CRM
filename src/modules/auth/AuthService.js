@@ -1,0 +1,356 @@
+import { permissionSystem } from '../../core/PermissionSystem.js';
+// AuthService.js (ES6-Modul)
+// Authentifizierung und Benutzer-Management
+
+export class AuthService {
+  constructor() {
+    this._loginAttempts = new Map();
+    this._maxAttempts = 3;
+    this._lockoutTime = 900000; // 15 Minuten
+    this._offlineMode = false;
+  }
+
+  // Auth-Status prüfen
+  async checkAuth() {
+    try {
+      console.log('🔐 Prüfe Authentifizierung...');
+      
+      // Prüfe ob Supabase verfügbar ist
+      if (!window.supabase || !window.supabase.auth) {
+        console.warn('⚠️ Supabase nicht verfügbar - verwende Offline-Modus');
+        this._offlineMode = true;
+        return this.checkOfflineAuth();
+      }
+
+      // Teste Supabase-Verbindung
+      try {
+        const { data: { session }, error } = await window.supabase.auth.getSession();
+        
+        if (error && error.message.includes('Invalid API key')) {
+          console.warn('⚠️ Ungültiger Supabase API Key - schalte auf Offline-Modus um');
+          this._offlineMode = true;
+          return this.checkOfflineAuth();
+        }
+
+        if (session) {
+          console.log('✅ Session gefunden:', session.user.email);
+          await this.loadCurrentUser(session.user.id);
+          return true;
+        } else {
+          console.log('❌ Keine Session gefunden');
+          return false;
+        }
+      } catch (error) {
+        if (error.message && error.message.includes('Invalid API key')) {
+          console.warn('⚠️ Supabase API Key ungültig - Offline-Modus aktiviert');
+          this._offlineMode = true;
+          return this.checkOfflineAuth();
+        }
+        throw error;
+      }
+    } catch (error) {
+      console.error('❌ Auth check failed:', error);
+      this._offlineMode = true;
+      return this.checkOfflineAuth();
+    }
+  }
+
+  // Offline Auth prüfen (nur in Development)
+  checkOfflineAuth() {
+    // Offline-Modus nur in Development erlauben
+    if (!import.meta.env.DEV) {
+      console.log('🔒 Offline-Modus in Production deaktiviert');
+      return false;
+    }
+
+    const offlineUser = localStorage.getItem('offline_user');
+    if (offlineUser) {
+      try {
+        const user = JSON.parse(offlineUser);
+        window.currentUser = user;
+        console.log('✅ Offline-Benutzer gefunden:', user.name);
+        return true;
+      } catch (error) {
+        console.error('❌ Offline-Benutzer ungültig:', error);
+        localStorage.removeItem('offline_user');
+        return false;
+      }
+    }
+    return false;
+  }
+
+  // Aktuellen Benutzer laden
+  async loadCurrentUser(authUserId) {
+    try {
+      // Wenn Offline-Modus aktiv ist, überspringe Supabase
+      if (this._offlineMode) {
+        console.log('⚠️ Offline-Modus - überspringe Benutzer-Load');
+        return;
+      }
+
+      if (!window.supabase) {
+        console.warn('⚠️ Supabase nicht verfügbar - verwende Offline-Modus');
+        this._offlineMode = true;
+        return;
+      }
+
+      const { data, error } = await window.supabase
+        .from('benutzer')
+        .select('id, name, rolle, unterrolle, auth_user_id, zugriffsrechte')
+        .eq('auth_user_id', authUserId)
+        .single();
+
+      if (error) {
+        console.error('Error loading current user:', error);
+        // Fallback zu Offline-Modus
+        this._offlineMode = true;
+        this.setOfflineUser(authUserId);
+        return;
+      }
+
+      if (data) {
+        window.currentUser = data;
+        console.log('✅ Benutzer geladen:', data.name);
+        // 1) Rollen-/Entity-Rechte (inkl. JSON-Overrides)
+        permissionSystem.setUserPermissions(data);
+        // 2) Page-/Table-Scoped-Overrides laden
+        try {
+          const { data: scoped } = await window.supabase
+            .from('user_permissions')
+            .select('page_id, table_id, can_view, can_edit, can_delete, data_filters')
+            .eq('user_id', authUserId);
+          permissionSystem.setScopedPermissions(scoped || []);
+        } catch (e) {
+          console.warn('⚠️ Scoped Permissions konnten nicht geladen werden', e);
+          permissionSystem.setScopedPermissions([]);
+        }
+        // 3) UI/Navigation/Dropdowns nach Rollenwechsel re-initialisieren
+        try {
+          window.setupHeaderUI?.();
+          window.navigationSystem?.init?.();
+          window.actionsDropdown?.init?.();
+          window.bulkActionSystem?.init?.();
+          window.notificationSystem?.init?.();
+          // Aktuelle Route neu navigieren, damit Berechtigungen greifen
+          const currentRoute = location.pathname;
+          if (currentRoute) {
+            window.moduleRegistry?.navigateTo?.(currentRoute);
+          }
+        } catch (uiErr) {
+          console.warn('⚠️ UI-Refresh nach loadCurrentUser fehlgeschlagen', uiErr);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading current user:', error);
+      this._offlineMode = true;
+      this.setOfflineUser(authUserId);
+    }
+  }
+
+  // Offline-Benutzer setzen
+  setOfflineUser(authUserId) {
+    const offlineUser = {
+      id: 'offline-user',
+      name: 'Offline Benutzer',
+      rolle: 'admin',
+      unterrolle: 'admin',
+      auth_user_id: authUserId
+    };
+    window.currentUser = offlineUser;
+    localStorage.setItem('offline_user', JSON.stringify(offlineUser));
+    console.log('✅ Offline-Benutzer gesetzt:', offlineUser.name);
+    permissionSystem.setUserPermissions(offlineUser);
+  }
+
+  // Passwort-basierte Anmeldung
+  async signInWithPassword(email, password) {
+    try {
+      // Dev-Login nur in Development
+      if (import.meta.env.DEV && email === 'test@example.com' && password === 'test123') {
+        console.log('✅ Dev-Login erfolgreich (Development only)');
+        const offlineUser = {
+          id: 'offline-user',
+          name: 'Test Benutzer',
+          rolle: 'admin',
+          unterrolle: 'admin',
+          auth_user_id: 'offline-auth-id'
+        };
+        window.currentUser = offlineUser;
+        localStorage.setItem('offline_user', JSON.stringify(offlineUser));
+        this._offlineMode = true;
+        return { user: offlineUser, error: null };
+      }
+
+      // Rate Limiting prüfen
+      if (this.checkRateLimit(email)) {
+        throw new Error('Zu viele Anmeldeversuche. Bitte warten Sie 15 Minuten.');
+      }
+
+      // Passwort-Stärke validieren
+      if (!this.validatePasswordStrength(password)) {
+        throw new Error('Passwort muss mindestens 4 Zeichen haben.');
+      }
+
+      // Wenn Offline-Modus aktiv ist, verwende nur Offline-Login
+      if (this._offlineMode) {
+        throw new Error('Offline-Modus aktiv. Verwenden Sie test@example.com / test123');
+      }
+
+      if (!window.supabase) {
+        throw new Error('Supabase nicht verfügbar');
+      }
+
+      const { data, error } = await window.supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) {
+        this.recordFailedAttempt(email);
+        throw error;
+      }
+
+      this.clearAttempts(email);
+      await this.loadCurrentUser(data.user.id);
+      
+      return { user: data.user, error: null };
+    } catch (error) {
+      console.error('SignIn Error:', error);
+      return { user: null, error };
+    }
+  }
+
+  // Registrierung
+  async signUp(email, name, password, klasseId = null) {
+    try {
+      // Rate Limiting prüfen
+      if (this.checkRateLimit(email)) {
+        throw new Error('Zu viele Registrierungsversuche. Bitte warten Sie 15 Minuten.');
+      }
+
+      // Passwort-Stärke validieren
+      if (!this.validatePasswordStrength(password)) {
+        throw new Error('Passwort muss mindestens 4 Zeichen haben.');
+      }
+
+      // Wenn Offline-Modus aktiv ist, verwende nur Offline-Registrierung
+      if (this._offlineMode) {
+        throw new Error('Offline-Modus aktiv. Registrierung nicht verfügbar.');
+      }
+
+      if (!window.supabase) {
+        throw new Error('Supabase nicht verfügbar');
+      }
+
+      const { data, error } = await window.supabase.auth.signUp({
+        email,
+        password
+      });
+
+      if (error) {
+        this.recordFailedAttempt(email);
+        throw error;
+      }
+
+      if (data.user) {
+        await this.createBenutzerRecord(data.user.id, name, klasseId);
+      }
+
+      this.clearAttempts(email);
+      // Direkt aktuellen Benutzer laden, damit Berechtigungen/Navigation stehen
+      await this.loadCurrentUser(data.user.id);
+      return { user: data.user, error: null };
+    } catch (error) {
+      console.error('SignUp Error:', error);
+      return { user: null, error };
+    }
+  }
+
+  // Benutzer-Record erstellen
+  async createBenutzerRecord(authUserId, name, klasseId = null) {
+    try {
+      if (this._offlineMode) {
+        console.warn('⚠️ Offline-Modus - überspringe Benutzer-Erstellung');
+        return;
+      }
+
+      if (!window.supabase) {
+        console.warn('⚠️ Supabase nicht verfügbar - überspringe Benutzer-Erstellung');
+        return;
+      }
+
+      const { error } = await window.supabase
+        .from('benutzer')
+        .insert({
+          auth_user_id: authUserId,
+          name: name,
+          rolle: 'mitarbeiter',
+          unterrolle: 'user',
+          mitarbeiter_klasse_id: klasseId
+        });
+
+      if (error) {
+        console.error('Error creating user record:', error);
+      } else {
+        console.log('✅ Benutzer-Record erstellt');
+      }
+    } catch (error) {
+      console.error('Error creating user record:', error);
+    }
+  }
+
+  // Abmeldung
+  async signOut() {
+    try {
+      if (window.supabase && !this._offlineMode) {
+        await window.supabase.auth.signOut();
+      }
+      
+      // Offline-Daten löschen
+      localStorage.removeItem('offline_user');
+      window.currentUser = null;
+      this._offlineMode = false;
+      
+      console.log('✅ Abmeldung erfolgreich');
+      return { error: null };
+    } catch (error) {
+      console.error('SignOut Error:', error);
+      return { error };
+    }
+  }
+
+  // Passwort-Stärke validieren (Entwicklung: nur 4 Zeichen)
+  validatePasswordStrength(password) {
+    return password.length >= 4;
+  }
+
+  // Rate Limiting prüfen
+  checkRateLimit(email) {
+    const attempts = this._loginAttempts.get(email);
+    if (!attempts) return false;
+
+    const now = Date.now();
+    const recentAttempts = attempts.filter(timestamp => now - timestamp < this._lockoutTime);
+    
+    if (recentAttempts.length >= this._maxAttempts) {
+      return true;
+    }
+
+    return false;
+  }
+
+  // Fehlgeschlagene Versuche aufzeichnen
+  recordFailedAttempt(email) {
+    const attempts = this._loginAttempts.get(email) || [];
+    attempts.push(Date.now());
+    this._loginAttempts.set(email, attempts);
+  }
+
+  // Versuche löschen
+  clearAttempts(email) {
+    this._loginAttempts.delete(email);
+  }
+}
+
+// Exportiere Instanz
+export const authService = new AuthService();
