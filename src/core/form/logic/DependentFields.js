@@ -79,11 +79,11 @@ export class DependentFields {
               
               // Wenn Unternehmen geändert wurde, auch nachfolgende Felder zurücksetzen
               if (field.dependsOn === 'unternehmen_id') {
-                this.resetCascadeFields(form, ['kampagne_id', 'creator_id', 'marke_id', 'auftrag_id']);
+                this.resetCascadeFields(form, ['marke_id', 'kampagne_id', 'creator_id', 'auftrag_id']);
               }
               // Wenn Marke geändert wurde, auch nachfolgende Felder zurücksetzen
               else if (field.dependsOn === 'marke_id') {
-                this.resetCascadeFields(form, ['auftrag_id']);
+                this.resetCascadeFields(form, ['kampagne_id', 'creator_id', 'auftrag_id']);
               }
               
               return;
@@ -265,8 +265,62 @@ export class DependentFields {
         this.updateDependentFieldOptions(field, fieldConfig, options);
       }
 
+      // Spezielle Logik für Kampagnen basierend auf Marke
+      if (fieldConfig.name === 'kampagne_id' && fieldConfig.dependsOn === 'marke_id') {
+        const { data: kampagnen, error } = await window.supabase
+          .from('kampagne')
+          .select('id, kampagnenname, marke_id, videoanzahl')
+          .eq('marke_id', parentValue)
+          .order('kampagnenname');
+
+        if (error) {
+          console.error('❌ Fehler beim Laden der Kampagnen für Marke:', error);
+          return;
+        }
+
+        let filtered = kampagnen || [];
+        try {
+          const kampagneIds = filtered.map(k => k.id);
+          if (kampagneIds.length > 0) {
+            const { data: koops, error: koopErr } = await window.supabase
+              .from('kooperationen')
+              .select('kampagne_id, videoanzahl')
+              .in('kampagne_id', kampagneIds);
+            if (!koopErr && koops) {
+              const usedMap = {};
+              koops.forEach(row => {
+                const key = row.kampagne_id;
+                const val = parseInt(row.videoanzahl, 10) || 0;
+                usedMap[key] = (usedMap[key] || 0) + val;
+              });
+              filtered = filtered.filter(k => {
+                const total = parseInt(k.videoanzahl, 10) || 0;
+                const used = usedMap[k.id] || 0;
+                const remaining = Math.max(0, total - used);
+                return remaining > 0; // nur Kampagnen mit freien Videos
+              });
+            }
+          }
+        } catch (e) {
+          console.warn('⚠️ Fehler beim Filtern der Kampagnen:', e);
+        }
+
+        const options = filtered.map(kampagne => ({
+          value: kampagne.id,
+          label: kampagne.kampagnenname
+        }));
+        
+        console.log(`✅ ${options.length} Kampagnen geladen für Marke ${parentValue}`);
+        
+        // Feld wieder aktivieren
+        field.disabled = false;
+        
+        // Optionen aktualisieren
+        this.updateDependentFieldOptions(field, fieldConfig, options);
+      }
+      
       // Neue Logik: Kampagnen direkt basierend auf Unternehmen filtern (für Kooperation)
-      if (fieldConfig.name === 'kampagne_id' && fieldConfig.dependsOn === 'unternehmen_id') {
+      else if (fieldConfig.name === 'kampagne_id' && fieldConfig.dependsOn === 'unternehmen_id') {
         const { data: kampagnen, error } = await window.supabase
           .from('kampagne')
           .select('id, kampagnenname, unternehmen_id, videoanzahl')

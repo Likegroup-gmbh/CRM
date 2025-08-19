@@ -333,7 +333,8 @@ export class FormConfig {
         title: 'Neue Kooperation anlegen',
         fields: [
           { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...' },
-          { name: 'kampagne_id', label: 'Kampagne', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Kampagne suchen und auswählen...', dependsOn: 'unternehmen_id' },
+          { name: 'marke_id', label: 'Marke', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Marke auswählen...', dependsOn: 'unternehmen_id' },
+          { name: 'kampagne_id', label: 'Kampagne', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Kampagne suchen und auswählen...', dependsOn: 'marke_id' },
           { name: 'creator_id', label: 'Creator', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Creator suchen und auswählen...', dependsOn: 'kampagne_id' },
           { 
             name: 'name', 
