@@ -39,8 +39,11 @@ export class ProfileDetail {
   }
 
   async render() {
-    const container = document.getElementById('main-content');
-    if (!container) return;
+    const container = document.getElementById('dashboard-content');
+    if (!container) {
+      console.error('❌ dashboard-content Container nicht gefunden');
+      return;
+    }
 
     container.innerHTML = `
       <div class="page-header">
