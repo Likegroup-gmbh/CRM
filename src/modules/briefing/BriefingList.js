@@ -375,6 +375,7 @@ export class BriefingList {
     
     let successCount = 0;
     let errorCount = 0;
+    const successfullyDeletedIds = [];
     
     // Lösche alle ausgewählten Briefings
     for (const briefingId of selectedIds) {
@@ -382,6 +383,7 @@ export class BriefingList {
         const result = await window.dataService.deleteEntity('briefing', briefingId);
         if (result.success) {
           successCount++;
+          successfullyDeletedIds.push(briefingId);
           this.selectedBriefings.delete(briefingId);
         } else {
           errorCount++;
@@ -405,8 +407,25 @@ export class BriefingList {
         alert(message);
       }
       
-      // Liste neu laden
-      this.loadAndRender();
+      // Nur erfolgreich gelöschte Zeilen aus der Tabelle entfernen
+      successfullyDeletedIds.forEach(briefingId => {
+        const row = document.querySelector(`tr[data-id="${briefingId}"]`);
+        if (row) {
+          row.remove();
+        }
+      });
+      
+      // Auswahl zurücksetzen
+      this.selectedBriefings.clear();
+      this.updateSelection();
+      this.updateSelectAllCheckbox();
+      
+      // Prüfe ob Tabelle leer ist
+      const tbody = document.getElementById('briefings-table-body');
+      if (tbody && tbody.children.length === 0) {
+        // Lade komplett neu wenn keine Einträge mehr da sind
+        await this.loadAndRender();
+      }
       
       // Event für andere Komponenten
       window.dispatchEvent(new CustomEvent('entityUpdated', {
@@ -415,10 +434,6 @@ export class BriefingList {
     } else {
       alert('Keine Briefings konnten gelöscht werden.');
     }
-    
-    // Auswahl zurücksetzen
-    this.updateSelection();
-    this.updateSelectAllCheckbox();
   }
 
   updateSelection() {
