@@ -243,6 +243,10 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('rechnung-detail', rechnungDetail);
   moduleRegistry.register('mitarbeiter', mitarbeiterList);
   moduleRegistry.register('mitarbeiter-detail', mitarbeiterDetail);
+  
+  // Profile-Modul initialisieren und registrieren
+  const profileDetail = new ProfileDetail();
+  window.profileDetail = profileDetail;
   moduleRegistry.register('profile', profileDetail);
 // Weitere Module folgen...
 
@@ -294,10 +298,6 @@ window.ansprechpartnerCreate = ansprechpartnerCreate;
 
 // Profile-System importieren
 import { ProfileDetail } from './modules/admin/ProfileDetail.js';
-const profileDetail = new ProfileDetail();
-
-// Profile global verfügbar machen
-window.profileDetail = profileDetail;
 
 // Initialisiere das System
 if (import.meta.env.DEV) {
