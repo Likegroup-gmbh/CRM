@@ -29,6 +29,9 @@ export class BriefingList {
       return;
     }
 
+    // BulkActionSystem für Briefing registrieren
+    window.bulkActionSystem?.registerList('briefing', this);
+    
     this.bindEvents();
     await this.loadAndRender();
   }
@@ -344,6 +347,80 @@ export class BriefingList {
     return Object.keys(filters).length > 0;
   }
 
+  // Bestätigungsdialog für Bulk-Delete
+  showDeleteSelectedConfirmation() {
+    const selectedCount = this.selectedBriefings.size;
+    if (selectedCount === 0) {
+      alert('Keine Briefings ausgewählt.');
+      return;
+    }
+
+    const message = selectedCount === 1 
+      ? 'Möchten Sie das ausgewählte Briefing wirklich löschen?' 
+      : `Möchten Sie die ${selectedCount} ausgewählten Briefings wirklich löschen?`;
+    
+    const confirmed = confirm(`${message}\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`);
+    
+    if (confirmed) {
+      this.deleteSelectedBriefings();
+    }
+  }
+
+  // Ausgewählte Briefings löschen
+  async deleteSelectedBriefings() {
+    const selectedIds = Array.from(this.selectedBriefings);
+    const totalCount = selectedIds.length;
+    
+    console.log(`🗑️ Lösche ${totalCount} Briefings...`);
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    // Lösche alle ausgewählten Briefings
+    for (const briefingId of selectedIds) {
+      try {
+        const result = await window.dataService.deleteEntity('briefing', briefingId);
+        if (result.success) {
+          successCount++;
+          this.selectedBriefings.delete(briefingId);
+        } else {
+          errorCount++;
+          console.error(`❌ Fehler beim Löschen von Briefing ${briefingId}:`, result.error);
+        }
+      } catch (error) {
+        errorCount++;
+        console.error(`❌ Fehler beim Löschen von Briefing ${briefingId}:`, error);
+      }
+    }
+    
+    // Ergebnis anzeigen
+    if (successCount > 0) {
+      const message = successCount === 1 
+        ? 'Briefing erfolgreich gelöscht.' 
+        : `${successCount} Briefings erfolgreich gelöscht.`;
+      
+      if (errorCount > 0) {
+        alert(`${message}\n${errorCount} Briefings konnten nicht gelöscht werden.`);
+      } else {
+        alert(message);
+      }
+      
+      // Liste neu laden
+      this.loadAndRender();
+      
+      // Event für andere Komponenten
+      window.dispatchEvent(new CustomEvent('entityUpdated', {
+        detail: { entity: 'briefing', action: 'bulk-deleted', count: successCount }
+      }));
+    } else {
+      alert('Keine Briefings konnten gelöscht werden.');
+    }
+    
+    // Auswahl zurücksetzen
+    this.updateSelection();
+    this.updateSelectAllCheckbox();
+  }
+
   updateSelection() {
     const selectedCount = this.selectedBriefings.size;
     const deselectBtn = document.getElementById('btn-deselect-all');
@@ -354,14 +431,18 @@ export class BriefingList {
 
   updateSelectAllCheckbox() {
     const selectAllCheckbox = document.getElementById('select-all-briefings');
-    const individualCheckboxes = document.querySelectorAll('.briefing-check');
-    if (!selectAllCheckbox || individualCheckboxes.length === 0) return;
-    const checkedBoxes = document.querySelectorAll('.briefing-check:checked');
-    const allChecked = checkedBoxes.length === individualCheckboxes.length;
-    const someChecked = checkedBoxes.length > 0;
-    selectAllCheckbox.checked = allChecked;
-    selectAllCheckbox.indeterminate = someChecked && !allChecked;
+    const checkboxes = document.querySelectorAll('.briefing-check');
+    
+    if (!selectAllCheckbox || checkboxes.length === 0) return;
+    
+    const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+    const totalCount = checkboxes.length;
+    
+    selectAllCheckbox.checked = checkedCount === totalCount;
+    selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < totalCount;
   }
+
+
 
   async updateTable(items) {
     const tbody = document.getElementById('briefings-table-body');
