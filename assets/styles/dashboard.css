@@ -442,7 +442,13 @@ body {
   z-index: 1000;
   overflow: hidden;
 }
-.profile-dropdown[aria-hidden="false"] { display: block; }
+.profile-dropdown[aria-hidden="false"] { 
+  display: block; 
+}
+.profile-dropdown[aria-hidden="true"] { 
+  display: none; 
+  pointer-events: none; 
+}
 
 .profile-menu-item {
   display: flex;

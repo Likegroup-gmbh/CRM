@@ -293,7 +293,11 @@ window.ansprechpartnerDetail = ansprechpartnerDetail;
 window.ansprechpartnerCreate = ansprechpartnerCreate;
 
 // Profile-System importieren
-import { profileDetail } from './modules/admin/ProfileDetail.js';
+import { ProfileDetail } from './modules/admin/ProfileDetail.js';
+const profileDetail = new ProfileDetail();
+
+// Profile global verfügbar machen
+window.profileDetail = profileDetail;
 
 // Initialisiere das System
 if (import.meta.env.DEV) {
@@ -442,7 +446,7 @@ window.setupHeaderUI = () => {
         profileBtn.setAttribute('aria-expanded', 'false');
         
         if (action === 'view-profile') {
-          window.navigateTo('/profile');
+          moduleRegistry.navigateTo('/profile');
         } else if (action === 'logout') {
           window.authService?.logout();
         }
