@@ -18,13 +18,14 @@ export class BulkActionSystem {
   registerList(entityType, listInstance) {
     console.log(`🔧 BulkActionSystem: Registriere ${entityType} Liste`);
     
-    // Setze aktuelle Liste wenn sie die aktive ist
-    const currentPath = window.location.pathname;
-    if (currentPath.includes(`/${entityType}`) || currentPath === `/${entityType}`) {
-      this.currentEntityType = entityType;
-      this.currentListInstance = listInstance;
-      console.log(`✅ BulkActionSystem: ${entityType} als aktive Liste gesetzt`);
-    }
+    // Setze immer als aktuelle Liste (das aktuell geladene Modul ist das aktive)
+    this.currentEntityType = entityType;
+    this.currentListInstance = listInstance;
+    
+    console.log(`✅ BulkActionSystem: ${entityType} als aktive Liste gesetzt`, {
+      hasDeleteMethod: typeof listInstance.showDeleteSelectedConfirmation === 'function',
+      currentPath: window.location.pathname
+    });
   }
 
   // Aktualisiere die aktive Liste basierend auf der aktuellen Route
@@ -99,19 +100,26 @@ export class BulkActionSystem {
   handleDeleteSelected() {
     console.log('🔧 BulkActionSystem: Handle Delete Selected');
     
-    // Versuche aktuelle Liste zu finden falls nicht gesetzt
-    if (!this.currentListInstance) {
-      this.updateActiveList();
-    }
-    
+    // Prüfe zuerst die registrierten Listen
     if (this.currentListInstance && typeof this.currentListInstance.showDeleteSelectedConfirmation === 'function') {
       console.log(`✅ BulkActionSystem: Rufe showDeleteSelectedConfirmation() für ${this.currentEntityType} auf`);
       this.currentListInstance.showDeleteSelectedConfirmation();
-    } else {
-      // Fallback: Versuche generisch zu löschen
-      console.log('⚠️ BulkActionSystem: Fallback - Generische Deletion');
-      this.genericDeleteSelected();
+      return;
     }
+    
+    // Versuche aktuelle Liste zu finden falls nicht gesetzt
+    if (!this.currentListInstance) {
+      const found = this.updateActiveList();
+      if (found && this.currentListInstance && typeof this.currentListInstance.showDeleteSelectedConfirmation === 'function') {
+        console.log(`✅ BulkActionSystem: Nach Update gefunden - rufe showDeleteSelectedConfirmation() für ${this.currentEntityType} auf`);
+        this.currentListInstance.showDeleteSelectedConfirmation();
+        return;
+      }
+    }
+    
+    // Fallback: Versuche generisch zu löschen
+    console.log('⚠️ BulkActionSystem: Fallback - Generische Deletion');
+    this.genericDeleteSelected();
   }
 
   // Generische Deselect-All Funktion
