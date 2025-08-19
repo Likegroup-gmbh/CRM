@@ -166,11 +166,16 @@ export class AnsprechpartnerList {
     // Ansprechpartner Checkboxes
     document.addEventListener('change', (e) => {
       if (e.target.classList.contains('ansprechpartner-check')) {
+        const id = e.target.dataset.id;
+        console.log(`🔧 AnsprechpartnerList: Checkbox ${id} ${e.target.checked ? 'ausgewählt' : 'abgewählt'}`);
+        
         if (e.target.checked) {
-          this.selectedAnsprechpartner.add(e.target.dataset.id);
+          this.selectedAnsprechpartner.add(id);
         } else {
-          this.selectedAnsprechpartner.delete(e.target.dataset.id);
+          this.selectedAnsprechpartner.delete(id);
         }
+        
+        console.log(`🔧 AnsprechpartnerList: Aktuelle Auswahl:`, Array.from(this.selectedAnsprechpartner));
         this.updateSelection();
         this.updateSelectAllCheckbox();
       }
@@ -355,6 +360,8 @@ export class AnsprechpartnerList {
   // Bestätigungsdialog für Bulk-Delete
   showDeleteSelectedConfirmation() {
     const selectedCount = this.selectedAnsprechpartner.size;
+    console.log(`🔧 AnsprechpartnerList: showDeleteSelectedConfirmation aufgerufen, selectedCount: ${selectedCount}`, Array.from(this.selectedAnsprechpartner));
+    
     if (selectedCount === 0) {
       alert('Keine Ansprechpartner ausgewählt.');
       return;

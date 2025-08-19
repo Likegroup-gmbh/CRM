@@ -22,6 +22,9 @@ export class MarkeList {
     
     window.setHeadline('Marken Übersicht');
     
+    // BulkActionSystem für Marke registrieren
+    window.bulkActionSystem?.registerList('marke', this);
+    
     const canView = (window.canViewPage && window.canViewPage('marke')) || await window.checkUserPermission('marke', 'can_view');
     console.log('🔐 MARKELLIST: Berechtigung für marke.can_view:', canView);
     
@@ -425,6 +428,97 @@ export class MarkeList {
     // Content zurücksetzen
     window.setContentSafely('');
     console.log('✅ MARKELLIST: Destroy abgeschlossen');
+  }
+
+  // Bestätigungsdialog für Bulk-Delete
+  showDeleteSelectedConfirmation() {
+    const selectedCount = this.selectedMarken.size;
+    console.log(`🔧 MarkeList: showDeleteSelectedConfirmation aufgerufen, selectedCount: ${selectedCount}`, Array.from(this.selectedMarken));
+    
+    if (selectedCount === 0) {
+      alert('Keine Marken ausgewählt.');
+      return;
+    }
+
+    const message = selectedCount === 1 
+      ? 'Möchten Sie die ausgewählte Marke wirklich löschen?' 
+      : `Möchten Sie die ${selectedCount} ausgewählten Marken wirklich löschen?`;
+    
+    const confirmed = confirm(`${message}\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`);
+    
+    if (confirmed) {
+      this.deleteSelectedMarken();
+    }
+  }
+
+  // Ausgewählte Marken löschen
+  async deleteSelectedMarken() {
+    const selectedIds = Array.from(this.selectedMarken);
+    const totalCount = selectedIds.length;
+    
+    console.log(`🗑️ Lösche ${totalCount} Marken...`);
+    
+    let successCount = 0;
+    let errorCount = 0;
+    const successfullyDeletedIds = [];
+    
+    // Lösche alle ausgewählten Marken
+    for (const markeId of selectedIds) {
+      try {
+        const result = await window.dataService.deleteEntity('marke', markeId);
+        if (result.success) {
+          successCount++;
+          successfullyDeletedIds.push(markeId);
+          this.selectedMarken.delete(markeId);
+        } else {
+          errorCount++;
+          console.error(`❌ Fehler beim Löschen von Marke ${markeId}:`, result.error);
+        }
+      } catch (error) {
+        errorCount++;
+        console.error(`❌ Fehler beim Löschen von Marke ${markeId}:`, error);
+      }
+    }
+    
+    // Ergebnis anzeigen
+    if (successCount > 0) {
+      const message = successCount === 1 
+        ? 'Marke erfolgreich gelöscht.' 
+        : `${successCount} Marken erfolgreich gelöscht.`;
+      
+      if (errorCount > 0) {
+        alert(`${message}\n${errorCount} Marken konnten nicht gelöscht werden.`);
+      } else {
+        alert(message);
+      }
+      
+      // Nur erfolgreich gelöschte Zeilen aus der Tabelle entfernen
+      successfullyDeletedIds.forEach(markeId => {
+        const row = document.querySelector(`tr[data-id="${markeId}"]`);
+        if (row) {
+          row.remove();
+        }
+      });
+      
+      // Auswahl zurücksetzen
+      this.selectedMarken.clear();
+      this.updateSelection();
+      this.updateSelectAllCheckbox();
+      
+      // Prüfe ob Tabelle leer ist
+      const tbody = document.getElementById('marken-table-body');
+      if (tbody && tbody.children.length === 0) {
+        // Lade komplett neu wenn keine Einträge mehr da sind
+        await this.loadAndRender();
+      }
+      
+      // Event für andere Komponenten
+      window.dispatchEvent(new CustomEvent('entityUpdated', {
+        detail: { entity: 'marke', action: 'bulk-deleted', count: successCount }
+      }));
+    } else {
+      alert('Keine Marken konnten gelöscht werden.');
+    }
   }
 
   // Show Create Form (für Routing)

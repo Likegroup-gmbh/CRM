@@ -15,6 +15,9 @@ export class AuftragList {
     console.log('📋 AUFTRAGLIST: Initialisiere Auftrags-Liste');
     
     try {
+      // BulkActionSystem für Auftrag registrieren
+      window.bulkActionSystem?.registerList('auftrag', this);
+      
       await this.loadAndRender();
       this.bindEvents();
       console.log('✅ AUFTRAGLIST: Initialisierung abgeschlossen');
@@ -653,6 +656,97 @@ export class AuftragList {
     const formPage = document.querySelector('.form-page');
     if (formPage) {
       formPage.insertBefore(errorDiv, formPage.firstChild);
+    }
+  }
+
+  // Bestätigungsdialog für Bulk-Delete
+  showDeleteSelectedConfirmation() {
+    const selectedCount = this.selectedAuftraege.size;
+    console.log(`🔧 AuftragList: showDeleteSelectedConfirmation aufgerufen, selectedCount: ${selectedCount}`, Array.from(this.selectedAuftraege));
+    
+    if (selectedCount === 0) {
+      alert('Keine Aufträge ausgewählt.');
+      return;
+    }
+
+    const message = selectedCount === 1 
+      ? 'Möchten Sie den ausgewählten Auftrag wirklich löschen?' 
+      : `Möchten Sie die ${selectedCount} ausgewählten Aufträge wirklich löschen?`;
+    
+    const confirmed = confirm(`${message}\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`);
+    
+    if (confirmed) {
+      this.deleteSelectedAuftraege();
+    }
+  }
+
+  // Ausgewählte Aufträge löschen
+  async deleteSelectedAuftraege() {
+    const selectedIds = Array.from(this.selectedAuftraege);
+    const totalCount = selectedIds.length;
+    
+    console.log(`🗑️ Lösche ${totalCount} Aufträge...`);
+    
+    let successCount = 0;
+    let errorCount = 0;
+    const successfullyDeletedIds = [];
+    
+    // Lösche alle ausgewählten Aufträge
+    for (const auftragId of selectedIds) {
+      try {
+        const result = await window.dataService.deleteEntity('auftrag', auftragId);
+        if (result.success) {
+          successCount++;
+          successfullyDeletedIds.push(auftragId);
+          this.selectedAuftraege.delete(auftragId);
+        } else {
+          errorCount++;
+          console.error(`❌ Fehler beim Löschen von Auftrag ${auftragId}:`, result.error);
+        }
+      } catch (error) {
+        errorCount++;
+        console.error(`❌ Fehler beim Löschen von Auftrag ${auftragId}:`, error);
+      }
+    }
+    
+    // Ergebnis anzeigen
+    if (successCount > 0) {
+      const message = successCount === 1 
+        ? 'Auftrag erfolgreich gelöscht.' 
+        : `${successCount} Aufträge erfolgreich gelöscht.`;
+      
+      if (errorCount > 0) {
+        alert(`${message}\n${errorCount} Aufträge konnten nicht gelöscht werden.`);
+      } else {
+        alert(message);
+      }
+      
+      // Nur erfolgreich gelöschte Zeilen aus der Tabelle entfernen
+      successfullyDeletedIds.forEach(auftragId => {
+        const row = document.querySelector(`tr[data-id="${auftragId}"]`);
+        if (row) {
+          row.remove();
+        }
+      });
+      
+      // Auswahl zurücksetzen
+      this.selectedAuftraege.clear();
+      this.updateSelection();
+      this.updateSelectAllCheckbox();
+      
+      // Prüfe ob Tabelle leer ist
+      const tbody = document.getElementById('auftraege-table-body');
+      if (tbody && tbody.children.length === 0) {
+        // Lade komplett neu wenn keine Einträge mehr da sind
+        await this.loadAndRender();
+      }
+      
+      // Event für andere Komponenten
+      window.dispatchEvent(new CustomEvent('entityUpdated', {
+        detail: { entity: 'auftrag', action: 'bulk-deleted', count: successCount }
+      }));
+    } else {
+      alert('Keine Aufträge konnten gelöscht werden.');
     }
   }
 }
