@@ -135,23 +135,170 @@ export class ProfileDetail {
     `;
   }
 
+  renderProfileInfo() {
+    return `
+      <div class="detail-section">
+        <h2>Persönliche Informationen</h2>
+        <div class="detail-grid-two">
+          <div class="detail-field">
+            <label>Name</label>
+            <div class="detail-value">${this.user?.name || 'Nicht angegeben'}</div>
+          </div>
+          
+          <div class="detail-field">
+            <label>E-Mail</label>
+            <div class="detail-value">${this.user?.auth_user_id ? 'Über Supabase Auth verwaltet' : 'Nicht angegeben'}</div>
+          </div>
+          
+          <div class="detail-field">
+            <label>Rolle</label>
+            <div class="detail-value">
+              <span class="badge badge-${this.user?.rolle?.toLowerCase() === 'admin' ? 'primary' : 'secondary'}">
+                ${this.user?.rolle || 'Nicht definiert'}
+              </span>
+            </div>
+          </div>
+          
+          <div class="detail-field">
+            <label>Unterrolle</label>
+            <div class="detail-value">
+              ${this.user?.unterrolle ? `<span class="badge badge-outline">${this.user.unterrolle}</span>` : 'Keine'}
+            </div>
+          </div>
+          
+          <div class="detail-field">
+            <label>Mitarbeiter-Klasse</label>
+            <div class="detail-value">
+              ${this.user?.mitarbeiter_klasse?.name || 'Nicht zugewiesen'}
+            </div>
+          </div>
+          
+          <div class="detail-field">
+            <label>Erstellt am</label>
+            <div class="detail-value">${this.formatDate(this.user?.created_at)}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderEditForm() {
+    return `
+      <div class="detail-section">
+        <h2>Profil bearbeiten</h2>
+        <div class="detail-grid-two">
+          <div class="detail-field">
+            <label for="name-input">Name *</label>
+            <input type="text" id="name-input" class="form-input" value="${this.user?.name || ''}" placeholder="Vollständiger Name">
+          </div>
+          
+          <div class="detail-field">
+            <label>E-Mail</label>
+            <div class="detail-value text-muted">Über Supabase Auth verwaltet</div>
+          </div>
+          
+          <div class="detail-field">
+            <label>Rolle</label>
+            <div class="detail-value text-muted">Wird vom Administrator verwaltet</div>
+          </div>
+          
+          <div class="detail-field">
+            <label>Unterrolle</label>
+            <div class="detail-value text-muted">Wird vom Administrator verwaltet</div>
+          </div>
+        </div>
+        
+        <div class="form-actions">
+          <button id="save-profile-btn" class="btn btn-primary">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+            Speichern
+          </button>
+          <button id="cancel-edit-btn" class="btn btn-secondary">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            Abbrechen
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
   renderPermissions() {
-    const permissions = window.currentUser?.permissions || {};
-    const entities = ['creator', 'kampagne', 'kooperation', 'briefing', 'rechnung', 'unternehmen', 'marke', 'auftrag', 'ansprechpartner'];
-    
-    return entities.map(entity => {
-      const perm = permissions[entity] || {};
+    if (!this.user?.zugriffsrechte) {
       return `
-        <div class="permission-item">
-          <div class="permission-entity">${this.getEntityLabel(entity)}</div>
-          <div class="permission-rights">
-            <span class="permission-badge ${perm.can_view ? 'active' : ''}">Anzeigen</span>
-            <span class="permission-badge ${perm.can_edit ? 'active' : ''}">Bearbeiten</span>
-            <span class="permission-badge ${perm.can_delete ? 'active' : ''}">Löschen</span>
+        <div class="detail-section">
+          <h2>Meine Berechtigungen</h2>
+          <div class="empty-state">
+            <p>Keine Berechtigungen definiert.</p>
           </div>
         </div>
       `;
-    }).join('');
+    }
+
+    const permissions = this.user.zugriffsrechte;
+    const modules = [
+      { key: 'creator', label: 'Creator' },
+      { key: 'creator-lists', label: 'Creator-Listen' },
+      { key: 'unternehmen', label: 'Unternehmen' },
+      { key: 'marke', label: 'Marken' },
+      { key: 'auftrag', label: 'Aufträge' },
+      { key: 'kampagne', label: 'Kampagnen' },
+      { key: 'kooperation', label: 'Kooperationen' },
+      { key: 'briefing', label: 'Briefings' },
+      { key: 'rechnung', label: 'Rechnungen' },
+      { key: 'ansprechpartner', label: 'Ansprechpartner' }
+    ];
+
+    return `
+      <div class="detail-section">
+        <h2>Meine Berechtigungen</h2>
+        <p class="text-muted">Diese Berechtigungen werden vom Administrator verwaltet.</p>
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Bereich</th>
+                <th style="width:100px; text-align:center;">Lesen</th>
+                <th style="width:100px; text-align:center;">Bearbeiten</th>
+                <th style="width:100px; text-align:center;">Löschen</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${modules.map(module => {
+                const perm = permissions[module.key];
+                const canView = perm?.can_view !== false;
+                const canEdit = perm?.can_edit === true;
+                const canDelete = perm?.can_delete === true;
+                
+                return `
+                  <tr>
+                    <td>${module.label}</td>
+                    <td style="text-align:center;">
+                      <span class="permission-indicator ${canView ? 'granted' : 'denied'}">
+                        ${canView ? '✓' : '✗'}
+                      </span>
+                    </td>
+                    <td style="text-align:center;">
+                      <span class="permission-indicator ${canEdit ? 'granted' : 'denied'}">
+                        ${canEdit ? '✓' : '✗'}
+                      </span>
+                    </td>
+                    <td style="text-align:center;">
+                      <span class="permission-indicator ${canDelete ? 'granted' : 'denied'}">
+                        ${canDelete ? '✓' : '✗'}
+                      </span>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
   }
 
   getEntityLabel(entity) {
@@ -170,9 +317,27 @@ export class ProfileDetail {
   }
 
   bind() {
+    // Tab-System
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabPanes = document.querySelectorAll('.tab-pane');
+
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tabId = btn.dataset.tab;
+        
+        // Alle Tabs deaktivieren
+        tabBtns.forEach(b => b.classList.remove('active'));
+        tabPanes.forEach(p => p.classList.remove('active'));
+        
+        // Aktiven Tab aktivieren
+        btn.classList.add('active');
+        document.getElementById(`tab-${tabId}`)?.classList.add('active');
+      });
+    });
+
     // Edit-Modus aktivieren
     document.getElementById('edit-profile-btn')?.addEventListener('click', () => {
-      this.isEditing = true;
+      this.isEditing = !this.isEditing;
       this.render();
     });
 

@@ -467,6 +467,28 @@ body {
 .profile-menu-item:hover {
   background-color: var(--bg-secondary);
 }
+
+/* Permission Indicators */
+.permission-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+
+.permission-indicator.granted {
+  background-color: var(--success-light);
+  color: var(--success-dark);
+}
+
+.permission-indicator.denied {
+  background-color: var(--error-light);
+  color: var(--error-dark);
+}
 .profile-menu-item .icon {
   width: 16px;
   height: 16px;
