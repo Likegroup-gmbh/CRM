@@ -50,7 +50,8 @@ export class PermissionSystem {
     const role = user.rolle;
     const subRole = user.unterrolle;
     
-    // Basis-Berechtigungen basierend auf Rolle
+    // Basis-Berechtigungen basierend auf Rolle (case-insensitive)
+    const normalizedRole = role?.toLowerCase();
     const basePermissions = {
       admin: {
         creator: { can_view: true, can_edit: true, can_delete: true },
@@ -65,7 +66,7 @@ export class PermissionSystem {
         ansprechpartner: { can_view: true, can_edit: true, can_delete: true },
         dashboard: { can_view: true, can_edit: true, can_delete: true }
       },
-      Mitarbeiter: {
+      mitarbeiter: {
         creator: { can_view: true, can_edit: false, can_delete: false },
         'creator-lists': { can_view: true, can_edit: false, can_delete: false },
         unternehmen: { can_view: true, can_edit: false, can_delete: false },
@@ -92,13 +93,13 @@ export class PermissionSystem {
       dashboard: { can_view: false, can_edit: false, can_delete: false }
     };
 
-    // Admin hat alle Rechte
-    if (role === 'admin') {
+    // Admin hat alle Rechte (case-insensitive)
+    if (normalizedRole === 'admin') {
       return basePermissions.admin;
     }
 
-    // Mitarbeiter mit can_edit Unterrolle hat erweiterte Rechte
-    if (role === 'Mitarbeiter' && subRole === 'can_edit') {
+    // Mitarbeiter mit can_edit Unterrolle hat erweiterte Rechte (case-insensitive)
+    if (normalizedRole === 'mitarbeiter' && subRole === 'can_edit') {
       return {
         creator: { can_view: true, can_edit: true, can_delete: false },
         unternehmen: { can_view: true, can_edit: true, can_delete: false },
@@ -110,9 +111,14 @@ export class PermissionSystem {
       };
     }
 
-    // Mitarbeiter mit can_view Unterrolle hat nur Leserechte
-    if (role === 'Mitarbeiter' && subRole === 'can_view') {
-      return basePermissions.Mitarbeiter;
+    // Mitarbeiter mit can_view Unterrolle hat nur Leserechte (case-insensitive)
+    if (normalizedRole === 'mitarbeiter' && subRole === 'can_view') {
+      return basePermissions.mitarbeiter;
+    }
+
+    // Standard Mitarbeiter-Rechte (case-insensitive)
+    if (normalizedRole === 'mitarbeiter') {
+      return basePermissions.mitarbeiter;
     }
 
     // Fallback zu Standard-Berechtigungen
