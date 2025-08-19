@@ -243,6 +243,7 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('rechnung-detail', rechnungDetail);
   moduleRegistry.register('mitarbeiter', mitarbeiterList);
   moduleRegistry.register('mitarbeiter-detail', mitarbeiterDetail);
+  moduleRegistry.register('profile', profileDetail);
 // Weitere Module folgen...
 
 // Globale Navigation-Funktion
@@ -291,6 +292,9 @@ window.ansprechpartnerList = ansprechpartnerList;
 window.ansprechpartnerDetail = ansprechpartnerDetail;
 window.ansprechpartnerCreate = ansprechpartnerCreate;
 
+// Profile-System importieren
+import { profileDetail } from './modules/admin/ProfileDetail.js';
+
 // Initialisiere das System
 if (import.meta.env.DEV) {
   console.log('🚀 ES6-Module System geladen');
@@ -313,6 +317,7 @@ if (import.meta.env.DEV) {
   console.log('KampagneList:', kampagneList);
   console.log('KampagneDetail:', kampagneDetail);
   console.log('KampagneUtils:', kampagneUtils);
+  console.log('ProfileDetail:', profileDetail);
 }
 
 // Initialisiere nach DOM-Load
@@ -411,6 +416,43 @@ window.setupHeaderUI = () => {
       profileImg.src = window.currentUser.avatar_url;
       profileImg.style.display = '';
       if (profileInitials) profileInitials.style.display = 'none';
+    }
+
+    // Profile dropdown setup
+    const profileBtn = document.querySelector('.profile-btn');
+    const profileDropdown = document.querySelector('.profile-dropdown');
+    if (profileBtn && profileDropdown && !profileBtn.dataset.bound) {
+      profileBtn.dataset.bound = 'true';
+      
+      // Toggle dropdown
+      profileBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = profileDropdown.getAttribute('aria-hidden') === 'false';
+        profileDropdown.setAttribute('aria-hidden', isOpen ? 'true' : 'false');
+        profileBtn.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+      });
+
+      // Profile actions
+      profileDropdown.addEventListener('click', (e) => {
+        const action = e.target.closest('[data-action]')?.dataset.action;
+        if (!action) return;
+        
+        e.preventDefault();
+        profileDropdown.setAttribute('aria-hidden', 'true');
+        profileBtn.setAttribute('aria-expanded', 'false');
+        
+        if (action === 'view-profile') {
+          window.navigateTo('/profile');
+        } else if (action === 'logout') {
+          window.authService?.logout();
+        }
+      });
+
+      // Close on outside click
+      document.addEventListener('click', () => {
+        profileDropdown.setAttribute('aria-hidden', 'true');
+        profileBtn.setAttribute('aria-expanded', 'false');
+      });
     }
 
     const quickBtn = document.querySelector('.quick-menu-btn');
