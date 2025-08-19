@@ -56,6 +56,11 @@ export class NavigationSystem {
     // Sichtbarkeit anhand Berechtigungen filtern (Page-Scoped, dann Entity)
     const perms = window.currentUser?.permissions || {};
     const canView = (id) => {
+      // Dashboard und Mitarbeiter sind immer für alle eingeloggten User sichtbar
+      if (id === 'dashboard' || id === 'mitarbeiter') {
+        return true;
+      }
+      
       // 1) Page-Scoped Check (DB-Overrides)
       if (window.canViewPage && typeof window.canViewPage === 'function') {
         const allowed = window.canViewPage(id);

@@ -82,6 +82,7 @@ export class PermissionSystem {
     };
 
     // Standard-Berechtigungen
+    // Dashboard ist immer für alle eingeloggten User sichtbar
     const defaultPermissions = {
       creator: { can_view: false, can_edit: false, can_delete: false },
       'creator-lists': { can_view: false, can_edit: false, can_delete: false },
@@ -90,7 +91,7 @@ export class PermissionSystem {
       auftrag: { can_view: false, can_edit: false, can_delete: false },
       kampagne: { can_view: false, can_edit: false, can_delete: false },
       kooperation: { can_view: false, can_edit: false, can_delete: false },
-      dashboard: { can_view: false, can_edit: false, can_delete: false }
+      dashboard: { can_view: true, can_edit: false, can_delete: false }
     };
 
     // Admin hat alle Rechte (case-insensitive)
