@@ -117,6 +117,7 @@ export class OptionsManager {
     // Tags-Container
     const tagsContainer = document.createElement('div');
     tagsContainer.className = 'tags-container';
+    tagsContainer.style.display = 'none'; // Initial versteckt bis Tags hinzugefügt werden
     // Styling via CSS-Klassen
     
     // Dropdown-Liste
@@ -159,6 +160,15 @@ export class OptionsManager {
       return tag;
     };
     
+    // Tags-Container Sichtbarkeit aktualisieren
+    const updateTagsContainerVisibility = () => {
+      if (selectedValues.size > 0) {
+        tagsContainer.style.display = 'flex'; // Tags vorhanden → anzeigen
+      } else {
+        tagsContainer.style.display = 'none'; // Keine Tags → verstecken
+      }
+    };
+
     // Verstecktes Select aktualisieren
     const updateHiddenSelect = () => {
       hiddenSelect.innerHTML = '';
@@ -169,10 +179,28 @@ export class OptionsManager {
         hiddenSelect.appendChild(option);
       });
       
+      // Tags-Container Sichtbarkeit aktualisieren
+      updateTagsContainerVisibility();
+      
       // Event auslösen
       const event = new Event('change', { bubbles: true });
       hiddenSelect.dispatchEvent(event);
     };
+    
+    // Bereits ausgewählte Optionen laden (für Edit-Modus)
+    const preselectedOptions = options.filter(opt => opt.selected);
+    console.log('🎯 Bereits ausgewählte Optionen für Tag-Select:', preselectedOptions);
+    
+    // Preselected Tags hinzufügen
+    preselectedOptions.forEach(option => {
+      selectedValues.add(option.value);
+      const tag = createTag(option.value, option.label);
+      tagsContainer.appendChild(tag);
+      console.log(`✅ Preselected Tag hinzugefügt: ${option.label}`);
+    });
+    
+    // Initial aktualisieren
+    updateHiddenSelect();
     
     // Dropdown-Optionen erstellen
     const createDropdownItems = (filteredOptions = options) => {

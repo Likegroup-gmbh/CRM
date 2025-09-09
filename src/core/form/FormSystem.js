@@ -78,11 +78,33 @@ export class FormSystem {
       closeBtn.onclick = () => this.closeForm();
     }
 
+    // Edit-Mode Kontext für DynamicDataLoader setzen
+    if (data && data._isEditMode) {
+      console.log('🎯 FORMSYSTEM: Edit-Mode erkannt, setze Kontext für DynamicDataLoader');
+      console.log('📋 FORMSYSTEM: Edit-Mode Daten:', {
+        entityId: data._entityId,
+        brancheIds: data.branche_id,
+        totalFields: Object.keys(data).length
+      });
+      
+      form.dataset.editModeData = JSON.stringify(data);
+      
+      // Spezielle Behandlung für branche_id im Edit-Mode
+      if (data.branche_id && Array.isArray(data.branche_id)) {
+        console.log('🏷️ FORMSYSTEM: Branchen-IDs für Edit-Mode verfügbar:', data.branche_id);
+      } else {
+        console.log('ℹ️ FORMSYSTEM: Keine Branchen-IDs im Edit-Mode vorhanden');
+      }
+    } else {
+      console.log('ℹ️ FORMSYSTEM: Kein Edit-Mode erkannt oder keine Daten verfügbar');
+    }
+
     // Dynamische Daten für Formular laden
     await this.dataLoader.loadDynamicFormData(entity, form);
 
     // Searchable Select-Felder initialisieren (nach dem Laden der Daten)
-    this.initializeSearchableSelects(form);
+    // DEAKTIVIERT: Das alte FormSystem (window.formSystem) übernimmt das
+    // this.initializeSearchableSelects(form);
 
     // Abhängige Felder einrichten
     this.dependentFields.setupDependentFields(form);
@@ -348,6 +370,17 @@ export class FormSystem {
 
   // Searchable Select erstellen
   createSearchableSelect(selectElement, options, field) {
+    // Prüfe ob es ein Tag-basiertes Multiselect sein soll
+    const isTagBased = (field?.type === 'multiselect' || selectElement.multiple) &&
+      (field?.tagBased === true || selectElement.dataset.tagBased === 'true');
+    
+    if (isTagBased) {
+      // Verwende das Tag-basierte System aus dem alten FormSystem
+      if (window.formSystem?.optionsManager?.createTagBasedSelect) {
+        return window.formSystem.optionsManager.createTagBasedSelect(selectElement, options, field);
+      }
+    }
+
     // Bestehende Container entfernen
     const existingContainer = selectElement.parentNode.querySelector('.searchable-select-container');
     if (existingContainer) {
@@ -474,9 +507,35 @@ export class FormSystem {
     });
   }
 
+  // Searchable Select mit vorausgewähltem Wert initialisieren
+  initializeSearchableSelectValue(selectElement, options, field) {
+    console.log(`🔧 Initialisiere Searchable Select für ${field.name} mit vorausgewähltem Wert`);
+    
+    // Finde die vorausgewählte Option
+    const selectedOption = options.find(opt => opt.selected);
+    if (selectedOption) {
+      console.log(`✅ Vorausgewählte Option gefunden: ${selectedOption.label}`);
+      
+      // Select-Element setzen
+      selectElement.value = selectedOption.value;
+      
+      // Input-Element finden und setzen
+      const container = selectElement.parentNode.querySelector('.searchable-select-container');
+      if (container) {
+        const input = container.querySelector('input');
+        if (input) {
+          input.value = selectedOption.label;
+          console.log(`✅ Input-Wert gesetzt: ${selectedOption.label}`);
+        }
+      }
+    }
+  }
+
   // Searchable Select reinitialisieren
   reinitializeSearchableSelect(selectElement, options, field) {
     this.createSearchableSelect(selectElement, options, field);
+    // Vorausgewählten Wert setzen
+    this.initializeSearchableSelectValue(selectElement, options, field);
   }
 
   // Formular-Validierung

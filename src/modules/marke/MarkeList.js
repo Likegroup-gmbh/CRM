@@ -336,7 +336,7 @@ export class MarkeList {
           </a>
         </td>
         <td>${window.validatorSystem.sanitizeHtml(marke.unternehmen?.firmenname || 'Kein Unternehmen zugeordnet')}</td>
-        <td>${window.validatorSystem.sanitizeHtml(marke.branche || '')}</td>
+        <td>${this.renderBranchen(marke.branchen)}</td>
         <td>${marke.webseite ? `<a href="${marke.webseite}" target="_blank" class="table-link">${marke.webseite}</a>` : '-'}</td>
         <td>${this.renderAnsprechpartner(marke.ansprechpartner)}</td>
         <td>${this.renderZustaendigkeit(marke.zustaendigkeit)}</td>
@@ -362,6 +362,13 @@ export class MarkeList {
                   </svg>
                   Bearbeiten
                 </a>
+                <div class="action-separator"></div>
+                <a href="#" class="action-item" data-action="add_ansprechpartner" data-id="${marke.id}">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
+                  </svg>
+                  Ansprechpartner hinzufügen
+                </a>
                 <a href="#" class="action-item" data-action="notiz" data-id="${marke.id}">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
                     <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.336-3.117C2.688 12.31 2 11.104 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd" />
@@ -385,17 +392,34 @@ export class MarkeList {
     tbody.innerHTML = rowsHtml;
   }
 
+  // Rendere Branchen
+  renderBranchen(branchen) {
+    if (!branchen || branchen.length === 0) {
+      return '-';
+    }
+
+    // Branchen als kompakte Tags
+    const branchenTags = branchen
+      .filter(branche => branche && branche.name) // Nur gültige Branchen
+      .map(branche => `<span class="tag tag--branche">${branche.name}</span>`)
+      .join('');
+
+    return `<div class="tags tags-compact">${branchenTags}</div>`;
+  }
+
   // Render Ansprechpartner
   renderAnsprechpartner(ansprechpartner) {
-    if (!ansprechpartner || ansprechpartner.length === 0) return '-';
-    
-    if (Array.isArray(ansprechpartner)) {
-      return ansprechpartner.map(ap => 
-        `${ap.vorname} ${ap.nachname}`
-      ).join(', ');
+    if (!ansprechpartner || ansprechpartner.length === 0) {
+      return '-';
     }
-    
-    return `${ansprechpartner.vorname} ${ansprechpartner.nachname}`;
+
+    // Ansprechpartner als klickbare Tags (wie bei Branchen)
+    const ansprechpartnerTags = ansprechpartner
+      .filter(ap => ap && ap.vorname && ap.nachname) // Nur gültige Ansprechpartner
+      .map(ap => `<a href="#" class="tag tag--ansprechpartner" data-action="view-ansprechpartner" data-id="${ap.id}" onclick="event.preventDefault(); window.navigateTo('/ansprechpartner/${ap.id}')">${ap.vorname} ${ap.nachname}</a>`)
+      .join('');
+
+    return `<div class="tags tags-compact">${ansprechpartnerTags}</div>`;
   }
 
   // Render Zuständigkeit

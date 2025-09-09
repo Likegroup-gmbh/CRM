@@ -328,7 +328,18 @@ export class FormSystem {
       if (!options || options.length === 0) {
         options = Array.from(selectElement.options)
           .slice(1)
-          .map(o => ({ value: o.value, label: o.textContent }));
+          .map(o => ({ 
+            value: o.value, 
+            label: o.textContent,
+            selected: o.selected || false 
+          }));
+        console.log('🔧 FORMSYSTEM: Optionen aus DOM extrahiert für Tag-basiertes Select:', options.filter(o => o.selected));
+      } else {
+        // Debug: Zeige selected Optionen die weitergegeben werden
+        const selectedOptions = options.filter(o => o.selected);
+        if (selectedOptions.length > 0) {
+          console.log('🎯 FORMSYSTEM: Übergebe selected Optionen an OptionsManager:', selectedOptions.map(o => o.label));
+        }
       }
       return this.optionsManager.createTagBasedSelect(selectElement, options, field);
     }
@@ -370,6 +381,19 @@ export class FormSystem {
     selectElement.parentNode.insertBefore(container, selectElement);
     container.appendChild(input);
     container.appendChild(dropdown);
+
+    // Bestehende Auswahl setzen (für Edit-Modus)
+    const selectedOption = options.find(option => option.selected);
+    if (selectedOption) {
+      input.value = selectedOption.label;
+      // Auch das ursprüngliche Select-Element setzen
+      Array.from(selectElement.options).forEach(opt => {
+        if (opt.value === selectedOption.value) {
+          opt.selected = true;
+        }
+      });
+      console.log('✅ FORMSYSTEM: Bestehender Wert gesetzt für', field.name, ':', selectedOption.label);
+    }
 
     // Event-Handler
     input.addEventListener('focus', () => {
@@ -429,6 +453,10 @@ export class FormSystem {
 
   // Searchable Select reinitialisieren
   reinitializeSearchableSelect(selectElement, options, field) {
+    // WICHTIG: Ursprüngliches Select ausgeblendet lassen
+    // Das verhindert doppelte Input-Felder bei Reinitialisierung
+    selectElement.style.display = 'none';
+    
     this.createSearchableSelect(selectElement, options, field);
   }
 

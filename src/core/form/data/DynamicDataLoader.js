@@ -354,28 +354,111 @@ export class DynamicDataLoader {
         description: item.beschreibung || item.description
       }));
 
-      // Spezielle Behandlung für branchen_ids - bestehende Branche aus branche_id und branche Feldern laden
-      if (field.name === 'branchen_ids' && form.dataset.entityId) {
+      // Edit-Modus: Bestehende Werte als "selected" markieren für einfache Select-Felder
+      if (form.dataset.isEditMode === 'true') {
+        console.log('🔍 DYNAMICDATALOADER: Edit-Modus erkannt für Feld:', field.name);
+        
+        // Für einfache Select-Felder (nicht multiselect/tagBased)
+        if (field.name === 'unternehmen_id' && form.dataset.existingUnternehmenId) {
+          const existingId = form.dataset.existingUnternehmenId;
+          console.log('🏢 DYNAMICDATALOADER: Markiere bestehendes Unternehmen als selected:', existingId);
+          
+          options.forEach(option => {
+            if (option.value === existingId) {
+              option.selected = true;
+              console.log('✅ DYNAMICDATALOADER: Unternehmen gefunden und markiert:', option.label);
+            }
+          });
+        }
+        
+        if (field.name === 'branche_id' && form.dataset.existingBrancheId) {
+          const existingId = form.dataset.existingBrancheId;
+          console.log('🏷️ DYNAMICDATALOADER: Markiere bestehende Branche als selected:', existingId);
+          
+          options.forEach(option => {
+            if (option.value === existingId) {
+              option.selected = true;
+              console.log('✅ DYNAMICDATALOADER: Branche gefunden und markiert:', option.label);
+            }
+          });
+        }
+        
+        // Debug: Zeige selected Optionen
+        const selectedOptions = options.filter(o => o.selected);
+        if (selectedOptions.length > 0) {
+          console.log('🎯 DYNAMICDATALOADER: Selected Optionen für', field.name, ':', selectedOptions.map(o => o.label));
+        }
+      }
+
+      // Spezielle Behandlung für branche_id - bestehende Branchen aus Junction-Table laden
+      if (field.name === 'branche_id' && form.dataset.entityId && (form.dataset.entityType === 'unternehmen' || form.dataset.entityType === 'marke')) {
         try {
           const entityId = form.dataset.entityId;
-          const { data: unternehmen, error } = await window.supabase
-            .from('unternehmen')
-            .select('branche_id, branche')
-            .eq('id', entityId)
-            .single();
+          console.log('🔍 DYNAMICDATALOADER: Lade bestehende Branchen für Unternehmen:', entityId);
+          console.log('🔍 DYNAMICDATALOADER: Form Datasets verfügbar:', {
+            entityId: form.dataset.entityId,
+            isEditMode: form.dataset.isEditMode,
+            editModeData: !!form.dataset.editModeData,
+            existingBranchenIds: !!form.dataset.existingBranchenIds
+          });
           
-          if (!error && unternehmen) {
-            // Wenn branche_id vorhanden ist, als ausgewählt markieren
-            if (unternehmen.branche_id) {
-              const option = options.find(opt => opt.value === unternehmen.branche_id);
+          // Prüfe ob Edit-Mode Daten bereits verfügbar sind
+          let branchenIds = [];
+          if (form.dataset.editModeData) {
+            try {
+              const editData = JSON.parse(form.dataset.editModeData);
+              if (editData.branche_id && Array.isArray(editData.branche_id)) {
+                branchenIds = editData.branche_id;
+                console.log('📋 Verwende Branchen-IDs aus Edit-Mode Daten:', branchenIds);
+              }
+            } catch (parseError) {
+              console.warn('⚠️ Fehler beim Parsen der Edit-Mode Daten:', parseError);
+            }
+          }
+          
+          // Fallback: Lade aus Junction Table wenn keine Edit-Mode Daten
+          if (branchenIds.length === 0) {
+            console.log('🔄 Lade Branchen-IDs aus Junction Table...');
+            
+            // Branchen aus Junction-Table laden (dynamisch je nach Entity-Typ)
+            const entityType = form.dataset.entityType;
+            const tableName = entityType === 'marke' ? 'marke_branchen' : 'unternehmen_branchen';
+            const entityIdField = entityType === 'marke' ? 'marke_id' : 'unternehmen_id';
+            
+            console.log('🔍 DYNAMICDATALOADER: Lade aus Junction Table:', tableName, 'mit', entityIdField, '=', entityId);
+            
+            const { data: branchenData, error } = await window.supabase
+              .from(tableName)
+              .select('branche_id')
+              .eq(entityIdField, entityId);
+            
+            if (!error && branchenData && branchenData.length > 0) {
+              branchenIds = branchenData.map(b => b.branche_id);
+              console.log('📋 Bestehende Branchen-IDs aus Junction Table:', branchenIds);
+            }
+          }
+          
+          // Optionen als ausgewählt markieren
+          if (branchenIds.length > 0) {
+            
+            // Alle entsprechenden Optionen als ausgewählt markieren
+            branchenIds.forEach(brancheId => {
+              const option = options.find(opt => opt.value === brancheId);
               if (option) {
                 option.selected = true;
+                console.log('✅ Branche als ausgewählt markiert:', option.label, option.value);
+              } else {
+                console.warn('⚠️ Branche-Option nicht in verfügbaren Optionen gefunden:', brancheId);
               }
-            }
-            console.log('✅ Bestehende Branche für Edit-Modus geladen:', unternehmen.branche_id);
+            });
+            
+            console.log('✅ Insgesamt', branchenIds.length, 'Branchen als ausgewählt markiert');
+            console.log('📋 Final Options nach Branche-Markierung:', options.map(o => ({ value: o.value, label: o.label, selected: o.selected })));
+          } else {
+            console.log('ℹ️ Keine bestehenden Branchen für Unternehmen gefunden');
           }
         } catch (error) {
-          console.error('❌ Fehler beim Laden der bestehenden Branche:', error);
+          console.error('❌ Fehler beim Laden der bestehenden Branchen:', error);
         }
       }
       
@@ -409,6 +492,16 @@ export class DynamicDataLoader {
         }
       }
 
+      // Final Debug: Optionen mit Selected-Status ausgeben
+      if (field.name === 'branche_id') {
+        const selectedOptions = options.filter(o => o.selected);
+        console.log('🎯 DYNAMICDATALOADER: Final branche_id Optionen:', {
+          total: options.length,
+          selected: selectedOptions.length,
+          selectedValues: selectedOptions.map(o => ({ value: o.value, label: o.label }))
+        });
+      }
+      
       return options;
     } catch (error) {
       console.error('❌ Fehler beim Laden der direkten Optionen:', error);
@@ -443,8 +536,19 @@ export class DynamicDataLoader {
     // Prüfe ob es ein searchable Select ist
     if (selectElement.dataset.searchable === 'true') {
       console.log('🔧 Reinitialisiere Auto-Suggestion für:', field.name);
-      // Für Multiselects die Optionen (value/label) vollständig übergeben
-      const normalized = options.map(o => ({ value: o.value, label: o.label }));
+      // Für Multiselects die Optionen (value/label/selected) vollständig übergeben
+      const normalized = options.map(o => ({ 
+        value: o.value, 
+        label: o.label, 
+        selected: o.selected || false 
+      }));
+      
+      // Debug: Zeige selected Optionen
+      const selectedOptions = normalized.filter(o => o.selected);
+      if (selectedOptions.length > 0) {
+        console.log('🎯 DYNAMICDATALOADER: Übergebe selected Optionen an reinitializeSearchableSelect:', selectedOptions.map(o => o.label));
+      }
+      
       this.reinitializeSearchableSelect(selectElement, normalized, field);
       return;
     }
@@ -459,6 +563,10 @@ export class DynamicDataLoader {
     if (existingContainer) {
       existingContainer.remove();
     }
+
+    // WICHTIG: Ursprüngliches Select ausgeblendet lassen
+    // Das verhindert doppelte Input-Felder bei Reinitialisierung
+    selectElement.style.display = 'none';
 
     // Neue Auto-Suggestion erstellen
     this.createSearchableSelect(selectElement, options, field);

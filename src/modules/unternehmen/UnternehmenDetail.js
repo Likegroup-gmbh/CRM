@@ -51,6 +51,26 @@ export class UnternehmenDetail {
       this.unternehmen = unternehmen;
       console.log('✅ UNTERNEHMENDETAIL: Unternehmen-Basisdaten geladen:', this.unternehmen);
 
+      // Branchen aus Junction-Table laden
+      try {
+        const { data: branchenData, error: branchenError } = await window.supabase
+          .from('unternehmen_branchen')
+          .select(`
+            branche_id,
+            branchen:branche_id (id, name)
+          `)
+          .eq('unternehmen_id', this.unternehmenId);
+
+        if (!branchenError && branchenData) {
+          // Branchen-IDs als Array für Formular speichern
+          this.unternehmen.branche_id = branchenData.map(b => b.branche_id);
+          this.unternehmen.branchen_names = branchenData.map(b => b.branchen?.name).filter(Boolean);
+          console.log('✅ UNTERNEHMENDETAIL: Branchen geladen:', this.unternehmen.branche_id);
+        }
+      } catch (branchenErr) {
+        console.warn('⚠️ UNTERNEHMENDETAIL: Branchen konnten nicht geladen werden:', branchenErr);
+      }
+
       // Notizen laden
       if (window.notizenSystem) {
         this.notizen = await window.notizenSystem.loadNotizen('unternehmen', this.unternehmenId);
@@ -664,7 +684,25 @@ export class UnternehmenDetail {
     console.log('🎯 UNTERNEHMENDETAIL: Zeige Bearbeitungsformular');
     window.setHeadline('Unternehmen bearbeiten');
     
-    const formHtml = window.formSystem.renderFormOnly('unternehmen', this.unternehmen);
+    // Daten für FormSystem vorbereiten
+    const formData = { ...this.unternehmen };
+    
+    // Edit-Mode Flags immer setzen
+    formData._isEditMode = true;
+    formData._entityId = this.unternehmenId;
+    
+    // Branchen-Daten für Edit-Modus formatieren
+    if (this.unternehmen.branche_id && Array.isArray(this.unternehmen.branche_id)) {
+      console.log('🏷️ UNTERNEHMENDETAIL: Formatiere Branchen-Daten für FormSystem:', this.unternehmen.branche_id);
+      // Branchen-IDs als Array beibehalten für Multiselect
+      formData.branche_id = this.unternehmen.branche_id;
+    } else {
+      console.log('ℹ️ UNTERNEHMENDETAIL: Keine Branchen-Daten vorhanden für Edit-Modus');
+      formData.branche_id = [];
+    }
+    
+    console.log('📋 UNTERNEHMENDETAIL: FormData für Rendering:', formData);
+    const formHtml = window.formSystem.renderFormOnly('unternehmen', formData);
     window.content.innerHTML = `
       <div class="page-header">
         <div class="page-header-left">
@@ -681,12 +719,33 @@ export class UnternehmenDetail {
       </div>
     `;
 
-    // Formular-Events binden
-    window.formSystem.bindFormEvents('unternehmen', this.unternehmen);
+    // Formular-Events binden mit formatierten Daten
+    window.formSystem.bindFormEvents('unternehmen', formData);
     
-    // Custom Submit Handler
+    // Entity-ID und Edit-Mode Flags für Form setzen (wichtig für Dynamic Data Loading)
     const form = document.getElementById('unternehmen-form');
     if (form) {
+      form.dataset.entityId = this.unternehmenId;
+      form.dataset.isEditMode = 'true';
+      form.dataset.entityType = 'unternehmen';
+      console.log('✅ Entity-ID und Edit-Mode für Form gesetzt:', this.unternehmenId);
+      
+      // Branchen-Daten als Metadaten für DynamicDataLoader verfügbar machen
+      if (this.unternehmen.branche_id && Array.isArray(this.unternehmen.branche_id)) {
+        form.dataset.existingBranchenIds = JSON.stringify(this.unternehmen.branche_id);
+        console.log('📋 Bestehende Branchen-IDs für DynamicDataLoader gesetzt:', this.unternehmen.branche_id);
+      }
+      
+      // Debug: Alle Form-Datasets ausgeben
+      console.log('🔍 UNTERNEHMENDETAIL: Form Datasets:', {
+        entityId: form.dataset.entityId,
+        isEditMode: form.dataset.isEditMode,
+        entityType: form.dataset.entityType,
+        existingBranchenIds: form.dataset.existingBranchenIds,
+        editModeData: form.dataset.editModeData ? 'Present' : 'Missing'
+      });
+      
+      // Custom Submit Handler
       form.onsubmit = async (e) => {
         e.preventDefault();
         await this.handleEditFormSubmit();
@@ -715,9 +774,29 @@ export class UnternehmenDetail {
         }
       }
       
+      // Spezielle Behandlung für Tag-basierte Multi-Selects
+      // Das versteckte Select wird möglicherweise nicht korrekt von FormData erfasst
+      const hiddenBranchenSelect = form.querySelector('select[name="branche_id[]"]');
+      if (hiddenBranchenSelect && hiddenBranchenSelect.multiple) {
+        const selectedOptions = Array.from(hiddenBranchenSelect.selectedOptions);
+        if (selectedOptions.length > 0) {
+          const branchenIds = selectedOptions.map(option => option.value).filter(val => val !== '');
+          if (branchenIds.length > 0) {
+            allFormData['branche_id[]'] = branchenIds;
+            console.log('🏷️ UNTERNEHMENDETAIL: Verstecktes Branchen-Select manuell verarbeitet:', branchenIds);
+          }
+        }
+      }
+      
       // Daten verarbeiten
       for (let [key, value] of Object.entries(allFormData)) {
         submitData[key] = Array.isArray(value) ? value : value;
+      }
+
+      // Branchen-IDs für Junction Table beibehalten (nicht zu einzelner UUID konvertieren)
+      if (submitData.branche_id && Array.isArray(submitData.branche_id)) {
+        console.log('✅ branche_id Array für Junction Table:', submitData.branche_id);
+        // Array beibehalten - wird von RelationTables verarbeitet
       }
 
       // Validierung
@@ -730,11 +809,29 @@ export class UnternehmenDetail {
         return;
       }
 
+      console.log('📤 Submit-Daten für Update:', submitData);
+
       // Unternehmen aktualisieren
       const result = await window.dataService.updateEntity('unternehmen', this.unternehmenId, submitData);
 
       if (result.success) {
+        // Junction Table-Verknüpfungen verarbeiten (für branche_id)
+        try {
+          const { RelationTables } = await import('../../core/form/logic/RelationTables.js');
+          const relationTables = new RelationTables();
+          await relationTables.handleRelationTables('unternehmen', this.unternehmenId, submitData, form);
+          console.log('✅ Junction Table-Verknüpfungen aktualisiert');
+        } catch (relationError) {
+          console.error('❌ Fehler beim Aktualisieren der Junction Tables:', relationError);
+          // Nicht fatal - Hauptentität wurde bereits aktualisiert
+        }
+
         this.showSuccessMessage('Unternehmen erfolgreich aktualisiert!');
+        
+        // Event für Listen-Update auslösen
+        window.dispatchEvent(new CustomEvent('entityUpdated', { 
+          detail: { entity: 'unternehmen', id: this.unternehmenId, action: 'updated' } 
+        }));
         
         // Daten neu laden und zur Detailseite zurückkehren
         setTimeout(async () => {

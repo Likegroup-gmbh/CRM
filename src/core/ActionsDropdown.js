@@ -769,6 +769,14 @@ export class ActionsDropdown {
         this.openAddToListModal(entityId);
         break;
       }
+      case 'add_ansprechpartner': {
+        this.openAddAnsprechpartnerModal(entityId);
+        break;
+      }
+      case 'add_ansprechpartner_kampagne': {
+        this.openAddAnsprechpartnerToKampagneModal(entityId);
+        break;
+      }
       case 'unassign-kampagne': {
         // Kontext: Mitarbeiter-Detail -> Kampagnen-Tabelle
         const mitarbeiterId = actionItem?.dataset?.mitarbeiterId || window.location.pathname.split('/').pop();
@@ -1306,6 +1314,220 @@ export class ActionsDropdown {
     };
   }
 
+  // Modal: Ansprechpartner zu Marke hinzufügen
+  async openAddAnsprechpartnerModal(markeId) {
+    console.log('🎯 ACTIONSDROPDOWN: Öffne Ansprechpartner-Auswahl-Modal für Marke:', markeId);
+
+    // Bereits zugeordnete Ansprechpartner laden
+    let ansprechpartner = [];
+    let excludedAnsprechpartnerIds = [];
+    
+    try {
+      const { data: existing } = await window.supabase
+        .from('ansprechpartner_marke')
+        .select('ansprechpartner_id')
+        .eq('marke_id', markeId);
+      
+      excludedAnsprechpartnerIds = (existing || []).map(r => r.ansprechpartner_id).filter(Boolean);
+
+      // Verfügbare Ansprechpartner laden (die noch nicht zugeordnet sind)
+      let query = window.supabase
+        .from('ansprechpartner')
+        .select(`
+          id, 
+          vorname, 
+          nachname, 
+          email,
+          unternehmen:unternehmen_id(firmenname),
+          position:position_id(name)
+        `)
+        .order('nachname');
+      
+      if (excludedAnsprechpartnerIds.length > 0) {
+        query = query.not('id', 'in', `(${excludedAnsprechpartnerIds.join(',')})`);
+      }
+      
+      const { data } = await query;
+      ansprechpartner = data || [];
+      
+    } catch (error) {
+      console.warn('⚠️ Fehler beim Laden der Ansprechpartner:', error);
+    }
+
+    const modal = document.createElement('div');
+    modal.className = 'modal overlay-modal';
+    modal.innerHTML = `
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h3>Ansprechpartner zur Marke hinzufügen</h3>
+          <button class="modal-close" id="add-ansprechpartner-close">×</button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label">Ansprechpartner wählen</label>
+          <input type="text" id="ansprechpartner-search" class="form-input auto-suggest-input" placeholder="Ansprechpartner suchen..." />
+          <div id="ansprechpartner-dropdown" class="auto-suggest-dropdown"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="secondary-btn" id="add-ansprechpartner-cancel">Abbrechen</button>
+          <button class="primary-btn" id="add-ansprechpartner-confirm" disabled>Hinzufügen</button>
+        </div>
+      </div>`;
+    
+    document.body.appendChild(modal);
+
+    const input = modal.querySelector('#ansprechpartner-search');
+    const dropdown = modal.querySelector('#ansprechpartner-dropdown');
+    let selectedId = null;
+
+    const hydrateDropdown = (filter = '') => {
+      // Wenn kein Filter, zeige Hinweis zum Tippen
+      if (!filter || filter.trim().length === 0) {
+        dropdown.innerHTML = '<div class="dropdown-item no-results">Beginnen Sie zu tippen, um Ansprechpartner zu suchen...</div>';
+        return;
+      }
+      
+      const f = filter.toLowerCase();
+      const items = ansprechpartner.filter(ap => {
+        const fullName = `${ap.vorname} ${ap.nachname}`.toLowerCase();
+        const email = (ap.email || '').toLowerCase();
+        const unternehmen = (ap.unternehmen?.firmenname || '').toLowerCase();
+        return fullName.includes(f) || email.includes(f) || unternehmen.includes(f);
+      });
+      
+      dropdown.innerHTML = items.length
+        ? items.map(ap => {
+            const displayName = `${ap.vorname} ${ap.nachname}`;
+            const details = [
+              ap.email,
+              ap.unternehmen?.firmenname,
+              ap.position?.name
+            ].filter(Boolean).join(' • ');
+            
+            return `<div class="dropdown-item" data-id="${ap.id}">
+              <div class="dropdown-item-main">${displayName}</div>
+              ${details ? `<div class="dropdown-item-details">${details}</div>` : ''}
+            </div>`;
+          }).join('')
+        : '<div class="dropdown-item no-results">Keine verfügbaren Ansprechpartner gefunden</div>';
+    };
+    
+    // Initial kein Dropdown anzeigen - erst beim Tippen
+    dropdown.innerHTML = '<div class="dropdown-item no-results">Beginnen Sie zu tippen, um Ansprechpartner zu suchen...</div>';
+    
+    input.addEventListener('focus', () => {
+      // Nur anzeigen wenn bereits Text eingegeben wurde
+      if (input.value.trim().length > 0) {
+        dropdown.classList.add('show');
+      }
+    });
+    input.addEventListener('blur', () => {
+      setTimeout(() => dropdown.classList.remove('show'), 150);
+    });
+
+    // Dynamische Suche
+    let searchTimeout;
+    input.addEventListener('input', (e) => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(async () => {
+        const term = e.target.value.trim();
+        
+        // Kein Dropdown anzeigen wenn weniger als 1 Zeichen
+        if (term.length < 1) {
+          dropdown.classList.remove('show');
+          return;
+        }
+        
+        // Ab 1 Zeichen suchen und anzeigen
+        try {
+          let query = window.supabase
+            .from('ansprechpartner')
+            .select(`
+              id, 
+              vorname, 
+              nachname, 
+              email,
+              unternehmen:unternehmen_id(firmenname),
+              position:position_id(name)
+            `)
+            .or(`vorname.ilike.%${term}%,nachname.ilike.%${term}%,email.ilike.%${term}%`)
+            .order('nachname');
+          
+          if (excludedAnsprechpartnerIds.length > 0) {
+            query = query.not('id', 'in', `(${excludedAnsprechpartnerIds.join(',')})`);
+          }
+          
+          const { data } = await query;
+          ansprechpartner = data || [];
+          hydrateDropdown(term);
+          dropdown.classList.add('show');
+        } catch (err) {
+          console.warn('⚠️ Ansprechpartner-Suche fehlgeschlagen', err);
+        }
+      }, 200);
+    });
+
+    dropdown.addEventListener('click', (e) => {
+      const item = e.target.closest('.dropdown-item');
+      if (!item || item.classList.contains('no-results')) return;
+      
+      selectedId = item.dataset.id;
+      const mainText = item.querySelector('.dropdown-item-main')?.textContent || item.textContent;
+      input.value = mainText;
+      modal.querySelector('#add-ansprechpartner-confirm').disabled = false;
+      dropdown.classList.remove('show');
+    });
+
+    // Event-Handlers
+    const close = () => modal.remove();
+    modal.querySelector('#add-ansprechpartner-close').onclick = close;
+    modal.querySelector('#add-ansprechpartner-cancel').onclick = close;
+    
+    // ESC-Taste zum Schließen
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') {
+        close();
+        document.removeEventListener('keydown', handleEsc);
+      }
+    };
+    document.addEventListener('keydown', handleEsc);
+
+    // Hinzufügen-Handler
+    modal.querySelector('#add-ansprechpartner-confirm').onclick = async () => {
+      if (!selectedId) return;
+      
+      try {
+        // Ansprechpartner zur Marke hinzufügen (Junction Table)
+        const { error } = await window.supabase
+          .from('ansprechpartner_marke')
+          .insert({ 
+            marke_id: markeId, 
+            ansprechpartner_id: selectedId 
+          });
+
+        if (error) throw error;
+
+        close();
+        document.removeEventListener('keydown', handleEsc);
+        
+        // UI aktualisieren - Multiple Events für Live-Updates
+        window.dispatchEvent(new CustomEvent('entityUpdated', { 
+          detail: { entity: 'ansprechpartner', action: 'added', markeId: markeId } 
+        }));
+        // Zusätzliches Event für MarkeList Live-Update
+        window.dispatchEvent(new CustomEvent('entityUpdated', { 
+          detail: { entity: 'marke', action: 'ansprechpartner-added', id: markeId } 
+        }));
+        
+        alert('✅ Ansprechpartner wurde erfolgreich zur Marke hinzugefügt und wird automatisch angezeigt!');
+        console.log('✅ ACTIONSDROPDOWN: Ansprechpartner erfolgreich hinzugefügt');
+
+      } catch (error) {
+        console.error('❌ Fehler beim Hinzufügen des Ansprechpartners:', error);
+        alert('Fehler beim Hinzufügen: ' + (error.message || 'Unbekannter Fehler'));
+      }
+    };
+  }
+
   // Modal: Creator zu Liste hinzufügen
   async openAddToListModal(creatorId) {
     let listen = [];
@@ -1438,6 +1660,220 @@ export class ActionsDropdown {
       kooperation: 'die Kooperation'
     };
     return names[entityType] || 'das Element';
+  }
+
+  // Modal: Ansprechpartner zu Kampagne hinzufügen
+  async openAddAnsprechpartnerToKampagneModal(kampagneId) {
+    console.log('🎯 ACTIONSDROPDOWN: Öffne Ansprechpartner-Auswahl-Modal für Kampagne:', kampagneId);
+
+    // Bereits zugeordnete Ansprechpartner laden
+    let ansprechpartner = [];
+    let excludedAnsprechpartnerIds = [];
+    
+    try {
+      const { data: existing } = await window.supabase
+        .from('ansprechpartner_kampagne')
+        .select('ansprechpartner_id')
+        .eq('kampagne_id', kampagneId);
+      
+      excludedAnsprechpartnerIds = (existing || []).map(r => r.ansprechpartner_id).filter(Boolean);
+
+      // Verfügbare Ansprechpartner laden (die noch nicht zugeordnet sind)
+      let query = window.supabase
+        .from('ansprechpartner')
+        .select(`
+          id, 
+          vorname, 
+          nachname, 
+          email,
+          unternehmen:unternehmen_id(firmenname),
+          position:position_id(name)
+        `)
+        .order('nachname');
+      
+      if (excludedAnsprechpartnerIds.length > 0) {
+        query = query.not('id', 'in', `(${excludedAnsprechpartnerIds.join(',')})`);
+      }
+      
+      const { data } = await query;
+      ansprechpartner = data || [];
+      
+    } catch (error) {
+      console.warn('⚠️ Fehler beim Laden der Ansprechpartner:', error);
+    }
+
+    const modal = document.createElement('div');
+    modal.className = 'modal overlay-modal';
+    modal.innerHTML = `
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h3>Ansprechpartner zur Kampagne hinzufügen</h3>
+          <button class="modal-close" id="add-ansprechpartner-kampagne-close">×</button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label">Ansprechpartner wählen</label>
+          <input type="text" id="ansprechpartner-kampagne-search" class="form-input auto-suggest-input" placeholder="Ansprechpartner suchen..." />
+          <div id="ansprechpartner-kampagne-dropdown" class="auto-suggest-dropdown"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="secondary-btn" id="add-ansprechpartner-kampagne-cancel">Abbrechen</button>
+          <button class="primary-btn" id="add-ansprechpartner-kampagne-confirm" disabled>Hinzufügen</button>
+        </div>
+      </div>`;
+    
+    document.body.appendChild(modal);
+
+    const input = modal.querySelector('#ansprechpartner-kampagne-search');
+    const dropdown = modal.querySelector('#ansprechpartner-kampagne-dropdown');
+    let selectedId = null;
+
+    const hydrateDropdown = (filter = '') => {
+      // Wenn kein Filter, zeige Hinweis zum Tippen
+      if (!filter || filter.trim().length === 0) {
+        dropdown.innerHTML = '<div class="dropdown-item no-results">Beginnen Sie zu tippen, um Ansprechpartner zu suchen...</div>';
+        return;
+      }
+      
+      const f = filter.toLowerCase();
+      const items = ansprechpartner.filter(ap => {
+        const fullName = `${ap.vorname} ${ap.nachname}`.toLowerCase();
+        const email = (ap.email || '').toLowerCase();
+        const unternehmen = (ap.unternehmen?.firmenname || '').toLowerCase();
+        return fullName.includes(f) || email.includes(f) || unternehmen.includes(f);
+      });
+      
+      dropdown.innerHTML = items.length
+        ? items.map(ap => {
+            const displayName = `${ap.vorname} ${ap.nachname}`;
+            const details = [
+              ap.email,
+              ap.unternehmen?.firmenname,
+              ap.position?.name
+            ].filter(Boolean).join(' • ');
+            
+            return `<div class="dropdown-item" data-id="${ap.id}">
+              <div class="dropdown-item-main">${displayName}</div>
+              ${details ? `<div class="dropdown-item-details">${details}</div>` : ''}
+            </div>`;
+          }).join('')
+        : '<div class="dropdown-item no-results">Keine verfügbaren Ansprechpartner gefunden</div>';
+    };
+    
+    // Initial kein Dropdown anzeigen - erst beim Tippen
+    dropdown.innerHTML = '<div class="dropdown-item no-results">Beginnen Sie zu tippen, um Ansprechpartner zu suchen...</div>';
+    
+    input.addEventListener('focus', () => {
+      // Nur anzeigen wenn bereits Text eingegeben wurde
+      if (input.value.trim().length > 0) {
+        dropdown.classList.add('show');
+      }
+    });
+    input.addEventListener('blur', () => {
+      setTimeout(() => dropdown.classList.remove('show'), 150);
+    });
+
+    // Dynamische Suche
+    let searchTimeout;
+    input.addEventListener('input', (e) => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(async () => {
+        const term = e.target.value.trim();
+        
+        // Kein Dropdown anzeigen wenn weniger als 1 Zeichen
+        if (term.length < 1) {
+          dropdown.classList.remove('show');
+          return;
+        }
+        
+        // Ab 1 Zeichen suchen und anzeigen
+        try {
+          let query = window.supabase
+            .from('ansprechpartner')
+            .select(`
+              id, 
+              vorname, 
+              nachname, 
+              email,
+              unternehmen:unternehmen_id(firmenname),
+              position:position_id(name)
+            `)
+            .or(`vorname.ilike.%${term}%,nachname.ilike.%${term}%,email.ilike.%${term}%`)
+            .order('nachname');
+          
+          if (excludedAnsprechpartnerIds.length > 0) {
+            query = query.not('id', 'in', `(${excludedAnsprechpartnerIds.join(',')})`);
+          }
+          
+          const { data } = await query;
+          ansprechpartner = data || [];
+          hydrateDropdown(term);
+          dropdown.classList.add('show'); // Ensure dropdown is shown after search
+        } catch (err) {
+          console.warn('⚠️ Ansprechpartner-Suche fehlgeschlagen', err);
+        }
+      }, 200);
+    });
+
+    dropdown.addEventListener('click', (e) => {
+      const item = e.target.closest('.dropdown-item');
+      if (!item || item.classList.contains('no-results')) return;
+      
+      selectedId = item.dataset.id;
+      const mainText = item.querySelector('.dropdown-item-main')?.textContent || item.textContent;
+      input.value = mainText;
+      modal.querySelector('#add-ansprechpartner-kampagne-confirm').disabled = false;
+      dropdown.classList.remove('show');
+    });
+
+    // Event-Handlers
+    const close = () => modal.remove();
+    modal.querySelector('#add-ansprechpartner-kampagne-close').onclick = close;
+    modal.querySelector('#add-ansprechpartner-kampagne-cancel').onclick = close;
+    
+    // ESC-Taste zum Schließen
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') {
+        close();
+        document.removeEventListener('keydown', handleEsc);
+      }
+    };
+    document.addEventListener('keydown', handleEsc);
+
+    // Hinzufügen-Handler
+    modal.querySelector('#add-ansprechpartner-kampagne-confirm').onclick = async () => {
+      if (!selectedId) return;
+      
+      try {
+        // Ansprechpartner zur Kampagne hinzufügen (Junction Table)
+        const { error } = await window.supabase
+          .from('ansprechpartner_kampagne')
+          .insert({ 
+            kampagne_id: kampagneId, 
+            ansprechpartner_id: selectedId 
+          });
+
+        if (error) throw error;
+
+        close();
+        document.removeEventListener('keydown', handleEsc);
+        
+        // UI aktualisieren - Multiple Events für Live-Updates
+        window.dispatchEvent(new CustomEvent('entityUpdated', { 
+          detail: { entity: 'ansprechpartner', action: 'added', kampagneId: kampagneId } 
+        }));
+        // Zusätzliches Event für KampagneList Live-Update
+        window.dispatchEvent(new CustomEvent('entityUpdated', { 
+          detail: { entity: 'kampagne', action: 'ansprechpartner-added', id: kampagneId } 
+        }));
+        
+        alert('✅ Ansprechpartner wurde erfolgreich zur Kampagne hinzugefügt und wird automatisch angezeigt!');
+        console.log('✅ ACTIONSDROPDOWN: Ansprechpartner erfolgreich zu Kampagne hinzugefügt');
+
+      } catch (error) {
+        console.error('❌ Fehler beim Hinzufügen des Ansprechpartners:', error);
+        alert('Fehler beim Hinzufügen: ' + (error.message || 'Unbekannter Fehler'));
+      }
+    };
   }
 
   // Cleanup

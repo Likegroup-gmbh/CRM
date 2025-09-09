@@ -11,6 +11,34 @@ export class FormEvents {
     // Entity-Attribut für abhängige Felder setzen
     form.dataset.entity = entity;
 
+    // Edit-Mode Kontext für DynamicDataLoader setzen
+    if (data && data._isEditMode) {
+      console.log('🎯 FORMEVENTS: Edit-Mode erkannt, setze Kontext für DynamicDataLoader');
+      console.log('📋 FORMEVENTS: Edit-Mode Daten:', {
+        entityId: data._entityId,
+        unternehmenId: data.unternehmen_id,
+        brancheId: data.branche_id,
+        totalFields: Object.keys(data).length
+      });
+      
+      form.dataset.editModeData = JSON.stringify(data);
+      form.dataset.isEditMode = 'true';
+      form.dataset.entityType = entity;
+      form.dataset.entityId = data._entityId;
+      
+      // Bestehende Werte für Auto-Suggestion verfügbar machen
+      if (data.unternehmen_id) {
+        form.dataset.existingUnternehmenId = data.unternehmen_id;
+        console.log('🏢 FORMEVENTS: Unternehmen-ID für Edit-Mode gesetzt:', data.unternehmen_id);
+      }
+      if (data.branche_id) {
+        form.dataset.existingBrancheId = data.branche_id;
+        console.log('🏷️ FORMEVENTS: Branche-ID für Edit-Mode gesetzt:', data.branche_id);
+      }
+    } else {
+      console.log('ℹ️ FORMEVENTS: Kein Edit-Mode erkannt oder keine Daten verfügbar');
+    }
+
     // Submit-Event
     form.onsubmit = async (e) => {
       e.preventDefault();
@@ -23,11 +51,11 @@ export class FormEvents {
       closeBtn.onclick = () => this.formSystem.closeForm();
     }
 
-    // Searchable Select-Felder initialisieren
-    this.initializeSearchableSelects(form);
-
-    // Dynamische Daten für Formular laden
+    // Dynamische Daten für Formular laden (ZUERST!)
     await this.formSystem.dataLoader.loadDynamicFormData(entity, form);
+
+    // Searchable Select-Felder initialisieren (DANACH!)
+    this.initializeSearchableSelects(form);
 
     // Abhängige Felder einrichten
     this.formSystem.dependentFields.setupDependentFields(form);
@@ -735,11 +763,18 @@ export class FormEvents {
 
   // Searchable Selects initialisieren
   initializeSearchableSelects(form) {
+    // DEAKTIVIERT: Wird bereits vom Haupt-FormSystem erledigt
+    // Das verhindert doppelte Multi-Select Felder
+    console.log('⚠️ FormEvents.initializeSearchableSelects deaktiviert - wird vom Haupt-FormSystem übernommen');
+    return;
+    
+    /*
     const searchableSelects = form.querySelectorAll('select[data-searchable="true"]');
     
     searchableSelects.forEach(select => {
       this.formSystem.createSearchableSelect(select, [], {});
     });
+    */
   }
 
   // Adressen-Felder einrichten

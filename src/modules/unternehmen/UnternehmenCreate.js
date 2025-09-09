@@ -97,12 +97,19 @@ export class UnternehmenCreate {
                   <label for="branche" class="form-label">Branchen</label>
                   <div class="multi-select-container">
                     <div class="selected-items" id="selected-branches"></div>
-                    <input 
-                      type="text" 
-                      id="branche-input" 
-                      class="form-input auto-suggest-input" 
-                      placeholder="Branche suchen und hinzufügen..."
-                    >
+                    <div class="input-with-clear">
+                      <input 
+                        type="text" 
+                        id="branche-input" 
+                        class="form-input auto-suggest-input" 
+                        placeholder="Branche suchen und hinzufügen..."
+                      >
+                      <button type="button" class="clear-input-btn" id="clear-branche-input" title="Eingabe löschen">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
                     <div class="auto-suggest-dropdown" id="branche-dropdown"></div>
                   </div>
                   <div class="form-help">Mehrere Branchen können ausgewählt werden</div>
@@ -244,6 +251,15 @@ export class UnternehmenCreate {
     // Abbrechen Button
     document.getElementById('btn-cancel').addEventListener('click', () => {
       window.navigateTo('/unternehmen');
+    });
+
+    // Clear-Button für Branche-Input
+    document.getElementById('clear-branche-input').addEventListener('click', () => {
+      const input = document.getElementById('branche-input');
+      const dropdown = document.getElementById('branche-dropdown');
+      input.value = '';
+      dropdown.style.display = 'none';
+      input.focus();
     });
 
     // Auto-Suggestion für Branchen
@@ -592,6 +608,12 @@ export class UnternehmenCreate {
         data[key] = Array.isArray(value) ? value : value.trim();
       }
 
+      // Branchen-IDs für Junction Table beibehalten (nicht zu einzelner UUID konvertieren)
+      if (data.branche_id && Array.isArray(data.branche_id)) {
+        console.log('✅ branche_id Array für Junction Table:', data.branche_id);
+        // Array beibehalten - wird von RelationTables verarbeitet
+      }
+
       console.log('📋 UNTERNEHMENCREATE: Formular-Daten gesammelt:', data);
 
       // Unternehmen über DataService erstellen (konsistent mit anderen Modulen)
@@ -604,6 +626,19 @@ export class UnternehmenCreate {
       const unternehmen = result.data;
 
       console.log('✅ UNTERNEHMENCREATE: Unternehmen erstellt:', unternehmen);
+
+      // Junction Table-Verknüpfungen verarbeiten (für branche_id)
+      if (result.id) {
+        try {
+          const { RelationTables } = await import('../../core/form/logic/RelationTables.js');
+          const relationTables = new RelationTables();
+          await relationTables.handleRelationTables('unternehmen', result.id, data, form);
+          console.log('✅ Junction Table-Verknüpfungen verarbeitet');
+        } catch (relationError) {
+          console.error('❌ Fehler beim Verarbeiten der Junction Tables:', relationError);
+          // Nicht fatal - Hauptentität wurde bereits erstellt
+        }
+      }
 
       // Event auslösen für Listen-Update
       window.dispatchEvent(new CustomEvent('entityCreated', {

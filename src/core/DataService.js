@@ -97,24 +97,33 @@ export class DataService {
       unternehmen: {
         table: 'unternehmen',
         displayField: 'firmenname',
-        fields: {
-          firmenname: 'string',
-          branche: 'string',
-          branche_id: 'uuid',               // ← Hinzugefügt für Filter
-          ansprechpartner: 'string',
-          telefonnummer: 'string',
-          invoice_email: 'string',
-          rechnungsadresse_strasse: 'string',
-          rechnungsadresse_hausnummer: 'string',
-          rechnungsadresse_plz: 'string',
-          rechnungsadresse_stadt: 'string',
-          rechnungsadresse_land: 'string',
-          webseite: 'string',
-          status: 'string',
-          notiz: 'string'
-        },
+        fields: [
+          { name: 'firmenname', type: 'string' },
+          { name: 'branche', type: 'string' },
+          { name: 'branche_id', type: 'uuid', relationTable: 'unternehmen_branchen', relationField: 'branche_id' },
+          { name: 'ansprechpartner', type: 'string' },
+          { name: 'telefonnummer', type: 'string' },
+          { name: 'invoice_email', type: 'string' },
+          { name: 'rechnungsadresse_strasse', type: 'string' },
+          { name: 'rechnungsadresse_hausnummer', type: 'string' },
+          { name: 'rechnungsadresse_plz', type: 'string' },
+          { name: 'rechnungsadresse_stadt', type: 'string' },
+          { name: 'rechnungsadresse_land', type: 'string' },
+          { name: 'webseite', type: 'string' },
+          { name: 'status', type: 'string' },
+          { name: 'notiz', type: 'string' }
+        ],
         relations: {
           branche: { table: 'branchen', foreignKey: 'branche_id', displayField: 'name' }
+        },
+        manyToMany: {
+          branchen: {
+            table: 'branchen',
+            junctionTable: 'unternehmen_branchen',
+            localKey: 'unternehmen_id',
+            foreignKey: 'branche_id',
+            displayField: 'name'
+          }
         },
         filters: ['firmenname', 'branche_id', 'status', 'rechnungsadresse_stadt', 'rechnungsadresse_land'],
         sortBy: 'created_at',
@@ -146,6 +155,15 @@ export class DataService {
           auftrag: { table: 'auftrag', foreignKey: 'auftrag_id', displayField: 'auftragsname' },
           drehort_typ: { table: 'drehort_typen', foreignKey: 'drehort_typ_id', displayField: 'name' },
           status: { table: 'kampagne_status', foreignKey: 'status_id', displayField: 'name' }
+        },
+        manyToMany: {
+          ansprechpartner: {
+            table: 'ansprechpartner',
+            junctionTable: 'ansprechpartner_kampagne',
+            localKey: 'kampagne_id',
+            foreignKey: 'ansprechpartner_id',
+            displayField: 'id,vorname,nachname,email'
+          }
         },
         filters: ['kampagnenname', 'unternehmen_id', 'marke_id', 'status_id', 'art_der_kampagne', 'start', 'deadline'],
         sortBy: 'created_at',
@@ -312,8 +330,23 @@ export class DataService {
           updated_at: 'date'
         },
         relations: {
-          unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' },
-          branche: { table: 'branchen', foreignKey: 'branche_id', displayField: 'name' }
+          unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' }
+        },
+        manyToMany: {
+          branchen: {
+            table: 'branchen',
+            junctionTable: 'marke_branchen',
+            localKey: 'marke_id',
+            foreignKey: 'branche_id',
+            displayField: 'name'
+          },
+          ansprechpartner: {
+            table: 'ansprechpartner',
+            junctionTable: 'ansprechpartner_marke',
+            localKey: 'marke_id',
+            foreignKey: 'ansprechpartner_id',
+            displayField: 'id,vorname,nachname,email'
+          }
         },
         filters: ['markenname', 'unternehmen_id', 'branche_id'],
         sortBy: 'created_at',
@@ -533,6 +566,10 @@ export class DataService {
       }
 
       console.log(`✅ ${entityType} erfolgreich in Supabase aktualisiert:`, result);
+      
+      // Many-to-Many Beziehungen verarbeiten (z.B. branche_id für Unternehmen)
+      await this.handleManyToManyRelations(entityType, id, data);
+      
       return { success: true, id: id, data: result };
       
     } catch (error) {
@@ -746,6 +783,21 @@ export class DataService {
                   )
                 `)
                 .order('created_at', { ascending: false });
+            } else if (entityType === 'unternehmen') {
+              // Unternehmen mit Many-to-Many JOIN für Branchen
+              query = window.supabase
+                .from(entityConfig.table)
+                .select(`
+                  *,
+                  unternehmen_branchen (
+                    branche_id,
+                    branchen (
+                      id,
+                      name
+                    )
+                  )
+                `)
+                .order('created_at', { ascending: false });
             } else {
               // Standard-Query für andere Entitäten
               query = window.supabase
@@ -766,6 +818,25 @@ export class DataService {
       }
 
       console.log(`✅ ${entityType} aus Supabase geladen:`, data?.length || 0);
+      
+      // Spezielle Verarbeitung für Unternehmen: Many-to-Many Branchen vereinfachen
+      if (entityType === 'unternehmen' && data) {
+        data.forEach(unternehmen => {
+          // Branchen aus der Junction Table extrahieren
+          if (unternehmen.unternehmen_branchen) {
+            unternehmen.branchen = unternehmen.unternehmen_branchen
+              .map(ub => ub.branchen)
+              .filter(Boolean); // Entferne null-Werte
+            
+            // Cleanup: Entferne die ursprüngliche Junction-Struktur
+            delete unternehmen.unternehmen_branchen;
+            
+            console.log(`📋 Unternehmen ${unternehmen.firmenname}: ${unternehmen.branchen?.length || 0} Branchen geladen`);
+          } else {
+            unternehmen.branchen = [];
+          }
+        });
+      }
       
       // Lade Many-to-Many Beziehungen falls konfiguriert
       if (data && entityConfig.manyToMany) {
@@ -802,13 +873,24 @@ export class DataService {
         if (relationName === 'sprachen') {
           fieldName = 'sprachen_ids';
         } else if (relationName === 'branchen') {
-          fieldName = 'branchen_ids';
+          // Für Unternehmen und Marke: branche_id, für Creator: branchen_ids
+          fieldName = (entityType === 'unternehmen' || entityType === 'marke') ? 'branche_id' : 'branchen_ids';
         } else if (relationName === 'creator_types') {
           fieldName = 'creator_type_ids';
         } else {
           fieldName = `${relationName.slice(0, -1)}_ids`;
         }
-        const fieldData = data[fieldName] || data[`${fieldName}[]`];
+        // Priorität: Tag-basierte Daten (fieldName[]) vor ursprünglichen Daten (fieldName)
+        // Tag-basierte Daten enthalten die aktuellen Änderungen vom User
+        const fieldData = data[`${fieldName}[]`] || data[fieldName];
+        
+        // Debug: Zeige verfügbare Daten für dieses Feld
+        console.log(`🔍 DATASERVICE: Prüfe ${fieldName} für ${entityType}.${relationName}:`, {
+          fieldData: fieldData,
+          'data[fieldName]': data[fieldName],
+          'data[fieldName + []]': data[`${fieldName}[]`],
+          allDataKeys: Object.keys(data)
+        });
         
         if (!fieldData) continue;
         
@@ -949,37 +1031,37 @@ export class DataService {
           // ignore parse error, keep original value
         }
       }
-      // Spezielle Behandlung für branchen_ids - konvertiere zu branche_id und branche
-      if ((field === 'branchen_ids' || field === 'branchen_ids[]') && entityType === 'unternehmen') {
+      // Spezielle Behandlung für branche_id - prüfe ob Junction Table verwendet wird
+      if (field === 'branche_id' && entityType === 'unternehmen') {
         console.log(`🏷️ Verarbeite ${field}:`, value);
         
-        if (value) {
-          // Sicherstellen, dass value ein Array ist
-          const branchenIds = Array.isArray(value) ? value : [value];
+        // Prüfe ob es ein Relation-Field ist (für Junction Table)
+        const fieldConfig = this.entities[entityType]?.fields?.find(f => f.name === field);
+        const isRelationField = fieldConfig?.relationTable && fieldConfig?.relationField;
+        
+        if (isRelationField) {
+          // Junction Table wird verwendet - NICHT in Haupttabelle speichern
+          console.log(`🔧 ${field} ist Relation-Field - wird von RelationTables verarbeitet`);
+          continue; // Überspringe dieses Feld für die Haupttabelle
+        } else if (value) {
+          // Legacy: branche_id direkt setzen
+          supabaseData.branche_id = value;
+          console.log(`✅ branche_id gesetzt: ${value}`);
           
-          if (branchenIds.length > 0 && branchenIds[0]) {
-            // Erste Branche als branche_id setzen (für Kompatibilität)
-            supabaseData.branche_id = branchenIds[0];
-            console.log(`✅ branche_id gesetzt: ${branchenIds[0]}`);
+          // Branche-Namen für Legacy-Feld laden
+          try {
+            const { data: branche, error } = await window.supabase
+              .from('branchen')
+              .select('id, name')
+              .eq('id', value)
+              .single();
             
-            // Alle Branchen-Namen laden und als branche speichern
-            try {
-              const { data: branchen, error } = await window.supabase
-                .from('branchen')
-                .select('id, name')
-                .in('id', branchenIds);
-              
-              if (!error && branchen) {
-                const branchenNamen = branchenIds.map(id => {
-                  const branche = branchen.find(b => b.id === id);
-                  return branche ? branche.name : id;
-                });
-                supabaseData.branche = branchenNamen.join(', ');
-                console.log(`✅ branche Namen gesetzt: ${supabaseData.branche}`);
-              }
-            } catch (error) {
-              console.error('❌ Fehler beim Laden der Branche-Namen:', error);
+            if (!error && branche) {
+              supabaseData.branche = branche.name;
+              console.log(`✅ branche Namen gesetzt: ${supabaseData.branche}`);
             }
+          } catch (error) {
+            console.error('❌ Fehler beim Laden der Branche-Namen:', error);
           }
         }
         continue;
@@ -1017,7 +1099,16 @@ export class DataService {
         // Wenn es ein *_ids Feld ist und es ein entsprechendes *_id Feld in der Entity gibt, setze dieses auf den ersten Wert (Fallback/Kompatibilität)
         if (field.endsWith('_ids') || field.endsWith('_ids[]')) {
           const singularField = field.replace('_ids[]', '_id').replace('_ids', '_id');
-          if (fieldConfig[singularField] === 'uuid') {
+          
+          // Prüfe ob das singular Feld existiert
+          let hasUuidField = false;
+          if (Array.isArray(fieldConfig)) {
+            hasUuidField = fieldConfig.some(f => f.name === singularField && f.type === 'uuid');
+          } else if (fieldConfig && typeof fieldConfig === 'object') {
+            hasUuidField = fieldConfig[singularField] === 'uuid';
+          }
+          
+          if (hasUuidField) {
             const arr = Array.isArray(value) ? value : (value ? [value] : []);
             supabaseData[singularField] = arr.length > 0 ? arr[0] : null;
             console.log(`✅ Setze ${singularField} aus ${field}:`, supabaseData[singularField]);
@@ -1027,9 +1118,16 @@ export class DataService {
         continue;
       }
       
-      if (fieldConfig[field]) {
-        const fieldType = fieldConfig[field];
-        
+      // Feldkonfiguration finden (fieldConfig kann Array oder Objekt sein)
+      let fieldType = null;
+      if (Array.isArray(fieldConfig)) {
+        const fieldDef = fieldConfig.find(f => f.name === field);
+        fieldType = fieldDef?.type;
+      } else if (fieldConfig && typeof fieldConfig === 'object') {
+        fieldType = fieldConfig[field];
+      }
+      
+      if (fieldType) {
         // Falls ein einzelnes Feld (z. B. *_id oder uuid) als Array kommt, den ersten Wert verwenden
         if (Array.isArray(value) && (fieldType === 'uuid' || field.endsWith('_id'))) {
           value = value.length > 0 ? value[0] : null;

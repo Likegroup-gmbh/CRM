@@ -42,6 +42,7 @@ export class KampagneDetail {
       
       // Binde Events
       this.bindEvents();
+      this.bindAnsprechpartnerEvents();
       
       console.log('✅ KAMPAGNEDETAIL: Initialisierung abgeschlossen');
       
@@ -251,7 +252,7 @@ export class KampagneDetail {
         .from('kampagne')
         .select(`
           *,
-          unternehmen:unternehmen_id(firmenname, webseite, branche),
+          unternehmen:unternehmen_id(firmenname, webseite, branche_id),
           marke:marke_id(markenname, webseite),
           auftrag:auftrag_id(auftragsname, status, gesamt_budget, creator_budget)
         `)
@@ -261,6 +262,27 @@ export class KampagneDetail {
       if (error) throw error;
       
       this.kampagneData = kampagne;
+
+      // Ansprechpartner aus Junction Table laden
+      const { data: ansprechpartnerData, error: ansprechpartnerError } = await window.supabase
+        .from('ansprechpartner_kampagne')
+        .select(`
+          ansprechpartner:ansprechpartner_id(
+            id,
+            vorname,
+            nachname,
+            email,
+            unternehmen:unternehmen_id(firmenname),
+            position:position_id(name)
+          )
+        `)
+        .eq('kampagne_id', this.kampagneId);
+
+      if (!ansprechpartnerError) {
+        this.kampagneData.ansprechpartner = ansprechpartnerData?.map(item => item.ansprechpartner).filter(Boolean) || [];
+        console.log('✅ KAMPAGNEDETAIL: Ansprechpartner geladen:', this.kampagneData.ansprechpartner.length);
+      }
+      
       console.log('✅ KAMPAGNEDETAIL: Kampagnen-Basisdaten geladen:', this.kampagneData);
 
       // Kampagnen-Arten laden (falls vorhanden)
@@ -642,7 +664,7 @@ export class KampagneDetail {
                   </div>
                   <div class="detail-item">
                     <label>Branche:</label>
-                    <span>${window.validatorSystem.sanitizeHtml(this.kampagneData.unternehmen?.branche || '-')}</span>
+                    <span>${window.validatorSystem.sanitizeHtml(this.kampagneData.unternehmen?.branche_id || '-')}</span>
                   </div>
                 </div>
 
@@ -679,6 +701,21 @@ export class KampagneDetail {
                   <div class="detail-item">
                     <label>Creator Budget:</label>
                     <span>${formatCurrency(this.kampagneData.auftrag?.creator_budget)}${this.koopBudgetSum ? ` (aufgebraucht: ${formatCurrency(this.koopBudgetSum)})` : ''}</span>
+                  </div>
+                </div>
+
+                <!-- Ansprechpartner -->
+                <div class="detail-card">
+                  <h3>Ansprechpartner
+                    <button class="btn-add-ansprechpartner-kampagne btn btn-sm btn-primary" style="margin-left: 10px;">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4" style="margin-right: 5px;">
+                        <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" />
+                      </svg>
+                      Hinzufügen
+                    </button>
+                  </h3>
+                  <div class="detail-item">
+                    ${this.renderAnsprechpartner()}
                   </div>
                 </div>
               </div>
@@ -1257,6 +1294,50 @@ export class KampagneDetail {
     // Content zurücksetzen
     window.setContentSafely('');
     console.log('✅ KAMPAGNEDETAIL: Destroy abgeschlossen');
+  }
+
+  // Render Ansprechpartner für Detail-Ansicht
+  renderAnsprechpartner() {
+    if (!this.kampagneData.ansprechpartner || this.kampagneData.ansprechpartner.length === 0) {
+      return '<span class="text-muted">Keine Ansprechpartner zugeordnet</span>';
+    }
+
+    // Ansprechpartner als klickbare Tags mit Details
+    const ansprechpartnerTags = this.kampagneData.ansprechpartner
+      .filter(ap => ap && ap.vorname && ap.nachname) // Nur gültige Ansprechpartner
+      .map(ap => {
+        const details = [
+          ap.position?.name,
+          ap.unternehmen?.firmenname
+        ].filter(Boolean).join(' • ');
+        
+        return `<a href="#" class="tag tag--ansprechpartner" onclick="event.preventDefault(); window.navigateTo('/ansprechpartner/${ap.id}')">
+          ${ap.vorname} ${ap.nachname}
+          ${details ? `<small style="opacity: 0.8; margin-left: 5px;">(${details})</small>` : ''}
+        </a>`;
+      })
+      .join('');
+
+    return `<div class="tags">${ansprechpartnerTags}</div>`;
+  }
+
+  // Event-Handler für Ansprechpartner hinzufügen Button
+  bindAnsprechpartnerEvents() {
+    const addButton = document.querySelector('.btn-add-ansprechpartner-kampagne');
+    if (addButton) {
+      addButton.addEventListener('click', () => {
+        window.actionsDropdown.openAddAnsprechpartnerToKampagneModal(this.kampagneId);
+      });
+    }
+
+    // Event-Listener für automatische Aktualisierung
+    window.addEventListener('entityUpdated', (e) => {
+      if (e.detail.entity === 'ansprechpartner' && e.detail.action === 'added' && e.detail.kampagneId === this.kampagneId) {
+        this.loadKampagneData().then(() => {
+          this.render();
+        });
+      }
+    });
   }
 }
 

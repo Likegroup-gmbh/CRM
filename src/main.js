@@ -40,6 +40,7 @@ import { mitarbeiterList } from './modules/admin/MitarbeiterList.js';
 import { mitarbeiterDetail } from './modules/admin/MitarbeiterDetail.js';
 import { bulkActionSystem } from './core/BulkActionSystem.js';
 import { notificationSystem } from './core/NotificationSystem.js';
+import { dashboardModule } from './modules/dashboard/DashboardModule.js';
 // main.js - Haupt-Einstiegspunkt für ES6-Module
 
 // Zentrale Modul-Registry (Event-basiert)
@@ -202,13 +203,19 @@ class ModuleRegistry {
 
   // Dashboard laden
   loadDashboard() {
-    window.setHeadline('Dashboard');
-    window.content.innerHTML = `
-      <div class="dashboard">
-        <h1>Willkommen im CRM</h1>
-        <p>Dashboard wird geladen...</p>
-      </div>
-    `;
+    const dashboardModule = this.modules.get('dashboard');
+    if (dashboardModule) {
+      this.currentModule = dashboardModule;
+      dashboardModule.init();
+    } else {
+      window.setHeadline('Dashboard');
+      window.content.innerHTML = `
+        <div class="dashboard">
+          <h1>Willkommen im CRM</h1>
+          <p>Dashboard wird geladen...</p>
+        </div>
+      `;
+    }
   }
 }
 
@@ -243,6 +250,7 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('rechnung-detail', rechnungDetail);
   moduleRegistry.register('mitarbeiter', mitarbeiterList);
   moduleRegistry.register('mitarbeiter-detail', mitarbeiterDetail);
+  moduleRegistry.register('dashboard', dashboardModule);
   
   // Profile-Modul initialisieren und registrieren
   const profileDetail = new ProfileDetail();
@@ -295,6 +303,7 @@ window.notificationSystem = notificationSystem;
 window.ansprechpartnerList = ansprechpartnerList;
 window.ansprechpartnerDetail = ansprechpartnerDetail;
 window.ansprechpartnerCreate = ansprechpartnerCreate;
+window.dashboardModule = dashboardModule;
 
 // Profile-System importieren
 import { ProfileDetail } from './modules/admin/ProfileDetail.js';
@@ -447,8 +456,6 @@ window.setupHeaderUI = () => {
         
         if (action === 'view-profile') {
           moduleRegistry.navigateTo('/profile');
-        } else if (action === 'logout') {
-          window.authService?.logout();
         }
       });
 

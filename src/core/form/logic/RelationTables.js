@@ -42,27 +42,52 @@ export class RelationTables {
         entityField = 'kampagne_id';
       } else if (field.name === 'format_ids') {
         entityField = 'kampagne_id';
+      } else if (field.name === 'branche_id' && field.relationTable === 'unternehmen_branchen') {
+        entityField = 'unternehmen_id';
       } else {
         entityField = `${field.name.replace('_ids', '_id')}`;
       }
       
-      // Bestehende Verknüpfungen löschen
-      const deleteQuery = `DELETE FROM ${relationTable} WHERE ${entityField} = $1`;
-      await window.dataService.executeQuery(deleteQuery, [entityId]);
+      // Bestehende Verknüpfungen löschen (Supabase)
+      const { error: deleteError } = await window.supabase
+        .from(relationTable)
+        .delete()
+        .eq(entityField, entityId);
+      
+      if (deleteError) {
+        console.error(`❌ Fehler beim Löschen bestehender Verknüpfungen:`, deleteError);
+        throw deleteError;
+      }
       
       // Neue Verknüpfungen hinzufügen
+      let valuesToInsert = [];
+      
       if (Array.isArray(fieldValue)) {
-        for (const value of fieldValue) {
-          const insertQuery = `INSERT INTO ${relationTable} (${entityField}, ${relationField}) VALUES ($1, $2)`;
-          await window.dataService.executeQuery(insertQuery, [entityId, value]);
-        }
+        valuesToInsert = fieldValue;
       } else if (typeof fieldValue === 'string' && fieldValue.includes(',')) {
         // Komma-getrennte Werte
-        const values = fieldValue.split(',').map(v => v.trim());
-        for (const value of values) {
-          const insertQuery = `INSERT INTO ${relationTable} (${entityField}, ${relationField}) VALUES ($1, $2)`;
-          await window.dataService.executeQuery(insertQuery, [entityId, value]);
+        valuesToInsert = fieldValue.split(',').map(v => v.trim()).filter(Boolean);
+      } else if (fieldValue) {
+        valuesToInsert = [fieldValue];
+      }
+      
+      // Batch-Insert für bessere Performance
+      if (valuesToInsert.length > 0) {
+        const insertData = valuesToInsert.map(value => ({
+          [entityField]: entityId,
+          [relationField]: value
+        }));
+        
+        const { error: insertError } = await window.supabase
+          .from(relationTable)
+          .insert(insertData);
+        
+        if (insertError) {
+          console.error(`❌ Fehler beim Einfügen neuer Verknüpfungen:`, insertError);
+          throw insertError;
         }
+        
+        console.log(`✅ ${valuesToInsert.length} Verknüpfungen in ${relationTable} erstellt`);
       }
       
       console.log(`✅ Verknüpfungstabelle ${relationTable} aktualisiert für ${entityId}`);

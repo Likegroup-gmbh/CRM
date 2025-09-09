@@ -217,10 +217,13 @@ export class FormRenderer {
         }
         
         if (field.searchable) {
+          // Für Edit-Mode: Bestehende Werte als data-attribute hinzufügen
+          const editModeData = selectedValues.length > 0 ? `data-existing-values='${JSON.stringify(selectedValues)}'` : '';
+          
           return `
             <div class="form-field">
               <label for="${fieldId}">${field.label} ${requiredMark}</label>
-              <select id="${fieldId}" name="${field.name}" ${required} multiple data-searchable="true" data-tag-based="${field.tagBased || 'false'}" data-placeholder="${field.placeholder || 'Bitte wählen...'}">
+              <select id="${fieldId}" name="${field.name}" ${required} multiple data-searchable="true" data-tag-based="${field.tagBased || 'false'}" data-placeholder="${field.placeholder || 'Bitte wählen...'}" ${editModeData}>
                 ${multiOptions}
               </select>
             </div>

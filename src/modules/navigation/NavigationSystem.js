@@ -16,8 +16,8 @@ export class NavigationSystem {
         items: [
           { id: 'unternehmen', label: 'Unternehmen', icon: 'icon-building', url: '/unternehmen' },
           { id: 'marke', label: 'Marken', icon: 'icon-tag', url: '/marke' },
-          { id: 'auftrag', label: 'Aufträge', icon: 'icon-briefcase', url: '/auftrag' },
-          { id: 'ansprechpartner', label: 'Ansprechpartner', icon: 'icon-user-circle', url: '/ansprechpartner' }
+          { id: 'ansprechpartner', label: 'Ansprechpartner', icon: 'icon-user-circle', url: '/ansprechpartner' },
+          { id: 'auftrag', label: 'Aufträge', icon: 'icon-briefcase', url: '/auftrag' }
         ]
       },
       {

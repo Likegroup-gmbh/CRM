@@ -110,7 +110,6 @@ export class UnternehmenList {
               <th>Name</th>
               <th>Branche</th>
               <th>Ansprechpartner</th>
-              <th>Telefonnummer</th>
               <th>Email</th>
               <th>Stadt</th>
               <th>Land</th>
@@ -327,9 +326,8 @@ export class UnternehmenList {
             ${window.validatorSystem.sanitizeHtml(unternehmen.firmenname || '')}
           </a>
         </td>
-        <td>${this.renderBrancheTags(unternehmen.branchen ?? unternehmen.branche)}</td>
+        <td>${this.renderBrancheTags(unternehmen.branchen)}</td>
         <td>${this.renderAnsprechpartnerList(apMap.get(unternehmen.id))}</td>
-        <td>${window.validatorSystem.sanitizeHtml(unternehmen.telefonnummer || '')}</td>
         <td>${window.validatorSystem.sanitizeHtml(unternehmen.invoice_email || '')}</td>
         <td>${window.validatorSystem.sanitizeHtml(unternehmen.rechnungsadresse_stadt || '')}</td>
         <td>${window.validatorSystem.sanitizeHtml(unternehmen.rechnungsadresse_land || '')}</td>
@@ -381,6 +379,11 @@ export class UnternehmenList {
   // Render Branche Tags (kompatibel mit String oder Array/Objekten)
   renderBrancheTags(branchen) {
     if (!branchen || (Array.isArray(branchen) && branchen.length === 0)) return '-';
+
+    // Wenn Backend als einzelnes Objekt liefert (Supabase JOIN)
+    if (typeof branchen === 'object' && !Array.isArray(branchen) && branchen.name) {
+      return `<div class="tags tags-compact"><span class="tag tag--branche">${window.validatorSystem.sanitizeHtml(branchen.name)}</span></div>`;
+    }
 
     // Wenn Backend als String liefert
     if (typeof branchen === 'string') {
@@ -517,6 +520,12 @@ export class UnternehmenList {
         }
       }
 
+      // Branchen-IDs für Junction Table beibehalten (nicht zu einzelner UUID konvertieren)
+      if (submitData.branche_id && Array.isArray(submitData.branche_id)) {
+        console.log('✅ branche_id Array für Junction Table:', submitData.branche_id);
+        // Array beibehalten - wird von RelationTables verarbeitet
+      }
+
       // Validierung
       const validation = window.validatorSystem.validateForm(submitData, {
         firmenname: { type: 'text', minLength: 2, required: true },
@@ -532,6 +541,19 @@ export class UnternehmenList {
       const result = await window.dataService.createEntity('unternehmen', submitData);
 
       if (result.success) {
+        // Junction Table-Verknüpfungen verarbeiten (für branche_id)
+        if (result.id) {
+          try {
+            const { RelationTables } = await import('../../core/form/logic/RelationTables.js');
+            const relationTables = new RelationTables();
+            await relationTables.handleRelationTables('unternehmen', result.id, submitData, form);
+            console.log('✅ Junction Table-Verknüpfungen verarbeitet');
+          } catch (relationError) {
+            console.error('❌ Fehler beim Verarbeiten der Junction Tables:', relationError);
+            // Nicht fatal - Hauptentität wurde bereits erstellt
+          }
+        }
+
         this.showSuccessMessage('Unternehmen erfolgreich erstellt!');
         
         // Zurück zur Übersicht navigieren

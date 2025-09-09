@@ -276,7 +276,7 @@ export class FormConfig {
           { name: 'markenname', label: 'Markenname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
           { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...', table: 'unternehmen', displayField: 'firmenname', valueField: 'id' },
           { name: 'webseite', label: 'Webseite', type: 'url', required: false, validation: { type: 'url' } },
-          { name: 'branche_id', label: 'Branche', type: 'select', required: false, dynamic: true, searchable: true, placeholder: 'Branche suchen und auswählen...', table: 'branchen', displayField: 'name', valueField: 'id' }
+          { name: 'branche_id', label: 'Branchen', type: 'multiselect', required: false, dynamic: true, searchable: true, tagBased: true, placeholder: 'Branchen suchen und hinzufügen...', table: 'branchen', displayField: 'name', valueField: 'id' }
         ]
       },
       auftrag: {

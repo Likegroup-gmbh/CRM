@@ -39,7 +39,8 @@ export class MarkeDetail {
         .from('marke')
         .select(`
           *,
-          unternehmen:unternehmen_id(firmenname)
+          unternehmen:unternehmen_id(firmenname),
+          branche:branche_id(name)
         `)
         .eq('id', this.markeId)
         .single();
@@ -48,6 +49,28 @@ export class MarkeDetail {
       
       this.marke = marke;
       console.log('✅ MARKENDETAIL: Marken-Basisdaten geladen:', this.marke);
+
+      // Branchen aus Junction Table laden
+      try {
+        const { data: branchenData, error: branchenError } = await window.supabase
+          .from('marke_branchen')
+          .select(`
+            branche_id,
+            branche:branche_id(name)
+          `)
+          .eq('marke_id', this.markeId);
+        
+        if (!branchenError && branchenData && branchenData.length > 0) {
+          this.marke.branchen = branchenData.map(item => item.branche);
+          console.log('✅ MARKENDETAIL: Branchen aus Junction Table geladen:', this.marke.branchen);
+        } else {
+          this.marke.branchen = [];
+          console.log('ℹ️ MARKENDETAIL: Keine Branchen in Junction Table gefunden');
+        }
+      } catch (branchenError) {
+        console.warn('⚠️ MARKENDETAIL: Fehler beim Laden der Branchen:', branchenError);
+        this.marke.branchen = [];
+      }
 
       // Notizen laden
       if (window.notizenSystem) {
@@ -236,8 +259,8 @@ export class MarkeDetail {
               </span>
             </div>
             <div class="detail-item">
-              <label>Branche:</label>
-              <span>${this.marke?.branche || '-'}</span>
+              <label>Branchen:</label>
+              <span>${this.renderBranchen()}</span>
             </div>
             <div class="detail-item">
               <label>Erstellt am:</label>
@@ -251,6 +274,21 @@ export class MarkeDetail {
         </div>
       </div>
     `;
+  }
+
+  // Rendere Branchen
+  renderBranchen() {
+    if (!this.marke?.branchen || this.marke.branchen.length === 0) {
+      return '-';
+    }
+
+    // Branchen als Tags mit vorhandenen CSS-Klassen
+    const branchenTags = this.marke.branchen
+      .filter(branche => branche && branche.name) // Nur gültige Branchen
+      .map(branche => `<span class="tag tag--branche">${branche.name}</span>`)
+      .join('');
+
+    return `<div class="tags">${branchenTags}</div>`;
   }
 
   // Rendere Notizen
@@ -343,31 +381,49 @@ export class MarkeDetail {
 
   // Rendere Ansprechpartner
   renderAnsprechpartner() {
-    if (!this.ansprechpartner || this.ansprechpartner.length === 0) {
-      return `
-        <div class="empty-state">
-          <div class="empty-icon">👥</div>
-          <h3>Keine Ansprechpartner vorhanden</h3>
-          <p>Es wurden noch keine Ansprechpartner für diese Marke zugeordnet.</p>
-        </div>
-      `;
+    const hasAnsprechpartner = this.ansprechpartner && this.ansprechpartner.length > 0;
+    
+    const emptyState = !hasAnsprechpartner ? `
+      <div class="empty-state">
+        <div class="empty-icon">👥</div>
+        <h3>Keine Ansprechpartner vorhanden</h3>
+        <p>Es wurden noch keine Ansprechpartner für diese Marke zugeordnet.</p>
+      </div>
+    ` : '';
+
+    const addButton = `
+      <div class="section-header">
+        <h3>Ansprechpartner</h3>
+        <button id="btn-add-ansprechpartner" class="primary-btn" data-marke-id="${this.markeId}">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
+          </svg>
+          Ansprechpartner hinzufügen
+        </button>
+      </div>
+    `;
+
+    if (!hasAnsprechpartner) {
+      return addButton + emptyState;
     }
 
     const ansprechpartnerHtml = this.ansprechpartner.map(ap => `
       <div class="ansprechpartner-card">
         <div class="ansprechpartner-header">
           <h4>${ap.vorname} ${ap.nachname}</h4>
-          <span class="ansprechpartner-position">${ap.position || '-'}</span>
+          <span class="ansprechpartner-position">${ap.position?.name || '-'}</span>
         </div>
         <div class="ansprechpartner-details">
           <p><strong>Email:</strong> ${ap.email ? `<a href="mailto:${ap.email}">${ap.email}</a>` : '-'}</p>
-          <p><strong>Telefon:</strong> ${ap.telefonnummer ? `<a href="tel:${ap.telefonnummer}">${ap.telefonnummer}</a>` : '-'}</p>
-          <p><strong>Abteilung:</strong> ${ap.abteilung || '-'}</p>
+          <p><strong>Telefon (privat):</strong> ${ap.telefonnummer ? `<a href="tel:${ap.telefonnummer}">${ap.telefonnummer}</a>` : '-'}</p>
+          <p><strong>Telefon (büro):</strong> ${ap.telefonnummer_office ? `<a href="tel:${ap.telefonnummer_office}">${ap.telefonnummer_office}</a>` : '-'}</p>
+          <p><strong>Unternehmen:</strong> ${ap.unternehmen?.firmenname || '-'}</p>
         </div>
       </div>
     `).join('');
 
     return `
+      ${addButton}
       <div class="ansprechpartner-container">
         ${ansprechpartnerHtml}
       </div>
@@ -431,6 +487,16 @@ export class MarkeDetail {
       }
     });
 
+    // Ansprechpartner hinzufügen Button
+    document.addEventListener('click', (e) => {
+      if (e.target.id === 'btn-add-ansprechpartner') {
+        const markeId = e.target.dataset.markeId || this.markeId;
+        if (window.actionsDropdown) {
+          window.actionsDropdown.openAddAnsprechpartnerModal(markeId);
+        }
+      }
+    });
+
     // Notizen und Bewertungen Events
     document.addEventListener('notizenUpdated', () => {
       this.loadMarkeData().then(() => {
@@ -444,6 +510,17 @@ export class MarkeDetail {
         this.render();
         this.bindEvents();
       });
+    });
+
+    // Entity Updates (für Ansprechpartner)
+    document.addEventListener('entityUpdated', (e) => {
+      if (e.detail?.entity === 'ansprechpartner' && e.detail?.markeId === this.markeId) {
+        console.log('🔄 MARKEDETAIL: Ansprechpartner wurde aktualisiert, lade Daten neu');
+        this.loadMarkeData().then(() => {
+          this.render();
+          this.bindEvents();
+        });
+      }
     });
   }
 
@@ -468,11 +545,49 @@ export class MarkeDetail {
   }
 
   // Bearbeitungsformular anzeigen
-  showEditForm() {
+  async showEditForm() {
     console.log('🎯 MARKENDETAIL: Zeige Bearbeitungsformular');
     window.setHeadline('Marke bearbeiten');
     
-    const formHtml = window.formSystem.renderFormOnly('marke', this.marke);
+    // Daten für FormSystem vorbereiten
+    const formData = { ...this.marke };
+    
+    // Edit-Mode Flags immer setzen
+    formData._isEditMode = true;
+    formData._entityId = this.markeId;
+    
+    // Unternehmen-ID für Edit-Modus sicherstellen
+    if (this.marke.unternehmen_id) {
+      console.log('🏢 MARKENDETAIL: Formatiere Unternehmen-Daten für FormSystem:', this.marke.unternehmen_id);
+      formData.unternehmen_id = this.marke.unternehmen_id;
+    } else {
+      console.log('ℹ️ MARKENDETAIL: Keine Unternehmen-Daten vorhanden für Edit-Modus');
+      formData.unternehmen_id = null;
+    }
+    
+    // Branchen-IDs für Edit-Modus laden (Many-to-Many über Junction Table)
+    try {
+      const { data: branchenData, error } = await window.supabase
+        .from('marke_branchen')
+        .select('branche_id')
+        .eq('marke_id', this.markeId);
+      
+      if (!error && branchenData && branchenData.length > 0) {
+        const branchenIds = branchenData.map(b => b.branche_id);
+        console.log('🏷️ MARKENDETAIL: Formatiere Branchen-Daten für FormSystem:', branchenIds);
+        formData.branche_id = branchenIds;
+      } else {
+        console.log('ℹ️ MARKENDETAIL: Keine Branchen-Daten vorhanden für Edit-Modus');
+        formData.branche_id = [];
+      }
+    } catch (branchenError) {
+      console.warn('⚠️ MARKENDETAIL: Fehler beim Laden der Branchen-Daten:', branchenError);
+      formData.branche_id = [];
+    }
+    
+    console.log('📋 MARKENDETAIL: FormData für Rendering:', formData);
+    
+    const formHtml = window.formSystem.renderFormOnly('marke', formData);
     window.content.innerHTML = `
       <div class="page-header">
         <div class="page-header-left">
@@ -489,12 +604,33 @@ export class MarkeDetail {
       </div>
     `;
 
-    // Formular-Events binden
-    window.formSystem.bindFormEvents('marke', this.marke);
+    // Formular-Events mit vorbereiteten Daten binden
+    window.formSystem.bindFormEvents('marke', formData);
     
-    // Custom Submit Handler
+    // Form-Datasets für DynamicDataLoader setzen
     const form = document.getElementById('marke-form');
     if (form) {
+      form.dataset.isEditMode = 'true';
+      form.dataset.entityType = 'marke';
+      form.dataset.entityId = this.markeId;
+      
+      // Bestehende Werte für Auto-Suggestion verfügbar machen
+      if (formData.unternehmen_id) {
+        form.dataset.existingUnternehmenId = formData.unternehmen_id;
+      }
+      if (formData.branche_id && Array.isArray(formData.branche_id) && formData.branche_id.length > 0) {
+        form.dataset.existingBranchenIds = JSON.stringify(formData.branche_id);
+      }
+      
+      console.log('📋 MARKENDETAIL: Form-Datasets gesetzt:', {
+        isEditMode: form.dataset.isEditMode,
+        entityType: form.dataset.entityType,
+        entityId: form.dataset.entityId,
+        existingUnternehmenId: form.dataset.existingUnternehmenId,
+        existingBrancheId: form.dataset.existingBrancheId
+      });
+      
+      // Custom Submit Handler
       form.onsubmit = async (e) => {
         e.preventDefault();
         await this.handleEditFormSubmit();
@@ -505,17 +641,31 @@ export class MarkeDetail {
   // Handle Edit Form Submit
   async handleEditFormSubmit() {
     try {
+      console.log('🎯 MARKEDETAIL: Verarbeite Formular-Submit');
+      
       const form = document.getElementById('marke-form');
       const formData = new FormData(form);
-      const submitData = {};
+      const allFormData = {};
 
-      // FormData zu Objekt konvertieren
+      // Standard FormData-Einträge sammeln
       for (const [key, value] of formData.entries()) {
-        submitData[key] = value;
+        allFormData[key] = value;
       }
 
+      // Tag-basierte Multi-Selects explizit sammeln (wie bei UnternehmenDetail)
+      const hiddenSelect = form.querySelector('select[name="branche_id[]"]');
+      if (hiddenSelect) {
+        const selectedValues = Array.from(hiddenSelect.selectedOptions).map(option => option.value).filter(val => val !== '');
+        if (selectedValues.length > 0) {
+          allFormData['branche_id[]'] = selectedValues;
+          console.log('🏷️ MARKEDETAIL: Alle ausgewählten Branchen gesammelt:', selectedValues);
+        }
+      }
+
+      console.log('📤 MARKEDETAIL: Submit-Daten für Update:', allFormData);
+
       // Validierung
-      const validation = window.validatorSystem.validateForm(submitData, {
+      const validation = window.validatorSystem.validateForm(allFormData, {
         markenname: { type: 'text', minLength: 2, required: true }
       });
       
@@ -525,7 +675,7 @@ export class MarkeDetail {
       }
 
       // Marke aktualisieren
-      const result = await window.dataService.updateEntity('marke', this.markeId, submitData);
+      const result = await window.dataService.updateEntity('marke', this.markeId, allFormData);
 
       if (result.success) {
         this.showSuccessMessage('Marke erfolgreich aktualisiert!');
