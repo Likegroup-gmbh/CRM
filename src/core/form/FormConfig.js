@@ -70,7 +70,7 @@ export class FormConfig {
         title: 'Neues Unternehmen anlegen',
         fields: [
           { name: 'firmenname', label: 'Firmenname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
-          { name: 'branchen_ids', label: 'Branchen', type: 'multiselect', required: false, dynamic: true, searchable: true, tagBased: true, placeholder: 'Branchen suchen und hinzufügen...', table: 'branchen', displayField: 'name', valueField: 'id', customField: true },
+          { name: 'branche_id', label: 'Branchen', type: 'multiselect', required: false, dynamic: true, searchable: true, tagBased: true, placeholder: 'Branche suchen und hinzufügen...', table: 'branchen', displayField: 'name', valueField: 'id', relationTable: 'unternehmen_branchen', relationField: 'branche_id' },
           { name: 'rechnungsadresse_strasse', label: 'Rechnungsadresse - Straße', type: 'text', required: false },
           { name: 'rechnungsadresse_hausnummer', label: 'Rechnungsadresse - Hausnummer', type: 'text', required: false },
           { name: 'rechnungsadresse_plz', label: 'Rechnungsadresse - PLZ', type: 'text', required: false },
@@ -274,9 +274,9 @@ export class FormConfig {
         title: 'Neue Marke anlegen',
         fields: [
           { name: 'markenname', label: 'Markenname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
-          { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...' },
+          { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...', table: 'unternehmen', displayField: 'firmenname', valueField: 'id' },
           { name: 'webseite', label: 'Webseite', type: 'url', required: false, validation: { type: 'url' } },
-          { name: 'branchen_ids', label: 'Branchen', type: 'multiselect', required: false, dynamic: true, searchable: true, tagBased: true, placeholder: 'Branchen suchen und hinzufügen...', table: 'branchen', displayField: 'name', valueField: 'id', customField: true }
+          { name: 'branche_id', label: 'Branche', type: 'select', required: false, dynamic: true, searchable: true, placeholder: 'Branche suchen und auswählen...', table: 'branchen', displayField: 'name', valueField: 'id' }
         ]
       },
       auftrag: {
