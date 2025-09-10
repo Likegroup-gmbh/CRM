@@ -156,6 +156,37 @@ export class RechnungDetail {
         submitData[key] = value;
       }
 
+      // Spezielle Behandlung für searchable Select-Felder
+      // Diese haben versteckte Select-Elemente, die möglicherweise nicht korrekt aktualisiert wurden
+      const searchableSelects = form.querySelectorAll('select[data-searchable="true"]');
+      searchableSelects.forEach(select => {
+        const container = select.parentNode.querySelector('.searchable-select-container');
+        if (container) {
+          const input = container.querySelector('.searchable-select-input');
+          if (input && input.value) {
+            // Prüfe ob der Input-Wert einer gültigen Option entspricht
+            const options = Array.from(select.options);
+            const matchingOption = options.find(opt => opt.textContent.trim() === input.value.trim());
+            if (matchingOption) {
+              submitData[select.name] = matchingOption.value;
+              console.log(`✅ Searchable Select ${select.name} korrigiert: ${input.value} → ${matchingOption.value}`);
+            }
+          }
+        }
+      });
+
+      // Validierung der required Felder
+      const requiredFields = ['auftrag_id', 'kooperation_id', 'unternehmen_id', 'kampagne_id'];
+      const missingFields = requiredFields.filter(field => !submitData[field] || submitData[field].trim() === '');
+      
+      if (missingFields.length > 0) {
+        alert(`Bitte füllen Sie alle Pflichtfelder aus: ${missingFields.join(', ')}`);
+        return;
+      }
+
+      console.log('📋 Submit-Daten vor Übertragung:', submitData);
+      console.log('🔍 auftrag_id Wert:', submitData.auftrag_id, typeof submitData.auftrag_id);
+
       // PDF Upload via UploaderField (Single)
       const pdfUploaderRoot = form.querySelector('.uploader[data-name="pdf_file"]');
       let pdf_url = null;

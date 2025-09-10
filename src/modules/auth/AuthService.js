@@ -257,9 +257,17 @@ export class AuthService {
       }
 
       this.clearAttempts(email);
-      // Direkt aktuellen Benutzer laden, damit Berechtigungen/Navigation stehen
-      await this.loadCurrentUser(data.user.id);
-      return { user: data.user, error: null };
+      
+      // WICHTIG: Benutzer NICHT automatisch einloggen
+      // Stattdessen zur OTP-Verifikationsseite weiterleiten
+      console.log('✅ Registrierung erfolgreich - Weiterleitung zur E-Mail-Verifikation');
+      
+      return { 
+        user: data.user, 
+        error: null, 
+        needsEmailVerification: true,
+        redirectTo: `/src/auth/verify-email.html?email=${encodeURIComponent(email)}`
+      };
     } catch (error) {
       console.error('SignUp Error:', error);
       return { user: null, error };
@@ -284,9 +292,10 @@ export class AuthService {
         .insert({
           auth_user_id: authUserId,
           name: name,
-          rolle: 'mitarbeiter',
-          unterrolle: 'user',
-          mitarbeiter_klasse_id: klasseId
+          rolle: 'pending', // Neue Rolle ohne Rechte - muss vom Admin freigeschaltet werden
+          unterrolle: 'awaiting_approval',
+          mitarbeiter_klasse_id: klasseId,
+          zugriffsrechte: null // Explizit keine Rechte
         });
 
       if (error) {

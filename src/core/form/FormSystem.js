@@ -27,6 +27,34 @@ export class FormSystem {
     this.currentForm = null;
   }
 
+  // Dynamische Optionen für ein einzelnes Feld laden
+  async loadDynamicOptions(field) {
+    if (!field || !field.getAttribute('data-table')) return;
+    
+    const table = field.getAttribute('data-table');
+    const displayField = field.getAttribute('data-display-field') || 'name';
+    const valueField = field.getAttribute('data-value-field') || 'id';
+    
+    try {
+      const { data, error } = await window.supabase
+        .from(table)
+        .select(`${valueField}, ${displayField}`)
+        .order(displayField);
+      
+      if (error) throw error;
+      
+      field.innerHTML = '<option value="">Bitte wählen...</option>';
+      data.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item[valueField];
+        option.textContent = item[displayField];
+        field.appendChild(option);
+      });
+    } catch (error) {
+      console.error(`❌ Fehler beim Laden der Optionen für ${table}:`, error);
+    }
+  }
+
   // Formular öffnen
   async openForm(entity, data = null) {
     try {

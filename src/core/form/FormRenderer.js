@@ -182,10 +182,17 @@ export class FormRenderer {
             `Erst ${this.getFieldLabel(field.dependsOn)} auswählen...` : 
             (field.placeholder || 'Bitte wählen...');
           
+          // Data-Attribute für dynamische Felder
+          const dataAttrs = [];
+          if (field.table) dataAttrs.push(`data-table="${field.table}"`);
+          if (field.displayField) dataAttrs.push(`data-display-field="${field.displayField}"`);
+          if (field.valueField) dataAttrs.push(`data-value-field="${field.valueField}"`);
+          const dataAttrString = dataAttrs.join(' ');
+          
           return `
             <div class="form-field">
               <label for="${fieldId}">${field.label} ${requiredMark}</label>
-              <select id="${fieldId}" name="${field.name}" ${required} ${ro} data-searchable="true" data-placeholder="${searchablePlaceholder}" ${field.readonly ? 'data-readonly="true"' : ''}>
+              <select id="${fieldId}" name="${field.name}" ${required} ${ro} data-searchable="true" data-placeholder="${searchablePlaceholder}" ${field.readonly ? 'data-readonly="true"' : ''} ${dataAttrString}>
                 ${options}
               </select>
               ${field.readonly ? `<input type="hidden" name="${field.name}" id="${fieldId}-hidden" value="">` : ''}
@@ -195,10 +202,18 @@ export class FormRenderer {
         
         const disabled = field.dependsOn ? 'disabled' : '';
         const ro = field.readonly ? 'disabled' : disabled;
+        
+        // Data-Attribute für dynamische Felder
+        const dataAttrs = [];
+        if (field.table) dataAttrs.push(`data-table="${field.table}"`);
+        if (field.displayField) dataAttrs.push(`data-display-field="${field.displayField}"`);
+        if (field.valueField) dataAttrs.push(`data-value-field="${field.valueField}"`);
+        const dataAttrString = dataAttrs.join(' ');
+        
         return `
           <div class="form-field">
             <label for="${fieldId}">${field.label} ${requiredMark}</label>
-            <select id="${fieldId}" name="${field.name}" ${required} ${ro} ${field.readonly ? 'data-readonly="true"' : ''}>
+            <select id="${fieldId}" name="${field.name}" ${required} ${ro} ${field.readonly ? 'data-readonly="true"' : ''} ${dataAttrString}>
               ${options}
             </select>
             ${field.readonly ? `<input type="hidden" name="${field.name}" id="${fieldId}-hidden" value="">` : ''}

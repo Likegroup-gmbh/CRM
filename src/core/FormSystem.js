@@ -44,6 +44,59 @@ export class FormSystem {
     this.currentForm = null;
   }
 
+  // Dynamische Optionen für ein einzelnes Feld laden
+  async loadDynamicOptions(field) {
+    if (!field || !field.getAttribute('data-table')) return;
+    
+    const table = field.getAttribute('data-table');
+    const displayField = field.getAttribute('data-display-field') || 'name';
+    const valueField = field.getAttribute('data-value-field') || 'id';
+    
+    try {
+      const { data, error } = await window.supabase
+        .from(table)
+        .select(`${valueField}, ${displayField}`)
+        .order(displayField);
+      
+      if (error) throw error;
+      
+      // Select-Element aktualisieren
+      field.innerHTML = '<option value="">Bitte wählen...</option>';
+      const options = data.map(item => {
+        const option = document.createElement('option');
+        option.value = item[valueField];
+        option.textContent = item[displayField];
+        field.appendChild(option);
+        return {
+          value: item[valueField],
+          label: item[displayField]
+        };
+      });
+      
+      // Wenn es ein searchable field ist, auch die searchable select UI aktualisieren
+      if (field.getAttribute('data-searchable') === 'true') {
+        const container = field.parentNode.querySelector('.searchable-select-container');
+        if (container) {
+          const dropdown = container.querySelector('.searchable-select-dropdown');
+          const input = container.querySelector('.searchable-select-input');
+          
+          if (dropdown && input) {
+            // Dropdown-Optionen aktualisieren
+            this.updateDropdownItems(dropdown, options, '');
+            
+            if (!input.value) {
+              input.placeholder = field.getAttribute('data-placeholder') || 'Bitte wählen...';
+            }
+          }
+        }
+      }
+      
+      console.log(`✅ Dynamische Optionen geladen für ${field.name}: ${options.length} Optionen`);
+    } catch (error) {
+      console.error(`❌ Fehler beim Laden der Optionen für ${table}:`, error);
+    }
+  }
+
   // Formular öffnen
   async openForm(entity, data = null) {
     try {
@@ -374,8 +427,14 @@ export class FormSystem {
     const dropdown = document.createElement('div');
     dropdown.className = 'searchable-select-dropdown';
 
-    // Original Select verstecken
+    // Original Select verstecken und required entfernen (wird auf Input übertragen)
     selectElement.style.display = 'none';
+    const wasRequired = selectElement.hasAttribute('required');
+    if (wasRequired) {
+      selectElement.removeAttribute('required');
+      input.setAttribute('required', '');
+      input.setAttribute('data-was-required', 'true');
+    }
 
     // Container einfügen
     selectElement.parentNode.insertBefore(container, selectElement);
@@ -409,6 +468,15 @@ export class FormSystem {
 
     input.addEventListener('input', () => {
       this.updateDropdownItems(dropdown, options, input.value);
+      
+      // Custom Validierung für required Felder
+      if (input.hasAttribute('data-was-required')) {
+        if (input.value.trim() === '') {
+          input.setCustomValidity('Dieses Feld ist erforderlich.');
+        } else {
+          input.setCustomValidity('');
+        }
+      }
     });
 
     // Dropdown-Items erstellen
@@ -431,17 +499,34 @@ export class FormSystem {
       item.addEventListener('click', () => {
         // Original Select aktualisieren
         const selectElement = dropdown.parentNode.parentNode.querySelector('select');
+        
+        // Neue Option erstellen falls sie nicht existiert
+        let optionElement = Array.from(selectElement.options).find(opt => opt.value === option.value);
+        if (!optionElement) {
+          optionElement = document.createElement('option');
+          optionElement.value = option.value;
+          optionElement.textContent = option.label;
+          selectElement.appendChild(optionElement);
+        }
+        
         selectElement.value = option.value;
         
         // Input aktualisieren
         const input = dropdown.parentNode.querySelector('input');
         input.value = option.label;
         
+        // Custom Validierung für required Felder
+        if (input.hasAttribute('data-was-required')) {
+          input.setCustomValidity(''); // Fehler löschen wenn Wert gesetzt
+        }
+        
         // Event auslösen
         selectElement.dispatchEvent(new Event('change'));
         
         // Dropdown schließen
         dropdown.classList.remove('show');
+        
+        console.log(`✅ Searchable Select ${selectElement.name} aktualisiert: ${option.label} → ${option.value}`);
       });
 
       item.addEventListener('mouseenter', () => item.classList.add('hover'));

@@ -82,7 +82,6 @@ export class PermissionSystem {
     };
 
     // Standard-Berechtigungen
-    // Dashboard ist immer für alle eingeloggten User sichtbar
     const defaultPermissions = {
       creator: { can_view: false, can_edit: false, can_delete: false },
       'creator-lists': { can_view: false, can_edit: false, can_delete: false },
@@ -91,8 +90,32 @@ export class PermissionSystem {
       auftrag: { can_view: false, can_edit: false, can_delete: false },
       kampagne: { can_view: false, can_edit: false, can_delete: false },
       kooperation: { can_view: false, can_edit: false, can_delete: false },
+      briefing: { can_view: false, can_edit: false, can_delete: false },
+      rechnung: { can_view: false, can_edit: false, can_delete: false },
+      ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
       dashboard: { can_view: true, can_edit: false, can_delete: false }
     };
+
+    // Pending-User: Nur Dashboard, keine anderen Rechte
+    const pendingPermissions = {
+      creator: { can_view: false, can_edit: false, can_delete: false },
+      'creator-lists': { can_view: false, can_edit: false, can_delete: false },
+      unternehmen: { can_view: false, can_edit: false, can_delete: false },
+      marke: { can_view: false, can_edit: false, can_delete: false },
+      auftrag: { can_view: false, can_edit: false, can_delete: false },
+      kampagne: { can_view: false, can_edit: false, can_delete: false },
+      kooperation: { can_view: false, can_edit: false, can_delete: false },
+      briefing: { can_view: false, can_edit: false, can_delete: false },
+      rechnung: { can_view: false, can_edit: false, can_delete: false },
+      ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
+      dashboard: { can_view: true, can_edit: false, can_delete: false }
+    };
+
+    // Pending-User: Warten auf Admin-Freischaltung
+    if (normalizedRole === 'pending') {
+      console.log('👤 Pending-User: Nur Dashboard-Zugriff, alle anderen Module gesperrt');
+      return pendingPermissions;
+    }
 
     // Admin hat alle Rechte (case-insensitive)
     if (normalizedRole === 'admin') {
@@ -108,6 +131,9 @@ export class PermissionSystem {
         auftrag: { can_view: true, can_edit: true, can_delete: false },
         kampagne: { can_view: true, can_edit: true, can_delete: false },
         kooperation: { can_view: true, can_edit: true, can_delete: false },
+        briefing: { can_view: true, can_edit: true, can_delete: false },
+        rechnung: { can_view: true, can_edit: true, can_delete: false },
+        ansprechpartner: { can_view: true, can_edit: true, can_delete: false },
         dashboard: { can_view: true, can_edit: false, can_delete: false }
       };
     }
@@ -122,7 +148,7 @@ export class PermissionSystem {
       return basePermissions.mitarbeiter;
     }
 
-    // Fallback zu Standard-Berechtigungen
+    // Fallback zu Standard-Berechtigungen (ohne Rechte)
     return defaultPermissions;
   }
 

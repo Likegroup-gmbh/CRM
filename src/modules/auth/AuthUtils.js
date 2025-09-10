@@ -168,21 +168,80 @@ export class AuthUtils {
     try {
       errorDiv.style.display = 'none';
       
-      const { user, error } = await authService.signUp(email, name, password);
+      const result = await authService.signUp(email, name, password);
       
-      if (error) {
-        throw error;
+      if (result.error) {
+        throw result.error;
       }
 
-      if (user) {
+      if (result.user) {
         console.log('✅ Registrierung erfolgreich');
-        this.showApp();
+        
+        // Prüfen ob E-Mail-Verifikation erforderlich ist
+        if (result.needsEmailVerification && result.redirectTo) {
+          // E-Mail für OTP-Seite speichern
+          localStorage.setItem('pendingVerificationEmail', email);
+          
+          // Erfolgreiche Registrierung anzeigen
+          this.showRegistrationSuccess(email, result.redirectTo);
+        } else {
+          // Fallback: Direkt zur App (sollte nicht passieren)
+          this.showApp();
+        }
       }
     } catch (error) {
       console.error('Registration failed:', error);
       errorDiv.textContent = error.message || 'Registrierung fehlgeschlagen';
       errorDiv.style.display = 'block';
     }
+  }
+
+  // Zeige Registrierungserfolg und leite zur OTP-Seite weiter
+  showRegistrationSuccess(email, redirectUrl) {
+    const successHtml = `
+      <div class="login-box">
+        <div class="success-icon" style="text-align: center; margin-bottom: 2rem;">
+          <svg style="width: 80px; height: 80px; color: #10b981; margin: 0 auto;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+        </div>
+        <h2 style="text-align: center; color: #10b981;">Registrierung erfolgreich!</h2>
+        <p style="text-align: center; margin: 1.5rem 0; color: #6b7280;">
+          Wir haben einen 6-stelligen Bestätigungscode an<br>
+          <strong style="color: #4f46e5;">${email}</strong> gesendet.
+        </p>
+        <p style="text-align: center; margin-bottom: 2rem; color: #6b7280; font-size: 0.875rem;">
+          Sie werden in <span id="countdown">3</span> Sekunden zur Bestätigungsseite weitergeleitet...
+        </p>
+        <div class="form-box text-center">
+          <button type="button" class="btn primary-btn" onclick="window.location.href='${redirectUrl}'">
+            Jetzt bestätigen
+          </button>
+        </div>
+        <div class="form-box text-center" style="margin-top: 1rem;">
+          <button type="button" class="btn secondary-btn" onclick="window.authUtils.showLogin()">
+            Zurück zum Login
+          </button>
+        </div>
+      </div>
+    `;
+    
+    window.loginRoot.innerHTML = successHtml;
+    
+    // Countdown und automatische Weiterleitung
+    let countdown = 3;
+    const countdownElement = document.getElementById('countdown');
+    const interval = setInterval(() => {
+      countdown--;
+      if (countdownElement) {
+        countdownElement.textContent = countdown;
+      }
+      
+      if (countdown <= 0) {
+        clearInterval(interval);
+        window.location.href = redirectUrl;
+      }
+    }, 1000);
   }
 
   // Registrierungs-Daten validieren

@@ -320,24 +320,32 @@ export class DashboardModule {
   }
 
   async render() {
+    // Prüfe ob User pending ist
+    const isPending = window.currentUser?.rolle === 'pending';
+    
     const html = `
       <div class="dashboard-container">
         <!-- Dashboard Header -->
         <div class="page-header">
           <div class="page-header-left">
             <h1>Dashboard</h1>
-            <p>Überblick über alle wichtigen Kennzahlen und Deadlines</p>
+            <p>${isPending ? 'Ihr Account wartet auf Freischaltung durch einen Administrator' : 'Überblick über alle wichtigen Kennzahlen und Deadlines'}</p>
           </div>
           <div class="page-header-right">
+            ${!isPending ? `
             <button id="dashboard-refresh" class="secondary-btn">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px; margin-right: 8px;">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
               </svg>
               Aktualisieren
             </button>
+            ` : ''}
           </div>
         </div>
 
+        ${isPending ? this.renderPendingMessage() : ''}
+
+        ${!isPending ? `
         <!-- KPI Cards -->
         <div class="dashboard-stats">
           ${this.renderStatsCards()}
@@ -369,10 +377,153 @@ export class DashboardModule {
           </div>
           ${this.renderRecentActivityTable()}
         </div>
+        ` : ''}
       </div>
     `;
 
     window.setContentSafely(window.content, html);
+  }
+
+  renderPendingMessage() {
+    return `
+      <div class="content-section">
+        <div class="pending-user-message">
+          <div class="pending-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 48px; height: 48px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+          </div>
+          <h3>Account wartet auf Freischaltung</h3>
+          <p>Ihr Account wurde erfolgreich erstellt und wartet nun auf die Freischaltung durch einen Administrator.</p>
+          <div class="pending-details">
+            <div class="pending-info">
+              <strong>Name:</strong> ${window.currentUser?.name || 'Unbekannt'}
+            </div>
+            <div class="pending-info">
+              <strong>E-Mail:</strong> Aus Sicherheitsgründen ausgeblendet
+            </div>
+            <div class="pending-info">
+              <strong>Status:</strong> <span class="pending-status">Warten auf Freischaltung</span>
+            </div>
+          </div>
+          <div class="pending-actions">
+            <p><strong>Was passiert als nächstes?</strong></p>
+            <ul>
+              <li>Ein Administrator wird Ihren Account in Kürze überprüfen</li>
+              <li>Sie erhalten eine E-Mail, sobald Ihr Account freigeschaltet wurde</li>
+              <li>Nach der Freischaltung haben Sie Zugriff auf alle freigegebenen Module</li>
+            </ul>
+          </div>
+          <div class="pending-contact">
+            <p>Bei Fragen wenden Sie sich bitte an einen Administrator.</p>
+          </div>
+        </div>
+      </div>
+      
+      <style>
+        .pending-user-message {
+          background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+          border: 2px solid #e2e8f0;
+          border-radius: 12px;
+          padding: 2rem;
+          text-align: center;
+          max-width: 600px;
+          margin: 0 auto;
+        }
+        
+        .pending-icon {
+          margin-bottom: 1rem;
+          color: #64748b;
+        }
+        
+        .pending-user-message h3 {
+          color: #1e293b;
+          font-size: 1.5rem;
+          margin-bottom: 0.5rem;
+          font-weight: 600;
+        }
+        
+        .pending-user-message > p {
+          color: #64748b;
+          font-size: 1.1rem;
+          margin-bottom: 1.5rem;
+          line-height: 1.6;
+        }
+        
+        .pending-details {
+          background: white;
+          border-radius: 8px;
+          padding: 1.5rem;
+          margin: 1.5rem 0;
+          text-align: left;
+          border: 1px solid #e2e8f0;
+        }
+        
+        .pending-info {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0.5rem 0;
+          border-bottom: 1px solid #f1f5f9;
+        }
+        
+        .pending-info:last-child {
+          border-bottom: none;
+        }
+        
+        .pending-status {
+          color: #f59e0b;
+          font-weight: 600;
+          background: #fef3c7;
+          padding: 0.25rem 0.75rem;
+          border-radius: 20px;
+          font-size: 0.875rem;
+        }
+        
+        .pending-actions {
+          background: #f8fafc;
+          border-radius: 8px;
+          padding: 1.5rem;
+          margin: 1.5rem 0;
+          text-align: left;
+        }
+        
+        .pending-actions p {
+          margin-bottom: 1rem;
+          color: #1e293b;
+          font-weight: 600;
+        }
+        
+        .pending-actions ul {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+        }
+        
+        .pending-actions li {
+          color: #64748b;
+          padding: 0.5rem 0;
+          position: relative;
+          padding-left: 1.5rem;
+        }
+        
+        .pending-actions li::before {
+          content: "✓";
+          position: absolute;
+          left: 0;
+          color: #10b981;
+          font-weight: bold;
+        }
+        
+        .pending-contact {
+          margin-top: 1.5rem;
+          padding-top: 1rem;
+          border-top: 1px solid #e2e8f0;
+          color: #64748b;
+          font-size: 0.95rem;
+        }
+      </style>
+    `;
   }
 
   renderStatsCards() {

@@ -334,28 +334,53 @@ export class FormEvents {
     const ustInput = form.querySelector('input[name="ust"]');
     const bruttoInput = form.querySelector('input[name="bruttobetrag"]');
 
+    // Original Placeholder speichern für Reset
+    [unternehmenField, auftragField, creatorField, kampagneField].forEach(field => {
+      if (field) {
+        const container = field.parentNode.querySelector('.searchable-select-container');
+        if (container) {
+          const input = container.querySelector('.searchable-select-input');
+          if (input && input.placeholder) {
+            field.setAttribute('data-original-placeholder', input.placeholder);
+          }
+        }
+      }
+    });
+
     const fillSelect = (selectEl, value, label) => {
       if (!selectEl) return;
+      
+      // Original Select aktualisieren
       selectEl.innerHTML = '';
       const opt = document.createElement('option');
       opt.value = value || '';
       opt.textContent = label || '—';
       selectEl.appendChild(opt);
       selectEl.value = value || '';
-      // Wenn Feld als readonly markiert ist, disabled bleiben, sonst deaktivieren nach Set für Lock
-      const isReadonly = selectEl.getAttribute('data-readonly') === 'true';
       selectEl.disabled = true;
+      
       // Sichtbare Searchable-UI aktualisieren
       const container = selectEl.parentNode.querySelector('.searchable-select-container');
       if (container) {
         const input = container.querySelector('.searchable-select-input');
-        if (input) input.value = label || '';
-        // Wenn readonly → Input sperren
-        if (selectEl.getAttribute('data-readonly') === 'true') {
-          input.setAttribute('disabled', 'true');
-          input.classList.add('is-disabled');
+        if (input) {
+          input.value = label || '';
+          // Readonly-Zustand setzen
+          if (selectEl.getAttribute('data-readonly') === 'true') {
+            input.setAttribute('disabled', 'true');
+            input.classList.add('is-disabled');
+          }
+          // Custom Validierung für required Felder aktualisieren
+          if (input.hasAttribute('data-was-required')) {
+            if (value && value.trim() !== '') {
+              input.setCustomValidity(''); // Fehler löschen wenn Wert gesetzt
+            } else {
+              input.setCustomValidity('Dieses Feld ist erforderlich.');
+            }
+          }
         }
       }
+      
       // Hidden mirror setzen, damit submitData den Wert enthält
       const hidden = document.getElementById(`${selectEl.id}-hidden`);
       if (hidden) hidden.value = value || '';
@@ -363,7 +388,53 @@ export class FormEvents {
 
     const onKoopChange = async () => {
       const koopId = koopSelect.value;
-      if (!koopId) return;
+      if (!koopId) {
+        // Wenn keine Kooperation ausgewählt ist, alle abhängigen Felder für manuelle Eingabe freischalten
+        const fieldsToReset = [
+          { field: auftragField, placeholder: 'Auftrag wählen...' },
+          { field: unternehmenField, placeholder: 'Unternehmen wählen...' },
+          { field: kampagneField, placeholder: 'Kampagne wählen...' },
+          { field: creatorField, placeholder: 'Creator wählen...' }
+        ];
+        
+        fieldsToReset.forEach(({ field, placeholder }) => {
+          if (field) {
+            field.disabled = false;
+            field.setAttribute('data-readonly', 'false');
+            field.innerHTML = '<option value="">Bitte wählen...</option>';
+            
+            // Searchable Select UI aktualisieren
+            const container = field.parentNode.querySelector('.searchable-select-container');
+            if (container) {
+              const input = container.querySelector('.searchable-select-input');
+              if (input) {
+                input.removeAttribute('disabled');
+                input.classList.remove('is-disabled');
+                input.value = '';
+                input.placeholder = placeholder;
+                // Custom Validierung für required Felder
+                if (input.hasAttribute('data-was-required')) {
+                  input.setCustomValidity('Dieses Feld ist erforderlich.');
+                }
+              }
+            }
+            
+            // Trigger reload der dynamischen Optionen wenn table-Konfiguration vorhanden
+            const table = field.getAttribute('data-table');
+            if (table && window.formSystem) {
+              window.formSystem.loadDynamicOptions(field);
+            }
+          }
+        });
+        
+        // Felder leeren
+        if (videoInput) videoInput.value = '';
+        if (nettoInput) nettoInput.value = '';
+        if (zusatzInput) zusatzInput.value = '';
+        if (bruttoInput) bruttoInput.value = '';
+        
+        return;
+      }
       // Hole Kooperation ohne FK-Expansions (robust gegen fehlende FK in Schema)
       const { data: koop, error } = await window.supabase
         .from('kooperationen')
@@ -427,6 +498,31 @@ export class FormEvents {
         }
       }
       fillSelect(auftragField, auftragsId, auftragsName || (auftragsId ? `Auftrag ${auftragsId}` : ''));
+      
+        // Validierung: Stelle sicher, dass auftrag_id gesetzt ist, da es in der DB required ist
+        if (!auftragsId && auftragField) {
+          console.warn('⚠️ Auftrag konnte nicht automatisch gesetzt werden. Feld wird für manuelle Auswahl freigeschaltet.');
+          auftragField.disabled = false;
+          auftragField.setAttribute('data-readonly', 'false');
+          const container = auftragField.parentNode.querySelector('.searchable-select-container');
+          if (container) {
+            const input = container.querySelector('.searchable-select-input');
+            if (input) {
+              input.removeAttribute('disabled');
+              input.classList.remove('is-disabled');
+              input.placeholder = 'Auftrag wählen...';
+              // Custom Validierung für required Felder
+              if (input.hasAttribute('data-was-required')) {
+                input.setCustomValidity('Dieses Feld ist erforderlich.');
+              }
+            }
+          }
+          // Dynamische Optionen laden
+          const table = auftragField.getAttribute('data-table');
+          if (table && window.formSystem) {
+            window.formSystem.loadDynamicOptions(auftragField);
+          }
+        }
 
       // Creator aus Kooperation laden (falls vorhanden)
       if (creatorField) {
@@ -466,6 +562,12 @@ export class FormEvents {
     };
 
     koopSelect.addEventListener('change', onKoopChange);
+    
+    // Initial: Wenn keine Kooperation vorausgewählt ist, alle Felder für manuelle Eingabe freischalten
+    if (!koopSelect.value) {
+      setTimeout(() => onKoopChange(), 100); // Kurz warten bis das Formular vollständig geladen ist
+    }
+    
     // Initial bei Formularstart (falls vorausgewählt)
     onKoopChange();
   }
