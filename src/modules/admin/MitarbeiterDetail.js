@@ -462,16 +462,16 @@ export class MitarbeiterDetail {
           
           // Notification senden
           if (window.notificationSystem && self.user.auth_user_id) {
-            await window.notificationSystem.sendNotification(
-              self.user.auth_user_id,
-              isFreigeschaltet ? 'Ihr Account wurde freigeschaltet' : 'Ihr Account wurde gesperrt',
-              isFreigeschaltet ? 
+            await window.notificationSystem.pushNotification(self.user.auth_user_id, {
+              type: 'system',
+              entity: 'benutzer',
+              entityId: self.userId,
+              title: isFreigeschaltet ? 'Ihr Account wurde freigeschaltet' : 'Ihr Account wurde gesperrt',
+              message: isFreigeschaltet ? 
                 'Sie können sich jetzt anmelden und das System nutzen.' : 
-                'Ihr Zugang wurde vorübergehend deaktiviert.',
-              'system',
-              'benutzer',
-              self.userId
-            );
+                'Ihr Zugang wurde vorübergehend deaktiviert.'
+            });
+            window.dispatchEvent(new Event('notificationsRefresh'));
           }
           
           console.log(`✅ Benutzer ${isFreigeschaltet ? 'freigeschaltet' : 'gesperrt'}`);
