@@ -444,9 +444,27 @@ export class MitarbeiterDetail {
         
         // Auto-Save Freigeschaltet Status
         try {
+          // Bei Freischaltung auch rolle und unterrolle anpassen
+          const updateData = { freigeschaltet: isFreigeschaltet };
+          
+          if (isFreigeschaltet) {
+            // Wenn freigeschaltet: rolle von "pending" auf "user" und unterrolle auf "can_view"
+            if (self.user.rolle === 'pending') {
+              updateData.rolle = 'user';
+            }
+            if (self.user.unterrolle === 'awaiting_approval') {
+              updateData.unterrolle = 'can_view';
+            }
+          } else {
+            // Wenn gesperrt: zurück auf pending status
+            updateData.rolle = 'pending';
+            updateData.unterrolle = 'awaiting_approval';
+            updateData.zugriffsrechte = null; // Rechte entfernen
+          }
+          
           const { error } = await window.supabase
             .from('benutzer')
-            .update({ freigeschaltet: isFreigeschaltet })
+            .update(updateData)
             .eq('id', self.userId);
             
           if (error) {
@@ -459,6 +477,9 @@ export class MitarbeiterDetail {
           
           // Lokalen Status aktualisieren
           self.user.freigeschaltet = isFreigeschaltet;
+          if (updateData.rolle) self.user.rolle = updateData.rolle;
+          if (updateData.unterrolle) self.user.unterrolle = updateData.unterrolle;
+          if (updateData.zugriffsrechte !== undefined) self.user.zugriffsrechte = updateData.zugriffsrechte;
           
           // Notification senden
           if (window.notificationSystem && self.user.auth_user_id) {
@@ -475,6 +496,12 @@ export class MitarbeiterDetail {
           }
           
           console.log(`✅ Benutzer ${isFreigeschaltet ? 'freigeschaltet' : 'gesperrt'}`);
+          
+          // Seite neu rendern um aktualisierte Rolle/Unterrolle anzuzeigen
+          setTimeout(() => {
+            self.render().then(() => self.bind());
+          }, 100);
+          
         } catch (err) {
           console.error('❌ Auto-Save Fehler', err);
           e.target.checked = !isFreigeschaltet;

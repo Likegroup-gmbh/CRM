@@ -989,15 +989,7 @@ body {
 }
 
 /* Status Badges */
-.status-badge {
-  display: inline-block;
-  font-size: var(--text-xs);
-  font-weight: 600;
-  padding: var(--space-xxs) var(--space-xs);
-  border-radius: var(--radius-sm);
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
-}
+
 
 .status-badge.danger {
   background: #fee2e2;
@@ -1016,7 +1008,7 @@ body {
 
 .status-badge.success {
   background: #dcfce7;
-  color: #16a34a;
+  color: var(--color-success-dark);
 }
 
 /* Responsive Design */
@@ -2890,10 +2882,8 @@ margin-bottom: var(--space-md);
   font-size: var(--text-xs);
   font-weight: 500;
   
-  border: 1px solid var(--gray-200);
+  
 }
-
-
 
 .status-badge.status-abgeschlossen {
   color: var(--color-success-light);
