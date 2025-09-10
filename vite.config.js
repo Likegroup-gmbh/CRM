@@ -6,8 +6,7 @@ export default defineConfig({
     outDir: 'dist',
     rollupOptions: {
       input: {
-        main: 'index.html',
-        verify: 'src/auth/verify-email.html'
+        main: 'index.html'
       },
       output: {
         manualChunks: {
