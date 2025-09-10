@@ -515,14 +515,19 @@
 
                 // Success
                 console.log('OTP verification successful!')
-                showSuccess('E-Mail erfolgreich bestätigt! Sie werden zum Login weitergeleitet...')
+                showSuccess('E-Mail erfolgreich bestätigt! Sie werden zum Dashboard weitergeleitet...')
+                
+                // Create user record if it doesn't exist
+                if (data.user) {
+                    await createBenutzerRecordIfNeeded(data.user.id, userEmail)
+                }
                 
                 // Clear stored email
                 localStorage.removeItem('pendingVerificationEmail')
                 
-                // Redirect to login after 2 seconds
+                // Redirect to main app after 2 seconds
                 setTimeout(() => {
-                    window.location.href = '/login?verified=true'
+                    window.location.href = '/?verified=true'
                 }, 2000)
 
             } catch (error) {
@@ -614,6 +619,53 @@
                 showError(errorMsg)
             } finally {
                 setResendingState(false)
+            }
+        }
+
+        // Create benutzer record if needed
+        async function createBenutzerRecordIfNeeded(authUserId, email) {
+            try {
+                console.log('Checking if benutzer record exists for:', authUserId)
+                
+                // Check if benutzer record already exists
+                const { data: existingUser, error: checkError } = await supabase
+                    .from('benutzer')
+                    .select('id')
+                    .eq('auth_user_id', authUserId)
+                    .single()
+                
+                if (checkError && checkError.code !== 'PGRST116') {
+                    console.error('Error checking benutzer record:', checkError)
+                    return
+                }
+                
+                if (existingUser) {
+                    console.log('Benutzer record already exists')
+                    return
+                }
+                
+                // Extract name from email (fallback)
+                const name = email.split('@')[0] || 'Neuer Benutzer'
+                
+                // Create benutzer record
+                const { error: insertError } = await supabase
+                    .from('benutzer')
+                    .insert({
+                        auth_user_id: authUserId,
+                        name: name,
+                        rolle: 'pending',
+                        unterrolle: 'awaiting_approval',
+                        zugriffsrechte: null
+                    })
+                
+                if (insertError) {
+                    console.error('Error creating benutzer record:', insertError)
+                } else {
+                    console.log('✅ Benutzer record created successfully')
+                }
+                
+            } catch (error) {
+                console.error('Error in createBenutzerRecordIfNeeded:', error)
             }
         }
 
