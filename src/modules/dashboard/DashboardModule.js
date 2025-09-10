@@ -320,8 +320,9 @@ export class DashboardModule {
   }
 
   async render() {
-    // Prüfe ob User pending ist
-    const isPending = window.currentUser?.rolle === 'pending';
+    // Prüfe ob User pending ist oder blockiert
+    const isPending = window.currentUser?.rolle === 'pending' || window.currentUser?.isBlocked;
+    const blockReason = window.currentUser?.blockReason || 'Ihr Account wartet auf Freischaltung durch einen Administrator';
     
     const html = `
       <div class="dashboard-container">
@@ -329,7 +330,7 @@ export class DashboardModule {
         <div class="page-header">
           <div class="page-header-left">
             <h1>Dashboard</h1>
-            <p>${isPending ? 'Ihr Account wartet auf Freischaltung durch einen Administrator' : 'Überblick über alle wichtigen Kennzahlen und Deadlines'}</p>
+            <p>${isPending ? blockReason : 'Überblick über alle wichtigen Kennzahlen und Deadlines'}</p>
           </div>
           <div class="page-header-right">
             ${!isPending ? `

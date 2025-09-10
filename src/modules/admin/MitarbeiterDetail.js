@@ -197,41 +197,59 @@ export class MitarbeiterDetail {
         <div class="tab-content">
           <div class="tab-pane active" id="tab-rechte">
             <div class="detail-section">
-              <h2>Rechte</h2>
-              <div class="data-table-container">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>Recht</th>
-                      <th style="width:120px; text-align:right;">Lesen</th>
-                      <th style="width:120px; text-align:right;">Bearbeiten</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${[['creator','Creator'],['creator-lists','Creator Listen'],['unternehmen','Unternehmen'],['marke','Marken'],['auftrag','Aufträge'],['kampagne','Kampagnen'],['kooperation','Kooperationen'],['rechnung','Rechnungen'],['briefing','Briefings']].map(([key,label]) => `
-                      <tr>
-                        <td>${label}</td>
-                        <td style="text-align:right;">
-                          <label class="toggle-label" style="justify-content:flex-end;">
-                            <span class="toggle-switch">
-                              <input type="checkbox" class="perm-toggle" data-key="${key}" ${perms?.[key]?.can_view === false ? '' : (perms?.[key] === true || perms?.[key]?.can_view === true ? 'checked' : '')}>
-                              <span class="toggle-slider"></span>
-                            </span>
-                          </label>
-                        </td>
-                        <td style="text-align:right;">
-                          <label class="toggle-label" style="justify-content:flex-end;">
-                            <span class="toggle-switch">
-                              <input type="checkbox" class="perm-edit-toggle" data-key="${key}" ${perms?.[key]?.can_edit ? 'checked' : ''}>
-                              <span class="toggle-slider"></span>
-                            </span>
-                          </label>
-                        </td>
-                      </tr>
-                    `).join('')}
-                  </tbody>
-                </table>
+              <h2>Benutzer-Status</h2>
+              <div class="form-row">
+                <label class="form-toggle">
+                  <input type="checkbox" id="freigeschaltet-toggle" ${this.user?.freigeschaltet ? 'checked' : ''}>
+                  <span>✓ Benutzer freigeschaltet</span>
+                </label>
+                <p class="form-help">
+                  ${this.user?.freigeschaltet ? 
+                    'Dieser Benutzer ist freigeschaltet und kann sich anmelden. Sie können nun Rechte vergeben.' : 
+                    'Dieser Benutzer wartet auf Freischaltung. Schalten Sie ihn frei, bevor Sie Rechte vergeben.'}
+                </p>
               </div>
+            </div>
+            
+            <div class="detail-section">
+              <h2>Rechte</h2>
+              ${this.user?.freigeschaltet ? 
+                `<div class="data-table-container">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Recht</th>
+                        <th style="width:120px; text-align:right;">Lesen</th>
+                        <th style="width:120px; text-align:right;">Bearbeiten</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${[['creator','Creator'],['creator-lists','Creator Listen'],['unternehmen','Unternehmen'],['marke','Marken'],['auftrag','Aufträge'],['kampagne','Kampagnen'],['kooperation','Kooperationen'],['rechnung','Rechnungen'],['briefing','Briefings']].map(([key,label]) => `
+                        <tr>
+                          <td>${label}</td>
+                          <td style="text-align:right;">
+                            <label class="toggle-label" style="justify-content:flex-end;">
+                              <span class="toggle-switch">
+                                <input type="checkbox" class="perm-toggle" data-key="${key}" ${perms?.[key]?.can_view === false ? '' : (perms?.[key] === true || perms?.[key]?.can_view === true ? 'checked' : '')}>
+                                <span class="toggle-slider"></span>
+                              </span>
+                            </label>
+                          </td>
+                          <td style="text-align:right;">
+                            <label class="toggle-label" style="justify-content:flex-end;">
+                              <span class="toggle-switch">
+                                <input type="checkbox" class="perm-edit-toggle" data-key="${key}" ${perms?.[key]?.can_edit ? 'checked' : ''}>
+                                <span class="toggle-slider"></span>
+                              </span>
+                            </label>
+                          </td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>` 
+                : '<p class="text-muted"><em>Rechte können erst nach der Freischaltung des Benutzers vergeben werden.</em></p>'
+              }
             </div>
           </div>
 
@@ -353,40 +371,69 @@ export class MitarbeiterDetail {
       }
       if (e.target && e.target.id === 'btn-save-perms') {
         e.preventDefault();
-        const viewToggles = document.querySelectorAll('.perm-toggle');
-        const editToggles = document.querySelectorAll('.perm-edit-toggle');
-        const updated = {};
-        viewToggles.forEach(t => {
-          const key = t.dataset.key;
-          if (!updated[key]) updated[key] = {};
-          updated[key].can_view = !!t.checked;
-        });
-        editToggles.forEach(t => {
-          const key = t.dataset.key;
-          if (!updated[key]) updated[key] = {};
-          updated[key].can_edit = !!t.checked;
-        });
+        
+        // Freigeschaltet-Status
+        const freigeschaltetToggle = document.getElementById('freigeschaltet-toggle');
+        const freigeschaltet = freigeschaltetToggle ? freigeschaltetToggle.checked : this.user?.freigeschaltet;
+        
+        // Rechte nur verarbeiten wenn Benutzer freigeschaltet ist
+        let updated = {};
+        if (freigeschaltet) {
+          const viewToggles = document.querySelectorAll('.perm-toggle');
+          const editToggles = document.querySelectorAll('.perm-edit-toggle');
+          viewToggles.forEach(t => {
+            const key = t.dataset.key;
+            if (!updated[key]) updated[key] = {};
+            updated[key].can_view = !!t.checked;
+          });
+          editToggles.forEach(t => {
+            const key = t.dataset.key;
+            if (!updated[key]) updated[key] = {};
+            updated[key].can_edit = !!t.checked;
+          });
+        }
+        
         try {
+          const updateData = { 
+            freigeschaltet: freigeschaltet,
+            zugriffsrechte: updated 
+          };
+          
           const { error } = await window.supabase
             .from('benutzer')
-            .update({ zugriffsrechte: updated })
+            .update(updateData)
             .eq('id', this.userId);
+            
           if (error) throw error;
+          
+          // Update local user data
+          this.user.freigeschaltet = freigeschaltet;
+          this.user.zugriffsrechte = updated;
+          
           // Notification an den betroffenen User
           try {
+            const statusMsg = freigeschaltet ? 'freigeschaltet' : 'gesperrt';
             const changes = Object.entries(updated).map(([k,v]) => `${k}: ${(v?.can_view?'R':'-')}/${(v?.can_edit?'E':'-')}`).join(', ');
             await window.notificationSystem?.pushNotification(this.userId, {
               type: 'update',
               entity: 'mitarbeiter',
               entityId: this.userId,
-              title: 'Rechte aktualisiert',
-              message: changes || 'Deine Rechte wurden angepasst.'
+              title: freigeschaltet ? 'Account freigeschaltet' : 'Account gesperrt',
+              message: freigeschaltet ? 
+                `Ihr Account wurde freigeschaltet. ${changes ? 'Rechte: ' + changes : ''}` :
+                'Ihr Account wurde gesperrt.'
             });
             window.dispatchEvent(new Event('notificationsRefresh'));
           } catch (_) {}
-          alert('Rechte gespeichert');
+          
+          alert(freigeschaltet ? 'Benutzer freigeschaltet und Rechte gespeichert' : 'Benutzer gesperrt');
+          
+          // Re-render to show/hide permissions section
+          await this.render();
+          this.bind();
+          
         } catch (err) {
-          console.error('❌ Rechte speichern fehlgeschlagen', err);
+          console.error('❌ Speichern fehlgeschlagen', err);
           alert('Fehler beim Speichern');
         }
       }

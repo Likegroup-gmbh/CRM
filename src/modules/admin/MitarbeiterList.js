@@ -64,15 +64,22 @@ export class MitarbeiterList {
   }
 
   async render() {
-    const tbody = this.rows.map(u => `
-      <tr>
-        <td>${u.id ? `<a href="#" class="table-link" data-table="mitarbeiter" data-id="${u.id}">${window.validatorSystem.sanitizeHtml(u.name || '—')}</a>` : window.validatorSystem.sanitizeHtml(u.name || '—')}</td>
-        <td>${window.validatorSystem.sanitizeHtml(u.rolle || '—')}</td>
-        <td>${window.validatorSystem.sanitizeHtml(u.email || '—')}</td>
-        <td>${window.validatorSystem.sanitizeHtml(u.unterrolle || '—')}</td>
-        <td>${window.validatorSystem.sanitizeHtml(u.mitarbeiter_klasse?.name || '—')}</td>
-      </tr>
-    `).join('');
+    const tbody = this.rows.map(u => {
+      const freigeschaltetIcon = u.freigeschaltet ? 
+        '<span class="status-badge success">✓ Freigeschaltet</span>' : 
+        '<span class="status-badge warning">⏳ Wartet auf Freischaltung</span>';
+      
+      return `
+        <tr>
+          <td>${u.id ? `<a href="#" class="table-link" data-table="mitarbeiter" data-id="${u.id}">${window.validatorSystem.sanitizeHtml(u.name || '—')}</a>` : window.validatorSystem.sanitizeHtml(u.name || '—')}</td>
+          <td>${window.validatorSystem.sanitizeHtml(u.rolle || '—')}</td>
+          <td>${window.validatorSystem.sanitizeHtml(u.email || '—')}</td>
+          <td>${window.validatorSystem.sanitizeHtml(u.unterrolle || '—')}</td>
+          <td>${window.validatorSystem.sanitizeHtml(u.mitarbeiter_klasse?.name || '—')}</td>
+          <td>${freigeschaltetIcon}</td>
+        </tr>
+      `;
+    }).join('');
 
     const html = `
       <div class="page-header">
@@ -93,10 +100,11 @@ export class MitarbeiterList {
               <th>E-Mail</th>
               <th>Unterrolle</th>
               <th>Kategorie</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
-            ${tbody || '<tr><td colspan="3" class="loading">Keine Mitarbeiter gefunden</td></tr>'}
+            ${tbody || '<tr><td colspan="6" class="loading">Keine Mitarbeiter gefunden</td></tr>'}
           </tbody>
         </table>
       </div>

@@ -109,8 +109,18 @@ export class AuthService {
       }
 
       if (data) {
-        window.currentUser = data;
-        console.log('✅ Benutzer geladen:', data.name);
+        // Prüfen ob Benutzer freigeschaltet ist
+        if (!data.freigeschaltet && data.rolle !== 'admin') {
+          console.log('⚠️ Benutzer nicht freigeschaltet:', data.name);
+          window.currentUser = {
+            ...data,
+            isBlocked: true,
+            blockReason: 'Ihr Account wartet auf Freischaltung durch einen Administrator.'
+          };
+        } else {
+          window.currentUser = data;
+          console.log('✅ Benutzer geladen:', data.name);
+        }
         // 1) Rollen-/Entity-Rechte (inkl. JSON-Overrides)
         permissionSystem.setUserPermissions(data);
         // 2) Page-/Table-Scoped-Overrides laden
@@ -295,7 +305,8 @@ export class AuthService {
           rolle: 'pending', // Neue Rolle ohne Rechte - muss vom Admin freigeschaltet werden
           unterrolle: 'awaiting_approval',
           mitarbeiter_klasse_id: klasseId,
-          zugriffsrechte: null // Explizit keine Rechte
+          zugriffsrechte: null, // Explizit keine Rechte
+          freigeschaltet: false // Muss vom Admin freigeschaltet werden
         });
 
       if (error) {
