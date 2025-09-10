@@ -266,7 +266,7 @@ export class AuthService {
         user: data.user, 
         error: null, 
         needsEmailVerification: true,
-        redirectTo: `/src/auth/verify-email.html?email=${encodeURIComponent(email)}`
+        redirectTo: `/verify-email.html?email=${encodeURIComponent(email)}`
       };
     } catch (error) {
       console.error('SignUp Error:', error);
