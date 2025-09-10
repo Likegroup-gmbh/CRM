@@ -26,33 +26,39 @@ export class MitarbeiterList {
   async load() {
     try {
       if (window.supabase) {
-        // E-Mail aus auth.users joinen
+        // Lade Mitarbeiterdaten direkt ohne RPC (da freigeschaltet Spalte eventuell noch nicht existiert)
         const { data, error } = await window.supabase
-          .rpc('execute_sql', { sql_query: `
-            select u.id, u.name, u.rolle, u.unterrolle,
-                   u.auth_user_id, u.mitarbeiter_klasse_id,
-                   mk.name as klasse_name,
-                   au.email
-            from public.benutzer u
-            left join public.mitarbeiter_klasse mk on mk.id = u.mitarbeiter_klasse_id
-            left join auth.users au on au.id = u.auth_user_id
-            order by u.name` });
+          .from('benutzer')
+          .select(`
+            id, 
+            name, 
+            rolle, 
+            unterrolle,
+            freigeschaltet,
+            mitarbeiter_klasse:mitarbeiter_klasse_id(name)
+          `)
+          .order('name');
+        
         if (error) {
-          console.warn('⚠️ Mitarbeiter-Liste via RPC fehlgeschlagen, fallback ohne Email', error);
-          const { data: fallback } = await window.supabase
+          console.warn('⚠️ Fehler beim Laden der Mitarbeiter-Liste (eventuell fehlt freigeschaltet Spalte)', error);
+          // Fallback ohne freigeschaltet Spalte
+          const { data: fallback, error: fallbackError } = await window.supabase
             .from('benutzer')
             .select('id, name, rolle, unterrolle, mitarbeiter_klasse:mitarbeiter_klasse_id(name)')
             .order('name');
-          this.rows = fallback || [];
-        } else {
-          this.rows = (data || []).map(r => ({
-            id: r.id,
-            name: r.name,
-            rolle: r.rolle,
-            unterrolle: r.unterrolle,
-            email: r.email,
-            mitarbeiter_klasse: { name: r.klasse_name }
+          
+          if (fallbackError) {
+            console.error('❌ Auch Fallback fehlgeschlagen:', fallbackError);
+            this.rows = [];
+            return;
+          }
+          
+          this.rows = (fallback || []).map(r => ({
+            ...r,
+            freigeschaltet: r.rolle === 'admin' // Default: Admins sind freigeschaltet
           }));
+        } else {
+          this.rows = data || [];
         }
       } else {
         this.rows = await window.dataService.loadEntities('benutzer');

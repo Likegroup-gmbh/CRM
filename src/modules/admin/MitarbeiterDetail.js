@@ -190,6 +190,49 @@ export class MitarbeiterDetail {
     `).join('');
   }
 
+  async autoSavePermissions() {
+    if (!this.user?.freigeschaltet) {
+      console.log('⚠️ Auto-Save übersprungen: Benutzer nicht freigeschaltet');
+      return;
+    }
+    
+    try {
+      const viewToggles = document.querySelectorAll('.perm-toggle');
+      const editToggles = document.querySelectorAll('.perm-edit-toggle');
+      
+      let updated = {};
+      viewToggles.forEach(t => {
+        const key = t.dataset.key;
+        if (!updated[key]) updated[key] = {};
+        updated[key].can_view = !!t.checked;
+      });
+      editToggles.forEach(t => {
+        const key = t.dataset.key;
+        if (!updated[key]) updated[key] = {};
+        updated[key].can_edit = !!t.checked;
+      });
+      
+      const { error } = await window.supabase
+        .from('benutzer')
+        .update({ zugriffsrechte: updated })
+        .eq('id', this.userId);
+        
+      if (error) {
+        console.error('❌ Auto-Save Rechte fehlgeschlagen', error);
+        alert('Fehler beim Speichern der Rechte');
+        return;
+      }
+      
+      // Lokalen Status aktualisieren
+      this.user.zugriffsrechte = updated;
+      console.log('✅ Rechte automatisch gespeichert');
+      
+    } catch (err) {
+      console.error('❌ Auto-Save Rechte Fehler', err);
+      alert('Fehler beim Speichern der Rechte');
+    }
+  }
+
   async render() {
     const perms = this.user?.zugriffsrechte || {};
     const getToggle = (key, label) => `
@@ -206,7 +249,9 @@ export class MitarbeiterDetail {
         </div>
         <div class="page-header-right">
           <button class="secondary-btn" id="btn-back-mitarbeiter">Mitarbeiter Übersicht</button>
-          <button class="primary-btn" id="btn-save-perms">Speichern</button>
+          <p class="text-muted" style="text-align: center; font-style: italic; margin: 1rem 0;">
+            Änderungen werden automatisch gespeichert
+          </p>
         </div>
       </div>
 
@@ -389,14 +434,55 @@ export class MitarbeiterDetail {
       if (pane) pane.classList.add('active');
     });
 
-    // Live Toggle für Freigeschaltet-Status
+    // Live Toggle für Freigeschaltet-Status mit Auto-Save
     const self = this;
-    document.addEventListener('change', (e) => {
+    document.addEventListener('change', async (e) => {
       if (e.target && e.target.id === 'freigeschaltet-toggle') {
         const isFreigeschaltet = e.target.checked;
         const rechteSection = document.querySelector('#tab-rechte .detail-section:nth-child(2)');
         const statusHelp = document.querySelector('#tab-rechte .form-help');
         
+        // Auto-Save Freigeschaltet Status
+        try {
+          const { error } = await window.supabase
+            .from('benutzer')
+            .update({ freigeschaltet: isFreigeschaltet })
+            .eq('id', self.userId);
+            
+          if (error) {
+            console.error('❌ Auto-Save Freigeschaltet fehlgeschlagen', error);
+            // Toggle zurücksetzen bei Fehler
+            e.target.checked = !isFreigeschaltet;
+            alert('Fehler beim Speichern des Freischaltungs-Status');
+            return;
+          }
+          
+          // Lokalen Status aktualisieren
+          self.user.freigeschaltet = isFreigeschaltet;
+          
+          // Notification senden
+          if (window.notificationSystem && self.user.auth_user_id) {
+            await window.notificationSystem.sendNotification(
+              self.user.auth_user_id,
+              isFreigeschaltet ? 'Ihr Account wurde freigeschaltet' : 'Ihr Account wurde gesperrt',
+              isFreigeschaltet ? 
+                'Sie können sich jetzt anmelden und das System nutzen.' : 
+                'Ihr Zugang wurde vorübergehend deaktiviert.',
+              'system',
+              'benutzer',
+              self.userId
+            );
+          }
+          
+          console.log(`✅ Benutzer ${isFreigeschaltet ? 'freigeschaltet' : 'gesperrt'}`);
+        } catch (err) {
+          console.error('❌ Auto-Save Fehler', err);
+          e.target.checked = !isFreigeschaltet;
+          alert('Fehler beim Speichern');
+          return;
+        }
+        
+        // UI aktualisieren
         if (rechteSection) {
           if (isFreigeschaltet) {
             rechteSection.style.display = 'block';
@@ -431,6 +517,11 @@ export class MitarbeiterDetail {
             'Dieser Benutzer ist freigeschaltet und kann sich anmelden. Sie können Rechte vergeben.' : 
             'Dieser Benutzer wartet auf Freischaltung. Schalten Sie ihn frei, bevor Sie Rechte vergeben.';
         }
+      }
+      
+      // Auto-Save für Rechte-Toggles
+      if (e.target && (e.target.classList.contains('perm-toggle') || e.target.classList.contains('perm-edit-toggle'))) {
+        await self.autoSavePermissions();
       }
     });
 
