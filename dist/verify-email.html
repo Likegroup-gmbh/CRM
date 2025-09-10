@@ -285,9 +285,6 @@
             }
         }
     </style>
-  <script type="module" crossorigin src="/assets/verify-C-iOw-PF.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/dashboard-CiwGyQwu.js">
-  <link rel="stylesheet" crossorigin href="/assets/dashboard-COz5wDux.css">
 </head>
 <body>
     <div class="auth-container">
@@ -333,6 +330,339 @@
         </div>
     </div>
 
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
+        // Supabase Config direkt einbetten für public/
+        const SUPABASE_CONFIG = {
+            url: 'https://yktycclozgsgaasduyol.supabase.co',
+            anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlrdHljY2xvemdzZ2Fhc2R1eW9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMwODYzNTEsImV4cCI6MjA2ODY2MjM1MX0.6TM9Td6iKgmXV_fEPMJWZiD9n--X9TeNk0FoeL5B-9c'
+        }
+
+        const supabase = createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey)
+
+        // DOM Elements
+        const otpInputs = document.querySelectorAll('.otp-input')
+        const verifyButton = document.getElementById('verify-button')
+        const verifyText = document.getElementById('verify-text')
+        const verifyLoading = document.getElementById('verify-loading')
+        const resendButton = document.getElementById('resend-button')
+        const resendText = document.getElementById('resend-text')
+        const resendLoading = document.getElementById('resend-loading')
+        const resendInfo = document.getElementById('resend-info')
+        const userEmailElement = document.getElementById('user-email')
+        const errorMessage = document.getElementById('error-message')
+        const successMessage = document.getElementById('success-message')
+
+        // State
+        let userEmail = ''
+        let resendCount = 0
+        let isVerifying = false
+
+        // Initialize
+        function init() {
+            console.log('Initializing OTP page...')
+            
+            // Get email from URL params or localStorage
+            const urlParams = new URLSearchParams(window.location.search)
+            userEmail = urlParams.get('email') || localStorage.getItem('pendingVerificationEmail') || 'test@example.com'
+            
+            console.log('User email:', userEmail)
+            
+            userEmailElement.textContent = userEmail
+            setupOTPInputs()
+            
+            // Focus first input
+            if (otpInputs[0]) {
+                otpInputs[0].focus()
+            }
+        }
+
+        // Setup OTP input handling
+        function setupOTPInputs() {
+            otpInputs.forEach((input, index) => {
+                input.addEventListener('input', (e) => handleOTPInput(e, index))
+                input.addEventListener('keydown', (e) => handleOTPKeydown(e, index))
+                input.addEventListener('paste', handleOTPPaste)
+            })
+
+            verifyButton.addEventListener('click', handleVerifyOTP)
+            resendButton.addEventListener('click', handleResendOTP)
+        }
+
+        // Handle OTP input
+        function handleOTPInput(e, index) {
+            const value = e.target.value
+            
+            // Only allow numbers
+            if (!/^\d$/.test(value) && value !== '') {
+                e.target.value = ''
+                return
+            }
+
+            // Move to next input if filled
+            if (value && index < otpInputs.length - 1) {
+                // Small delay to ensure value is set before moving focus
+                setTimeout(() => {
+                    otpInputs[index + 1].focus()
+                    otpInputs[index + 1].select()
+                }, 10)
+            }
+
+            // Update input styling
+            updateInputStyling()
+            
+            // Auto-verify if all fields filled
+            if (getAllOTPValues().length === 6) {
+                setTimeout(() => handleVerifyOTP(), 200)
+            }
+        }
+
+        // Handle keydown events
+        function handleOTPKeydown(e, index) {
+            // Backspace: clear current and move to previous
+            if (e.key === 'Backspace') {
+                if (!e.target.value && index > 0) {
+                    otpInputs[index - 1].focus()
+                    otpInputs[index - 1].value = ''
+                }
+            }
+            
+            // Arrow keys navigation
+            if (e.key === 'ArrowLeft' && index > 0) {
+                otpInputs[index - 1].focus()
+            }
+            if (e.key === 'ArrowRight' && index < otpInputs.length - 1) {
+                otpInputs[index + 1].focus()
+            }
+
+            // Enter: verify OTP
+            if (e.key === 'Enter') {
+                handleVerifyOTP()
+            }
+        }
+
+        // Handle paste
+        function handleOTPPaste(e) {
+            e.preventDefault()
+            const pasteData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+            
+            if (pasteData.length === 6) {
+                otpInputs.forEach((input, index) => {
+                    input.value = pasteData[index] || ''
+                })
+                updateInputStyling()
+                handleVerifyOTP()
+            }
+        }
+
+        // Get all OTP values
+        function getAllOTPValues() {
+            return Array.from(otpInputs).map(input => input.value).join('')
+        }
+
+        // Update input styling
+        function updateInputStyling() {
+            otpInputs.forEach(input => {
+                input.classList.remove('filled', 'error')
+                if (input.value) {
+                    input.classList.add('filled')
+                }
+            })
+        }
+
+        // Show error styling on inputs
+        function showInputError() {
+            otpInputs.forEach(input => {
+                if (input.value) {
+                    input.classList.add('error')
+                }
+            })
+        }
+
+        // Handle OTP verification
+        async function handleVerifyOTP() {
+            if (isVerifying) return
+
+            const otpCode = getAllOTPValues()
+            console.log('Attempting to verify OTP:', otpCode, 'for email:', userEmail)
+            
+            if (otpCode.length !== 6) {
+                showError('Bitte geben Sie alle 6 Ziffern ein.')
+                return
+            }
+
+            setVerifyingState(true)
+            hideMessages()
+
+            try {
+                console.log('Calling supabase.auth.verifyOtp with:', {
+                    email: userEmail,
+                    token: otpCode,
+                    type: 'email'
+                })
+                
+                const { data, error } = await supabase.auth.verifyOtp({
+                    email: userEmail,
+                    token: otpCode,
+                    type: 'email'
+                })
+
+                console.log('Supabase verifyOtp response:', { data, error })
+
+                if (error) {
+                    throw error
+                }
+
+                // Success
+                console.log('OTP verification successful!')
+                showSuccess('E-Mail erfolgreich bestätigt! Sie werden zum Login weitergeleitet...')
+                
+                // Clear stored email
+                localStorage.removeItem('pendingVerificationEmail')
+                
+                // Redirect to login after 2 seconds
+                setTimeout(() => {
+                    window.location.href = '/login?verified=true'
+                }, 2000)
+
+            } catch (error) {
+                console.error('OTP Verification Error:', error)
+                console.error('Error details:', {
+                    message: error.message,
+                    status: error.status,
+                    code: error.code
+                })
+                
+                let errorMsg = 'Ungültiger Code. Bitte versuchen Sie es erneut.'
+                
+                if (error.message.includes('expired')) {
+                    errorMsg = 'Der Code ist abgelaufen. Bitte fordern Sie einen neuen Code an.'
+                } else if (error.message.includes('invalid')) {
+                    errorMsg = 'Ungültiger Code. Bitte überprüfen Sie Ihre Eingabe.'
+                } else if (error.message.includes('too_many_requests')) {
+                    errorMsg = 'Zu viele Versuche. Bitte warten Sie einen Moment.'
+                } else if (error.message.includes('token_hash_not_found')) {
+                    errorMsg = 'Code nicht gefunden. Bitte fordern Sie einen neuen Code an.'
+                }
+                
+                showError(errorMsg)
+                showInputError()
+                
+                // Clear inputs after error
+                setTimeout(() => {
+                    otpInputs.forEach(input => input.value = '')
+                    updateInputStyling()
+                    otpInputs[0].focus()
+                }, 2000)
+            } finally {
+                setVerifyingState(false)
+            }
+        }
+
+        // Handle resend OTP
+        async function handleResendOTP() {
+            if (resendButton.disabled) return
+
+            setResendingState(true)
+            hideMessages()
+
+            try {
+                const { error } = await supabase.auth.resend({
+                    type: 'signup',
+                    email: userEmail
+                })
+
+                if (error) {
+                    throw error
+                }
+
+                resendCount++
+                showSuccess('Neuer Code wurde gesendet!')
+                
+                // Disable resend button temporarily
+                resendButton.disabled = true
+                let countdown = 60
+                const countdownInterval = setInterval(() => {
+                    resendText.textContent = `Erneut senden in ${countdown}s`
+                    countdown--
+                    
+                    if (countdown < 0) {
+                        clearInterval(countdownInterval)
+                        resendButton.disabled = false
+                        resendText.textContent = 'Code erneut senden'
+                    }
+                }, 1000)
+
+                // Show resend info
+                if (resendCount >= 3) {
+                    resendInfo.textContent = 'Maximale Anzahl erreicht. Bei weiteren Problemen kontaktieren Sie den Support.'
+                    resendInfo.style.display = 'block'
+                    resendButton.disabled = true
+                } else {
+                    resendInfo.textContent = `${resendCount}/3 Codes gesendet`
+                    resendInfo.style.display = 'block'
+                }
+
+            } catch (error) {
+                console.error('Resend Error:', error)
+                
+                let errorMsg = 'Fehler beim Senden des Codes. Bitte versuchen Sie es später erneut.'
+                if (error.message.includes('too_many_requests')) {
+                    errorMsg = 'Zu viele Anfragen. Bitte warten Sie einen Moment.'
+                }
+                
+                showError(errorMsg)
+            } finally {
+                setResendingState(false)
+            }
+        }
+
+        // Timer entfernt - internes System ohne Ablaufzeit
+
+        // UI state functions
+        function setVerifyingState(verifying) {
+            isVerifying = verifying
+            verifyButton.disabled = verifying
+            verifyText.style.display = verifying ? 'none' : 'inline'
+            verifyLoading.style.display = verifying ? 'inline-block' : 'none'
+        }
+
+        function setResendingState(resending) {
+            resendButton.disabled = resending
+            resendText.style.display = resending ? 'none' : 'inline'
+            resendLoading.style.display = resending ? 'inline-block' : 'none'
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message
+            errorMessage.style.display = 'block'
+            successMessage.style.display = 'none'
+        }
+
+        function showSuccess(message) {
+            successMessage.textContent = message
+            successMessage.style.display = 'block'
+            errorMessage.style.display = 'none'
+        }
+
+        function hideMessages() {
+            errorMessage.style.display = 'none'
+            successMessage.style.display = 'none'
+        }
+
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM loaded, initializing...')
+            init()
+        })
+
+        // Handle beforeunload (save state)
+        window.addEventListener('beforeunload', () => {
+            if (userEmail) {
+                localStorage.setItem('pendingVerificationEmail', userEmail)
+            }
+        })
+    </script>
 </body>
 </html>
 
