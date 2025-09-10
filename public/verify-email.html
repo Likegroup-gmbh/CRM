@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Mail bestätigen | CRM Dashboard</title>
+    <link rel="stylesheet" href="/assets/main-COz5wDux.css">
+    <style>
+        .auth-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--bg-secondary);
+            padding: var(--space-lg);
+        }
+
+        .auth-card {
+            background: var(--bg-primary);
+            padding: var(--space-xl);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+            border: var(--border-xs) solid var(--border-primary);
+        }
+
+        /* Icon entfernt für einfacheres Layout */
+
+        .auth-title {
+            font-size: var(--text-xxl);
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: var(--space-md);
+        }
+
+        .auth-subtitle {
+            font-size: var(--text-lg);
+            color: var(--text-secondary);
+            margin-bottom: var(--space-xs);
+        }
+
+        .email-address {
+            font-weight: 600;
+            color: var(--color-primary);
+            font-size: var(--text-md);
+            margin-bottom: var(--space-xl);
+        }
+
+        .otp-container {
+            margin: var(--space-xl) 0;
+        }
+
+        .otp-inputs {
+            display: flex;
+            justify-content: center;
+            gap: var(--space-sm);
+            margin-bottom: var(--space-md);
+        }
+
+        .otp-input {
+            width: 50px;
+            height: 50px;
+            border: var(--border-sm) solid var(--border-primary);
+            border-radius: var(--radius-lg);
+            text-align: center;
+            font-size: var(--text-xl);
+            font-weight: 600;
+            color: var(--text-primary);
+            background: var(--bg-primary);
+            transition: all 0.2s;
+        }
+
+        .otp-input:focus {
+            outline: none;
+            border-color: var(--border-focus);
+            background: var(--bg-primary);
+            box-shadow: 0 0 0 3px rgba(82, 82, 82, 0.1);
+        }
+
+        .otp-input.filled {
+            border-color: var(--color-success);
+            background: var(--bg-primary);
+        }
+
+        .otp-input.error {
+            border-color: var(--color-error);
+            background: var(--bg-primary);
+        }
+
+        /* Timer entfernt - internes System */
+
+        .verify-button {
+            background: var(--color-primary);
+            color: var(--text-inverse);
+            padding: var(--space-sm) var(--space-xl);
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: var(--text-md);
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            width: 100%;
+            margin-bottom: var(--space-md);
+        }
+
+        .verify-button:hover:not(:disabled) {
+            background: var(--color-primary-light);
+        }
+
+        .verify-button:disabled {
+            background: var(--text-muted);
+            cursor: not-allowed;
+        }
+
+        .resend-container {
+            margin-top: var(--space-md);
+            text-align: center;
+        }
+
+        .resend-text {
+            color: var(--text-secondary);
+            font-size: var(--text-sm);
+            margin-bottom: var(--space-xs);
+        }
+
+        .resend-button {
+            background: none;
+            border: none;
+            color: var(--color-primary);
+            font-size: var(--text-sm);
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: underline;
+            padding: var(--space-xs);
+        }
+
+        .resend-button:hover:not(:disabled) {
+            color: var(--color-primary-light);
+        }
+
+        .resend-button:disabled {
+            color: var(--text-muted);
+            cursor: not-allowed;
+            text-decoration: none;
+        }
+
+        .error-message {
+            background: var(--bg-primary);
+            border: var(--border-xs) solid var(--color-error);
+            color: var(--color-error);
+            padding: var(--space-md);
+            border-radius: var(--radius-md);
+            margin: var(--space-md) 0;
+            font-size: var(--text-sm);
+        }
+
+        .success-message {
+            background: var(--bg-primary);
+            border: var(--border-xs) solid var(--color-success);
+            color: var(--color-success);
+            padding: var(--space-md);
+            border-radius: var(--radius-md);
+            margin: var(--space-md) 0;
+            font-size: var(--text-sm);
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid var(--bg-secondary);
+            border-radius: 50%;
+            border-top-color: var(--color-primary);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .back-to-login {
+            margin-top: var(--space-xl);
+            padding-top: var(--space-xl);
+            border-top: var(--border-xs) solid var(--border-primary);
+        }
+
+        .back-to-login a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: var(--text-sm);
+            transition: color 0.2s;
+        }
+
+        .back-to-login a:hover {
+            color: var(--color-primary);
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 640px) {
+            .auth-card {
+                padding: var(--space-lg);
+                margin: var(--space-md);
+            }
+
+            .otp-inputs {
+                gap: var(--space-xs);
+            }
+
+            .otp-input {
+                width: 40px;
+                height: 40px;
+                font-size: var(--text-lg);
+            }
+
+            .auth-title {
+                font-size: var(--text-xl);
+            }
+        }
+
+        /* Accessibility */
+        @media (prefers-reduced-motion: reduce) {
+            .loading {
+                animation: none;
+            }
+        }
+
+        /* High contrast mode support */
+        @media (prefers-contrast: high) {
+            .otp-input {
+                border-width: 3px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <h1 class="auth-title">E-Mail bestätigen</h1>
+            <p class="auth-subtitle">Wir haben einen 6-stelligen Code gesendet an:</p>
+            <div class="email-address" id="user-email">ihre-email@domain.com</div>
+
+            <div class="otp-container">
+                <div class="otp-inputs" id="otp-inputs">
+                    <input type="text" class="otp-input" maxlength="1" data-index="0" autocomplete="off">
+                    <input type="text" class="otp-input" maxlength="1" data-index="1" autocomplete="off">
+                    <input type="text" class="otp-input" maxlength="1" data-index="2" autocomplete="off">
+                    <input type="text" class="otp-input" maxlength="1" data-index="3" autocomplete="off">
+                    <input type="text" class="otp-input" maxlength="1" data-index="4" autocomplete="off">
+                    <input type="text" class="otp-input" maxlength="1" data-index="5" autocomplete="off">
+                </div>
+
+                <button class="verify-button" id="verify-button">
+                    <span id="verify-text">Code bestätigen</span>
+                    <span id="verify-loading" class="loading" style="display: none;"></span>
+                </button>
+            </div>
+
+            <!-- Timer entfernt - internes System -->
+
+            <!-- Error/Success Messages -->
+            <div id="error-message" class="error-message" style="display: none;"></div>
+            <div id="success-message" class="success-message" style="display: none;"></div>
+
+            <div class="resend-container">
+                <span class="resend-text">Code nicht erhalten? </span>
+                <button class="resend-button" id="resend-button">
+                    <span id="resend-text">Code erneut senden</span>
+                    <span id="resend-loading" class="loading" style="display: none;"></span>
+                </button>
+                <div id="resend-info" style="display: none; margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-secondary);"></div>
+            </div>
+
+            <div class="back-to-login">
+                <a href="/login">← Zurück zum Login</a>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
+        // Supabase Config direkt einbetten für public/
+        const SUPABASE_CONFIG = {
+            url: 'https://ykrcjrfzwxhxgvvhkpqp.supabase.co',
+            anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlrcmNqcmZ6d3hoeGd2dmhrcHFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzI3MjI2NTAsImV4cCI6MjA0ODI5ODY1MH0.4TZNUa_I-9qjUhD5eAkTLWTdNHsWZCQjLKtYqG0dJgI'
+        }
+
+        const supabase = createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey)
+
+        // DOM Elements
+        const otpInputs = document.querySelectorAll('.otp-input')
+        const verifyButton = document.getElementById('verify-button')
+        const verifyText = document.getElementById('verify-text')
+        const verifyLoading = document.getElementById('verify-loading')
+        const resendButton = document.getElementById('resend-button')
+        const resendText = document.getElementById('resend-text')
+        const resendLoading = document.getElementById('resend-loading')
+        const resendInfo = document.getElementById('resend-info')
+        const userEmailElement = document.getElementById('user-email')
+        const errorMessage = document.getElementById('error-message')
+        const successMessage = document.getElementById('success-message')
+
+        // State
+        let userEmail = ''
+        let resendCount = 0
+        let isVerifying = false
+
+        // Initialize
+        function init() {
+            console.log('Initializing OTP page...')
+            
+            // Get email from URL params or localStorage
+            const urlParams = new URLSearchParams(window.location.search)
+            userEmail = urlParams.get('email') || localStorage.getItem('pendingVerificationEmail') || 'test@example.com'
+            
+            console.log('User email:', userEmail)
+            
+            userEmailElement.textContent = userEmail
+            setupOTPInputs()
+            
+            // Focus first input
+            if (otpInputs[0]) {
+                otpInputs[0].focus()
+            }
+        }
+
+        // Setup OTP input handling
+        function setupOTPInputs() {
+            otpInputs.forEach((input, index) => {
+                input.addEventListener('input', (e) => handleOTPInput(e, index))
+                input.addEventListener('keydown', (e) => handleOTPKeydown(e, index))
+                input.addEventListener('paste', handleOTPPaste)
+            })
+
+            verifyButton.addEventListener('click', handleVerifyOTP)
+            resendButton.addEventListener('click', handleResendOTP)
+        }
+
+        // Handle OTP input
+        function handleOTPInput(e, index) {
+            const value = e.target.value
+            
+            // Only allow numbers
+            if (!/^\d$/.test(value) && value !== '') {
+                e.target.value = ''
+                return
+            }
+
+            // Move to next input if filled
+            if (value && index < otpInputs.length - 1) {
+                // Small delay to ensure value is set before moving focus
+                setTimeout(() => {
+                    otpInputs[index + 1].focus()
+                    otpInputs[index + 1].select()
+                }, 10)
+            }
+
+            // Update input styling
+            updateInputStyling()
+            
+            // Auto-verify if all fields filled
+            if (getAllOTPValues().length === 6) {
+                setTimeout(() => handleVerifyOTP(), 200)
+            }
+        }
+
+        // Handle keydown events
+        function handleOTPKeydown(e, index) {
+            // Backspace: clear current and move to previous
+            if (e.key === 'Backspace') {
+                if (!e.target.value && index > 0) {
+                    otpInputs[index - 1].focus()
+                    otpInputs[index - 1].value = ''
+                }
+            }
+            
+            // Arrow keys navigation
+            if (e.key === 'ArrowLeft' && index > 0) {
+                otpInputs[index - 1].focus()
+            }
+            if (e.key === 'ArrowRight' && index < otpInputs.length - 1) {
+                otpInputs[index + 1].focus()
+            }
+
+            // Enter: verify OTP
+            if (e.key === 'Enter') {
+                handleVerifyOTP()
+            }
+        }
+
+        // Handle paste
+        function handleOTPPaste(e) {
+            e.preventDefault()
+            const pasteData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+            
+            if (pasteData.length === 6) {
+                otpInputs.forEach((input, index) => {
+                    input.value = pasteData[index] || ''
+                })
+                updateInputStyling()
+                handleVerifyOTP()
+            }
+        }
+
+        // Get all OTP values
+        function getAllOTPValues() {
+            return Array.from(otpInputs).map(input => input.value).join('')
+        }
+
+        // Update input styling
+        function updateInputStyling() {
+            otpInputs.forEach(input => {
+                input.classList.remove('filled', 'error')
+                if (input.value) {
+                    input.classList.add('filled')
+                }
+            })
+        }
+
+        // Show error styling on inputs
+        function showInputError() {
+            otpInputs.forEach(input => {
+                if (input.value) {
+                    input.classList.add('error')
+                }
+            })
+        }
+
+        // Handle OTP verification
+        async function handleVerifyOTP() {
+            if (isVerifying) return
+
+            const otpCode = getAllOTPValues()
+            console.log('Attempting to verify OTP:', otpCode, 'for email:', userEmail)
+            
+            if (otpCode.length !== 6) {
+                showError('Bitte geben Sie alle 6 Ziffern ein.')
+                return
+            }
+
+            setVerifyingState(true)
+            hideMessages()
+
+            try {
+                console.log('Calling supabase.auth.verifyOtp with:', {
+                    email: userEmail,
+                    token: otpCode,
+                    type: 'email'
+                })
+                
+                const { data, error } = await supabase.auth.verifyOtp({
+                    email: userEmail,
+                    token: otpCode,
+                    type: 'email'
+                })
+
+                console.log('Supabase verifyOtp response:', { data, error })
+
+                if (error) {
+                    throw error
+                }
+
+                // Success
+                console.log('OTP verification successful!')
+                showSuccess('E-Mail erfolgreich bestätigt! Sie werden zum Login weitergeleitet...')
+                
+                // Clear stored email
+                localStorage.removeItem('pendingVerificationEmail')
+                
+                // Redirect to login after 2 seconds
+                setTimeout(() => {
+                    window.location.href = '/login?verified=true'
+                }, 2000)
+
+            } catch (error) {
+                console.error('OTP Verification Error:', error)
+                console.error('Error details:', {
+                    message: error.message,
+                    status: error.status,
+                    code: error.code
+                })
+                
+                let errorMsg = 'Ungültiger Code. Bitte versuchen Sie es erneut.'
+                
+                if (error.message.includes('expired')) {
+                    errorMsg = 'Der Code ist abgelaufen. Bitte fordern Sie einen neuen Code an.'
+                } else if (error.message.includes('invalid')) {
+                    errorMsg = 'Ungültiger Code. Bitte überprüfen Sie Ihre Eingabe.'
+                } else if (error.message.includes('too_many_requests')) {
+                    errorMsg = 'Zu viele Versuche. Bitte warten Sie einen Moment.'
+                } else if (error.message.includes('token_hash_not_found')) {
+                    errorMsg = 'Code nicht gefunden. Bitte fordern Sie einen neuen Code an.'
+                }
+                
+                showError(errorMsg)
+                showInputError()
+                
+                // Clear inputs after error
+                setTimeout(() => {
+                    otpInputs.forEach(input => input.value = '')
+                    updateInputStyling()
+                    otpInputs[0].focus()
+                }, 2000)
+            } finally {
+                setVerifyingState(false)
+            }
+        }
+
+        // Handle resend OTP
+        async function handleResendOTP() {
+            if (resendButton.disabled) return
+
+            setResendingState(true)
+            hideMessages()
+
+            try {
+                const { error } = await supabase.auth.resend({
+                    type: 'signup',
+                    email: userEmail
+                })
+
+                if (error) {
+                    throw error
+                }
+
+                resendCount++
+                showSuccess('Neuer Code wurde gesendet!')
+                
+                // Disable resend button temporarily
+                resendButton.disabled = true
+                let countdown = 60
+                const countdownInterval = setInterval(() => {
+                    resendText.textContent = `Erneut senden in ${countdown}s`
+                    countdown--
+                    
+                    if (countdown < 0) {
+                        clearInterval(countdownInterval)
+                        resendButton.disabled = false
+                        resendText.textContent = 'Code erneut senden'
+                    }
+                }, 1000)
+
+                // Show resend info
+                if (resendCount >= 3) {
+                    resendInfo.textContent = 'Maximale Anzahl erreicht. Bei weiteren Problemen kontaktieren Sie den Support.'
+                    resendInfo.style.display = 'block'
+                    resendButton.disabled = true
+                } else {
+                    resendInfo.textContent = `${resendCount}/3 Codes gesendet`
+                    resendInfo.style.display = 'block'
+                }
+
+            } catch (error) {
+                console.error('Resend Error:', error)
+                
+                let errorMsg = 'Fehler beim Senden des Codes. Bitte versuchen Sie es später erneut.'
+                if (error.message.includes('too_many_requests')) {
+                    errorMsg = 'Zu viele Anfragen. Bitte warten Sie einen Moment.'
+                }
+                
+                showError(errorMsg)
+            } finally {
+                setResendingState(false)
+            }
+        }
+
+        // Timer entfernt - internes System ohne Ablaufzeit
+
+        // UI state functions
+        function setVerifyingState(verifying) {
+            isVerifying = verifying
+            verifyButton.disabled = verifying
+            verifyText.style.display = verifying ? 'none' : 'inline'
+            verifyLoading.style.display = verifying ? 'inline-block' : 'none'
+        }
+
+        function setResendingState(resending) {
+            resendButton.disabled = resending
+            resendText.style.display = resending ? 'none' : 'inline'
+            resendLoading.style.display = resending ? 'inline-block' : 'none'
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message
+            errorMessage.style.display = 'block'
+            successMessage.style.display = 'none'
+        }
+
+        function showSuccess(message) {
+            successMessage.textContent = message
+            successMessage.style.display = 'block'
+            errorMessage.style.display = 'none'
+        }
+
+        function hideMessages() {
+            errorMessage.style.display = 'none'
+            successMessage.style.display = 'none'
+        }
+
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM loaded, initializing...')
+            init()
+        })
+
+        // Handle beforeunload (save state)
+        window.addEventListener('beforeunload', () => {
+            if (userEmail) {
+                localStorage.setItem('pendingVerificationEmail', userEmail)
+            }
+        })
+    </script>
+</body>
+</html>
+
