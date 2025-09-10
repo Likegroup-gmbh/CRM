@@ -5371,7 +5371,27 @@ ${t}`)}showSuccessMessage(e){console.log(`✅ ${e}`)}showErrorMessage(e){console
           <tbody>${e}</tbody>
         </table>
       </div>
-    `:'<div class="empty-state"><p>Keine Briefings zugewiesen</p></div>'}async render(){const e=this.user?.zugriffsrechte||{},t=`
+    `:'<div class="empty-state"><p>Keine Briefings zugewiesen</p></div>'}generatePermissionsTable(){const e=this.user?.zugriffsrechte||{};return[["creator","Creator"],["creator-lists","Creator Listen"],["unternehmen","Unternehmen"],["marke","Marken"],["auftrag","Aufträge"],["kampagne","Kampagnen"],["kooperation","Kooperationen"],["rechnung","Rechnungen"],["briefing","Briefings"]].map(([t,n])=>`
+      <tr>
+        <td>${n}</td>
+        <td style="text-align:right;">
+          <label class="toggle-label" style="justify-content:flex-end;">
+            <span class="toggle-switch">
+              <input type="checkbox" class="perm-toggle" data-key="${t}" ${e?.[t]?.can_view===!1?"":e?.[t]===!0||e?.[t]?.can_view===!0?"checked":""}>
+              <span class="toggle-slider"></span>
+            </span>
+          </label>
+        </td>
+        <td style="text-align:right;">
+          <label class="toggle-label" style="justify-content:flex-end;">
+            <span class="toggle-switch">
+              <input type="checkbox" class="perm-edit-toggle" data-key="${t}" ${e?.[t]?.can_edit?"checked":""}>
+              <span class="toggle-slider"></span>
+            </span>
+          </label>
+        </td>
+      </tr>
+    `).join("")}async render(){this.user?.zugriffsrechte;const e=`
       <div class="page-header">
         <div class="page-header-left">
           <h1>Mitarbeiter: ${window.validatorSystem.sanitizeHtml(this.user?.name||"-")}</h1>
@@ -5396,14 +5416,35 @@ ${t}`)}showSuccessMessage(e){console.log(`✅ ${e}`)}showErrorMessage(e){console
           <div class="tab-pane active" id="tab-rechte">
             <div class="detail-section">
               <h2>Benutzer-Status</h2>
-              <div class="form-row">
-                <label class="form-toggle">
-                  <input type="checkbox" id="freigeschaltet-toggle" ${this.user?.freigeschaltet?"checked":""}>
-                  <span>✓ Benutzer freigeschaltet</span>
-                </label>
-                <p class="form-help">
-                  ${this.user?.freigeschaltet?"Dieser Benutzer ist freigeschaltet und kann sich anmelden. Sie können nun Rechte vergeben.":"Dieser Benutzer wartet auf Freischaltung. Schalten Sie ihn frei, bevor Sie Rechte vergeben."}
-                </p>
+              <div class="data-table-container">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Status</th>
+                      <th style="width:120px; text-align:right;">Aktiv</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>
+                        <div>
+                          <strong>Benutzer freigeschaltet</strong>
+                          <div class="form-help" style="margin-top: 4px;">
+                            ${this.user?.freigeschaltet?"Dieser Benutzer ist freigeschaltet und kann sich anmelden. Sie können Rechte vergeben.":"Dieser Benutzer wartet auf Freischaltung. Schalten Sie ihn frei, bevor Sie Rechte vergeben."}
+                          </div>
+                        </div>
+                      </td>
+                      <td style="text-align:right;">
+                        <label class="toggle-label" style="justify-content:flex-end;">
+                          <span class="toggle-switch">
+                            <input type="checkbox" id="freigeschaltet-toggle" ${this.user?.freigeschaltet?"checked":""}>
+                            <span class="toggle-slider"></span>
+                          </span>
+                        </label>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
             
@@ -5419,27 +5460,7 @@ ${t}`)}showSuccessMessage(e){console.log(`✅ ${e}`)}showErrorMessage(e){console
                       </tr>
                     </thead>
                     <tbody>
-                      ${[["creator","Creator"],["creator-lists","Creator Listen"],["unternehmen","Unternehmen"],["marke","Marken"],["auftrag","Aufträge"],["kampagne","Kampagnen"],["kooperation","Kooperationen"],["rechnung","Rechnungen"],["briefing","Briefings"]].map(([n,a])=>`
-                        <tr>
-                          <td>${a}</td>
-                          <td style="text-align:right;">
-                            <label class="toggle-label" style="justify-content:flex-end;">
-                              <span class="toggle-switch">
-                                <input type="checkbox" class="perm-toggle" data-key="${n}" ${e?.[n]?.can_view===!1?"":e?.[n]===!0||e?.[n]?.can_view===!0?"checked":""}>
-                                <span class="toggle-slider"></span>
-                              </span>
-                            </label>
-                          </td>
-                          <td style="text-align:right;">
-                            <label class="toggle-label" style="justify-content:flex-end;">
-                              <span class="toggle-switch">
-                                <input type="checkbox" class="perm-edit-toggle" data-key="${n}" ${e?.[n]?.can_edit?"checked":""}>
-                                <span class="toggle-slider"></span>
-                              </span>
-                            </label>
-                          </td>
-                        </tr>
-                      `).join("")}
+                      ${this.generatePermissionsTable()}
                     </tbody>
                   </table>
                 </div>`:'<p class="text-muted"><em>Rechte können erst nach der Freischaltung des Benutzers vergeben werden.</em></p>'}
@@ -5475,7 +5496,7 @@ ${t}`)}showSuccessMessage(e){console.log(`✅ ${e}`)}showErrorMessage(e){console
           </div>
         </div>
       </div>
-    `;window.setContentSafely(window.content,t)}formatCurrency(e){const t=Number(e||0);return new Intl.NumberFormat("de-DE",{style:"currency",currency:"EUR"}).format(t)}renderBudget(){const e=(this.assignments.kooperationen||[]).map(r=>{const i=this.budget.invoicesByKoop[r.id]||[],s=i.length?i.map(d=>`<div><a href="/rechnung/${d.id}" onclick="event.preventDefault(); window.navigateTo('/rechnung/${d.id}')">${window.validatorSystem.sanitizeHtml(d.rechnung_nr||d.id)}</a> — ${this.formatCurrency(d.bruttobetrag)} <span class="status-badge status-${(d.status||"").toLowerCase().replace(/\s+/g,"-")}">${d.status||"-"}</span></div>`).join(""):'<span class="muted">Keine Rechnung</span>',o=Number(r.nettobetrag||0),l=Number(r.zusatzkosten||0),c=r.gesamtkosten!=null?Number(r.gesamtkosten):o+l;return`
+    `;window.setContentSafely(window.content,e)}formatCurrency(e){const t=Number(e||0);return new Intl.NumberFormat("de-DE",{style:"currency",currency:"EUR"}).format(t)}renderBudget(){const e=(this.assignments.kooperationen||[]).map(r=>{const i=this.budget.invoicesByKoop[r.id]||[],s=i.length?i.map(d=>`<div><a href="/rechnung/${d.id}" onclick="event.preventDefault(); window.navigateTo('/rechnung/${d.id}')">${window.validatorSystem.sanitizeHtml(d.rechnung_nr||d.id)}</a> — ${this.formatCurrency(d.bruttobetrag)} <span class="status-badge status-${(d.status||"").toLowerCase().replace(/\s+/g,"-")}">${d.status||"-"}</span></div>`).join(""):'<span class="muted">Keine Rechnung</span>',o=Number(r.nettobetrag||0),l=Number(r.zusatzkosten||0),c=r.gesamtkosten!=null?Number(r.gesamtkosten):o+l;return`
         <tr>
           <td><a href="/kooperation/${r.id}" onclick="event.preventDefault(); window.navigateTo('/kooperation/${r.id}')">${window.validatorSystem.sanitizeHtml(r.name||r.id)}</a></td>
           <td>${window.validatorSystem.sanitizeHtml(r.kampagne?.kampagnenname||"-")}</td>
@@ -5510,7 +5531,26 @@ ${t}`)}showSuccessMessage(e){console.log(`✅ ${e}`)}showErrorMessage(e){console
             <tbody>${e}</tbody>
           </table>
         </div>
-      `:'<div class="empty-state"><p>Keine Kooperationen zugewiesen</p></div>';return`${n}${a}`}bind(){document.addEventListener("click",e=>{const t=e.target.closest(".tab-button");if(!t)return;e.preventDefault();const n=t.dataset.tab;document.querySelectorAll(".tab-button").forEach(r=>r.classList.remove("active")),t.classList.add("active"),document.querySelectorAll(".tab-pane").forEach(r=>r.classList.remove("active"));const a=document.getElementById(`tab-${n}`);a&&a.classList.add("active")}),document.addEventListener("click",async e=>{if(e.target&&e.target.id==="btn-back-mitarbeiter"){e.preventDefault(),window.navigateTo("/mitarbeiter");return}if(e.target&&e.target.id==="btn-save-perms"){e.preventDefault();const t=document.getElementById("freigeschaltet-toggle"),n=t?t.checked:this.user?.freigeschaltet;let a={};if(n){const r=document.querySelectorAll(".perm-toggle"),i=document.querySelectorAll(".perm-edit-toggle");r.forEach(s=>{const o=s.dataset.key;a[o]||(a[o]={}),a[o].can_view=!!s.checked}),i.forEach(s=>{const o=s.dataset.key;a[o]||(a[o]={}),a[o].can_edit=!!s.checked})}try{const r={freigeschaltet:n,zugriffsrechte:a},{error:i}=await window.supabase.from("benutzer").update(r).eq("id",this.userId);if(i)throw i;this.user.freigeschaltet=n,this.user.zugriffsrechte=a;try{const s=n?"freigeschaltet":"gesperrt",o=Object.entries(a).map(([l,c])=>`${l}: ${c?.can_view?"R":"-"}/${c?.can_edit?"E":"-"}`).join(", ");await window.notificationSystem?.pushNotification(this.userId,{type:"update",entity:"mitarbeiter",entityId:this.userId,title:n?"Account freigeschaltet":"Account gesperrt",message:n?`Ihr Account wurde freigeschaltet. ${o?"Rechte: "+o:""}`:"Ihr Account wurde gesperrt."}),window.dispatchEvent(new Event("notificationsRefresh"))}catch{}alert(n?"Benutzer freigeschaltet und Rechte gespeichert":"Benutzer gesperrt"),await this.render(),this.bind()}catch(r){console.error("❌ Speichern fehlgeschlagen",r),alert("Fehler beim Speichern")}}})}destroy(){window.setContentSafely("")}}const kt=new yt;class _t{constructor(){this.currentEntityType=null,this.currentListInstance=null,this.boundEventListeners=new Set}init(){console.log("🔧 BulkActionSystem: Initialisiere..."),this.bindGlobalEvents()}registerList(e,t){console.log(`🔧 BulkActionSystem: Registriere ${e} Liste`),this.currentEntityType=e,this.currentListInstance=t,console.log(`✅ BulkActionSystem: ${e} als aktive Liste gesetzt`,{hasDeleteMethod:typeof t.showDeleteSelectedConfirmation=="function",currentPath:window.location.pathname})}updateActiveList(){const e=window.location.pathname;console.log(`🔧 BulkActionSystem: Prüfe aktuelle Route: ${e}`);const t=e.split("/").filter(n=>n);if(t.length>0){const n=t[0],a=`${n}List`;if(window[a])return this.currentEntityType=n,this.currentListInstance=window[a],console.log(`✅ BulkActionSystem: ${n} automatisch erkannt und gesetzt`),!0}return console.log("❌ BulkActionSystem: Keine passende Liste für aktuelle Route gefunden"),!1}bindGlobalEvents(){const e=n=>{n.target.id==="btn-deselect-all"&&(n.preventDefault(),this.handleDeselectAll())};document.addEventListener("click",e),this.boundEventListeners.add({element:document,type:"click",handler:e});const t=n=>{n.target.id==="btn-delete-selected"&&(n.preventDefault(),this.handleDeleteSelected())};document.addEventListener("click",t),this.boundEventListeners.add({element:document,type:"click",handler:t}),console.log("✅ BulkActionSystem: Globale Event-Listener registriert")}handleDeselectAll(){console.log("🔧 BulkActionSystem: Handle Deselect All"),this.currentListInstance||this.updateActiveList(),this.currentListInstance&&typeof this.currentListInstance.deselectAll=="function"?(console.log(`✅ BulkActionSystem: Rufe deselectAll() für ${this.currentEntityType} auf`),this.currentListInstance.deselectAll()):(console.log("⚠️ BulkActionSystem: Fallback - Generische Deselection"),this.genericDeselectAll())}handleDeleteSelected(){if(console.log("🔧 BulkActionSystem: Handle Delete Selected"),this.currentListInstance&&typeof this.currentListInstance.showDeleteSelectedConfirmation=="function"){console.log(`✅ BulkActionSystem: Rufe showDeleteSelectedConfirmation() für ${this.currentEntityType} auf`),this.currentListInstance.showDeleteSelectedConfirmation();return}if(!this.currentListInstance&&this.updateActiveList()&&this.currentListInstance&&typeof this.currentListInstance.showDeleteSelectedConfirmation=="function"){console.log(`✅ BulkActionSystem: Nach Update gefunden - rufe showDeleteSelectedConfirmation() für ${this.currentEntityType} auf`),this.currentListInstance.showDeleteSelectedConfirmation();return}console.log("⚠️ BulkActionSystem: Fallback - Generische Deletion"),this.genericDeleteSelected()}genericDeselectAll(){const e=this.detectCurrentEntityType();if(!e){console.log("❌ BulkActionSystem: Kann Entity-Type nicht erkennen");return}const t=this.getEntityConfig(e),n=document.querySelectorAll(t.checkboxSelector),a=document.getElementById(t.selectAllId);n.forEach(r=>{r.checked=!1}),a&&(a.checked=!1,a.indeterminate=!1),this.hideButtons(),console.log(`✅ BulkActionSystem: Generische Deselection für ${e} abgeschlossen`)}genericDeleteSelected(){const e=this.detectCurrentEntityType();if(!e){console.log("❌ BulkActionSystem: Kann Entity-Type nicht erkennen");return}const t=this.getEntityConfig(e),n=document.querySelectorAll(`${t.checkboxSelector}:checked`);if(n.length===0){alert(`Keine ${t.displayName} ausgewählt.`);return}const a=n.length===1?`Möchten Sie ${t.displayName.slice(0,-1)} wirklich löschen?`:`Möchten Sie die ${n.length} ausgewählten ${t.displayName} wirklich löschen?`;confirm(`${a}
+      `:'<div class="empty-state"><p>Keine Kooperationen zugewiesen</p></div>';return`${n}${a}`}bind(){document.addEventListener("click",t=>{const n=t.target.closest(".tab-button");if(!n)return;t.preventDefault();const a=n.dataset.tab;document.querySelectorAll(".tab-button").forEach(i=>i.classList.remove("active")),n.classList.add("active"),document.querySelectorAll(".tab-pane").forEach(i=>i.classList.remove("active"));const r=document.getElementById(`tab-${a}`);r&&r.classList.add("active")});const e=this;document.addEventListener("change",t=>{if(t.target&&t.target.id==="freigeschaltet-toggle"){const n=t.target.checked,a=document.querySelector("#tab-rechte .detail-section:nth-child(2)"),r=document.querySelector("#tab-rechte .form-help");a&&(n?(a.style.display="block",a.innerHTML=`
+              <h2>Rechte</h2>
+              <div class="data-table-container">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Recht</th>
+                      <th style="width:120px; text-align:right;">Lesen</th>
+                      <th style="width:120px; text-align:right;">Bearbeiten</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${e.generatePermissionsTable()}
+                  </tbody>
+                </table>
+              </div>
+            `):a.innerHTML=`
+              <h2>Rechte</h2>
+              <p class="text-muted"><em>Rechte können erst nach der Freischaltung des Benutzers vergeben werden.</em></p>
+            `),r&&(r.textContent=n?"Dieser Benutzer ist freigeschaltet und kann sich anmelden. Sie können Rechte vergeben.":"Dieser Benutzer wartet auf Freischaltung. Schalten Sie ihn frei, bevor Sie Rechte vergeben.")}}),document.addEventListener("click",async t=>{if(t.target&&t.target.id==="btn-back-mitarbeiter"){t.preventDefault(),window.navigateTo("/mitarbeiter");return}if(t.target&&t.target.id==="btn-save-perms"){t.preventDefault();const n=document.getElementById("freigeschaltet-toggle"),a=n?n.checked:this.user?.freigeschaltet;let r={};if(a){const i=document.querySelectorAll(".perm-toggle"),s=document.querySelectorAll(".perm-edit-toggle");i.forEach(o=>{const l=o.dataset.key;r[l]||(r[l]={}),r[l].can_view=!!o.checked}),s.forEach(o=>{const l=o.dataset.key;r[l]||(r[l]={}),r[l].can_edit=!!o.checked})}try{const i={freigeschaltet:a,zugriffsrechte:r},{error:s}=await window.supabase.from("benutzer").update(i).eq("id",this.userId);if(s)throw s;this.user.freigeschaltet=a,this.user.zugriffsrechte=r;try{const o=a?"freigeschaltet":"gesperrt",l=Object.entries(r).map(([c,d])=>`${c}: ${d?.can_view?"R":"-"}/${d?.can_edit?"E":"-"}`).join(", ");await window.notificationSystem?.pushNotification(this.userId,{type:"update",entity:"mitarbeiter",entityId:this.userId,title:a?"Account freigeschaltet":"Account gesperrt",message:a?`Ihr Account wurde freigeschaltet. ${l?"Rechte: "+l:""}`:"Ihr Account wurde gesperrt."}),window.dispatchEvent(new Event("notificationsRefresh"))}catch{}alert(a?"Benutzer freigeschaltet und Rechte gespeichert":"Benutzer gesperrt"),await this.render(),this.bind()}catch(i){console.error("❌ Speichern fehlgeschlagen",i),alert("Fehler beim Speichern")}}})}destroy(){window.setContentSafely("")}}const kt=new yt;class _t{constructor(){this.currentEntityType=null,this.currentListInstance=null,this.boundEventListeners=new Set}init(){console.log("🔧 BulkActionSystem: Initialisiere..."),this.bindGlobalEvents()}registerList(e,t){console.log(`🔧 BulkActionSystem: Registriere ${e} Liste`),this.currentEntityType=e,this.currentListInstance=t,console.log(`✅ BulkActionSystem: ${e} als aktive Liste gesetzt`,{hasDeleteMethod:typeof t.showDeleteSelectedConfirmation=="function",currentPath:window.location.pathname})}updateActiveList(){const e=window.location.pathname;console.log(`🔧 BulkActionSystem: Prüfe aktuelle Route: ${e}`);const t=e.split("/").filter(n=>n);if(t.length>0){const n=t[0],a=`${n}List`;if(window[a])return this.currentEntityType=n,this.currentListInstance=window[a],console.log(`✅ BulkActionSystem: ${n} automatisch erkannt und gesetzt`),!0}return console.log("❌ BulkActionSystem: Keine passende Liste für aktuelle Route gefunden"),!1}bindGlobalEvents(){const e=n=>{n.target.id==="btn-deselect-all"&&(n.preventDefault(),this.handleDeselectAll())};document.addEventListener("click",e),this.boundEventListeners.add({element:document,type:"click",handler:e});const t=n=>{n.target.id==="btn-delete-selected"&&(n.preventDefault(),this.handleDeleteSelected())};document.addEventListener("click",t),this.boundEventListeners.add({element:document,type:"click",handler:t}),console.log("✅ BulkActionSystem: Globale Event-Listener registriert")}handleDeselectAll(){console.log("🔧 BulkActionSystem: Handle Deselect All"),this.currentListInstance||this.updateActiveList(),this.currentListInstance&&typeof this.currentListInstance.deselectAll=="function"?(console.log(`✅ BulkActionSystem: Rufe deselectAll() für ${this.currentEntityType} auf`),this.currentListInstance.deselectAll()):(console.log("⚠️ BulkActionSystem: Fallback - Generische Deselection"),this.genericDeselectAll())}handleDeleteSelected(){if(console.log("🔧 BulkActionSystem: Handle Delete Selected"),this.currentListInstance&&typeof this.currentListInstance.showDeleteSelectedConfirmation=="function"){console.log(`✅ BulkActionSystem: Rufe showDeleteSelectedConfirmation() für ${this.currentEntityType} auf`),this.currentListInstance.showDeleteSelectedConfirmation();return}if(!this.currentListInstance&&this.updateActiveList()&&this.currentListInstance&&typeof this.currentListInstance.showDeleteSelectedConfirmation=="function"){console.log(`✅ BulkActionSystem: Nach Update gefunden - rufe showDeleteSelectedConfirmation() für ${this.currentEntityType} auf`),this.currentListInstance.showDeleteSelectedConfirmation();return}console.log("⚠️ BulkActionSystem: Fallback - Generische Deletion"),this.genericDeleteSelected()}genericDeselectAll(){const e=this.detectCurrentEntityType();if(!e){console.log("❌ BulkActionSystem: Kann Entity-Type nicht erkennen");return}const t=this.getEntityConfig(e),n=document.querySelectorAll(t.checkboxSelector),a=document.getElementById(t.selectAllId);n.forEach(r=>{r.checked=!1}),a&&(a.checked=!1,a.indeterminate=!1),this.hideButtons(),console.log(`✅ BulkActionSystem: Generische Deselection für ${e} abgeschlossen`)}genericDeleteSelected(){const e=this.detectCurrentEntityType();if(!e){console.log("❌ BulkActionSystem: Kann Entity-Type nicht erkennen");return}const t=this.getEntityConfig(e),n=document.querySelectorAll(`${t.checkboxSelector}:checked`);if(n.length===0){alert(`Keine ${t.displayName} ausgewählt.`);return}const a=n.length===1?`Möchten Sie ${t.displayName.slice(0,-1)} wirklich löschen?`:`Möchten Sie die ${n.length} ausgewählten ${t.displayName} wirklich löschen?`;confirm(`${a}
 
 Dieser Vorgang kann nicht rückgängig gemacht werden.`)&&this.performGenericDelete(e,n)}async performGenericDelete(e,t){const n=Array.from(t).map(c=>c.dataset.id),a=n.length;console.log(`🗑️ BulkActionSystem: Lösche ${a} ${e}...`);let r=0,i=0;const s=[];for(const c of n)try{const d=await window.dataService.deleteEntity(e,c);d.success?(r++,console.log(`✅ ${e} ${c} gelöscht`)):(i++,s.push(`${e} ${c}: ${d.error}`),console.error(`❌ Fehler beim Löschen von ${e} ${c}:`,d.error))}catch(d){i++,s.push(`${e} ${c}: ${d.message}`),console.error(`❌ Unerwarteter Fehler beim Löschen von ${e} ${c}:`,d)}const o=this.getEntityConfig(e);let l="";r>0&&(l+=`✅ ${r} ${o.displayName} erfolgreich gelöscht.`),i>0&&(l+=`
 ❌ ${i} ${o.displayName} konnten nicht gelöscht werden.`,s.length>0&&(l+=`

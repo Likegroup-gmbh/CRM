@@ -165,6 +165,31 @@ export class MitarbeiterDetail {
     `;
   }
 
+  generatePermissionsTable() {
+    const perms = this.user?.zugriffsrechte || {};
+    return [['creator','Creator'],['creator-lists','Creator Listen'],['unternehmen','Unternehmen'],['marke','Marken'],['auftrag','Aufträge'],['kampagne','Kampagnen'],['kooperation','Kooperationen'],['rechnung','Rechnungen'],['briefing','Briefings']].map(([key,label]) => `
+      <tr>
+        <td>${label}</td>
+        <td style="text-align:right;">
+          <label class="toggle-label" style="justify-content:flex-end;">
+            <span class="toggle-switch">
+              <input type="checkbox" class="perm-toggle" data-key="${key}" ${perms?.[key]?.can_view === false ? '' : (perms?.[key] === true || perms?.[key]?.can_view === true ? 'checked' : '')}>
+              <span class="toggle-slider"></span>
+            </span>
+          </label>
+        </td>
+        <td style="text-align:right;">
+          <label class="toggle-label" style="justify-content:flex-end;">
+            <span class="toggle-switch">
+              <input type="checkbox" class="perm-edit-toggle" data-key="${key}" ${perms?.[key]?.can_edit ? 'checked' : ''}>
+              <span class="toggle-slider"></span>
+            </span>
+          </label>
+        </td>
+      </tr>
+    `).join('');
+  }
+
   async render() {
     const perms = this.user?.zugriffsrechte || {};
     const getToggle = (key, label) => `
@@ -198,16 +223,37 @@ export class MitarbeiterDetail {
           <div class="tab-pane active" id="tab-rechte">
             <div class="detail-section">
               <h2>Benutzer-Status</h2>
-              <div class="form-row">
-                <label class="form-toggle">
-                  <input type="checkbox" id="freigeschaltet-toggle" ${this.user?.freigeschaltet ? 'checked' : ''}>
-                  <span>✓ Benutzer freigeschaltet</span>
-                </label>
-                <p class="form-help">
-                  ${this.user?.freigeschaltet ? 
-                    'Dieser Benutzer ist freigeschaltet und kann sich anmelden. Sie können nun Rechte vergeben.' : 
-                    'Dieser Benutzer wartet auf Freischaltung. Schalten Sie ihn frei, bevor Sie Rechte vergeben.'}
-                </p>
+              <div class="data-table-container">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Status</th>
+                      <th style="width:120px; text-align:right;">Aktiv</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>
+                        <div>
+                          <strong>Benutzer freigeschaltet</strong>
+                          <div class="form-help" style="margin-top: 4px;">
+                            ${this.user?.freigeschaltet ? 
+                              'Dieser Benutzer ist freigeschaltet und kann sich anmelden. Sie können Rechte vergeben.' : 
+                              'Dieser Benutzer wartet auf Freischaltung. Schalten Sie ihn frei, bevor Sie Rechte vergeben.'}
+                          </div>
+                        </div>
+                      </td>
+                      <td style="text-align:right;">
+                        <label class="toggle-label" style="justify-content:flex-end;">
+                          <span class="toggle-switch">
+                            <input type="checkbox" id="freigeschaltet-toggle" ${this.user?.freigeschaltet ? 'checked' : ''}>
+                            <span class="toggle-slider"></span>
+                          </span>
+                        </label>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
             
@@ -224,27 +270,7 @@ export class MitarbeiterDetail {
                       </tr>
                     </thead>
                     <tbody>
-                      ${[['creator','Creator'],['creator-lists','Creator Listen'],['unternehmen','Unternehmen'],['marke','Marken'],['auftrag','Aufträge'],['kampagne','Kampagnen'],['kooperation','Kooperationen'],['rechnung','Rechnungen'],['briefing','Briefings']].map(([key,label]) => `
-                        <tr>
-                          <td>${label}</td>
-                          <td style="text-align:right;">
-                            <label class="toggle-label" style="justify-content:flex-end;">
-                              <span class="toggle-switch">
-                                <input type="checkbox" class="perm-toggle" data-key="${key}" ${perms?.[key]?.can_view === false ? '' : (perms?.[key] === true || perms?.[key]?.can_view === true ? 'checked' : '')}>
-                                <span class="toggle-slider"></span>
-                              </span>
-                            </label>
-                          </td>
-                          <td style="text-align:right;">
-                            <label class="toggle-label" style="justify-content:flex-end;">
-                              <span class="toggle-switch">
-                                <input type="checkbox" class="perm-edit-toggle" data-key="${key}" ${perms?.[key]?.can_edit ? 'checked' : ''}>
-                                <span class="toggle-slider"></span>
-                              </span>
-                            </label>
-                          </td>
-                        </tr>
-                      `).join('')}
+                      ${this.generatePermissionsTable()}
                     </tbody>
                   </table>
                 </div>` 
@@ -361,6 +387,51 @@ export class MitarbeiterDetail {
       document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
       const pane = document.getElementById(`tab-${tab}`);
       if (pane) pane.classList.add('active');
+    });
+
+    // Live Toggle für Freigeschaltet-Status
+    const self = this;
+    document.addEventListener('change', (e) => {
+      if (e.target && e.target.id === 'freigeschaltet-toggle') {
+        const isFreigeschaltet = e.target.checked;
+        const rechteSection = document.querySelector('#tab-rechte .detail-section:nth-child(2)');
+        const statusHelp = document.querySelector('#tab-rechte .form-help');
+        
+        if (rechteSection) {
+          if (isFreigeschaltet) {
+            rechteSection.style.display = 'block';
+            rechteSection.innerHTML = `
+              <h2>Rechte</h2>
+              <div class="data-table-container">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Recht</th>
+                      <th style="width:120px; text-align:right;">Lesen</th>
+                      <th style="width:120px; text-align:right;">Bearbeiten</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${self.generatePermissionsTable()}
+                  </tbody>
+                </table>
+              </div>
+            `;
+          } else {
+            rechteSection.innerHTML = `
+              <h2>Rechte</h2>
+              <p class="text-muted"><em>Rechte können erst nach der Freischaltung des Benutzers vergeben werden.</em></p>
+            `;
+          }
+        }
+        
+        // Status-Hilfetext aktualisieren
+        if (statusHelp) {
+          statusHelp.textContent = isFreigeschaltet ? 
+            'Dieser Benutzer ist freigeschaltet und kann sich anmelden. Sie können Rechte vergeben.' : 
+            'Dieser Benutzer wartet auf Freischaltung. Schalten Sie ihn frei, bevor Sie Rechte vergeben.';
+        }
+      }
     });
 
     document.addEventListener('click', async (e) => {
