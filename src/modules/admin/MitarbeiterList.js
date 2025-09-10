@@ -72,8 +72,8 @@ export class MitarbeiterList {
   async render() {
     const tbody = this.rows.map(u => {
       const freigeschaltetIcon = u.freigeschaltet ? 
-        '<span class="status-badge success">✓ Freigeschaltet</span>' : 
-        '<span class="status-badge warning">⏳ Wartet auf Freischaltung</span>';
+        '<span class="status-badge success">FREIGESCHALTET</span>' : 
+        '<span class="status-badge warning">WARTET</span>';
       
       return `
         <tr>
