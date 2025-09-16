@@ -152,7 +152,7 @@ export class BulkActionSystem {
   }
 
   // Generische Delete-Selected Funktion
-  genericDeleteSelected() {
+  async genericDeleteSelected() {
     const entityType = this.detectCurrentEntityType();
     if (!entityType) {
       console.log('❌ BulkActionSystem: Kann Entity-Type nicht erkennen');
@@ -171,10 +171,12 @@ export class BulkActionSystem {
       ? `Möchten Sie ${config.displayName.slice(0, -1)} wirklich löschen?` 
       : `Möchten Sie die ${checkedBoxes.length} ausgewählten ${config.displayName} wirklich löschen?`;
     
-    const confirmed = confirm(`${message}\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`);
-    
-    if (confirmed) {
-      this.performGenericDelete(entityType, checkedBoxes);
+    if (window.confirmationModal) {
+      const res = await window.confirmationModal.open({ title: 'Löschvorgang bestätigen', message, confirmText: 'Endgültig löschen', cancelText: 'Abbrechen', danger: true });
+      if (res?.confirmed) this.performGenericDelete(entityType, checkedBoxes);
+    } else {
+      const confirmed = confirm(`${message}\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`);
+      if (confirmed) this.performGenericDelete(entityType, checkedBoxes);
     }
   }
 
@@ -329,6 +331,25 @@ export class BulkActionSystem {
     
     if (deleteBtn) {
       deleteBtn.style.display = 'none';
+    }
+  }
+
+  // Prüfe ob Benutzer Kunde ist
+  isKunde() {
+    return window.currentUser?.rolle === 'kunde';
+  }
+
+  // Verstecke Bulk-Actions für Kunden
+  hideForKunden() {
+    if (this.isKunde()) {
+      console.log('🔧 BulkActionSystem: Verstecke Bulk-Actions für Kunden');
+      this.hideButtons();
+      
+      // Verstecke auch die Checkboxen für Kunden
+      const checkboxes = document.querySelectorAll('input[type="checkbox"][data-entity-id]');
+      checkboxes.forEach(checkbox => {
+        checkbox.style.display = 'none';
+      });
     }
   }
 

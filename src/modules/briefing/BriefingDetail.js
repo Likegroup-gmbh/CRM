@@ -36,6 +36,7 @@ export class BriefingDetail {
           *,
           unternehmen:unternehmen_id(id, firmenname, webseite),
           marke:marke_id(id, markenname, webseite),
+          kampagne:kampagne_id(id, kampagnenname),
           assignee:assignee_id(id, name)
         `)
         .eq('id', this.briefingId)
@@ -170,6 +171,10 @@ export class BriefingDetail {
                   <div class="detail-item">
                     <label>Marke:</label>
                     <span>${escape(this.briefing.marke?.markenname)}</span>
+                  </div>
+                  <div class="detail-item">
+                    <label>Kampagne:</label>
+                    <span>${this.briefing.kampagne?.id ? `<a href="/kampagne/${this.briefing.kampagne.id}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${this.briefing.kampagne.id}')">${escape(this.briefing.kampagne.kampagnenname || 'Kampagne')}</a>` : '-'}</span>
                   </div>
                   <div class="detail-item">
                     <label>Kooperation:</label>
@@ -365,6 +370,122 @@ export class BriefingDetail {
         <button onclick="window.navigateTo('/briefing')" class="primary-btn">Zurück zur Übersicht</button>
       </div>
     `;
+  }
+
+  // Bearbeitungsformular anzeigen
+  showEditForm() {
+    console.log('🎯 BRIEFINGDETAIL: Zeige Bearbeitungsformular');
+    window.setHeadline('Briefing bearbeiten');
+    
+    // Formular direkt in content rendern
+    const formHtml = window.formSystem.renderFormOnly('briefing', this.briefing);
+    window.content.innerHTML = `
+      <div class="page-header">
+        <div class="page-header-left">
+          <h1>Briefing bearbeiten</h1>
+          <p>Bearbeiten Sie die Briefing-Informationen</p>
+        </div>
+        <div class="page-header-right">
+          <button onclick="window.navigateTo('/briefing/${this.briefingId}')" class="secondary-btn">Zurück zu Details</button>
+        </div>
+      </div>
+      
+      <div class="form-page">
+        ${formHtml}
+      </div>
+    `;
+
+    // Formular-Events binden
+    window.formSystem.bindFormEvents('briefing', this.briefing);
+    
+    // Custom Submit Handler für Bearbeitungsformular
+    const form = document.getElementById('briefing-form');
+    if (form) {
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        await this.handleEditFormSubmit();
+      };
+    }
+  }
+
+  // Handle Edit Form Submit
+  async handleEditFormSubmit() {
+    try {
+      const form = document.getElementById('briefing-form');
+      const formData = new FormData(form);
+      const submitData = {};
+
+      // FormData zu Objekt konvertieren
+      for (const [key, value] of formData.entries()) {
+        if (key.includes('[]')) {
+          // Multi-Select behandeln
+          const cleanKey = key.replace('[]', '');
+          if (!submitData[cleanKey]) {
+            submitData[cleanKey] = [];
+          }
+          submitData[cleanKey].push(value);
+        } else {
+          submitData[key] = value;
+        }
+      }
+
+      console.log('📝 Briefing Edit Submit-Daten:', submitData);
+
+      // Update Briefing
+      const result = await window.dataService.updateEntity('briefing', this.briefingId, submitData);
+      
+      if (result.success) {
+        this.showSuccessMessage('Briefing erfolgreich aktualisiert!');
+        
+        // Event auslösen für Listen-Update
+        window.dispatchEvent(new CustomEvent('entityUpdated', {
+          detail: { entity: 'briefing', action: 'updated', id: this.briefingId }
+        }));
+        
+        // Zurück zur Detail-Ansicht
+        setTimeout(() => {
+          window.navigateTo(`/briefing/${this.briefingId}`);
+        }, 1500);
+      } else {
+        this.showErrorMessage(`Fehler beim Aktualisieren: ${result.error}`);
+      }
+
+    } catch (error) {
+      console.error('❌ Fehler beim Aktualisieren des Briefings:', error);
+      this.showErrorMessage('Ein unerwarteter Fehler ist aufgetreten.');
+    }
+  }
+
+  // Zeige Erfolgsmeldung
+  showSuccessMessage(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-success';
+    alertDiv.textContent = message;
+    
+    const form = document.getElementById('briefing-form');
+    if (form) {
+      form.parentNode.insertBefore(alertDiv, form);
+      
+      setTimeout(() => {
+        alertDiv.remove();
+      }, 5000);
+    }
+  }
+
+  // Zeige Fehlermeldung
+  showErrorMessage(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-danger';
+    alertDiv.textContent = message;
+    
+    const form = document.getElementById('briefing-form');
+    if (form) {
+      form.parentNode.insertBefore(alertDiv, form);
+      
+      setTimeout(() => {
+        alertDiv.remove();
+      }, 5000);
+    }
   }
 
   destroy() {

@@ -55,10 +55,10 @@ export class MarkeList {
       // Rendere die Seite mit Filter-Daten (asynchron)
       await this.render(filterData);
       
-      // Lade gefilterte Marken für die Anzeige
+      // Lade gefilterte Marken für die Anzeige mit Sichtbarkeits-Logik
       const currentFilters = filterSystem.getFilters('marke');
       console.log('🔍 Lade Marken mit Filter:', currentFilters);
-      const filteredMarken = await window.dataService.loadEntities('marke', currentFilters);
+      const filteredMarken = await this.loadMarkenWithRelations(currentFilters);
       console.log('📊 Marken geladen:', filteredMarken?.length || 0);
       
       // Aktualisiere nur die Tabelle mit gefilterten Daten
@@ -66,6 +66,119 @@ export class MarkeList {
       
     } catch (error) {
       window.ErrorHandler.handle(error, 'MarkeList.loadAndRender');
+    }
+  }
+
+  // Lade Marken mit Beziehungen und Sichtbarkeits-Logik
+  async loadMarkenWithRelations(filters = {}) {
+    try {
+      if (!window.supabase) {
+        console.warn('⚠️ Supabase nicht verfügbar - verwende Mock-Daten');
+        return await window.dataService.loadEntities('marke', filters);
+      }
+
+      // Sichtbarkeit: Nicht-Admins nur zugeordnete Marken
+      const isAdmin = window.currentUser?.rolle === 'admin';
+      let allowedMarkeIds = [];
+      
+      console.log('🔍 MARKELIST: Sichtbarkeits-Check:', {
+        currentUser: window.currentUser?.name,
+        rolle: window.currentUser?.rolle,
+        isAdmin: isAdmin,
+        userId: window.currentUser?.id
+      });
+      
+      if (!isAdmin) {
+        try {
+          const { data: assignedMarken, error } = await window.supabase
+            .from('marke_mitarbeiter')
+            .select('marke_id')
+            .eq('mitarbeiter_id', window.currentUser?.id);
+            
+          if (error) {
+            console.error('❌ MARKELIST: Fehler beim Laden der Zuordnungen:', error);
+          }
+          
+          allowedMarkeIds = (assignedMarken || []).map(r => r.marke_id).filter(Boolean);
+          
+          console.log('🔍 MARKELIST: Zugeordnete Marken für Nicht-Admin:', {
+            assignedMarken: assignedMarken,
+            allowedMarkeIds: allowedMarkeIds
+          });
+        } catch (error) {
+          console.error('❌ MARKELIST: Exception beim Laden der Zuordnungen:', error);
+        }
+      }
+
+      // Basis-Query mit Embeds
+      let query = window.supabase
+        .from('marke')
+        .select(`
+          *,
+          unternehmen:unternehmen_id(id, firmenname),
+          branchen:marke_branchen(branche:branche_id(id, name)),
+          ansprechpartner:ansprechpartner_marke(ansprechpartner:ansprechpartner_id(id, vorname, nachname, email)),
+          mitarbeiter:marke_mitarbeiter(mitarbeiter:mitarbeiter_id(id, name))
+        `)
+        .order('created_at', { ascending: false });
+
+      // Nicht-Admin Filterung
+      if (!isAdmin) {
+        if (allowedMarkeIds.length > 0) {
+          query = query.in('id', allowedMarkeIds);
+          console.log('🔍 MARKELIST: Query eingeschränkt auf Marken-IDs:', allowedMarkeIds);
+        } else {
+          // Keine zugeordneten Marken = leeres Ergebnis
+          console.log('⚠️ MARKELIST: Keine zugeordneten Marken - leeres Ergebnis');
+          return [];
+        }
+      } else {
+        console.log('✅ MARKELIST: Admin-Benutzer - alle Marken werden geladen');
+      }
+
+      // Filter anwenden (vereinfacht, analog zu anderen Listen)
+      if (filters) {
+        const apply = (field, val, type = 'string') => {
+          if (val == null || val === '' || val === '[object Object]') return;
+          if (type === 'string') {
+            query = query.ilike(field, `%${val}%`);
+          } else if (type === 'exact') {
+            query = query.eq(field, val);
+          } else if (type === 'uuid') {
+            query = query.eq(field, val);
+          }
+        };
+
+        apply('markenname', filters.markenname);
+        apply('unternehmen_id', filters.unternehmen_id, 'uuid');
+        apply('branche_id', filters.branche_id, 'uuid');
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('❌ Fehler beim Laden der Marken mit Beziehungen:', error);
+        throw error;
+      }
+
+      // Daten transformieren für Kompatibilität mit bestehender UI
+      const transformedData = (data || []).map(marke => ({
+        ...marke,
+        // Branchen als Array extrahieren
+        branchen: (marke.branchen || []).map(b => b.branche).filter(Boolean),
+        // Ansprechpartner als Array extrahieren  
+        ansprechpartner: (marke.ansprechpartner || []).map(a => a.ansprechpartner).filter(Boolean),
+        // Mitarbeiter als Array extrahieren
+        mitarbeiter: (marke.mitarbeiter || []).map(m => m.mitarbeiter).filter(Boolean)
+      }));
+
+      console.log('✅ Marken mit Beziehungen geladen:', transformedData.length);
+      return transformedData;
+
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Marken:', error);
+      // Fallback auf DataService
+      return await window.dataService.loadEntities('marke', filters);
     }
   }
 
@@ -339,7 +452,7 @@ export class MarkeList {
         <td>${this.renderBranchen(marke.branchen)}</td>
         <td>${marke.webseite ? `<a href="${marke.webseite}" target="_blank" class="table-link">${marke.webseite}</a>` : '-'}</td>
         <td>${this.renderAnsprechpartner(marke.ansprechpartner)}</td>
-        <td>${this.renderZustaendigkeit(marke.zustaendigkeit)}</td>
+        <td>${this.renderZustaendigkeit(marke.zustaendigkeit, marke.mitarbeiter)}</td>
         <td>
           <div class="actions-dropdown-container" data-entity-type="marke">
                           <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
@@ -368,6 +481,12 @@ export class MarkeList {
                     <path stroke-linecap="round" stroke-linejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
                   </svg>
                   Ansprechpartner hinzufügen
+                </a>
+                <a href="#" class="action-item" data-action="assign_staff" data-id="${marke.id}">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+                  </svg>
+                  Mitarbeiter zuordnen
                 </a>
                 <a href="#" class="action-item" data-action="notiz" data-id="${marke.id}">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
@@ -423,16 +542,30 @@ export class MarkeList {
   }
 
   // Render Zuständigkeit
-  renderZustaendigkeit(zustaendigkeit) {
+  renderZustaendigkeit(zustaendigkeit, mitarbeiter) {
+    // Neue mitarbeiter-Zuordnungen haben Vorrang
+    if (mitarbeiter && mitarbeiter.length > 0) {
+      const mitarbeiterTags = mitarbeiter
+        .filter(m => m && m.name) // Nur gültige Mitarbeiter
+        .slice(0, 3) // Maximal 3 anzeigen
+        .map(m => `<span class="tag tag--mitarbeiter" title="${m.name}">${m.name}</span>`)
+        .join('');
+      
+      const moreCount = mitarbeiter.length > 3 ? mitarbeiter.length - 3 : 0;
+      const moreTag = moreCount > 0 ? `<span class="tag tag--more" title="Weitere ${moreCount} Mitarbeiter">+${moreCount}</span>` : '';
+      
+      return `<div class="tags tags-compact" title="${mitarbeiter.map(m => m.name).join(', ')}">${mitarbeiterTags}${moreTag}</div>`;
+    }
+    
+    // Fallback für alte zustaendigkeit-Struktur
     if (!zustaendigkeit || zustaendigkeit.length === 0) return '-';
     
     if (Array.isArray(zustaendigkeit)) {
-      return zustaendigkeit.map(z => 
-        `${z.mitarbeiter?.name || 'Unbekannt'}`
-      ).join(', ');
+      const names = zustaendigkeit.map(z => z.mitarbeiter?.name || 'Unbekannt').join(', ');
+      return `<span class="text-muted">${names}</span>`;
     }
     
-    return zustaendigkeit.mitarbeiter?.name || 'Unbekannt';
+    return `<span class="text-muted">${zustaendigkeit.mitarbeiter?.name || 'Unbekannt'}</span>`;
   }
 
   // Cleanup
@@ -455,7 +588,7 @@ export class MarkeList {
   }
 
   // Bestätigungsdialog für Bulk-Delete
-  showDeleteSelectedConfirmation() {
+  async showDeleteSelectedConfirmation() {
     const selectedCount = this.selectedMarken.size;
     console.log(`🔧 MarkeList: showDeleteSelectedConfirmation aufgerufen, selectedCount: ${selectedCount}`, Array.from(this.selectedMarken));
     
@@ -467,11 +600,13 @@ export class MarkeList {
     const message = selectedCount === 1 
       ? 'Möchten Sie die ausgewählte Marke wirklich löschen?' 
       : `Möchten Sie die ${selectedCount} ausgewählten Marken wirklich löschen?`;
-    
-    const confirmed = confirm(`${message}\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`);
-    
-    if (confirmed) {
-      this.deleteSelectedMarken();
+
+    if (window.confirmationModal) {
+      const res = await window.confirmationModal.open({ title: 'Löschvorgang bestätigen', message, confirmText: 'Endgültig löschen', cancelText: 'Abbrechen', danger: true });
+      if (res?.confirmed) this.deleteSelectedMarken();
+    } else {
+      const confirmed = confirm(`${message}\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`);
+      if (confirmed) this.deleteSelectedMarken();
     }
   }
 

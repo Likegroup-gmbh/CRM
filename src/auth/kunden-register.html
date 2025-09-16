@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kunden Registrierung | CRM</title>
+    <link rel="stylesheet" href="../assets/styles/dashboard.css">
+    <style>
+        .register-container { display:flex; align-items:center; justify-content:center; min-height:100vh; padding: 2rem; background:#0f172a; }
+        .register-card { width:100%; max-width:540px; background:#fff; border-radius:12px; padding:28px; box-shadow:0 20px 25px -5px rgba(0,0,0,.1), 0 10px 10px -5px rgba(0,0,0,.04); }
+        .register-title { margin:0 0 4px 0; font-size:1.6rem; font-weight:700; color:#111827; }
+        .register-sub { margin:0 0 18px 0; color:#6b7280; }
+        .form-group { margin-bottom:14px; }
+        .form-label { display:block; font-weight:600; color:#374151; margin-bottom:6px; }
+        .form-input { width:100%; padding:10px 12px; border:1px solid #e5e7eb; border-radius:8px; outline:none; }
+        .form-input:focus { border-color:#6366f1; box-shadow:0 0 0 3px rgba(99,102,241,.2); }
+        .primary-btn { background:#4f46e5; color:#fff; border:none; padding:10px 14px; border-radius:8px; cursor:pointer; font-weight:600; }
+        .primary-btn:disabled { opacity:.6; cursor:not-allowed; }
+        .muted { color:#6b7280; font-size:.9rem; }
+        .msg { padding:10px 12px; border-radius:8px; margin-bottom:10px; }
+        .msg.success { background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; }
+        .msg.error { background:#fef2f2; border:1px solid #fecaca; color:#991b1b; }
+        .actions { display:flex; gap:10px; align-items:center; justify-content:space-between; margin-top:10px; }
+        a.link { color:#4f46e5; text-decoration:none; }
+        a.link:hover { text-decoration:underline; }
+    </style>
+</head>
+<body>
+<div class="register-container">
+  <div class="register-card">
+    <h1 class="register-title">Kunden-Registrierung</h1>
+    <p class="register-sub">Erstellen Sie Ihren Zugang zum Kunden-Portal.</p>
+
+    <div id="msg" class="msg" style="display:none;"></div>
+
+    <form id="register-form">
+      <div class="form-group">
+        <label class="form-label" for="name">Name</label>
+        <input id="name" class="form-input" type="text" placeholder="Max Mustermann" required />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="email">E-Mail</label>
+        <input id="email" class="form-input" type="email" placeholder="kunde@example.com" required />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="password">Passwort</label>
+        <input id="password" class="form-input" type="password" placeholder="••••••••" minlength="8" required />
+      </div>
+      <div class="actions">
+        <button id="btn-submit" type="submit" class="primary-btn">Konto erstellen</button>
+        <a class="link" id="login-link" href="/">Zum Login</a>
+      </div>
+      <p class="muted" style="margin-top:10px;">Mit der Registrierung stimmen Sie unseren Nutzungsbedingungen zu.</p>
+    </form>
+  </div>
+</div>
+
+<script type="module">
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
+  import { getSupabaseConfig } from './config.js'
+
+  const cfg = getSupabaseConfig();
+  if (!cfg) {
+    const msg = document.getElementById('msg');
+    msg.className = 'msg error';
+    msg.textContent = 'Supabase-Konfiguration fehlt.';
+    msg.style.display = '';
+    throw new Error('Missing Supabase config');
+  }
+  const supabase = createClient(cfg.url, cfg.anonKey);
+
+  const form = document.getElementById('register-form');
+  const btn = document.getElementById('btn-submit');
+  const msg = document.getElementById('msg');
+
+  function show(type, text) {
+    msg.className = `msg ${type}`;
+    msg.textContent = text;
+    msg.style.display = '';
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    msg.style.display = 'none';
+    btn.disabled = true;
+
+    const name = document.getElementById('name').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/src/auth/verify-email.html?redirect_to=/kunden`,
+          data: { role: 'kunde', subrole: 'can_view', name }
+        }
+      });
+
+      if (error) throw error;
+
+      // Weiterleitung zur bestehenden OTP-Bestätigungsseite
+      window.location.href = `/src/auth/verify-email.html?email=${encodeURIComponent(email)}&redirect_to=/kunden`;
+    } catch (err) {
+      console.error('❌ Registrierung fehlgeschlagen', err);
+      show('error', err?.message || 'Registrierung fehlgeschlagen');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
+
+

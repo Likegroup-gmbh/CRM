@@ -56,6 +56,8 @@ export class OptionsManager {
   // Dropdown-Items aktualisieren
   updateDropdownItems(dropdown, options, filterText) {
     dropdown.innerHTML = '';
+    // Merke aktualisierte Optionsbasis am Container, damit spätere Suchen/Fokus die neuen Optionen verwenden
+    try { dropdown.parentNode.dataset.options = JSON.stringify(options || []); } catch (_) {}
     
     const filteredOptions = options.filter(option => 
       option.label.toLowerCase().includes(filterText.toLowerCase())
@@ -103,9 +105,18 @@ export class OptionsManager {
   createTagBasedSelect(selectElement, options, field) {
     console.log(`🏷️ Erstelle Tag-basiertes Select für ${field.name} mit ${options.length} Optionen:`, options.slice(0, 3));
     
+    // Bestehende Tag-basierte Container entfernen
+    const existingContainer = selectElement.parentNode.querySelector('.tag-based-select');
+    if (existingContainer) {
+      console.log('🗑️ Entferne bestehenden Tag-basierten Container');
+      existingContainer.remove();
+    }
+    
     // Container für das neue Element
     const container = document.createElement('div');
     container.className = 'searchable-select-container tag-based-select';
+    // Initiale Optionsbasis speichern – wird von Updates überschrieben
+    try { container.dataset.options = JSON.stringify(options || []); } catch (_) {}
     
     // Input-Feld für Suche
     const input = document.createElement('input');
@@ -127,8 +138,7 @@ export class OptionsManager {
     
     // Verstecktes Select für Form-Submission
     const hiddenSelect = document.createElement('select');
-    // Wichtig: eigener Name mit [] damit Original-Select bestehen bleiben kann
-    hiddenSelect.name = `${selectElement.name}[]`;
+    hiddenSelect.name = selectElement.name; // Gleicher Name wie Original für korrekte Form-Submission
     hiddenSelect.id = selectElement.id + '_hidden';
     hiddenSelect.multiple = true;
     hiddenSelect.style.display = 'none';
@@ -140,6 +150,8 @@ export class OptionsManager {
     const createTag = (value, label) => {
       const tag = document.createElement('div');
       tag.className = 'tag';
+      // Wichtig: Wert am Tag speichern, damit abhängige Refreshes ungültige Tags entfernen können
+      try { tag.dataset.value = value; } catch (_) {}
 
       const tagText = document.createElement('span');
       tagText.textContent = label;
@@ -178,6 +190,16 @@ export class OptionsManager {
         option.selected = true;
         hiddenSelect.appendChild(option);
       });
+      // Spiegeln in das originale Select (damit Fallback-Collector es auch findet)
+      try {
+        selectElement.innerHTML = '';
+        selectedValues.forEach(value => {
+          const opt = document.createElement('option');
+          opt.value = value;
+          opt.selected = true;
+          selectElement.appendChild(opt);
+        });
+      } catch (_) {}
       
       // Tags-Container Sichtbarkeit aktualisieren
       updateTagsContainerVisibility();
@@ -202,11 +224,21 @@ export class OptionsManager {
     // Initial aktualisieren
     updateHiddenSelect();
     
+    // Helper: aktuelle Optionsbasis lesen (inkl. späterer Updates)
+    const getOptions = () => {
+      try {
+        const raw = container.dataset.options || '[]';
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : (options || []);
+      } catch (_) { return options || []; }
+    };
+
     // Dropdown-Optionen erstellen
-    const createDropdownItems = (filteredOptions = options) => {
+    const createDropdownItems = (list) => {
       dropdown.innerHTML = '';
+      const base = Array.isArray(list) ? list : getOptions();
       
-      if (filteredOptions.length === 0) {
+      if (base.length === 0) {
         const noResults = document.createElement('div');
         noResults.textContent = 'Keine Ergebnisse';
         noResults.className = 'searchable-select-empty';
@@ -214,7 +246,7 @@ export class OptionsManager {
         return;
       }
       
-      filteredOptions.forEach(option => {
+      base.forEach(option => {
         // Prüfe ob bereits ausgewählt
         if (selectedValues.has(option.value)) {
           return;
@@ -275,10 +307,11 @@ export class OptionsManager {
     
     input.addEventListener('input', (e) => {
       const searchTerm = e.target.value.toLowerCase();
-      const filteredOptions = options.filter(option => 
+      const list = getOptions();
+      const filtered = list.filter(option => 
         option.label.toLowerCase().includes(searchTerm) && !selectedValues.has(option.value)
       );
-      createDropdownItems(filteredOptions);
+      createDropdownItems(filtered);
     });
     
     // Click-Outside Handler

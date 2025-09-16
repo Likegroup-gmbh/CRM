@@ -12,6 +12,7 @@ export class CreatorDetail {
     this.lists = [];
     this.kooperationen = [];
     this.rechnungen = [];
+    this.unternehmen = []; // Neues Feld für Unternehmen
   }
 
   // Initialisiere Creator-Detailseite
@@ -239,6 +240,28 @@ export class CreatorDetail {
       this.lists = lists || [];
     }
     console.log('✅ CREATORDETAIL: Listen geladen:', this.lists.length);
+
+    // Unternehmen ableiten: aus Kampagnen und Kooperationen (Deduplizieren)
+    try {
+      const kampUnternehmen = (this.kampagnen || [])
+        .map(k => k?.kampagne?.unternehmen)
+        .filter(Boolean);
+      const koopKampIds = (this.kooperationen || []).map(k => k?.kampagne?.id).filter(Boolean);
+      let koopUnternehmen = [];
+      if (koopKampIds.length > 0) {
+        const { data: kampMeta } = await window.supabase
+          .from('kampagne')
+          .select('id, unternehmen:unternehmen_id ( id, firmenname )')
+          .in('id', Array.from(new Set(koopKampIds)));
+        koopUnternehmen = (kampMeta || []).map(k => k.unternehmen).filter(Boolean);
+      }
+      const all = [...kampUnternehmen, ...koopUnternehmen].filter(Boolean);
+      const map = new Map();
+      all.forEach(u => { if (u?.id) map.set(u.id, u); });
+      this.unternehmen = Array.from(map.values());
+    } catch (_) {
+      this.unternehmen = [];
+    }
   }
 
   // Rendere Creator-Detailseite
@@ -304,6 +327,11 @@ export class CreatorDetail {
             <i class="icon-currency-euro"></i>
             Rechnungen
             <span class="tab-count">${this.rechnungen.length}</span>
+          </button>
+          <button class="tab-button" data-tab="unternehmen">
+            <i class="icon-building"></i>
+            Unternehmen
+            <span class="tab-count">${(this.unternehmen||[]).length}</span>
           </button>
         </div>
 
@@ -440,6 +468,13 @@ export class CreatorDetail {
               ${this.renderRechnungen()}
             </div>
           </div>
+          <!-- Unternehmen Tab -->
+          <div class="tab-pane" id="tab-unternehmen">
+            <div class="detail-section">
+              <h2>Unternehmen</h2>
+              ${this.renderUnternehmen()}
+            </div>
+          </div>
         </div>
       </div>
     `;
@@ -536,37 +571,55 @@ export class CreatorDetail {
     if (this.kooperationen.length === 0) {
       return `
         <div class="empty-state">
-          <p>Noch keine Kooperationen vorhanden.</p>
+          <div class="empty-icon">🤝</div>
+          <h3>Keine Kooperationen vorhanden</h3>
+          <p>Für diesen Creator wurden noch keine Kooperationen erstellt.</p>
         </div>
       `;
     }
 
-    const koopHtml = this.kooperationen.map(k => `
-      <div class="kooperation-card">
-        <div class="kooperation-header">
-          <h4>${k.name || 'Kooperation'}</h4>
-          <span class="kooperation-status status-${(k.status || 'unknown').toLowerCase()}">${k.status || '-'}</span>
-        </div>
-        <div class="kooperation-details">
-          <div>
-            <strong>Kampagne:</strong> ${k.kampagne?.kampagnenname || '-'}
-          </div>
-          <div>
-            <strong>Videos:</strong> ${k.videoanzahl || 0}
-          </div>
-          <div>
-            <strong>Gesamtkosten:</strong> ${k.gesamtkosten ? this.formatCurrency(k.gesamtkosten) : '-'}
-          </div>
-          <div>
-            <small>Erstellt: ${this.formatDate(k.created_at)}</small>
-          </div>
-        </div>
-      </div>
+    const rows = this.kooperationen.map(k => `
+      <tr>
+        <td>
+          <a href="/kooperation/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kooperation/${k.id}')">
+            ${window.validatorSystem.sanitizeHtml(k.name || 'Kooperation')}
+          </a>
+        </td>
+        <td>
+          <a href="/kampagne/${k.kampagne?.id || ''}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${k.kampagne?.id || ''}')">
+            ${window.validatorSystem.sanitizeHtml(k.kampagne?.kampagnenname || '-')}
+          </a>
+        </td>
+        <td>${window.validatorSystem.sanitizeHtml(k.unternehmen?.firmenname || '-')}</td>
+        <td><span class="status-badge status-${(k.status || 'unknown').toLowerCase().replace(/\s+/g, '-')}">${k.status || '-'}</span></td>
+        <td>${window.validatorSystem.sanitizeHtml(k.content_art || '-')}</td>
+        <td>${k.videoanzahl || 0}</td>
+        <td>${k.gesamtkosten ? this.formatCurrency(k.gesamtkosten) : '-'}</td>
+        <td>${this.formatDate(k.skript_deadline)}</td>
+        <td>${this.formatDate(k.content_deadline)}</td>
+        <td>${this.formatDate(k.created_at)}</td>
+      </tr>
     `).join('');
 
     return `
-      <div class="kooperationen-container">
-        ${koopHtml}
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Kampagne</th>
+              <th>Unternehmen</th>
+              <th>Status</th>
+              <th>Content Art</th>
+              <th>Videos</th>
+              <th>Gesamtkosten</th>
+              <th>Skript Deadline</th>
+              <th>Content Deadline</th>
+              <th>Erstellt</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
       </div>
     `;
   }
@@ -612,6 +665,28 @@ export class CreatorDetail {
     `;
   }
 
+  renderUnternehmen() {
+    const items = this.unternehmen || [];
+    if (!items.length) {
+      return '<p class="empty-state">Keine Unternehmen vorhanden.</p>';
+    }
+    const rows = items.map(u => `
+      <tr>
+        <td><a href="/unternehmen/${u.id}" class="table-link" data-table="unternehmen" data-id="${u.id}">${window.validatorSystem.sanitizeHtml(u.firmenname || '—')}</a></td>
+      </tr>`).join('');
+    return `
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Unternehmen</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+
   // Binde Events
   bindEvents() {
     // Tab Navigation
@@ -619,6 +694,16 @@ export class CreatorDetail {
       if (e.target.classList.contains('tab-button')) {
         e.preventDefault();
         this.switchTab(e.target.dataset.tab);
+      }
+    });
+
+    // Tabellen-Links (Unternehmen)
+    document.addEventListener('click', (e) => {
+      const link = e.target.closest && e.target.closest('.table-link');
+      if (!link) return;
+      if (link.dataset.table === 'unternehmen') {
+        e.preventDefault();
+        window.navigateTo(`/unternehmen/${link.dataset.id}`);
       }
     });
 
@@ -699,8 +784,25 @@ export class CreatorDetail {
     console.log('🎯 CREATORDETAIL: Zeige Creator-Bearbeitungsformular für ID:', this.creatorId);
     window.setHeadline('Creator bearbeiten');
     
+    // Creator-Daten für Edit-Mode vorbereiten
+    const editData = {
+      ...this.creator,
+      _isEditMode: true,
+      _entityId: this.creatorId,
+      // Multi-Select IDs extrahieren
+      sprachen_ids: this.creator.sprachen ? this.creator.sprachen.map(s => s.id) : [],
+      branchen_ids: this.creator.branchen ? this.creator.branchen.map(b => b.id) : [],
+      creator_type_ids: this.creator.creator_types ? this.creator.creator_types.map(t => t.id) : []
+    };
+    
+    console.log('📋 CREATORDETAIL: Edit-Daten vorbereitet:', {
+      sprachen_ids: editData.sprachen_ids,
+      branchen_ids: editData.branchen_ids,
+      creator_type_ids: editData.creator_type_ids
+    });
+    
     // Formular mit Creator-Daten rendern
-    const formHtml = window.formSystem.renderFormOnly('creator', this.creator);
+    const formHtml = window.formSystem.renderFormOnly('creator', editData);
     window.setContentSafely(window.content, `
       <div class="page-header">
         <div class="page-header-left">
@@ -718,7 +820,7 @@ export class CreatorDetail {
     `);
 
     // Formular-Events binden
-    window.formSystem.bindFormEvents('creator', this.creator);
+    window.formSystem.bindFormEvents('creator', editData);
     
     // Custom Submit Handler für Bearbeitungsformular
     const form = document.getElementById('creator-form');
@@ -737,7 +839,43 @@ export class CreatorDetail {
       const formData = new FormData(form);
       const submitData = {};
 
-      // FormData zu Objekt konvertieren
+      // Tag-basierte Multi-Selects aus Hidden-Selects sammeln
+      const tagBasedSelects = form.querySelectorAll('select[data-tag-based="true"]');
+      tagBasedSelects.forEach(select => {
+        const fieldName = select.name;
+        
+        // Suche das versteckte Select mit den tatsächlichen Werten
+        let hiddenSelect = form.querySelector(`select[name="${fieldName}[]"][style*="display: none"]`);
+        if (!hiddenSelect) {
+          hiddenSelect = form.querySelector(`select[name="${fieldName}"][style*="display: none"]`);
+        }
+        
+        // Alternative: Suche nach Tag-Container und sammle Werte aus Tags
+        if (!hiddenSelect) {
+          const tagContainer = form.querySelector(`select[name="${fieldName}"]`)?.closest('.form-field')?.querySelector('.tag-based-select');
+          if (tagContainer) {
+            const tags = tagContainer.querySelectorAll('.tag[data-value]');
+            const tagValues = Array.from(tags).map(tag => tag.dataset.value).filter(Boolean);
+            if (tagValues.length > 0) {
+              submitData[fieldName] = tagValues;
+              console.log(`🏷️ Tag-basiertes Feld ${fieldName} aus Tags gesammelt:`, tagValues);
+              return;
+            }
+          }
+        }
+        
+        if (hiddenSelect) {
+          const values = Array.from(hiddenSelect.selectedOptions).map(opt => opt.value).filter(Boolean);
+          if (values.length > 0) {
+            submitData[fieldName] = values;
+            console.log(`🏷️ Tag-basiertes Feld ${fieldName} aus Hidden-Select gesammelt:`, values);
+          }
+        } else {
+          console.warn(`⚠️ Kein Hidden-Select oder Tags für ${fieldName} gefunden`);
+        }
+      });
+
+      // FormData zu Objekt konvertieren (aber Tag-basierte Felder nicht überschreiben)
       for (const [key, value] of formData.entries()) {
         if (key.includes('[]')) {
           // Multi-Select behandeln
@@ -747,7 +885,12 @@ export class CreatorDetail {
           }
           submitData[cleanKey].push(value);
         } else {
-          submitData[key] = value;
+          // Nur setzen wenn nicht bereits als Array von Tag-basierten Feldern gesetzt
+          if (!submitData.hasOwnProperty(key) || !Array.isArray(submitData[key])) {
+            submitData[key] = value;
+          } else {
+            console.log(`⚠️ Überspringe ${key}, bereits als Array gesetzt:`, submitData[key]);
+          }
         }
       }
 

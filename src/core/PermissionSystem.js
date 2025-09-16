@@ -78,6 +78,34 @@ export class PermissionSystem {
         rechnung: { can_view: false, can_edit: false, can_delete: false },
         ansprechpartner: { can_view: true, can_edit: false, can_delete: false },
         dashboard: { can_view: false, can_edit: false, can_delete: false }
+      },
+      // Kunden: read-only Einsicht in relevante Module
+      kunde: {
+        creator: { can_view: false, can_edit: false, can_delete: false },
+        'creator-lists': { can_view: false, can_edit: false, can_delete: false },
+        unternehmen: { can_view: false, can_edit: false, can_delete: false },
+        marke: { can_view: false, can_edit: false, can_delete: false },
+        auftrag: { can_view: false, can_edit: false, can_delete: false },
+        kampagne: { can_view: true, can_edit: false, can_delete: false },
+        kooperation: { can_view: true, can_edit: false, can_delete: false },
+        briefing: { can_view: true, can_edit: false, can_delete: false },
+        rechnung: { can_view: false, can_edit: false, can_delete: false },
+        ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
+        dashboard: { can_view: true, can_edit: false, can_delete: false }
+      },
+      // Kunde-Editor: perspektivisch eingeschränkt bearbeitbar; v1 wie kunde
+      'kunde_editor': {
+        creator: { can_view: false, can_edit: false, can_delete: false },
+        'creator-lists': { can_view: false, can_edit: false, can_delete: false },
+        unternehmen: { can_view: false, can_edit: false, can_delete: false },
+        marke: { can_view: false, can_edit: false, can_delete: false },
+        auftrag: { can_view: false, can_edit: false, can_delete: false },
+        kampagne: { can_view: true, can_edit: false, can_delete: false },
+        kooperation: { can_view: true, can_edit: false, can_delete: false },
+        briefing: { can_view: true, can_edit: false, can_delete: false },
+        rechnung: { can_view: false, can_edit: false, can_delete: false },
+        ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
+        dashboard: { can_view: true, can_edit: false, can_delete: false }
       }
     };
 
@@ -92,6 +120,21 @@ export class PermissionSystem {
       kooperation: { can_view: false, can_edit: false, can_delete: false },
       briefing: { can_view: false, can_edit: false, can_delete: false },
       rechnung: { can_view: false, can_edit: false, can_delete: false },
+      ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
+      dashboard: { can_view: true, can_edit: false, can_delete: false }
+    };
+
+    // Kunden-Berechtigungen (NUR LESEN - RLS filtert die Daten)
+    const kundenPermissions = {
+      creator: { can_view: false, can_edit: false, can_delete: false },
+      'creator-lists': { can_view: false, can_edit: false, can_delete: false },
+      unternehmen: { can_view: false, can_edit: false, can_delete: false },
+      marke: { can_view: false, can_edit: false, can_delete: false },
+      auftrag: { can_view: false, can_edit: false, can_delete: false },
+      kampagne: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Kampagnen NUR sehen
+      kooperation: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Kooperationen NUR sehen
+      briefing: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Briefings NUR sehen
+      rechnung: { can_view: false, can_edit: false, can_delete: false }, // Kunden können Rechnungen NICHT sehen
       ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
       dashboard: { can_view: true, can_edit: false, can_delete: false }
     };
@@ -115,6 +158,12 @@ export class PermissionSystem {
     if (normalizedRole === 'pending') {
       console.log('👤 Pending-User: Nur Dashboard-Zugriff, alle anderen Module gesperrt');
       return pendingPermissions;
+    }
+
+    // Kunden: Spezielle Berechtigungen (RLS filtert die Daten)
+    if (normalizedRole === 'kunde') {
+      console.log('👤 Kunde: Zugriff auf Kampagnen, Kooperationen, Briefings, Rechnungen (RLS-gefiltert)');
+      return kundenPermissions;
     }
 
     // Admin hat alle Rechte (case-insensitive)
@@ -146,6 +195,16 @@ export class PermissionSystem {
     // Standard Mitarbeiter-Rechte (case-insensitive)
     if (normalizedRole === 'mitarbeiter') {
       return basePermissions.mitarbeiter;
+    }
+
+    // Kunde (read-only)
+    if (normalizedRole === 'kunde') {
+      return basePermissions.kunde;
+    }
+
+    // Kunde-Editor (derzeit wie Kunde; spätere Edit-Rechte möglich)
+    if (normalizedRole === 'kunde_editor') {
+      return basePermissions['kunde_editor'];
     }
 
     // Fallback zu Standard-Berechtigungen (ohne Rechte)

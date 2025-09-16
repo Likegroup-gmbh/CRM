@@ -165,14 +165,23 @@ export class UnternehmenDetail {
         this.creators = [];
       }
 
-      // Ansprechpartner laden
+      // Ansprechpartner laden (über Junction Table - analog zu MarkenDetail)
       const { data: ansprechpartner, error: ansprechpartnerError } = await window.supabase
-        .from('ansprechpartner')
-        .select('*')
+        .from('ansprechpartner_unternehmen')
+        .select(`
+          ansprechpartner_id,
+          ansprechpartner:ansprechpartner_id (
+            *,
+            position:position_id(name),
+            unternehmen:unternehmen_id(firmenname)
+          )
+        `)
         .eq('unternehmen_id', this.unternehmenId);
 
       if (!ansprechpartnerError) {
-        this.ansprechpartner = ansprechpartner || [];
+        this.ansprechpartner = (ansprechpartner || [])
+          .filter(item => item.ansprechpartner)
+          .map(item => item.ansprechpartner);
         console.log('✅ UNTERNEHMENDETAIL: Ansprechpartner geladen:', this.ansprechpartner.length);
       }
 
@@ -547,33 +556,63 @@ export class UnternehmenDetail {
     return renderCreatorTable(this.creators);
   }
 
-  // Rendere Ansprechpartner
+  // Rendere Ansprechpartner (moderne Tabellen-Darstellung wie bei Marken)
   renderAnsprechpartner() {
-    if (!this.ansprechpartner || this.ansprechpartner.length === 0) {
-      return `
-        <div class="empty-state">
-          <div class="empty-icon">👥</div>
-          <h3>Keine Ansprechpartner vorhanden</h3>
-          <p>Es wurden noch keine Ansprechpartner für dieses Unternehmen zugeordnet.</p>
-        </div>
-      `;
+    const hasAnsprechpartner = this.ansprechpartner && this.ansprechpartner.length > 0;
+    
+    const emptyState = !hasAnsprechpartner ? `
+      <div class="empty-state">
+        <div class="empty-icon">👥</div>
+        <h3>Keine Ansprechpartner vorhanden</h3>
+        <p>Es wurden noch keine Ansprechpartner für dieses Unternehmen zugeordnet.</p>
+      </div>
+    ` : '';
+
+    const addButton = `
+      <div class="section-header">
+        <h3>Ansprechpartner</h3>
+        <button id="btn-add-ansprechpartner-unternehmen" class="primary-btn" data-unternehmen-id="${this.unternehmenId}">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
+          </svg>
+          Ansprechpartner hinzufügen
+        </button>
+      </div>
+    `;
+
+    if (!hasAnsprechpartner) {
+      return addButton + emptyState;
     }
 
     const ansprechpartnerHtml = this.ansprechpartner.map(ap => `
       <div class="ansprechpartner-card">
         <div class="ansprechpartner-header">
-          <h4>${ap.vorname} ${ap.nachname}</h4>
-          <span class="ansprechpartner-position">${ap.position || '-'}</span>
+          <h4>
+            <a href="#" onclick="event.preventDefault(); window.navigateTo('/ansprechpartner/${ap.id}')" class="ansprechpartner-link">
+              ${ap.vorname} ${ap.nachname}
+            </a>
+          </h4>
+          <span class="ansprechpartner-position">${ap.position?.name || '-'}</span>
+          <div class="ansprechpartner-actions">
+            <button class="btn-remove-ansprechpartner" data-ansprechpartner-id="${ap.id}" data-unternehmen-id="${this.unternehmenId}" title="Ansprechpartner entfernen">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
         <div class="ansprechpartner-details">
           <p><strong>Email:</strong> ${ap.email ? `<a href="mailto:${ap.email}">${ap.email}</a>` : '-'}</p>
-          <p><strong>Telefon:</strong> ${ap.telefonnummer ? `<a href="tel:${ap.telefonnummer}">${ap.telefonnummer}</a>` : '-'}</p>
-          <p><strong>Abteilung:</strong> ${ap.abteilung || '-'}</p>
+          <p><strong>Telefon (privat):</strong> ${ap.telefonnummer ? `<a href="tel:${ap.telefonnummer}">${ap.telefonnummer}</a>` : '-'}</p>
+          <p><strong>Telefon (büro):</strong> ${ap.telefonnummer_office ? `<a href="tel:${ap.telefonnummer_office}">${ap.telefonnummer_office}</a>` : '-'}</p>
+          <p><strong>Unternehmen:</strong> ${ap.unternehmen?.firmenname || '-'}</p>
+          <p><strong>Stadt:</strong> ${ap.stadt || '-'}</p>
         </div>
       </div>
     `).join('');
 
     return `
+      ${addButton}
       <div class="ansprechpartner-container">
         ${ansprechpartnerHtml}
       </div>
@@ -890,6 +929,112 @@ export class UnternehmenDetail {
     const formPage = document.querySelector('.form-page');
     if (formPage) {
       formPage.insertBefore(successDiv, formPage.firstChild);
+    }
+  }
+
+  // Binde Events
+  bindEvents() {
+    // Tab-Navigation
+    document.addEventListener('click', (e) => {
+      if (e.target.classList.contains('tab-button')) {
+        const tabName = e.target.dataset.tab;
+        this.switchTab(tabName);
+      }
+    });
+
+    // Unternehmen bearbeiten Button
+    document.addEventListener('click', (e) => {
+      if (e.target.id === 'btn-edit-unternehmen') {
+        this.showEditForm();
+      }
+    });
+
+    // Ansprechpartner hinzufügen Button
+    document.addEventListener('click', (e) => {
+      if (e.target.id === 'btn-add-ansprechpartner-unternehmen') {
+        const unternehmenId = e.target.dataset.unternehmenId || this.unternehmenId;
+        if (window.actionsDropdown) {
+          window.actionsDropdown.openAddAnsprechpartnerToUnternehmenModal(unternehmenId);
+        }
+      }
+    });
+
+    // Ansprechpartner entfernen Button
+    document.addEventListener('click', (e) => {
+      if (e.target.classList.contains('btn-remove-ansprechpartner')) {
+        const ansprechpartnerId = e.target.dataset.ansprechpartnerId;
+        const unternehmenId = e.target.dataset.unternehmenId || this.unternehmenId;
+        
+        if (confirm('Möchten Sie diesen Ansprechpartner wirklich vom Unternehmen entfernen?')) {
+          this.removeAnsprechpartner(ansprechpartnerId, unternehmenId);
+        }
+      }
+    });
+
+    // Entity Updates (für Ansprechpartner)
+    document.addEventListener('entityUpdated', (e) => {
+      if (e.detail?.entity === 'ansprechpartner' && e.detail?.unternehmenId === this.unternehmenId) {
+        console.log('🔄 UNTERNEHMENDETAIL: Ansprechpartner wurde aktualisiert, lade Daten neu');
+        this.loadUnternehmenData().then(() => {
+          this.render();
+          this.bindEvents();
+        });
+      }
+      if (e.detail?.entity === 'unternehmen' && e.detail?.id === this.unternehmenId) {
+        console.log('🔄 UNTERNEHMENDETAIL: Unternehmen wurde aktualisiert, lade Daten neu');
+        this.loadUnternehmenData().then(() => {
+          this.render();
+          this.bindEvents();
+        });
+      }
+    });
+  }
+
+  // Ansprechpartner entfernen
+  async removeAnsprechpartner(ansprechpartnerId, unternehmenId) {
+    try {
+      const { error } = await window.supabase
+        .from('ansprechpartner_unternehmen')
+        .delete()
+        .eq('ansprechpartner_id', ansprechpartnerId)
+        .eq('unternehmen_id', unternehmenId);
+
+      if (error) throw error;
+
+      // UI aktualisieren
+      window.dispatchEvent(new CustomEvent('entityUpdated', { 
+        detail: { entity: 'ansprechpartner', action: 'removed', unternehmenId: unternehmenId } 
+      }));
+
+      console.log('✅ UNTERNEHMENDETAIL: Ansprechpartner erfolgreich entfernt');
+
+    } catch (error) {
+      console.error('❌ Fehler beim Entfernen des Ansprechpartners:', error);
+      alert('Fehler beim Entfernen: ' + (error.message || 'Unbekannter Fehler'));
+    }
+  }
+
+  // Tab wechseln
+  switchTab(tabName) {
+    // Alle Tab-Buttons deaktivieren
+    document.querySelectorAll('.tab-button').forEach(button => {
+      button.classList.remove('active');
+    });
+
+    // Aktiven Tab-Button aktivieren
+    const activeButton = document.querySelector(`[data-tab="${tabName}"]`);
+    if (activeButton) {
+      activeButton.classList.add('active');
+    }
+
+    // Tab-Content anzeigen
+    document.querySelectorAll('.tab-content').forEach(content => {
+      content.style.display = 'none';
+    });
+
+    const activeContent = document.getElementById(`tab-${tabName}`);
+    if (activeContent) {
+      activeContent.style.display = 'block';
     }
   }
 

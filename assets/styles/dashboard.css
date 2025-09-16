@@ -1,3 +1,46 @@
+/* MDC-like Create Button (@create-prd.mdc) */
+.mdc-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap:var(--space-xs);
+  padding: var(--space-sm);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--gray-100);
+  background: var(--gray-900);
+  cursor: pointer;
+  transition: transform .06s ease, box-shadow .2s ease, background .2s ease, color .2s ease, border-color .2s ease;
+}
+.mdc-btn:hover { transform: translateY(-1px);  }
+.mdc-btn:active { transform: translateY(0); }
+.mdc-btn[disabled] { opacity: .6; cursor: not-allowed; }
+
+.mdc-btn__icon { display: inline-flex; opacity: .9; }
+.mdc-btn__icon--check { display: inline-flex; }
+.mdc-btn__spinner { display: none; }
+.mdc-btn__label { white-space: nowrap; }
+
+/* Spinner */
+.mdc-spinner { animation: mdc-spin 1s linear infinite; }
+.mdc-spinner .mdc-spinner-path {
+  stroke: rgba(255,255,255,.9);
+  stroke-linecap: round;
+}
+@keyframes mdc-spin { to { transform: rotate(360deg); } }
+
+/* State: loading */
+.mdc-btn.is-loading { pointer-events: none; }
+.mdc-btn.is-loading .mdc-btn__icon--check { display: none; }
+.mdc-btn.is-loading .mdc-btn__spinner { display: inline-flex; }
+.mdc-btn.is-loading { background: var(--bg-secondary); color: var(--text-primary); border-color: var(--gray-300); }
+
+/* State: success */
+.mdc-btn.is-success { background: var(--bg-primary); color: var(--text-primary); border-color: var(--gray-300); }
+.mdc-btn.is-success .mdc-btn__spinner { display: none; }
+.mdc-btn.is-success .mdc-btn__icon--check { display: inline-flex; }
 .form-two-col {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1881,8 +1924,54 @@ body {
   display: none;
 }
 
+/* Mitarbeiter auto-suggest dropdown in modal (identisch zu Ansprechpartner) */
+#mitarbeiter-dropdown.auto-suggest-dropdown {
+  position: relative;
+  margin-top: 0.5rem;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+  z-index: 9000;
+  display: none;
+}
+
+/* Unternehmen Ansprechpartner auto-suggest dropdown in modal */
+#ansprechpartner-unternehmen-dropdown.auto-suggest-dropdown {
+  position: relative;
+  margin-top: 0.5rem;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+  z-index: 9000;
+  display: none;
+}
+
+/* Unternehmen Ansprechpartner Remove auto-suggest dropdown in modal */
+#ansprechpartner-unternehmen-remove-dropdown.auto-suggest-dropdown {
+  position: relative;
+  margin-top: 0.5rem;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+  z-index: 9000;
+  display: none;
+}
+
 #ansprechpartner-dropdown.auto-suggest-dropdown.show,
-#ansprechpartner-kampagne-dropdown.auto-suggest-dropdown.show {
+#ansprechpartner-kampagne-dropdown.auto-suggest-dropdown.show,
+#ansprechpartner-unternehmen-dropdown.auto-suggest-dropdown.show,
+#ansprechpartner-unternehmen-remove-dropdown.auto-suggest-dropdown.show,
+#mitarbeiter-dropdown.auto-suggest-dropdown.show,
+#asdd-unternehmen.auto-suggest-dropdown.show,
+#asdd-marke.auto-suggest-dropdown.show,
+#asdd-kampagne.auto-suggest-dropdown.show,
+#asdd-kooperation.auto-suggest-dropdown.show {
   display: block;
 }
 
@@ -1925,6 +2014,175 @@ body {
 #ansprechpartner-kampagne-dropdown .dropdown-item-details {
   font-size: 0.875rem;
   color: #6c757d;
+}
+
+/* Section Header für Kunden-Detail */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.section-header h2 {
+  margin: 0;
+}
+
+/* Selected Items für Modals */
+.selected-items {
+  margin-top: 10px;
+}
+
+.selected-item {
+  display: inline-flex;
+  align-items: center;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
+
+.selected-item-name {
+  margin-right: 8px;
+  font-weight: 500;
+}
+
+.selected-item-remove {
+  background: none;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.selected-item-remove:hover {
+  color: #ef4444;
+}
+
+/* Tabellen-Styling für Kunden-Detail */
+.kunden-detail .table-container {
+  margin-top: 16px;
+}
+
+.kunden-detail .data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.kunden-detail .data-table th,
+.kunden-detail .data-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.kunden-detail .data-table th {
+  background-color: #f9fafb;
+  font-weight: 600;
+  color: #374151;
+}
+
+.kunden-detail .data-table tr:hover {
+  background-color: #f9fafb;
+}
+
+/* Unternehmen Ansprechpartner Dropdown Items */
+#ansprechpartner-unternehmen-dropdown .dropdown-item,
+#ansprechpartner-unternehmen-remove-dropdown .dropdown-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+#ansprechpartner-unternehmen-dropdown .dropdown-item:hover,
+#ansprechpartner-unternehmen-remove-dropdown .dropdown-item:hover {
+  background-color: #f8f9fa;
+}
+
+#ansprechpartner-unternehmen-dropdown .dropdown-item.no-results,
+#ansprechpartner-unternehmen-remove-dropdown .dropdown-item.no-results {
+  color: #6c757d;
+  cursor: default;
+}
+
+#ansprechpartner-unternehmen-dropdown .dropdown-item.no-results:hover,
+#ansprechpartner-unternehmen-remove-dropdown .dropdown-item.no-results:hover {
+  background-color: transparent;
+}
+
+#ansprechpartner-unternehmen-dropdown .dropdown-item-main,
+#ansprechpartner-unternehmen-remove-dropdown .dropdown-item-main {
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+#ansprechpartner-unternehmen-dropdown .dropdown-item-details,
+#ansprechpartner-unternehmen-remove-dropdown .dropdown-item-details {
+  font-size: 0.875rem;
+  color: #6c757d;
+}
+
+/* Large Modal für Tabellen-Ansichten */
+.modal-large .modal-dialog {
+  max-width: 900px;
+  width: 90vw;
+}
+
+/* Modal Description */
+.modal-description {
+  margin-bottom: 1rem;
+  color: #6c757d;
+  font-size: 0.95rem;
+}
+
+/* Bulk Actions */
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.bulk-actions .selected-count {
+  font-weight: 500;
+  color: #495057;
+  margin-left: auto;
+}
+
+/* Single Remove Button in Table */
+.btn-remove-single {
+  background: none;
+  border: none;
+  color: #dc3545;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+}
+
+.btn-remove-single:hover {
+  background-color: #f8d7da;
+}
+
+.btn-remove-single svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* Modal body relative positioning ist nicht mehr nötig - Dropdown verwendet relative positioning */
@@ -2026,6 +2284,32 @@ body {
 }
 
 #ansprechpartner-dropdown .dropdown-item-details {
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 2px;
+}
+
+/* Mitarbeiter dropdown styling (identisch zu Ansprechpartner) */
+#mitarbeiter-dropdown .dropdown-item {
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+}
+
+#mitarbeiter-dropdown .dropdown-item:hover {
+  background: #f5f6f7;
+}
+
+#mitarbeiter-dropdown .dropdown-item.no-results {
+  color: #888;
+  cursor: default;
+}
+
+#mitarbeiter-dropdown .dropdown-item-main {
+  font-weight: 500;
+  color: #333;
+}
+
+#mitarbeiter-dropdown .dropdown-item-details {
   font-size: 0.85rem;
   color: #666;
   margin-top: 2px;
@@ -2161,6 +2445,7 @@ body {
 /* Form Styles für Modal */
 .form-group {
   margin-bottom: 1rem;
+  position: relative; /* Für Auto-Suggest: Dropdown absolut relativ zur Gruppe */
 }
 
 .form-group label {
@@ -2709,8 +2994,9 @@ margin-bottom: var(--space-md);
 /* Extended Table Styles */
 .data-table {
   font-size: var(--text-sm);
-  min-width: 100%;
-  table-layout: fixed;
+  width: 100%;
+  table-layout: auto; /* Flexiblere Spaltenbreite */
+  border-collapse: collapse;
 }
 
 .data-table th,
@@ -2718,10 +3004,30 @@ margin-bottom: var(--space-md);
   padding: var(--space-xs) var(--space-sm);
   text-align: left;
   vertical-align: middle;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal; /* Erlaubt Zeilenumbruch */
+  overflow: visible; /* Zeigt vollständigen Inhalt */
+  word-wrap: break-word; /* Bricht lange Wörter um */
   font-weight: 400;
+  /* Keine feste maximale Breite - wird durch spezielle Klassen gesteuert */
+}
+
+/* Spezielle Behandlung für kurze Spalten */
+.data-table th.col-narrow,
+.data-table td.col-narrow {
+  max-width: 80px;
+  white-space: nowrap;
+}
+
+/* Spezielle Behandlung für breite Spalten */
+.data-table th.col-wide,
+.data-table td.col-wide {
+  max-width: 300px;
+}
+
+/* Spezielle Behandlung für sehr breite Spalten */
+.data-table th.col-extra-wide,
+.data-table td.col-extra-wide {
+  max-width: 400px;
 }
 
 .data-table th {
@@ -2743,114 +3049,99 @@ margin-bottom: var(--space-md);
   background-color: var(--gray-50);
 }
 
-/* Column Widths for Auftrag Table */
-.data-table th:nth-child(1), /* Checkbox */
-.data-table td:nth-child(1) {
-  
-  width: 32px;
-}
+/* Optimized Column Width System */
 
-.data-table th:nth-child(2), /* Auftragsname */
-.data-table td:nth-child(2) {
-  width: 200px;
-}
-
-.data-table th:nth-child(3), /* Unternehmen */
-.data-table td:nth-child(3) {
-  width: 150px;
-}
-
-.data-table th:nth-child(4), /* Marke */
-.data-table td:nth-child(4) {
-  width: 120px;
-}
-
-.data-table th:nth-child(5), /* PO */
-.data-table td:nth-child(5) {
-  width: 80px;
-}
-
-.data-table th:nth-child(6), /* RE. Nr */
-.data-table td:nth-child(6) {
-  width: 100px;
-}
-
-.data-table th:nth-child(7), /* RE-Fälligkeit */
-.data-table td:nth-child(7) {
-  width: 100px;
-}
-
-.data-table th:nth-child(8), /* Art der Kampagne */
-.data-table td:nth-child(8) {
-  width: 150px;
-}
-
-.data-table th:nth-child(9), /* Start */
-.data-table td:nth-child(9) {
-  width: 80px;
-}
-
-.data-table th:nth-child(10), /* Ende */
-.data-table td:nth-child(10) {
-  width: 80px;
-}
-
-.data-table th:nth-child(11), /* Kampagnenanzahl */
-.data-table td:nth-child(11) {
-  width: 80px;
-}
-
-.data-table th:nth-child(12), /* Videos Gesamt */
-.data-table td:nth-child(12) {
-  width: 80px;
-}
-
-.data-table th:nth-child(13), /* Bruttobetrag */
-.data-table td:nth-child(13) {
-  width: 100px;
-}
-
-.data-table th:nth-child(14), /* Nettobetrag */
-.data-table td:nth-child(14) {
-  width: 100px;
-}
-
-.data-table th:nth-child(15), /* Creator Budget */
-.data-table td:nth-child(15) {
-  width: 100px;
-}
-
-.data-table th:nth-child(16), /* Budgetverteilung */
-.data-table td:nth-child(16) {
-  width: 120px;
-}
-
-.data-table th:nth-child(17), /* Rechnung gestellt */
-.data-table td:nth-child(17) {
-  width: 80px;
+/* Checkbox-Spalte - minimal und fest */
+.data-table th:has(input[type="checkbox"]),
+.data-table td:has(input[type="checkbox"]),
+.data-table th.checkbox-col,
+.data-table td.checkbox-col {
+  width: 35px;
+  min-width: 35px;
+  max-width: 35px;
   text-align: center;
+  white-space: nowrap;
+  padding: var(--space-xxs) var(--space-xs);
 }
 
-.data-table th:nth-child(18), /* Überwiesen */
-.data-table td:nth-child(18) {
-  width: 80px;
-  text-align: center;
+/* ID/Nummer Spalten - kompakt */
+.data-table th.id-col,
+.data-table td.id-col {
+  width: 1%; /* Minimale Breite basierend auf Inhalt */
+  min-width: 50px;
+  white-space: nowrap;
+  padding-right: var(--space-xs);
 }
 
-.data-table th:nth-child(19), /* Status */
-.data-table td:nth-child(19) {
-  width: 100px;
+/* Name/Titel Spalten - auto width mit min/max */
+.data-table th.name-col,
+.data-table td.name-col {
+  width: auto;
+  min-width: 120px;
+  max-width: 200px;
 }
 
-.data-table th:nth-child(20), /* Mitarbeiter */
-.data-table td:nth-child(20) {
-  width: 80px;
-  text-align: center;
+/* Unternehmen/Marke Spalten - kompakter */
+.data-table th.company-col,
+.data-table td.company-col {
+  width: auto;
+  min-width: 100px;
+  max-width: 150px;
 }
 
-.data-table th:nth-child(21), /* Aktionen */
-.data-table td:nth-child(21) {
-  width: 100px;
+/* Status Spalten - minimal nötige Breite */
+.data-table th.status-col,
+.data-table td.status-col {
+  width: 1%;
+  min-width: 80px;
+  max-width: 110px;
+  white-space: nowrap;
+}
+
+/* Datum Spalten - kompakt und fest */
+.data-table th.date-col,
+.data-table td.date-col {
+  width: 1%;
+  min-width: 85px;
+  max-width: 85px;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+}
+
+/* Zahlen Spalten - sehr kompakt */
+.data-table th.number-col,
+.data-table td.number-col {
+  width: 1%;
+  min-width: 60px;
+  max-width: 80px;
+  text-align: right;
+  white-space: nowrap;
+  padding-left: var(--space-xs);
+  padding-right: var(--space-sm);
+}
+
+/* Kontakt Spalten - mittlere Breite */
+.data-table th.contact-col,
+.data-table td.contact-col {
+  width: auto;
+  min-width: 120px;
+  max-width: 180px;
+}
+
+/* Beschreibung/Text Spalten - flexibel aber begrenzt */
+.data-table th.text-col,
+.data-table td.text-col {
+  width: auto;
+  min-width: 150px;
+  max-width: 250px;
+}
+
+/* Ansprechpartner/Listen Spalten - mittlere Breite */
+.data-table th.list-col,
+.data-table td.list-col {
+  width: auto;
+  min-width: 100px;
+  max-width: 160px;
 }
 
 /* Allow dropdowns in the actions column to overflow the cell (otherwise clipped) */
@@ -2868,11 +3159,79 @@ margin-bottom: var(--space-md);
   overflow: visible;
 }
 
-/* Horizontal Scroll for Wide Tables */
+/* Table Container - Clean Design */
 .data-table-container {
-  
+  overflow: visible; /* Kein Scroll mehr */
   border-radius: var(--radius-md);
+  background: transparent; /* Transparenter Hintergrund */
+}
+
+/* Responsive Table Improvements */
+@media (max-width: 1200px) {
+  .data-table th.text-col,
+  .data-table td.text-col {
+    max-width: 200px;
+  }
   
+  .data-table th.contact-col,
+  .data-table td.contact-col {
+    max-width: 150px;
+  }
+}
+
+@media (max-width: 768px) {
+  .data-table {
+    font-size: var(--text-xs);
+  }
+  
+  .data-table th,
+  .data-table td {
+    padding: var(--space-xxs) var(--space-xs);
+  }
+  
+  .data-table th.name-col,
+  .data-table td.name-col {
+    min-width: 120px;
+    max-width: 150px;
+  }
+  
+  .data-table th.company-col,
+  .data-table td.company-col {
+    min-width: 100px;
+    max-width: 120px;
+  }
+  
+  .data-table th.text-col,
+  .data-table td.text-col {
+    max-width: 150px;
+  }
+}
+
+/* Verbesserung für Ansprechpartner-Listen und ähnliche komplexe Inhalte */
+.data-table td .contact-list,
+.data-table td .tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xxs);
+  margin: 0;
+}
+
+.data-table td .contact-item,
+.data-table td .tag-item {
+  background: var(--gray-100);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.data-table td .contact-item a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.data-table td .contact-item a:hover {
+  text-decoration: underline;
 }
 
 /* Status Badge Improvements */
@@ -3077,16 +3436,16 @@ margin-bottom: var(--space-md);
   color: var(--color-danger-dark);
 }
 
-/* Icon Styles für Actions */
-.icon-eye::before { content: "👁️"; }
-.icon-edit::before { content: "✏️"; }
-.icon-note::before { content: "📝"; }
-.icon-star::before { content: "⭐"; }
-.icon-trash::before { content: "🗑️"; }
-.icon-tag::before { content: "🏷️"; }
-.icon-briefcase::before { content: "💼"; }
-.icon-campaign::before { content: "📢"; }
-.icon-invoice::before { content: "💰"; }
+/* Icon Styles für Actions - Einfache Text-Symbole */
+.icon-eye::before { content: ""; }
+.icon-edit::before { content: ""; }
+.icon-note::before { content: ""; }
+.icon-star::before { content: ""; }
+.icon-trash::before { content: ""; }
+.icon-tag::before { content: ""; }
+.icon-briefcase::before { content: ""; }
+.icon-campaign::before { content: ""; }
+.icon-invoice::before { content: ""; }
 
 /* Responsive Design für Actions */
 @media (max-width: 768px) {
@@ -3631,7 +3990,7 @@ margin-bottom: var(--space-md);
   box-shadow: var(--shadow-lg);
   max-height: 200px;
   overflow-y: auto;
-  z-index: 2000; /* über Dialog-Inhalt, unter Overlay */
+  z-index: 9000; /* über Modalinhalten */
   display: none;
 }
 
@@ -3776,10 +4135,6 @@ margin-bottom: var(--space-md);
 }
 
 /* Status Badges für Mitarbeiter-Freischaltung - angepasst an bestehendes Design */
-
-  
-  
-  .btn {
-    justify-content: center;
-  }
+.btn {
+  justify-content: center;
 }

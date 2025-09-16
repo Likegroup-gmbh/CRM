@@ -283,6 +283,76 @@ export class KampagneDetail {
         console.log('✅ KAMPAGNEDETAIL: Ansprechpartner geladen:', this.kampagneData.ansprechpartner.length);
       }
       
+      // Alle Mitarbeiter-Rollen aus Junction Table laden
+      const { data: allMitarbeiterData, error: mitarbeiterError } = await window.supabase
+        .from('kampagne_mitarbeiter')
+        .select(`
+          role,
+          benutzer:mitarbeiter_id(
+            id,
+            name,
+            email
+          )
+        `)
+        .eq('kampagne_id', this.kampagneId);
+
+      if (!mitarbeiterError && allMitarbeiterData) {
+        // Nach Rollen aufteilen
+        this.kampagneData.mitarbeiter = allMitarbeiterData.filter(item => !item.role || item.role === 'mitarbeiter').map(item => item.benutzer).filter(Boolean);
+        this.kampagneData.projektmanager = allMitarbeiterData.filter(item => item.role === 'projektmanager').map(item => item.benutzer).filter(Boolean);
+        this.kampagneData.scripter = allMitarbeiterData.filter(item => item.role === 'scripter').map(item => item.benutzer).filter(Boolean);
+        this.kampagneData.cutter = allMitarbeiterData.filter(item => item.role === 'cutter').map(item => item.benutzer).filter(Boolean);
+        
+        console.log('✅ KAMPAGNEDETAIL: Mitarbeiter geladen:', {
+          mitarbeiter: this.kampagneData.mitarbeiter.length,
+          projektmanager: this.kampagneData.projektmanager.length,
+          scripter: this.kampagneData.scripter.length,
+          cutter: this.kampagneData.cutter.length
+        });
+      }
+
+      // Plattformen aus Junction Table laden
+      try {
+        const { data: plattformData } = await window.supabase
+          .from('kampagne_plattformen')
+          .select(`
+            plattform:plattform_id(
+              id,
+              name
+            )
+          `)
+          .eq('kampagne_id', this.kampagneId);
+
+        if (plattformData) {
+          this.kampagneData.plattformen = plattformData.map(item => item.plattform).filter(Boolean);
+          this.kampagneData.plattform_ids = this.kampagneData.plattformen.map(p => p.id);
+          console.log('✅ KAMPAGNEDETAIL: Plattformen geladen:', this.kampagneData.plattformen.length);
+        }
+      } catch (e) {
+        console.warn('⚠️ KAMPAGNEDETAIL: Plattformen konnten nicht geladen werden', e);
+      }
+
+      // Formate aus Junction Table laden
+      try {
+        const { data: formatData } = await window.supabase
+          .from('kampagne_formate')
+          .select(`
+            format:format_id(
+              id,
+              name
+            )
+          `)
+          .eq('kampagne_id', this.kampagneId);
+
+        if (formatData) {
+          this.kampagneData.formate = formatData.map(item => item.format).filter(Boolean);
+          this.kampagneData.format_ids = this.kampagneData.formate.map(f => f.id);
+          console.log('✅ KAMPAGNEDETAIL: Formate geladen:', this.kampagneData.formate.length);
+        }
+      } catch (e) {
+        console.warn('⚠️ KAMPAGNEDETAIL: Formate konnten nicht geladen werden', e);
+      }
+      
       console.log('✅ KAMPAGNEDETAIL: Kampagnen-Basisdaten geladen:', this.kampagneData);
 
       // Kampagnen-Arten laden (falls vorhanden)
@@ -1338,6 +1408,263 @@ export class KampagneDetail {
         });
       }
     });
+  }
+
+  // Bearbeitungsformular anzeigen
+  showEditForm() {
+    console.log('🎯 KAMPAGNEDETAIL: Zeige Bearbeitungsformular');
+    window.setHeadline('Kampagne bearbeiten');
+    
+    // Daten für FormSystem vorbereiten
+    const formData = { ...this.kampagneData };
+    
+    // Edit-Mode Flags setzen
+    formData._isEditMode = true;
+    formData._entityId = this.kampagneId;
+    
+    // Verknüpfte IDs für das Formular setzen
+    if (this.kampagneData.unternehmen_id) {
+      formData.unternehmen_id = this.kampagneData.unternehmen_id;
+      console.log('🏢 KAMPAGNEDETAIL: Unternehmen-ID für Edit-Mode:', this.kampagneData.unternehmen_id);
+    }
+    if (this.kampagneData.marke_id) {
+      formData.marke_id = this.kampagneData.marke_id;
+      console.log('🏷️ KAMPAGNEDETAIL: Marke-ID für Edit-Mode:', this.kampagneData.marke_id);
+    }
+    if (this.kampagneData.auftrag_id) {
+      formData.auftrag_id = this.kampagneData.auftrag_id;
+      console.log('📋 KAMPAGNEDETAIL: Auftrag-ID für Edit-Mode:', this.kampagneData.auftrag_id);
+    }
+    
+    // Multi-Select IDs extrahieren für Edit-Mode
+    formData.ansprechpartner_ids = this.kampagneData.ansprechpartner ? this.kampagneData.ansprechpartner.map(a => a.id) : [];
+    formData.mitarbeiter_ids = this.kampagneData.mitarbeiter ? this.kampagneData.mitarbeiter.map(m => m.id) : [];
+    formData.pm_ids = this.kampagneData.projektmanager ? this.kampagneData.projektmanager.map(p => p.id) : [];
+    formData.scripter_ids = this.kampagneData.scripter ? this.kampagneData.scripter.map(s => s.id) : [];
+    formData.cutter_ids = this.kampagneData.cutter ? this.kampagneData.cutter.map(c => c.id) : [];
+    
+    // Single-Select IDs korrekt setzen
+    if (this.kampagneData.status_id) {
+      formData.status_id = this.kampagneData.status_id;
+    }
+    if (this.kampagneData.drehort_typ_id) {
+      formData.drehort_typ_id = this.kampagneData.drehort_typ_id;
+    }
+    
+    // Array-Felder korrekt formatieren
+    if (this.kampagneData.art_der_kampagne && Array.isArray(this.kampagneData.art_der_kampagne)) {
+      formData.art_der_kampagne = this.kampagneData.art_der_kampagne;
+    }
+    if (this.kampagneData.plattform_ids && Array.isArray(this.kampagneData.plattform_ids)) {
+      formData.plattform_ids = this.kampagneData.plattform_ids;
+    }
+    if (this.kampagneData.format_ids && Array.isArray(this.kampagneData.format_ids)) {
+      formData.format_ids = this.kampagneData.format_ids;
+    }
+    
+    console.log('📋 KAMPAGNEDETAIL: Multi-Select IDs extrahiert:', {
+      ansprechpartner_ids: formData.ansprechpartner_ids,
+      mitarbeiter_ids: formData.mitarbeiter_ids,
+      pm_ids: formData.pm_ids,
+      scripter_ids: formData.scripter_ids,
+      cutter_ids: formData.cutter_ids,
+      status_id: formData.status_id,
+      drehort_typ_id: formData.drehort_typ_id,
+      art_der_kampagne: formData.art_der_kampagne,
+      plattform_ids: formData.plattform_ids,
+      format_ids: formData.format_ids
+    });
+    
+    console.log('📋 KAMPAGNEDETAIL: FormData für Rendering:', formData);
+    
+    // Formular direkt in content rendern
+    const formHtml = window.formSystem.renderFormOnly('kampagne', formData);
+    window.content.innerHTML = `
+      <div class="page-header">
+        <div class="page-header-left">
+          <h1>Kampagne bearbeiten</h1>
+          <p>Bearbeiten Sie die Informationen von ${this.kampagneData.kampagnenname}</p>
+        </div>
+        <div class="page-header-right">
+          <button onclick="window.navigateTo('/kampagne/${this.kampagneId}')" class="secondary-btn">Zurück zu Details</button>
+        </div>
+      </div>
+      
+      <div class="form-page">
+        ${formHtml}
+      </div>
+    `;
+
+    // Formular-Events binden mit vorbereiteten Daten
+    window.formSystem.bindFormEvents('kampagne', formData);
+    
+    // Form-Datasets für DynamicDataLoader setzen
+    const form = document.getElementById('kampagne-form');
+    if (form) {
+      form.dataset.isEditMode = 'true';
+      form.dataset.entityType = 'kampagne';
+      form.dataset.entityId = this.kampagneId;
+      
+      // Edit-Mode Daten als JSON für DynamicDataLoader - WICHTIGE REIHENFOLGE beachten!
+      const editModeData = {
+        // Single-Select Felder zuerst - in Abhängigkeits-Reihenfolge
+        unternehmen_id: formData.unternehmen_id,
+        marke_id: formData.marke_id,
+        auftrag_id: formData.auftrag_id,
+        status_id: formData.status_id,
+        drehort_typ_id: formData.drehort_typ_id,
+        // Multi-Select Felder
+        ansprechpartner_ids: formData.ansprechpartner_ids,
+        mitarbeiter_ids: formData.mitarbeiter_ids,
+        pm_ids: formData.pm_ids,
+        scripter_ids: formData.scripter_ids,
+        cutter_ids: formData.cutter_ids,
+        art_der_kampagne: formData.art_der_kampagne,
+        plattform_ids: formData.plattform_ids,
+        format_ids: formData.format_ids
+      };
+      
+      form.dataset.editModeData = JSON.stringify(editModeData);
+      
+      console.log('📋 KAMPAGNEDETAIL: EditModeData gesetzt:', editModeData);
+      
+      // Bestehende Werte für Auto-Suggestion verfügbar machen
+      if (formData.unternehmen_id) {
+        form.dataset.existingUnternehmenId = formData.unternehmen_id;
+      }
+      if (formData.marke_id) {
+        form.dataset.existingMarkeId = formData.marke_id;
+      }
+      if (formData.auftrag_id) {
+        form.dataset.existingAuftragId = formData.auftrag_id;
+      }
+      
+      console.log('📋 KAMPAGNEDETAIL: Form-Datasets gesetzt:', {
+        isEditMode: form.dataset.isEditMode,
+        entityType: form.dataset.entityType,
+        entityId: form.dataset.entityId,
+        existingUnternehmenId: form.dataset.existingUnternehmenId,
+        existingMarkeId: form.dataset.existingMarkeId,
+        existingAuftragId: form.dataset.existingAuftragId,
+        editModeData: 'Set'
+      });
+      
+      // Custom Submit Handler für Bearbeitungsformular
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        await this.handleEditFormSubmit();
+      };
+      
+      console.log('🔍 KAMPAGNEDETAIL: Form Datasets gesetzt:', {
+        entityId: form.dataset.entityId,
+        isEditMode: form.dataset.isEditMode,
+        entityType: form.dataset.entityType,
+        existingUnternehmenId: form.dataset.existingUnternehmenId,
+        existingMarkeId: form.dataset.existingMarkeId,
+        existingAuftragId: form.dataset.existingAuftragId
+      });
+      
+      // Race Condition Problem gelöst - kein Timeout-Hack mehr nötig!
+      // Die Werte werden jetzt korrekt über DynamicDataLoader.loadDirectQueryOptions() gesetzt
+    }
+  }
+
+  // Handler für Formular-Submission
+  async handleEditFormSubmit() {
+    console.log('📝 KAMPAGNEDETAIL: Verarbeite Formular-Submission...');
+    
+    const form = document.querySelector('form[data-entity-type="kampagne"]');
+    if (!form) {
+      console.error('❌ Formular nicht gefunden');
+      return;
+    }
+
+    try {
+      const formData = new FormData(form);
+      const submitData = {};
+
+      // Tag-basierte Multi-Selects aus Hidden-Selects sammeln (wie bei Creator)
+      const hiddenSelects = form.querySelectorAll('select[style*="display: none"], select[style*="display:none"]');
+      hiddenSelects.forEach(select => {
+        if (select.name && select.name.includes('_ids')) {
+          const fieldName = select.name.replace('[]', '');
+          const selectedValues = Array.from(select.selectedOptions).map(option => option.value);
+          if (selectedValues.length > 0) {
+            submitData[fieldName] = selectedValues;
+            console.log(`🏷️ Tag-basiertes Feld ${fieldName} aus Hidden-Select gesammelt:`, selectedValues);
+          }
+        }
+      });
+
+      // FormData zu Objekt konvertieren (aber Tag-basierte Felder nicht überschreiben)
+      for (const [key, value] of formData.entries()) {
+        if (key.includes('[]')) {
+          // Multi-Select behandeln
+          const cleanKey = key.replace('[]', '');
+          if (!submitData[cleanKey]) {
+            submitData[cleanKey] = [];
+          }
+          submitData[cleanKey].push(value);
+        } else {
+          // Nur setzen wenn nicht bereits als Array von Tag-basierten Feldern gesetzt
+          if (!submitData.hasOwnProperty(key) || !Array.isArray(submitData[key])) {
+          submitData[key] = value;
+          } else {
+            console.log(`⚠️ Überspringe ${key}, bereits als Array gesetzt:`, submitData[key]);
+          }
+        }
+      }
+
+      console.log('📋 KAMPAGNEDETAIL: Submit-Daten gesammelt:', submitData);
+
+      // Daten über DataService aktualisieren
+      const result = await window.dataService.updateEntity('kampagne', this.kampagneId, submitData);
+      
+      if (result) {
+        this.showSuccessMessage('Kampagne erfolgreich aktualisiert!');
+        
+        // Zurück zur Detailseite nach kurzer Verzögerung
+        setTimeout(() => {
+          window.navigateTo(`/kampagne/${this.kampagneId}`);
+        }, 1500);
+      }
+
+    } catch (error) {
+      console.error('❌ Fehler beim Aktualisieren der Kampagne:', error);
+      this.showErrorMessage('Ein unerwarteter Fehler ist aufgetreten.');
+    }
+  }
+
+  // Zeige Erfolgsmeldung
+  showSuccessMessage(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-success';
+    alertDiv.textContent = message;
+    
+    const form = document.getElementById('kampagne-form');
+    if (form) {
+      form.parentNode.insertBefore(alertDiv, form);
+      
+      setTimeout(() => {
+        alertDiv.remove();
+      }, 5000);
+    }
+  }
+
+  // Zeige Fehlermeldung
+  showErrorMessage(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-danger';
+    alertDiv.textContent = message;
+    
+    const form = document.getElementById('kampagne-form');
+    if (form) {
+      form.parentNode.insertBefore(alertDiv, form);
+      
+      setTimeout(() => {
+        alertDiv.remove();
+      }, 5000);
+    }
   }
 }
 

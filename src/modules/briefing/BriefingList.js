@@ -19,6 +19,11 @@ export class BriefingList {
 
     window.setHeadline('Briefings Übersicht');
 
+    // Verstecke Bulk-Actions für Kunden
+    if (window.bulkActionSystem) {
+      window.bulkActionSystem.hideForKunden();
+    }
+
     const canView = (window.canViewPage && window.canViewPage('briefing')) || await window.checkUserPermission('briefing', 'can_view');
     if (!canView) {
       window.content.innerHTML = `
@@ -59,17 +64,39 @@ export class BriefingList {
         return await window.dataService.loadEntities('briefing', filters);
       }
 
-      // Sichtbarkeit: Nicht-Admins nur eigene (assignee_id) ODER über zugewiesene Kooperation/Kampagne
+      // Sichtbarkeit: Nicht-Admins nur eigene (assignee_id) ODER über zugewiesene Kooperation/Kampagne/Marken
       const isAdmin = window.currentUser?.rolle === 'admin';
       let allowedKampagneIds = [];
       let allowedKoopIds = [];
       if (!isAdmin) {
         try {
-          const { data: assignedK } = await window.supabase
+          // 1. Direkt zugeordnete Kampagnen
+          const { data: assignedKampagnen } = await window.supabase
             .from('kampagne_mitarbeiter')
             .select('kampagne_id')
             .eq('mitarbeiter_id', window.currentUser?.id);
-          allowedKampagneIds = (assignedK || []).map(r => r.kampagne_id).filter(Boolean);
+          const directKampagnenIds = (assignedKampagnen || []).map(r => r.kampagne_id).filter(Boolean);
+          
+          // 2. Kampagnen über zugeordnete Marken
+          const { data: assignedMarken } = await window.supabase
+            .from('marke_mitarbeiter')
+            .select('marke_id')
+            .eq('mitarbeiter_id', window.currentUser?.id);
+          const markenIds = (assignedMarken || []).map(r => r.marke_id).filter(Boolean);
+          
+          let markenKampagnenIds = [];
+          if (markenIds.length > 0) {
+            const { data: markenKampagnen } = await window.supabase
+              .from('kampagne')
+              .select('id')
+              .in('marke_id', markenIds);
+            markenKampagnenIds = (markenKampagnen || []).map(k => k.id).filter(Boolean);
+          }
+          
+          // Kombiniere beide Listen und entferne Duplikate
+          allowedKampagneIds = [...new Set([...directKampagnenIds, ...markenKampagnenIds])];
+          
+          // Kooperationen aus erlaubten Kampagnen laden
           if (allowedKampagneIds.length > 0) {
             const { data: koops } = await window.supabase
               .from('kooperationen')
@@ -77,7 +104,16 @@ export class BriefingList {
               .in('kampagne_id', allowedKampagneIds);
             allowedKoopIds = (koops || []).map(k => k.id);
           }
-        } catch (_) {}
+          
+          console.log(`🔍 BRIEFINGLIST: Mitarbeiter ${window.currentUser?.id} hat Zugriff auf:`, {
+            direkteKampagnen: directKampagnenIds.length,
+            markenKampagnen: markenKampagnenIds.length,
+            gesamtKampagnen: allowedKampagneIds.length,
+            kooperationen: allowedKoopIds.length
+          });
+        } catch (error) {
+          console.error('❌ Fehler beim Laden der Zuordnungen:', error);
+        }
       }
 
       // Basis-Query mit Embeds
@@ -87,11 +123,14 @@ export class BriefingList {
           *,
           unternehmen:unternehmen_id(id, firmenname),
           marke:marke_id(id, markenname),
+          kampagne:kampagne_id(id, kampagnenname),
           assignee:assignee_id(id, name)
         `)
         .order('created_at', { ascending: false });
 
-      if (!isAdmin) {
+      // Für Mitarbeiter: Filtere nach zugewiesenen Kampagnen
+      // Für Kunden: RLS-Policies filtern automatisch
+      if (!isAdmin && window.currentUser?.rolle !== 'kunde') {
         const orParts = [`assignee_id.eq.${window.currentUser?.id}`];
         if (allowedKoopIds.length) orParts.push(`kooperation_id.in.(${allowedKoopIds.join(',')})`);
         if (allowedKampagneIds.length) orParts.push(`kampagne_id.in.(${allowedKampagneIds.join(',')})`);
@@ -191,7 +230,7 @@ export class BriefingList {
           <p>Verwalten Sie alle Briefings</p>
         </div>
         <div class="page-header-right">
-          <button id="btn-briefing-new" class="primary-btn">Neues Briefing anlegen</button>
+          ${window.currentUser?.permissions?.briefing?.can_edit ? '<button id="btn-briefing-new" class="primary-btn">Neues Briefing anlegen</button>' : ''}
         </div>
       </div>
 
@@ -216,6 +255,7 @@ export class BriefingList {
               <th>Unternehmen</th>
               <th>Marke</th>
               <th>Status</th>
+              <th>Kampagne</th>
               <th>Deadline</th>
               <th>Zugewiesen</th>
               <th>Erstellt</th>
@@ -224,7 +264,7 @@ export class BriefingList {
           </thead>
           <tbody id="briefings-table-body">
             <tr>
-              <td colspan="9" class="loading">Lade Briefings...</td>
+              <td colspan="10" class="loading">Lade Briefings...</td>
             </tr>
           </tbody>
         </table>
@@ -348,7 +388,7 @@ export class BriefingList {
   }
 
   // Bestätigungsdialog für Bulk-Delete
-  showDeleteSelectedConfirmation() {
+  async showDeleteSelectedConfirmation() {
     const selectedCount = this.selectedBriefings.size;
     if (selectedCount === 0) {
       alert('Keine Briefings ausgewählt.');
@@ -358,11 +398,13 @@ export class BriefingList {
     const message = selectedCount === 1 
       ? 'Möchten Sie das ausgewählte Briefing wirklich löschen?' 
       : `Möchten Sie die ${selectedCount} ausgewählten Briefings wirklich löschen?`;
-    
-    const confirmed = confirm(`${message}\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`);
-    
-    if (confirmed) {
-      this.deleteSelectedBriefings();
+
+    if (window.confirmationModal) {
+      const res = await window.confirmationModal.open({ title: 'Löschvorgang bestätigen', message, confirmText: 'Endgültig löschen', cancelText: 'Abbrechen', danger: true });
+      if (res?.confirmed) this.deleteSelectedBriefings();
+    } else {
+      const confirmed = confirm(`${message}\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`);
+      if (confirmed) this.deleteSelectedBriefings();
     }
   }
 
@@ -486,6 +528,9 @@ export class BriefingList {
           <span class="status-badge status-${(b.status || 'unknown').toLowerCase()}">
             ${escapeHtml(b.status)}
           </span>
+        </td>
+        <td>
+          ${b.kampagne?.id ? `<span class="tag tag--type">${escapeHtml(b.kampagne.kampagnenname)}</span>` : '-'}
         </td>
         <td>${formatDate(b.deadline)}</td>
         <td>${escapeHtml(b.assignee?.name)}</td>

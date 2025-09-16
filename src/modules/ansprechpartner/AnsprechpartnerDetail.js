@@ -15,6 +15,8 @@ export class AnsprechpartnerDetail {
     this.formRenderer = null;
     this.dataLoader = null;
     this.formSystem = null;
+    this.notizen = [];
+    this.ratings = [];
   }
 
   // Initialisiere Detail-Seite
@@ -71,6 +73,18 @@ export class AnsprechpartnerDetail {
 
       this.ansprechpartner = data;
       console.log('✅ ANSPRECHPARTNERDETAIL: Ansprechpartner geladen:', this.ansprechpartner);
+
+      // Notizen laden
+      if (window.notizenSystem) {
+        this.notizen = await window.notizenSystem.loadNotizen('ansprechpartner', this.ansprechpartnerId);
+        console.log('✅ ANSPRECHPARTNERDETAIL: Notizen geladen:', this.notizen.length);
+      }
+
+      // Bewertungen laden
+      if (window.bewertungsSystem) {
+        this.ratings = await window.bewertungsSystem.loadBewertungen('ansprechpartner', this.ansprechpartnerId);
+        console.log('✅ ANSPRECHPARTNERDETAIL: Ratings geladen:', this.ratings.length);
+      }
       
     } catch (error) {
       console.error('❌ ANSPRECHPARTNERDETAIL: Unerwarteter Fehler:', error);
@@ -85,40 +99,92 @@ export class AnsprechpartnerDetail {
       return;
     }
 
-    window.setHeadline(`${this.ansprechpartner.vorname} ${this.ansprechpartner.nachname}`);
+    window.setHeadline(`${this.ansprechpartner.vorname} ${this.ansprechpartner.nachname} - Details`);
     
     const content = document.getElementById('dashboard-content');
     if (!content) return;
 
     content.innerHTML = `
       <div class="page-header">
-        <div class="page-title">
-          <h1>${this.ansprechpartner.vorname} ${this.ansprechpartner.nachname}</h1>
-          <p class="page-description">${this.ansprechpartner.position}</p>
+        <div class="page-header-left">
+          <h1>${this.ansprechpartner.vorname} ${this.ansprechpartner.nachname} - Details</h1>
+          <p>Detaillierte Informationen zum Ansprechpartner</p>
         </div>
-        <div class="page-actions">
-          <button class="secondary-btn" id="btn-back">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-            </svg>
-            Zurück zur Liste
+        <div class="page-header-right">
+          <button class="secondary-btn" id="btn-edit">
+            <i class="icon-edit"></i>
+            Ansprechpartner bearbeiten
           </button>
-          <button class="action-btn" id="btn-edit">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-            </svg>
-            Bearbeiten
+          <button class="secondary-btn" id="btn-back">
+            Zurück zur Übersicht
           </button>
         </div>
       </div>
 
-      <div class="detail-grid">
-        <!-- Kontaktinformationen -->
-        <div class="detail-section">
-          <div class="detail-section-header">
-            <h3>Kontaktinformationen</h3>
+      <div class="content-section">
+        <!-- Tab-Navigation -->
+        <div class="tab-navigation">
+          <button class="tab-button active" data-tab="informationen">
+            Informationen
+            <span class="tab-count">1</span>
+          </button>
+          <button class="tab-button" data-tab="notizen">
+            Notizen
+            <span class="tab-count">${this.notizen ? this.notizen.length : 0}</span>
+          </button>
+          <button class="tab-button" data-tab="bewertungen">
+            Bewertungen
+            <span class="tab-count">${this.ratings ? this.ratings.length : 0}</span>
+          </button>
+          <button class="tab-button" data-tab="marken">
+            Zugeordnete Marken
+            <span class="tab-count">${this.ansprechpartner.ansprechpartner_marke ? this.ansprechpartner.ansprechpartner_marke.length : 0}</span>
+          </button>
+          <button class="tab-button" data-tab="kampagnen">
+            Zugeordnete Kampagnen
+            <span class="tab-count">${this.ansprechpartner.ansprechpartner_kampagne ? this.ansprechpartner.ansprechpartner_kampagne.length : 0}</span>
+          </button>
+        </div>
+
+        <!-- Tab-Content -->
+        <div class="tab-content">
+          <!-- Informationen Tab -->
+          <div class="tab-pane active" id="informationen">
+            ${this.renderInformationen()}
           </div>
-          <div class="detail-content">
+
+          <!-- Notizen Tab -->
+          <div class="tab-pane" id="notizen">
+            ${this.renderNotizen()}
+          </div>
+
+          <!-- Bewertungen Tab -->
+          <div class="tab-pane" id="bewertungen">
+            ${this.renderBewertungen()}
+          </div>
+
+          <!-- Marken Tab -->
+          <div class="tab-pane" id="marken">
+            ${this.renderMarken()}
+          </div>
+
+          <!-- Kampagnen Tab -->
+          <div class="tab-pane" id="kampagnen">
+            ${this.renderKampagnen()}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Rendere Informationen-Tab
+  renderInformationen() {
+    return `
+      <div class="detail-section">
+        <div class="detail-grid">
+          <!-- Kontaktinformationen -->
+          <div class="detail-card">
+            <h3>Kontaktinformationen</h3>
             <div class="detail-item">
               <label>Name:</label>
               <span>${this.ansprechpartner.vorname} ${this.ansprechpartner.nachname}</span>
@@ -144,14 +210,10 @@ export class AnsprechpartnerDetail {
               <span>${this.ansprechpartner.linkedin ? `<a href="${this.ansprechpartner.linkedin}" target="_blank" rel="noopener noreferrer">${this.ansprechpartner.linkedin}</a>` : '-'}</span>
             </div>
           </div>
-        </div>
 
-        <!-- Standort & Sprache -->
-        <div class="detail-section">
-          <div class="detail-section-header">
+          <!-- Standort & Sprache -->
+          <div class="detail-card">
             <h3>Standort & Sprache</h3>
-          </div>
-          <div class="detail-content">
             <div class="detail-item">
               <label>Stadt:</label>
               <span>${this.ansprechpartner.stadt || '-'}</span>
@@ -163,14 +225,10 @@ export class AnsprechpartnerDetail {
                 : (this.ansprechpartner.sprache?.name || this.ansprechpartner.sprache || '-')}</span>
             </div>
           </div>
-        </div>
 
-        <!-- Unternehmen -->
-        <div class="detail-section">
-          <div class="detail-section-header">
+          <!-- Unternehmen -->
+          <div class="detail-card">
             <h3>Unternehmen</h3>
-          </div>
-          <div class="detail-content">
             <div class="detail-item">
               <label>Unternehmen:</label>
               <span>
@@ -180,45 +238,127 @@ export class AnsprechpartnerDetail {
                 }
               </span>
             </div>
-          </div>
-        </div>
-
-        <!-- Zugeordnete Marken -->
-        <div class="detail-section">
-          <div class="detail-section-header">
-            <h3>Zugeordnete Marken</h3>
-          </div>
-          <div class="detail-content">
-            ${this.renderMarkenList()}
-          </div>
-        </div>
-
-        <!-- Zugeordnete Kampagnen -->
-        <div class="detail-section">
-          <div class="detail-section-header">
-            <h3>Zugeordnete Kampagnen</h3>
-          </div>
-          <div class="detail-content">
-            ${this.renderKampagnenList()}
-          </div>
-        </div>
-
-        <!-- Notizen -->
-        <div class="detail-section full-width">
-          <div class="detail-section-header">
-            <h3>Notizen</h3>
-          </div>
-          <div class="detail-content">
             <div class="detail-item">
-              <p class="notiz-text">${this.ansprechpartner.notiz || 'Keine Notizen vorhanden.'}</p>
+              <label>Erstellt am:</label>
+              <span>${this.ansprechpartner.created_at ? new Date(this.ansprechpartner.created_at).toLocaleDateString('de-DE') : '-'}</span>
+            </div>
+            <div class="detail-item">
+              <label>Zuletzt aktualisiert:</label>
+              <span>${this.ansprechpartner.updated_at ? new Date(this.ansprechpartner.updated_at).toLocaleDateString('de-DE') : '-'}</span>
             </div>
           </div>
+
+          <!-- Notizen (falls vorhanden) -->
+          ${this.ansprechpartner.notiz ? `
+          <div class="detail-card full-width">
+            <h3>Notizen</h3>
+            <div class="detail-item">
+              <p class="notiz-text">${this.ansprechpartner.notiz}</p>
+            </div>
+          </div>
+          ` : ''}
         </div>
       </div>
     `;
   }
 
-  // Render Marken-Liste
+  // Rendere Notizen-Tab
+  renderNotizen() {
+    if (window.notizenSystem) {
+      return window.notizenSystem.renderNotizenContainer(this.notizen, 'ansprechpartner', this.ansprechpartnerId);
+    }
+    return '<p>Notizen-System nicht verfügbar</p>';
+  }
+
+  // Rendere Bewertungen-Tab
+  renderBewertungen() {
+    if (window.bewertungsSystem) {
+      return window.bewertungsSystem.renderBewertungenContainer(this.ratings, 'ansprechpartner', this.ansprechpartnerId);
+    }
+    return '<p>Bewertungs-System nicht verfügbar</p>';
+  }
+
+  // Rendere Marken-Tab
+  renderMarken() {
+    if (!this.ansprechpartner.ansprechpartner_marke || this.ansprechpartner.ansprechpartner_marke.length === 0) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">🏷️</div>
+          <h3>Keine Marken zugeordnet</h3>
+          <p>Diesem Ansprechpartner sind noch keine Marken zugeordnet.</p>
+        </div>
+      `;
+    }
+
+    const markenHtml = this.ansprechpartner.ansprechpartner_marke.map(item => {
+      const marke = item.marke;
+      return `
+        <div class="marke-card">
+          <div class="marke-header">
+            <h4>
+              <a href="#" class="table-link" data-table="marke" data-id="${marke.id}">
+                ${marke.markenname}
+              </a>
+            </h4>
+          </div>
+          <div class="marke-details">
+            <p><strong>Unternehmen:</strong> ${marke.unternehmen?.firmenname || '-'}</p>
+            <p><strong>Webseite:</strong> ${marke.webseite ? `<a href="${marke.webseite}" target="_blank">${marke.webseite}</a>` : '-'}</p>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="marken-container">
+        ${markenHtml}
+      </div>
+    `;
+  }
+
+  // Rendere Kampagnen-Tab
+  renderKampagnen() {
+    if (!this.ansprechpartner.ansprechpartner_kampagne || this.ansprechpartner.ansprechpartner_kampagne.length === 0) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">📢</div>
+          <h3>Keine Kampagnen zugeordnet</h3>
+          <p>Diesem Ansprechpartner sind noch keine Kampagnen zugeordnet.</p>
+        </div>
+      `;
+    }
+
+    const kampagnenHtml = this.ansprechpartner.ansprechpartner_kampagne.map(item => {
+      const kampagne = item.kampagne;
+      return `
+        <div class="kampagne-card">
+          <div class="kampagne-header">
+            <h4>
+              <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
+                ${kampagne.kampagnenname}
+              </a>
+            </h4>
+            <span class="kampagne-status status-${kampagne.status?.toLowerCase() || 'unknown'}">
+              ${kampagne.status || 'Unbekannt'}
+            </span>
+          </div>
+          <div class="kampagne-details">
+            <p><strong>Beschreibung:</strong> ${kampagne.beschreibung || '-'}</p>
+            <p><strong>Start:</strong> ${kampagne.start ? new Date(kampagne.start).toLocaleDateString('de-DE') : '-'}</p>
+            <p><strong>Deadline:</strong> ${kampagne.deadline ? new Date(kampagne.deadline).toLocaleDateString('de-DE') : '-'}</p>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="kampagnen-container">
+        ${kampagnenHtml}
+      </div>
+    `;
+  }
+
+  // Legacy-Methoden für Rückwärtskompatibilität
   renderMarkenList() {
     if (!this.ansprechpartner.ansprechpartner_marke || this.ansprechpartner.ansprechpartner_marke.length === 0) {
       return '<p class="empty-state">Keine Marken zugeordnet.</p>';
@@ -260,6 +400,14 @@ export class AnsprechpartnerDetail {
 
   // Events für Detail-Ansicht binden
   bindEvents() {
+    // Tab-Navigation
+    document.addEventListener('click', (e) => {
+      if (e.target.classList.contains('tab-button')) {
+        const tabName = e.target.dataset.tab;
+        this.switchTab(tabName);
+      }
+    });
+
     // Zurück Button
     document.addEventListener('click', (e) => {
       if (e.target.id === 'btn-back' || e.target.closest('#btn-back')) {
@@ -285,6 +433,41 @@ export class AnsprechpartnerDetail {
         window.navigateTo(`/${table}/${id}`);
       }
     });
+
+    // Notizen und Bewertungen Events
+    document.addEventListener('notizenUpdated', () => {
+      this.loadAnsprechpartnerData().then(() => {
+        this.render();
+        this.bindEvents();
+      });
+    });
+
+    document.addEventListener('bewertungenUpdated', () => {
+      this.loadAnsprechpartnerData().then(() => {
+        this.render();
+        this.bindEvents();
+      });
+    });
+  }
+
+  // Tab wechseln
+  switchTab(tabName) {
+    // Alle Tab-Buttons deaktivieren
+    document.querySelectorAll('.tab-button').forEach(btn => {
+      btn.classList.remove('active');
+    });
+
+    // Alle Tab-Panes ausblenden
+    document.querySelectorAll('.tab-pane').forEach(pane => {
+      pane.classList.remove('active');
+    });
+
+    // Gewählten Tab aktivieren
+    const selectedButton = document.querySelector(`[data-tab="${tabName}"]`);
+    const selectedPane = document.getElementById(tabName);
+
+    if (selectedButton) selectedButton.classList.add('active');
+    if (selectedPane) selectedPane.classList.add('active');
   }
 
   // Erstellen-Formular rendern
@@ -382,8 +565,8 @@ export class AnsprechpartnerDetail {
       this.formSystem.initializeSearchableSelects(form);
     }
 
-    // Spezielle Behandlung für Marken-Filterung nach Unternehmen
-    this.setupMarkenFiltering();
+    // Marken-Filterung wird jetzt automatisch über das DependentFields-System gehandhabt
+    // this.setupMarkenFiltering(); // Entfernt - wird jetzt durch FormSystem.DependentFields gehandhabt
   }
 
   // Setup für Marken-Filterung nach Unternehmen
@@ -627,6 +810,154 @@ export class AnsprechpartnerDetail {
         window.navigateTo('/ansprechpartner');
       }
     });
+  }
+
+  // Bearbeitungsformular anzeigen
+  showEditForm() {
+    console.log('🎯 ANSPRECHPARTNERDETAIL: Zeige Bearbeitungsformular');
+    window.setHeadline('Ansprechpartner bearbeiten');
+    
+    // Edit-Form Daten vorbereiten (inkl. Flags und M:N Arrays)
+    const formData = { ...this.ansprechpartner };
+    try {
+      formData._isEditMode = true;
+      formData._entityId = this.ansprechpartnerId;
+      // Unternehmen direkt als ID befüllen (Renderer nutzt value)
+      formData.unternehmen_id = this.ansprechpartner?.unternehmen_id || this.ansprechpartner?.unternehmen?.id || null;
+      // Position (einfache FK)
+      formData.position_id = this.ansprechpartner?.position_id || null;
+    } catch (_) {}
+    
+    // M:N: marke_ids
+    try {
+      const marken = (this.ansprechpartner?.ansprechpartner_marke || []).map(m => m?.marke?.id).filter(Boolean);
+      if (marken.length > 0) formData.marke_ids = marken;
+    } catch (_) {}
+    
+    // M:N: sprachen_ids (falls separat gepflegt)
+    try {
+      const sprachen = (this.ansprechpartner?.sprachen || []).map(s => s?.id).filter(Boolean);
+      if (sprachen.length > 0) formData.sprachen_ids = sprachen;
+    } catch (_) {}
+    
+    // Formular direkt in content rendern
+    const formHtml = window.formSystem.renderFormOnly('ansprechpartner', formData);
+    window.content.innerHTML = `
+      <div class="page-header">
+        <div class="page-header-left">
+          <h1>Ansprechpartner bearbeiten</h1>
+          <p>Bearbeiten Sie die Informationen von ${this.ansprechpartner.vorname} ${this.ansprechpartner.nachname}</p>
+        </div>
+        <div class="page-header-right">
+          <button onclick="window.navigateTo('/ansprechpartner/${this.ansprechpartnerId}')" class="secondary-btn">Zurück zu Details</button>
+        </div>
+      </div>
+      
+      <div class="form-page">
+        ${formHtml}
+      </div>
+    `;
+
+    // Formular-Events binden
+    window.formSystem.bindFormEvents('ansprechpartner', formData);
+    
+    // Custom Submit Handler für Bearbeitungsformular
+    const form = document.getElementById('ansprechpartner-form');
+    if (form) {
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        await this.handleEditFormSubmit();
+      };
+    }
+  }
+
+  // Handle Edit Form Submit
+  async handleEditFormSubmit() {
+    try {
+      const form = document.getElementById('ansprechpartner-form');
+      const formData = new FormData(form);
+      const submitData = {};
+
+      // FormData zu Objekt konvertieren
+      for (const [key, value] of formData.entries()) {
+        if (key.includes('[]')) {
+          const cleanKey = key.replace('[]', '');
+          if (!submitData[cleanKey]) submitData[cleanKey] = [];
+          submitData[cleanKey].push(value);
+        } else if (!submitData.hasOwnProperty(key)) {
+          submitData[key] = value;
+        }
+      }
+
+      // Tag-basierte Multi-Selects korrekt einsammeln (marke_ids, sprachen_ids)
+      const tagBasedSelects = form.querySelectorAll('select[data-tag-based="true"]');
+      tagBasedSelects.forEach(select => {
+        // Verstecktes Select suchen (mit [] oder ohne)
+        let hidden = form.querySelector(`select[name="${select.name}[]"][style*="display: none"]`);
+        if (!hidden) hidden = form.querySelector(`select[name="${select.name}"][style*="display: none"]`);
+        if (hidden) {
+          const values = Array.from(hidden.selectedOptions).map(o => o.value).filter(Boolean);
+          if (values.length > 0) submitData[select.name] = values;
+        }
+      });
+
+      console.log('📝 Ansprechpartner Edit Submit-Daten:', submitData);
+
+      // Update Ansprechpartner
+      const result = await window.dataService.updateEntity('ansprechpartner', this.ansprechpartnerId, submitData);
+      
+      if (result.success) {
+        this.showSuccessMessage('Ansprechpartner erfolgreich aktualisiert!');
+        
+        // Event auslösen für Listen-Update
+        window.dispatchEvent(new CustomEvent('entityUpdated', {
+          detail: { entity: 'ansprechpartner', action: 'updated', id: this.ansprechpartnerId }
+        }));
+        
+        // Zurück zur Detail-Ansicht
+        setTimeout(() => {
+          window.navigateTo(`/ansprechpartner/${this.ansprechpartnerId}`);
+        }, 1500);
+      } else {
+        this.showErrorMessage(`Fehler beim Aktualisieren: ${result.error}`);
+      }
+
+    } catch (error) {
+      console.error('❌ Fehler beim Aktualisieren des Ansprechpartners:', error);
+      this.showErrorMessage('Ein unerwarteter Fehler ist aufgetreten.');
+    }
+  }
+
+  // Zeige Erfolgsmeldung
+  showSuccessMessage(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-success';
+    alertDiv.textContent = message;
+    
+    const form = document.getElementById('ansprechpartner-form');
+    if (form) {
+      form.parentNode.insertBefore(alertDiv, form);
+      
+      setTimeout(() => {
+        alertDiv.remove();
+      }, 5000);
+    }
+  }
+
+  // Zeige Fehlermeldung
+  showErrorMessage(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-danger';
+    alertDiv.textContent = message;
+    
+    const form = document.getElementById('ansprechpartner-form');
+    if (form) {
+      form.parentNode.insertBefore(alertDiv, form);
+      
+      setTimeout(() => {
+        alertDiv.remove();
+      }, 5000);
+    }
   }
 
   // Cleanup

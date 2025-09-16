@@ -88,6 +88,13 @@ export class DataService {
             localKey: 'ansprechpartner_id', 
             foreignKey: 'sprache_id',
             displayField: 'name'
+          },
+          unternehmen: {
+            table: 'unternehmen',
+            junctionTable: 'ansprechpartner_unternehmen',
+            localKey: 'ansprechpartner_id',
+            foreignKey: 'unternehmen_id',
+            displayField: 'firmenname'
           }
         },
         filters: ['vorname', 'nachname', 'position_id', 'unternehmen_id', 'stadt', 'sprache_id'],
@@ -123,6 +130,13 @@ export class DataService {
             localKey: 'unternehmen_id',
             foreignKey: 'branche_id',
             displayField: 'name'
+          },
+          ansprechpartner: {
+            table: 'ansprechpartner',
+            junctionTable: 'ansprechpartner_unternehmen',
+            localKey: 'unternehmen_id',
+            foreignKey: 'ansprechpartner_id',
+            displayField: 'vorname'
           }
         },
         filters: ['firmenname', 'branche_id', 'status', 'rechnungsadresse_stadt', 'rechnungsadresse_land'],
@@ -164,6 +178,14 @@ export class DataService {
             foreignKey: 'ansprechpartner_id',
             displayField: 'id,vorname,nachname,email'
           }
+          ,
+          mitarbeiter: {
+            table: 'benutzer',
+            junctionTable: 'kampagne_mitarbeiter',
+            localKey: 'kampagne_id',
+            foreignKey: 'mitarbeiter_id',
+            displayField: 'name'
+          }
         },
         filters: ['kampagnenname', 'unternehmen_id', 'marke_id', 'status_id', 'art_der_kampagne', 'start', 'deadline'],
         sortBy: 'created_at',
@@ -176,6 +198,7 @@ export class DataService {
           name: 'string',
           creator_id: 'uuid',
           kampagne_id: 'uuid',
+          briefing_id: 'uuid',
           unternehmen_id: 'uuid',
           status: 'string',
           status_id: 'uuid',
@@ -199,7 +222,8 @@ export class DataService {
         },
         relations: {
           creator: { table: 'creator', foreignKey: 'creator_id', displayField: 'vorname' },
-          kampagne: { table: 'kampagne', foreignKey: 'kampagne_id', displayField: 'name' }
+          kampagne: { table: 'kampagne', foreignKey: 'kampagne_id', displayField: 'name' },
+          briefing: { table: 'briefings', foreignKey: 'briefing_id', displayField: 'product_service_offer' }
         },
         filters: ['creator_id', 'kampagne_id', 'status', 'budget', 'start_datum', 'end_datum'],
         sortBy: 'created_at',
@@ -221,6 +245,7 @@ export class DataService {
           rechtlicher_hinweis: 'string',
           unternehmen_id: 'uuid',
           marke_id: 'uuid',
+          kampagne_id: 'uuid',
           status: 'string',
           assignee_id: 'uuid',
           kooperation_id: 'uuid',
@@ -230,6 +255,7 @@ export class DataService {
         relations: {
           unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' },
           marke: { table: 'marke', foreignKey: 'marke_id', displayField: 'markenname' },
+          kampagne: { table: 'kampagne', foreignKey: 'kampagne_id', displayField: 'kampagnenname' },
           assignee: { table: 'benutzer', foreignKey: 'assignee_id', displayField: 'name' }
         },
         filters: ['product_service_offer', 'unternehmen_id', 'marke_id', 'status', 'assignee_id', 'deadline', 'created_at'],
@@ -280,11 +306,46 @@ export class DataService {
           zugriffsrechte: 'json',
           auth_user_id: 'uuid',
           profile_image_url: 'string',
-          mitarbeiter_klasse_id: 'uuid'
+          mitarbeiter_klasse_id: 'uuid',
+          freigeschaltet: 'boolean',
+          updated_at: 'date'
         },
         relations: {
           mitarbeiter_klasse: { table: 'mitarbeiter_klasse', foreignKey: 'mitarbeiter_klasse_id', displayField: 'name' }
         }
+      },
+      kunden: {
+        table: 'benutzer',
+        displayField: 'name',
+        fields: {
+          name: 'string',
+          email: 'string',
+          rolle: 'string',
+          unterrolle: 'string',
+          freigeschaltet: 'boolean',
+          created_at: 'date',
+          updated_at: 'date'
+        },
+        relations: {},
+        manyToMany: {
+          unternehmen: {
+            table: 'unternehmen',
+            junctionTable: 'kunde_unternehmen',
+            localKey: 'kunde_id',
+            foreignKey: 'unternehmen_id',
+            displayField: 'firmenname'
+          },
+          marken: {
+            table: 'marke',
+            junctionTable: 'kunde_marke',
+            localKey: 'kunde_id',
+            foreignKey: 'marke_id',
+            displayField: 'markenname'
+          }
+        },
+        filters: ['name', 'email', 'rolle', 'unterrolle'],
+        sortBy: 'created_at',
+        sortOrder: 'desc'
       },
       kampagne_status: {
         table: 'kampagne_status',
@@ -346,6 +407,14 @@ export class DataService {
             localKey: 'marke_id',
             foreignKey: 'ansprechpartner_id',
             displayField: 'id,vorname,nachname,email'
+          },
+          mitarbeiter: {
+            table: 'benutzer',
+            junctionTable: 'marke_mitarbeiter',
+            localKey: 'marke_id',
+            foreignKey: 'mitarbeiter_id',
+            displayField: 'name',
+            additionalFields: 'created_at,assigned_by'
           }
         },
         filters: ['markenname', 'unternehmen_id', 'branche_id'],
@@ -592,7 +661,21 @@ export class DataService {
         throw new Error(`Unbekannte Entität: ${entityType}`);
       }
 
-      // Entität in Supabase löschen
+      // Zentrale Bestätigung (Modal) bevor gelöscht wird
+      if (window.confirmationModal) {
+        const title = 'Löschvorgang bestätigen';
+        const message = `Sie sind dabei, <b>${entityType}</b> mit der ID <code>${id}</code> zu löschen. Dieser Vorgang kann nicht rückgängig gemacht werden.`;
+        const res = await window.confirmationModal.open({ title, message, confirmText: 'Endgültig löschen', cancelText: 'Abbrechen', danger: true });
+        if (!res?.confirmed) {
+          return { success: false, error: 'Abgebrochen' };
+        }
+      } else {
+        // Fallback auf natives confirm – wird praktisch nicht mehr genutzt
+        const ok = typeof confirm === 'function' ? confirm('Wirklich löschen?') : true;
+        if (!ok) return { success: false, error: 'Abgebrochen' };
+      }
+
+      // Entität in Supabase löschen (nach Bestätigung)
       const { error } = await window.supabase
         .from(entityConfig.table)
         .delete()
@@ -1080,6 +1163,33 @@ export class DataService {
         console.log(`🏷️ Verarbeite ${field} für Ansprechpartner:`, value);
         // sprachen_ids wird über Many-to-Many Relation verwaltet - hier überspringen
         // Die Verarbeitung erfolgt in handleManyToManyRelations
+        continue;
+      }
+      
+      // Spezielle Behandlung für Creator Many-to-Many Felder
+      if (entityType === 'creator' && (
+        field === 'sprachen_ids' || field === 'sprachen_ids[]' ||
+        field === 'branchen_ids' || field === 'branchen_ids[]' ||
+        field === 'creator_type_ids' || field === 'creator_type_ids[]'
+      )) {
+        console.log(`🏷️ Verarbeite ${field} für Creator:`, value);
+        // Creator Many-to-Many Felder werden über handleManyToManyRelations verwaltet - hier überspringen
+        continue;
+      }
+      
+      // Spezielle Behandlung für Kampagne Many-to-Many Felder
+      if (entityType === 'kampagne' && (
+        field === 'ansprechpartner_ids' || field === 'ansprechpartner_ids[]' ||
+        field === 'mitarbeiter_ids' || field === 'mitarbeiter_ids[]' ||
+        field === 'pm_ids' || field === 'pm_ids[]' ||
+        field === 'scripter_ids' || field === 'scripter_ids[]' ||
+        field === 'cutter_ids' || field === 'cutter_ids[]' ||
+        field === 'art_der_kampagne' || field === 'art_der_kampagne[]' ||
+        field === 'plattform_ids' || field === 'plattform_ids[]' ||
+        field === 'format_ids' || field === 'format_ids[]'
+      )) {
+        console.log(`🏷️ Verarbeite ${field} für Kampagne:`, value);
+        // Kampagne Many-to-Many Felder werden über handleManyToManyRelations verwaltet - hier überspringen
         continue;
       }
       

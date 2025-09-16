@@ -39,7 +39,8 @@ export class NavigationSystem {
       {
         title: 'Admin',
         items: [
-          { id: 'mitarbeiter', label: 'Mitarbeiter', icon: 'icon-users', url: '/mitarbeiter' }
+          { id: 'mitarbeiter', label: 'Mitarbeiter', icon: 'icon-users', url: '/mitarbeiter' },
+          { id: 'kunden-admin', label: 'Kunden', icon: 'icon-user-circle', url: '/admin/kunden' }
         ]
       }
     ];
@@ -186,6 +187,7 @@ export class NavigationSystem {
   }
 
   // Initialisiere Navigation
+
   init() {
     console.log('🧭 NavigationSystem: Initialisiere Navigation');
     this.renderNavigation();

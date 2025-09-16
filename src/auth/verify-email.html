@@ -467,14 +467,20 @@
 
                 // Success
                 console.log('OTP verification successful!')
-                showSuccess('E-Mail erfolgreich bestätigt! Sie werden zum Login weitergeleitet...')
+                
+                // Keine automatische Freischaltung - Admin muss final freischalten
+                
+                showSuccess('E-Mail erfolgreich bestätigt! Sie werden weitergeleitet...')
                 
                 // Clear stored email
                 localStorage.removeItem('pendingVerificationEmail')
                 
-                // Redirect to login after 2 seconds
+                // Redirect basierend auf URL-Parameter oder Standard-Login
+                const urlParams = new URLSearchParams(window.location.search);
+                const redirectTo = urlParams.get('redirect_to') || '/login?verified=true';
+                
                 setTimeout(() => {
-                    window.location.href = '/login?verified=true'
+                    window.location.href = redirectTo;
                 }, 2000)
 
             } catch (error) {

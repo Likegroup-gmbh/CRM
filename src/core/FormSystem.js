@@ -8,6 +8,8 @@ import { RelationTables } from './form/logic/RelationTables.js';
 import { FormEvents } from './form/logic/FormEvents.js';
 import { DynamicDataLoader } from './form/data/DynamicDataLoader.js';
 import { OptionsManager } from './form/data/OptionsManager.js';
+// Neue Architektur
+import { SmartFormInitializer } from './form/initialization/SmartFormInitializer.js';
 
 export class FormSystem {
   constructor() {
@@ -22,6 +24,10 @@ export class FormSystem {
     this.dataLoader = new DynamicDataLoader();
     this.optionsManager = new OptionsManager();
     this.formEvents = new FormEvents(this);
+
+    // NEUE ARCHITEKTUR
+    this.smartInitializer = new SmartFormInitializer();
+    this.useSmartInitialization = true; // Feature Flag
 
     // Konfiguration injizieren
     this.renderer.getFormConfig = this.config.getFormConfig.bind(this.config);
@@ -42,6 +48,7 @@ export class FormSystem {
     this.injectDataService();
 
     this.currentForm = null;
+    this.currentFormState = null; // Neue State-Referenz
   }
 
   // Dynamische Optionen für ein einzelnes Feld laden
@@ -139,7 +146,49 @@ export class FormSystem {
 
   // Formular-Events binden (für Seiten-Formulare)
   async bindFormEvents(entity, data) {
+    // NEUE ARCHITEKTUR: Smart Initialization für kritische Entities
+    if (this.useSmartInitialization && this.shouldUseSmartInit(entity)) {
+      console.log(`🚀 FORMSYSTEM: Verwende Smart Initialization für ${entity}`);
+      
+      try {
+        // Cleanup alte Initialisierung
+        if (this.currentFormState) {
+          this.currentFormState.destroy();
+        }
+        
+        // Extrahiere entityId für Edit Mode
+        const entityId = data?._entityId || data?.id || null;
+        
+        // Smart Initialization
+        const result = await this.smartInitializer.initializeForm(entity, entityId, data || {});
+        
+        if (result.success) {
+          this.currentFormState = result.stateManager;
+          console.log(`✅ FORMSYSTEM: Smart Initialization erfolgreich für ${entity}`);
+          
+          // Fallback zu normalem Event Binding für UI-Interaktionen
+          await this.formEvents.bindFormEvents(entity, data);
+          
+          return result;
+        } else {
+          console.warn(`⚠️ FORMSYSTEM: Smart Initialization fehlgeschlagen, Fallback zu Legacy System`);
+        }
+      } catch (error) {
+        console.error(`❌ FORMSYSTEM: Smart Initialization Error:`, error);
+        console.log(`🔄 FORMSYSTEM: Fallback zu Legacy System für ${entity}`);
+      }
+    }
+
+    // Legacy System (Fallback)
+    console.log(`📜 FORMSYSTEM: Verwende Legacy System für ${entity}`);
     return this.formEvents.bindFormEvents(entity, data);
+  }
+
+  // Bestimme ob Smart Initialization verwendet werden soll
+  shouldUseSmartInit(entity) {
+    // Aktiviere für problematische Entities
+    const smartInitEntities = ['kampagne', 'ansprechpartner', 'creator'];
+    return smartInitEntities.includes(entity);
   }
 
   // DataService injizieren
@@ -223,7 +272,14 @@ export class FormSystem {
         }
 
         this.validator.showSuccessMessage(data ? 'Erfolgreich aktualisiert!' : 'Erfolgreich erstellt!');
-        this.closeForm();
+
+        // Micro-Animation greifen lassen, dann schließen (falls Button-Flow aktiv)
+        const btn = form.querySelector('.mdc-btn.mdc-btn--create');
+        if (btn) {
+          setTimeout(() => this.closeForm(), 400);
+        } else {
+          this.closeForm();
+        }
         
         // Event auslösen für List-Update
         window.dispatchEvent(new CustomEvent('entityUpdated', { 
@@ -231,11 +287,13 @@ export class FormSystem {
         }));
       } else {
         this.validator.showErrorMessage(`Fehler beim ${data ? 'Aktualisieren' : 'Erstellen'}: ${result.error}`);
+        return { success: false };
       }
 
     } catch (error) {
       console.error('❌ Fehler beim Formular-Submit:', error);
       this.validator.showErrorMessage('Ein unerwarteter Fehler ist aufgetreten.');
+      return { success: false };
     }
   }
 
@@ -396,6 +454,8 @@ export class FormSystem {
       }
       return this.optionsManager.createTagBasedSelect(selectElement, options, field);
     }
+    
+    
     // Fallback: einfacher Such-Select
     if (!options || options.length === 0) {
       options = Array.from(selectElement.options)
@@ -611,6 +671,41 @@ export class FormSystem {
     // Hier könnte eine schönere Benachrichtigung implementiert werden
     console.error(`❌ ${message}`);
     alert(message);
+  }
+
+  // ==================== NEUE ARCHITEKTUR: CLEANUP ====================
+  
+  // Cleanup für Smart Initialization
+  cleanupSmartInit() {
+    if (this.currentFormState) {
+      this.currentFormState.destroy();
+      this.currentFormState = null;
+    }
+    
+    if (this.smartInitializer) {
+      this.smartInitializer.cleanup();
+    }
+    
+    // Cleanup globale Referenzen
+    if (window.currentFormState) {
+      window.currentFormState = null;
+    }
+    if (window.currentFieldLoader) {
+      window.currentFieldLoader = null;
+    }
+    
+    console.log(`🗑️ FORMSYSTEM: Smart Initialization Cleanup abgeschlossen`);
+  }
+
+  // Zerstöre FormSystem komplett
+  destroy() {
+    this.cleanupSmartInit();
+    
+    if (this.currentForm) {
+      this.closeForm();
+    }
+    
+    console.log(`🗑️ FORMSYSTEM: Komplett zerstört`);
   }
 }
 

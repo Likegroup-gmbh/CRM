@@ -35,17 +35,39 @@ export class RechnungList {
       await this.initializeFilterBar();
 
       const currentFilters = filterSystem.getFilters('rechnung');
-      // Sichtbarkeit: Nicht-Admins nur Rechnungen aus ihren Kampagnen/Koops
+      // Sichtbarkeit: Nicht-Admins nur Rechnungen aus ihren Kampagnen/Koops/Marken
       const isAdmin = window.currentUser?.rolle === 'admin';
       let allowedKampagneIds = [];
       let allowedKoopIds = [];
       if (!isAdmin && window.supabase) {
         try {
-          const { data: assignedK } = await window.supabase
+          // 1. Direkt zugeordnete Kampagnen
+          const { data: assignedKampagnen } = await window.supabase
             .from('kampagne_mitarbeiter')
             .select('kampagne_id')
             .eq('mitarbeiter_id', window.currentUser?.id);
-          allowedKampagneIds = (assignedK || []).map(r => r.kampagne_id).filter(Boolean);
+          const directKampagnenIds = (assignedKampagnen || []).map(r => r.kampagne_id).filter(Boolean);
+          
+          // 2. Kampagnen über zugeordnete Marken
+          const { data: assignedMarken } = await window.supabase
+            .from('marke_mitarbeiter')
+            .select('marke_id')
+            .eq('mitarbeiter_id', window.currentUser?.id);
+          const markenIds = (assignedMarken || []).map(r => r.marke_id).filter(Boolean);
+          
+          let markenKampagnenIds = [];
+          if (markenIds.length > 0) {
+            const { data: markenKampagnen } = await window.supabase
+              .from('kampagne')
+              .select('id')
+              .in('marke_id', markenIds);
+            markenKampagnenIds = (markenKampagnen || []).map(k => k.id).filter(Boolean);
+          }
+          
+          // Kombiniere beide Listen und entferne Duplikate
+          allowedKampagneIds = [...new Set([...directKampagnenIds, ...markenKampagnenIds])];
+          
+          // Kooperationen aus erlaubten Kampagnen laden
           if (allowedKampagneIds.length > 0) {
             const { data: koops } = await window.supabase
               .from('kooperationen')
@@ -53,11 +75,22 @@ export class RechnungList {
               .in('kampagne_id', allowedKampagneIds);
             allowedKoopIds = (koops || []).map(k => k.id);
           }
-        } catch (_) {}
+          
+          console.log(`🔍 RECHNUNGLIST: Mitarbeiter ${window.currentUser?.id} hat Zugriff auf:`, {
+            direkteKampagnen: directKampagnenIds.length,
+            markenKampagnen: markenKampagnenIds.length,
+            gesamtKampagnen: allowedKampagneIds.length,
+            kooperationen: allowedKoopIds.length
+          });
+        } catch (error) {
+          console.error('❌ Fehler beim Laden der Zuordnungen:', error);
+        }
       }
 
       let rechnungen;
-      if (!isAdmin && (allowedKampagneIds.length || allowedKoopIds.length)) {
+      // Für Mitarbeiter: Filtere nach zugewiesenen Kampagnen
+      // Für Kunden: RLS-Policies filtern automatisch
+      if (!isAdmin && window.currentUser?.rolle !== 'kunde' && (allowedKampagneIds.length || allowedKoopIds.length)) {
         const baseFilters = { ...currentFilters };
         // DataService.applyFilters wird später angewandt; wir schränken Query manuell in dataService.loadEntities ein → einfacher hier direkt mit RPC ersetzen ist nicht nötig.
         // Also: hole initial alle und filter clientseitig minimal, falls Supabase-Filter nicht einfach addierbar ist.
@@ -82,7 +115,7 @@ export class RechnungList {
           <p>Alle Rechnungen im Überblick</p>
         </div>
         <div class="page-header-right">
-          <button id="btn-rechnung-new" class="primary-btn">Neue Rechnung anlegen</button>
+          ${window.currentUser?.permissions?.rechnung?.can_edit ? '<button id="btn-rechnung-new" class="primary-btn">Neue Rechnung anlegen</button>' : ''}
         </div>
       </div>
 

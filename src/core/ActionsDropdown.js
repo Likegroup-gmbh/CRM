@@ -45,6 +45,7 @@ export class ActionsDropdown {
   <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
 </svg>`;
       case 'delete':
+      case 'remove':
         return `
 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
   <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
@@ -157,7 +158,7 @@ export class ActionsDropdown {
       case 'rechnungen':
         return `
 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 11.625h4.5m-4.5 2.25h4.5m2.121 1.527c-1.171 1.464-3.07 1.464-4.242 0-1.172-1.465-1.172-3.84 0-5.304 1.171-1.464 3.07-1.464 4.242 0M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 11.625h4.5m-4.5 2.25h4.5m2.121 1.527c-1.171 1.464-3.07 1.464-4.242 0-1.172-1.465-1.172-3.84 0-5.304 1.171-1.464 3.07-1.464 4.242 0M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125v-9M10.125 2.25h.375a9 9 0 0 1 9 9v.375M10.125 2.25A3.375 3.375 0 0 1 13.5 5.625v1.5c0 .621.504 1.125 1.125 1.125h1.5a3.375 3.375 0 0 1 3.375 3.375M9 15l2.25 2.25L15 12" />
 </svg>`;
       case 'kick-off':
       case 'kickoff':
@@ -460,6 +461,10 @@ export class ActionsDropdown {
 
   // Erstelle Actions für Creator
   createCreatorActions(creatorId) {
+    if (this.isKunde()) {
+      return this.createReadOnlyActions(creatorId);
+    }
+    
     return `
       <div class="actions-dropdown-container">
         <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
@@ -500,6 +505,10 @@ export class ActionsDropdown {
 
   // Erstelle Actions für Unternehmen
   createUnternehmenActions(unternehmenId) {
+    if (this.isKunde()) {
+      return this.createReadOnlyActions(unternehmenId);
+    }
+    
     return `
       <div class="actions-dropdown-container">
         <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
@@ -540,6 +549,10 @@ export class ActionsDropdown {
 
   // Erstelle Actions für Marken
   createMarkeActions(markeId) {
+    if (this.isKunde()) {
+      return this.createReadOnlyActions(markeId);
+    }
+    
     return `
       <div class="actions-dropdown-container">
         <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
@@ -576,6 +589,10 @@ export class ActionsDropdown {
 
   // Erstelle Actions für Kooperationen
   createKooperationActions(kooperationId) {
+    if (this.isKunde()) {
+      return this.createReadOnlyActions(kooperationId);
+    }
+    
     return `
       <div class="actions-dropdown-container" data-entity-type="kooperation">
         <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
@@ -624,6 +641,10 @@ export class ActionsDropdown {
   createAuftragActions(auftragId) {
     console.log('🎯 ACTIONSDROPDOWN: createAuftragActions aufgerufen für ID:', auftragId);
     
+    if (this.isKunde()) {
+      return this.createReadOnlyActions(auftragId);
+    }
+    
     const html = `
       <div class="actions-dropdown-container">
         <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
@@ -665,8 +686,49 @@ export class ActionsDropdown {
     return html;
   }
 
+  // Hilfsfunktion: Prüft ob Benutzer Kunde ist
+  isKunde() {
+    return window.currentUser?.rolle === 'kunde';
+  }
+
+  // Hilfsfunktion: Erstellt nur-Lesen Actions für Kunden
+  createReadOnlyActions(entityId) {
+    return `
+      <div class="actions-dropdown-container">
+        <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+          </svg>
+        </button>
+        <div class="actions-dropdown">
+          <a href="#" class="action-item" data-action="view" data-id="${entityId}">
+            <i class="icon-eye"></i>
+            Details anzeigen
+          </a>
+        </div>
+      </div>
+    `;
+  }
+
+  // Handle Remove-Zuordnung Action
+  async handleRemoveZuordnung(entityId, entityType) {
+    // Prüfe ob wir auf der Kunden-Detail-Seite sind
+    if (!window.kundenDetail || !window.kundenDetail.kundeId) {
+      console.error('❌ KundenDetail nicht verfügbar für Remove-Action');
+      return;
+    }
+
+    // Rufe die removeZuordnung Methode des KundenDetail auf
+    await window.kundenDetail.removeZuordnung(entityId, entityType);
+  }
+
   // Generische Action-Erstellung für zukünftige Listen
   createGenericActions(entityType, entityId, customActions = []) {
+    // Für Kunden: Nur Details anzeigen erlaubt
+    if (this.isKunde()) {
+      return this.createReadOnlyActions(entityId);
+    }
+    
     const defaultActions = [
       { action: 'view', icon: 'icon-eye', label: 'Details anzeigen' },
       { action: 'edit', icon: 'icon-edit', label: 'Bearbeiten' },
@@ -676,10 +738,11 @@ export class ActionsDropdown {
     const allActions = [...defaultActions, ...customActions];
 
     const actionItems = allActions.map(item => {
-      const dangerClass = item.action === 'delete' ? 'action-danger' : '';
+      const dangerClass = (item.action === 'delete' || item.action === 'remove') ? 'action-danger' : '';
+      const iconHtml = this.getHeroIcon(item.action) || `<i class="${item.icon}"></i>`;
       return `
         <a href="#" class="action-item ${dangerClass}" data-action="${item.action}" data-id="${entityId}">
-          <i class="${item.icon}"></i>
+          ${iconHtml}
           ${item.label}
         </a>
       `;
@@ -700,7 +763,7 @@ export class ActionsDropdown {
   }
 
   // Event-Handler für Actions
-  handleAction(action, entityId, entityType, actionItem) {
+  async handleAction(action, entityId, entityType, actionItem) {
     console.log(`🎯 ACTIONSDROPDOWN: Action ${action} für ${entityType} ${entityId}`);
 
     switch (action) {
@@ -714,6 +777,10 @@ export class ActionsDropdown {
       
       case 'delete':
         this.confirmDelete(entityId, entityType);
+        break;
+      
+      case 'remove':
+        this.handleRemoveZuordnung(entityId, entityType);
         break;
       
       case 'notiz':
@@ -735,6 +802,14 @@ export class ActionsDropdown {
       case 'kampagnen':
         window.navigateTo(`/auftrag/${entityId}/kampagnen`);
         break;
+      case 'video-create':
+        // Direkt zum Video-Formular für die Kooperation navigieren
+        if (entityType === 'kooperation') {
+          window.navigateTo(`/video/new?kooperation=${entityId}`);
+        } else {
+          console.warn('video-create nur im Kontext kooperation unterstützt');
+        }
+        break;
       case 'quickview':
         this.openKooperationQuickView(entityId);
         break;
@@ -745,6 +820,20 @@ export class ActionsDropdown {
           break;
         }
         this.openAssignStaffModal(entityId);
+        break;
+      
+      case 'assign_staff':
+        // Mitarbeiter zu Marke zuordnen
+        if (entityType === 'marke') {
+          // Nur Admin und Benutzer mit entsprechenden Rechten
+          if (window.currentUser?.rolle !== 'admin') {
+            alert('Nur Admins dürfen Mitarbeiter zuordnen.');
+            break;
+          }
+          this.openAssignMarkeStaffModal(entityId);
+        } else {
+          console.warn('assign_staff Action nur für Marken implementiert');
+        }
         break;
       
       case 'rechnung':
@@ -777,6 +866,14 @@ export class ActionsDropdown {
         this.openAddAnsprechpartnerToKampagneModal(entityId);
         break;
       }
+      case 'add_ansprechpartner_unternehmen': {
+        this.openAddAnsprechpartnerToUnternehmenModal(entityId);
+        break;
+      }
+      case 'remove_ansprechpartner_unternehmen': {
+        this.openRemoveAnsprechpartnerFromUnternehmenModalNew(entityId);
+        break;
+      }
       case 'unassign-kampagne': {
         // Kontext: Mitarbeiter-Detail -> Kampagnen-Tabelle
         const mitarbeiterId = actionItem?.dataset?.mitarbeiterId || window.location.pathname.split('/').pop();
@@ -786,7 +883,12 @@ export class ActionsDropdown {
         }
         const kampagneId = entityId;
         if (!kampagneId) break;
-        if (!confirm('Zuweisung dieser Kampagne vom Mitarbeiter entfernen?')) break;
+        if (window.confirmationModal) {
+          const res = await window.confirmationModal.open({ title: 'Zuweisung entfernen', message: 'Zuweisung dieser Kampagne vom Mitarbeiter entfernen?', confirmText: 'Entfernen', cancelText: 'Abbrechen', danger: true });
+          if (!res?.confirmed) break;
+        } else {
+          if (!confirm('Zuweisung dieser Kampagne vom Mitarbeiter entfernen?')) break;
+        }
         (async () => {
           try {
             const { error } = await window.supabase
@@ -1024,7 +1126,6 @@ export class ActionsDropdown {
         let query = window.supabase
           .from('benutzer')
           .select('id, name, rolle, mitarbeiter_klasse:mitarbeiter_klasse_id(name)')
-          .in('rolle', ['mitarbeiter', 'Mitarbeiter', 'admin'])
           .order('name');
         if (term) query = query.ilike('name', `%${term}%`);
         if (assignedIds.length > 0) {
@@ -1115,6 +1216,237 @@ export class ActionsDropdown {
       } catch (err) {
         console.error('❌ Fehler beim Zuordnen', err);
         alert('Zuordnung fehlgeschlagen.');
+      }
+    };
+  }
+
+  // Modal: Mitarbeiter einer Marke zuordnen (Auto-Suggest) - Identisch zum Ansprechpartner-Modal
+  async openAssignMarkeStaffModal(markeId) {
+    console.log('🎯 ACTIONSDROPDOWN: Öffne Mitarbeiter-Auswahl-Modal für Marke:', markeId);
+
+    // Bereits zugeordnete Mitarbeiter laden
+    let mitarbeiter = [];
+    let excludedMitarbeiterIds = [];
+    
+    try {
+      const { data: existing } = await window.supabase
+        .from('marke_mitarbeiter')
+        .select('mitarbeiter_id')
+        .eq('marke_id', markeId);
+      
+      excludedMitarbeiterIds = (existing || []).map(r => r.mitarbeiter_id).filter(Boolean);
+
+      // Verfügbare Mitarbeiter laden (die noch nicht zugeordnet sind) - ALLE Benutzer
+      let query = window.supabase
+        .from('benutzer')
+        .select(`
+          id, 
+          name, 
+          rolle,
+          mitarbeiter_klasse:mitarbeiter_klasse_id(name)
+        `)
+        .order('name');
+      
+      if (excludedMitarbeiterIds.length > 0) {
+        query = query.not('id', 'in', `(${excludedMitarbeiterIds.join(',')})`);
+      }
+      
+      const { data } = await query;
+      mitarbeiter = data || [];
+      
+    } catch (error) {
+      console.warn('⚠️ Fehler beim Laden der Mitarbeiter:', error);
+    }
+
+    const modal = document.createElement('div');
+    modal.className = 'modal overlay-modal';
+    modal.innerHTML = `
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h3>Mitarbeiter zur Marke hinzufügen</h3>
+          <button class="modal-close" id="add-mitarbeiter-close">×</button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label">Mitarbeiter wählen</label>
+          <input type="text" id="mitarbeiter-search" class="form-input auto-suggest-input" placeholder="Mitarbeiter suchen..." />
+          <div id="mitarbeiter-dropdown" class="auto-suggest-dropdown"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="secondary-btn" id="add-mitarbeiter-cancel">Abbrechen</button>
+          <button class="primary-btn" id="add-mitarbeiter-confirm" disabled>Hinzufügen</button>
+        </div>
+      </div>`;
+    
+    document.body.appendChild(modal);
+
+    const input = modal.querySelector('#mitarbeiter-search');
+    const dropdown = modal.querySelector('#mitarbeiter-dropdown');
+    let selectedId = null;
+
+    const hydrateDropdown = (filter = '') => {
+      // Wenn kein Filter, zeige Hinweis zum Tippen
+      if (!filter || filter.trim().length === 0) {
+        dropdown.innerHTML = '<div class="dropdown-item no-results">Beginnen Sie zu tippen, um Mitarbeiter zu suchen...</div>';
+        return;
+      }
+      
+      const f = filter.toLowerCase();
+      const items = mitarbeiter.filter(m => {
+        const name = (m.name || '').toLowerCase();
+        const rolle = (m.rolle || '').toLowerCase();
+        const klasse = (m.mitarbeiter_klasse?.name || '').toLowerCase();
+        return name.includes(f) || rolle.includes(f) || klasse.includes(f);
+      });
+      
+      dropdown.innerHTML = items.length
+        ? items.map(m => {
+            const displayName = m.name;
+            const details = [
+              m.rolle,
+              m.mitarbeiter_klasse?.name
+            ].filter(Boolean).join(' • ');
+            
+            return `<div class="dropdown-item" data-id="${m.id}">
+              <div class="dropdown-item-main">${displayName}</div>
+              ${details ? `<div class="dropdown-item-details">${details}</div>` : ''}
+            </div>`;
+          }).join('')
+        : '<div class="dropdown-item no-results">Keine verfügbaren Mitarbeiter gefunden</div>';
+    };
+    
+    // Initial kein Dropdown anzeigen - erst beim Tippen
+    dropdown.innerHTML = '<div class="dropdown-item no-results">Beginnen Sie zu tippen, um Mitarbeiter zu suchen...</div>';
+    
+    input.addEventListener('focus', () => {
+      // Nur anzeigen wenn bereits Text eingegeben wurde
+      if (input.value.trim().length > 0) {
+        dropdown.classList.add('show');
+      }
+    });
+    input.addEventListener('blur', () => {
+      setTimeout(() => dropdown.classList.remove('show'), 150);
+    });
+
+    // Dynamische Suche
+    let searchTimeout;
+    input.addEventListener('input', (e) => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(async () => {
+        const term = e.target.value.trim();
+        
+        // Kein Dropdown anzeigen wenn weniger als 1 Zeichen
+        if (term.length < 1) {
+          dropdown.classList.remove('show');
+          return;
+        }
+        
+        // Ab 1 Zeichen suchen und anzeigen - ALLE Benutzer
+        try {
+          let query = window.supabase
+            .from('benutzer')
+            .select(`
+              id, 
+              name, 
+              rolle,
+              mitarbeiter_klasse:mitarbeiter_klasse_id(name)
+            `)
+            .or(`name.ilike.%${term}%,rolle.ilike.%${term}%`)
+            .order('name');
+          
+          if (excludedMitarbeiterIds.length > 0) {
+            query = query.not('id', 'in', `(${excludedMitarbeiterIds.join(',')})`);
+          }
+          
+          const { data } = await query;
+          mitarbeiter = data || [];
+          hydrateDropdown(term);
+          dropdown.classList.add('show');
+        } catch (err) {
+          console.warn('⚠️ Mitarbeiter-Suche fehlgeschlagen', err);
+        }
+      }, 200);
+    });
+
+    dropdown.addEventListener('click', (e) => {
+      const item = e.target.closest('.dropdown-item');
+      if (!item || item.classList.contains('no-results')) return;
+      
+      selectedId = item.dataset.id;
+      const mainText = item.querySelector('.dropdown-item-main')?.textContent || item.textContent;
+      input.value = mainText;
+      modal.querySelector('#add-mitarbeiter-confirm').disabled = false;
+      dropdown.classList.remove('show');
+    });
+
+    // Event-Handlers
+    const close = () => modal.remove();
+    modal.querySelector('#add-mitarbeiter-close').onclick = close;
+    modal.querySelector('#add-mitarbeiter-cancel').onclick = close;
+    
+    // ESC-Taste zum Schließen
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') {
+        close();
+        document.removeEventListener('keydown', handleEsc);
+      }
+    };
+    document.addEventListener('keydown', handleEsc);
+
+    // Hinzufügen-Handler
+    modal.querySelector('#add-mitarbeiter-confirm').onclick = async () => {
+      if (!selectedId) return;
+      
+      try {
+        // Mitarbeiter zur Marke hinzufügen (Junction Table)
+        const { error } = await window.supabase
+          .from('marke_mitarbeiter')
+          .insert({ 
+            marke_id: markeId, 
+            mitarbeiter_id: selectedId,
+            assigned_by: window.currentUser?.id || null
+          });
+
+        if (error) throw error;
+
+        // Push-Benachrichtigung senden
+        try {
+          const { data: marke } = await window.supabase
+            .from('marke')
+            .select('id, markenname')
+            .eq('id', markeId)
+            .single();
+          const markeName = marke?.markenname || markeId;
+          
+          await window.notificationSystem?.pushNotification(selectedId, {
+            type: 'assignment',
+            entity: 'marke',
+            entityId: markeId,
+            title: 'Neue Marken-Zuordnung',
+            message: `Sie wurden der Marke "${markeName}" zugeordnet und können nun alle zugehörigen Kampagnen und Kooperationen einsehen.`
+          });
+          window.dispatchEvent(new Event('notificationsRefresh'));
+        } catch (notifError) {
+          console.warn('⚠️ Benachrichtigung fehlgeschlagen:', notifError);
+        }
+
+        close();
+        document.removeEventListener('keydown', handleEsc);
+        
+        // UI aktualisieren - Multiple Events für Live-Updates
+        window.dispatchEvent(new CustomEvent('entityUpdated', { 
+          detail: { entity: 'mitarbeiter', action: 'added', markeId: markeId } 
+        }));
+        // Zusätzliches Event für MarkeList Live-Update
+        window.dispatchEvent(new CustomEvent('entityUpdated', { 
+          detail: { entity: 'marke', action: 'mitarbeiter-added', id: markeId } 
+        }));
+        
+        alert('✅ Mitarbeiter wurde erfolgreich zur Marke hinzugefügt und wird automatisch angezeigt!');
+        console.log('✅ ACTIONSDROPDOWN: Mitarbeiter erfolgreich hinzugefügt');
+
+      } catch (error) {
+        console.error('❌ Fehler beim Hinzufügen des Mitarbeiters:', error);
+        alert('Fehler beim Hinzufügen: ' + (error.message || 'Unbekannter Fehler'));
       }
     };
   }
@@ -1528,6 +1860,714 @@ export class ActionsDropdown {
     };
   }
 
+  // Modal: Ansprechpartner zu Unternehmen hinzufügen
+  async openAddAnsprechpartnerToUnternehmenModal(unternehmenId) {
+    console.log('🎯 ACTIONSDROPDOWN: Öffne Ansprechpartner-Auswahl-Modal für Unternehmen:', unternehmenId);
+
+    // Bereits zugeordnete Ansprechpartner laden
+    let ansprechpartner = [];
+    let excludedAnsprechpartnerIds = [];
+    
+    try {
+      const { data: existing } = await window.supabase
+        .from('ansprechpartner_unternehmen')
+        .select('ansprechpartner_id')
+        .eq('unternehmen_id', unternehmenId);
+      
+      excludedAnsprechpartnerIds = (existing || []).map(r => r.ansprechpartner_id).filter(Boolean);
+
+      // Verfügbare Ansprechpartner laden (die noch nicht zugeordnet sind)
+      let query = window.supabase
+        .from('ansprechpartner')
+        .select(`
+          id, 
+          vorname, 
+          nachname, 
+          email,
+          unternehmen:unternehmen_id(firmenname),
+          position:position_id(name)
+        `)
+        .order('nachname');
+      
+      if (excludedAnsprechpartnerIds.length > 0) {
+        query = query.not('id', 'in', `(${excludedAnsprechpartnerIds.join(',')})`);
+      }
+      
+      const { data } = await query;
+      ansprechpartner = data || [];
+      
+    } catch (error) {
+      console.warn('⚠️ Fehler beim Laden der Ansprechpartner:', error);
+    }
+
+    const modal = document.createElement('div');
+    modal.className = 'modal overlay-modal';
+    modal.innerHTML = `
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h3>Ansprechpartner zum Unternehmen hinzufügen</h3>
+          <button class="modal-close" id="add-ansprechpartner-unternehmen-close">×</button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label">Ansprechpartner wählen</label>
+          <input type="text" id="ansprechpartner-unternehmen-search" class="form-input auto-suggest-input" placeholder="Ansprechpartner suchen..." />
+          <div id="ansprechpartner-unternehmen-dropdown" class="auto-suggest-dropdown"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="secondary-btn" id="add-ansprechpartner-unternehmen-cancel">Abbrechen</button>
+          <button class="primary-btn" id="add-ansprechpartner-unternehmen-confirm" disabled>Hinzufügen</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    const input = modal.querySelector('#ansprechpartner-unternehmen-search');
+    const dropdown = modal.querySelector('#ansprechpartner-unternehmen-dropdown');
+    let selectedId = null;
+
+    const hydrateDropdown = (filter = '') => {
+      // Wenn kein Filter, zeige Hinweis zum Tippen
+      if (!filter || filter.trim().length === 0) {
+        dropdown.innerHTML = '<div class="dropdown-item no-results">Beginnen Sie zu tippen, um Ansprechpartner zu suchen...</div>';
+        return;
+      }
+      
+      const f = filter.toLowerCase();
+      const items = ansprechpartner.filter(ap => {
+        const fullName = `${ap.vorname} ${ap.nachname}`.toLowerCase();
+        const email = (ap.email || '').toLowerCase();
+        const unternehmen = (ap.unternehmen?.firmenname || '').toLowerCase();
+        return fullName.includes(f) || email.includes(f) || unternehmen.includes(f);
+      });
+      
+      dropdown.innerHTML = items.length
+        ? items.map(ap => {
+            const displayName = `${ap.vorname} ${ap.nachname}`;
+            const details = [
+              ap.email,
+              ap.unternehmen?.firmenname,
+              ap.position?.name
+            ].filter(Boolean).join(' • ');
+            
+            return `<div class="dropdown-item" data-id="${ap.id}">
+              <div class="dropdown-item-main">${displayName}</div>
+              ${details ? `<div class="dropdown-item-details">${details}</div>` : ''}
+            </div>`;
+          }).join('')
+        : '<div class="dropdown-item no-results">Keine verfügbaren Ansprechpartner gefunden</div>';
+    };
+    
+    // Initial kein Dropdown anzeigen - erst beim Tippen
+    dropdown.innerHTML = '<div class="dropdown-item no-results">Beginnen Sie zu tippen, um Ansprechpartner zu suchen...</div>';
+    
+    input.addEventListener('focus', () => {
+      // Nur anzeigen wenn bereits Text eingegeben wurde
+      if (input.value.trim().length > 0) {
+        dropdown.classList.add('show');
+      }
+    });
+    input.addEventListener('blur', () => {
+      setTimeout(() => dropdown.classList.remove('show'), 150);
+    });
+
+    // Dynamische Suche
+    let searchTimeout;
+    input.addEventListener('input', (e) => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(async () => {
+        const term = e.target.value.trim();
+        
+        // Kein Dropdown anzeigen wenn weniger als 1 Zeichen
+        if (term.length < 1) {
+          dropdown.classList.remove('show');
+          return;
+        }
+        
+        // Ab 1 Zeichen suchen und anzeigen
+        try {
+          let query = window.supabase
+            .from('ansprechpartner')
+            .select(`
+              id, 
+              vorname, 
+              nachname, 
+              email,
+              unternehmen:unternehmen_id(firmenname),
+              position:position_id(name)
+            `)
+            .or(`vorname.ilike.%${term}%,nachname.ilike.%${term}%,email.ilike.%${term}%`)
+            .order('nachname');
+          
+          if (excludedAnsprechpartnerIds.length > 0) {
+            query = query.not('id', 'in', `(${excludedAnsprechpartnerIds.join(',')})`);
+          }
+          
+          const { data } = await query;
+          ansprechpartner = data || [];
+          hydrateDropdown(term);
+          dropdown.classList.add('show');
+        } catch (err) {
+          console.warn('⚠️ Ansprechpartner-Suche fehlgeschlagen', err);
+        }
+      }, 200);
+    });
+
+    dropdown.addEventListener('click', (e) => {
+      const item = e.target.closest('.dropdown-item');
+      if (!item || item.classList.contains('no-results')) return;
+      
+      selectedId = item.dataset.id;
+      const mainText = item.querySelector('.dropdown-item-main')?.textContent || item.textContent;
+      input.value = mainText;
+      modal.querySelector('#add-ansprechpartner-unternehmen-confirm').disabled = false;
+      dropdown.classList.remove('show');
+    });
+
+    const close = () => {
+      document.body.removeChild(modal);
+    };
+
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') {
+        close();
+        document.removeEventListener('keydown', handleEsc);
+      }
+    };
+
+    document.addEventListener('keydown', handleEsc);
+
+    modal.querySelector('#add-ansprechpartner-unternehmen-close').onclick = () => {
+      close();
+      document.removeEventListener('keydown', handleEsc);
+    };
+    modal.querySelector('#add-ansprechpartner-unternehmen-cancel').onclick = () => {
+      close();
+      document.removeEventListener('keydown', handleEsc);
+    };
+
+    modal.querySelector('#add-ansprechpartner-unternehmen-confirm').onclick = async () => {
+      if (!selectedId) return;
+
+      try {
+        const { error } = await window.supabase
+          .from('ansprechpartner_unternehmen')
+          .insert([{
+            ansprechpartner_id: selectedId,
+            unternehmen_id: unternehmenId
+          }]);
+
+        if (error) throw error;
+
+        close();
+        document.removeEventListener('keydown', handleEsc);
+        
+        // UI aktualisieren - Multiple Events für Live-Updates
+        window.dispatchEvent(new CustomEvent('entityUpdated', { 
+          detail: { entity: 'ansprechpartner', action: 'added', unternehmenId: unternehmenId } 
+        }));
+        // Zusätzliches Event für UnternehmenList Live-Update
+        window.dispatchEvent(new CustomEvent('entityUpdated', { 
+          detail: { entity: 'unternehmen', action: 'ansprechpartner-added', id: unternehmenId } 
+        }));
+        
+        alert('✅ Ansprechpartner wurde erfolgreich zum Unternehmen hinzugefügt und wird automatisch angezeigt!');
+        console.log('✅ ACTIONSDROPDOWN: Ansprechpartner erfolgreich zu Unternehmen hinzugefügt');
+
+      } catch (error) {
+        console.error('❌ Fehler beim Hinzufügen des Ansprechpartners:', error);
+        alert('Fehler beim Hinzufügen: ' + (error.message || 'Unbekannter Fehler'));
+      }
+    };
+  }
+
+  // Modal: Ansprechpartner von Unternehmen entfernen
+  async openRemoveAnsprechpartnerFromUnternehmenModal(unternehmenId) {
+    console.log('🎯 ACTIONSDROPDOWN: Öffne Ansprechpartner-Entfernen-Modal für Unternehmen:', unternehmenId);
+
+    // Zugeordnete Ansprechpartner laden
+    let ansprechpartner = [];
+    
+    try {
+      const { data } = await window.supabase
+        .from('ansprechpartner_unternehmen')
+        .select(`
+          ansprechpartner_id,
+          ansprechpartner:ansprechpartner_id (
+            id,
+            vorname,
+            nachname,
+            email,
+            position:position_id(name)
+          )
+        `)
+        .eq('unternehmen_id', unternehmenId);
+      
+      ansprechpartner = (data || [])
+        .filter(r => r.ansprechpartner)
+        .map(r => r.ansprechpartner);
+      
+    } catch (error) {
+      console.warn('⚠️ Fehler beim Laden der Ansprechpartner:', error);
+    }
+
+    if (ansprechpartner.length === 0) {
+      alert('Diesem Unternehmen sind noch keine Ansprechpartner zugeordnet.');
+      return;
+    }
+
+    const modal = document.createElement('div');
+    modal.className = 'modal overlay-modal';
+    modal.innerHTML = `
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h3>Ansprechpartner vom Unternehmen entfernen</h3>
+          <button class="modal-close" id="remove-ansprechpartner-unternehmen-close">×</button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label">Ansprechpartner wählen</label>
+          <input type="text" id="ansprechpartner-unternehmen-remove-search" class="form-input auto-suggest-input" placeholder="Ansprechpartner suchen..." />
+          <div id="ansprechpartner-unternehmen-remove-dropdown" class="auto-suggest-dropdown"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="secondary-btn" id="remove-ansprechpartner-unternehmen-cancel">Abbrechen</button>
+          <button class="danger-btn" id="remove-ansprechpartner-unternehmen-confirm" disabled>Entfernen</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    const input = modal.querySelector('#ansprechpartner-unternehmen-remove-search');
+    const dropdown = modal.querySelector('#ansprechpartner-unternehmen-remove-dropdown');
+    let selectedId = null;
+
+    const hydrateDropdown = (filter = '') => {
+      // Wenn kein Filter, zeige Hinweis zum Tippen
+      if (!filter || filter.trim().length === 0) {
+        dropdown.innerHTML = '<div class="dropdown-item no-results">Beginnen Sie zu tippen, um Ansprechpartner zu suchen...</div>';
+        return;
+      }
+      
+      const f = filter.toLowerCase();
+      const items = ansprechpartner.filter(ap => {
+        const fullName = `${ap.vorname} ${ap.nachname}`.toLowerCase();
+        const email = (ap.email || '').toLowerCase();
+        return fullName.includes(f) || email.includes(f);
+      });
+      
+      dropdown.innerHTML = items.length
+        ? items.map(ap => {
+            const displayName = `${ap.vorname} ${ap.nachname}`;
+            const details = [
+              ap.email,
+              ap.position?.name
+            ].filter(Boolean).join(' • ');
+            
+            return `<div class="dropdown-item" data-id="${ap.id}">
+              <div class="dropdown-item-main">${displayName}</div>
+              ${details ? `<div class="dropdown-item-details">${details}</div>` : ''}
+            </div>`;
+          }).join('')
+        : '<div class="dropdown-item no-results">Keine Ansprechpartner gefunden</div>';
+    };
+    
+    // Initial kein Dropdown anzeigen - erst beim Tippen
+    dropdown.innerHTML = '<div class="dropdown-item no-results">Beginnen Sie zu tippen, um Ansprechpartner zu suchen...</div>';
+    
+    input.addEventListener('focus', () => {
+      // Nur anzeigen wenn bereits Text eingegeben wurde
+      if (input.value.trim().length > 0) {
+        dropdown.classList.add('show');
+      }
+    });
+    input.addEventListener('blur', () => {
+      setTimeout(() => dropdown.classList.remove('show'), 150);
+    });
+
+    // Dynamische Suche
+    let searchTimeout;
+    input.addEventListener('input', (e) => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        const term = e.target.value.trim();
+        
+        // Kein Dropdown anzeigen wenn weniger als 1 Zeichen
+        if (term.length < 1) {
+          dropdown.classList.remove('show');
+          return;
+        }
+        
+        // Ab 1 Zeichen suchen und anzeigen
+        hydrateDropdown(term);
+        dropdown.classList.add('show');
+      }, 200);
+    });
+
+    dropdown.addEventListener('click', (e) => {
+      const item = e.target.closest('.dropdown-item');
+      if (!item || item.classList.contains('no-results')) return;
+      
+      selectedId = item.dataset.id;
+      const mainText = item.querySelector('.dropdown-item-main')?.textContent || item.textContent;
+      input.value = mainText;
+      modal.querySelector('#remove-ansprechpartner-unternehmen-confirm').disabled = false;
+      dropdown.classList.remove('show');
+    });
+
+    const close = () => {
+      document.body.removeChild(modal);
+    };
+
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') {
+        close();
+        document.removeEventListener('keydown', handleEsc);
+      }
+    };
+
+    document.addEventListener('keydown', handleEsc);
+
+    modal.querySelector('#remove-ansprechpartner-unternehmen-close').onclick = () => {
+      close();
+      document.removeEventListener('keydown', handleEsc);
+    };
+    modal.querySelector('#remove-ansprechpartner-unternehmen-cancel').onclick = () => {
+      close();
+      document.removeEventListener('keydown', handleEsc);
+    };
+
+    modal.querySelector('#remove-ansprechpartner-unternehmen-confirm').onclick = async () => {
+      if (!selectedId) return;
+
+      try {
+        const { error } = await window.supabase
+          .from('ansprechpartner_unternehmen')
+          .delete()
+          .eq('ansprechpartner_id', selectedId)
+          .eq('unternehmen_id', unternehmenId);
+
+        if (error) throw error;
+
+        close();
+        document.removeEventListener('keydown', handleEsc);
+        
+        // UI aktualisieren - Multiple Events für Live-Updates
+        window.dispatchEvent(new CustomEvent('entityUpdated', { 
+          detail: { entity: 'ansprechpartner', action: 'removed', unternehmenId: unternehmenId } 
+        }));
+        // Zusätzliches Event für UnternehmenList Live-Update
+        window.dispatchEvent(new CustomEvent('entityUpdated', { 
+          detail: { entity: 'unternehmen', action: 'ansprechpartner-removed', id: unternehmenId } 
+        }));
+        
+        alert('✅ Ansprechpartner wurde erfolgreich vom Unternehmen entfernt!');
+        console.log('✅ ACTIONSDROPDOWN: Ansprechpartner erfolgreich von Unternehmen entfernt');
+
+      } catch (error) {
+        console.error('❌ Fehler beim Entfernen des Ansprechpartners:', error);
+        alert('Fehler beim Entfernen: ' + (error.message || 'Unbekannter Fehler'));
+      }
+    };
+  }
+
+  // Modal: Ansprechpartner von Unternehmen entfernen (neue Tabellen-Ansicht)
+  async openRemoveAnsprechpartnerFromUnternehmenModalNew(unternehmenId) {
+    console.log('🎯 ACTIONSDROPDOWN: Öffne Ansprechpartner-Entfernen-Modal für Unternehmen (Tabelle):', unternehmenId);
+
+    // Zugeordnete Ansprechpartner laden
+    let ansprechpartner = [];
+    
+    try {
+      const { data } = await window.supabase
+        .from('ansprechpartner_unternehmen')
+        .select(`
+          ansprechpartner_id,
+          ansprechpartner:ansprechpartner_id (
+            id,
+            vorname,
+            nachname,
+            email,
+            telefonnummer,
+            position:position_id(name),
+            unternehmen:unternehmen_id(firmenname)
+          )
+        `)
+        .eq('unternehmen_id', unternehmenId);
+      
+      ansprechpartner = (data || [])
+        .filter(r => r.ansprechpartner)
+        .map(r => r.ansprechpartner);
+      
+    } catch (error) {
+      console.warn('⚠️ Fehler beim Laden der Ansprechpartner:', error);
+    }
+
+    if (ansprechpartner.length === 0) {
+      alert('Diesem Unternehmen sind noch keine Ansprechpartner zugeordnet.');
+      return;
+    }
+
+    // Tabellen-HTML generieren
+    const tableRows = ansprechpartner.map(ap => `
+      <tr>
+        <td>
+          <input type="checkbox" class="ansprechpartner-remove-check" data-id="${ap.id}" />
+        </td>
+        <td>
+          <a href="#" onclick="event.preventDefault(); window.navigateTo('/ansprechpartner/${ap.id}')" class="table-link">
+            ${ap.vorname} ${ap.nachname}
+          </a>
+        </td>
+        <td>${ap.email || '-'}</td>
+        <td>${ap.telefonnummer || '-'}</td>
+        <td>${ap.position?.name || '-'}</td>
+        <td>
+          <button class="btn-remove-single danger-btn" data-id="${ap.id}" title="Einzeln entfernen">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+
+    const modal = document.createElement('div');
+    modal.className = 'modal overlay-modal modal-large';
+    modal.innerHTML = `
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h3>Ansprechpartner vom Unternehmen entfernen</h3>
+          <button class="modal-close" id="remove-ansprechpartner-unternehmen-close">×</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-description">Wählen Sie die Ansprechpartner aus, die Sie vom Unternehmen entfernen möchten:</p>
+          
+          <!-- Bulk Actions -->
+          <div class="bulk-actions">
+            <button id="select-all-ansprechpartner" class="secondary-btn">Alle auswählen</button>
+            <button id="deselect-all-ansprechpartner" class="secondary-btn">Auswahl aufheben</button>
+            <span class="selected-count">0 ausgewählt</span>
+          </div>
+          
+          <!-- Ansprechpartner Tabelle -->
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th width="40">
+                    <input type="checkbox" id="select-all-header" />
+                  </th>
+                  <th>Name</th>
+                  <th>E-Mail</th>
+                  <th>Telefon</th>
+                  <th>Position</th>
+                  <th width="80">Aktion</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="secondary-btn" id="remove-ansprechpartner-unternehmen-cancel">Abbrechen</button>
+          <button class="danger-btn" id="remove-selected-ansprechpartner" disabled>Ausgewählte entfernen</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    // Event Handler für Checkboxen und Buttons
+    const checkboxes = modal.querySelectorAll('.ansprechpartner-remove-check');
+    const selectAllHeader = modal.querySelector('#select-all-header');
+    const selectAllBtn = modal.querySelector('#select-all-ansprechpartner');
+    const deselectAllBtn = modal.querySelector('#deselect-all-ansprechpartner');
+    const selectedCountSpan = modal.querySelector('.selected-count');
+    const removeSelectedBtn = modal.querySelector('#remove-selected-ansprechpartner');
+
+    // Update selected count und Button state
+    const updateSelection = () => {
+      const selectedCheckboxes = modal.querySelectorAll('.ansprechpartner-remove-check:checked');
+      const count = selectedCheckboxes.length;
+      
+      selectedCountSpan.textContent = `${count} ausgewählt`;
+      removeSelectedBtn.disabled = count === 0;
+      
+      // Header checkbox state
+      if (count === 0) {
+        selectAllHeader.checked = false;
+        selectAllHeader.indeterminate = false;
+      } else if (count === checkboxes.length) {
+        selectAllHeader.checked = true;
+        selectAllHeader.indeterminate = false;
+      } else {
+        selectAllHeader.checked = false;
+        selectAllHeader.indeterminate = true;
+      }
+    };
+
+    // Checkbox Event Listeners
+    checkboxes.forEach(checkbox => {
+      checkbox.addEventListener('change', updateSelection);
+    });
+
+    selectAllHeader.addEventListener('change', () => {
+      const isChecked = selectAllHeader.checked;
+      checkboxes.forEach(cb => {
+        cb.checked = isChecked;
+      });
+      updateSelection();
+    });
+
+    selectAllBtn.addEventListener('click', () => {
+      checkboxes.forEach(cb => {
+        cb.checked = true;
+      });
+      updateSelection();
+    });
+
+    deselectAllBtn.addEventListener('click', () => {
+      checkboxes.forEach(cb => {
+        cb.checked = false;
+      });
+      updateSelection();
+    });
+
+    // Einzeln entfernen Buttons
+    modal.querySelectorAll('.btn-remove-single').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const ansprechpartnerId = e.target.closest('.btn-remove-single').dataset.id;
+        const ap = ansprechpartner.find(ap => ap.id === ansprechpartnerId);
+        const name = ap ? `${ap.vorname} ${ap.nachname}` : 'Ansprechpartner';
+        
+        {
+          let proceed = false;
+          const msg = `Möchten Sie ${name} wirklich vom Unternehmen entfernen?`;
+          if (window.confirmationModal) {
+            const res = await window.confirmationModal.open({ title: 'Entfernen bestätigen', message: msg, confirmText: 'Entfernen', cancelText: 'Abbrechen', danger: true });
+            proceed = !!res?.confirmed;
+          } else {
+            proceed = confirm(msg);
+          }
+          if (!proceed) return;
+          await this.removeAnsprechpartnerFromUnternehmen(ansprechpartnerId, unternehmenId);
+          // Zeile aus Tabelle entfernen
+          e.target.closest('tr').remove();
+          updateSelection();
+          
+          // Modal schließen wenn keine Ansprechpartner mehr da sind
+          if (modal.querySelectorAll('tbody tr').length === 0) {
+            close();
+          }
+        }
+      });
+    });
+
+    // Ausgewählte entfernen
+    removeSelectedBtn.addEventListener('click', async () => {
+      const selectedCheckboxes = modal.querySelectorAll('.ansprechpartner-remove-check:checked');
+      const selectedIds = Array.from(selectedCheckboxes).map(cb => cb.dataset.id);
+      
+      if (selectedIds.length === 0) return;
+      
+      const count = selectedIds.length;
+      {
+        let proceed = false;
+        const msg = `Möchten Sie wirklich ${count} Ansprechpartner vom Unternehmen entfernen?`;
+        if (window.confirmationModal) {
+          const res = await window.confirmationModal.open({ title: 'Entfernen bestätigen', message: msg, confirmText: 'Entfernen', cancelText: 'Abbrechen', danger: true });
+          proceed = !!res?.confirmed;
+        } else {
+          proceed = confirm(msg);
+        }
+        if (!proceed) return;
+        let successCount = 0;
+        let errorCount = 0;
+        
+        for (const ansprechpartnerId of selectedIds) {
+          try {
+            await this.removeAnsprechpartnerFromUnternehmen(ansprechpartnerId, unternehmenId);
+            successCount++;
+            
+            // Zeile aus Tabelle entfernen
+            const checkbox = modal.querySelector(`[data-id="${ansprechpartnerId}"]`);
+            if (checkbox) {
+              checkbox.closest('tr').remove();
+            }
+          } catch (error) {
+            errorCount++;
+            console.error('❌ Fehler beim Entfernen:', error);
+          }
+        }
+        
+        // Ergebnis anzeigen
+        let message = '';
+        if (successCount > 0) {
+          message += `✅ ${successCount} Ansprechpartner erfolgreich entfernt.`;
+        }
+        if (errorCount > 0) {
+          message += `\n❌ ${errorCount} Ansprechpartner konnten nicht entfernt werden.`;
+        }
+        alert(message);
+        
+        updateSelection();
+        
+        // Modal schließen wenn keine Ansprechpartner mehr da sind
+        if (modal.querySelectorAll('tbody tr').length === 0) {
+          close();
+        }
+      }
+    });
+
+    // Modal schließen
+    const close = () => {
+      document.body.removeChild(modal);
+    };
+
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') {
+        close();
+        document.removeEventListener('keydown', handleEsc);
+      }
+    };
+
+    document.addEventListener('keydown', handleEsc);
+
+    modal.querySelector('#remove-ansprechpartner-unternehmen-close').onclick = () => {
+      close();
+      document.removeEventListener('keydown', handleEsc);
+    };
+    modal.querySelector('#remove-ansprechpartner-unternehmen-cancel').onclick = () => {
+      close();
+      document.removeEventListener('keydown', handleEsc);
+    };
+
+    // Initial update
+    updateSelection();
+  }
+
+  // Helper-Methode: Einzelnen Ansprechpartner von Unternehmen entfernen
+  async removeAnsprechpartnerFromUnternehmen(ansprechpartnerId, unternehmenId) {
+    try {
+      const { error } = await window.supabase
+        .from('ansprechpartner_unternehmen')
+        .delete()
+        .eq('ansprechpartner_id', ansprechpartnerId)
+        .eq('unternehmen_id', unternehmenId);
+
+      if (error) throw error;
+
+      // UI aktualisieren
+      window.dispatchEvent(new CustomEvent('entityUpdated', { 
+        detail: { entity: 'ansprechpartner', action: 'removed', unternehmenId: unternehmenId } 
+      }));
+
+      console.log('✅ ACTIONSDROPDOWN: Ansprechpartner erfolgreich von Unternehmen entfernt');
+      return true;
+
+    } catch (error) {
+      console.error('❌ Fehler beim Entfernen des Ansprechpartners:', error);
+      throw error;
+    }
+  }
+
   // Modal: Creator zu Liste hinzufügen
   async openAddToListModal(creatorId) {
     let listen = [];
@@ -1615,20 +2655,21 @@ export class ActionsDropdown {
   }
 
   // Bestätigungsdialog für Löschen
-  confirmDelete(entityId, entityType) {
+  async confirmDelete(entityId, entityType) {
     const entityName = this.getEntityDisplayName(entityType);
-    
-    if (confirm(`Möchten Sie wirklich ${entityName} löschen? Diese Aktion kann nicht rückgängig gemacht werden.`)) {
-      console.log(`🗑️ Lösche ${entityType} ${entityId}`);
-      // TODO: Implementiere Lösch-Logik
-      window.dataService.deleteEntity(entityType, entityId).then(result => {
-        if (result.success) {
-          // Event auslösen für Listen-Update
-          window.dispatchEvent(new CustomEvent('entityUpdated', {
-            detail: { entity: entityType, action: 'deleted', id: entityId }
-          }));
-        }
-      });
+    const message = `Möchten Sie wirklich ${entityName} löschen? Diese Aktion kann nicht rückgängig gemacht werden.`;
+    let proceed = false;
+    if (window.confirmationModal) {
+      const res = await window.confirmationModal.open({ title: 'Löschvorgang bestätigen', message, confirmText: 'Endgültig löschen', cancelText: 'Abbrechen', danger: true });
+      proceed = !!res?.confirmed;
+    } else {
+      proceed = confirm(message);
+    }
+    if (!proceed) return;
+    console.log(`🗑️ Lösche ${entityType} ${entityId}`);
+    const result = await window.dataService.deleteEntity(entityType, entityId);
+    if (result?.success) {
+      window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: entityType, action: 'deleted', id: entityId } }));
     }
   }
 

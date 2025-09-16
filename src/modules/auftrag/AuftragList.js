@@ -660,7 +660,7 @@ export class AuftragList {
   }
 
   // Bestätigungsdialog für Bulk-Delete
-  showDeleteSelectedConfirmation() {
+  async showDeleteSelectedConfirmation() {
     const selectedCount = this.selectedAuftraege.size;
     console.log(`🔧 AuftragList: showDeleteSelectedConfirmation aufgerufen, selectedCount: ${selectedCount}`, Array.from(this.selectedAuftraege));
     
@@ -672,11 +672,13 @@ export class AuftragList {
     const message = selectedCount === 1 
       ? 'Möchten Sie den ausgewählten Auftrag wirklich löschen?' 
       : `Möchten Sie die ${selectedCount} ausgewählten Aufträge wirklich löschen?`;
-    
-    const confirmed = confirm(`${message}\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`);
-    
-    if (confirmed) {
-      this.deleteSelectedAuftraege();
+
+    if (window.confirmationModal) {
+      const res = await window.confirmationModal.open({ title: 'Löschvorgang bestätigen', message, confirmText: 'Endgültig löschen', cancelText: 'Abbrechen', danger: true });
+      if (res?.confirmed) this.deleteSelectedAuftraege();
+    } else {
+      const confirmed = confirm(`${message}\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`);
+      if (confirmed) this.deleteSelectedAuftraege();
     }
   }
 

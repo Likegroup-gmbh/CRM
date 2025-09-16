@@ -1,6 +1,8 @@
 // MarkeDetail.js (ES6-Modul)
 // Marken-Detailseite mit Tabs für Informationen, Notizen, Bewertungen, Kampagnen und Aufträge
 
+import { TableHelper } from '../../core/TableHelper.js';
+
 export class MarkeDetail {
   constructor() {
     this.markeId = null;
@@ -451,9 +453,9 @@ export class MarkeDetail {
         <td>${r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener">PDF</a>` : '-'}</td>
       </tr>
     `).join('');
-    return `
+    const tableHtml = `
       <div class="data-table-container">
-        <table class="data-table">
+        <table class="data-table" id="marke-rechnungen-table">
           <thead>
             <tr>
               <th>Rechnungs-Nr</th>
@@ -468,6 +470,22 @@ export class MarkeDetail {
         </table>
       </div>
     `;
+    
+    // Tabelle nach dem Rendern optimieren
+    setTimeout(() => {
+      TableHelper.autoOptimizeTable('#marke-rechnungen-table', {
+        columnConfig: {
+          0: { cssClass: 'id-col' }, // Rechnungs-Nr
+          1: { cssClass: 'status-col' }, // Status
+          2: { cssClass: 'number-col' }, // Netto
+          3: { cssClass: 'number-col' }, // Brutto
+          4: { cssClass: 'date-col' }, // Gestellt
+          5: { cssClass: 'contact-col' } // Beleg
+        }
+      });
+    }, 100);
+    
+    return tableHtml;
   }
 
   // Binde Events

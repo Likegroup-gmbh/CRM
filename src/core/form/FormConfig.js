@@ -100,6 +100,23 @@ export class FormConfig {
           { name: 'marke_id', label: 'Marke', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Marke suchen und auswählen...', dependsOn: 'unternehmen_id', table: 'marke', displayField: 'markenname', valueField: 'id' },
           { name: 'auftrag_id', label: 'Auftrag', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Auftrag suchen und auswählen...', dependsOn: 'marke_id', table: 'auftrag', displayField: 'auftragsname', valueField: 'id' },
           { 
+            name: 'ansprechpartner_ids', 
+            label: 'Ansprechpartner', 
+            type: 'multiselect', 
+            required: false, 
+            options: [], 
+            dynamic: true, 
+            searchable: true, 
+            tagBased: true, 
+            placeholder: 'Ansprechpartner suchen und auswählen...', 
+            table: 'ansprechpartner',
+            displayField: 'vorname,nachname,email',
+            valueField: 'id',
+            relationTable: 'ansprechpartner_kampagne',
+            relationField: 'ansprechpartner_id',
+            directQuery: true
+          },
+          { 
             name: 'mitarbeiter_ids', 
             label: 'Zugehörige Mitarbeiter', 
             type: 'multiselect', 
@@ -114,7 +131,6 @@ export class FormConfig {
             valueField: 'id',
             relationTable: 'kampagne_mitarbeiter',
             relationField: 'mitarbeiter_id',
-            filter: "rolle.eq.Mitarbeiter,rolle.eq.mitarbeiter,rolle.eq.admin",
             directQuery: true
           },
           { 
@@ -130,7 +146,6 @@ export class FormConfig {
             table: 'benutzer',
             displayField: 'name',
             valueField: 'id',
-            filter: "rolle.eq.Mitarbeiter,rolle.eq.mitarbeiter,rolle.eq.admin",
             directQuery: true,
             customField: true
           },
@@ -147,7 +162,6 @@ export class FormConfig {
             table: 'benutzer',
             displayField: 'name',
             valueField: 'id',
-            filter: "rolle.eq.Mitarbeiter,rolle.eq.mitarbeiter,rolle.eq.admin",
             directQuery: true,
             customField: true
           },
@@ -164,7 +178,6 @@ export class FormConfig {
             table: 'benutzer',
             displayField: 'name',
             valueField: 'id',
-            filter: "rolle.eq.Mitarbeiter,rolle.eq.mitarbeiter,rolle.eq.admin",
             directQuery: true,
             customField: true
           },
@@ -218,7 +231,7 @@ export class FormConfig {
             showWhen: 'Vor Ort Produktion'
           },
           {
-            name: 'status',
+            name: 'status_id',
             label: 'Status',
             type: 'select',
             required: false,
@@ -335,6 +348,7 @@ export class FormConfig {
           { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...' },
           { name: 'marke_id', label: 'Marke', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Marke auswählen...', dependsOn: 'unternehmen_id' },
           { name: 'kampagne_id', label: 'Kampagne', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Kampagne suchen und auswählen...', dependsOn: 'marke_id' },
+          { name: 'briefing_id', label: 'Briefing', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Briefing wählen...', dependsOn: 'kampagne_id', table: 'briefings', displayField: 'product_service_offer', valueField: 'id' },
           { name: 'creator_id', label: 'Creator', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Creator suchen und auswählen...', dependsOn: 'kampagne_id' },
           { 
             name: 'name', 
@@ -346,7 +360,7 @@ export class FormConfig {
             readonly: true,
             placeholder: 'Wird automatisch generiert...'
           },
-          { name: 'content_art', label: 'Content Art', type: 'select', required: true, options: ['Paid', 'Organisch', 'Influencer'] },
+          { name: 'content_art', label: 'Content Art', type: 'select', required: true, options: ['Paid', 'Organisch', 'Influencer', 'Videograph'] },
           { name: 'skript_autor', label: 'Skript schreibt', type: 'select', required: false, options: ['Brand', 'Creator'] },
           { name: 'nettobetrag', label: 'Nettobetrag', type: 'number', required: false, validation: { type: 'number', min: 0 } },
           { name: 'zusatzkosten', label: 'Zusatzkosten', type: 'number', required: false, validation: { type: 'number', min: 0 } },
@@ -385,14 +399,17 @@ export class FormConfig {
             label: 'Marken', 
             type: 'multiselect', 
             required: false, 
+            options: [], 
             dynamic: true,
             searchable: true,
             tagBased: true,
             placeholder: 'Marken suchen und hinzufügen...',
+            dependsOn: 'unternehmen_id',
             table: 'marke',
             displayField: 'markenname',
             valueField: 'id',
-            customField: true
+            relationTable: 'ansprechpartner_marke',
+            relationField: 'marke_id'
           },
           { 
             name: 'position_id', 
@@ -425,6 +442,8 @@ export class FormConfig {
             table: 'sprachen',
             displayField: 'name',
             valueField: 'id',
+            relationTable: 'ansprechpartner_sprache',
+            relationField: 'sprache_id',
             customField: true
           },
           { name: 'notiz', label: 'Notizen', type: 'textarea', required: false, rows: 4 }
@@ -437,6 +456,7 @@ export class FormConfig {
           { name: 'produktseite_url', label: 'Produktseite URL', type: 'url', required: false, validation: { type: 'url' } },
           { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...', table: 'unternehmen', displayField: 'firmenname', valueField: 'id', directQuery: true },
           { name: 'marke_id', label: 'Marke', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Marke suchen und auswählen...', dependsOn: 'unternehmen_id', table: 'marke', displayField: 'markenname', valueField: 'id' },
+          { name: 'kampagne_id', label: 'Kampagne', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Kampagne wählen...', dependsOn: 'marke_id', table: 'kampagne', displayField: 'kampagnenname', valueField: 'id' },
           { name: 'assignee_id', label: 'Zugewiesen an', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Mitarbeiter auswählen...', table: 'benutzer', displayField: 'name', valueField: 'id', directQuery: true },
           { name: 'status', label: 'Status', type: 'select', required: false, options: [ 'active', 'inactive', 'completed', 'cancelled' ] },
           { name: 'deadline', label: 'Deadline', type: 'date', required: false },

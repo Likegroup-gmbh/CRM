@@ -19,6 +19,8 @@ export class FormSystem {
     this.renderer.getFormConfig = this.config.getFormConfig.bind(this.config);
     this.relationTables.getFormConfig = this.config.getFormConfig.bind(this.config);
     this.dataLoader.getFormConfig = this.config.getFormConfig.bind(this.config);
+    this.dependentFields.getFormConfig = this.config.getFormConfig.bind(this.config);
+    this.dependentFields.dynamicDataLoader = this.dataLoader;
 
     // Searchable Select Methoden injizieren
     this.dataLoader.createSearchableSelect = this.createSearchableSelect.bind(this);
@@ -409,7 +411,7 @@ export class FormSystem {
       }
     }
 
-    // Bestehende Container entfernen
+    // Bestehende Container entfernen (sowohl normale als auch Tag-basierte)
     const existingContainer = selectElement.parentNode.querySelector('.searchable-select-container');
     if (existingContainer) {
       existingContainer.remove();

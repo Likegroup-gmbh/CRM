@@ -39,10 +39,54 @@ export class FormEvents {
       console.log('ℹ️ FORMEVENTS: Kein Edit-Mode erkannt oder keine Daten verfügbar');
     }
 
-    // Submit-Event
+    // Submit-Event mit UI-States (activate → waiting → activated)
     form.onsubmit = async (e) => {
       e.preventDefault();
-      await this.formSystem.handleFormSubmit(entity, data);
+      const btn = form.querySelector('.mdc-btn.mdc-btn--create');
+      if (!btn) {
+        await this.formSystem.handleFormSubmit(entity, data);
+        return;
+      }
+
+      // Guard: Mehrfachklick verhindern
+      if (btn.dataset.locked === 'true') return;
+      btn.dataset.locked = 'true';
+
+      const initialLabel = btn.querySelector('.mdc-btn__label')?.textContent || '';
+      const labelEl = btn.querySelector('.mdc-btn__label');
+      const mode = btn.getAttribute('data-mode') || (data ? 'update' : 'create');
+      const entityLabel = btn.getAttribute('data-entity-label') || 'Eintrag';
+
+      // Set loading state
+      btn.classList.add('is-loading');
+      if (labelEl) labelEl.textContent = mode === 'update' ? 'Wird aktualisiert…' : 'Wird angelegt…';
+
+      // Submit ausführen
+      const before = Date.now();
+      const result = await this.formSystem.handleFormSubmit(entity, data);
+      const took = Date.now() - before;
+
+      // Wenn handleFormSubmit bereits geschlossen hat und Event gefeuert ist, abbrechen
+      if (!form.isConnected) return;
+
+      if (result && result.success === false) {
+        // Fehlerfall → State zurücksetzen
+        btn.classList.remove('is-loading');
+        btn.dataset.locked = 'false';
+        if (labelEl) labelEl.textContent = initialLabel;
+        return;
+      }
+
+      // Success UI
+      btn.classList.remove('is-loading');
+      btn.classList.add('is-success');
+      if (labelEl) labelEl.textContent = mode === 'update' ? 'Aktualisiert' : `${entityLabel} angelegt`;
+
+      // Kurze Verzögerung für Micro-Animation, dann normaler Flow (FormSystem schließt das Modal oder Seite navigiert)
+      setTimeout(() => {
+        btn.dataset.locked = 'false';
+        // Falls das Modal noch offen ist, nichts weiter tun; FormSystem schließt und navigiert ohnehin
+      }, Math.max(400, 900 - took));
     };
 
     // Close-Button Event
@@ -164,7 +208,13 @@ export class FormEvents {
         const selected = parseInt(videoInput.value || '0', 10) || 0;
         const remainingAfter = Math.max(0, max - selected);
         const sSel = selected === 1 ? 'Video' : 'Videos';
-        info.textContent = max > 0 ? `${selected} ${sSel} | Rest: ${remainingAfter}` : 'Bitte zuerst Auftrag wählen';
+        // Spezielle Behandlung für Kampagne Edit-Mode
+        const isKampagneEditMode = form?.dataset?.isEditMode === 'true' && form?.dataset?.entityType === 'kampagne';
+        if (isKampagneEditMode && max === 0) {
+          info.textContent = `${selected} ${sSel} | Kein Auftrag zugeordnet`;
+        } else {
+          info.textContent = max > 0 ? `${selected} ${sSel} | Rest: ${remainingAfter}` : 'Bitte zuerst Auftrag wählen';
+        }
         minusBtn.disabled = max === 0 || selected <= (parseInt(videoInput.min || '0', 10) || 0);
         plusBtn.disabled = max === 0 || selected >= max;
       };
@@ -209,7 +259,15 @@ export class FormEvents {
       const selected = parseInt(videoInput.value || '0', 10) || 0;
       const remainingAfter = Math.max(0, max - selected);
       const sSel = selected === 1 ? 'Video' : 'Videos';
-      if (stepperInfo) stepperInfo.textContent = max > 0 ? `${selected} ${sSel} | Rest: ${remainingAfter}` : 'Bitte zuerst Auftrag wählen';
+      // Spezielle Behandlung für Kampagne Edit-Mode
+      const isKampagneEditMode = form?.dataset?.isEditMode === 'true' && form?.dataset?.entityType === 'kampagne';
+      if (stepperInfo) {
+        if (isKampagneEditMode && max === 0) {
+          stepperInfo.textContent = `${selected} ${sSel} | Kein Auftrag zugeordnet`;
+        } else {
+          stepperInfo.textContent = max > 0 ? `${selected} ${sSel} | Rest: ${remainingAfter}` : 'Bitte zuerst Auftrag wählen';
+        }
+      }
       if (minusBtn) minusBtn.disabled = max === 0 || selected <= min;
       if (plusBtn) plusBtn.disabled = max === 0 || selected >= max;
     };

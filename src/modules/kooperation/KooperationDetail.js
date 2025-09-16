@@ -58,7 +58,7 @@ export class KooperationDetail {
         creator_id, kampagne_id, unternehmen_id,
         creator:creator_id ( id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, mail ),
         kampagne:kampagne_id (
-          id, kampagnenname, status, deadline, start, creatoranzahl,
+          id, kampagnenname, status, deadline, start, creatoranzahl, videoanzahl,
           unternehmen:unternehmen_id ( id, firmenname ),
           marke:marke_id ( id, markenname )
         ),
@@ -115,6 +115,23 @@ export class KooperationDetail {
         .eq('kooperation_id', this.kooperationId)
         .order('position', { ascending: true });
       this.videos = videos || [];
+      // Kampagnen-Kontingent (geplante Videos) aggregieren
+      try {
+        const kampId = kooperation?.kampagne?.id || kooperation?.kampagne_id;
+        if (kampId) {
+          const { data: koopCounts } = await window.supabase
+            .from('kooperationen')
+            .select('videoanzahl')
+            .eq('kampagne_id', kampId);
+          const used = (koopCounts || []).reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
+          const total = parseInt(kooperation?.kampagne?.videoanzahl, 10) || null;
+          this.campaignVideoTotals = { total, used, remaining: total != null ? Math.max(0, total - used) : null };
+        } else {
+          this.campaignVideoTotals = null;
+        }
+      } catch (_) {
+        this.campaignVideoTotals = null;
+      }
       // Kommentar-Zusammenfassung je Runde laden (1/2)
       try {
         const videoIds = (this.videos || []).map(v => v.id);
@@ -222,7 +239,7 @@ export class KooperationDetail {
           </div>
           <div class="tab-pane" id="tab-videos">
             <div class="detail-section">
-              <h2>Videos</h2>
+              <h2>Videos ${this.renderVideoCounters()}</h2>
               ${this.renderVideos()}
             </div>
           </div>
@@ -255,6 +272,22 @@ export class KooperationDetail {
     `;
 
     window.setContentSafely(window.content, html);
+  }
+
+  renderVideoCounters() {
+    try {
+      const plannedForKoop = parseInt(this.kooperation?.videoanzahl, 10) || 0;
+      const uploadedForKoop = (this.videos || []).length;
+      const coopPart = `<span class="tag tag--type" title="Kooperation: hochgeladen/geplant">Koop: ${uploadedForKoop}/${plannedForKoop}</span>`;
+      const totals = this.campaignVideoTotals;
+      if (totals && totals.total != null) {
+        const kampPart = `<span class="tag tag--type" title="Kampagne: genutzt/gesamt (offen)">Kampagne: ${totals.used}/${totals.total} (${Math.max(0, totals.remaining)} offen)</span>`;
+        return `${coopPart} ${kampPart}`;
+      }
+      return coopPart;
+    } catch (_) {
+      return '';
+    }
   }
 
   // Info-Tab Inhalt
@@ -431,8 +464,20 @@ export class KooperationDetail {
 
   // Videos rendern
   renderVideos() {
+    const canEdit = window.currentUser?.permissions?.kooperation?.can_edit || window.currentUser?.rolle === 'admin';
+    const plannedForKoop = parseInt(this.kooperation?.videoanzahl, 10) || 0;
+    const uploadedForKoop = (this.videos || []).length;
+    const canAddMore = plannedForKoop === 0 || uploadedForKoop < plannedForKoop;
+
+    const actionsHtml = canEdit ? `
+      <div class="table-actions" style="margin-bottom: 8px;">
+        <div class="table-actions-left"></div>
+        <div class="table-actions-right">
+          ${canAddMore ? `<button id="btn-goto-video-create" class="primary-btn">Video hinzufügen</button>` : `<button class="secondary-btn" disabled title="Limit erreicht">Limit erreicht</button>`}
+        </div>
+      </div>` : '';
     if (!this.videos || this.videos.length === 0) {
-      return '<p class="empty-state">Keine Videos angelegt.</p>';
+      return `${actionsHtml}<p class=\"empty-state\">Keine Videos angelegt.</p>`;
     }
     const rows = this.videos.map(v => {
       const formatList = (arr) => {
@@ -447,7 +492,7 @@ export class KooperationDetail {
       const menu = `
         <div class="actions-dropdown-container" data-entity-type="kooperation_videos">
           <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
           </button>
           <div class="actions-dropdown">
             <div class="action-submenu">
@@ -494,7 +539,10 @@ export class KooperationDetail {
         <tr>
           <td>${v.position || '-'}</td>
           <td>${window.validatorSystem.sanitizeHtml(v.content_art || '-')}</td>
-          <td>${v.asset_url ? `<a href="${v.asset_url}" target="_blank" rel="noopener">Link</a>` : '-'}</td>
+          <td>
+            ${v.titel ? `<a href="/video/${v.id}" class="table-link" data-table="video" data-id="${v.id}">${window.validatorSystem.sanitizeHtml(v.titel)}</a>`
+            : (v.asset_url ? `<a href="${v.asset_url}" target="_blank" rel="noopener">Link</a>` : '-')}
+          </td>
           <td class="feedback-cell">${formatList(v.feedback1)}</td>
           <td class="feedback-cell">${formatList(v.feedback2)}</td>
           <td><span class="status-badge status-${(v.status || 'produktion').toLowerCase()}">${v.status === 'abgeschlossen' ? 'Abgeschlossen' : 'Produktion'}</span></td>
@@ -502,6 +550,7 @@ export class KooperationDetail {
         </tr>`;
     }).join('');
     return `
+      ${actionsHtml}
       <div class="data-table-container">
         <table class="data-table">
           <thead>
@@ -528,6 +577,16 @@ export class KooperationDetail {
       if (e.target.classList?.contains('tab-button')) {
         e.preventDefault();
         this.switchTab(e.target.dataset.tab);
+      }
+    });
+
+    // Video Tabellen-Link → Detailseite
+    document.addEventListener('click', (e) => {
+      const link = e.target.closest && e.target.closest('.table-link');
+      if (!link) return;
+      if (link.dataset.table === 'video' && link.dataset.id) {
+        e.preventDefault();
+        window.navigateTo(`/video/${link.dataset.id}`);
       }
     });
 
@@ -566,16 +625,15 @@ export class KooperationDetail {
       }
     });
 
-    // Bewertungen aktualisiert
-    window.addEventListener('bewertungenUpdated', async (e) => {
-      if (e.detail.entityType === 'kooperation' && e.detail.entityId === this.kooperationId) {
-        this.ratings = await window.bewertungsSystem.loadBewertungen('kooperation', this.kooperationId);
-        const pane = document.querySelector('#tab-ratings .detail-section');
-        if (pane) pane.innerHTML = `<h2>Bewertungen</h2>${this.renderRatings()}`;
-        const btn = document.querySelector('.tab-button[data-tab="ratings"] .tab-count');
-        if (btn) btn.textContent = String(this.ratings.length);
+    // Navigation: Neues Video Formular
+    document.addEventListener('click', (e) => {
+      if (e.target && e.target.id === 'btn-goto-video-create') {
+        e.preventDefault();
+        window.navigateTo(`/video/new?kooperation=${this.kooperationId}`);
       }
     });
+
+    // (kein Inline-Video-Add – separate Implementierung folgt, falls gewünscht)
   }
 
   // Zeige Bearbeitungsformular

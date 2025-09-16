@@ -15,6 +15,11 @@ export class KooperationList {
   async init() {
     window.setHeadline('Kooperationen Übersicht');
     
+    // Verstecke Bulk-Actions für Kunden
+    if (window.bulkActionSystem) {
+      window.bulkActionSystem.hideForKunden();
+    }
+    
     const canView = (window.canViewPage && window.canViewPage('kooperation')) || await window.checkUserPermission('kooperation', 'can_view');
     if (!canView) {
       window.content.innerHTML = `
@@ -78,17 +83,45 @@ export class KooperationList {
         this.statusOptions = [];
       }
 
-      // Sichtbarkeit: Nicht-Admins nur eigene (assignee_id) ODER solche aus zugewiesenen Kampagnen
+      // Sichtbarkeit: Nicht-Admins nur eigene (assignee_id) ODER solche aus zugewiesenen Kampagnen/Marken
       const isAdmin = window.currentUser?.rolle === 'admin';
       let allowedKampagneIds = [];
       if (!isAdmin) {
         try {
-          const { data: assigned } = await window.supabase
+          // 1. Direkt zugeordnete Kampagnen
+          const { data: assignedKampagnen } = await window.supabase
             .from('kampagne_mitarbeiter')
             .select('kampagne_id')
             .eq('mitarbeiter_id', window.currentUser?.id);
-          allowedKampagneIds = (assigned || []).map(r => r.kampagne_id).filter(Boolean);
-        } catch (_) {}
+          const directKampagnenIds = (assignedKampagnen || []).map(r => r.kampagne_id).filter(Boolean);
+          
+          // 2. Kampagnen über zugeordnete Marken
+          const { data: assignedMarken } = await window.supabase
+            .from('marke_mitarbeiter')
+            .select('marke_id')
+            .eq('mitarbeiter_id', window.currentUser?.id);
+          const markenIds = (assignedMarken || []).map(r => r.marke_id).filter(Boolean);
+          
+          let markenKampagnenIds = [];
+          if (markenIds.length > 0) {
+            const { data: markenKampagnen } = await window.supabase
+              .from('kampagne')
+              .select('id')
+              .in('marke_id', markenIds);
+            markenKampagnenIds = (markenKampagnen || []).map(k => k.id).filter(Boolean);
+          }
+          
+          // Kombiniere beide Listen und entferne Duplikate
+          allowedKampagneIds = [...new Set([...directKampagnenIds, ...markenKampagnenIds])];
+          
+          console.log(`🔍 KOOPERATIONLIST: Mitarbeiter ${window.currentUser?.id} hat Zugriff auf:`, {
+            direkteKampagnen: directKampagnenIds.length,
+            markenKampagnen: markenKampagnenIds.length,
+            gesamt: allowedKampagneIds.length
+          });
+        } catch (error) {
+          console.error('❌ Fehler beim Laden der Kampagnen-Zuordnungen:', error);
+        }
       }
 
       let coopQuery = window.supabase
@@ -96,7 +129,9 @@ export class KooperationList {
         .select('id, name, status, status_id, videoanzahl, gesamtkosten, kampagne_id, creator_id, assignee_id, skript_deadline, content_deadline, created_at')
         .order('created_at', { ascending: false });
 
-      if (!isAdmin) {
+      // Für Mitarbeiter: Filtere nach zugewiesenen Kampagnen
+      // Für Kunden: RLS-Policies filtern automatisch
+      if (!isAdmin && window.currentUser?.rolle !== 'kunde') {
         coopQuery = coopQuery.or(`assignee_id.eq.${window.currentUser?.id}${allowedKampagneIds.length ? `,kampagne_id.in.(${allowedKampagneIds.join(',')})` : ''}`);
       }
 
@@ -318,6 +353,17 @@ export class KooperationList {
       }
     });
 
+    // ActionsDropdown: Video hochladen Direkt-Navigation
+    document.addEventListener('click', (e) => {
+      const item = e.target.closest && e.target.closest('.action-item');
+      if (!item) return;
+      if (item.dataset.action === 'video-create' && item.dataset.id) {
+        e.preventDefault();
+        const koopId = item.dataset.id;
+        window.navigateTo(`/video/new?kooperation=${koopId}`);
+      }
+    });
+
     // Entity Updated Event
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail.entity === 'kooperation') {
@@ -469,6 +515,12 @@ export class KooperationList {
                     <path fill-rule="evenodd" d="M1.334 10.606a1.5 1.5 0 011.06-1.06l10.38-10.38a1.5 1.5 0 012.122 0l1.523 1.523a1.5 1.5 0 010 2.122l-10.38 10.38a1.5 1.5 0 01-1.06 1.06H1.334v-3.182z" clip-rule="evenodd" />
                   </svg>
                   Bearbeiten
+                </a>
+                <a href="#" class="action-item" data-action="video-create" data-id="${kooperation.id}">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
+                  </svg>
+                  Video hochladen
                 </a>
                 <a href="#" class="action-item" data-action="notiz" data-id="${kooperation.id}">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">

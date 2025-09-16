@@ -19,8 +19,7 @@ export class AnsprechpartnerCreate {
     
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('ansprechpartner');
-    const content = document.getElementById('dashboard-content');
-    content.innerHTML = `
+    window.content.innerHTML = `
       <div class="page-header">
         <div class="page-header-left">
           <h1>Neuen Ansprechpartner anlegen</h1>
@@ -70,60 +69,24 @@ export class AnsprechpartnerCreate {
       const formData = new FormData(form);
       const data = {};
       
-      // Multi-Select Felder zuerst sammeln (Tag-basierte)
-      const allFormData = {};
-      
-      // Tag-basierte Multi-Selects verarbeiten (genau wie bei Unternehmen)
-      const tagBasedSelects = form.querySelectorAll('select[data-tag-based="true"]');
-      console.log('🏷️ Tag-basierte Selects gefunden:', tagBasedSelects.length);
-      
-      tagBasedSelects.forEach(select => {
-        // Suche das versteckte Select (OHNE [] wie bei Unternehmen)
-        let hiddenSelect = form.querySelector(`select[name="${select.name}"][style*="display: none"]`);
-        
-        // Fallback: Nach allen Selects mit dem gleichen Namen
-        if (!hiddenSelect) {
-          const allSelects = form.querySelectorAll(`select[name="${select.name}"]`);
-          if (allSelects.length > 1) {
-            hiddenSelect = allSelects[1]; // Das zweite ist das versteckte
-          }
-        }
-        
-        if (hiddenSelect) {
-          const selectedValues = Array.from(hiddenSelect.selectedOptions).map(option => option.value).filter(val => val !== '');
-          if (selectedValues.length > 0) {
-            allFormData[select.name] = selectedValues;
-            console.log(`🏷️ Tag-basiertes Multi-Select ${select.name}:`, selectedValues);
-          }
-        }
-      });
-      
-      // Standard FormData-Einträge sammeln (inkl. Array-basierte Multi-Selects)
+      // FormData-Einträge sammeln (mit Multi-Select Support)
       for (let [key, value] of formData.entries()) {
-        if (!allFormData.hasOwnProperty(key)) {
-          if (key.includes('[]')) {
-            // Multi-Select Array behandeln (z.B. marke_ids[])
-            const cleanKey = key.replace('[]', '');
-            if (!allFormData[cleanKey]) {
-              allFormData[cleanKey] = [];
+        if (value.trim() !== '') {
+          // Multi-Select Felder (Array-Behandlung)
+          if (data[key]) {
+            if (!Array.isArray(data[key])) {
+              data[key] = [data[key]];
             }
-            allFormData[cleanKey].push(value);
+            data[key].push(value.trim());
           } else {
-            if (allFormData[key]) {
-              if (!Array.isArray(allFormData[key])) {
-                allFormData[key] = [allFormData[key]];
-              }
-              allFormData[key].push(value);
-            } else {
-              allFormData[key] = value;
-            }
+            data[key] = value.trim();
           }
         }
       }
       
-      // Finale Daten zusammenstellen
-      for (let [key, value] of Object.entries(allFormData)) {
-        data[key] = Array.isArray(value) ? value : value.trim();
+      // Multi-Select Felder in Arrays konvertieren falls nur ein Wert
+      if (data.marke_ids && !Array.isArray(data.marke_ids)) {
+        data.marke_ids = [data.marke_ids];
       }
       
       console.log('📤 Finale Ansprechpartner-Daten:', data);

@@ -35,10 +35,16 @@ export class DynamicDataLoader {
         this.dataService = window.dataService; // Fallback
       }
       
-      // Prüfe ob das Feld abhängig ist - dann nicht automatisch laden
+      // Prüfe ob das Feld abhängig ist - im Kampagne/Ansprechpartner Edit-Mode trotzdem laden
       if (field.dependsOn) {
-        console.log(`⏭️ Überspringe automatisches Laden für abhängiges Feld: ${field.name} (abhängig von ${field.dependsOn})`);
-        return;
+        const isKampagneEditMode = form.dataset.entityType === 'kampagne' && form.dataset.isEditMode === 'true';
+        const isAnsprechpartnerEditMode = form.dataset.entityType === 'ansprechpartner' && form.dataset.isEditMode === 'true';
+        if (!isKampagneEditMode && !isAnsprechpartnerEditMode) {
+          console.log(`⏭️ Überspringe automatisches Laden für abhängiges Feld: ${field.name} (abhängig von ${field.dependsOn})`);
+          return;
+        } else {
+          console.log(`🎯 Edit-Mode (${form.dataset.entityType}): Lade abhängiges Feld trotzdem: ${field.name}`);
+        }
       }
       
       let options = [];
@@ -348,17 +354,184 @@ export class DynamicDataLoader {
       }
 
       // Optionen aus den geladenen Daten erstellen
-      const options = data.map(item => ({
-        value: item[field.valueField || 'id'],
-        label: item[field.displayField || 'name'] || 'Unbekannt',
-        description: item.beschreibung || item.description
-      }));
+      const options = data.map(item => {
+        // DisplayField kann mehrere Felder enthalten (komma-separiert)
+        let label = 'Unbekannt';
+        if (field.displayField) {
+          if (field.displayField.includes(',')) {
+            // Mehrere Felder kombinieren
+            const fields = field.displayField.split(',').map(f => f.trim());
+            const values = fields.map(f => item[f]).filter(Boolean);
+            label = values.length > 0 ? values.join(' ') : 'Unbekannt';
+          } else {
+            // Einzelnes Feld
+            label = item[field.displayField] || 'Unbekannt';
+          }
+        } else {
+          label = item.name || 'Unbekannt';
+        }
+        
+        return {
+          value: item[field.valueField || 'id'],
+          label: label,
+          description: item.beschreibung || item.description
+        };
+      });
 
       // Edit-Modus: Bestehende Werte als "selected" markieren für einfache Select-Felder
       if (form.dataset.isEditMode === 'true') {
         console.log('🔍 DYNAMICDATALOADER: Edit-Modus erkannt für Feld:', field.name);
         
+        // WICHTIG: Kampagne Edit-Mode Behandlung ZUERST - auch für nicht-abhängige Felder!
+        if (form.dataset.entityType === 'kampagne' && form.dataset.editModeData) {
+          try {
+            const editData = JSON.parse(form.dataset.editModeData);
+            
+            // Single-Select Felder für Kampagne - WICHTIGE REIHENFOLGE: Unternehmen -> Marke -> Auftrag -> Rest
+            if (field.name === 'unternehmen_id' && editData.unternehmen_id) {
+              options.forEach(option => {
+                if (option.value === editData.unternehmen_id) {
+                  option.selected = true;
+                }
+              });
+              console.log(`✅ DYNAMICDATALOADER: Kampagne ${field.name} vorausgewählt:`, editData.unternehmen_id);
+            }
+            
+            if (field.name === 'marke_id' && editData.marke_id) {
+              options.forEach(option => {
+                if (option.value === editData.marke_id) {
+                  option.selected = true;
+                }
+              });
+              console.log(`✅ DYNAMICDATALOADER: Kampagne ${field.name} vorausgewählt:`, editData.marke_id);
+            }
+            
+            if (field.name === 'auftrag_id' && editData.auftrag_id) {
+              options.forEach(option => {
+                if (option.value === editData.auftrag_id) {
+                  option.selected = true;
+                }
+              });
+              console.log(`✅ DYNAMICDATALOADER: Kampagne ${field.name} vorausgewählt:`, editData.auftrag_id);
+            }
+            
+            if (field.name === 'status_id' && editData.status_id) {
+              options.forEach(option => {
+                if (option.value === editData.status_id) {
+                  option.selected = true;
+                }
+              });
+              console.log(`✅ DYNAMICDATALOADER: Kampagne ${field.name} vorausgewählt:`, editData.status_id);
+            }
+            
+            if (field.name === 'drehort_typ_id' && editData.drehort_typ_id) {
+              options.forEach(option => {
+                if (option.value === editData.drehort_typ_id) {
+                  option.selected = true;
+                }
+              });
+              console.log(`✅ DYNAMICDATALOADER: Kampagne ${field.name} vorausgewählt:`, editData.drehort_typ_id);
+            }
+            
+            // Multi-Select Felder für Kampagne
+            const multiSelectFields = {
+              'ansprechpartner_ids': editData.ansprechpartner_ids || editData.ansprechpartner || [],
+              'mitarbeiter_ids': editData.mitarbeiter_ids || editData.mitarbeiter || [],
+              'pm_ids': editData.pm_ids || editData.projektmanager || [],
+              'scripter_ids': editData.scripter_ids || editData.scripter || [],
+              'cutter_ids': editData.cutter_ids || editData.cutter || [],
+              'art_der_kampagne': editData.art_der_kampagne || editData.kampagnenarten || [],
+              'plattform_ids': editData.plattform_ids || editData.plattformen || [],
+              'format_ids': editData.format_ids || editData.formate || []
+            };
+            
+            if (multiSelectFields[field.name]) {
+              const existingIds = Array.isArray(multiSelectFields[field.name]) 
+                ? multiSelectFields[field.name] 
+                : [multiSelectFields[field.name]];
+              
+              // IDs extrahieren falls es Objekte sind
+              const ids = existingIds.map(item => 
+                typeof item === 'object' && item !== null ? item.id : item
+              ).filter(Boolean);
+              
+              if (ids.length > 0) {
+                options.forEach(option => {
+                  if (ids.includes(option.value)) {
+                    option.selected = true;
+                  }
+                });
+                console.log(`✅ DYNAMICDATALOADER: Kampagne ${field.name} vorausgewählt:`, ids);
+              }
+            }
+          } catch (e) {
+            console.warn(`⚠️ DYNAMICDATALOADER: Fehler beim Laden der Kampagne Edit-Daten für ${field.name}:`, e);
+          }
+        }
+        
         // Für einfache Select-Felder (nicht multiselect/tagBased)
+        if (form.dataset.entityType === 'ansprechpartner') {
+          // position_id direkt markieren
+          if (field.name === 'position_id' && form.dataset.editModeData) {
+            try {
+              const editData = JSON.parse(form.dataset.editModeData);
+              const existingId = editData.position_id;
+              if (existingId) {
+                options.forEach(option => { if (option.value === existingId) option.selected = true; });
+                console.log('✅ DYNAMICDATALOADER: Position vorausgewählt:', existingId);
+              }
+            } catch (_) {}
+          }
+          // sprache_id (Single) direkt markieren
+          if (field.name === 'sprache_id' && form.dataset.editModeData) {
+            try {
+              const editData = JSON.parse(form.dataset.editModeData);
+              const existingId = editData.sprache_id;
+              if (existingId) {
+                options.forEach(option => { if (option.value === existingId) option.selected = true; });
+                console.log('✅ DYNAMICDATALOADER: Einzel-Sprache vorausgewählt:', existingId);
+              }
+            } catch (_) {}
+          }
+        }
+        
+        // Creator Edit-Mode Behandlung
+        if (form.dataset.entityType === 'creator' && form.dataset.editModeData) {
+          try {
+            const editData = JSON.parse(form.dataset.editModeData);
+            
+            // Multi-Select Felder für Creator
+            const multiSelectFields = {
+              'sprachen_ids': editData.sprachen_ids || editData.sprachen || [],
+              'branchen_ids': editData.branchen_ids || editData.branchen || [],
+              'creator_type_ids': editData.creator_type_ids || editData.creator_types || []
+            };
+            
+            if (multiSelectFields[field.name]) {
+              const existingIds = Array.isArray(multiSelectFields[field.name]) 
+                ? multiSelectFields[field.name] 
+                : [multiSelectFields[field.name]];
+              
+              // IDs extrahieren falls es Objekte sind
+              const ids = existingIds.map(item => 
+                typeof item === 'object' && item !== null ? item.id : item
+              ).filter(Boolean);
+              
+              if (ids.length > 0) {
+                options.forEach(option => {
+                  if (ids.includes(option.value)) {
+                    option.selected = true;
+                  }
+                });
+                console.log(`✅ DYNAMICDATALOADER: Creator ${field.name} vorausgewählt:`, ids);
+              }
+            }
+          } catch (e) {
+            console.warn(`⚠️ DYNAMICDATALOADER: Fehler beim Laden der Creator Edit-Daten für ${field.name}:`, e);
+          }
+        }
+        
+        // Alte doppelte Kampagne Edit-Mode Behandlung entfernt - wird jetzt oben behandelt
         if (field.name === 'unternehmen_id' && form.dataset.existingUnternehmenId) {
           const existingId = form.dataset.existingUnternehmenId;
           console.log('🏢 DYNAMICDATALOADER: Markiere bestehendes Unternehmen als selected:', existingId);
@@ -379,6 +552,32 @@ export class DynamicDataLoader {
             if (option.value === existingId) {
               option.selected = true;
               console.log('✅ DYNAMICDATALOADER: Branche gefunden und markiert:', option.label);
+            }
+          });
+        }
+        
+        // Kampagne Edit-Modus: Marke
+        if (field.name === 'marke_id' && form.dataset.existingMarkeId) {
+          const existingId = form.dataset.existingMarkeId;
+          console.log('🏷️ DYNAMICDATALOADER: Markiere bestehende Marke als selected:', existingId);
+          
+          options.forEach(option => {
+            if (option.value === existingId) {
+              option.selected = true;
+              console.log('✅ DYNAMICDATALOADER: Marke gefunden und markiert:', option.label);
+            }
+          });
+        }
+        
+        // Kampagne Edit-Modus: Auftrag
+        if (field.name === 'auftrag_id' && form.dataset.existingAuftragId) {
+          const existingId = form.dataset.existingAuftragId;
+          console.log('📋 DYNAMICDATALOADER: Markiere bestehenden Auftrag als selected:', existingId);
+          
+          options.forEach(option => {
+            if (option.value === existingId) {
+              option.selected = true;
+              console.log('✅ DYNAMICDATALOADER: Auftrag gefunden und markiert:', option.label);
             }
           });
         }
@@ -473,6 +672,10 @@ export class DynamicDataLoader {
           entityField = 'kampagne_id';
         } else if (field.name === 'format_ids') {
           entityField = 'kampagne_id';
+        } else if (form.dataset.entityType === 'ansprechpartner' && field.name === 'marke_ids') {
+          entityField = 'ansprechpartner_id';
+        } else if (form.dataset.entityType === 'ansprechpartner' && field.name === 'sprachen_ids') {
+          entityField = 'ansprechpartner_id';
         } else {
           entityField = field.name.replace('_ids', '_id');
         }
@@ -489,6 +692,18 @@ export class DynamicDataLoader {
               option.selected = true;
             }
           });
+        }
+      }
+      
+      // Spezielle Behandlung für Kampagne Edit-Modus: Abhängige Felder laden
+      if (form.dataset.entityType === 'kampagne' && form.dataset.isEditMode === 'true') {
+        await this.loadKampagneDependentFieldsImproved(field, form, options);
+        
+        // Felder als readonly/fixiert markieren
+        if (['unternehmen_id', 'marke_id', 'auftrag_id'].includes(field.name)) {
+          setTimeout(() => {
+            this.setKampagneFieldAsReadonly(field, form);
+          }, 200); // Länger warten
         }
       }
 
@@ -551,6 +766,241 @@ export class DynamicDataLoader {
       
       this.reinitializeSearchableSelect(selectElement, normalized, field);
       return;
+    }
+  }
+
+  // Verbesserte Kampagne Edit-Mode Behandlung
+  async loadKampagneDependentFieldsImproved(field, form, options) {
+    try {
+      const editModeData = form.dataset.editModeData ? JSON.parse(form.dataset.editModeData) : {};
+      
+      // Unternehmen-Feld: Bestehenden Wert als selected markieren
+      if (field.name === 'unternehmen_id' && editModeData.unternehmen_id) {
+        console.log('🏢 DYNAMICDATALOADER: Markiere Unternehmen als selected:', editModeData.unternehmen_id);
+        console.log('🏢 DYNAMICDATALOADER: Verfügbare Unternehmen-Optionen:', options.length, options);
+        let found = false;
+        options.forEach(option => {
+          if (option.value === editModeData.unternehmen_id) {
+            option.selected = true;
+            found = true;
+            console.log('✅ DYNAMICDATALOADER: Unternehmen gefunden und markiert:', option.label);
+          }
+        });
+        if (!found) {
+          console.log('❌ DYNAMICDATALOADER: Unternehmen NICHT in Optionen gefunden! Suche:', editModeData.unternehmen_id);
+        }
+      }
+      
+      // Marken für das bestehende Unternehmen laden
+      if (field.name === 'marke_id' && editModeData.unternehmen_id) {
+        console.log('🏢 DYNAMICDATALOADER: Lade Marken für Unternehmen im Kampagne Edit-Modus:', editModeData.unternehmen_id);
+        
+        const { data: marken, error } = await window.supabase
+          .from('marke')
+          .select('id, markenname')
+          .eq('unternehmen_id', editModeData.unternehmen_id)
+          .order('markenname');
+        
+        if (!error && marken) {
+          // Bestehende Optionen durch Marken ersetzen
+          options.length = 0; // Array leeren
+          
+          if (marken.length === 0) {
+            // Keine Marken für dieses Unternehmen
+            options.push({ 
+              value: '', 
+              label: 'Keine Marken für dieses Unternehmen verfügbar', 
+              selected: true,
+              disabled: true,
+              style: 'color: #6b7280; font-style: italic;'
+            });
+            console.log('ℹ️ DYNAMICDATALOADER: Keine Marken für Unternehmen gefunden');
+          } else {
+            // Placeholder Option
+            options.push({ value: '', label: 'Marke auswählen...', selected: false });
+            // Marken hinzufügen
+            marken.forEach(marke => {
+              options.push({
+                value: marke.id,
+                label: marke.markenname,
+                selected: marke.id === editModeData.marke_id
+              });
+            });
+            console.log('✅ DYNAMICDATALOADER: Marken-Optionen geladen:', options.length - 1);
+          }
+        }
+      }
+      
+      // Aufträge laden: Entweder für Marke oder direkt für Unternehmen (falls keine Marken)
+      if (field.name === 'auftrag_id' && (editModeData.marke_id || editModeData.unternehmen_id)) {
+        let auftraege = [];
+        let auftragsTyp = '';
+        
+        if (editModeData.marke_id) {
+          // Standard: Aufträge für die bestehende Marke laden
+          console.log('🏷️ DYNAMICDATALOADER: Lade Aufträge für Marke im Kampagne Edit-Modus:', editModeData.marke_id);
+          auftragsTyp = 'Marke';
+          
+          const { data, error } = await window.supabase
+            .from('auftrag')
+            .select('id, auftragsname')
+            .eq('marke_id', editModeData.marke_id)
+            .order('auftragsname');
+          
+          if (!error && data) auftraege = data;
+        } else if (editModeData.unternehmen_id) {
+          // Fallback: Direkte Unternehmens-Aufträge (wenn keine Marke verfügbar)
+          console.log('🏢 DYNAMICDATALOADER: Lade direkte Aufträge für Unternehmen (keine Marken):', editModeData.unternehmen_id);
+          auftragsTyp = 'Unternehmen';
+          
+          const { data, error } = await window.supabase
+            .from('auftrag')
+            .select('id, auftragsname')
+            .eq('unternehmen_id', editModeData.unternehmen_id)
+            .is('marke_id', null)
+            .order('auftragsname');
+          
+          if (!error && data) auftraege = data;
+        }
+        
+        // Optionen aufbauen
+        options.length = 0; // Array leeren
+        
+        if (auftraege.length === 0) {
+          // Keine Aufträge verfügbar
+          options.push({ 
+            value: '', 
+            label: `Keine Aufträge für diese ${auftragsTyp} verfügbar`, 
+            selected: true,
+            disabled: true,
+            style: 'color: #6b7280; font-style: italic;'
+          });
+          console.log(`ℹ️ DYNAMICDATALOADER: Keine Aufträge für ${auftragsTyp} gefunden`);
+        } else {
+          // Placeholder Option
+          options.push({ value: '', label: 'Auftrag auswählen...', selected: false });
+          // Aufträge hinzufügen
+          auftraege.forEach(auftrag => {
+            options.push({
+              value: auftrag.id,
+              label: auftrag.auftragsname,
+              selected: auftrag.id === editModeData.auftrag_id
+            });
+          });
+          console.log(`✅ DYNAMICDATALOADER: ${auftragsTyp}-Auftrags-Optionen geladen:`, options.length - 1);
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ DYNAMICDATALOADER: Fehler beim Laden der verbesserten Kampagne-Felder:', error);
+    }
+  }
+
+  // Setze Kampagne-Feld als readonly/fixiert
+  setKampagneFieldAsReadonly(field, form) {
+    console.log('🔒 DYNAMICDATALOADER: Setze Feld als readonly:', field.name);
+    
+    try {
+      // Label als "fixiert" markieren
+      const label = form.querySelector(`label[for="field-${field.name}"]`);
+      if (label && !label.textContent.includes('(fixiert)')) {
+        label.textContent += ' (fixiert)';
+        label.style.color = '#6b7280';
+      }
+      
+      // Searchable Select Container finden und deaktivieren
+      const searchableContainer = form.querySelector(`.searchable-select-container[data-field="${field.name}"]`);
+      if (searchableContainer) {
+        // Input deaktivieren
+        const input = searchableContainer.querySelector('.searchable-select-input');
+        if (input) {
+          input.disabled = true;
+          input.style.backgroundColor = '#f3f4f6';
+          input.style.cursor = 'not-allowed';
+          input.style.color = '#6b7280';
+        }
+        
+        // Container visuell deaktivieren
+        searchableContainer.style.opacity = '0.7';
+        searchableContainer.style.pointerEvents = 'none';
+        
+        // Dropdown verstecken
+        const dropdown = searchableContainer.querySelector('.searchable-select-dropdown');
+        if (dropdown) {
+          dropdown.style.display = 'none';
+        }
+      }
+      
+      // Original Select-Element deaktivieren
+      const select = form.querySelector(`select[name="${field.name}"]`);
+      if (select) {
+        select.disabled = true;
+        select.style.backgroundColor = '#f3f4f6';
+        select.style.cursor = 'not-allowed';
+      }
+      
+      console.log('✅ DYNAMICDATALOADER: Feld als readonly gesetzt:', field.name);
+      
+    } catch (error) {
+      console.error('❌ DYNAMICDATALOADER: Fehler beim Setzen als readonly:', error);
+    }
+  }
+
+  // Lade abhängige Felder für Kampagne im Edit-Modus (alte Methode)
+  async loadKampagneDependentFields(field, form, options) {
+    try {
+      const editModeData = form.dataset.editModeData ? JSON.parse(form.dataset.editModeData) : {};
+      
+      // Marken für das bestehende Unternehmen laden
+      if (field.name === 'marke_id' && editModeData.unternehmen_id) {
+        console.log('🏢 DYNAMICDATALOADER: Lade Marken für Unternehmen im Kampagne Edit-Modus:', editModeData.unternehmen_id);
+        
+        const { data: marken, error } = await window.supabase
+          .from('marke')
+          .select('id, markenname')
+          .eq('unternehmen_id', editModeData.unternehmen_id)
+          .order('markenname');
+        
+        if (!error && marken) {
+          // Bestehende Optionen durch Marken ersetzen
+          options.length = 0; // Array leeren
+          marken.forEach(marke => {
+            options.push({
+              value: marke.id,
+              label: marke.markenname,
+              selected: marke.id === editModeData.marke_id
+            });
+          });
+          console.log('✅ DYNAMICDATALOADER: Marken-Optionen geladen:', options.length);
+        }
+      }
+      
+      // Aufträge für die bestehende Marke laden
+      if (field.name === 'auftrag_id' && editModeData.marke_id) {
+        console.log('🏷️ DYNAMICDATALOADER: Lade Aufträge für Marke im Kampagne Edit-Modus:', editModeData.marke_id);
+        
+        const { data: auftraege, error } = await window.supabase
+          .from('auftrag')
+          .select('id, auftragsname')
+          .eq('marke_id', editModeData.marke_id)
+          .order('auftragsname');
+        
+        if (!error && auftraege) {
+          // Bestehende Optionen durch Aufträge ersetzen
+          options.length = 0; // Array leeren
+          auftraege.forEach(auftrag => {
+            options.push({
+              value: auftrag.id,
+              label: auftrag.auftragsname,
+              selected: auftrag.id === editModeData.auftrag_id
+            });
+          });
+          console.log('✅ DYNAMICDATALOADER: Auftrags-Optionen geladen:', options.length);
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ DYNAMICDATALOADER: Fehler beim Laden der Kampagne-abhängigen Felder:', error);
     }
   }
 

@@ -18,6 +18,7 @@ import { dataService } from './core/DataService.js';
 import { validatorSystem } from './core/ValidatorSystem.js';
 import { creatorUtils } from './modules/creator/CreatorUtils.js';
 import { formSystem } from './core/FormSystem.js';
+import { FormSystem } from './core/form/FormSystem.js';
 import { notizenSystem } from './core/NotizenSystem.js';
 import { bewertungsSystem } from './core/BewertungsSystem.js';
 import { unternehmenDetail } from './modules/unternehmen/UnternehmenDetail.js';
@@ -38,9 +39,16 @@ import { rechnungDetail } from './modules/rechnung/RechnungDetail.js';
 import { actionsDropdown } from './core/ActionsDropdown.js';
 import { mitarbeiterList } from './modules/admin/MitarbeiterList.js';
 import { mitarbeiterDetail } from './modules/admin/MitarbeiterDetail.js';
+import { kundenList } from './modules/admin/KundenList.js';
+import { kundenDetail } from './modules/admin/KundenDetail.js';
+import { kundenLanding } from './modules/kunden/KundenLanding.js';
+import { kundenKampagneDetail } from './modules/kunden/KundenKampagneDetail.js';
+import { kundenKooperationDetail } from './modules/kunden/KundenKooperationDetail.js';
 import { bulkActionSystem } from './core/BulkActionSystem.js';
 import { notificationSystem } from './core/NotificationSystem.js';
 import { dashboardModule } from './modules/dashboard/DashboardModule.js';
+// Zentrales Bestätigungs-Modal (side-effect Import, hängt window.confirmationModal an)
+import './core/ConfirmationModal.js';
 // main.js - Haupt-Einstiegspunkt für ES6-Module
 
 // Zentrale Modul-Registry (Event-basiert)
@@ -60,11 +68,28 @@ class ModuleRegistry {
 
   // Navigation zu Modul
   navigateTo(route) {
+    // URL aktualisieren (inkl. Query-String), damit searchParams verfügbar sind
+    try {
+      if (window.history && window.history.pushState) {
+        const url = route.startsWith('/') ? route : `/${route}`;
+        window.history.pushState({ route: url }, '', url);
+      }
+    } catch (_) {}
+
+    // Kompatibilitäts-Redirects
+    try {
+      if (route.startsWith('/admin/kunden')) {
+        // Mappe auf das einsegmentige Routing der App
+        route = route.replace('/admin/kunden', '/kunden-admin');
+      }
+    } catch (_) {}
+
     const path = route.replace(/^\//, '');
-    const [segment, id] = path.split('/');
+    const pathParts = path.split('/');
+    const [segment, id, action] = pathParts;
 
     if (import.meta.env.DEV) {
-      console.log(`🧭 Navigation zu: ${segment}${id ? ` (ID: ${id})` : ''}`);
+      console.log(`🧭 Navigation zu: ${segment}${id ? ` (ID: ${id})` : ''}${action ? ` (Action: ${action})` : ''}`);
       console.log(`🔍 Verfügbare Module:`, Array.from(this.modules.keys()));
       console.log(`🎯 Gesuchtes Modul: ${segment}`);
     }
@@ -79,6 +104,7 @@ class ModuleRegistry {
     // Neues Modul laden
     let moduleKey = segment;
     let module = this.modules.get(moduleKey);
+    let isEditMode = action === 'edit';
     
     // Spezielle Behandlung für Creator-Details (aber nicht für 'new')
     if (id && segment === 'creator' && id !== 'new') {
@@ -98,6 +124,25 @@ class ModuleRegistry {
       moduleKey = 'mitarbeiter-detail';
       module = this.modules.get(moduleKey);
       console.log(`🎯 Mitarbeiter-Details erkannt, verwende Modul: ${moduleKey}`);
+    }
+
+    // Spezielle Behandlung für Kunden-Admin-Details
+    if (id && (segment === 'kunden-admin') && id !== 'new') {
+      moduleKey = 'kunden-detail';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Kunden-Admin-Details erkannt, verwende Modul: ${moduleKey}`);
+    }
+
+    // Kunden-Portal Detailseiten
+    if (id && segment === 'kunden-kampagne' && id !== 'new') {
+      moduleKey = 'kunden-kampagne-detail';
+      module = this.modules.get(moduleKey);
+      console.log('🎯 Kunden Kampagne-Detail erkannt');
+    }
+    if (id && segment === 'kunden-kooperation' && id !== 'new') {
+      moduleKey = 'kunden-kooperation-detail';
+      module = this.modules.get(moduleKey);
+      console.log('🎯 Kunden Kooperation-Detail erkannt');
     }
     
     // Spezielle Behandlung für Marken-Details (aber nicht für 'new')
@@ -135,10 +180,17 @@ class ModuleRegistry {
     }
 
     // Route: /video/:id → Kooperation-Video-Detail
-    if (id && segment === 'video' && id !== 'new') {
+    const idCleanForVideo = id ? id.split('?')[0] : id;
+    if (idCleanForVideo && segment === 'video' && idCleanForVideo !== 'new') {
       moduleKey = 'kooperation-video-detail';
       module = this.modules.get(moduleKey);
       console.log(`🎯 Video-Details erkannt, verwende Modul: ${moduleKey}`);
+    }
+    // Route: /video/new?kooperation=:id → Neues Video anlegen
+    if (segment === 'video' && (!idCleanForVideo || idCleanForVideo === 'new')) {
+      moduleKey = 'kooperation-video-detail';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Video-Neuanlage erkannt, verwende Modul: ${moduleKey}`);
     }
     
     // Spezielle Behandlung für Kampagnen-Details (aber nicht für 'new')
@@ -174,7 +226,8 @@ class ModuleRegistry {
       this.currentModule = module;
 
       // Spezielle Routen behandeln
-      if (id === 'new') {
+      const effectiveId = id ? id.split('?')[0] : id;
+      if (effectiveId === 'new') {
         // Für Rechnungen Erstellungs-Route direkt auf Detail-Modul routen
         if (segment === 'rechnung') {
           moduleKey = 'rechnung-detail';
@@ -188,9 +241,23 @@ class ModuleRegistry {
         } else {
           return module.showCreateForm?.();
         }
-      } else if (id) {
-        console.log(`👁️ Zeige Details für: ${segment}/${id}`);
-        return module.init?.(id);
+      } else if (effectiveId) {
+        if (isEditMode) {
+          console.log(`✏️ Zeige Edit-Formular für: ${segment}/${id}`);
+          // Für Edit-Modus: Lade Detail-Modul und zeige Edit-Formular
+          if (module && module.init) {
+            module.init(effectiveId).then(() => {
+              // Nach dem Laden der Detail-Daten, zeige Edit-Formular
+              if (module.showEditForm) {
+                module.showEditForm();
+              }
+            });
+            return;
+          }
+        } else {
+          console.log(`👁️ Zeige Details für: ${segment}/${id}`);
+          return module.init?.(effectiveId);
+        }
       } else {
         console.log(`🚀 Initialisiere Modul: ${segment}`);
         return module.init();
@@ -250,6 +317,12 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('rechnung-detail', rechnungDetail);
   moduleRegistry.register('mitarbeiter', mitarbeiterList);
   moduleRegistry.register('mitarbeiter-detail', mitarbeiterDetail);
+  moduleRegistry.register('admin/kunden', kundenList);
+  moduleRegistry.register('kunden-admin', kundenList);
+  moduleRegistry.register('kunden-detail', kundenDetail);
+  moduleRegistry.register('kunden', kundenLanding);
+  moduleRegistry.register('kunden-kampagne-detail', kundenKampagneDetail);
+  moduleRegistry.register('kunden-kooperation-detail', kundenKooperationDetail);
   moduleRegistry.register('dashboard', dashboardModule);
   
   // Profile-Modul initialisieren und registrieren
@@ -295,6 +368,7 @@ window.dataService = dataService;
 window.validatorSystem = validatorSystem;
 window.creatorUtils = creatorUtils;
 window.formSystem = formSystem;
+window.newFormSystem = new FormSystem();
 window.notizenSystem = notizenSystem;
 window.bewertungsSystem = bewertungsSystem;
 window.ActionsDropdown = actionsDropdown;

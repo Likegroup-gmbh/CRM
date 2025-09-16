@@ -356,7 +356,7 @@ export class CreatorList {
   }
 
   // Bestätigungsdialog für Bulk-Delete
-  showDeleteSelectedConfirmation() {
+  async showDeleteSelectedConfirmation() {
     const selectedCount = this.selectedCreator.size;
     if (selectedCount === 0) {
       alert('Keine Creator ausgewählt.');
@@ -366,11 +366,13 @@ export class CreatorList {
     const message = selectedCount === 1 
       ? 'Möchten Sie den ausgewählten Creator wirklich löschen?' 
       : `Möchten Sie die ${selectedCount} ausgewählten Creator wirklich löschen?`;
-    
-    const confirmed = confirm(`${message}\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`);
-    
-    if (confirmed) {
-      this.deleteSelectedCreators();
+
+    if (window.confirmationModal) {
+      const res = await window.confirmationModal.open({ title: 'Löschvorgang bestätigen', message, confirmText: 'Endgültig löschen', cancelText: 'Abbrechen', danger: true });
+      if (res?.confirmed) this.deleteSelectedCreators();
+    } else {
+      const confirmed = confirm(`${message}\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`);
+      if (confirmed) this.deleteSelectedCreators();
     }
   }
 
@@ -613,7 +615,43 @@ export class CreatorList {
       const formData = new FormData(form);
       const submitData = {};
 
-      // FormData zu Objekt konvertieren
+      // Tag-basierte Multi-Selects aus Hidden-Selects sammeln
+      const tagBasedSelects = form.querySelectorAll('select[data-tag-based="true"]');
+      tagBasedSelects.forEach(select => {
+        const fieldName = select.name;
+        
+        // Suche das versteckte Select mit den tatsächlichen Werten
+        let hiddenSelect = form.querySelector(`select[name="${fieldName}[]"][style*="display: none"]`);
+        if (!hiddenSelect) {
+          hiddenSelect = form.querySelector(`select[name="${fieldName}"][style*="display: none"]`);
+        }
+        
+        // Alternative: Suche nach Tag-Container und sammle Werte aus Tags
+        if (!hiddenSelect) {
+          const tagContainer = form.querySelector(`select[name="${fieldName}"]`)?.closest('.form-field')?.querySelector('.tag-based-select');
+          if (tagContainer) {
+            const tags = tagContainer.querySelectorAll('.tag[data-value]');
+            const tagValues = Array.from(tags).map(tag => tag.dataset.value).filter(Boolean);
+            if (tagValues.length > 0) {
+              submitData[fieldName] = tagValues;
+              console.log(`🏷️ Tag-basiertes Feld ${fieldName} aus Tags gesammelt:`, tagValues);
+              return;
+            }
+          }
+        }
+        
+        if (hiddenSelect) {
+          const values = Array.from(hiddenSelect.selectedOptions).map(opt => opt.value).filter(Boolean);
+          if (values.length > 0) {
+            submitData[fieldName] = values;
+            console.log(`🏷️ Tag-basiertes Feld ${fieldName} aus Hidden-Select gesammelt:`, values);
+          }
+        } else {
+          console.warn(`⚠️ Kein Hidden-Select oder Tags für ${fieldName} gefunden`);
+        }
+      });
+
+      // FormData zu Objekt konvertieren (aber Tag-basierte Felder nicht überschreiben)
       for (const [key, value] of formData.entries()) {
         if (key.includes('[]')) {
           // Multi-Select behandeln
@@ -623,7 +661,12 @@ export class CreatorList {
           }
           submitData[cleanKey].push(value);
         } else {
-          submitData[key] = value;
+          // Nur setzen wenn nicht bereits als Array von Tag-basierten Feldern gesetzt
+          if (!submitData.hasOwnProperty(key) || !Array.isArray(submitData[key])) {
+            submitData[key] = value;
+          } else {
+            console.log(`⚠️ Überspringe ${key}, bereits als Array gesetzt:`, submitData[key]);
+          }
         }
       }
 

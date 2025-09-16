@@ -39,11 +39,15 @@ export class FormRenderer {
         </button>
       </div>
       <div class="modal-body">
-        <form id="${entity}-form" data-entity-id="${data?.id || ''}">
+        <form id="${entity}-form" data-entity="${entity}" data-entity-id="${data?.id || ''}">
           ${formHtml}
           <div class="form-actions">
             <button type="button" class="btn-secondary" onclick="this.closest('.modal-content').querySelector('.btn-close').click()">Abbrechen</button>
-            <button type="submit" class="btn-primary">${isEdit ? 'Aktualisieren' : 'Erstellen'}</button>
+            <button type="submit" class="mdc-btn mdc-btn--create" data-variant="@create-prd.mdc" data-entity-label="${this.getEntityLabel(entity)}" data-mode="${isEdit ? 'update' : 'create'}">
+              <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">${this.getCheckIcon()}</span>
+              <span class="mdc-btn__spinner" aria-hidden="true">${this.getSpinnerIcon()}</span>
+              <span class="mdc-btn__label">${isEdit ? 'Aktualisieren' : 'Erstellen'}</span>
+            </button>
           </div>
         </form>
       </div>
@@ -85,11 +89,15 @@ export class FormRenderer {
     if (inTwoCol) parts.push('</div>');
 
     return `
-      <form id="${entity}-form" data-entity-id="${data?.id || ''}">
+      <form id="${entity}-form" data-entity="${entity}" data-entity-id="${data?.id || data?._entityId || ''}" data-is-edit-mode="${data?._isEditMode ? 'true' : 'false'}">
         ${parts.join('')}
         <div class="form-actions">
           <button type="button" class="btn-secondary" onclick="window.navigateTo('/${entity}')">Abbrechen</button>
-          <button type="submit" class="btn-primary">${data ? 'Aktualisieren' : 'Erstellen'}</button>
+          <button type="submit" class="mdc-btn mdc-btn--create" data-variant="@create-prd.mdc" data-entity-label="${this.getEntityLabel(entity)}" data-mode="${data ? 'update' : 'create'}">
+            <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">${this.getCheckIcon()}</span>
+            <span class="mdc-btn__spinner" aria-hidden="true">${this.getSpinnerIcon()}</span>
+            <span class="mdc-btn__label">${data ? 'Aktualisieren' : 'Erstellen'}</span>
+          </button>
         </div>
       </form>
     `;
@@ -320,6 +328,36 @@ export class FormRenderer {
 
       default:
         return `<div class="form-field">Unbekannter Feldtyp: ${field.type}</div>`;
+    }
+  }
+
+  // Hilfsmethoden für Button-Icons und Labels
+  getCheckIcon() {
+    return `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+  <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+</svg>`;
+  }
+
+  getSpinnerIcon() {
+    return `
+<svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
+  <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
+</svg>`;
+  }
+
+  getEntityLabel(entity) {
+    switch (entity) {
+      case 'kampagne': return 'Kampagne';
+      case 'auftrag': return 'Auftrag';
+      case 'creator': return 'Creator';
+      case 'marke': return 'Marke';
+      case 'unternehmen': return 'Unternehmen';
+      case 'briefing': return 'Briefing';
+      case 'kooperation': return 'Kooperation';
+      case 'rechnung': return 'Rechnung';
+      case 'ansprechpartner': return 'Ansprechpartner';
+      default: return 'Eintrag';
     }
   }
 

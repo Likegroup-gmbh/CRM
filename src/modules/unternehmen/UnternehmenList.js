@@ -359,6 +359,18 @@ export class UnternehmenList {
                   </svg>
                   Notiz hinzufügen
                 </a>
+                <a href="#" class="action-item" data-action="add_ansprechpartner_unternehmen" data-id="${unternehmen.id}">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+                    <path d="M10 5a3 3 0 11-6 0 3 3 0 016 0zM1.615 16.428a1.224 1.224 0 01-.569-1.175 6.002 6.002 0 0111.908 0c.058.467-.172.92-.57 1.174A9.953 9.953 0 017 18a9.953 9.953 0 01-5.385-1.572zM16.25 5.75a.75.75 0 00-1.5 0v2h-2a.75.75 0 000 1.5h2v2a.75.75 0 001.5 0v-2h2a.75.75 0 000-1.5h-2v-2z" />
+                  </svg>
+                  Ansprechpartner hinzufügen
+                </a>
+                <a href="#" class="action-item" data-action="remove_ansprechpartner_unternehmen" data-id="${unternehmen.id}">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+                    <path d="M10 5a3 3 0 11-6 0 3 3 0 016 0zM1.615 16.428a1.224 1.224 0 01-.569-1.175 6.002 6.002 0 0111.908 0c.058.467-.172.92-.57 1.174A9.953 9.953 0 017 18a9.953 9.953 0 01-5.385-1.572zM16.25 8.25a.75.75 0 000 1.5h4a.75.75 0 000-1.5h-4z" />
+                  </svg>
+                  Ansprechpartner entfernen
+                </a>
                 
                 <div class="action-separator"></div>
                 <a href="#" class="action-item action-danger" data-action="delete" data-id="${unternehmen.id}">
@@ -411,41 +423,67 @@ export class UnternehmenList {
     return '-';
   }
 
-  // Ansprechpartner in einem Rutsch laden und als Map zurückgeben
+  // Ansprechpartner in einem Rutsch laden und als Map zurückgeben (über Junction Table)
   async loadAnsprechpartnerMap(unternehmenIds) {
     const map = new Map();
     try {
       if (!window.supabase || !Array.isArray(unternehmenIds) || unternehmenIds.length === 0) {
         return map;
       }
+      
+      // Neue Junction Table Query - analog zu Marken-Implementierung
       const { data, error } = await window.supabase
-        .from('ansprechpartner')
-        .select('id, vorname, nachname, unternehmen_id')
+        .from('ansprechpartner_unternehmen')
+        .select(`
+          unternehmen_id,
+          ansprechpartner:ansprechpartner_id (
+            id,
+            vorname,
+            nachname,
+            email
+          )
+        `)
         .in('unternehmen_id', unternehmenIds);
+        
       if (error) {
         console.warn('⚠️ Konnte Ansprechpartner nicht laden:', error);
         return map;
       }
-      (data || []).forEach(ap => {
-        const list = map.get(ap.unternehmen_id) || [];
-        list.push(ap);
-        map.set(ap.unternehmen_id, list);
+      
+      (data || []).forEach(item => {
+        if (!item.ansprechpartner) return; // Skip invalid entries
+        
+        const unternehmenId = item.unternehmen_id;
+        const ansprechpartner = item.ansprechpartner;
+        
+        const list = map.get(unternehmenId) || [];
+        list.push(ansprechpartner);
+        map.set(unternehmenId, list);
       });
+      
+      console.log('✅ UNTERNEHMENLISTE: Ansprechpartner-Map geladen:', map.size, 'Unternehmen');
+      
     } catch (e) {
       console.warn('⚠️ loadAnsprechpartnerMap Fehler:', e);
     }
     return map;
   }
 
-  // Ansprechpartner-Liste rendern (kompakte Tags)
+  // Ansprechpartner-Liste rendern (klickbare Tags wie bei Marken)
   renderAnsprechpartnerList(list) {
     if (!list || list.length === 0) return '-';
-    const inner = list.slice(0, 3).map(ap => {
-      const name = `${ap.vorname || ''} ${ap.nachname || ''}`.trim();
-      return `<span class="tag">${window.validatorSystem.sanitizeHtml(name || '-') }</span>`;
-    }).join('');
-    const more = list.length > 3 ? `<span class="tag">+${list.length - 3}</span>` : '';
-    return `<div class="tags tags-compact">${inner}${more}</div>`;
+    
+    // Ansprechpartner als klickbare Tags (analog zu MarkeList)
+    const ansprechpartnerTags = list
+      .filter(ap => ap && ap.vorname && ap.nachname) // Nur gültige Ansprechpartner
+      .slice(0, 3) // Maximal 3 Tags anzeigen
+      .map(ap => `<a href="#" class="tag tag--ansprechpartner" data-action="view-ansprechpartner" data-id="${ap.id}" onclick="event.preventDefault(); window.navigateTo('/ansprechpartner/${ap.id}')">${window.validatorSystem.sanitizeHtml(ap.vorname)} ${window.validatorSystem.sanitizeHtml(ap.nachname)}</a>`)
+      .join('');
+    
+    // "Mehr" Indikator für weitere Ansprechpartner
+    const more = list.length > 3 ? `<span class="tag tag--more">+${list.length - 3}</span>` : '';
+    
+    return `<div class="tags tags-compact">${ansprechpartnerTags}${more}</div>`;
   }
 
   // Cleanup
@@ -653,7 +691,7 @@ export class UnternehmenList {
   }
 
   // Bestätigungsdialog für Bulk-Delete
-  showDeleteSelectedConfirmation() {
+  async showDeleteSelectedConfirmation() {
     const selectedCount = this.selectedUnternehmen.size;
     if (selectedCount === 0) {
       alert('Keine Unternehmen ausgewählt.');
@@ -663,11 +701,13 @@ export class UnternehmenList {
     const message = selectedCount === 1 
       ? 'Möchten Sie das ausgewählte Unternehmen wirklich löschen?' 
       : `Möchten Sie die ${selectedCount} ausgewählten Unternehmen wirklich löschen?`;
-    
-    const confirmed = confirm(`${message}\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`);
-    
-    if (confirmed) {
-      this.deleteSelectedUnternehmen();
+
+    if (window.confirmationModal) {
+      const res = await window.confirmationModal.open({ title: 'Löschvorgang bestätigen', message, confirmText: 'Endgültig löschen', cancelText: 'Abbrechen', danger: true });
+      if (res?.confirmed) this.deleteSelectedUnternehmen();
+    } else {
+      const confirmed = confirm(`${message}\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`);
+      if (confirmed) this.deleteSelectedUnternehmen();
     }
   }
 

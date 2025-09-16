@@ -141,6 +141,7 @@ export class AuthService {
           window.actionsDropdown?.init?.();
           window.bulkActionSystem?.init?.();
           window.notificationSystem?.init?.();
+          
           // Aktuelle Route neu navigieren, damit Berechtigungen greifen
           const currentRoute = location.pathname;
           if (currentRoute) {

@@ -16,6 +16,11 @@ export class KampagneList {
   async init() {
     window.setHeadline('Kampagnen Übersicht');
     
+    // Verstecke Bulk-Actions für Kunden
+    if (window.bulkActionSystem) {
+      window.bulkActionSystem.hideForKunden();
+    }
+    
     // Prüfe Berechtigungen (Page-scope zuerst)
     const canView = (window.canViewPage && window.canViewPage('kampagne')) || await window.checkUserPermission('kampagne', 'can_view');
     if (!canView) {
@@ -84,16 +89,50 @@ export class KampagneList {
       let assignedKampagnenIds = [];
       if (!isAdmin) {
         try {
-          const { data: assigned } = await window.supabase
+          // 1. Direkt zugeordnete Kampagnen
+          const { data: assignedKampagnen } = await window.supabase
             .from('kampagne_mitarbeiter')
             .select('kampagne_id')
             .eq('mitarbeiter_id', window.currentUser?.id);
-          assignedKampagnenIds = (assigned || []).map(r => r.kampagne_id).filter(Boolean);
-          if (assignedKampagnenIds.length === 0) {
+          const directKampagnenIds = (assignedKampagnen || []).map(r => r.kampagne_id).filter(Boolean);
+          
+          // 2. Kampagnen über zugeordnete Marken
+          const { data: assignedMarken } = await window.supabase
+            .from('marke_mitarbeiter')
+            .select('marke_id')
+            .eq('mitarbeiter_id', window.currentUser?.id);
+          const markenIds = (assignedMarken || []).map(r => r.marke_id).filter(Boolean);
+          
+          let markenKampagnenIds = [];
+          if (markenIds.length > 0) {
+            const { data: markenKampagnen } = await window.supabase
+              .from('kampagne')
+              .select('id')
+              .in('marke_id', markenIds);
+            markenKampagnenIds = (markenKampagnen || []).map(k => k.id).filter(Boolean);
+          }
+          
+          // Kombiniere beide Listen und entferne Duplikate
+          assignedKampagnenIds = [...new Set([...directKampagnenIds, ...markenKampagnenIds])];
+          
+          console.log(`🔍 KAMPAGNELIST: Mitarbeiter ${window.currentUser?.id} hat Zugriff auf:`, {
+            direkteKampagnen: directKampagnenIds.length,
+            markenKampagnen: markenKampagnenIds.length,
+            gesamt: assignedKampagnenIds.length
+          });
+          
+          // Für Mitarbeiter: Wenn keine zugewiesenen Kampagnen, dann keine Daten
+          // Für Kunden: RLS-Policies filtern automatisch, also weiter machen
+          if (assignedKampagnenIds.length === 0 && window.currentUser?.rolle !== 'kunde') {
             return [];
           }
-        } catch (_) {
-          return [];
+        } catch (error) {
+          console.error('❌ Fehler beim Laden der Zuordnungen:', error);
+          // Für Kunden: RLS-Policies filtern automatisch, also weiter machen
+          // Für Mitarbeiter: Bei Fehler keine Daten anzeigen
+          if (window.currentUser?.rolle !== 'kunde') {
+            return [];
+          }
         }
       }
 
@@ -108,7 +147,9 @@ export class KampagneList {
         `)
         .order('created_at', { ascending: false });
 
-      if (!isAdmin && assignedKampagnenIds.length > 0) {
+      // Für Mitarbeiter: Filtere nach zugewiesenen Kampagnen
+      // Für Kunden: RLS-Policies filtern automatisch
+      if (!isAdmin && window.currentUser?.rolle !== 'kunde' && assignedKampagnenIds.length > 0) {
         query = query.in('id', assignedKampagnenIds);
       }
 
@@ -215,6 +256,7 @@ export class KampagneList {
               <th>Creator Anzahl</th>
               <th>Video Anzahl</th>
               <th>Ansprechpartner</th>
+              <th>Mitarbeiter</th>
               <th>Aktionen</th>
             </tr>
           </thead>
@@ -441,6 +483,7 @@ export class KampagneList {
           <td>${kampagne.creatoranzahl || 0}</td>
           <td>${kampagne.videoanzahl || 0}</td>
           <td>${this.renderAnsprechpartner(kampagne.ansprechpartner)}</td>
+          <td>${this.renderMitarbeiter(kampagne.mitarbeiter)}</td>
           <td>
             <div class="actions-dropdown-container" data-entity-type="kampagne">
               <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
@@ -568,7 +611,43 @@ export class KampagneList {
       const formData = new FormData(form);
       const submitData = {};
 
-      // FormData zu Objekt konvertieren
+      // Tag-basierte Multi-Selects aus Hidden-Selects sammeln
+      const tagBasedSelects = form.querySelectorAll('select[data-tag-based="true"]');
+      tagBasedSelects.forEach(select => {
+        const fieldName = select.name;
+        
+        // Suche das versteckte Select mit den tatsächlichen Werten
+        let hiddenSelect = form.querySelector(`select[name="${fieldName}[]"][style*="display: none"]`);
+        if (!hiddenSelect) {
+          hiddenSelect = form.querySelector(`select[name="${fieldName}"][style*="display: none"]`);
+        }
+        
+        // Alternative: Suche nach Tag-Container und sammle Werte aus Tags
+        if (!hiddenSelect) {
+          const tagContainer = form.querySelector(`select[name="${fieldName}"]`)?.closest('.form-field')?.querySelector('.tag-based-select');
+          if (tagContainer) {
+            const tags = tagContainer.querySelectorAll('.tag[data-value]');
+            const tagValues = Array.from(tags).map(tag => tag.dataset.value).filter(Boolean);
+            if (tagValues.length > 0) {
+              submitData[fieldName] = tagValues;
+              console.log(`🏷️ Tag-basiertes Feld ${fieldName} aus Tags gesammelt:`, tagValues);
+              return;
+            }
+          }
+        }
+        
+        if (hiddenSelect) {
+          const values = Array.from(hiddenSelect.selectedOptions).map(opt => opt.value).filter(Boolean);
+          if (values.length > 0) {
+            submitData[fieldName] = values;
+            console.log(`🏷️ Tag-basiertes Feld ${fieldName} aus Hidden-Select gesammelt:`, values);
+          }
+        } else {
+          console.warn(`⚠️ Kein Hidden-Select oder Tags für ${fieldName} gefunden`);
+        }
+      });
+
+      // FormData zu Objekt konvertieren (aber Tag-basierte Felder nicht überschreiben)
       for (const [key, value] of formData.entries()) {
         if (key.includes('[]')) {
           // Multi-Select behandeln
@@ -578,7 +657,12 @@ export class KampagneList {
           }
           submitData[cleanKey].push(value);
         } else {
-          submitData[key] = value;
+          // Nur setzen wenn nicht bereits als Array von Tag-basierten Feldern gesetzt
+          if (!submitData.hasOwnProperty(key) || !Array.isArray(submitData[key])) {
+            submitData[key] = value;
+          } else {
+            console.log(`⚠️ Überspringe ${key}, bereits als Array gesetzt:`, submitData[key]);
+          }
         }
       }
 
@@ -601,23 +685,42 @@ export class KampagneList {
       const result = await window.dataService.createEntity('kampagne', submitData);
       
       if (result.success) {
-        // Nach Erstellung: Rollen-Zuweisungen speichern via Formularwerte
+        // Nach Erstellung: Many-to-Many Beziehungen speichern
         try {
           const kampagneId = result.id;
           const toArray = (v) => Array.isArray(v) ? v : (v ? [v] : []);
           const uniq = (arr) => Array.from(new Set((arr || []).filter(Boolean)));
+          
+          // Ansprechpartner-Zuordnungen
+          const ansprechpartner = uniq(toArray(submitData.ansprechpartner_ids));
+          if (ansprechpartner.length > 0) {
+            const ansprechpartnerRows = ansprechpartner.map(apId => ({
+              kampagne_id: kampagneId,
+              ansprechpartner_id: apId
+            }));
+            await window.supabase.from('ansprechpartner_kampagne').insert(ansprechpartnerRows);
+            console.log('✅ Ansprechpartner-Zuordnungen gespeichert:', ansprechpartnerRows.length);
+          }
+          
+          // Mitarbeiter-Zuordnungen (alle Rollen + allgemeine Mitarbeiter)
+          const mitarbeiter = uniq(toArray(submitData.mitarbeiter_ids));
           const pm = uniq(toArray(submitData.pm_ids));
           const sc = uniq(toArray(submitData.scripter_ids));
           const cu = uniq(toArray(submitData.cutter_ids));
-          const rows = [];
-          pm.forEach(uid => rows.push({ kampagne_id: kampagneId, mitarbeiter_id: uid, role: 'projektmanager' }));
-          sc.forEach(uid => rows.push({ kampagne_id: kampagneId, mitarbeiter_id: uid, role: 'scripter' }));
-          cu.forEach(uid => rows.push({ kampagne_id: kampagneId, mitarbeiter_id: uid, role: 'cutter' }));
-          if (rows.length > 0 && window.supabase) {
-            await window.supabase.from('kampagne_mitarbeiter').insert(rows);
+          
+          const mitarbeiterRows = [];
+          // Allgemeine Mitarbeiter als 'projektmanager' einfügen (da 'mitarbeiter' nicht erlaubt ist)
+          mitarbeiter.forEach(uid => mitarbeiterRows.push({ kampagne_id: kampagneId, mitarbeiter_id: uid, role: 'projektmanager' }));
+          pm.forEach(uid => mitarbeiterRows.push({ kampagne_id: kampagneId, mitarbeiter_id: uid, role: 'projektmanager' }));
+          sc.forEach(uid => mitarbeiterRows.push({ kampagne_id: kampagneId, mitarbeiter_id: uid, role: 'scripter' }));
+          cu.forEach(uid => mitarbeiterRows.push({ kampagne_id: kampagneId, mitarbeiter_id: uid, role: 'cutter' }));
+          
+          if (mitarbeiterRows.length > 0 && window.supabase) {
+            await window.supabase.from('kampagne_mitarbeiter').insert(mitarbeiterRows);
+            console.log('✅ Mitarbeiter-Zuordnungen gespeichert:', mitarbeiterRows.length);
           }
         } catch (e) {
-          console.warn('⚠️ Rollen-Zuweisungen konnten nicht gespeichert werden', e);
+          console.warn('⚠️ Many-to-Many Zuordnungen konnten nicht gespeichert werden', e);
         }
 
         this.showSuccessMessage('Kampagne erfolgreich erstellt!');
@@ -729,21 +832,31 @@ export class KampagneList {
   }
 
   // Bestätigungsdialog für Bulk-Delete
-  showDeleteSelectedConfirmation() {
+  async showDeleteSelectedConfirmation() {
     const selectedCount = this.selectedKampagnen.size;
     if (selectedCount === 0) {
       alert('Keine Kampagnen ausgewählt.');
       return;
     }
 
-    const message = selectedCount === 1 
-      ? 'Möchten Sie die ausgewählte Kampagne wirklich löschen?' 
+    const message = selectedCount === 1
+      ? 'Möchten Sie die ausgewählte Kampagne wirklich löschen?'
       : `Möchten Sie die ${selectedCount} ausgewählten Kampagnen wirklich löschen?`;
-    
-    const confirmed = confirm(`${message}\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`);
-    
-    if (confirmed) {
-      this.deleteSelectedKampagnen();
+
+    if (window.confirmationModal) {
+      const res = await window.confirmationModal.open({
+        title: 'Löschvorgang bestätigen',
+        message: `${message}`,
+        confirmText: 'Endgültig löschen',
+        cancelText: 'Abbrechen',
+        danger: true
+      });
+      if (res?.confirmed) {
+        this.deleteSelectedKampagnen();
+      }
+    } else {
+      const confirmed = confirm(`${message}\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`);
+      if (confirmed) this.deleteSelectedKampagnen();
     }
   }
 
@@ -811,6 +924,18 @@ export class KampagneList {
       .join('');
 
     return `<div class="tags tags-compact">${ansprechpartnerTags}</div>`;
+  }
+
+  // Render Mitarbeiter (Tags mit Name)
+  renderMitarbeiter(users) {
+    if (!users || users.length === 0) {
+      return '-';
+    }
+    const userTags = users
+      .filter(u => u && (u.name || u.email))
+      .map(u => `<span class="tag">${window.validatorSystem.sanitizeHtml(u.name || u.email)}</span>`)
+      .join('');
+    return `<div class="tags tags-compact">${userTags}</div>`;
   }
 }
 

@@ -103,6 +103,112 @@ export class DashboardModule {
       nextWeek.setDate(nextWeek.getDate() + 7);
       const nextWeekStr = nextWeek.toISOString().split('T')[0];
 
+      // Sichtbarkeits-Logik: Nicht-Admins nur zugeordnete Inhalte
+      const isAdmin = window.currentUser?.rolle === 'admin';
+      let allowedKampagneIds = [];
+      let allowedKoopIds = [];
+      
+      if (!isAdmin) {
+        try {
+          // 1. Direkt zugeordnete Kampagnen
+          const { data: assignedKampagnen } = await window.supabase
+            .from('kampagne_mitarbeiter')
+            .select('kampagne_id')
+            .eq('mitarbeiter_id', window.currentUser?.id);
+          const directKampagnenIds = (assignedKampagnen || []).map(r => r.kampagne_id).filter(Boolean);
+          
+          // 2. Kampagnen über zugeordnete Marken
+          const { data: assignedMarken } = await window.supabase
+            .from('marke_mitarbeiter')
+            .select('marke_id')
+            .eq('mitarbeiter_id', window.currentUser?.id);
+          const markenIds = (assignedMarken || []).map(r => r.marke_id).filter(Boolean);
+          
+          let markenKampagnenIds = [];
+          if (markenIds.length > 0) {
+            const { data: markenKampagnen } = await window.supabase
+              .from('kampagne')
+              .select('id')
+              .in('marke_id', markenIds);
+            markenKampagnenIds = (markenKampagnen || []).map(k => k.id).filter(Boolean);
+          }
+          
+          // Kombiniere beide Listen und entferne Duplikate
+          allowedKampagneIds = [...new Set([...directKampagnenIds, ...markenKampagnenIds])];
+          
+          // Kooperationen aus erlaubten Kampagnen laden
+          if (allowedKampagneIds.length > 0) {
+            const { data: koops } = await window.supabase
+              .from('kooperationen')
+              .select('id')
+              .in('kampagne_id', allowedKampagneIds);
+            allowedKoopIds = (koops || []).map(k => k.id);
+          }
+          
+          console.log(`🔍 DASHBOARD: Mitarbeiter ${window.currentUser?.id} hat Zugriff auf:`, {
+            direkteKampagnen: directKampagnenIds.length,
+            markenKampagnen: markenKampagnenIds.length,
+            gesamtKampagnen: allowedKampagneIds.length,
+            kooperationen: allowedKoopIds.length
+          });
+        } catch (error) {
+          console.error('❌ Fehler beim Laden der Zuordnungen für Dashboard:', error);
+        }
+      }
+
+      // Queries mit Sichtbarkeits-Filterung
+      let kampagnenQuery = window.supabase
+        .from('kampagne')
+        .select('id, kampagnenname, deadline, unternehmen:unternehmen_id(firmenname)')
+        .lte('deadline', nextWeekStr)
+        .gte('deadline', new Date().toISOString().split('T')[0]);
+      
+      let briefingQuery = window.supabase
+        .from('briefings')
+        .select('id, product_service_offer, deadline, unternehmen:unternehmen_id(firmenname)')
+        .lte('deadline', nextWeekStr)
+        .gte('deadline', new Date().toISOString().split('T')[0]);
+        
+      let koopSkriptQuery = window.supabase
+        .from('kooperationen')
+        .select('id, name, skript_deadline, creator:creator_id(vorname, nachname)')
+        .lte('skript_deadline', nextWeekStr)
+        .gte('skript_deadline', new Date().toISOString().split('T')[0]);
+        
+      let koopContentQuery = window.supabase
+        .from('kooperationen')
+        .select('id, name, content_deadline, creator:creator_id(vorname, nachname)')
+        .lte('content_deadline', nextWeekStr)
+        .gte('content_deadline', new Date().toISOString().split('T')[0]);
+        
+      let rechnungQuery = window.supabase
+        .from('rechnungen')
+        .select('id, rechnungs_nr, zahlungsziel, unternehmen:unternehmen_id(firmenname)')
+        .lte('zahlungsziel', nextWeekStr)
+        .gte('zahlungsziel', new Date().toISOString().split('T')[0]);
+
+      // Nicht-Admin Filterung anwenden
+      if (!isAdmin) {
+        if (allowedKampagneIds.length > 0) {
+          kampagnenQuery = kampagnenQuery.in('id', allowedKampagneIds);
+          briefingQuery = briefingQuery.in('kampagne_id', allowedKampagneIds);
+          rechnungQuery = rechnungQuery.in('kampagne_id', allowedKampagneIds);
+        } else {
+          // Keine Berechtigung = leere Ergebnisse
+          kampagnenQuery = kampagnenQuery.eq('id', '00000000-0000-0000-0000-000000000000');
+          briefingQuery = briefingQuery.eq('kampagne_id', '00000000-0000-0000-0000-000000000000');
+          rechnungQuery = rechnungQuery.eq('kampagne_id', '00000000-0000-0000-0000-000000000000');
+        }
+        
+        if (allowedKoopIds.length > 0) {
+          koopSkriptQuery = koopSkriptQuery.in('id', allowedKoopIds);
+          koopContentQuery = koopContentQuery.in('id', allowedKoopIds);
+        } else {
+          koopSkriptQuery = koopSkriptQuery.eq('id', '00000000-0000-0000-0000-000000000000');
+          koopContentQuery = koopContentQuery.eq('id', '00000000-0000-0000-0000-000000000000');
+        }
+      }
+
       const [
         { data: kampagnenDeadlines },
         { data: briefingDeadlines },
@@ -110,35 +216,11 @@ export class DashboardModule {
         { data: kooperationContentDeadlines },
         { data: rechnungDeadlines }
       ] = await Promise.all([
-        window.supabase
-          .from('kampagne')
-          .select('id, kampagnenname, deadline, unternehmen:unternehmen_id(firmenname)')
-          .lte('deadline', nextWeekStr)
-          .gte('deadline', new Date().toISOString().split('T')[0]),
-        
-        window.supabase
-          .from('briefings')
-          .select('id, product_service_offer, deadline, unternehmen:unternehmen_id(firmenname)')
-          .lte('deadline', nextWeekStr)
-          .gte('deadline', new Date().toISOString().split('T')[0]),
-        
-        window.supabase
-          .from('kooperationen')
-          .select('id, name, skript_deadline, creator:creator_id(vorname, nachname)')
-          .lte('skript_deadline', nextWeekStr)
-          .gte('skript_deadline', new Date().toISOString().split('T')[0]),
-        
-        window.supabase
-          .from('kooperationen')
-          .select('id, name, content_deadline, creator:creator_id(vorname, nachname)')
-          .lte('content_deadline', nextWeekStr)
-          .gte('content_deadline', new Date().toISOString().split('T')[0]),
-        
-        window.supabase
-          .from('rechnungen')
-          .select('id, rechnungs_nr, zahlungsziel, unternehmen:unternehmen_id(firmenname)')
-          .lte('zahlungsziel', nextWeekStr)
-          .gte('zahlungsziel', new Date().toISOString().split('T')[0])
+        kampagnenQuery,
+        briefingQuery,
+        koopSkriptQuery,
+        koopContentQuery,
+        rechnungQuery
       ]);
 
       this.data.deadlines = [

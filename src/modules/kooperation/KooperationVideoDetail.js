@@ -8,10 +8,70 @@ export const kooperationVideoDetail = {
 
   async init(id) {
     try {
-      this.videoId = id === 'new' ? null : id;
-      if (!this.videoId) {
+      const url = new URL(window.location.href);
+      const koopId = url.searchParams.get('kooperation');
+      this.videoId = (id && id !== 'new') ? id : null;
+      const mode = (!this.videoId) ? 'new' : 'detail';
+      if (!this.videoId && mode === 'new') {
+        // Seite: Neues Video anlegen
         window.setHeadline('Neues Video');
-        window.content.innerHTML = '<p class="empty-state">Neuanlage für Videos ist noch nicht implementiert.</p>';
+        const canEdit = window.currentUser?.permissions?.kooperation?.can_edit || window.currentUser?.rolle === 'admin';
+        if (!canEdit) {
+          window.content.innerHTML = '<p class="empty-state">Keine Berechtigung.</p>';
+          return;
+        }
+        const koopInfo = koopId ? await this.fetchKooperationInfo(koopId) : null;
+        const videoLimit = parseInt(koopInfo?.videoanzahl, 10) || 0;
+        const { data: existing } = koopId ? await window.supabase
+          .from('kooperation_videos')
+          .select('id')
+          .eq('kooperation_id', koopId) : { data: [] };
+        const uploaded = (existing || []).length;
+        const limitReached = videoLimit > 0 && uploaded >= videoLimit;
+        const koopName = koopInfo?.name || '-';
+        const kampName = koopInfo?.kampagne?.kampagnenname || '-';
+        const formHtml = `
+          <div class="page-header">
+            <div class="page-header-left">
+              <h1>Neues Video</h1>
+              <p>Kooperation: ${window.validatorSystem?.sanitizeHtml?.(koopName) || '-'} · Kampagne: ${window.validatorSystem?.sanitizeHtml?.(kampName) || '-'}</p>
+            </div>
+            <div class="page-header-right">
+              ${koopId ? `<button id="btn-back-to-kooperation" class="secondary-btn">Zur Kooperation</button>` : ''}
+            </div>
+          </div>
+          <div class="form-page">
+            ${limitReached ? `<div class=\"alert alert-danger\">Videolimit erreicht (${uploaded}/${videoLimit}). Es können keine weiteren Videos angelegt werden.</div>` : ''}
+            <form id="video-create-form" class="entity-form" data-entity="kooperation_videos">
+              <div class="form-grid">
+                <div class="form-field">
+                  <label>Titel</label>
+                  <input type="text" name="titel" class="form-input" placeholder="z. B. Hook/Intro" required />
+                </div>
+                <div class="form-field">
+                  <label>Content Art</label>
+                  <select name="content_art" class="form-input">
+                    <option value="">– bitte wählen –</option>
+                    <option value="Paid">Paid</option>
+                    <option value="Organisch">Organisch</option>
+                    <option value="Influencer">Influencer</option>
+                    <option value="Videograph">Videograph</option>
+                  </select>
+                </div>
+                <div class="form-field">
+                  <label>Asset URL</label>
+                  <input type="url" name="asset_url" class="form-input" placeholder="https://..." />
+                </div>
+                <input type="hidden" name="kooperation_id" value="${koopId || ''}" />
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="primary-btn mdc-btn" data-default-text="Video anlegen" data-success-text="Video angelegt" ${limitReached ? 'disabled' : ''}>Video anlegen</button>
+                ${koopId ? `<button type="button" id="btn-cancel-create" class="secondary-btn">Abbrechen</button>` : ''}
+              </div>
+            </form>
+          </div>`;
+        window.setContentSafely(window.content, formHtml);
+        this.bindCreateEvents(koopId);
         return;
       }
 
@@ -21,6 +81,85 @@ export const kooperationVideoDetail = {
     } catch (error) {
       console.error('KooperationVideoDetail init error:', error);
       window.notificationSystem?.error?.('Video-Detail konnte nicht geladen werden.');
+    }
+  },
+
+  async fetchKooperationInfo(koopId) {
+    try {
+      const { data } = await window.supabase
+        .from('kooperationen')
+        .select('id, name, kampagne:kampagne_id(id, kampagnenname)')
+        .eq('id', koopId)
+        .single();
+      return data || null;
+    } catch (_) { return null; }
+  },
+
+  bindCreateEvents(koopId) {
+    document.getElementById('btn-back-to-kooperation')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (koopId) window.navigateTo(`/kooperation/${koopId}`);
+    });
+    document.getElementById('btn-cancel-create')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (koopId) window.navigateTo(`/kooperation/${koopId}`);
+    });
+    const form = document.getElementById('video-create-form');
+    if (form) {
+      // Hidden Koop-ID sicherstellen
+      const hiddenKoop = form.querySelector('input[name="kooperation_id"]');
+      if (hiddenKoop && !hiddenKoop.value && koopId) hiddenKoop.value = koopId;
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = form.querySelector('.mdc-btn');
+        const fd = new FormData(form);
+        const payload = {
+          kooperation_id: fd.get('kooperation_id') || koopId || null,
+          titel: String(fd.get('titel') || '').trim() || null,
+          content_art: String(fd.get('content_art') || '').trim() || null,
+          asset_url: String(fd.get('asset_url') || '').trim() || null,
+          status: 'produktion'
+        };
+        if (!payload.kooperation_id || !payload.titel) {
+          alert('Bitte Kooperation und Titel angeben.');
+          return;
+        }
+        try {
+          // Micro-Animation aktivieren
+          if (btn) {
+            btn.disabled = true;
+            btn.classList.add('is-loading');
+          }
+          // Nächste Position ermitteln (max(position)+1)
+          let nextPos = 1;
+          try {
+            const { data: last } = await window.supabase
+              .from('kooperation_videos')
+              .select('position')
+              .eq('kooperation_id', koopId)
+              .order('position', { ascending: false })
+              .limit(1);
+            nextPos = ((last && last[0] && parseInt(last[0].position, 10)) || 0) + 1;
+          } catch (_) {}
+          const { error } = await window.supabase.from('kooperation_videos').insert({ ...payload, position: nextPos });
+          if (error) throw error;
+          if (btn) {
+            btn.classList.remove('is-loading');
+            btn.classList.add('is-success');
+            btn.textContent = btn.dataset.successText || 'Angelegt';
+          }
+          setTimeout(() => {
+            window.navigateTo(`/kooperation/${koopId}`);
+          }, 400);
+        } catch (err) {
+          console.error('Video anlegen fehlgeschlagen', err);
+          if (btn) {
+            btn.classList.remove('is-loading');
+            btn.disabled = false;
+          }
+          alert('Video konnte nicht angelegt werden.');
+        }
+      });
     }
   },
 
@@ -144,7 +283,11 @@ export const kooperationVideoDetail = {
                 <option value="produktion" ${v.status !== 'abgeschlossen' ? 'selected' : ''}>Produktion</option>
                 <option value="abgeschlossen" ${v.status === 'abgeschlossen' ? 'selected' : ''}>Abgeschlossen</option>
               </select>
-              <button id="btn-save-status" class="primary-btn">Speichern</button>
+              <button id="btn-save-status" class="mdc-btn mdc-btn--create" data-variant="@create-prd.mdc">
+                <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">${window.formSystem?.formRenderer?.getCheckIcon?.() || '✔'}</span>
+                <span class="mdc-btn__spinner" aria-hidden="true">${window.formSystem?.formRenderer?.getSpinnerIcon?.() || ''}</span>
+                <span class="mdc-btn__label">Speichern</span>
+              </button
             </div>` : ''}
           </div>
         </div>
@@ -177,7 +320,11 @@ export const kooperationVideoDetail = {
               </div>
             </div>
             <div style="margin-top:8px;">
-              <button type="submit" class="primary-btn">Speichern</button>
+              <button type="submit" class="mdc-btn mdc-btn--create" data-variant="@create-prd.mdc" data-default-text="Speichern" data-success-text="Gespeichert">
+                <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">${window.formSystem?.formRenderer?.getCheckIcon?.() || '✔'}</span>
+                <span class="mdc-btn__spinner" aria-hidden="true">${window.formSystem?.formRenderer?.getSpinnerIcon?.() || ''}</span>
+                <span class="mdc-btn__label">Speichern</span>
+              </button>
             </div>
           </form>
         </div>
@@ -268,6 +415,7 @@ export const kooperationVideoDetail = {
     // Kommentar-Submit
     const form = document.getElementById('comment-form');
     if (form) {
+      const btn = form.querySelector('.mdc-btn');
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const fd = new FormData(form);
@@ -275,6 +423,10 @@ export const kooperationVideoDetail = {
         const text = String(fd.get('text') || '').trim();
         if (!text) return;
         try {
+          if (btn) {
+            btn.disabled = true;
+            btn.classList.add('is-loading');
+          }
           const payload = {
             video_id: this.videoId,
             runde,
@@ -286,11 +438,29 @@ export const kooperationVideoDetail = {
           const { error } = await window.supabase.from('kooperation_video_comment').insert(payload);
           if (error) throw error;
           form.reset();
-          await this.loadData();
-          this.render();
-          this.bindEvents();
+          // Direkt lokal ergänzen für Live-Feeling
+          this.comments = this.comments || [];
+          this.comments.push({ ...payload });
+          if (btn) {
+            btn.classList.remove('is-loading');
+            btn.classList.add('is-success');
+            const label = btn.querySelector('.mdc-btn__label');
+            if (label) label.textContent = btn.dataset.successText || 'Gespeichert';
+            setTimeout(() => {
+              btn.classList.remove('is-success');
+              btn.disabled = false;
+              if (label) label.textContent = btn.dataset.defaultText || 'Speichern';
+            }, 600);
+          }
+          // UI Teilbereich aktualisieren
+          const content = document.querySelector('#comments-' + (runde === 2 ? 'r2' : 'r1'));
+          if (content) content.innerHTML = this.renderCommentsTable(runde === 2 ? [...(this.comments.filter(c=>c.runde===2))] : [...(this.comments.filter(c=>c.runde!==2))]);
         } catch (err) {
           console.error('Kommentar speichern fehlgeschlagen', err);
+          if (btn) {
+            btn.classList.remove('is-loading');
+            btn.disabled = false;
+          }
           alert('Kommentar konnte nicht gespeichert werden.');
         }
       });
