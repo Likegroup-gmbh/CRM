@@ -255,7 +255,14 @@ export class AuthService {
 
       const { data, error } = await window.supabase.auth.signUp({
         email,
-        password
+        password,
+        options: {
+          data: {
+            role: 'mitarbeiter',  // Klare Kennzeichnung als Mitarbeiter
+            subrole: 'pending',
+            name: name
+          }
+        }
       });
 
       if (error) {
@@ -285,7 +292,7 @@ export class AuthService {
     }
   }
 
-  // Benutzer-Record erstellen
+  // Benutzer-Record erstellen (wird vom Trigger automatisch erstellt, prüfen ob vorhanden)
   async createBenutzerRecord(authUserId, name, klasseId = null) {
     try {
       if (this._offlineMode) {
@@ -298,6 +305,37 @@ export class AuthService {
         return;
       }
 
+      // Prüfe ob Record bereits vom Trigger erstellt wurde
+      const { data: existingUser, error: checkError } = await window.supabase
+        .from('benutzer')
+        .select('id')
+        .eq('auth_user_id', authUserId)
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('Error checking benutzer record:', checkError);
+        return;
+      }
+
+      if (existingUser) {
+        console.log('✅ Benutzer-Record bereits vom Trigger erstellt');
+        
+        // Update Mitarbeiter-Klasse falls angegeben
+        if (klasseId) {
+          const { error: updateError } = await window.supabase
+            .from('benutzer')
+            .update({ mitarbeiter_klasse_id: klasseId })
+            .eq('auth_user_id', authUserId);
+            
+          if (updateError) {
+            console.error('Error updating mitarbeiter_klasse_id:', updateError);
+          }
+        }
+        return;
+      }
+
+      // Fallback: Erstelle Record falls Trigger fehlgeschlagen ist
+      console.warn('⚠️ Trigger hat keinen Record erstellt - Fallback');
       const { error } = await window.supabase
         .from('benutzer')
         .insert({
@@ -313,7 +351,7 @@ export class AuthService {
       if (error) {
         console.error('Error creating user record:', error);
       } else {
-        console.log('✅ Benutzer-Record erstellt');
+        console.log('✅ Benutzer-Record erstellt (Fallback)');
       }
     } catch (error) {
       console.error('Error creating user record:', error);
