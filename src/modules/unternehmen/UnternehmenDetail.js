@@ -428,22 +428,32 @@ export class UnternehmenDetail {
       `;
     }
 
-    const markenHtml = this.marken.map(marke => `
-      <div class="marke-card">
-        <div class="marke-header">
-          <h4>${marke.markenname || 'Unbekannte Marke'}</h4>
-        </div>
-        <div class="marke-details">
-          <p><strong>Webseite:</strong> ${marke.webseite ? `<a href="${marke.webseite}" target="_blank">${marke.webseite}</a>` : '-'}</p>
-          <p><strong>Branche:</strong> ${marke.branche || '-'}</p>
-          <p><strong>Erstellt am:</strong> ${marke.created_at ? new Date(marke.created_at).toLocaleDateString('de-DE') : '-'}</p>
-        </div>
-      </div>
+    const rows = this.marken.map(marke => `
+      <tr>
+        <td>
+          <a href="#" class="table-link" data-table="marke" data-id="${marke.id}">
+            ${marke.markenname || 'Unbekannte Marke'}
+          </a>
+        </td>
+        <td>${marke.webseite ? `<a href="${marke.webseite}" target="_blank" rel="noopener">${marke.webseite}</a>` : '-'}</td>
+        <td>${marke.branche || '-'}</td>
+        <td>${marke.created_at ? new Date(marke.created_at).toLocaleDateString('de-DE') : '-'}</td>
+      </tr>
     `).join('');
 
     return `
-      <div class="marken-container">
-        ${markenHtml}
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Marke</th>
+              <th>Webseite</th>
+              <th>Branche</th>
+              <th>Erstellt</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
       </div>
     `;
   }
@@ -560,61 +570,63 @@ export class UnternehmenDetail {
   renderAnsprechpartner() {
     const hasAnsprechpartner = this.ansprechpartner && this.ansprechpartner.length > 0;
     
-    const emptyState = !hasAnsprechpartner ? `
-      <div class="empty-state">
-        <div class="empty-icon">👥</div>
-        <h3>Keine Ansprechpartner vorhanden</h3>
-        <p>Es wurden noch keine Ansprechpartner für dieses Unternehmen zugeordnet.</p>
-      </div>
-    ` : '';
-
     const addButton = `
       <div class="section-header">
         <h3>Ansprechpartner</h3>
-        <button id="btn-add-ansprechpartner-unternehmen" class="primary-btn" data-unternehmen-id="${this.unternehmenId}">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
-          </svg>
-          Ansprechpartner hinzufügen
-        </button>
       </div>
     `;
 
     if (!hasAnsprechpartner) {
-      return addButton + emptyState;
+      return addButton + `
+        <div class="empty-state">
+          <div class="empty-icon">👥</div>
+          <h3>Keine Ansprechpartner vorhanden</h3>
+          <p>Es wurden noch keine Ansprechpartner für dieses Unternehmen zugeordnet.</p>
+        </div>
+      `;
     }
 
-    const ansprechpartnerHtml = this.ansprechpartner.map(ap => `
-      <div class="ansprechpartner-card">
-        <div class="ansprechpartner-header">
-          <h4>
-            <a href="#" onclick="event.preventDefault(); window.navigateTo('/ansprechpartner/${ap.id}')" class="ansprechpartner-link">
-              ${ap.vorname} ${ap.nachname}
-            </a>
-          </h4>
-          <span class="ansprechpartner-position">${ap.position?.name || '-'}</span>
-          <div class="ansprechpartner-actions">
-            <button class="btn-remove-ansprechpartner" data-ansprechpartner-id="${ap.id}" data-unternehmen-id="${this.unternehmenId}" title="Ansprechpartner entfernen">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-        <div class="ansprechpartner-details">
-          <p><strong>Email:</strong> ${ap.email ? `<a href="mailto:${ap.email}">${ap.email}</a>` : '-'}</p>
-          <p><strong>Telefon (privat):</strong> ${ap.telefonnummer ? `<a href="tel:${ap.telefonnummer}">${ap.telefonnummer}</a>` : '-'}</p>
-          <p><strong>Telefon (büro):</strong> ${ap.telefonnummer_office ? `<a href="tel:${ap.telefonnummer_office}">${ap.telefonnummer_office}</a>` : '-'}</p>
-          <p><strong>Unternehmen:</strong> ${ap.unternehmen?.firmenname || '-'}</p>
-          <p><strong>Stadt:</strong> ${ap.stadt || '-'}</p>
-        </div>
-      </div>
+    const rows = this.ansprechpartner.map(ap => `
+      <tr>
+        <td>
+          <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
+            ${ap.vorname} ${ap.nachname}
+          </a>
+        </td>
+        <td>${ap.position?.name || '-'}</td>
+        <td>${ap.email ? `<a href="mailto:${ap.email}">${ap.email}</a>` : '-'}</td>
+        <td>${ap.telefonnummer ? `<a href="tel:${ap.telefonnummer}">${ap.telefonnummer}</a>` : '-'}</td>
+        <td>${ap.telefonnummer_office ? `<a href="tel:${ap.telefonnummer_office}">${ap.telefonnummer_office}</a>` : '-'}</td>
+        <td>${ap.unternehmen?.firmenname || '-'}</td>
+        <td>${ap.stadt || '-'}</td>
+        <td>
+          <button class="btn-remove-ansprechpartner" data-ansprechpartner-id="${ap.id}" data-unternehmen-id="${this.unternehmenId}" title="Ansprechpartner entfernen">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </td>
+      </tr>
     `).join('');
 
     return `
       ${addButton}
-      <div class="ansprechpartner-container">
-        ${ansprechpartnerHtml}
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Position</th>
+              <th>Email</th>
+              <th>Telefon (Privat)</th>
+              <th>Telefon (Büro)</th>
+              <th>Unternehmen</th>
+              <th>Stadt</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
       </div>
     `;
   }
@@ -669,276 +681,10 @@ export class UnternehmenDetail {
   bindEvents() {
     // Tab-Navigation
     document.addEventListener('click', (e) => {
-      if (e.target.classList.contains('tab-button')) {
-        const tabName = e.target.dataset.tab;
-        this.switchTab(tabName);
-      }
-    });
-
-    // Unternehmen bearbeiten Button
-    document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-edit-unternehmen') {
-        this.showEditForm();
-      }
-    });
-
-    // Notizen und Bewertungen Events
-    document.addEventListener('notizenUpdated', () => {
-      this.loadUnternehmenData().then(() => {
-        this.render();
-        this.bindEvents();
-      });
-    });
-
-    document.addEventListener('bewertungenUpdated', () => {
-      this.loadUnternehmenData().then(() => {
-        this.render();
-        this.bindEvents();
-      });
-    });
-  }
-
-  // Tab wechseln
-  switchTab(tabName) {
-    // Alle Tab-Buttons deaktivieren
-    document.querySelectorAll('.tab-button').forEach(btn => {
-      btn.classList.remove('active');
-    });
-
-    // Alle Tab-Panes ausblenden
-    document.querySelectorAll('.tab-pane').forEach(pane => {
-      pane.classList.remove('active');
-    });
-
-    // Gewählten Tab aktivieren
-    const selectedButton = document.querySelector(`[data-tab="${tabName}"]`);
-    const selectedPane = document.getElementById(tabName);
-
-    if (selectedButton) selectedButton.classList.add('active');
-    if (selectedPane) selectedPane.classList.add('active');
-  }
-
-  // Bearbeitungsformular anzeigen
-  showEditForm() {
-    console.log('🎯 UNTERNEHMENDETAIL: Zeige Bearbeitungsformular');
-    window.setHeadline('Unternehmen bearbeiten');
-    
-    // Daten für FormSystem vorbereiten
-    const formData = { ...this.unternehmen };
-    
-    // Edit-Mode Flags immer setzen
-    formData._isEditMode = true;
-    formData._entityId = this.unternehmenId;
-    
-    // Branchen-Daten für Edit-Modus formatieren
-    if (this.unternehmen.branche_id && Array.isArray(this.unternehmen.branche_id)) {
-      console.log('🏷️ UNTERNEHMENDETAIL: Formatiere Branchen-Daten für FormSystem:', this.unternehmen.branche_id);
-      // Branchen-IDs als Array beibehalten für Multiselect
-      formData.branche_id = this.unternehmen.branche_id;
-    } else {
-      console.log('ℹ️ UNTERNEHMENDETAIL: Keine Branchen-Daten vorhanden für Edit-Modus');
-      formData.branche_id = [];
-    }
-    
-    console.log('📋 UNTERNEHMENDETAIL: FormData für Rendering:', formData);
-    const formHtml = window.formSystem.renderFormOnly('unternehmen', formData);
-    window.content.innerHTML = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>Unternehmen bearbeiten</h1>
-          <p>Bearbeiten Sie die Unternehmen-Informationen</p>
-        </div>
-        <div class="page-header-right">
-          <button onclick="window.navigateTo('/unternehmen/${this.unternehmenId}')" class="secondary-btn">Abbrechen</button>
-        </div>
-      </div>
-      
-      <div class="form-page">
-        ${formHtml}
-      </div>
-    `;
-
-    // Formular-Events binden mit formatierten Daten
-    window.formSystem.bindFormEvents('unternehmen', formData);
-    
-    // Entity-ID und Edit-Mode Flags für Form setzen (wichtig für Dynamic Data Loading)
-    const form = document.getElementById('unternehmen-form');
-    if (form) {
-      form.dataset.entityId = this.unternehmenId;
-      form.dataset.isEditMode = 'true';
-      form.dataset.entityType = 'unternehmen';
-      console.log('✅ Entity-ID und Edit-Mode für Form gesetzt:', this.unternehmenId);
-      
-      // Branchen-Daten als Metadaten für DynamicDataLoader verfügbar machen
-      if (this.unternehmen.branche_id && Array.isArray(this.unternehmen.branche_id)) {
-        form.dataset.existingBranchenIds = JSON.stringify(this.unternehmen.branche_id);
-        console.log('📋 Bestehende Branchen-IDs für DynamicDataLoader gesetzt:', this.unternehmen.branche_id);
-      }
-      
-      // Debug: Alle Form-Datasets ausgeben
-      console.log('🔍 UNTERNEHMENDETAIL: Form Datasets:', {
-        entityId: form.dataset.entityId,
-        isEditMode: form.dataset.isEditMode,
-        entityType: form.dataset.entityType,
-        existingBranchenIds: form.dataset.existingBranchenIds,
-        editModeData: form.dataset.editModeData ? 'Present' : 'Missing'
-      });
-      
-      // Custom Submit Handler
-      form.onsubmit = async (e) => {
+      const tabButton = e.target.closest('.tab-button');
+      if (tabButton && tabButton.dataset?.tab) {
         e.preventDefault();
-        await this.handleEditFormSubmit();
-      };
-    }
-  }
-
-  // Handle Edit Form Submit
-  async handleEditFormSubmit() {
-    try {
-      const form = document.getElementById('unternehmen-form');
-      const formData = new FormData(form);
-      const submitData = {};
-
-      // Alle Formular-Felder durchgehen (für Multi-Select)
-      const allFormData = {};
-      for (let [key, value] of formData.entries()) {
-        if (allFormData[key]) {
-          // Mehrfachwerte zu Array konvertieren
-          if (!Array.isArray(allFormData[key])) {
-            allFormData[key] = [allFormData[key]];
-          }
-          allFormData[key].push(value);
-        } else {
-          allFormData[key] = value;
-        }
-      }
-      
-      // Spezielle Behandlung für Tag-basierte Multi-Selects
-      // Das versteckte Select wird möglicherweise nicht korrekt von FormData erfasst
-      const hiddenBranchenSelect = form.querySelector('select[name="branche_id[]"]');
-      if (hiddenBranchenSelect && hiddenBranchenSelect.multiple) {
-        const selectedOptions = Array.from(hiddenBranchenSelect.selectedOptions);
-        if (selectedOptions.length > 0) {
-          const branchenIds = selectedOptions.map(option => option.value).filter(val => val !== '');
-          if (branchenIds.length > 0) {
-            allFormData['branche_id[]'] = branchenIds;
-            console.log('🏷️ UNTERNEHMENDETAIL: Verstecktes Branchen-Select manuell verarbeitet:', branchenIds);
-          }
-        }
-      }
-      
-      // Daten verarbeiten
-      for (let [key, value] of Object.entries(allFormData)) {
-        submitData[key] = Array.isArray(value) ? value : value;
-      }
-
-      // Branchen-IDs für Junction Table beibehalten (nicht zu einzelner UUID konvertieren)
-      if (submitData.branche_id && Array.isArray(submitData.branche_id)) {
-        console.log('✅ branche_id Array für Junction Table:', submitData.branche_id);
-        // Array beibehalten - wird von RelationTables verarbeitet
-      }
-
-      // Validierung
-      const validation = window.validatorSystem.validateForm(submitData, {
-        firmenname: { type: 'text', minLength: 2, required: true }
-      });
-      
-      if (!validation.isValid) {
-        this.showValidationErrors(validation.errors);
-        return;
-      }
-
-      console.log('📤 Submit-Daten für Update:', submitData);
-
-      // Unternehmen aktualisieren
-      const result = await window.dataService.updateEntity('unternehmen', this.unternehmenId, submitData);
-
-      if (result.success) {
-        // Junction Table-Verknüpfungen verarbeiten (für branche_id)
-        try {
-          const { RelationTables } = await import('../../core/form/logic/RelationTables.js');
-          const relationTables = new RelationTables();
-          await relationTables.handleRelationTables('unternehmen', this.unternehmenId, submitData, form);
-          console.log('✅ Junction Table-Verknüpfungen aktualisiert');
-        } catch (relationError) {
-          console.error('❌ Fehler beim Aktualisieren der Junction Tables:', relationError);
-          // Nicht fatal - Hauptentität wurde bereits aktualisiert
-        }
-
-        this.showSuccessMessage('Unternehmen erfolgreich aktualisiert!');
-        
-        // Event für Listen-Update auslösen
-        window.dispatchEvent(new CustomEvent('entityUpdated', { 
-          detail: { entity: 'unternehmen', id: this.unternehmenId, action: 'updated' } 
-        }));
-        
-        // Daten neu laden und zur Detailseite zurückkehren
-        setTimeout(async () => {
-          await this.loadUnternehmenData();
-          this.render();
-          this.bindEvents();
-        }, 1500);
-      } else {
-        throw new Error(result.error || 'Unbekannter Fehler');
-      }
-
-    } catch (error) {
-      console.error('❌ Formular-Submit Fehler:', error);
-      this.showErrorMessage(error.message);
-    }
-  }
-
-  // Show Validation Errors
-  showValidationErrors(errors) {
-    console.log('❌ Validierungsfehler:', errors);
-    
-    // Alle bestehenden Fehlermeldungen entfernen
-    document.querySelectorAll('.validation-error').forEach(el => el.remove());
-    
-    // Neue Fehlermeldungen anzeigen
-    Object.keys(errors).forEach(fieldName => {
-      const field = document.querySelector(`[name="${fieldName}"]`);
-      if (field) {
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'validation-error';
-        errorDiv.textContent = errors[fieldName];
-        errorDiv.style.color = '#dc3545';
-        errorDiv.style.fontSize = '0.875rem';
-        errorDiv.style.marginTop = '0.25rem';
-        
-        field.parentNode.appendChild(errorDiv);
-        field.style.borderColor = '#dc3545';
-      }
-    });
-  }
-
-  // Show Success Message
-  showSuccessMessage(message) {
-    const successDiv = document.createElement('div');
-    successDiv.className = 'alert alert-success';
-    successDiv.textContent = message;
-    successDiv.style.cssText = `
-      background: #d4edda;
-      color: #155724;
-      padding: 1rem;
-      border-radius: 4px;
-      margin-bottom: 1rem;
-      border: 1px solid #c3e6cb;
-    `;
-    
-    const formPage = document.querySelector('.form-page');
-    if (formPage) {
-      formPage.insertBefore(successDiv, formPage.firstChild);
-    }
-  }
-
-  // Binde Events
-  bindEvents() {
-    // Tab-Navigation
-    document.addEventListener('click', (e) => {
-      if (e.target.classList.contains('tab-button')) {
-        const tabName = e.target.dataset.tab;
-        this.switchTab(tabName);
+        this.switchTab(tabButton.dataset.tab);
       }
     });
 
@@ -1021,20 +767,18 @@ export class UnternehmenDetail {
       button.classList.remove('active');
     });
 
-    // Aktiven Tab-Button aktivieren
     const activeButton = document.querySelector(`[data-tab="${tabName}"]`);
     if (activeButton) {
       activeButton.classList.add('active');
     }
 
-    // Tab-Content anzeigen
-    document.querySelectorAll('.tab-content').forEach(content => {
-      content.style.display = 'none';
+    document.querySelectorAll('.tab-pane').forEach(pane => {
+      pane.classList.remove('active');
     });
 
-    const activeContent = document.getElementById(`tab-${tabName}`);
-    if (activeContent) {
-      activeContent.style.display = 'block';
+    const activePane = document.getElementById(tabName);
+    if (activePane) {
+      activePane.classList.add('active');
     }
   }
 

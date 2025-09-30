@@ -2,6 +2,7 @@
 // Auftrags-Liste mit Filter und Verwaltung
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
+import { AuftragsDetailsManager, auftragsDetailsManager } from './logic/AuftragsDetailsManager.js';
 
 export class AuftragList {
   constructor() {
@@ -114,19 +115,17 @@ export class AuftragList {
                 <th>Art der Kampagne</th>
                 <th>Start</th>
                 <th>Ende</th>
-                <th>Kampagnenanzahl</th>
-                <th>Videos Gesamt</th>
-                <th>Bruttobetrag</th>
-                <th>Nettobetrag</th>
-                <th>Creator Budget</th>
-                <th>Deckungsbeitrag (%)</th>
-                <th>Deckungsbeitrag (€)</th>
-                <th>Budgetverteilung</th>
+                <th>Brutto</th>
+                <th>Netto</th>
+                <th>Ansprechpartner</th>
+                <th>Mitarbeiter</th>
+                <th>Cutter</th>
+                <th>Copywriter</th>
                 <th>Rechnung gestellt</th>
                 <th>Überwiesen</th>
                 <th>Status</th>
-                <th>Mitarbeiter</th>
-                <th>Aktionen</th>
+                <th>Zugewiesen an</th>
+                <th></th>
               </tr>
             </thead>
             <tbody id="auftraege-table-body">
@@ -155,7 +154,11 @@ export class AuftragList {
         .select(`
           *,
           unternehmen:unternehmen_id(firmenname),
-          marke:marke_id(markenname)
+          marke:marke_id(markenname),
+          ansprechpartner:ansprechpartner_id(id, vorname, nachname, email),
+          cutter:auftrag_cutter(mitarbeiter:mitarbeiter_id(id, name)),
+          copywriter:auftrag_copywriter(mitarbeiter:mitarbeiter_id(id, name)),
+          mitarbeiter:auftrag_mitarbeiter(mitarbeiter:mitarbeiter_id(id, name))
         `)
         .order('created_at', { ascending: false });
 
@@ -401,8 +404,35 @@ export class AuftragList {
       };
       
       const formatAssignee = (assigneeId) => {
-        // TODO: Mitarbeiter-Namen aus der Datenbank laden
         return assigneeId ? '👤' : '-';
+      };
+
+      const formatAnsprechpartner = (person) => {
+        if (!person) return '-';
+        const fullName = [person.vorname, person.nachname].filter(Boolean).join(' ');
+        const displayName = fullName || 'Unbekannt';
+        return `<div class="tags tags-compact"><span class="tag tag--green">${window.validatorSystem.sanitizeHtml(displayName)}</span></div>`;
+      };
+
+      const formatUnternehmenTag = (unternehmen) => {
+        if (!unternehmen) return '-';
+        const name = unternehmen.firmenname || 'Unbekannt';
+        return `<div class="tags tags-compact"><span class="tag tag--purple">${window.validatorSystem.sanitizeHtml(name)}</span></div>`;
+      };
+
+      const formatMarkeTag = (marke) => {
+        if (!marke) return '-';
+        const name = marke.markenname || 'Unbekannt';
+        return `<div class="tags tags-compact"><span class="tag tag--orange">${window.validatorSystem.sanitizeHtml(name)}</span></div>`;
+      };
+
+      const formatMitarbeiterTags = (entries) => {
+        if (!entries || entries.length === 0) return '-';
+        const tags = entries.map(item => {
+          const name = item?.mitarbeiter?.name || item?.name || 'Unbekannt';
+          return `<span class="tag tag--blue">${window.validatorSystem.sanitizeHtml(name)}</span>`;
+        }).join('');
+        return `<div class="tags tags-compact">${tags}</div>`;
       };
 
       return `
@@ -413,22 +443,20 @@ export class AuftragList {
               ${window.validatorSystem.sanitizeHtml(auftrag.auftragsname || 'Unbekannt')}
             </a>
           </td>
-          <td>${auftrag.unternehmen?.firmenname || '-'}</td>
-          <td>${auftrag.marke?.markenname || '-'}</td>
+          <td>${formatUnternehmenTag(auftrag.unternehmen)}</td>
+          <td>${formatMarkeTag(auftrag.marke)}</td>
           <td>${auftrag.po || '-'}</td>
           <td>${auftrag.re_nr || '-'}</td>
           <td>${formatDate(auftrag.re_faelligkeit)}</td>
           <td>${formatArray(auftrag.art_der_kampagne)}</td>
           <td>${formatDate(auftrag.start)}</td>
           <td>${formatDate(auftrag.ende)}</td>
-          <td>${auftrag.kampagnenanzahl || '-'}</td>
-          <td>${auftrag.gesamtanzahl_videos || '-'}</td>
           <td>${formatCurrency(auftrag.bruttobetrag)}</td>
           <td>${formatCurrency(auftrag.nettobetrag)}</td>
-          <td>${formatCurrency(auftrag.creator_budget)}</td>
-          <td>${auftrag.deckungsbeitrag_prozent ? auftrag.deckungsbeitrag_prozent + '%' : '-'}</td>
-          <td>${formatCurrency(auftrag.deckungsbeitrag_betrag)}</td>
-          <td>${auftrag.budgetverteilung ? auftrag.budgetverteilung.substring(0, 20) + (auftrag.budgetverteilung.length > 20 ? '...' : '') : '-'}</td>
+          <td>${formatAnsprechpartner(auftrag.ansprechpartner)}</td>
+          <td>${formatMitarbeiterTags(auftrag.mitarbeiter)}</td>
+          <td>${formatMitarbeiterTags(auftrag.cutter)}</td>
+          <td>${formatMitarbeiterTags(auftrag.copywriter)}</td>
           <td>${formatBoolean(auftrag.rechnung_gestellt)}</td>
           <td>${formatBoolean(auftrag.ueberwiesen)}</td>
           <td>
@@ -458,6 +486,12 @@ export class AuftragList {
                     <path fill-rule="evenodd" d="M1.334 10.606a1.5 1.5 0 011.06-1.06l10.38-10.38a1.5 1.5 0 012.122 0l1.523 1.523a1.5 1.5 0 010 2.122l-10.38 10.38a1.5 1.5 0 01-1.06 1.06H1.334v-3.182z" clip-rule="evenodd" />
                   </svg>
                   Bearbeiten
+                </a>
+                <a href="#" class="action-item" data-action="details" data-id="${auftrag.id}">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  Auftragsdetails
                 </a>
                 <a href="#" class="action-item" data-action="notiz" data-id="${auftrag.id}">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
@@ -508,10 +542,9 @@ export class AuftragList {
   showCreateForm() {
     console.log('🎯 Zeige Auftrag-Erstellungsformular');
     window.setHeadline('Neuen Auftrag anlegen');
-    
-    // Formular direkt in content rendern
+
     const formHtml = window.formSystem.renderFormOnly('auftrag');
-    window.content.innerHTML = `
+    const html = `
       <div class="page-header">
         <div class="page-header-left">
           <h1>Neuen Auftrag anlegen</h1>
@@ -521,236 +554,15 @@ export class AuftragList {
           <button onclick="window.navigateTo('/auftrag')" class="secondary-btn">Zurück zur Übersicht</button>
         </div>
       </div>
-      
       <div class="form-page">
         ${formHtml}
       </div>
     `;
 
-    // Formular-Events binden
+    window.content.innerHTML = html;
     window.formSystem.bindFormEvents('auftrag', null);
-    
-    // Custom Submit Handler für Seiten-Formular
-    const form = document.getElementById('auftrag-form');
-    if (form) {
-      form.onsubmit = async (e) => {
-        e.preventDefault();
-        await this.handleFormSubmit();
-      };
-    }
-  }
-
-  // Handle Form Submit für Seiten-Formular
-  async handleFormSubmit() {
-    try {
-      const form = document.getElementById('auftrag-form');
-      const formData = new FormData(form);
-      const submitData = {};
-
-      // FormData zu Objekt konvertieren
-      for (const [key, value] of formData.entries()) {
-        if (key.includes('[]')) {
-          // Multi-Select behandeln
-          const cleanKey = key.replace('[]', '');
-          if (!submitData[cleanKey]) {
-            submitData[cleanKey] = [];
-          }
-          submitData[cleanKey].push(value);
-        } else {
-          submitData[key] = value;
-        }
-      }
-
-      // Validierung
-      const validation = window.validatorSystem.validateForm(submitData, {
-        auftragsname: { type: 'text', minLength: 2, required: true },
-        unternehmen_id: { type: 'uuid', required: true },
-        gesamt_budget: { type: 'number', min: 0 },
-        creator_budget: { type: 'number', min: 0 },
-        kampagnenanzahl: { type: 'number', min: 1 }
-      });
-      
-      if (!validation.isValid) {
-        this.showValidationErrors(validation.errors);
-        return;
-      }
-
-      // Auftrag erstellen
-      const result = await window.dataService.createEntity('auftrag', submitData);
-
-      if (result.success) {
-        this.showSuccessMessage('Auftrag erfolgreich erstellt!');
-        
-        // Zurück zur Übersicht navigieren
-        setTimeout(() => {
-          window.navigateTo('/auftrag');
-        }, 1500);
-      } else {
-        throw new Error(result.error || 'Unbekannter Fehler');
-      }
-
-    } catch (error) {
-      console.error('❌ Formular-Submit Fehler:', error);
-      this.showErrorMessage(error.message);
-    }
-  }
-
-  // Show Validation Errors
-  showValidationErrors(errors) {
-    console.log('❌ Validierungsfehler:', errors);
-    
-    // Alle bestehenden Fehlermeldungen entfernen
-    document.querySelectorAll('.validation-error').forEach(el => el.remove());
-    
-    // Neue Fehlermeldungen anzeigen
-    Object.keys(errors).forEach(fieldName => {
-      const field = document.querySelector(`[name="${fieldName}"]`);
-      if (field) {
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'validation-error';
-        errorDiv.textContent = errors[fieldName];
-        errorDiv.style.color = '#dc3545';
-        errorDiv.style.fontSize = '0.875rem';
-        errorDiv.style.marginTop = '0.25rem';
-        
-        field.parentNode.appendChild(errorDiv);
-        field.style.borderColor = '#dc3545';
-      }
-    });
-  }
-
-  // Show Success Message
-  showSuccessMessage(message) {
-    const successDiv = document.createElement('div');
-    successDiv.className = 'alert alert-success';
-    successDiv.textContent = message;
-    successDiv.style.cssText = `
-      background: #d4edda;
-      color: #155724;
-      padding: 1rem;
-      border-radius: 4px;
-      margin-bottom: 1rem;
-      border: 1px solid #c3e6cb;
-    `;
-    
-    const formPage = document.querySelector('.form-page');
-    if (formPage) {
-      formPage.insertBefore(successDiv, formPage.firstChild);
-    }
-  }
-
-  // Show Error Message
-  showErrorMessage(message) {
-    const errorDiv = document.createElement('div');
-    errorDiv.className = 'alert alert-danger';
-    errorDiv.textContent = message;
-    errorDiv.style.cssText = `
-      background: #f8d7da;
-      color: #721c24;
-      padding: 1rem;
-      border-radius: 4px;
-      margin-bottom: 1rem;
-      border: 1px solid #f5c6cb;
-    `;
-    
-    const formPage = document.querySelector('.form-page');
-    if (formPage) {
-      formPage.insertBefore(errorDiv, formPage.firstChild);
-    }
-  }
-
-  // Bestätigungsdialog für Bulk-Delete
-  async showDeleteSelectedConfirmation() {
-    const selectedCount = this.selectedAuftraege.size;
-    console.log(`🔧 AuftragList: showDeleteSelectedConfirmation aufgerufen, selectedCount: ${selectedCount}`, Array.from(this.selectedAuftraege));
-    
-    if (selectedCount === 0) {
-      alert('Keine Aufträge ausgewählt.');
-      return;
-    }
-
-    const message = selectedCount === 1 
-      ? 'Möchten Sie den ausgewählten Auftrag wirklich löschen?' 
-      : `Möchten Sie die ${selectedCount} ausgewählten Aufträge wirklich löschen?`;
-
-    if (window.confirmationModal) {
-      const res = await window.confirmationModal.open({ title: 'Löschvorgang bestätigen', message, confirmText: 'Endgültig löschen', cancelText: 'Abbrechen', danger: true });
-      if (res?.confirmed) this.deleteSelectedAuftraege();
-    } else {
-      const confirmed = confirm(`${message}\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`);
-      if (confirmed) this.deleteSelectedAuftraege();
-    }
-  }
-
-  // Ausgewählte Aufträge löschen
-  async deleteSelectedAuftraege() {
-    const selectedIds = Array.from(this.selectedAuftraege);
-    const totalCount = selectedIds.length;
-    
-    console.log(`🗑️ Lösche ${totalCount} Aufträge...`);
-    
-    let successCount = 0;
-    let errorCount = 0;
-    const successfullyDeletedIds = [];
-    
-    // Lösche alle ausgewählten Aufträge
-    for (const auftragId of selectedIds) {
-      try {
-        const result = await window.dataService.deleteEntity('auftrag', auftragId);
-        if (result.success) {
-          successCount++;
-          successfullyDeletedIds.push(auftragId);
-          this.selectedAuftraege.delete(auftragId);
-        } else {
-          errorCount++;
-          console.error(`❌ Fehler beim Löschen von Auftrag ${auftragId}:`, result.error);
-        }
-      } catch (error) {
-        errorCount++;
-        console.error(`❌ Fehler beim Löschen von Auftrag ${auftragId}:`, error);
-      }
-    }
-    
-    // Ergebnis anzeigen
-    if (successCount > 0) {
-      const message = successCount === 1 
-        ? 'Auftrag erfolgreich gelöscht.' 
-        : `${successCount} Aufträge erfolgreich gelöscht.`;
-      
-      if (errorCount > 0) {
-        alert(`${message}\n${errorCount} Aufträge konnten nicht gelöscht werden.`);
-      } else {
-        alert(message);
-      }
-      
-      // Nur erfolgreich gelöschte Zeilen aus der Tabelle entfernen
-      successfullyDeletedIds.forEach(auftragId => {
-        const row = document.querySelector(`tr[data-id="${auftragId}"]`);
-        if (row) {
-          row.remove();
-        }
-      });
-      
-      // Auswahl zurücksetzen
-      this.selectedAuftraege.clear();
-      this.updateSelection();
-      this.updateSelectAllCheckbox();
-      
-      // Prüfe ob Tabelle leer ist
-      const tbody = document.getElementById('auftraege-table-body');
-      if (tbody && tbody.children.length === 0) {
-        // Lade komplett neu wenn keine Einträge mehr da sind
-        await this.loadAndRender();
-      }
-      
-      // Event für andere Komponenten
-      window.dispatchEvent(new CustomEvent('entityUpdated', {
-        detail: { entity: 'auftrag', action: 'bulk-deleted', count: successCount }
-      }));
-    } else {
-      alert('Keine Aufträge konnten gelöscht werden.');
-    }
   }
 }
 
-export const auftragList = new AuftragList(); 
+const auftragListInstance = new AuftragList();
+export { auftragListInstance as auftragList };

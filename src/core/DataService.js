@@ -75,26 +75,19 @@ export class DataService {
           position: { table: 'positionen', foreignKey: 'position_id', displayField: 'name' }
         },
         manyToMany: {
-          marken: { 
-            table: 'marke', 
-            junctionTable: 'ansprechpartner_marke', 
-            localKey: 'ansprechpartner_id', 
+          marken: {
+            table: 'marke',
+            junctionTable: 'ansprechpartner_marke',
+            localKey: 'ansprechpartner_id',
             foreignKey: 'marke_id',
             displayField: 'markenname'
           },
-          sprachen: { 
-            table: 'sprachen', 
-            junctionTable: 'ansprechpartner_sprache', 
-            localKey: 'ansprechpartner_id', 
+          sprachen: {
+            table: 'sprachen',
+            junctionTable: 'ansprechpartner_sprache',
+            localKey: 'ansprechpartner_id',
             foreignKey: 'sprache_id',
             displayField: 'name'
-          },
-          unternehmen: {
-            table: 'unternehmen',
-            junctionTable: 'ansprechpartner_unternehmen',
-            localKey: 'ansprechpartner_id',
-            foreignKey: 'unternehmen_id',
-            displayField: 'firmenname'
           }
         },
         filters: ['vorname', 'nachname', 'position_id', 'unternehmen_id', 'stadt', 'sprache_id'],
@@ -429,48 +422,49 @@ export class DataService {
           unternehmen_id: 'uuid',
           marke_id: 'uuid',
           status: 'string',
-          auftragtype: 'string',
-          art_der_kampagne: 'array',
-          format_anpassung: 'array',
+          ansprechpartner_id: 'uuid',
+          po: 'string',
+          re_nr: 'string',
+          re_faelligkeit: 'date',
+          kampagnenanzahl: 'number',
           start: 'date',
           ende: 'date',
-          gesamt_budget: 'number',
-          // Neue Budgetfelder
+          nettobetrag: 'number',
           ust_prozent: 'number',
           ust_betrag: 'number',
-          ksk_betrag: 'number',
-          creator_budget: 'number',
-          kampagnenanzahl: 'number',
-          gesamtanzahl_videos: 'number',
-          influencer: 'number',
-          // Vereinfachte Videokategorien
-          ugc: 'number',
-          ugc_organic: 'number',
-          ugc_paid: 'number',
-          ugc_paid_pro: 'number',
-          ugc_pro_organic: 'number',
-          // Preise pro Stück (Netto)
-          influencer_preis: 'number',
-          ugc_preis: 'number',
-          vor_ort_preis: 'number',
-          cut_down: 'number',
-          vor_ort_produktion: 'number',
-          re_faelligkeit: 'date',
-          re_nr: 'string',
-          po: 'string',
-          rechnung_gestellt: 'boolean',
-          ueberwiesen: 'boolean',
           bruttobetrag: 'number',
-          nettobetrag: 'number',
-          deckungsbeitrag_prozent: 'number',
-          deckungsbeitrag_betrag: 'number',
-          budgetverteilung: 'string'
+          rechnung_gestellt: 'boolean',
+          ueberwiesen: 'boolean'
         },
         relations: {
           unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' },
-          marke: { table: 'marke', foreignKey: 'marke_id', displayField: 'markenname' }
+          marke: { table: 'marke', foreignKey: 'marke_id', displayField: 'markenname' },
+          ansprechpartner: { table: 'ansprechpartner', foreignKey: 'ansprechpartner_id', displayField: 'vorname' }
         },
-        filters: ['auftragsname', 'status', 'auftragtype', 'art_der_kampagne', 'gesamt_budget', 'unternehmen_id', 'marke_id'],
+        manyToMany: {
+          mitarbeiter: {
+            table: 'benutzer',
+            junctionTable: 'auftrag_mitarbeiter',
+            localKey: 'auftrag_id',
+            foreignKey: 'mitarbeiter_id',
+            displayField: 'name'
+          },
+          cutter: {
+            table: 'benutzer',
+            junctionTable: 'auftrag_cutter',
+            localKey: 'auftrag_id',
+            foreignKey: 'mitarbeiter_id',
+            displayField: 'name'
+          },
+          copywriter: {
+            table: 'benutzer',
+            junctionTable: 'auftrag_copywriter',
+            localKey: 'auftrag_id',
+            foreignKey: 'mitarbeiter_id',
+            displayField: 'name'
+          }
+        },
+        filters: ['auftragsname', 'status', 'unternehmen_id', 'marke_id', 'ansprechpartner_id'],
         sortBy: 'created_at',
         sortOrder: 'desc'
       }
@@ -956,31 +950,77 @@ export class DataService {
         if (relationName === 'sprachen') {
           fieldName = 'sprachen_ids';
         } else if (relationName === 'branchen') {
-          // Für Unternehmen und Marke: branche_id, für Creator: branchen_ids
-          fieldName = (entityType === 'unternehmen' || entityType === 'marke') ? 'branche_id' : 'branchen_ids';
+          // Für Unternehmen: branche_id, für Marke und Creator: branche_ids
+          fieldName = (entityType === 'unternehmen') ? 'branche_id' : 'branche_ids';
         } else if (relationName === 'creator_types') {
           fieldName = 'creator_type_ids';
+        } else if (relationName === 'marken') {
+          fieldName = 'marke_ids';
+        } else if (relationName === 'unternehmen') {
+          // Für Ansprechpartner ist unternehmen eine 1:1 Beziehung, nicht Many-to-Many
+          if (entityType === 'ansprechpartner') {
+            fieldName = 'unternehmen_id';
+          } else {
+            fieldName = 'unternehmen_ids';
+          }
         } else {
           fieldName = `${relationName.slice(0, -1)}_ids`;
         }
-        // Priorität: Tag-basierte Daten (fieldName[]) vor ursprünglichen Daten (fieldName)
-        // Tag-basierte Daten enthalten die aktuellen Änderungen vom User
-        const fieldData = data[`${fieldName}[]`] || data[fieldName];
+        // Eingabewerte für M:N robust ermitteln und zu Array normalisieren
+        // Bevorzuge explizite Array-Varianten, ansonsten Strings aufsplitten/JSON-parsen
+        const bracketValue = data[`${fieldName}[]`];
+        const plainValue = data[fieldName];
+        
+        const parseToArray = (val) => {
+          if (val == null) return [];
+          if (Array.isArray(val)) return val;
+          if (typeof val === 'string') {
+            const trimmed = val.trim();
+            // JSON-Array-String
+            if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+              try {
+                const parsed = JSON.parse(trimmed);
+                if (Array.isArray(parsed)) return parsed;
+              } catch (_) {}
+            }
+            // Komma-separierte Liste
+            if (trimmed.includes(',')) {
+              return trimmed.split(',').map(s => s.trim()).filter(Boolean);
+            }
+            // Einzelner Wert
+            return trimmed ? [trimmed] : [];
+          }
+          // Fallback: einzelner Wert
+          return [val];
+        };
+        
+        // Bevorzugung: Arrays gehen vor Strings; plainValue hat Vorrang, wenn es ein Array ist
+        let fieldData = null;
+        if (Array.isArray(plainValue)) fieldData = plainValue;
+        else if (Array.isArray(bracketValue)) fieldData = bracketValue;
+        else if (plainValue != null) fieldData = plainValue;
+        else fieldData = bracketValue;
         
         // Debug: Zeige verfügbare Daten für dieses Feld
         console.log(`🔍 DATASERVICE: Prüfe ${fieldName} für ${entityType}.${relationName}:`, {
-          fieldData: fieldData,
+          fieldData,
           'data[fieldName]': data[fieldName],
           'data[fieldName + []]': data[`${fieldName}[]`],
           allDataKeys: Object.keys(data)
         });
         
+        // Für Ansprechpartner: Unternehmen ist keine Many-to-Many Beziehung
+        if (entityType === 'ansprechpartner' && relationName === 'unternehmen') {
+          console.log(`🔍 Überspringe Many-to-Many Verarbeitung für ${entityType}.${relationName} (ist 1:1 Beziehung)`);
+          continue;
+        }
+
         if (!fieldData) continue;
-        
+
         console.log(`🔗 Verarbeite Many-to-Many Beziehung: ${entityType}.${relationName} für ${fieldName}:`, fieldData);
         
-        // Sicherstellen, dass fieldData ein Array ist
-        const relatedIds = Array.isArray(fieldData) ? fieldData : [fieldData];
+        // Sicherstellen, dass fieldData ein Array ist und Duplikate/Leereinträge entfernen
+        const relatedIds = Array.from(new Set(parseToArray(fieldData).filter(Boolean)));
         
         // Bestehende Beziehungen löschen
         const { error: deleteError } = await window.supabase
@@ -1174,6 +1214,25 @@ export class DataService {
       )) {
         console.log(`🏷️ Verarbeite ${field} für Creator:`, value);
         // Creator Many-to-Many Felder werden über handleManyToManyRelations verwaltet - hier überspringen
+        continue;
+      }
+      
+      // Spezielle Behandlung für Marke Many-to-Many Felder
+      if (entityType === 'marke' && (
+        field === 'branche_ids' || field === 'branche_ids[]'
+      )) {
+        console.log(`🏷️ Verarbeite ${field} für Marke:`, value);
+        // Marke Many-to-Many Felder werden über handleManyToManyRelations verwaltet - hier überspringen
+        continue;
+      }
+      
+      // Spezielle Behandlung für Ansprechpartner Many-to-Many Felder
+      if (entityType === 'ansprechpartner' && (
+        field === 'marke_ids' || field === 'marke_ids[]' ||
+        field === 'sprachen_ids' || field === 'sprachen_ids[]'
+      )) {
+        console.log(`🏷️ Verarbeite ${field} für Ansprechpartner:`, value);
+        // Ansprechpartner Many-to-Many Felder werden über handleManyToManyRelations verwaltet - hier überspringen
         continue;
       }
       

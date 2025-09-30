@@ -29,8 +29,15 @@ export class SelectField extends BaseField {
     if (!this.field.options) return '';
     
     return this.field.options.map(option => {
-      const selected = this.value === option ? 'selected' : '';
-      return `<option value="${option}" ${selected}>${option}</option>`;
+      // Unterstütze sowohl String-Optionen als auch Objekt-Optionen
+      if (typeof option === 'string') {
+        const selected = this.value === option ? 'selected' : '';
+        return `<option value="${option}" ${selected}>${option}</option>`;
+      } else if (option && typeof option === 'object' && option.value !== undefined) {
+        const selected = this.value === option.value ? 'selected' : '';
+        return `<option value="${option.value}" ${selected}>${option.label || option.value}</option>`;
+      }
+      return '';
     }).join('');
   }
 

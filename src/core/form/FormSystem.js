@@ -157,35 +157,50 @@ export class FormSystem {
       const submitData = {};
       
       console.log('📤 FormData sammeln...');
+      console.log('🚨 FORMSYSTEM: handleFormSubmit wird aufgerufen für:', entity);
       
-      // Tag-basierte Multi-Selects verarbeiten (wie in UnternehmenCreate)
-      const tagBasedSelects = form.querySelectorAll('select[data-tag-based="true"]');
-      console.log('🏷️ Tag-basierte Selects gefunden:', tagBasedSelects.length);
+      // Tag-basierte Multi-Selects verarbeiten (erweiterte Suche)
+      let tagBasedSelects = form.querySelectorAll('select[data-tag-based="true"]');
+      console.log('🏷️ Tag-basierte Selects gefunden (data-tag-based="true"):', tagBasedSelects.length);
+      
+      // Fallback: Suche nach versteckten Multi-Selects mit [] Namen (das sind die Tag-basierten)
+      if (tagBasedSelects.length === 0) {
+        const hiddenSelects = form.querySelectorAll('select[multiple][style*="display: none"]');
+        console.log('🔍 Versteckte Multi-Selects als Fallback gefunden:', hiddenSelects.length);
+        
+        // Filter nur die mit [] Namen (das sind die Tag-basierten)
+        tagBasedSelects = Array.from(hiddenSelects).filter(select => 
+          select.name.includes('[]') || select.id.includes('hidden')
+        );
+        console.log('🏷️ Tag-basierte Selects über Fallback gefunden:', tagBasedSelects.length);
+      }
+      
+      console.log('🚨 FORMSYSTEM: Tag-basierte Verarbeitung läuft!');
       
       tagBasedSelects.forEach(select => {
         console.log(`🔍 Verarbeite Tag-basiertes Select: ${select.name}`);
         
-        // Debug: Alle Selects mit diesem Namen finden
-        const allSelects = form.querySelectorAll(`select[name^="${select.name}"]`);
-        console.log(`🔍 Alle Selects für ${select.name}:`, allSelects.length, Array.from(allSelects).map(s => ({ name: s.name, hidden: s.style.display === 'none', options: s.options.length })));
+        // Wenn das Select bereits versteckt ist (Fallback-Fall), verwende es direkt
+        let hiddenSelect = select;
+        let fieldName = select.name;
         
-        // Suche das versteckte Select mit den tatsächlichen Werten
-        // Das versteckte Select hat den Namen mit '[]' (z.B. branchen_ids[])
-        let hiddenSelect = form.querySelector(`select[name="${select.name}[]"][style*="display: none"]`);
-        console.log(`🔍 Verstecktes Select mit [] gefunden:`, !!hiddenSelect);
-        
-        // Fallback 1: Nach style="display: none" ohne [] (wie bei Unternehmen)
-        if (!hiddenSelect) {
-          hiddenSelect = form.querySelector(`select[name="${select.name}"][style*="display: none"]`);
-          console.log(`🔍 Verstecktes Select ohne [] gefunden:`, !!hiddenSelect);
+        // Bereinige den Feldnamen von [] falls vorhanden
+        if (fieldName.includes('[]')) {
+          fieldName = fieldName.replace('[]', '');
         }
         
-        // Fallback 2: Nach allen Selects mit dem gleichen Namen (das versteckte ist das zweite)
-        if (!hiddenSelect) {
-          if (allSelects.length > 1) {
-            hiddenSelect = allSelects[1]; // Das zweite ist das versteckte
-            console.log(`🔍 Fallback: Zweites Select verwendet:`, !!hiddenSelect);
-          }
+        // Wenn es kein verstecktes Select ist, suche nach dem versteckten
+        if (!select.style.display.includes('none') && !select.name.includes('[]')) {
+          // Debug: Alle Selects mit diesem Namen finden
+          const allSelects = form.querySelectorAll(`select[name^="${fieldName}"]`);
+          console.log(`🔍 Alle Selects für ${fieldName}:`, allSelects.length, Array.from(allSelects).map(s => ({ name: s.name, hidden: s.style.display === 'none', options: s.options.length })));
+          
+          // Suche das versteckte Select mit den tatsächlichen Werten
+          hiddenSelect = form.querySelector(`select[name="${fieldName}[]"][style*="display: none"]`) ||
+                        form.querySelector(`select[name="${fieldName}"][style*="display: none"]`) ||
+                        (allSelects.length > 1 ? allSelects[1] : null);
+          
+          console.log(`🔍 Verstecktes Select gefunden:`, !!hiddenSelect);
         }
         
         if (hiddenSelect) {
@@ -199,11 +214,11 @@ export class FormSystem {
           console.log(`🔍 Ausgewählte Werte:`, selectedValues);
           
           if (selectedValues.length > 0) {
-            submitData[select.name] = selectedValues;
-            console.log(`🏷️ Tag-basiertes Multi-Select ${select.name}:`, selectedValues);
+            submitData[fieldName] = selectedValues;
+            console.log(`🏷️ Tag-basiertes Multi-Select ${fieldName}:`, selectedValues);
           }
         } else {
-          console.log(`⚠️ Verstecktes Select für ${select.name} nicht gefunden`);
+          console.log(`⚠️ Verstecktes Select für ${fieldName} nicht gefunden`);
         }
       });
       
@@ -225,6 +240,13 @@ export class FormSystem {
           if (key.includes('[]')) {
             // Multi-Select Array behandeln (z.B. branchen_ids[])
             const cleanKey = key.replace('[]', '');
+            
+            // Prüfe ob bereits durch Tag-basierte Verarbeitung gesetzt
+            if (submitData.hasOwnProperty(cleanKey)) {
+              console.log(`⏭️ Überspringe ${cleanKey} - bereits durch Tag-basierte Verarbeitung gesetzt:`, submitData[cleanKey]);
+              continue;
+            }
+            
             if (!submitData[cleanKey]) {
               submitData[cleanKey] = [];
             }
@@ -256,7 +278,22 @@ export class FormSystem {
         }
       });
       
+      // Spezielle Behandlung für Kampagnen: Kampagnenname generieren falls leer
+      if (entity === 'kampagne' && (!submitData.kampagnenname || submitData.kampagnenname.trim() === '')) {
+        console.log('🔧 FORMSYSTEM: Kampagnenname ist leer, generiere automatisch...');
+        if (submitData.auftrag_id) {
+          await this.autoGeneration.autoGenerateKampagnenname(form, submitData.auftrag_id);
+          // Wert aus dem Formular neu lesen
+          const kampagnennameInput = form.querySelector('input[name="kampagnenname"]');
+          if (kampagnennameInput && kampagnennameInput.value) {
+            submitData.kampagnenname = kampagnennameInput.value;
+            console.log('✅ FORMSYSTEM: Kampagnenname generiert:', submitData.kampagnenname);
+          }
+        }
+      }
+
       console.log('📤 Finale Submit-Daten:', submitData);
+      console.log('🚨 FORMSYSTEM: Submit-Daten für DataService:', JSON.stringify(submitData, null, 2));
 
       // Validierung
       const errors = this.validateFormData(entity, submitData);
@@ -276,8 +313,10 @@ export class FormSystem {
       }
 
       if (result.success) {
-        // Verknüpfungstabellen verarbeiten
-        await this.relationTables.handleRelationTables(entity, result.id, submitData, form);
+        // Verknüpfungstabellen verarbeiten (nicht für Ansprechpartner - wird über DataService Many-to-Many verarbeitet)
+        if (entity !== 'ansprechpartner') {
+          await this.relationTables.handleRelationTables(entity, result.id, submitData, form);
+        }
 
         // Spezielle Behandlung für Kampagnen-Adressen
         if (entity === 'kampagne') {
@@ -405,6 +444,7 @@ export class FormSystem {
       (field?.tagBased === true || selectElement.dataset.tagBased === 'true');
     
     if (isTagBased) {
+      console.log(`🏷️ FORMSYSTEM: Erstelle Tag-basiertes Select für ${field.name}`);
       // Verwende das Tag-basierte System aus dem alten FormSystem
       if (window.formSystem?.optionsManager?.createTagBasedSelect) {
         return window.formSystem.optionsManager.createTagBasedSelect(selectElement, options, field);
@@ -414,6 +454,11 @@ export class FormSystem {
     // Bestehende Container entfernen (sowohl normale als auch Tag-basierte)
     const existingContainer = selectElement.parentNode.querySelector('.searchable-select-container');
     if (existingContainer) {
+      // Das versteckte Select-Element vor dem Entfernen des Containers sichern
+      const hiddenSelect = document.getElementById(selectElement.id + '_hidden');
+      if (hiddenSelect) {
+        console.log('🔄 Behalte verstecktes Select-Element bei Container-Entfernung');
+      }
       existingContainer.remove();
     }
 
@@ -576,6 +621,11 @@ export class FormSystem {
     if (!config) return errors;
 
     config.fields.forEach(field => {
+      // Skip Validierung für auto-generierte Felder, die leer sind
+      if (field.autoGenerate && (!data[field.name] || data[field.name].toString().trim() === '')) {
+        return; // Auto-generierte Felder müssen nicht validiert werden
+      }
+      
       if (field.required && (!data[field.name] || data[field.name].toString().trim() === '')) {
         errors.push(`${field.label} ist erforderlich.`);
       }

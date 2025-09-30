@@ -15,6 +15,7 @@ export class AnsprechpartnerCreate {
   // Show Create Form
   showCreateForm() {
     console.log('🎯 ANSPRECHPARTNERCREATE: Zeige Ansprechpartner-Erstellungsformular mit FormSystem');
+    console.log('🚨 ANSPRECHPARTNERCREATE: WIRD VERWENDET!');
     window.setHeadline('Neuen Ansprechpartner anlegen');
     
     // Formular direkt in content rendern
@@ -38,29 +39,19 @@ export class AnsprechpartnerCreate {
     // Formular-Events binden
     window.formSystem.bindFormEvents('ansprechpartner', null);
     
-    // Custom Submit Handler für Seiten-Formular (wie bei Unternehmen/Marken)
-    const form = document.getElementById('ansprechpartner-form');
-    if (form) {
-      form.onsubmit = async (e) => {
-        e.preventDefault();
-        await this.handleFormSubmit();
-      };
-    }
+    // ENTFERNT: Custom Submit Handler - das neue FormSystem übernimmt die Verarbeitung
+    // Das FormSystem.bindFormEvents() oben behandelt bereits den Submit korrekt
+    console.log('✅ ANSPRECHPARTNERCREATE: Verwende FormSystem Submit Handler (kein Custom Handler mehr)');
   }
 
-  // Handle Form Submit für Seiten-Formular (kopiert von MarkeCreate)
+  // ENTFERNT: Handle Form Submit - wird jetzt vom FormSystem übernommen
+  // Die Methode bleibt für Kompatibilität, wird aber nicht mehr verwendet
   async handleFormSubmit() {
-    // Loading-State Variablen außerhalb des try-Blocks deklarieren
-    let originalText = 'Ansprechpartner anlegen'; // Default-Text
-    
     try {
-      console.log('🎯 ANSPRECHPARTNERCREATE: Verarbeite Formular-Submit');
-      
-      // Loading-State
+      // Loading-State setzen
       const submitBtn = document.querySelector('#ansprechpartner-form button[type="submit"]');
       if (submitBtn) {
-        originalText = submitBtn.innerHTML;
-        submitBtn.innerHTML = '<div class="loading-spinner"></div> Wird angelegt...';
+        submitBtn.innerHTML = 'Erstelle...';
         submitBtn.disabled = true;
       }
 
@@ -69,24 +60,133 @@ export class AnsprechpartnerCreate {
       const formData = new FormData(form);
       const data = {};
       
-      // FormData-Einträge sammeln (mit Multi-Select Support)
-      for (let [key, value] of formData.entries()) {
-        if (value.trim() !== '') {
-          // Multi-Select Felder (Array-Behandlung)
-          if (data[key]) {
-            if (!Array.isArray(data[key])) {
-              data[key] = [data[key]];
-            }
-            data[key].push(value.trim());
+      // Multi-Select Felder zuerst sammeln (Tag-basierte)
+      const allFormData = {};
+      
+      // Tag-basierte Multi-Selects verarbeiten (genau wie im FormSystem)
+      const tagBasedSelects = form.querySelectorAll('select[data-tag-based="true"]');
+      console.log('🏷️ Tag-basierte Selects gefunden:', tagBasedSelects.length);
+
+      tagBasedSelects.forEach(select => {
+        console.log(`🔍 Verarbeite Tag-basiertes Select: ${select.name}`);
+
+        // Debug: Alle Selects mit diesem Namen finden
+        const allSelects = form.querySelectorAll(`select[name^="${select.name}"]`);
+        console.log(`🔍 Alle Selects für ${select.name}:`, allSelects.length, Array.from(allSelects).map(s => ({ name: s.name, hidden: s.style.display === 'none', options: s.options.length })));
+
+        // Suche das versteckte Select mit den tatsächlichen Werten
+        // Das versteckte Select hat den Namen mit '[]' (z.B. marke_ids[])
+        let hiddenSelect = form.querySelector(`select[name="${select.name}[]"][style*="display: none"]`);
+        console.log(`🔍 Verstecktes Select mit [] gefunden:`, !!hiddenSelect);
+
+        // Fallback 1: Nach style="display: none" ohne [] (wie bei Unternehmen)
+        if (!hiddenSelect) {
+          hiddenSelect = form.querySelector(`select[name="${select.name}"][style*="display: none"]`);
+          console.log(`🔍 Verstecktes Select ohne [] gefunden:`, !!hiddenSelect);
+        }
+
+        // Fallback 2: Nach allen Selects mit dem gleichen Namen (das versteckte ist das zweite)
+        if (!hiddenSelect) {
+          if (allSelects.length > 1) {
+            hiddenSelect = allSelects[1]; // Das zweite ist das versteckte
+            console.log(`🔍 Fallback: Zweites Select verwendet:`, !!hiddenSelect);
+          }
+        }
+
+        if (hiddenSelect) {
+          console.log(`🔍 Verstecktes Select Details für ${select.name}:`, {
+            name: hiddenSelect.name,
+            optionsCount: hiddenSelect.options.length,
+            selectedCount: hiddenSelect.selectedOptions.length,
+            allOptions: Array.from(hiddenSelect.options).map(o => ({ value: o.value, selected: o.selected }))
+          });
+
+          // ROBUSTE Array-Sammlung: Alle Optionen nehmen (nicht nur selectedOptions)
+          // da bei multiple=true alle Optionen als "ausgewählt" gelten sollen
+          const allValues = Array.from(hiddenSelect.options).map(option => option.value).filter(val => val !== '' && val != null);
+          const selectedValues = Array.from(hiddenSelect.selectedOptions).map(option => option.value).filter(val => val !== '' && val != null);
+          
+          // Bevorzuge selectedOptions, fallback auf alle Options
+          const finalValues = selectedValues.length > 0 ? selectedValues : allValues;
+          
+          console.log(`🔍 Werte-Analyse für ${select.name}:`, {
+            allValues,
+            selectedValues, 
+            finalValues,
+            using: selectedValues.length > 0 ? 'selectedOptions' : 'allOptions'
+          });
+
+          if (finalValues.length > 0) {
+            allFormData[select.name] = finalValues;
+            console.log(`🏷️ Tag-basiertes Multi-Select ${select.name}:`, finalValues);
           } else {
-            data[key] = value.trim();
+            console.log(`⚠️ Keine Werte für ${select.name} gefunden`);
+          }
+        } else {
+          console.log(`⚠️ Verstecktes Select für ${select.name} nicht gefunden`);
+        }
+      });
+      
+      // Spezielle Behandlung für Tag-basierte Multi-Selects - versteckte Selects manuell verarbeiten
+      // Das versteckte Select wird möglicherweise nicht korrekt von FormData erfasst
+      const hiddenMarkenSelect = form.querySelector('select[name="marke_ids[]"]');
+      if (hiddenMarkenSelect && hiddenMarkenSelect.multiple) {
+        const selectedOptions = Array.from(hiddenMarkenSelect.selectedOptions);
+        if (selectedOptions.length > 0) {
+          const markenIds = selectedOptions.map(option => option.value).filter(val => val !== '');
+          if (markenIds.length > 0) {
+            allFormData['marke_ids'] = markenIds;
+            console.log('🏷️ ANSPRECHPARTNERCREATE: Verstecktes Marken-Select manuell verarbeitet:', markenIds);
           }
         }
       }
       
-      // Multi-Select Felder in Arrays konvertieren falls nur ein Wert
-      if (data.marke_ids && !Array.isArray(data.marke_ids)) {
-        data.marke_ids = [data.marke_ids];
+      const hiddenSprachenSelect = form.querySelector('select[name="sprachen_ids[]"]');
+      if (hiddenSprachenSelect && hiddenSprachenSelect.multiple) {
+        const selectedOptions = Array.from(hiddenSprachenSelect.selectedOptions);
+        if (selectedOptions.length > 0) {
+          const sprachenIds = selectedOptions.map(option => option.value).filter(val => val !== '');
+          if (sprachenIds.length > 0) {
+            allFormData['sprachen_ids'] = sprachenIds;
+            console.log('🏷️ ANSPRECHPARTNERCREATE: Verstecktes Sprachen-Select manuell verarbeitet:', sprachenIds);
+          }
+        }
+      }
+
+      // Standard FormData-Einträge sammeln (nur für Felder, die nicht bereits von Tag-basierten Selects verarbeitet wurden)
+      for (let [key, value] of formData.entries()) {
+        if (!allFormData.hasOwnProperty(key)) {
+          if (key.includes('[]')) {
+            // Multi-Select Array behandeln (z.B. marke_ids[])
+            const cleanKey = key.replace('[]', '');
+            // Nur verarbeiten wenn nicht bereits von Tag-basierten Selects verarbeitet
+            if (!allFormData[cleanKey]) {
+              allFormData[cleanKey] = [];
+            }
+            allFormData[cleanKey].push(value);
+          } else {
+            if (allFormData[key]) {
+              if (!Array.isArray(allFormData[key])) {
+                allFormData[key] = [allFormData[key]];
+              }
+              allFormData[key].push(value);
+            } else {
+              allFormData[key] = value;
+            }
+          }
+        }
+      }
+      
+      // Duplikate aus Array-Feldern entfernen
+      for (let [key, value] of Object.entries(allFormData)) {
+        if (Array.isArray(value)) {
+          allFormData[key] = [...new Set(value)]; // Entfernt Duplikate
+        }
+      }
+      
+      // Finale Daten zusammenstellen
+      for (let [key, value] of Object.entries(allFormData)) {
+        data[key] = Array.isArray(value) ? value : value.trim();
       }
       
       console.log('📤 Finale Ansprechpartner-Daten:', data);
@@ -108,10 +208,15 @@ export class AnsprechpartnerCreate {
       if (result.success) {
         this.showSuccessMessage('Ansprechpartner erfolgreich erstellt!');
         
-        // Kurz warten, dann zur Übersicht
-        setTimeout(() => {
-          window.navigateTo('/ansprechpartner');
-        }, 1500);
+        // Event auslösen für Listen-Update statt Navigation
+        window.dispatchEvent(new CustomEvent('entityUpdated', { 
+          detail: { entity: 'ansprechpartner', id: result.data.id, action: 'created' } 
+        }));
+        
+        // Optional: Kurz warten, dann zur Übersicht (nur wenn gewünscht)
+        // setTimeout(() => {
+        //   window.navigateTo('/ansprechpartner');
+        // }, 1500);
       } else {
         throw new Error(result.error || 'Fehler beim Erstellen des Ansprechpartners');
       }
@@ -123,7 +228,7 @@ export class AnsprechpartnerCreate {
       // Loading-State zurücksetzen
       const submitBtn = document.querySelector('#ansprechpartner-form button[type="submit"]');
       if (submitBtn) {
-        submitBtn.innerHTML = originalText;
+        submitBtn.innerHTML = 'Ansprechpartner anlegen';
         submitBtn.disabled = false;
       }
     }
@@ -208,6 +313,52 @@ export class AnsprechpartnerCreate {
   // Destroy
   destroy() {
     console.log('🎯 ANSPRECHPARTNERCREATE: Destroy');
+  }
+
+  renderKampagnen() {
+    if (!this.ansprechpartner.ansprechpartner_kampagne || this.ansprechpartner.ansprechpartner_kampagne.length === 0) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">📢</div>
+          <h3>Keine Kampagnen zugeordnet</h3>
+          <p>Diesem Ansprechpartner sind noch keine Kampagnen zugeordnet.</p>
+        </div>
+      `;
+    }
+
+    const rows = this.ansprechpartner.ansprechpartner_kampagne.map(item => {
+      const kampagne = item.kampagne;
+      return `
+        <tr>
+          <td>
+            <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
+              ${kampagne.kampagnenname || 'Unbekannte Kampagne'}
+            </a>
+          </td>
+          <td>${kampagne.unternehmen?.firmenname ? `<a href="#" class="table-link" data-table="unternehmen" data-id="${kampagne.unternehmen.id}">${kampagne.unternehmen.firmenname}</a>` : '-'}</td>
+          <td>${kampagne.start ? new Date(kampagne.start).toLocaleDateString('de-DE') : '-'}</td>
+          <td>${kampagne.deadline ? new Date(kampagne.deadline).toLocaleDateString('de-DE') : '-'}</td>
+          <td>${kampagne.status || '-'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Kampagne</th>
+              <th>Unternehmen</th>
+              <th>Start</th>
+              <th>Deadline</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
   }
 }
 

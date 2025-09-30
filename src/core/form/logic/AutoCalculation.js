@@ -8,6 +8,8 @@ export class AutoCalculation {
       deckungsbeitrag_betrag: this.calculateDeckungsbeitragBetrag.bind(this),
       // USt (19% von Netto)
       ust_betrag: this.calculateUstBetrag.bind(this),
+      // Bruttobetrag (Netto + USt)
+      bruttobetrag: this.calculateBruttobetrag.bind(this),
       // Brutto Gesamtbudget (Netto + USt)
       brutto_gesamt_budget: this.calculateBruttoGesamtBudget.bind(this),
       // KSK (5% von Netto)
@@ -133,6 +135,13 @@ export class AutoCalculation {
       console.error('❌ Fehler bei USt-Berechnung:', error);
       return 0;
     }
+  }
+
+  /**
+   * Berechne Bruttobetrag (Netto + USt)
+   */
+  calculateBruttobetrag(form, targetField) {
+    return this.calculateBruttoGesamtBudget(form, targetField);
   }
 
   /**

@@ -282,12 +282,15 @@ export class DependentFields {
         
         console.log(`✅ ${options.length} Marken geladen für Unternehmen ${parentValue}`);
         
-        // Feld wieder aktivieren
-        field.disabled = false;
+        if (options.length === 0) {
+          const message = 'Dieses Unternehmen hat keine Marke.';
+          this.setNoOptionsState(field, fieldConfig, message);
+          await this.loadAuftraegeForUnternehmen(parentValue, form, { disableMarke: true, message });
+          return;
+        }
         
-        // Für Multi-Select Felder (marke_ids) spezielle Tag-basierte Behandlung
+        field.disabled = false;
         if (fieldConfig.name === 'marke_ids' && fieldConfig.tagBased) {
-          // Sicherstellen, dass das Tag-basierte System aktiviert wird
           const container = field.closest('.form-field')?.querySelector('.tag-based-select');
           if (container) {
             const input = container.querySelector('.searchable-select-input');
@@ -295,20 +298,11 @@ export class DependentFields {
               input.disabled = false;
               input.placeholder = fieldConfig.placeholder || 'Marken suchen und hinzufügen...';
             }
-            // Optionsbasis im Container aktualisieren, damit das Dropdown sofort die neuen Marken kennt
             try { container.dataset.options = JSON.stringify(options); } catch (_) {}
           }
-          
           await this.updateTagBasedMultiSelectOptions(field, fieldConfig, options);
         } else {
-          // Standard Optionen-Update für normale Selects
           this.updateDependentFieldOptions(field, fieldConfig, options);
-        }
-        
-        // Wenn keine Marken vorhanden, Aufträge direkt basierend auf Unternehmen laden
-        if (options.length === 0) {
-          console.log(`⚠️ Keine Marken für Unternehmen ${parentValue} gefunden - lade Aufträge direkt`);
-          await this.loadAuftraegeForUnternehmen(parentValue, form);
         }
       }
       
@@ -511,15 +505,41 @@ export class DependentFields {
           console.error('❌ Unerwarteter Fehler beim Laden der Briefings:', e);
         }
       }
+
+      if (fieldConfig.name === 'ansprechpartner_id' && fieldConfig.dependsOn === 'unternehmen_id') {
+        const { data: ansprechpartner, error } = await window.supabase
+          .from('ansprechpartner')
+          .select('id, vorname, nachname, email, unternehmen_id')
+          .eq('unternehmen_id', parentValue)
+          .order('nachname');
+        
+        if (error) {
+          console.error('❌ Fehler beim Laden der Ansprechpartner für Unternehmen:', error);
+          return;
+        }
+        
+        const options = (ansprechpartner || []).map(ap => ({
+          value: ap.id,
+          label: [ap.vorname, ap.nachname, ap.email].filter(Boolean).join(' | ')
+        }));
+        
+        if (options.length === 0) {
+          this.setNoOptionsState(field, fieldConfig, 'Dieses Unternehmen hat keine Ansprechpartner.');
+          return;
+        }
+        
+        this.enableSearchableField(field, fieldConfig);
+        this.updateDependentFieldOptions(field, fieldConfig, options);
+      }
     } catch (error) {
       console.error(`❌ Fehler beim Laden der abhängigen Daten:`, error);
     }
   }
 
   // Hilfsmethode: Aufträge direkt für Unternehmen laden (wenn keine Marken vorhanden)
-  async loadAuftraegeForUnternehmen(unternehmenId, form) {
+  async loadAuftraegeForUnternehmen(unternehmenId, form, options = {}) {
     try {
-      // Erst prüfen ob Aufträge für dieses Unternehmen existieren
+      const { disableMarke = false, message = 'Keine Marken verfügbar' } = options;
       const { data: auftraege, error } = await window.supabase
         .from('auftrag')
         .select('id, auftragsname, marke_id')
@@ -533,32 +553,40 @@ export class DependentFields {
       
       if (auftraege.length > 0) {
         console.log(`✅ ${auftraege.length} Aufträge direkt für Unternehmen ${unternehmenId} gefunden`);
-        
-        // Auftrag-Feld finden und aktivieren
         const auftragField = form.querySelector('[name="auftrag_id"]');
         if (auftragField) {
-          const options = auftraege.map(auftrag => ({
+          const optionsList = auftraege.map(auftrag => ({
             value: auftrag.id,
             label: auftrag.auftragsname
           }));
-          
-          // Auftrag-Feld aktivieren und Optionen setzen
           auftragField.disabled = false;
-          this.updateDependentFieldOptions(auftragField, { name: 'auftrag_id' }, options);
-          
-          // Marke-Feld als "Nicht verfügbar" markieren
-          const markeField = form.querySelector('[name="marke_id"]');
-          if (markeField) {
-            markeField.innerHTML = '<option value="">Keine Marken verfügbar</option>';
-            markeField.disabled = true;
-          }
-          
-          // Auftrag-Feld temporär auf Unternehmen-Abhängigkeit umstellen
-          // (wird beim nächsten Unternehmen-Wechsel wieder zurückgesetzt)
-          console.log('🔄 Auftrag-Feld temporär auf Unternehmen-Abhängigkeit umgestellt');
+          this.updateDependentFieldOptions(auftragField, { name: 'auftrag_id' }, optionsList);
         }
       } else {
         console.log(`⚠️ Keine Aufträge für Unternehmen ${unternehmenId} gefunden`);
+      }
+
+      if (disableMarke) {
+        const markeField = form.querySelector('[name="marke_id"]');
+        if (markeField) {
+          const placeholder = message;
+          markeField.innerHTML = `<option value="">${placeholder}</option>`;
+          markeField.value = '';
+          markeField.disabled = true;
+          const container = markeField.closest('.searchable-select-container');
+          if (container) {
+            const input = container.querySelector('.searchable-select-input');
+            if (input) {
+              input.value = '';
+              input.placeholder = placeholder;
+              input.disabled = true;
+            }
+            const dropdown = container.querySelector('.searchable-select-dropdown');
+            if (dropdown) {
+              dropdown.innerHTML = `<div class="dropdown-item no-results">${placeholder}</div>`;
+            }
+          }
+        }
       }
     } catch (error) {
       console.error('❌ Fehler beim Laden der Aufträge für Unternehmen:', error);
@@ -730,5 +758,40 @@ export class DependentFields {
     }
     
     console.log(`✅ Tag-basierte Multi-Select Optionen für ${fieldConfig.name} aktualisiert`);
+  }
+
+  setNoOptionsState(field, fieldConfig, message) {
+    const container = field.closest('.searchable-select-container, .tag-based-select');
+    if (container) {
+      const input = container.querySelector('.searchable-select-input');
+      if (input) {
+        input.value = '';
+        input.placeholder = message;
+        input.disabled = true;
+      }
+      const dropdown = container.querySelector('.searchable-select-dropdown');
+      if (dropdown) {
+        dropdown.innerHTML = `<div class="dropdown-item no-results">${message}</div>`;
+      }
+    }
+    field.innerHTML = `<option value="">${message}</option>`;
+    field.value = '';
+    field.disabled = true;
+  }
+
+  enableSearchableField(field, fieldConfig) {
+    field.disabled = false;
+    const container = field.closest('.searchable-select-container, .tag-based-select');
+    if (container) {
+      const input = container.querySelector('.searchable-select-input');
+      if (input) {
+        input.disabled = false;
+        input.placeholder = fieldConfig.placeholder || 'Suchen...';
+      }
+      const dropdown = container.querySelector('.searchable-select-dropdown');
+      if (dropdown) {
+        dropdown.innerHTML = '';
+      }
+    }
   }
 } 

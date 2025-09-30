@@ -257,6 +257,19 @@ export class DynamicDataLoader {
           }
           break;
         
+        case 'mitarbeiter_ids':
+          options = await this.loadBenutzerOptions();
+          break;
+        case 'cutter_ids':
+          options = await this.loadBenutzerOptions({ role: 'cutter' });
+          break;
+        case 'copywriter_ids':
+          options = await this.loadBenutzerOptions({ role: 'copywriter' });
+          break;
+        case 'ansprechpartner_id':
+          options = await this.loadAnsprechpartnerOptions(field, form);
+          break;
+        
         default:
           // Keine spezielle Behandlung - wird über table-Konfiguration abgedeckt
           break;
@@ -267,7 +280,33 @@ export class DynamicDataLoader {
       const selectElement = form.querySelector(`[name="${field.name}"]`);
       if (selectElement) {
         console.log(`🔧 Update Select für ${field.name} mit ${options.length} Optionen`);
-        this.updateSelectOptions(selectElement, options, field);
+        
+        // Spezielle Behandlung für Tag-basierte Multi-Selects
+        if (selectElement.dataset.tagBased === 'true' && field.tagBased && selectElement.multiple) {
+          console.log('🏷️ DYNAMICDATALOADER: Initialisiere Tag-basiertes Multi-Select:', field.name);
+          
+          // Optionen in das Select-Element laden (für Fallback)
+          selectElement.innerHTML = '';
+          selectElement.appendChild(new Option('', ''));
+          options.forEach(option => {
+            const optionElement = new Option(option.label, option.value, option.selected, option.selected);
+            selectElement.appendChild(optionElement);
+          });
+          
+          // Tag-basiertes System nur initialisieren wenn Optionen vorhanden sind
+          if (options.length > 0 && window.formSystem?.optionsManager?.createTagBasedSelect) {
+            console.log('🏷️ DYNAMICDATALOADER: Erstelle Tag-System mit', options.length, 'Optionen für:', field.name);
+            window.formSystem.optionsManager.createTagBasedSelect(selectElement, options, field);
+            console.log('✅ DYNAMICDATALOADER: Tag-basiertes Multi-Select initialisiert für:', field.name);
+          } else if (options.length === 0) {
+            console.log('⏭️ DYNAMICDATALOADER: Keine Optionen für Tag-System verfügbar:', field.name);
+          } else {
+            console.warn('⚠️ DYNAMICDATALOADER: OptionsManager nicht verfügbar für:', field.name);
+          }
+        } else {
+          // Standard Select-Update
+          this.updateSelectOptions(selectElement, options, field);
+        }
       } else {
         console.log(`❌ Select-Element nicht gefunden für ${field.name}`);
       }
@@ -440,6 +479,7 @@ export class DynamicDataLoader {
               'pm_ids': editData.pm_ids || editData.projektmanager || [],
               'scripter_ids': editData.scripter_ids || editData.scripter || [],
               'cutter_ids': editData.cutter_ids || editData.cutter || [],
+              'copywriter_ids': editData.copywriter_ids || editData.copywriter || [],
               'art_der_kampagne': editData.art_der_kampagne || editData.kampagnenarten || [],
               'plattform_ids': editData.plattform_ids || editData.plattformen || [],
               'format_ids': editData.format_ids || editData.formate || []
@@ -700,7 +740,7 @@ export class DynamicDataLoader {
         await this.loadKampagneDependentFieldsImproved(field, form, options);
         
         // Felder als readonly/fixiert markieren
-        if (['unternehmen_id', 'marke_id', 'auftrag_id'].includes(field.name)) {
+        if (['unternehmen_id', 'marke_id', 'auftrag_id', 'ansprechpartner_id'].includes(field.name)) {
           setTimeout(() => {
             this.setKampagneFieldAsReadonly(field, form);
           }, 200); // Länger warten
@@ -891,6 +931,46 @@ export class DynamicDataLoader {
         }
       }
       
+      // Ansprechpartner laden
+      if (field.name === 'ansprechpartner_id' && editModeData.unternehmen_id) {
+        console.log('👤 DYNAMICDATALOADER: Lade Ansprechpartner für Unternehmen im Kampagne Edit-Modus:', editModeData.unternehmen_id);
+        
+        const { data: ansprechpartner, error } = await window.supabase
+          .from('ansprechpartner')
+          .select('id, name')
+          .eq('unternehmen_id', editModeData.unternehmen_id)
+          .order('name');
+        
+        if (!error && ansprechpartner) {
+          // Bestehende Optionen durch Ansprechpartner ersetzen
+          options.length = 0; // Array leeren
+          
+          if (ansprechpartner.length === 0) {
+            // Keine Ansprechpartner für dieses Unternehmen
+            options.push({ 
+              value: '', 
+              label: 'Keine Ansprechpartner für dieses Unternehmen verfügbar', 
+              selected: true,
+              disabled: true,
+              style: 'color: #6b7280; font-style: italic;'
+            });
+            console.log('ℹ️ DYNAMICDATALOADER: Keine Ansprechpartner für Unternehmen gefunden');
+          } else {
+            // Placeholder Option
+            options.push({ value: '', label: 'Ansprechpartner auswählen...', selected: false });
+            // Ansprechpartner hinzufügen
+            ansprechpartner.forEach(ansprechpartner => {
+              options.push({
+                value: ansprechpartner.id,
+                label: ansprechpartner.name,
+                selected: ansprechpartner.id === editModeData.ansprechpartner_id
+              });
+            });
+            console.log('✅ DYNAMICDATALOADER: Ansprechpartner-Optionen geladen:', options.length - 1);
+          }
+        }
+      }
+      
     } catch (error) {
       console.error('❌ DYNAMICDATALOADER: Fehler beim Laden der verbesserten Kampagne-Felder:', error);
     }
@@ -1004,9 +1084,93 @@ export class DynamicDataLoader {
     }
   }
 
+  // Benutzeroptionen laden
+  async loadBenutzerOptions(filter = {}) {
+    if (!window.supabase) return [];
+    try {
+      let query = window.supabase
+        .from('benutzer')
+        .select('id, name, vorname, nachname, rolle')
+        .order('name');
+
+      if (filter.role) {
+        query = query.eq('rolle', filter.role);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('❌ Fehler beim Laden der Benutzer:', error);
+        return [];
+      }
+
+      return (data || []).map(benutzer => ({
+        value: benutzer.id,
+        label: `${benutzer.vorname} ${benutzer.nachname} (${benutzer.rolle})`
+      }));
+    } catch (e) {
+      console.error('❌ Unerwarteter Fehler beim Laden der Benutzer-Optionen:', e);
+      return [];
+    }
+  }
+
+  // Ansprechpartneroptionen laden
+  async loadAnsprechpartnerOptions(field, form) {
+    try {
+      const unternehmenSelect = form?.querySelector('select[name="unternehmen_id"]');
+      const unternehmenId = unternehmenSelect?.value || null;
+
+      if (!unternehmenId) {
+        return [];
+      }
+
+      const hiddenSelect = unternehmenSelect.parentNode?.querySelector('select[style*="display: none"]');
+      const effectiveUnternehmenId = hiddenSelect && hiddenSelect !== unternehmenSelect
+        ? hiddenSelect.value
+        : unternehmenId;
+
+      let query = window.supabase
+        .from('ansprechpartner')
+        .select('id, vorname, nachname, email, unternehmen_id')
+        .eq('unternehmen_id', effectiveUnternehmenId)
+        .order('nachname');
+
+      const { data, error } = await query;
+      if (error) {
+        console.error('❌ Fehler beim Laden der Ansprechpartner:', error);
+        return [];
+      }
+
+      const selectedValue = field?.value || field?.dataset?.value || null;
+
+      return (data || []).map(ap => ({
+        value: ap.id,
+        label: [ap.vorname, ap.nachname, ap.email].filter(Boolean).join(' | '),
+        selected: selectedValue && selectedValue === ap.id
+      }));
+    } catch (error) {
+      console.error('❌ Unerwarteter Fehler beim Laden der Ansprechpartner:', error);
+      return [];
+    }
+  }
+
   // Searchable Select reinitialisieren
   reinitializeSearchableSelect(selectElement, options, field) {
     console.log('🔧 Reinitialisiere Searchable Select für:', field.name, 'mit', options.length, 'Optionen');
+    
+    // Spezielle Behandlung für Tag-basierte Multi-Selects
+    if (selectElement.dataset.tagBased === 'true' && field.tagBased) {
+      console.log('🏷️ DYNAMICDATALOADER: Tag-basiertes Multi-Select erkannt:', field.name);
+      
+      // Verwende OptionsManager für Tag-basierte Selects
+      if (window.formSystem?.optionsManager?.createTagBasedSelect) {
+        window.formSystem.optionsManager.createTagBasedSelect(selectElement, options, field);
+        console.log('✅ DYNAMICDATALOADER: Tag-basiertes Multi-Select reinitialisiert für:', field.name);
+        return;
+      } else {
+        console.warn('⚠️ DYNAMICDATALOADER: OptionsManager nicht verfügbar für:', field.name);
+      }
+    }
     
     // Bestehende Auto-Suggestion Container entfernen
     const existingContainer = selectElement.parentNode.querySelector('.searchable-select-container');

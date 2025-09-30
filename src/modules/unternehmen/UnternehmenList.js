@@ -526,43 +526,13 @@ export class UnternehmenList {
 
     // Formular-Events binden
     window.formSystem.bindFormEvents('unternehmen', null);
-    
-    // Custom Submit Handler für Seiten-Formular
-    const form = document.getElementById('unternehmen-form');
-    if (form) {
-      form.onsubmit = async (e) => {
-        e.preventDefault();
-        await this.handleFormSubmit();
-      };
-    }
   }
 
   // Handle Form Submit für Seiten-Formular
   async handleFormSubmit() {
     try {
       const form = document.getElementById('unternehmen-form');
-      const formData = new FormData(form);
-      const submitData = {};
-
-      // FormData zu Objekt konvertieren
-      for (const [key, value] of formData.entries()) {
-        if (key.includes('[]')) {
-          // Multi-Select behandeln
-          const cleanKey = key.replace('[]', '');
-          if (!submitData[cleanKey]) {
-            submitData[cleanKey] = [];
-          }
-          submitData[cleanKey].push(value);
-        } else {
-          submitData[key] = value;
-        }
-      }
-
-      // Branchen-IDs für Junction Table beibehalten (nicht zu einzelner UUID konvertieren)
-      if (submitData.branche_id && Array.isArray(submitData.branche_id)) {
-        console.log('✅ branche_id Array für Junction Table:', submitData.branche_id);
-        // Array beibehalten - wird von RelationTables verarbeitet
-      }
+      const submitData = window.formSystem.collectSubmitData(form);
 
       // Validierung
       const validation = window.validatorSystem.validateForm(submitData, {
@@ -594,10 +564,15 @@ export class UnternehmenList {
 
         this.showSuccessMessage('Unternehmen erfolgreich erstellt!');
         
-        // Zurück zur Übersicht navigieren
-        setTimeout(() => {
-          window.navigateTo('/unternehmen');
-        }, 1500);
+        // Event auslösen für Listen-Update statt Navigation
+        window.dispatchEvent(new CustomEvent('entityUpdated', { 
+          detail: { entity: 'unternehmen', id: result.id, action: 'created' } 
+        }));
+        
+        // Optional: Zurück zur Übersicht navigieren (nur wenn gewünscht)
+        // setTimeout(() => {
+        //   window.navigateTo('/unternehmen');
+        // }, 1500);
       } else {
         throw new Error(result.error || 'Unbekannter Fehler');
       }

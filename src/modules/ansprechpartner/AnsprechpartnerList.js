@@ -242,14 +242,24 @@ export class AnsprechpartnerList {
           </a>
         </td>
         <td>${ap.position?.name || '-'}</td>
-        <td>${ap.unternehmen?.firmenname || '-'}</td>
-        <td>${ap.marken?.length > 0 ? ap.marken.map(m => m.markenname).join(', ') : '-'}</td>
+        <td>
+          ${(ap.unternehmen && ap.unternehmen.firmenname)
+            ? `<span class="tag tag--unternehmen">${window.validatorSystem.sanitizeHtml(ap.unternehmen.firmenname)}</span>`
+            : '-'}
+        </td>
+        <td>
+          ${(ap.marken && ap.marken.length > 0)
+            ? `<div class="tag-list">${ap.marken.map(m => `<span class="tag tag--marke">${window.validatorSystem.sanitizeHtml(m.markenname)}</span>`).join('')}</div>`
+            : '-'}
+        </td>
         <td>${ap.email ? `<a href="mailto:${ap.email}">${ap.email}</a>` : '-'}</td>
         <td>${ap.telefonnummer || '-'}</td>
         <td>${ap.stadt || '-'}</td>
-        <td>${(ap.sprachen && ap.sprachen.length > 0)
-              ? ap.sprachen.map(s => s.name).join(', ')
-              : (ap.sprache?.name || '-')}</td>
+        <td>
+          ${(ap.sprachen && ap.sprachen.length > 0)
+            ? `<div class="tag-list">${ap.sprachen.map(s => `<span class="tag tag--sprache">${window.validatorSystem.sanitizeHtml(s.name)}</span>`).join('')}</div>`
+            : (ap.sprache?.name ? `<span class="tag tag--sprache">${window.validatorSystem.sanitizeHtml(ap.sprache.name)}</span>` : '-')}
+        </td>
         <td>
           <div class="actions-dropdown-container" data-entity-type="ansprechpartner">
             <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">

@@ -690,10 +690,15 @@ export class CreatorList {
       if (result.success) {
         this.showSuccessMessage('Creator erfolgreich erstellt!');
         
-        // Zurück zur Übersicht navigieren
-        setTimeout(() => {
-          window.navigateTo('/creator');
-        }, 1500);
+        // Event auslösen für Listen-Update statt Navigation
+        window.dispatchEvent(new CustomEvent('entityUpdated', { 
+          detail: { entity: 'creator', id: result.id, action: 'created' } 
+        }));
+        
+        // Optional: Zurück zur Übersicht navigieren (nur wenn gewünscht)
+        // setTimeout(() => {
+        //   window.navigateTo('/creator');
+        // }, 1500);
       } else {
         throw new Error(result.error || 'Unbekannter Fehler');
       }

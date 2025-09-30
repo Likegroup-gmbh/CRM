@@ -176,10 +176,21 @@ export class FormRenderer {
             (field.placeholder || 'Bitte wählen...');
           options = `<option value="">${placeholder}</option>`;
         } else {
-          // Für statische Felder alle Optionen rendern
-          options = field.options.map(option => {
-            const selected = value === option ? 'selected' : '';
-            return `<option value="${option}" ${selected}>${option}</option>`;
+          // Für statische Felder Placeholder hinzufügen
+          const placeholder = field.placeholder || 'Bitte wählen...';
+          options = `<option value="">${placeholder}</option>`;
+          
+          // Dann alle Optionen rendern
+          options += field.options.map(option => {
+            // Unterstütze sowohl String- als auch Objekt-Optionen
+            if (typeof option === 'string') {
+              const selected = value === option ? 'selected' : '';
+              return `<option value="${option}" ${selected}>${option}</option>`;
+            } else if (option && typeof option === 'object' && option.value !== undefined) {
+              const selected = value === option.value ? 'selected' : '';
+              return `<option value="${option.value}" ${selected}>${option.label || option.value}</option>`;
+            }
+            return '';
           }).join('');
         }
         

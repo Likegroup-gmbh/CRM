@@ -393,41 +393,49 @@ export class MarkeDetail {
       </div>
     ` : '';
 
-    const addButton = `
+    const header = `
       <div class="section-header">
         <h3>Ansprechpartner</h3>
-        <button id="btn-add-ansprechpartner" class="primary-btn" data-marke-id="${this.markeId}">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
-          </svg>
-          Ansprechpartner hinzufügen
-        </button>
       </div>
     `;
 
     if (!hasAnsprechpartner) {
-      return addButton + emptyState;
+      return header + emptyState;
     }
 
-    const ansprechpartnerHtml = this.ansprechpartner.map(ap => `
-      <div class="ansprechpartner-card">
-        <div class="ansprechpartner-header">
-          <h4>${ap.vorname} ${ap.nachname}</h4>
-          <span class="ansprechpartner-position">${ap.position?.name || '-'}</span>
-        </div>
-        <div class="ansprechpartner-details">
-          <p><strong>Email:</strong> ${ap.email ? `<a href="mailto:${ap.email}">${ap.email}</a>` : '-'}</p>
-          <p><strong>Telefon (privat):</strong> ${ap.telefonnummer ? `<a href="tel:${ap.telefonnummer}">${ap.telefonnummer}</a>` : '-'}</p>
-          <p><strong>Telefon (büro):</strong> ${ap.telefonnummer_office ? `<a href="tel:${ap.telefonnummer_office}">${ap.telefonnummer_office}</a>` : '-'}</p>
-          <p><strong>Unternehmen:</strong> ${ap.unternehmen?.firmenname || '-'}</p>
-        </div>
-      </div>
+    const rows = this.ansprechpartner.map(ap => `
+      <tr>
+        <td>
+          <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
+            ${ap.vorname} ${ap.nachname}
+          </a>
+        </td>
+        <td>${ap.position?.name || '-'}</td>
+        <td>${ap.email ? `<a href="mailto:${ap.email}">${ap.email}</a>` : '-'}</td>
+        <td>${ap.telefonnummer ? `<a href="tel:${ap.telefonnummer}">${ap.telefonnummer}</a>` : '-'}</td>
+        <td>${ap.telefonnummer_office ? `<a href="tel:${ap.telefonnummer_office}">${ap.telefonnummer_office}</a>` : '-'}</td>
+        <td>${ap.unternehmen?.firmenname || '-'}</td>
+        <td>${ap.stadt || '-'}</td>
+      </tr>
     `).join('');
 
     return `
-      ${addButton}
-      <div class="ansprechpartner-container">
-        ${ansprechpartnerHtml}
+      ${header}
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Position</th>
+              <th>Email</th>
+              <th>Telefon (Privat)</th>
+              <th>Telefon (Büro)</th>
+              <th>Unternehmen</th>
+              <th>Stadt</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
       </div>
     `;
   }
@@ -593,14 +601,14 @@ export class MarkeDetail {
       if (!error && branchenData && branchenData.length > 0) {
         const branchenIds = branchenData.map(b => b.branche_id);
         console.log('🏷️ MARKENDETAIL: Formatiere Branchen-Daten für FormSystem:', branchenIds);
-        formData.branche_id = branchenIds;
+        formData.branche_ids = branchenIds;
       } else {
         console.log('ℹ️ MARKENDETAIL: Keine Branchen-Daten vorhanden für Edit-Modus');
-        formData.branche_id = [];
+        formData.branche_ids = [];
       }
     } catch (branchenError) {
       console.warn('⚠️ MARKENDETAIL: Fehler beim Laden der Branchen-Daten:', branchenError);
-      formData.branche_id = [];
+      formData.branche_ids = [];
     }
     
     console.log('📋 MARKENDETAIL: FormData für Rendering:', formData);

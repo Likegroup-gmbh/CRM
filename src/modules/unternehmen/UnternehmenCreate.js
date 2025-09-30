@@ -387,15 +387,31 @@ export class UnternehmenCreate {
   collectFormData() {
     const formData = new FormData(document.getElementById('unternehmen-create-form'));
     const data = {};
+
+    // Ausgewählte Branchen aus Hidden Select übernehmen (Auto-Suggest)
+    const hiddenSelect = document.querySelector('select[name="branche_id[]"]');
+    if (hiddenSelect) {
+      const selectedValues = Array.from(hiddenSelect.selectedOptions).map(option => option.value).filter(Boolean);
+      if (selectedValues.length > 0) {
+        data.branche_id = selectedValues;
+      }
+    }
     
     // Standard-Felder
     for (let [key, value] of formData.entries()) {
+      if (key === 'branche_id' || key === 'branche_id[]') {
+        continue;
+      }
       data[key] = value.trim();
     }
 
     // Branchen-IDs hinzufügen
-    if (this.selectedBranches.length > 0) {
-      data.branche_id = this.selectedBranches[0].id; // Erste Branche als Haupt-Branche
+    if (!data.branche_id || data.branche_id.length === 0) {
+      data.branche_id = this.selectedBranches.map(branch => branch.id).filter(Boolean);
+    }
+
+    if (!Array.isArray(data.branche_id)) {
+      data.branche_id = data.branche_id ? [data.branche_id] : [];
     }
 
     return data;
@@ -478,6 +494,9 @@ export class UnternehmenCreate {
 
       console.log('✅ UNTERNEHMENCREATE: Unternehmen erstellt:', unternehmen);
 
+      const createForm = document.getElementById('unternehmen-create-form') || document;
+      await this.saveUnternehmenBranchen(unternehmen.id, formData.branche_id, createForm);
+
       // Event auslösen für Listen-Update
       window.dispatchEvent(new CustomEvent('entityCreated', {
         detail: { entity: 'unternehmen', data: unternehmen }
@@ -485,7 +504,13 @@ export class UnternehmenCreate {
 
       // Erfolgsmeldung und Weiterleitung
       window.showNotification('Unternehmen wurde erfolgreich angelegt!', 'success');
-      window.navigateTo(`/unternehmen/${unternehmen.id}`);
+      // Event auslösen für Listen-Update statt Navigation
+      window.dispatchEvent(new CustomEvent('entityUpdated', { 
+        detail: { entity: 'unternehmen', id: unternehmen.id, action: 'created' } 
+      }));
+      
+      // Optional: Zur Detail-Seite navigieren (nur wenn gewünscht)
+      // window.navigateTo(`/unternehmen/${unternehmen.id}`);
 
     } catch (error) {
       console.error('❌ UNTERNEHMENCREATE: Fehler beim Anlegen:', error);
@@ -615,6 +640,7 @@ export class UnternehmenCreate {
       }
 
       console.log('📋 UNTERNEHMENCREATE: Formular-Daten gesammelt:', data);
+      console.log('🧪 UNTERNEHMENCREATE: Übergabe an DataService mit branche_id:', data.branche_id);
 
       // Unternehmen über DataService erstellen (konsistent mit anderen Modulen)
       const result = await window.dataService.createEntity('unternehmen', data);
@@ -627,18 +653,7 @@ export class UnternehmenCreate {
 
       console.log('✅ UNTERNEHMENCREATE: Unternehmen erstellt:', unternehmen);
 
-      // Junction Table-Verknüpfungen verarbeiten (für branche_id)
-      if (result.id) {
-        try {
-          const { RelationTables } = await import('../../core/form/logic/RelationTables.js');
-          const relationTables = new RelationTables();
-          await relationTables.handleRelationTables('unternehmen', result.id, data, form);
-          console.log('✅ Junction Table-Verknüpfungen verarbeitet');
-        } catch (relationError) {
-          console.error('❌ Fehler beim Verarbeiten der Junction Tables:', relationError);
-          // Nicht fatal - Hauptentität wurde bereits erstellt
-        }
-      }
+      await this.saveUnternehmenBranchen(result.id, data.branche_id, form);
 
       // Event auslösen für Listen-Update
       window.dispatchEvent(new CustomEvent('entityCreated', {
@@ -647,7 +662,13 @@ export class UnternehmenCreate {
 
       // Erfolgsmeldung und Weiterleitung
       window.showNotification('Unternehmen wurde erfolgreich angelegt!', 'success');
-      window.navigateTo(`/unternehmen/${unternehmen.id}`);
+      // Event auslösen für Listen-Update statt Navigation
+      window.dispatchEvent(new CustomEvent('entityUpdated', { 
+        detail: { entity: 'unternehmen', id: unternehmen.id, action: 'created' } 
+      }));
+      
+      // Optional: Zur Detail-Seite navigieren (nur wenn gewünscht)
+      // window.navigateTo(`/unternehmen/${unternehmen.id}`);
 
     } catch (error) {
       console.error('❌ UNTERNEHMENCREATE: Fehler beim Anlegen:', error);
@@ -683,6 +704,92 @@ export class UnternehmenCreate {
     } catch (error) {
       console.error('❌ Fehler beim Laden der Branche-Namen:', error);
       return branchenIds;
+    }
+  }
+
+  // Branchen-Verknüpfungen speichern
+  async saveUnternehmenBranchen(unternehmenId, brancheIds = null, form = null) {
+    try {
+      if (!unternehmenId) return;
+
+      let ids = [];
+
+      if (Array.isArray(brancheIds)) {
+        ids = brancheIds.filter(Boolean);
+      } else if (typeof brancheIds === 'string' && brancheIds) {
+        ids = [brancheIds];
+      }
+
+      // Fallback: Hidden Select (FormSystem Tag-basiert)
+      if (ids.length === 0) {
+        const context = form || document;
+        const hiddenSelect = context.querySelector('select[name="branche_id[]"]');
+        if (hiddenSelect) {
+          ids = Array.from(hiddenSelect.selectedOptions).map(option => option.value).filter(Boolean);
+        }
+      }
+
+      // Fallback: manuelle Auswahl über this.selectedBranches
+      if (ids.length === 0 && this.selectedBranches.length > 0) {
+        ids = this.selectedBranches.map(branch => branch.id).filter(Boolean);
+      }
+
+      // Bestehende Zuordnungen löschen
+      const { error: deleteError } = await window.supabase
+        .from('unternehmen_branchen')
+        .delete()
+        .eq('unternehmen_id', unternehmenId);
+
+      if (deleteError) {
+        console.error('❌ Fehler beim Löschen bestehender Branchen-Zuordnungen:', deleteError);
+        throw deleteError;
+      }
+
+      if (ids.length === 0) {
+        // Primäre Branche auf null setzen
+        await window.supabase
+          .from('unternehmen')
+          .update({ branche_id: null, branche: null })
+          .eq('id', unternehmenId);
+        console.log('ℹ️ Keine Branchen ausgewählt – Primärbranche zurückgesetzt');
+        return;
+      }
+
+      const insertData = ids.map(id => ({
+        unternehmen_id: unternehmenId,
+        branche_id: id
+      }));
+
+      const { error: insertError } = await window.supabase
+        .from('unternehmen_branchen')
+        .insert(insertData);
+
+      if (insertError) {
+        console.error('❌ Fehler beim Speichern der Branchen-Zuordnungen:', insertError);
+        throw insertError;
+      }
+
+      // Primäre Branche + Legacy-String aktualisieren
+      const branchNames = await this.getBranchenNamen(ids);
+      const brancheNameString = branchNames.filter(Boolean).join(', ') || null;
+
+      const { error: updateError } = await window.supabase
+        .from('unternehmen')
+        .update({
+          branche_id: ids[0] || null,
+          branche: brancheNameString
+        })
+        .eq('id', unternehmenId);
+
+      if (updateError) {
+        console.error('❌ Fehler beim Aktualisieren der Primärbranche:', updateError);
+      } else {
+        console.log(`✅ Primärbranche aktualisiert (${ids[0]}) und Legacy-String gesetzt: ${brancheNameString}`);
+      }
+
+    } catch (error) {
+      console.error('❌ Fehler beim Speichern der Unternehmen-Branchen:', error);
+      window.showNotification('Branchen-Zuordnungen konnten nicht vollständig gespeichert werden.', 'warning');
     }
   }
 

@@ -1,12 +1,15 @@
 // ActionsDropdown.js (ES6-Modul)
 // Modulare Dropdown-Komponente für Listen-Aktionen
 
+import { actionRegistry } from './ActionRegistry.js';
+
 export class ActionsDropdown {
   constructor() {
     this.dropdowns = new Map();
     this.boundEventListeners = new Set();
     this._iconObserver = null;
     this._normalizingIcons = false;
+    this.actionRegistry = actionRegistry;
   }
 
   // Initialisiere die Komponente
@@ -105,6 +108,17 @@ export class ActionsDropdown {
 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
   <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
 </svg>`;
+      case 'details':
+      case 'add-details':
+        return `
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+</svg>`;
+      case 'rechnungen':
+        return `
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+  <path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
+</svg>`;
       default:
         return '';
     }
@@ -171,6 +185,15 @@ export class ActionsDropdown {
 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
   <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" />
 </svg>`;
+      case 'auftrag-details':
+        if (window.auftragDetail) {
+          window.auftragDetail.showDetailsForm(entityId);
+        } else if (window.formSystem) {
+          window.formSystem.openModalForm('auftrag_details', { auftrag_id: entityId });
+        } else {
+          alert('Auftragsdetails-Formular nicht verfügbar.');
+        }
+        break;
       default:
         return this.getHeroIcon('status-offen');
     }
@@ -225,6 +248,8 @@ export class ActionsDropdown {
         replaceIn('.action-item[data-action="notiz"]', 'notiz');
         replaceIn('.action-item[data-action="favorite"]', 'favorite');
         replaceIn('.action-item.action-danger[data-action="delete"]', 'delete');
+        replaceIn('.action-item[data-action="rechnungen"]', 'rechnungen');
+        replaceIn('.action-item[data-action="auftrag-details"]', 'details');
 
         dd.setAttribute('data-icons-normalized', '1');
       });
@@ -665,9 +690,8 @@ export class ActionsDropdown {
             <i class="icon-note"></i>
             Notiz hinzufügen
           </a>
-          <a href="#" class="action-item" data-action="kampagnen" data-id="${auftragId}">
-            <i class="icon-campaign"></i>
-            Kampagnen anzeigen
+          <a href="#" class="action-item" data-action="auftrag-details" data-icon="details" data-id="${auftragId}">
+            Auftragsdetails hinzufügen
           </a>
           <a href="#" class="action-item" data-action="rechnung" data-id="${auftragId}">
             <i class="icon-invoice"></i>
@@ -766,6 +790,15 @@ export class ActionsDropdown {
   async handleAction(action, entityId, entityType, actionItem) {
     console.log(`🎯 ACTIONSDROPDOWN: Action ${action} für ${entityType} ${entityId}`);
 
+    // Erst versuchen über das neue ActionRegistry
+    try {
+      await this.actionRegistry.executeAction(action, entityId, entityType, actionItem);
+      return; // Wenn erfolgreich, hier beenden
+    } catch (error) {
+      console.warn('⚠️ ActionRegistry konnte Action nicht verarbeiten, verwende Legacy-System:', error);
+    }
+
+    // Legacy-System als Fallback
     switch (action) {
       case 'view':
         window.navigateTo(`/${entityType}/${entityId}`);
@@ -924,6 +957,27 @@ export class ActionsDropdown {
         break;
       case 'video-delete':
         this.confirmDelete(entityId, 'kooperation_videos');
+        break;
+      case 'details':
+      case 'auftrag-details':
+        console.log('🎯 ACTIONSDROPDOWN: Details-Action wird verarbeitet');
+        console.log('🎯 window.auftragDetail:', !!window.auftragDetail);
+        console.log('🎯 window.auftragsDetailsManager:', !!window.auftragsDetailsManager);
+        console.log('🎯 window.formSystem:', !!window.formSystem);
+        
+        if (window.auftragDetail) {
+          console.log('🎯 Verwende auftragDetail.showDetailsForm');
+          window.auftragDetail.showDetailsForm(entityId);
+        } else if (window.auftragsDetailsManager) {
+          console.log('🎯 Verwende auftragsDetailsManager.open');
+          window.auftragsDetailsManager.open(entityId);
+        } else if (window.formSystem) {
+          console.log('🎯 Verwende formSystem.openModalForm');
+          window.formSystem.openModalForm('auftrag_details', { auftrag_id: entityId });
+        } else {
+          console.log('🎯 Keine verfügbaren Systeme gefunden');
+          alert('Auftragsdetails-Formular nicht verfügbar.');
+        }
         break;
 
       default:

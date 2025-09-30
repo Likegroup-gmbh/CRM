@@ -37,13 +37,23 @@ export class RelationTables {
       // Korrekte Entity-Feld-Namen für verschiedene Verknüpfungstabellen
       let entityField;
       if (field.name === 'mitarbeiter_ids') {
-        entityField = 'kampagne_id';
+        entityField = relationTable === 'auftrag_mitarbeiter' ? 'auftrag_id' : 'kampagne_id';
+      } else if (field.name === 'cutter_ids' && relationTable === 'auftrag_cutter') {
+        entityField = 'auftrag_id';
+      } else if (field.name === 'copywriter_ids' && relationTable === 'auftrag_copywriter') {
+        entityField = 'auftrag_id';
+      } else if (field.name === 'mitarbeiter_ids' && relationTable === 'auftrag_mitarbeiter') {
+        entityField = 'auftrag_id';
       } else if (field.name === 'plattform_ids') {
         entityField = 'kampagne_id';
       } else if (field.name === 'format_ids') {
         entityField = 'kampagne_id';
       } else if (field.name === 'branche_id' && field.relationTable === 'unternehmen_branchen') {
         entityField = 'unternehmen_id';
+      } else if (field.name === 'marke_ids') {
+        entityField = 'ansprechpartner_id';
+      } else if (field.name === 'sprachen_ids') {
+        entityField = 'ansprechpartner_id';
       } else {
         entityField = `${field.name.replace('_ids', '_id')}`;
       }
@@ -73,20 +83,45 @@ export class RelationTables {
       
       // Batch-Insert für bessere Performance
       if (valuesToInsert.length > 0) {
+        let foreignField = relationField;
+        if (field.name === 'sprachen_ids') {
+          foreignField = 'sprache_id';
+        } else if (field.name === 'marke_ids') {
+          foreignField = 'marke_id';
+        } else if (field.name === 'mitarbeiter_ids' && relationTable === 'auftrag_mitarbeiter') {
+          foreignField = 'mitarbeiter_id';
+        } else if (field.name === 'cutter_ids' && relationTable === 'auftrag_cutter') {
+          foreignField = 'mitarbeiter_id';
+        } else if (field.name === 'copywriter_ids' && relationTable === 'auftrag_copywriter') {
+          foreignField = 'mitarbeiter_id';
+        }
+
         const insertData = valuesToInsert.map(value => ({
           [entityField]: entityId,
-          [relationField]: value
+          [foreignField]: value
         }));
-        
-        const { error: insertError } = await window.supabase
-          .from(relationTable)
-          .insert(insertData);
-        
-        if (insertError) {
-          console.error(`❌ Fehler beim Einfügen neuer Verknüpfungen:`, insertError);
-          throw insertError;
+
+        try {
+          const { error: insertError } = await window.supabase
+            .from(relationTable)
+            .insert(insertData);
+
+          if (insertError) {
+            if (String(insertError.code) === '42P01') {
+              console.warn(`⚠️ Relationstabelle ${relationTable} existiert nicht. Überspringe Inserts.`);
+              return;
+            }
+            console.error(`❌ Fehler beim Einfügen neuer Verknüpfungen:`, insertError);
+            throw insertError;
+          }
+        } catch (insertEx) {
+          if (String(insertEx.code) === '42P01') {
+            console.warn(`⚠️ Relationstabelle ${relationTable} existiert nicht. Überspringe Inserts.`);
+            return;
+          }
+          throw insertEx;
         }
-        
+
         console.log(`✅ ${valuesToInsert.length} Verknüpfungen in ${relationTable} erstellt`);
       }
       

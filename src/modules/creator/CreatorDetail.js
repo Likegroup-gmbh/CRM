@@ -333,6 +333,10 @@ export class CreatorDetail {
             Unternehmen
             <span class="tab-count">${(this.unternehmen||[]).length}</span>
           </button>
+          <button class="tab-button" data-tab="adresse">
+            <i class="icon-map-pin"></i>
+            Adresse
+          </button>
         </div>
 
         <!-- Tab Content -->
@@ -473,6 +477,13 @@ export class CreatorDetail {
             <div class="detail-section">
               <h2>Unternehmen</h2>
               ${this.renderUnternehmen()}
+            </div>
+          </div>
+          <!-- Adresse Tab -->
+          <div class="tab-pane" id="tab-adresse">
+            <div class="detail-section">
+              <h2>Adresse</h2>
+              ${this.renderAdresse()}
             </div>
           </div>
         </div>
@@ -685,6 +696,52 @@ export class CreatorDetail {
           <tbody>${rows}</tbody>
         </table>
       </div>`;
+  }
+
+  renderAdresse() {
+    const c = this.creator || {};
+    const sanitize = (val) => {
+      if (val === undefined || val === null || val === '') return '-';
+      if (val === '-') return '-';
+      return window.validatorSystem.sanitizeHtml(String(val));
+    };
+
+    const columns = [
+      { label: 'Straße', value: c.lieferadresse_strasse || '-' },
+      { label: 'Hausnummer', value: c.lieferadresse_hausnummer || '-' },
+      { label: 'PLZ', value: c.lieferadresse_plz || '-' },
+      { label: 'Stadt', value: c.lieferadresse_stadt || '-' },
+      { label: 'Land', value: c.lieferadresse_land || '-' }
+    ];
+
+    return `
+      <div class="data-table-container">
+        <table class="data-table" id="creator-address-table">
+          <thead>
+            <tr>
+              ${columns.map(col => `<th>${sanitize(col.label)}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              ${columns.map(col => `<td>${sanitize(col.value)}</td>`).join('')}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  formatFullAddress(creator) {
+    const parts = [
+      creator?.lieferadresse_strasse,
+      creator?.lieferadresse_hausnummer,
+      creator?.lieferadresse_plz,
+      creator?.lieferadresse_stadt,
+      creator?.lieferadresse_land
+    ].filter(Boolean);
+    if (!parts.length) return '-';
+    return parts.join(', ');
   }
 
   // Binde Events

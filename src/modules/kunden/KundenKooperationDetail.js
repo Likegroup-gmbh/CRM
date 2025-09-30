@@ -112,3 +112,10 @@ export const kundenKooperationDetail = new KundenKooperationDetail();
 
 
 
+
+
+
+
+
+
+

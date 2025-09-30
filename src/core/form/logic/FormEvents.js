@@ -44,7 +44,7 @@ export class FormEvents {
       e.preventDefault();
       const btn = form.querySelector('.mdc-btn.mdc-btn--create');
       if (!btn) {
-        await this.formSystem.handleFormSubmit(entity, data);
+        await this.formSystem.handleFormSubmit(entity, data, form);
         return;
       }
 
@@ -63,7 +63,7 @@ export class FormEvents {
 
       // Submit ausführen
       const before = Date.now();
-      const result = await this.formSystem.handleFormSubmit(entity, data);
+      const result = await this.formSystem.handleFormSubmit(entity, data, form);
       const took = Date.now() - before;
 
       // Wenn handleFormSubmit bereits geschlossen hat und Event gefeuert ist, abbrechen
@@ -164,112 +164,36 @@ export class FormEvents {
   setupKampagneEvents(form) {
     const auftragSelect = form.querySelector('select[name="auftrag_id"]');
     const videoInput = form.querySelector('input[name="videoanzahl"]');
+    const creatorInput = form.querySelector('input[name="creatoranzahl"]');
     if (!auftragSelect || !videoInput || !window.supabase) return;
 
-    // Stepper-UI wie bei Kooperationen
+    // Stepper-UI für Videos und Creator
     const attachStepper = () => {
-      if (videoInput.dataset.stepperAttached === 'true') return;
-      try { videoInput.type = 'hidden'; } catch (_) { videoInput.style.display = 'none'; }
-      const container = document.createElement('div');
-      container.className = 'number-stepper';
-
-      const minusBtn = document.createElement('button');
-      minusBtn.type = 'button';
-      minusBtn.className = 'stepper-btn stepper-minus secondary-btn';
-      minusBtn.textContent = '-';
-
-      const plusBtn = document.createElement('button');
-      plusBtn.type = 'button';
-      plusBtn.className = 'stepper-btn stepper-plus secondary-btn';
-      plusBtn.textContent = '+';
-
-      const info = document.createElement('span');
-      info.className = 'stepper-info';
-
-      videoInput.parentNode.insertBefore(container, videoInput.nextSibling);
-      container.appendChild(minusBtn);
-      container.appendChild(plusBtn);
-      container.appendChild(info);
-
-      const getBounds = () => ({
-        min: parseInt(videoInput.min || '0', 10) || 0,
-        max: parseInt(videoInput.max || '0', 10) || 0
-      });
-
-      const clamp = (v) => {
-        const { min, max } = getBounds();
-        const n = parseInt(v || '0', 10) || 0;
-        if (!max) return '';
-        return String(Math.max(min, Math.min(n, max)));
-      };
-
-      const updateInfo = () => {
-        const { max } = getBounds();
-        const selected = parseInt(videoInput.value || '0', 10) || 0;
-        const remainingAfter = Math.max(0, max - selected);
-        const sSel = selected === 1 ? 'Video' : 'Videos';
-        // Spezielle Behandlung für Kampagne Edit-Mode
-        const isKampagneEditMode = form?.dataset?.isEditMode === 'true' && form?.dataset?.entityType === 'kampagne';
-        if (isKampagneEditMode && max === 0) {
-          info.textContent = `${selected} ${sSel} | Kein Auftrag zugeordnet`;
-        } else {
-          info.textContent = max > 0 ? `${selected} ${sSel} | Rest: ${remainingAfter}` : 'Bitte zuerst Auftrag wählen';
-        }
-        minusBtn.disabled = max === 0 || selected <= (parseInt(videoInput.min || '0', 10) || 0);
-        plusBtn.disabled = max === 0 || selected >= max;
-      };
-
-      minusBtn.addEventListener('click', () => {
-        const { min } = getBounds();
-        const cur = parseInt(videoInput.value || '0', 10) || 0;
-        const next = Math.max(min, cur - 1);
-        videoInput.value = clamp(String(next));
-        videoInput.dispatchEvent(new Event('input', { bubbles: true }));
-        videoInput.dispatchEvent(new Event('change', { bubbles: true }));
-        updateInfo();
-      });
-
-      plusBtn.addEventListener('click', () => {
-        const { max } = getBounds();
-        const cur = parseInt(videoInput.value || '0', 10) || 0;
-        const next = Math.min(max, cur + 1);
-        videoInput.value = clamp(String(next));
-        videoInput.dispatchEvent(new Event('input', { bubbles: true }));
-        videoInput.dispatchEvent(new Event('change', { bubbles: true }));
-        updateInfo();
-      });
-
-      videoInput.addEventListener('input', () => {
-        videoInput.value = clamp(videoInput.value);
-        updateInfo();
-      });
-
-      videoInput.dataset.stepperAttached = 'true';
-      updateInfo();
+      // Video-Stepper
+      if (videoInput.dataset.stepperAttached !== 'true') {
+        console.log('🎯 FORMEVENTS: Erstelle Video-Stepper');
+        this.createStepperUI(videoInput, 'Video', 'Videos');
+        videoInput.dataset.stepperAttached = 'true';
+      }
+      
+      // Creator-Stepper
+      if (creatorInput && creatorInput.dataset.stepperAttached !== 'true') {
+        console.log('🎯 FORMEVENTS: Erstelle Creator-Stepper');
+        this.createStepperUI(creatorInput, 'Creator', 'Creator');
+        creatorInput.dataset.stepperAttached = 'true';
+      }
     };
 
     attachStepper();
 
     const refreshStepperUI = () => {
-      const stepperInfo = videoInput.parentNode.querySelector('.stepper-info');
-      const minusBtn = videoInput.parentNode.querySelector('.stepper-minus');
-      const plusBtn = videoInput.parentNode.querySelector('.stepper-plus');
-      const max = parseInt(videoInput.max || '0', 10) || 0;
-      const min = parseInt(videoInput.min || '0', 10) || 0;
-      const selected = parseInt(videoInput.value || '0', 10) || 0;
-      const remainingAfter = Math.max(0, max - selected);
-      const sSel = selected === 1 ? 'Video' : 'Videos';
-      // Spezielle Behandlung für Kampagne Edit-Mode
-      const isKampagneEditMode = form?.dataset?.isEditMode === 'true' && form?.dataset?.entityType === 'kampagne';
-      if (stepperInfo) {
-        if (isKampagneEditMode && max === 0) {
-          stepperInfo.textContent = `${selected} ${sSel} | Kein Auftrag zugeordnet`;
-        } else {
-          stepperInfo.textContent = max > 0 ? `${selected} ${sSel} | Rest: ${remainingAfter}` : 'Bitte zuerst Auftrag wählen';
-        }
+      // Video-Stepper aktualisieren
+      this.updateStepperUI(videoInput, 'Video', 'Videos', form);
+      
+      // Creator-Stepper aktualisieren (falls vorhanden)
+      if (creatorInput) {
+        this.updateStepperUI(creatorInput, 'Creator', 'Creator', form);
       }
-      if (minusBtn) minusBtn.disabled = max === 0 || selected <= min;
-      if (plusBtn) plusBtn.disabled = max === 0 || selected >= max;
     };
 
     const clampValue = (value, min, max) => {
@@ -291,7 +215,7 @@ export class FormEvents {
       }
 
       try {
-        // Gesamtanzahl Videos aus Auftrag
+        // Gesamtanzahl Videos aus Auftrag und Auftragsdetails laden
         const { data: auftrag, error: aErr } = await window.supabase
           .from('auftrag')
           .select('id, gesamtanzahl_videos')
@@ -301,35 +225,79 @@ export class FormEvents {
           console.error('❌ Fehler beim Laden des Auftrags (gesamtanzahl_videos):', aErr);
           return;
         }
-        const totalVideos = parseInt(auftrag?.gesamtanzahl_videos, 10) || 0;
+        
+        // Auftragsdetails für erweiterte Informationen laden
+        const { data: auftragsDetails, error: detailsErr } = await window.supabase
+          .from('auftrag_details')
+          .select('gesamt_videos, gesamt_creator')
+          .eq('auftrag_id', auftragId)
+          .maybeSingle();
+        
+        // Verwende Auftragsdetails falls verfügbar, sonst Fallback auf Auftrag
+        const totalVideos = parseInt(auftragsDetails?.gesamt_videos || auftrag?.gesamtanzahl_videos, 10) || 0;
 
-        // Bereits verplante Videos über alle Kampagnen dieses Auftrags
+        // Bereits verplante Videos und Creator über alle Kampagnen dieses Auftrags
         let kampQuery = window.supabase
           .from('kampagne')
-          .select('id, videoanzahl')
+          .select('id, videoanzahl, creatoranzahl')
           .eq('auftrag_id', auftragId);
         const currentId = form.dataset.entityId || null;
         if (currentId) kampQuery = kampQuery.neq('id', currentId);
         const { data: kampagnen, error: kErr } = await kampQuery;
         if (kErr) {
-          console.error('❌ Fehler beim Laden der Kampagnen (videoanzahl):', kErr);
+          console.error('❌ Fehler beim Laden der Kampagnen (videoanzahl, creatoranzahl):', kErr);
           return;
         }
         const usedVideos = (kampagnen || []).reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
-        const remaining = Math.max(0, totalVideos - usedVideos);
+        const usedCreators = (kampagnen || []).reduce((sum, k) => sum + (parseInt(k.creatoranzahl, 10) || 0), 0);
+        const remainingVideos = Math.max(0, totalVideos - usedVideos);
+        
+        // Creator-Limits berechnen
+        const totalCreators = parseInt(auftragsDetails?.gesamt_creator, 10) || 0;
+        const remainingCreators = Math.max(0, totalCreators - usedCreators);
 
-        // Eingabefeld konfigurieren
-        videoInput.disabled = remaining === 0;
-        videoInput.min = remaining > 0 ? '1' : '0';
-        videoInput.max = String(remaining);
+        // Video-Eingabefeld konfigurieren
+        videoInput.disabled = remainingVideos === 0;
+        videoInput.min = remainingVideos > 0 ? '1' : '0';
+        videoInput.max = String(remainingVideos);
         videoInput.step = '1';
 
-        // Wert einklammern/Default
+        // Video-Wert einklammern/Default
         if (videoInput.value) {
-          videoInput.value = clampValue(videoInput.value, remaining > 0 ? 1 : 0, remaining);
-        } else if (remaining > 0) {
+          videoInput.value = clampValue(videoInput.value, remainingVideos > 0 ? 1 : 0, remainingVideos);
+        } else if (remainingVideos > 0) {
           videoInput.value = '1';
         }
+        
+        // Creator-Eingabefeld konfigurieren (falls vorhanden)
+        if (creatorInput) {
+          if (totalCreators > 0) {
+            creatorInput.disabled = remainingCreators === 0;
+            creatorInput.min = remainingCreators > 0 ? '1' : '0';
+            creatorInput.max = String(remainingCreators);
+            creatorInput.step = '1';
+            
+            // Creator-Wert einklammern/Default
+            if (creatorInput.value) {
+              creatorInput.value = clampValue(creatorInput.value, remainingCreators > 0 ? 1 : 0, remainingCreators);
+            } else if (remainingCreators > 0) {
+              creatorInput.value = '1';
+            }
+            
+            // Hilfetext anzeigen
+            this.showAvailabilityInfo(creatorInput, remainingCreators, totalCreators, usedCreators, 'Creator');
+          } else {
+            // Keine Auftragsdetails - Creator-Anzahl frei wählbar
+            creatorInput.disabled = false;
+            creatorInput.removeAttribute('max');
+            creatorInput.removeAttribute('min');
+            this.hideAvailabilityInfo(creatorInput);
+          }
+        }
+        
+        // Hilfetext für Videos anzeigen
+        this.showAvailabilityInfo(videoInput, remainingVideos, totalVideos, usedVideos, 'Videos');
+        
         refreshStepperUI();
       } catch (err) {
         console.error('❌ Fehler beim Aktualisieren der Kampagnen-Video-Limits:', err);
@@ -343,17 +311,28 @@ export class FormEvents {
       refreshStepperUI();
     });
 
-    // Submit-Guard: Hard-Limit prüfen
+    // Submit-Guard: Hard-Limit prüfen - nutzt gleiche Logik wie updateVideoLimits
     form.addEventListener('submit', async (e) => {
       const auftragId = auftragSelect.value;
       if (!auftragId) return;
       try {
+        // Gleiche Logik wie in updateVideoLimits verwenden
         const { data: auftrag } = await window.supabase
           .from('auftrag')
-          .select('gesamtanzahl_videos')
+          .select('id, gesamtanzahl_videos')
           .eq('id', auftragId)
           .single();
-        const totalVideos = parseInt(auftrag?.gesamtanzahl_videos, 10) || 0;
+        
+        // Auftragsdetails für erweiterte Informationen laden
+        const { data: auftragsDetails } = await window.supabase
+          .from('auftrag_details')
+          .select('gesamt_videos, gesamt_creator')
+          .eq('auftrag_id', auftragId)
+          .maybeSingle();
+        
+        // Verwende Auftragsdetails falls verfügbar, sonst Fallback auf Auftrag
+        const totalVideos = parseInt(auftragsDetails?.gesamt_videos || auftrag?.gesamtanzahl_videos, 10) || 0;
+        
         let kampQuery = window.supabase
           .from('kampagne')
           .select('videoanzahl')
@@ -364,10 +343,20 @@ export class FormEvents {
         const usedVideos = (kampagnen || []).reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
         const remaining = Math.max(0, totalVideos - usedVideos);
         const desired = parseInt(videoInput.value || '0', 10) || 0;
+        
+        console.log('🔍 Submit-Guard Validierung:', { 
+          totalVideos, 
+          usedVideos, 
+          remaining, 
+          desired, 
+          auftragsDetails: !!auftragsDetails,
+          source: auftragsDetails ? 'auftrag_details' : 'auftrag'
+        });
+        
         if (desired > remaining) {
           e.preventDefault();
           videoInput.value = clampValue(videoInput.value, remaining > 0 ? 1 : 0, remaining);
-          alert('Die gewählte Video Anzahl überschreitet die verfügbaren Videos dieses Auftrags.');
+          alert(`Die gewählte Video Anzahl (${desired}) überschreitet die verfügbaren Videos (${remaining} von ${totalVideos} verfügbar).`);
           refreshStepperUI();
         }
       } catch (_) { /* ignore */ }
@@ -1047,5 +1036,146 @@ export class FormEvents {
     `;
     
     addressesList.insertAdjacentHTML('beforeend', addressHtml);
+  }
+
+  // Hilfsfunktionen für Verfügbarkeits-Anzeige
+  showAvailabilityInfo(inputElement, remaining, total, used, type) {
+    // Entferne bestehende Info
+    this.hideAvailabilityInfo(inputElement);
+    
+    // Erstelle Info-Element
+    const infoDiv = document.createElement('div');
+    infoDiv.className = 'availability-info';
+    infoDiv.innerHTML = `
+      <div class="availability-text">
+        <span class="available">${remaining} ${type} verfügbar</span>
+        <span class="total">von ${total} geplant (${used} bereits verplant)</span>
+      </div>
+      ${remaining === 0 ? '<div class="availability-warning">Keine weiteren verfügbar</div>' : ''}
+    `;
+    
+    // Nach dem Input-Element einfügen
+    inputElement.parentNode.insertBefore(infoDiv, inputElement.nextSibling);
+  }
+
+  hideAvailabilityInfo(inputElement) {
+    const existingInfo = inputElement.parentNode.querySelector('.availability-info');
+    if (existingInfo) {
+      existingInfo.remove();
+    }
+  }
+
+  // Generische Stepper-UI erstellen
+  createStepperUI(inputElement, singularLabel, pluralLabel) {
+    // Input verstecken
+    try { inputElement.type = 'hidden'; } catch (_) { inputElement.style.display = 'none'; }
+    
+    // Container erstellen
+    const container = document.createElement('div');
+    container.className = 'number-stepper';
+
+    // Minus-Button
+    const minusBtn = document.createElement('button');
+    minusBtn.type = 'button';
+    minusBtn.className = 'stepper-btn stepper-minus secondary-btn';
+    minusBtn.textContent = '-';
+
+    // Plus-Button  
+    const plusBtn = document.createElement('button');
+    plusBtn.type = 'button';
+    plusBtn.className = 'stepper-btn stepper-plus secondary-btn';
+    plusBtn.textContent = '+';
+
+    // Info-Anzeige
+    const info = document.createElement('span');
+    info.className = 'stepper-info';
+
+    // Container zusammenbauen
+    inputElement.parentNode.insertBefore(container, inputElement.nextSibling);
+    container.appendChild(minusBtn);
+    container.appendChild(plusBtn);
+    container.appendChild(info);
+
+    // Event-Handler
+    const getBounds = () => ({
+      min: parseInt(inputElement.min || '0', 10) || 0,
+      max: parseInt(inputElement.max || '0', 10) || 0
+    });
+
+    const clamp = (value) => {
+      const n = parseInt(value, 10);
+      if (isNaN(n)) return '';
+      const { min, max } = getBounds();
+      if (max === 0) return '';
+      return String(Math.max(min, Math.min(n, max)));
+    };
+
+    const updateInfo = () => {
+      const { max } = getBounds();
+      const selected = parseInt(inputElement.value || '0', 10) || 0;
+      const remainingAfter = Math.max(0, max - selected);
+      const label = selected === 1 ? singularLabel : pluralLabel;
+      
+      info.textContent = max > 0 ? `${selected} ${label} | Rest: ${remainingAfter}` : `Bitte zuerst Auftrag wählen`;
+      
+      minusBtn.disabled = max === 0 || selected <= getBounds().min;
+      plusBtn.disabled = max === 0 || selected >= max;
+    };
+
+    // Button-Events
+    minusBtn.addEventListener('click', () => {
+      const { min } = getBounds();
+      const cur = parseInt(inputElement.value || '0', 10) || 0;
+      const next = Math.max(min, cur - 1);
+      inputElement.value = clamp(String(next));
+      inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+      inputElement.dispatchEvent(new Event('change', { bubbles: true }));
+      updateInfo();
+    });
+
+    plusBtn.addEventListener('click', () => {
+      const { max } = getBounds();
+      const cur = parseInt(inputElement.value || '0', 10) || 0;
+      const next = Math.min(max, cur + 1);
+      inputElement.value = clamp(String(next));
+      inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+      inputElement.dispatchEvent(new Event('change', { bubbles: true }));
+      updateInfo();
+    });
+
+    // Input-Event für manuelle Eingabe
+    inputElement.addEventListener('input', () => {
+      inputElement.value = clamp(inputElement.value);
+      updateInfo();
+    });
+
+    // Initial update
+    updateInfo();
+  }
+
+  // Stepper-UI aktualisieren
+  updateStepperUI(inputElement, singularLabel, pluralLabel, form) {
+    const stepperInfo = inputElement.parentNode.querySelector('.stepper-info');
+    const minusBtn = inputElement.parentNode.querySelector('.stepper-minus');
+    const plusBtn = inputElement.parentNode.querySelector('.stepper-plus');
+    
+    if (!stepperInfo || !minusBtn || !plusBtn) return;
+    
+    const max = parseInt(inputElement.max || '0', 10) || 0;
+    const min = parseInt(inputElement.min || '0', 10) || 0;
+    const selected = parseInt(inputElement.value || '0', 10) || 0;
+    const remainingAfter = Math.max(0, max - selected);
+    const label = selected === 1 ? singularLabel : pluralLabel;
+    
+    // Spezielle Behandlung für Kampagne Edit-Mode
+    const isKampagneEditMode = form?.dataset?.isEditMode === 'true' && form?.dataset?.entityType === 'kampagne';
+    if (isKampagneEditMode && max === 0) {
+      stepperInfo.textContent = `${selected} ${label} | Kein Auftrag zugeordnet`;
+    } else {
+      stepperInfo.textContent = max > 0 ? `${selected} ${label} | Rest: ${remainingAfter}` : 'Bitte zuerst Auftrag wählen';
+    }
+    
+    minusBtn.disabled = max === 0 || selected <= min;
+    plusBtn.disabled = max === 0 || selected >= max;
   }
 } 

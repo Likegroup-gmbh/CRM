@@ -1792,6 +1792,39 @@ body {
 }
 
 /* Modal Styles */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+}
+
+.modal.show {
+  display: flex;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  max-width: 500px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+.modal-large .modal-content {
+  max-width: 900px;
+  width: 90vw;
+}
+
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -2508,6 +2541,164 @@ body {
   border-color: #f5c6cb;
 }
 
+/* Drawer Loading Styles */
+.drawer-loading {
+  text-align: center;
+  padding: 3rem 2rem;
+  color: #6c757d;
+  font-size: 1rem;
+}
+
+/* Drawer Actions */
+.drawer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e9ecef;
+  margin-top: 2rem;
+}
+
+/* Auftragsdetails Layout für Drawer */
+.auftrag-details-layout {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 2rem;
+  margin-top: 0;
+}
+
+.auftrag-basis {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 6px;
+}
+
+.auftrag-basis h3 {
+  margin: 0 0 1rem 0;
+  color: #495057;
+  font-size: 1rem;
+}
+
+.detail-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.detail-item:last-child {
+  border-bottom: none;
+}
+
+.detail-item label {
+  font-weight: 500;
+  color: #6c757d;
+  font-size: 0.9rem;
+}
+
+.detail-item span {
+  color: #495057;
+  font-size: 0.9rem;
+}
+
+.auftrag-details-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.details-section h3 {
+  margin: 0 0 1rem 0;
+  color: #495057;
+  font-size: 1rem;
+  border-bottom: 2px solid #e9ecef;
+  padding-bottom: 0.5rem;
+}
+
+.section-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-field label {
+  font-size: 0.9rem;
+  color: #495057;
+  margin-bottom: 0.25rem;
+  font-weight: 500;
+}
+
+.form-field input,
+.form-field textarea {
+  padding: 0.5rem;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.form-field input:focus,
+.form-field textarea:focus {
+  border-color: #80bdff;
+  outline: none;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.detail-summary {
+  background: #e7f3ff;
+  padding: 1rem;
+  border-radius: 6px;
+  border-left: 4px solid #007bff;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.summary-item label {
+  display: block;
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.summary-item input {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  background: #fff;
+  font-weight: 600;
+  color: #007bff;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e9ecef;
+}
+
+.modal-subtitle {
+  color: #6c757d;
+  font-size: 0.95rem;
+  margin-bottom: 1rem;
+}
+
+.modal-loading {
+  text-align: center;
+  padding: 2rem;
+  color: #6c757d;
+}
+
 /* Responsive Modal */
 @media (max-width: 768px) {
   .modal-content {
@@ -2520,6 +2711,27 @@ body {
     padding: 1rem;
   }
   
+  .auftrag-details-layout {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .drawer-actions {
+    flex-direction: column;
+  }
+  
+  .drawer-actions button {
+    width: 100%;
+  }
+  
+  .section-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+  
   .form-actions {
     flex-direction: column;
   }
@@ -2527,6 +2739,402 @@ body {
   .form-actions button {
     width: 100%;
   }
+
+  .summary-cards {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+
+/* Auftragsdetails Tab Styles */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.section-header h3 {
+  margin: 0;
+  color: #495057;
+  font-size: 1.25rem;
+}
+
+.auftragsdetails-summary {
+  margin-bottom: 2rem;
+}
+
+.summary-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.summary-card {
+  background: transparent;
+  border: 2px solid #e9ecef;
+  color: #495057;
+  padding: 1.5rem;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.summary-card:nth-child(2) {
+  border-color: #dee2e6;
+}
+
+.summary-value {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: #495057;
+}
+
+.summary-label {
+  font-size: 0.9rem;
+  color: #6c757d;
+  font-weight: 500;
+}
+
+.summary-planned {
+  font-size: 0.8rem;
+  color: #adb5bd;
+  font-weight: 400;
+  margin-top: 0.25rem;
+}
+
+.auftragsdetails-table .section-indicator {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+}
+
+.budget-cell {
+  max-width: 300px;
+}
+
+.budget-info {
+  background: #f8f9fa;
+  padding: 0.5rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  color: #6c757d;
+  border-left: 3px solid #007bff;
+}
+
+.text-center {
+  text-align: center;
+}
+
+/* Verfügbarkeits-Info für Kampagne-Formular */
+.availability-info {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.availability-text {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+.availability-text .available {
+  font-weight: 600;
+  color: #495057;
+}
+
+.availability-text .total {
+  color: #6c757d;
+  font-size: 0.8rem;
+}
+
+.availability-warning {
+  color: #dc3545;
+  font-weight: 500;
+  font-size: 0.8rem;
+  text-align: center;
+  margin-top: 0.5rem;
+  padding: 0.25rem;
+  background: #f8d7da;
+  border-radius: 3px;
+}
+
+/* Versand-Tab Styles */
+.versand-container {
+  padding: 0;
+}
+
+.versand-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.versand-card {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.versand-card h4 {
+  margin: 0 0 1rem 0;
+  color: #495057;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.versand-full-width {
+  grid-column: 1 / -1;
+}
+
+.address-display .address-name {
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 0.5rem;
+}
+
+.address-display .address-line {
+  color: #6c757d;
+  margin-bottom: 0.25rem;
+}
+
+.address-preview {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e9ecef;
+}
+
+.address-preview h4 {
+  margin: 0 0 0.75rem 0;
+  color: #495057;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.address-warning {
+  color: #dc3545;
+  font-size: 0.875rem;
+  margin: 0.5rem 0 0 0;
+  padding: 0.5rem;
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
+}
+
+.status-display .status-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.status-display .status-item:last-child {
+  border-bottom: none;
+}
+
+.status-display label {
+  font-weight: 500;
+  color: #6c757d;
+}
+
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.status-versendet {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-offen {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.tracking-number {
+  font-family: monospace;
+  background: #e9ecef;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.produkte-display {
+  background: #fff;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  padding: 1rem;
+  color: #495057;
+  line-height: 1.5;
+}
+
+/* Versand-Form Styles */
+.versand-form-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.creator-info {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 6px;
+  border-left: 4px solid #007bff;
+}
+
+.creator-info h3 {
+  margin: 0 0 1rem 0;
+  color: #495057;
+  font-size: 1rem;
+}
+
+.creator-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.versand-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-section h3 {
+  margin: 0 0 1rem 0;
+  color: #495057;
+  font-size: 1rem;
+  border-bottom: 2px solid #e9ecef;
+  padding-bottom: 0.5rem;
+}
+
+.address-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+}
+
+.address-grid .form-field:nth-child(3),
+.address-grid .form-field:nth-child(4) {
+  grid-column: span 1;
+}
+
+.versand-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.field-hint {
+  display: block;
+  color: #6c757d;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+  font-style: italic;
+}
+
+/* Versand-Tabelle Styles */
+.versand-table-section {
+  margin-bottom: 2rem;
+}
+
+.versand-table-section h3 {
+  margin: 0 0 1rem 0;
+  color: #495057;
+  font-size: 1rem;
+  border-bottom: 2px solid #e9ecef;
+  padding-bottom: 0.5rem;
+}
+
+.empty-state-small {
+  text-align: center;
+  padding: 1.5rem;
+  color: #6c757d;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.product-info .product-name {
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 0.25rem;
+}
+
+.product-info .product-desc {
+  font-size: 0.875rem;
+  color: #6c757d;
+  line-height: 1.4;
+}
+
+.address-cell {
+  min-width: 200px;
+}
+
+.address-compact .address-name {
+  font-weight: 500;
+  color: #495057;
+  margin-bottom: 0.25rem;
+}
+
+.address-compact .address-text {
+  font-size: 0.875rem;
+  color: #6c757d;
+  line-height: 1.3;
+}
+
+.btn-delete-versand {
+  background: none;
+  border: none;
+  color: #dc3545;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.btn-delete-versand:hover {
+  background: #f8d7da;
+}
+
+.btn-delete-versand svg {
+  width: 16px;
+  height: 16px;
+}
+
+.form-field-full {
+  grid-column: 1 / -1;
+}
+
+
+/* Responsive */
+@media (max-width: 768px) {
+  .versand-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .address-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .versand-details-grid {
+    grid-template-columns: 1fr;
+  }
+}
 }
 
 /* Bewertungs-System Styles */

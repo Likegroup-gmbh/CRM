@@ -592,8 +592,12 @@ export class BriefingList {
       form.onsubmit = async (e) => {
         e.preventDefault();
         await window.formSystem.handleFormSubmit('briefing', null);
-        // Nach Erfolg: zurück zur Liste
-        setTimeout(() => window.navigateTo('/briefing'), 300);
+        // Event auslösen für Listen-Update statt Navigation
+        window.dispatchEvent(new CustomEvent('entityUpdated', { 
+          detail: { entity: 'briefing', action: 'created' } 
+        }));
+        // Optional: zurück zur Liste (nur wenn gewünscht)
+        // setTimeout(() => window.navigateTo('/briefing'), 300);
       };
     }
   }

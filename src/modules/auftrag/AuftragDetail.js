@@ -1,6 +1,8 @@
 // AuftragDetail.js (ES6-Modul)
 // Auftrags-Detailseite mit Tabs für Informationen, Notizen, Bewertungen und Creator
 
+import { AuftragsDetailsManager, auftragsDetailsManager } from './logic/AuftragsDetailsManager.js';
+
 export class AuftragDetail {
   constructor() {
     this.auftragId = null;
@@ -13,6 +15,9 @@ export class AuftragDetail {
     this.rechnungen = [];
     this.rechnungSummary = { count: 0, sumNetto: 0, sumBrutto: 0, paidCount: 0, openCount: 0 };
     this.koopSummary = { count: 0, sumNetto: 0, sumGesamt: 0 };
+    this.auftragsDetails = null;
+    this.realVideoCount = 0;
+    this.realCreatorCount = 0;
   }
 
   // Initialisiere Auftrags-Detailseite
@@ -118,9 +123,88 @@ export class AuftragDetail {
         this.koopSummary = { count: 0, sumNetto: 0, sumGesamt: 0 };
       }
 
+      // Auftragsdetails laden
+      try {
+        const { data: auftragsDetails, error: detailsError } = await window.supabase
+          .from('auftrag_details')
+          .select('*')
+          .eq('auftrag_id', this.auftragId)
+          .maybeSingle();
+        
+        if (!detailsError) {
+          this.auftragsDetails = auftragsDetails;
+          console.log('✅ AUFTRAGDETAIL: Auftragsdetails geladen:', this.auftragsDetails);
+        } else {
+          console.log('ℹ️ AUFTRAGDETAIL: Keine Auftragsdetails vorhanden');
+          this.auftragsDetails = null;
+        }
+      } catch (_) {
+        this.auftragsDetails = null;
+      }
+
+      // Echte Video- und Creator-Anzahl aus Kampagnen/Kooperationen berechnen
+      await this.calculateRealCounts();
+
     } catch (error) {
       console.error('❌ AUFTRAGDETAIL: Fehler beim Laden der Auftrags-Daten:', error);
       throw error;
+    }
+  }
+
+  // Berechne echte Video- und Creator-Anzahl aus Kampagnen/Kooperationen
+  async calculateRealCounts() {
+    try {
+      console.log('🔄 AUFTRAGDETAIL: Berechne echte Video- und Creator-Anzahl');
+      
+      // Alle Kampagnen für diesen Auftrag laden
+      const { data: kampagnen, error: kampagnenError } = await window.supabase
+        .from('kampagne')
+        .select('id, videoanzahl, creatoranzahl')
+        .eq('auftrag_id', this.auftragId);
+
+      if (kampagnenError) {
+        console.warn('⚠️ Fehler beim Laden der Kampagnen:', kampagnenError);
+        return;
+      }
+
+      let totalVideos = 0;
+      let totalCreators = 0;
+
+      if (kampagnen && kampagnen.length > 0) {
+        // Summe aus Kampagnen
+        totalVideos = kampagnen.reduce((sum, k) => sum + (k.videoanzahl || 0), 0);
+        totalCreators = kampagnen.reduce((sum, k) => sum + (k.creatoranzahl || 0), 0);
+
+        // Zusätzlich Kooperationen für diese Kampagnen prüfen
+        const kampagneIds = kampagnen.map(k => k.id);
+        
+        const { data: kooperationen, error: koopError } = await window.supabase
+          .from('kooperationen')
+          .select('videoanzahl, creator_id')
+          .in('kampagne_id', kampagneIds);
+
+        if (!koopError && kooperationen) {
+          // Videos aus Kooperationen (falls nicht schon in Kampagnen erfasst)
+          const koopVideos = kooperationen.reduce((sum, k) => sum + (k.videoanzahl || 0), 0);
+          
+          // Unique Creator aus Kooperationen
+          const uniqueCreators = new Set(kooperationen.map(k => k.creator_id).filter(Boolean));
+          
+          // Verwende die höhere Zahl (entweder aus Kampagnen oder aus Kooperationen)
+          totalVideos = Math.max(totalVideos, koopVideos);
+          totalCreators = Math.max(totalCreators, uniqueCreators.size);
+        }
+      }
+
+      this.realVideoCount = totalVideos;
+      this.realCreatorCount = totalCreators;
+
+      console.log('✅ AUFTRAGDETAIL: Echte Zahlen berechnet - Videos:', totalVideos, 'Creator:', totalCreators);
+      
+    } catch (error) {
+      console.warn('⚠️ Fehler bei der Berechnung der echten Zahlen:', error);
+      this.realVideoCount = 0;
+      this.realCreatorCount = 0;
     }
   }
 
@@ -171,6 +255,10 @@ export class AuftragDetail {
           <button class="tab-button" data-tab="budget">
             Budget
           </button>
+          <button class="tab-button" data-tab="auftragsdetails">
+            Auftragsdetails
+            <span class="tab-count">${this.auftragsDetails ? '1' : '0'}</span>
+          </button>
         </div>
 
         <!-- Tab-Content -->
@@ -203,6 +291,11 @@ export class AuftragDetail {
           <!-- Budget Tab -->
           <div class="tab-pane" id="budget">
             ${this.renderBudget()}
+          </div>
+
+          <!-- Auftragsdetails Tab -->
+          <div class="tab-pane" id="auftragsdetails">
+            ${this.renderAuftragsdetails()}
           </div>
         </div>
       </div>
@@ -260,6 +353,123 @@ export class AuftragDetail {
             <div class="detail-item"><label>Summe Nettokosten:</label><span>${fmt(this.koopSummary.sumNetto)}</span></div>
             <div class="detail-item"><label>Summe Gesamtkosten:</label><span>${fmt(this.koopSummary.sumGesamt)}</span></div>
           </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Rendere Auftragsdetails-Tab
+  renderAuftragsdetails() {
+    if (!this.auftragsDetails) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">📋</div>
+          <h3>Keine Auftragsdetails vorhanden</h3>
+          <p>Es wurden noch keine detaillierten Produktionsinformationen für diesen Auftrag hinterlegt.</p>
+          <button onclick="window.auftragsDetailsManager?.open('${this.auftragId}')" class="primary-btn">
+            Auftragsdetails anlegen
+          </button>
+        </div>
+      `;
+    }
+
+    const details = this.auftragsDetails;
+    const num = (v) => v || v === 0 ? new Intl.NumberFormat('de-DE').format(v) : '-';
+
+    // Daten für die Tabelle vorbereiten
+    const sections = [
+      {
+        title: 'UGC (User Generated Content)',
+        prefix: 'ugc',
+        color: '#28a745'
+      },
+      {
+        title: 'Influencer',
+        prefix: 'influencer', 
+        color: '#6f42c1'
+      },
+      {
+        title: 'Vor Ort Dreh',
+        prefix: 'vor_ort',
+        color: '#fd7e14'
+      },
+      {
+        title: 'Vor Ort Dreh Mitarbeiter',
+        prefix: 'vor_ort_mitarbeiter',
+        color: '#20c997'
+      }
+    ];
+
+    const tableRows = sections.map(section => {
+      const videoAnzahl = details[`${section.prefix}_video_anzahl`];
+      const creatorAnzahl = details[`${section.prefix}_creator_anzahl`];
+      const videographenAnzahl = details[`${section.prefix}_videographen_anzahl`];
+      const budgetInfo = details[`${section.prefix}_budget_info`];
+
+      // Zeige nur Zeilen mit Daten
+      if (!videoAnzahl && !creatorAnzahl && !videographenAnzahl && !budgetInfo) {
+        return '';
+      }
+
+      return `
+        <tr>
+          <td>
+            <div class="section-indicator" style="background: ${section.color}"></div>
+            ${section.title}
+          </td>
+          <td class="text-center">${num(videoAnzahl)}</td>
+          <td class="text-center">${num(creatorAnzahl)}</td>
+          <td class="text-center">${num(videographenAnzahl)}</td>
+          <td class="budget-cell">${budgetInfo ? `<div class="budget-info">${window.validatorSystem.sanitizeHtml(budgetInfo)}</div>` : '-'}</td>
+        </tr>
+      `;
+    }).filter(row => row).join('');
+
+    return `
+      <div class="detail-section">
+        <div class="section-header">
+          <h3>Produktionsdetails</h3>
+          <button onclick="window.auftragsDetailsManager?.open('${this.auftragId}')" class="secondary-btn">
+            Bearbeiten
+          </button>
+        </div>
+
+        <div class="auftragsdetails-summary">
+          <div class="summary-cards">
+            <div class="summary-card">
+              <div class="summary-value">${num(this.realVideoCount)}</div>
+              <div class="summary-label">Aktuell gebuchte Videos</div>
+              ${details?.gesamt_videos ? `<div class="summary-planned">Geplant: ${num(details.gesamt_videos)}</div>` : ''}
+            </div>
+            <div class="summary-card">
+              <div class="summary-value">${num(this.realCreatorCount)}</div>
+              <div class="summary-label">Aktuell gebuchte Creator</div>
+              ${details?.gesamt_creator ? `<div class="summary-planned">Geplant: ${num(details.gesamt_creator)}</div>` : ''}
+            </div>
+          </div>
+        </div>
+
+        <div class="data-table-container">
+          <table class="data-table auftragsdetails-table">
+            <thead>
+              <tr>
+                <th>Kategorie</th>
+                <th class="text-center">Videos</th>
+                <th class="text-center">Creator</th>
+                <th class="text-center">Videographen</th>
+                <th>Budget & Informationen</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRows || `
+                <tr>
+                  <td colspan="5" class="no-data">
+                    Keine Produktionsdetails vorhanden
+                  </td>
+                </tr>
+              `}
+            </tbody>
+          </table>
         </div>
       </div>
     `;
@@ -445,6 +655,16 @@ export class AuftragDetail {
         this.bindEvents();
       });
     });
+
+    // Auftragsdetails Updated Event
+    document.addEventListener('entityUpdated', (e) => {
+      if (e.detail.entity === 'auftrag_details' && e.detail.auftrag_id == this.auftragId) {
+        this.loadAuftragData().then(() => {
+          this.render();
+          this.bindEvents();
+        });
+      }
+    });
   }
 
   // Tab wechseln
@@ -613,6 +833,10 @@ export class AuftragDetail {
   // Cleanup
   destroy() {
     console.log('AuftragDetail: Cleaning up...');
+  }
+
+  showDetailsForm(auftragId) {
+    auftragsDetailsManager.open(auftragId);
   }
 }
 

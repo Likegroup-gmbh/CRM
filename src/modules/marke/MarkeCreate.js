@@ -95,12 +95,27 @@ export class MarkeCreate {
         }
       });
       
-      // Standard FormData-Einträge sammeln (inkl. Array-basierte Multi-Selects)
+      // Spezielle Behandlung für Tag-basierte Multi-Selects - versteckte Selects manuell verarbeiten
+      // Das versteckte Select wird möglicherweise nicht korrekt von FormData erfasst
+      const hiddenBranchenSelect = form.querySelector('select[name="branche_ids[]"]');
+      if (hiddenBranchenSelect && hiddenBranchenSelect.multiple) {
+        const selectedOptions = Array.from(hiddenBranchenSelect.selectedOptions);
+        if (selectedOptions.length > 0) {
+          const branchenIds = selectedOptions.map(option => option.value).filter(val => val !== '');
+          if (branchenIds.length > 0) {
+            allFormData['branche_ids'] = branchenIds;
+            console.log('🏷️ MARKECREATE: Verstecktes Branchen-Select manuell verarbeitet:', branchenIds);
+          }
+        }
+      }
+      
+      // Standard FormData-Einträge sammeln (nur für Felder, die nicht bereits von Tag-basierten Selects verarbeitet wurden)
       for (let [key, value] of formData.entries()) {
         if (!allFormData.hasOwnProperty(key)) {
           if (key.includes('[]')) {
-            // Multi-Select Array behandeln (z.B. branchen_ids[])
+            // Multi-Select Array behandeln (z.B. branche_ids[])
             const cleanKey = key.replace('[]', '');
+            // Nur verarbeiten wenn nicht bereits von Tag-basierten Selects verarbeitet
             if (!allFormData[cleanKey]) {
               allFormData[cleanKey] = [];
             }
@@ -115,6 +130,13 @@ export class MarkeCreate {
               allFormData[key] = value;
             }
           }
+        }
+      }
+      
+      // Duplikate aus Array-Feldern entfernen
+      for (let [key, value] of Object.entries(allFormData)) {
+        if (Array.isArray(value)) {
+          allFormData[key] = [...new Set(value)]; // Entfernt Duplikate
         }
       }
       
@@ -156,7 +178,7 @@ export class MarkeCreate {
       // Loading-State zurücksetzen
       const submitBtn = document.querySelector('#marke-form button[type="submit"]');
       if (submitBtn) {
-        submitBtn.innerHTML = originalText;
+        submitBtn.innerHTML = 'Marke erstellen';
         submitBtn.disabled = false;
       }
     }

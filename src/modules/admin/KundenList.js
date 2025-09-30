@@ -674,7 +674,14 @@ export class KundenList {
 
         showMsg('success', 'Kunde aktualisiert und Zuordnungen gespeichert.');
         window.NotificationSystem?.show('success', 'Gespeichert');
-        setTimeout(() => window.navigateTo(`/kunden-admin/${benutzerId}`), 800);
+        
+        // Event auslösen für Listen-Update statt Navigation
+        window.dispatchEvent(new CustomEvent('entityUpdated', { 
+          detail: { entity: 'kunden', id: benutzerId, action: 'updated' } 
+        }));
+        
+        // Optional: Zur Detail-Seite navigieren (nur wenn gewünscht)
+        // setTimeout(() => window.navigateTo(`/kunden-admin/${benutzerId}`), 800);
       } catch (err) {
         console.error('❌ Speichern fehlgeschlagen', err);
         showMsg('error', err?.message || 'Speichern fehlgeschlagen');

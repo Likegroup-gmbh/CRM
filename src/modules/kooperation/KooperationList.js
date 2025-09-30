@@ -645,10 +645,10 @@ export class KooperationList {
           detail: { entity: 'kooperation', action: 'created', id: result.id }
         }));
         
-        // Zurück zur Liste
-        setTimeout(() => {
-          window.navigateTo('/kooperation');
-        }, 1500);
+        // Optional: Zurück zur Liste (nur wenn gewünscht)
+        // setTimeout(() => {
+        //   window.navigateTo('/kooperation');
+        // }, 1500);
       } else {
         this.showErrorMessage(`Fehler beim Erstellen: ${result.error}`);
       }

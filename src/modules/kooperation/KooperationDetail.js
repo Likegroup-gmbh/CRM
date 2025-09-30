@@ -1,6 +1,7 @@
 // KooperationDetail.js (ES6-Modul)
 // Kooperations-Detailseite mit allen relevanten Informationen
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
+import { kooperationVersandManager } from './VersandManager.js';
 
 export class KooperationDetail {
   constructor() {
@@ -14,6 +15,7 @@ export class KooperationDetail {
     this.videos = [];
     this.history = [];
     this.historyCount = 0;
+    this.versandDaten = null;
   }
 
   // Initialisiere Kooperations-Detailseite
@@ -56,7 +58,10 @@ export class KooperationDetail {
       .select(`
         id, name, status, nettobetrag, zusatzkosten, gesamtkosten, skript_deadline, content_deadline, videoanzahl,
         creator_id, kampagne_id, unternehmen_id,
-        creator:creator_id ( id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, mail ),
+        creator:creator_id ( 
+          id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, mail,
+          lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land
+        ),
         kampagne:kampagne_id (
           id, kampagnenname, status, deadline, start, creatoranzahl, videoanzahl,
           unternehmen:unternehmen_id ( id, firmenname ),
@@ -72,7 +77,9 @@ export class KooperationDetail {
     }
 
     this.kooperation = kooperation;
+    this.creator = kooperation.creator; // Creator-Daten direkt verfügbar machen
     console.log('✅ KOOPERATIONDETAIL: Kooperations-Basisdaten geladen:', kooperation);
+    console.log('✅ KOOPERATIONDETAIL: Creator-Daten mit Adresse:', this.creator);
 
     // Notizen über NotizenSystem laden
     this.notizen = await window.notizenSystem.loadNotizen('kooperation', this.kooperationId);
@@ -178,6 +185,38 @@ export class KooperationDetail {
       this.history = [];
       this.historyCount = 0;
     }
+
+    // Versand-Daten laden (falls Tabelle existiert)
+    try {
+      const { data: versandListe, error: versandError } = await window.supabase
+        .from('kooperation_versand')
+        .select(`
+          *,
+          kooperation:kooperation_id(
+            creator:creator_id(
+              id, vorname, nachname,
+              lieferadresse_strasse, lieferadresse_hausnummer, 
+              lieferadresse_plz, lieferadresse_stadt, lieferadresse_land
+            )
+          )
+        `)
+        .eq('kooperation_id', this.kooperationId)
+        .order('created_at', { ascending: false });
+      
+      if (!versandError) {
+        this.versandDaten = versandListe || [];
+        console.log('✅ KOOPERATIONDETAIL: Versand-Daten mit Creator-Info geladen:', this.versandDaten.length, 'Einträge');
+        // Debug: Zeige Creator-Daten der ersten Sendung
+        if (this.versandDaten.length > 0) {
+          console.log('🔍 DEBUG: Erste Sendung Creator-Daten:', this.versandDaten[0].kooperation?.creator);
+        }
+      } else {
+        console.log('ℹ️ KOOPERATIONDETAIL: Keine Versand-Daten vorhanden oder Tabelle existiert nicht');
+        this.versandDaten = [];
+      }
+    } catch (_) {
+      this.versandDaten = [];
+    }
   }
 
   // Rendere Kooperations-Detailseite mit Tabs
@@ -231,6 +270,10 @@ export class KooperationDetail {
             <i class="icon-currency-euro"></i>
             Rechnungen <span class="tab-count">${this.rechnungen.length}</span>
           </button>
+          <button class="tab-button" data-tab="versand">
+            <i class="icon-truck"></i>
+            Versand <span class="tab-count">${this.versandDaten?.length || 0}</span>
+          </button>
         </div>
 
         <div class="tab-content">
@@ -265,6 +308,12 @@ export class KooperationDetail {
             <div class="detail-section">
               <h2>Rechnungen</h2>
               ${this.renderRechnungen()}
+            </div>
+          </div>
+          <div class="tab-pane" id="tab-versand">
+            <div class="detail-section">
+              <h2>Versand</h2>
+              ${this.renderVersand()}
             </div>
           </div>
         </div>
@@ -609,6 +658,16 @@ export class KooperationDetail {
       }
     });
 
+    // Versand Updated Event
+    window.addEventListener('entityUpdated', (e) => {
+      if (e.detail.entity === 'kooperation_versand' && e.detail.kooperation_id == this.kooperationId) {
+        this.loadKooperationData().then(() => {
+          this.render();
+          this.bindEvents();
+        });
+      }
+    });
+
     // Refresh bei Video-Status-Änderung
     window.addEventListener('entityUpdated', async (e) => {
       if (e.detail?.entity === 'kooperation_videos') {
@@ -825,6 +884,96 @@ export class KooperationDetail {
   formatDate(dateString) {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('de-DE');
+  }
+
+  // Rendere Versand-Tab
+  renderVersand() {
+    if (!this.versandDaten || this.versandDaten.length === 0) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">📦</div>
+          <h3>Keine Versand-Daten vorhanden</h3>
+          <p>Es wurden noch keine Produkte für diese Kooperation versendet.</p>
+          <button onclick="window.kooperationVersandManager?.open('${this.kooperationId}')" class="primary-btn">
+            Erstes Produkt versenden
+          </button>
+        </div>
+      `;
+    }
+
+    const versandListe = this.versandDaten;
+    const creator = this.kooperation?.creator || this.creator; // Verwende Creator aus Kooperation
+    
+    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
+    const formatAddress = (creator) => {
+      console.log('🔍 DEBUG formatAddress - Creator:', creator);
+      if (!creator?.lieferadresse_strasse) {
+        console.log('⚠️ DEBUG: Keine lieferadresse_strasse gefunden');
+        return 'Keine Adresse hinterlegt';
+      }
+      const address = `${creator.lieferadresse_strasse} ${creator.lieferadresse_hausnummer || ''}, ${creator.lieferadresse_plz || ''} ${creator.lieferadresse_stadt || ''}, ${creator.lieferadresse_land || 'Deutschland'}`;
+      console.log('✅ DEBUG: Formatierte Adresse:', address);
+      return address;
+    };
+
+    const tableRows = versandListe.map(versand => {
+      // Creator-Daten aus Versand-Eintrag oder Fallback auf this.creator
+      const versandCreator = versand.kooperation?.creator || creator;
+      
+      return `
+        <tr>
+          <td>
+            <div class="product-info">
+              <div class="product-name">${window.validatorSystem.sanitizeHtml(versand.produkt_name)}</div>
+              ${versand.beschreibung ? `<div class="product-desc">${window.validatorSystem.sanitizeHtml(versand.beschreibung)}</div>` : ''}
+            </div>
+          </td>
+          <td class="address-cell">
+            <div class="address-compact">
+              <div class="address-name">${versandCreator?.vorname || ''} ${versandCreator?.nachname || ''}</div>
+              <div class="address-text">${formatAddress(versandCreator)}</div>
+            </div>
+          </td>
+          <td class="text-center">
+            <span class="status-badge ${versand.versendet ? 'status-versendet' : 'status-offen'}">
+              ${versand.versendet ? 'Versendet' : 'Offen'}
+            </span>
+          </td>
+          <td class="text-center">
+            ${versand.tracking_nummer ? `<span class="tracking-number">${versand.tracking_nummer}</span>` : '-'}
+          </td>
+          <td class="text-center">${formatDate(versand.versand_datum)}</td>
+        </tr>
+      `;
+    }).join('');
+    
+    return `
+      <div class="versand-container">
+        <div class="section-header">
+          <h3>Versand-Übersicht</h3>
+          <button onclick="window.kooperationVersandManager?.open('${this.kooperationId}')" class="secondary-btn">
+            Neues Produkt versenden
+          </button>
+        </div>
+
+        <div class="data-table-container">
+          <table class="data-table versand-table">
+            <thead>
+              <tr>
+                <th>Produkt</th>
+                <th>Lieferadresse</th>
+                <th class="text-center">Status</th>
+                <th class="text-center">Tracking-Nr</th>
+                <th class="text-center">Versand-Datum</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRows}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
   }
 
   // Cleanup

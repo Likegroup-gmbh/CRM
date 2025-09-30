@@ -290,28 +290,35 @@ export class AnsprechpartnerDetail {
       `;
     }
 
-    const markenHtml = this.ansprechpartner.ansprechpartner_marke.map(item => {
+    const rows = this.ansprechpartner.ansprechpartner_marke.map(item => {
       const marke = item.marke;
       return `
-        <div class="marke-card">
-          <div class="marke-header">
-            <h4>
-              <a href="#" class="table-link" data-table="marke" data-id="${marke.id}">
-                ${marke.markenname}
-              </a>
-            </h4>
-          </div>
-          <div class="marke-details">
-            <p><strong>Unternehmen:</strong> ${marke.unternehmen?.firmenname || '-'}</p>
-            <p><strong>Webseite:</strong> ${marke.webseite ? `<a href="${marke.webseite}" target="_blank">${marke.webseite}</a>` : '-'}</p>
-          </div>
-        </div>
+        <tr>
+          <td>
+            <a href="#" class="table-link" data-table="marke" data-id="${marke.id}">
+              ${marke.markenname || 'Unbekannte Marke'}
+            </a>
+          </td>
+          <td>${marke.unternehmen?.firmenname ? `<a href="#" class="table-link" data-table="unternehmen" data-id="${marke.unternehmen.id}">${marke.unternehmen.firmenname}</a>` : '-'}</td>
+          <td>${marke.webseite ? `<a href="${marke.webseite}" target="_blank" rel="noopener">${marke.webseite}</a>` : '-'}</td>
+          <td>${marke.created_at ? new Date(marke.created_at).toLocaleDateString('de-DE') : '-'}</td>
+        </tr>
       `;
     }).join('');
 
     return `
-      <div class="marken-container">
-        ${markenHtml}
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Marke</th>
+              <th>Unternehmen</th>
+              <th>Webseite</th>
+              <th>Erstellt</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
       </div>
     `;
   }
@@ -328,32 +335,37 @@ export class AnsprechpartnerDetail {
       `;
     }
 
-    const kampagnenHtml = this.ansprechpartner.ansprechpartner_kampagne.map(item => {
+    const rows = this.ansprechpartner.ansprechpartner_kampagne.map(item => {
       const kampagne = item.kampagne;
       return `
-        <div class="kampagne-card">
-          <div class="kampagne-header">
-            <h4>
-              <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
-                ${kampagne.kampagnenname}
-              </a>
-            </h4>
-            <span class="kampagne-status status-${kampagne.status?.toLowerCase() || 'unknown'}">
-              ${kampagne.status || 'Unbekannt'}
-            </span>
-          </div>
-          <div class="kampagne-details">
-            <p><strong>Beschreibung:</strong> ${kampagne.beschreibung || '-'}</p>
-            <p><strong>Start:</strong> ${kampagne.start ? new Date(kampagne.start).toLocaleDateString('de-DE') : '-'}</p>
-            <p><strong>Deadline:</strong> ${kampagne.deadline ? new Date(kampagne.deadline).toLocaleDateString('de-DE') : '-'}</p>
-          </div>
-        </div>
+        <tr>
+          <td>
+            <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
+              ${kampagne.kampagnenname || 'Unbekannte Kampagne'}
+            </a>
+          </td>
+          <td>${kampagne.unternehmen?.firmenname ? `<a href="#" class="table-link" data-table="unternehmen" data-id="${kampagne.unternehmen.id}">${kampagne.unternehmen.firmenname}</a>` : '-'}</td>
+          <td>${kampagne.start ? new Date(kampagne.start).toLocaleDateString('de-DE') : '-'}</td>
+          <td>${kampagne.deadline ? new Date(kampagne.deadline).toLocaleDateString('de-DE') : '-'}</td>
+          <td>${kampagne.status || '-'}</td>
+        </tr>
       `;
     }).join('');
 
     return `
-      <div class="kampagnen-container">
-        ${kampagnenHtml}
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Kampagne</th>
+              <th>Unternehmen</th>
+              <th>Start</th>
+              <th>Deadline</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
       </div>
     `;
   }
@@ -699,84 +711,19 @@ export class AnsprechpartnerDetail {
 
         console.log('📊 ANSPRECHPARTNERDETAIL: Gesammelte Daten:', data);
         
-        try {
-          await this.handleFormSubmit(data);
-        } catch (error) {
-          console.error('❌ ANSPRECHPARTNERDETAIL: Fehler beim Submit:', error);
-          alert('Fehler beim Speichern: ' + error.message);
-        }
+        // ENTFERNT: Submit wird jetzt vom FormSystem übernommen
+        console.log('⚠️ ANSPRECHPARTNERDETAIL: Submit wird jetzt vom FormSystem übernommen');
       });
     } else {
       console.warn('⚠️ ANSPRECHPARTNERDETAIL: Formular nicht gefunden');
     }
   }
 
-  // Formular-Submit verarbeiten
+  // ENTFERNT: Formular-Submit wird jetzt vom FormSystem übernommen
+  // Diese Methode wird nicht mehr verwendet - das FormSystem.handleFormSubmit() übernimmt
   async handleFormSubmit(data) {
-    try {
-      console.log('📤 ANSPRECHPARTNERDETAIL: Sende Daten:', data);
-
-      // Trenne Marken-IDs von den Hauptdaten
-      const markeIds = data.marke_ids || [];
-      const ansprechpartnerData = { ...data };
-      delete ansprechpartnerData.marke_ids;
-
-      // Bereinige leere UUID-Felder (konvertiere zu null für bessere DB-Kompatibilität)
-      if (!ansprechpartnerData.sprache_id) {
-        delete ansprechpartnerData.sprache_id;
-      }
-      if (!ansprechpartnerData.unternehmen_id) {
-        delete ansprechpartnerData.unternehmen_id;
-      }
-      if (!ansprechpartnerData.position_id) {
-        delete ansprechpartnerData.position_id;
-      }
-
-      // Erstelle Ansprechpartner
-      const { data: result, error } = await window.supabase
-        .from('ansprechpartner')
-        .insert([ansprechpartnerData])
-        .select()
-        .single();
-
-      if (error) {
-        console.error('❌ ANSPRECHPARTNERDETAIL: Fehler beim Speichern:', error);
-        throw new Error('Fehler beim Speichern: ' + error.message);
-      }
-
-      console.log('✅ ANSPRECHPARTNERDETAIL: Ansprechpartner erfolgreich erstellt:', result);
-
-      // Marken-Zuordnungen erstellen, falls vorhanden
-      if (markeIds.length > 0) {
-        const markenZuordnungen = markeIds.map(markeId => ({
-          ansprechpartner_id: result.id,
-          marke_id: markeId
-        }));
-
-        const { error: markenError } = await window.supabase
-          .from('ansprechpartner_marke')
-          .insert(markenZuordnungen);
-
-        if (markenError) {
-          console.error('❌ ANSPRECHPARTNERDETAIL: Fehler beim Zuordnen der Marken:', markenError);
-          // Trotzdem weitermachen, da der Ansprechpartner erstellt wurde
-        } else {
-          console.log('✅ ANSPRECHPARTNERDETAIL: Marken-Zuordnungen erstellt:', markenZuordnungen);
-        }
-      }
-
-      // Event auslösen
-      window.dispatchEvent(new CustomEvent('entityUpdated', {
-        detail: { entity: 'ansprechpartner', action: 'created', id: result.id }
-      }));
-
-      // Zur Detail-Seite navigieren
-      window.navigateTo(`/ansprechpartner/${result.id}`);
-
-    } catch (error) {
-      console.error('❌ ANSPRECHPARTNERDETAIL: Unerwarteter Fehler:', error);
-      throw error; // FormSystem wird den Fehler behandeln
-    }
+    console.log('⚠️ ANSPRECHPARTNERDETAIL: handleFormSubmit wird nicht mehr verwendet - FormSystem übernimmt');
+    throw new Error('Diese Methode wird nicht mehr verwendet');
   }
 
   // Fehler anzeigen
@@ -861,14 +808,8 @@ export class AnsprechpartnerDetail {
     // Formular-Events binden
     window.formSystem.bindFormEvents('ansprechpartner', formData);
     
-    // Custom Submit Handler für Bearbeitungsformular
-    const form = document.getElementById('ansprechpartner-form');
-    if (form) {
-      form.onsubmit = async (e) => {
-        e.preventDefault();
-        await this.handleEditFormSubmit();
-      };
-    }
+    // ENTFERNT: Custom Submit Handler - das FormSystem übernimmt die Verarbeitung
+    console.log('⚠️ ANSPRECHPARTNERDETAIL: Custom Submit Handler entfernt - FormSystem übernimmt');
   }
 
   // Handle Edit Form Submit

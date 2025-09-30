@@ -23,6 +23,8 @@ import { notizenSystem } from './core/NotizenSystem.js';
 import { bewertungsSystem } from './core/BewertungsSystem.js';
 import { unternehmenDetail } from './modules/unternehmen/UnternehmenDetail.js';
 import { auftragDetail } from './modules/auftrag/AuftragDetail.js';
+import { auftragsDetailsManager } from './modules/auftrag/logic/AuftragsDetailsManager.js';
+import { actionRegistry } from './core/ActionRegistry.js';
 import { kooperationList } from './modules/kooperation/KooperationList.js';
 import { kooperationDetail } from './modules/kooperation/KooperationDetail.js';
 import { kooperationVideoDetail } from './modules/kooperation/KooperationVideoDetail.js';
@@ -350,6 +352,7 @@ window.markeDetail = markeDetail;
 window.markeCreate = markeCreate;
 window.unternehmenDetail = unternehmenDetail;
 window.auftragDetail = auftragDetail;
+window.auftragsDetailsManager = auftragsDetailsManager;
 window.kooperationList = kooperationList;
 window.kooperationDetail = kooperationDetail;
 window.kooperationVideoDetail = kooperationVideoDetail;
@@ -437,6 +440,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   if (isAuthenticated) {
     console.log('✅ Benutzer ist authentifiziert');
+    
+    // ActionRegistry mit ModuleRegistry verbinden
+    actionRegistry.setModuleRegistry(moduleRegistry);
     
     // Navigation initialisieren
     navigationSystem.init();

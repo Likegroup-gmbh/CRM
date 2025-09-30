@@ -206,39 +206,28 @@ export class FormSystem {
 
 
   // Formular-Submit verarbeiten
-  async handleFormSubmit(entity, data) {
+  async handleFormSubmit(entity, data, formOverride) {
     try {
-      const form = document.getElementById(`${entity}-form`);
+      const form = formOverride || document.getElementById(`${entity}-form`);
       if (!form) return;
 
-      // Formulardaten sammeln
-      const formData = new FormData(form);
-      const submitData = {};
-      
-      // Alle Formularfelder durchgehen (auch readonly)
-      const formFields = form.querySelectorAll('input, select, textarea');
-      
-      for (const field of formFields) {
-        const name = field.name;
-        if (!name) continue;
-        
-        let value = '';
-        
-        if (field.type === 'checkbox') {
-          value = field.checked ? field.value || 'true' : '';
-        } else if (field.type === 'radio') {
-          if (field.checked) {
-            value = field.value;
+      const submitData = this.collectSubmitData(form);
+
+      // Spezielle Behandlung für Kampagnen: Kampagnenname generieren falls leer
+      if (entity === 'kampagne' && (!submitData.kampagnenname || submitData.kampagnenname.trim() === '')) {
+        console.log('🔧 FORMSYSTEM: Kampagnenname ist leer, generiere automatisch...');
+        if (submitData.auftrag_id) {
+          await this.autoGeneration.autoGenerateKampagnenname(form, submitData.auftrag_id);
+          // Wert aus dem Formular neu lesen
+          const kampagnennameInput = form.querySelector('input[name="kampagnenname"]');
+          if (kampagnennameInput && kampagnennameInput.value) {
+            submitData.kampagnenname = kampagnennameInput.value;
+            console.log('✅ FORMSYSTEM: Kampagnenname generiert:', submitData.kampagnenname);
           }
-        } else {
-          value = field.value || '';
-        }
-        
-        // Nur nicht-leere Werte hinzufügen (außer bei readonly Feldern)
-        if (value !== '' || field.readOnly) {
-          submitData[name] = value;
         }
       }
+
+      console.log(`🧪 FORMSYSTEM: Submit-Daten fuer ${entity}:`, submitData);
 
       // Validierung
       const errors = this.validator.validateFormData(entity, submitData);
@@ -295,6 +284,65 @@ export class FormSystem {
       this.validator.showErrorMessage('Ein unerwarteter Fehler ist aufgetreten.');
       return { success: false };
     }
+  }
+
+  // Formulardaten sammeln (unterstützt Multi-Select & versteckte Tag-Selects)
+  collectSubmitData(form) {
+    const submitData = {};
+    if (!form) return submitData;
+
+    const formData = new FormData(form);
+
+    for (const [rawKey, rawValue] of formData.entries()) {
+      const value = typeof rawValue === 'string' ? rawValue.trim() : rawValue;
+      const isArrayKey = rawKey.endsWith('[]');
+      const key = isArrayKey ? rawKey.slice(0, -2) : rawKey;
+
+      if (isArrayKey) {
+        if (!submitData[key]) {
+          submitData[key] = [];
+        }
+        if (value !== '') {
+          submitData[key].push(value);
+        }
+      } else if (submitData.hasOwnProperty(key)) {
+        // Mehrfachwerte in Array umwandeln
+        if (!Array.isArray(submitData[key])) {
+          submitData[key] = [submitData[key]];
+        }
+        if (value !== '') {
+          submitData[key].push(value);
+        }
+      } else {
+        submitData[key] = value;
+      }
+    }
+
+    // Versteckte/tag-basierte Multi-Selects erfassen
+    const multiSelects = form.querySelectorAll('select[multiple]');
+    multiSelects.forEach(select => {
+      const name = select.name;
+      if (!name) return;
+      const key = name.endsWith('[]') ? name.slice(0, -2) : name;
+      const selectedValues = Array.from(select.selectedOptions)
+        .map(option => option.value)
+        .filter(Boolean);
+
+      if (selectedValues.length > 0) {
+        submitData[key] = Array.from(new Set(selectedValues));
+      } else if (!submitData[key]) {
+        submitData[key] = [];
+      }
+    });
+
+    // Sicherstellen, dass Array-Felder eindeutig und ohne leere Strings sind
+    Object.keys(submitData).forEach(key => {
+      if (Array.isArray(submitData[key])) {
+        submitData[key] = Array.from(new Set(submitData[key].filter(Boolean)));
+      }
+    });
+
+    return submitData;
   }
 
   // Kampagnen-Adressen verarbeiten
@@ -613,6 +661,11 @@ export class FormSystem {
     if (!config) return errors;
 
     config.fields.forEach(field => {
+      // Skip Validierung für auto-generierte Felder, die leer sind
+      if (field.autoGenerate && (!data[field.name] || data[field.name].toString().trim() === '')) {
+        return; // Auto-generierte Felder müssen nicht validiert werden
+      }
+      
       if (field.required && (!data[field.name] || data[field.name].toString().trim() === '')) {
         errors.push(`${field.label} ist erforderlich.`);
       }
