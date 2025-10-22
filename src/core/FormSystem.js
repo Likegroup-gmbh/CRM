@@ -133,6 +133,12 @@ export class FormSystem {
   // Formular schließen
   closeForm() {
     if (this.currentForm && this.currentForm.modal) {
+      // Cleanup Event Listeners (Memory Leak Prevention)
+      const form = this.currentForm.modal.querySelector('form');
+      if (form) {
+        this.dependentFields.cleanup(form);
+      }
+      
       document.body.removeChild(this.currentForm.modal);
       this.currentForm = null;
       console.log('✅ Formular geschlossen');
@@ -789,16 +795,6 @@ export class FormSystem {
 
       dropdown.appendChild(item);
     });
-    
-    // WICHTIG: Custom-Event feuern, damit DependentFields weiß, dass Select bereit ist
-    setTimeout(() => {
-      const event = new CustomEvent('searchable-select-ready', { 
-        bubbles: true,
-        detail: { fieldName: selectElement.name, selectElement }
-      });
-      selectElement.dispatchEvent(event);
-      console.log(`🎯 Searchable Select bereit Event gefeuert für: ${selectElement.name}`);
-    }, 50);
   }
 
   // Searchable Select reinitialisieren

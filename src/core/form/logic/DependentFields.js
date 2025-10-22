@@ -2,6 +2,7 @@ export class DependentFields {
   constructor(autoGeneration) {
     this.autoGeneration = autoGeneration;
     this.dynamicDataLoader = null; // Wird später injiziert
+    this.formEventHandlers = new Map(); // Für Cleanup von Event Listeners
   }
 
   // Abhängige Felder verwalten
@@ -56,205 +57,130 @@ export class DependentFields {
     });
 
     // Setup für dynamische abhängige Felder (z.B. Marke abhängig von Unternehmen)
-    this.setupDynamicDependentFields(form);
+    this.setupFormDelegation(form);
   }
 
-  // Dynamische abhängige Felder verwalten
-  setupDynamicDependentFields(form) {
-    // Spezielle Behandlung für Kampagne Edit-Mode: Überspringen
+  // Event Delegation für abhängige Felder
+  setupFormDelegation(form) {
+    // Spezielle Behandlung für Kampagne Edit-Mode beibehalten
     const isKampagneEditMode = form.dataset.entityType === 'kampagne' && form.dataset.isEditMode === 'true';
     if (isKampagneEditMode) {
-      console.log('🎯 DEPENDENTFIELDS: Überspringe Dynamic Setup für Kampagne Edit-Mode');
+      console.log('🎯 DEPENDENTFIELDS: Überspringe Delegation Setup für Kampagne Edit-Mode');
       return;
     }
     
-    // Finde alle Felder mit dependsOn-Eigenschaft in der Konfiguration
     const entity = form.dataset.entity;
-    if (!entity || !this.getFormConfig) return;
-
     const config = this.getFormConfig(entity);
-    if (!config) return;
-
+    if (!config || !config.fields) return;
+    
+    // Dependency Map erstellen: parent → [children]
+    const dependencyMap = new Map();
     config.fields.forEach(field => {
       if (field.dependsOn) {
-        const dependentField = form.querySelector(`[name="${field.name}"]`);
-        const parentField = form.querySelector(`[name="${field.dependsOn}"]`);
-        
-        if (dependentField && parentField) {
-          console.log(`🔧 Setup dynamisches abhängiges Feld: ${field.name} abhängig von ${field.dependsOn}`);
-          
-          const updateDependentField = async () => {
-            const parentValue = this.getFieldValue(parentField);
-            const isEditMode = form.dataset.isEditMode === 'true';
-            const currentFieldValue = this.getFieldValue(dependentField);
-            
-            console.log(`🔍 Parent-Feld ${field.dependsOn} geändert:`, parentValue);
-            
-            if (!parentValue) {
-              // Edit-Mode: Nicht automatisch leeren wenn das Feld bereits einen sinnvollen Wert hat
-              if (isEditMode && currentFieldValue && 
-                  !currentFieldValue.includes('auswählen') && 
-                  currentFieldValue !== '' && 
-                  currentFieldValue !== 'undefined') {
-                console.log(`📝 Edit-Mode: Behalte bestehenden Wert für ${field.name}: "${currentFieldValue}"`);
-                return;
-              }
-              
-              // Kein Parent-Wert: Abhängiges Feld leeren und deaktivieren
-              console.log(`🧹 Kein Parent-Wert für ${field.name} - Feld wird geleert und deaktiviert`);
-              this.clearDependentField(dependentField, field);
-              
-              // Wenn Unternehmen geändert wurde, auch nachfolgende Felder zurücksetzen
-              if (field.dependsOn === 'unternehmen_id') {
-                this.resetCascadeFields(form, ['marke_id', 'marke_ids', 'kampagne_id', 'briefing_id', 'creator_id', 'auftrag_id']);
-              }
-              // Wenn Marke geändert wurde, auch nachfolgende Felder zurücksetzen
-              else if (field.dependsOn === 'marke_id') {
-                this.resetCascadeFields(form, ['kampagne_id', 'briefing_id', 'creator_id', 'auftrag_id']);
-              }
-              
-              return;
-            }
-            
-            // Daten für abhängiges Feld laden
-            await this.loadDependentFieldData(dependentField, field, parentValue, form);
-          };
-          
-          // Event-Listener für Parent-Feld registrieren
-          // WICHTIG: Sofort registrieren UND nach Delays wiederholen für Searchable Selects
-          console.log(`🔧 Registriere Event-Listener SOFORT für ${field.dependsOn} -> ${field.name}`);
-          this.registerDependentFieldListeners(parentField, updateDependentField, form);
-          
-          // WICHTIG: Auf searchable-select-ready Event reagieren (AUSSERHALB von registerDependentFieldListeners)
-          // Verhindere Duplikate mit Flag
-          if (!parentField.dataset.searchableReadyListenerRegistered) {
-            parentField.dataset.searchableReadyListenerRegistered = 'true';
-            parentField.addEventListener('searchable-select-ready', (e) => {
-              console.log(`🎯 Searchable Select bereit Event empfangen für ${field.dependsOn}, re-registriere Listener`);
-              this.registerDependentFieldListeners(parentField, updateDependentField, form);
-            });
-          }
-          
-          // Zusätzlich nach Delays wiederholen (für Searchable Selects die später initialisiert werden)
-          setTimeout(() => {
-            console.log(`⏰ [300ms] Re-Registriere Event-Listener für ${field.dependsOn} -> ${field.name}`);
-            this.registerDependentFieldListeners(parentField, updateDependentField, form);
-          }, 300);
-          setTimeout(() => {
-            console.log(`⏰ [700ms] Re-Registriere Event-Listener für ${field.dependsOn} -> ${field.name}`);
-            this.registerDependentFieldListeners(parentField, updateDependentField, form);
-          }, 700);
-          
-          // Initial state - Edit-Mode berücksichtigen
-          // WICHTIG: Warte kurz, bis Searchable Selects vollständig initialisiert sind
-          setTimeout(() => {
-            const initialParentValue = this.getFieldValue(parentField);
-            const isEditMode = form.dataset.isEditMode === 'true';
-            const hasExistingValue = this.getFieldValue(dependentField);
-            
-            console.log(`🔍 Initial Check für ${field.name}: Parent=${initialParentValue}, EditMode=${isEditMode}, ExistingValue=${hasExistingValue}`);
-            
-            if (initialParentValue) {
-              // Parent hat Wert: Normal updaten
-              console.log(`✅ Parent hat Wert - Update ${field.name}`);
-              updateDependentField();
-            } else if (isEditMode && hasExistingValue) {
-              // Edit-Mode mit bestehendem Wert: Nicht deaktivieren
-              console.log(`📝 Edit-Mode: Behalte bestehenden Wert für ${field.name}:`, hasExistingValue);
-            } else {
-              // Kein Parent-Wert und kein Edit-Mode: Feld initial deaktivieren
-              console.log(`🚫 Initial deaktiviert: ${field.name} (kein Parent-Wert)`);
-              updateDependentField();
-            }
-          }, 700); // Etwas später als Listener-Registrierung
+        if (!dependencyMap.has(field.dependsOn)) {
+          dependencyMap.set(field.dependsOn, []);
         }
+        dependencyMap.get(field.dependsOn).push(field);
       }
     });
+    
+    console.log('🗺️ DELEGATION: Dependency Map:', Object.fromEntries(dependencyMap));
+    
+    // Field Cache erstellen (Performance Optimierung #2)
+    const fieldCache = new Map();
+    config.fields.forEach(field => {
+      const element = form.querySelector(`[name="${field.name}"]`);
+      if (element) {
+        fieldCache.set(field.name, element);
+      }
+    });
+    
+    // Debounce Timers (Performance Optimierung #3)
+    const debounceTimers = new Map();
+    
+    // Einmaliger Event-Listener auf Form-Level (Capturing Phase)
+    const handler = async (e) => {
+      const changedField = e.target;
+      const fieldName = changedField.name;
+      
+      if (dependencyMap.has(fieldName)) {
+        // Bestehenden Timer abbrechen (Debouncing)
+        if (debounceTimers.has(fieldName)) {
+          clearTimeout(debounceTimers.get(fieldName));
+        }
+        
+        // Neuen Timer setzen
+        const timer = setTimeout(async () => {
+          const dependentFields = dependencyMap.get(fieldName);
+          const parentValue = this.getFieldValue(changedField);
+          
+          console.log(`🔄 DELEGATION: ${fieldName} → "${parentValue}", ${dependentFields.length} abhängige Felder`);
+          
+          for (const fieldConfig of dependentFields) {
+            const dependentField = fieldCache.get(fieldConfig.name);
+            if (!dependentField) continue;
+            
+            if (!parentValue) {
+              await this.clearDependentField(dependentField, fieldConfig);
+            } else {
+              await this.loadDependentFieldData(dependentField, fieldConfig, parentValue, form);
+            }
+          }
+          
+          debounceTimers.delete(fieldName);
+        }, 150); // 150ms Debounce
+        
+        debounceTimers.set(fieldName, timer);
+      }
+    };
+    
+    // Alte Handler entfernen falls vorhanden (Memory Leak Prevention)
+    if (this.formEventHandlers.has(form)) {
+      const oldHandler = this.formEventHandlers.get(form);
+      form.removeEventListener('change', oldHandler, true);
+    }
+    
+    form.addEventListener('change', handler, true); // Capturing = true
+    this.formEventHandlers.set(form, handler);
+    
+    // Initial State laden
+    setTimeout(() => {
+      const isEditMode = form.dataset.isEditMode === 'true';
+      
+      dependencyMap.forEach((dependentFields, parentFieldName) => {
+        const parentField = fieldCache.get(parentFieldName);
+        if (!parentField) return;
+        
+        const parentValue = this.getFieldValue(parentField);
+        
+        dependentFields.forEach(async (fieldConfig) => {
+          const dependentField = fieldCache.get(fieldConfig.name);
+          if (!dependentField) return;
+          
+          const hasExistingValue = this.getFieldValue(dependentField);
+          
+          if (parentValue) {
+            await this.loadDependentFieldData(dependentField, fieldConfig, parentValue, form);
+          } else if (isEditMode && hasExistingValue) {
+            console.log(`📝 DELEGATION: Edit-Mode, behalte ${fieldConfig.name}`);
+          } else {
+            await this.clearDependentField(dependentField, fieldConfig);
+          }
+        });
+      });
+    }, 300); // Reduziert von 500ms auf 300ms (Performance Optimierung #7)
   }
 
-  // Event-Listener für abhängige Felder registrieren
-  registerDependentFieldListeners(parentField, updateCallback, form) {
-    console.log(`🎧 Registriere Event-Listener für abhängiges Feld:`, parentField.name);
-    
-    // WICHTIG: Haupt-Listener auf dem ursprünglichen Select-Element SOFORT registrieren
-    // Dieser wird vom FormSystem gefeuert, wenn ein Wert ausgewählt wird
-    // ACHTUNG: Verwende { once: false } um mehrfache Registrierungen zuzulassen
-    const changeHandler = (e) => {
-      console.log(`🔔 CHANGE EVENT auf ${parentField.name}, Wert:`, e.target.value, 'Field Value:', parentField.value);
-      // Sofort callback ausführen, nicht warten
-      updateCallback();
-    };
-    
-    // Entferne alte Listener falls vorhanden (über gespeicherte Referenz)
-    if (parentField._dependentChangeHandler) {
-      parentField.removeEventListener('change', parentField._dependentChangeHandler);
-      console.log(`🗑️ Alter Change-Listener entfernt für ${parentField.name}`);
-    }
-    
-    // Speichere Referenz und registriere neuen Listener
-    parentField._dependentChangeHandler = changeHandler;
-    parentField.addEventListener('change', changeHandler);
-    
-    console.log(`✅ Haupt-Listener registriert auf ${parentField.name}`);
-    
-    // Hilfsfunktion: Listener auf Searchable Select Container registrieren (zusätzlich)
-    const registerSearchableListeners = () => {
-      const searchableContainer = parentField.nextElementSibling;
-      
-      if (searchableContainer && searchableContainer.classList.contains('searchable-select-container')) {
-        console.log(`🔍 Searchable Select Container gefunden für:`, parentField.name);
-        
-        // Prüfe ob bereits Listener registriert sind (data-attribute als Flag)
-        if (searchableContainer.dataset.listenersRegistered === 'true') {
-          console.log(`⏭️ Listener bereits registriert für:`, parentField.name);
-          return true; // Erfolgreich registriert (bereits gemacht)
-        }
-        
-        // Markiere als registriert
-        searchableContainer.dataset.listenersRegistered = 'true';
-        
-        // Prüfe ob es ein verstecktes Select gibt (für Tag-basierte Multi-Selects)
-        const hiddenSelect = searchableContainer.querySelector('select[style*="display: none"]');
-        if (hiddenSelect && hiddenSelect.id.endsWith('_hidden')) {
-          console.log(`📦 Verstecktes Select gefunden: ${hiddenSelect.id}`);
-          hiddenSelect.addEventListener('change', () => {
-            console.log(`🔔 Change Event von verstecktem Select: ${hiddenSelect.id}`);
-            updateCallback();
-          });
-        }
-        
-        // Zusätzlich: Listener auf das Input-Feld für sofortige Reaktion
-        const searchInput = searchableContainer.querySelector('.searchable-select-input');
-        if (searchInput) {
-          console.log(`🔍 Search Input gefunden für:`, parentField.name);
-          searchInput.addEventListener('change', () => {
-            console.log(`🔔 Change Event von Search Input`);
-            updateCallback();
-          });
-        }
-        
-        console.log(`✅ Searchable Select Listener registriert für:`, parentField.name);
-        return true; // Erfolgreich registriert
-      }
-      return false; // Noch nicht gefunden
-    };
-    
-    // Sofort versuchen zu registrieren
-    let registered = registerSearchableListeners();
-    
-    // Wenn noch nicht erfolgreich, mehrfach versuchen
-    if (!registered) {
-      const retryIntervals = [50, 200, 500, 1000];
-      retryIntervals.forEach(delay => {
-        setTimeout(() => {
-          if (!registered) {
-            registered = registerSearchableListeners();
-          }
-        }, delay);
-      });
+  // Cleanup-Methode für Memory Leak Prevention
+  cleanup(form) {
+    if (this.formEventHandlers && this.formEventHandlers.has(form)) {
+      const handler = this.formEventHandlers.get(form);
+      form.removeEventListener('change', handler, true);
+      this.formEventHandlers.delete(form);
+      console.log('🗑️ DEPENDENTFIELDS: Event Listeners entfernt für Form');
     }
   }
-  
+
   // Wert aus Feld extrahieren (auch für searchable Selects)
   getFieldValue(field) {
     console.log(`🔍 getFieldValue für Feld:`, field.name);
@@ -392,6 +318,9 @@ export class DependentFields {
     }
 
     console.log(`🔄 Lade Daten für ${fieldConfig.name} basierend auf ${fieldConfig.dependsOn}:`, parentValue);
+    
+    // Loading State anzeigen (Performance Optimierung #4)
+    this.showLoadingState(field, fieldConfig);
     
     try {
       // Spezielle Logik für Marken basierend auf Unternehmen (sowohl Single- als auch Multi-Select)
@@ -665,6 +594,12 @@ export class DependentFields {
       }
     } catch (error) {
       console.error(`❌ Fehler beim Laden der abhängigen Daten:`, error);
+      
+      // User Feedback bei Fehler (Performance Optimierung #5)
+      this.showErrorState(field, fieldConfig);
+    } finally {
+      // Loading State ausblenden (Performance Optimierung #4)
+      this.hideLoadingState(field);
     }
   }
 
@@ -763,8 +698,14 @@ export class DependentFields {
   getFieldLabel(fieldName) {
     const labelMap = {
       'unternehmen': 'Unternehmen',
+      'unternehmen_id': 'Unternehmen',
       'marke': 'Marke',
-      'auftrag': 'Auftrag'
+      'marke_id': 'Marke',
+      'marke_ids': 'Marke',
+      'auftrag': 'Auftrag',
+      'auftrag_id': 'Auftrag',
+      'kampagne': 'Kampagne',
+      'kampagne_id': 'Kampagne'
     };
     return labelMap[fieldName] || fieldName;
   }
@@ -894,6 +835,80 @@ export class DependentFields {
       const dropdown = container.querySelector('.searchable-select-dropdown');
       if (dropdown) {
         dropdown.innerHTML = '';
+      }
+    }
+  }
+
+  // Loading State anzeigen (Performance Optimierung #4)
+  showLoadingState(field, fieldConfig) {
+    const container = field.nextElementSibling;
+    if (container && container.classList.contains('searchable-select-container')) {
+      const input = container.querySelector('.searchable-select-input');
+      if (input) {
+        input.disabled = true;
+        input.placeholder = 'Lädt...';
+        input.classList.add('loading');
+      }
+    }
+    
+    // Auch für Tag-basierte Multi-Selects
+    const tagContainer = field.closest('.form-field')?.querySelector('.tag-based-select');
+    if (tagContainer) {
+      const input = tagContainer.querySelector('.searchable-select-input');
+      if (input) {
+        input.disabled = true;
+        input.placeholder = 'Lädt...';
+        input.classList.add('loading');
+      }
+    }
+  }
+
+  // Loading State ausblenden (Performance Optimierung #4)
+  hideLoadingState(field) {
+    const container = field.nextElementSibling;
+    if (container && container.classList.contains('searchable-select-container')) {
+      const input = container.querySelector('.searchable-select-input');
+      if (input) {
+        input.classList.remove('loading');
+      }
+    }
+    
+    // Auch für Tag-basierte Multi-Selects
+    const tagContainer = field.closest('.form-field')?.querySelector('.tag-based-select');
+    if (tagContainer) {
+      const input = tagContainer.querySelector('.searchable-select-input');
+      if (input) {
+        input.classList.remove('loading');
+      }
+    }
+  }
+
+  // Error State anzeigen (Performance Optimierung #5)
+  showErrorState(field, fieldConfig) {
+    const container = field.nextElementSibling;
+    if (container && container.classList.contains('searchable-select-container')) {
+      const input = container.querySelector('.searchable-select-input');
+      if (input) {
+        input.placeholder = 'Fehler beim Laden';
+        input.classList.add('error');
+        setTimeout(() => {
+          input.classList.remove('error');
+          input.placeholder = fieldConfig.placeholder || 'Bitte wählen...';
+        }, 3000);
+      }
+    }
+    
+    // Auch für Tag-basierte Multi-Selects
+    const tagContainer = field.closest('.form-field')?.querySelector('.tag-based-select');
+    if (tagContainer) {
+      const input = tagContainer.querySelector('.searchable-select-input');
+      if (input) {
+        input.placeholder = 'Fehler beim Laden';
+        input.classList.add('error');
+        setTimeout(() => {
+          input.classList.remove('error');
+          input.placeholder = fieldConfig.placeholder || 'Bitte wählen...';
+        }, 3000);
       }
     }
   }

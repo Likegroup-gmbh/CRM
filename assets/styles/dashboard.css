@@ -4919,6 +4919,26 @@ margin-bottom: var(--space-md);
   text-decoration: underline;
 }
 
+/* Loading State für Dependent Fields */
+.searchable-select-input.loading {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="%234F46E5" stroke-width="3" stroke-dasharray="31.4 31.4" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></circle></svg>');
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 16px 16px;
+  padding-right: 35px;
+}
+
+/* Error State für Dependent Fields */
+.searchable-select-input.error {
+  border-color: #EF4444;
+  background-color: #FEF2F2;
+}
+
+.searchable-select-input.error:focus {
+  outline-color: #EF4444;
+  border-color: #EF4444;
+}
+
 /* Responsive */
 @media (max-width: 640px) {
   .phone-number-field {
