@@ -1,0 +1,172 @@
+/* PhoneNumberField Styling - Wiederverwendbare Telefonnummer-Komponente */
+
+.phone-number-field-container {
+  margin-bottom: 20px;
+ 
+}
+
+.phone-number-field {
+display: flex;
+flex-direction: row;
+gap: 10px;
+  align-items: flex-start;
+}
+
+/* Das originale Select verstecken */
+.phone-country-select {
+  display: none !important;
+}
+
+/* Searchable Select Container für Phone Field - MUSS nebeneinander sein */
+.phone-number-field .searchable-select-container {
+  flex: 0 0 240px !important;
+  min-width: 240px !important;
+  max-width: 240px !important;
+}
+
+/* Telefonnummer Input */
+.phone-number-field .phone-number-input {
+  flex: 1 !important;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 6px;
+  background-color: var(--color-bg, #ffffff);
+  color: var(--color-text, #1f2937);
+  font-size: 14px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.phone-number-field .phone-number-input:focus {
+  outline: none;
+  border-color: var(--color-primary, #2563eb);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+
+/* Input innerhalb des Searchable Select - Platz für Flagge */
+.phone-number-field .searchable-select-container input {
+  padding-left: 44px !important; /* Platz für Flagge */
+}
+
+/* Flagge Icon innerhalb des Containers */
+.phone-flag-icon {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  display: inline-block !important;
+  width: 24px !important;
+  height: 18px !important;
+  background-size: contain !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+}
+
+/* Flaggen im Dropdown */
+.searchable-select-item .fi {
+  display: inline-block !important;
+  width: 20px !important;
+  height: 15px !important;
+  flex-shrink: 0;
+  background-size: contain !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  margin-right: 8px;
+}
+
+.phone-country-select:focus {
+  outline: none;
+  border-color: var(--color-primary, #2563eb);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.phone-number-input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 6px;
+  background-color: var(--color-bg, #ffffff);
+  color: var(--color-text, #1f2937);
+  font-size: 14px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.phone-number-input:hover {
+  border-color: var(--color-primary, #2563eb);
+}
+
+.phone-number-input:focus {
+  outline: none;
+  border-color: var(--color-primary, #2563eb);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.phone-number-input::placeholder {
+  color: var(--color-text-light, #9ca3af);
+}
+
+/* Field Hint */
+.phone-number-field-container .field-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--color-text-light, #6b7280);
+}
+
+/* Flag Icons in Select (Choices.js wird die Flags rendern) */
+.phone-country-select option {
+  padding: 8px 12px;
+}
+
+/* Responsive Design */
+@media (max-width: 640px) {
+  .phone-country-select + .searchable-select-container {
+    flex: 1 !important;
+    min-width: 100% !important;
+  }
+}
+
+/* Error State */
+.phone-number-field-container.has-error .phone-country-select,
+.phone-number-field-container.has-error .phone-number-input {
+  border-color: var(--color-error, #ef4444);
+}
+
+.phone-number-field-container .error-message {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--color-error, #ef4444);
+}
+
+/* Required Indicator */
+.phone-number-field-container label .required {
+  color: var(--color-error, #ef4444);
+  margin-left: 4px;
+}
+
+/* Custom Flag Display in Choices.js Dropdown */
+.choices__list--dropdown .choices__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.choices__list--dropdown .choices__item .fi {
+  flex-shrink: 0;
+}
+
+/* Selected Item mit Flagge */
+.choices__item--selectable {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Disabled State */
+.phone-number-field-container.disabled .phone-country-select,
+.phone-number-field-container.disabled .phone-number-input {
+  background-color: var(--color-bg-disabled, #f3f4f6);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+

@@ -3,6 +3,7 @@
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { ansprechpartnerCreate } from './AnsprechpartnerCreate.js';
+import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 
 export class AnsprechpartnerList {
   constructor() {
@@ -253,7 +254,11 @@ export class AnsprechpartnerList {
             : '-'}
         </td>
         <td>${ap.email ? `<a href="mailto:${ap.email}">${ap.email}</a>` : '-'}</td>
-        <td>${ap.telefonnummer || '-'}</td>
+        <td>${PhoneDisplay.render(
+          ap.telefonnummer_land?.iso_code,
+          ap.telefonnummer_land?.vorwahl,
+          ap.telefonnummer
+        )}</td>
         <td>${ap.stadt || '-'}</td>
         <td>
           ${(ap.sprachen && ap.sprachen.length > 0)

@@ -77,7 +77,6 @@ export class FormConfig {
           { name: 'rechnungsadresse_stadt', label: 'Stadt', type: 'text', required: false },
           { name: 'rechnungsadresse_land', label: 'Land', type: 'text', required: false },
           { name: 'invoice_email', label: 'Rechnungs-Email', type: 'email', required: false, validation: { type: 'email' } },
-          { name: 'webseite', label: 'Webseite', type: 'url', required: false, validation: { type: 'url' } },
           { name: 'status', label: 'Status', type: 'select', required: false, options: ['Aktiv', 'Inaktiv', 'Prospekt'] }
         ]
       },
@@ -332,8 +331,30 @@ export class FormConfig {
             directQuery: true
           },
           { name: 'email', label: 'E-Mail', type: 'email', required: false, validation: { type: 'email' } },
-          { name: 'telefonnummer', label: 'Telefonnummer (privat)', type: 'tel', required: false },
-          { name: 'telefonnummer_office', label: 'Telefonnummer (Büro)', type: 'tel', required: false },
+          { 
+            name: 'telefonnummer',
+            nameCountry: 'telefonnummer_land_id',
+            label: 'Telefonnummer (mobil)', 
+            type: 'phone', 
+            required: false,
+            defaultCountry: 'Deutschland',
+            table: 'eu_laender',
+            displayField: 'name_de,vorwahl,iso_code',
+            valueField: 'id',
+            dynamic: true
+          },
+          { 
+            name: 'telefonnummer_office',
+            nameCountry: 'telefonnummer_office_land_id',
+            label: 'Telefonnummer (Büro)', 
+            type: 'phone', 
+            required: false,
+            defaultCountry: 'Deutschland',
+            table: 'eu_laender',
+            displayField: 'name_de,vorwahl,iso_code',
+            valueField: 'id',
+            dynamic: true
+          },
           { name: 'linkedin', label: 'LinkedIn Profil', type: 'url', required: false, validation: { type: 'url' } },
           { name: 'stadt', label: 'Stadt', type: 'text', required: false },
           { 

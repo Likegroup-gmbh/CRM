@@ -431,11 +431,6 @@ export class UnternehmenCreate {
       errors.invoice_email = 'Bitte geben Sie eine gültige E-Mail-Adresse ein';
     }
 
-    // URL-Format prüfen
-    if (data.webseite && !/^https?:\/\/.+/.test(data.webseite)) {
-      errors.webseite = 'Bitte geben Sie eine gültige URL ein (z.B. https://www.beispiel.de)';
-    }
-
     return errors;
   }
 

@@ -110,7 +110,7 @@ export class UnternehmenList {
               <th>Name</th>
               <th>Branche</th>
               <th>Ansprechpartner</th>
-              <th>Email</th>
+              <th>Rechnungs E-Mail</th>
               <th>Stadt</th>
               <th>Land</th>
               <th>Aktionen</th>

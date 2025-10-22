@@ -85,3 +85,6 @@ export const kundenKampagneDetail = new KundenKampagneDetail();
 
 
 
+
+
+

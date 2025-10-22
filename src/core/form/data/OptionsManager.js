@@ -36,17 +36,44 @@ export class OptionsManager {
 
   // Searchable Select reinitialisieren
   reinitializeSearchableSelect(selectElement, options, field) {
-    // Prüfe ob bereits ein Tag-basiertes System existiert
-    const existingContainer = selectElement.parentNode.querySelector('.searchable-select-container, .tag-based-select');
-    if (existingContainer) {
-      console.log('🔧 Entferne bestehenden Container für:', field.name);
-      existingContainer.remove();
+    console.log('🔧 OPTIONSMANAGER: Reinitialisiere Searchable Select für:', field.name, 'mit', options.length, 'Optionen');
+    
+    // Prüfe ob bereits ein Container existiert (als nextElementSibling)
+    const existingContainer = selectElement.nextElementSibling;
+    if (existingContainer && (existingContainer.classList.contains('searchable-select-container') || existingContainer.classList.contains('tag-based-select'))) {
+      console.log('🔄 OPTIONSMANAGER: Aktualisiere bestehenden Container für:', field.name);
+      
+      // Dropdown aktualisieren
+      const dropdown = existingContainer.querySelector('.searchable-select-dropdown');
+      if (dropdown) {
+        this.updateDropdownItems(dropdown, options, '');
+        console.log('✅ OPTIONSMANAGER: Dropdown Items aktualisiert');
+      }
+      
+      // Input-Feld aktivieren
+      const input = existingContainer.querySelector('.searchable-select-input');
+      if (input) {
+        input.disabled = false;
+        input.placeholder = field.placeholder || 'Suchen...';
+        input.readOnly = false;
+        console.log('✅ OPTIONSMANAGER: Input-Feld aktiviert für:', field.name);
+      }
+      
+      return;
+    }
+    
+    // Alte Container entfernen (falls an anderer Stelle)
+    const oldContainer = selectElement.parentNode.querySelector('.searchable-select-container, .tag-based-select');
+    if (oldContainer && oldContainer !== existingContainer) {
+      console.log('🗑️ OPTIONSMANAGER: Entferne alten Container für:', field.name);
+      oldContainer.remove();
     }
 
     // Das ursprüngliche Select soll versteckt bleiben
     selectElement.style.display = 'none';
     
     // Neue Auto-Suggestion erstellen
+    console.log('🆕 OPTIONSMANAGER: Erstelle neuen Searchable Select für:', field.name);
     this.createSearchableSelect(selectElement, options, field);
   }
 
@@ -85,8 +112,8 @@ export class OptionsManager {
         const input = dropdown.parentNode.querySelector('input');
         input.value = option.label;
         
-        // Event auslösen
-        selectElement.dispatchEvent(new Event('change'));
+        // Event auslösen (mit bubbles für DependentFields)
+        selectElement.dispatchEvent(new Event('change', { bubbles: true }));
         
         // Dropdown schließen
         dropdown.classList.remove('show');
@@ -118,14 +145,71 @@ export class OptionsManager {
       const existingContainer = selectElement.parentNode.querySelector('.tag-based-select');
       const existingInput = existingContainer?.querySelector('.searchable-select-input');
       
-      if (existingContainer && existingInput && options.length > 0) {
-        // System existiert und ist funktional - aktualisiere nur die Optionen
-        console.log(`🔄 Aktualisiere bestehende Optionen für ${field.name}`);
+      if (existingContainer && existingInput) {
+        // System existiert - aktualisiere die Optionen VOLLSTÄNDIG
+        console.log(`🔄 Aktualisiere bestehende Optionen vollständig für ${field.name} (${options.length} Optionen)`);
+        
+        // 1. Optionen-Dataset aktualisieren
         try { 
           existingContainer.dataset.options = JSON.stringify(options); 
-          console.log(`✅ Optionen für ${field.name} aktualisiert`);
-          return;
+          console.log(`✅ Dataset-Optionen aktualisiert für ${field.name}`);
         } catch (_) {}
+        
+        // 2. Original Select aktualisieren
+        selectElement.innerHTML = '<option value="">Bitte wählen...</option>';
+        options.forEach(option => {
+          const optionElement = document.createElement('option');
+          optionElement.value = option.value;
+          optionElement.textContent = option.label;
+          selectElement.appendChild(optionElement);
+        });
+        
+        // 3. Dropdown sofort aktualisieren (nicht warten bis zum nächsten Öffnen!)
+        const dropdown = existingContainer.querySelector('.searchable-select-dropdown');
+        if (dropdown) {
+          this.updateDropdownItems(dropdown, options, '');
+          console.log(`✅ Dropdown sofort aktualisiert für ${field.name}`);
+        }
+        
+        // 4. Ungültige Tags entfernen (Tags deren Optionen nicht mehr verfügbar sind)
+        const optionValues = new Set(options.map(opt => opt.value));
+        const tags = existingContainer.querySelectorAll('.tag');
+        const tagsToRemove = [];
+        
+        tags.forEach(tag => {
+          const tagValue = tag.dataset?.value;
+          if (tagValue && !optionValues.has(tagValue)) {
+            console.log(`🗑️ Markiere ungültigen Tag zum Entfernen: ${tagValue}`);
+            tagsToRemove.push({ tag, value: tagValue });
+          }
+        });
+        
+        // Tags tatsächlich entfernen
+        if (tagsToRemove.length > 0) {
+          const hiddenSelect = existingContainer.querySelector('select[style*="display: none"]');
+          tagsToRemove.forEach(({ tag, value }) => {
+            tag.remove();
+            // Auch aus dem versteckten Select entfernen
+            if (hiddenSelect) {
+              const optionToRemove = Array.from(hiddenSelect.options).find(opt => opt.value === value);
+              if (optionToRemove) {
+                hiddenSelect.removeChild(optionToRemove);
+              }
+            }
+          });
+          console.log(`✅ ${tagsToRemove.length} ungültige Tag(s) entfernt`);
+        }
+        
+        // 5. Input wieder aktivieren falls deaktiviert (auch bei 0 Optionen!)
+        existingInput.disabled = options.length === 0;
+        if (options.length === 0) {
+          existingInput.placeholder = 'Erst Unternehmen auswählen...';
+        } else {
+          existingInput.placeholder = field.placeholder || 'Suchen und Tags hinzufügen...';
+        }
+        
+        console.log(`✅ Optionen für ${field.name} vollständig aktualisiert (Input ${existingInput.disabled ? 'deaktiviert' : 'aktiviert'})`);
+        return;
       } else {
         // System ist kaputt oder unvollständig - entferne und neu erstellen
         console.log(`🗑️ Entferne defektes Tag-System für ${field.name}`);

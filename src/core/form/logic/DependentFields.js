@@ -120,53 +120,185 @@ export class DependentFields {
             await this.loadDependentFieldData(dependentField, field, parentValue, form);
           };
           
-          // Event-Listener für Parent-Feld
-          parentField.addEventListener('change', updateDependentField);
+          // Event-Listener für Parent-Feld registrieren
+          // WICHTIG: Sofort registrieren UND nach Delays wiederholen für Searchable Selects
+          console.log(`🔧 Registriere Event-Listener SOFORT für ${field.dependsOn} -> ${field.name}`);
+          this.registerDependentFieldListeners(parentField, updateDependentField, form);
           
-          // Für searchable Selects auch auf Input-Events hören
-          const searchableContainer = parentField.closest('.searchable-select-container, .tag-based-select');
-          if (searchableContainer) {
-            const searchInput = searchableContainer.querySelector('.searchable-select-input');
-            if (searchInput) {
-              // Debounced Event für Suche
-              let timeout;
-              searchInput.addEventListener('input', () => {
-                clearTimeout(timeout);
-                timeout = setTimeout(updateDependentField, 300);
-              });
-            }
+          // WICHTIG: Auf searchable-select-ready Event reagieren (AUSSERHALB von registerDependentFieldListeners)
+          // Verhindere Duplikate mit Flag
+          if (!parentField.dataset.searchableReadyListenerRegistered) {
+            parentField.dataset.searchableReadyListenerRegistered = 'true';
+            parentField.addEventListener('searchable-select-ready', (e) => {
+              console.log(`🎯 Searchable Select bereit Event empfangen für ${field.dependsOn}, re-registriere Listener`);
+              this.registerDependentFieldListeners(parentField, updateDependentField, form);
+            });
           }
+          
+          // Zusätzlich nach Delays wiederholen (für Searchable Selects die später initialisiert werden)
+          setTimeout(() => {
+            console.log(`⏰ [300ms] Re-Registriere Event-Listener für ${field.dependsOn} -> ${field.name}`);
+            this.registerDependentFieldListeners(parentField, updateDependentField, form);
+          }, 300);
+          setTimeout(() => {
+            console.log(`⏰ [700ms] Re-Registriere Event-Listener für ${field.dependsOn} -> ${field.name}`);
+            this.registerDependentFieldListeners(parentField, updateDependentField, form);
+          }, 700);
           
           // Initial state - Edit-Mode berücksichtigen
-          const initialParentValue = this.getFieldValue(parentField);
-          const isEditMode = form.dataset.isEditMode === 'true';
-          const hasExistingValue = this.getFieldValue(dependentField);
-          
-          if (initialParentValue) {
-            // Parent hat Wert: Normal updaten
-            updateDependentField();
-          } else if (isEditMode && hasExistingValue) {
-            // Edit-Mode mit bestehendem Wert: Nicht deaktivieren
-            console.log(`📝 Edit-Mode: Behalte bestehenden Wert für ${field.name}:`, hasExistingValue);
-          } else {
-            // Kein Parent-Wert und kein Edit-Mode: Feld initial deaktivieren
-            console.log(`🚫 Initial deaktiviert: ${field.name} (kein Parent-Wert)`);
-            updateDependentField();
-          }
+          // WICHTIG: Warte kurz, bis Searchable Selects vollständig initialisiert sind
+          setTimeout(() => {
+            const initialParentValue = this.getFieldValue(parentField);
+            const isEditMode = form.dataset.isEditMode === 'true';
+            const hasExistingValue = this.getFieldValue(dependentField);
+            
+            console.log(`🔍 Initial Check für ${field.name}: Parent=${initialParentValue}, EditMode=${isEditMode}, ExistingValue=${hasExistingValue}`);
+            
+            if (initialParentValue) {
+              // Parent hat Wert: Normal updaten
+              console.log(`✅ Parent hat Wert - Update ${field.name}`);
+              updateDependentField();
+            } else if (isEditMode && hasExistingValue) {
+              // Edit-Mode mit bestehendem Wert: Nicht deaktivieren
+              console.log(`📝 Edit-Mode: Behalte bestehenden Wert für ${field.name}:`, hasExistingValue);
+            } else {
+              // Kein Parent-Wert und kein Edit-Mode: Feld initial deaktivieren
+              console.log(`🚫 Initial deaktiviert: ${field.name} (kein Parent-Wert)`);
+              updateDependentField();
+            }
+          }, 700); // Etwas später als Listener-Registrierung
         }
       }
     });
   }
 
-  // Wert aus Feld extrahieren (auch für searchable Selects)
-  getFieldValue(field) {
-    // Für versteckte Selects (bei searchable Selects)
-    const hiddenSelect = field.parentNode.querySelector('select[style*="display: none"]');
-    if (hiddenSelect && hiddenSelect !== field) {
-      return hiddenSelect.value;
+  // Event-Listener für abhängige Felder registrieren
+  registerDependentFieldListeners(parentField, updateCallback, form) {
+    console.log(`🎧 Registriere Event-Listener für abhängiges Feld:`, parentField.name);
+    
+    // WICHTIG: Haupt-Listener auf dem ursprünglichen Select-Element SOFORT registrieren
+    // Dieser wird vom FormSystem gefeuert, wenn ein Wert ausgewählt wird
+    // ACHTUNG: Verwende { once: false } um mehrfache Registrierungen zuzulassen
+    const changeHandler = (e) => {
+      console.log(`🔔 CHANGE EVENT auf ${parentField.name}, Wert:`, e.target.value, 'Field Value:', parentField.value);
+      // Sofort callback ausführen, nicht warten
+      updateCallback();
+    };
+    
+    // Entferne alte Listener falls vorhanden (über gespeicherte Referenz)
+    if (parentField._dependentChangeHandler) {
+      parentField.removeEventListener('change', parentField._dependentChangeHandler);
+      console.log(`🗑️ Alter Change-Listener entfernt für ${parentField.name}`);
     }
     
-    return field.value;
+    // Speichere Referenz und registriere neuen Listener
+    parentField._dependentChangeHandler = changeHandler;
+    parentField.addEventListener('change', changeHandler);
+    
+    console.log(`✅ Haupt-Listener registriert auf ${parentField.name}`);
+    
+    // Hilfsfunktion: Listener auf Searchable Select Container registrieren (zusätzlich)
+    const registerSearchableListeners = () => {
+      const searchableContainer = parentField.nextElementSibling;
+      
+      if (searchableContainer && searchableContainer.classList.contains('searchable-select-container')) {
+        console.log(`🔍 Searchable Select Container gefunden für:`, parentField.name);
+        
+        // Prüfe ob bereits Listener registriert sind (data-attribute als Flag)
+        if (searchableContainer.dataset.listenersRegistered === 'true') {
+          console.log(`⏭️ Listener bereits registriert für:`, parentField.name);
+          return true; // Erfolgreich registriert (bereits gemacht)
+        }
+        
+        // Markiere als registriert
+        searchableContainer.dataset.listenersRegistered = 'true';
+        
+        // Prüfe ob es ein verstecktes Select gibt (für Tag-basierte Multi-Selects)
+        const hiddenSelect = searchableContainer.querySelector('select[style*="display: none"]');
+        if (hiddenSelect && hiddenSelect.id.endsWith('_hidden')) {
+          console.log(`📦 Verstecktes Select gefunden: ${hiddenSelect.id}`);
+          hiddenSelect.addEventListener('change', () => {
+            console.log(`🔔 Change Event von verstecktem Select: ${hiddenSelect.id}`);
+            updateCallback();
+          });
+        }
+        
+        // Zusätzlich: Listener auf das Input-Feld für sofortige Reaktion
+        const searchInput = searchableContainer.querySelector('.searchable-select-input');
+        if (searchInput) {
+          console.log(`🔍 Search Input gefunden für:`, parentField.name);
+          searchInput.addEventListener('change', () => {
+            console.log(`🔔 Change Event von Search Input`);
+            updateCallback();
+          });
+        }
+        
+        console.log(`✅ Searchable Select Listener registriert für:`, parentField.name);
+        return true; // Erfolgreich registriert
+      }
+      return false; // Noch nicht gefunden
+    };
+    
+    // Sofort versuchen zu registrieren
+    let registered = registerSearchableListeners();
+    
+    // Wenn noch nicht erfolgreich, mehrfach versuchen
+    if (!registered) {
+      const retryIntervals = [50, 200, 500, 1000];
+      retryIntervals.forEach(delay => {
+        setTimeout(() => {
+          if (!registered) {
+            registered = registerSearchableListeners();
+          }
+        }, delay);
+      });
+    }
+  }
+  
+  // Wert aus Feld extrahieren (auch für searchable Selects)
+  getFieldValue(field) {
+    console.log(`🔍 getFieldValue für Feld:`, field.name);
+    
+    // WICHTIG: Zuerst das ursprüngliche Select-Element prüfen
+    const originalValue = field.value;
+    console.log(`📋 Original Select Wert:`, originalValue);
+    
+    // Prüfe ob es ein Searchable Select ist (Container ist nextElementSibling)
+    const nextElement = field.nextElementSibling;
+    if (nextElement && (nextElement.classList.contains('searchable-select-container') || nextElement.classList.contains('tag-based-select'))) {
+      console.log(`🔍 Searchable Select Container gefunden für:`, field.name);
+      
+      // Für Tag-basierte Multi-Selects: Hole Wert aus dem versteckten Select
+      const hiddenSelect = nextElement.querySelector('select[style*="display: none"]');
+      if (hiddenSelect && hiddenSelect.id.endsWith('_hidden')) {
+        console.log(`📦 Verstecktes Multi-Select gefunden:`, hiddenSelect.id);
+        // Bei Multi-Selects den ersten Wert zurückgeben (wenn vorhanden)
+        if (hiddenSelect.selectedOptions.length > 0) {
+          const value = hiddenSelect.selectedOptions[0].value;
+          console.log(`✅ Wert aus verstecktem Multi-Select:`, value);
+          return value;
+        }
+        console.log(`⚠️ Verstecktes Multi-Select hat keine Auswahl`);
+        return '';
+      }
+      
+      // Für normale Searchable Selects: Original-Wert verwenden
+      if (originalValue) {
+        console.log(`✅ Wert aus Original Select (Searchable):`, originalValue);
+        return originalValue;
+      }
+    }
+    
+    // Alte Logik: Für versteckte Selects (bei searchable Selects) - Fallback
+    const hiddenSelect = field.parentNode.querySelector('select[style*="display: none"]');
+    if (hiddenSelect && hiddenSelect !== field) {
+      const value = hiddenSelect.value;
+      console.log(`📦 Wert aus verstecktem Select (Parent):`, value);
+      return value;
+    }
+    
+    console.log(`✅ Standard Wert:`, originalValue);
+    return originalValue;
   }
 
   // Abhängiges Feld leeren
@@ -639,14 +771,7 @@ export class DependentFields {
 
   // Optionen für abhängiges Feld aktualisieren
   updateDependentFieldOptions(field, fieldConfig, options) {
-    // Für searchable Selects
-    const container = field.closest('.searchable-select-container, .tag-based-select');
-    if (container) {
-      const input = container.querySelector('.searchable-select-input');
-      if (input) {
-        input.placeholder = fieldConfig.placeholder || 'Suchen...';
-      }
-    }
+    console.log(`🔄 Aktualisiere Optionen für ${fieldConfig.name} mit ${options.length} Optionen`);
     
     // Standard Select aktualisieren
     field.innerHTML = '<option value="">Bitte wählen...</option>';
@@ -657,10 +782,28 @@ export class DependentFields {
       field.appendChild(optionElement);
     });
     
+    // Für searchable Selects: Container finden und Input aktivieren
+    // WICHTIG: nextElementSibling verwenden, da das Select-Element versteckt ist
+    const container = field.nextElementSibling;
+    if (container && (container.classList.contains('searchable-select-container') || container.classList.contains('tag-based-select'))) {
+      console.log(`✅ Searchable Select Container gefunden für ${fieldConfig.name}`);
+      
+      const input = container.querySelector('.searchable-select-input');
+      if (input) {
+        // Input aktivieren und Placeholder aktualisieren
+        input.disabled = false;
+        input.placeholder = fieldConfig.placeholder || 'Suchen...';
+        input.readOnly = false;
+        console.log(`✅ Input-Feld aktiviert für ${fieldConfig.name}`);
+      }
+    }
+    
     // Für searchable Selects: Optionen über OptionsManager aktualisieren
     if (this.dynamicDataLoader && this.dynamicDataLoader.updateSelectOptions) {
       this.dynamicDataLoader.updateSelectOptions(field, options, fieldConfig);
     }
+    
+    console.log(`✅ Optionen erfolgreich aktualisiert für ${fieldConfig.name}`);
   }
 
   // Optionen für Tag-basierte Multi-Select-Felder aktualisieren
@@ -697,67 +840,27 @@ export class DependentFields {
     
     console.log(`🔍 Bestehende ausgewählte Werte:`, Array.from(selectedValues));
     
-    // Prüfen ob das Tag-basierte System bereits existiert
-    if (existingTagContainer) {
-      console.log(`🔄 Tag-basiertes System existiert bereits - aktualisiere nur Optionen`);
-      
-      // Nur die verfügbaren Optionen im Dropdown aktualisieren
-      const dropdown = existingTagContainer.querySelector('.searchable-select-dropdown');
-      if (dropdown && window.formSystem?.optionsManager?.updateDropdownItems) {
-        window.formSystem.optionsManager.updateDropdownItems(dropdown, options, '');
-      }
-      
-      // Original Select aktualisieren
-      field.innerHTML = '<option value="">Bitte wählen...</option>';
-      options.forEach(option => {
-        const optionElement = document.createElement('option');
-        optionElement.value = option.value;
-        optionElement.textContent = option.label;
-        field.appendChild(optionElement);
-      });
-      
-      // Ungültige Tags entfernen (Tags deren Marken nicht mehr zum neuen Unternehmen gehören)
-      const tags = existingTagContainer.querySelectorAll('.tag');
-      tags.forEach(tag => {
-        const tagValue = tag.dataset?.value;
-        if (tagValue && !options.find(opt => opt.value === tagValue)) {
-          console.log(`🗑️ Entferne ungültigen Tag:`, tagValue);
-          tag.remove();
-          selectedValues.delete(tagValue);
-        }
-      });
-      
-      // Verstecktes Select aktualisieren
-      const hiddenSelect = existingTagContainer.querySelector('select[style*="display: none"]');
-      if (hiddenSelect) {
-        hiddenSelect.innerHTML = '';
-        selectedValues.forEach(value => {
-          const option = document.createElement('option');
-          option.value = value;
-          option.selected = true;
-          hiddenSelect.appendChild(option);
-        });
-      }
-      
-    } else {
-      console.log(`🆕 Erstelle neues Tag-basiertes System für ${fieldConfig.name}`);
-      
-      // Original Select aktualisieren
-      field.innerHTML = '<option value="">Bitte wählen...</option>';
-      options.forEach(option => {
-        const optionElement = document.createElement('option');
-        optionElement.value = option.value;
-        optionElement.textContent = option.label;
-        field.appendChild(optionElement);
-      });
-      
-      // Tag-basiertes System erstellen
-      if (window.formSystem?.optionsManager?.createTagBasedSelect) {
-        window.formSystem.optionsManager.createTagBasedSelect(field, options, fieldConfig);
-      }
-    }
+    // Original Select aktualisieren (damit auch ohne Tag-System die Werte korrekt sind)
+    field.innerHTML = '<option value="">Bitte wählen...</option>';
+    options.forEach(option => {
+      const optionElement = document.createElement('option');
+      optionElement.value = option.value;
+      optionElement.textContent = option.label;
+      field.appendChild(optionElement);
+    });
     
-    console.log(`✅ Tag-basierte Multi-Select Optionen für ${fieldConfig.name} aktualisiert`);
+    // WICHTIG: createTagBasedSelect kümmert sich jetzt um ALLES:
+    // - Bestehende Optionen vollständig aktualisieren (inkl. dataset.options)
+    // - Ungültige Tags entfernen (Tags deren Optionen nicht mehr verfügbar sind)
+    // - Input aktivieren falls deaktiviert
+    // - Verstecktes Select synchronisieren
+    // Die obige Logik ist NICHT mehr nötig - createTagBasedSelect macht alles!
+    if (window.formSystem?.optionsManager?.createTagBasedSelect) {
+      window.formSystem.optionsManager.createTagBasedSelect(field, options, fieldConfig);
+      console.log(`✅ Tag-basierte Multi-Select Optionen für ${fieldConfig.name} vollständig aktualisiert`);
+    } else {
+      console.warn(`⚠️ OptionsManager nicht verfügbar für ${fieldConfig.name}`);
+    }
   }
 
   setNoOptionsState(field, fieldConfig, message) {

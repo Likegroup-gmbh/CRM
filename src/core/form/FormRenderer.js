@@ -1,5 +1,6 @@
 import { ValidatorSystem } from '../ValidatorSystem.js';
 import { UploaderField } from './fields/UploaderField.js';
+import { PhoneNumberField } from './fields/PhoneNumberField.js';
 
 export class FormRenderer {
   constructor() {
@@ -300,6 +301,10 @@ export class FormRenderer {
             </label>
           </div>
         `;
+
+      case 'phone':
+        const phoneField = new PhoneNumberField(field, value);
+        return phoneField.render();
 
       case 'custom':
         if (field.customType === 'addresses') {

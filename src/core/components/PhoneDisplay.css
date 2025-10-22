@@ -1,0 +1,188 @@
+/* PhoneDisplay Styling - Formatierte Anzeige von Telefonnummern mit Flaggen */
+
+/* Basis Display (für Listen) */
+.phone-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--color-text, #1f2937);
+}
+
+.phone-display .fi {
+  width: 20px;
+  height: 15px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.phone-display .phone-number {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.phone-display-empty {
+  color: var(--color-text-light, #9ca3af);
+  font-style: italic;
+}
+
+/* Clickable Phone Link */
+.phone-display-clickable {
+  text-decoration: none;
+  color: var(--color-primary, #2563eb);
+  transition: all 0.2s ease;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin: -4px -8px;
+}
+
+.phone-display-clickable:hover {
+  background-color: rgba(37, 99, 235, 0.05);
+  text-decoration: underline;
+}
+
+.phone-display-clickable:active {
+  background-color: rgba(37, 99, 235, 0.1);
+}
+
+/* Detailed Display (für Detail-Views) */
+.phone-display-detailed {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  background-color: var(--color-bg-subtle, #f9fafb);
+  border-radius: 6px;
+  border: 1px solid var(--color-border, #e5e7eb);
+}
+
+.phone-display-detailed .phone-country {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-text-light, #6b7280);
+}
+
+.phone-display-detailed .phone-country .fi {
+  width: 24px;
+  height: 18px;
+  border-radius: 3px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.phone-display-detailed .country-name {
+  font-weight: 500;
+}
+
+.phone-display-detailed .phone-number-full {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text, #1f2937);
+  font-variant-numeric: tabular-nums;
+}
+
+.phone-display-detailed .dial-code {
+  color: var(--color-text-light, #6b7280);
+  font-weight: 500;
+}
+
+/* Both (Mobil + Office) Display */
+.phone-display-both {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.phone-display-both .phone-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.phone-display-both .phone-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-light, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  min-width: 50px;
+}
+
+.phone-display-both .phone-display-clickable {
+  font-size: 14px;
+}
+
+/* Table Cell Styling */
+td .phone-display,
+.table-cell .phone-display {
+  justify-content: flex-start;
+}
+
+/* Detail View Styling */
+.detail-value .phone-display {
+  font-size: 15px;
+}
+
+.detail-value .phone-display .fi {
+  width: 22px;
+  height: 16px;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .phone-display-detailed {
+    padding: 10px;
+  }
+  
+  .phone-display-detailed .phone-number-full {
+    font-size: 14px;
+  }
+  
+  .phone-display-both {
+    gap: 12px;
+  }
+  
+  .phone-display-both .phone-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+}
+
+/* Dark Mode Support (optional) */
+@media (prefers-color-scheme: dark) {
+  .phone-display {
+    color: #e5e7eb;
+  }
+  
+  .phone-display-empty {
+    color: #6b7280;
+  }
+  
+  .phone-display-clickable {
+    color: #60a5fa;
+  }
+  
+  .phone-display-clickable:hover {
+    background-color: rgba(96, 165, 250, 0.1);
+  }
+  
+  .phone-display-detailed {
+    background-color: #1f2937;
+    border-color: #374151;
+  }
+  
+  .phone-display-detailed .phone-country {
+    color: #9ca3af;
+  }
+  
+  .phone-display-detailed .phone-number-full {
+    color: #e5e7eb;
+  }
+}
+

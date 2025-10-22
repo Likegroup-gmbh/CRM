@@ -1329,17 +1329,14 @@ body {
 .searchable-select-input {
   width: 100%;
   padding: var(--space-sm);
-  border: 1px solid var(--gray-300);
-  border-radius: 4px;
-  font-size: var(--text-sm);
   background: white;
   cursor: pointer;
   transition: border-color 0.2s;
 }
 
 .searchable-select-input:focus {
-  outline: none;
-  border-color: var(--blue-500);
+  
+  
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
@@ -1364,6 +1361,7 @@ body {
   cursor: pointer;
   border-bottom: 1px solid var(--gray-100);
   transition: background-color 0.2s;
+  font-size: var(--text-sm);
 }
 
 .searchable-select-item:hover {
@@ -3120,23 +3118,6 @@ body {
   grid-column: 1 / -1;
 }
 
-
-/* Responsive */
-@media (max-width: 768px) {
-  .versand-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .address-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .versand-details-grid {
-    grid-template-columns: 1fr;
-  }
-}
-}
-
 /* Bewertungs-System Styles */
 .bewertungen-container {
   display: flex;
@@ -3269,22 +3250,14 @@ body {
 .searchable-select-container {
   position: relative;
   width: 100%;
+  
 }
 
-.searchable-select-input {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1rem;
-  background: white;
-  cursor: pointer;
-  transition: border-color 0.2s ease;
-}
+
 
 .searchable-select-input:focus {
-  outline: none;
-  border-color: #007bff;
+  
+
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 
@@ -4745,4 +4718,216 @@ margin-bottom: var(--space-md);
 /* Status Badges für Mitarbeiter-Freischaltung - angepasst an bestehendes Design */
 .btn {
   justify-content: center;
+}
+
+/* ============================================================================
+   Phone Number Components - Telefonnummer mit Ländervorwahl und Flaggen
+   ============================================================================ */
+
+/* Flag Icons Library Base Styles */
+.fi {
+  display: inline-block !important;
+  width: 1.33333333em;
+  line-height: 1em;
+  background-size: contain !important;
+  background-position: 50% !important;
+  background-repeat: no-repeat !important;
+  position: relative;
+  vertical-align: middle;
+}
+
+.fi.fis {
+  width: 1em;
+}
+
+/* PhoneNumberField Styling */
+.phone-number-field-container {
+  margin-bottom: var(--space-lg);
+}
+
+.phone-number-field {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 0 !important; /* Kein Gap - zusammenhängend */
+  align-items: stretch;
+  position: relative;
+}
+
+/* Das originale Select verstecken */
+.phone-country-select {
+  display: none !important;
+}
+
+/* Searchable Select Container für Phone Field - linker Teil */
+.phone-number-field .searchable-select-container {
+  flex: 0 0 180px !important;
+  min-width: 180px !important;
+  max-width: 180px !important;
+  position: relative;
+}
+
+/* Wenn Dropdown offen ist, z-index erhöhen */
+.phone-number-field .searchable-select-container:has(.searchable-select-dropdown.show) {
+  z-index: 9999 !important;
+}
+
+/* Dropdown für Phone Field - muss über allem sein */
+.phone-number-field .searchable-select-container .searchable-select-dropdown {
+  position: fixed !important; /* Fixed statt absolute - schwebt über allem */
+  z-index: 10000 !important;
+  background: white;
+  border: var(--border-width-sm) solid var(--color-border, #e5e7eb);
+  border-radius: var(--radius-md);
+  max-height: 300px;
+  overflow-y: auto;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  display: none; /* Initial versteckt */
+  /* Breite wird dynamisch per JS gesetzt - exakt wie Input-Feld */
+}
+
+/* Dropdown sichtbar machen wenn .show Klasse gesetzt */
+.phone-number-field .searchable-select-container .searchable-select-dropdown.show {
+  display: block !important;
+}
+
+/* Input im Searchable Select - linke Seite, abgerundete Ecken nur links */
+.phone-number-field .searchable-select-container input {
+  padding: var(--space-sm) 30px var(--space-sm) var(--space-sm); /* Platz für Pfeil rechts */
+  font-size: var(--text-sm);
+  border-right: none !important; /* Keine rechte Border */
+  border-radius: var(--radius-md) 0 0 var(--radius-md); /* Nur links abgerundet */
+  background-color: var(--gray-50);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+/* Dropdown-Pfeil für Phone Field - Hero Icon */
+.phone-number-field .searchable-select-container::after {
+  content: '';
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+  transition: transform 0.2s ease;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='m19.5 8.25-7.5 7.5-7.5-7.5'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+/* Pfeil dreht sich wenn Dropdown offen */
+.phone-number-field .searchable-select-container:has(.searchable-select-dropdown.show)::after {
+  transform: translateY(-50%) rotate(180deg);
+}
+
+/* Telefonnummer Input - rechter Teil, abgerundete Ecken nur rechts */
+.phone-number-field .phone-number-input {
+  flex: 1 !important;
+  padding: var(--space-sm);
+  
+  border-radius: 0 var(--radius-md) var(--radius-md) 0; /* Nur rechts abgerundet */
+  background-color: var(--color-bg, #ffffff);
+  color: var(--color-text, #1f2937);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+/* Focus States - beide Felder highlighten */
+.phone-number-field .searchable-select-container input:focus,
+.phone-number-field .phone-number-input:focus {
+  outline: none;
+  border-color: var(--color-primary, #2563eb);
+  z-index: 3;
+}
+
+.phone-number-field .searchable-select-container input:focus {
+  border-right: var(--border-width-sm) solid var(--color-primary, #2563eb) !important;
+}
+
+/* Wenn Country-Select fokussiert ist, auch Phone-Input highlighten */
+.phone-number-field:focus-within .phone-number-input {
+  border-color: var(--color-primary, #2563eb);
+}
+
+/* Field Hint */
+.phone-number-field-container .field-hint {
+  display: block;
+  margin-top: var(--space-xs);
+  font-size: var(--text-xs);
+  color: var(--color-text-light, #6b7280);
+}
+
+/* Error State */
+.phone-number-field-container.has-error .phone-number-input {
+  border-color: var(--color-error, #ef4444);
+}
+
+.phone-number-field-container .error-message {
+  display: block;
+  margin-top: var(--space-xs);
+  font-size: var(--text-xs);
+  color: var(--color-error, #ef4444);
+}
+
+/* Required Indicator */
+.phone-number-field-container label .required {
+  color: var(--color-error, #ef4444);
+  margin-left: var(--space-xxs);
+}
+
+/* PhoneDisplay Styling - für Listen und Detail-Views */
+.phone-display {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--text-sm);
+  color: var(--color-text, #1f2937);
+}
+
+.phone-display .fi {
+  width: 20px;
+  height: 15px;
+  border-radius: var(--radius-xs);
+  flex-shrink: 0;
+  box-shadow: var(--shadow-xs);
+}
+
+.phone-display-empty {
+  color: var(--color-text-light, #9ca3af);
+  font-style: italic;
+}
+
+/* Clickable Phone Link */
+.phone-display-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  text-decoration: none;
+  color: var(--color-primary, #2563eb);
+  transition: all 0.2s ease;
+  padding: var(--space-xxs) var(--space-xs);
+  border-radius: var(--radius-sm);
+  margin: calc(var(--space-xxs) * -1) calc(var(--space-xs) * -1);
+}
+
+.phone-display-link:hover {
+  background-color: rgba(37, 99, 235, 0.05);
+  text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .phone-number-field {
+    flex-direction: column;
+  }
+  
+  .phone-number-field .searchable-select-container {
+    flex: 1 !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+  }
 }

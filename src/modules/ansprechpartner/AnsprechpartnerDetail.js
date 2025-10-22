@@ -6,6 +6,7 @@ import { FormRenderer } from '../../core/form/FormRenderer.js';
 import { DynamicDataLoader } from '../../core/form/data/DynamicDataLoader.js';
 import { FormSystem } from '../../core/form/FormSystem.js';
 import { ansprechpartnerCreate } from './AnsprechpartnerCreate.js';
+import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 
 export class AnsprechpartnerDetail {
   constructor() {
@@ -60,6 +61,20 @@ export class AnsprechpartnerDetail {
               id,
               kampagnenname
             )
+          ),
+          telefonnummer_land:eu_laender!telefonnummer_land_id (
+            id,
+            name,
+            name_de,
+            iso_code,
+            vorwahl
+          ),
+          telefonnummer_office_land:eu_laender!telefonnummer_office_land_id (
+            id,
+            name,
+            name_de,
+            iso_code,
+            vorwahl
           )
         `)
         .eq('id', this.ansprechpartnerId)
@@ -199,11 +214,19 @@ export class AnsprechpartnerDetail {
             </div>
             <div class="detail-item">
               <label>Telefon (Mobil):</label>
-              <span>${this.ansprechpartner.telefonnummer ? `<a href="tel:${this.ansprechpartner.telefonnummer}">${this.ansprechpartner.telefonnummer}</a>` : '-'}</span>
+              <span>${PhoneDisplay.renderClickable(
+                this.ansprechpartner.telefonnummer_land?.iso_code,
+                this.ansprechpartner.telefonnummer_land?.vorwahl,
+                this.ansprechpartner.telefonnummer
+              )}</span>
             </div>
             <div class="detail-item">
               <label>Telefon (Büro):</label>
-              <span>${this.ansprechpartner.telefonnummer_office ? `<a href="tel:${this.ansprechpartner.telefonnummer_office}">${this.ansprechpartner.telefonnummer_office}</a>` : '-'}</span>
+              <span>${PhoneDisplay.renderClickable(
+                this.ansprechpartner.telefonnummer_office_land?.iso_code,
+                this.ansprechpartner.telefonnummer_office_land?.vorwahl,
+                this.ansprechpartner.telefonnummer_office
+              )}</span>
             </div>
             <div class="detail-item">
               <label>LinkedIn:</label>

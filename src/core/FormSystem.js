@@ -27,7 +27,7 @@ export class FormSystem {
 
     // NEUE ARCHITEKTUR
     this.smartInitializer = new SmartFormInitializer();
-    this.useSmartInitialization = true; // Feature Flag
+    this.useSmartInitialization = false; // Feature Flag - TEMPORÄR DEAKTIVIERT für Ansprechpartner Fix
 
     // Konfiguration injizieren
     this.renderer.getFormConfig = this.config.getFormConfig.bind(this.config);
@@ -513,6 +513,15 @@ export class FormSystem {
     return this.createSimpleSearchableSelect(selectElement, options, field);
   }
 
+  // Hilfsfunktion: ISO-Code zu Flag-Emoji
+  isoToFlagEmoji(isoCode) {
+    if (!isoCode || isoCode.length !== 2) return '';
+    const codePoints = [...isoCode.toUpperCase()].map(char => 
+      0x1F1E6 - 65 + char.charCodeAt(0)
+    );
+    return String.fromCodePoint(...codePoints);
+  }
+
   // Einfache Auto-Suggestion Select erstellen
   createSimpleSearchableSelect(selectElement, options, field) {
     // Bestehende Container entfernen
@@ -520,6 +529,9 @@ export class FormSystem {
     if (existingContainer) {
       existingContainer.remove();
     }
+
+    // Prüfe ob es ein Phone-Field ist
+    const isPhoneField = selectElement.dataset.phoneField === 'true';
 
     // Container erstellen (ohne Inline-Styles)
     const container = document.createElement('div');
@@ -530,6 +542,16 @@ export class FormSystem {
     input.type = 'text';
     input.className = 'searchable-select-input';
     input.placeholder = field.placeholder || 'Suchen...';
+    // Browser-Autocomplete komplett deaktivieren (mehrere Methoden kombiniert)
+    input.autocomplete = 'new-password'; // Trick: Browser denken es ist ein Passwort-Feld
+    input.setAttribute('data-form-type', 'other');
+    input.setAttribute('data-lpignore', 'true'); // LastPass ignorieren
+    input.setAttribute('readonly', 'readonly'); // Initial readonly
+    
+    // Readonly nach kurzer Verzögerung entfernen (verhindert Autocomplete)
+    setTimeout(() => {
+      input.removeAttribute('readonly');
+    }, 100);
 
     // Dropdown erstellen
     const dropdown = document.createElement('div');
@@ -543,34 +565,103 @@ export class FormSystem {
       input.setAttribute('required', '');
       input.setAttribute('data-was-required', 'true');
     }
+    
+    // Für normale Felder: Hidden Input für den tatsächlichen Wert erstellen
+    // (das originale Select wird manchmal beim Submit ignoriert)
+    const hiddenInput = document.createElement('input');
+    hiddenInput.type = 'hidden';
+    hiddenInput.name = selectElement.name;
+    hiddenInput.id = selectElement.id + '_value';
+    
+    // Initial Wert setzen falls vorhanden
+    if (selectElement.value) {
+      hiddenInput.value = selectElement.value;
+    }
 
     // Container einfügen
     selectElement.parentNode.insertBefore(container, selectElement);
     container.appendChild(input);
     container.appendChild(dropdown);
+    container.appendChild(hiddenInput); // Hidden Input für Submit
 
     // Bestehende Auswahl setzen (für Edit-Modus)
     const selectedOption = options.find(option => option.selected);
     if (selectedOption) {
-      input.value = selectedOption.label;
+      // Für Phone-Fields: Nur Ländername (ohne Vorwahl)
+      if (isPhoneField && selectedOption.isoCode) {
+        const countryName = selectedOption.label.replace(/^\+\d+\s*/, '').trim();
+        const flagEmoji = this.isoToFlagEmoji(selectedOption.isoCode);
+        input.value = `${flagEmoji} ${countryName}`;
+        
+        // Initial auch Vorwahl ins Telefonnummer-Feld setzen
+        setTimeout(() => {
+          const phoneContainer = selectElement.closest('.phone-number-field');
+          if (phoneContainer) {
+            const phoneInput = phoneContainer.querySelector('.phone-number-input');
+            if (phoneInput && selectedOption.vorwahl && !phoneInput.value.trim()) {
+              phoneInput.value = selectedOption.vorwahl + ' ';
+              phoneInput.placeholder = selectedOption.vorwahl + ' 123 456 7890';
+            }
+          }
+        }, 100);
+      } else {
+        input.value = selectedOption.label;
+      }
       // Auch das ursprüngliche Select-Element setzen
       Array.from(selectElement.options).forEach(opt => {
         if (opt.value === selectedOption.value) {
           opt.selected = true;
         }
       });
+      // Hidden Input auch initial setzen
+      hiddenInput.value = selectedOption.value;
       console.log('✅ FORMSYSTEM: Bestehender Wert gesetzt für', field.name, ':', selectedOption.label);
     }
 
+    // Hilfsfunktion: Dropdown-Position aktualisieren
+    const updateDropdownPosition = () => {
+      if (isPhoneField && dropdown.classList.contains('show')) {
+        const rect = input.getBoundingClientRect();
+        dropdown.style.top = `${rect.bottom}px`;
+        dropdown.style.left = `${rect.left}px`;
+        dropdown.style.width = `${rect.width}px`; // Exakt die Breite des Inputs
+      }
+    };
+
     // Event-Handler
     input.addEventListener('focus', () => {
+      // Dropdown erst anzeigen
       dropdown.classList.add('show');
+      
+      // Für Phone-Fields: Wenn nur Placeholder-Text drin ist, leeren
+      if (isPhoneField && input.placeholder && input.value === input.placeholder) {
+        input.value = '';
+      }
+      
       this.updateDropdownItems(dropdown, options, input.value);
+      
+      // Für Phone-Fields: Position NACH dem Anzeigen berechnen
+      if (isPhoneField) {
+        // Kleine Verzögerung damit DOM aktualisiert ist
+        setTimeout(() => {
+          updateDropdownPosition();
+          
+          // Scroll-Listener hinzufügen während Dropdown offen ist
+          window.addEventListener('scroll', updateDropdownPosition, true);
+          window.addEventListener('resize', updateDropdownPosition);
+        }, 10);
+      }
     });
 
     input.addEventListener('blur', () => {
       setTimeout(() => {
         dropdown.classList.remove('show');
+        
+        // Scroll-Listener entfernen wenn Dropdown geschlossen wird
+        if (isPhoneField) {
+          window.removeEventListener('scroll', updateDropdownPosition, true);
+          window.removeEventListener('resize', updateDropdownPosition);
+        }
       }, 200);
     });
 
@@ -595,14 +686,28 @@ export class FormSystem {
   updateDropdownItems(dropdown, options, filterText) {
     dropdown.innerHTML = '';
     
+    // Filter ignoriert Flag-Emojis
+    const cleanFilterText = filterText.replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '').trim();
+    
     const filteredOptions = options.filter(option => 
-      option.label.toLowerCase().includes(filterText.toLowerCase())
+      option.label.toLowerCase().includes(cleanFilterText.toLowerCase())
     );
+
+    // Prüfe ob es ein Phone-Field ist
+    const selectElement = dropdown.parentNode.parentNode.querySelector('select');
+    const isPhoneField = selectElement?.dataset?.phoneField === 'true';
 
     filteredOptions.forEach(option => {
       const item = document.createElement('div');
       item.className = 'searchable-select-item';
-      item.textContent = option.label;
+      
+      // Spezielle Behandlung für Phone-Fields mit Flag-Emojis
+      if (isPhoneField && option.isoCode) {
+        const flagEmoji = this.isoToFlagEmoji(option.isoCode);
+        item.textContent = `${flagEmoji} ${option.label}`;
+      } else {
+        item.textContent = option.label;
+      }
 
       item.addEventListener('click', () => {
         // Original Select aktualisieren
@@ -614,22 +719,64 @@ export class FormSystem {
           optionElement = document.createElement('option');
           optionElement.value = option.value;
           optionElement.textContent = option.label;
+          if (option.isoCode) {
+            optionElement.dataset.isoCode = option.isoCode;
+          }
+          if (option.vorwahl) {
+            optionElement.dataset.vorwahl = option.vorwahl;
+          }
           selectElement.appendChild(optionElement);
         }
         
         selectElement.value = option.value;
         
-        // Input aktualisieren
-        const input = dropdown.parentNode.querySelector('input');
-        input.value = option.label;
+        // Hidden Input auch aktualisieren (für Submit)
+        const hiddenInput = dropdown.parentNode.querySelector('input[type="hidden"]');
+        if (hiddenInput) {
+          hiddenInput.value = option.value;
+        }
+        
+        // Input aktualisieren (das sichtbare Text-Feld)
+        const input = dropdown.parentNode.querySelector('.searchable-select-input');
+        
+        // Für Phone-Fields: Nur Ländername (ohne Emoji, ohne Vorwahl)
+        if (isPhoneField && option.isoCode) {
+          // Extrahiere nur den Ländernamen (Label ohne Vorwahl)
+          const countryName = option.label.replace(/^\+\d+\s*/, '').trim();
+          const flagEmoji = this.isoToFlagEmoji(option.isoCode);
+          input.value = `${flagEmoji} ${countryName}`;
+          
+          // Finde das Telefonnummer-Input-Feld und füge Vorwahl ein
+          const phoneContainer = selectElement.closest('.phone-number-field');
+          if (phoneContainer) {
+            const phoneInput = phoneContainer.querySelector('.phone-number-input');
+            if (phoneInput && option.vorwahl) {
+              // Wenn das Feld leer ist oder nur Vorwahl enthält, setze neue Vorwahl
+              const currentValue = phoneInput.value.trim();
+              if (!currentValue || currentValue.match(/^\+\d+\s*$/)) {
+                phoneInput.value = option.vorwahl + ' ';
+                // Cursor ans Ende setzen
+                setTimeout(() => phoneInput.focus(), 50);
+              } else if (currentValue.match(/^\+\d+\s+.+/)) {
+                // Ersetze alte Vorwahl mit neuer
+                phoneInput.value = currentValue.replace(/^\+\d+/, option.vorwahl);
+              } else {
+                // Füge Vorwahl vor bestehende Nummer
+                phoneInput.value = option.vorwahl + ' ' + currentValue;
+              }
+            }
+          }
+        } else {
+          input.value = option.label;
+        }
         
         // Custom Validierung für required Felder
         if (input.hasAttribute('data-was-required')) {
           input.setCustomValidity(''); // Fehler löschen wenn Wert gesetzt
         }
         
-        // Event auslösen
-        selectElement.dispatchEvent(new Event('change'));
+        // Event auslösen (mit bubbles für DependentFields)
+        selectElement.dispatchEvent(new Event('change', { bubbles: true }));
         
         // Dropdown schließen
         dropdown.classList.remove('show');
@@ -642,6 +789,16 @@ export class FormSystem {
 
       dropdown.appendChild(item);
     });
+    
+    // WICHTIG: Custom-Event feuern, damit DependentFields weiß, dass Select bereit ist
+    setTimeout(() => {
+      const event = new CustomEvent('searchable-select-ready', { 
+        bubbles: true,
+        detail: { fieldName: selectElement.name, selectElement }
+      });
+      selectElement.dispatchEvent(event);
+      console.log(`🎯 Searchable Select bereit Event gefeuert für: ${selectElement.name}`);
+    }, 50);
   }
 
   // Searchable Select reinitialisieren

@@ -466,15 +466,39 @@ export class FormSystem {
     const container = document.createElement('div');
     container.className = 'searchable-select-container';
     container.style.position = 'relative';
+    
+    // Prüfe ob es ein Phone-Field ist
+    const isPhoneField = selectElement?.dataset?.phoneField === 'true';
+    
+    // Flag-Icon für Phone Fields
+    let flagIcon = null;
+    if (isPhoneField) {
+      flagIcon = document.createElement('span');
+      flagIcon.className = 'phone-flag-icon fi';
+      flagIcon.style.cssText = `
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 24px;
+        height: 18px;
+        z-index: 3;
+        pointer-events: none;
+        border-radius: 2px;
+      `;
+      container.appendChild(flagIcon);
+      console.log('📍 Flag-Icon Container erstellt für Phone Field');
+    }
 
     // Input-Feld erstellen
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'searchable-select-input';
     input.placeholder = field.placeholder || 'Suchen...';
+    input.autocomplete = 'off';
     input.style.cssText = `
       width: 100%;
-      padding: 8px 12px;
+      padding: 8px ${isPhoneField ? '40px' : '12px'} 8px ${isPhoneField ? '44px' : '12px'};
       border: 1px solid #d1d5db;
       border-radius: 6px;
       font-size: 14px;
@@ -510,7 +534,7 @@ export class FormSystem {
     // Event-Handler
     input.addEventListener('focus', () => {
       dropdown.style.display = 'block';
-      this.updateDropdownItems(dropdown, options, input.value);
+      this.updateDropdownItems(dropdown, options, input.value, selectElement);
     });
 
     input.addEventListener('blur', () => {
@@ -520,29 +544,53 @@ export class FormSystem {
     });
 
     input.addEventListener('input', () => {
-      this.updateDropdownItems(dropdown, options, input.value);
+      this.updateDropdownItems(dropdown, options, input.value, selectElement);
     });
 
     // Dropdown-Items erstellen
-    this.updateDropdownItems(dropdown, options, '');
+    this.updateDropdownItems(dropdown, options, '', selectElement);
   }
 
   // Dropdown-Items aktualisieren
-  updateDropdownItems(dropdown, options, filterText) {
+  updateDropdownItems(dropdown, options, filterText, selectElement) {
     dropdown.innerHTML = '';
     
     const filteredOptions = options.filter(option => 
       option.label.toLowerCase().includes(filterText.toLowerCase())
     );
 
+    // Prüfe ob es ein Phone-Field ist
+    const isPhoneField = selectElement?.dataset?.phoneField === 'true';
+
+    if (filteredOptions.length === 0) {
+      dropdown.innerHTML = '<div style="padding: 8px 12px; color: #9ca3af;">Keine Ergebnisse gefunden</div>';
+      return;
+    }
+
     filteredOptions.forEach(option => {
       const item = document.createElement('div');
       item.className = 'searchable-select-item';
-      item.textContent = option.label;
+      
+      // Spezielle Behandlung für Phone-Fields mit Flaggen
+      if (isPhoneField && option.isoCode) {
+        // Erstelle Flaggen-Span separat für korrekte Darstellung
+        const flag = document.createElement('span');
+        flag.className = `fi fi-${option.isoCode.toLowerCase()}`;
+        flag.style.cssText = 'margin-right: 8px; display: inline-block; width: 20px; height: 15px;';
+        
+        const text = document.createTextNode(option.label);
+        
+        item.appendChild(flag);
+        item.appendChild(text);
+      } else {
+        item.textContent = option.label;
+      }
       item.style.cssText = `
         padding: 8px 12px;
         cursor: pointer;
         border-bottom: 1px solid #f3f4f6;
+        display: flex;
+        align-items: center;
       `;
 
       item.addEventListener('click', () => {
@@ -552,18 +600,31 @@ export class FormSystem {
         
         if (selectElement) {
           selectElement.value = option.value;
-          console.log(`🔧 Select ${selectElement.name} auf Wert gesetzt:`, option.value);
           
           // Input aktualisieren
           const input = container.querySelector('input');
           if (input) {
-            input.value = option.label;
+            // Spezielle Behandlung für Phone-Fields: Zeige Flagge + Label
+            const isPhoneField = selectElement?.dataset?.phoneField === 'true';
+            if (isPhoneField && option.isoCode) {
+              // Erstelle Container mit Flagge
+              input.value = `${option.vorwahl} ${option.label.replace(option.vorwahl, '').trim()}`;
+              // Speichere ISO-Code für spätere Referenz
+              input.dataset.selectedIsoCode = option.isoCode;
+
+              // Update die Flaggen-Anzeige im Container
+              const flagIcon = container.querySelector('.phone-flag-icon');
+              if (flagIcon && option.isoCode) {
+                flagIcon.className = `phone-flag-icon fi fi-${option.isoCode.toLowerCase()}`;
+                console.log(`🚩 Flagge gesetzt: fi-${option.isoCode.toLowerCase()}`);
+              }
+            } else {
+              input.value = option.label;
+            }
           }
           
           // Event auslösen
           selectElement.dispatchEvent(new Event('change'));
-        } else {
-          console.error('❌ Select-Element nicht gefunden für Dropdown');
         }
         
         // Dropdown schließen

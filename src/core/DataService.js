@@ -810,6 +810,20 @@ export class DataService {
                   position:position_id (
                     id,
                     name
+                  ),
+                  telefonnummer_land:eu_laender!telefonnummer_land_id (
+                    id,
+                    name,
+                    name_de,
+                    iso_code,
+                    vorwahl
+                  ),
+                  telefonnummer_office_land:eu_laender!telefonnummer_office_land_id (
+                    id,
+                    name,
+                    name_de,
+                    iso_code,
+                    vorwahl
                   )
                 `)
                 .order('created_at', { ascending: false });
