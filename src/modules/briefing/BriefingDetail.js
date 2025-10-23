@@ -72,6 +72,28 @@ export class BriefingDetail {
       if (window.bewertungsSystem) {
         this.ratings = await window.bewertungsSystem.loadBewertungen('briefing', this.briefingId);
       }
+
+      // Dokumente laden
+      if (this.briefing?.id) {
+        try {
+          const { data: docs, error: docsError } = await window.supabase
+            .from('briefing_documents')
+            .select('*')
+            .eq('briefing_id', this.briefing.id)
+            .order('created_at', { ascending: false });
+          
+          if (docsError) {
+            console.warn('⚠️ BRIEFINGDETAIL: Dokumente laden fehlgeschlagen:', docsError);
+            this.briefing.documents = [];
+          } else {
+            this.briefing.documents = docs || [];
+            console.log(`📄 ${docs?.length || 0} Dokumente geladen für Briefing ${this.briefing.id}`);
+          }
+        } catch (e) {
+          console.warn('⚠️ BRIEFINGDETAIL: Dokumente konnten nicht geladen werden', e);
+          this.briefing.documents = [];
+        }
+      }
     } catch (error) {
       console.error('❌ BRIEFINGDETAIL: Fehler beim Laden der Briefing-Daten:', error);
       throw error;
@@ -110,6 +132,10 @@ export class BriefingDetail {
           <button class="tab-button active" data-tab="info">
             <i class="icon-information-circle"></i>
             Informationen
+          </button>
+          <button class="tab-button" data-tab="dokumente">
+            Dokumente
+            <span class="tab-count">${this.briefing.documents?.length || 0}</span>
           </button>
           <button class="tab-button" data-tab="notizen">
             <i class="icon-document-text"></i>
@@ -221,6 +247,13 @@ export class BriefingDetail {
             </div>
           </div>
 
+          <div class="tab-pane" id="tab-dokumente">
+            <div class="detail-section">
+              <h2>Dokumente</h2>
+              ${this.renderDocumentsTable()}
+            </div>
+          </div>
+
           <div class="tab-pane" id="tab-notizen">
             <div class="detail-section">
               <h2>Notizen</h2>
@@ -313,6 +346,83 @@ export class BriefingDetail {
       }
     });
 
+    // Dokument öffnen
+    document.addEventListener('click', async (e) => {
+      const openLink = e.target.closest('.action-doc-open');
+      if (openLink) {
+        e.preventDefault();
+        const docPath = openLink.dataset.docPath;
+        
+        if (!docPath) {
+          alert('Fehler: Dokumentpfad nicht gefunden');
+          return;
+        }
+        
+        try {
+          console.log('📄 Öffne Dokument:', docPath);
+          // Frische signierte URL generieren (7 Tage Gültigkeit)
+          const { data: signed, error } = await window.supabase.storage
+            .from('documents')
+            .createSignedUrl(docPath, 60 * 60 * 24 * 7);
+          
+          if (error) throw error;
+          
+          if (signed?.signedUrl) {
+            console.log('✅ Signierte URL generiert, öffne neues Fenster');
+            window.open(signed.signedUrl, '_blank', 'noopener,noreferrer');
+          } else {
+            throw new Error('Signierte URL konnte nicht generiert werden');
+          }
+        } catch (error) {
+          console.error('❌ Fehler beim Öffnen:', error);
+          alert(`Fehler beim Öffnen des Dokuments: ${error.message}`);
+        }
+      }
+    });
+
+    // Dokument löschen
+    document.addEventListener('click', async (e) => {
+      if (e.target.closest('.action-doc-delete')) {
+        e.preventDefault();
+        const btn = e.target.closest('.action-doc-delete');
+        const docId = btn.dataset.docId;
+        const docName = btn.dataset.docName;
+        const docPath = btn.dataset.docPath;
+        
+        if (!confirm(`Dokument "${docName}" wirklich löschen?`)) return;
+        
+        try {
+          // Datei aus Storage löschen
+          const { error: storageError } = await window.supabase.storage
+            .from('documents')
+            .remove([docPath]);
+          
+          if (storageError) throw storageError;
+          
+          // Metadaten aus DB löschen
+          const { error: dbError } = await window.supabase
+            .from('briefing_documents')
+            .delete()
+            .eq('id', docId);
+          
+          if (dbError) throw dbError;
+          
+          alert('Dokument erfolgreich gelöscht');
+          
+          // Dokumente neu laden
+          await this.loadBriefingData();
+          await this.render();
+          this.bindEvents();
+          
+          // Zum Dokumente-Tab wechseln
+          this.switchTab('dokumente');
+        } catch (error) {
+          console.error('❌ Fehler beim Löschen:', error);
+          alert(`Fehler beim Löschen: ${error.message}`);
+        }
+      }
+    });
+
     document.addEventListener('click', async (e) => {
       if (e.target.id === 'btn-delete-briefing') {
         e.preventDefault();
@@ -359,6 +469,100 @@ export class BriefingDetail {
       activeButton.classList.add('active');
       activePane.classList.add('active');
     }
+  }
+
+  renderDocumentActions(doc) {
+    const canDelete = window.currentUser?.permissions?.briefing?.can_delete || false;
+    
+    return `
+      <div class="actions-dropdown-container" data-entity-type="briefing_documents">
+        <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+          </svg>
+        </button>
+        <div class="actions-dropdown">
+          <a href="#" class="action-item action-doc-open" data-doc-path="${doc.file_path}">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+            </svg>
+            Öffnen
+          </a>
+          ${canDelete ? `
+            <div class="action-separator"></div>
+            <a href="#" class="action-item action-danger action-doc-delete" data-doc-id="${doc.id}" data-doc-name="${doc.file_name}" data-doc-path="${doc.file_path}">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+              </svg>
+              Löschen
+            </a>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  renderDocumentsTable() {
+    if (!this.briefing.documents || this.briefing.documents.length === 0) {
+      return `
+        <div class="empty-state">
+          <p>Keine Dokumente vorhanden</p>
+        </div>
+      `;
+    }
+    
+    const formatSize = (bytes) => {
+      if (!bytes) return '-';
+      const mb = bytes / (1024 * 1024);
+      return mb < 1 ? `${(bytes / 1024).toFixed(1)} KB` : `${mb.toFixed(1)} MB`;
+    };
+    
+    const formatDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { 
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' 
+    }) : '-';
+    
+    const escape = (s) => window.validatorSystem?.sanitizeHtml?.(s || '') || (s || '');
+    
+    const getFileIcon = (contentType) => {
+      if (contentType?.includes('pdf')) return '📄';
+      if (contentType?.includes('image')) return '🖼️';
+      if (contentType?.includes('word') || contentType?.includes('document')) return '📝';
+      return '📎';
+    };
+    
+    return `
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width: 50px;">Typ</th>
+              <th>Dateiname</th>
+              <th style="width: 120px;">Größe</th>
+              <th style="width: 180px;">Hochgeladen am</th>
+              <th style="width: 100px;">Aktionen</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${this.briefing.documents.map(doc => `
+              <tr>
+                <td style="text-align: center; font-size: 1.5rem;">
+                  ${getFileIcon(doc.content_type)}
+                </td>
+                <td>
+                  <strong>${escape(doc.file_name)}</strong>
+                </td>
+                <td>${formatSize(doc.size)}</td>
+                <td>${formatDate(doc.created_at)}</td>
+                <td>
+                  ${this.renderDocumentActions(doc)}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
   }
 
   showNotFound() {

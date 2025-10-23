@@ -1454,12 +1454,23 @@ export class KampagneDetail {
     // Array-Felder korrekt formatieren
     if (this.kampagneData.art_der_kampagne && Array.isArray(this.kampagneData.art_der_kampagne)) {
       formData.art_der_kampagne = this.kampagneData.art_der_kampagne;
+      console.log('🎨 KAMPAGNEDETAIL: art_der_kampagne gesetzt:', this.kampagneData.art_der_kampagne);
+    } else {
+      console.log('⚠️ KAMPAGNEDETAIL: art_der_kampagne NICHT gesetzt oder nicht Array:', this.kampagneData.art_der_kampagne);
     }
     if (this.kampagneData.plattform_ids && Array.isArray(this.kampagneData.plattform_ids)) {
       formData.plattform_ids = this.kampagneData.plattform_ids;
     }
     if (this.kampagneData.format_ids && Array.isArray(this.kampagneData.format_ids)) {
       formData.format_ids = this.kampagneData.format_ids;
+    }
+    
+    // Kampagne-Typ explizit setzen
+    if (this.kampagneData.kampagne_typ) {
+      formData.kampagne_typ = this.kampagneData.kampagne_typ;
+      console.log('🏷️ KAMPAGNEDETAIL: kampagne_typ gesetzt:', this.kampagneData.kampagne_typ);
+    } else {
+      console.log('⚠️ KAMPAGNEDETAIL: kampagne_typ NICHT gesetzt');
     }
     
     console.log('📋 KAMPAGNEDETAIL: Multi-Select IDs extrahiert:', {
@@ -1513,6 +1524,7 @@ export class KampagneDetail {
         auftrag_id: formData.auftrag_id,
         status_id: formData.status_id,
         drehort_typ_id: formData.drehort_typ_id,
+        kampagne_typ: formData.kampagne_typ,
         // Multi-Select Felder
         ansprechpartner_ids: formData.ansprechpartner_ids,
         mitarbeiter_ids: formData.mitarbeiter_ids,
@@ -1527,6 +1539,7 @@ export class KampagneDetail {
       form.dataset.editModeData = JSON.stringify(editModeData);
       
       console.log('📋 KAMPAGNEDETAIL: EditModeData gesetzt:', editModeData);
+      console.log('🎨 KAMPAGNEDETAIL: art_der_kampagne in editModeData:', editModeData.art_der_kampagne);
       
       // Bestehende Werte für Auto-Suggestion verfügbar machen
       if (formData.unternehmen_id) {
@@ -1621,7 +1634,115 @@ export class KampagneDetail {
       const result = await window.dataService.updateEntity('kampagne', this.kampagneId, submitData);
       
       if (result) {
+        // Nach Update: Junction Table Beziehungen aktualisieren (Plattformen & Formate)
+        try {
+          // Hilfsfunktionen
+          const toArray = (v) => Array.isArray(v) ? v : (v ? [v] : []);
+          const uniq = (arr) => Array.from(new Set((arr || []).filter(Boolean)));
+          
+          // 1. Plattformen aktualisieren
+          if (submitData.plattform_ids !== undefined) {
+            const plattformIds = uniq(toArray(submitData.plattform_ids));
+            
+            // Alte Verknüpfungen löschen
+            await window.supabase
+              .from('kampagne_plattformen')
+              .delete()
+              .eq('kampagne_id', this.kampagneId);
+            
+            // Neue Verknüpfungen erstellen
+            if (plattformIds.length > 0) {
+              const plattformRows = plattformIds.map(plattformId => ({
+                kampagne_id: this.kampagneId,
+                plattform_id: plattformId
+              }));
+              await window.supabase.from('kampagne_plattformen').insert(plattformRows);
+              console.log('✅ KAMPAGNEDETAIL: Plattform-Verknüpfungen aktualisiert:', plattformRows.length);
+            } else {
+              console.log('ℹ️ KAMPAGNEDETAIL: Keine Plattformen ausgewählt');
+            }
+          }
+          
+          // 2. Formate aktualisieren
+          if (submitData.format_ids !== undefined) {
+            const formatIds = uniq(toArray(submitData.format_ids));
+            
+            // Alte Verknüpfungen löschen
+            await window.supabase
+              .from('kampagne_formate')
+              .delete()
+              .eq('kampagne_id', this.kampagneId);
+            
+            // Neue Verknüpfungen erstellen
+            if (formatIds.length > 0) {
+              const formatRows = formatIds.map(formatId => ({
+                kampagne_id: this.kampagneId,
+                format_id: formatId
+              }));
+              await window.supabase.from('kampagne_formate').insert(formatRows);
+              console.log('✅ KAMPAGNEDETAIL: Format-Verknüpfungen aktualisiert:', formatRows.length);
+            } else {
+              console.log('ℹ️ KAMPAGNEDETAIL: Keine Formate ausgewählt');
+            }
+          }
+          
+          // 3. Mitarbeiter-Zuordnungen aktualisieren (alle Rollen)
+          const mitarbeiter = uniq(toArray(submitData.mitarbeiter_ids));
+          const pm = uniq(toArray(submitData.pm_ids));
+          const sc = uniq(toArray(submitData.scripter_ids));
+          const cu = uniq(toArray(submitData.cutter_ids));
+          
+          if (mitarbeiter.length > 0 || pm.length > 0 || sc.length > 0 || cu.length > 0) {
+            // Alte Verknüpfungen löschen
+            await window.supabase
+              .from('kampagne_mitarbeiter')
+              .delete()
+              .eq('kampagne_id', this.kampagneId);
+            
+            // Neue Verknüpfungen erstellen
+            const mitarbeiterRows = [];
+            mitarbeiter.forEach(uid => mitarbeiterRows.push({ kampagne_id: this.kampagneId, mitarbeiter_id: uid, role: 'projektmanager' }));
+            pm.forEach(uid => mitarbeiterRows.push({ kampagne_id: this.kampagneId, mitarbeiter_id: uid, role: 'projektmanager' }));
+            sc.forEach(uid => mitarbeiterRows.push({ kampagne_id: this.kampagneId, mitarbeiter_id: uid, role: 'scripter' }));
+            cu.forEach(uid => mitarbeiterRows.push({ kampagne_id: this.kampagneId, mitarbeiter_id: uid, role: 'cutter' }));
+            
+            if (mitarbeiterRows.length > 0) {
+              await window.supabase.from('kampagne_mitarbeiter').insert(mitarbeiterRows);
+              console.log('✅ KAMPAGNEDETAIL: Mitarbeiter-Zuordnungen aktualisiert:', mitarbeiterRows.length);
+            }
+          }
+          
+          // 4. Ansprechpartner-Zuordnungen aktualisieren
+          if (submitData.ansprechpartner_ids !== undefined) {
+            const ansprechpartnerIds = uniq(toArray(submitData.ansprechpartner_ids));
+            
+            // Alte Verknüpfungen löschen
+            await window.supabase
+              .from('ansprechpartner_kampagne')
+              .delete()
+              .eq('kampagne_id', this.kampagneId);
+            
+            // Neue Verknüpfungen erstellen
+            if (ansprechpartnerIds.length > 0) {
+              const ansprechpartnerRows = ansprechpartnerIds.map(apId => ({
+                kampagne_id: this.kampagneId,
+                ansprechpartner_id: apId
+              }));
+              await window.supabase.from('ansprechpartner_kampagne').insert(ansprechpartnerRows);
+              console.log('✅ KAMPAGNEDETAIL: Ansprechpartner-Zuordnungen aktualisiert:', ansprechpartnerRows.length);
+            }
+          }
+          
+        } catch (e) {
+          console.warn('⚠️ KAMPAGNEDETAIL: Junction Table Updates konnten nicht vollständig durchgeführt werden', e);
+        }
+        
         this.showSuccessMessage('Kampagne erfolgreich aktualisiert!');
+        
+        // Event auslösen für Listen-Update
+        window.dispatchEvent(new CustomEvent('entityUpdated', {
+          detail: { entity: 'kampagne', action: 'updated', id: this.kampagneId }
+        }));
         
         // Zurück zur Detailseite nach kurzer Verzögerung
         setTimeout(() => {

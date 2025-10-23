@@ -3,6 +3,7 @@
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
+import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 
 export class KampagneList {
   constructor() {
@@ -485,64 +486,10 @@ export class KampagneList {
           <td>${this.renderAnsprechpartner(kampagne.ansprechpartner)}</td>
           <td>${this.renderMitarbeiter(kampagne.mitarbeiter)}</td>
           <td>
-            <div class="actions-dropdown-container" data-entity-type="kampagne">
-              <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                  <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
-                </svg>
-              </button>
-              <div class="actions-dropdown">
-                <div class="action-submenu">
-                  <a href="#" class="action-item has-submenu" data-submenu="status">${actionsDropdown.getHeroIcon('invoice')}<span>Status ändern</span></a>
-                  <div class="submenu" data-submenu="status">
-                    ${ (this.statusOptions || []).map(st => `
-                      <a href=\"#\" class=\"submenu-item\" data-action=\"set-field\" data-field=\"status_id\" data-value=\"${st.id}\" data-status-name=\"${st.name}\" data-id=\"${kampagne.id}\">\n                        ${actionsDropdown.getStatusIcon(st.name)}\n                        <span>${st.name}</span>\n                        ${(kampagne.status_id && kampagne.status_id === st.id) || (kampagne.status_name === st.name) ? '<span class=\"submenu-check\">'+actionsDropdown.getHeroIcon('check')+'</span>' : ''}\n                      </a>
-                    `).join('') }
-                  </div>
-                </div>
-                <a href="#" class="action-item" data-action="view" data-id="${kampagne.id}">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                    <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
-                    <path fill-rule="evenodd" d="M.661 10c1.743-2.372 4.761-5 9.339-5 4.578 0 7.601 2.628 9.339 5-1.738 2.372-4.761 5-9.339 5-4.578 0-7.601-2.628-9.339-5zM10 15a5 5 0 100-10 5 5 0 000 10z" clip-rule="evenodd" />
-                  </svg>
-                  Details anzeigen
-                </a>
-                <a href="#" class="action-item" data-action="edit" data-id="${kampagne.id}">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                    <path d="M5.433 13.917l-1.523 1.523a.75.75 0 001.06 1.06l1.523-1.523L5.433 13.917zM11.206 6.106L13.917 3.4a.75.75 0 011.06 1.06l-2.711 2.711-.693-.693z" />
-                    <path fill-rule="evenodd" d="M1.334 10.606a1.5 1.5 0 011.06-1.06l10.38-10.38a1.5 1.5 0 012.122 0l1.523 1.523a1.5 1.5 0 010 2.122l-10.38 10.38a1.5 1.5 0 01-1.06 1.06H1.334v-3.182z" clip-rule="evenodd" />
-                  </svg>
-                  Bearbeiten
-                </a>
-                <a href="#" class="action-item" data-action="notiz" data-id="${kampagne.id}">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                    <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.336-3.117C2.688 12.31 2 11.104 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd" />
-                  </svg>
-                  Notiz hinzufügen
-                </a>
-                ${ (window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin') ? `
-                <a href="#" class="action-item" data-action="assign-staff" data-id="${kampagne.id}">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-  <path stroke-linecap="round" stroke-linejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
-</svg>
-                  Kampagne Mitarbeiter zuordnen
-                </a>
-                ` : ''}
-                <a href="#" class="action-item" data-action="add_ansprechpartner_kampagne" data-id="${kampagne.id}">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
-                  </svg>
-                  Ansprechpartner hinzufügen
-                </a>
-                <div class="action-separator"></div>
-                <a href="#" class="action-item action-danger" data-action="delete" data-id="${kampagne.id}">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                    <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.368.298a.75.75 0 10.232 1.482l.175-.027c.572-.089 1.14-.19 1.706-.302A3.75 3.75 0 019.75 3h.5a3.75 3.75 0 013.657 3.234c.566.112 1.134.213 1.706.302l.175.027a.75.75 0 10.232-1.482A41.203 41.203 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM2.5 7.75a.75.75 0 01.75-.75h13.5a.75.75 0 010 1.5H3.25a.75.75 0 01-.75-.75zM7.25 9.75a.75.75 0 01.75-.75h4.5a.75.75 0 010 1.5H8a.75.75 0 01-.75-.75zM6 12.25a.75.75 0 01.75-.75h6.5a.75.75 0 010 1.5H6.75a.75.75 0 01-.75-.75zM4.75 14.75a.75.75 0 01.75-.75h9.5a.75.75 0 010 1.5h-9.5a.75.75 0 01-.75-.75z" clip-rule="evenodd" />
-                  </svg>
-                  Löschen
-                </a>
-              </div>
-            </div>
+            ${actionBuilder.create('kampagne', kampagne.id, window.currentUser, { 
+              statusOptions: this.statusOptions, 
+              currentStatus: { id: kampagne.status_id, name: kampagne.status } 
+            })}
           </td>
         </tr>
       `;
@@ -867,48 +814,51 @@ export class KampagneList {
     
     console.log(`🗑️ Lösche ${totalCount} Kampagnen...`);
     
-    let successCount = 0;
-    let errorCount = 0;
-    const errors = [];
+    // Optimistisches UI-Update: Zeilen ausblenden
+    selectedIds.forEach(id => {
+      const row = document.querySelector(`tr[data-id="${id}"]`);
+      if (row) row.style.opacity = '0.5';
+    });
 
-    for (const kampagneId of selectedIds) {
-      try {
-        const result = await window.dataService.deleteEntity('kampagne', kampagneId);
+    try {
+      // Batch-Delete für bessere Performance
+      const result = await window.dataService.deleteEntities('kampagne', selectedIds);
+      
+      if (result.success) {
+        // Entferne Zeilen aus DOM
+        selectedIds.forEach(id => {
+          document.querySelector(`tr[data-id="${id}"]`)?.remove();
+        });
         
-        if (result.success) {
-          successCount++;
-          console.log(`✅ Kampagne ${kampagneId} gelöscht`);
-        } else {
-          errorCount++;
-          errors.push(`Kampagne ${kampagneId}: ${result.error}`);
-          console.error(`❌ Fehler beim Löschen von Kampagne ${kampagneId}:`, result.error);
+        alert(`✅ ${result.deletedCount} Kampagnen erfolgreich gelöscht.`);
+        
+        this.deselectAll();
+        
+        // Nur neu laden wenn Liste leer ist
+        const tbody = document.querySelector('#kampagnen-table-body');
+        if (tbody && tbody.children.length === 0) {
+          await this.loadAndRender();
         }
-      } catch (error) {
-        errorCount++;
-        errors.push(`Kampagne ${kampagneId}: ${error.message}`);
-        console.error(`❌ Unerwarteter Fehler beim Löschen von Kampagne ${kampagneId}:`, error);
+        
+        window.dispatchEvent(new CustomEvent('entityUpdated', {
+          detail: { entity: 'kampagne', action: 'bulk-deleted', count: result.deletedCount }
+        }));
+      } else {
+        throw new Error(result.error || 'Löschen fehlgeschlagen');
       }
+    } catch (error) {
+      // Bei Fehler: Zeilen wiederherstellen
+      selectedIds.forEach(id => {
+        const row = document.querySelector(`tr[data-id="${id}"]`);
+        if (row) row.style.opacity = '1';
+      });
+      
+      console.error('❌ Fehler beim Löschen:', error);
+      alert(`❌ Fehler beim Löschen: ${error.message}`);
+      
+      // Liste neu laden um konsistenten Zustand herzustellen
+      await this.loadAndRender();
     }
-
-    let message = '';
-    if (successCount > 0) {
-      message += `✅ ${successCount} Kampagnen erfolgreich gelöscht.`;
-    }
-    if (errorCount > 0) {
-      message += `\n❌ ${errorCount} Kampagnen konnten nicht gelöscht werden.`;
-      if (errors.length > 0) {
-        message += `\n\nFehler:\n${errors.join('\n')}`;
-      }
-    }
-    
-    alert(message);
-
-    this.deselectAll();
-    await this.loadAndRender();
-
-    window.dispatchEvent(new CustomEvent('entityUpdated', {
-      detail: { entity: 'kampagne', action: 'bulk-deleted', count: successCount }
-    }));
   }
 
   // Render Ansprechpartner

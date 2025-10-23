@@ -95,7 +95,7 @@ export class FormConfig {
             readonly: true,
             placeholder: 'Wird automatisch generiert...'
           },
-          { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...' },
+          { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...', table: 'unternehmen', displayField: 'firmenname', valueField: 'id' },
           { name: 'marke_id', label: 'Marke', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Marke suchen und auswählen...', dependsOn: 'unternehmen_id', table: 'marke', displayField: 'markenname', valueField: 'id' },
           { name: 'auftrag_id', label: 'Auftrag', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Auftrag suchen und auswählen...', dependsOn: 'marke_id', table: 'auftrag', displayField: 'auftragsname', valueField: 'id' },
           { name: 'ziele', label: 'Ziele', type: 'textarea', required: false },
@@ -391,9 +391,10 @@ export class FormConfig {
           { name: 'zieldetails', label: 'Zieldetails', type: 'textarea', required: false, rows: 3 },
           { name: 'creator_aufgabe', label: 'Creator Aufgabe', type: 'textarea', required: false, rows: 4 },
           { name: 'usp', label: 'USPs', type: 'textarea', required: false, rows: 3, placeholder: 'Unique Selling Points, durch Komma getrennt oder als Fließtext' },
-          { name: 'dos', label: 'Do’s', type: 'textarea', required: false, rows: 3 },
-          { name: 'donts', label: 'Don’ts', type: 'textarea', required: false, rows: 3 },
-          { name: 'rechtlicher_hinweis', label: 'Rechtlicher Hinweis', type: 'textarea', required: false, rows: 4 }
+          { name: 'dos', label: 'Do\'s', type: 'textarea', required: false, rows: 3 },
+          { name: 'donts', label: 'Don\'ts', type: 'textarea', required: false, rows: 3 },
+          { name: 'rechtlicher_hinweis', label: 'Rechtlicher Hinweis', type: 'textarea', required: false, rows: 4 },
+          { name: 'documents_files', label: 'Dokumente (PDFs, Bilder)', type: 'custom', customType: 'uploader', accept: 'application/pdf,image/*', multiple: true, required: false }
         ]
       },
       rechnung: {

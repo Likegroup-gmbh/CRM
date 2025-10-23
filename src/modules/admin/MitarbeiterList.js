@@ -2,6 +2,7 @@
 // Admin: Mitarbeiter verwalten (Übersicht)
 
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
+import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 
 export class MitarbeiterList {
   constructor() {
@@ -143,38 +144,7 @@ export class MitarbeiterList {
 
   // Render Aktionsmenü für Mitarbeiter
   renderActionsMenu(user) {
-    const actionsMenu = `
-      <div class="actions-dropdown-container" data-entity-type="mitarbeiter">
-        <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-            <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
-          </svg>
-        </button>
-        <div class="actions-dropdown">
-          <a href="#" class="action-item" data-action="view" data-id="${user.id}">
-            ${actionsDropdown.getHeroIcon('view')}
-            <span>Details anzeigen</span>
-          </a>
-          <div class="action-submenu">
-            <a href="#" class="action-item has-submenu" data-submenu="rolle">${actionsDropdown.getHeroIcon('edit')}<span>Rolle ändern</span></a>
-            <div class="submenu" data-submenu="rolle">
-              ${this.mitarbeiterKlassen.map(klasse => `
-                <a href="#" class="submenu-item" data-action="set-field" data-field="mitarbeiter_klasse_id" data-value="${klasse.id}" data-rolle-name="${klasse.name}" data-id="${user.id}">
-                  ${this.getRoleIcon(klasse.name)}
-                  <span>${klasse.name}</span>
-                  ${(user.mitarbeiter_klasse && user.mitarbeiter_klasse.id === klasse.id) ? '<span class="submenu-check">' + actionsDropdown.getHeroIcon('check') + '</span>' : ''}
-                </a>
-              `).join('')}
-            </div>
-          </div>
-          <a href="#" class="action-item" data-action="freischalten" data-id="${user.id}" data-current-status="${user.freigeschaltet}">
-            ${user.freigeschaltet ? actionsDropdown.getHeroIcon('delete') : actionsDropdown.getHeroIcon('check')}
-            <span>${user.freigeschaltet ? 'Sperren' : 'Freischalten'}</span>
-          </a>
-        </div>
-      </div>
-    `;
-    return actionsMenu;
+    return actionBuilder.create('mitarbeiter', user.id);
   }
 
   // Icons für verschiedene Rollen

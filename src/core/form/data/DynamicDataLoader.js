@@ -1,6 +1,9 @@
+import staticDataCache from '../../cache/StaticDataCache.js';
+
 export class DynamicDataLoader {
   constructor() {
     this.dataService = window.dataService;
+    this.cache = staticDataCache;
   }
 
   // DataService injizieren (wird vom FormSystem aufgerufen)
@@ -16,14 +19,24 @@ export class DynamicDataLoader {
 
       const fields = config.fields || [];
       
+      // PERFORMANCE: Parallel Loading statt sequentiell
+      const loadPromises = [];
+      
+      // Sammle alle Load-Promises für dynamische Felder
       for (const field of fields) {
         if (field.dynamic) {
-          await this.loadFieldOptions(entity, field, form);
+          loadPromises.push(this.loadFieldOptions(entity, field, form));
         }
       }
-
-      // Spezialbehandlung: Phone-Fields (nested country selects)
-      await this.loadPhoneFieldCountries(form);
+      
+      // Phone-Fields auch parallel laden
+      loadPromises.push(this.loadPhoneFieldCountries(form));
+      
+      // Alle parallel laden
+      console.log(`🚀 Lade ${loadPromises.length} Felder parallel...`);
+      await Promise.all(loadPromises);
+      console.log(`✅ Alle ${loadPromises.length} Felder geladen`);
+      
     } catch (error) {
       console.error('❌ Fehler beim Laden der dynamischen Formulardaten:', error);
     }
@@ -42,18 +55,15 @@ export class DynamicDataLoader {
 
       console.log(`🔧 Lade Länder für ${phoneCountrySelects.length} Phone-Fields`);
 
-      // Lade EU-Länder
-      const { data: countries, error } = await window.supabase
-        .from('eu_laender')
-        .select('*')
-        .order('sort_order', { ascending: true });
+      // PERFORMANCE: Lade EU-Länder aus Cache
+      const countries = await this.cache.get('eu_laender', '*', 'sort_order');
 
-      if (error) {
-        console.error('❌ Fehler beim Laden der EU-Länder:', error);
+      if (!countries || countries.length === 0) {
+        console.error('❌ Keine EU-Länder geladen');
         return;
       }
 
-      console.log(`✅ ${countries.length} EU-Länder geladen`);
+      console.log(`✅ ${countries.length} EU-Länder geladen (aus Cache)`);
 
       // Fülle jedes Phone-Country-Select
       phoneCountrySelects.forEach(select => {
@@ -114,7 +124,8 @@ export class DynamicDataLoader {
               if (container && container.classList.contains('searchable-select-container')) {
                 const input = container.querySelector('input');
                 if (input) {
-                  input.value = `${selectedOption.vorwahl} ${selectedOption.label.replace(selectedOption.vorwahl, '').trim()}`;
+                  // Setze nur Ländername (ohne Vorwahl) - Vorwahl wird im .phone-prefix Span angezeigt
+                  input.value = selectedOption.label.replace(selectedOption.vorwahl, '').trim();
                   input.dataset.selectedIsoCode = selectedOption.isoCode;
                 }
 
@@ -124,11 +135,32 @@ export class DynamicDataLoader {
                   flagIcon.className = `phone-flag-icon fi fi-${selectedOption.isoCode.toLowerCase()}`;
                   console.log(`🚩 Initial Flagge gesetzt: fi-${selectedOption.isoCode.toLowerCase()}`);
                 }
+                
+                // FEATURE: Setze Vorwahl im readonly Span
+                const phoneWrapper = container.parentElement.querySelector('.phone-input-wrapper');
+                if (phoneWrapper && selectedOption.vorwahl) {
+                  const prefixSpan = phoneWrapper.querySelector('.phone-prefix');
+                  const phoneInput = phoneWrapper.querySelector('.phone-number-input');
+                  
+                  if (prefixSpan && phoneInput) {
+                    // Zeige Vorwahl im Span
+                    prefixSpan.textContent = selectedOption.vorwahl;
+                    prefixSpan.style.display = 'inline-block';
+                    
+                    // Entferne Vorwahl aus Input falls vorhanden
+                    if (phoneInput.value.startsWith(selectedOption.vorwahl)) {
+                      phoneInput.value = phoneInput.value.substring(selectedOption.vorwahl.length).trim();
+                    }
+                    
+                    phoneInput.dataset.vorwahl = selectedOption.vorwahl;
+                    console.log(`📱 Initiale Vorwahl im Span gesetzt: ${selectedOption.vorwahl}`);
+                  }
+                }
               }
             }
           }
 
-          // Event-Listener für Land-Änderungen (um Flagge zu aktualisieren)
+          // Event-Listener für Land-Änderungen (um Flagge + Vorwahl zu aktualisieren)
           select.addEventListener('change', (e) => {
             const selectedValue = e.target.value;
             const selectedOption = options.find(opt => opt.value === selectedValue);
@@ -142,6 +174,28 @@ export class DynamicDataLoader {
                 if (flagIcon && selectedOption.isoCode) {
                   flagIcon.className = `phone-flag-icon fi fi-${selectedOption.isoCode.toLowerCase()}`;
                   console.log(`🚩 Flagge geändert zu: fi-${selectedOption.isoCode.toLowerCase()}`);
+                }
+                
+                // FEATURE: Vorwahl im readonly Span setzen
+                const phoneWrapper = container.parentElement.querySelector('.phone-input-wrapper');
+                if (phoneWrapper && selectedOption.vorwahl) {
+                  const prefixSpan = phoneWrapper.querySelector('.phone-prefix');
+                  const phoneInput = phoneWrapper.querySelector('.phone-number-input');
+                  
+                  if (prefixSpan && phoneInput) {
+                    // Zeige Vorwahl im Span (nicht editierbar!)
+                    prefixSpan.textContent = selectedOption.vorwahl;
+                    prefixSpan.style.display = 'inline-block';
+                    
+                    // Entferne alte Vorwahl aus Input falls vorhanden
+                    const oldVorwahl = phoneInput.dataset.vorwahl;
+                    if (oldVorwahl && phoneInput.value.startsWith(oldVorwahl)) {
+                      phoneInput.value = phoneInput.value.substring(oldVorwahl.length).trim();
+                    }
+                    
+                    phoneInput.dataset.vorwahl = selectedOption.vorwahl;
+                    console.log(`📱 Vorwahl im Span gesetzt: ${selectedOption.vorwahl} (nicht editierbar)`);
+                  }
                 }
               }
             }
@@ -181,6 +235,19 @@ export class DynamicDataLoader {
         console.log('🔧 Lade Kooperationen ohne bestehende Rechnung für Rechnungsformular');
         options = await this.loadKooperationenOhneRechnung();
         console.log(`✅ kooperation_id Optionen (ohne Rechnung):`, options.length);
+      }
+      // Für Felder mit statischen Optionen (z.B. kampagne_typ)
+      else if (field.options && Array.isArray(field.options) && !field.dynamic) {
+        console.log(`🔧 Verwende statische Optionen für ${field.name}`);
+        options = field.options.map(opt => {
+          if (typeof opt === 'string') {
+            return { value: opt, label: opt };
+          } else if (opt && typeof opt === 'object') {
+            return { value: opt.value, label: opt.label || opt.value };
+          }
+          return null;
+        }).filter(Boolean);
+        console.log(`✅ ${field.name} statische Optionen:`, options.length);
       }
       // Für Felder mit table-Konfiguration standardmäßig loadDirectQueryOptions verwenden
       else if (field.table) {
@@ -423,6 +490,9 @@ export class DynamicDataLoader {
           // Tag-basiertes System nur initialisieren wenn Optionen vorhanden sind
           if (options.length > 0 && window.formSystem?.optionsManager?.createTagBasedSelect) {
             console.log('🏷️ DYNAMICDATALOADER: Erstelle Tag-System mit', options.length, 'Optionen für:', field.name);
+            // DEBUG: Zeige welche Optionen selected sind
+            const selectedOptions = options.filter(o => o.selected);
+            console.log(`🎯 DYNAMICDATALOADER: Übergebe ${selectedOptions.length} selected Optionen an createTagBasedSelect:`, selectedOptions.map(o => `${o.label} (${o.value})`));
             window.formSystem.optionsManager.createTagBasedSelect(selectElement, options, field);
             console.log('✅ DYNAMICDATALOADER: Tag-basiertes Multi-Select initialisiert für:', field.name);
           } else if (options.length === 0) {
@@ -502,26 +572,53 @@ export class DynamicDataLoader {
         return [];
       }
 
-      // Daten aus der angegebenen Tabelle laden
-      let query = window.supabase
-        .from(field.table)
-        .select('*');
+      // PERFORMANCE: Liste statischer Tabellen, die gecached werden können
+      const staticTables = [
+        'eu_laender',
+        'positionen', 
+        'sprachen',
+        'branchen',
+        'kampagne_status',
+        'plattform_typen',
+        'format_typen',
+        'format_anpassung_typen',
+        'kampagne_art_typen',
+        'drehort_typen',
+        'creator_type',
+        'mitarbeiter_klasse'
+      ];
+      
+      let data;
+      
+      // Prüfe ob Tabelle statisch ist UND kein Filter gesetzt ist
+      if (staticTables.includes(field.table) && !field.filter) {
+        // PERFORMANCE: Lade aus Cache
+        data = await this.cache.get(field.table, '*', 'sort_order');
+        console.log(`📦 ${field.table} aus Cache geladen (${data.length} Einträge)`);
+      } else {
+        // Dynamische Daten: Normal von DB laden
+        let query = window.supabase
+          .from(field.table)
+          .select('*');
 
-      // Spezialbehandlung für eu_laender: Sortierung nach sort_order
-      if (field.table === 'eu_laender') {
-        query = query.order('sort_order', { ascending: true });
-      }
+        // Spezialbehandlung für eu_laender: Sortierung nach sort_order
+        if (field.table === 'eu_laender') {
+          query = query.order('sort_order', { ascending: true });
+        }
 
-      // Filter anwenden, wenn vorhanden
-      if (field.filter) {
-        query.or(field.filter);
-      }
+        // Filter anwenden, wenn vorhanden
+        if (field.filter) {
+          query.or(field.filter);
+        }
 
-      const { data, error } = await query;
-
-      if (error) {
-        console.error(`❌ Fehler beim Laden der Daten aus ${field.table}:`, error);
-        return [];
+        const result = await query;
+        
+        if (result.error) {
+          console.error(`❌ Fehler beim Laden der Daten aus ${field.table}:`, result.error);
+          return [];
+        }
+        
+        data = result.data;
       }
 
       // Optionen aus den geladenen Daten erstellen
@@ -559,7 +656,10 @@ export class DynamicDataLoader {
 
       // Edit-Modus: Bestehende Werte als "selected" markieren für einfache Select-Felder
       if (form.dataset.isEditMode === 'true') {
-        console.log('🔍 DYNAMICDATALOADER: Edit-Modus erkannt für Feld:', field.name);
+        console.log('🔍 DYNAMICDATALOADER: Edit-Modus erkannt für Feld:', field.name, {
+          entityType: form.dataset.entityType,
+          hasEditModeData: !!form.dataset.editModeData
+        });
         
         // WICHTIG: Kampagne Edit-Mode Behandlung ZUERST - auch für nicht-abhängige Felder!
         if (form.dataset.entityType === 'kampagne' && form.dataset.editModeData) {
@@ -612,6 +712,15 @@ export class DynamicDataLoader {
               console.log(`✅ DYNAMICDATALOADER: Kampagne ${field.name} vorausgewählt:`, editData.drehort_typ_id);
             }
             
+            if (field.name === 'kampagne_typ' && editData.kampagne_typ) {
+              options.forEach(option => {
+                if (option.value === editData.kampagne_typ) {
+                  option.selected = true;
+                }
+              });
+              console.log(`✅ DYNAMICDATALOADER: Kampagne ${field.name} vorausgewählt:`, editData.kampagne_typ);
+            }
+            
             // Multi-Select Felder für Kampagne
             const multiSelectFields = {
               'ansprechpartner_ids': editData.ansprechpartner_ids || editData.ansprechpartner || [],
@@ -624,6 +733,12 @@ export class DynamicDataLoader {
               'plattform_ids': editData.plattform_ids || editData.plattformen || [],
               'format_ids': editData.format_ids || editData.formate || []
             };
+            
+            console.log(`🔍 DYNAMICDATALOADER: Multi-Select Check für ${field.name}:`, {
+              hasField: !!multiSelectFields[field.name],
+              fieldData: multiSelectFields[field.name],
+              editDataKey: field.name in editData ? editData[field.name] : 'nicht vorhanden'
+            });
             
             if (multiSelectFields[field.name]) {
               const existingIds = Array.isArray(multiSelectFields[field.name]) 
@@ -937,13 +1052,33 @@ export class DynamicDataLoader {
     placeholder.textContent = field.placeholder || 'Bitte wählen...';
     selectElement.appendChild(placeholder);
     
+    // Edit-Mode Wert ermitteln (für statische Optionen)
+    const form = selectElement.closest('form');
+    let editModeValue = null;
+    if (form && form.dataset.isEditMode === 'true' && form.dataset.editModeData) {
+      try {
+        const editData = JSON.parse(form.dataset.editModeData);
+        editModeValue = editData[field.name];
+        if (editModeValue) {
+          console.log(`🎯 DYNAMICDATALOADER: Edit-Mode Wert für statisches Feld ${field.name}:`, editModeValue);
+        }
+      } catch (e) {
+        // Ignorieren
+      }
+    }
+    
     // Optionen hinzufügen
     options.forEach(option => {
       const optionElement = document.createElement('option');
       optionElement.value = option.value;
       optionElement.textContent = option.label;
-      if (option.selected) {
+      
+      // Selected-Status: Entweder aus options oder aus Edit-Mode
+      if (option.selected || (editModeValue && option.value === editModeValue)) {
         optionElement.selected = true;
+        if (editModeValue && option.value === editModeValue) {
+          console.log(`✅ DYNAMICDATALOADER: Statisches Feld ${field.name} vorausgewählt:`, editModeValue);
+        }
       }
       selectElement.appendChild(optionElement);
     });

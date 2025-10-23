@@ -599,17 +599,8 @@ export class FormSystem {
         const flagEmoji = this.isoToFlagEmoji(selectedOption.isoCode);
         input.value = `${flagEmoji} ${countryName}`;
         
-        // Initial auch Vorwahl ins Telefonnummer-Feld setzen
-        setTimeout(() => {
-          const phoneContainer = selectElement.closest('.phone-number-field');
-          if (phoneContainer) {
-            const phoneInput = phoneContainer.querySelector('.phone-number-input');
-            if (phoneInput && selectedOption.vorwahl && !phoneInput.value.trim()) {
-              phoneInput.value = selectedOption.vorwahl + ' ';
-              phoneInput.placeholder = selectedOption.vorwahl + ' 123 456 7890';
-            }
-          }
-        }, 100);
+        // ENTFERNT: Vorwahl wird NICHT mehr ins Input-Feld geschrieben
+        // Die Vorwahl wird im readonly .phone-prefix Span angezeigt (siehe DynamicDataLoader.js)
       } else {
         input.value = selectedOption.label;
       }
@@ -752,26 +743,9 @@ export class FormSystem {
           const flagEmoji = this.isoToFlagEmoji(option.isoCode);
           input.value = `${flagEmoji} ${countryName}`;
           
-          // Finde das Telefonnummer-Input-Feld und füge Vorwahl ein
-          const phoneContainer = selectElement.closest('.phone-number-field');
-          if (phoneContainer) {
-            const phoneInput = phoneContainer.querySelector('.phone-number-input');
-            if (phoneInput && option.vorwahl) {
-              // Wenn das Feld leer ist oder nur Vorwahl enthält, setze neue Vorwahl
-              const currentValue = phoneInput.value.trim();
-              if (!currentValue || currentValue.match(/^\+\d+\s*$/)) {
-                phoneInput.value = option.vorwahl + ' ';
-                // Cursor ans Ende setzen
-                setTimeout(() => phoneInput.focus(), 50);
-              } else if (currentValue.match(/^\+\d+\s+.+/)) {
-                // Ersetze alte Vorwahl mit neuer
-                phoneInput.value = currentValue.replace(/^\+\d+/, option.vorwahl);
-              } else {
-                // Füge Vorwahl vor bestehende Nummer
-                phoneInput.value = option.vorwahl + ' ' + currentValue;
-              }
-            }
-          }
+          // ENTFERNT: Vorwahl wird NICHT mehr ins Telefonnummer-Input geschrieben
+          // Die Vorwahl wird im readonly .phone-prefix Span angezeigt (siehe DynamicDataLoader.js)
+          // Das CRITICAL FIX im neuen FormSystem.js entfernt Vorwahlen beim Submit als Failsafe
         } else {
           input.value = option.label;
         }

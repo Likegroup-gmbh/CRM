@@ -63,7 +63,9 @@ export class DataService {
           position_id: 'uuid',
           email: 'string',
           telefonnummer: 'string',
+          telefonnummer_land_id: 'uuid',
           telefonnummer_office: 'string',
+          telefonnummer_office_land_id: 'uuid',
           linkedin: 'string',
           stadt: 'string',
           sprache_id: 'uuid',
@@ -72,7 +74,9 @@ export class DataService {
         relations: {
           unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' },
           sprache: { table: 'sprachen', foreignKey: 'sprache_id', displayField: 'name' },
-          position: { table: 'positionen', foreignKey: 'position_id', displayField: 'name' }
+          position: { table: 'positionen', foreignKey: 'position_id', displayField: 'name' },
+          telefonnummer_land: { table: 'eu_laender', foreignKey: 'telefonnummer_land_id', displayField: 'name_de' },
+          telefonnummer_office_land: { table: 'eu_laender', foreignKey: 'telefonnummer_office_land_id', displayField: 'name_de' }
         },
         manyToMany: {
           marken: {
@@ -146,6 +150,7 @@ export class DataService {
           auftrag_id: 'uuid',
           ziele: 'string',
           art_der_kampagne: 'array',
+          kampagne_typ: 'string',
           start: 'date',
           deadline: 'date',
           kampagnen_nummer: 'number',
@@ -643,7 +648,7 @@ export class DataService {
 
   async deleteEntity(entityType, id) {
     try {
-      console.log(`✅ ${entityType} gelöscht:`, id);
+      console.log(`🗑️ Lösche ${entityType}:`, id);
       
       if (!window.supabase) {
         console.warn('⚠️ Supabase nicht verfügbar - verwende Mock-Daten');
@@ -655,21 +660,8 @@ export class DataService {
         throw new Error(`Unbekannte Entität: ${entityType}`);
       }
 
-      // Zentrale Bestätigung (Modal) bevor gelöscht wird
-      if (window.confirmationModal) {
-        const title = 'Löschvorgang bestätigen';
-        const message = `Sie sind dabei, <b>${entityType}</b> mit der ID <code>${id}</code> zu löschen. Dieser Vorgang kann nicht rückgängig gemacht werden.`;
-        const res = await window.confirmationModal.open({ title, message, confirmText: 'Endgültig löschen', cancelText: 'Abbrechen', danger: true });
-        if (!res?.confirmed) {
-          return { success: false, error: 'Abgebrochen' };
-        }
-      } else {
-        // Fallback auf natives confirm – wird praktisch nicht mehr genutzt
-        const ok = typeof confirm === 'function' ? confirm('Wirklich löschen?') : true;
-        if (!ok) return { success: false, error: 'Abgebrochen' };
-      }
-
-      // Entität in Supabase löschen (nach Bestätigung)
+      // Keine Bestätigung mehr - wird von aufrufender Stelle gehandhabt
+      // Entität direkt in Supabase löschen
       const { error } = await window.supabase
         .from(entityConfig.table)
         .delete()
@@ -680,11 +672,50 @@ export class DataService {
         return { success: false, error: error.message };
       }
 
-      console.log(`✅ ${entityType} erfolgreich in Supabase gelöscht:`, id);
+      console.log(`✅ ${entityType} erfolgreich gelöscht:`, id);
       return { success: true, id: id };
       
     } catch (error) {
       console.error(`❌ Fehler beim Löschen von ${entityType}:`, error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Batch-Delete für bessere Performance
+  async deleteEntities(entityType, ids) {
+    try {
+      if (!ids || ids.length === 0) {
+        return { success: true, deletedCount: 0 };
+      }
+
+      console.log(`🗑️ Batch-Lösche ${ids.length} ${entityType}...`);
+
+      if (!window.supabase) {
+        console.warn('⚠️ Supabase nicht verfügbar - verwende Mock-Daten');
+        return { success: true, deletedCount: ids.length };
+      }
+
+      const entityConfig = this.entities[entityType];
+      if (!entityConfig) {
+        throw new Error(`Unbekannte Entität: ${entityType}`);
+      }
+
+      // Ein einziger Supabase-Call für alle IDs
+      const { error, count } = await window.supabase
+        .from(entityConfig.table)
+        .delete({ count: 'exact' })
+        .in('id', ids);
+
+      if (error) {
+        console.error(`❌ Batch-Delete Fehler für ${entityType}:`, error);
+        return { success: false, error: error.message };
+      }
+
+      console.log(`✅ ${count || ids.length} ${entityType} erfolgreich gelöscht`);
+      return { success: true, deletedCount: count || ids.length };
+      
+    } catch (error) {
+      console.error(`❌ Fehler beim Batch-Delete von ${entityType}:`, error);
       return { success: false, error: error.message };
     }
   }
@@ -1257,7 +1288,6 @@ export class DataService {
         field === 'pm_ids' || field === 'pm_ids[]' ||
         field === 'scripter_ids' || field === 'scripter_ids[]' ||
         field === 'cutter_ids' || field === 'cutter_ids[]' ||
-        field === 'art_der_kampagne' || field === 'art_der_kampagne[]' ||
         field === 'plattform_ids' || field === 'plattform_ids[]' ||
         field === 'format_ids' || field === 'format_ids[]'
       )) {
@@ -1265,6 +1295,8 @@ export class DataService {
         // Kampagne Many-to-Many Felder werden über handleManyToManyRelations verwaltet - hier überspringen
         continue;
       }
+      
+      // art_der_kampagne ist ein direktes Array-Feld (kein Junction Table) - normal verarbeiten
       
       // Datei-/virtuelle Felder überspringen (werden separat gehandhabt)
       if (

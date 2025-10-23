@@ -48,15 +48,18 @@ export class PhoneNumberField extends BaseField {
             ${required}>
             <option value="">Land wählen...</option>
           </select>
-          <input 
-            type="tel" 
-            id="${phoneFieldId}" 
-            name="${this.field.name}" 
-            class="phone-number-input"
-            placeholder="123 456 7890"
-            value="${this.sanitizeHtml(this.phoneNumber)}"
-            autocomplete="off"
-            ${required}>
+          <div class="phone-input-wrapper">
+            <span class="phone-prefix" style="display: none;"></span>
+            <input 
+              type="tel" 
+              id="${phoneFieldId}" 
+              name="${this.field.name}" 
+              class="phone-number-input"
+              placeholder="123 456 7890"
+              value="${this.sanitizeHtml(this.phoneNumber)}"
+              autocomplete="off"
+              ${required}>
+          </div>
         </div>
         
       </div>

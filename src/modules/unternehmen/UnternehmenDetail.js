@@ -1,6 +1,7 @@
 // UnternehmenDetail.js (ES6-Modul)
 // Unternehmen-Detailseite mit Tabs für Informationen, Notizen, Bewertungen, Marken und Aufträge
 import { renderCreatorTable } from '../creator/CreatorTable.js';
+import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 
 export class UnternehmenDetail {
   constructor() {
@@ -173,7 +174,21 @@ export class UnternehmenDetail {
           ansprechpartner:ansprechpartner_id (
             *,
             position:position_id(name),
-            unternehmen:unternehmen_id(firmenname)
+            unternehmen:unternehmen_id(firmenname),
+            telefonnummer_land:eu_laender!telefonnummer_land_id (
+              id,
+              name,
+              name_de,
+              iso_code,
+              vorwahl
+            ),
+            telefonnummer_office_land:eu_laender!telefonnummer_office_land_id (
+              id,
+              name,
+              name_de,
+              iso_code,
+              vorwahl
+            )
           )
         `)
         .eq('unternehmen_id', this.unternehmenId);
@@ -595,8 +610,16 @@ export class UnternehmenDetail {
         </td>
         <td>${ap.position?.name || '-'}</td>
         <td>${ap.email ? `<a href="mailto:${ap.email}">${ap.email}</a>` : '-'}</td>
-        <td>${ap.telefonnummer ? `<a href="tel:${ap.telefonnummer}">${ap.telefonnummer}</a>` : '-'}</td>
-        <td>${ap.telefonnummer_office ? `<a href="tel:${ap.telefonnummer_office}">${ap.telefonnummer_office}</a>` : '-'}</td>
+        <td>${PhoneDisplay.render(
+          ap.telefonnummer_land?.iso_code,
+          ap.telefonnummer_land?.vorwahl,
+          ap.telefonnummer
+        )}</td>
+        <td>${PhoneDisplay.render(
+          ap.telefonnummer_office_land?.iso_code,
+          ap.telefonnummer_office_land?.vorwahl,
+          ap.telefonnummer_office
+        )}</td>
         <td>${ap.unternehmen?.firmenname || '-'}</td>
         <td>${ap.stadt || '-'}</td>
         <td>

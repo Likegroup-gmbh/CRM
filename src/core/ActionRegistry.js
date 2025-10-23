@@ -20,20 +20,42 @@ export class ActionRegistry {
   async executeAction(action, entityId, entityType, actionItem) {
     console.log(`🎯 ACTIONREGISTRY: Action ${action} für ${entityType} ${entityId}`);
 
+    // Liste aller Actions, die ans Legacy-System delegiert werden sollen
+    const legacyActions = [
+      'edit', 'delete', 'notiz', 
+      'add_ansprechpartner_unternehmen', 'remove_ansprechpartner_unternehmen',
+      'add_ansprechpartner_kampagne', 'remove_ansprechpartner_kampagne',
+      'add_ansprechpartner',
+      'marken', 'auftraege', 'kampagnen',
+      'assign_staff', 'assign-staff',
+      'add_to_list', 'add_to_campaign',
+      'video-create', 'bewerten', 'rechnung',
+      'invite', 'freischalten',
+      'set-role', 'set-field',
+      'assign-unternehmen', 'remove-unternehmen',
+      'assign-marke', 'remove-marke',
+      'rating', 'favorite'
+    ];
+
+    if (legacyActions.includes(action)) {
+      throw new Error(`${action}: Use legacy handler`);
+    }
+
     // Standard-Actions
     switch (action) {
       case 'view':
+        if (!this.moduleRegistry) {
+          throw new Error('view: ModuleRegistry not set, use legacy handler');
+        }
         return this.handleView(entityType, entityId);
       
-      case 'edit':
-        return this.handleEdit(entityType, entityId);
-      
-      case 'delete':
-        return this.handleDelete(entityType, entityId);
-
       case 'details':
       case 'auftrag-details':
         return this.handleDetails(entityType, entityId);
+
+      case 'quickview':
+        // Diese Action wird vom ActionsDropdown Legacy-Handler behandelt
+        throw new Error('quickview: Use legacy handler');
 
       default:
         // Custom Handler suchen

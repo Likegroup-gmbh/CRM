@@ -2,6 +2,7 @@
 // Admin: Kunden verwalten (Übersicht)
 
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
+import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 
 export class KundenList {
   constructor() {
@@ -141,50 +142,7 @@ export class KundenList {
   }
 
   renderActionsMenu(user) {
-    return `
-      <div class="actions-dropdown-container" data-entity-type="kunden-admin">
-        <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-            <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
-          </svg>
-        </button>
-        <div class="actions-dropdown">
-          <a href="#" class="action-item" data-action="view" data-id="${user.id}">
-            ${actionsDropdown.getHeroIcon('view')}
-            <span>Details anzeigen</span>
-          </a>
-          <div class="action-submenu">
-            <a href="#" class="action-item has-submenu" data-submenu="rolle">${actionsDropdown.getHeroIcon('edit')}<span>Rolle ändern</span></a>
-            <div class="submenu" data-submenu="rolle">
-              ${['kunde','kunde_editor'].map(role => `
-                <a href="#" class="submenu-item" data-action="set-role" data-role="${role}" data-id="${user.id}">
-                  ${actionsDropdown.getHeroIcon('user')}
-                  <span>${role}</span>
-                  ${(String(user.rolle||'').toLowerCase() === role) ? '<span class="submenu-check">'+actionsDropdown.getHeroIcon('check')+'</span>' : ''}
-                </a>
-              `).join('')}
-            </div>
-          </div>
-          <div class="action-submenu">
-            <a href="#" class="action-item has-submenu" data-submenu="zuordnung">${actionsDropdown.getHeroIcon('plus')}<span>Zuordnungen</span></a>
-            <div class="submenu" data-submenu="zuordnung">
-              <a href="#" class="submenu-item" data-action="assign-unternehmen" data-id="${user.id}">${actionsDropdown.getHeroIcon('plus')}<span>Unternehmen zuordnen</span></a>
-              <a href="#" class="submenu-item" data-action="remove-unternehmen" data-id="${user.id}">${actionsDropdown.getHeroIcon('delete')}<span>Unternehmen entfernen</span></a>
-              <a href="#" class="submenu-item" data-action="assign-marke" data-id="${user.id}">${actionsDropdown.getHeroIcon('plus')}<span>Marke zuordnen</span></a>
-              <a href="#" class="submenu-item" data-action="remove-marke" data-id="${user.id}">${actionsDropdown.getHeroIcon('delete')}<span>Marke entfernen</span></a>
-            </div>
-          </div>
-          <a href="#" class="action-item" data-action="invite" data-id="${user.id}">
-            ${actionsDropdown.getHeroIcon('share')}
-            <span>Einladung senden</span>
-          </a>
-          <a href="#" class="action-item" data-action="freischalten" data-id="${user.id}" data-current-status="${user.freigeschaltet}">
-            ${user.freigeschaltet ? actionsDropdown.getHeroIcon('delete') : actionsDropdown.getHeroIcon('check')}
-            <span>${user.freigeschaltet ? 'Sperren' : 'Freischalten'}</span>
-          </a>
-        </div>
-      </div>
-    `;
+    return actionBuilder.create('kunde', user.id);
   }
 
   bind() {

@@ -3,6 +3,7 @@
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
+import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 
 export class KooperationList {
   constructor() {
@@ -487,66 +488,97 @@ export class KooperationList {
           <td>${formatDate(kooperation.skript_deadline)}</td>
           <td>${formatDate(kooperation.content_deadline)}</td>
           <td>
-            <div class="actions-dropdown-container" data-entity-type="kooperation">
-              <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                  <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
-                </svg>
-              </button>
-              <div class="actions-dropdown">
-                <div class="action-submenu">
-                  <a href="#" class="action-item has-submenu" data-submenu="status">${actionsDropdown.getHeroIcon('invoice')}<span>Status ändern</span></a>
-                  <div class="submenu" data-submenu="status">
-                    ${ (this.statusOptions || []).map(st => `
-                      <a href=\"#\" class=\"submenu-item\" data-action=\"set-field\" data-field=\"status_id\" data-value=\"${st.id}\" data-status-name=\"${st.name.replace(/\"/g,'\\\"')}\" data-id=\"${kooperation.id}\">${actionsDropdown.getStatusIcon(st.name)}<span>${st.name}</span>${(kooperation.status_id === st.id || kooperation.status === st.name) ? '<span class=\\"submenu-check\\">'+actionsDropdown.getHeroIcon('check')+'</span>' : ''}</a>
-                    `).join('') }
-                  </div>
-                </div>
-                <a href="#" class="action-item" data-action="view" data-id="${kooperation.id}">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                    <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
-                    <path fill-rule="evenodd" d="M.661 10c1.743-2.372 4.761-5 9.339-5 4.578 0 7.601 2.628 9.339 5-1.738 2.372-4.761 5-9.339 5-4.578 0-7.601-2.628-9.339-5zM10 15a5 5 0 100-10 5 5 0 000 10z" clip-rule="evenodd" />
-                  </svg>
-                  Details anzeigen
-                </a>
-                <a href="#" class="action-item" data-action="edit" data-id="${kooperation.id}">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                    <path d="M5.433 13.917l-1.523 1.523a.75.75 0 001.06 1.06l1.523-1.523L5.433 13.917zM11.206 6.106L13.917 3.4a.75.75 0 011.06 1.06l-2.711 2.711-.693-.693z" />
-                    <path fill-rule="evenodd" d="M1.334 10.606a1.5 1.5 0 011.06-1.06l10.38-10.38a1.5 1.5 0 012.122 0l1.523 1.523a1.5 1.5 0 010 2.122l-10.38 10.38a1.5 1.5 0 01-1.06 1.06H1.334v-3.182z" clip-rule="evenodd" />
-                  </svg>
-                  Bearbeiten
-                </a>
-                <a href="#" class="action-item" data-action="video-create" data-id="${kooperation.id}">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
-                  </svg>
-                  Video hochladen
-                </a>
-                <a href="#" class="action-item" data-action="notiz" data-id="${kooperation.id}">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                    <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.336-3.117C2.688 12.31 2 11.104 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd" />
-                  </svg>
-                  Notiz hinzufügen
-                </a>
-                <a href="#" class="action-item" data-action="quickview" data-id="${kooperation.id}">
-                  ${actionsDropdown.getHeroIcon('quickview')}
-                  Schnellansicht öffnen
-                </a>
-                <div class="action-separator"></div>
-                <a href="#" class="action-item action-danger" data-action="delete" data-id="${kooperation.id}">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                    <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.368.298a.75.75 0 10.232 1.482l.175-.027c.572-.089 1.14-.19 1.706-.302A3.75 3.75 0 019.75 3h.5a3.75 3.75 0 013.657 3.234c.566.112 1.134.213 1.706.302l.175.027a.75.75 0 10.232-1.482A41.203 41.203 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM2.5 7.75a.75.75 0 01.75-.75h13.5a.75.75 0 010 1.5H3.25a.75.75 0 01-.75-.75zM7.25 9.75a.75.75 0 01.75-.75h4.5a.75.75 0 010 1.5H8a.75.75 0 01-.75-.75zM6 12.25a.75.75 0 01.75-.75h6.5a.75.75 0 010 1.5H6.75a.75.75 0 01-.75-.75zM4.75 14.75a.75.75 0 01.75-.75h9.5a.75.75 0 010 1.5h-9.5a.75.75 0 01-.75-.75z" clip-rule="evenodd" />
-                  </svg>
-                  Löschen
-                </a>
-              </div>
-            </div>
+            ${actionBuilder.create('kooperation', kooperation.id, window.currentUser, { 
+              statusOptions: this.statusOptions, 
+              currentStatus: { id: kooperation.status_id, name: kooperation.status } 
+            })}
           </td>
         </tr>
       `;
     }).join('');
 
     tbody.innerHTML = rowsHtml;
+  }
+
+  // Bestätigungsdialog für Bulk-Delete
+  async showDeleteSelectedConfirmation() {
+    const selectedCount = this.selectedKooperation.size;
+    
+    if (selectedCount === 0) {
+      alert('Keine Kooperationen ausgewählt.');
+      return;
+    }
+
+    const message = selectedCount === 1 
+      ? 'Möchten Sie die ausgewählte Kooperation wirklich löschen?' 
+      : `Möchten Sie die ${selectedCount} ausgewählten Kooperationen wirklich löschen?`;
+
+    const res = await window.confirmationModal.open({
+      title: 'Löschvorgang bestätigen',
+      message: message,
+      confirmText: 'Endgültig löschen',
+      cancelText: 'Abbrechen',
+      danger: true
+    });
+
+    if (res?.confirmed) {
+      this.deleteSelectedKooperationen();
+    }
+  }
+
+  // Ausgewählte Kooperationen löschen
+  async deleteSelectedKooperationen() {
+    const selectedIds = Array.from(this.selectedKooperation);
+    const totalCount = selectedIds.length;
+    
+    console.log(`🗑️ Lösche ${totalCount} Kooperationen...`);
+    
+    // Optimistisches UI-Update: Zeilen ausblenden
+    selectedIds.forEach(id => {
+      const row = document.querySelector(`tr[data-id="${id}"]`);
+      if (row) row.style.opacity = '0.5';
+    });
+
+    try {
+      // Batch-Delete für bessere Performance
+      const result = await window.dataService.deleteEntities('kooperation', selectedIds);
+      
+      if (result.success) {
+        // Entferne Zeilen aus DOM
+        selectedIds.forEach(id => {
+          document.querySelector(`tr[data-id="${id}"]`)?.remove();
+        });
+        
+        alert(`✅ ${result.deletedCount} Kooperationen erfolgreich gelöscht.`);
+        
+        this.selectedKooperation.clear();
+        this.updateSelection();
+        
+        // Nur neu laden wenn Liste leer ist
+        const tbody = document.querySelector('#kooperationen-table-body');
+        if (tbody && tbody.children.length === 0) {
+          await this.loadAndRender();
+        }
+        
+        window.dispatchEvent(new CustomEvent('entityUpdated', {
+          detail: { entity: 'kooperation', action: 'bulk-deleted', count: result.deletedCount }
+        }));
+      } else {
+        throw new Error(result.error || 'Löschen fehlgeschlagen');
+      }
+    } catch (error) {
+      // Bei Fehler: Zeilen wiederherstellen
+      selectedIds.forEach(id => {
+        const row = document.querySelector(`tr[data-id="${id}"]`);
+        if (row) row.style.opacity = '1';
+      });
+      
+      console.error('❌ Fehler beim Löschen:', error);
+      alert(`❌ Fehler beim Löschen: ${error.message}`);
+      
+      // Liste neu laden um konsistenten Zustand herzustellen
+      await this.loadAndRender();
+    }
   }
 
   // Cleanup

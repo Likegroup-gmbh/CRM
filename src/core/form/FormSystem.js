@@ -278,6 +278,65 @@ export class FormSystem {
         }
       });
       
+      // FIX: Explizite Prüfung für Phone-Land-Felder (zusätzliche Sicherheit)
+      // Phone-Fields können als Searchable-Selects transformiert sein, daher Original-Select suchen
+      const phoneLandFields = form.querySelectorAll('select[data-phone-field="true"]');
+      if (phoneLandFields.length > 0) {
+        console.log(`📱 Prüfe ${phoneLandFields.length} Phone-Land-Felder explizit`);
+        phoneLandFields.forEach(select => {
+          const fieldName = select.name;
+          let fieldValue = select.value;
+          
+          // WICHTIG: Wenn Searchable-Select, ist das Original versteckt
+          // Prüfe ob ein Choices.js Wrapper existiert
+          const choicesWrapper = select.closest('.form-field')?.querySelector('.choices');
+          if (choicesWrapper && !fieldValue) {
+            // Suche das versteckte Original-Select
+            const hiddenSelect = choicesWrapper.querySelector('select.choices__input[hidden]');
+            if (hiddenSelect && hiddenSelect.value) {
+              fieldValue = hiddenSelect.value;
+              console.log(`📱 Wert aus verstecktem Choices-Select für ${fieldName}: ${fieldValue}`);
+            }
+          }
+          
+          console.log(`📱 Phone-Land-Field ${fieldName}:`, {
+            value: fieldValue,
+            alreadySet: submitData.hasOwnProperty(fieldName),
+            currentValue: submitData[fieldName]
+          });
+          
+          // Setzen wenn Wert vorhanden und noch nicht gesetzt
+          if (fieldValue && fieldValue !== '' && (!submitData[fieldName] || submitData[fieldName] === '')) {
+            submitData[fieldName] = fieldValue;
+            console.log(`✅ Phone-Land-Field ${fieldName} gesetzt: ${fieldValue}`);
+          }
+          
+        });
+      }
+      
+      // =====================================================
+      // CRITICAL FIX: Entferne Vorwahl aus ALLEN Telefonnummer-Feldern
+      // =====================================================
+      // Muss am Ende passieren, nachdem alle Felder gesammelt wurden
+      // Die Vorwahl wird separat in telefonnummer_land_id gespeichert
+      // und visuell im .phone-prefix Span angezeigt (readonly)
+      ['telefonnummer', 'telefonnummer_office'].forEach(phoneField => {
+        if (submitData[phoneField]) {
+          const originalValue = submitData[phoneField];
+          
+          // Regex: Entferne +XX oder +XXX oder +XXXX am Anfang (mit optionalem Leerzeichen)
+          const match = originalValue.match(/^(\+\d{1,4})\s*/);
+          if (match) {
+            const cleanedValue = originalValue.substring(match[0].length).trim();
+            submitData[phoneField] = cleanedValue;
+            console.log(`🔧 ✂️ VORWAHL ENTFERNT von ${phoneField}: "${originalValue}" -> "${cleanedValue}"`);
+            console.log(`   Vorwahl "${match[1]}" ist in ${phoneField}_land_id gespeichert`);
+          } else {
+            console.log(`✅ ${phoneField} hat bereits keine Vorwahl: "${originalValue}"`);
+          }
+        }
+      });
+      
       // Spezielle Behandlung für Kampagnen: Kampagnenname generieren falls leer
       if (entity === 'kampagne' && (!submitData.kampagnenname || submitData.kampagnenname.trim() === '')) {
         console.log('🔧 FORMSYSTEM: Kampagnenname ist leer, generiere automatisch...');
@@ -336,7 +395,25 @@ export class FormSystem {
 
     } catch (error) {
       console.error('❌ Fehler beim Formular-Submit:', error);
-      this.showErrorMessage('Ein unerwarteter Fehler ist aufgetreten.');
+      console.error('❌ Error Stack:', error.stack);
+      
+      // Benutzerfreundliche Fehlermeldung
+      let errorMessage = 'Ein unerwarteter Fehler ist aufgetreten.';
+      if (error.message) {
+        errorMessage += ` Details: ${error.message}`;
+      }
+      
+      this.showErrorMessage(errorMessage);
+      
+      // WICHTIG: Form-Submit-Button wieder aktivieren
+      const form = document.getElementById(`${entity}-form`);
+      if (form) {
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = data ? 'Speichern' : 'Erstellen';
+        }
+      }
     }
   }
 

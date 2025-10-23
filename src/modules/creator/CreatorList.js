@@ -2,6 +2,7 @@
 // Creator-Liste mit neuem Filtersystem
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
+import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 
 export class CreatorList {
   constructor() {
@@ -383,52 +384,51 @@ export class CreatorList {
     
     console.log(`🗑️ Lösche ${totalCount} Creator...`);
     
-    let successCount = 0;
-    let errorCount = 0;
-    const errors = [];
+    // Optimistisches UI-Update: Zeilen ausblenden
+    selectedIds.forEach(id => {
+      const row = document.querySelector(`tr[data-id="${id}"]`);
+      if (row) row.style.opacity = '0.5';
+    });
 
-    // Lösche jeden Creator einzeln
-    for (const creatorId of selectedIds) {
-      try {
-        const result = await window.dataService.deleteEntity('creator', creatorId);
+    try {
+      // Batch-Delete für bessere Performance
+      const result = await window.dataService.deleteEntities('creator', selectedIds);
+      
+      if (result.success) {
+        // Entferne Zeilen aus DOM
+        selectedIds.forEach(id => {
+          document.querySelector(`tr[data-id="${id}"]`)?.remove();
+        });
         
-        if (result.success) {
-          successCount++;
-          console.log(`✅ Creator ${creatorId} gelöscht`);
-        } else {
-          errorCount++;
-          errors.push(`Creator ${creatorId}: ${result.error}`);
-          console.error(`❌ Fehler beim Löschen von Creator ${creatorId}:`, result.error);
+        alert(`✅ ${result.deletedCount} Creator erfolgreich gelöscht.`);
+        
+        this.deselectAll();
+        
+        // Nur neu laden wenn Liste leer ist
+        const tbody = document.querySelector('.data-table tbody');
+        if (tbody && tbody.children.length === 0) {
+          await this.loadAndRender();
         }
-      } catch (error) {
-        errorCount++;
-        errors.push(`Creator ${creatorId}: ${error.message}`);
-        console.error(`❌ Unerwarteter Fehler beim Löschen von Creator ${creatorId}:`, error);
+        
+        window.dispatchEvent(new CustomEvent('entityUpdated', {
+          detail: { entity: 'creator', action: 'bulk-deleted', count: result.deletedCount }
+        }));
+      } else {
+        throw new Error(result.error || 'Löschen fehlgeschlagen');
       }
+    } catch (error) {
+      // Bei Fehler: Zeilen wiederherstellen
+      selectedIds.forEach(id => {
+        const row = document.querySelector(`tr[data-id="${id}"]`);
+        if (row) row.style.opacity = '1';
+      });
+      
+      console.error('❌ Fehler beim Löschen:', error);
+      alert(`❌ Fehler beim Löschen: ${error.message}`);
+      
+      // Liste neu laden um konsistenten Zustand herzustellen
+      await this.loadAndRender();
     }
-
-    // Ergebnis anzeigen
-    let message = '';
-    if (successCount > 0) {
-      message += `✅ ${successCount} Creator erfolgreich gelöscht.`;
-    }
-    if (errorCount > 0) {
-      message += `\n❌ ${errorCount} Creator konnten nicht gelöscht werden.`;
-      if (errors.length > 0) {
-        message += `\n\nFehler:\n${errors.join('\n')}`;
-      }
-    }
-    
-    alert(message);
-
-    // Auswahl zurücksetzen und Liste neu laden
-    this.deselectAll();
-    await this.loadAndRender();
-
-    // Event für andere Komponenten auslösen
-    window.dispatchEvent(new CustomEvent('entityUpdated', {
-      detail: { entity: 'creator', action: 'bulk-deleted', count: successCount }
-    }));
   }
 
   // Update Tabelle
@@ -458,48 +458,7 @@ export class CreatorList {
         <td>${creator.lieferadresse_stadt || '-'}</td>
         <td>${creator.lieferadresse_land || '-'}</td>
         <td>
-          <div class="actions-dropdown-container" data-entity-type="creator">
-            <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
-              </svg>
-            </button>
-            <div class="actions-dropdown">
-                              <a href="#" class="action-item" data-action="view" data-id="${creator.id}">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                    <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
-                    <path fill-rule="evenodd" d="M.661 10c1.743-2.372 4.761-5 9.339-5 4.578 0 7.601 2.628 9.339 5-1.738 2.372-4.761 5-9.339 5-4.578 0-7.601-2.628-9.339-5zM10 15a5 5 0 100-10 5 5 0 000 10z" clip-rule="evenodd" />
-                  </svg>
-                  Profil ansehen
-                </a>
-                <a href="#" class="action-item" data-action="add_to_list" data-id="${creator.id}">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
-                  </svg>
-                  Zur Liste hinzufügen
-                </a>
-                <a href="#" class="action-item" data-action="edit" data-id="${creator.id}">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                    <path d="M5.433 13.917l-1.523 1.523a.75.75 0 001.06 1.06l1.523-1.523L5.433 13.917zM11.206 6.106L13.917 3.4a.75.75 0 011.06 1.06l-2.711 2.711-.693-.693z" />
-                    <path fill-rule="evenodd" d="M1.334 10.606a1.5 1.5 0 011.06-1.06l10.38-10.38a1.5 1.5 0 012.122 0l1.523 1.523a1.5 1.5 0 010 2.122l-10.38 10.38a1.5 1.5 0 01-1.06 1.06H1.334v-3.182z" clip-rule="evenodd" />
-                  </svg>
-                  Profil bearbeiten
-                </a>
-                <div class="action-separator"></div>
-                <a href="#" class="action-item" data-action="add_to_campaign" data-id="${creator.id}">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 1 1 0-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 0 1-1.44-4.282m3.102.069a18.03 18.03 0 0 1-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 0 1 8.835 2.535M10.34 6.66a23.847 23.847 0 0 0 8.835-2.535m0 0A23.74 23.74 0 0 0 18.795 3m.38 1.125a23.91 23.91 0 0 1 1.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 0 0 1.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 0 1 0 3.46" />
-                  </svg>
-                  Zu Kampagne hinzufügen
-                </a>
-                <a href="#" class="action-item action-danger" data-action="delete" data-id="${creator.id}">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                    <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.368.298a.75.75 0 10.232 1.482l.175-.027c.572-.089 1.14-.19 1.706-.302A3.75 3.75 0 019.75 3h.5a3.75 3.75 0 013.657 3.234c.566.112 1.134.213 1.706.302l.175.027a.75.75 0 10.232-1.482A41.203 41.203 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM2.5 7.75a.75.75 0 01.75-.75h13.5a.75.75 0 010 1.5H3.25a.75.75 0 01-.75-.75zM7.25 9.75a.75.75 0 01.75-.75h4.5a.75.75 0 010 1.5H8a.75.75 0 01-.75-.75zM6 12.25a.75.75 0 01.75-.75h6.5a.75.75 0 010 1.5H6.75a.75.75 0 01-.75-.75zM4.75 14.75a.75.75 0 01.75-.75h9.5a.75.75 0 010 1.5h-9.5a.75.75 0 01-.75-.75z" clip-rule="evenodd" />
-                  </svg>
-                  Löschen
-                </a>
-            </div>
-          </div>
+          ${actionBuilder.create('creator', creator.id)}
         </td>
       </tr>
     `).join('');

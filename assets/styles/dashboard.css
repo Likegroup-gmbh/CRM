@@ -3920,7 +3920,7 @@ margin-bottom: var(--space-md);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
-  min-width: 200px;
+  min-width: 260px;
   z-index: 1000;
   opacity: 0;
   visibility: hidden;
@@ -3942,7 +3942,7 @@ margin-bottom: var(--space-md);
   top: 0;
   right: 100%;
   margin-right: 8px;
-  min-width: 200px;
+  min-width: 240px;
   background: #fff;
   border: 1px solid var(--border-subtle, #e5e7eb);
   box-shadow: 0 10px 20px rgba(0,0,0,0.08);
@@ -3955,7 +3955,14 @@ margin-bottom: var(--space-md);
   z-index: 1001;
 }
 .actions-dropdown .action-submenu:hover > .submenu { opacity: 1; visibility: visible; transform: translateY(0); }
-.submenu-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; color: inherit; text-decoration: none; }
+.submenu-item { 
+  display: 
+  flex; align-items: 
+  center; 
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  color: var(--gray-600); 
+  text-decoration: none; white-space: nowrap; }
 .submenu-item svg { width: 16px; height: 16px; }
 .submenu-item:hover { background: #f5f7fb; }
 .submenu-check { margin-left: auto; color: #16a34a; display: inline-flex; }
@@ -3971,10 +3978,11 @@ margin-bottom: var(--space-md);
   align-items: center;
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
-  color: var(--text-primary);
+  color: var(--gray-600);
   text-decoration: none;
   transition: background-color 0.2s ease;
   font-size: var(--text-sm);
+  white-space: nowrap;
 }
 
 /* Einheitlicher Look für Heroicons in Actions */
@@ -4031,7 +4039,7 @@ margin-bottom: var(--space-md);
 /* Responsive Design für Actions */
 @media (max-width: 768px) {
   .actions-dropdown {
-    min-width: 180px;
+    min-width: 240px;
     right: -10px;
   }
   
@@ -4882,6 +4890,7 @@ margin-bottom: var(--space-md);
 /* PhoneDisplay Styling - für Listen und Detail-Views */
 .phone-display {
   display: inline-flex;
+  flex-direction: row;
   align-items: center;
   gap: var(--space-xs);
   font-size: var(--text-sm);
@@ -4949,5 +4958,107 @@ margin-bottom: var(--space-md);
     flex: 1 !important;
     min-width: 100% !important;
     max-width: 100% !important;
+  }
+}
+/* ============================================================================
+   Briefing Dokumente - Anzeige und Styling
+   ============================================================================ */
+
+.documents-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.document-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  background: var(--surface-light, #f9fafb);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.document-item:hover {
+  background: var(--surface-hover, #f3f4f6);
+  border-color: var(--primary-color, #3b82f6);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.document-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.document-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.document-info strong {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary, #111827);
+}
+
+.document-info small {
+  color: var(--text-muted, #6b7280);
+  font-size: 0.875rem;
+}
+
+.document-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.btn-icon {
+  padding: 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+  text-decoration: none;
+  font-size: 1.25rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon:hover {
+  background: var(--surface-active, #e5e7eb);
+}
+
+.empty-state-text {
+  color: var(--text-muted, #6b7280);
+  font-style: italic;
+  margin: 0;
+  padding: 1rem 0;
+  text-align: center;
+}
+
+/* Responsive für mobile Geräte */
+@media (max-width: 640px) {
+  .document-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  
+  .document-info {
+    width: 100%;
+  }
+  
+  .document-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 }

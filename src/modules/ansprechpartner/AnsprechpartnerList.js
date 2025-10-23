@@ -3,6 +3,7 @@
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { ansprechpartnerCreate } from './AnsprechpartnerCreate.js';
+import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 
 export class AnsprechpartnerList {
@@ -64,7 +65,8 @@ export class AnsprechpartnerList {
               <th>Unternehmen</th>
               <th>Marken</th>
               <th>Email</th>
-              <th>Telefon</th>
+              <th>Telefon Mobil</th>
+              <th>Telefon Büro</th>
               <th>Stadt</th>
               <th>Sprache</th>
               <th>Aktionen</th>
@@ -259,6 +261,11 @@ export class AnsprechpartnerList {
           ap.telefonnummer_land?.vorwahl,
           ap.telefonnummer
         )}</td>
+        <td>${PhoneDisplay.render(
+          ap.telefonnummer_office_land?.iso_code,
+          ap.telefonnummer_office_land?.vorwahl,
+          ap.telefonnummer_office
+        )}</td>
         <td>${ap.stadt || '-'}</td>
         <td>
           ${(ap.sprachen && ap.sprachen.length > 0)
@@ -266,36 +273,7 @@ export class AnsprechpartnerList {
             : (ap.sprache?.name ? `<span class="tag tag--sprache">${window.validatorSystem.sanitizeHtml(ap.sprache.name)}</span>` : '-')}
         </td>
         <td>
-          <div class="actions-dropdown-container" data-entity-type="ansprechpartner">
-            <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
-              </svg>
-            </button>
-            <div class="actions-dropdown">
-              <a href="#" class="action-item" data-action="view" data-id="${ap.id}">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                  <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
-                  <path fill-rule="evenodd" d="M.661 10c1.743-2.372 4.761-5 9.339-5 4.578 0 7.601 2.628 9.339 5-1.738 2.372-4.761 5-9.339 5-4.578 0-7.601-2.628-9.339-5zM10 15a5 5 0 100-10 5 5 0 000 10z" clip-rule="evenodd" />
-                </svg>
-                Details ansehen
-              </a>
-              <a href="#" class="action-item" data-action="edit" data-id="${ap.id}">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                  <path d="M5.433 13.917l-1.523 1.523a.75.75 0 001.06 1.06l1.523-1.523L5.433 13.917zM11.206 6.106L13.917 3.4a.75.75 0 011.06 1.06l-2.711 2.711-.693-.693z" />
-                  <path fill-rule="evenodd" d="M1.334 10.606a1.5 1.5 0 011.06-1.06l10.38-10.38a1.5 1.5 0 012.122 0l1.523 1.523a1.5 1.5 0 010 2.122l-10.38 10.38a1.5 1.5 0 01-1.06 1.06H1.334v-3.182z" clip-rule="evenodd" />
-                </svg>
-                Bearbeiten
-              </a>
-              <div class="action-separator"></div>
-              <a href="#" class="action-item action-danger" data-action="delete" data-id="${ap.id}">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                  <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.368.298a.75.75 0 10.232 1.482l.175-.027c.572-.089 1.14-.19 1.706-.302A3.75 3.75 0 019.75 3h.5a3.75 3.75 0 013.657 3.234c.566.112 1.134.213 1.706.302l.175.027a.75.75 0 10.232-1.482A41.203 41.203 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM2.5 7.75a.75.75 0 01.75-.75h13.5a.75.75 0 010 1.5H3.25a.75.75 0 01-.75-.75zM7.25 9.75a.75.75 0 01.75-.75h4.5a.75.75 0 010 1.5H8a.75.75 0 01-.75-.75zM6 12.25a.75.75 0 01.75-.75h6.5a.75.75 0 010 1.5H6.75a.75.75 0 01-.75-.75zM4.75 14.75a.75.75 0 01.75-.75h9.5a.75.75 0 010 1.5h-9.5a.75.75 0 01-.75-.75z" clip-rule="evenodd" />
-                </svg>
-                Löschen
-              </a>
-            </div>
-          </div>
+          ${actionBuilder.create('ansprechpartner', ap.id)}
         </td>
       </tr>
     `).join('');
@@ -373,9 +351,8 @@ export class AnsprechpartnerList {
   }
 
   // Bestätigungsdialog für Bulk-Delete
-  showDeleteSelectedConfirmation() {
+  async showDeleteSelectedConfirmation() {
     const selectedCount = this.selectedAnsprechpartner.size;
-    console.log(`🔧 AnsprechpartnerList: showDeleteSelectedConfirmation aufgerufen, selectedCount: ${selectedCount}`, Array.from(this.selectedAnsprechpartner));
     
     if (selectedCount === 0) {
       alert('Keine Ansprechpartner ausgewählt.');
@@ -385,10 +362,16 @@ export class AnsprechpartnerList {
     const message = selectedCount === 1 
       ? 'Möchten Sie den ausgewählten Ansprechpartner wirklich löschen?' 
       : `Möchten Sie die ${selectedCount} ausgewählten Ansprechpartner wirklich löschen?`;
-    
-    const confirmed = confirm(`${message}\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`);
-    
-    if (confirmed) {
+
+    const res = await window.confirmationModal.open({
+      title: 'Löschvorgang bestätigen',
+      message: message,
+      confirmText: 'Endgültig löschen',
+      cancelText: 'Abbrechen',
+      danger: true
+    });
+
+    if (res?.confirmed) {
       this.deleteSelectedAnsprechpartner();
     }
   }
@@ -400,48 +383,51 @@ export class AnsprechpartnerList {
     
     console.log(`🗑️ Lösche ${totalCount} Ansprechpartner...`);
     
-    let successCount = 0;
-    let errorCount = 0;
-    const errors = [];
+    // Optimistisches UI-Update: Zeilen ausblenden
+    selectedIds.forEach(id => {
+      const row = document.querySelector(`tr[data-id="${id}"]`);
+      if (row) row.style.opacity = '0.5';
+    });
 
-    for (const ansprechpartnerId of selectedIds) {
-      try {
-        const result = await window.dataService.deleteEntity('ansprechpartner', ansprechpartnerId);
+    try {
+      // Batch-Delete für bessere Performance
+      const result = await window.dataService.deleteEntities('ansprechpartner', selectedIds);
+      
+      if (result.success) {
+        // Entferne Zeilen aus DOM
+        selectedIds.forEach(id => {
+          document.querySelector(`tr[data-id="${id}"]`)?.remove();
+        });
         
-        if (result.success) {
-          successCount++;
-          console.log(`✅ Ansprechpartner ${ansprechpartnerId} gelöscht`);
-        } else {
-          errorCount++;
-          errors.push(`Ansprechpartner ${ansprechpartnerId}: ${result.error}`);
-          console.error(`❌ Fehler beim Löschen von Ansprechpartner ${ansprechpartnerId}:`, result.error);
+        alert(`✅ ${result.deletedCount} Ansprechpartner erfolgreich gelöscht.`);
+        
+        this.deselectAll();
+        
+        // Nur neu laden wenn Liste leer ist
+        const tbody = document.querySelector('#ansprechpartner-table-body, .data-table tbody');
+        if (tbody && tbody.children.length === 0) {
+          await this.loadAndRender();
         }
-      } catch (error) {
-        errorCount++;
-        errors.push(`Ansprechpartner ${ansprechpartnerId}: ${error.message}`);
-        console.error(`❌ Unerwarteter Fehler beim Löschen von Ansprechpartner ${ansprechpartnerId}:`, error);
+        
+        window.dispatchEvent(new CustomEvent('entityUpdated', {
+          detail: { entity: 'ansprechpartner', action: 'bulk-deleted', count: result.deletedCount }
+        }));
+      } else {
+        throw new Error(result.error || 'Löschen fehlgeschlagen');
       }
+    } catch (error) {
+      // Bei Fehler: Zeilen wiederherstellen
+      selectedIds.forEach(id => {
+        const row = document.querySelector(`tr[data-id="${id}"]`);
+        if (row) row.style.opacity = '1';
+      });
+      
+      console.error('❌ Fehler beim Löschen:', error);
+      alert(`❌ Fehler beim Löschen: ${error.message}`);
+      
+      // Liste neu laden um konsistenten Zustand herzustellen
+      await this.loadAndRender();
     }
-
-    let message = '';
-    if (successCount > 0) {
-      message += `✅ ${successCount} Ansprechpartner erfolgreich gelöscht.`;
-    }
-    if (errorCount > 0) {
-      message += `\n❌ ${errorCount} Ansprechpartner konnten nicht gelöscht werden.`;
-      if (errors.length > 0) {
-        message += `\n\nFehler:\n${errors.join('\n')}`;
-      }
-    }
-    
-    alert(message);
-
-    this.deselectAll();
-    await this.loadAndRender();
-
-    window.dispatchEvent(new CustomEvent('entityUpdated', {
-      detail: { entity: 'ansprechpartner', action: 'bulk-deleted', count: successCount }
-    }));
   }
 
   // Show Create Form (für Routing)

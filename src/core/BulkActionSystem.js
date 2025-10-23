@@ -187,60 +187,59 @@ export class BulkActionSystem {
     
     console.log(`🗑️ BulkActionSystem: Lösche ${totalCount} ${entityType}...`);
     
-    let successCount = 0;
-    let errorCount = 0;
-    const errors = [];
+    // Optimistisches UI-Update: Zeilen ausblenden
+    selectedIds.forEach(id => {
+      const row = document.querySelector(`tr[data-id="${id}"]`);
+      if (row) row.style.opacity = '0.5';
+    });
 
-    // Lösche jede Entity einzeln
-    for (const entityId of selectedIds) {
-      try {
-        const result = await window.dataService.deleteEntity(entityType, entityId);
+    try {
+      // Batch-Delete für bessere Performance
+      const result = await window.dataService.deleteEntities(entityType, selectedIds);
+      
+      if (result.success) {
+        const config = this.getEntityConfig(entityType);
         
-        if (result.success) {
-          successCount++;
-          console.log(`✅ ${entityType} ${entityId} gelöscht`);
-        } else {
-          errorCount++;
-          errors.push(`${entityType} ${entityId}: ${result.error}`);
-          console.error(`❌ Fehler beim Löschen von ${entityType} ${entityId}:`, result.error);
+        // Entferne Zeilen aus DOM
+        selectedIds.forEach(id => {
+          document.querySelector(`tr[data-id="${id}"]`)?.remove();
+        });
+        
+        alert(`✅ ${result.deletedCount} ${config.displayName} erfolgreich gelöscht.`);
+        
+        // Auswahl zurücksetzen
+        this.genericDeselectAll();
+        
+        // Versuche Liste neu zu laden (nur wenn nötig)
+        const tbody = document.querySelector('tbody');
+        if (tbody && tbody.children.length === 0) {
+          if (this.currentListInstance && typeof this.currentListInstance.loadAndRender === 'function') {
+            await this.currentListInstance.loadAndRender();
+          }
         }
-      } catch (error) {
-        errorCount++;
-        errors.push(`${entityType} ${entityId}: ${error.message}`);
-        console.error(`❌ Unerwarteter Fehler beim Löschen von ${entityType} ${entityId}:`, error);
+        
+        // Event für andere Komponenten auslösen
+        window.dispatchEvent(new CustomEvent('entityUpdated', {
+          detail: { entity: entityType, action: 'bulk-deleted', count: result.deletedCount }
+        }));
+      } else {
+        throw new Error(result.error || 'Löschen fehlgeschlagen');
+      }
+    } catch (error) {
+      // Bei Fehler: Zeilen wiederherstellen
+      selectedIds.forEach(id => {
+        const row = document.querySelector(`tr[data-id="${id}"]`);
+        if (row) row.style.opacity = '1';
+      });
+      
+      console.error('❌ BulkActionSystem: Fehler beim Löschen:', error);
+      alert(`❌ Fehler beim Löschen: ${error.message}`);
+      
+      // Liste neu laden um konsistenten Zustand herzustellen
+      if (this.currentListInstance && typeof this.currentListInstance.loadAndRender === 'function') {
+        await this.currentListInstance.loadAndRender();
       }
     }
-
-    // Ergebnis anzeigen
-    const config = this.getEntityConfig(entityType);
-    let message = '';
-    if (successCount > 0) {
-      message += `✅ ${successCount} ${config.displayName} erfolgreich gelöscht.`;
-    }
-    if (errorCount > 0) {
-      message += `\n❌ ${errorCount} ${config.displayName} konnten nicht gelöscht werden.`;
-      if (errors.length > 0) {
-        message += `\n\nFehler:\n${errors.join('\n')}`;
-      }
-    }
-    
-    alert(message);
-
-    // Auswahl zurücksetzen und Seite neu laden
-    this.genericDeselectAll();
-    
-    // Versuche Liste neu zu laden
-    if (this.currentListInstance && typeof this.currentListInstance.loadAndRender === 'function') {
-      await this.currentListInstance.loadAndRender();
-    } else {
-      // Fallback: Seite neu laden
-      window.location.reload();
-    }
-
-    // Event für andere Komponenten auslösen
-    window.dispatchEvent(new CustomEvent('entityUpdated', {
-      detail: { entity: entityType, action: 'bulk-deleted', count: successCount }
-    }));
   }
 
   // Erkenne aktuellen Entity-Type aus der Seite

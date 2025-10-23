@@ -3,6 +3,7 @@
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
+import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 
 export class RechnungList {
   constructor() {
@@ -220,36 +221,7 @@ export class RechnungList {
         <td>${formatCurrency(r.bruttobetrag)}</td>
         <td>${r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener noreferrer">PDF</a>` : '-'}</td>
         <td>
-          <div class="actions-dropdown-container" data-entity-type="rechnung">
-            <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
-              </svg>
-            </button>
-            <div class="actions-dropdown">
-              <div class="action-submenu">
-                <a href="#" class="action-item has-submenu" data-submenu="status">${actionsDropdown.getHeroIcon('invoice')}<span>Status ändern</span></a>
-                <div class="submenu" data-submenu="status">
-                  ${[ 
-                    { label: 'Offen', icon: 'status-offen' },
-                    { label: 'Rückfrage', icon: 'status-rueckfrage' },
-                    { label: 'Bezahlt', icon: 'status-bezahlt' },
-                    { label: 'An Qonto gesendet', icon: 'status-qonto' }
-                  ].map(item => `
-                    <a href="#" class="submenu-item" data-action="set-field" data-field="status" data-value="${item.label}" data-id="${r.id}">
-                      ${actionsDropdown.getHeroIcon(item.icon)}
-                      <span>${item.label}</span>
-                      ${r.status === item.label ? '<span class="submenu-check">'+actionsDropdown.getHeroIcon('check')+'</span>' : ''}
-                    </a>
-                  `).join('')}
-                </div>
-              </div>
-              <a href="#" class="action-item" data-action="view" data-id="${r.id}">Details ansehen</a>
-              <a href="#" class="action-item" data-action="edit" data-id="${r.id}">Bearbeiten</a>
-              <div class="action-separator"></div>
-              <a href="#" class="action-item action-danger" data-action="delete" data-id="${r.id}">Löschen</a>
-            </div>
-          </div>
+          ${actionBuilder.create('rechnung', r.id)}
         </td>
       </tr>
     `).join('');
@@ -327,20 +299,73 @@ export class RechnungList {
   }
 
   async deleteSelected() {
-    const ids = Array.from(this.selectedRechnungen);
-    if (ids.length === 0) return;
-    const ok = confirm(ids.length === 1 ? 'Ausgewählte Rechnung löschen?' : `${ids.length} Rechnungen löschen?`);
-    if (!ok) return;
-    let success = 0, fail = 0;
-    for (const id of ids) {
-      try {
-        const res = await window.dataService.deleteEntity('rechnung', id);
-        if (res.success) success++; else fail++;
-      } catch { fail++; }
+    const selectedIds = Array.from(this.selectedRechnungen);
+    if (selectedIds.length === 0) {
+      alert('Keine Rechnungen ausgewählt.');
+      return;
     }
-    alert(`Löschvorgang abgeschlossen: ${success} erfolgreich${fail ? `, ${fail} fehlgeschlagen` : ''}.`);
-    this.selectedRechnungen.clear();
-    await this.loadAndRender();
+    
+    const message = selectedIds.length === 1 
+      ? 'Möchten Sie die ausgewählte Rechnung wirklich löschen?' 
+      : `Möchten Sie die ${selectedIds.length} ausgewählten Rechnungen wirklich löschen?`;
+
+    const res = await window.confirmationModal.open({
+      title: 'Löschvorgang bestätigen',
+      message: message,
+      confirmText: 'Endgültig löschen',
+      cancelText: 'Abbrechen',
+      danger: true
+    });
+
+    if (!res?.confirmed) return;
+
+    console.log(`🗑️ Lösche ${selectedIds.length} Rechnungen...`);
+    
+    // Optimistisches UI-Update: Zeilen ausblenden
+    selectedIds.forEach(id => {
+      const row = document.querySelector(`tr[data-id="${id}"]`);
+      if (row) row.style.opacity = '0.5';
+    });
+
+    try {
+      // Batch-Delete für bessere Performance
+      const result = await window.dataService.deleteEntities('rechnung', selectedIds);
+      
+      if (result.success) {
+        // Entferne Zeilen aus DOM
+        selectedIds.forEach(id => {
+          document.querySelector(`tr[data-id="${id}"]`)?.remove();
+        });
+        
+        alert(`✅ ${result.deletedCount} Rechnungen erfolgreich gelöscht.`);
+        
+        this.selectedRechnungen.clear();
+        
+        // Nur neu laden wenn Liste leer ist
+        const tbody = document.querySelector('.data-table tbody');
+        if (tbody && tbody.children.length === 0) {
+          await this.loadAndRender();
+        }
+        
+        window.dispatchEvent(new CustomEvent('entityUpdated', {
+          detail: { entity: 'rechnung', action: 'bulk-deleted', count: result.deletedCount }
+        }));
+      } else {
+        throw new Error(result.error || 'Löschen fehlgeschlagen');
+      }
+    } catch (error) {
+      // Bei Fehler: Zeilen wiederherstellen
+      selectedIds.forEach(id => {
+        const row = document.querySelector(`tr[data-id="${id}"]`);
+        if (row) row.style.opacity = '1';
+      });
+      
+      console.error('❌ Fehler beim Löschen:', error);
+      alert(`❌ Fehler beim Löschen: ${error.message}`);
+      
+      // Liste neu laden um konsistenten Zustand herzustellen
+      await this.loadAndRender();
+    }
   }
 
   // Erstellungsformular aus der Liste heraus

@@ -2,6 +2,7 @@
 // Briefing-Liste mit neuem Filtersystem
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
+import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 
 export class BriefingList {
   constructor() {
@@ -415,66 +416,52 @@ export class BriefingList {
     
     console.log(`🗑️ Lösche ${totalCount} Briefings...`);
     
-    let successCount = 0;
-    let errorCount = 0;
-    const successfullyDeletedIds = [];
-    
-    // Lösche alle ausgewählten Briefings
-    for (const briefingId of selectedIds) {
-      try {
-        const result = await window.dataService.deleteEntity('briefing', briefingId);
-        if (result.success) {
-          successCount++;
-          successfullyDeletedIds.push(briefingId);
-          this.selectedBriefings.delete(briefingId);
-        } else {
-          errorCount++;
-          console.error(`❌ Fehler beim Löschen von Briefing ${briefingId}:`, result.error);
-        }
-      } catch (error) {
-        errorCount++;
-        console.error(`❌ Fehler beim Löschen von Briefing ${briefingId}:`, error);
-      }
-    }
-    
-    // Ergebnis anzeigen
-    if (successCount > 0) {
-      const message = successCount === 1 
-        ? 'Briefing erfolgreich gelöscht.' 
-        : `${successCount} Briefings erfolgreich gelöscht.`;
+    // Optimistisches UI-Update: Zeilen ausblenden
+    selectedIds.forEach(id => {
+      const row = document.querySelector(`tr[data-id="${id}"]`);
+      if (row) row.style.opacity = '0.5';
+    });
+
+    try {
+      // Batch-Delete für bessere Performance
+      const result = await window.dataService.deleteEntities('briefing', selectedIds);
       
-      if (errorCount > 0) {
-        alert(`${message}\n${errorCount} Briefings konnten nicht gelöscht werden.`);
+      if (result.success) {
+        // Entferne Zeilen aus DOM
+        selectedIds.forEach(id => {
+          document.querySelector(`tr[data-id="${id}"]`)?.remove();
+        });
+        
+        alert(`✅ ${result.deletedCount} Briefings erfolgreich gelöscht.`);
+        
+        this.selectedBriefings.clear();
+        this.updateSelection();
+        this.updateSelectAllCheckbox();
+        
+        // Nur neu laden wenn Liste leer ist
+        const tbody = document.getElementById('briefings-table-body');
+        if (tbody && tbody.children.length === 0) {
+          await this.loadAndRender();
+        }
+        
+        window.dispatchEvent(new CustomEvent('entityUpdated', {
+          detail: { entity: 'briefing', action: 'bulk-deleted', count: result.deletedCount }
+        }));
       } else {
-        alert(message);
+        throw new Error(result.error || 'Löschen fehlgeschlagen');
       }
-      
-      // Nur erfolgreich gelöschte Zeilen aus der Tabelle entfernen
-      successfullyDeletedIds.forEach(briefingId => {
-        const row = document.querySelector(`tr[data-id="${briefingId}"]`);
-        if (row) {
-          row.remove();
-        }
+    } catch (error) {
+      // Bei Fehler: Zeilen wiederherstellen
+      selectedIds.forEach(id => {
+        const row = document.querySelector(`tr[data-id="${id}"]`);
+        if (row) row.style.opacity = '1';
       });
       
-      // Auswahl zurücksetzen
-      this.selectedBriefings.clear();
-      this.updateSelection();
-      this.updateSelectAllCheckbox();
+      console.error('❌ Fehler beim Löschen:', error);
+      alert(`❌ Fehler beim Löschen: ${error.message}`);
       
-      // Prüfe ob Tabelle leer ist
-      const tbody = document.getElementById('briefings-table-body');
-      if (tbody && tbody.children.length === 0) {
-        // Lade komplett neu wenn keine Einträge mehr da sind
-        await this.loadAndRender();
-      }
-      
-      // Event für andere Komponenten
-      window.dispatchEvent(new CustomEvent('entityUpdated', {
-        detail: { entity: 'briefing', action: 'bulk-deleted', count: successCount }
-      }));
-    } else {
-      alert('Keine Briefings konnten gelöscht werden.');
+      // Liste neu laden um konsistenten Zustand herzustellen
+      await this.loadAndRender();
     }
   }
 
@@ -536,26 +523,7 @@ export class BriefingList {
         <td>${escapeHtml(b.assignee?.name)}</td>
         <td>${formatDate(b.created_at)}</td>
         <td>
-          <div class="actions-dropdown-container" data-entity-type="briefing">
-            <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z"/></svg>
-            </button>
-            <div class="actions-dropdown">
-              <a href="#" class="action-item" data-action="view" data-id="${b.id}">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/><path fill-rule="evenodd" d="M.661 10c1.743-2.372 4.761-5 9.339-5 4.578 0 7.601 2.628 9.339 5-1.738 2.372-4.761 5-9.339 5-4.578 0-7.601-2.628-9.339-5zM10 15a5 5 0 100-10 5 5 0 000 10z" clip-rule="evenodd"/></svg>
-                Details anzeigen
-              </a>
-              <a href="#" class="action-item" data-action="edit" data-id="${b.id}">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path d="M5.433 13.917l-1.523 1.523a.75.75 0 001.06 1.06l1.523-1.523L5.433 13.917zM11.206 6.106L13.917 3.4a.75.75 0 011.06 1.06l-2.711 2.711-.693-.693z"/><path fill-rule="evenodd" d="M1.334 10.606a1.5 1.5 0 011.06-1.06l10.38-10.38a1.5 1.5 0 012.122 0l1.523 1.523a1.5 1.5 0 010 2.122l-10.38 10.38a1.5 1.5 0 01-1.06 1.06H1.334v-3.182z" clip-rule="evenodd"/></svg>
-                Bearbeiten
-              </a>
-              <div class="action-separator"></div>
-              <a href="#" class="action-item action-danger" data-action="delete" data-id="${b.id}">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.368.298a.75.75 0 10.232 1.482l.175-.027c.572-.089 1.14-.19 1.706-.302A3.75 3.75 0 019.75 3h.5a3.75 3.75 0 013.657 3.234c.566.112 1.134.213 1.706.302l.175.027a.75.75 0 10.232-1.482A41.203 41.203 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM2.5 7.75a.75.75 0 01.75-.75h13.5a.75.75 0 010 1.5H3.25a.75.75 0 01-.75-.75zM7.25 9.75a.75.75 0 01.75-.75h4.5a.75.75 0 010 1.5H8a.75.75 0 01-.75-.75zM6 12.25a.75.75 0 01.75-.75h6.5a.75.75 0 010 1.5H6.75a.75.75 0 01-.75-.75zM4.75 14.75a.75.75 0 01.75-.75h9.5a.75.75 0 010 1.5h-9.5a.75.75 0 01-.75-.75z" clip-rule="evenodd"/></svg>
-                Löschen
-              </a>
-            </div>
-          </div>
+          ${actionBuilder.create('briefing', b.id)}
         </td>
       </tr>
     `).join('');
@@ -586,19 +554,155 @@ export class BriefingList {
     // Formular-Events binden (Validierung, dynamische Optionen etc.)
     window.formSystem.bindFormEvents('briefing', null);
 
-    // Seiten-Submit an FormSystem delegieren
+    // Custom Submit Handler mit File-Upload
     const form = document.getElementById('briefing-form');
     if (form) {
       form.onsubmit = async (e) => {
         e.preventDefault();
-        await window.formSystem.handleFormSubmit('briefing', null);
-        // Event auslösen für Listen-Update statt Navigation
-        window.dispatchEvent(new CustomEvent('entityUpdated', { 
-          detail: { entity: 'briefing', action: 'created' } 
-        }));
-        // Optional: zurück zur Liste (nur wenn gewünscht)
-        // setTimeout(() => window.navigateTo('/briefing'), 300);
+        await this.handleCreateFormSubmit(form);
       };
+    }
+  }
+
+  async handleCreateFormSubmit(form) {
+    try {
+      const formData = new FormData(form);
+      const submitData = {};
+      
+      // FormData zu Objekt konvertieren (ohne File-Felder)
+      for (const [key, value] of formData.entries()) {
+        if (!key.includes('[]') && !key.includes('_files')) {
+          submitData[key] = value;
+        }
+      }
+
+      console.log('📝 Briefing Submit-Daten:', submitData);
+
+      // Briefing erstellen
+      const result = await window.dataService.createEntity('briefing', submitData);
+      
+      if (result.success) {
+        console.log('✅ Briefing erstellt, ID:', result.id);
+        
+        // Dokumente hochladen (Multi-Upload mit Security)
+        await this.uploadBriefingDocuments(result.id, form);
+        
+        alert('Briefing erfolgreich erstellt!');
+        
+        // Event auslösen für Listen-Update
+        window.dispatchEvent(new CustomEvent('entityUpdated', { 
+          detail: { entity: 'briefing', action: 'created', id: result.id } 
+        }));
+        
+        // Navigation zur Detail-Ansicht
+        window.navigateTo(`/briefing/${result.id}`);
+      } else {
+        throw new Error(result.error || 'Erstellen fehlgeschlagen');
+      }
+    } catch (error) {
+      console.error('❌ Fehler beim Erstellen:', error);
+      alert(`Fehler beim Erstellen des Briefings: ${error.message}`);
+    }
+  }
+
+  async uploadBriefingDocuments(briefingId, form) {
+    try {
+      const uploaderRoot = form.querySelector('.uploader[data-name="documents_files"]');
+      if (!uploaderRoot || !uploaderRoot.__uploaderInstance || !uploaderRoot.__uploaderInstance.files.length) {
+        console.log('ℹ️ Keine Dokumente zum Hochladen');
+        return; // Keine Dateien
+      }
+
+      if (!window.supabase) {
+        console.warn('⚠️ Supabase nicht verfügbar - Upload übersprungen');
+        return;
+      }
+
+      const files = Array.from(uploaderRoot.__uploaderInstance.files);
+      const bucket = 'documents';
+      
+      // Security: Max 10MB pro File (clientseitig pre-check)
+      const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+      const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      
+      for (const file of files) {
+        // Security Check: Dateigröße
+        if (file.size > MAX_FILE_SIZE) {
+          console.warn(`⚠️ Datei zu groß: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`);
+          alert(`Die Datei "${file.name}" ist zu groß (max. 10 MB)`);
+          continue;
+        }
+
+        // Security Check: Content-Type
+        if (!ALLOWED_TYPES.includes(file.type)) {
+          console.warn(`⚠️ Nicht erlaubter Dateityp: ${file.name} (${file.type})`);
+          alert(`Die Datei "${file.name}" hat einen nicht erlaubten Dateityp`);
+          continue;
+        }
+
+        // Security: Sanitize filename (remove path traversal, special chars)
+        const sanitizedName = file.name
+          .replace(/[^a-zA-Z0-9._-]/g, '_') // Nur sichere Zeichen
+          .replace(/\.{2,}/g, '_') // Keine ".." für path traversal
+          .substring(0, 200); // Max 200 Zeichen
+
+        // Pfad: documents/briefings/{briefing_id}/{timestamp}_{random}_{filename}
+        const timestamp = Date.now();
+        const randomStr = Math.random().toString(36).substring(2, 10);
+        const path = `briefings/${briefingId}/${timestamp}_${randomStr}_${sanitizedName}`;
+        
+        console.log(`📤 Uploading: ${file.name} -> ${path}`);
+        
+        // Upload zu Storage
+        const { error: upErr } = await window.supabase.storage
+          .from(bucket)
+          .upload(path, file, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: file.type
+          });
+        
+        if (upErr) {
+          console.error(`❌ Upload-Fehler für ${file.name}:`, upErr);
+          throw upErr;
+        }
+        
+        // Signierte URL erstellen (7 Tage gültig)
+        const { data: signed, error: signErr } = await window.supabase.storage
+          .from(bucket)
+          .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 Tage
+        
+        if (signErr) {
+          console.error(`❌ Signierte URL Fehler für ${file.name}:`, signErr);
+          throw signErr;
+        }
+        
+        const file_url = signed?.signedUrl || '';
+        
+        // Metadaten in briefing_documents speichern
+        const { error: dbErr } = await window.supabase.from('briefing_documents').insert({
+          briefing_id: briefingId,
+          file_name: sanitizedName, // Sanitized name speichern
+          file_path: path,
+          file_url,
+          content_type: file.type,
+          size: file.size,
+          uploaded_by: window.currentUser?.id || null
+        });
+        
+        if (dbErr) {
+          console.error(`❌ DB-Fehler für ${file.name}:`, dbErr);
+          throw dbErr;
+        }
+        
+        console.log(`✅ Dokument hochgeladen: ${file.name}`);
+      }
+      
+      console.log(`✅ Alle ${files.length} Dokumente erfolgreich hochgeladen`);
+    } catch (error) {
+      console.error('❌ Fehler beim Dokument-Upload:', error);
+      // Nicht kritisch - Briefing wurde bereits erstellt
+      alert(`⚠️ Warnung: Einige Dokumente konnten nicht hochgeladen werden. Bitte versuchen Sie es später erneut.`);
     }
   }
 
