@@ -17,6 +17,13 @@ export class AnsprechpartnerList {
     window.setHeadline('Ansprechpartner Übersicht');
     console.log('🎯 ANSPRECHPARTNERLIST: Initialisiere Ansprechpartner-Liste');
     
+    // Breadcrumb für Listen-Seite
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Ansprechpartner', url: '/ansprechpartner', clickable: false }
+      ]);
+    }
+    
     this.bindEvents();
     await this.loadAndRender();
   }

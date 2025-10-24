@@ -228,6 +228,14 @@ export class ActionsDropdown {
       // NICHT abfangen – lasse andere Listener (z. B. KampagneDetail) den Klick verarbeiten
       if (!action) return;
 
+      // Custom Actions die nicht vom ActionsDropdown gehandhabt werden
+      // (z.B. comment-delete) sollen durch Event-Delegation behandelt werden
+      const customActions = ['comment-delete', 'video-view', 'video-edit', 'video-delete'];
+      if (customActions.includes(action)) {
+        // Lasse Event weiterlaufen für custom Handler
+        return;
+      }
+
       e.preventDefault();
       if (typeof e.stopImmediatePropagation === 'function') {
         e.stopImmediatePropagation();
@@ -756,12 +764,6 @@ export class ActionsDropdown {
       case 'rechnung':
         this.openRechnungModal(entityId, entityType);
         break;
-      case 'invoice-view':
-        window.navigateTo(`/rechnung/${entityId}`);
-        break;
-      case 'invoice-edit':
-        window.navigateTo(`/rechnung/${entityId}/edit`);
-        break;
       case 'add_to_campaign':
         this.openAddToCampaignModal(entityId);
         break;
@@ -944,7 +946,7 @@ export class ActionsDropdown {
         const ids = videoList.map(v => v.id);
         const { data: comments } = await window.supabase
           .from('kooperation_video_comment')
-          .select('id, video_id, runde, text, author_name, created_at')
+          .select('id, video_id, runde, text, author_name, created_at, deleted_at')
           .in('video_id', ids)
           .order('created_at', { ascending: true });
         (comments || []).forEach(c => {
@@ -959,10 +961,12 @@ export class ActionsDropdown {
       const fmtFeedback = (arr) => {
         if (!arr || !arr.length) return '-';
         return arr.map(c => {
+          const isDeleted = !!c.deleted_at;
+          const textStyle = isDeleted ? 'text-decoration: line-through; color: #999;' : '';
           const t = safe(c.text || '');
           const a = safe(c.author_name || '-');
           const dt = fDate(c.created_at);
-          return `<div class="fb-line"><span class="fb-meta">${a} • ${dt}</span><div class="fb-text">${t}</div></div>`;
+          return `<div class="fb-line"><span class="fb-meta">${a} • ${dt}</span><div class="fb-text" style="${textStyle}">${t}</div></div>`;
         }).join('');
       };
 

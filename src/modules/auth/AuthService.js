@@ -96,7 +96,7 @@ export class AuthService {
 
       const { data, error } = await window.supabase
         .from('benutzer')
-        .select('id, name, rolle, unterrolle, auth_user_id, zugriffsrechte')
+        .select('id, name, rolle, unterrolle, auth_user_id, zugriffsrechte, freigeschaltet')
         .eq('auth_user_id', authUserId)
         .single();
 
@@ -110,7 +110,10 @@ export class AuthService {
 
       if (data) {
         // Prüfen ob Benutzer freigeschaltet ist
-        if (!data.freigeschaltet && data.rolle !== 'admin') {
+        // Admin ist immer freigeschaltet, andere Rollen benötigen explizite Freischaltung
+        const isFreigeschaltet = data.rolle === 'admin' || data.freigeschaltet === true;
+        
+        if (!isFreigeschaltet) {
           console.log('⚠️ Benutzer nicht freigeschaltet:', data.name);
           window.currentUser = {
             ...data,
@@ -119,7 +122,7 @@ export class AuthService {
           };
         } else {
           window.currentUser = data;
-          console.log('✅ Benutzer geladen:', data.name);
+          console.log('✅ Benutzer geladen:', data.name, '| Rolle:', data.rolle, '| Freigeschaltet:', isFreigeschaltet);
         }
         // 1) Rollen-/Entity-Rechte (inkl. JSON-Overrides)
         permissionSystem.setUserPermissions(data);

@@ -23,6 +23,13 @@ export class MarkeList {
     
     window.setHeadline('Marken Übersicht');
     
+    // Breadcrumb für Listen-Seite
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Marke', url: '/marke', clickable: false }
+      ]);
+    }
+    
     // BulkActionSystem für Marke registrieren
     window.bulkActionSystem?.registerList('marke', this);
     

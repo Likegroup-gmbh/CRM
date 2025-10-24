@@ -14,6 +14,20 @@ export class DashboardModule {
 
   async init() {
     window.setHeadline('Dashboard');
+    
+    // Breadcrumb für Dashboard
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Dashboard', url: '/dashboard', clickable: false }
+      ]);
+    }
+    
+    // Für Kunden: Spezielle Dashboard-Ansicht
+    if (window.currentUser?.rolle === 'kunde') {
+      await this.renderKundenDashboard();
+      return;
+    }
+    
     await this.loadDashboardData();
     await this.render();
     this.setupEventListeners();
@@ -403,7 +417,7 @@ export class DashboardModule {
 
   async render() {
     // Prüfe ob User pending ist oder blockiert
-    const isPending = window.currentUser?.rolle === 'pending' || window.currentUser?.isBlocked;
+    const isPending = window.currentUser?.isBlocked === true;
     const blockReason = window.currentUser?.blockReason || 'Ihr Account wartet auf Freischaltung durch einen Administrator';
     
     const html = `
@@ -465,6 +479,133 @@ export class DashboardModule {
     `;
 
     window.setContentSafely(window.content, html);
+  }
+
+  async renderKundenDashboard() {
+    const isBlocked = window.currentUser?.isBlocked === true;
+    
+    if (isBlocked) {
+      // Nicht freigeschalteter Kunde - einfache Wartebotschaft
+      const html = `
+        <div class="dashboard-container">
+          <div class="page-header">
+            <div class="page-header-left">
+              <h1>Willkommen</h1>
+              <p>Ihr Account wartet auf Freischaltung</p>
+            </div>
+          </div>
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>${window.validatorSystem.sanitizeHtml(window.currentUser?.name || 'Unbekannt')}</td>
+                  <td><span class="status-badge status-pending">Wartet auf Freischaltung</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="content-section" style="margin-top: 24px;">
+            <p>Ein Administrator wird Ihren Account in Kürze überprüfen und freischalten.</p>
+          </div>
+        </div>
+      `;
+      window.setContentSafely(window.content, html);
+      return;
+    }
+    
+    // Freigeschalteter Kunde - Lade Kampagnen und Kooperationen
+    try {
+      const [{ data: kampagnen }, { data: kooperationen }] = await Promise.all([
+        window.supabase
+          .from('kampagne')
+          .select('id, kampagnenname, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname), status:status_id(name)')
+          .order('created_at', { ascending: false }),
+        window.supabase
+          .from('kooperationen')
+          .select('id, name, kampagne:kampagne_id(kampagnenname), status, creator:creator_id(vorname, nachname)')
+          .order('created_at', { ascending: false })
+      ]);
+      
+      const kampagnenRows = (kampagnen || []).map(k => `
+        <tr>
+          <td><a href="/kunden-kampagne/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kunden-kampagne/${k.id}')">${window.validatorSystem.sanitizeHtml(k.kampagnenname || k.id)}</a></td>
+          <td>${window.validatorSystem.sanitizeHtml(k.unternehmen?.firmenname || '—')}</td>
+          <td>${window.validatorSystem.sanitizeHtml(k.marke?.markenname || '—')}</td>
+          <td><span class="status-badge">${window.validatorSystem.sanitizeHtml(k.status?.name || '—')}</span></td>
+        </tr>
+      `).join('');
+      
+      const koopRows = (kooperationen || []).map(k => `
+        <tr>
+          <td><a href="/kunden-kooperation/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kunden-kooperation/${k.id}')">${window.validatorSystem.sanitizeHtml(k.name || k.id)}</a></td>
+          <td>${window.validatorSystem.sanitizeHtml(k.kampagne?.kampagnenname || '—')}</td>
+          <td>${window.validatorSystem.sanitizeHtml(k.creator ? `${k.creator.vorname || ''} ${k.creator.nachname || ''}`.trim() : '—')}</td>
+          <td><span class="status-badge status-${(k.status||'').toLowerCase().replace(/\s+/g,'-')}">${window.validatorSystem.sanitizeHtml(k.status || '—')}</span></td>
+        </tr>
+      `).join('');
+      
+      const html = `
+        <div class="dashboard-container">
+          <div class="page-header">
+            <div class="page-header-left">
+              <h1>Willkommen, ${window.validatorSystem.sanitizeHtml(window.currentUser?.name || 'Kunde')}</h1>
+              <p>Übersicht über Ihre Kampagnen und Kooperationen</p>
+            </div>
+          </div>
+          
+          <div class="content-section">
+            <div class="section-header">
+              <h2>Meine Kampagnen</h2>
+              <span class="section-count">${(kampagnen || []).length} Einträge</span>
+            </div>
+            <div class="data-table-container">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Kampagne</th>
+                    <th>Unternehmen</th>
+                    <th>Marke</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>${kampagnenRows || '<tr><td colspan="4" class="loading">Keine Kampagnen</td></tr>'}</tbody>
+              </table>
+            </div>
+          </div>
+          
+          <div class="content-section">
+            <div class="section-header">
+              <h2>Meine Kooperationen</h2>
+              <span class="section-count">${(kooperationen || []).length} Einträge</span>
+            </div>
+            <div class="data-table-container">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Kooperation</th>
+                    <th>Kampagne</th>
+                    <th>Creator</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>${koopRows || '<tr><td colspan="4" class="loading">Keine Kooperationen</td></tr>'}</tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      window.setContentSafely(window.content, html);
+    } catch (error) {
+      console.error('❌ Fehler beim Laden des Kunden-Dashboards:', error);
+      window.setContentSafely(window.content, '<p class="error">Fehler beim Laden der Daten.</p>');
+    }
   }
 
   renderPendingMessage() {

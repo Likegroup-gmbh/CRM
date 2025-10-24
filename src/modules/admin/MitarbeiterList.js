@@ -12,6 +12,14 @@ export class MitarbeiterList {
 
   async init() {
     window.setHeadline('Mitarbeiter');
+    
+    // Breadcrumb für Mitarbeiter-Liste
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Mitarbeiter', url: '/mitarbeiter', clickable: false }
+      ]);
+    }
+    
     const isAdmin = window.currentUser?.rolle === 'admin' || window.canViewPage?.('mitarbeiter') || window.checkUserPermission('dashboard', 'can_view');
     if (!isAdmin) {
       window.content.innerHTML = `

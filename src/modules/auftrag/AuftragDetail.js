@@ -27,6 +27,15 @@ export class AuftragDetail {
     try {
       this.auftragId = auftragId;
       await this.loadAuftragData();
+      
+      // Breadcrumb aktualisieren
+      if (window.breadcrumbSystem && this.auftrag) {
+        window.breadcrumbSystem.updateBreadcrumb([
+          { label: 'Auftrag', url: '/auftrag', clickable: true },
+          { label: this.auftrag.auftragsname || 'Details', url: `/auftrag/${this.auftragId}`, clickable: false }
+        ]);
+      }
+      
       this.render();
       this.bindEvents();
       console.log('✅ AUFTRAGDETAIL: Initialisierung abgeschlossen');

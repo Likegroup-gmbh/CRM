@@ -16,6 +16,13 @@ export class KooperationList {
   async init() {
     window.setHeadline('Kooperationen Übersicht');
     
+    // Breadcrumb für Listen-Seite
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Kooperation', url: '/kooperation', clickable: false }
+      ]);
+    }
+    
     // Verstecke Bulk-Actions für Kunden
     if (window.bulkActionSystem) {
       window.bulkActionSystem.hideForKunden();

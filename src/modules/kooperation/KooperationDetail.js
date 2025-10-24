@@ -34,6 +34,14 @@ export class KooperationDetail {
       // Lade alle Kooperations-Daten
       await this.loadKooperationData();
       
+      // Breadcrumb aktualisieren
+      if (window.breadcrumbSystem && this.kooperation) {
+        window.breadcrumbSystem.updateBreadcrumb([
+          { label: 'Kooperation', url: '/kooperation', clickable: true },
+          { label: this.kooperation.name || 'Details', url: `/kooperation/${this.kooperationId}`, clickable: false }
+        ]);
+      }
+      
       // Rendere die Seite
       await this.render();
       
@@ -122,6 +130,23 @@ export class KooperationDetail {
         .eq('kooperation_id', this.kooperationId)
         .order('position', { ascending: true });
       this.videos = videos || [];
+      
+      // Für jedes Video die aktuelle Asset-Version laden
+      if (this.videos.length > 0) {
+        const videoIds = this.videos.map(v => v.id);
+        const { data: assets } = await window.supabase
+          .from('kooperation_video_asset')
+          .select('id, video_id, file_url, version_number, is_current, created_at')
+          .in('video_id', videoIds)
+          .eq('is_current', true);
+        
+        // Assets den Videos zuordnen
+        this.videos = this.videos.map(v => ({
+          ...v,
+          currentAsset: (assets || []).find(a => a.video_id === v.id) || null
+        }));
+      }
+      
       // Kampagnen-Kontingent (geplante Videos) aggregieren
       try {
         const kampId = kooperation?.kampagne?.id || kooperation?.kampagne_id;
@@ -145,7 +170,7 @@ export class KooperationDetail {
         if (videoIds.length > 0) {
           const { data: comments } = await window.supabase
             .from('kooperation_video_comment')
-            .select('id, video_id, runde, text, created_at, author_name')
+            .select('id, video_id, runde, text, created_at, author_name, deleted_at')
             .in('video_id', videoIds)
             .order('created_at', { ascending: true });
           const byVideo = {};
@@ -514,11 +539,12 @@ export class KooperationDetail {
   // Videos rendern
   renderVideos() {
     const canEdit = window.currentUser?.permissions?.kooperation?.can_edit || window.currentUser?.rolle === 'admin';
+    const canUpload = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle === 'mitarbeiter';
     const plannedForKoop = parseInt(this.kooperation?.videoanzahl, 10) || 0;
     const uploadedForKoop = (this.videos || []).length;
     const canAddMore = plannedForKoop === 0 || uploadedForKoop < plannedForKoop;
 
-    const actionsHtml = canEdit ? `
+    const actionsHtml = canEdit && canUpload ? `
       <div class="table-actions" style="margin-bottom: 8px;">
         <div class="table-actions-left"></div>
         <div class="table-actions-right">
@@ -538,12 +564,20 @@ export class KooperationDetail {
           return `<div class="fb-line"><span class="fb-meta">${author}${date ? ' • ' + date : ''}</span><div class="fb-text">${text}</div></div>`;
         }).join('');
       };
+      
+      // Rollen-Prüfung für Action-Menü
+      const userRole = window.currentUser?.rolle;
+      const isKunde = userRole === 'kunde';
+      const isAdmin = userRole === 'admin';
+      const isMitarbeiter = userRole === 'mitarbeiter';
+      
       const menu = `
         <div class="actions-dropdown-container" data-entity-type="kooperation_videos">
           <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
           </button>
           <div class="actions-dropdown">
+            ${!isKunde ? `
             <div class="action-submenu">
               <a href="#" class="action-item has-submenu" data-submenu="status">
                 ${actionsDropdown.getHeroIcon('invoice')}
@@ -562,6 +596,7 @@ export class KooperationDetail {
                 </a>
               </div>
             </div>
+            ` : ''}
             <a href="#" class="action-item" data-action="video-view" data-id="${v.id}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
@@ -569,12 +604,15 @@ export class KooperationDetail {
               </svg>
               Details ansehen
             </a>
+            ${!isKunde ? `
             <a href="#" class="action-item" data-action="video-edit" data-id="${v.id}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                 <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
               </svg>
               Bearbeiten
             </a>
+            ` : ''}
+            ${isAdmin ? `
             <div class="action-separator"></div>
             <a href="#" class="action-item action-danger" data-action="video-delete" data-id="${v.id}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
@@ -582,6 +620,7 @@ export class KooperationDetail {
               </svg>
               Löschen
             </a>
+            ` : ''}
           </div>
         </div>`;
       return `
@@ -591,6 +630,7 @@ export class KooperationDetail {
           <td>
             ${v.titel ? `<a href="/video/${v.id}" class="table-link" data-table="video" data-id="${v.id}">${window.validatorSystem.sanitizeHtml(v.titel)}</a>`
             : (v.asset_url ? `<a href="${v.asset_url}" target="_blank" rel="noopener">Link</a>` : '-')}
+            ${v.currentAsset ? `<span class="version-badge" style="margin-left:8px;">V${v.currentAsset.version_number || 1}</span>` : ''}
           </td>
           <td class="feedback-cell">${formatList(v.feedback1)}</td>
           <td class="feedback-cell">${formatList(v.feedback2)}</td>
@@ -689,6 +729,40 @@ export class KooperationDetail {
       if (e.target && e.target.id === 'btn-goto-video-create') {
         e.preventDefault();
         window.navigateTo(`/video/new?kooperation=${this.kooperationId}`);
+      }
+    });
+
+    // Video Actions: view, edit, delete
+    document.addEventListener('click', async (e) => {
+      const actionItem = e.target.closest('.action-item');
+      if (!actionItem) return;
+      
+      const action = actionItem.dataset.action;
+      const videoId = actionItem.dataset.id;
+      
+      if (action === 'video-view' && videoId) {
+        e.preventDefault();
+        window.navigateTo(`/video/${videoId}`);
+      } else if (action === 'video-edit' && videoId) {
+        e.preventDefault();
+        // TODO: Video-Edit Formular implementieren
+        alert('Video-Bearbeitung noch nicht implementiert');
+      } else if (action === 'video-delete' && videoId) {
+        e.preventDefault();
+        if (!confirm('Video wirklich löschen?')) return;
+        try {
+          const { error } = await window.supabase
+            .from('kooperation_videos')
+            .delete()
+            .eq('id', videoId);
+          if (error) throw error;
+          await this.loadKooperationData();
+          const pane = document.querySelector('#tab-videos .detail-section');
+          if (pane) pane.innerHTML = `<h2>Videos</h2>${this.renderVideos()}`;
+        } catch (err) {
+          console.error('Video löschen fehlgeschlagen', err);
+          alert('Video konnte nicht gelöscht werden.');
+        }
       }
     });
 

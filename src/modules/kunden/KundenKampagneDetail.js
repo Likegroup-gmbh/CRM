@@ -11,6 +11,15 @@ export class KundenKampagneDetail {
   async init(id) {
     this.kampagneId = id;
     await this.load();
+    
+    // Breadcrumb aktualisieren
+    if (window.breadcrumbSystem && this.kampagne) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Meine Kampagnen', url: '/kunden', clickable: true },
+        { label: this.kampagne.kampagnenname || 'Kampagne', url: `/kunden-kampagne/${this.kampagneId}`, clickable: false }
+      ]);
+    }
+    
     await this.render();
     this.bind();
   }
@@ -75,6 +84,7 @@ export class KundenKampagneDetail {
 }
 
 export const kundenKampagneDetail = new KundenKampagneDetail();
+
 
 
 

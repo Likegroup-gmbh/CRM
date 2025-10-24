@@ -16,6 +16,13 @@ export class AuftragList {
   async init() {
     console.log('📋 AUFTRAGLIST: Initialisiere Auftrags-Liste');
     
+    // Breadcrumb für Listen-Seite
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Auftrag', url: '/auftrag', clickable: false }
+      ]);
+    }
+    
     try {
       // BulkActionSystem für Auftrag registrieren
       window.bulkActionSystem?.registerList('auftrag', this);

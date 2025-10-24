@@ -37,6 +37,14 @@ export class KampagneDetail {
       // Lade alle Kampagnen-Daten
       await this.loadKampagneData();
       
+      // Breadcrumb aktualisieren
+      if (window.breadcrumbSystem && this.kampagneData) {
+        window.breadcrumbSystem.updateBreadcrumb([
+          { label: 'Kampagne', url: '/kampagne', clickable: true },
+          { label: this.kampagneData.kampagnenname || 'Details', url: `/kampagne/${this.kampagneId}`, clickable: false }
+        ]);
+      }
+      
       // Rendere die Seite
       await this.render();
       

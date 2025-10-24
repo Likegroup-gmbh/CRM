@@ -12,6 +12,13 @@ export class RechnungList {
 
   async init() {
     window.setHeadline('Rechnungen');
+    
+    // Breadcrumb für Listen-Seite
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Rechnung', url: '/rechnung', clickable: false }
+      ]);
+    }
 
     await this.loadAndRender();
     // Reload Liste bei Änderungen (z. B. Status geändert, gelöscht)

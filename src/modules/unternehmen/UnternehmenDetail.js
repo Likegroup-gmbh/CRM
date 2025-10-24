@@ -26,6 +26,15 @@ export class UnternehmenDetail {
     try {
       this.unternehmenId = unternehmenId;
       await this.loadUnternehmenData();
+      
+      // Breadcrumb aktualisieren
+      if (window.breadcrumbSystem && this.unternehmen) {
+        window.breadcrumbSystem.updateBreadcrumb([
+          { label: 'Unternehmen', url: '/unternehmen', clickable: true },
+          { label: this.unternehmen.firmenname || 'Details', url: `/unternehmen/${this.unternehmenId}`, clickable: false }
+        ]);
+      }
+      
       this.render();
       this.bindEvents();
       console.log('✅ UNTERNEHMENDETAIL: Initialisierung abgeschlossen');

@@ -71,7 +71,7 @@ export const ActionConfigs = {
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
     ],
-    kundenActions: ['view', 'quickview']
+    kundenActions: ['view']
   },
 
   // Creator Actions
@@ -155,12 +155,12 @@ export const ActionConfigs = {
   // Rechnung Actions  
   rechnung: {
     actions: [
-      { id: 'invoice-view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
-      { id: 'invoice-edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
+      { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
+      { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
     ],
-    kundenActions: ['invoice-view']
+    kundenActions: ['view']
   },
 
   // Kunden Actions (Admin-Bereich)
@@ -181,65 +181,6 @@ export const ActionConfigs = {
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
     ]
-  },
-
-  // Kampagne Actions
-  kampagne: {
-    actions: [
-      { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
-      { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
-      { 
-        id: 'status', 
-        type: 'submenu', 
-        icon: 'status-change',
-        label: 'Status ändern',
-        dynamicOptions: 'kampagne_status',
-        updateFields: ['status_id', 'status'],
-        roles: ['admin', 'mitarbeiter']
-      },
-      { id: 'assign-staff', icon: 'add-ansprechpartner', label: 'Kampagne Mitarbeiter zuordnen', roles: ['admin'] },
-      { id: 'add_ansprechpartner_kampagne', icon: 'add-ansprechpartner', label: 'Ansprechpartner hinzufügen', roles: ['admin', 'mitarbeiter'] },
-      { id: 'notiz', icon: 'notiz', label: 'Notiz hinzufügen', roles: ['admin', 'mitarbeiter'] },
-      { id: 'separator' },
-      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
-    ],
-    kundenActions: ['view']
-  },
-
-  // Kooperation Actions
-  kooperation: {
-    actions: [
-      { 
-        id: 'status', 
-        type: 'submenu', 
-        icon: 'status-change',
-        label: 'Status ändern',
-        dynamicOptions: 'kampagne_status',
-        updateFields: ['status_id', 'status'],
-        roles: ['admin', 'mitarbeiter']
-      },
-      { id: 'quickview', icon: 'quickview', label: 'Schnellansicht öffnen', roles: ['admin', 'mitarbeiter'] },
-      { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
-      { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
-      { id: 'video-create', icon: 'video', label: 'Video hochladen', roles: ['admin', 'mitarbeiter'] },
-      { id: 'notiz', icon: 'notiz', label: 'Notiz hinzufügen', roles: ['admin', 'mitarbeiter'] },
-      { id: 'separator' },
-      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
-    ],
-    kundenActions: ['view', 'video-create']
-  },
-
-  // Creator Actions
-  creator: {
-    actions: [
-      { id: 'view', icon: 'view', label: 'Profil ansehen', roles: ['all'] },
-      { id: 'add_to_list', icon: 'add-to-list', label: 'Zur Liste hinzufügen', roles: ['admin', 'mitarbeiter'] },
-      { id: 'edit', icon: 'edit', label: 'Profil bearbeiten', roles: ['admin', 'mitarbeiter'] },
-      { id: 'separator' },
-      { id: 'add_to_campaign', icon: 'add-to-campaign', label: 'Zu Kampagne hinzufügen', roles: ['admin', 'mitarbeiter'] },
-      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
-    ],
-    kundenActions: ['view']
   }
 };
 

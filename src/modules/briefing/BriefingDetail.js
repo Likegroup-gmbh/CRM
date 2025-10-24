@@ -18,6 +18,15 @@ export class BriefingDetail {
 
     try {
       await this.loadBriefingData();
+      
+      // Breadcrumb aktualisieren
+      if (window.breadcrumbSystem && this.briefing) {
+        window.breadcrumbSystem.updateBreadcrumb([
+          { label: 'Briefing', url: '/briefing', clickable: true },
+          { label: this.briefing.titel || 'Details', url: `/briefing/${this.briefingId}`, clickable: false }
+        ]);
+      }
+      
       await this.render();
       this.bindEvents();
     } catch (error) {

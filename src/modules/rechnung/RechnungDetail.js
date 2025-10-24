@@ -13,6 +13,15 @@ export class RechnungDetail {
       return this.showCreateForm();
     }
     await this.load();
+    
+    // Breadcrumb aktualisieren
+    if (window.breadcrumbSystem && this.data) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Rechnung', url: '/rechnung', clickable: true },
+        { label: this.data.rechnungsnummer || 'Details', url: `/rechnung/${this.id}`, clickable: false }
+      ]);
+    }
+    
     this.render();
     this.bindEvents();
   }

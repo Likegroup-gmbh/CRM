@@ -14,6 +14,13 @@ export class UnternehmenList {
   async init() {
     window.setHeadline('Unternehmen Übersicht');
     
+    // Breadcrumb für Listen-Seite
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Unternehmen', url: '/unternehmen', clickable: false }
+      ]);
+    }
+    
     const canView = (window.canViewPage && window.canViewPage('unternehmen')) || await window.checkUserPermission('unternehmen', 'can_view');
     if (!canView) {
       window.content.innerHTML = `

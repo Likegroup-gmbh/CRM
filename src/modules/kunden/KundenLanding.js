@@ -8,6 +8,14 @@ export class KundenLanding {
 
   async init() {
     window.setHeadline('Meine Kampagnen');
+    
+    // Breadcrumb für Kunden-Landing
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Meine Kampagnen', url: '/kunden', clickable: false }
+      ]);
+    }
+    
     await this.load();
     await this.render();
     this.bind();
@@ -65,6 +73,7 @@ export class KundenLanding {
 }
 
 export const kundenLanding = new KundenLanding();
+
 
 
 

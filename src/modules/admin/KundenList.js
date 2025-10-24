@@ -14,6 +14,14 @@ export class KundenList {
 
   async init() {
     window.setHeadline('Kunden');
+    
+    // Breadcrumb für Kunden-Liste
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Kunden', url: '/admin/kunden', clickable: false }
+      ]);
+    }
+    
     const isAdmin = window.currentUser?.rolle === 'admin' || window.canViewPage?.('mitarbeiter');
     if (!isAdmin) {
       window.content.innerHTML = `

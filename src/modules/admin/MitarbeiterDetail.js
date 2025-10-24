@@ -14,6 +14,16 @@ export class MitarbeiterDetail {
   async init(id) {
     this.userId = id;
     await this.load();
+    
+    // Breadcrumb aktualisieren
+    if (window.breadcrumbSystem && this.user) {
+      const userName = this.user.name || 'Details';
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Mitarbeiter', url: '/mitarbeiter', clickable: true },
+        { label: userName, url: `/mitarbeiter/${this.userId}`, clickable: false }
+      ]);
+    }
+    
     await this.render();
     this.bind();
   }

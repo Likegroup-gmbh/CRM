@@ -49,6 +49,7 @@ import { kundenKooperationDetail } from './modules/kunden/KundenKooperationDetai
 import { bulkActionSystem } from './core/BulkActionSystem.js';
 import { notificationSystem } from './core/NotificationSystem.js';
 import { dashboardModule } from './modules/dashboard/DashboardModule.js';
+import { breadcrumbSystem } from './core/BreadcrumbSystem.js';
 // Zentrales Bestätigungs-Modal (side-effect Import, hängt window.confirmationModal an)
 import './core/ConfirmationModal.js';
 // main.js - Haupt-Einstiegspunkt für ES6-Module
@@ -381,6 +382,7 @@ window.ansprechpartnerList = ansprechpartnerList;
 window.ansprechpartnerDetail = ansprechpartnerDetail;
 window.ansprechpartnerCreate = ansprechpartnerCreate;
 window.dashboardModule = dashboardModule;
+window.breadcrumbSystem = breadcrumbSystem;
 
 // Profile-System importieren
 import { ProfileDetail } from './modules/admin/ProfileDetail.js';
@@ -454,6 +456,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     bulkActionSystem.init();
     // NotificationSystem initialisieren
     notificationSystem.init();
+    
+    // BreadcrumbSystem initialisieren
+    breadcrumbSystem.init();
     
     // App anzeigen
     window.appRoot.style.display = '';
@@ -548,6 +553,15 @@ window.setupHeaderUI = () => {
 
     const quickBtn = document.querySelector('.quick-menu-btn');
     const quickDropdown = document.querySelector('.quick-menu-dropdown');
+    const quickMenuContainer = document.querySelector('.quick-menu-container');
+    
+    // Quick-Menu für Kunden ausblenden
+    if (quickMenuContainer && window.currentUser?.rolle === 'kunde') {
+      quickMenuContainer.style.display = 'none';
+    } else if (quickMenuContainer) {
+      quickMenuContainer.style.display = '';
+    }
+    
     if (quickBtn && quickDropdown && !quickBtn.dataset.bound) {
       const closeAll = () => {
         quickDropdown.classList.remove('show');

@@ -14,6 +14,13 @@ export class CreatorList {
   async init() {
     window.setHeadline('Creator Übersicht');
     
+    // Breadcrumb für Listen-Seite
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Creator', url: '/creator', clickable: false }
+      ]);
+    }
+    
     const canView = (window.canViewPage && window.canViewPage('creator')) || await window.checkUserPermission('creator', 'can_view');
     if (!canView) {
       window.content.innerHTML = `

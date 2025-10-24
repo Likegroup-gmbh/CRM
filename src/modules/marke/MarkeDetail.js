@@ -23,6 +23,15 @@ export class MarkeDetail {
     try {
       this.markeId = markeId;
       await this.loadMarkeData();
+      
+      // Breadcrumb aktualisieren
+      if (window.breadcrumbSystem && this.marke) {
+        window.breadcrumbSystem.updateBreadcrumb([
+          { label: 'Marke', url: '/marke', clickable: true },
+          { label: this.marke.markenname || 'Details', url: `/marke/${this.markeId}`, clickable: false }
+        ]);
+      }
+      
       this.render();
       this.bindEvents();
       console.log('✅ MARKENDETAIL: Initialisierung abgeschlossen');

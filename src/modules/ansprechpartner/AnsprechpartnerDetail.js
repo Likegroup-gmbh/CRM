@@ -32,6 +32,16 @@ export class AnsprechpartnerDetail {
       return;
     } else {
       await this.loadAnsprechpartnerData();
+      
+      // Breadcrumb aktualisieren
+      if (window.breadcrumbSystem && this.ansprechpartner) {
+        const name = [this.ansprechpartner.vorname, this.ansprechpartner.nachname].filter(Boolean).join(' ') || 'Details';
+        window.breadcrumbSystem.updateBreadcrumb([
+          { label: 'Ansprechpartner', url: '/ansprechpartner', clickable: true },
+          { label: name, url: `/ansprechpartner/${this.ansprechpartnerId}`, clickable: false }
+        ]);
+      }
+      
       this.render();
       this.bindEvents();
     }

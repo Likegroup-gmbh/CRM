@@ -31,6 +31,15 @@ export class CreatorDetail {
       // Lade alle Creator-Daten
       await this.loadCreatorData();
       
+      // Breadcrumb aktualisieren
+      if (window.breadcrumbSystem && this.creator) {
+        const creatorName = [this.creator.vorname, this.creator.nachname].filter(Boolean).join(' ') || 'Details';
+        window.breadcrumbSystem.updateBreadcrumb([
+          { label: 'Creator', url: '/creator', clickable: true },
+          { label: creatorName, url: `/creator/${this.creatorId}`, clickable: false }
+        ]);
+      }
+      
       // Rendere die Seite
       await this.render();
       

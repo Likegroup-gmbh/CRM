@@ -19,6 +19,13 @@ export class BriefingList {
     }
 
     window.setHeadline('Briefings Übersicht');
+    
+    // Breadcrumb für Listen-Seite
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Briefing', url: '/briefing', clickable: false }
+      ]);
+    }
 
     // Verstecke Bulk-Actions für Kunden
     if (window.bulkActionSystem) {
