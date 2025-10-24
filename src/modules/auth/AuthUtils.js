@@ -43,12 +43,20 @@ export class AuthUtils {
             </div>
           </div>
           <div class="form-box">
-            <button type="submit" class="btn primary-btn">Anmelden</button>
+            <div class="auth-buttons-row">
+              <button type="submit" class="btn primary-btn">Anmelden</button>
+              <button type="button" class="btn btn-outlined" onclick="window.authUtils.showRegister()">
+                Registrieren
+              </button>
+            </div>
           </div>
-          <div class="form-box text-center">
-            <button type="button" class="btn secondary-btn" onclick="window.authUtils.showRegister()">
-              Registrieren
-            </button>
+          <div class="form-box customer-link">
+            <a href="/src/auth/kunden-register.html">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+              Registrierung für Kunden
+            </a>
           </div>
           <div id="loginError" class="text-error" style="display: none;"></div>
         </form>
@@ -135,12 +143,20 @@ export class AuthUtils {
             </div>
           </div>
           <div class="form-box">
-            <button type="submit" class="btn primary-btn">Registrieren</button>
+            <div class="auth-buttons-row">
+              <button type="submit" class="btn primary-btn">Registrieren</button>
+              <button type="button" class="btn btn-outlined" onclick="window.authUtils.showLogin()">
+                Zurück zum Login
+              </button>
+            </div>
           </div>
-          <div class="form-box text-center">
-            <button type="button" class="btn secondary-btn" onclick="window.authUtils.showLogin()">
-              Zurück zum Login
-            </button>
+          <div class="form-box customer-link">
+            <a href="/src/auth/kunden-register.html">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+              Registrierung für Kunden
+            </a>
           </div>
           <div id="registerError" class="text-error" style="display: none;"></div>
         </form>

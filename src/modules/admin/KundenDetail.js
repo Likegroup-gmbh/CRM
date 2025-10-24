@@ -223,7 +223,16 @@ export class KundenDetail {
   }
 
   bind() {
-    document.addEventListener('click', (e) => {
+    // Cleanup alte Event-Listener
+    if (this.clickHandler) {
+      document.removeEventListener('click', this.clickHandler);
+    }
+    if (this.changeHandler) {
+      document.removeEventListener('change', this.changeHandler);
+    }
+
+    // Event-Handler als Instanz-Properties speichern
+    this.clickHandler = (e) => {
       if (e.target && e.target.id === 'btn-back-kunden') {
         e.preventDefault();
         window.navigateTo('/admin/kunden');
@@ -251,9 +260,9 @@ export class KundenDetail {
         const pane = document.getElementById(`tab-${tabBtn.dataset.tab}`);
         if (pane) pane.classList.add('active');
       }
-    });
+    };
 
-    document.addEventListener('change', async (e) => {
+    this.changeHandler = async (e) => {
       if (e.target && e.target.id === 'freigeschaltet-toggle') {
         const isFreigeschaltet = e.target.checked;
         try {
@@ -278,11 +287,17 @@ export class KundenDetail {
           window.NotificationSystem?.show('error', 'Update fehlgeschlagen');
         }
       }
-    });
+    };
+
+    document.addEventListener('click', this.clickHandler);
+    document.addEventListener('change', this.changeHandler);
   }
 
   // Modal für Unternehmen-Zuordnung mit Auto-Suggestion
   async showUnternehmenZuordnungModal() {
+    // Entferne existierende Modals
+    document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.innerHTML = `
@@ -435,6 +450,9 @@ export class KundenDetail {
 
   // Modal für Marken-Zuordnung mit Auto-Suggestion
   async showMarkeZuordnungModal() {
+    // Entferne existierende Modals
+    document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.innerHTML = `
@@ -586,6 +604,17 @@ export class KundenDetail {
   }
 
   destroy() {
+    // Cleanup Event-Listener
+    if (this.clickHandler) {
+      document.removeEventListener('click', this.clickHandler);
+    }
+    if (this.changeHandler) {
+      document.removeEventListener('change', this.changeHandler);
+    }
+    
+    // Entferne existierende Modals
+    document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+    
     window.setContentSafely('');
   }
 }

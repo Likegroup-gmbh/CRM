@@ -428,16 +428,6 @@ export class DashboardModule {
             <h1>Dashboard</h1>
             <p>${isPending ? blockReason : 'Überblick über alle wichtigen Kennzahlen und Deadlines'}</p>
           </div>
-          <div class="page-header-right">
-            ${!isPending ? `
-            <button id="dashboard-refresh" class="secondary-btn">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px; margin-right: 8px;">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-              </svg>
-              Aktualisieren
-            </button>
-            ` : ''}
-          </div>
         </div>
 
         ${isPending ? this.renderPendingMessage() : ''}
@@ -764,7 +754,7 @@ export class DashboardModule {
           <div class="stats-label">Aktive Kampagnen</div>
           <div class="stats-sublabel">${stats.kampagnen?.total || 0} gesamt</div>
         </div>
-        ${stats.kampagnen?.ueberfaellig > 0 ? `<div class="stats-alert">${stats.kampagnen.ueberfaellig} überfällig</div>` : ''}
+        ${stats.kampagnen?.ueberfaellig > 0 ? `<div class="stats-alert status-badge danger">${stats.kampagnen.ueberfaellig} überfällig</div>` : ''}
       </div>
 
       <div class="stats-card">
@@ -778,7 +768,7 @@ export class DashboardModule {
           <div class="stats-label">Aktive Aufträge</div>
           <div class="stats-sublabel">${stats.auftraege?.total || 0} gesamt</div>
         </div>
-        ${stats.auftraege?.ueberfaellig > 0 ? `<div class="stats-alert">${stats.auftraege.ueberfaellig} überfällig</div>` : ''}
+        ${stats.auftraege?.ueberfaellig > 0 ? `<div class="stats-alert status-badge danger">${stats.auftraege.ueberfaellig} überfällig</div>` : ''}
       </div>
 
       <div class="stats-card">
@@ -792,7 +782,7 @@ export class DashboardModule {
           <div class="stats-label">Offene Briefings</div>
           <div class="stats-sublabel">${stats.briefings?.total || 0} gesamt</div>
         </div>
-        ${stats.briefings?.ueberfaellig > 0 ? `<div class="stats-alert">${stats.briefings.ueberfaellig} überfällig</div>` : ''}
+        ${stats.briefings?.ueberfaellig > 0 ? `<div class="stats-alert status-badge danger">${stats.briefings.ueberfaellig} überfällig</div>` : ''}
       </div>
 
       <div class="stats-card">
@@ -806,7 +796,7 @@ export class DashboardModule {
           <div class="stats-label">Offene Rechnungen</div>
           <div class="stats-sublabel">${stats.rechnungen?.total || 0} gesamt</div>
         </div>
-        ${stats.rechnungen?.ueberfaellig > 0 ? `<div class="stats-alert">${stats.rechnungen.ueberfaellig} überfällig</div>` : ''}
+        ${stats.rechnungen?.ueberfaellig > 0 ? `<div class="stats-alert status-badge danger">${stats.rechnungen.ueberfaellig} überfällig</div>` : ''}
       </div>
 
       <div class="stats-card">
@@ -872,7 +862,7 @@ export class DashboardModule {
       return `
         <tr class="table-row-clickable" onclick="window.navigateTo('${deadline.url}')">
           <td>
-            <span class="type-badge type-${deadline.type}">${typeLabel}</span>
+            <span class="status-badge status-badge-type status-badge-type-${deadline.type}">${typeLabel}</span>
           </td>
           <td class="cell-main">
             <div class="cell-title">${deadline.title}</div>
@@ -997,11 +987,11 @@ export class DashboardModule {
 
     const rows = this.data.recentActivity.map(activity => {
       const typeBadge = {
-        'kampagne': '<span class="type-badge type-kampagne">Kampagne</span>',
-        'auftrag': '<span class="type-badge type-auftrag">Auftrag</span>',
-        'briefing': '<span class="type-badge type-briefing">Briefing</span>',
-        'kooperation': '<span class="type-badge type-kooperation">Kooperation</span>'
-      }[activity.type] || `<span class="type-badge">${activity.type}</span>`;
+        'kampagne': '<span class="status-badge status-badge-type status-badge-type-kampagne">Kampagne</span>',
+        'auftrag': '<span class="status-badge status-badge-type status-badge-type-auftrag">Auftrag</span>',
+        'briefing': '<span class="status-badge status-badge-type status-badge-type-briefing">Briefing</span>',
+        'kooperation': '<span class="status-badge status-badge-type status-badge-type-kooperation">Kooperation</span>'
+      }[activity.type] || `<span class="status-badge status-badge-type">${activity.type}</span>`;
 
       return `
         <tr class="table-row-clickable" onclick="window.navigateTo('${activity.url}')">

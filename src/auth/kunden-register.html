@@ -4,56 +4,42 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kunden Registrierung | CRM</title>
-    <link rel="stylesheet" href="../assets/styles/dashboard.css">
-    <style>
-        .register-container { display:flex; align-items:center; justify-content:center; min-height:100vh; padding: 2rem; background:#0f172a; }
-        .register-card { width:100%; max-width:540px; background:#fff; border-radius:12px; padding:28px; box-shadow:0 20px 25px -5px rgba(0,0,0,.1), 0 10px 10px -5px rgba(0,0,0,.04); }
-        .register-title { margin:0 0 4px 0; font-size:1.6rem; font-weight:700; color:#111827; }
-        .register-sub { margin:0 0 18px 0; color:#6b7280; }
-        .form-group { margin-bottom:14px; }
-        .form-label { display:block; font-weight:600; color:#374151; margin-bottom:6px; }
-        .form-input { width:100%; padding:10px 12px; border:1px solid #e5e7eb; border-radius:8px; outline:none; }
-        .form-input:focus { border-color:#6366f1; box-shadow:0 0 0 3px rgba(99,102,241,.2); }
-        .primary-btn { background:#4f46e5; color:#fff; border:none; padding:10px 14px; border-radius:8px; cursor:pointer; font-weight:600; }
-        .primary-btn:disabled { opacity:.6; cursor:not-allowed; }
-        .muted { color:#6b7280; font-size:.9rem; }
-        .msg { padding:10px 12px; border-radius:8px; margin-bottom:10px; }
-        .msg.success { background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; }
-        .msg.error { background:#fef2f2; border:1px solid #fecaca; color:#991b1b; }
-        .actions { display:flex; gap:10px; align-items:center; justify-content:space-between; margin-top:10px; }
-        a.link { color:#4f46e5; text-decoration:none; }
-        a.link:hover { text-decoration:underline; }
-    </style>
+    <link rel="stylesheet" href="../../assets/styles/dashboard.css">
 </head>
-<body>
-<div class="register-container">
-  <div class="register-card">
-    <h1 class="register-title">Kunden-Registrierung</h1>
-    <p class="register-sub">Erstellen Sie Ihren Zugang zum Kunden-Portal.</p>
+<body style="background: #0f172a; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem;">
+  
+  <div class="login-box">
+    <h2 style="margin-bottom: 0.5rem;">Kunden-Registrierung</h2>
+    <p style="text-align: center; color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1.5rem;">
+      Erstellen Sie Ihren Zugang zum Kunden-Portal
+    </p>
 
-    <div id="msg" class="msg" style="display:none;"></div>
+    <div id="msg" style="display: none; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem;"></div>
 
     <form id="register-form">
-      <div class="form-group">
-        <label class="form-label" for="name">Name</label>
-        <input id="name" class="form-input" type="text" placeholder="Max Mustermann" required />
+      <div class="form-box">
+        <label class="label" for="name">Name</label>
+        <input id="name" class="input" type="text" placeholder="Max Mustermann" required />
       </div>
-      <div class="form-group">
-        <label class="form-label" for="email">E-Mail</label>
-        <input id="email" class="form-input" type="email" placeholder="kunde@example.com" required />
+      <div class="form-box">
+        <label class="label" for="email">E-Mail</label>
+        <input id="email" class="input" type="email" placeholder="kunde@example.com" required />
       </div>
-      <div class="form-group">
-        <label class="form-label" for="password">Passwort</label>
-        <input id="password" class="form-input" type="password" placeholder="••••••••" minlength="8" required />
+      <div class="form-box">
+        <label class="label" for="password">Passwort</label>
+        <input id="password" class="input" type="password" placeholder="••••••••" minlength="8" required />
       </div>
-      <div class="actions">
-        <button id="btn-submit" type="submit" class="primary-btn">Konto erstellen</button>
-        <a class="link" id="login-link" href="/">Zum Login</a>
+      <div class="form-box">
+        <button id="btn-submit" type="submit" class="btn primary-btn" style="width: 100%;">Konto erstellen</button>
       </div>
-      <p class="muted" style="margin-top:10px;">Mit der Registrierung stimmen Sie unseren Nutzungsbedingungen zu.</p>
+      <div class="form-box" style="text-align: center; margin-top: 0.5rem;">
+        <a href="/" style="color: var(--text-secondary); text-decoration: none; font-size: 0.875rem;">Zurück zum Login</a>
+      </div>
+      <p style="color: var(--text-tertiary); font-size: 0.75rem; text-align: center; margin-top: 1rem;">
+        Mit der Registrierung stimmen Sie unseren Nutzungsbedingungen zu.
+      </p>
     </form>
   </div>
-</div>
 
 <script type="module">
   import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
@@ -62,9 +48,8 @@
   const cfg = getSupabaseConfig();
   if (!cfg) {
     const msg = document.getElementById('msg');
-    msg.className = 'msg error';
+    msg.style.cssText = 'display: block; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;';
     msg.textContent = 'Supabase-Konfiguration fehlt.';
-    msg.style.display = '';
     throw new Error('Missing Supabase config');
   }
   const supabase = createClient(cfg.url, cfg.anonKey);
@@ -74,9 +59,11 @@
   const msg = document.getElementById('msg');
 
   function show(type, text) {
-    msg.className = `msg ${type}`;
+    const styles = type === 'success' 
+      ? 'display: block; background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46;'
+      : 'display: block; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;';
+    msg.style.cssText = styles;
     msg.textContent = text;
-    msg.style.display = '';
   }
 
   form.addEventListener('submit', async (e) => {
