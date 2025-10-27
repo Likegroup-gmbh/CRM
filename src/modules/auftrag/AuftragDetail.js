@@ -91,6 +91,89 @@ export class AuftragDetail {
         console.log('✅ AUFTRAGDETAIL: Creator geladen:', this.creator.length);
       }
 
+      // Mitarbeiter-Zuordnungen laden (Many-to-Many)
+      try {
+        const { data: mitarbeiterData } = await window.supabase
+          .from('auftrag_mitarbeiter')
+          .select(`
+            benutzer:mitarbeiter_id(
+              id,
+              name,
+              email
+            )
+          `)
+          .eq('auftrag_id', this.auftragId);
+        
+        // Extrahiere die benutzer-Objekte direkt (wie bei Kampagne)
+        this.auftrag.mitarbeiter = mitarbeiterData?.map(item => item.benutzer).filter(Boolean) || [];
+        console.log('✅ AUFTRAGDETAIL: Mitarbeiter geladen:', this.auftrag.mitarbeiter.length);
+      } catch (e) {
+        console.warn('⚠️ AUFTRAGDETAIL: Fehler beim Laden der Mitarbeiter:', e);
+        this.auftrag.mitarbeiter = [];
+      }
+
+      // Cutter-Zuordnungen laden (Many-to-Many)
+      try {
+        const { data: cutterData } = await window.supabase
+          .from('auftrag_cutter')
+          .select(`
+            benutzer:mitarbeiter_id(
+              id,
+              name,
+              email
+            )
+          `)
+          .eq('auftrag_id', this.auftragId);
+        
+        // Extrahiere die benutzer-Objekte direkt (wie bei Kampagne)
+        this.auftrag.cutter = cutterData?.map(item => item.benutzer).filter(Boolean) || [];
+        console.log('✅ AUFTRAGDETAIL: Cutter geladen:', this.auftrag.cutter.length);
+      } catch (e) {
+        console.warn('⚠️ AUFTRAGDETAIL: Fehler beim Laden der Cutter:', e);
+        this.auftrag.cutter = [];
+      }
+
+      // Copywriter-Zuordnungen laden (Many-to-Many)
+      try {
+        const { data: copywriterData } = await window.supabase
+          .from('auftrag_copywriter')
+          .select(`
+            benutzer:mitarbeiter_id(
+              id,
+              name,
+              email
+            )
+          `)
+          .eq('auftrag_id', this.auftragId);
+        
+        // Extrahiere die benutzer-Objekte direkt (wie bei Kampagne)
+        this.auftrag.copywriter = copywriterData?.map(item => item.benutzer).filter(Boolean) || [];
+        console.log('✅ AUFTRAGDETAIL: Copywriter geladen:', this.auftrag.copywriter.length);
+      } catch (e) {
+        console.warn('⚠️ AUFTRAGDETAIL: Fehler beim Laden der Copywriter:', e);
+        this.auftrag.copywriter = [];
+      }
+
+      // Ansprechpartner aus Junction Table laden (falls vorhanden)
+      // Hinweis: Bei Auftrag ist Ansprechpartner eine direkte Beziehung (ansprechpartner_id), 
+      // aber wir laden hier trotzdem das vollständige Objekt für das Edit-Formular
+      if (this.auftrag.ansprechpartner_id) {
+        try {
+          const { data: ansprechpartnerData } = await window.supabase
+            .from('ansprechpartner')
+            .select('id, vorname, nachname, email')
+            .eq('id', this.auftrag.ansprechpartner_id)
+            .single();
+          
+          if (ansprechpartnerData) {
+            this.auftrag.ansprechpartner = ansprechpartnerData;
+            console.log('✅ AUFTRAGDETAIL: Ansprechpartner geladen:', this.auftrag.ansprechpartner);
+          }
+        } catch (e) {
+          console.warn('⚠️ AUFTRAGDETAIL: Fehler beim Laden des Ansprechpartners:', e);
+        }
+      }
+
       // Rechnungen laden (über auftrag_id)
       try {
         const { data: rechnungen } = await window.supabase
@@ -701,15 +784,68 @@ export class AuftragDetail {
     console.log('🎯 AUFTRAGDETAIL: Zeige Bearbeitungsformular');
     window.setHeadline('Auftrag bearbeiten');
     
-    const formHtml = window.formSystem.renderFormOnly('auftrag', this.auftrag);
+    // Daten für FormSystem vorbereiten
+    const formData = { ...this.auftrag };
+    
+    // Edit-Mode Flags setzen
+    formData._isEditMode = true;
+    formData._entityId = this.auftragId;
+    
+    // Verknüpfte IDs für das Formular setzen
+    if (this.auftrag.unternehmen_id) {
+      formData.unternehmen_id = this.auftrag.unternehmen_id;
+      console.log('🏢 AUFTRAGDETAIL: Unternehmen-ID für Edit-Mode:', this.auftrag.unternehmen_id);
+    }
+    if (this.auftrag.marke_id) {
+      formData.marke_id = this.auftrag.marke_id;
+      console.log('🏷️ AUFTRAGDETAIL: Marke-ID für Edit-Mode:', this.auftrag.marke_id);
+    }
+    if (this.auftrag.ansprechpartner_id) {
+      formData.ansprechpartner_id = this.auftrag.ansprechpartner_id;
+      console.log('👤 AUFTRAGDETAIL: Ansprechpartner-ID für Edit-Mode:', this.auftrag.ansprechpartner_id);
+    }
+    
+    // Multi-Select IDs extrahieren für Edit-Mode
+    // Nach dem Kampagne-Vorbild: Daten sind jetzt direkt als Array von {id, name, email}
+    formData.mitarbeiter_ids = this.auftrag.mitarbeiter 
+      ? this.auftrag.mitarbeiter.map(m => m.id).filter(Boolean)
+      : [];
+    
+    formData.cutter_ids = this.auftrag.cutter 
+      ? this.auftrag.cutter.map(c => c.id).filter(Boolean)
+      : [];
+    
+    formData.copywriter_ids = this.auftrag.copywriter 
+      ? this.auftrag.copywriter.map(c => c.id).filter(Boolean)
+      : [];
+    
+    // Array-Felder korrekt formatieren
+    if (this.auftrag.art_der_kampagne && Array.isArray(this.auftrag.art_der_kampagne)) {
+      formData.art_der_kampagne = this.auftrag.art_der_kampagne;
+      console.log('🎨 AUFTRAGDETAIL: art_der_kampagne gesetzt:', this.auftrag.art_der_kampagne);
+    } else {
+      console.log('⚠️ AUFTRAGDETAIL: art_der_kampagne NICHT gesetzt oder nicht Array:', this.auftrag.art_der_kampagne);
+    }
+    
+    console.log('📋 AUFTRAGDETAIL: Multi-Select IDs extrahiert:', {
+      mitarbeiter_ids: formData.mitarbeiter_ids,
+      cutter_ids: formData.cutter_ids,
+      copywriter_ids: formData.copywriter_ids,
+      art_der_kampagne: formData.art_der_kampagne
+    });
+    
+    console.log('📋 AUFTRAGDETAIL: FormData für Rendering:', formData);
+    
+    // Formular direkt in content rendern
+    const formHtml = window.formSystem.renderFormOnly('auftrag', formData);
     window.content.innerHTML = `
       <div class="page-header">
         <div class="page-header-left">
           <h1>Auftrag bearbeiten</h1>
-          <p>Bearbeiten Sie die Auftrags-Informationen</p>
+          <p>Bearbeiten Sie die Informationen von ${this.auftrag.auftragsname}</p>
         </div>
         <div class="page-header-right">
-          <button onclick="window.navigateTo('/auftrag/${this.auftragId}')" class="secondary-btn">Abbrechen</button>
+          <button onclick="window.navigateTo('/auftrag/${this.auftragId}')" class="secondary-btn">Zurück zu Details</button>
         </div>
       </div>
       
@@ -718,16 +854,70 @@ export class AuftragDetail {
       </div>
     `;
 
-    // Formular-Events binden
-    window.formSystem.bindFormEvents('auftrag', this.auftrag);
+    // Formular-Events binden mit vorbereiteten Daten
+    window.formSystem.bindFormEvents('auftrag', formData);
     
-    // Custom Submit Handler
+    // Form-Datasets für DynamicDataLoader setzen
     const form = document.getElementById('auftrag-form');
     if (form) {
+      form.dataset.isEditMode = 'true';
+      form.dataset.entityType = 'auftrag';
+      form.dataset.entityId = this.auftragId;
+      
+      // Edit-Mode Daten als JSON für DynamicDataLoader - WICHTIGE REIHENFOLGE beachten!
+      const editModeData = {
+        // Single-Select Felder zuerst - in Abhängigkeits-Reihenfolge
+        unternehmen_id: formData.unternehmen_id,
+        marke_id: formData.marke_id,
+        ansprechpartner_id: formData.ansprechpartner_id,
+        status: formData.status,
+        // Multi-Select Felder
+        art_der_kampagne: formData.art_der_kampagne,
+        mitarbeiter_ids: formData.mitarbeiter_ids,
+        cutter_ids: formData.cutter_ids,
+        copywriter_ids: formData.copywriter_ids
+      };
+      
+      form.dataset.editModeData = JSON.stringify(editModeData);
+      
+      console.log('📋 AUFTRAGDETAIL: EditModeData gesetzt:', editModeData);
+      console.log('🎨 AUFTRAGDETAIL: art_der_kampagne in editModeData:', editModeData.art_der_kampagne);
+      
+      // Bestehende Werte für Auto-Suggestion verfügbar machen
+      if (formData.unternehmen_id) {
+        form.dataset.existingUnternehmenId = formData.unternehmen_id;
+      }
+      if (formData.marke_id) {
+        form.dataset.existingMarkeId = formData.marke_id;
+      }
+      if (formData.ansprechpartner_id) {
+        form.dataset.existingAnsprechpartnerId = formData.ansprechpartner_id;
+      }
+      
+      console.log('📋 AUFTRAGDETAIL: Form-Datasets gesetzt:', {
+        isEditMode: form.dataset.isEditMode,
+        entityType: form.dataset.entityType,
+        entityId: form.dataset.entityId,
+        existingUnternehmenId: form.dataset.existingUnternehmenId,
+        existingMarkeId: form.dataset.existingMarkeId,
+        existingAnsprechpartnerId: form.dataset.existingAnsprechpartnerId,
+        editModeData: 'Set'
+      });
+      
+      // Custom Submit Handler für Bearbeitungsformular
       form.onsubmit = async (e) => {
         e.preventDefault();
         await this.handleEditFormSubmit();
       };
+      
+      console.log('🔍 AUFTRAGDETAIL: Form Datasets gesetzt:', {
+        entityId: form.dataset.entityId,
+        isEditMode: form.dataset.isEditMode,
+        entityType: form.dataset.entityType,
+        existingUnternehmenId: form.dataset.existingUnternehmenId,
+        existingMarkeId: form.dataset.existingMarkeId,
+        existingAnsprechpartnerId: form.dataset.existingAnsprechpartnerId
+      });
     }
   }
 

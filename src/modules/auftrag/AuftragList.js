@@ -4,6 +4,7 @@
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { AuftragsDetailsManager, auftragsDetailsManager } from './logic/AuftragsDetailsManager.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 
 export class AuftragList {
   constructor() {
@@ -41,12 +42,11 @@ export class AuftragList {
     console.log('🔄 AUFTRAGLIST: Lade und rendere Aufträge');
     
     try {
-      // Filter-Daten laden
-      const filterData = await window.dataService.loadFilterData('auftrag');
-      console.log('✅ AUFTRAGLIST: Filter-Daten geladen:', filterData);
+      // PERFORMANCE: Keine separate loadFilterData() Query mehr!
+      console.log('✅ AUFTRAGLIST: Rendere Seite');
       
       // Seite rendern
-      await this.render(filterData);
+      await this.render();
       console.log('✅ AUFTRAGLIST: Content gesetzt');
       
       // Filter-Bar initialisieren
@@ -67,7 +67,7 @@ export class AuftragList {
   }
 
   // Rendere Auftrags-Liste
-  async render(filterData) {
+  async render() {
     window.setHeadline('Aufträge');
     
     const html = `
@@ -85,22 +85,14 @@ export class AuftragList {
       </div>
 
       <div class="content-section">
-        <!-- Filter-Bar -->
-        <div class="filter-bar">
-          <div class="filter-left">
+        <div class="table-filter-wrapper">
+          <div class="filter-bar">
             <div id="filter-container"></div>
-          </div>
-          <div class="filter-right">
             <button id="btn-filter-reset" class="secondary-btn" style="display:none;">Filter zurücksetzen</button>
           </div>
-        </div>
-
-        <div class="table-actions">
-          <div class="table-actions-left">
+          <div class="table-actions">
             <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
             <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
-          </div>
-          <div class="table-actions-right">
             <span id="selected-count" style="display:none;">0 ausgewählt</span>
             <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
           </div>
@@ -161,8 +153,8 @@ export class AuftragList {
         .from('auftrag')
         .select(`
           *,
-          unternehmen:unternehmen_id(firmenname),
-          marke:marke_id(markenname),
+          unternehmen:unternehmen_id(id, firmenname),
+          marke:marke_id(id, markenname),
           ansprechpartner:ansprechpartner_id(id, vorname, nachname, email),
           cutter:auftrag_cutter(mitarbeiter:mitarbeiter_id(id, name)),
           copywriter:auftrag_copywriter(mitarbeiter:mitarbeiter_id(id, name)),
@@ -178,8 +170,14 @@ export class AuftragList {
       // Daten für Kompatibilität formatieren
       const formattedData = data.map(auftrag => ({
         ...auftrag,
-        unternehmen: auftrag.unternehmen ? { firmenname: auftrag.unternehmen.firmenname } : null,
-        marke: auftrag.marke ? { markenname: auftrag.marke.markenname } : null
+        unternehmen: auftrag.unternehmen ? { 
+          id: auftrag.unternehmen.id,
+          firmenname: auftrag.unternehmen.firmenname 
+        } : null,
+        marke: auftrag.marke ? { 
+          id: auftrag.marke.id,
+          markenname: auftrag.marke.markenname 
+        } : null
       }));
 
       console.log('✅ Aufträge mit Beziehungen geladen:', formattedData);
@@ -418,29 +416,63 @@ export class AuftragList {
       const formatAnsprechpartner = (person) => {
         if (!person) return '-';
         const fullName = [person.vorname, person.nachname].filter(Boolean).join(' ');
-        const displayName = fullName || 'Unbekannt';
-        return `<div class="tags tags-compact"><span class="tag tag--green">${window.validatorSystem.sanitizeHtml(displayName)}</span></div>`;
+        if (!fullName) return '-';
+        
+        const items = [{
+          name: fullName,
+          type: 'person',
+          id: person.id,
+          entityType: 'ansprechpartner'
+        }];
+        return avatarBubbles.renderBubbles(items);
       };
 
       const formatUnternehmenTag = (unternehmen) => {
         if (!unternehmen) return '-';
-        const name = unternehmen.firmenname || 'Unbekannt';
-        return `<div class="tags tags-compact"><span class="tag tag--purple">${window.validatorSystem.sanitizeHtml(name)}</span></div>`;
+        const name = unternehmen.firmenname;
+        if (!name) return '-';
+        
+        const items = [{
+          name: name,
+          type: 'org',
+          id: unternehmen.id,
+          entityType: 'unternehmen'
+        }];
+        return avatarBubbles.renderBubbles(items);
       };
 
       const formatMarkeTag = (marke) => {
         if (!marke) return '-';
-        const name = marke.markenname || 'Unbekannt';
-        return `<div class="tags tags-compact"><span class="tag tag--orange">${window.validatorSystem.sanitizeHtml(name)}</span></div>`;
+        const name = marke.markenname;
+        if (!name) return '-';
+        
+        const items = [{
+          name: name,
+          type: 'org',
+          id: marke.id,
+          entityType: 'marke'
+        }];
+        return avatarBubbles.renderBubbles(items);
       };
 
       const formatMitarbeiterTags = (entries) => {
         if (!entries || entries.length === 0) return '-';
-        const tags = entries.map(item => {
-          const name = item?.mitarbeiter?.name || item?.name || 'Unbekannt';
-          return `<span class="tag tag--blue">${window.validatorSystem.sanitizeHtml(name)}</span>`;
-        }).join('');
-        return `<div class="tags tags-compact">${tags}</div>`;
+        
+        const items = entries
+          .map(item => {
+            const name = item?.mitarbeiter?.name || item?.name;
+            const id = item?.mitarbeiter?.id || item?.id;
+            if (!name) return null;
+            return {
+              name: name,
+              type: 'person',
+              id: id,
+              entityType: 'mitarbeiter'
+            };
+          })
+          .filter(Boolean);
+        
+        return items.length > 0 ? avatarBubbles.renderBubbles(items) : '-';
       };
 
       return `
@@ -502,6 +534,14 @@ export class AuftragList {
   showCreateForm() {
     console.log('🎯 Zeige Auftrag-Erstellungsformular');
     window.setHeadline('Neuen Auftrag anlegen');
+    
+    // Breadcrumb aktualisieren
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Aufträge', url: '/auftrag', clickable: true },
+        { label: 'Neuer Auftrag', url: '/auftrag/new', clickable: false }
+      ]);
+    }
 
     const formHtml = window.formSystem.renderFormOnly('auftrag');
     const html = `

@@ -3,6 +3,7 @@
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 
 export class BriefingList {
   constructor() {
@@ -51,8 +52,10 @@ export class BriefingList {
 
   async loadAndRender() {
     try {
-      const filterData = await window.dataService.loadFilterData('briefing');
-      await this.render(filterData);
+      // PERFORMANCE: Keine separate loadFilterData() Query mehr!
+      // Filter-Optionen werden vom FilterSystem bei Bedarf geladen
+      
+      await this.render();
       await this.initializeFilterBar();
 
       const currentFilters = filterSystem.getFilters('briefing');
@@ -211,7 +214,7 @@ export class BriefingList {
         ...b,
         unternehmen: b.unternehmen || (b.unternehmen_id ? this._unternehmenMap[b.unternehmen_id] : null) || null,
         marke: b.marke || (b.marke_id ? this._markeMap[b.marke_id] : null) || null,
-        assignee: b.assignee ? { name: b.assignee.name } : null
+        assignee: b.assignee ? { id: b.assignee.id, name: b.assignee.name } : null
       }));
     } catch (error) {
       console.error('❌ Fehler beim Laden der Briefings mit Beziehungen:', error);
@@ -219,7 +222,7 @@ export class BriefingList {
     }
   }
 
-  async render(filterData) {
+  async render() {
     const canEdit = window.currentUser?.permissions?.briefing?.can_edit || false;
 
     const filterHtml = `<div class="filter-bar">
@@ -242,14 +245,11 @@ export class BriefingList {
         </div>
       </div>
 
-      ${filterHtml}
-
-      <div class="table-actions">
-        <div class="table-actions-left">
+      <div class="table-filter-wrapper">
+        ${filterHtml}
+        <div class="table-actions">
           <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
-        </div>
-        <div class="table-actions-right">
           <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
         </div>
       </div>
@@ -493,6 +493,50 @@ export class BriefingList {
     selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < totalCount;
   }
 
+  // Render Unternehmen als Avatar Bubble
+  renderUnternehmen(briefing) {
+    const unternehmen = briefing.unternehmen || (briefing.unternehmen_id ? this._unternehmenMap?.[briefing.unternehmen_id] : null);
+    if (!unternehmen || !unternehmen.firmenname) return '-';
+
+    const items = [{
+      name: unternehmen.firmenname,
+      type: 'org',
+      id: unternehmen.id,
+      entityType: 'unternehmen'
+    }];
+
+    return avatarBubbles.renderBubbles(items);
+  }
+
+  // Render Marke als Avatar Bubble
+  renderMarke(briefing) {
+    const marke = briefing.marke || (briefing.marke_id ? this._markeMap?.[briefing.marke_id] : null);
+    if (!marke || !marke.markenname) return '-';
+
+    const items = [{
+      name: marke.markenname,
+      type: 'org',
+      id: marke.id,
+      entityType: 'marke'
+    }];
+
+    return avatarBubbles.renderBubbles(items);
+  }
+
+  // Render Assignee (zugewiesener Mitarbeiter) als Avatar Bubble
+  renderAssignee(assignee) {
+    if (!assignee || !assignee.name) return '-';
+
+    const items = [{
+      name: assignee.name,
+      type: 'person',
+      id: assignee.id,
+      entityType: 'mitarbeiter'
+    }];
+
+    return avatarBubbles.renderBubbles(items);
+  }
+
 
 
   async updateTable(items) {
@@ -516,8 +560,8 @@ export class BriefingList {
             ${escapeHtml((b.product_service_offer || '').toString().slice(0, 80))}
           </a>
         </td>
-        <td>${escapeHtml(b.unternehmen?.firmenname || (this._unternehmenMap?.[b.unternehmen_id]?.firmenname))}</td>
-        <td>${escapeHtml(b.marke?.markenname || (this._markeMap?.[b.marke_id]?.markenname))}</td>
+        <td>${this.renderUnternehmen(b)}</td>
+        <td>${this.renderMarke(b)}</td>
         <td>
           <span class="status-badge status-${(b.status || 'unknown').toLowerCase()}">
             ${escapeHtml(b.status)}
@@ -527,7 +571,7 @@ export class BriefingList {
           ${b.kampagne?.id ? `<span class="tag tag--type">${escapeHtml(b.kampagne.kampagnenname)}</span>` : '-'}
         </td>
         <td>${formatDate(b.deadline)}</td>
-        <td>${escapeHtml(b.assignee?.name)}</td>
+        <td>${this.renderAssignee(b.assignee)}</td>
         <td>${formatDate(b.created_at)}</td>
         <td>
           ${actionBuilder.create('briefing', b.id)}
@@ -541,6 +585,14 @@ export class BriefingList {
   // Optionales Formular (Platzhalter, bis echtes Formular existiert)
   showCreateForm() {
     window.setHeadline('Neues Briefing anlegen');
+    
+    // Breadcrumb aktualisieren
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Briefing', url: '/briefing', clickable: true },
+        { label: 'Neues Briefing', url: '/briefing/new', clickable: false }
+      ]);
+    }
 
     const formHtml = window.formSystem.renderFormOnly('briefing');
     window.content.innerHTML = `

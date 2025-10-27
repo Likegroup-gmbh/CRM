@@ -3,6 +3,7 @@
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 
 export class CreatorList {
   constructor() {
@@ -40,11 +41,10 @@ export class CreatorList {
   // Lade und rendere Creator-Liste
   async loadAndRender() {
     try {
-      // Lade Filter-Daten separat
-      const filterData = await window.dataService.loadFilterData('creator');
+      // PERFORMANCE: Keine separate loadFilterData() Query mehr!
       
-          // Rendere die Seite mit Filter-Daten (asynchron)
-    await this.render(filterData);
+      // Rendere die Seite-Struktur
+      await this.render();
       
       // Lade gefilterte Creator für die Anzeige
       const currentFilters = filterSystem.getFilters('creator');
@@ -61,7 +61,7 @@ export class CreatorList {
   }
 
   // Rendere Creator-Liste
-  async render(filterData) {
+  async render() {
     const canEdit = window.currentUser?.permissions?.creator?.can_edit || false;
     
     // Aktive Filter als Tags
@@ -97,14 +97,11 @@ export class CreatorList {
         </div>
       </div>
 
-      ${filterHtml}
-
-      <div class="table-actions">
-        <div class="table-actions-left">
+      <div class="table-filter-wrapper">
+        ${filterHtml}
+        <div class="table-actions">
           <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
-        </div>
-        <div class="table-actions-right">
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
           <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
         </div>
@@ -542,6 +539,14 @@ export class CreatorList {
   showCreateForm() {
     console.log('🎯 Zeige Creator-Erstellungsformular');
     window.setHeadline('Neuen Creator anlegen');
+    
+    // Breadcrumb aktualisieren
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Creator', url: '/creator', clickable: true },
+        { label: 'Neuer Creator', url: '/creator/new', clickable: false }
+      ]);
+    }
     
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('creator');

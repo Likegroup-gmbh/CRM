@@ -181,6 +181,16 @@ export const ActionConfigs = {
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
     ]
+  },
+
+  // Auftragsdetails Actions (Mitarbeiter-only)
+  auftragsdetails: {
+    actions: [
+      { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['admin', 'mitarbeiter'] },
+      { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
+      { id: 'separator' },
+      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
+    ]
   }
 };
 

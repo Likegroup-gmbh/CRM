@@ -79,6 +79,13 @@ export class DataService {
           telefonnummer_office_land: { table: 'eu_laender', foreignKey: 'telefonnummer_office_land_id', displayField: 'name_de' }
         },
         manyToMany: {
+          unternehmen: {
+            table: 'unternehmen',
+            junctionTable: 'ansprechpartner_unternehmen',
+            localKey: 'ansprechpartner_id',
+            foreignKey: 'unternehmen_id',
+            displayField: 'firmenname'
+          },
           marken: {
             table: 'marke',
             junctionTable: 'ansprechpartner_marke',
@@ -470,6 +477,35 @@ export class DataService {
           }
         },
         filters: ['auftragsname', 'status', 'unternehmen_id', 'marke_id', 'ansprechpartner_id'],
+        sortBy: 'created_at',
+        sortOrder: 'desc'
+      },
+      auftrag_details: {
+        table: 'auftrag_details',
+        displayField: 'id',
+        fields: {
+          auftrag_id: 'uuid',
+          kampagnenanzahl: 'number',
+          ugc_video_anzahl: 'number',
+          ugc_creator_anzahl: 'number',
+          ugc_budget_info: 'text',
+          influencer_video_anzahl: 'number',
+          influencer_creator_anzahl: 'number',
+          influencer_budget_info: 'text',
+          vor_ort_video_anzahl: 'number',
+          vor_ort_creator_anzahl: 'number',
+          vor_ort_videographen_anzahl: 'number',
+          vor_ort_budget_info: 'text',
+          vor_ort_mitarbeiter_video_anzahl: 'number',
+          vor_ort_mitarbeiter_videographen_anzahl: 'number',
+          vor_ort_mitarbeiter_budget_info: 'text',
+          gesamt_videos: 'number',
+          gesamt_creator: 'number'
+        },
+        relations: {
+          auftrag: { table: 'auftrag', foreignKey: 'auftrag_id', displayField: 'auftragsname' }
+        },
+        filters: ['auftrag_id', 'kampagnenanzahl', 'gesamt_videos', 'gesamt_creator', 'created_at'],
         sortBy: 'created_at',
         sortOrder: 'desc'
       }
@@ -1054,10 +1090,48 @@ export class DataService {
           allDataKeys: Object.keys(data)
         });
         
-        // Für Ansprechpartner: Unternehmen ist keine Many-to-Many Beziehung
+        // Für Ansprechpartner: Unternehmen braucht spezielle Behandlung
+        // - Legacy: unternehmen_id in Haupttabelle (bereits gesetzt)
+        // - Modern: Junction Table ansprechpartner_unternehmen
         if (entityType === 'ansprechpartner' && relationName === 'unternehmen') {
-          console.log(`🔍 Überspringe Many-to-Many Verarbeitung für ${entityType}.${relationName} (ist 1:1 Beziehung)`);
-          continue;
+          console.log(`🔗 Spezielle Behandlung für ${entityType}.${relationName} (Legacy + Junction Table)`);
+          
+          // Prüfe ob unternehmen_id gesetzt ist (wird als unternehmen_id übergeben, nicht unternehmen_ids)
+          // Kann als Array oder String kommen - normalisiere zu String
+          let unternehmenId = data.unternehmen_id;
+          if (Array.isArray(unternehmenId)) {
+            unternehmenId = unternehmenId[0]; // Nimm erstes Element aus Array
+            console.log(`📦 unternehmen_id war Array, extrahiere erstes Element: ${unternehmenId}`);
+          }
+          
+          if (unternehmenId) {
+            console.log(`📝 Erstelle Junction Table Eintrag für Unternehmen ${unternehmenId}`);
+            
+            // Lösche ggf. bestehende Verknüpfungen (bei Update)
+            const { error: deleteError } = await window.supabase
+              .from('ansprechpartner_unternehmen')
+              .delete()
+              .eq('ansprechpartner_id', entityId);
+            
+            if (deleteError) {
+              console.error(`❌ Fehler beim Löschen bestehender Unternehmen-Verknüpfungen:`, deleteError);
+            }
+            
+            // Erstelle Junction Table Eintrag
+            const { error: insertError } = await window.supabase
+              .from('ansprechpartner_unternehmen')
+              .insert([{
+                ansprechpartner_id: entityId,
+                unternehmen_id: unternehmenId
+              }]);
+            
+            if (insertError) {
+              console.error(`❌ Fehler beim Erstellen der Unternehmen-Verknüpfung:`, insertError);
+            } else {
+              console.log(`✅ Unternehmen-Verknüpfung erstellt für Ansprechpartner ${entityId} mit Unternehmen ${unternehmenId}`);
+            }
+          }
+          continue; // Überspringe normale Many-to-Many Logik
         }
 
         if (!fieldData) continue;
@@ -1278,6 +1352,18 @@ export class DataService {
       )) {
         console.log(`🏷️ Verarbeite ${field} für Ansprechpartner:`, value);
         // Ansprechpartner Many-to-Many Felder werden über handleManyToManyRelations verwaltet - hier überspringen
+        continue;
+      }
+      
+      // Spezielle Behandlung für unternehmen_id bei Ansprechpartner
+      // Das Feld kann als Array kommen, muss aber als String gespeichert werden
+      if (entityType === 'ansprechpartner' && field === 'unternehmen_id') {
+        if (Array.isArray(value)) {
+          supabaseData.unternehmen_id = value[0]; // Nimm erstes Element
+          console.log(`📦 unternehmen_id war Array, extrahiere für Haupttabelle: ${supabaseData.unternehmen_id}`);
+        } else {
+          supabaseData.unternehmen_id = value;
+        }
         continue;
       }
       

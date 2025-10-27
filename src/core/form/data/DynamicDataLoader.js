@@ -661,8 +661,8 @@ export class DynamicDataLoader {
           hasEditModeData: !!form.dataset.editModeData
         });
         
-        // WICHTIG: Kampagne Edit-Mode Behandlung ZUERST - auch für nicht-abhängige Felder!
-        if (form.dataset.entityType === 'kampagne' && form.dataset.editModeData) {
+        // WICHTIG: Kampagne & Auftrag Edit-Mode Behandlung ZUERST - auch für nicht-abhängige Felder!
+        if ((form.dataset.entityType === 'kampagne' || form.dataset.entityType === 'auftrag') && form.dataset.editModeData) {
           try {
             const editData = JSON.parse(form.dataset.editModeData);
             
@@ -721,8 +721,28 @@ export class DynamicDataLoader {
               console.log(`✅ DYNAMICDATALOADER: Kampagne ${field.name} vorausgewählt:`, editData.kampagne_typ);
             }
             
-            // Multi-Select Felder für Kampagne
+            // Auftrag-spezifische Single-Select Felder
+            if (field.name === 'ansprechpartner_id' && editData.ansprechpartner_id) {
+              options.forEach(option => {
+                if (option.value === editData.ansprechpartner_id) {
+                  option.selected = true;
+                }
+              });
+              console.log(`✅ DYNAMICDATALOADER: Auftrag ${field.name} vorausgewählt:`, editData.ansprechpartner_id);
+            }
+            
+            if (field.name === 'status' && editData.status) {
+              options.forEach(option => {
+                if (option.value === editData.status) {
+                  option.selected = true;
+                }
+              });
+              console.log(`✅ DYNAMICDATALOADER: Auftrag ${field.name} vorausgewählt:`, editData.status);
+            }
+            
+            // Multi-Select Felder für Kampagne & Auftrag
             const multiSelectFields = {
+              // Kampagne-Felder
               'ansprechpartner_ids': editData.ansprechpartner_ids || editData.ansprechpartner || [],
               'mitarbeiter_ids': editData.mitarbeiter_ids || editData.mitarbeiter || [],
               'pm_ids': editData.pm_ids || editData.projektmanager || [],

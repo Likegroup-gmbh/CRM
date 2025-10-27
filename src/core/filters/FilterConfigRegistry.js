@@ -9,6 +9,7 @@ import MarkeFilterConfig from '../../modules/marke/filters/MarkeFilterConfig.js'
 import KampagneFilterConfig from '../../modules/kampagne/filters/KampagneFilterConfig.js';
 import BriefingFilterConfig from '../../modules/briefing/filters/BriefingFilterConfig.js';
 import AuftragFilterConfig from '../../modules/auftrag/filters/AuftragFilterConfig.js';
+import AuftragsdetailsFilterConfig from '../../modules/auftrag/filters/AuftragsdetailsFilterConfig.js';
 import KooperationFilterConfig from '../../modules/kooperation/filters/KooperationFilterConfig.js';
 import RechnungFilterConfig from '../../modules/rechnung/filters/RechnungFilterConfig.js';
 
@@ -26,6 +27,7 @@ export const FILTER_CONFIG_REGISTRY = {
   marke: MarkeFilterConfig,
   kampagne: KampagneFilterConfig,
   auftrag: AuftragFilterConfig,
+  auftragsdetails: AuftragsdetailsFilterConfig,
   kooperation: KooperationFilterConfig,
   briefing: BriefingFilterConfig,
   rechnung: RechnungFilterConfig

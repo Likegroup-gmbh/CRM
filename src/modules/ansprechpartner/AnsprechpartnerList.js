@@ -5,6 +5,7 @@ import { modularFilterSystem as filterSystem } from '../../core/filters/ModularF
 import { ansprechpartnerCreate } from './AnsprechpartnerCreate.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
+import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 
 export class AnsprechpartnerList {
   constructor() {
@@ -47,22 +48,24 @@ export class AnsprechpartnerList {
         </div>
       </div>
 
-      <!-- Filter Bar -->
-      <div id="filter-container"></div>
-
-      <!-- Bulk Actions -->
-      <div class="bulk-actions" id="bulk-actions" style="display: none;">
-        <div class="bulk-info">
-          <span id="selected-count">0 ausgewählt</span>
+      <div class="table-filter-wrapper">
+        <div class="filter-bar">
+          <div class="filter-left">
+            <div id="filter-container"></div>
+          </div>
+          <div class="filter-right">
+            <button id="btn-filter-reset" class="secondary-btn" style="display:${this.hasActiveFilters() ? 'inline-block' : 'none'};">Alle Filter zurücksetzen</button>
+          </div>
         </div>
-        <div class="bulk-buttons">
+        <div class="table-actions">
+          <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
+          <span id="selected-count" style="display:none;">0 ausgewählt</span>
           <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
         </div>
       </div>
 
-      <!-- Tabelle -->
-      <div class="data-table-container">
+      <div class="table-container">
         <table class="data-table" id="ansprechpartner-table">
           <thead>
             <tr>
@@ -144,6 +147,32 @@ export class AnsprechpartnerList {
       }
     });
 
+    // Alle auswählen Button
+    document.addEventListener('click', (e) => {
+      if (e.target.id === 'btn-select-all') {
+        e.preventDefault();
+        const checkboxes = document.querySelectorAll('.ansprechpartner-check');
+        checkboxes.forEach(cb => {
+          cb.checked = true;
+          if (cb.dataset.id) this.selectedAnsprechpartner.add(cb.dataset.id);
+        });
+        const selectAllHeader = document.getElementById('select-all-ansprechpartner');
+        if (selectAllHeader) {
+          selectAllHeader.indeterminate = false;
+          selectAllHeader.checked = true;
+        }
+        this.updateSelection();
+      }
+    });
+
+    // Auswahl aufheben Button
+    document.addEventListener('click', (e) => {
+      if (e.target.id === 'btn-deselect-all') {
+        e.preventDefault();
+        this.deselectAll();
+      }
+    });
+
     // Entity Updated Event
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail.entity === 'ansprechpartner') {
@@ -210,14 +239,10 @@ export class AnsprechpartnerList {
     const selectedCountElement = document.getElementById('selected-count');
     const deselectBtn = document.getElementById('btn-deselect-all');
     const deleteBtn = document.getElementById('btn-delete-selected');
-    const bulkActions = document.getElementById('bulk-actions');
     
     if (selectedCountElement) {
       selectedCountElement.textContent = `${selectedCount} ausgewählt`;
-    }
-    
-    if (bulkActions) {
-      bulkActions.style.display = selectedCount > 0 ? 'flex' : 'none';
+      selectedCountElement.style.display = selectedCount > 0 ? 'inline' : 'none';
     }
     
     if (deselectBtn) {
@@ -253,13 +278,16 @@ export class AnsprechpartnerList {
         </td>
         <td>${ap.position?.name || '-'}</td>
         <td>
-          ${(ap.unternehmen && ap.unternehmen.firmenname)
-            ? `<span class="tag tag--unternehmen">${window.validatorSystem.sanitizeHtml(ap.unternehmen.firmenname)}</span>`
-            : '-'}
+          ${this.renderUnternehmen(ap)}
         </td>
         <td>
           ${(ap.marken && ap.marken.length > 0)
-            ? `<div class="tag-list">${ap.marken.map(m => `<span class="tag tag--marke">${window.validatorSystem.sanitizeHtml(m.markenname)}</span>`).join('')}</div>`
+            ? avatarBubbles.renderBubbles(ap.marken.map(m => ({
+                name: m.markenname,
+                type: 'org',
+                id: m.id,
+                entityType: 'marke'
+              })))
             : '-'}
         </td>
         <td>${ap.email ? `<a href="mailto:${ap.email}">${ap.email}</a>` : '-'}</td>
@@ -288,16 +316,42 @@ export class AnsprechpartnerList {
     tbody.innerHTML = rowsHtml;
   }
 
+  // Render Unternehmen (unterstützt sowohl Legacy-Einzelobjekt als auch Many-to-Many Array)
+  renderUnternehmen(ap) {
+    // Many-to-Many: unternehmen als Array
+    if (Array.isArray(ap.unternehmen) && ap.unternehmen.length > 0) {
+      const items = ap.unternehmen.map(u => ({
+        name: u.firmenname,
+        type: 'org',
+        id: u.id,
+        entityType: 'unternehmen'
+      }));
+      return avatarBubbles.renderBubbles(items);
+    }
+    
+    // Legacy: unternehmen als Einzelobjekt
+    if (ap.unternehmen && ap.unternehmen.firmenname) {
+      const items = [{
+        name: ap.unternehmen.firmenname,
+        type: 'org',
+        id: ap.unternehmen.id,
+        entityType: 'unternehmen'
+      }];
+      return avatarBubbles.renderBubbles(items);
+    }
+    
+    return '-';
+  }
+
   // Lade und rendere Daten
   async loadAndRender() {
     try {
       console.log('🔄 ANSPRECHPARTNERLIST: Lade Ansprechpartner...');
       
-      // Lade Filter-Daten separat
-      const filterData = await window.dataService.loadFilterData('ansprechpartner');
+      // PERFORMANCE: Keine separate loadFilterData() Query mehr!
       
-      // Rendere die Seite mit Filter-Daten (asynchron)
-      await this.render(filterData);
+      // Rendere die Seite-Struktur
+      await this.render();
       
       // Lade gefilterte Ansprechpartner für die Anzeige
       const currentFilters = filterSystem.getFilters('ansprechpartner');

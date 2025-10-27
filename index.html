@@ -32,13 +32,9 @@
   <div id="app-root" class="page-wrapper" style="display: none;">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <a href="/" class="logo">LIKEBASE</a>
-      </div>
-      <div class="search-box">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="search-icon">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"></path>
-        </svg>
-        <input type="text" class="search-input" placeholder="Search here...">
+        <a href="/" class="logo">
+          <img src="./src/images/logo/like-base.svg" alt="LIKEBASE Logo" class="logo-image">
+        </a>
       </div>
       <nav id="main-nav" class="main-nav"></nav>
     </aside>
@@ -48,6 +44,12 @@
           <!-- Breadcrumb wird hier dynamisch eingefügt -->
         </div>
         <div class="header-actions">
+          <div class="search-box">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="search-icon">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"></path>
+            </svg>
+            <input type="text" class="search-input" placeholder="Search here...">
+          </div>
           <button class="logout-btn header-icon-btn" title="Logout" onclick="window.handleLogout && window.handleLogout()">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="logout-icon">
               <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"></path>

@@ -4,6 +4,7 @@
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 
 export class KampagneList {
   constructor() {
@@ -49,11 +50,11 @@ export class KampagneList {
   // Lade und rendere Kampagnen-Liste
   async loadAndRender() {
     try {
-      // Lade Filter-Daten separat
-      const filterData = await window.dataService.loadFilterData('kampagne');
+      // PERFORMANCE: Keine separate loadFilterData() Query mehr!
+      // Filter-Optionen werden vom FilterSystem bei Bedarf geladen
       
-      // Rendere die Seite mit Filter-Daten (asynchron)
-      await this.render(filterData);
+      // Rendere die Seite (asynchron)
+      await this.render();
       
       // Initialisiere Filterbar mit neuem System
       await this.initializeFilterBar();
@@ -148,8 +149,8 @@ export class KampagneList {
         .from('kampagne')
         .select(`
           *,
-          unternehmen:unternehmen_id(firmenname),
-          marke:marke_id(markenname),
+          unternehmen:unternehmen_id(id, firmenname),
+          marke:marke_id(id, markenname),
           auftrag:auftrag_id(auftragsname),
           status_ref:status_id(id, name)
         `)
@@ -199,7 +200,7 @@ export class KampagneList {
   }
 
   // Rendere Kampagnen-Liste
-  async render(filterData) {
+  async render() {
     const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
     
     // Aktive Filter als Tags
@@ -235,14 +236,11 @@ export class KampagneList {
         </div>
       </div>
 
-      ${filterHtml}
-
-      <div class="table-actions">
-        <div class="table-actions-left">
+      <div class="table-filter-wrapper">
+        ${filterHtml}
+        <div class="table-actions">
           <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
-        </div>
-        <div class="table-actions-right">
           <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
         </div>
       </div>
@@ -478,8 +476,8 @@ export class KampagneList {
               ${window.validatorSystem.sanitizeHtml(kampagne.kampagnenname || 'Unbekannt')}
             </a>
           </td>
-          <td>${window.validatorSystem.sanitizeHtml(kampagne.unternehmen?.firmenname || 'Unbekannt')}</td>
-          <td>${window.validatorSystem.sanitizeHtml(kampagne.marke?.markenname || 'Unbekannt')}</td>
+          <td>${this.renderUnternehmen(kampagne.unternehmen)}</td>
+          <td>${this.renderMarke(kampagne.marke)}</td>
           <td>${formatArray(kampagne.art_der_kampagne_display || kampagne.art_der_kampagne)}</td>
           <td>
             <span class="status-badge status-${(kampagne.status_name || '').toLowerCase().replace(/\s+/g,'-') || 'unknown'}">
@@ -524,6 +522,14 @@ export class KampagneList {
   showCreateForm() {
     console.log('🎯 Zeige Kampagnen-Erstellungsformular');
     window.setHeadline('Neue Kampagne anlegen');
+    
+    // Breadcrumb aktualisieren
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Kampagne', url: '/kampagne', clickable: true },
+        { label: 'Neue Kampagne', url: '/kampagne/new', clickable: false }
+      ]);
+    }
     
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('kampagne');
@@ -874,25 +880,71 @@ export class KampagneList {
       return '-';
     }
 
-    // Ansprechpartner als klickbare Tags (wie bei Marken)
-    const ansprechpartnerTags = ansprechpartner
-      .filter(ap => ap && ap.vorname && ap.nachname) // Nur gültige Ansprechpartner
-      .map(ap => `<a href="#" class="tag tag--ansprechpartner" data-action="view-ansprechpartner" data-id="${ap.id}" onclick="event.preventDefault(); window.navigateTo('/ansprechpartner/${ap.id}')">${ap.vorname} ${ap.nachname}</a>`)
-      .join('');
+    // Ansprechpartner als klickbare Avatar-Bubbles
+    const items = ansprechpartner
+      .filter(ap => ap && ap.vorname && ap.nachname)
+      .map(ap => ({
+        name: `${ap.vorname} ${ap.nachname}`,
+        type: 'person',
+        id: ap.id,
+        entityType: 'ansprechpartner'
+      }));
 
-    return `<div class="tags tags-compact">${ansprechpartnerTags}</div>`;
+    return avatarBubbles.renderBubbles(items);
   }
 
-  // Render Mitarbeiter (Tags mit Name)
+  // Render Unternehmen
+  renderUnternehmen(unternehmen) {
+    if (!unternehmen || !unternehmen.firmenname) {
+      return '-';
+    }
+
+    const items = [{
+      name: unternehmen.firmenname,
+      type: 'org',
+      id: unternehmen.id,
+      entityType: 'unternehmen'
+    }];
+
+    return avatarBubbles.renderBubbles(items);
+  }
+
+  // Render Marke
+  renderMarke(marke) {
+    if (!marke || !marke.markenname) {
+      return '-';
+    }
+
+    const items = [{
+      name: marke.markenname,
+      type: 'org',
+      id: marke.id,
+      entityType: 'marke'
+    }];
+
+    return avatarBubbles.renderBubbles(items);
+  }
+
+  // Render Mitarbeiter (Avatar-Bubbles mit Klickbarkeit)
   renderMitarbeiter(users) {
     if (!users || users.length === 0) {
       return '-';
     }
-    const userTags = users
+    
+    console.log('🔍 KampagneList renderMitarbeiter:', users); // Debug
+    
+    const items = users
       .filter(u => u && (u.name || u.email))
-      .map(u => `<span class="tag">${window.validatorSystem.sanitizeHtml(u.name || u.email)}</span>`)
-      .join('');
-    return `<div class="tags tags-compact">${userTags}</div>`;
+      .map(u => ({
+        name: u.name || u.email,
+        type: 'person',
+        id: u.id,
+        entityType: 'mitarbeiter'
+      }));
+    
+    console.log('🔍 KampagneList mitarbeiter items:', items); // Debug
+    
+    return avatarBubbles.renderBubbles(items);
   }
 }
 

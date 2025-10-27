@@ -47,11 +47,10 @@ export class KooperationList {
   // Lade und rendere Kooperations-Liste
   async loadAndRender() {
     try {
-      // Lade Filter-Daten separat
-      const filterData = await window.dataService.loadFilterData('kooperation');
+      // PERFORMANCE: Keine separate loadFilterData() Query mehr!
       
-      // Rendere die Seite mit Filter-Daten (asynchron)
-      await this.render(filterData);
+      // Rendere die Seite-Struktur
+      await this.render();
       
       // Initialisiere Filterbar mit neuem System
       await this.initializeFilterBar();
@@ -233,14 +232,11 @@ export class KooperationList {
         </div>
       </div>
 
-      ${filterHtml}
-
-      <div class="table-actions">
-        <div class="table-actions-left">
+      <div class="table-filter-wrapper">
+        ${filterHtml}
+        <div class="table-actions">
           <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
-        </div>
-        <div class="table-actions-right">
           <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
         </div>
       </div>
@@ -607,6 +603,14 @@ export class KooperationList {
   showCreateForm() {
     console.log('🎯 Zeige Kooperations-Erstellungsformular');
     window.setHeadline('Neue Kooperation anlegen');
+    
+    // Breadcrumb aktualisieren
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Kooperation', url: '/kooperation', clickable: true },
+        { label: 'Neue Kooperation', url: '/kooperation/new', clickable: false }
+      ]);
+    }
     
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('kooperation');

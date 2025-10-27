@@ -3,6 +3,7 @@
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 
 export class UnternehmenList {
   constructor() {
@@ -40,11 +41,11 @@ export class UnternehmenList {
   // Lade und rendere Unternehmen-Liste
   async loadAndRender() {
     try {
-      // Lade Filter-Daten separat
-      const filterData = await window.dataService.loadFilterData('unternehmen');
+      // PERFORMANCE: Keine separate loadFilterData() Query mehr!
+      // Filter-Optionen werden vom FilterSystem bei Bedarf geladen
       
-      // Rendere die Seite mit Filter-Daten (asynchron)
-      await this.render(filterData);
+      // Rendere die Seite-Struktur
+      await this.render();
       
       // Lade gefilterte Unternehmen für die Anzeige
       const currentFilters = filterSystem.getFilters('unternehmen');
@@ -61,7 +62,7 @@ export class UnternehmenList {
   }
 
   // Rendere Unternehmen-Liste
-  async render(filterData) {
+  async render() {
     const canEdit = window.currentUser?.permissions?.unternehmen?.can_edit || false;
     
     // Aktive Filter als Tags
@@ -97,14 +98,11 @@ export class UnternehmenList {
         </div>
       </div>
 
-      ${filterHtml}
-
-      <div class="table-actions">
-        <div class="table-actions-left">
+      <div class="table-filter-wrapper">
+        ${filterHtml}
+        <div class="table-actions">
           <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
-        </div>
-        <div class="table-actions-right">
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
           <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
         </div>
@@ -429,21 +427,21 @@ export class UnternehmenList {
     return map;
   }
 
-  // Ansprechpartner-Liste rendern (klickbare Tags wie bei Marken)
+  // Ansprechpartner-Liste rendern (klickbare Avatar-Bubbles)
   renderAnsprechpartnerList(list) {
     if (!list || list.length === 0) return '-';
     
-    // Ansprechpartner als klickbare Tags (analog zu MarkeList)
-    const ansprechpartnerTags = list
-      .filter(ap => ap && ap.vorname && ap.nachname) // Nur gültige Ansprechpartner
-      .slice(0, 3) // Maximal 3 Tags anzeigen
-      .map(ap => `<a href="#" class="tag tag--ansprechpartner" data-action="view-ansprechpartner" data-id="${ap.id}" onclick="event.preventDefault(); window.navigateTo('/ansprechpartner/${ap.id}')">${window.validatorSystem.sanitizeHtml(ap.vorname)} ${window.validatorSystem.sanitizeHtml(ap.nachname)}</a>`)
-      .join('');
+    // Ansprechpartner als klickbare Avatar-Bubbles
+    const items = list
+      .filter(ap => ap && ap.vorname && ap.nachname)
+      .map(ap => ({
+        name: `${ap.vorname} ${ap.nachname}`,
+        type: 'person',
+        id: ap.id,
+        entityType: 'ansprechpartner'
+      }));
     
-    // "Mehr" Indikator für weitere Ansprechpartner
-    const more = list.length > 3 ? `<span class="tag tag--more">+${list.length - 3}</span>` : '';
-    
-    return `<div class="tags tags-compact">${ansprechpartnerTags}${more}</div>`;
+    return avatarBubbles.renderBubbles(items);
   }
 
   // Cleanup
@@ -465,6 +463,14 @@ export class UnternehmenList {
   showCreateForm() {
     console.log('🎯 Zeige Unternehmen-Erstellungsformular');
     window.setHeadline('Neues Unternehmen anlegen');
+    
+    // Breadcrumb aktualisieren
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Unternehmen', url: '/unternehmen', clickable: true },
+        { label: 'Neues Unternehmen', url: '/unternehmen/new', clickable: false }
+      ]);
+    }
     
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('unternehmen');

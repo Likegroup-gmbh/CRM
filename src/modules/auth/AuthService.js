@@ -126,16 +126,24 @@ export class AuthService {
         }
         // 1) Rollen-/Entity-Rechte (inkl. JSON-Overrides)
         permissionSystem.setUserPermissions(data);
-        // 2) Page-/Table-Scoped-Overrides laden
-        try {
-          const { data: scoped } = await window.supabase
-            .from('user_permissions')
-            .select('page_id, table_id, can_view, can_edit, can_delete, data_filters')
-            .eq('user_id', authUserId);
-          permissionSystem.setScopedPermissions(scoped || []);
-        } catch (e) {
-          console.warn('⚠️ Scoped Permissions konnten nicht geladen werden', e);
-          permissionSystem.setScopedPermissions([]);
+        
+        // PERFORMANCE: Page-/Table-Scoped-Overrides nur beim Login laden, nicht bei jedem Page-Wechsel
+        // 2) Page-/Table-Scoped-Overrides laden (nur wenn nicht bereits gecached)
+        if (!window.currentUser._permissionsCached) {
+          try {
+            const { data: scoped } = await window.supabase
+              .from('user_permissions')
+              .select('page_id, table_id, can_view, can_edit, can_delete, data_filters')
+              .eq('user_id', data.id);
+            permissionSystem.setScopedPermissions(scoped || []);
+            window.currentUser._permissionsCached = true; // Cache-Flag setzen
+            console.log('✅ Permissions geladen und gecached');
+          } catch (e) {
+            console.warn('⚠️ Scoped Permissions konnten nicht geladen werden', e);
+            permissionSystem.setScopedPermissions([]);
+          }
+        } else {
+          console.log('✅ Permissions bereits gecached, überspringe DB-Query');
         }
         // 3) UI/Navigation/Dropdowns nach Rollenwechsel re-initialisieren
         try {

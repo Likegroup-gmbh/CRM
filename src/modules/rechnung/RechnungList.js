@@ -37,8 +37,8 @@ export class RechnungList {
 
   async loadAndRender() {
     try {
-      const filterData = await window.dataService.loadFilterData('rechnung');
-      await this.render(filterData);
+      // PERFORMANCE: Keine separate loadFilterData() Query mehr!
+      await this.render();
 
       await this.initializeFilterBar();
 
@@ -127,21 +127,14 @@ export class RechnungList {
         </div>
       </div>
 
-      <div class="filter-bar">
-        <div class="filter-left">
+      <div class="table-filter-wrapper">
+        <div class="filter-bar">
           <div id="filter-container"></div>
-        </div>
-        <div class="filter-right">
           <button id="btn-filter-reset" class="secondary-btn" style="display:${this.hasActiveFilters() ? 'inline-block' : 'none'};">Filter zurücksetzen</button>
         </div>
-      </div>
-
-      <div class="table-actions">
-        <div class="table-actions-left">
+        <div class="table-actions">
           <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
-        </div>
-        <div class="table-actions-right">
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
           <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
         </div>

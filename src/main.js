@@ -7,6 +7,9 @@ import { creatorListDetail } from './modules/creator/CreatorListDetail.js';
 import { unternehmenList } from './modules/unternehmen/UnternehmenList.js';
 import { unternehmenCreate } from './modules/unternehmen/UnternehmenCreate.js';
 import { auftragList } from './modules/auftrag/AuftragList.js';
+import { auftragsdetailsList } from './modules/auftrag/AuftragsdetailsList.js';
+import { auftragsdetailsDetail } from './modules/auftrag/AuftragsdetailsDetail.js';
+import { auftragsdetailsCreate } from './modules/auftrag/AuftragsdetailsCreate.js';
 import { markeList } from './modules/marke/MarkeList.js';
 import { markeDetail } from './modules/marke/MarkeDetail.js';
 import { markeCreate } from './modules/marke/MarkeCreate.js';
@@ -168,8 +171,21 @@ class ModuleRegistry {
       console.log(`🎯 Unternehmen-Details erkannt, verwende Modul: ${moduleKey}`);
     }
     
+    // Spezielle Behandlung für Auftragsdetails-Erstellung (MUSS VOR auftrag kommen!)
+    if (id === 'new' && segment === 'auftragsdetails') {
+      moduleKey = 'auftragsdetails-create';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Auftragsdetails-Erstellung erkannt, verwende Modul: ${moduleKey}`);
+    }
+    // Spezielle Behandlung für Auftragsdetails-Details (MUSS VOR auftrag kommen!)
+    else if (id && segment === 'auftragsdetails' && id !== 'new') {
+      moduleKey = 'auftragsdetails-detail';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Auftragsdetails-Details erkannt, verwende Modul: ${moduleKey}`);
+    }
+    
     // Spezielle Behandlung für Auftrags-Details (aber nicht für 'new')
-    if (id && segment === 'auftrag' && id !== 'new') {
+    else if (id && segment === 'auftrag' && id !== 'new') {
       moduleKey = 'auftrag-detail';
       module = this.modules.get(moduleKey);
       console.log(`🎯 Auftrags-Details erkannt, verwende Modul: ${moduleKey}`);
@@ -301,6 +317,9 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('unternehmen', unternehmenList);
   moduleRegistry.register('unternehmen-create', unternehmenCreate);
   moduleRegistry.register('auftrag', auftragList);
+  moduleRegistry.register('auftragsdetails', auftragsdetailsList);
+  moduleRegistry.register('auftragsdetails-detail', auftragsdetailsDetail);
+  moduleRegistry.register('auftragsdetails-create', auftragsdetailsCreate);
   moduleRegistry.register('marke', markeList);
   moduleRegistry.register('marke-detail', markeDetail);
   moduleRegistry.register('marke-create', markeCreate);

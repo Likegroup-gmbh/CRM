@@ -523,6 +523,14 @@ export class UnternehmenCreate {
     console.log('🎯 UNTERNEHMENCREATE: Zeige Unternehmen-Erstellungsformular mit FormSystem');
     window.setHeadline('Neues Unternehmen anlegen');
     
+    // Breadcrumb aktualisieren
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Unternehmen', url: '/unternehmen', clickable: true },
+        { label: 'Neues Unternehmen', url: '/unternehmen/new', clickable: false }
+      ]);
+    }
+    
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('unternehmen');
     window.content.innerHTML = `

@@ -18,6 +18,14 @@ export class AnsprechpartnerCreate {
     console.log('🚨 ANSPRECHPARTNERCREATE: WIRD VERWENDET!');
     window.setHeadline('Neuen Ansprechpartner anlegen');
     
+    // Breadcrumb aktualisieren
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Ansprechpartner', url: '/ansprechpartner', clickable: true },
+        { label: 'Neuer Ansprechpartner', url: '/ansprechpartner/new', clickable: false }
+      ]);
+    }
+    
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('ansprechpartner');
     window.content.innerHTML = `

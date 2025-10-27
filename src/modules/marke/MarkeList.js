@@ -4,6 +4,7 @@
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { markeCreate } from './MarkeCreate.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 
 export class MarkeList {
   constructor() {
@@ -57,11 +58,11 @@ export class MarkeList {
   // Lade und rendere Marken-Liste
   async loadAndRender() {
     try {
-      // Lade Filter-Daten separat
-      const filterData = await window.dataService.loadFilterData('marke');
+      // PERFORMANCE: Keine separate loadFilterData() Query mehr!
+      // Filter-Optionen werden aus den geladenen Entities extrahiert
       
-      // Rendere die Seite mit Filter-Daten (asynchron)
-      await this.render(filterData);
+      // Rendere die Seite-Struktur (ohne Filter-Daten)
+      await this.render();
       
       // Lade gefilterte Marken für die Anzeige mit Sichtbarkeits-Logik
       const currentFilters = filterSystem.getFilters('marke');
@@ -191,7 +192,7 @@ export class MarkeList {
   }
 
   // Rendere Marken-Liste
-  async render(filterData) {
+  async render() {
     const canEdit = window.currentUser?.permissions?.marke?.can_edit || false;
     
     // Aktive Filter als Tags
@@ -227,14 +228,11 @@ export class MarkeList {
         </div>
       </div>
 
-      ${filterHtml}
-
-      <div class="table-actions">
-        <div class="table-actions-left">
+      <div class="table-filter-wrapper">
+        ${filterHtml}
+        <div class="table-actions">
           <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
-        </div>
-        <div class="table-actions-right">
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
           <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
         </div>
@@ -478,7 +476,7 @@ export class MarkeList {
 
     // Branchen als kompakte Tags
     const branchenTags = branchen
-      .filter(branche => branche && branche.name) // Nur gültige Branchen
+      .filter(branche => branche && branche.name)
       .map(branche => `<span class="tag tag--branche">${branche.name}</span>`)
       .join('');
 
@@ -491,37 +489,46 @@ export class MarkeList {
       return '-';
     }
 
-    // Ansprechpartner als klickbare Tags (wie bei Branchen)
-    const ansprechpartnerTags = ansprechpartner
-      .filter(ap => ap && ap.vorname && ap.nachname) // Nur gültige Ansprechpartner
-      .map(ap => `<a href="#" class="tag tag--ansprechpartner" data-action="view-ansprechpartner" data-id="${ap.id}" onclick="event.preventDefault(); window.navigateTo('/ansprechpartner/${ap.id}')">${ap.vorname} ${ap.nachname}</a>`)
-      .join('');
+    // Ansprechpartner als klickbare Avatar-Bubbles
+    const items = ansprechpartner
+      .filter(ap => ap && ap.vorname && ap.nachname)
+      .map(ap => ({
+        name: `${ap.vorname} ${ap.nachname}`,
+        type: 'person',
+        id: ap.id,
+        entityType: 'ansprechpartner'
+      }));
 
-    return `<div class="tags tags-compact">${ansprechpartnerTags}</div>`;
+    return avatarBubbles.renderBubbles(items);
   }
 
   // Render Zuständigkeit
   renderZustaendigkeit(zustaendigkeit, mitarbeiter) {
     // Neue mitarbeiter-Zuordnungen haben Vorrang
     if (mitarbeiter && mitarbeiter.length > 0) {
-      const mitarbeiterTags = mitarbeiter
-        .filter(m => m && m.name) // Nur gültige Mitarbeiter
-        .slice(0, 3) // Maximal 3 anzeigen
-        .map(m => `<span class="tag tag--mitarbeiter" title="${m.name}">${m.name}</span>`)
-        .join('');
+      const items = mitarbeiter
+        .filter(m => m && m.name)
+        .map(m => ({
+          name: m.name,
+          type: 'person',
+          id: m.id,
+          entityType: 'mitarbeiter'
+        }));
       
-      const moreCount = mitarbeiter.length > 3 ? mitarbeiter.length - 3 : 0;
-      const moreTag = moreCount > 0 ? `<span class="tag tag--more" title="Weitere ${moreCount} Mitarbeiter">+${moreCount}</span>` : '';
-      
-      return `<div class="tags tags-compact" title="${mitarbeiter.map(m => m.name).join(', ')}">${mitarbeiterTags}${moreTag}</div>`;
+      return avatarBubbles.renderBubbles(items);
     }
     
     // Fallback für alte zustaendigkeit-Struktur
     if (!zustaendigkeit || zustaendigkeit.length === 0) return '-';
     
     if (Array.isArray(zustaendigkeit)) {
-      const names = zustaendigkeit.map(z => z.mitarbeiter?.name || 'Unbekannt').join(', ');
-      return `<span class="text-muted">${names}</span>`;
+      const items = zustaendigkeit.map(z => ({
+        name: z.mitarbeiter?.name || 'Unbekannt',
+        type: 'person',
+        id: z.mitarbeiter?.id,
+        entityType: 'mitarbeiter'
+      }));
+      return avatarBubbles.renderBubbles(items);
     }
     
     return `<span class="text-muted">${zustaendigkeit.mitarbeiter?.name || 'Unbekannt'}</span>`;

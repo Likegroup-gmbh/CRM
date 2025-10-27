@@ -12,38 +12,48 @@
   
   <!-- Security Headers -->
   <meta http-equiv="Content-Security-Policy" 
-        content="default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; 
-                 style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; 
-                 connect-src 'self' https://yktycclozgsgaasduyol.supabase.co;">
+        content="default-src 'self'; 
+                 script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; 
+                 style-src 'self' 'unsafe-inline' cdn.jsdelivr.net; 
+                 img-src 'self' data: https: cdn.jsdelivr.net; 
+                 connect-src 'self' https://yktycclozgsgaasduyol.supabase.co; 
+                 font-src 'self' cdn.jsdelivr.net data:;">
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta http-equiv="X-XSS-Protection" content="1; mode=block">
   <meta name="csrf-token" content="">
 
+  <!-- Flag Icons Library -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.3.2/css/flag-icons.min.css" />
   <link rel="preload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js" as="script">
-  <script type="module" crossorigin src="/assets/main-2cknTQHA.js"></script>
+  <script type="module" crossorigin src="/assets/main-BMWKoaO6.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/core-C7Vz5Umf.js">
-  <link rel="modulepreload" crossorigin href="/assets/modules-DoZ5_CqG.js">
-  <link rel="modulepreload" crossorigin href="/assets/auth-h_Ct-JI2.js">
-  <link rel="stylesheet" crossorigin href="/assets/main-BSmQ8VWp.css">
+  <link rel="modulepreload" crossorigin href="/assets/modules-N_JhTXHJ.js">
+  <link rel="modulepreload" crossorigin href="/assets/auth-DgPDu2lY.js">
+  <link rel="stylesheet" crossorigin href="/assets/main-CF8PkKdt.css">
 </head>
 <body>
   <div id="login-root"></div>
   <div id="app-root" class="page-wrapper" style="display: none;">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <a href="/" class="logo">FLOW</a>
+        <a href="/" class="logo">
+          <img src="/assets/like-base-Bm8xfJk8.svg" alt="LIKEBASE Logo" class="logo-image">
+        </a>
       </div>
       <nav id="main-nav" class="main-nav"></nav>
     </aside>
     <main class="main-content">
       <header class="main-header">
-        <div class="search-box">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="search-icon">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"></path>
-          </svg>
-          <input type="text" class="search-input" placeholder="Search here...">
+        <div id="breadcrumb-container" class="breadcrumb-container">
+          <!-- Breadcrumb wird hier dynamisch eingefügt -->
         </div>
         <div class="header-actions">
+          <div class="search-box">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="search-icon">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"></path>
+            </svg>
+            <input type="text" class="search-input" placeholder="Search here...">
+          </div>
           <button class="logout-btn header-icon-btn" title="Logout" onclick="window.handleLogout && window.handleLogout()">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="logout-icon">
               <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"></path>

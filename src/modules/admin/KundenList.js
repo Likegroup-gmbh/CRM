@@ -308,6 +308,14 @@ export class KundenList {
       window.content.innerHTML = '<div class="error-message"><p>Keine Berechtigung.</p></div>';
       return;
     }
+    
+    // Breadcrumb aktualisieren
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Kunden', url: '/admin/kunden', clickable: true },
+        { label: 'Neuer Kunde', url: '/admin/kunden/new', clickable: false }
+      ]);
+    }
 
     const html = `
       <div class="page-header">

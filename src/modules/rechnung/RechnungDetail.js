@@ -134,6 +134,15 @@ export class RechnungDetail {
 
   showCreateForm() {
     window.setHeadline('Neue Rechnung anlegen');
+    
+    // Breadcrumb aktualisieren
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Rechnung', url: '/rechnung', clickable: true },
+        { label: 'Neue Rechnung', url: '/rechnung/new', clickable: false }
+      ]);
+    }
+    
     const formHtml = window.formSystem.renderFormOnly('rechnung');
     window.content.innerHTML = `
       <div class="page-header">
