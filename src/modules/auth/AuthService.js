@@ -161,6 +161,67 @@ export class AuthService {
         } catch (uiErr) {
           console.warn('⚠️ UI-Refresh nach loadCurrentUser fehlgeschlagen', uiErr);
         }
+        
+        // 4) Realtime-Subscription für Benutzer-Updates (inkl. Rechte-Änderungen)
+        if (!this._userSubscription && !this._offlineMode) {
+          this._userSubscription = window.supabase
+            .channel(`user-updates-${data.id}`)
+            .on('postgres_changes', {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'benutzer',
+              filter: `id=eq.${data.id}`
+            }, async (payload) => {
+              console.log('🔄 REALTIME: Benutzer-Daten wurden aktualisiert', payload.new);
+              
+              // Aktualisiere window.currentUser mit neuen Daten
+              const updatedUser = payload.new;
+              window.currentUser = {
+                ...window.currentUser,
+                ...updatedUser
+              };
+              
+              // Permissions neu berechnen
+              permissionSystem.setUserPermissions(updatedUser);
+              
+              // Cache-Flag zurücksetzen für Scoped Permissions
+              window.currentUser._permissionsCached = false;
+              
+              // Scoped Permissions neu laden
+              try {
+                const { data: scoped } = await window.supabase
+                  .from('user_permissions')
+                  .select('page_id, table_id, can_view, can_edit, can_delete, data_filters')
+                  .eq('user_id', updatedUser.id);
+                permissionSystem.setScopedPermissions(scoped || []);
+                window.currentUser._permissionsCached = true;
+              } catch (e) {
+                console.warn('⚠️ Scoped Permissions reload failed', e);
+              }
+              
+              // UI aktualisieren
+              try {
+                window.setupHeaderUI?.();
+                window.navigationSystem?.init?.();
+                window.actionsDropdown?.init?.();
+                
+                // Benachrichtigungs-Refresh triggern
+                window.dispatchEvent(new Event('notificationsRefresh'));
+                
+                // Aktuelle Seite neu laden (sanft, ohne Full Page Reload)
+                const currentRoute = location.pathname;
+                if (currentRoute && window.moduleRegistry) {
+                  console.log('🔄 REALTIME: Lade aktuelle Seite neu:', currentRoute);
+                  window.moduleRegistry.navigateTo(currentRoute);
+                }
+              } catch (uiErr) {
+                console.warn('⚠️ UI-Refresh nach Realtime-Update fehlgeschlagen', uiErr);
+              }
+            })
+            .subscribe();
+            
+          console.log('✅ Realtime-Subscription für Benutzer-Updates aktiv');
+        }
       }
     } catch (error) {
       console.error('Error loading current user:', error);
@@ -372,6 +433,13 @@ export class AuthService {
   // Abmeldung
   async signOut() {
     try {
+      // Cleanup Realtime-Subscription
+      if (this._userSubscription) {
+        await window.supabase.removeChannel(this._userSubscription);
+        this._userSubscription = null;
+        console.log('✅ Realtime-Subscription entfernt');
+      }
+      
       if (window.supabase && !this._offlineMode) {
         await window.supabase.auth.signOut();
       }

@@ -506,6 +506,9 @@ window.handleLogout = async () => {
   } catch (e) {
     console.warn('Logout warn:', e);
   } finally {
+    // URL auf Root zurücksetzen
+    window.history.pushState({}, '', '/');
+    
     // UI zurück auf Login
     if (window.appRoot) window.appRoot.style.display = 'none';
     if (window.loginRoot) window.loginRoot.style.display = '';

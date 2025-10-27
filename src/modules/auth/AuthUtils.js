@@ -275,6 +275,21 @@ export class AuthUtils {
   showApp() {
     window.loginRoot.style.display = 'none';
     window.appRoot.style.display = 'block';
+    
+    // WICHTIG: Nach Login IMMER zum Dashboard navigieren
+    // Dies verhindert veraltete Daten auf der zuletzt geöffneten Seite
+    console.log('🏠 Navigiere zum Dashboard nach Login');
+    
+    // URL auf Dashboard setzen
+    window.history.pushState({}, '', '/dashboard');
+    
+    // Dashboard laden
+    if (window.moduleRegistry) {
+      window.moduleRegistry.loadDashboard();
+    }
+    
+    // Header-UI initialisieren
+    window.setupHeaderUI?.();
   }
 
   // Logout behandeln
