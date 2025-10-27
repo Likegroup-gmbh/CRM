@@ -7,10 +7,11 @@ export class DependentFields {
 
   // Abhängige Felder verwalten
   setupDependentFields(form) {
-    // Spezielle Behandlung für Kampagne Edit-Mode: Überspringen
+    // Spezielle Behandlung für Kampagne/Auftrag Edit-Mode: Überspringen
     const isKampagneEditMode = form.dataset.entityType === 'kampagne' && form.dataset.isEditMode === 'true';
-    if (isKampagneEditMode) {
-      console.log('🎯 DEPENDENTFIELDS: Überspringe Setup für Kampagne Edit-Mode - DynamicDataLoader übernimmt');
+    const isAuftragEditMode = form.dataset.entityType === 'auftrag' && form.dataset.isEditMode === 'true';
+    if (isKampagneEditMode || isAuftragEditMode) {
+      console.log(`🎯 DEPENDENTFIELDS: Überspringe Setup für ${form.dataset.entityType} Edit-Mode - DynamicDataLoader übernimmt`);
       return;
     }
     
@@ -62,10 +63,11 @@ export class DependentFields {
 
   // Event Delegation für abhängige Felder
   setupFormDelegation(form) {
-    // Spezielle Behandlung für Kampagne Edit-Mode beibehalten
+    // Spezielle Behandlung für Kampagne/Auftrag Edit-Mode beibehalten
     const isKampagneEditMode = form.dataset.entityType === 'kampagne' && form.dataset.isEditMode === 'true';
-    if (isKampagneEditMode) {
-      console.log('🎯 DEPENDENTFIELDS: Überspringe Delegation Setup für Kampagne Edit-Mode');
+    const isAuftragEditMode = form.dataset.entityType === 'auftrag' && form.dataset.isEditMode === 'true';
+    if (isKampagneEditMode || isAuftragEditMode) {
+      console.log(`🎯 DEPENDENTFIELDS: Überspringe Delegation Setup für ${form.dataset.entityType} Edit-Mode`);
       return;
     }
     

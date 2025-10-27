@@ -93,19 +93,25 @@ export class AuftragDetail {
 
       // Mitarbeiter-Zuordnungen laden (Many-to-Many)
       try {
-        const { data: mitarbeiterData } = await window.supabase
+        const { data: mitarbeiterData, error: mitarbeiterError } = await window.supabase
           .from('auftrag_mitarbeiter')
-          .select(`
-            benutzer:mitarbeiter_id(
-              id,
-              name,
-              email
-            )
-          `)
+          .select('mitarbeiter_id')
           .eq('auftrag_id', this.auftragId);
         
-        // Extrahiere die benutzer-Objekte direkt (wie bei Kampagne)
-        this.auftrag.mitarbeiter = mitarbeiterData?.map(item => item.benutzer).filter(Boolean) || [];
+        if (mitarbeiterError) throw mitarbeiterError;
+        
+        // Lade die vollständigen Benutzer-Daten
+        if (mitarbeiterData && mitarbeiterData.length > 0) {
+          const mitarbeiterIds = mitarbeiterData.map(item => item.mitarbeiter_id);
+          const { data: benutzerData } = await window.supabase
+            .from('benutzer')
+            .select('id, name')
+            .in('id', mitarbeiterIds);
+          
+          this.auftrag.mitarbeiter = benutzerData || [];
+        } else {
+          this.auftrag.mitarbeiter = [];
+        }
         console.log('✅ AUFTRAGDETAIL: Mitarbeiter geladen:', this.auftrag.mitarbeiter.length);
       } catch (e) {
         console.warn('⚠️ AUFTRAGDETAIL: Fehler beim Laden der Mitarbeiter:', e);
@@ -114,19 +120,25 @@ export class AuftragDetail {
 
       // Cutter-Zuordnungen laden (Many-to-Many)
       try {
-        const { data: cutterData } = await window.supabase
+        const { data: cutterData, error: cutterError } = await window.supabase
           .from('auftrag_cutter')
-          .select(`
-            benutzer:mitarbeiter_id(
-              id,
-              name,
-              email
-            )
-          `)
+          .select('mitarbeiter_id')
           .eq('auftrag_id', this.auftragId);
         
-        // Extrahiere die benutzer-Objekte direkt (wie bei Kampagne)
-        this.auftrag.cutter = cutterData?.map(item => item.benutzer).filter(Boolean) || [];
+        if (cutterError) throw cutterError;
+        
+        // Lade die vollständigen Benutzer-Daten
+        if (cutterData && cutterData.length > 0) {
+          const cutterIds = cutterData.map(item => item.mitarbeiter_id);
+          const { data: benutzerData } = await window.supabase
+            .from('benutzer')
+            .select('id, name')
+            .in('id', cutterIds);
+          
+          this.auftrag.cutter = benutzerData || [];
+        } else {
+          this.auftrag.cutter = [];
+        }
         console.log('✅ AUFTRAGDETAIL: Cutter geladen:', this.auftrag.cutter.length);
       } catch (e) {
         console.warn('⚠️ AUFTRAGDETAIL: Fehler beim Laden der Cutter:', e);
@@ -135,19 +147,25 @@ export class AuftragDetail {
 
       // Copywriter-Zuordnungen laden (Many-to-Many)
       try {
-        const { data: copywriterData } = await window.supabase
+        const { data: copywriterData, error: copywriterError } = await window.supabase
           .from('auftrag_copywriter')
-          .select(`
-            benutzer:mitarbeiter_id(
-              id,
-              name,
-              email
-            )
-          `)
+          .select('mitarbeiter_id')
           .eq('auftrag_id', this.auftragId);
         
-        // Extrahiere die benutzer-Objekte direkt (wie bei Kampagne)
-        this.auftrag.copywriter = copywriterData?.map(item => item.benutzer).filter(Boolean) || [];
+        if (copywriterError) throw copywriterError;
+        
+        // Lade die vollständigen Benutzer-Daten
+        if (copywriterData && copywriterData.length > 0) {
+          const copywriterIds = copywriterData.map(item => item.mitarbeiter_id);
+          const { data: benutzerData } = await window.supabase
+            .from('benutzer')
+            .select('id, name')
+            .in('id', copywriterIds);
+          
+          this.auftrag.copywriter = benutzerData || [];
+        } else {
+          this.auftrag.copywriter = [];
+        }
         console.log('✅ AUFTRAGDETAIL: Copywriter geladen:', this.auftrag.copywriter.length);
       } catch (e) {
         console.warn('⚠️ AUFTRAGDETAIL: Fehler beim Laden der Copywriter:', e);
@@ -832,6 +850,12 @@ export class AuftragDetail {
       cutter_ids: formData.cutter_ids,
       copywriter_ids: formData.copywriter_ids,
       art_der_kampagne: formData.art_der_kampagne
+    });
+    
+    console.log('🔍 AUFTRAGDETAIL: Rohdaten für Debugging:', {
+      'this.auftrag.mitarbeiter': this.auftrag.mitarbeiter,
+      'this.auftrag.cutter': this.auftrag.cutter,
+      'this.auftrag.copywriter': this.auftrag.copywriter
     });
     
     console.log('📋 AUFTRAGDETAIL: FormData für Rendering:', formData);

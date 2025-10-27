@@ -216,11 +216,12 @@ export class DynamicDataLoader {
         this.dataService = window.dataService; // Fallback
       }
       
-      // Prüfe ob das Feld abhängig ist - im Kampagne/Ansprechpartner Edit-Mode trotzdem laden
+      // Prüfe ob das Feld abhängig ist - im Kampagne/Ansprechpartner/Auftrag Edit-Mode trotzdem laden
       if (field.dependsOn) {
         const isKampagneEditMode = form.dataset.entityType === 'kampagne' && form.dataset.isEditMode === 'true';
         const isAnsprechpartnerEditMode = form.dataset.entityType === 'ansprechpartner' && form.dataset.isEditMode === 'true';
-        if (!isKampagneEditMode && !isAnsprechpartnerEditMode) {
+        const isAuftragEditMode = form.dataset.entityType === 'auftrag' && form.dataset.isEditMode === 'true';
+        if (!isKampagneEditMode && !isAnsprechpartnerEditMode && !isAuftragEditMode) {
           console.log(`⏭️ Überspringe automatisches Laden für abhängiges Feld: ${field.name} (abhängig von ${field.dependsOn})`);
           return;
         } else {
@@ -468,6 +469,11 @@ export class DynamicDataLoader {
           // Keine spezielle Behandlung - wird über table-Konfiguration abgedeckt
           break;
         }
+      }
+
+      // Spezielle Behandlung für Auftrag Edit-Modus: Abhängige Felder laden
+      if (form.dataset.entityType === 'auftrag' && form.dataset.isEditMode === 'true') {
+        await this.loadAuftragDependentFieldsImproved(field, form, options);
       }
 
       // Select-Element aktualisieren
@@ -1021,6 +1027,11 @@ export class DynamicDataLoader {
           }, 200); // Länger warten
         }
       }
+      
+      // Spezielle Behandlung für Auftrag Edit-Modus: Abhängige Felder laden
+      if (form.dataset.entityType === 'auftrag' && form.dataset.isEditMode === 'true') {
+        await this.loadAuftragDependentFieldsImproved(field, form, options);
+      }
 
       // Spezialbehandlung für phone-type Felder: Deutschland als Standard
       if (field.type === 'phone' && field.defaultCountry && field.table === 'eu_laender') {
@@ -1542,5 +1553,63 @@ export class DynamicDataLoader {
   getFormConfig(entity) {
     // Diese Methode wird von außen überschrieben
     return null;
+  }
+
+  // Verbesserte Auftrag Edit-Mode Behandlung
+  async loadAuftragDependentFieldsImproved(field, form, options) {
+    try {
+      const editModeData = form.dataset.editModeData ? JSON.parse(form.dataset.editModeData) : {};
+      
+      // Unternehmen-Feld: Bestehenden Wert als selected markieren
+      if (field.name === 'unternehmen_id' && editModeData.unternehmen_id) {
+        console.log('🏢 DYNAMICDATALOADER: Markiere Unternehmen als selected im Auftrag Edit-Modus:', editModeData.unternehmen_id);
+        let found = false;
+        options.forEach(option => {
+          if (option.value === editModeData.unternehmen_id) {
+            option.selected = true;
+            found = true;
+            console.log('✅ DYNAMICDATALOADER: Unternehmen gefunden und markiert:', option.label);
+          }
+        });
+        if (!found) {
+          console.warn('⚠️ DYNAMICDATALOADER: Unternehmen nicht in Optionen gefunden:', editModeData.unternehmen_id);
+        }
+      }
+      
+      // Marken-Feld: Bestehenden Wert als selected markieren
+      if (field.name === 'marke_id' && editModeData.marke_id) {
+        console.log('🏷️ DYNAMICDATALOADER: Markiere Marke als selected im Auftrag Edit-Modus:', editModeData.marke_id);
+        let found = false;
+        options.forEach(option => {
+          if (option.value === editModeData.marke_id) {
+            option.selected = true;
+            found = true;
+            console.log('✅ DYNAMICDATALOADER: Marke gefunden und markiert:', option.label);
+          }
+        });
+        if (!found) {
+          console.warn('⚠️ DYNAMICDATALOADER: Marke nicht in Optionen gefunden:', editModeData.marke_id);
+        }
+      }
+      
+      // Ansprechpartner-Feld: Bestehenden Wert als selected markieren
+      if (field.name === 'ansprechpartner_id' && editModeData.ansprechpartner_id) {
+        console.log('👤 DYNAMICDATALOADER: Markiere Ansprechpartner als selected im Auftrag Edit-Modus:', editModeData.ansprechpartner_id);
+        let found = false;
+        options.forEach(option => {
+          if (option.value === editModeData.ansprechpartner_id) {
+            option.selected = true;
+            found = true;
+            console.log('✅ DYNAMICDATALOADER: Ansprechpartner gefunden und markiert:', option.label);
+          }
+        });
+        if (!found) {
+          console.warn('⚠️ DYNAMICDATALOADER: Ansprechpartner nicht in Optionen gefunden:', editModeData.ansprechpartner_id);
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ DYNAMICDATALOADER: Fehler beim Laden der verbesserten Auftrag-Felder:', error);
+    }
   }
 } 

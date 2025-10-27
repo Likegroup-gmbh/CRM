@@ -1044,6 +1044,12 @@ export class DataService {
           } else {
             fieldName = 'unternehmen_ids';
           }
+        } else if (relationName === 'mitarbeiter') {
+          fieldName = 'mitarbeiter_ids';
+        } else if (relationName === 'cutter') {
+          fieldName = 'cutter_ids';
+        } else if (relationName === 'copywriter') {
+          fieldName = 'copywriter_ids';
         } else {
           fieldName = `${relationName.slice(0, -1)}_ids`;
         }
