@@ -1,0 +1,14 @@
+# Netlify Build Configuration
+
+[build]
+  # Build-Befehl
+  command = "npm run build"
+  # Publish-Verzeichnis (das wird deployed)
+  publish = "dist"
+
+# SPA-Fallback: Alle URLs auf index.html umleiten
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
