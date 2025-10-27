@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kunden Registrierung | CRM</title>
+  <script type="module" crossorigin src="/assets/kundenRegister-Cu4oq92-.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/modulepreload-polyfill-B5Qt9EMX.js">
+  <link rel="modulepreload" crossorigin href="/assets/config-Btmis-6X.js">
+  <link rel="stylesheet" crossorigin href="/assets/dashboard-CF8PkKdt.css">
+</head>
+<body style="background: #0f172a; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem;">
+  
+  <div class="login-box">
+    <h2 style="margin-bottom: 0.5rem;">Kunden-Registrierung</h2>
+    <p style="text-align: center; color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1.5rem;">
+      Erstellen Sie Ihren Zugang zum Kunden-Portal
+    </p>
+
+    <div id="msg" style="display: none; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem;"></div>
+
+    <form id="register-form">
+      <div class="form-box">
+        <label class="label" for="name">Name</label>
+        <input id="name" class="input" type="text" placeholder="Max Mustermann" required />
+      </div>
+      <div class="form-box">
+        <label class="label" for="email">E-Mail</label>
+        <input id="email" class="input" type="email" placeholder="kunde@example.com" required />
+      </div>
+      <div class="form-box">
+        <label class="label" for="password">Passwort</label>
+        <input id="password" class="input" type="password" placeholder="••••••••" minlength="8" required />
+      </div>
+      <div class="form-box">
+        <button id="btn-submit" type="submit" class="btn primary-btn" style="width: 100%;">Konto erstellen</button>
+      </div>
+      <div class="form-box" style="text-align: center; margin-top: 0.5rem;">
+        <a href="/" style="color: var(--text-secondary); text-decoration: none; font-size: 0.875rem;">Zurück zum Login</a>
+      </div>
+      <p style="color: var(--text-tertiary); font-size: 0.75rem; text-align: center; margin-top: 1rem;">
+        Mit der Registrierung stimmen Sie unseren Nutzungsbedingungen zu.
+      </p>
+    </form>
+  </div>
+
+</body>
+</html>
+
+

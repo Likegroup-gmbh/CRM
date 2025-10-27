@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Mail bestätigen | CRM Dashboard</title>
+    <style>
+        .auth-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--bg-secondary);
+            padding: var(--space-lg);
+        }
+
+        .auth-card {
+            background: var(--bg-primary);
+            padding: var(--space-xl);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+            border: var(--border-xs) solid var(--border-primary);
+        }
+
+        /* Icon entfernt für einfacheres Layout */
+
+        .auth-title {
+            font-size: var(--text-xxl);
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: var(--space-md);
+        }
+
+        .auth-subtitle {
+            font-size: var(--text-lg);
+            color: var(--text-secondary);
+            margin-bottom: var(--space-xs);
+        }
+
+        .email-address {
+            font-weight: 600;
+            color: var(--color-primary);
+            font-size: var(--text-md);
+            margin-bottom: var(--space-xl);
+        }
+
+        .otp-container {
+            margin: var(--space-xl) 0;
+        }
+
+        .otp-inputs {
+            display: flex;
+            justify-content: center;
+            gap: var(--space-sm);
+            margin-bottom: var(--space-md);
+        }
+
+        .otp-input {
+            width: 50px;
+            height: 50px;
+            border: var(--border-sm) solid var(--border-primary);
+            border-radius: var(--radius-lg);
+            text-align: center;
+            font-size: var(--text-xl);
+            font-weight: 600;
+            color: var(--text-primary);
+            background: var(--bg-primary);
+            transition: all 0.2s;
+        }
+
+        .otp-input:focus {
+            outline: none;
+            border-color: var(--border-focus);
+            background: var(--bg-primary);
+            box-shadow: 0 0 0 3px rgba(82, 82, 82, 0.1);
+        }
+
+        .otp-input.filled {
+            border-color: var(--color-success);
+            background: var(--bg-primary);
+        }
+
+        .otp-input.error {
+            border-color: var(--color-error);
+            background: var(--bg-primary);
+        }
+
+        /* Timer entfernt - internes System */
+
+        .verify-button {
+            background: var(--color-primary);
+            color: var(--text-inverse);
+            padding: var(--space-sm) var(--space-xl);
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: var(--text-md);
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            width: 100%;
+            margin-bottom: var(--space-md);
+        }
+
+        .verify-button:hover:not(:disabled) {
+            background: var(--color-primary-light);
+        }
+
+        .verify-button:disabled {
+            background: var(--text-muted);
+            cursor: not-allowed;
+        }
+
+        .resend-container {
+            margin-top: var(--space-md);
+            text-align: center;
+        }
+
+        .resend-text {
+            color: var(--text-secondary);
+            font-size: var(--text-sm);
+            margin-bottom: var(--space-xs);
+        }
+
+        .resend-button {
+            background: none;
+            border: none;
+            color: var(--color-primary);
+            font-size: var(--text-sm);
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: underline;
+            padding: var(--space-xs);
+        }
+
+        .resend-button:hover:not(:disabled) {
+            color: var(--color-primary-light);
+        }
+
+        .resend-button:disabled {
+            color: var(--text-muted);
+            cursor: not-allowed;
+            text-decoration: none;
+        }
+
+        .error-message {
+            background: var(--bg-primary);
+            border: var(--border-xs) solid var(--color-error);
+            color: var(--color-error);
+            padding: var(--space-md);
+            border-radius: var(--radius-md);
+            margin: var(--space-md) 0;
+            font-size: var(--text-sm);
+        }
+
+        .success-message {
+            background: var(--bg-primary);
+            border: var(--border-xs) solid var(--color-success);
+            color: var(--color-success);
+            padding: var(--space-md);
+            border-radius: var(--radius-md);
+            margin: var(--space-md) 0;
+            font-size: var(--text-sm);
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid var(--bg-secondary);
+            border-radius: 50%;
+            border-top-color: var(--color-primary);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .back-to-login {
+            margin-top: var(--space-xl);
+            padding-top: var(--space-xl);
+            border-top: var(--border-xs) solid var(--border-primary);
+        }
+
+        .back-to-login a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: var(--text-sm);
+            transition: color 0.2s;
+        }
+
+        .back-to-login a:hover {
+            color: var(--color-primary);
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 640px) {
+            .auth-card {
+                padding: var(--space-lg);
+                margin: var(--space-md);
+            }
+
+            .otp-inputs {
+                gap: var(--space-xs);
+            }
+
+            .otp-input {
+                width: 40px;
+                height: 40px;
+                font-size: var(--text-lg);
+            }
+
+            .auth-title {
+                font-size: var(--text-xl);
+            }
+        }
+
+        /* Accessibility */
+        @media (prefers-reduced-motion: reduce) {
+            .loading {
+                animation: none;
+            }
+        }
+
+        /* High contrast mode support */
+        @media (prefers-contrast: high) {
+            .otp-input {
+                border-width: 3px;
+            }
+        }
+    </style>
+  <script type="module" crossorigin src="/assets/verifyEmail-DNk--O5w.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/modulepreload-polyfill-B5Qt9EMX.js">
+  <link rel="modulepreload" crossorigin href="/assets/config-Btmis-6X.js">
+  <link rel="stylesheet" crossorigin href="/assets/dashboard-CF8PkKdt.css">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <h1 class="auth-title">E-Mail bestätigen</h1>
+            <p class="auth-subtitle">Wir haben einen 6-stelligen Code gesendet an:</p>
+            <div class="email-address" id="user-email">ihre-email@domain.com</div>
+
+            <div class="otp-container">
+                <div class="otp-inputs" id="otp-inputs">
+                    <input type="text" class="otp-input" maxlength="1" data-index="0" autocomplete="off">
+                    <input type="text" class="otp-input" maxlength="1" data-index="1" autocomplete="off">
+                    <input type="text" class="otp-input" maxlength="1" data-index="2" autocomplete="off">
+                    <input type="text" class="otp-input" maxlength="1" data-index="3" autocomplete="off">
+                    <input type="text" class="otp-input" maxlength="1" data-index="4" autocomplete="off">
+                    <input type="text" class="otp-input" maxlength="1" data-index="5" autocomplete="off">
+                </div>
+
+                <button class="verify-button" id="verify-button">
+                    <span id="verify-text">Code bestätigen</span>
+                    <span id="verify-loading" class="loading" style="display: none;"></span>
+                </button>
+            </div>
+
+            <!-- Timer entfernt - internes System -->
+
+            <!-- Error/Success Messages -->
+            <div id="error-message" class="error-message" style="display: none;"></div>
+            <div id="success-message" class="success-message" style="display: none;"></div>
+
+            <div class="resend-container">
+                <span class="resend-text">Code nicht erhalten? </span>
+                <button class="resend-button" id="resend-button">
+                    <span id="resend-text">Code erneut senden</span>
+                    <span id="resend-loading" class="loading" style="display: none;"></span>
+                </button>
+                <div id="resend-info" style="display: none; margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-secondary);"></div>
+            </div>
+
+            <div class="back-to-login">
+                <a href="/login">← Zurück zum Login</a>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
+

@@ -6,7 +6,10 @@ export default defineConfig({
     outDir: 'dist',
     rollupOptions: {
       input: {
-        main: 'index.html'
+        main: 'index.html',
+        kundenRegister: 'src/auth/kunden-register.html',
+        verifyEmail: 'src/auth/verify-email.html',
+        confirmEmail: 'src/auth/confirm-email.html'
       },
       output: {
         manualChunks: {
