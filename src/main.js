@@ -51,8 +51,11 @@ import { kundenKampagneDetail } from './modules/kunden/KundenKampagneDetail.js';
 import { kundenKooperationDetail } from './modules/kunden/KundenKooperationDetail.js';
 import { bulkActionSystem } from './core/BulkActionSystem.js';
 import { notificationSystem } from './core/NotificationSystem.js';
+import { AvatarBubbles } from './core/components/AvatarBubbles.js';
 import { dashboardModule } from './modules/dashboard/DashboardModule.js';
 import { breadcrumbSystem } from './core/BreadcrumbSystem.js';
+import { TaskDetailDrawer } from './modules/tasks/TaskDetailDrawer.js';
+import { taskListPage } from './modules/tasks/TaskListPage.js';
 // Zentrales Bestätigungs-Modal (side-effect Import, hängt window.confirmationModal an)
 import './core/ConfirmationModal.js';
 // main.js - Haupt-Einstiegspunkt für ES6-Module
@@ -346,6 +349,7 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('kunden-kampagne-detail', kundenKampagneDetail);
   moduleRegistry.register('kunden-kooperation-detail', kundenKooperationDetail);
   moduleRegistry.register('dashboard', dashboardModule);
+  moduleRegistry.register('tasks', taskListPage);
   
   // Profile-Modul initialisieren und registrieren
   const profileDetail = new ProfileDetail();
@@ -390,6 +394,7 @@ window.permissionSystem = permissionSystem;
 window.dataService = dataService;
 window.validatorSystem = validatorSystem;
 window.creatorUtils = creatorUtils;
+window.AvatarBubbles = AvatarBubbles;
 window.formSystem = formSystem;
 window.newFormSystem = new FormSystem();
 window.notizenSystem = notizenSystem;
@@ -475,6 +480,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     bulkActionSystem.init();
     // NotificationSystem initialisieren
     notificationSystem.init();
+    
+    // TaskDetailDrawer initialisieren (global)
+    const taskDetailDrawer = new TaskDetailDrawer();
+    taskDetailDrawer.bindEvents();
+    window.taskDetailDrawer = taskDetailDrawer;
     
     // BreadcrumbSystem initialisieren
     breadcrumbSystem.init();

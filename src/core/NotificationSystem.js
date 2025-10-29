@@ -126,7 +126,8 @@ export class NotificationSystem {
       kampagne: `/kampagne/${id}`,
       kooperation: `/kooperation/${id}`,
       briefing: `/briefing/${id}`,
-      auftrag: `/auftrag/${id}`
+      auftrag: `/auftrag/${id}`,
+      task: `/tasks?task=${id}`
     };
     return map[entity] || '';
   }

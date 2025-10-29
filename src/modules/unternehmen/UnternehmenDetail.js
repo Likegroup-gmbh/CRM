@@ -2,6 +2,7 @@
 // Unternehmen-Detailseite mit Tabs für Informationen, Notizen, Bewertungen, Marken und Aufträge
 import { renderCreatorTable } from '../creator/CreatorTable.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
+import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 
 export class UnternehmenDetail {
   constructor() {
@@ -277,17 +278,13 @@ export class UnternehmenDetail {
             Informationen
             <span class="tab-count">1</span>
           </button>
-          <button class="tab-button" data-tab="notizen">
-            Notizen
-            <span class="tab-count">${this.notizen.length}</span>
-          </button>
-          <button class="tab-button" data-tab="bewertungen">
-            Bewertungen
-            <span class="tab-count">${this.ratings.length}</span>
-          </button>
           <button class="tab-button" data-tab="marken">
             Marken
             <span class="tab-count">${this.marken.length}</span>
+          </button>
+          <button class="tab-button" data-tab="ansprechpartner">
+            Ansprechpartner
+            <span class="tab-count">${this.ansprechpartner.length}</span>
           </button>
           <button class="tab-button" data-tab="auftraege">
             Aufträge
@@ -305,14 +302,18 @@ export class UnternehmenDetail {
             Creator
             <span class="tab-count">${this.creators.length}</span>
           </button>
-          <button class="tab-button" data-tab="ansprechpartner">
-            Ansprechpartner
-            <span class="tab-count">${this.ansprechpartner.length}</span>
+          <button class="tab-button" data-tab="rechnungen">
+            Rechnungen
+            <span class="tab-count">${this.rechnungen.length}</span>
           </button>
-      <button class="tab-button" data-tab="rechnungen">
-        Rechnungen
-        <span class="tab-count">${this.rechnungen.length}</span>
-      </button>
+          <button class="tab-button" data-tab="notizen">
+            Notizen
+            <span class="tab-count">${this.notizen.length}</span>
+          </button>
+          <button class="tab-button" data-tab="bewertungen">
+            Bewertungen
+            <span class="tab-count">${this.ratings.length}</span>
+          </button>
         </div>
 
         <!-- Tab-Content -->
@@ -322,19 +323,14 @@ export class UnternehmenDetail {
             ${this.renderInformationen()}
           </div>
 
-          <!-- Notizen Tab -->
-          <div class="tab-pane" id="notizen">
-            ${this.renderNotizen()}
-          </div>
-
-          <!-- Bewertungen Tab -->
-          <div class="tab-pane" id="bewertungen">
-            ${this.renderRatings()}
-          </div>
-
           <!-- Marken Tab -->
           <div class="tab-pane" id="marken">
             ${this.renderMarken()}
+          </div>
+
+          <!-- Ansprechpartner Tab -->
+          <div class="tab-pane" id="ansprechpartner">
+            ${this.renderAnsprechpartner()}
           </div>
 
           <!-- Aufträge Tab -->
@@ -356,15 +352,20 @@ export class UnternehmenDetail {
           <div class="tab-pane" id="creators">
             ${this.renderCreators()}
           </div>
-
-          <!-- Ansprechpartner Tab -->
-          <div class="tab-pane" id="ansprechpartner">
-            ${this.renderAnsprechpartner()}
-          </div>
           
           <!-- Rechnungen Tab -->
           <div class="tab-pane" id="rechnungen">
             ${this.renderRechnungen()}
+          </div>
+
+          <!-- Notizen Tab -->
+          <div class="tab-pane" id="notizen">
+            ${this.renderNotizen()}
+          </div>
+
+          <!-- Bewertungen Tab -->
+          <div class="tab-pane" id="bewertungen">
+            ${this.renderRatings()}
           </div>
         </div>
       </div>
@@ -494,26 +495,45 @@ export class UnternehmenDetail {
       `;
     }
 
-    const auftraegeHtml = this.auftraege.map(auftrag => `
-      <div class="auftrag-card">
-        <div class="auftrag-header">
-          <h4>${auftrag.auftragsname || 'Unbekannter Auftrag'}</h4>
-          <span class="auftrag-status status-${auftrag.status?.toLowerCase() || 'unknown'}">
-            ${auftrag.status || 'Unbekannt'}
-          </span>
-        </div>
-        <div class="auftrag-details">
-          <p><strong>Typ:</strong> ${auftrag.auftragtype || '-'}</p>
-          <p><strong>Budget:</strong> ${auftrag.gesamt_budget ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(auftrag.gesamt_budget) : '-'}</p>
-          <p><strong>Start:</strong> ${auftrag.start ? new Date(auftrag.start).toLocaleDateString('de-DE') : '-'}</p>
-          <p><strong>Ende:</strong> ${auftrag.ende ? new Date(auftrag.ende).toLocaleDateString('de-DE') : '-'}</p>
-        </div>
-      </div>
+    const formatCurrency = (value) => value ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value) : '-';
+    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
+
+    const rows = this.auftraege.map(auftrag => `
+      <tr>
+        <td>
+          <a href="#" class="table-link" data-table="auftrag" data-id="${auftrag.id}">
+            ${auftrag.auftragsname || 'Unbekannter Auftrag'}
+          </a>
+        </td>
+        <td><span class="status-badge status-${auftrag.status?.toLowerCase() || 'unknown'}">${auftrag.status || 'Unbekannt'}</span></td>
+        <td>${auftrag.auftragtype || '-'}</td>
+        <td>${auftrag.marke?.markenname || '-'}</td>
+        <td>${formatCurrency(auftrag.gesamt_budget)}</td>
+        <td>${formatDate(auftrag.created_at)}</td>
+        <td>
+          ${actionBuilder.create('auftrag', auftrag.id)}
+        </td>
+      </tr>
     `).join('');
 
     return `
-      <div class="auftraege-container">
-        ${auftraegeHtml}
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Auftragsname</th>
+              <th>Status</th>
+              <th>Typ</th>
+              <th>Marke</th>
+              <th>Budget</th>
+              <th>Erstellt am</th>
+              <th>Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
       </div>
     `;
   }
@@ -530,20 +550,48 @@ export class UnternehmenDetail {
       `;
     }
 
-    const kampagnenHtml = this.kampagnen.map(k => `
-      <div class="kampagne-card">
-        <div class="kampagne-header">
-          <h4>${k.kampagnenname || 'Unbekannte Kampagne'}</h4>
-          <span class="kampagne-status status-${k.status?.toLowerCase() || 'unknown'}">${k.status || '-'}</span>
-        </div>
-        <div class="kampagne-details">
-          <p><strong>Start:</strong> ${k.start ? new Date(k.start).toLocaleDateString('de-DE') : '-'}</p>
-          <p><strong>Deadline:</strong> ${k.deadline ? new Date(k.deadline).toLocaleDateString('de-DE') : '-'}</p>
-        </div>
-      </div>
+    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
+
+    const rows = this.kampagnen.map(k => `
+      <tr>
+        <td>
+          <a href="#" class="table-link" data-table="kampagne" data-id="${k.id}">
+            ${k.kampagnenname || 'Unbekannte Kampagne'}
+          </a>
+        </td>
+        <td><span class="status-badge status-${k.status?.toLowerCase() || 'unknown'}">${k.status || '-'}</span></td>
+        <td>${k.marke?.markenname || '-'}</td>
+        <td>${formatDate(k.start)}</td>
+        <td>${formatDate(k.deadline)}</td>
+        <td>${k.creatoranzahl || 0}</td>
+        <td>${k.videoanzahl || 0}</td>
+        <td>
+          ${actionBuilder.create('kampagne', k.id)}
+        </td>
+      </tr>
     `).join('');
 
-    return `<div class="kampagnen-container">${kampagnenHtml}</div>`;
+    return `
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Kampagnenname</th>
+              <th>Status</th>
+              <th>Marke</th>
+              <th>Start</th>
+              <th>Deadline</th>
+              <th>Creator</th>
+              <th>Videos</th>
+              <th>Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      </div>
+    `;
   }
 
   // Rendere Kooperationen
@@ -558,20 +606,46 @@ export class UnternehmenDetail {
       `;
     }
 
-    const koopsHtml = this.kooperationen.map(k => `
-      <div class="kooperation-card">
-        <div class="kooperation-header">
-          <h4>${k.name || 'Kooperation'}</h4>
-          <span class="kooperation-status status-${k.status?.toLowerCase() || 'unknown'}">${k.status || '-'}</span>
-        </div>
-        <div class="kooperation-details">
-          <p><strong>Videos:</strong> ${k.videoanzahl || 0}</p>
-          <p><strong>Gesamtkosten:</strong> ${k.gesamtkosten ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(k.gesamtkosten) : '-'}</p>
-        </div>
-      </div>
+    const formatCurrency = (value) => value ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value) : '-';
+
+    const rows = this.kooperationen.map(k => `
+      <tr>
+        <td>
+          <a href="#" class="table-link" data-table="kooperation" data-id="${k.id}">
+            ${k.name || 'Kooperation'}
+          </a>
+        </td>
+        <td><span class="status-badge status-${k.status?.toLowerCase() || 'unknown'}">${k.status || '-'}</span></td>
+        <td>${k.creator ? `${k.creator.vorname || ''} ${k.creator.nachname || ''}`.trim() || '-' : '-'}</td>
+        <td>${k.kampagne?.kampagnenname || '-'}</td>
+        <td>${k.videoanzahl || 0}</td>
+        <td>${formatCurrency(k.gesamtkosten)}</td>
+        <td>
+          ${actionBuilder.create('kooperation', k.id)}
+        </td>
+      </tr>
     `).join('');
 
-    return `<div class="kooperationen-container">${koopsHtml}</div>`;
+    return `
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Status</th>
+              <th>Creator</th>
+              <th>Kampagne</th>
+              <th>Videos</th>
+              <th>Gesamtkosten</th>
+              <th>Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      </div>
+    `;
   }
 
   // Rendere Creator

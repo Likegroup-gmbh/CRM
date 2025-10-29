@@ -307,16 +307,6 @@ export class CreatorDetail {
             <i class="icon-user"></i>
             Informationen
           </button>
-          <button class="tab-button" data-tab="notizen">
-            <i class="icon-document-text"></i>
-            Notizen
-            <span class="tab-count">${this.notizen.length}</span>
-          </button>
-          <button class="tab-button" data-tab="ratings">
-            
-            Bewertungen
-            <span class="tab-count">${this.ratings.length}</span>
-          </button>
           <button class="tab-button" data-tab="kampagnen">
             <i class="icon-megaphone"></i>
             Kampagnen
@@ -332,19 +322,29 @@ export class CreatorDetail {
             Listen
             <span class="tab-count">${this.lists.length}</span>
           </button>
-          <button class="tab-button" data-tab="rechnungen">
-            <i class="icon-currency-euro"></i>
-            Rechnungen
-            <span class="tab-count">${this.rechnungen.length}</span>
-          </button>
           <button class="tab-button" data-tab="unternehmen">
             <i class="icon-building"></i>
             Unternehmen
             <span class="tab-count">${(this.unternehmen||[]).length}</span>
           </button>
+          <button class="tab-button" data-tab="rechnungen">
+            <i class="icon-currency-euro"></i>
+            Rechnungen
+            <span class="tab-count">${this.rechnungen.length}</span>
+          </button>
           <button class="tab-button" data-tab="adresse">
             <i class="icon-map-pin"></i>
             Adresse
+          </button>
+          <button class="tab-button" data-tab="notizen">
+            <i class="icon-document-text"></i>
+            Notizen
+            <span class="tab-count">${this.notizen.length}</span>
+          </button>
+          <button class="tab-button" data-tab="ratings">
+            
+            Bewertungen
+            <span class="tab-count">${this.ratings.length}</span>
           </button>
         </div>
 
@@ -434,22 +434,6 @@ export class CreatorDetail {
             </div>
           </div>
 
-          <!-- Notizen Tab -->
-          <div class="tab-pane" id="tab-notizen">
-            <div class="detail-section">
-              <h2>Notizen</h2>
-              ${this.renderNotizen()}
-            </div>
-          </div>
-
-          <!-- Ratings Tab -->
-          <div class="tab-pane" id="tab-ratings">
-            <div class="detail-section">
-              <h2>Bewertungen</h2>
-              ${this.renderRatings()}
-            </div>
-          </div>
-
           <!-- Kampagnen Tab -->
           <div class="tab-pane" id="tab-kampagnen">
             <div class="detail-section">
@@ -473,6 +457,14 @@ export class CreatorDetail {
               ${this.renderLists()}
             </div>
           </div>
+
+          <!-- Unternehmen Tab -->
+          <div class="tab-pane" id="tab-unternehmen">
+            <div class="detail-section">
+              <h2>Unternehmen</h2>
+              ${this.renderUnternehmen()}
+            </div>
+          </div>
           
           <!-- Rechnungen Tab -->
           <div class="tab-pane" id="tab-rechnungen">
@@ -481,18 +473,28 @@ export class CreatorDetail {
               ${this.renderRechnungen()}
             </div>
           </div>
-          <!-- Unternehmen Tab -->
-          <div class="tab-pane" id="tab-unternehmen">
-            <div class="detail-section">
-              <h2>Unternehmen</h2>
-              ${this.renderUnternehmen()}
-            </div>
-          </div>
+
           <!-- Adresse Tab -->
           <div class="tab-pane" id="tab-adresse">
             <div class="detail-section">
               <h2>Adresse</h2>
               ${this.renderAdresse()}
+            </div>
+          </div>
+
+          <!-- Notizen Tab -->
+          <div class="tab-pane" id="tab-notizen">
+            <div class="detail-section">
+              <h2>Notizen</h2>
+              ${this.renderNotizen()}
+            </div>
+          </div>
+
+          <!-- Ratings Tab -->
+          <div class="tab-pane" id="tab-ratings">
+            <div class="detail-section">
+              <h2>Bewertungen</h2>
+              ${this.renderRatings()}
             </div>
           </div>
         </div>

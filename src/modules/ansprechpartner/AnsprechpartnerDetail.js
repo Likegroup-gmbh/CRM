@@ -153,14 +153,6 @@ export class AnsprechpartnerDetail {
             Informationen
             <span class="tab-count">1</span>
           </button>
-          <button class="tab-button" data-tab="notizen">
-            Notizen
-            <span class="tab-count">${this.notizen ? this.notizen.length : 0}</span>
-          </button>
-          <button class="tab-button" data-tab="bewertungen">
-            Bewertungen
-            <span class="tab-count">${this.ratings ? this.ratings.length : 0}</span>
-          </button>
           <button class="tab-button" data-tab="marken">
             Zugeordnete Marken
             <span class="tab-count">${this.ansprechpartner.ansprechpartner_marke ? this.ansprechpartner.ansprechpartner_marke.length : 0}</span>
@@ -168,6 +160,14 @@ export class AnsprechpartnerDetail {
           <button class="tab-button" data-tab="kampagnen">
             Zugeordnete Kampagnen
             <span class="tab-count">${this.ansprechpartner.ansprechpartner_kampagne ? this.ansprechpartner.ansprechpartner_kampagne.length : 0}</span>
+          </button>
+          <button class="tab-button" data-tab="notizen">
+            Notizen
+            <span class="tab-count">${this.notizen ? this.notizen.length : 0}</span>
+          </button>
+          <button class="tab-button" data-tab="bewertungen">
+            Bewertungen
+            <span class="tab-count">${this.ratings ? this.ratings.length : 0}</span>
           </button>
         </div>
 
@@ -178,16 +178,6 @@ export class AnsprechpartnerDetail {
             ${this.renderInformationen()}
           </div>
 
-          <!-- Notizen Tab -->
-          <div class="tab-pane" id="notizen">
-            ${this.renderNotizen()}
-          </div>
-
-          <!-- Bewertungen Tab -->
-          <div class="tab-pane" id="bewertungen">
-            ${this.renderBewertungen()}
-          </div>
-
           <!-- Marken Tab -->
           <div class="tab-pane" id="marken">
             ${this.renderMarken()}
@@ -196,6 +186,16 @@ export class AnsprechpartnerDetail {
           <!-- Kampagnen Tab -->
           <div class="tab-pane" id="kampagnen">
             ${this.renderKampagnen()}
+          </div>
+
+          <!-- Notizen Tab -->
+          <div class="tab-pane" id="notizen">
+            ${this.renderNotizen()}
+          </div>
+
+          <!-- Bewertungen Tab -->
+          <div class="tab-pane" id="bewertungen">
+            ${this.renderBewertungen()}
           </div>
         </div>
       </div>

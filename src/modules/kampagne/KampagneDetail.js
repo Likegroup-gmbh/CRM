@@ -614,23 +614,17 @@ export class KampagneDetail {
             <i class="icon-information-circle"></i>
             Informationen
           </button>
-          ${window.canViewTable && window.canViewTable('kampagne','creators') !== false ? `
-          <button class="tab-button" data-tab="creators">
-            <i class="icon-users"></i>
-            Creator
-            <span class="tab-count">${this.creator.length}</span>
-          </button>` : ''}
-          ${window.canViewTable && window.canViewTable('kampagne','notizen') !== false ? `
-          <button class="tab-button" data-tab="notizen">
-            <i class="icon-document-text"></i>
-            Notizen
-            <span class="tab-count">${this.notizen.length}</span>
-          </button>` : ''}
           ${window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? `
           <button class="tab-button" data-tab="koops">
             <i class="icon-link"></i>
             Kooperationen
             <span class="tab-count">${this.kooperationen.length}</span>
+          </button>` : ''}
+          ${window.canViewTable && window.canViewTable('kampagne','creators') !== false ? `
+          <button class="tab-button" data-tab="creators">
+            <i class="icon-users"></i>
+            Creator
+            <span class="tab-count">${this.creator.length}</span>
           </button>` : ''}
           ${window.canViewTable && window.canViewTable('kampagne','sourcing') !== false ? `
           <button class="tab-button" data-tab="sourcing">
@@ -644,6 +638,18 @@ export class KampagneDetail {
             Favoriten
             <span class="tab-count">${this.favoriten.length}</span>
           </button>` : ''}
+          ${window.canViewTable && window.canViewTable('kampagne','rechnungen') !== false ? `
+          <button class="tab-button" data-tab="rechnungen">
+            <i class="icon-currency-euro"></i>
+            Rechnungen
+            <span class="tab-count">${this.rechnungen.length}</span>
+          </button>` : ''}
+          ${window.canViewTable && window.canViewTable('kampagne','notizen') !== false ? `
+          <button class="tab-button" data-tab="notizen">
+            <i class="icon-document-text"></i>
+            Notizen
+            <span class="tab-count">${this.notizen.length}</span>
+          </button>` : ''}
           ${window.canViewTable && window.canViewTable('kampagne','ratings') !== false ? `
           <button class="tab-button" data-tab="ratings">
             
@@ -655,12 +661,6 @@ export class KampagneDetail {
             
             History
             <span class="tab-count">${this.historyCount + this.koopHistoryCount}</span>
-          </button>` : ''}
-          ${window.canViewTable && window.canViewTable('kampagne','rechnungen') !== false ? `
-          <button class="tab-button" data-tab="rechnungen">
-            <i class="icon-currency-euro"></i>
-            Rechnungen
-            <span class="tab-count">${this.rechnungen.length}</span>
           </button>` : ''}
         </div>
 
@@ -800,6 +800,14 @@ export class KampagneDetail {
             </div>
           </div>
 
+          <!-- Kooperationen Tab -->
+          <div class="tab-pane" id="tab-koops">
+            <div class="detail-section">
+              <h2>Kooperationen</h2>
+              ${this.renderKooperationen()}
+            </div>
+          </div>
+
           <!-- Creators Tab (gebuchte Creator) -->
           <div class="tab-pane" id="tab-creators">
             <div class="detail-section">
@@ -807,34 +815,6 @@ export class KampagneDetail {
               <div id="creators-list">
                 ${this.renderCreatorsList()}
               </div>
-            </div>
-          </div>
-
-          <!-- Notizen Tab -->
-          <div class="tab-pane" id="tab-notizen">
-            <div class="detail-section">
-              <h2>Notizen</h2>
-              <div id="notizen-list">
-                ${this.renderNotizen()}
-              </div>
-            </div>
-          </div>
-
-          <!-- Bewertungen Tab -->
-          <div class="tab-pane" id="tab-ratings">
-            <div class="detail-section">
-              <h2>Bewertungen</h2>
-              <div id="ratings-list">
-                ${this.renderRatings()}
-              </div>
-            </div>
-          </div>
-
-          <!-- Kooperationen Tab -->
-          <div class="tab-pane" id="tab-koops">
-            <div class="detail-section">
-              <h2>Kooperationen</h2>
-              ${this.renderKooperationen()}
             </div>
           </div>
 
@@ -859,6 +839,26 @@ export class KampagneDetail {
             <div class="detail-section">
               <h2>Rechnungen</h2>
               ${this.renderRechnungen()}
+            </div>
+          </div>
+
+          <!-- Notizen Tab -->
+          <div class="tab-pane" id="tab-notizen">
+            <div class="detail-section">
+              <h2>Notizen</h2>
+              <div id="notizen-list">
+                ${this.renderNotizen()}
+              </div>
+            </div>
+          </div>
+
+          <!-- Bewertungen Tab -->
+          <div class="tab-pane" id="tab-ratings">
+            <div class="detail-section">
+              <h2>Bewertungen</h2>
+              <div id="ratings-list">
+                ${this.renderRatings()}
+              </div>
             </div>
           </div>
 

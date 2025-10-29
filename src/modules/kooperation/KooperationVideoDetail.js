@@ -5,6 +5,7 @@ export const kooperationVideoDetail = {
   kooperation: null,
   comments: [],
   assets: [],
+  _eventsBound: false, // Flag um doppelte Event-Listener zu vermeiden
 
   async init(id) {
     try {
@@ -702,14 +703,61 @@ export const kooperationVideoDetail = {
   },
 
   bindEvents() {
-    // Tab-Switching
-    document.addEventListener('click', (e) => {
-      if (e.target.classList.contains('tab-button')) {
+    // Globale Event-Listener nur einmal binden
+    if (!this._eventsBound) {
+      // Tab-Switching
+      document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('tab-button')) {
+          e.preventDefault();
+          const tabName = e.target.dataset.tab;
+          if (tabName) this.switchTab(tabName);
+        }
+      });
+
+      // Kommentar löschen (Soft-Delete - Delegation mit Event-Bubbling)
+      document.addEventListener('click', async (e) => {
+        const del = e.target.closest('.comment-delete');
+        if (!del) return;
         e.preventDefault();
-        const tabName = e.target.dataset.tab;
-        if (tabName) this.switchTab(tabName);
-      }
-    });
+        const id = del.dataset.id;
+        if (!id) return;
+        if (!confirm('Kommentar wirklich entfernen?')) return;
+        try {
+          // Soft-Delete: Setze deleted_at und deleted_by
+          const { error } = await window.supabase
+            .from('kooperation_video_comment')
+            .update({
+              deleted_at: new Date().toISOString(),
+              deleted_by_benutzer_id: window.currentUser?.id || null
+            })
+            .eq('id', id);
+          if (error) throw error;
+          await this.loadData();
+          this.render();
+          this.bindLocalEvents(); // Nur lokale Events neu binden
+          // ActionsDropdown neu initialisieren
+          if (window.ActionsDropdown) {
+            window.ActionsDropdown.init();
+          }
+        } catch (err) {
+          console.error('Kommentar löschen fehlgeschlagen', err);
+          alert('Kommentar konnte nicht gelöscht werden.');
+        }
+      });
+      
+      this._eventsBound = true;
+    }
+    
+    // Lokale Event-Listener die bei jedem Render neu gebunden werden müssen
+    this.bindLocalEvents();
+
+    // ActionsDropdown für Asset-Versionen initialisieren
+    if (window.ActionsDropdown) {
+      window.ActionsDropdown.init();
+    }
+  },
+
+  bindLocalEvents() {
 
     // Zur Kooperation zurück
     document.getElementById('btn-back-kooperation')?.addEventListener('click', (e) => {
@@ -733,7 +781,10 @@ export const kooperationVideoDetail = {
           // Refresh lokal + Info
           await this.loadData();
           this.render();
-          this.bindEvents();
+          this.bindLocalEvents();
+          if (window.ActionsDropdown) {
+            window.ActionsDropdown.init();
+          }
           // Notify parent views
           window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'kooperation_videos', action: 'updated', id: this.videoId, field: 'status', value } }));
         } catch (err) {
@@ -770,7 +821,10 @@ export const kooperationVideoDetail = {
           
           await this.loadData();
           this.render();
-          this.bindEvents();
+          this.bindLocalEvents();
+          if (window.ActionsDropdown) {
+            window.ActionsDropdown.init();
+          }
         } catch (err) {
           console.error('Version aktualisieren fehlgeschlagen', err);
           alert('Version konnte nicht als aktuell markiert werden.');
@@ -828,7 +882,13 @@ export const kooperationVideoDetail = {
           }
           // UI Teilbereich aktualisieren
           const content = document.querySelector('#comments-' + (runde === 2 ? 'r2' : 'r1'));
-          if (content) content.innerHTML = this.renderCommentsTable(runde === 2 ? [...(this.comments.filter(c=>c.runde===2))] : [...(this.comments.filter(c=>c.runde!==2))]);
+          if (content) {
+            content.innerHTML = this.renderCommentsTable(runde === 2 ? [...(this.comments.filter(c=>c.runde===2))] : [...(this.comments.filter(c=>c.runde!==2))]);
+            // ActionsDropdown neu initialisieren nach UI-Update
+            if (window.ActionsDropdown) {
+              window.ActionsDropdown.init();
+            }
+          }
         } catch (err) {
           console.error('Kommentar speichern fehlgeschlagen', err);
           if (btn) {
@@ -838,41 +898,6 @@ export const kooperationVideoDetail = {
           alert('Kommentar konnte nicht gespeichert werden.');
         }
       });
-    }
-
-    // Kommentar löschen (Soft-Delete - Delegation innerhalb des Content-Bereichs)
-    const contentSection = document.querySelector('.content-section');
-    if (contentSection) {
-      contentSection.addEventListener('click', async (e) => {
-        const del = e.target.closest('.comment-delete');
-        if (!del) return;
-        e.preventDefault();
-        const id = del.dataset.id;
-        if (!id) return;
-        if (!confirm('Kommentar wirklich entfernen?')) return;
-        try {
-          // Soft-Delete: Setze deleted_at und deleted_by
-          const { error } = await window.supabase
-            .from('kooperation_video_comment')
-            .update({
-              deleted_at: new Date().toISOString(),
-              deleted_by_benutzer_id: window.currentUser?.id || null
-            })
-            .eq('id', id);
-          if (error) throw error;
-          await this.loadData();
-          this.render();
-          this.bindEvents();
-        } catch (err) {
-          console.error('Kommentar löschen fehlgeschlagen', err);
-          alert('Kommentar konnte nicht gelöscht werden.');
-        }
-      });
-    }
-
-    // ActionsDropdown für Asset-Versionen initialisieren
-    if (window.ActionsDropdown) {
-      window.ActionsDropdown.init();
     }
   },
 
@@ -935,7 +960,10 @@ export const kooperationVideoDetail = {
         // UI aktualisieren
         await this.loadData();
         this.render();
-        this.bindEvents();
+        this.bindLocalEvents();
+        if (window.ActionsDropdown) {
+          window.ActionsDropdown.init();
+        }
         
         window.notificationSystem?.success?.(`Version ${nextVersion} erfolgreich hochgeladen.`);
       } catch (err) {
@@ -976,6 +1004,7 @@ export const kooperationVideoDetail = {
   },
 
   destroy() {
-    // No-op; Event-Delegation global
+    // Setze das Flag zurück, damit beim nächsten init() die Events neu gebunden werden
+    this._eventsBound = false;
   }
 };

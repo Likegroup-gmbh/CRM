@@ -66,6 +66,13 @@ export const ActionConfigs = {
         entityTypeCheck: 'kooperation',
         roles: ['admin', 'mitarbeiter']
       },
+      { 
+        id: 'task-create', 
+        icon: 'tasks', 
+        label: 'Aufgabe erstellen',
+        entityTypeCheck: 'kooperation',
+        roles: ['admin', 'mitarbeiter']
+      },
       { id: 'notiz', icon: 'notiz', label: 'Notiz hinzufügen', roles: ['admin', 'mitarbeiter'] },
       { id: 'quickview', icon: 'quickview', label: 'Schnellansicht öffnen', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },

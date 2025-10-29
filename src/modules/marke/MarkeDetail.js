@@ -3,6 +3,7 @@
 
 import { TableHelper } from '../../core/TableHelper.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
+import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 
 export class MarkeDetail {
   constructor() {
@@ -200,6 +201,22 @@ export class MarkeDetail {
             Informationen
             <span class="tab-count">1</span>
           </button>
+          <button class="tab-button" data-tab="ansprechpartner">
+            Ansprechpartner
+            <span class="tab-count">${this.ansprechpartner.length}</span>
+          </button>
+          <button class="tab-button" data-tab="auftraege">
+            Aufträge
+            <span class="tab-count">${this.auftraege.length}</span>
+          </button>
+          <button class="tab-button" data-tab="kampagnen">
+            Kampagnen
+            <span class="tab-count">${this.kampagnen.length}</span>
+          </button>
+          <button class="tab-button" data-tab="rechnungen">
+            Rechnungen
+            <span class="tab-count">${this.rechnungen.length}</span>
+          </button>
           <button class="tab-button" data-tab="notizen">
             Notizen
             <span class="tab-count">${this.notizen.length}</span>
@@ -207,22 +224,6 @@ export class MarkeDetail {
           <button class="tab-button" data-tab="bewertungen">
             Bewertungen
             <span class="tab-count">${this.ratings.length}</span>
-          </button>
-          <button class="tab-button" data-tab="kampagnen">
-            Kampagnen
-            <span class="tab-count">${this.kampagnen.length}</span>
-          </button>
-          <button class="tab-button" data-tab="auftraege">
-            Aufträge
-            <span class="tab-count">${this.auftraege.length}</span>
-          </button>
-          <button class="tab-button" data-tab="ansprechpartner">
-            Ansprechpartner
-            <span class="tab-count">${this.ansprechpartner.length}</span>
-          </button>
-          <button class="tab-button" data-tab="rechnungen">
-            Rechnungen
-            <span class="tab-count">${this.rechnungen.length}</span>
           </button>
         </div>
 
@@ -233,6 +234,26 @@ export class MarkeDetail {
             ${this.renderInformationen()}
           </div>
 
+          <!-- Ansprechpartner Tab -->
+          <div class="tab-pane" id="ansprechpartner">
+            ${this.renderAnsprechpartner()}
+          </div>
+
+          <!-- Aufträge Tab -->
+          <div class="tab-pane" id="auftraege">
+            ${this.renderAuftraege()}
+          </div>
+
+          <!-- Kampagnen Tab -->
+          <div class="tab-pane" id="kampagnen">
+            ${this.renderKampagnen()}
+          </div>
+
+          <!-- Rechnungen Tab -->
+          <div class="tab-pane" id="rechnungen">
+            ${this.renderRechnungen()}
+          </div>
+
           <!-- Notizen Tab -->
           <div class="tab-pane" id="notizen">
             ${this.renderNotizen()}
@@ -241,24 +262,6 @@ export class MarkeDetail {
           <!-- Bewertungen Tab -->
           <div class="tab-pane" id="bewertungen">
             ${this.renderRatings()}
-          </div>
-
-          <!-- Kampagnen Tab -->
-          <div class="tab-pane" id="kampagnen">
-            ${this.renderKampagnen()}
-          </div>
-
-          <!-- Aufträge Tab -->
-          <div class="tab-pane" id="auftraege">
-            ${this.renderAuftraege()}
-          </div>
-
-          <!-- Ansprechpartner Tab -->
-          <div class="tab-pane" id="ansprechpartner">
-            ${this.renderAnsprechpartner()}
-          </div>
-          <div class="tab-pane" id="rechnungen">
-            ${this.renderRechnungen()}
           </div>
         </div>
       </div>
@@ -349,26 +352,46 @@ export class MarkeDetail {
       `;
     }
 
-    const kampagnenHtml = this.kampagnen.map(kampagne => `
-      <div class="kampagne-card">
-        <div class="kampagne-header">
-          <h4>${kampagne.kampagnenname || 'Unbekannte Kampagne'}</h4>
-          <span class="kampagne-status status-${kampagne.status?.toLowerCase() || 'unknown'}">
-            ${kampagne.status || 'Unbekannt'}
-          </span>
-        </div>
-        <div class="kampagne-details">
-          <p><strong>Beschreibung:</strong> ${kampagne.beschreibung || '-'}</p>
-          <p><strong>Budget:</strong> ${kampagne.budget ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(kampagne.budget) : '-'}</p>
-          <p><strong>Start:</strong> ${kampagne.start ? new Date(kampagne.start).toLocaleDateString('de-DE') : '-'}</p>
-          <p><strong>Ende:</strong> ${kampagne.ende ? new Date(kampagne.ende).toLocaleDateString('de-DE') : '-'}</p>
-        </div>
-      </div>
+    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
+
+    const rows = this.kampagnen.map(kampagne => `
+      <tr>
+        <td>
+          <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
+            ${kampagne.kampagnenname || 'Unbekannte Kampagne'}
+          </a>
+        </td>
+        <td><span class="status-badge status-${kampagne.status?.toLowerCase() || 'unknown'}">${kampagne.status || 'Unbekannt'}</span></td>
+        <td>${this.marke?.markenname || '-'}</td>
+        <td>${formatDate(kampagne.start)}</td>
+        <td>${formatDate(kampagne.deadline)}</td>
+        <td>${kampagne.creatoranzahl || 0}</td>
+        <td>${kampagne.videoanzahl || 0}</td>
+        <td>
+          ${actionBuilder.create('kampagne', kampagne.id)}
+        </td>
+      </tr>
     `).join('');
 
     return `
-      <div class="kampagnen-container">
-        ${kampagnenHtml}
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Kampagnenname</th>
+              <th>Status</th>
+              <th>Marke</th>
+              <th>Start</th>
+              <th>Deadline</th>
+              <th>Creator</th>
+              <th>Videos</th>
+              <th>Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
       </div>
     `;
   }
@@ -385,26 +408,45 @@ export class MarkeDetail {
       `;
     }
 
-    const auftraegeHtml = this.auftraege.map(auftrag => `
-      <div class="auftrag-card">
-        <div class="auftrag-header">
-          <h4>${auftrag.auftragsname || 'Unbekannter Auftrag'}</h4>
-          <span class="auftrag-status status-${auftrag.status?.toLowerCase() || 'unknown'}">
-            ${auftrag.status || 'Unbekannt'}
-          </span>
-        </div>
-        <div class="auftrag-details">
-          <p><strong>Typ:</strong> ${auftrag.auftragtype || '-'}</p>
-          <p><strong>Budget:</strong> ${auftrag.gesamt_budget ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(auftrag.gesamt_budget) : '-'}</p>
-          <p><strong>Start:</strong> ${auftrag.start ? new Date(auftrag.start).toLocaleDateString('de-DE') : '-'}</p>
-          <p><strong>Ende:</strong> ${auftrag.ende ? new Date(auftrag.ende).toLocaleDateString('de-DE') : '-'}</p>
-        </div>
-      </div>
+    const formatCurrency = (value) => value ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value) : '-';
+    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
+
+    const rows = this.auftraege.map(auftrag => `
+      <tr>
+        <td>
+          <a href="#" class="table-link" data-table="auftrag" data-id="${auftrag.id}">
+            ${auftrag.auftragsname || 'Unbekannter Auftrag'}
+          </a>
+        </td>
+        <td><span class="status-badge status-${auftrag.status?.toLowerCase() || 'unknown'}">${auftrag.status || 'Unbekannt'}</span></td>
+        <td>${auftrag.auftragtype || '-'}</td>
+        <td>${this.marke?.markenname || '-'}</td>
+        <td>${formatCurrency(auftrag.gesamt_budget)}</td>
+        <td>${formatDate(auftrag.created_at)}</td>
+        <td>
+          ${actionBuilder.create('auftrag', auftrag.id)}
+        </td>
+      </tr>
     `).join('');
 
     return `
-      <div class="auftraege-container">
-        ${auftraegeHtml}
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Auftragsname</th>
+              <th>Status</th>
+              <th>Typ</th>
+              <th>Marke</th>
+              <th>Budget</th>
+              <th>Erstellt am</th>
+              <th>Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
       </div>
     `;
   }

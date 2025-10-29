@@ -2,6 +2,7 @@
 // Kooperations-Detailseite mit allen relevanten Informationen
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { kooperationVersandManager } from './VersandManager.js';
+import { TaskKanbanBoard } from '../tasks/TaskKanbanBoard.js';
 
 export class KooperationDetail {
   constructor() {
@@ -16,6 +17,8 @@ export class KooperationDetail {
     this.history = [];
     this.historyCount = 0;
     this.versandDaten = null;
+    this.taskKanbanBoard = null;
+    this.tasksCount = 0;
   }
 
   // Initialisiere Kooperations-Detailseite
@@ -44,6 +47,9 @@ export class KooperationDetail {
       
       // Rendere die Seite
       await this.render();
+      
+      // Lade Tasks-Count
+      await this.loadTasksCount();
       
       // Binde Events
       this.bindEvents();
@@ -279,6 +285,14 @@ export class KooperationDetail {
             <i class="icon-film"></i>
             Videos <span class="tab-count">${this.videos.length}</span>
           </button>
+          <button class="tab-button" data-tab="rechnungen">
+            <i class="icon-currency-euro"></i>
+            Rechnungen <span class="tab-count">${this.rechnungen.length}</span>
+          </button>
+          <button class="tab-button" data-tab="versand">
+            <i class="icon-truck"></i>
+            Versand <span class="tab-count">${this.versandDaten?.length || 0}</span>
+          </button>
           <button class="tab-button" data-tab="notizen">
             <i class="icon-document-text"></i>
             Notizen <span class="tab-count">${this.notizen.length}</span>
@@ -291,13 +305,8 @@ export class KooperationDetail {
             
             History <span class="tab-count">${this.historyCount}</span>
           </button>
-          <button class="tab-button" data-tab="rechnungen">
-            <i class="icon-currency-euro"></i>
-            Rechnungen <span class="tab-count">${this.rechnungen.length}</span>
-          </button>
-          <button class="tab-button" data-tab="versand">
-            <i class="icon-truck"></i>
-            Versand <span class="tab-count">${this.versandDaten?.length || 0}</span>
+          <button class="tab-button" data-tab="tasks">
+            Aufgaben <span class="tab-count" id="tasks-count">...</span>
           </button>
         </div>
 
@@ -309,6 +318,18 @@ export class KooperationDetail {
             <div class="detail-section">
               <h2>Videos ${this.renderVideoCounters()}</h2>
               ${this.renderVideos()}
+            </div>
+          </div>
+          <div class="tab-pane" id="tab-rechnungen">
+            <div class="detail-section">
+              <h2>Rechnungen</h2>
+              ${this.renderRechnungen()}
+            </div>
+          </div>
+          <div class="tab-pane" id="tab-versand">
+            <div class="detail-section">
+              <h2>Versand</h2>
+              ${this.renderVersand()}
             </div>
           </div>
           <div class="tab-pane" id="tab-notizen">
@@ -329,16 +350,9 @@ export class KooperationDetail {
               ${this.renderHistory()}
             </div>
           </div>
-          <div class="tab-pane" id="tab-rechnungen">
+          <div class="tab-pane" id="tab-tasks">
             <div class="detail-section">
-              <h2>Rechnungen</h2>
-              ${this.renderRechnungen()}
-            </div>
-          </div>
-          <div class="tab-pane" id="tab-versand">
-            <div class="detail-section">
-              <h2>Versand</h2>
-              ${this.renderVersand()}
+              <div id="tasks-kanban-container"></div>
             </div>
           </div>
         </div>
@@ -871,7 +885,7 @@ export class KooperationDetail {
   }
 
   // Tab wechseln
-  switchTab(tabName) {
+  async switchTab(tabName) {
     document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
     document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
     const activeButton = document.querySelector(`[data-tab="${tabName}"]`);
@@ -879,7 +893,46 @@ export class KooperationDetail {
     if (activeButton && activePane) {
       activeButton.classList.add('active');
       activePane.classList.add('active');
+      
+      // Initialisiere Kanban Board wenn Tasks-Tab geöffnet wird
+      if (tabName === 'tasks' && !this.taskKanbanBoard) {
+        await this.initTasksBoard();
+      }
     }
+  }
+
+  async loadTasksCount() {
+    try {
+      const { count, error } = await window.supabase
+        .from('kooperation_tasks')
+        .select('*', { count: 'exact', head: true })
+        .eq('entity_type', 'kooperation')
+        .eq('entity_id', this.kooperationId);
+      
+      if (!error) {
+        this.tasksCount = count || 0;
+        const countEl = document.getElementById('tasks-count');
+        if (countEl) countEl.textContent = this.tasksCount;
+      }
+    } catch (err) {
+      console.error('Fehler beim Laden der Tasks-Anzahl:', err);
+    }
+  }
+
+  async initTasksBoard() {
+    const container = document.getElementById('tasks-kanban-container');
+    if (!container) return;
+
+    console.log('🎯 initTasksBoard: Container gefunden, erstelle Board für Kooperation:', this.kooperationId);
+
+    // Erstelle Board immer neu, um sicherzustellen dass die Entity-Daten korrekt sind
+    this.taskKanbanBoard = new TaskKanbanBoard('kooperation', this.kooperationId);
+    await this.taskKanbanBoard.init(container);
+    
+    // Event-Listener für Task-Updates
+    window.addEventListener('taskCreated', () => this.loadTasksCount());
+    window.addEventListener('taskUpdated', () => this.loadTasksCount());
+    window.addEventListener('taskDeleted', () => this.loadTasksCount());
   }
 
   showNotFound() {

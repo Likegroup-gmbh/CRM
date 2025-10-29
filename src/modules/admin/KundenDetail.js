@@ -53,7 +53,7 @@ export class KundenDetail {
             <tr>
               <th>Name</th>
               <th>Erstellt</th>
-              <th>Aktionen</th>
+              <th style="width: 80px;">Aktionen</th>
             </tr>
           </thead>
           <tbody>
@@ -61,7 +61,7 @@ export class KundenDetail {
               const name = x[nameField] || x.name || x.id;
               const createdDate = x.created_at ? new Date(x.created_at).toLocaleDateString('de-DE') : '—';
               return `
-                <tr>
+                <tr data-id="${x.id}">
                   <td>
                     <a href="/${type}/${x.id}" onclick="event.preventDefault(); window.navigateTo('/${type}/${x.id}')" class="table-link">
                       ${window.validatorSystem.sanitizeHtml(name)}
@@ -69,15 +69,38 @@ export class KundenDetail {
                   </td>
                   <td>${createdDate}</td>
                   <td>
-                    ${window.ActionsDropdown?.createGenericActions(type, x.id, [
-                      { action: 'remove', icon: 'icon-trash', label: `${typeLabel}-Zuordnung entfernen` }
-                    ]) || ''}
+                    ${this.createZuordnungActions(x.id, type, name)}
                   </td>
                 </tr>`;
             }).join('')}
           </tbody>
         </table>
       </div>`;
+  }
+
+  // Actions für Zuordnungen erstellen
+  createZuordnungActions(entityId, entityType, entityName) {
+    const typeLabel = entityType === 'unternehmen' ? 'Unternehmen' : 'Marke';
+    return `
+      <div class="actions-dropdown-container" data-entity-type="${entityType}">
+        <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+          </svg>
+        </button>
+        <div class="actions-dropdown">
+          <a href="#" class="action-item" data-action="view" data-id="${entityId}">
+            ${window.ActionsDropdown?.getHeroIcon('view') || ''}
+            Details anzeigen
+          </a>
+          <div class="action-separator"></div>
+          <a href="#" class="action-item action-danger" data-action="remove-zuordnung" data-id="${entityId}" data-entity-type="${entityType}" data-entity-name="${window.validatorSystem.sanitizeHtml(entityName)}">
+            ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
+            ${typeLabel}-Zuordnung entfernen
+          </a>
+        </div>
+      </div>
+    `;
   }
 
   async render() {
@@ -181,13 +204,40 @@ export class KundenDetail {
     window.setContentSafely(window.content, html);
   }
 
-  // Entferne Zuordnung (Unternehmen oder Marke)
-  async removeZuordnung(entityId, type) {
-    const kundeId = this.kundeId;
+  // Zeige Modal zum Entfernen der Zuordnung
+  async showRemoveZuordnungModal(entityId, entityType, entityName) {
+    const typeLabel = entityType === 'unternehmen' ? 'Unternehmen' : 'Marke';
     
-    if (!confirm(`Möchten Sie die Zuordnung wirklich entfernen?`)) {
-      return;
+    const title = `${typeLabel}-Zuordnung entfernen`;
+    const message = entityName 
+      ? `Möchten Sie die Zuordnung zu "${entityName}" wirklich entfernen?${entityType === 'unternehmen' ? '\n\nHinweis: Alle zugeordneten Marken dieses Unternehmens werden ebenfalls entfernt.' : ''}`
+      : `Möchten Sie die ${typeLabel}-Zuordnung wirklich entfernen?`;
+    
+    if (window.confirmationModal) {
+      const result = await window.confirmationModal.open({
+        title,
+        message,
+        confirmText: 'Zuordnung entfernen',
+        cancelText: 'Abbrechen',
+        danger: true
+      });
+      
+      if (result?.confirmed) {
+        await this.removeZuordnung(entityId, entityType, entityName);
+      }
+    } else {
+      // Fallback: Normaler Confirm-Dialog
+      const confirmed = confirm(message);
+      if (confirmed) {
+        await this.removeZuordnung(entityId, entityType, entityName);
+      }
     }
+  }
+
+  // Entferne Zuordnung (Unternehmen oder Marke)
+  async removeZuordnung(entityId, type, entityName = '') {
+    const kundeId = this.userId;
+    const typeLabel = type === 'unternehmen' ? 'Unternehmen' : 'Marke';
 
     try {
       let tableName, errorMessage;
@@ -199,8 +249,10 @@ export class KundenDetail {
         tableName = 'kunde_marke';
         errorMessage = 'Fehler beim Entfernen der Marken-Zuordnung';
       } else {
-        throw new Error('Unbekannter Typ');
+        throw new Error('Unbekannter Typ: ' + type);
       }
+
+      console.log('🗑️ KUNDEN-DETAIL: Lösche Zuordnung', { tableName, kundeId, entityId, type });
 
       const { error } = await window.supabase
         .from(tableName)
@@ -208,17 +260,24 @@ export class KundenDetail {
         .eq('kunde_id', kundeId)
         .eq(`${type}_id`, entityId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ KUNDEN-DETAIL: Supabase Fehler', error);
+        throw error;
+      }
 
-      // Erfolg
-      window.notificationSystem?.showSuccess(`${type === 'unternehmen' ? 'Unternehmen' : 'Marke'}-Zuordnung erfolgreich entfernt!`);
+      console.log('✅ KUNDEN-DETAIL: Zuordnung erfolgreich gelöscht');
       
-      // Liste neu laden
+      // Erfolg
+      window.NotificationSystem?.show('success', `${typeLabel}-Zuordnung erfolgreich entfernt!`);
+      
+      // Liste neu laden und UI aktualisieren
       await this.load();
+      await this.render();
+      this.bind();
       
     } catch (error) {
       console.error(`❌ ${errorMessage}:`, error);
-      window.notificationSystem?.showError(`${errorMessage}: ${error.message}`);
+      window.NotificationSystem?.show('error', `${errorMessage}: ${error.message}`);
     }
   }
 
@@ -232,7 +291,7 @@ export class KundenDetail {
     }
 
     // Event-Handler als Instanz-Properties speichern
-    this.clickHandler = (e) => {
+    this.clickHandler = async (e) => {
       if (e.target && e.target.id === 'btn-back-kunden') {
         e.preventDefault();
         window.navigateTo('/admin/kunden');
@@ -248,6 +307,36 @@ export class KundenDetail {
       if (e.target && e.target.id === 'btn-add-marke') {
         e.preventDefault();
         this.showMarkeZuordnungModal();
+        return;
+      }
+
+      // Handle "remove-zuordnung" action
+      const removeAction = e.target.closest('.action-item[data-action="remove-zuordnung"]');
+      if (removeAction) {
+        e.preventDefault();
+        const entityId = removeAction.dataset.id;
+        const entityType = removeAction.dataset.entityType;
+        const entityName = removeAction.dataset.entityName;
+        
+        console.log('🗑️ KUNDEN-DETAIL: Remove-Zuordnung geklickt', { entityId, entityType, entityName });
+        
+        if (entityId && entityType) {
+          await this.showRemoveZuordnungModal(entityId, entityType, entityName);
+        }
+        return;
+      }
+
+      // Handle "view" action
+      const viewAction = e.target.closest('.action-item[data-action="view"]');
+      if (viewAction) {
+        e.preventDefault();
+        const entityId = viewAction.dataset.id;
+        const container = viewAction.closest('.actions-dropdown-container');
+        const entityType = container?.dataset?.entityType;
+        
+        if (entityId && entityType) {
+          window.navigateTo(`/${entityType}/${entityId}`);
+        }
         return;
       }
 

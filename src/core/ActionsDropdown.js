@@ -229,8 +229,8 @@ export class ActionsDropdown {
       if (!action) return;
 
       // Custom Actions die nicht vom ActionsDropdown gehandhabt werden
-      // (z.B. comment-delete) sollen durch Event-Delegation behandelt werden
-      const customActions = ['comment-delete', 'video-view', 'video-edit', 'video-delete'];
+      // (z.B. comment-delete, remove-zuordnung) sollen durch Event-Delegation behandelt werden
+      const customActions = ['comment-delete', 'video-view', 'video-edit', 'video-delete', 'remove-zuordnung'];
       if (customActions.includes(action)) {
         // Lasse Event weiterlaufen für custom Handler
         return;
@@ -665,7 +665,7 @@ export class ActionsDropdown {
     }).join('');
 
     return `
-      <div class="actions-dropdown-container">
+      <div class="actions-dropdown-container" data-entity-type="${entityType}">
         <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
@@ -733,6 +733,14 @@ export class ActionsDropdown {
           window.navigateTo(`/video/new?kooperation=${entityId}`);
         } else {
           console.warn('video-create nur im Kontext kooperation unterstützt');
+        }
+        break;
+      case 'task-create':
+        // Task-Modal öffnen mit vorausgefüllter Kooperation
+        if (entityType === 'kooperation' && window.taskDetailDrawer) {
+          window.taskDetailDrawer.open(null, { entity_type: 'kooperation', entity_id: entityId });
+        } else {
+          console.warn('task-create nur im Kontext kooperation unterstützt');
         }
         break;
       case 'quickview':

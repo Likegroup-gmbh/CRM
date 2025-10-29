@@ -1,0 +1,5 @@
+# Netlify Redirects für SPA (Single Page Application)
+# Alle Anfragen auf index.html umleiten, damit Client-Side Routing funktioniert
+
+/*    /index.html   200
+

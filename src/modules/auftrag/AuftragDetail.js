@@ -346,6 +346,21 @@ export class AuftragDetail {
             Informationen
             <span class="tab-count">1</span>
           </button>
+          <button class="tab-button" data-tab="auftragsdetails">
+            Auftragsdetails
+            <span class="tab-count">${this.auftragsDetails ? '1' : '0'}</span>
+          </button>
+          <button class="tab-button" data-tab="creator">
+            Creator
+            <span class="tab-count">${this.creator.length}</span>
+          </button>
+          <button class="tab-button" data-tab="budget">
+            Budget
+          </button>
+          <button class="tab-button" data-tab="rechnungen">
+            Rechnungen
+            <span class="tab-count">${this.rechnungen.length}</span>
+          </button>
           <button class="tab-button" data-tab="notizen">
             Notizen
             <span class="tab-count">${this.notizen.length}</span>
@@ -353,21 +368,6 @@ export class AuftragDetail {
           <button class="tab-button" data-tab="bewertungen">
             Bewertungen
             <span class="tab-count">${this.ratings.length}</span>
-          </button>
-          <button class="tab-button" data-tab="creator">
-            Creator
-            <span class="tab-count">${this.creator.length}</span>
-          </button>
-          <button class="tab-button" data-tab="rechnungen">
-            Rechnungen
-            <span class="tab-count">${this.rechnungen.length}</span>
-          </button>
-          <button class="tab-button" data-tab="budget">
-            Budget
-          </button>
-          <button class="tab-button" data-tab="auftragsdetails">
-            Auftragsdetails
-            <span class="tab-count">${this.auftragsDetails ? '1' : '0'}</span>
           </button>
         </div>
 
@@ -378,6 +378,26 @@ export class AuftragDetail {
             ${this.renderInformationen()}
           </div>
 
+          <!-- Auftragsdetails Tab -->
+          <div class="tab-pane" id="auftragsdetails">
+            ${this.renderAuftragsdetails()}
+          </div>
+
+          <!-- Creator Tab -->
+          <div class="tab-pane" id="creator">
+            ${this.renderCreator()}
+          </div>
+
+          <!-- Budget Tab -->
+          <div class="tab-pane" id="budget">
+            ${this.renderBudget()}
+          </div>
+          
+          <!-- Rechnungen Tab -->
+          <div class="tab-pane" id="rechnungen">
+            ${this.renderRechnungen()}
+          </div>
+
           <!-- Notizen Tab -->
           <div class="tab-pane" id="notizen">
             ${this.renderNotizen()}
@@ -386,26 +406,6 @@ export class AuftragDetail {
           <!-- Bewertungen Tab -->
           <div class="tab-pane" id="bewertungen">
             ${this.renderRatings()}
-          </div>
-
-          <!-- Creator Tab -->
-          <div class="tab-pane" id="creator">
-            ${this.renderCreator()}
-          </div>
-          
-          <!-- Rechnungen Tab -->
-          <div class="tab-pane" id="rechnungen">
-            ${this.renderRechnungen()}
-          </div>
-
-          <!-- Budget Tab -->
-          <div class="tab-pane" id="budget">
-            ${this.renderBudget()}
-          </div>
-
-          <!-- Auftragsdetails Tab -->
-          <div class="tab-pane" id="auftragsdetails">
-            ${this.renderAuftragsdetails()}
           </div>
         </div>
       </div>

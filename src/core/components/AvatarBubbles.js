@@ -14,25 +14,15 @@ export class AvatarBubbles {
     const cleanName = name.trim();
     if (!cleanName) return '?';
     
+    // Immer nur einen Buchstaben anzeigen
     if (type === 'person') {
-      // Personen: 2 Buchstaben (Vorname + Nachname)
+      // Personen: Erster Buchstabe des Vornamens
       const parts = cleanName.split(/\s+/).filter(Boolean);
-      if (parts.length >= 2) {
-        // Nimm ersten Buchstaben vom ersten und letzten Teil
-        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-      } else if (parts.length === 1) {
-        // Nur ein Name: Nimm erste 2 Buchstaben
-        return parts[0].substring(0, 2).toUpperCase();
-      }
+      return parts[0][0].toUpperCase();
     } else {
-      // Organisationen: 1-2 Buchstaben, erster Buchstabe jedes Wortes (max 2)
+      // Organisationen: Erster Buchstabe des ersten Wortes
       const words = cleanName.split(/\s+/).filter(Boolean);
-      if (words.length >= 2) {
-        return (words[0][0] + words[1][0]).toUpperCase();
-      } else if (words.length === 1) {
-        // Nur ein Wort: Nimm ersten Buchstaben
-        return words[0][0].toUpperCase();
-      }
+      return words[0][0].toUpperCase();
     }
     
     return cleanName[0].toUpperCase();
