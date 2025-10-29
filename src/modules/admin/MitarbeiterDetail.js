@@ -7,6 +7,7 @@ export class MitarbeiterDetail {
     this.userId = null;
     this.user = null;
     this.assignments = { kampagnen: [], kooperationen: [], briefings: [] };
+    this.zugeordnet = { unternehmen: [], marken: [] };
     this.budget = { invoicesByKoop: {}, totals: { netto: 0, zusatz: 0, gesamt: 0, invoice_netto: 0, invoice_brutto: 0 } };
     this.statusOptions = [];
   }
@@ -37,20 +38,32 @@ export class MitarbeiterDetail {
         .single();
       this.user = user || {};
 
-      const [{ data: kampRel }, { data: koops }, { data: briefs }, { data: statusRows }] = await Promise.all([
+      const [{ data: kampRel }, { data: koops }, { data: briefs }, { data: statusRows }, { data: unternehmenRel }, { data: markenRel }] = await Promise.all([
         window.supabase
           .from('kampagne_mitarbeiter')
           .select('kampagne:kampagne_id(id, kampagnenname)')
           .eq('mitarbeiter_id', this.userId),
         window.supabase.from('kooperationen').select('id, name, status, kampagne:kampagne_id(kampagnenname), nettobetrag, zusatzkosten, gesamtkosten').eq('assignee_id', this.userId),
         window.supabase.from('briefings').select('id, product_service_offer, status').eq('assignee_id', this.userId),
-        window.supabase.from('kampagne_status').select('id, name, sort_order').order('sort_order', { ascending: true }).order('name', { ascending: true })
+        window.supabase.from('kampagne_status').select('id, name, sort_order').order('sort_order', { ascending: true }).order('name', { ascending: true }),
+        window.supabase
+          .from('mitarbeiter_unternehmen')
+          .select('unternehmen:unternehmen_id(id, firmenname)')
+          .eq('mitarbeiter_id', this.userId),
+        window.supabase
+          .from('marke_mitarbeiter')
+          .select('marke:marke_id(id, markenname)')
+          .eq('mitarbeiter_id', this.userId)
       ]);
 
       this.assignments.kampagnen = (kampRel || []).map(r => r.kampagne).filter(Boolean);
       this.assignments.kooperationen = koops || [];
       this.assignments.briefings = briefs || [];
       this.statusOptions = statusRows || [];
+      this.zugeordnet = {
+        unternehmen: (unternehmenRel || []).map(r => r.unternehmen).filter(Boolean),
+        marken: (markenRel || []).map(r => r.marke).filter(Boolean)
+      };
 
       const koopIds = (this.assignments.kooperationen || []).map(k => k.id).filter(Boolean);
       let invoicesByKoop = {};
@@ -257,17 +270,12 @@ export class MitarbeiterDetail {
           <h1>Mitarbeiter: ${window.validatorSystem.sanitizeHtml(this.user?.name || '-')}</h1>
           <p>Rechte und Zuweisungen verwalten</p>
         </div>
-        <div class="page-header-right">
-          <button class="secondary-btn" id="btn-back-mitarbeiter">Mitarbeiter Übersicht</button>
-          <p class="text-muted" style="text-align: center; font-style: italic; margin: 1rem 0;">
-            Änderungen werden automatisch gespeichert
-          </p>
-        </div>
       </div>
 
       <div class="content-section">
         <div class="tab-navigation">
           <button class="tab-button active" data-tab="rechte">Rechte</button>
+          <button class="tab-button" data-tab="unternehmen">Unternehmen <span class="tab-count">${this.zugeordnet.unternehmen.length}</span></button>
           <button class="tab-button" data-tab="kampagnen">Kampagnen <span class="tab-count">${this.assignments.kampagnen.length}</span></button>
           <button class="tab-button" data-tab="koops">Kooperationen <span class="tab-count">${this.assignments.kooperationen.length}</span></button>
           <button class="tab-button" data-tab="budget">Mitarbeiter Budget</button>
@@ -334,6 +342,19 @@ export class MitarbeiterDetail {
             </div>
           </div>
 
+          <div class="tab-pane" id="tab-unternehmen">
+            <div class="detail-section">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <div>
+                  <h2>Zugeordnete Unternehmen</h2>
+                  <p class="form-help" style="margin-top: 8px;">Wenn Sie einem Mitarbeiter ein Unternehmen zuordnen, hat er automatisch Zugriff auf alle Marken, Kampagnen und Kooperationen dieses Unternehmens.</p>
+                </div>
+                <button class="primary-btn" id="btn-add-unternehmen">+ Unternehmen zuordnen</button>
+              </div>
+              ${this.renderUnternehmenTable()}
+            </div>
+          </div>
+
           <div class="tab-pane" id="tab-kampagnen">
             <div class="detail-section">
               <h2>Zugewiesene Kampagnen</h2>
@@ -371,6 +392,79 @@ export class MitarbeiterDetail {
   formatCurrency(value) {
     const num = Number(value || 0);
     return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(num);
+  }
+
+  // Render Unternehmen Tabelle
+  renderUnternehmenTable() {
+    if (!this.zugeordnet.unternehmen || this.zugeordnet.unternehmen.length === 0) {
+      return '<div class="empty-state"><p>Keine Unternehmen zugeordnet</p></div>';
+    }
+    
+    return `
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Firmenname</th>
+              <th>Erstellt</th>
+              <th style="width: 150px; text-align: center;">Aktionen</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${this.zugeordnet.unternehmen.map(u => {
+              const createdDate = u.created_at ? new Date(u.created_at).toLocaleDateString('de-DE') : '—';
+              return `
+              <tr data-id="${u.id}">
+                <td>
+                  <a href="/unternehmen/${u.id}" onclick="event.preventDefault(); window.navigateTo('/unternehmen/${u.id}')" class="table-link">
+                    ${window.validatorSystem.sanitizeHtml(u.firmenname || u.id)}
+                  </a>
+                </td>
+                <td>${createdDate}</td>
+                <td style="text-align: center;">
+                  <button class="secondary-btn btn-remove-unternehmen" data-id="${u.id}" data-name="${window.validatorSystem.sanitizeHtml(u.firmenname)}">
+                    Entfernen
+                  </button>
+                </td>
+              </tr>
+            `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  // Render Marken Liste
+  renderMarkenListe() {
+    if (!this.zugeordnet.marken || this.zugeordnet.marken.length === 0) {
+      return '<div class="empty-state"><p>Keine Marken zugeordnet</p></div>';
+    }
+    
+    return `
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Markenname</th>
+              <th style="width: 120px;">Aktionen</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${this.zugeordnet.marken.map(m => `
+              <tr data-id="${m.id}">
+                <td>
+                  <a href="/marke/${m.id}" onclick="event.preventDefault(); window.navigateTo('/marke/${m.id}')" class="table-link">
+                    ${window.validatorSystem.sanitizeHtml(m.markenname || m.id)}
+                  </a>
+                </td>
+                <td>
+                  <button class="secondary-btn btn-remove-marke" data-id="${m.id}" data-name="${window.validatorSystem.sanitizeHtml(m.markenname)}">Entfernen</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>`;
   }
 
   renderBudget() {
@@ -458,9 +552,9 @@ export class MitarbeiterDetail {
           const updateData = { freigeschaltet: isFreigeschaltet };
           
           if (isFreigeschaltet) {
-            // Wenn freigeschaltet: rolle von "pending" auf "user" und unterrolle auf "can_view"
+            // Wenn freigeschaltet: rolle von "pending" auf "mitarbeiter" und unterrolle auf "can_view"
             if (self.user.rolle === 'pending') {
-              updateData.rolle = 'user';
+              updateData.rolle = 'mitarbeiter';
             }
             if (self.user.unterrolle === 'awaiting_approval') {
               updateData.unterrolle = 'can_view';
@@ -639,6 +733,42 @@ export class MitarbeiterDetail {
     });
 
     // Entfernen-Logik läuft zentral im ActionsDropdown (unassign-kampagne)
+    
+    // Event-Handler für Unternehmen zuordnen
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('#btn-add-unternehmen')) {
+        e.preventDefault();
+        this.showAddUnternehmenModal();
+      }
+    });
+    
+    // Event-Handler für Unternehmen entfernen
+    document.addEventListener('click', async (e) => {
+      const removeBtn = e.target.closest('.btn-remove-unternehmen');
+      if (removeBtn) {
+        e.preventDefault();
+        const unternehmenId = removeBtn.dataset.id;
+        const unternehmenName = removeBtn.dataset.name;
+        
+        if (window.confirmationModal) {
+          const result = await window.confirmationModal.open({
+            title: 'Unternehmen-Zuordnung entfernen',
+            message: `Möchten Sie die Zuordnung zu "${unternehmenName}" wirklich entfernen?\n\nDer Mitarbeiter verliert dadurch automatisch den Zugriff auf alle Marken, Kampagnen und Kooperationen dieses Unternehmens.`,
+            confirmText: 'Zuordnung entfernen',
+            cancelText: 'Abbrechen',
+            danger: true
+          });
+          
+          if (result?.confirmed) {
+            await this.removeUnternehmen(unternehmenId, unternehmenName);
+          }
+        } else {
+          if (confirm(`Möchten Sie die Zuordnung zu "${unternehmenName}" wirklich entfernen?`)) {
+            await this.removeUnternehmen(unternehmenId, unternehmenName);
+          }
+        }
+      }
+    });
   }
 
   // Bearbeitungsformular anzeigen (für Admin-Bearbeitung)
@@ -671,6 +801,184 @@ export class MitarbeiterDetail {
         </div>
       </div>
     `;
+  }
+
+  // Event-Handler für Unternehmen-Zuordnungen
+  async showAddUnternehmenModal() {
+    // Entferne existierende Modals
+    document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+          <h3>Unternehmen zuordnen</h3>
+          <button id="close-modal" class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Unternehmen suchen</label>
+            <input id="unternehmen-search" class="form-input" type="text" placeholder="Firmenname eingeben..." autocomplete="off" />
+            <div id="unternehmen-dropdown" class="auto-suggest-dropdown" style="display: none;"></div>
+          </div>
+          <div id="selected-unternehmen" class="selected-items" style="margin-top: 10px;"></div>
+        </div>
+        <div class="modal-footer">
+          <button id="save-zuordnung" class="primary-btn" disabled>Zuordnen</button>
+          <button id="cancel-zuordnung" class="secondary-btn">Abbrechen</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const input = modal.querySelector('#unternehmen-search');
+    const dropdown = modal.querySelector('#unternehmen-dropdown');
+    const selectedContainer = modal.querySelector('#selected-unternehmen');
+    const saveBtn = modal.querySelector('#save-zuordnung');
+    let selectedUnternehmen = null;
+    let searchTimeout;
+
+    // Auto-Suggestion für Unternehmen
+    input.addEventListener('input', (e) => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(async () => {
+        const query = e.target.value.trim();
+        
+        if (query.length < 2) {
+          dropdown.style.display = 'none';
+          return;
+        }
+
+        try {
+          const { data, error } = await window.supabase
+            .from('unternehmen')
+            .select('id, firmenname')
+            .ilike('firmenname', `%${query}%`)
+            .order('firmenname')
+            .limit(10);
+
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            dropdown.innerHTML = data.map(u => `
+              <div class="dropdown-item" data-id="${u.id}" data-name="${u.firmenname}">
+                <div class="dropdown-item-main">${window.validatorSystem.sanitizeHtml(u.firmenname)}</div>
+              </div>
+            `).join('');
+            dropdown.style.display = 'block';
+          } else {
+            dropdown.innerHTML = '<div class="dropdown-item no-results">Keine Unternehmen gefunden</div>';
+            dropdown.style.display = 'block';
+          }
+        } catch (err) {
+          console.error('❌ Unternehmen-Suche fehlgeschlagen', err);
+          dropdown.innerHTML = '<div class="dropdown-item no-results">Fehler bei der Suche</div>';
+          dropdown.style.display = 'block';
+        }
+      }, 300);
+    });
+
+    // Dropdown-Auswahl
+    dropdown.addEventListener('click', (e) => {
+      const item = e.target.closest('.dropdown-item[data-id]');
+      if (!item) return;
+
+      selectedUnternehmen = {
+        id: item.dataset.id,
+        name: item.dataset.name
+      };
+
+      selectedContainer.innerHTML = `
+        <div class="selected-item">
+          <span class="selected-item-name">${window.validatorSystem.sanitizeHtml(selectedUnternehmen.name)}</span>
+          <button type="button" class="selected-item-remove">&times;</button>
+        </div>
+      `;
+
+      input.value = '';
+      dropdown.style.display = 'none';
+      saveBtn.disabled = false;
+    });
+
+    // Auswahl entfernen
+    selectedContainer.addEventListener('click', (e) => {
+      if (e.target.classList.contains('selected-item-remove')) {
+        selectedUnternehmen = null;
+        selectedContainer.innerHTML = '';
+        saveBtn.disabled = true;
+      }
+    });
+
+    // Speichern
+    saveBtn.addEventListener('click', async () => {
+      if (!selectedUnternehmen) return;
+
+      try {
+        const { error } = await window.supabase
+          .from('mitarbeiter_unternehmen')
+          .insert({ 
+            mitarbeiter_id: this.userId, 
+            unternehmen_id: selectedUnternehmen.id 
+          });
+
+        if (error) {
+          // Prüfe ob es ein Duplicate-Key-Fehler ist
+          if (error.code === '23505') {
+            window.NotificationSystem?.show('warning', 'Unternehmen ist bereits zugeordnet');
+            modal.remove();
+            return;
+          }
+          throw error;
+        }
+
+        window.NotificationSystem?.show('success', 'Unternehmen erfolgreich zugeordnet');
+        modal.remove();
+        
+        // Daten neu laden und Seite aktualisieren
+        await this.load();
+        await this.render();
+        this.bind();
+      } catch (err) {
+        console.error('❌ Zuordnung fehlgeschlagen', err);
+        window.NotificationSystem?.show('error', 'Zuordnung fehlgeschlagen: ' + err.message);
+      }
+    });
+
+    // Modal schließen
+    const closeModal = () => modal.remove();
+    modal.querySelector('#close-modal').onclick = closeModal;
+    modal.querySelector('#cancel-zuordnung').onclick = closeModal;
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+
+    // Focus auf Input
+    setTimeout(() => input.focus(), 100);
+  }
+
+  // Unternehmen-Zuordnung entfernen
+  async removeUnternehmen(unternehmenId, unternehmenName) {
+    try {
+      const { error } = await window.supabase
+        .from('mitarbeiter_unternehmen')
+        .delete()
+        .eq('mitarbeiter_id', this.userId)
+        .eq('unternehmen_id', unternehmenId);
+
+      if (error) throw error;
+
+      window.NotificationSystem?.show('success', `Unternehmen "${unternehmenName}" erfolgreich entfernt`);
+      
+      // Daten neu laden und Seite aktualisieren
+      await this.load();
+      await this.render();
+      this.bind();
+    } catch (err) {
+      console.error('❌ Entfernen fehlgeschlagen', err);
+      window.NotificationSystem?.show('error', 'Entfernen fehlgeschlagen: ' + err.message);
+    }
   }
 
   destroy() {

@@ -932,6 +932,75 @@ export class UnternehmenDetail {
     }
   }
 
+  // Zeige Edit-Formular
+  async showEditForm() {
+    console.log('🔧 UNTERNEHMENDETAIL: Öffne Edit-Formular für Unternehmen:', this.unternehmenId);
+    
+    try {
+      // Breadcrumb aktualisieren
+      if (window.breadcrumbSystem && this.unternehmen) {
+        window.breadcrumbSystem.updateBreadcrumb([
+          { label: 'Unternehmen', url: '/unternehmen', clickable: true },
+          { label: this.unternehmen.firmenname || 'Details', url: `/unternehmen/${this.unternehmenId}`, clickable: true },
+          { label: 'Bearbeiten', url: `/unternehmen/${this.unternehmenId}/edit`, clickable: false }
+        ]);
+      }
+
+      // Formular-Daten vorbereiten
+      const formData = { ...this.unternehmen };
+      formData._isEditMode = true;
+      formData._entityId = this.unternehmenId;
+
+      // Branchen-IDs für Edit-Modus sicherstellen
+      if (this.unternehmen.branche_id && Array.isArray(this.unternehmen.branche_id)) {
+        formData.branche_id = this.unternehmen.branche_id;
+        console.log('🏷️ UNTERNEHMENDETAIL: Branchen-IDs für Edit-Mode:', formData.branche_id);
+      } else if (!this.unternehmen.branche_id || this.unternehmen.branche_id.length === 0) {
+        // Wenn keine Branchen vorhanden sind, setze ein leeres Array
+        formData.branche_id = [];
+        console.log('ℹ️ UNTERNEHMENDETAIL: Keine Branchen vorhanden, setze leeres Array');
+      }
+
+      console.log('📋 UNTERNEHMENDETAIL: Vollständige FormData für Edit-Mode:', {
+        entityId: formData._entityId,
+        brancheIds: formData.branche_id,
+        firmenname: formData.firmenname,
+        isEditMode: formData._isEditMode
+      });
+
+      // Formular rendern
+      const formHtml = window.formSystem.renderFormOnly('unternehmen', formData);
+      
+      window.setHeadline(`${this.unternehmen?.firmenname || 'Unternehmen'} bearbeiten`);
+      window.content.innerHTML = `
+        <div class="page-header">
+          <div class="page-header-left">
+            <h1>${this.unternehmen?.firmenname || 'Unternehmen'} bearbeiten</h1>
+            <p>Bearbeiten Sie die Unternehmensinformationen</p>
+          </div>
+          <div class="page-header-right">
+            <button onclick="window.navigateTo('/unternehmen/${this.unternehmenId}')" class="secondary-btn">
+              Zurück zu Details
+            </button>
+          </div>
+        </div>
+        
+        <div class="form-page">
+          ${formHtml}
+        </div>
+      `;
+
+      // Formular-Events binden mit korrekten Daten
+      await window.formSystem.bindFormEvents('unternehmen', formData);
+
+      console.log('✅ UNTERNEHMENDETAIL: Edit-Formular gerendert und Events gebunden');
+
+    } catch (error) {
+      console.error('❌ UNTERNEHMENDETAIL: Fehler beim Anzeigen des Edit-Formulars:', error);
+      this.showErrorMessage('Fehler beim Laden des Formulars: ' + error.message);
+    }
+  }
+
   // Cleanup
   destroy() {
     console.log('UnternehmenDetail: Cleaning up...');

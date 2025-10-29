@@ -53,6 +53,7 @@ export class MitarbeiterList {
 
       if (window.supabase) {
         // Lade Mitarbeiterdaten direkt ohne RPC (da freigeschaltet Spalte eventuell noch nicht existiert)
+        // Filter: Rolle != 'kunde' (Kunden haben eigene Seite)
         const { data, error } = await window.supabase
           .from('benutzer')
           .select(`
@@ -61,8 +62,10 @@ export class MitarbeiterList {
             rolle,
             unterrolle,
             freigeschaltet,
+            auth_user_id,
             mitarbeiter_klasse:mitarbeiter_klasse_id(id, name)
           `)
+          .neq('rolle', 'kunde')
           .order('name');
 
         if (error) {
@@ -70,7 +73,8 @@ export class MitarbeiterList {
           // Fallback ohne freigeschaltet Spalte
           const { data: fallback, error: fallbackError } = await window.supabase
             .from('benutzer')
-            .select('id, name, rolle, unterrolle, mitarbeiter_klasse:mitarbeiter_klasse_id(id, name)')
+            .select('id, name, rolle, unterrolle, auth_user_id, mitarbeiter_klasse:mitarbeiter_klasse_id(id, name)')
+            .neq('rolle', 'kunde')
             .order('name');
 
           if (fallbackError) {
@@ -85,6 +89,22 @@ export class MitarbeiterList {
           }));
         } else {
           this.rows = data || [];
+        }
+
+        // Lade E-Mail-Adressen aus auth.users für alle Mitarbeiter
+        if (this.rows.length > 0) {
+          const authUserIds = this.rows.map(r => r.auth_user_id).filter(Boolean);
+          if (authUserIds.length > 0) {
+            const { data: authUsers } = await window.supabase.auth.admin.listUsers();
+            const emailMap = {};
+            authUsers?.users?.forEach(u => {
+              emailMap[u.id] = u.email;
+            });
+            this.rows = this.rows.map(r => ({
+              ...r,
+              email: emailMap[r.auth_user_id] || '—'
+            }));
+          }
         }
       } else {
         this.rows = await window.dataService.loadEntities('benutzer');

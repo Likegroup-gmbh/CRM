@@ -86,7 +86,7 @@ export class MarkeList {
         return await window.dataService.loadEntities('marke', filters);
       }
 
-      // Sichtbarkeit: Nicht-Admins nur zugeordnete Marken
+      // Sichtbarkeit: Nicht-Admins nur zugeordnete Marken (direkt oder über Unternehmen)
       const isAdmin = window.currentUser?.rolle === 'admin';
       let allowedMarkeIds = [];
       
@@ -99,6 +99,7 @@ export class MarkeList {
       
       if (!isAdmin) {
         try {
+          // 1. Direkt zugeordnete Marken
           const { data: assignedMarken, error } = await window.supabase
             .from('marke_mitarbeiter')
             .select('marke_id')
@@ -108,11 +109,36 @@ export class MarkeList {
             console.error('❌ MARKELIST: Fehler beim Laden der Zuordnungen:', error);
           }
           
-          allowedMarkeIds = (assignedMarken || []).map(r => r.marke_id).filter(Boolean);
+          const directMarkeIds = (assignedMarken || []).map(r => r.marke_id).filter(Boolean);
+          
+          // 2. NEU: Marken über zugeordnete Unternehmen
+          const { data: mitarbeiterUnternehmen } = await window.supabase
+            .from('mitarbeiter_unternehmen')
+            .select('unternehmen_id')
+            .eq('mitarbeiter_id', window.currentUser?.id);
+          
+          const unternehmenIds = (mitarbeiterUnternehmen || [])
+            .map(r => r.unternehmen_id)
+            .filter(Boolean);
+          
+          let unternehmenMarkeIds = [];
+          if (unternehmenIds.length > 0) {
+            // Alle Marken dieser Unternehmen finden
+            const { data: unternehmenMarken } = await window.supabase
+              .from('marke')
+              .select('id')
+              .in('unternehmen_id', unternehmenIds);
+            
+            unternehmenMarkeIds = (unternehmenMarken || []).map(m => m.id).filter(Boolean);
+          }
+          
+          // Alle zusammenführen und Duplikate entfernen
+          allowedMarkeIds = [...new Set([...directMarkeIds, ...unternehmenMarkeIds])];
           
           console.log('🔍 MARKELIST: Zugeordnete Marken für Nicht-Admin:', {
-            assignedMarken: assignedMarken,
-            allowedMarkeIds: allowedMarkeIds
+            direkteMarken: directMarkeIds.length,
+            unternehmenMarken: unternehmenMarkeIds.length,
+            gesamt: allowedMarkeIds.length
           });
         } catch (error) {
           console.error('❌ MARKELIST: Exception beim Laden der Zuordnungen:', error);

@@ -75,7 +75,7 @@ export class BriefingList {
         return await window.dataService.loadEntities('briefing', filters);
       }
 
-      // Sichtbarkeit: Nicht-Admins nur eigene (assignee_id) ODER über zugewiesene Kooperation/Kampagne/Marken
+      // Sichtbarkeit: Nicht-Admins nur eigene (assignee_id) ODER über zugewiesene Kooperation/Kampagne/Marken/Unternehmen
       const isAdmin = window.currentUser?.rolle === 'admin';
       let allowedKampagneIds = [];
       let allowedKoopIds = [];
@@ -104,8 +104,43 @@ export class BriefingList {
             markenKampagnenIds = (markenKampagnen || []).map(k => k.id).filter(Boolean);
           }
           
-          // Kombiniere beide Listen und entferne Duplikate
-          allowedKampagneIds = [...new Set([...directKampagnenIds, ...markenKampagnenIds])];
+          // 3. NEU: Kampagnen über zugeordnete Unternehmen
+          const { data: mitarbeiterUnternehmen } = await window.supabase
+            .from('mitarbeiter_unternehmen')
+            .select('unternehmen_id')
+            .eq('mitarbeiter_id', window.currentUser?.id);
+          
+          const unternehmenIds = (mitarbeiterUnternehmen || [])
+            .map(r => r.unternehmen_id)
+            .filter(Boolean);
+          
+          let unternehmenKampagnenIds = [];
+          if (unternehmenIds.length > 0) {
+            // Alle Marken dieser Unternehmen finden
+            const { data: unternehmenMarken } = await window.supabase
+              .from('marke')
+              .select('id')
+              .in('unternehmen_id', unternehmenIds);
+            
+            const unternehmenMarkenIds = (unternehmenMarken || []).map(m => m.id).filter(Boolean);
+            
+            if (unternehmenMarkenIds.length > 0) {
+              // Alle Kampagnen dieser Marken laden
+              const { data: kampagnen } = await window.supabase
+                .from('kampagne')
+                .select('id')
+                .in('marke_id', unternehmenMarkenIds);
+              
+              unternehmenKampagnenIds = (kampagnen || []).map(k => k.id).filter(Boolean);
+            }
+          }
+          
+          // Alle zusammenführen und Duplikate entfernen
+          allowedKampagneIds = [...new Set([
+            ...directKampagnenIds,
+            ...markenKampagnenIds,
+            ...unternehmenKampagnenIds
+          ])];
           
           // Kooperationen aus erlaubten Kampagnen laden
           if (allowedKampagneIds.length > 0) {
@@ -119,6 +154,7 @@ export class BriefingList {
           console.log(`🔍 BRIEFINGLIST: Mitarbeiter ${window.currentUser?.id} hat Zugriff auf:`, {
             direkteKampagnen: directKampagnenIds.length,
             markenKampagnen: markenKampagnenIds.length,
+            unternehmenKampagnen: unternehmenKampagnenIds.length,
             gesamtKampagnen: allowedKampagneIds.length,
             kooperationen: allowedKoopIds.length
           });

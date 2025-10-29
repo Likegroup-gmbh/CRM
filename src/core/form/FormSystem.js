@@ -118,6 +118,9 @@ export class FormSystem {
       });
       
       form.dataset.editModeData = JSON.stringify(data);
+      form.dataset.isEditMode = 'true';
+      form.dataset.entityType = entity;
+      form.dataset.entityId = data._entityId;
       
       // Spezielle Behandlung für branche_id im Edit-Mode
       if (data.branche_id && Array.isArray(data.branche_id)) {

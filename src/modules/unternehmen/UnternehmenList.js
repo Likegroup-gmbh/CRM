@@ -116,7 +116,6 @@ export class UnternehmenList {
               <th>Name</th>
               <th>Branche</th>
               <th>Ansprechpartner</th>
-              <th>Rechnungs E-Mail</th>
               <th>Stadt</th>
               <th>Land</th>
               <th>Aktionen</th>
@@ -124,7 +123,7 @@ export class UnternehmenList {
           </thead>
           <tbody>
             <tr>
-              <td colspan="9" class="no-data">Lade Unternehmen...</td>
+              <td colspan="7" class="no-data">Lade Unternehmen...</td>
             </tr>
           </tbody>
         </table>
@@ -334,7 +333,6 @@ export class UnternehmenList {
         </td>
         <td>${this.renderBrancheTags(unternehmen.branchen)}</td>
         <td>${this.renderAnsprechpartnerList(apMap.get(unternehmen.id))}</td>
-        <td>${window.validatorSystem.sanitizeHtml(unternehmen.invoice_email || '')}</td>
         <td>${window.validatorSystem.sanitizeHtml(unternehmen.rechnungsadresse_stadt || '')}</td>
         <td>${window.validatorSystem.sanitizeHtml(unternehmen.rechnungsadresse_land || '')}</td>
         <td>
