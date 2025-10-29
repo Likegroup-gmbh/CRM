@@ -223,29 +223,21 @@ export class TaskDetailDrawer {
     const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
     const formatDateTime = (date) => date ? new Date(date).toLocaleString('de-DE') : '-';
 
-    // Berechtigungsprüfung - Nur Ersteller und Admins dürfen bearbeiten
+    // Berechtigungsprüfung - Nur Ersteller darf bearbeiten
     const currentUserId = window.currentUser?.id;
-    const currentUserRole = window.currentUser?.rolle;
     const taskCreatorId = this.task.created_by;
     
     console.log('🔐 TaskDetailDrawer Berechtigungsprüfung:', {
       currentUserId,
-      currentUserRole,
       taskCreatorId,
-      idsMatch: currentUserId && taskCreatorId && String(currentUserId) === String(taskCreatorId),
-      isAdmin: currentUserRole === 'admin'
+      idsMatch: currentUserId && taskCreatorId && String(currentUserId) === String(taskCreatorId)
     });
     
-    // Explizite Prüfung: Nur wenn User der Ersteller ist ODER Admin
+    // Explizite Prüfung: Nur wenn User der Ersteller ist
     const isCreator = currentUserId && taskCreatorId && String(currentUserId) === String(taskCreatorId);
-    const isAdmin = currentUserRole === 'admin';
-    const canEdit = isCreator || isAdmin;
+    const canEdit = isCreator;
     
-    const isReadOnly = !canEdit;
-    const readOnlyAttr = isReadOnly ? 'readonly' : '';
-    const disabledAttr = isReadOnly ? 'disabled' : '';
-    
-    console.log('🔐 Ergebnis:', { canEdit, isReadOnly });
+    console.log('🔐 Ergebnis:', { canEdit });
 
     // Update Subtitle
     const subtitle = document.getElementById(`${this.drawerId}-subtitle`);
@@ -262,87 +254,7 @@ export class TaskDetailDrawer {
       <div class="tab-content">
         <!-- Tab: Details -->
         <div class="tab-pane active" id="tab-details">
-          ${isReadOnly ? '<div class="info-message" style="margin-bottom: var(--space-md); padding: var(--space-sm); background: #f3f4f6; border-radius: var(--radius-sm); color: #6b7280;">Sie können diese Aufgabe nur ansehen, da Sie nicht der Ersteller sind.</div>' : ''}
-          <form id="task-detail-form" class="detail-section">
-            <div class="form-field">
-              <label>Titel *</label>
-              <input type="text" name="title" class="form-input" value="${safe(this.task.title)}" ${readOnlyAttr} required />
-            </div>
-
-            <div class="form-field">
-              <label>Beschreibung</label>
-              <textarea name="description" class="form-input" rows="4" ${readOnlyAttr}>${safe(this.task.description || '')}</textarea>
-            </div>
-
-            <div class="form-grid" style="grid-template-columns: repeat(2, 1fr); gap: var(--space-sm);">
-              <div class="form-field">
-                <label>Status *</label>
-                <select name="status" class="form-input" ${disabledAttr}>
-                  <option value="todo" ${this.task.status === 'todo' ? 'selected' : ''}>To-Do</option>
-                  <option value="in_progress" ${this.task.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
-                  <option value="completed" ${this.task.status === 'completed' ? 'selected' : ''}>Completed</option>
-                </select>
-              </div>
-
-              <div class="form-field">
-                <label>Priorität</label>
-                <select name="priority" class="form-input" ${disabledAttr}>
-                  <option value="low" ${this.task.priority === 'low' ? 'selected' : ''}>Niedrig</option>
-                  <option value="medium" ${this.task.priority === 'medium' ? 'selected' : ''}>Mittel</option>
-                  <option value="high" ${this.task.priority === 'high' ? 'selected' : ''}>Hoch</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="form-grid" style="grid-template-columns: repeat(2, 1fr); gap: var(--space-sm);">
-              <div class="form-field">
-                <label>Kategorie/Phase</label>
-                <select name="category_id" class="form-input" ${disabledAttr}>
-                  <option value="">– keine –</option>
-                  ${this.categories.map(cat => `
-                    <option value="${cat.id}" ${this.task.category_id === cat.id ? 'selected' : ''}>
-                      ${safe(cat.name)}
-                    </option>
-                  `).join('')}
-                </select>
-              </div>
-
-              <div class="form-field">
-                <label>Fälligkeitsdatum</label>
-                <input type="date" name="due_date" class="form-input" value="${this.task.due_date || ''}" ${readOnlyAttr} />
-              </div>
-            </div>
-
-            <div class="form-field">
-              <label>Zugewiesen an</label>
-              <select name="assigned_to_user_id" class="form-input" ${disabledAttr}>
-                <option value="">– Nicht zugewiesen –</option>
-                ${this.availableAssignees.map(user => `
-                  <option value="${user.id}" ${this.task.assigned_to_user_id === user.id ? 'selected' : ''}>
-                    ${safe(user.name)}
-                  </option>
-                `).join('')}
-              </select>
-            </div>
-
-            <div class="form-field">
-              <label style="display: flex; align-items: center; gap: var(--space-xs);">
-                <input type="checkbox" name="is_public" ${this.task.is_public ? 'checked' : ''} ${disabledAttr} />
-                Für alle sichtbar (öffentlich)
-              </label>
-            </div>
-
-            ${canEdit ? `
-            <div class="drawer-actions">
-              <button type="submit" class="mdc-btn mdc-btn--create">
-                <span class="mdc-btn__icon mdc-btn__icon--check">${this.getCheckIcon()}</span>
-                <span class="mdc-btn__spinner">${this.getSpinnerIcon()}</span>
-                <span class="mdc-btn__label">Speichern</span>
-              </button>
-              <button type="button" id="btn-delete-task" class="secondary-btn" style="color: #dc2626;">Löschen</button>
-            </div>
-            ` : ''}
-          </form>
+          ${canEdit ? this.renderDetailsEditable() : this.renderDetailsReadOnly()}
         </div>
 
         <!-- Tab: Kommentare -->
@@ -393,6 +305,200 @@ export class TaskDetailDrawer {
     body.querySelectorAll('.tab-button').forEach(btn => {
       btn.addEventListener('click', () => this.switchTab(btn.dataset.tab));
     });
+  }
+
+  renderDetailsEditable() {
+    const safe = (str) => window.validatorSystem?.sanitizeHtml?.(str) ?? str;
+
+    return `
+      <form id="task-detail-form" class="detail-section">
+        <div class="form-field">
+          <label>Titel *</label>
+          <input type="text" name="title" class="form-input" value="${safe(this.task.title)}" required />
+        </div>
+
+        <div class="form-field">
+          <label>Beschreibung</label>
+          <textarea name="description" class="form-input" rows="4">${safe(this.task.description || '')}</textarea>
+        </div>
+
+        <div class="form-grid" style="grid-template-columns: repeat(2, 1fr); gap: var(--space-sm);">
+          <div class="form-field">
+            <label>Status *</label>
+            <select name="status" class="form-input">
+              <option value="todo" ${this.task.status === 'todo' ? 'selected' : ''}>To-Do</option>
+              <option value="in_progress" ${this.task.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
+              <option value="completed" ${this.task.status === 'completed' ? 'selected' : ''}>Completed</option>
+            </select>
+          </div>
+
+          <div class="form-field">
+            <label>Priorität</label>
+            <select name="priority" class="form-input">
+              <option value="low" ${this.task.priority === 'low' ? 'selected' : ''}>Niedrig</option>
+              <option value="medium" ${this.task.priority === 'medium' ? 'selected' : ''}>Mittel</option>
+              <option value="high" ${this.task.priority === 'high' ? 'selected' : ''}>Hoch</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-grid" style="grid-template-columns: repeat(2, 1fr); gap: var(--space-sm);">
+          <div class="form-field">
+            <label>Kategorie/Phase</label>
+            <select name="category_id" class="form-input">
+              <option value="">– keine –</option>
+              ${this.categories.map(cat => `
+                <option value="${cat.id}" ${this.task.category_id === cat.id ? 'selected' : ''}>
+                  ${safe(cat.name)}
+                </option>
+              `).join('')}
+            </select>
+          </div>
+
+          <div class="form-field">
+            <label>Fälligkeitsdatum</label>
+            <input type="date" name="due_date" class="form-input" value="${this.task.due_date || ''}" />
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label>Zugewiesen an</label>
+          <select name="assigned_to_user_id" class="form-input">
+            <option value="">– Nicht zugewiesen –</option>
+            ${this.availableAssignees.map(user => `
+              <option value="${user.id}" ${this.task.assigned_to_user_id === user.id ? 'selected' : ''}>
+                ${safe(user.name)}
+              </option>
+            `).join('')}
+          </select>
+        </div>
+
+        <div class="form-field">
+          <label style="display: flex; align-items: center; gap: var(--space-xs);">
+            <input type="checkbox" name="is_public" ${this.task.is_public ? 'checked' : ''} />
+            Für alle sichtbar (öffentlich)
+          </label>
+        </div>
+
+        <div class="drawer-actions">
+          <button type="submit" class="mdc-btn mdc-btn--create">
+            <span class="mdc-btn__icon mdc-btn__icon--check">${this.getCheckIcon()}</span>
+            <span class="mdc-btn__spinner">${this.getSpinnerIcon()}</span>
+            <span class="mdc-btn__label">Speichern</span>
+          </button>
+          <button type="button" id="btn-delete-task" class="secondary-btn" style="color: #dc2626;">Löschen</button>
+        </div>
+      </form>
+    `;
+  }
+
+  renderDetailsReadOnly() {
+    const safe = (str) => window.validatorSystem?.sanitizeHtml?.(str) ?? str;
+    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
+
+    const statusLabels = {
+      todo: 'To-Do',
+      in_progress: 'In Progress',
+      completed: 'Erledigt'
+    };
+
+    const priorityLabels = {
+      low: 'Niedrig',
+      medium: 'Mittel',
+      high: 'Hoch'
+    };
+
+    const priorityColors = {
+      low: '#10b981',
+      medium: '#f59e0b',
+      high: '#ef4444'
+    };
+
+    const statusColors = {
+      todo: '#6b7280',
+      in_progress: '#3b82f6',
+      completed: '#10b981'
+    };
+
+    return `
+      <div class="detail-section">
+        <div class="info-message" style="margin-bottom: var(--space-md); padding: var(--space-sm); background: #f3f4f6; border-radius: var(--radius-sm); color: #6b7280;">
+          Diese Aufgabe kann nur vom Ersteller bearbeitet werden. Sie können aber weiterhin Kommentare hinzufügen.
+        </div>
+
+        <div style="display: grid; gap: var(--space-md);">
+          <!-- Titel -->
+          <div>
+            <div style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: var(--space-xs);">Titel</div>
+            <div style="font-size: 1rem; color: #111827;">${safe(this.task.title)}</div>
+          </div>
+
+          <!-- Beschreibung -->
+          ${this.task.description ? `
+          <div>
+            <div style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: var(--space-xs);">Beschreibung</div>
+            <div style="font-size: 0.95rem; color: #374151; white-space: pre-wrap;">${safe(this.task.description)}</div>
+          </div>
+          ` : ''}
+
+          <!-- Status und Priorität -->
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-md);">
+            <div>
+              <div style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: var(--space-xs);">Status</div>
+              <span style="display: inline-flex; align-items: center; gap: var(--space-xs); padding: 4px 12px; background: ${statusColors[this.task.status]}20; color: ${statusColors[this.task.status]}; border-radius: var(--radius-sm); font-size: 0.875rem; font-weight: 500;">
+                ${statusLabels[this.task.status] || this.task.status}
+              </span>
+            </div>
+
+            <div>
+              <div style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: var(--space-xs);">Priorität</div>
+              <span style="display: inline-flex; align-items: center; gap: var(--space-xs); padding: 4px 12px; background: ${priorityColors[this.task.priority]}20; color: ${priorityColors[this.task.priority]}; border-radius: var(--radius-sm); font-size: 0.875rem; font-weight: 500;">
+                ${priorityLabels[this.task.priority] || this.task.priority}
+              </span>
+            </div>
+          </div>
+
+          <!-- Kategorie und Fälligkeitsdatum -->
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-md);">
+            <div>
+              <div style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: var(--space-xs);">Kategorie/Phase</div>
+              <div style="font-size: 0.95rem; color: #374151;">
+                ${this.task.category ? safe(this.task.category.name) : '–'}
+              </div>
+            </div>
+
+            <div>
+              <div style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: var(--space-xs);">Fälligkeitsdatum</div>
+              <div style="font-size: 0.95rem; color: #374151;">${formatDate(this.task.due_date)}</div>
+            </div>
+          </div>
+
+          <!-- Zugewiesen an -->
+          <div>
+            <div style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: var(--space-xs);">Zugewiesen an</div>
+            <div style="font-size: 0.95rem; color: #374151;">
+              ${this.task.assigned_to ? safe(this.task.assigned_to.name) : 'Nicht zugewiesen'}
+            </div>
+          </div>
+
+          <!-- Erstellt von -->
+          <div>
+            <div style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: var(--space-xs);">Erstellt von</div>
+            <div style="font-size: 0.95rem; color: #374151;">
+              ${this.task.creator ? safe(this.task.creator.name) : 'Unbekannt'}
+            </div>
+          </div>
+
+          <!-- Sichtbarkeit -->
+          <div>
+            <div style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: var(--space-xs);">Sichtbarkeit</div>
+            <div style="font-size: 0.95rem; color: #374151;">
+              ${this.task.is_public ? 'Öffentlich (für alle sichtbar)' : 'Privat'}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   renderComments() {
