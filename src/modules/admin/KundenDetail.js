@@ -5,7 +5,7 @@ export class KundenDetail {
   constructor() {
     this.userId = null;
     this.user = null;
-    this.assignments = { unternehmen: [], marken: [] };
+    this.assignments = { unternehmen: [], marken: [], kampagnen: [], kooperationen: [] };
   }
 
   async init(id) {
@@ -35,6 +35,59 @@ export class KundenDetail {
       this.user = user || {};
       this.assignments.unternehmen = (urels || []).map(r => r.unternehmen).filter(Boolean);
       this.assignments.marken = (mrels || []).map(r => r.marke).filter(Boolean);
+      
+      // Kampagnen über Unternehmen und Marken laden
+      const unternehmenIds = this.assignments.unternehmen.map(u => u.id).filter(Boolean);
+      const markenIds = this.assignments.marken.map(m => m.id).filter(Boolean);
+      
+      // Alle Marken der zugeordneten Unternehmen finden
+      let allMarkenIds = [...markenIds];
+      if (unternehmenIds.length > 0) {
+        const { data: unternehmenMarken } = await window.supabase
+          .from('marke')
+          .select('id')
+          .in('unternehmen_id', unternehmenIds);
+        
+        const zusaetzlicheMarkenIds = (unternehmenMarken || []).map(m => m.id).filter(Boolean);
+        allMarkenIds = [...new Set([...allMarkenIds, ...zusaetzlicheMarkenIds])];
+      }
+      
+      // Alle Kampagnen dieser Marken laden
+      let allKampagnen = [];
+      if (allMarkenIds.length > 0) {
+        const { data: kampagnen } = await window.supabase
+          .from('kampagne')
+          .select('id, kampagnenname, start, deadline, status, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname)')
+          .in('marke_id', allMarkenIds)
+          .order('created_at', { ascending: false });
+        
+        allKampagnen = kampagnen || [];
+      }
+      
+      this.assignments.kampagnen = allKampagnen;
+      
+      // Alle Kooperationen dieser Kampagnen laden
+      const kampagnenIds = allKampagnen.map(k => k.id).filter(Boolean);
+      let allKooperationen = [];
+      
+      if (kampagnenIds.length > 0) {
+        const { data: kooperationen } = await window.supabase
+          .from('kooperationen')
+          .select('id, name, status, nettobetrag, zusatzkosten, gesamtkosten, kampagne:kampagne_id(kampagnenname), creator:creator_id(vorname, nachname)')
+          .in('kampagne_id', kampagnenIds)
+          .order('created_at', { ascending: false });
+        
+        allKooperationen = kooperationen || [];
+      }
+      
+      this.assignments.kooperationen = allKooperationen;
+      
+      console.log('✅ Kunde Zuordnungen geladen:', {
+        unternehmen: this.assignments.unternehmen.length,
+        marken: this.assignments.marken.length,
+        kampagnen: this.assignments.kampagnen.length,
+        kooperationen: this.assignments.kooperationen.length
+      });
     } catch (e) {
       console.error('❌ Fehler beim Laden Kunden-Details:', e);
     }
@@ -76,6 +129,92 @@ export class KundenDetail {
           </tbody>
         </table>
       </div>`;
+  }
+
+  renderKampagnenTable() {
+    if (!this.assignments.kampagnen || this.assignments.kampagnen.length === 0) {
+      return '<div class="empty-state"><p>Keine Kampagnen verfügbar</p></div>';
+    }
+    
+    return `
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Kampagnenname</th>
+              <th>Marke</th>
+              <th>Start</th>
+              <th>Deadline</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${this.assignments.kampagnen.map(k => {
+              const startDate = k.start ? new Date(k.start).toLocaleDateString('de-DE') : '—';
+              const deadlineDate = k.deadline ? new Date(k.deadline).toLocaleDateString('de-DE') : '—';
+              const markeName = k.marke?.markenname || '—';
+              return `
+                <tr>
+                  <td>
+                    <a href="/kampagne/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${k.id}')" class="table-link">
+                      ${window.validatorSystem.sanitizeHtml(k.kampagnenname || k.id)}
+                    </a>
+                  </td>
+                  <td>${window.validatorSystem.sanitizeHtml(markeName)}</td>
+                  <td>${startDate}</td>
+                  <td>${deadlineDate}</td>
+                  <td><span class="status-badge">${window.validatorSystem.sanitizeHtml(k.status || '—')}</span></td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  renderKooperationenTable() {
+    if (!this.assignments.kooperationen || this.assignments.kooperationen.length === 0) {
+      return '<div class="empty-state"><p>Keine Kooperationen verfügbar</p></div>';
+    }
+    
+    return `
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Kampagne</th>
+              <th>Creator</th>
+              <th>Status</th>
+              <th style="text-align: right;">Gesamtkosten</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${this.assignments.kooperationen.map(k => {
+              const kampagneName = k.kampagne?.kampagnenname || '—';
+              const creatorName = k.creator ? `${k.creator.vorname} ${k.creator.nachname}` : '—';
+              const gesamtkosten = k.gesamtkosten != null 
+                ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(k.gesamtkosten)
+                : '—';
+              return `
+                <tr>
+                  <td>
+                    <a href="/kooperation/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kooperation/${k.id}')" class="table-link">
+                      ${window.validatorSystem.sanitizeHtml(k.name || k.id)}
+                    </a>
+                  </td>
+                  <td>${window.validatorSystem.sanitizeHtml(kampagneName)}</td>
+                  <td>${window.validatorSystem.sanitizeHtml(creatorName)}</td>
+                  <td><span class="status-badge">${window.validatorSystem.sanitizeHtml(k.status || '—')}</span></td>
+                  <td style="text-align: right;">${gesamtkosten}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
   }
 
   // Actions für Zuordnungen erstellen
@@ -121,6 +260,8 @@ export class KundenDetail {
           <button class="tab-button active" data-tab="stammdaten">Stammdaten</button>
           <button class="tab-button" data-tab="unternehmen">Unternehmen <span class="tab-count">${this.assignments.unternehmen.length}</span></button>
           <button class="tab-button" data-tab="marken">Marken <span class="tab-count">${this.assignments.marken.length}</span></button>
+          <button class="tab-button" data-tab="kampagnen">Kampagnen <span class="tab-count">${this.assignments.kampagnen.length}</span></button>
+          <button class="tab-button" data-tab="kooperationen">Kooperationen <span class="tab-count">${this.assignments.kooperationen.length}</span></button>
         </div>
 
         <div class="tab-content">
@@ -194,6 +335,22 @@ export class KundenDetail {
                 <button class="primary-btn" id="btn-add-marke">Marke hinzufügen</button>
               </div>
               ${this.renderList(this.assignments.marken, 'marke')}
+            </div>
+          </div>
+
+          <div class="tab-pane" id="tab-kampagnen">
+            <div class="detail-section">
+              <h2>Kampagnen</h2>
+              <p class="form-help" style="margin-bottom: 1rem;">Alle Kampagnen der zugeordneten Unternehmen und Marken</p>
+              ${this.renderKampagnenTable()}
+            </div>
+          </div>
+
+          <div class="tab-pane" id="tab-kooperationen">
+            <div class="detail-section">
+              <h2>Kooperationen</h2>
+              <p class="form-help" style="margin-bottom: 1rem;">Alle Kooperationen der zugeordneten Kampagnen</p>
+              ${this.renderKooperationenTable()}
             </div>
           </div>
         </div>

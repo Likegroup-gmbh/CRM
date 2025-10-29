@@ -33,10 +33,15 @@ export class MitarbeiterDetail {
     try {
       const { data: user } = await window.supabase
         .from('benutzer')
-        .select('*')
+        .select('*, mitarbeiter_klasse:mitarbeiter_klasse_id(id, name)')
         .eq('id', this.userId)
         .single();
       this.user = user || {};
+      
+      // Mitarbeiter-Klassen-Name extrahieren
+      if (this.user.mitarbeiter_klasse) {
+        this.user.mitarbeiter_klasse_name = this.user.mitarbeiter_klasse.name;
+      }
 
       const [{ data: kampRel }, { data: koops }, { data: briefs }, { data: statusRows }, { data: unternehmenRel }, { data: markenRel }] = await Promise.all([
         window.supabase
@@ -56,8 +61,76 @@ export class MitarbeiterDetail {
           .eq('mitarbeiter_id', this.userId)
       ]);
 
-      this.assignments.kampagnen = (kampRel || []).map(r => r.kampagne).filter(Boolean);
-      this.assignments.kooperationen = koops || [];
+      // Direkt zugeordnete Kampagnen
+      const directKampagnen = (kampRel || []).map(r => r.kampagne).filter(Boolean);
+      
+      // Kampagnen über zugeordnete Unternehmen laden
+      const unternehmenIds = (unternehmenRel || []).map(r => r.unternehmen?.id).filter(Boolean);
+      let unternehmenKampagnen = [];
+      
+      if (unternehmenIds.length > 0) {
+        try {
+          // Alle Marken dieser Unternehmen finden
+          const { data: unternehmenMarken } = await window.supabase
+            .from('marke')
+            .select('id')
+            .in('unternehmen_id', unternehmenIds);
+          
+          const markenIds = (unternehmenMarken || []).map(m => m.id).filter(Boolean);
+          
+          if (markenIds.length > 0) {
+            // Alle Kampagnen dieser Marken laden
+            const { data: kampagnen } = await window.supabase
+              .from('kampagne')
+              .select('id, kampagnenname')
+              .in('marke_id', markenIds);
+            
+            unternehmenKampagnen = (kampagnen || []).filter(Boolean);
+          }
+        } catch (e) {
+          console.error('❌ Fehler beim Laden von Unternehmen-Kampagnen:', e);
+        }
+      }
+      
+      // Alle Kampagnen zusammenführen (ohne Duplikate)
+      const allKampagnenMap = new Map();
+      [...directKampagnen, ...unternehmenKampagnen].forEach(k => {
+        if (k && k.id) {
+          allKampagnenMap.set(k.id, k);
+        }
+      });
+      
+      this.assignments.kampagnen = Array.from(allKampagnenMap.values());
+      
+      // Kooperationen: Direkt zugewiesen + über Kampagnen des Unternehmens
+      const directKoops = koops || [];
+      
+      // Kooperationen über Kampagnen laden (die wir durch Unternehmen haben)
+      const allKampagnenIds = Array.from(allKampagnenMap.keys());
+      let unternehmenKoops = [];
+      
+      if (allKampagnenIds.length > 0) {
+        try {
+          const { data: kampagnenKoops } = await window.supabase
+            .from('kooperationen')
+            .select('id, name, status, kampagne:kampagne_id(kampagnenname), nettobetrag, zusatzkosten, gesamtkosten')
+            .in('kampagne_id', allKampagnenIds);
+          
+          unternehmenKoops = kampagnenKoops || [];
+        } catch (e) {
+          console.error('❌ Fehler beim Laden von Unternehmen-Kooperationen:', e);
+        }
+      }
+      
+      // Alle Kooperationen zusammenführen (ohne Duplikate)
+      const allKoopsMap = new Map();
+      [...directKoops, ...unternehmenKoops].forEach(k => {
+        if (k && k.id) {
+          allKoopsMap.set(k.id, k);
+        }
+      });
+      
+      this.assignments.kooperationen = Array.from(allKoopsMap.values());
       this.assignments.briefings = briefs || [];
       this.statusOptions = statusRows || [];
       this.zugeordnet = {
@@ -321,6 +394,35 @@ export class MitarbeiterDetail {
             </div>
             
             <div class="detail-section">
+              <h2>Mitarbeiter-Rolle</h2>
+              <div class="data-table-container">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Rolle / Klasse</th>
+                      <th style="width: 200px; text-align: right;">Aktionen</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>
+                        <div>
+                          <strong>${this.user?.mitarbeiter_klasse_name || 'Keine Rolle zugewiesen'}</strong>
+                          <div class="form-help" style="margin-top: 4px;">
+                            Definiert die Hauptaufgaben und Zuständigkeiten des Mitarbeiters
+                          </div>
+                        </div>
+                      </td>
+                      <td style="text-align: right;">
+                        <button class="secondary-btn" id="btn-change-rolle">Rolle ändern</button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            
+            <div class="detail-section">
               <h2>Rechte</h2>
               ${this.user?.freigeschaltet ? 
                 `<div class="data-table-container">
@@ -536,6 +638,14 @@ export class MitarbeiterDetail {
       document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
       const pane = document.getElementById(`tab-${tab}`);
       if (pane) pane.classList.add('active');
+    });
+
+    // Event-Handler für "Rolle ändern" Button
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('#btn-change-rolle')) {
+        e.preventDefault();
+        this.showChangeRolleModal();
+      }
     });
 
     // Live Toggle für Freigeschaltet-Status mit Auto-Save
@@ -801,6 +911,174 @@ export class MitarbeiterDetail {
         </div>
       </div>
     `;
+  }
+
+  // Modal für Rollen-Änderung
+  async showChangeRolleModal() {
+    // Entferne existierende Modals
+    document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+          <h3>Mitarbeiter-Rolle ändern</h3>
+          <button id="close-modal" class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Rolle / Klasse</label>
+            <p class="form-help" style="margin-bottom: 10px;">Definiert die Hauptaufgaben und Zuständigkeiten des Mitarbeiters</p>
+            <input id="rolle-search" class="form-input" type="text" placeholder="Rolle suchen..." autocomplete="off" />
+            <div id="rolle-dropdown" class="auto-suggest-dropdown" style="display: none;"></div>
+          </div>
+          <div id="selected-rolle" class="selected-items" style="margin-top: 10px;"></div>
+        </div>
+        <div class="modal-footer">
+          <button id="save-rolle" class="primary-btn" disabled>Speichern</button>
+          <button id="cancel-rolle" class="secondary-btn">Abbrechen</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const input = modal.querySelector('#rolle-search');
+    const dropdown = modal.querySelector('#rolle-dropdown');
+    const selectedContainer = modal.querySelector('#selected-rolle');
+    const saveBtn = modal.querySelector('#save-rolle');
+    let selectedRolle = null;
+    let searchTimeout;
+    let allRollen = [];
+
+    // Alle Mitarbeiter-Klassen laden
+    try {
+      const { data, error } = await window.supabase
+        .from('mitarbeiter_klasse')
+        .select('id, name, description')
+        .order('sort_order')
+        .order('name');
+
+      if (error) throw error;
+      allRollen = data || [];
+    } catch (err) {
+      console.error('❌ Fehler beim Laden der Rollen', err);
+      window.NotificationSystem?.show('error', 'Fehler beim Laden der Rollen');
+      modal.remove();
+      return;
+    }
+
+    // Auto-Suggestion für Rollen
+    input.addEventListener('input', (e) => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        const query = e.target.value.trim().toLowerCase();
+        
+        if (query.length === 0) {
+          // Zeige alle Rollen wenn leer
+          displayRollen(allRollen);
+        } else if (query.length < 2) {
+          dropdown.style.display = 'none';
+        } else {
+          // Filtere lokale Rollen
+          const filtered = allRollen.filter(r => 
+            r.name.toLowerCase().includes(query) || 
+            (r.description && r.description.toLowerCase().includes(query))
+          );
+          displayRollen(filtered);
+        }
+      }, 150);
+    });
+
+    // Zeige initial alle Rollen
+    input.addEventListener('focus', () => {
+      if (input.value.trim().length === 0) {
+        displayRollen(allRollen);
+      }
+    });
+
+    function displayRollen(rollen) {
+      if (rollen.length > 0) {
+        dropdown.innerHTML = rollen.map(r => `
+          <div class="dropdown-item" data-id="${r.id}" data-name="${r.name}">
+            <div class="dropdown-item-main">${window.validatorSystem.sanitizeHtml(r.name)}</div>
+            ${r.description ? `<div class="dropdown-item-sub">${window.validatorSystem.sanitizeHtml(r.description)}</div>` : ''}
+          </div>
+        `).join('');
+        dropdown.style.display = 'block';
+      } else {
+        dropdown.innerHTML = '<div class="dropdown-item no-results">Keine Rolle gefunden</div>';
+        dropdown.style.display = 'block';
+      }
+    }
+
+    // Dropdown-Auswahl
+    dropdown.addEventListener('click', (e) => {
+      const item = e.target.closest('.dropdown-item[data-id]');
+      if (!item) return;
+
+      selectedRolle = {
+        id: item.dataset.id,
+        name: item.dataset.name
+      };
+
+      selectedContainer.innerHTML = `
+        <div class="selected-item">
+          <span class="selected-item-name">${window.validatorSystem.sanitizeHtml(selectedRolle.name)}</span>
+          <button type="button" class="selected-item-remove">&times;</button>
+        </div>
+      `;
+
+      input.value = '';
+      dropdown.style.display = 'none';
+      saveBtn.disabled = false;
+    });
+
+    // Entfernen der Auswahl
+    selectedContainer.addEventListener('click', (e) => {
+      if (e.target.closest('.selected-item-remove')) {
+        selectedRolle = null;
+        selectedContainer.innerHTML = '';
+        saveBtn.disabled = true;
+      }
+    });
+
+    // Speichern
+    saveBtn.addEventListener('click', async () => {
+      if (!selectedRolle) return;
+
+      try {
+        const { error } = await window.supabase
+          .from('benutzer')
+          .update({ mitarbeiter_klasse_id: selectedRolle.id })
+          .eq('id', this.userId);
+
+        if (error) throw error;
+
+        window.NotificationSystem?.show('success', `Rolle erfolgreich auf "${selectedRolle.name}" geändert`);
+        modal.remove();
+        
+        // Daten neu laden und Seite aktualisieren
+        await this.load();
+        await this.render();
+        this.bind();
+      } catch (err) {
+        console.error('❌ Rolle ändern fehlgeschlagen', err);
+        window.NotificationSystem?.show('error', 'Rolle ändern fehlgeschlagen: ' + err.message);
+      }
+    });
+
+    // Modal schließen
+    const closeModal = () => modal.remove();
+    modal.querySelector('#close-modal').onclick = closeModal;
+    modal.querySelector('#cancel-rolle').onclick = closeModal;
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+
+    // Focus auf Input
+    setTimeout(() => input.focus(), 100);
   }
 
   // Event-Handler für Unternehmen-Zuordnungen
