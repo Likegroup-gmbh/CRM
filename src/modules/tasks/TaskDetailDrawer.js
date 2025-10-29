@@ -223,12 +223,29 @@ export class TaskDetailDrawer {
     const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
     const formatDateTime = (date) => date ? new Date(date).toLocaleString('de-DE') : '-';
 
-    // Berechtigungsprüfung
-    const canEdit = this.task.created_by === window.currentUser?.id || 
-                    window.currentUser?.rolle === 'admin';
+    // Berechtigungsprüfung - Nur Ersteller und Admins dürfen bearbeiten
+    const currentUserId = window.currentUser?.id;
+    const currentUserRole = window.currentUser?.rolle;
+    const taskCreatorId = this.task.created_by;
+    
+    console.log('🔐 TaskDetailDrawer Berechtigungsprüfung:', {
+      currentUserId,
+      currentUserRole,
+      taskCreatorId,
+      idsMatch: currentUserId && taskCreatorId && String(currentUserId) === String(taskCreatorId),
+      isAdmin: currentUserRole === 'admin'
+    });
+    
+    // Explizite Prüfung: Nur wenn User der Ersteller ist ODER Admin
+    const isCreator = currentUserId && taskCreatorId && String(currentUserId) === String(taskCreatorId);
+    const isAdmin = currentUserRole === 'admin';
+    const canEdit = isCreator || isAdmin;
+    
     const isReadOnly = !canEdit;
     const readOnlyAttr = isReadOnly ? 'readonly' : '';
     const disabledAttr = isReadOnly ? 'disabled' : '';
+    
+    console.log('🔐 Ergebnis:', { canEdit, isReadOnly });
 
     // Update Subtitle
     const subtitle = document.getElementById(`${this.drawerId}-subtitle`);
