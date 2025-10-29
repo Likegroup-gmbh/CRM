@@ -673,12 +673,23 @@ export class TaskKanbanBoard {
 
   async loadUsers() {
     try {
+      // Verwende View für rollenbasierte Filterung der verfügbaren Mitarbeiter
+      // Admins/Mitarbeiter sehen alle, Kunden nur verknüpfte Mitarbeiter
       const { data, error } = await window.supabase
-        .from('benutzer')
-        .select('id, name')
+        .from('v_available_assignees')
+        .select('id, name, rolle, profile_image_url')
         .order('name');
       
-      if (error) throw error;
+      if (error) {
+        console.error('Fehler beim Laden aus View, fallback zu benutzer:', error);
+        // Fallback: Wenn View nicht existiert, lade direkt aus benutzer Tabelle
+        const fallback = await window.supabase
+          .from('benutzer')
+          .select('id, name')
+          .order('name');
+        return fallback.data || [];
+      }
+      
       return data || [];
     } catch (error) {
       console.error('Fehler beim Laden der Mitarbeiter:', error);
