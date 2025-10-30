@@ -48,13 +48,6 @@ export const MARKE_FILTERS = [
     max: 100,
     virtual: true,
     priority: 4
-  }),
-
-  // Erstellt am
-  createFilterConfig('dateRange', {
-    id: 'created_at',
-    label: 'Erstellt am',
-    priority: 5
   })
 ];
 

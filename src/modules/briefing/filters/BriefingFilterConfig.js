@@ -61,12 +61,6 @@ export const BRIEFING_FILTERS = [
     id: 'deadline',
     label: 'Deadline',
     priority: 6
-  }),
-
-  createFilterConfig('dateRange', {
-    id: 'created_at',
-    label: 'Erstellt am',
-    priority: 7
   })
 ];
 
@@ -86,7 +80,7 @@ export const BRIEFING_FILTER_GROUPS = [
   {
     id: 'timing',
     label: 'Zeit',
-    filters: ['deadline', 'created_at'],
+    filters: ['deadline'],
     expanded: false
   }
 ];
@@ -94,8 +88,6 @@ export const BRIEFING_FILTER_GROUPS = [
 export const BRIEFING_FILTER_PRESETS = [];
 
 export const BRIEFING_SORT_OPTIONS = [
-  { value: 'created_at', label: 'Erstellt (neu zuerst)', direction: 'desc' },
-  { value: 'created_at', label: 'Erstellt (alt zuerst)', direction: 'asc' },
   { value: 'deadline', label: 'Deadline (nah zuerst)', direction: 'asc' },
   { value: 'deadline', label: 'Deadline (fern zuerst)', direction: 'desc' }
 ];

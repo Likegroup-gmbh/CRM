@@ -35,18 +35,6 @@ export const RECHNUNG_FILTERS = [
       { value: 'Storniert', label: 'Storniert' }
     ]
   }),
-  createFilterConfig('date', {
-    id: 'gestellt_am',
-    label: 'Gestellt am'
-  }),
-  createFilterConfig('date', {
-    id: 'zahlungsziel',
-    label: 'Zahlungsziel'
-  }),
-  createFilterConfig('date', {
-    id: 'bezahlt_am',
-    label: 'Bezahlt am'
-  }),
   {
     id: 'nettobetrag',
     label: 'Betrag (Netto)',

@@ -2,6 +2,7 @@
 // Auftrags-Liste mit Filter und Verwaltung
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
+import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { AuftragsDetailsManager, auftragsDetailsManager } from './logic/AuftragsDetailsManager.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
@@ -87,8 +88,8 @@ export class AuftragList {
       <div class="content-section">
         <div class="table-filter-wrapper">
           <div class="filter-bar">
-            <div id="filter-container"></div>
-            <button id="btn-filter-reset" class="secondary-btn" style="display:none;">Filter zurücksetzen</button>
+            <div id="filter-dropdown-container"></div>
+            
           </div>
           <div class="table-actions">
             <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
@@ -193,13 +194,13 @@ export class AuftragList {
 
   // Initialisiere Filterbar mit neuem Filtersystem
   async initializeFilterBar() {
-    const filterContainer = document.getElementById('filter-container');
+    const filterContainer = document.getElementById('filter-dropdown-container');
     if (filterContainer) {
-      // Nutze das neue Filtersystem für die Filterbar (asynchron)
-      await filterSystem.renderFilterBar('auftrag', filterContainer, 
-        (filters) => this.onFiltersApplied(filters),
-        () => this.onFiltersReset()
-      );
+      // Nutze das neue Filter-Dropdown System
+      await filterDropdown.init('auftrag', filterContainer, {
+        onFilterApply: (filters) => this.onFiltersApplied(filters),
+        onFilterReset: () => this.onFiltersReset()
+      });
     }
   }
 
@@ -219,13 +220,7 @@ export class AuftragList {
 
   // Binde Events
   bindEvents() {
-    // Reset All Button - spezifisch für dieses Modul
-    this.boundFilterResetHandler = (e) => {
-      if (e.target.id === 'btn-filter-reset') {
-        this.onFiltersReset();
-      }
-    };
-    document.addEventListener('click', this.boundFilterResetHandler);
+    // Filter-Events werden vom FilterDropdown gehandelt
 
     // Neuen Auftrag anlegen Button
     document.addEventListener('click', (e) => {

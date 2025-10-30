@@ -118,13 +118,6 @@ export const AUFTRAG_FILTERS = [
     id: 'ueberwiesen',
     label: 'Überwiesen',
     priority: 12
-  }),
-
-  // Erstellt am
-  createFilterConfig('dateRange', {
-    id: 'created_at',
-    label: 'Erstellt am',
-    priority: 13
   })
 ];
 

@@ -2,6 +2,7 @@
 // Unternehmen-Liste mit neuem Filtersystem
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
+import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 
@@ -76,13 +77,10 @@ export class UnternehmenList {
       }
     });
     
-    // Filter-UI über dem Tabellen-Header
+    // Filter-Dropdown über dem Tabellen-Header
     let filterHtml = `<div class="filter-bar">
       <div class="filter-left">
-        <div id="filter-container"></div>
-      </div>
-      <div class="filter-right">
-        <button id="btn-filter-reset" class="secondary-btn" style="display:${this.hasActiveFilters() ? 'inline-block' : 'none'};">Alle Filter zurücksetzen</button>
+        <div id="filter-dropdown-container"></div>
       </div>
     </div>`;
     
@@ -136,15 +134,15 @@ export class UnternehmenList {
     await this.initializeFilterBar();
   }
 
-  // Initialisiere Filterbar mit neuem Filtersystem
+  // Initialisiere Filter-Dropdown
   async initializeFilterBar() {
-    const filterContainer = document.getElementById('filter-container');
+    const filterContainer = document.getElementById('filter-dropdown-container');
     if (filterContainer) {
-      // Nutze das neue Filtersystem für die Filterbar (asynchron)
-      await filterSystem.renderFilterBar('unternehmen', filterContainer, 
-        (filters) => this.onFiltersApplied(filters),
-        () => this.onFiltersReset()
-      );
+      // Nutze das neue Filter-Dropdown System
+      await filterDropdown.init('unternehmen', filterContainer, {
+        onFilterApply: (filters) => this.onFiltersApplied(filters),
+        onFilterReset: () => this.onFiltersReset()
+      });
     }
   }
 
@@ -164,13 +162,7 @@ export class UnternehmenList {
 
   // Binde Events
   bindEvents() {
-    // Reset All Button - spezifisch für dieses Modul
-    this.boundFilterResetHandler = (e) => {
-      if (e.target.id === 'btn-filter-reset') {
-        this.onFiltersReset();
-      }
-    };
-    document.addEventListener('click', this.boundFilterResetHandler);
+    // Filter-Events werden vom FilterDropdown gehandelt
 
     // Neues Unternehmen anlegen Button
     document.addEventListener('click', (e) => {

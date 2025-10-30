@@ -1,0 +1,174 @@
+/* ===== CSS-VARIABLEN ===== */
+
+:root {
+  /* ===== T-SHIRT GRÖSSEN SYSTEM ===== */
+  /* Spacing (Padding/Margin) */
+  --space-xxxs: 0.125rem;  /* 2px */
+  --space-xxs: 0.25rem;    /* 4px */
+  --space-xs: 0.5rem;      /* 8px */
+  --space-sm: 0.75rem;     /* 12px */
+  --space-md: 1rem;        /* 16px */
+  --space-lm: 1.25rem;     /* 18px */
+  --space-lg: 1.5rem;      /* 24px */
+  --space-xl: 2rem;        /* 32px */
+  --space-xxl: 3rem;       /* 48px */
+  --space-xxxl: 4rem;      /* 64px */
+
+  /* Zusätzliche Spacings */
+  --space-10: 0.625rem;    /* 10px */
+  --space-20: 1.25rem;     /* 20px */
+  --space-44: 2.75rem;     /* 44px */
+
+  /* Font Sizes */
+  --text-xxs: 0.625rem;    /* 10px */
+  --text-xs: 0.75rem;      /* 12px */
+  --text-sm: 0.875rem;     /* 14px */
+  --text-md: 1rem;         /* 16px */
+  --text-lg: 1.125rem;     /* 18px */
+  --text-xl: 1.25rem;      /* 20px */
+  --text-xxl: 1.5rem;      /* 24px */
+  --text-xxxl: 2rem;       /* 32px */
+
+  /* Zusätzliche Font Sizes */
+  --text-11: 0.6875rem;    /* 11px */
+  --text-13: 0.8125rem;    /* 13px */
+  --text-15: 0.9375rem;    /* 15px */
+
+  /* Border Radius */
+  --radius-xs: 0.125rem;   /* 2px */
+  --radius-sm: 0.25rem;    /* 4px */
+  --radius-md: 0.375rem;   /* 6px */
+  --radius-lg: 0.5rem;     /* 8px */
+  --radius-xl: 0.75rem;    /* 12px */
+  --radius-xxl: 1rem;      /* 16px */
+
+  /* Zusätzliche Border Radius */
+  --radius-2: 0.125rem;    /* 2px */
+  --radius-3: 0.1875rem;   /* 3px */
+  --radius-4: 0.25rem;     /* 4px */
+
+  /* Border Width */
+  --border-xs: 1px;
+  --border-sm: 2px;
+  --border-md: 3px;
+  --border-lg: 4px;
+
+  /* Shadows */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+  /* ===== SCHWARZ-WEISS FARBSYSTEM ===== */
+  /* Grayscale */
+  --gray-50: #fafafa;
+  --gray-100: #f5f5f5;
+  --gray-200: #e5e5e5;
+  --gray-300: #d4d4d4;
+  --gray-400: #a3a3a3;
+  --gray-500: #737373;
+  --gray-600: #525252;
+  --gray-700: #404040;
+  --gray-800: #262626;
+  --gray-900: #171717;
+  --gray-950: #0a0a0a;
+
+  /* Semantic Colors */
+  --color-primary: var(--gray-900);
+  --color-primary-light: var(--gray-700);
+  --color-primary-dark: var(--gray-950);
+  
+  --color-secondary: var(--gray-600);
+  --color-secondary-light: var(--gray-400);
+  --color-secondary-dark: var(--gray-800);
+  
+  --color-accent: var(--gray-500);
+  --color-accent-light: var(--gray-300);
+  --color-accent-dark: var(--gray-700);
+
+  /* Background Colors */
+  --bg-primary: #ffffff;
+  --bg-secondary: var(--gray-50);
+  --bg-tertiary: var(--gray-100);
+  --bg-sidebar: var(--gray-900);
+  --bg-overlay: rgba(0, 0, 0, 0.5);
+
+  /* Text Colors */
+  --text-primary: var(--gray-900);
+  --text-secondary: var(--gray-600);
+  --text-tertiary: var(--gray-500);
+  --text-inverse: #ffffff;
+  --text-muted: var(--gray-400);
+
+  /* Border Colors */
+  --border-primary: var(--gray-200);
+  --border-secondary: var(--gray-300);
+  --border-focus: var(--gray-600);
+
+  /* Status Colors */
+  --color-success: #059669;
+  --color-success-light: #e6f4ed;
+  --color-success-dark: #047857;
+  
+  --color-error: #dc2626;
+  --color-error-light: #ef4444;
+  --color-error-dark: #b91c1c;
+  
+  --color-warning: #d97706;
+  --color-warning-light: #f59e0b;
+  --color-warning-dark: #b45309;
+  
+  --color-info: #0891b2;
+  --color-info-light: #edf6ff;
+  --color-info-dark: #1e42bc;
+
+  --color-purple-100: #e0def6;
+  --color-purple-200: #362786;
+
+  /* ===== LAYOUT VARIABLEN ===== */
+  --sidebar-width: 14rem;
+  --header-height: 64px;
+  --container-max-width: 1200px;
+  --border-radius: var(--radius-md);
+
+  /* ===== ICON GRÖSSEN ===== */
+  --icon-xs: 16px;
+  --icon-sm: 20px;
+  --icon-md: 24px;
+  --icon-lg: 32px;
+  --icon-xl: 48px;
+
+  /* ===== FLAG ICONS ===== */
+  --flag-width-sm: 20px;
+  --flag-height-sm: 15px;
+  --flag-width-md: 24px;
+  --flag-height-md: 18px;
+
+  /* ===== PANEL/DIALOG BREITEN ===== */
+  --panel-sm: 200px;
+  --panel-md: 240px;
+  --panel-lg: 360px;
+  --panel-xl: 400px;
+
+  /* ===== MINIMALBREITEN ===== */
+  --min-width-sm: 120px;
+  --min-width-md: 150px;
+  --min-width-lg: 200px;
+  --min-width-icon-label: 50px;
+
+  /* ===== HÖHEN ===== */
+  --height-input: 44px;
+  --height-select: 36px;
+  --height-avatar-sm: 32px;
+  --height-avatar-md: 48px;
+
+  /* ===== GAPS ===== */
+  --gap-2: 0.125rem;       /* 2px */
+  --gap-6: 0.375rem;       /* 6px */
+  --gap-8: 0.5rem;         /* 8px */
+  --gap-10: 0.625rem;   /* 10px */
+  --gap-12: 0.75rem;        /* 12px */
+}
+
+

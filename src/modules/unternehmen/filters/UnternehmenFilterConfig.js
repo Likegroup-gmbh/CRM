@@ -10,11 +10,13 @@ import {
  * Unternehmen-spezifische Filter-Konfiguration
  */
 export const UNTERNEHMEN_FILTERS = [
-  // Firmenname Filter
-  createFilterConfig('text', {
+  // Firmenname Filter (dynamisch aus aktuellen Daten)
+  createFilterConfig('select', {
     id: 'firmenname',
     label: 'Firmenname',
-    placeholder: 'Nach Firmenname suchen...',
+    placeholder: 'Firmenname auswählen...',
+    dynamic: true,
+    // Optionen werden automatisch aus aktuell sichtbaren Daten extrahiert
     priority: 1
   }),
 
@@ -75,13 +77,6 @@ export const UNTERNEHMEN_FILTERS = [
     max: 100,
     virtual: true,
     priority: 7
-  }),
-
-  // Erstellt am
-  createFilterConfig('dateRange', {
-    id: 'created_at',
-    label: 'Erstellt am',
-    priority: 8
   })
 ];
 

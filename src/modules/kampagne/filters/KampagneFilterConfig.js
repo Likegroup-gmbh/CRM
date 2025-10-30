@@ -129,13 +129,6 @@ export const KAMPAGNE_FILTERS = [
     label: 'Überfällig',
     virtual: true,
     priority: 13
-  }),
-
-  // Erstellt am
-  createFilterConfig('dateRange', {
-    id: 'created_at',
-    label: 'Erstellt am',
-    priority: 14
   })
 ];
 
@@ -167,12 +160,6 @@ export const KAMPAGNE_FILTER_GROUPS = [
     filters: ['has_briefing', 'is_completed', 'is_overdue'],
     expanded: false
   },
-  {
-    id: 'meta',
-    label: 'Metadaten',
-    filters: ['created_at'],
-    expanded: false
-  }
 ];
 
 /**
@@ -249,9 +236,7 @@ export const KAMPAGNE_SORT_OPTIONS = [
   { value: 'deadline', label: 'Deadline (nah zuerst)', direction: 'asc' },
   { value: 'deadline', label: 'Deadline (fern zuerst)', direction: 'desc' },
   { value: 'budget', label: 'Budget (hoch zuerst)', direction: 'desc' },
-  { value: 'budget', label: 'Budget (niedrig zuerst)', direction: 'asc' },
-  { value: 'created_at', label: 'Erstellt (neu zuerst)', direction: 'desc' },
-  { value: 'created_at', label: 'Erstellt (alt zuerst)', direction: 'asc' }
+  { value: 'budget', label: 'Budget (niedrig zuerst)', direction: 'asc' }
 ];
 
 /**

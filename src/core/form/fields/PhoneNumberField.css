@@ -1,14 +1,15 @@
 /* PhoneNumberField Styling - Wiederverwendbare Telefonnummer-Komponente */
+@import '../../../../assets/styles/variables.css';
 
 .phone-number-field-container {
-  margin-bottom: 20px;
+  margin-bottom: var(--space-20);
  
 }
 
 .phone-number-field {
 display: flex;
 flex-direction: row;
-gap: 10px;
+gap: var(--gap-10);
   align-items: flex-start;
 }
 
@@ -20,8 +21,8 @@ gap: 10px;
 /* Searchable Select Container für Phone Field - MUSS nebeneinander sein */
 .phone-number-field .searchable-select-container {
   flex: 0 0 240px !important;
-  min-width: 240px !important;
-  max-width: 240px !important;
+  min-width: var(--panel-md) !important;
+  max-width: var(--panel-md) !important;
 }
 
 /* Phone Input Wrapper - enthält readonly Vorwahl + Input */
@@ -35,14 +36,14 @@ gap: 10px;
 
 /* Readonly Vorwahl Span - nicht editierbar! */
 .phone-number-field .phone-prefix {
-  padding: 10px 12px;
-  padding-right: 8px;
+  padding: var(--space-10) var(--space-sm);
+  padding-right: var(--space-xs);
   background-color: var(--color-bg-disabled, #f3f4f6);
   border: 1px solid var(--color-border, #e5e7eb);
   border-right: none;
-  border-radius: 6px 0 0 6px;
+  border-radius: var(--radius-md) 0 0 6px;
   color: var(--color-text, #1f2937);
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-weight: 500;
   white-space: nowrap;
   user-select: none;
@@ -53,23 +54,23 @@ gap: 10px;
 .phone-number-field .phone-input-wrapper .phone-number-input {
   flex: 1 !important;
   border-radius: 0 6px 6px 0;
-  padding-left: 12px;
+  padding-left: var(--space-sm);
 }
 
 /* Wenn kein Prefix (noch kein Land gewählt), rundere Ecken */
 .phone-number-field .phone-prefix[style*="display: none"] + .phone-number-input {
-  border-radius: 6px;
+  border-radius: var(--radius-md);
 }
 
 /* Telefonnummer Input */
 .phone-number-field .phone-number-input {
   flex: 1 !important;
-  padding: 10px 12px;
+  padding: var(--space-10) var(--space-sm);
   border: 1px solid var(--color-border, #e5e7eb);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background-color: var(--color-bg, #ffffff);
   color: var(--color-text, #1f2937);
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-family: inherit;
   transition: all 0.2s ease;
 }
@@ -82,15 +83,15 @@ gap: 10px;
 
 /* Input innerhalb des Searchable Select - Platz für Flagge */
 .phone-number-field .searchable-select-container input {
-  padding-left: 44px !important; /* Platz für Flagge */
+  padding-left: var(--space-44) !important; /* Platz für Flagge */
 }
 
 /* Flagge Icon innerhalb des Containers */
 .phone-flag-icon {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   display: inline-block !important;
-  width: 24px !important;
-  height: 18px !important;
+  width: var(--flag-width-md) !important;
+  height: var(--flag-height-md) !important;
   background-size: contain !important;
   background-position: center !important;
   background-repeat: no-repeat !important;
@@ -99,13 +100,13 @@ gap: 10px;
 /* Flaggen im Dropdown */
 .searchable-select-item .fi {
   display: inline-block !important;
-  width: 20px !important;
-  height: 15px !important;
+  width: var(--flag-width-sm) !important;
+  height: var(--flag-height-sm) !important;
   flex-shrink: 0;
   background-size: contain !important;
   background-position: center !important;
   background-repeat: no-repeat !important;
-  margin-right: 8px;
+  margin-right: var(--space-xs);
 }
 
 .phone-country-select:focus {
@@ -116,12 +117,12 @@ gap: 10px;
 
 .phone-number-input {
   flex: 1;
-  padding: 10px 12px;
+  padding: var(--space-10) var(--space-sm);
   border: 1px solid var(--color-border, #e5e7eb);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background-color: var(--color-bg, #ffffff);
   color: var(--color-text, #1f2937);
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-family: inherit;
   transition: all 0.2s ease;
 }
@@ -143,14 +144,14 @@ gap: 10px;
 /* Field Hint */
 .phone-number-field-container .field-hint {
   display: block;
-  margin-top: 6px;
-  font-size: 12px;
+  margin-top: var(--gap-6);
+  font-size: var(--text-xs);
   color: var(--color-text-light, #6b7280);
 }
 
 /* Flag Icons in Select (Choices.js wird die Flags rendern) */
 .phone-country-select option {
-  padding: 8px 12px;
+  padding: var(--space-xs) var(--space-sm);
 }
 
 /* Responsive Design */
@@ -169,23 +170,23 @@ gap: 10px;
 
 .phone-number-field-container .error-message {
   display: block;
-  margin-top: 6px;
-  font-size: 12px;
+  margin-top: var(--gap-6);
+  font-size: var(--text-xs);
   color: var(--color-error, #ef4444);
 }
 
 /* Required Indicator */
 .phone-number-field-container label .required {
   color: var(--color-error, #ef4444);
-  margin-left: 4px;
+  margin-left: var(--space-xxs);
 }
 
 /* Custom Flag Display in Choices.js Dropdown */
 .choices__list--dropdown .choices__item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: var(--gap-8);
+  padding: var(--space-10) var(--space-sm);
 }
 
 .choices__list--dropdown .choices__item .fi {
@@ -196,7 +197,7 @@ gap: 10px;
 .choices__item--selectable {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--gap-8);
 }
 
 /* Disabled State */

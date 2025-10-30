@@ -40,13 +40,6 @@ export const AUFTRAGSDETAILS_FILTERS = [
     id: 'gesamt_creator',
     label: 'Geplante Creator',
     priority: 4
-  }),
-
-  // Erstellt am
-  createFilterConfig('dateRange', {
-    id: 'created_at',
-    label: 'Erstellt am',
-    priority: 5
   })
 ];
 
@@ -64,12 +57,6 @@ export const AUFTRAGSDETAILS_FILTER_GROUPS = [
     id: 'planning',
     label: 'Planung',
     filters: ['gesamt_videos', 'gesamt_creator'],
-    expanded: false
-  },
-  {
-    id: 'meta',
-    label: 'Zeitraum',
-    filters: ['created_at'],
     expanded: false
   }
 ];

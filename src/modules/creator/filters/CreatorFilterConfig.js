@@ -147,20 +147,6 @@ export const CREATOR_FILTERS = [
     label: 'Portfolio vorhanden',
     virtual: true, // Wird in der Logik verarbeitet
     priority: 11
-  }),
-
-  // Erstellt am Datum Range
-  createFilterConfig('dateRange', {
-    id: 'created_at',
-    label: 'Erstellt am',
-    priority: 12
-  }),
-
-  // Zuletzt aktualisiert Datum Range
-  createFilterConfig('dateRange', {
-    id: 'updated_at',
-    label: 'Zuletzt aktualisiert',
-    priority: 13
   })
 ];
 
@@ -192,12 +178,6 @@ export const CREATOR_FILTER_GROUPS = [
     filters: ['has_email', 'has_phone', 'has_portfolio'],
     expanded: false
   },
-  {
-    id: 'meta',
-    label: 'Metadaten',
-    filters: ['created_at', 'updated_at'],
-    expanded: false
-  }
 ];
 
 /**
@@ -231,16 +211,6 @@ export const CREATOR_FILTER_PRESETS = [
       lieferadresse_land: 'Deutschland'
     }
   },
-  {
-    id: 'new_creators',
-    label: 'Neue Creator',
-    description: 'In den letzten 30 Tagen hinzugefügte Creator',
-    filters: {
-      created_at: {
-        from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-      }
-    }
-  }
 ];
 
 /**

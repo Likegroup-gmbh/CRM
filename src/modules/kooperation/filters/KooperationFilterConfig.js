@@ -86,13 +86,6 @@ export const KOOPERATION_FILTERS = [
     label: 'Bezahlt',
     virtual: true,
     priority: 8
-  }),
-
-  // Erstellt am
-  createFilterConfig('dateRange', {
-    id: 'created_at',
-    label: 'Erstellt am',
-    priority: 9
   })
 ];
 

@@ -1,0 +1,17 @@
+/* ===== RESET UND BASIS ===== */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Lexend', sans-serif;
+  background-color: var(--gray-100);
+  color: var(--text-primary);
+  font-size: var(--text-md);
+  line-height: 1.5;
+}
+
+

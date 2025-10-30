@@ -2,6 +2,7 @@
 // Listenansicht für Rechnungen
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
+import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 
@@ -129,8 +130,8 @@ export class RechnungList {
 
       <div class="table-filter-wrapper">
         <div class="filter-bar">
-          <div id="filter-container"></div>
-          <button id="btn-filter-reset" class="secondary-btn" style="display:${this.hasActiveFilters() ? 'inline-block' : 'none'};">Filter zurücksetzen</button>
+          <div id="filter-dropdown-container"></div>
+          
         </div>
         <div class="table-actions">
           <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
@@ -171,12 +172,13 @@ export class RechnungList {
   }
 
   async initializeFilterBar() {
-    const container = document.getElementById('filter-container');
+    const container = document.getElementById('filter-dropdown-container');
     if (!container) return;
-    await filterSystem.renderFilterBar('rechnung', container, 
-      (filters) => this.onFiltersApplied(filters),
-      () => this.onFiltersReset()
-    );
+    // Nutze das neue Filter-Dropdown System
+    await filterDropdown.init('rechnung', container, {
+      onFilterApply: (filters) => this.onFiltersApplied(filters),
+      onFilterReset: () => this.onFiltersReset()
+    });
   }
 
   onFiltersApplied(filters) {

@@ -2,6 +2,7 @@
 // Auftragsdetails-Liste mit Filter und Verwaltung
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
+import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 
 export class AuftragsdetailsList {
@@ -44,11 +45,9 @@ export class AuftragsdetailsList {
     // Filter-UI über dem Tabellen-Header
     let filterHtml = `<div class="filter-bar">
       <div class="filter-left">
-        <div id="filter-container"></div>
+        <div id="filter-dropdown-container"></div>
       </div>
-      <div class="filter-right">
-        <button id="btn-filter-reset" class="secondary-btn" style="display:${this.hasActiveFilters() ? 'inline-block' : 'none'};">Alle Filter zurücksetzen</button>
-      </div>
+      
     </div>`;
     
     // Haupt-HTML
@@ -114,25 +113,29 @@ export class AuftragsdetailsList {
 
   // Initialisiere Filterbar mit neuem Filtersystem
   async initializeFilterBar() {
-    const filterContainer = document.getElementById('filter-container');
+    const filterContainer = document.getElementById('filter-dropdown-container');
     if (filterContainer) {
-      // Nutze das neue Filtersystem für die Filterbar (asynchron)
-      await filterSystem.renderFilterBar('auftragsdetails', filterContainer, 
-        (filters) => this.onFiltersApplied(filters),
-        () => this.onFiltersReset()
-      );
+      // Nutze das neue Filter-Dropdown System
+      await filterDropdown.init('auftragsdetails', filterContainer, {
+        onFilterApply: (filters) => this.onFiltersApplied(filters),
+        onFilterReset: () => this.onFiltersReset()
+      });
     }
   }
 
   // Filter angewendet
   onFiltersApplied(filters) {
     console.log('Filter angewendet:', filters);
+    // Wichtig: Filter an filterSystem übergeben
+    filterSystem.applyFilters('auftragsdetails', filters);
     this.loadAndRender();
   }
 
   // Filter zurückgesetzt
   onFiltersReset() {
     console.log('Filter zurückgesetzt');
+    // Filter zurücksetzen im filterSystem
+    filterSystem.resetFilters('auftragsdetails');
     this.loadAndRender();
   }
 
@@ -148,14 +151,6 @@ export class AuftragsdetailsList {
       const handler = () => window.navigateTo('/auftragsdetails/new');
       newBtn.addEventListener('click', handler);
       this._boundEventListeners.add(() => newBtn.removeEventListener('click', handler));
-    }
-
-    // Filter Reset Button
-    const filterResetBtn = document.getElementById('btn-filter-reset');
-    if (filterResetBtn) {
-      const handler = () => this.onFiltersReset();
-      filterResetBtn.addEventListener('click', handler);
-      this._boundEventListeners.add(() => filterResetBtn.removeEventListener('click', handler));
     }
 
     // Select-All Button
@@ -407,7 +402,7 @@ export class AuftragsdetailsList {
       console.log('🔍 Lade Auftragsdetails mit Filter:', currentFilters);
 
       // Query mit Joins für Performance
-      const { data: details, error } = await window.supabase
+      let query = window.supabase
         .from('auftrag_details')
         .select(`
           *,
@@ -424,7 +419,47 @@ export class AuftragsdetailsList {
               markenname
             )
           )
-        `)
+        `);
+
+      // Filter anwenden
+      if (currentFilters && Object.keys(currentFilters).length > 0) {
+        // Auftrag-ID Filter
+        if (currentFilters.auftrag_id) {
+          query = query.eq('auftrag_id', currentFilters.auftrag_id);
+        }
+        
+        // Kampagnenanzahl Filter
+        if (currentFilters.kampagnenanzahl) {
+          if (currentFilters.kampagnenanzahl.min !== undefined) {
+            query = query.gte('kampagnenanzahl', currentFilters.kampagnenanzahl.min);
+          }
+          if (currentFilters.kampagnenanzahl.max !== undefined) {
+            query = query.lte('kampagnenanzahl', currentFilters.kampagnenanzahl.max);
+          }
+        }
+        
+        // Gesamt Videos Filter
+        if (currentFilters.gesamt_videos) {
+          if (currentFilters.gesamt_videos.min !== undefined) {
+            query = query.gte('gesamt_videos', currentFilters.gesamt_videos.min);
+          }
+          if (currentFilters.gesamt_videos.max !== undefined) {
+            query = query.lte('gesamt_videos', currentFilters.gesamt_videos.max);
+          }
+        }
+        
+        // Gesamt Creator Filter
+        if (currentFilters.gesamt_creator) {
+          if (currentFilters.gesamt_creator.min !== undefined) {
+            query = query.gte('gesamt_creator', currentFilters.gesamt_creator.min);
+          }
+          if (currentFilters.gesamt_creator.max !== undefined) {
+            query = query.lte('gesamt_creator', currentFilters.gesamt_creator.max);
+          }
+        }
+      }
+
+      const { data: details, error } = await query
         .order('created_at', { ascending: false });
 
       if (error) {

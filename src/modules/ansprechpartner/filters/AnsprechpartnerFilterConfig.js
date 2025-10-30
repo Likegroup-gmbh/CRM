@@ -81,13 +81,6 @@ export const ANSPRECHPARTNER_FILTERS = [
     label: 'Telefon vorhanden',
     virtual: true,
     priority: 8
-  }),
-
-  // Erstellt am
-  createFilterConfig('dateRange', {
-    id: 'created_at',
-    label: 'Erstellt am',
-    priority: 9
   })
 ];
 
@@ -113,12 +106,6 @@ export const ANSPRECHPARTNER_FILTER_GROUPS = [
     filters: ['has_email', 'has_phone'],
     expanded: false
   },
-  {
-    id: 'meta',
-    label: 'Metadaten',
-    filters: ['created_at'],
-    expanded: false
-  }
 ];
 
 export default {
