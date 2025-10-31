@@ -4,6 +4,7 @@
 export class AuftragsdetailsCreate {
   constructor() {
     this.formData = {};
+    this.auftraege = []; // Aufträge-Liste für Event-Listener
   }
 
   // Initialisiere Auftragsdetails-Erstellung
@@ -57,7 +58,7 @@ export class AuftragsdetailsCreate {
     // Schritt 2: Lade alle Aufträge
     const { data: alleAuftraege, error: auftraegeError } = await window.supabase
       .from('auftrag')
-      .select('id, auftragsname, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname)')
+      .select('id, auftragsname, kampagnenanzahl, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname)')
       .order('created_at', { ascending: false });
 
     if (auftraegeError) {
@@ -68,6 +69,9 @@ export class AuftragsdetailsCreate {
 
     // Schritt 3: Filtere client-seitig - nur Aufträge OHNE Details
     const auftraege = alleAuftraege.filter(auftrag => !auftragIdsWithDetails.includes(auftrag.id));
+    
+    // Aufträge in Instanz-Variable speichern für Event-Listener
+    this.auftraege = auftraege;
 
     console.log('📊 Alle Aufträge:', alleAuftraege?.length || 0);
     console.log('✅ Verfügbare Aufträge ohne Details:', auftraege?.length || 0);
@@ -113,7 +117,7 @@ export class AuftragsdetailsCreate {
 
               <div class="form-group">
                 <label for="kampagnenanzahl" class="form-label">Anzahl Kampagnen</label>
-                <input type="number" id="kampagnenanzahl" name="kampagnenanzahl" class="form-input" min="0" placeholder="z.B. 4">
+                <input type="number" id="kampagnenanzahl" name="kampagnenanzahl" class="form-input" min="0" placeholder="Wird aus Auftrag übernommen..." readonly style="background-color: #f5f5f5;">
               </div>
             </div>
           </div>
@@ -299,6 +303,31 @@ export class AuftragsdetailsCreate {
       }
     });
 
+    // Auftrag-Auswahl Listener: Kampagnenanzahl aus Auftrag übernehmen
+    const auftragSelect = document.getElementById('auftrag_id');
+    if (auftragSelect) {
+      auftragSelect.addEventListener('change', (e) => {
+        const auftragId = e.target.value;
+        const kampagnenField = document.getElementById('kampagnenanzahl');
+        
+        if (!auftragId || !kampagnenField) return;
+        
+        // Finde den ausgewählten Auftrag und hole kampagnenanzahl
+        const selectedAuftrag = this.auftraege.find(a => a.id === auftragId);
+        if (selectedAuftrag?.kampagnenanzahl) {
+          kampagnenField.value = selectedAuftrag.kampagnenanzahl;
+          kampagnenField.setAttribute('readonly', true);
+          kampagnenField.style.backgroundColor = '#f5f5f5';
+          console.log(`✅ Kampagnenanzahl ${selectedAuftrag.kampagnenanzahl} vom Auftrag übernommen`);
+        } else {
+          kampagnenField.value = '';
+          kampagnenField.removeAttribute('readonly');
+          kampagnenField.style.backgroundColor = '';
+          console.log('⚠️ Keine Kampagnenanzahl im Auftrag vorhanden');
+        }
+      });
+    }
+
     // Submit Handler
     form.addEventListener('submit', (e) => this.handleFormSubmit(e));
   }
@@ -357,25 +386,21 @@ export class AuftragsdetailsCreate {
 
       console.log('✅ Auftragsdetails erfolgreich erstellt:', created);
       
-      window.showNotification('Auftragsdetails erfolgreich erstellt', 'success');
+      // Erfolgs-Benachrichtigung anzeigen
+      alert('✅ Auftragsdetails erfolgreich erstellt.');
       
       // Event auslösen für Listen-Update
       window.dispatchEvent(new CustomEvent('entityUpdated', { 
         detail: { entity: 'auftrag_details', id: created.id, action: 'created' } 
       }));
       
-      // Navigiere zu Details
-      setTimeout(() => {
-        window.navigateTo(`/auftragsdetails/${created.id}`);
-      }, 500);
+      // Navigiere zur Auftragsdetails-Übersicht
+      window.navigateTo('/auftragsdetails');
 
     } catch (error) {
       console.error('Fehler beim Erstellen:', error);
       window.ErrorHandler?.handle(error, 'AuftragsdetailsCreate.handleFormSubmit');
-      window.showNotification(
-        `Fehler beim Erstellen der Auftragsdetails: ${error.message}`,
-        'error'
-      );
+      alert(`❌ Fehler beim Erstellen der Auftragsdetails: ${error.message}`);
 
       const submitBtn = document.querySelector('#auftragsdetails-form button[type="submit"]');
       if (submitBtn) {

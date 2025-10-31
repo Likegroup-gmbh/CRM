@@ -1,6 +1,8 @@
 // TaskKanbanBoard.js - Kanban Board mit Drag & Drop
 // Nutzt native HTML5 Drag & Drop API
 
+import { TaskCreateDrawer } from './TaskCreateDrawer.js';
+
 export class TaskKanbanBoard {
   constructor(entityType = null, entityId = null) {
     console.log('🏗️ TaskKanbanBoard Constructor:', { entityType, entityId });
@@ -21,6 +23,7 @@ export class TaskKanbanBoard {
       drop: (e) => this.onDrop(e),
       dragLeave: (e) => this.onDragLeave(e)
     };
+    this.createDrawer = new TaskCreateDrawer();
   }
 
   async init(containerElement) {
@@ -28,6 +31,7 @@ export class TaskKanbanBoard {
     await this.loadTasks();
     this.render();
     this.bindEvents();
+    this.bindGlobalEvents();
   }
 
   async loadTasks() {
@@ -37,7 +41,22 @@ export class TaskKanbanBoard {
         *,
         category:category_id(id, name),
         assigned_to:assigned_to_user_id(id, name, profile_image_url),
-        creator:created_by(id, name, profile_image_url)
+        creator:created_by(id, name, profile_image_url),
+        kampagne:kampagne_id(
+          id,
+          kampagnenname,
+          marke:marke_id(
+            id,
+            markenname,
+            logo_url
+          ),
+          unternehmen:unternehmen_id(
+            id,
+            firmenname,
+            logo_url
+          )
+        ),
+        kooperation:kooperation_id(id, name)
       `)
       .order('sort_order', { ascending: true });
 
@@ -171,6 +190,9 @@ export class TaskKanbanBoard {
     
     // Avatar-Bubbles für Ersteller und zugewiesene Person
     const avatars = this.renderTaskAvatars(task);
+    
+    // Kampagne-Bubble
+    const kampagneBubble = this.renderKampagneBubble(task);
 
     return `
       <div class="task-card ${priorityClass}" 
@@ -196,6 +218,7 @@ export class TaskKanbanBoard {
             ${dueDateBadge}
           </div>
           <div class="task-meta-right">
+            ${kampagneBubble}
             ${this.renderTaskStats(task)}
             ${avatars}
             <button class="task-card-open" data-task-id="${task.id}" data-action="task-detail" title="Details öffnen">
@@ -305,15 +328,41 @@ export class TaskKanbanBoard {
     return `<div class="task-card-avatars">${bubbles}</div>`;
   }
 
+  renderKampagneBubble(task) {
+    if (!task?.kampagne) return '';
+    
+    const kampagne = task.kampagne;
+    const marke = kampagne.marke;
+    const unternehmen = kampagne.unternehmen;
+    
+    // Verwende Logo der Marke falls vorhanden, sonst Logo des Unternehmens
+    const logoUrl = marke?.logo_url || unternehmen?.logo_url || null;
+    const displayName = kampagne.kampagnenname || 'Kampagne';
+    
+    const items = [{
+      name: displayName,
+      type: 'org',
+      id: kampagne.id,
+      entityType: 'kampagne',
+      logo_url: logoUrl
+    }];
+    
+    // Verwende die AvatarBubbles Komponente mit custom class für Task-Cards
+    const bubbles = window.AvatarBubbles?.renderBubbles?.(items) || '';
+    
+    // Wrap in task-card-avatars container für spezifische Styles
+    return `<div class="task-card-avatars">${bubbles}</div>`;
+  }
+
   bindEvents() {
     if (!this.container) return;
 
-    // Plus-Buttons in Spalten-Headern
+    // Plus-Buttons in Spalten-Headern - öffnen TaskCreateDrawer
     const addButtons = this.container.querySelectorAll('.btn-add-task-in-column');
     addButtons.forEach(btn => {
       btn.addEventListener('click', (e) => {
         const status = e.currentTarget.dataset.status;
-        this.openQuickAddForm(status);
+        this.createDrawer.open(status);
       });
       
       // Hover-Effekt
@@ -327,11 +376,15 @@ export class TaskKanbanBoard {
 
     // Drag & Drop Events neu binden
     this.bindDragDropEvents();
-    
+  }
+
+  bindGlobalEvents() {
+    // Diese Events werden nur einmal beim Init gebunden
     // Listener für Task-Updates (Kommentare, Anhänge, etc.)
     window.addEventListener('taskUpdated', (e) => this.handleTaskUpdate(e));
-
-    // Task öffnen via Delegation bereits in TaskDetailDrawer.bindEvents()
+    
+    // Listener für neue Tasks
+    window.addEventListener('taskCreated', (e) => this.handleTaskCreated(e));
   }
 
   async handleTaskUpdate(event) {
@@ -365,40 +418,49 @@ export class TaskKanbanBoard {
       return task;
     });
     
-    // Neu rendern
+    // Neu rendern ohne bindEvents() → verhindert doppelte Event-Bindings
     this.render();
-    this.bindEvents();
     this.bindDragDropEventsAfterRender();
+  }
+
+  async handleTaskCreated(event) {
+    console.log('✅ TaskKanbanBoard: Task erstellt, refresh Board');
+    await this.refresh();
   }
 
   bindDragDropEventsAfterRender() {
     if (!this.container) return;
 
     // Binde Drag & Drop Events auf Task Cards
+    // Nutze data-Attribut um doppelte Bindings zu vermeiden
     const taskCards = this.container.querySelectorAll('.task-card');
     taskCards.forEach(card => {
-      // Entferne alte Listener falls vorhanden (um Duplikate zu vermeiden)
-      card.removeEventListener('dragstart', this.boundHandlers.dragStart);
-      card.removeEventListener('dragend', this.boundHandlers.dragEnd);
+      // Skip wenn bereits gebunden
+      if (card.dataset.dragBound === 'true') return;
       
       // Füge neue Listener hinzu
       card.addEventListener('dragstart', this.boundHandlers.dragStart);
       card.addEventListener('dragend', this.boundHandlers.dragEnd);
+      card.dataset.dragBound = 'true';
     });
 
     // Binde Drop-Events auf Spalten
     const columns = this.container.querySelectorAll('.kanban-column-body');
     columns.forEach(column => {
-      // Entferne alte Listener falls vorhanden
-      column.removeEventListener('dragover', this.boundHandlers.dragOver);
-      column.removeEventListener('drop', this.boundHandlers.drop);
-      column.removeEventListener('dragleave', this.boundHandlers.dragLeave);
+      // Skip wenn bereits gebunden
+      if (column.dataset.dropBound === 'true') return;
       
       // Füge neue Listener hinzu
       column.addEventListener('dragover', this.boundHandlers.dragOver);
       column.addEventListener('drop', this.boundHandlers.drop);
       column.addEventListener('dragleave', this.boundHandlers.dragLeave);
+      column.dataset.dropBound = 'true';
     });
+    
+    // Binde Click-Events für Avatar-Bubbles (Kampagne, Creator, etc.)
+    if (window.AvatarBubbles?.bindClickEvents) {
+      window.AvatarBubbles.bindClickEvents(this.container);
+    }
   }
 
   bindDragDropEvents() {
@@ -407,11 +469,13 @@ export class TaskKanbanBoard {
   }
 
   onDragStart(e) {
+    console.log('🎯 DRAG START:', e.target.dataset.taskId);
     this.draggedTask = {
       id: e.target.dataset.taskId,
       status: e.target.dataset.status,
       sortOrder: parseInt(e.target.dataset.sortOrder, 10)
     };
+    console.log('🎯 draggedTask set:', this.draggedTask);
 
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', this.draggedTask.id);
@@ -501,304 +565,6 @@ export class TaskKanbanBoard {
     // TODO: Implementiere Reordering innerhalb der Spalte
     // Für MVP: refresh reicht
     await this.refresh();
-  }
-
-  async openQuickAddForm(targetStatus = 'todo') {
-    console.log('🆕 openQuickAddForm aufgerufen mit Status:', targetStatus);
-    console.log('🎯 Current EntityType:', this.entityType, 'EntityID:', this.entityId);
-    console.log('🌐 Current URL:', window.location.href);
-    
-    // Versuche Entity-Daten aus verschiedenen Quellen zu holen
-    let entityType = this.entityType;
-    let entityId = this.entityId;
-    
-    // Fallback: Aus URL holen (z.B. /kooperation/123)
-    if (!entityType || !entityId) {
-      const urlMatch = window.location.pathname.match(/\/(kooperation|kampagne|auftrag)\/([a-f0-9-]+)/);
-      if (urlMatch) {
-        entityType = urlMatch[1];
-        entityId = urlMatch[2];
-        console.log('✅ Entity-Daten aus URL geholt:', { entityType, entityId });
-      }
-    }
-    
-    console.log('📍 Finale Entity-Daten:', { entityType, entityId });
-    
-    // Erstelle erweiterte Task-Quick-Add-Form in der entsprechenden Spalte
-    const targetColumn = this.container.querySelector(`.kanban-column-body[data-status="${targetStatus}"]`);
-    if (!targetColumn) {
-      console.error('❌ Spalte nicht gefunden für Status:', targetStatus);
-      return;
-    }
-
-    // Entferne existierende Quick-Add-Form falls vorhanden
-    const existingForm = this.container.querySelector('.task-quick-add-form');
-    if (existingForm) {
-      existingForm.remove();
-      return;
-    }
-
-    // Lade Kategorien und Mitarbeiter für Dropdowns
-    const categories = await this.loadCategories();
-    const users = await this.loadUsers();
-    
-    // Lade verfügbare Kooperationen wenn kein Entity-Kontext vorhanden
-    const needsEntitySelection = !entityType || !entityId;
-    let kooperationen = [];
-    
-    if (needsEntitySelection) {
-      console.log('📋 Lade Kooperationen für Entity-Auswahl...');
-      const { data, error } = await window.supabase
-        .from('kooperationen')
-        .select('id, name')
-        .order('name');
-      
-      if (error) {
-        console.error('❌ Fehler beim Laden der Kooperationen:', error);
-        kooperationen = [];
-      } else {
-        kooperationen = data || [];
-        console.log('✅ Kooperationen geladen:', kooperationen.length, kooperationen);
-      }
-    }
-
-    const formHtml = `
-      <div class="task-card task-quick-add-form">
-        <form id="quick-add-form" data-entity-type="${entityType || ''}" data-entity-id="${entityId || ''}" data-target-status="${targetStatus}">
-          ${needsEntitySelection ? `
-          <!-- Entity-Auswahl wenn kein Kontext vorhanden -->
-          <div class="form-field" style="margin-bottom: var(--space-xs);">
-            <label style="font-size: var(--text-xs); margin-bottom: var(--space-xxs); display: block;">Kooperation *</label>
-            <select name="entity_id" class="form-input" required>
-              <option value="">Kooperation auswählen...</option>
-              ${kooperationen.map(k => `<option value="${k.id}">${k.name}</option>`).join('')}
-            </select>
-            <input type="hidden" name="entity_type" value="kooperation" />
-          </div>
-          ` : `
-          <!-- Hidden Fields für Entity-Kontext -->
-          <input type="hidden" name="entity_type" value="${entityType}" id="entity_type_field" />
-          <input type="hidden" name="entity_id" value="${entityId}" id="entity_id_field" />
-          `}
-          
-          <div class="form-field" style="margin-bottom: var(--space-xs);">
-            <input type="text" name="title" class="form-input" placeholder="Aufgabentitel..." required autofocus />
-          </div>
-          
-          <div class="form-field" style="margin-bottom: var(--space-xs);">
-            <textarea name="description" class="form-input" rows="2" placeholder="Beschreibung (optional)"></textarea>
-          </div>
-          
-          <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-xs); margin-bottom: var(--space-xs);">
-            <div class="form-field">
-              <label style="font-size: var(--text-xs); margin-bottom: var(--space-xxs); display: block;">Priorität</label>
-              <select name="priority" class="form-input" style="font-size: var(--text-sm);">
-                <option value="low">Niedrig</option>
-                <option value="medium" selected>Mittel</option>
-                <option value="high">Hoch</option>
-              </select>
-            </div>
-            
-            <div class="form-field">
-              <label style="font-size: var(--text-xs); margin-bottom: var(--space-xxs); display: block;">Fälligkeitsdatum</label>
-              <input type="date" name="due_date" class="form-input" style="font-size: var(--text-sm);" />
-            </div>
-          </div>
-          
-          <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-xs); margin-bottom: var(--space-xs);">
-            <div class="form-field">
-              <label style="font-size: var(--text-xs); margin-bottom: var(--space-xxs); display: block;">Kategorie</label>
-              <select name="category_id" class="form-input" style="font-size: var(--text-sm);">
-                <option value="">Keine Kategorie</option>
-                ${categories.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('')}
-              </select>
-            </div>
-            
-            <div class="form-field">
-              <label style="font-size: var(--text-xs); margin-bottom: var(--space-xxs); display: block;">Zuweisen an</label>
-              <select name="assigned_to_user_id" class="form-input" style="font-size: var(--text-sm);">
-                <option value="">Nicht zugewiesen</option>
-                ${users.map(user => `<option value="${user.id}">${user.name}</option>`).join('')}
-              </select>
-            </div>
-          </div>
-          
-          <div class="form-actions" style="display: flex; gap: var(--space-xs);">
-            <button type="submit" class="primary-btn" style="font-size: var(--text-sm); padding: var(--space-xs) var(--space-sm);">Hinzufügen</button>
-            <button type="button" id="btn-cancel-quick-add" class="secondary-btn" style="font-size: var(--text-sm); padding: var(--space-xs) var(--space-sm);">Abbrechen</button>
-          </div>
-        </form>
-      </div>
-    `;
-
-    targetColumn.insertAdjacentHTML('afterbegin', formHtml);
-
-    // Bind Events
-    const form = this.container.querySelector('#quick-add-form');
-    console.log('📋 Form gefunden:', !!form);
-    
-    if (form) {
-      form.addEventListener('submit', async (e) => {
-        console.log('🚀 Form submit Event gefeuert');
-        e.preventDefault();
-        await this.handleQuickAdd(new FormData(form), targetStatus);
-      });
-    } else {
-      console.error('❌ Form nicht gefunden!');
-    }
-
-    const cancelBtn = this.container.querySelector('#btn-cancel-quick-add');
-    if (cancelBtn) {
-      cancelBtn.addEventListener('click', () => {
-        console.log('❌ Form abgebrochen');
-        this.container.querySelector('.task-quick-add-form')?.remove();
-      });
-    }
-  }
-
-  async loadCategories() {
-    try {
-      const { data, error } = await window.supabase
-        .from('kampagne_status')
-        .select('id, name')
-        .order('name');
-      
-      if (error) throw error;
-      return data || [];
-    } catch (error) {
-      console.error('Fehler beim Laden der Kategorien:', error);
-      return [];
-    }
-  }
-
-  async loadUsers() {
-    try {
-      // Verwende View für rollenbasierte Filterung der verfügbaren Mitarbeiter
-      // Admins/Mitarbeiter sehen alle, Kunden nur verknüpfte Mitarbeiter
-      const { data, error } = await window.supabase
-        .from('v_available_assignees')
-        .select('id, name, rolle, profile_image_url')
-        .order('name');
-      
-      if (error) {
-        console.error('Fehler beim Laden aus View, fallback zu benutzer:', error);
-        // Fallback: Wenn View nicht existiert, lade direkt aus benutzer Tabelle
-        const fallback = await window.supabase
-          .from('benutzer')
-          .select('id, name')
-          .order('name');
-        return fallback.data || [];
-      }
-      
-      return data || [];
-    } catch (error) {
-      console.error('Fehler beim Laden der Mitarbeiter:', error);
-      return [];
-    }
-  }
-
-  async handleQuickAdd(formData, targetStatus = 'todo') {
-    console.log('🔧 handleQuickAdd aufgerufen mit Status:', targetStatus);
-    console.log('📋 FormData:', Object.fromEntries(formData));
-    
-    try {
-      const title = formData.get('title')?.trim();
-      if (!title) {
-        console.warn('⚠️ Kein Titel angegeben');
-        return;
-      }
-
-      const description = formData.get('description')?.trim() || null;
-      const priority = formData.get('priority') || 'medium';
-      const due_date = formData.get('due_date') || null;
-      const category_id = formData.get('category_id') || null;
-      const assigned_to_user_id = formData.get('assigned_to_user_id') || null;
-      
-      // Hole Entity-Daten aus der Form (Hidden Fields oder Select)
-      let entity_type = formData.get('entity_type')?.trim();
-      let entity_id = formData.get('entity_id')?.trim();
-      
-      // Konvertiere leere Strings zu null
-      if (!entity_type) entity_type = null;
-      if (!entity_id) entity_id = null;
-      
-      // Fallback auf Instance-Properties wenn Form leer ist
-      if (!entity_type) entity_type = this.entityType;
-      if (!entity_id) entity_id = this.entityId;
-      
-      // Letzter Fallback: Aus URL holen
-      if (!entity_type || !entity_id) {
-        const urlMatch = window.location.pathname.match(/\/(kooperation|kampagne|auftrag)\/([a-f0-9-]+)/);
-        if (urlMatch) {
-          entity_type = urlMatch[1];
-          entity_id = urlMatch[2];
-          console.log('✅ Entity-Daten aus URL geholt:', { entity_type, entity_id });
-        }
-      }
-
-      console.log('🎯 Finale Entity-Daten:', entity_type, entity_id);
-      console.log('📝 Task-Daten:', { title, description, priority, due_date, category_id, assigned_to_user_id, status: targetStatus });
-
-      // Validierung: entity_type und entity_id müssen gesetzt sein
-      if (!entity_type || !entity_id) {
-        console.error('❌ Entity-Typ oder Entity-ID nicht gesetzt!', { entity_type, entity_id });
-        window.notificationSystem?.error?.('Fehler: Keine Kooperation/Kampagne ausgewählt. Bitte öffne eine Kooperation und versuche es erneut.');
-        return;
-      }
-
-      // Berechne sort_order für die Ziel-Spalte
-      const tasksInTargetStatus = this.tasks.filter(t => t.status === targetStatus);
-      const maxSortOrder = tasksInTargetStatus.length > 0
-        ? Math.max(...tasksInTargetStatus.map(t => t.sort_order || 0))
-        : 0;
-
-      console.log('📊 Sort Order:', maxSortOrder + 1);
-
-      const taskData = {
-        title,
-        description,
-        status: targetStatus,
-        priority,
-        due_date,
-        category_id: category_id || null,
-        assigned_to_user_id: assigned_to_user_id || null,
-        sort_order: maxSortOrder + 1,
-        entity_type: entity_type,
-        entity_id: entity_id,
-        created_by: window.currentUser?.id || null
-        // created_at und updated_at werden automatisch von der Datenbank gesetzt
-      };
-
-      console.log('💾 Sende an Supabase:', taskData);
-      console.log('💾 JSON stringify:', JSON.stringify(taskData, null, 2));
-
-      const { data, error } = await window.supabase
-        .from('kooperation_tasks')
-        .insert(taskData)
-        .select();
-
-      if (error) {
-        console.error('❌ Supabase Fehler:', error);
-        console.error('❌ Error Details:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        });
-        throw error;
-      }
-
-      console.log('✅ Task erfolgreich erstellt:', data);
-
-      window.notificationSystem?.success?.('Aufgabe erstellt.');
-      this.container.querySelector('.task-quick-add-form')?.remove();
-      await this.refresh();
-      
-      window.dispatchEvent(new CustomEvent('taskCreated', { detail: { entityType: entity_type, entityId: entity_id } }));
-    } catch (error) {
-      console.error('❌ Fehler beim Erstellen der Task:', error);
-      window.notificationSystem?.error?.('Fehler beim Erstellen der Aufgabe: ' + error.message);
-    }
   }
 
   async refresh() {

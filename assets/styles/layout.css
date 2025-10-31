@@ -15,6 +15,58 @@
   font-size: var(--text-xl);
    
  }
+
+/* Page Header Left/Right Sections */
+.page-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.page-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* View Toggle Buttons */
+.view-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  background: var(--gray-100);
+  border-radius: var(--radius-md);
+  padding: var(--space-xxs);
+}
+
+.view-toggle .secondary-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.view-toggle .secondary-btn:hover {
+  background: var(--gray-200);
+  color: var(--text-primary);
+}
+
+.view-toggle .secondary-btn.active {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.view-toggle .secondary-btn svg {
+  flex-shrink: 0;
+}
 /* ===== SIDEBAR ===== */
 .sidebar {
   width: var(--sidebar-width);
@@ -660,6 +712,7 @@
   cursor: pointer;
   transition: all 0.2s ease;
   display: inline-flex;
+  color: var(--text-primary);
 }
 
 .secondary-btn:hover {

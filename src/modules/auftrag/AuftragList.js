@@ -116,8 +116,9 @@ export class AuftragList {
                 <th>Art der Kampagne</th>
                 <th>Start</th>
                 <th>Ende</th>
-                <th>Brutto</th>
                 <th>Netto</th>
+                <th>UST</th>
+                <th>Brutto</th>
                 <th>Ansprechpartner</th>
                 <th>Mitarbeiter</th>
                 <th>Cutter</th>
@@ -154,8 +155,8 @@ export class AuftragList {
         .from('auftrag')
         .select(`
           *,
-          unternehmen:unternehmen_id(id, firmenname),
-          marke:marke_id(id, markenname),
+          unternehmen:unternehmen_id(id, firmenname, logo_url),
+          marke:marke_id(id, markenname, logo_url),
           ansprechpartner:ansprechpartner_id(id, vorname, nachname, email),
           cutter:auftrag_cutter(mitarbeiter:mitarbeiter_id(id, name)),
           copywriter:auftrag_copywriter(mitarbeiter:mitarbeiter_id(id, name)),
@@ -362,7 +363,7 @@ export class AuftragList {
     if (!auftraege || auftraege.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="20" class="no-data">
+          <td colspan="21" class="no-data">
             <div style="text-align: center; padding: 40px 20px;">
               <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📋</div>
               <h3 style="color: #666; margin-bottom: 8px;">Keine Aufträge vorhanden</h3>
@@ -431,7 +432,8 @@ export class AuftragList {
           name: name,
           type: 'org',
           id: unternehmen.id,
-          entityType: 'unternehmen'
+          entityType: 'unternehmen',
+          logo_url: unternehmen.logo_url || null
         }];
         return avatarBubbles.renderBubbles(items);
       };
@@ -445,7 +447,8 @@ export class AuftragList {
           name: name,
           type: 'org',
           id: marke.id,
-          entityType: 'marke'
+          entityType: 'marke',
+          logo_url: marke.logo_url || null
         }];
         return avatarBubbles.renderBubbles(items);
       };
@@ -486,8 +489,9 @@ export class AuftragList {
           <td>${formatArray(auftrag.art_der_kampagne)}</td>
           <td>${formatDate(auftrag.start)}</td>
           <td>${formatDate(auftrag.ende)}</td>
-          <td>${formatCurrency(auftrag.bruttobetrag)}</td>
           <td>${formatCurrency(auftrag.nettobetrag)}</td>
+          <td>${formatCurrency(auftrag.ust_betrag)}</td>
+          <td>${formatCurrency(auftrag.bruttobetrag)}</td>
           <td>${formatAnsprechpartner(auftrag.ansprechpartner)}</td>
           <td>${formatMitarbeiterTags(auftrag.mitarbeiter)}</td>
           <td>${formatMitarbeiterTags(auftrag.cutter)}</td>

@@ -169,8 +169,8 @@ export class BriefingList {
         .from('briefings')
         .select(`
           *,
-          unternehmen:unternehmen_id(id, firmenname),
-          marke:marke_id(id, markenname),
+          unternehmen:unternehmen_id(id, firmenname, logo_url),
+          marke:marke_id(id, markenname, logo_url),
           kampagne:kampagne_id(id, kampagnenname),
           assignee:assignee_id(id, name)
         `)
@@ -231,7 +231,7 @@ export class BriefingList {
           const uniq = Array.from(new Set(needUnternehmen));
           const { data: unternehmen } = await window.supabase
             .from('unternehmen')
-            .select('id, firmenname')
+            .select('id, firmenname, logo_url')
             .in('id', uniq);
           (unternehmen || []).forEach(u => { this._unternehmenMap[u.id] = u; });
         }
@@ -239,7 +239,7 @@ export class BriefingList {
           const uniq = Array.from(new Set(needMarke));
           const { data: marken } = await window.supabase
             .from('marke')
-            .select('id, markenname')
+            .select('id, markenname, logo_url')
             .in('id', uniq);
           (marken || []).forEach(m => { this._markeMap[m.id] = m; });
         }
@@ -297,17 +297,14 @@ export class BriefingList {
               <th>Produkt/Angebot</th>
               <th>Unternehmen</th>
               <th>Marke</th>
-              <th>Status</th>
               <th>Kampagne</th>
-              <th>Deadline</th>
               <th>Zugewiesen</th>
-              <th>Erstellt</th>
               <th>Aktionen</th>
             </tr>
           </thead>
           <tbody id="briefings-table-body">
             <tr>
-              <td colspan="10" class="loading">Lade Briefings...</td>
+              <td colspan="7" class="loading">Lade Briefings...</td>
             </tr>
           </tbody>
         </table>
@@ -533,7 +530,8 @@ export class BriefingList {
       name: unternehmen.firmenname,
       type: 'org',
       id: unternehmen.id,
-      entityType: 'unternehmen'
+      entityType: 'unternehmen',
+      logo_url: unternehmen.logo_url || null
     }];
 
     return avatarBubbles.renderBubbles(items);
@@ -548,7 +546,8 @@ export class BriefingList {
       name: marke.markenname,
       type: 'org',
       id: marke.id,
-      entityType: 'marke'
+      entityType: 'marke',
+      logo_url: marke.logo_url || null
     }];
 
     return avatarBubbles.renderBubbles(items);
@@ -594,16 +593,9 @@ export class BriefingList {
         <td>${this.renderUnternehmen(b)}</td>
         <td>${this.renderMarke(b)}</td>
         <td>
-          <span class="status-badge status-${(b.status || 'unknown').toLowerCase()}">
-            ${escapeHtml(b.status)}
-          </span>
-        </td>
-        <td>
           ${b.kampagne?.id ? `<span class="tag tag--type">${escapeHtml(b.kampagne.kampagnenname)}</span>` : '-'}
         </td>
-        <td>${formatDate(b.deadline)}</td>
         <td>${this.renderAssignee(b.assignee)}</td>
-        <td>${formatDate(b.created_at)}</td>
         <td>
           ${actionBuilder.create('briefing', b.id)}
         </td>

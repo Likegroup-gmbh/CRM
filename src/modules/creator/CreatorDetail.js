@@ -809,6 +809,22 @@ export class CreatorDetail {
         this.renderRatings();
       }
     });
+
+    // Soft-Refresh bei Realtime-Updates (nur wenn kein Formular aktiv)
+    window.addEventListener('softRefresh', async (e) => {
+      const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
+      if (hasActiveForm) {
+        console.log('⏸️ CREATORDETAIL: Formular aktiv - Soft-Refresh übersprungen');
+        return;
+      }
+      if (!this.creatorId || !location.pathname.includes('/creator/')) {
+        return;
+      }
+      console.log('🔄 CREATORDETAIL: Soft-Refresh - lade Daten neu');
+      await this.loadCreatorData();
+      this.render();
+      this.bindEvents();
+    });
   }
 
   // Tab wechseln

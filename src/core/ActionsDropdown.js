@@ -1076,6 +1076,7 @@ export class ActionsDropdown {
         let query = window.supabase
           .from('benutzer')
           .select('id, name, rolle, mitarbeiter_klasse:mitarbeiter_klasse_id(name)')
+          .neq('rolle', 'kunde')
           .order('name');
         if (term) query = query.ilike('name', `%${term}%`);
         if (assignedIds.length > 0) {
@@ -1186,7 +1187,7 @@ export class ActionsDropdown {
       
       excludedMitarbeiterIds = (existing || []).map(r => r.mitarbeiter_id).filter(Boolean);
 
-      // Verfügbare Mitarbeiter laden (die noch nicht zugeordnet sind) - ALLE Benutzer
+      // Verfügbare Mitarbeiter laden (die noch nicht zugeordnet sind) - Nur Mitarbeiter, keine Kunden
       let query = window.supabase
         .from('benutzer')
         .select(`
@@ -1195,6 +1196,7 @@ export class ActionsDropdown {
           rolle,
           mitarbeiter_klasse:mitarbeiter_klasse_id(name)
         `)
+        .neq('rolle', 'kunde')
         .order('name');
       
       if (excludedMitarbeiterIds.length > 0) {
@@ -1290,7 +1292,7 @@ export class ActionsDropdown {
           return;
         }
         
-        // Ab 1 Zeichen suchen und anzeigen - ALLE Benutzer
+        // Ab 1 Zeichen suchen und anzeigen - Nur Mitarbeiter, keine Kunden
         try {
           let query = window.supabase
             .from('benutzer')
@@ -1300,6 +1302,7 @@ export class ActionsDropdown {
               rolle,
               mitarbeiter_klasse:mitarbeiter_klasse_id(name)
             `)
+            .neq('rolle', 'kunde')
             .or(`name.ilike.%${term}%,rolle.ilike.%${term}%`)
             .order('name');
           
@@ -2648,7 +2651,11 @@ export class ActionsDropdown {
       unternehmen: 'das Unternehmen',
       marke: 'die Marke',
       auftrag: 'den Auftrag',
-      kooperation: 'die Kooperation'
+      auftragsdetails: 'die Auftragsdetails',
+      auftrag_details: 'die Auftragsdetails',
+      kooperation: 'die Kooperation',
+      briefing: 'das Briefing',
+      kampagne: 'die Kampagne'
     };
     return names[entityType] || 'das Element';
   }

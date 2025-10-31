@@ -738,6 +738,27 @@ export class KooperationDetail {
       }
     });
 
+    // Soft-Refresh bei Realtime-Updates (nur wenn kein Formular aktiv)
+    window.addEventListener('softRefresh', async (e) => {
+      // Prüfe ob ein Formular aktiv ist (Edit-Form oder Create-Drawer)
+      const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
+      
+      if (hasActiveForm) {
+        console.log('⏸️ KOOPERATIONDETAIL: Formular aktiv - Soft-Refresh übersprungen');
+        return;
+      }
+      
+      // Nur wenn auf Kooperation-Detail-Seite
+      if (!this.kooperationId || !location.pathname.includes('/kooperation/')) {
+        return;
+      }
+      
+      console.log('🔄 KOOPERATIONDETAIL: Soft-Refresh - lade Daten neu');
+      await this.loadKooperationData();
+      this.render();
+      this.bindEvents();
+    });
+
     // Navigation: Neues Video Formular
     document.addEventListener('click', (e) => {
       if (e.target && e.target.id === 'btn-goto-video-create') {

@@ -217,14 +217,6 @@ export class MarkeDetail {
             Rechnungen
             <span class="tab-count">${this.rechnungen.length}</span>
           </button>
-          <button class="tab-button" data-tab="notizen">
-            Notizen
-            <span class="tab-count">${this.notizen.length}</span>
-          </button>
-          <button class="tab-button" data-tab="bewertungen">
-            Bewertungen
-            <span class="tab-count">${this.ratings.length}</span>
-          </button>
         </div>
 
         <!-- Tab-Content -->
@@ -252,16 +244,6 @@ export class MarkeDetail {
           <!-- Rechnungen Tab -->
           <div class="tab-pane" id="rechnungen">
             ${this.renderRechnungen()}
-          </div>
-
-          <!-- Notizen Tab -->
-          <div class="tab-pane" id="notizen">
-            ${this.renderNotizen()}
-          </div>
-
-          <!-- Bewertungen Tab -->
-          <div class="tab-pane" id="bewertungen">
-            ${this.renderRatings()}
           </div>
         </div>
       </div>
@@ -625,6 +607,27 @@ export class MarkeDetail {
           this.bindEvents();
         });
       }
+    });
+
+    // Soft-Refresh bei Realtime-Updates (nur wenn kein Formular aktiv)
+    window.addEventListener('softRefresh', async (e) => {
+      // Prüfe ob ein Formular aktiv ist (Edit-Form oder Create-Drawer)
+      const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
+      
+      if (hasActiveForm) {
+        console.log('⏸️ MARKEDETAIL: Formular aktiv - Soft-Refresh übersprungen');
+        return;
+      }
+      
+      // Nur wenn auf Marke-Detail-Seite
+      if (!this.markeId || !location.pathname.includes('/marke/')) {
+        return;
+      }
+      
+      console.log('🔄 MARKEDETAIL: Soft-Refresh - lade Daten neu');
+      await this.loadMarkeData();
+      this.render();
+      this.bindEvents();
     });
   }
 

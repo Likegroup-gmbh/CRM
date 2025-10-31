@@ -285,8 +285,10 @@ class ModuleRegistry {
         return module.init();
       }
     } else {
-      console.warn(`❌ Modul nicht gefunden: ${moduleKey}`);
-      this.loadDashboard();
+      console.warn(`❌ Modul nicht gefunden: ${moduleKey} - bleibe auf aktueller Seite`);
+      // NICHT zum Dashboard weiterleiten - User bleibt auf aktueller Seite
+      // Das verhindert Datenverlust bei Multi-User-Updates
+      return;
     }
   }
 

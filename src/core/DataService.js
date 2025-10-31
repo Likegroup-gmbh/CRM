@@ -68,6 +68,7 @@ export class DataService {
           telefonnummer_office_land_id: 'uuid',
           linkedin: 'string',
           stadt: 'string',
+          geburtsdatum: 'date',
           sprache_id: 'uuid',
           notiz: 'string'
         },
@@ -786,7 +787,8 @@ export class DataService {
                   *,
                   unternehmen:unternehmen_id (
                     id,
-                    firmenname
+                    firmenname,
+                    logo_url
                   )
                 `)
                 .order('created_at', { ascending: false });

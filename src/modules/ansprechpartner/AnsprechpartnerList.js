@@ -69,7 +69,8 @@ export class AnsprechpartnerList {
           <thead>
             <tr>
               <th><input type="checkbox" id="select-all-ansprechpartner"></th>
-              <th>Name</th>
+              <th>Vorname</th>
+              <th>Nachname</th>
               <th>Position</th>
               <th>Unternehmen</th>
               <th>Marken</th>
@@ -255,7 +256,7 @@ export class AnsprechpartnerList {
     if (!ansprechpartner || ansprechpartner.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="10" class="no-data">Keine Ansprechpartner gefunden</td>
+          <td colspan="11" class="no-data">Keine Ansprechpartner gefunden</td>
         </tr>
       `;
       return;
@@ -266,9 +267,10 @@ export class AnsprechpartnerList {
         <td><input type="checkbox" class="ansprechpartner-check" data-id="${ap.id}"></td>
         <td>
           <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
-            ${window.validatorSystem.sanitizeHtml(`${ap.vorname} ${ap.nachname}`)}
+            ${window.validatorSystem.sanitizeHtml(ap.vorname || '-')}
           </a>
         </td>
+        <td>${window.validatorSystem.sanitizeHtml(ap.nachname || '-')}</td>
         <td>${ap.position?.name || '-'}</td>
         <td>
           ${this.renderUnternehmen(ap)}
@@ -279,7 +281,8 @@ export class AnsprechpartnerList {
                 name: m.markenname,
                 type: 'org',
                 id: m.id,
-                entityType: 'marke'
+                entityType: 'marke',
+                logo_url: m.logo_url || null
               })))
             : '-'}
         </td>
@@ -317,7 +320,8 @@ export class AnsprechpartnerList {
         name: u.firmenname,
         type: 'org',
         id: u.id,
-        entityType: 'unternehmen'
+        entityType: 'unternehmen',
+        logo_url: u.logo_url || null
       }));
       return avatarBubbles.renderBubbles(items);
     }
@@ -328,7 +332,8 @@ export class AnsprechpartnerList {
         name: ap.unternehmen.firmenname,
         type: 'org',
         id: ap.unternehmen.id,
-        entityType: 'unternehmen'
+        entityType: 'unternehmen',
+        logo_url: ap.unternehmen.logo_url || null
       }];
       return avatarBubbles.renderBubbles(items);
     }
@@ -361,7 +366,7 @@ export class AnsprechpartnerList {
       if (tbody) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="10" class="error">Fehler beim Laden der Ansprechpartner</td>
+            <td colspan="11" class="error">Fehler beim Laden der Ansprechpartner</td>
           </tr>
         `;
       }

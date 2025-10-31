@@ -208,12 +208,16 @@ export class AuthService {
                 // Benachrichtigungs-Refresh triggern
                 window.dispatchEvent(new Event('notificationsRefresh'));
                 
-                // Aktuelle Seite neu laden (sanft, ohne Full Page Reload)
-                const currentRoute = location.pathname;
-                if (currentRoute && window.moduleRegistry) {
-                  console.log('🔄 REALTIME: Lade aktuelle Seite neu:', currentRoute);
-                  window.moduleRegistry.navigateTo(currentRoute);
-                }
+                // Soft-Refresh Event dispatchen statt Full Page Reload
+                // Module können selbst entscheiden ob sie updaten (z.B. wenn kein Formular aktiv)
+                window.dispatchEvent(new CustomEvent('softRefresh', {
+                  detail: { 
+                    reason: 'user-data-updated', 
+                    route: location.pathname,
+                    timestamp: Date.now()
+                  }
+                }));
+                console.log('🔄 REALTIME: softRefresh Event gesendet (kein Full Reload)');
               } catch (uiErr) {
                 console.warn('⚠️ UI-Refresh nach Realtime-Update fehlgeschlagen', uiErr);
               }

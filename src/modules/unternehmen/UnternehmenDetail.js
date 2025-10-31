@@ -12,8 +12,10 @@ export class UnternehmenDetail {
     this.ratings = [];
     this.marken = [];
     this.auftraege = [];
+    this.auftragsdetails = [];
     this.ansprechpartner = [];
     this.kampagnen = [];
+    this.briefings = [];
     this.kooperationen = [];
     this.creators = [];
     this.rechnungen = [];
@@ -114,6 +116,53 @@ export class UnternehmenDetail {
       if (!auftraegeError) {
         this.auftraege = auftraege || [];
         console.log('✅ UNTERNEHMENDETAIL: Aufträge geladen:', this.auftraege.length);
+        
+        // Auftragsdetails für diese Aufträge laden
+        const auftragIds = (this.auftraege || []).map(a => a.id).filter(Boolean);
+        if (auftragIds.length > 0) {
+          const { data: auftragsdetails, error: auftragsdetailsError } = await window.supabase
+            .from('auftrag_details')
+            .select(`
+              *,
+              auftrag:auftrag_id (
+                id,
+                auftragsname,
+                status
+              )
+            `)
+            .in('auftrag_id', auftragIds)
+            .order('created_at', { ascending: false });
+          
+          if (!auftragsdetailsError) {
+            this.auftragsdetails = auftragsdetails || [];
+            console.log('✅ UNTERNEHMENDETAIL: Auftragsdetails geladen:', this.auftragsdetails.length);
+          } else {
+            console.warn('⚠️ UNTERNEHMENDETAIL: Auftragsdetails konnten nicht geladen werden:', auftragsdetailsError);
+            this.auftragsdetails = [];
+          }
+        } else {
+          this.auftragsdetails = [];
+        }
+      }
+
+      // Briefings laden (direkt über unternehmen_id)
+      try {
+        const { data: briefings, error: briefingsError } = await window.supabase
+          .from('briefings')
+          .select('id, product_service_offer, status, deadline, unternehmen_id, marke_id, kampagne_id, created_at')
+          .eq('unternehmen_id', this.unternehmenId)
+          .order('created_at', { ascending: false });
+        
+        if (!briefingsError) {
+          this.briefings = briefings || [];
+          console.log('✅ UNTERNEHMENDETAIL: Briefings geladen:', this.briefings.length);
+        } else {
+          console.warn('⚠️ UNTERNEHMENDETAIL: Briefings konnten nicht geladen werden:', briefingsError);
+          this.briefings = [];
+        }
+      } catch (errB) {
+        console.warn('⚠️ Briefings konnten nicht geladen werden', errB);
+        this.briefings = [];
       }
 
       // Kampagnen laden
@@ -184,7 +233,7 @@ export class UnternehmenDetail {
           ansprechpartner:ansprechpartner_id (
             *,
             position:position_id(name),
-            unternehmen:unternehmen_id(firmenname),
+            unternehmen:unternehmen_id(firmenname, logo_url),
             telefonnummer_land:eu_laender!telefonnummer_land_id (
               id,
               name,
@@ -290,6 +339,14 @@ export class UnternehmenDetail {
             Aufträge
             <span class="tab-count">${this.auftraege.length}</span>
           </button>
+          <button class="tab-button" data-tab="auftragsdetails">
+            Auftragsdetails
+            <span class="tab-count">${this.auftragsdetails.length}</span>
+          </button>
+          <button class="tab-button" data-tab="briefings">
+            Briefings
+            <span class="tab-count">${this.briefings.length}</span>
+          </button>
           <button class="tab-button" data-tab="kampagnen">
             Kampagnen
             <span class="tab-count">${this.kampagnen.length}</span>
@@ -305,14 +362,6 @@ export class UnternehmenDetail {
           <button class="tab-button" data-tab="rechnungen">
             Rechnungen
             <span class="tab-count">${this.rechnungen.length}</span>
-          </button>
-          <button class="tab-button" data-tab="notizen">
-            Notizen
-            <span class="tab-count">${this.notizen.length}</span>
-          </button>
-          <button class="tab-button" data-tab="bewertungen">
-            Bewertungen
-            <span class="tab-count">${this.ratings.length}</span>
           </button>
         </div>
 
@@ -338,6 +387,16 @@ export class UnternehmenDetail {
             ${this.renderAuftraege()}
           </div>
 
+          <!-- Auftragsdetails Tab -->
+          <div class="tab-pane" id="auftragsdetails">
+            ${this.renderAuftragsdetails()}
+          </div>
+
+          <!-- Briefings Tab -->
+          <div class="tab-pane" id="briefings">
+            ${this.renderBriefings()}
+          </div>
+
           <!-- Kampagnen Tab -->
           <div class="tab-pane" id="kampagnen">
             ${this.renderKampagnen()}
@@ -357,16 +416,6 @@ export class UnternehmenDetail {
           <div class="tab-pane" id="rechnungen">
             ${this.renderRechnungen()}
           </div>
-
-          <!-- Notizen Tab -->
-          <div class="tab-pane" id="notizen">
-            ${this.renderNotizen()}
-          </div>
-
-          <!-- Bewertungen Tab -->
-          <div class="tab-pane" id="bewertungen">
-            ${this.renderRatings()}
-          </div>
         </div>
       </div>
     `;
@@ -376,8 +425,16 @@ export class UnternehmenDetail {
 
   // Rendere Informationen
   renderInformationen() {
+    // Logo-Anzeige
+    const logoHtml = this.unternehmen?.logo_url ? `
+      <div class="detail-logo">
+        <img src="${this.unternehmen.logo_url}" alt="${this.unternehmen.firmenname} Logo" class="logo-image" />
+      </div>
+    ` : '';
+    
     return `
       <div class="detail-section">
+        ${logoHtml}
         <div class="detail-grid">
           <div class="detail-card">
             <h3>Unternehmen-Informationen</h3>
@@ -386,30 +443,18 @@ export class UnternehmenDetail {
               <span>${this.unternehmen?.firmenname || '-'}</span>
             </div>
             <div class="detail-item">
-              <label>Webseite:</label>
-              <span>
-                ${this.unternehmen?.webseite ? `<a href="${this.unternehmen.webseite}" target="_blank">${this.unternehmen.webseite}</a>` : '-'}
-              </span>
-            </div>
-            <div class="detail-item">
               <label>Branche:</label>
-              <span>${this.unternehmen?.branche || '-'}</span>
+              <span>${this.unternehmen?.branchen_names?.join(', ') || this.unternehmen?.branche || '-'}</span>
             </div>
             <div class="detail-item">
               <label>Rechnungsadresse:</label>
-              <span>${[this.unternehmen?.rechnungsadresse_strasse, this.unternehmen?.rechnungsadresse_hausnummer].filter(Boolean).join(' ') || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>PLZ:</label>
-              <span>${this.unternehmen?.rechnungsadresse_plz || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Ort:</label>
-              <span>${this.unternehmen?.rechnungsadresse_stadt || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Land:</label>
-              <span>${this.unternehmen?.rechnungsadresse_land || '-'}</span>
+              <span>
+                ${[
+                  [this.unternehmen?.rechnungsadresse_strasse, this.unternehmen?.rechnungsadresse_hausnummer].filter(Boolean).join(' '),
+                  [this.unternehmen?.rechnungsadresse_plz, this.unternehmen?.rechnungsadresse_stadt].filter(Boolean).join(' '),
+                  this.unternehmen?.rechnungsadresse_land
+                ].filter(Boolean).join(', ') || '-'}
+              </span>
             </div>
             <div class="detail-item">
               <label>Erstellt am:</label>
@@ -526,6 +571,108 @@ export class UnternehmenDetail {
               <th>Typ</th>
               <th>Marke</th>
               <th>Budget</th>
+              <th>Erstellt am</th>
+              <th>Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  // Rendere Auftragsdetails
+  renderAuftragsdetails() {
+    if (!this.auftragsdetails || this.auftragsdetails.length === 0) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">📄</div>
+          <h3>Keine Auftragsdetails vorhanden</h3>
+          <p>Es wurden noch keine Auftragsdetails für die Aufträge dieses Unternehmens erstellt.</p>
+        </div>
+      `;
+    }
+
+    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
+
+    const rows = this.auftragsdetails.map(detail => `
+      <tr>
+        <td>
+          <a href="#" class="table-link" data-table="auftragsdetails" data-id="${detail.id}">
+            ${detail.auftrag?.auftragsname || 'Unbekannter Auftrag'}
+          </a>
+        </td>
+        <td><span class="status-badge status-${detail.auftrag?.status?.toLowerCase() || 'unknown'}">${detail.auftrag?.status || '-'}</span></td>
+        <td>${detail.kategorie || '-'}</td>
+        <td>${detail.beschreibung || '-'}</td>
+        <td>${formatDate(detail.created_at)}</td>
+        <td>
+          ${actionBuilder.create('auftragsdetails', detail.id)}
+        </td>
+      </tr>
+    `).join('');
+
+    return `
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Auftrag</th>
+              <th>Status</th>
+              <th>Kategorie</th>
+              <th>Beschreibung</th>
+              <th>Erstellt am</th>
+              <th>Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  // Rendere Briefings
+  renderBriefings() {
+    if (!this.briefings || this.briefings.length === 0) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">📝</div>
+          <h3>Keine Briefings vorhanden</h3>
+          <p>Es wurden noch keine Briefings für dieses Unternehmen erstellt.</p>
+        </div>
+      `;
+    }
+
+    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
+
+    const rows = this.briefings.map(briefing => `
+      <tr>
+        <td>
+          <a href="#" class="table-link" data-table="briefing" data-id="${briefing.id}">
+            ${briefing.product_service_offer || 'Unbekanntes Briefing'}
+          </a>
+        </td>
+        <td><span class="status-badge status-${briefing.status?.toLowerCase() || 'unknown'}">${briefing.status || '-'}</span></td>
+        <td>${formatDate(briefing.deadline)}</td>
+        <td>${formatDate(briefing.created_at)}</td>
+        <td>
+          ${actionBuilder.create('briefing', briefing.id)}
+        </td>
+      </tr>
+    `).join('');
+
+    return `
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Produkt/Angebot</th>
+              <th>Status</th>
+              <th>Deadline</th>
               <th>Erstellt am</th>
               <th>Aktion</th>
             </tr>
@@ -840,6 +987,27 @@ export class UnternehmenDetail {
         });
       }
     });
+
+    // Soft-Refresh bei Realtime-Updates (nur wenn kein Formular aktiv)
+    window.addEventListener('softRefresh', async (e) => {
+      // Prüfe ob ein Formular aktiv ist (Edit-Form oder Create-Drawer)
+      const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
+      
+      if (hasActiveForm) {
+        console.log('⏸️ UNTERNEHMENDETAIL: Formular aktiv - Soft-Refresh übersprungen');
+        return;
+      }
+      
+      // Nur wenn auf Unternehmen-Detail-Seite
+      if (!this.unternehmenId || !location.pathname.includes('/unternehmen/')) {
+        return;
+      }
+      
+      console.log('🔄 UNTERNEHMENDETAIL: Soft-Refresh - lade Daten neu');
+      await this.loadUnternehmenData();
+      this.render();
+      this.bindEvents();
+    });
   }
 
   // Ansprechpartner entfernen
@@ -992,12 +1160,217 @@ export class UnternehmenDetail {
 
       // Formular-Events binden mit korrekten Daten
       await window.formSystem.bindFormEvents('unternehmen', formData);
+      
+      // Custom Submit Handler für Logo-Upload
+      const form = document.getElementById('unternehmen-form');
+      if (form) {
+        form.onsubmit = async (e) => {
+          e.preventDefault();
+          await this.handleEditFormSubmit(form);
+        };
+      }
 
       console.log('✅ UNTERNEHMENDETAIL: Edit-Formular gerendert und Events gebunden');
 
     } catch (error) {
       console.error('❌ UNTERNEHMENDETAIL: Fehler beim Anzeigen des Edit-Formulars:', error);
       this.showErrorMessage('Fehler beim Laden des Formulars: ' + error.message);
+    }
+  }
+  
+  // Handle Edit Form Submit
+  async handleEditFormSubmit(form) {
+    try {
+      console.log('🎯 UNTERNEHMENDETAIL: Verarbeite Edit-Formular-Submit');
+      
+      const submitBtn = form.querySelector('button[type="submit"]');
+      const originalText = submitBtn.innerHTML;
+      submitBtn.innerHTML = '<div class="loading-spinner"></div> Wird gespeichert...';
+      submitBtn.disabled = true;
+
+      // Formular-Daten sammeln (wie in UnternehmenCreate)
+      const formData = new FormData(form);
+      const data = {};
+      const allFormData = {};
+      
+      // Tag-basierte Multi-Selects
+      const tagBasedSelects = form.querySelectorAll('select[data-tag-based="true"]');
+      tagBasedSelects.forEach(select => {
+        let hiddenSelect = form.querySelector(`select[name="${select.name}"][style*="display: none"]`);
+        if (!hiddenSelect) {
+          const allSelects = form.querySelectorAll(`select[name="${select.name}"]`);
+          if (allSelects.length > 1) hiddenSelect = allSelects[1];
+        }
+        if (hiddenSelect) {
+          const selectedValues = Array.from(hiddenSelect.selectedOptions).map(option => option.value).filter(val => val !== '');
+          if (selectedValues.length > 0) allFormData[select.name] = selectedValues;
+        }
+      });
+      
+      // Standard FormData sammeln
+      for (let [key, value] of formData.entries()) {
+        if (!allFormData.hasOwnProperty(key)) {
+          if (key.includes('[]')) {
+            const cleanKey = key.replace('[]', '');
+            if (!allFormData[cleanKey]) allFormData[cleanKey] = [];
+            allFormData[cleanKey].push(value);
+          } else {
+            if (allFormData[key]) {
+              if (!Array.isArray(allFormData[key])) allFormData[key] = [allFormData[key]];
+              allFormData[key].push(value);
+            } else {
+              allFormData[key] = value;
+            }
+          }
+        }
+      }
+      
+      for (let [key, value] of Object.entries(allFormData)) {
+        data[key] = Array.isArray(value) ? value : value.trim();
+      }
+
+      // Unternehmen aktualisieren
+      const result = await window.dataService.updateEntity('unternehmen', this.unternehmenId, data);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Fehler beim Aktualisieren');
+      }
+
+      // Branchen speichern
+      await this.saveUnternehmenBranchen(this.unternehmenId, data.branche_id, form);
+      
+      // Logo-Upload (falls vorhanden) - nach Branchen, damit Fehler nicht Branchen blockieren
+      try {
+        await this.uploadLogo(this.unternehmenId, form);
+      } catch (logoError) {
+        console.warn('⚠️ Logo-Upload fehlgeschlagen, aber Unternehmen wurde aktualisiert:', logoError);
+        // Weiter machen, auch wenn Logo-Upload fehlschlägt
+      }
+
+      alert('Unternehmen wurde erfolgreich aktualisiert!');
+      
+      // Zurück zur Detail-Ansicht
+      await this.init(this.unternehmenId);
+
+    } catch (error) {
+      console.error('❌ UNTERNEHMENDETAIL: Fehler beim Aktualisieren:', error);
+      alert('Fehler beim Aktualisieren: ' + error.message);
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+      }
+    }
+  }
+  
+  // Logo-Upload (identisch zu UnternehmenCreate)
+  async uploadLogo(unternehmenId, form) {
+    try {
+      const uploaderRoot = form.querySelector('.uploader[data-name="logo_file"]');
+      if (!uploaderRoot || !uploaderRoot.__uploaderInstance || !uploaderRoot.__uploaderInstance.files.length) {
+        console.log('ℹ️ Kein Logo zum Hochladen');
+        return;
+      }
+
+      if (!window.supabase) {
+        console.warn('⚠️ Supabase nicht verfügbar - Logo-Upload übersprungen');
+        return;
+      }
+
+      const files = uploaderRoot.__uploaderInstance.files;
+      const file = files[0];
+      const bucket = 'logos';
+      const MAX_FILE_SIZE = 200 * 1024;
+      const ALLOWED_TYPES = ['image/png', 'image/jpeg'];
+      
+      if (file.size > MAX_FILE_SIZE) {
+        alert(`Logo ist zu groß (max. 200 KB)`);
+        return;
+      }
+
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        alert(`Nur PNG und JPG Dateien sind erlaubt`);
+        return;
+      }
+
+      const ext = file.name.split('.').pop().toLowerCase();
+      const path = `unternehmen/${unternehmenId}/logo.${ext}`;
+      
+      // Altes Logo löschen
+      try {
+        const { data: existingFiles } = await window.supabase.storage.from(bucket).list(`unternehmen/${unternehmenId}`);
+        if (existingFiles && existingFiles.length > 0) {
+          for (const existingFile of existingFiles) {
+            await window.supabase.storage.from(bucket).remove([`unternehmen/${unternehmenId}/${existingFile.name}`]);
+          }
+        }
+      } catch (deleteErr) {
+        console.warn('⚠️ Fehler beim Löschen alter Logos:', deleteErr);
+      }
+      
+      const { error: upErr } = await window.supabase.storage.from(bucket).upload(path, file, {
+        cacheControl: '3600',
+        upsert: true,
+        contentType: file.type
+      });
+      
+      if (upErr) throw upErr;
+      
+      const { data: signed, error: signErr } = await window.supabase.storage.from(bucket).createSignedUrl(path, 60 * 60 * 24 * 7);
+      if (signErr) throw signErr;
+      
+      const logo_url = signed?.signedUrl || '';
+      
+      const { error: dbErr } = await window.supabase.from('unternehmen').update({
+        logo_url,
+        logo_path: path
+      }).eq('id', unternehmenId);
+      
+      if (dbErr) throw dbErr;
+      
+      console.log(`✅ Logo erfolgreich hochgeladen`);
+    } catch (error) {
+      console.error('❌ Fehler beim Logo-Upload:', error);
+      alert(`⚠️ Logo konnte nicht hochgeladen werden: ${error.message}`);
+      throw error; // Re-throw damit handleEditFormSubmit den Fehler sieht
+    }
+  }
+  
+  // Branchen-Verknüpfungen speichern (aus UnternehmenCreate kopiert)
+  async saveUnternehmenBranchen(unternehmenId, brancheIds = null, form = null) {
+    try {
+      if (!unternehmenId) return;
+      let ids = [];
+      if (Array.isArray(brancheIds)) {
+        ids = brancheIds.filter(Boolean);
+      } else if (typeof brancheIds === 'string' && brancheIds) {
+        ids = [brancheIds];
+      }
+      if (ids.length === 0) {
+        const context = form || document;
+        const hiddenSelect = context.querySelector('select[name="branche_id[]"]');
+        if (hiddenSelect) {
+          ids = Array.from(hiddenSelect.selectedOptions).map(option => option.value).filter(Boolean);
+        }
+      }
+      const { error: deleteError } = await window.supabase.from('unternehmen_branchen').delete().eq('unternehmen_id', unternehmenId);
+      if (deleteError) throw deleteError;
+      if (ids.length === 0) {
+        await window.supabase.from('unternehmen').update({ branche_id: null, branche: null }).eq('id', unternehmenId);
+        return;
+      }
+      const insertData = ids.map(id => ({ unternehmen_id: unternehmenId, branche_id: id }));
+      const { error: insertError } = await window.supabase.from('unternehmen_branchen').insert(insertData);
+      if (insertError) throw insertError;
+      const branchNames = await this.getBranchenNamen(ids);
+      const brancheNameString = branchNames.filter(Boolean).join(', ') || null;
+      await window.supabase.from('unternehmen').update({
+        branche_id: ids[0] || null,
+        branche: brancheNameString
+      }).eq('id', unternehmenId);
+    } catch (error) {
+      console.error('❌ Fehler beim Speichern der Unternehmen-Branchen:', error);
+      alert('Branchen-Zuordnungen konnten nicht vollständig gespeichert werden.');
     }
   }
 

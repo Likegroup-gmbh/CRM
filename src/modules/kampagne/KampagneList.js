@@ -1,11 +1,12 @@
 // KampagneList.js (ES6-Modul)
-// Kampagnen-Liste mit neuem Filtersystem
+// Kampagnen-Liste mit neuem Filtersystem und Kanban-View
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
+import { KampagneKanbanBoard } from './KampagneKanbanBoard.js';
 
 export class KampagneList {
   constructor() {
@@ -13,6 +14,8 @@ export class KampagneList {
     this._boundEventListeners = new Set();
     this.statusOptions = [];
     this.kampagneArtMap = new Map();
+    this.currentView = 'kanban'; // 'list' oder 'kanban' - Standard: kanban
+    this.kanbanBoard = null;
   }
 
   // Initialisiere Kampagnen-Liste
@@ -41,9 +44,6 @@ export class KampagneList {
       `;
       return;
     }
-
-    // Binde Events sofort
-    this.bindEvents();
     
     await this.loadAndRender();
   }
@@ -51,23 +51,24 @@ export class KampagneList {
   // Lade und rendere Kampagnen-Liste
   async loadAndRender() {
     try {
-      // PERFORMANCE: Keine separate loadFilterData() Query mehr!
-      // Filter-Optionen werden vom FilterSystem bei Bedarf geladen
-      
       // Rendere die Seite (asynchron)
       await this.render();
       
-      // Initialisiere Filterbar mit neuem System
-      await this.initializeFilterBar();
-      
-      // Lade gefilterte Kampagnen für die Anzeige
-      const currentFilters = filterSystem.getFilters('kampagne');
-      console.log('🔍 Lade Kampagnen mit Filter:', currentFilters);
-      const filteredKampagnen = await this.loadKampagnenWithRelations();
-      console.log('📊 Kampagnen geladen:', filteredKampagnen?.length || 0);
-      
-      // Aktualisiere nur die Tabelle mit gefilterten Daten
-      this.updateTable(filteredKampagnen);
+      // Nur für List-View: Filter und Daten laden
+      if (this.currentView === 'list') {
+        // Initialisiere Filterbar mit neuem System
+        await this.initializeFilterBar();
+        
+        // Lade gefilterte Kampagnen für die Anzeige
+        const currentFilters = filterSystem.getFilters('kampagne');
+        console.log('🔍 Lade Kampagnen mit Filter:', currentFilters);
+        const filteredKampagnen = await this.loadKampagnenWithRelations();
+        console.log('📊 Kampagnen geladen:', filteredKampagnen?.length || 0);
+        
+        // Aktualisiere nur die Tabelle mit gefilterten Daten
+        this.updateTable(filteredKampagnen);
+      }
+      // Für Kanban-View: Kanban Board lädt seine eigenen Daten
       
     } catch (error) {
       window.ErrorHandler.handle(error, 'KampagneList.loadAndRender');
@@ -186,8 +187,8 @@ export class KampagneList {
         .from('kampagne')
         .select(`
           *,
-          unternehmen:unternehmen_id(id, firmenname),
-          marke:marke_id(id, markenname),
+          unternehmen:unternehmen_id(id, firmenname, logo_url),
+          marke:marke_id(id, markenname, logo_url),
           auftrag:auftrag_id(auftragsname),
           status_ref:status_id(id, name)
         `)
@@ -213,8 +214,16 @@ export class KampagneList {
         return {
           ...k,
           art_der_kampagne_display: artDisplay,
-          unternehmen: k.unternehmen ? { firmenname: k.unternehmen.firmenname } : null,
-          marke: k.marke ? { markenname: k.marke.markenname } : null,
+          unternehmen: k.unternehmen ? { 
+            id: k.unternehmen.id, 
+            firmenname: k.unternehmen.firmenname, 
+            logo_url: k.unternehmen.logo_url 
+          } : null,
+          marke: k.marke ? { 
+            id: k.marke.id, 
+            markenname: k.marke.markenname, 
+            logo_url: k.marke.logo_url 
+          } : null,
           auftrag: k.auftrag ? { auftragsname: k.auftrag.auftragsname } : null,
           status_name: k.status_ref?.name || k.status || null
         };
@@ -240,23 +249,15 @@ export class KampagneList {
   async render() {
     const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
     
-    // Aktive Filter als Tags
-    let tags = '';
-    const currentFilters = filterSystem.getFilters('kampagne');
-    
-    // Filter-Tags rendern (vereinfacht)
-    Object.entries(currentFilters).forEach(([key, value]) => {
-      if (value && value !== '') {
-        tags += `<span class="filter-tag" data-key="${key}">${key}: ${value} <b class="tag-x" data-key="${key}">×</b></span>`;
-      }
-    });
-    
-    // Filter-Dropdown über dem Tabellen-Header
-    let filterHtml = `<div class="filter-bar">
-      <div class="filter-left">
-        <div id="filter-dropdown-container"></div>
-      </div>
-    </div>`;
+    // Filter-Dropdown über dem Tabellen-Header (nur in List-View)
+    let filterHtml = '';
+    if (this.currentView === 'list') {
+      filterHtml = `<div class="filter-bar">
+        <div class="filter-left">
+          <div id="filter-dropdown-container"></div>
+        </div>
+      </div>`;
+    }
     
     // Haupt-HTML
     let html = `
@@ -266,19 +267,56 @@ export class KampagneList {
           <p>Verwalten Sie alle Kampagnen und deren Details</p>
         </div>
         <div class="page-header-right">
-          ${canEdit ? '<button id="btn-kampagne-new" class="primary-btn">Neue Kampagne anlegen</button>' : ''}
+          <div class="view-toggle">
+            <button id="btn-view-list" class="secondary-btn ${this.currentView === 'list' ? 'active' : ''}">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 1.5v-1.5m0 0c0-.621.504-1.125 1.125-1.125m0 0h7.5" />
+              </svg>
+              Liste
+            </button>
+            <button id="btn-view-kanban" class="secondary-btn ${this.currentView === 'kanban' ? 'active' : ''}">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+              </svg>
+              Kanban
+            </button>
+          </div>
+          ${canEdit ? '<button id="btn-kampagne-new" class="primary-btn" style="margin-left: var(--space-sm);">Neue Kampagne anlegen</button>' : ''}
         </div>
       </div>
 
+      <div class="content-section">
+        <div id="kampagnen-content-container">
+          ${this.currentView === 'kanban' ? '<div id="kanban-container"></div>' : this.renderTableWrapper()}
+        </div>
+      </div>
+    `;
+
+    window.setContentSafely(window.content, html);
+
+    // Kanban Board initialisieren wenn View = kanban
+    if (this.currentView === 'kanban') {
+      await this.initKanbanBoard();
+    }
+    
+    // Binde Events nach dem Rendern
+    this.bindEvents();
+  }
+
+  renderTableWrapper() {
+    return `
       <div class="table-filter-wrapper">
-        ${filterHtml}
+        <div class="filter-bar">
+          <div class="filter-left">
+            <div id="filter-dropdown-container"></div>
+          </div>
+        </div>
         <div class="table-actions">
           <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
           <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
         </div>
       </div>
-
       <div class="data-table-container">
         <table class="data-table">
           <thead>
@@ -302,14 +340,26 @@ export class KampagneList {
           </thead>
           <tbody id="kampagnen-table-body">
             <tr>
-              <td colspan="12" class="loading">Lade Kampagnen...</td>
+              <td colspan="13" class="loading">Lade Kampagnen...</td>
             </tr>
           </tbody>
         </table>
       </div>
     `;
+  }
 
-    window.setContentSafely(window.content, html);
+  async initKanbanBoard() {
+    const container = document.getElementById('kanban-container');
+    if (!container) return;
+
+    // Cleanup old board
+    if (this.kanbanBoard) {
+      this.kanbanBoard.destroy();
+    }
+
+    // Neue Board-Instanz
+    this.kanbanBoard = new KampagneKanbanBoard();
+    await this.kanbanBoard.init(container);
   }
 
   // Initialisiere Filter-Dropdown
@@ -340,7 +390,41 @@ export class KampagneList {
 
   // Binde Events
   bindEvents() {
-    // Filter-Events werden vom FilterDropdown gehandelt
+    // View-Toggle Events
+    const listBtn = document.getElementById('btn-view-list');
+    const kanbanBtn = document.getElementById('btn-view-kanban');
+
+    if (listBtn) {
+      listBtn.addEventListener('click', async () => {
+        console.log('🔄 Wechsel zu List-View');
+        if (this.currentView === 'list') return; // Bereits in List-View
+        
+        // Cleanup Kanban Board
+        if (this.kanbanBoard) {
+          this.kanbanBoard.destroy();
+          this.kanbanBoard = null;
+        }
+        
+        this.currentView = 'list';
+        await this.loadAndRender(); // Re-render und Daten laden
+      });
+    }
+
+    if (kanbanBtn) {
+      kanbanBtn.addEventListener('click', async () => {
+        console.log('🔄 Wechsel zu Kanban-View');
+        if (this.currentView === 'kanban') return; // Bereits in Kanban-View
+        
+        this.currentView = 'kanban';
+        await this.render(); // Re-render (initKanbanBoard wird in render() aufgerufen)
+      });
+    }
+
+    // Filter-Events werden vom FilterDropdown gehandelt (nur in List-View)
+    if (this.currentView === 'list') {
+      // Initialisiere Filterbar nur für List-View
+      this.initializeFilterBar();
+    }
 
     // Neue Kampagne anlegen Button
     document.addEventListener('click', (e) => {
@@ -350,31 +434,89 @@ export class KampagneList {
       }
     });
 
-    // Alle auswählen Button
-    document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-select-all') {
-        e.preventDefault();
-        const checkboxes = document.querySelectorAll('.kampagne-check');
-        checkboxes.forEach(cb => {
-          cb.checked = true;
-          if (cb.dataset.id) this.selectedKampagnen.add(cb.dataset.id);
-        });
-        const selectAllHeader = document.getElementById('select-all-kampagnen');
-        if (selectAllHeader) {
-          selectAllHeader.indeterminate = false;
-          selectAllHeader.checked = true;
+    // Nur für List-View: Bulk-Actions, Select-All, etc.
+    if (this.currentView === 'list') {
+      // Alle auswählen Button
+      document.addEventListener('click', (e) => {
+        if (e.target.id === 'btn-select-all') {
+          e.preventDefault();
+          const checkboxes = document.querySelectorAll('.kampagne-check');
+          checkboxes.forEach(cb => {
+            cb.checked = true;
+            if (cb.dataset.id) this.selectedKampagnen.add(cb.dataset.id);
+          });
+          const selectAllHeader = document.getElementById('select-all-kampagnen');
+          if (selectAllHeader) {
+            selectAllHeader.indeterminate = false;
+            selectAllHeader.checked = true;
+          }
+          this.updateSelection();
         }
-        this.updateSelection();
-      }
-    });
+      });
 
-    // Auswahl aufheben Button
-    document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-deselect-all') {
-        e.preventDefault();
-        this.deselectAll();
+      // Auswahl aufheben Button
+      document.addEventListener('click', (e) => {
+        if (e.target.id === 'btn-deselect-all') {
+          e.preventDefault();
+          this.deselectAll();
+        }
+      });
+
+      // Select-All Checkbox (Tabellen-Header)
+      document.addEventListener('change', (e) => {
+        if (e.target.id === 'select-all-kampagnen') {
+          const checkboxes = document.querySelectorAll('.kampagne-check');
+          const isChecked = e.target.checked;
+          
+          checkboxes.forEach(cb => {
+            cb.checked = isChecked;
+            if (isChecked) {
+              this.selectedKampagnen.add(cb.dataset.id);
+            } else {
+              this.selectedKampagnen.delete(cb.dataset.id);
+            }
+          });
+          
+          this.updateSelection();
+          console.log(`${isChecked ? '✅ Alle Kampagnen ausgewählt' : '❌ Alle Kampagnen abgewählt'}: ${this.selectedKampagnen.size}`);
+        }
+      });
+
+      // Kampagne Checkboxes
+      document.addEventListener('change', (e) => {
+        if (e.target.classList.contains('kampagne-check')) {
+          if (e.target.checked) {
+            this.selectedKampagnen.add(e.target.dataset.id);
+          } else {
+            this.selectedKampagnen.delete(e.target.dataset.id);
+          }
+          this.updateSelection();
+          this.updateSelectAllCheckbox();
+        }
+      });
+
+      // Bulk-Actions werden jetzt vom BulkActionSystem verwaltet
+      if (window.bulkActionSystem) {
+        window.bulkActionSystem.registerList('kampagne', this);
       }
-    });
+
+      // Filter-Tag X-Buttons
+      document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('tag-x')) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          const tagElement = e.target.closest('.filter-tag');
+          const key = tagElement.dataset.key;
+          
+          // Entferne Filter
+          const currentFilters = filterSystem.getFilters('kampagne');
+          delete currentFilters[key];
+          filterSystem.applyFilters('kampagne', currentFilters);
+          this.loadAndRender();
+        }
+      });
+    }
 
     // Kampagne Detail Links
     document.addEventListener('click', (e) => {
@@ -389,65 +531,22 @@ export class KampagneList {
     // Entity Updated Event
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail.entity === 'kampagne') {
-        this.loadAndRender();
-      }
-    });
-
-    // Filter-Tag X-Buttons
-    document.addEventListener('click', (e) => {
-      if (e.target.classList.contains('tag-x')) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const tagElement = e.target.closest('.filter-tag');
-        const key = tagElement.dataset.key;
-        
-        // Entferne Filter
-        const currentFilters = filterSystem.getFilters('kampagne');
-        delete currentFilters[key];
-        filterSystem.applyFilters('kampagne', currentFilters);
-        this.loadAndRender();
-      }
-    });
-
-    // Select-All Checkbox (Tabellen-Header)
-    document.addEventListener('change', (e) => {
-      if (e.target.id === 'select-all-kampagnen') {
-        const checkboxes = document.querySelectorAll('.kampagne-check');
-        const isChecked = e.target.checked;
-        
-        checkboxes.forEach(cb => {
-          cb.checked = isChecked;
-          if (isChecked) {
-            this.selectedKampagnen.add(cb.dataset.id);
-          } else {
-            this.selectedKampagnen.delete(cb.dataset.id);
-          }
-        });
-        
-        this.updateSelection();
-        console.log(`${isChecked ? '✅ Alle Kampagnen ausgewählt' : '❌ Alle Kampagnen abgewählt'}: ${this.selectedKampagnen.size}`);
-      }
-    });
-
-    // Kampagne Checkboxes
-    document.addEventListener('change', (e) => {
-      if (e.target.classList.contains('kampagne-check')) {
-        if (e.target.checked) {
-          this.selectedKampagnen.add(e.target.dataset.id);
+        if (this.currentView === 'kanban' && this.kanbanBoard) {
+          this.kanbanBoard.refresh();
         } else {
-          this.selectedKampagnen.delete(e.target.dataset.id);
+          this.loadAndRender();
         }
-        this.updateSelection();
-        this.updateSelectAllCheckbox();
       }
     });
 
-    // Bulk-Actions werden jetzt vom BulkActionSystem verwaltet
-    // Registriere diese Liste beim BulkActionSystem
-    if (window.bulkActionSystem) {
-      window.bulkActionSystem.registerList('kampagne', this);
-    }
+    // Kampagne Updated Event (von Kanban Board)
+    window.addEventListener('kampagneUpdated', (e) => {
+      if (this.currentView === 'kanban' && this.kanbanBoard) {
+        this.kanbanBoard.refresh();
+      } else {
+        this.loadAndRender();
+      }
+    });
   }
 
   // Prüfe ob aktive Filter vorhanden
@@ -927,11 +1026,14 @@ export class KampagneList {
       return '-';
     }
 
+    console.log('🏢 Render Unternehmen:', unternehmen.firmenname, 'Logo URL:', unternehmen.logo_url);
+
     const items = [{
       name: unternehmen.firmenname,
       type: 'org',
       id: unternehmen.id,
-      entityType: 'unternehmen'
+      entityType: 'unternehmen',
+      logo_url: unternehmen.logo_url || null
     }];
 
     return avatarBubbles.renderBubbles(items);
@@ -943,11 +1045,14 @@ export class KampagneList {
       return '-';
     }
 
+    console.log('🏷️ Render Marke:', marke.markenname, 'Logo URL:', marke.logo_url);
+
     const items = [{
       name: marke.markenname,
       type: 'org',
       id: marke.id,
-      entityType: 'marke'
+      entityType: 'marke',
+      logo_url: marke.logo_url || null
     }];
 
     return avatarBubbles.renderBubbles(items);

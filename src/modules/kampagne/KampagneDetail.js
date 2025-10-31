@@ -1138,6 +1138,27 @@ export class KampagneDetail {
       }
     });
 
+    // Soft-Refresh bei Realtime-Updates (nur wenn kein Formular aktiv)
+    window.addEventListener('softRefresh', async (e) => {
+      // Prüfe ob ein Formular aktiv ist (Edit-Form oder Create-Drawer)
+      const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
+      
+      if (hasActiveForm) {
+        console.log('⏸️ KAMPAGNEDETAIL: Formular aktiv - Soft-Refresh übersprungen');
+        return;
+      }
+      
+      // Nur wenn auf Kampagne-Detail-Seite
+      if (!this.kampagneId || !location.pathname.includes('/kampagne/')) {
+        return;
+      }
+      
+      console.log('🔄 KAMPAGNEDETAIL: Soft-Refresh - lade Daten neu');
+      await this.loadKampagneData();
+      this.render();
+      this.bindEvents();
+    });
+
     // Zu Favoriten hinzufügen (nur im Sourcing-Tab vorhanden)
     document.addEventListener('click', async (e) => {
       const addFav = e.target.closest('.action-item.add-favorite');

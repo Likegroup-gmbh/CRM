@@ -1,9 +1,11 @@
 // TaskListPage.js - Globale Task-Übersicht mit Kanban/Tabellen-Ansicht
 import { TaskKanbanBoard } from './TaskKanbanBoard.js';
+import { TaskCreateDrawer } from './TaskCreateDrawer.js';
 
 export const taskListPage = {
   currentView: 'kanban', // 'kanban' oder 'table'
   kanbanBoard: null,
+  createDrawer: null,
   tasks: [],
   filters: {
     entityType: null,
@@ -16,6 +18,7 @@ export const taskListPage = {
     console.log('🎯 TaskListPage: init()');
     
     window.setHeadline('Aufgaben');
+    this.createDrawer = new TaskCreateDrawer();
     await this.loadTasks();
     this.render();
     this.bindEvents();
@@ -28,7 +31,22 @@ export const taskListPage = {
         *,
         category:category_id(id, name),
         assigned_to:assigned_to_user_id(id, name, profile_image_url),
-        creator:created_by(id, name)
+        creator:created_by(id, name),
+        kampagne:kampagne_id(
+          id,
+          kampagnenname,
+          marke:marke_id(
+            id,
+            markenname,
+            logo_url
+          ),
+          unternehmen:unternehmen_id(
+            id,
+            firmenname,
+            logo_url
+          )
+        ),
+        kooperation:kooperation_id(id, name)
       `)
       .order('created_at', { ascending: false });
 
@@ -185,12 +203,12 @@ export const taskListPage = {
   },
 
   bindEvents() {
-    // Add Task Button
+    // Add Task Button - öffnet TaskCreateDrawer
     const addTaskBtn = document.getElementById('btn-add-task');
     if (addTaskBtn) {
       addTaskBtn.addEventListener('click', () => {
-        if (this.currentView === 'kanban' && this.kanbanBoard) {
-          this.kanbanBoard.openQuickAddForm();
+        if (this.createDrawer) {
+          this.createDrawer.open('todo');
         }
       });
     }

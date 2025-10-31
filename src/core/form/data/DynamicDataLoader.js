@@ -401,10 +401,11 @@ export class DynamicDataLoader {
           break;
         
         case 'assignee_id':
-          // Benutzer/Mitarbeiter laden für Zuweisung
+          // Benutzer/Mitarbeiter laden für Zuweisung (keine Kunden)
           const { data: benutzer, error: benError } = await window.supabase
             .from('benutzer')
             .select('id, name')
+            .neq('rolle', 'kunde')
             .order('name');
           
           if (benError) {
@@ -1417,6 +1418,7 @@ export class DynamicDataLoader {
       let query = window.supabase
         .from('benutzer')
         .select('id, name, vorname, nachname, rolle')
+        .neq('rolle', 'kunde')
         .order('name');
 
       if (filter.role) {

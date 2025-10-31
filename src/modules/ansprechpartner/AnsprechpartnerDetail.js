@@ -72,6 +72,13 @@ export class AnsprechpartnerDetail {
               kampagnenname
             )
           ),
+          ansprechpartner_unternehmen (
+            unternehmen:unternehmen_id (
+              id,
+              firmenname,
+              logo_url
+            )
+          ),
           telefonnummer_land:eu_laender!telefonnummer_land_id (
             id,
             name,
@@ -153,6 +160,10 @@ export class AnsprechpartnerDetail {
             Informationen
             <span class="tab-count">1</span>
           </button>
+          <button class="tab-button" data-tab="unternehmen">
+            Zugeordnete Unternehmen
+            <span class="tab-count">${this.ansprechpartner.ansprechpartner_unternehmen ? this.ansprechpartner.ansprechpartner_unternehmen.length : 0}</span>
+          </button>
           <button class="tab-button" data-tab="marken">
             Zugeordnete Marken
             <span class="tab-count">${this.ansprechpartner.ansprechpartner_marke ? this.ansprechpartner.ansprechpartner_marke.length : 0}</span>
@@ -176,6 +187,11 @@ export class AnsprechpartnerDetail {
           <!-- Informationen Tab -->
           <div class="tab-pane active" id="informationen">
             ${this.renderInformationen()}
+          </div>
+
+          <!-- Unternehmen Tab -->
+          <div class="tab-pane" id="unternehmen">
+            ${this.renderUnternehmen()}
           </div>
 
           <!-- Marken Tab -->
@@ -242,6 +258,17 @@ export class AnsprechpartnerDetail {
               <label>LinkedIn:</label>
               <span>${this.ansprechpartner.linkedin ? `<a href="${this.ansprechpartner.linkedin}" target="_blank" rel="noopener noreferrer">${this.ansprechpartner.linkedin}</a>` : '-'}</span>
             </div>
+            ${this.ansprechpartner.geburtsdatum ? `
+            <div class="detail-item">
+              <label>Geburtsdatum:</label>
+              <span style="display: flex; align-items: center; gap: 6px;">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 8.25v-1.5m0 1.5c-1.355 0-2.697.056-4.024.166C6.845 8.51 6 9.473 6 10.608v2.513m6-4.871c1.355 0 2.697.056 4.024.166C17.155 8.51 18 9.473 18 10.608v2.513M15 8.25v-1.5m-6 1.5v-1.5m12 9.75-1.5.75a3.354 3.354 0 0 1-3 0 3.354 3.354 0 0 0-3 0 3.354 3.354 0 0 1-3 0 3.354 3.354 0 0 0-3 0 3.354 3.354 0 0 1-3 0L3 16.5m15-3.379a48.474 48.474 0 0 0-6-.371c-2.032 0-4.034.126-6 .371m12 0c.39.049.777.102 1.163.16 1.07.16 1.837 1.094 1.837 2.175v5.169c0 .621-.504 1.125-1.125 1.125H4.125A1.125 1.125 0 0 1 3 20.625v-5.17c0-1.08.768-2.014 1.837-2.174A47.78 47.78 0 0 1 6 13.12M12.265 3.11a.375.375 0 1 1-.53 0L12 2.845l.265.265Zm-3 0a.375.375 0 1 1-.53 0L9 2.845l.265.265Zm6 0a.375.375 0 1 1-.53 0L15 2.845l.265.265Z" />
+                </svg>
+                ${new Date(this.ansprechpartner.geburtsdatum).toLocaleDateString('de-DE')}
+              </span>
+            </div>
+            ` : ''}
           </div>
 
           <!-- Standort & Sprache -->
@@ -309,6 +336,49 @@ export class AnsprechpartnerDetail {
       return window.bewertungsSystem.renderBewertungenContainer(this.ratings, 'ansprechpartner', this.ansprechpartnerId);
     }
     return '<p>Bewertungs-System nicht verfügbar</p>';
+  }
+
+  // Rendere Unternehmen-Tab
+  renderUnternehmen() {
+    if (!this.ansprechpartner.ansprechpartner_unternehmen || this.ansprechpartner.ansprechpartner_unternehmen.length === 0) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">🏢</div>
+          <h3>Keine Unternehmen zugeordnet</h3>
+          <p>Diesem Ansprechpartner sind noch keine Unternehmen zugeordnet.</p>
+        </div>
+      `;
+    }
+
+    const rows = this.ansprechpartner.ansprechpartner_unternehmen.map(item => {
+      const unternehmen = item.unternehmen;
+      return `
+        <tr>
+          <td>
+            <a href="#" class="table-link" data-table="unternehmen" data-id="${unternehmen.id}">
+              ${unternehmen.firmenname || 'Unbekanntes Unternehmen'}
+            </a>
+          </td>
+          <td>${unternehmen.logo_url ? `<img src="${unternehmen.logo_url}" alt="${unternehmen.firmenname}" style="max-width: 50px; max-height: 50px;">` : '-'}</td>
+          <td>${item.created_at ? new Date(item.created_at).toLocaleDateString('de-DE') : '-'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Unternehmen</th>
+              <th>Logo</th>
+              <th>Zugeordnet am</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
   }
 
   // Rendere Marken-Tab
@@ -492,6 +562,22 @@ export class AnsprechpartnerDetail {
         this.render();
         this.bindEvents();
       });
+    });
+
+    // Soft-Refresh bei Realtime-Updates (nur wenn kein Formular aktiv)
+    window.addEventListener('softRefresh', async (e) => {
+      const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
+      if (hasActiveForm) {
+        console.log('⏸️ ANSPRECHPARTNERDETAIL: Formular aktiv - Soft-Refresh übersprungen');
+        return;
+      }
+      if (!this.ansprechpartnerId || !location.pathname.includes('/ansprechpartner/')) {
+        return;
+      }
+      console.log('🔄 ANSPRECHPARTNERDETAIL: Soft-Refresh - lade Daten neu');
+      await this.loadAnsprechpartnerData();
+      this.render();
+      this.bindEvents();
     });
   }
 

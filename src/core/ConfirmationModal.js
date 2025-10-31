@@ -4,10 +4,18 @@
 export class ConfirmationModal {
   constructor() {
     this._open = false;
+    this._currentModal = null;
   }
 
   open({ title = 'Löschen bestätigen', message = 'Sind Sie sicher?', confirmText = 'Löschen', cancelText = 'Abbrechen', danger = true } = {}) {
-    if (this._open) return Promise.reject(new Error('ConfirmationModal bereits offen'));
+    // Schließe vorheriges Modal falls noch offen
+    if (this._open && this._currentModal) {
+      console.log('⚠️ ConfirmationModal: Schließe vorheriges Modal');
+      this._currentModal.remove();
+      this._open = false;
+      this._currentModal = null;
+    }
+    
     this._open = true;
 
     return new Promise((resolve) => {
@@ -29,11 +37,13 @@ export class ConfirmationModal {
         </div>`;
 
       document.body.appendChild(modal);
+      this._currentModal = modal;
 
       const close = (result) => {
         if (!modal.parentNode) return;
         modal.remove();
         this._open = false;
+        this._currentModal = null;
         resolve(result);
       };
 

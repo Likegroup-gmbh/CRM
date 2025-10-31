@@ -114,29 +114,46 @@ export class AuftragsdetailsList {
   // Initialisiere Filterbar mit neuem Filtersystem
   async initializeFilterBar() {
     const filterContainer = document.getElementById('filter-dropdown-container');
-    if (filterContainer) {
-      // Nutze das neue Filter-Dropdown System
-      await filterDropdown.init('auftragsdetails', filterContainer, {
-        onFilterApply: (filters) => this.onFiltersApplied(filters),
-        onFilterReset: () => this.onFiltersReset()
-      });
+    if (!filterContainer) return;
+    
+    const existingFilters = filterSystem.getFilters('auftragsdetails');
+    
+    // Nutze das neue Filter-Dropdown System
+    await filterDropdown.init('auftragsdetails', filterContainer, {
+      onFilterApply: (filters) => this.onFiltersApplied(filters),
+      onFilterReset: () => this.onFiltersReset()
+    });
+    
+    if (Object.keys(existingFilters).length > 0) {
+      await filterDropdown.setFilters('auftragsdetails', existingFilters);
     }
   }
 
   // Filter angewendet
-  onFiltersApplied(filters) {
-    console.log('Filter angewendet:', filters);
+  async onFiltersApplied(filters) {
+    console.log('🔍 AuftragsdetailsList: Filter angewendet:', filters);
     // Wichtig: Filter an filterSystem übergeben
     filterSystem.applyFilters('auftragsdetails', filters);
-    this.loadAndRender();
+    await this.reloadTableOnly();
   }
 
   // Filter zurückgesetzt
-  onFiltersReset() {
-    console.log('Filter zurückgesetzt');
+  async onFiltersReset() {
+    console.log('🔄 AuftragsdetailsList: Filter zurückgesetzt');
     // Filter zurücksetzen im filterSystem
     filterSystem.resetFilters('auftragsdetails');
-    this.loadAndRender();
+    await this.reloadTableOnly();
+  }
+
+  async reloadTableOnly() {
+    try {
+      const currentFilters = filterSystem.getFilters('auftragsdetails');
+      const details = await window.dataService.loadEntities('auftragsdetails', currentFilters);
+      this.updateTable(details);
+    } catch (error) {
+      console.error('❌ Fehler beim Neuladen der Tabelle:', error);
+      window.ErrorHandler.handle(error, 'AuftragsdetailsList.reloadTableOnly');
+    }
   }
 
   // Events binden
@@ -172,7 +189,11 @@ export class AuftragsdetailsList {
     // Delete Selected Button
     const deleteSelectedBtn = document.getElementById('btn-delete-selected');
     if (deleteSelectedBtn) {
-      const handler = () => this.bulkDelete();
+      const handler = (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation(); // Verhindere dass globale Handler aufgerufen werden
+        this.bulkDelete();
+      };
       deleteSelectedBtn.addEventListener('click', handler);
       this._boundEventListeners.add(() => deleteSelectedBtn.removeEventListener('click', handler));
     }
@@ -305,36 +326,67 @@ export class AuftragsdetailsList {
   async bulkDelete() {
     if (this.selectedDetails.size === 0) return;
 
-    const confirmed = await window.confirmationModal.show({
+    const confirmed = await window.confirmationModal.open({
       title: 'Auftragsdetails löschen',
       message: `Möchten Sie wirklich ${this.selectedDetails.size} Auftragsdetails löschen?`,
-      confirmText: 'Löschen',
+      confirmText: 'Endgültig löschen',
       cancelText: 'Abbrechen',
-      type: 'danger'
+      danger: true
     });
 
-    if (!confirmed) return;
+    if (!confirmed?.confirmed) return;
+
+    const selectedIds = Array.from(this.selectedDetails);
+    const totalCount = selectedIds.length;
+    
+    console.log(`🗑️ Lösche ${totalCount} Auftragsdetails...`);
+    
+    // Optimistisches UI-Update: Zeilen ausblenden
+    selectedIds.forEach(id => {
+      const row = document.querySelector(`tr[data-id="${id}"]`);
+      if (row) row.style.opacity = '0.5';
+    });
 
     try {
-      const deletePromises = Array.from(this.selectedDetails).map(id =>
-        window.dataService.deleteEntity('auftrag_details', id)
-      );
-
-      await Promise.all(deletePromises);
-
-      window.notificationSystem?.show(
-        `${this.selectedDetails.size} Auftragsdetails erfolgreich gelöscht`,
-        'success'
-      );
-
-      this.selectedDetails.clear();
-      await this.loadAndRender();
+      // Batch-Delete für bessere Performance
+      const result = await window.dataService.deleteEntities('auftrag_details', selectedIds);
+      
+      if (result.success) {
+        // Entferne Zeilen aus DOM
+        selectedIds.forEach(id => {
+          document.querySelector(`tr[data-id="${id}"]`)?.remove();
+        });
+        
+        alert(`✅ ${result.deletedCount} Auftragsdetails erfolgreich gelöscht.`);
+        
+        this.selectedDetails.clear();
+        this.updateSelection();
+        this.updateSelectAllCheckbox();
+        
+        // Nur neu laden wenn Liste leer ist
+        const tbody = document.querySelector('.data-table tbody');
+        if (tbody && tbody.children.length === 0) {
+          await this.loadAndRender();
+        }
+        
+        window.dispatchEvent(new CustomEvent('entityUpdated', {
+          detail: { entity: 'auftrag_details', action: 'bulk-deleted', count: result.deletedCount }
+        }));
+      } else {
+        throw new Error(result.error || 'Löschen fehlgeschlagen');
+      }
     } catch (error) {
-      console.error('Fehler beim Löschen:', error);
-      window.notificationSystem?.show(
-        'Fehler beim Löschen der Auftragsdetails',
-        'error'
-      );
+      // Bei Fehler: Zeilen wiederherstellen
+      selectedIds.forEach(id => {
+        const row = document.querySelector(`tr[data-id="${id}"]`);
+        if (row) row.style.opacity = '1';
+      });
+      
+      console.error('❌ Fehler beim Löschen:', error);
+      alert(`❌ Fehler beim Löschen: ${error.message}`);
+      
+      // Liste neu laden um konsistenten Zustand herzustellen
+      await this.loadAndRender();
     }
   }
 

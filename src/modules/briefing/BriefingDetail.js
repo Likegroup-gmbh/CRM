@@ -467,6 +467,22 @@ export class BriefingDetail {
         if (pane) pane.innerHTML = `<h2>Bewertungen</h2>${this.renderRatings()}`;
       }
     });
+
+    // Soft-Refresh bei Realtime-Updates (nur wenn kein Formular aktiv)
+    window.addEventListener('softRefresh', async (e) => {
+      const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
+      if (hasActiveForm) {
+        console.log('⏸️ BRIEFINGDETAIL: Formular aktiv - Soft-Refresh übersprungen');
+        return;
+      }
+      if (!this.briefingId || !location.pathname.includes('/briefing/')) {
+        return;
+      }
+      console.log('🔄 BRIEFINGDETAIL: Soft-Refresh - lade Daten neu');
+      await this.loadBriefingData();
+      await this.render();
+      this.bindEvents();
+    });
   }
 
   switchTab(tabName) {

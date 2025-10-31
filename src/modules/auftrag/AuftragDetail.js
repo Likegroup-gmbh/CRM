@@ -340,72 +340,18 @@ export class AuftragDetail {
       </div>
 
       <div class="content-section">
-        <!-- Tab-Navigation -->
+        <!-- Tab-Navigation (nur Auftragsdetails) -->
         <div class="tab-navigation">
-          <button class="tab-button active" data-tab="informationen">
-            Informationen
-            <span class="tab-count">1</span>
-          </button>
-          <button class="tab-button" data-tab="auftragsdetails">
+          <button class="tab-button active" data-tab="auftragsdetails">
             Auftragsdetails
-            <span class="tab-count">${this.auftragsDetails ? '1' : '0'}</span>
-          </button>
-          <button class="tab-button" data-tab="creator">
-            Creator
-            <span class="tab-count">${this.creator.length}</span>
-          </button>
-          <button class="tab-button" data-tab="budget">
-            Budget
-          </button>
-          <button class="tab-button" data-tab="rechnungen">
-            Rechnungen
-            <span class="tab-count">${this.rechnungen.length}</span>
-          </button>
-          <button class="tab-button" data-tab="notizen">
-            Notizen
-            <span class="tab-count">${this.notizen.length}</span>
-          </button>
-          <button class="tab-button" data-tab="bewertungen">
-            Bewertungen
-            <span class="tab-count">${this.ratings.length}</span>
           </button>
         </div>
 
         <!-- Tab-Content -->
         <div class="tab-content">
-          <!-- Informationen Tab -->
-          <div class="tab-pane active" id="informationen">
-            ${this.renderInformationen()}
-          </div>
-
           <!-- Auftragsdetails Tab -->
-          <div class="tab-pane" id="auftragsdetails">
+          <div class="tab-pane active" id="auftragsdetails">
             ${this.renderAuftragsdetails()}
-          </div>
-
-          <!-- Creator Tab -->
-          <div class="tab-pane" id="creator">
-            ${this.renderCreator()}
-          </div>
-
-          <!-- Budget Tab -->
-          <div class="tab-pane" id="budget">
-            ${this.renderBudget()}
-          </div>
-          
-          <!-- Rechnungen Tab -->
-          <div class="tab-pane" id="rechnungen">
-            ${this.renderRechnungen()}
-          </div>
-
-          <!-- Notizen Tab -->
-          <div class="tab-pane" id="notizen">
-            ${this.renderNotizen()}
-          </div>
-
-          <!-- Bewertungen Tab -->
-          <div class="tab-pane" id="bewertungen">
-            ${this.renderRatings()}
           </div>
         </div>
       </div>
@@ -774,6 +720,22 @@ export class AuftragDetail {
           this.bindEvents();
         });
       }
+    });
+
+    // Soft-Refresh bei Realtime-Updates (nur wenn kein Formular aktiv)
+    window.addEventListener('softRefresh', async (e) => {
+      const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
+      if (hasActiveForm) {
+        console.log('⏸️ AUFTRAGDETAIL: Formular aktiv - Soft-Refresh übersprungen');
+        return;
+      }
+      if (!this.auftragId || !location.pathname.includes('/auftrag/')) {
+        return;
+      }
+      console.log('🔄 AUFTRAGDETAIL: Soft-Refresh - lade Daten neu');
+      await this.loadAuftragData();
+      this.render();
+      this.bindEvents();
     });
   }
 

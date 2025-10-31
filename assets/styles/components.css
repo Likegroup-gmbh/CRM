@@ -1639,11 +1639,12 @@ body {
 
 .kanban-column-header {
   display: flex;
+
   align-items: center;
   justify-content: space-between;
   padding: var(--space-sm) var(--space-md);
   background: var(--gray-100);
-  border-bottom: var(--border-xs) solid var(--border-primary);
+  
 }
 
 .kanban-column-header h3 {
@@ -3289,6 +3290,19 @@ body {
 .avatar-bubble--clickable:hover {
   background-color: var(--gray-200);
   z-index: 10000 !important; /* Sehr hoher z-index damit Tooltip sichtbar ist - höher als sticky thead */
+}
+
+/* Avatar Bubble mit Logo */
+.avatar-bubble--with-logo {
+  background-color: var(--bg-primary);
+  padding: 2px;
+}
+
+.avatar-bubble-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
 }
 
 /* Tooltip für Namen bei Hover */

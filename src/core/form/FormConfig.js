@@ -70,6 +70,7 @@ export class FormConfig {
         title: 'Neues Unternehmen anlegen',
         fields: [
           { name: 'firmenname', label: 'Firmenname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
+          { name: 'logo_file', label: 'Logo', type: 'custom', customType: 'uploader', accept: 'image/png,image/jpeg', multiple: false, required: false },
           { name: 'branche_id', label: 'Branchen', type: 'multiselect', required: false, dynamic: true, searchable: true, tagBased: true, placeholder: 'Branche suchen und hinzufügen...', table: 'branchen', displayField: 'name', valueField: 'id', relationTable: 'unternehmen_branchen', relationField: 'branche_id' },
           { name: 'rechnungsadresse_strasse', label: 'Straße', type: 'text', required: false },
           { name: 'rechnungsadresse_hausnummer', label: 'Hausnummer', type: 'text', required: false },
@@ -216,6 +217,7 @@ export class FormConfig {
         title: 'Neue Marke anlegen',
         fields: [
           { name: 'markenname', label: 'Markenname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
+          { name: 'logo_file', label: 'Logo', type: 'custom', customType: 'uploader', accept: 'image/png,image/jpeg', multiple: false, required: false },
           { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...', table: 'unternehmen', displayField: 'firmenname', valueField: 'id' },
           { name: 'webseite', label: 'Webseite', type: 'url', required: false, validation: { type: 'url' } },
           { name: 'branche_ids', label: 'Branchen', type: 'multiselect', required: false, dynamic: true, searchable: true, tagBased: true, placeholder: 'Branchen suchen und hinzufügen...', table: 'branchen', displayField: 'name', valueField: 'id' }
@@ -357,6 +359,7 @@ export class FormConfig {
           },
           { name: 'linkedin', label: 'LinkedIn Profil', type: 'url', required: false, validation: { type: 'url' } },
           { name: 'stadt', label: 'Stadt', type: 'text', required: false },
+          { name: 'geburtsdatum', label: 'Geburtsdatum', type: 'date', required: false },
           { 
             name: 'sprachen_ids', 
             label: 'Sprachen', 
@@ -382,11 +385,9 @@ export class FormConfig {
           { name: 'product_service_offer', label: 'Produkt/Service/Angebot', type: 'text', required: true, validation: { type: 'text', minLength: 2 }, placeholder: 'Kurzbezeichnung des Produkts/Angebots' },
           { name: 'produktseite_url', label: 'Produktseite URL', type: 'url', required: false, validation: { type: 'url' } },
           { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...', table: 'unternehmen', displayField: 'firmenname', valueField: 'id', directQuery: true },
-          { name: 'marke_id', label: 'Marke', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Marke suchen und auswählen...', dependsOn: 'unternehmen_id', table: 'marke', displayField: 'markenname', valueField: 'id' },
-          { name: 'kampagne_id', label: 'Kampagne', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Kampagne wählen...', dependsOn: 'marke_id', table: 'kampagne', displayField: 'kampagnenname', valueField: 'id' },
+          { name: 'marke_id', label: 'Marke', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Marke suchen und auswählen (optional)...', dependsOn: 'unternehmen_id', table: 'marke', displayField: 'markenname', valueField: 'id' },
+          { name: 'kampagne_id', label: 'Kampagne', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Kampagne wählen...', dependsOn: 'unternehmen_id', table: 'kampagne', displayField: 'kampagnenname', valueField: 'id' },
           { name: 'assignee_id', label: 'Zugewiesen an', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Mitarbeiter auswählen...', table: 'benutzer', displayField: 'name', valueField: 'id', directQuery: true },
-          { name: 'status', label: 'Status', type: 'select', required: false, options: [ 'active', 'inactive', 'completed', 'cancelled' ] },
-          { name: 'deadline', label: 'Deadline', type: 'date', required: false },
           { name: 'zielgruppe', label: 'Zielgruppe', type: 'textarea', required: false, rows: 3 },
           { name: 'zieldetails', label: 'Zieldetails', type: 'textarea', required: false, rows: 3 },
           { name: 'creator_aufgabe', label: 'Creator Aufgabe', type: 'textarea', required: false, rows: 4 },

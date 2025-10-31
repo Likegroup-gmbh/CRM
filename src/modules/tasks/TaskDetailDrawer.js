@@ -9,7 +9,8 @@ export class TaskDetailDrawer {
     this.comments = [];
     this.attachments = [];
     this.history = [];
-    this.availableAssignees = [];
+    this.availableMitarbeiter = [];
+    this.availableKunden = [];
     this.categories = [];
   }
 
@@ -39,7 +40,8 @@ export class TaskDetailDrawer {
         this.loadCategories()
       ]);
 
-      await this.loadAvailableAssignees();
+      await this.loadAvailableMitarbeiter();
+      await this.loadAvailableKunden();
       
       this.renderContent();
       this.bindFormEvents();
@@ -115,7 +117,23 @@ export class TaskDetailDrawer {
         *,
         category:category_id(id, name),
         assigned_to:assigned_to_user_id(id, name, profile_image_url),
-        creator:created_by(id, name)
+        assigned_kunde:assigned_to_kunde_id(id, name, profile_image_url),
+        creator:created_by(id, name),
+        kampagne:kampagne_id(
+          id,
+          kampagnenname,
+          marke:marke_id(
+            id,
+            markenname,
+            logo_url
+          ),
+          unternehmen:unternehmen_id(
+            id,
+            firmenname,
+            logo_url
+          )
+        ),
+        kooperation:kooperation_id(id, name)
       `)
       .eq('id', this.taskId)
       .single();
@@ -164,7 +182,7 @@ export class TaskDetailDrawer {
     if (!error) this.categories = data || [];
   }
 
-  async loadAvailableAssignees() {
+  async loadAvailableMitarbeiter() {
     if (!this.task) return;
     
     const { entity_type, entity_id } = this.task;
@@ -174,22 +192,102 @@ export class TaskDetailDrawer {
       // Mitarbeiter der Kampagne der Kooperation
       query = window.supabase
         .from('kampagne_mitarbeiter')
-        .select('mitarbeiter:mitarbeiter_id(id, name, profile_image_url)')
+        .select('mitarbeiter:mitarbeiter_id(id, name, rolle, profile_image_url)')
         .eq('kampagne_id', (await this.getKampagneIdForKooperation(entity_id)));
     } else if (entity_type === 'kampagne') {
       query = window.supabase
         .from('kampagne_mitarbeiter')
-        .select('mitarbeiter:mitarbeiter_id(id, name, profile_image_url)')
+        .select('mitarbeiter:mitarbeiter_id(id, name, rolle, profile_image_url)')
         .eq('kampagne_id', entity_id);
     } else if (entity_type === 'auftrag') {
       query = window.supabase
         .from('auftrag_mitarbeiter')
-        .select('mitarbeiter:mitarbeiter_id(id, name, profile_image_url)')
+        .select('mitarbeiter:mitarbeiter_id(id, name, rolle, profile_image_url)')
         .eq('auftrag_id', entity_id);
     }
 
     const { data } = await query;
-    this.availableAssignees = (data || []).map(item => item.mitarbeiter).filter(Boolean);
+    this.availableMitarbeiter = (data || []).map(item => item.mitarbeiter).filter(Boolean);
+  }
+
+  async loadAvailableKunden() {
+    // Lade Kunden basierend auf der Marke oder dem Unternehmen der Kampagne
+    try {
+      if (!this.task || !this.task.kampagne_id) {
+        this.availableKunden = [];
+        return;
+      }
+
+      // Prüfe ob User Admin/Mitarbeiter ist
+      const isAdminOrMitarbeiter = window.currentUser?.rolle === 'admin' || 
+                                    window.currentUser?.rolle === 'mitarbeiter';
+      
+      if (!isAdminOrMitarbeiter) {
+        // Kunden sehen kein Kunden-Dropdown
+        this.availableKunden = [];
+        return;
+      }
+
+      // Lade die Kampagne mit marke_id und unternehmen_id
+      const { data: kampagneData, error: kampagneError } = await window.supabase
+        .from('kampagne')
+        .select('marke_id, unternehmen_id')
+        .eq('id', this.task.kampagne_id)
+        .single();
+      
+      if (kampagneError || !kampagneData) {
+        console.error('❌ Fehler beim Laden der Kampagne:', kampagneError);
+        this.availableKunden = [];
+        return;
+      }
+
+      let kundenData;
+
+      // Fall 1: Kampagne hat eine Marke → Lade Kunden über kunde_marke
+      if (kampagneData.marke_id) {
+        const { data, error } = await window.supabase
+          .from('kunde_marke')
+          .select('kunde:kunde_id(id, name, rolle, profile_image_url)')
+          .eq('marke_id', kampagneData.marke_id);
+        
+        if (error) {
+          console.error('❌ Fehler beim Laden der Kunden über Marke:', error);
+          this.availableKunden = [];
+          return;
+        }
+        kundenData = data;
+        console.log('✅ Kunden über Marke geladen:', data?.length || 0);
+      }
+      // Fall 2: Kampagne hat keine Marke → Lade Kunden über kunde_unternehmen
+      else if (kampagneData.unternehmen_id) {
+        const { data, error } = await window.supabase
+          .from('kunde_unternehmen')
+          .select('kunde:kunde_id(id, name, rolle, profile_image_url)')
+          .eq('unternehmen_id', kampagneData.unternehmen_id);
+        
+        if (error) {
+          console.error('❌ Fehler beim Laden der Kunden über Unternehmen:', error);
+          this.availableKunden = [];
+          return;
+        }
+        kundenData = data;
+        console.log('✅ Kunden über Unternehmen geladen:', data?.length || 0);
+      }
+      else {
+        console.warn('⚠️ Kampagne hat weder Marke noch Unternehmen');
+        this.availableKunden = [];
+        return;
+      }
+      
+      this.availableKunden = (kundenData || [])
+        .map(item => item.kunde)
+        .filter(Boolean);
+      
+      console.log('✅ Kunden final geladen für Task:', this.availableKunden.length);
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Kunden:', error);
+      this.availableKunden = [];
+    }
   }
 
   async getKampagneIdForKooperation(kooperationId) {
@@ -362,16 +460,30 @@ export class TaskDetailDrawer {
         </div>
 
         <div class="form-field">
-          <label>Zugewiesen an</label>
+          <label>Zugewiesen an Mitarbeiter</label>
           <select name="assigned_to_user_id" class="form-input">
             <option value="">– Nicht zugewiesen –</option>
-            ${this.availableAssignees.map(user => `
+            ${this.availableMitarbeiter.map(user => `
               <option value="${user.id}" ${this.task.assigned_to_user_id === user.id ? 'selected' : ''}>
                 ${safe(user.name)}
               </option>
             `).join('')}
           </select>
         </div>
+
+        ${this.availableKunden.length > 0 ? `
+        <div class="form-field">
+          <label>Zugewiesen an Kunde</label>
+          <select name="assigned_to_kunde_id" class="form-input">
+            <option value="">– Nicht zugewiesen –</option>
+            ${this.availableKunden.map(user => `
+              <option value="${user.id}" ${this.task.assigned_to_kunde_id === user.id ? 'selected' : ''}>
+                ${safe(user.name)}
+              </option>
+            `).join('')}
+          </select>
+        </div>
+        ` : ''}
 
         <div class="form-field">
           <label style="display: flex; align-items: center; gap: var(--space-xs);">
@@ -473,13 +585,23 @@ export class TaskDetailDrawer {
             </div>
           </div>
 
-          <!-- Zugewiesen an -->
+          <!-- Zugewiesen an Mitarbeiter -->
           <div>
-            <div style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: var(--space-xs);">Zugewiesen an</div>
+            <div style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: var(--space-xs);">Zugewiesen an Mitarbeiter</div>
             <div style="font-size: 0.95rem; color: #374151;">
               ${this.task.assigned_to ? safe(this.task.assigned_to.name) : 'Nicht zugewiesen'}
             </div>
           </div>
+
+          ${this.task.assigned_kunde ? `
+          <!-- Zugewiesen an Kunde -->
+          <div>
+            <div style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: var(--space-xs);">Zugewiesen an Kunde</div>
+            <div style="font-size: 0.95rem; color: #374151;">
+              ${safe(this.task.assigned_kunde.name)}
+            </div>
+          </div>
+          ` : ''}
 
           <!-- Erstellt von -->
           <div>
@@ -661,6 +783,7 @@ export class TaskDetailDrawer {
         category_id: formData.get('category_id') || null,
         due_date: formData.get('due_date') || null,
         assigned_to_user_id: formData.get('assigned_to_user_id') || null,
+        assigned_to_kunde_id: formData.get('assigned_to_kunde_id') || null,
         is_public: formData.get('is_public') === 'on',
         updated_at: new Date().toISOString()
       };

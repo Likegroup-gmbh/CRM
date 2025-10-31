@@ -30,11 +30,12 @@ export class AvatarBubbles {
 
   /**
    * Rendert HTML für überlappende Avatar-Bubbles
-   * @param {Array} items - Array von Objekten: {name, type, id?, entityType?}
+   * @param {Array} items - Array von Objekten: {name, type, id?, entityType?, logo_url?}
    *   - name: Anzeigename
    *   - type: 'person' oder 'org'
    *   - id: Optional, ID für Klickbarkeit
    *   - entityType: Optional, 'unternehmen', 'marke', 'ansprechpartner' für Routing
+   *   - logo_url: Optional, Logo-URL (falls vorhanden, wird Logo statt Initialen angezeigt)
    * @param {Object} config - Konfiguration {size?: number}
    * @returns {string} HTML-String
    */
@@ -49,6 +50,13 @@ export class AvatarBubbles {
         const initials = this.getInitials(item.name, item.type || 'org');
         const isClickable = item.id && item.entityType;
         const clickableClass = isClickable ? 'avatar-bubble--clickable' : '';
+        const hasLogo = item.logo_url && typeof item.logo_url === 'string' && item.logo_url.trim().length > 0;
+        const logoClass = hasLogo ? 'avatar-bubble--with-logo' : '';
+        
+        // Debug-Logging
+        if (item.type === 'org') {
+          console.log('🎨 Avatar Bubble:', item.name, '| hasLogo:', hasLogo, '| logo_url:', item.logo_url);
+        }
         
         // Sanitize name für title attribute
         const safeName = window.validatorSystem?.sanitizeHtml?.(item.name) || item.name;
@@ -58,10 +66,15 @@ export class AvatarBubbles {
           ? `data-entity="${item.entityType}" data-id="${item.id}"` 
           : '';
         
-        return `<div class="avatar-bubble ${clickableClass}" 
+        // Content: Logo oder Initialen
+        const content = hasLogo 
+          ? `<img src="${item.logo_url}" alt="${safeName}" class="avatar-bubble-logo" />` 
+          : initials;
+        
+        return `<div class="avatar-bubble ${clickableClass} ${logoClass}" 
                      title="${safeName}" 
                      ${dataAttrs}>
-          ${initials}
+          ${content}
         </div>`;
       })
       .join('');
