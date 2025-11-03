@@ -231,11 +231,7 @@ body {
  margin-bottom: var(--space-xl);
   
 }
-.page-header:only-child {
-  align-self: flex-end;
-  margin-left: auto;
-   
- }
+
 .page-header h1 {
   font-size: var(--text-xl);
    
@@ -2568,6 +2564,74 @@ body {
 
 .kampagne-kanban-board::-webkit-scrollbar-thumb:hover {
   background: var(--gray-500);
+}
+
+/* Kampagnen-Karten im Kanban */
+.kampagne-card {
+  background: white;
+  border-radius: var(--radius-md);
+  border: var(--border-xs) solid var(--border-primary);
+  padding: var(--space-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.kampagne-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.kampagne-card.dragging {
+  opacity: 0.5;
+  cursor: move;
+}
+
+.kampagne-card .task-card-body {
+  margin-bottom: var(--space-sm);
+}
+
+.kampagne-card .task-title {
+  margin: 0 0 var(--space-xxs) 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.kampagne-card .task-title a {
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.kampagne-card .task-title a:hover {
+  color: var(--primary-600);
+}
+
+.kampagne-card .task-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+.kampagne-card .task-meta-left,
+.kampagne-card .task-meta-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.kampagne-card .task-due-date {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.kampagne-card .task-due-date svg {
+  flex-shrink: 0;
 }
 
 @media (max-width: 1200px) {
