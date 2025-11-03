@@ -262,10 +262,6 @@ export class KampagneList {
     // Haupt-HTML
     let html = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>Kampagnen</h1>
-          <p>Verwalten Sie alle Kampagnen und deren Details</p>
-        </div>
         <div class="page-header-right">
           <div class="view-toggle">
             <button id="btn-view-list" class="secondary-btn ${this.currentView === 'list' ? 'active' : ''}">
@@ -293,6 +289,9 @@ export class KampagneList {
     `;
 
     window.setContentSafely(window.content, html);
+
+    // Setze CSS-Klasse für Kanban-View
+    this.updateViewClass();
 
     // Kanban Board initialisieren wenn View = kanban
     if (this.currentView === 'kanban') {
@@ -388,6 +387,20 @@ export class KampagneList {
     this.loadAndRender();
   }
 
+  // Update CSS-Klasse für View
+  updateViewClass() {
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) {
+      if (this.currentView === 'kanban') {
+        mainContent.classList.add('kanban-view-active');
+        console.log('✅ Kanban-View CSS-Klasse gesetzt');
+      } else {
+        mainContent.classList.remove('kanban-view-active');
+        console.log('✅ Kanban-View CSS-Klasse entfernt');
+      }
+    }
+  }
+
   // Binde Events
   bindEvents() {
     // View-Toggle Events
@@ -406,6 +419,10 @@ export class KampagneList {
         }
         
         this.currentView = 'list';
+        
+        // Entferne Kanban-View CSS-Klasse
+        this.updateViewClass();
+        
         await this.loadAndRender(); // Re-render und Daten laden
       });
     }
@@ -416,6 +433,10 @@ export class KampagneList {
         if (this.currentView === 'kanban') return; // Bereits in Kanban-View
         
         this.currentView = 'kanban';
+        
+        // Setze Kanban-View CSS-Klasse
+        this.updateViewClass();
+        
         await this.render(); // Re-render (initKanbanBoard wird in render() aufgerufen)
       });
     }
@@ -661,16 +682,6 @@ export class KampagneList {
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('kampagne');
     window.content.innerHTML = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>Neue Kampagne anlegen</h1>
-          <p>Erstellen Sie eine neue Kampagne</p>
-        </div>
-        <div class="page-header-right">
-          <button onclick="window.navigateTo('/kampagne')" class="secondary-btn">Zurück zur Übersicht</button>
-        </div>
-      </div>
-      
       <div class="form-page">
         ${formHtml}
       </div>

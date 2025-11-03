@@ -53,10 +53,6 @@ export class AuftragsdetailsList {
     // Haupt-HTML
     let html = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>Auftragsdetails</h1>
-          <p>Detaillierte Produktionsplanung für Aufträge</p>
-        </div>
         <div class="page-header-right">
           ${canEdit ? '<button id="btn-auftragsdetails-new" class="primary-btn">Neue Auftragsdetails anlegen</button>' : ''}
         </div>

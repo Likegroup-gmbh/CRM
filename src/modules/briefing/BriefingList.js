@@ -271,10 +271,6 @@ export class BriefingList {
 
     const html = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>Briefings</h1>
-          <p>Verwalten Sie alle Briefings</p>
-        </div>
         <div class="page-header-right">
           ${window.currentUser?.permissions?.briefing?.can_edit ? '<button id="btn-briefing-new" class="primary-btn">Neues Briefing anlegen</button>' : ''}
         </div>
@@ -619,15 +615,6 @@ export class BriefingList {
 
     const formHtml = window.formSystem.renderFormOnly('briefing');
     window.content.innerHTML = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>Neues Briefing anlegen</h1>
-          <p>Erstellen Sie ein neues Briefing</p>
-        </div>
-        <div class="page-header-right">
-          <button onclick="window.navigateTo('/briefing')" class="secondary-btn">Zurück zur Übersicht</button>
-        </div>
-      </div>
       <div class="form-page">
         ${formHtml}
       </div>

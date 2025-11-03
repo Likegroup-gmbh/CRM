@@ -179,17 +179,10 @@ export class MarkeDetail {
     
     const html = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>${this.marke?.markenname || 'Marke'} - Details</h1>
-          <p>Detaillierte Informationen zur Marke</p>
-        </div>
         <div class="page-header-right">
           <button id="btn-edit-marke" class="secondary-btn">
             <i class="icon-edit"></i>
             Marke bearbeiten
-          </button>
-          <button onclick="window.navigateTo('/marke')" class="secondary-btn">
-            Zurück zur Übersicht
           </button>
         </div>
       </div>
@@ -696,16 +689,6 @@ export class MarkeDetail {
     
     const formHtml = window.formSystem.renderFormOnly('marke', formData);
     window.content.innerHTML = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>Marke bearbeiten</h1>
-          <p>Bearbeiten Sie die Marken-Informationen</p>
-        </div>
-        <div class="page-header-right">
-          <button onclick="window.navigateTo('/marke/${this.markeId}')" class="secondary-btn">Abbrechen</button>
-        </div>
-      </div>
-      
       <div class="form-page">
         ${formHtml}
       </div>

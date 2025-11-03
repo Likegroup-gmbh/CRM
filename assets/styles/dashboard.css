@@ -231,6 +231,11 @@ body {
  margin-bottom: var(--space-xl);
   
 }
+.page-header:only-child {
+  align-self: flex-end;
+  margin-left: auto;
+   
+ }
 .page-header h1 {
   font-size: var(--text-xl);
    
@@ -341,6 +346,11 @@ body {
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-xl);
   margin: var(--space-sm) var(--space-sm) var(--space-sm) var(--sidebar-width);
+}
+
+/* Overflow-Kontrolle nur für Kanban-View */
+.main-content.kanban-view-active {
+  overflow-x: hidden;
 }
 
 .main-header {
@@ -731,6 +741,11 @@ body {
   padding: var(--space-lg);
 }
 
+/* Overflow-Kontrolle nur für Kanban-View */
+.kanban-view-active .main-wrapper {
+  overflow-x: hidden;
+}
+
 /* ===== LOGIN ===== */
 .login-box {
   max-width: 400px;
@@ -1040,6 +1055,11 @@ body {
 /* Dashboard Sections */
 .content-section {
   margin-bottom: var(--space-xl);
+}
+
+/* Overflow-Kontrolle nur für Kanban-View */
+.kanban-view-active .content-section {
+  overflow-x: hidden;
 }
 
 .section-header {
@@ -1797,7 +1817,7 @@ body {
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  gap: var(--space-xl);
+  
 }
 
 .tab-navigation::-webkit-scrollbar {
@@ -1807,11 +1827,10 @@ body {
 .tab-button {
   display: flex;
   align-items: center;
-  
-  padding:  var(--space-sm )0 var(--space-sm) 0;
+  padding:  var(--space-sm );
   background: none;
   border: none;
-  border-bottom: 1px solid transparent;
+  border-bottom: 2px solid transparent;
   color: #666;
   font-weight: 500;
   cursor: pointer;
@@ -1856,8 +1875,8 @@ body {
 .tab-button .tab-count {
   background: var(--gray-100);
   color: var(--gray-500);
-  border-radius: 12px;
-  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  padding: 0.2rem 0.4rem;
   font-size: 0.8rem;
   font-weight: 200;
   margin-left: 0.25rem;
@@ -2361,6 +2380,106 @@ body {
   border-bottom: 1px solid #e9ecef;
 }
 
+/* Drawer/Popup Titel - Globale Klasse */
+.drawer-title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Drawer/Popup Untertitel - Globale Klasse */
+.drawer-subtitle {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/* Drawer/Popup Label - Globale Klasse für Feld-Beschriftungen */
+.drawer-label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-xs);
+}
+
+/* Drawer/Popup Wert - Globale Klasse für Feld-Werte */
+.drawer-value {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+/* Drawer/Popup Wert (groß) - Für Titel etc. */
+.drawer-value-large {
+  font-size: var(--text-md);
+  color: var(--text-primary);
+}
+
+/* Drawer/Popup Form-Styles */
+.drawer-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.drawer-form-label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: var(--space-xs);
+  color: var(--gray-700);
+}
+
+.drawer-form-input,
+.drawer-form-select,
+.drawer-form-textarea {
+  width: 100%;
+  padding: var(--space-sm);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+}
+
+.drawer-form-textarea {
+  resize: vertical;
+}
+
+.drawer-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+}
+
+.drawer-form-error {
+  display: none;
+  padding: var(--space-sm);
+  background: var(--error-50);
+  border: 1px solid var(--error-200);
+  border-radius: var(--radius-md);
+  color: var(--error-700);
+}
+
+.drawer-form-error.show {
+  display: block;
+}
+
+.drawer-form-actions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--gray-200);
+}
+
+.drawer-form-btn-primary {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+}
+
+.drawer-form-btn-secondary {
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+}
+
 .drawer-body {
   overflow: auto;
   padding: 16px;
@@ -2409,7 +2528,7 @@ body {
 .kanban-board {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-md);
+  
   height: calc(100vh - 300px);
   min-height: 500px;
 }
@@ -2423,6 +2542,7 @@ body {
   height: calc(100vh - 250px);
   min-height: 600px;
   padding-bottom: var(--space-md);
+ 
 }
 
 .kampagne-kanban-board .kanban-column {
@@ -2465,9 +2585,6 @@ body {
 .kanban-column {
   display: flex;
   flex-direction: column;
-  background: var(--gray-50);
-  border-radius: var(--radius-lg);
-  border: var(--border-xs) solid var(--border-primary);
   overflow: hidden;
 }
 
@@ -2476,7 +2593,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: var(--space-sm) var(--space-md);
-  background: var(--gray-100);
+  
  
 }
 
@@ -2487,6 +2604,14 @@ body {
   color: var(--text-primary);
 }
 
+/* Kanban Spalten-Titel (Strategie, Kick OFF, etc.) */
+.kanban-column-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--text-primary);
+}
+
 .kanban-count {
   display: inline-flex;
   align-items: center;
@@ -2494,7 +2619,7 @@ body {
   min-width: 24px;
   height: 24px;
   padding: 0 var(--space-xs);
-  background: var(--gray-200);
+  background: var(--gray-50);
   color: var(--gray-700);
   border-radius: 999px;
   font-size: var(--text-xs);
@@ -2607,7 +2732,19 @@ body {
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.4;
+  color: var(--text-primary);
 }
+
+/* Kampagnen-Link im Kanban Board */
+.kampagne-link {
+  color: var(--gray-900);
+  text-decoration: none;
+}
+
+.kampagne-link:hover {
+  text-decoration: underline;
+}
+
 
 .task-description {
   margin: 0;

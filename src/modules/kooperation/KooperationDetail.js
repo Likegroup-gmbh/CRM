@@ -265,12 +265,7 @@ export class KooperationDetail {
 
     const html = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>${window.validatorSystem.sanitizeHtml(title)}</h1>
-          <p>Kooperations-Details und Aktivitäten</p>
-        </div>
         <div class="page-header-right">
-          <button onclick="window.navigateTo('/kooperation')" class="secondary-btn">Zurück zur Übersicht</button>
           ${canEdit ? '<button id="btn-edit-kooperation" class="primary-btn">Bearbeiten</button>' : ''}
         </div>
       </div>
@@ -812,16 +807,6 @@ export class KooperationDetail {
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('kooperation', this.kooperation);
     window.content.innerHTML = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>Kooperation bearbeiten</h1>
-          <p>Bearbeiten Sie die Kooperations-Details</p>
-        </div>
-        <div class="page-header-right">
-          <button onclick="window.navigateTo('/kooperation/${this.kooperationId}')" class="secondary-btn">Zurück zu Details</button>
-        </div>
-      </div>
-      
       <div class="form-page">
         ${formHtml}
       </div>
@@ -962,7 +947,6 @@ export class KooperationDetail {
       <div class="error-message">
         <h2>Kooperation nicht gefunden</h2>
         <p>Die angeforderte Kooperation konnte nicht gefunden werden.</p>
-        <button onclick="window.navigateTo('/kooperation')" class="primary-btn">Zurück zur Übersicht</button>
       </div>
     `;
   }

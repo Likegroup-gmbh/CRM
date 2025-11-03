@@ -48,12 +48,27 @@ export class FilterDropdown {
     const html = this.renderDropdown(entityType, config);
     containerElement.innerHTML = html;
 
-    // Instance speichern
+    // Instance speichern mit leerer activeFilters Map
     this.instances.set(entityType, {
       containerElement,
       config,
       activeFilters: new Map()
     });
+
+    // Lade bestehende Filter aus filterSystem (falls vorhanden)
+    const existingFilters = modularFilterSystem.getFilters(entityType);
+    if (existingFilters && Object.keys(existingFilters).length > 0) {
+      console.log(`♻️ FILTERDROPDOWN: Wiederherstelle Filter für ${entityType}:`, existingFilters);
+      const instance = this.instances.get(entityType);
+      Object.entries(existingFilters).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== '') {
+          instance.activeFilters.set(key, value);
+        }
+      });
+      
+      // UI sofort aktualisieren um Filter-Chips anzuzeigen
+      await this.updateUI(entityType);
+    }
 
     // Globale Event-Listener nur einmal binden
     if (!this.eventsBound) {
@@ -635,8 +650,12 @@ export class FilterDropdown {
         // Prüfe ob Optionen bereits geladen sind
         let selectOptions = filterConfig.options || [];
         
-        // Falls keine Optionen vorhanden, lade sie dynamisch NUR aus den aktuell sichtbaren Daten
-        if (selectOptions.length === 0 && (filterConfig.dynamic || filterConfig.table)) {
+        // Falls bereits Optionen in der Config definiert sind (z.B. Status), nutze diese
+        if (selectOptions.length > 0) {
+          console.log(`✅ Nutze vordefinierte Optionen für ${filterConfig.id}:`, selectOptions.length);
+        }
+        // Falls keine Optionen vorhanden UND dynamisch, lade sie
+        else if (filterConfig.dynamic || filterConfig.table) {
           try {
             console.log(`🔄 Extrahiere Optionen aus aktuellen Daten für ${filterConfig.id}...`);
             
@@ -650,17 +669,213 @@ export class FilterDropdown {
               const valueField = filterConfig.valueField || 'id';
               
               if (window.supabase && tableName) {
-                const { data, error } = await window.supabase
-                  .from(tableName)
-                  .select(`${valueField}, ${displayField}`)
-                  .order(displayField);
-                
-                if (!error && data) {
-                  selectOptions = data.map(item => ({
-                    value: item[valueField],
-                    label: item[displayField]
-                  }));
-                  console.log(`✅ ${selectOptions.length} Optionen aus DB geladen für ${filterConfig.id}`);
+                // Spezial-Handling für Junction Tables: Nur verwendete Einträge laden
+                if (filterConfig.id === 'branche_id' && entityType === 'unternehmen') {
+                  // Nur Branchen laden, die tatsächlich von Unternehmen verwendet werden
+                  const { data, error } = await window.supabase
+                    .from('unternehmen_branchen')
+                    .select(`
+                      branche_id,
+                      branchen (
+                        id,
+                        name
+                      )
+                    `);
+                  
+                  if (!error && data) {
+                    // Unique Branchen extrahieren
+                    const uniqueBranchen = new Map();
+                    data.forEach(item => {
+                      if (item.branchen) {
+                        uniqueBranchen.set(item.branchen.id, item.branchen.name);
+                      }
+                    });
+                    
+                    selectOptions = Array.from(uniqueBranchen.entries())
+                      .map(([id, name]) => ({ value: id, label: name }))
+                      .sort((a, b) => a.label.localeCompare(b.label));
+                    
+                    console.log(`✅ ${selectOptions.length} verwendete Branchen aus DB geladen für ${filterConfig.id}`);
+                  }
+                } else if (filterConfig.id === 'branche_id' && entityType === 'marke') {
+                  // Nur Branchen laden, die tatsächlich von Marken verwendet werden
+                  const { data, error } = await window.supabase
+                    .from('marke_branchen')
+                    .select(`
+                      branche_id,
+                      branche:branche_id (
+                        id,
+                        name
+                      )
+                    `);
+                  
+                  if (!error && data) {
+                    // Unique Branchen extrahieren
+                    const uniqueBranchen = new Map();
+                    data.forEach(item => {
+                      if (item.branche) {
+                        uniqueBranchen.set(item.branche.id, item.branche.name);
+                      }
+                    });
+                    
+                    selectOptions = Array.from(uniqueBranchen.entries())
+                      .map(([id, name]) => ({ value: id, label: name }))
+                      .sort((a, b) => a.label.localeCompare(b.label));
+                    
+                    console.log(`✅ ${selectOptions.length} verwendete Branchen aus DB geladen für ${filterConfig.id}`);
+                  }
+                } else if (filterConfig.id === 'firmenname' && entityType === 'unternehmen') {
+                  // Firmennamen aus Unternehmen-Tabelle laden (nur tatsächlich vorhandene)
+                  const { data, error } = await window.supabase
+                    .from('unternehmen')
+                    .select('firmenname')
+                    .not('firmenname', 'is', null)
+                    .order('firmenname');
+                  
+                  if (!error && data) {
+                    // Unique Firmennamen extrahieren
+                    const uniqueFirmen = new Set();
+                    data.forEach(item => {
+                      if (item.firmenname) {
+                        uniqueFirmen.add(item.firmenname);
+                      }
+                    });
+                    
+                    selectOptions = Array.from(uniqueFirmen)
+                      .map(name => ({ value: name, label: name }))
+                      .sort((a, b) => a.label.localeCompare(b.label));
+                    
+                    console.log(`✅ ${selectOptions.length} Firmennamen aus DB geladen für ${filterConfig.id}`);
+                  }
+                } else if (filterConfig.id === 'rechnungsadresse_stadt' && entityType === 'unternehmen') {
+                  // Städte aus Unternehmen-Tabelle laden (nur tatsächlich verwendete)
+                  const { data, error } = await window.supabase
+                    .from('unternehmen')
+                    .select('rechnungsadresse_stadt')
+                    .not('rechnungsadresse_stadt', 'is', null)
+                    .order('rechnungsadresse_stadt');
+                  
+                  if (!error && data) {
+                    // Unique Städte extrahieren
+                    const uniqueStaedte = new Set();
+                    data.forEach(item => {
+                      if (item.rechnungsadresse_stadt) {
+                        uniqueStaedte.add(item.rechnungsadresse_stadt);
+                      }
+                    });
+                    
+                    selectOptions = Array.from(uniqueStaedte)
+                      .map(name => ({ value: name, label: name }))
+                      .sort((a, b) => a.label.localeCompare(b.label));
+                    
+                    console.log(`✅ ${selectOptions.length} Städte aus DB geladen für ${filterConfig.id}`);
+                  }
+                } else if (filterConfig.id === 'rechnungsadresse_land' && entityType === 'unternehmen') {
+                  // Länder aus Unternehmen-Tabelle laden (nur tatsächlich verwendete)
+                  const { data, error } = await window.supabase
+                    .from('unternehmen')
+                    .select('rechnungsadresse_land')
+                    .not('rechnungsadresse_land', 'is', null)
+                    .order('rechnungsadresse_land');
+                  
+                  if (!error && data) {
+                    // Unique Länder extrahieren
+                    const uniqueLaender = new Set();
+                    data.forEach(item => {
+                      if (item.rechnungsadresse_land) {
+                        uniqueLaender.add(item.rechnungsadresse_land);
+                      }
+                    });
+                    
+                    selectOptions = Array.from(uniqueLaender)
+                      .map(name => ({ value: name, label: name }))
+                      .sort((a, b) => a.label.localeCompare(b.label));
+                    
+                    console.log(`✅ ${selectOptions.length} Länder aus DB geladen für ${filterConfig.id}`);
+                  }
+                } else if (filterConfig.id === 'markenname' && entityType === 'marke') {
+                  // Markennamen aus Marke-Tabelle laden (nur tatsächlich vorhandene)
+                  const { data, error } = await window.supabase
+                    .from('marke')
+                    .select('markenname')
+                    .not('markenname', 'is', null)
+                    .order('markenname');
+                  
+                  if (!error && data) {
+                    // Unique Markennamen extrahieren
+                    const uniqueMarken = new Set();
+                    data.forEach(item => {
+                      if (item.markenname) {
+                        uniqueMarken.add(item.markenname);
+                      }
+                    });
+                    
+                    selectOptions = Array.from(uniqueMarken)
+                      .map(name => ({ value: name, label: name }))
+                      .sort((a, b) => a.label.localeCompare(b.label));
+                    
+                    console.log(`✅ ${selectOptions.length} Markennamen aus DB geladen für ${filterConfig.id}`);
+                  }
+                } else if (filterConfig.id === 'auftragsname' && entityType === 'auftrag') {
+                  // Auftragsnamen aus Auftrag-Tabelle laden (nur tatsächlich vorhandene)
+                  const { data, error } = await window.supabase
+                    .from('auftrag')
+                    .select('auftragsname')
+                    .not('auftragsname', 'is', null)
+                    .order('auftragsname');
+                  
+                  if (!error && data) {
+                    // Unique Auftragsnamen extrahieren
+                    const uniqueAuftraege = new Set();
+                    data.forEach(item => {
+                      if (item.auftragsname) {
+                        uniqueAuftraege.add(item.auftragsname);
+                      }
+                    });
+                    
+                    selectOptions = Array.from(uniqueAuftraege)
+                      .map(name => ({ value: name, label: name }))
+                      .sort((a, b) => a.label.localeCompare(b.label));
+                    
+                    console.log(`✅ ${selectOptions.length} Auftragsnamen aus DB geladen für ${filterConfig.id}`);
+                  }
+                } else if (filterConfig.id === 'auftragsname' && entityType === 'auftragsdetails') {
+                  // Auftragsnamen für Auftragsdetails laden
+                  const { data, error } = await window.supabase
+                    .from('auftrag')
+                    .select('auftragsname')
+                    .not('auftragsname', 'is', null)
+                    .order('auftragsname');
+                  
+                  if (!error && data) {
+                    // Unique Auftragsnamen extrahieren
+                    const uniqueAuftraege = new Set();
+                    data.forEach(item => {
+                      if (item.auftragsname) {
+                        uniqueAuftraege.add(item.auftragsname);
+                      }
+                    });
+                    
+                    selectOptions = Array.from(uniqueAuftraege)
+                      .map(name => ({ value: name, label: name }))
+                      .sort((a, b) => a.label.localeCompare(b.label));
+                    
+                    console.log(`✅ ${selectOptions.length} Auftragsnamen aus DB geladen für Auftragsdetails`);
+                  }
+                } else {
+                  // Standard-Laden aus Tabelle
+                  const { data, error } = await window.supabase
+                    .from(tableName)
+                    .select(`${valueField}, ${displayField}`)
+                    .order(displayField);
+                  
+                  if (!error && data) {
+                    selectOptions = data.map(item => ({
+                      value: item[valueField],
+                      label: item[displayField]
+                    }));
+                    console.log(`✅ ${selectOptions.length} Optionen aus DB geladen für ${filterConfig.id}`);
+                  }
                 }
               }
             } else {
@@ -672,9 +887,15 @@ export class FilterDropdown {
         }
         
         const optionsHtml = selectOptions.map(opt => {
-          const value = opt.value || opt.id;
-          const label = opt.label || opt.name;
+          const value = opt.value || opt.id || '';
+          const label = opt.label || opt.name || opt.value || 'Unbekannt';
           const selected = currentValue === value ? 'selected' : '';
+          
+          // Debug: Log wenn undefined
+          if (!label || label === 'undefined') {
+            console.warn('⚠️ Option ohne Label:', opt);
+          }
+          
           return `<option value="${value}" ${selected}>${label}</option>`;
         }).join('');
 

@@ -245,16 +245,6 @@ export class KundenDetail {
   async render() {
     const html = `
       <div class="kunden-detail">
-        <div class="page-header">
-        <div class="page-header-left">
-          <h1>Kunde: ${window.validatorSystem.sanitizeHtml(this.user?.name || '-')}</h1>
-          <p>Stammdaten und Zuordnungen</p>
-        </div>
-        <div class="page-header-right">
-          <button class="secondary-btn" id="btn-back-kunden">Kunden Übersicht</button>
-        </div>
-      </div>
-
       <div class="content-section">
         <div class="tab-navigation">
           <button class="tab-button active" data-tab="stammdaten">Stammdaten</button>

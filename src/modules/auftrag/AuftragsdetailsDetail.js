@@ -114,17 +114,10 @@ export class AuftragsdetailsDetail {
     
     const html = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>${this.auftrag?.auftragsname || 'Auftragsdetails'} - Produktionsplanung</h1>
-          <p>Detaillierte Produktionsinformationen für diesen Auftrag</p>
-        </div>
         <div class="page-header-right">
           <button id="btn-edit-details" class="secondary-btn">
             <i class="icon-edit"></i>
             Bearbeiten
-          </button>
-          <button onclick="window.navigateTo('/auftragsdetails')" class="secondary-btn">
-            Zurück zur Übersicht
           </button>
         </div>
       </div>

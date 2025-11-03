@@ -215,7 +215,7 @@ export class KampagneKanbanBoard {
       <div class="kanban-column" data-status-id="${statusId}">
         <div class="kanban-column-header">
           <div style="display: flex; align-items: center; gap: var(--space-xs);">
-            <h3>${safe(statusName)}</h3>
+            <span class="kanban-column-title">${safe(statusName)}</span>
             <span class="kanban-count">${kampagnen.length}</span>
           </div>
         </div>
@@ -477,4 +477,7 @@ export class KampagneKanbanBoard {
     this.statusOptions = [];
   }
 }
+
+
+
 

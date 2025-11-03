@@ -89,16 +89,6 @@ export class KundenKooperationDetail {
       : '<p class="empty-state">Keine Videos vorhanden.</p>';
 
     const html = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>${safe(this.koop?.name || '-')}</h1>
-          <p>${safe(this.koop?.kampagne?.kampagnenname || '—')}</p>
-        </div>
-        <div class="page-header-right">
-          <button class="secondary-btn" id="btn-back-kampagne">Zurück</button>
-        </div>
-      </div>
-
       ${this.videos.length > 0 ? `
         <div class="detail-card" style="margin-bottom:24px;">
           <h2>Videos</h2>

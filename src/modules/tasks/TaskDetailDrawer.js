@@ -67,16 +67,12 @@ export class TaskDetailDrawer {
     header.className = 'drawer-header';
     
     const headerLeft = document.createElement('div');
-    const title = document.createElement('h1');
+    const title = document.createElement('span');
+    title.className = 'drawer-title';
     title.textContent = 'Aufgabe';
-    title.style.margin = '0';
-    title.style.fontSize = '1.25rem';
-    title.style.fontWeight = '600';
     
     const subtitle = document.createElement('p');
-    subtitle.style.margin = '0';
-    subtitle.style.color = '#6b7280';
-    subtitle.style.fontSize = '0.95rem';
+    subtitle.className = 'drawer-subtitle';
     subtitle.textContent = 'Details, Kommentare und Verlauf';
     subtitle.id = `${this.drawerId}-subtitle`;
     
@@ -541,29 +537,29 @@ export class TaskDetailDrawer {
         <div style="display: grid; gap: var(--space-md);">
           <!-- Titel -->
           <div>
-            <div style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: var(--space-xs);">Titel</div>
-            <div style="font-size: 1rem; color: #111827;">${safe(this.task.title)}</div>
+            <div class="drawer-label">Titel</div>
+            <div class="drawer-value-large">${safe(this.task.title)}</div>
           </div>
 
           <!-- Beschreibung -->
           ${this.task.description ? `
           <div>
-            <div style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: var(--space-xs);">Beschreibung</div>
-            <div style="font-size: 0.95rem; color: #374151; white-space: pre-wrap;">${safe(this.task.description)}</div>
+            <div class="drawer-label">Beschreibung</div>
+            <div class="drawer-value" style="white-space: pre-wrap;">${safe(this.task.description)}</div>
           </div>
           ` : ''}
 
           <!-- Status und Priorität -->
           <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-md);">
             <div>
-              <div style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: var(--space-xs);">Status</div>
+              <div class="drawer-label">Status</div>
               <span style="display: inline-flex; align-items: center; gap: var(--space-xs); padding: 4px 12px; background: ${statusColors[this.task.status]}20; color: ${statusColors[this.task.status]}; border-radius: var(--radius-sm); font-size: 0.875rem; font-weight: 500;">
                 ${statusLabels[this.task.status] || this.task.status}
               </span>
             </div>
 
             <div>
-              <div style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: var(--space-xs);">Priorität</div>
+              <div class="drawer-label">Priorität</div>
               <span style="display: inline-flex; align-items: center; gap: var(--space-xs); padding: 4px 12px; background: ${priorityColors[this.task.priority]}20; color: ${priorityColors[this.task.priority]}; border-radius: var(--radius-sm); font-size: 0.875rem; font-weight: 500;">
                 ${priorityLabels[this.task.priority] || this.task.priority}
               </span>
@@ -573,22 +569,22 @@ export class TaskDetailDrawer {
           <!-- Kategorie und Fälligkeitsdatum -->
           <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-md);">
             <div>
-              <div style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: var(--space-xs);">Kategorie/Phase</div>
-              <div style="font-size: 0.95rem; color: #374151;">
+              <div class="drawer-label">Kategorie/Phase</div>
+              <div class="drawer-value">
                 ${this.task.category ? safe(this.task.category.name) : '–'}
               </div>
             </div>
 
             <div>
-              <div style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: var(--space-xs);">Fälligkeitsdatum</div>
-              <div style="font-size: 0.95rem; color: #374151;">${formatDate(this.task.due_date)}</div>
+              <div class="drawer-label">Fälligkeitsdatum</div>
+              <div class="drawer-value">${formatDate(this.task.due_date)}</div>
             </div>
           </div>
 
           <!-- Zugewiesen an Mitarbeiter -->
           <div>
-            <div style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: var(--space-xs);">Zugewiesen an Mitarbeiter</div>
-            <div style="font-size: 0.95rem; color: #374151;">
+            <div class="drawer-label">Zugewiesen an Mitarbeiter</div>
+            <div class="drawer-value">
               ${this.task.assigned_to ? safe(this.task.assigned_to.name) : 'Nicht zugewiesen'}
             </div>
           </div>
@@ -596,8 +592,8 @@ export class TaskDetailDrawer {
           ${this.task.assigned_kunde ? `
           <!-- Zugewiesen an Kunde -->
           <div>
-            <div style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: var(--space-xs);">Zugewiesen an Kunde</div>
-            <div style="font-size: 0.95rem; color: #374151;">
+            <div class="drawer-label">Zugewiesen an Kunde</div>
+            <div class="drawer-value">
               ${safe(this.task.assigned_kunde.name)}
             </div>
           </div>
@@ -605,16 +601,16 @@ export class TaskDetailDrawer {
 
           <!-- Erstellt von -->
           <div>
-            <div style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: var(--space-xs);">Erstellt von</div>
-            <div style="font-size: 0.95rem; color: #374151;">
+            <div class="drawer-label">Erstellt von</div>
+            <div class="drawer-value">
               ${this.task.creator ? safe(this.task.creator.name) : 'Unbekannt'}
             </div>
           </div>
 
           <!-- Sichtbarkeit -->
           <div>
-            <div style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: var(--space-xs);">Sichtbarkeit</div>
-            <div style="font-size: 0.95rem; color: #374151;">
+            <div class="drawer-label">Sichtbarkeit</div>
+            <div class="drawer-value">
               ${this.task.is_public ? 'Öffentlich (für alle sichtbar)' : 'Privat'}
             </div>
           </div>

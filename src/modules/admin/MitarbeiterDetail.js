@@ -338,13 +338,6 @@ export class MitarbeiterDetail {
       </label>`;
 
     const html = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>Mitarbeiter: ${window.validatorSystem.sanitizeHtml(this.user?.name || '-')}</h1>
-          <p>Rechte und Zuweisungen verwalten</p>
-        </div>
-      </div>
-
       <div class="content-section">
         <div class="tab-navigation">
           <button class="tab-button active" data-tab="rechte">Rechte</button>
@@ -891,23 +884,10 @@ export class MitarbeiterDetail {
     // oder zeigen eine Nachricht, dass die Bearbeitung über die Detail-Ansicht erfolgt
     
     window.content.innerHTML = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>Mitarbeiter bearbeiten</h1>
-          <p>Die Bearbeitung von Mitarbeitern erfolgt über die Detail-Ansicht</p>
-        </div>
-        <div class="page-header-right">
-          <button onclick="window.navigateTo('/mitarbeiter/${this.userId}')" class="secondary-btn">Zurück zu Details</button>
-        </div>
-      </div>
-      
       <div class="content-section">
         <div class="info-message">
           <h2>Hinweis</h2>
           <p>Die Bearbeitung von Mitarbeitern erfolgt direkt über die Detail-Ansicht mit speziellen Admin-Funktionen.</p>
-          <p>Klicken Sie auf "Zurück zu Details" um zur vollständigen Mitarbeiter-Verwaltung zu gelangen.</p>
-          <br>
-          <button onclick="window.navigateTo('/mitarbeiter/${this.userId}')" class="primary-btn">Zurück zur Detail-Ansicht</button>
         </div>
       </div>
     `;

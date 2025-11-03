@@ -138,17 +138,10 @@ export class AnsprechpartnerDetail {
 
     content.innerHTML = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>${this.ansprechpartner.vorname} ${this.ansprechpartner.nachname} - Details</h1>
-          <p>Detaillierte Informationen zum Ansprechpartner</p>
-        </div>
         <div class="page-header-right">
           <button class="secondary-btn" id="btn-edit">
             <i class="icon-edit"></i>
             Ansprechpartner bearbeiten
-          </button>
-          <button class="secondary-btn" id="btn-back">
-            Zurück zur Übersicht
           </button>
         </div>
       </div>
@@ -626,13 +619,6 @@ export class AnsprechpartnerDetail {
 
     // Basis HTML ohne Header-Buttons
     content.innerHTML = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>${this.formConfig.title}</h1>
-          <p>Erfasse die Daten für einen neuen Ansprechpartner</p>
-        </div>
-      </div>
-
       <div class="form-container">
         <div id="form-content">Lade Formular...</div>
       </div>
@@ -909,16 +895,6 @@ export class AnsprechpartnerDetail {
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('ansprechpartner', formData);
     window.content.innerHTML = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>Ansprechpartner bearbeiten</h1>
-          <p>Bearbeiten Sie die Informationen von ${this.ansprechpartner.vorname} ${this.ansprechpartner.nachname}</p>
-        </div>
-        <div class="page-header-right">
-          <button onclick="window.navigateTo('/ansprechpartner/${this.ansprechpartnerId}')" class="secondary-btn">Zurück zu Details</button>
-        </div>
-      </div>
-      
       <div class="form-page">
         ${formHtml}
       </div>

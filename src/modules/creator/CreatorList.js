@@ -86,10 +86,6 @@ export class CreatorList {
     // Haupt-HTML
     let html = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>Creator</h1>
-          <p>Verwalten Sie alle Creator und deren Profile</p>
-        </div>
         <div class="page-header-right">
           ${canEdit ? '<button id="btn-creator-new" class="primary-btn">Neuen Creator anlegen</button>' : ''}
         </div>
@@ -543,16 +539,6 @@ export class CreatorList {
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('creator');
     window.content.innerHTML = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>Neuen Creator anlegen</h1>
-          <p>Erstellen Sie einen neuen Creator für das CRM</p>
-        </div>
-        <div class="page-header-right">
-          <button onclick="window.navigateTo('/creator')" class="secondary-btn">Zurück zur Übersicht</button>
-        </div>
-      </div>
-      
       <div class="form-page">
         ${formHtml}
       </div>

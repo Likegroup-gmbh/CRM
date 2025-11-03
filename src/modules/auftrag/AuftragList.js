@@ -73,10 +73,6 @@ export class AuftragList {
     
     const html = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>Aufträge</h1>
-          <p>Verwalten Sie alle Aufträge und Projekte</p>
-        </div>
         <div class="page-header-right">
           <button id="btn-auftrag-new" class="primary-btn">
             <i class="icon-plus"></i>
@@ -544,15 +540,6 @@ export class AuftragList {
 
     const formHtml = window.formSystem.renderFormOnly('auftrag');
     const html = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>Neuen Auftrag anlegen</h1>
-          <p>Erstellen Sie einen neuen Auftrag für das CRM</p>
-        </div>
-        <div class="page-header-right">
-          <button onclick="window.navigateTo('/auftrag')" class="secondary-btn">Zurück zur Übersicht</button>
-        </div>
-      </div>
       <div class="form-page">
         ${formHtml}
       </div>

@@ -42,15 +42,6 @@ export const kooperationVideoDetail = {
         const koopName = koopInfo?.name || '-';
         const kampName = koopInfo?.kampagne?.kampagnenname || '-';
         const formHtml = `
-          <div class="page-header">
-            <div class="page-header-left">
-              <h1>Neues Video</h1>
-              <p>Kooperation: ${window.validatorSystem?.sanitizeHtml?.(koopName) || '-'} · Kampagne: ${window.validatorSystem?.sanitizeHtml?.(kampName) || '-'}</p>
-            </div>
-            <div class="page-header-right">
-              ${koopId ? `<button id="btn-back-to-kooperation" class="secondary-btn">Zur Kooperation</button>` : ''}
-            </div>
-          </div>
           <div class="form-page">
             ${limitReached ? `<div class=\"alert alert-danger\">Videolimit erreicht (${uploaded}/${videoLimit}). Es können keine weiteren Videos angelegt werden.</div>` : ''}
             <form id="video-create-form" class="entity-form" data-entity="kooperation_videos">
@@ -301,16 +292,6 @@ export const kooperationVideoDetail = {
     const assetsHtml = this.renderAssetVersions(this.assets, safe, fmtDateTime, canEdit);
 
     const html = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>${safe(title)}</h1>
-          <p>Kooperation: ${safe(koopName)} · Kampagne: ${safe(kampName)}</p>
-        </div>
-        <div class="page-header-right">
-          ${v.kooperation_id ? `<button id="btn-back-kooperation" class="secondary-btn">Zur Kooperation</button>` : ''}
-        </div>
-      </div>
-
       <!-- Tab-Navigation -->
       <div class="tab-navigation">
         <button class="tab-button active" data-tab="info">

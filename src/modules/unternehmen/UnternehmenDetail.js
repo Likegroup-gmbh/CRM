@@ -305,17 +305,10 @@ export class UnternehmenDetail {
     
     const html = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>${this.unternehmen?.firmenname || 'Unternehmen'} - Details</h1>
-          <p>Detaillierte Informationen zum Unternehmen</p>
-        </div>
         <div class="page-header-right">
           <button id="btn-edit-unternehmen" class="secondary-btn">
             <i class="icon-edit"></i>
             Unternehmen bearbeiten
-          </button>
-          <button onclick="window.navigateTo('/unternehmen')" class="secondary-btn">
-            Zurück zur Übersicht
           </button>
         </div>
       </div>
@@ -1141,18 +1134,6 @@ export class UnternehmenDetail {
       
       window.setHeadline(`${this.unternehmen?.firmenname || 'Unternehmen'} bearbeiten`);
       window.content.innerHTML = `
-        <div class="page-header">
-          <div class="page-header-left">
-            <h1>${this.unternehmen?.firmenname || 'Unternehmen'} bearbeiten</h1>
-            <p>Bearbeiten Sie die Unternehmensinformationen</p>
-          </div>
-          <div class="page-header-right">
-            <button onclick="window.navigateTo('/unternehmen/${this.unternehmenId}')" class="secondary-btn">
-              Zurück zu Details
-            </button>
-          </div>
-        </div>
-        
         <div class="form-page">
           ${formHtml}
         </div>

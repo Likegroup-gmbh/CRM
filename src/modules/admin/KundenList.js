@@ -113,10 +113,6 @@ export class KundenList {
 
     const html = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>Kunden</h1>
-          <p>Externe Kunden verwalten</p>
-        </div>
         <div class="page-header-right">
           <div class="search-inline">
             <input id="kunden-search" class="form-input" type="text" placeholder="Suche nach Name/Rolle..." />
@@ -318,16 +314,6 @@ export class KundenList {
     }
 
     const html = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>Kunde anlegen</h1>
-          <p>Wizard zum Anlegen inkl. Zuordnungen</p>
-        </div>
-        <div class="page-header-right">
-          <button class="secondary-btn" id="btn-kunden-zurueck">Zur Übersicht</button>
-        </div>
-      </div>
-
       <div class="content-section">
         <form id="kunden-create-form" class="form-grid">
           <div class="form-group">

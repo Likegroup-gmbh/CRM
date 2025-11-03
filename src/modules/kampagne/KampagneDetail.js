@@ -596,12 +596,7 @@ export class KampagneDetail {
 
     const html = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>${window.validatorSystem.sanitizeHtml(this.kampagneData.kampagnenname)}</h1>
-          <p>Kampagnen-Details und verwandte Informationen</p>
-        </div>
         <div class="page-header-right">
-          <button onclick="window.navigateTo('/kampagne')" class="secondary-btn">Zurück zur Übersicht</button>
           ${canEdit ? `<button id="btn-edit-kampagne" class="primary-btn">Bearbeiten</button>` : ''}
           ${canDelete ? `<button id="btn-delete-kampagne" class="danger-btn">Kampagne löschen</button>` : ''}
         </div>
@@ -1054,7 +1049,6 @@ export class KampagneDetail {
       <div class="error-message">
         <h2>Kampagne nicht gefunden</h2>
         <p>Die angeforderte Kampagne konnte nicht gefunden werden.</p>
-        <button onclick="window.navigateTo('/kampagne')" class="primary-btn">Zurück zur Übersicht</button>
       </div>
     `;
   }
@@ -1520,16 +1514,6 @@ export class KampagneDetail {
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('kampagne', formData);
     window.content.innerHTML = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>Kampagne bearbeiten</h1>
-          <p>Bearbeiten Sie die Informationen von ${this.kampagneData.kampagnenname}</p>
-        </div>
-        <div class="page-header-right">
-          <button onclick="window.navigateTo('/kampagne/${this.kampagneId}')" class="secondary-btn">Zurück zu Details</button>
-        </div>
-      </div>
-      
       <div class="form-page">
         ${formHtml}
       </div>

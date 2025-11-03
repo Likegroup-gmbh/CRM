@@ -10,7 +10,16 @@ import {
  * Auftragsdetails-spezifische Filter-Konfiguration
  */
 export const AUFTRAGSDETAILS_FILTERS = [
-  // Auftrag Filter
+  // Auftragsname Filter (lädt aus auftrag-Tabelle)
+  createFilterConfig('select', {
+    id: 'auftragsname',
+    label: 'Auftragsname',
+    placeholder: 'Auftrag auswählen...',
+    dynamic: true,
+    priority: 1
+  }),
+  
+  // Auftrag Filter (via ID)
   createFilterConfig('select', {
     id: 'auftrag_id',
     label: 'Auftrag',
@@ -18,28 +27,7 @@ export const AUFTRAGSDETAILS_FILTERS = [
     displayField: 'auftragsname',
     valueField: 'id',
     dynamic: true,
-    priority: 1
-  }),
-
-  // Kampagnenanzahl Filter
-  createFilterConfig('numberRange', {
-    id: 'kampagnenanzahl',
-    label: 'Kampagnenanzahl',
     priority: 2
-  }),
-
-  // Gesamt Videos Filter
-  createFilterConfig('numberRange', {
-    id: 'gesamt_videos',
-    label: 'Geplante Videos',
-    priority: 3
-  }),
-
-  // Gesamt Creator Filter
-  createFilterConfig('numberRange', {
-    id: 'gesamt_creator',
-    label: 'Geplante Creator',
-    priority: 4
   })
 ];
 
@@ -50,14 +38,8 @@ export const AUFTRAGSDETAILS_FILTER_GROUPS = [
   {
     id: 'basic',
     label: 'Grunddaten',
-    filters: ['auftrag_id', 'kampagnenanzahl'],
+    filters: ['auftragsname', 'auftrag_id'],
     expanded: true
-  },
-  {
-    id: 'planning',
-    label: 'Planung',
-    filters: ['gesamt_videos', 'gesamt_creator'],
-    expanded: false
   }
 ];
 

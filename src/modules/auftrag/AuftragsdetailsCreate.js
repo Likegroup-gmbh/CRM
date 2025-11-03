@@ -78,16 +78,6 @@ export class AuftragsdetailsCreate {
 
     // Formular HTML
     const formHtml = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>Neue Auftragsdetails anlegen</h1>
-          <p>Erstellen Sie detaillierte Produktionsplanung für einen Auftrag</p>
-        </div>
-        <div class="page-header-right">
-          <button onclick="window.navigateTo('/auftragsdetails')" class="secondary-btn">Zurück zur Übersicht</button>
-        </div>
-      </div>
-      
       <div class="form-page">
         <form id="auftragsdetails-form" class="entity-form">
           

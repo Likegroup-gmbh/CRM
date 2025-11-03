@@ -258,10 +258,6 @@ export class KooperationList {
     // Haupt-HTML
     let html = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>Kooperationen</h1>
-          <p>Verwalten Sie alle Kooperationen zwischen Creators und Kampagnen</p>
-        </div>
         <div class="page-header-right">
           ${canEdit ? '<button id="btn-kooperation-new" class="primary-btn">Neue Kooperation anlegen</button>' : ''}
         </div>
@@ -644,16 +640,6 @@ export class KooperationList {
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('kooperation');
     window.content.innerHTML = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>Neue Kooperation anlegen</h1>
-          <p>Erstellen Sie eine neue Kooperation zwischen Creator und Kampagne</p>
-        </div>
-        <div class="page-header-right">
-          <button onclick="window.navigateTo('/kooperation')" class="secondary-btn">Zurück zur Übersicht</button>
-        </div>
-      </div>
-      
       <div class="form-page">
         ${formHtml}
       </div>

@@ -280,7 +280,6 @@ export class CreatorDetail {
       window.content.innerHTML = `
         <div class="error-message">
           <p>Der angeforderte Creator wurde nicht gefunden.</p>
-          <button onclick="window.navigateTo('/creator')" class="secondary-btn">Zurück zur Übersicht</button>
         </div>
       `;
       return;
@@ -290,13 +289,8 @@ export class CreatorDetail {
 
     const html = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>${this.creator.vorname} ${this.creator.nachname}</h1>
-          <p>Creator Details und Aktivitäten</p>
-        </div>
         <div class="page-header-right">
           <button id="btn-edit-creator" class="primary-btn">Creator bearbeiten</button>
-          <button onclick="window.navigateTo('/creator')" class="secondary-btn">Zurück zur Übersicht</button>
         </div>
       </div>
 
@@ -888,16 +882,6 @@ export class CreatorDetail {
     // Formular mit Creator-Daten rendern
     const formHtml = window.formSystem.renderFormOnly('creator', editData);
     window.setContentSafely(window.content, `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>Creator bearbeiten</h1>
-          <p>Bearbeiten Sie die Informationen von ${this.creator.vorname} ${this.creator.nachname}</p>
-        </div>
-        <div class="page-header-right">
-          <button onclick="window.navigateTo('/creator/${this.creatorId}')" class="secondary-btn">Zurück zu Details</button>
-        </div>
-      </div>
-      
       <div class="form-page">
         ${formHtml}
       </div>

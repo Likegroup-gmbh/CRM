@@ -50,16 +50,6 @@ export class CreatorListDetail {
     const count = this.members.length;
     window.setHeadline(`Liste: ${window.validatorSystem.sanitizeHtml(this.list?.name || '-')}`);
     const html = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>${window.validatorSystem.sanitizeHtml(this.list?.name || '-')}</h1>
-          <p>${count} Creator</p>
-        </div>
-        <div class="page-header-right">
-          <button class="secondary-btn" id="btn-back-lists">Zurück zu Listen</button>
-        </div>
-      </div>
-
       <div class="data-table-container">
         <table class="data-table">
           <thead>

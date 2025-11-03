@@ -11,11 +11,12 @@ import {
  * Auftrag-spezifische Filter-Konfiguration
  */
 export const AUFTRAG_FILTERS = [
-  // Auftragsname Filter
-  createFilterConfig('text', {
+  // Auftragsname Filter (Dropdown)
+  createFilterConfig('select', {
     id: 'auftragsname',
     label: 'Auftragsname',
-    placeholder: 'Nach Auftragsname suchen...',
+    placeholder: 'Auftrag auswählen...',
+    dynamic: true,
     priority: 1
   }),
 
@@ -62,62 +63,26 @@ export const AUFTRAG_FILTERS = [
     priority: 5
   }),
 
-  // Art der Kampagne Filter
-  createFilterConfig('multiSelect', {
+  // Art der Kampagne Filter (als select statt multiSelect)
+  createFilterConfig('select', {
     id: 'art_der_kampagne',
     label: 'Art der Kampagne',
     options: COMMON_FILTER_OPTIONS.campaignTypes,
     priority: 6
   }),
 
-  // Gesamtbudget Filter
-  createFilterConfig('numberRange', {
-    id: 'gesamt_budget',
-    label: 'Gesamtbudget',
-    min: 0,
-    max: 1000000,
-    step: 1000,
-    formatter: BASE_FORMATTERS.currency,
-    priority: 7
-  }),
-
-  // Creator Budget Filter
-  createFilterConfig('numberRange', {
-    id: 'creator_budget',
-    label: 'Creator Budget',
-    min: 0,
-    max: 500000,
-    step: 500,
-    formatter: BASE_FORMATTERS.currency,
-    priority: 8
-  }),
-
-  // Start-Datum Filter
-  createFilterConfig('dateRange', {
-    id: 'start',
-    label: 'Startdatum',
-    priority: 9
-  }),
-
-  // End-Datum Filter
-  createFilterConfig('dateRange', {
-    id: 'ende',
-    label: 'Enddatum',
-    priority: 10
-  }),
-
   // Rechnung gestellt
   createFilterConfig('boolean', {
     id: 'rechnung_gestellt',
     label: 'Rechnung gestellt',
-    priority: 11
+    priority: 7
   }),
 
   // Überwiesen
   createFilterConfig('boolean', {
     id: 'ueberwiesen',
     label: 'Überwiesen',
-    priority: 12
+    priority: 8
   })
 ];
 

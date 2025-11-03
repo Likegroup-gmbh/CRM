@@ -10,13 +10,12 @@ import {
  * Unternehmen-spezifische Filter-Konfiguration
  */
 export const UNTERNEHMEN_FILTERS = [
-  // Firmenname Filter (dynamisch aus aktuellen Daten)
+  // Firmenname Filter (Dropdown mit verfügbaren Firmennamen)
   createFilterConfig('select', {
     id: 'firmenname',
     label: 'Firmenname',
     placeholder: 'Firmenname auswählen...',
     dynamic: true,
-    // Optionen werden automatisch aus aktuell sichtbaren Daten extrahiert
     priority: 1
   }),
 
@@ -57,26 +56,6 @@ export const UNTERNEHMEN_FILTERS = [
     label: 'Land',
     placeholder: 'Nach Land suchen...',
     priority: 5
-  }),
-
-  // Anzahl Ansprechpartner
-  createFilterConfig('numberRange', {
-    id: 'ansprechpartner_count',
-    label: 'Anzahl Ansprechpartner',
-    min: 0,
-    max: 50,
-    virtual: true,
-    priority: 6
-  }),
-
-  // Anzahl Kampagnen
-  createFilterConfig('numberRange', {
-    id: 'kampagne_count',
-    label: 'Anzahl Kampagnen',
-    min: 0,
-    max: 100,
-    virtual: true,
-    priority: 7
   })
 ];
 

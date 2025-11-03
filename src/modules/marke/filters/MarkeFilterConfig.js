@@ -10,11 +10,12 @@ import {
  * Marke-spezifische Filter-Konfiguration
  */
 export const MARKE_FILTERS = [
-  // Markenname Filter
-  createFilterConfig('text', {
+  // Markenname Filter (Dropdown)
+  createFilterConfig('select', {
     id: 'markenname',
     label: 'Markenname',
-    placeholder: 'Nach Markenname suchen...',
+    placeholder: 'Marke auswählen...',
+    dynamic: true,
     priority: 1
   }),
 
@@ -38,16 +39,6 @@ export const MARKE_FILTERS = [
     valueField: 'id',
     dynamic: true,
     priority: 3
-  }),
-
-  // Anzahl Kampagnen
-  createFilterConfig('numberRange', {
-    id: 'kampagne_count',
-    label: 'Anzahl Kampagnen',
-    min: 0,
-    max: 100,
-    virtual: true,
-    priority: 4
   })
 ];
 

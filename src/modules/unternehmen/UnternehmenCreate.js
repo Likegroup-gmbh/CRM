@@ -534,16 +534,6 @@ export class UnternehmenCreate {
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('unternehmen');
     window.content.innerHTML = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>Neues Unternehmen anlegen</h1>
-          <p>Erstellen Sie ein neues Unternehmen für das CRM</p>
-        </div>
-        <div class="page-header-right">
-          <button onclick="window.navigateTo('/unternehmen')" class="secondary-btn">Zurück zur Übersicht</button>
-        </div>
-      </div>
-      
       <div class="form-page">
         ${formHtml}
       </div>

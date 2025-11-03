@@ -48,16 +48,6 @@ export class KundenKampagneDetail {
     `).join('');
 
     const html = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>${window.validatorSystem.sanitizeHtml(this.kampagne?.kampagnenname || '-')}</h1>
-          <p>${window.validatorSystem.sanitizeHtml(this.kampagne?.unternehmen?.firmenname || '—')} · ${window.validatorSystem.sanitizeHtml(this.kampagne?.marke?.markenname || '—')}</p>
-        </div>
-        <div class="page-header-right">
-          <button class="secondary-btn" id="btn-back-kunden">Zurück</button>
-        </div>
-      </div>
-
       <div class="data-table-container">
         <table class="data-table">
           <thead><tr><th>Kooperation</th><th>Status</th></tr></thead>

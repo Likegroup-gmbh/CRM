@@ -423,13 +423,6 @@ export class DashboardModule {
     const html = `
       <div class="dashboard-container">
         <!-- Dashboard Header -->
-        <div class="page-header">
-          <div class="page-header-left">
-            <h1>Dashboard</h1>
-            <p>${isPending ? blockReason : 'Überblick über alle wichtigen Kennzahlen und Deadlines'}</p>
-          </div>
-        </div>
-
         ${isPending ? this.renderPendingMessage() : ''}
 
         ${!isPending ? `
@@ -478,12 +471,6 @@ export class DashboardModule {
       // Nicht freigeschalteter Kunde - einfache Wartebotschaft
       const html = `
         <div class="dashboard-container">
-          <div class="page-header">
-            <div class="page-header-left">
-              <h1>Willkommen</h1>
-              <p>Ihr Account wartet auf Freischaltung</p>
-            </div>
-          </div>
           <div class="data-table-container">
             <table class="data-table">
               <thead>
@@ -542,13 +529,6 @@ export class DashboardModule {
       
       const html = `
         <div class="dashboard-container">
-          <div class="page-header">
-            <div class="page-header-left">
-              <h1>Willkommen, ${window.validatorSystem.sanitizeHtml(window.currentUser?.name || 'Kunde')}</h1>
-              <p>Übersicht über Ihre Kampagnen und Kooperationen</p>
-            </div>
-          </div>
-          
           <div class="content-section">
             <div class="section-header">
               <h2>Meine Kampagnen</h2>

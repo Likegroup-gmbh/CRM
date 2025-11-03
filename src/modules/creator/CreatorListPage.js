@@ -19,10 +19,6 @@ export class CreatorListPage {
   async render() {
     const html = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>Listen</h1>
-          <p>Gespeicherte Creator-Listen</p>
-        </div>
         <div class="page-header-right">
           <button id="btn-new-list" class="primary-btn">Neue Liste</button>
         </div>

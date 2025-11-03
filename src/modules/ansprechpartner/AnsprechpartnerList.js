@@ -40,10 +40,6 @@ export class AnsprechpartnerList {
 
     content.innerHTML = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>Ansprechpartner</h1>
-          <p>Verwalte alle Ansprechpartner von Unternehmen und Marken</p>
-        </div>
         <div class="page-header-right">
           <button id="btn-ansprechpartner-new" class="primary-btn">Neuen Ansprechpartner anlegen</button>
         </div>
@@ -356,6 +352,15 @@ export class AnsprechpartnerList {
       console.log('🔍 Lade Ansprechpartner mit Filter:', currentFilters);
       const filteredAnsprechpartner = await window.dataService.loadEntities('ansprechpartner', currentFilters);
       console.log('📊 Ansprechpartner geladen:', filteredAnsprechpartner?.length || 0);
+      
+      // DEBUG: Zeige erste Ansprechpartner mit Unternehmen/Marken Details
+      if (filteredAnsprechpartner && filteredAnsprechpartner.length > 0) {
+        console.log('🔍 DEBUG: Erster Ansprechpartner:', {
+          name: `${filteredAnsprechpartner[0].vorname} ${filteredAnsprechpartner[0].nachname}`,
+          unternehmen: filteredAnsprechpartner[0].unternehmen,
+          marken: filteredAnsprechpartner[0].marken
+        });
+      }
       
       // Aktualisiere nur die Tabelle mit gefilterten Daten
       this.updateTable(filteredAnsprechpartner);

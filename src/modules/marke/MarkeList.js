@@ -151,10 +151,10 @@ export class MarkeList {
         .from('marke')
         .select(`
           *,
-          unternehmen:unternehmen_id(id, firmenname),
+          unternehmen:unternehmen_id(id, firmenname, logo_url),
           branchen:marke_branchen(branche:branche_id(id, name)),
           ansprechpartner:ansprechpartner_marke(ansprechpartner:ansprechpartner_id(id, vorname, nachname, email)),
-          mitarbeiter:marke_mitarbeiter(mitarbeiter:mitarbeiter_id(id, name))
+          mitarbeiter:marke_mitarbeiter!fk_marke_mitarbeiter_marke_id(mitarbeiter:mitarbeiter_id(id, name))
         `)
         .order('created_at', { ascending: false });
 
@@ -244,10 +244,6 @@ export class MarkeList {
     // Haupt-HTML
     let html = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>Marken</h1>
-          <p>Verwalten Sie alle Marken und deren Eigenschaften</p>
-        </div>
         <div class="page-header-right">
           ${canEdit ? '<button id="btn-marke-new" class="primary-btn">Neue Marke anlegen</button>' : ''}
         </div>
@@ -473,7 +469,7 @@ export class MarkeList {
             ${window.validatorSystem.sanitizeHtml(marke.markenname || '')}
           </a>
         </td>
-        <td>${window.validatorSystem.sanitizeHtml(marke.unternehmen?.firmenname || 'Kein Unternehmen zugeordnet')}</td>
+        <td>${this.renderUnternehmen(marke.unternehmen)}</td>
         <td>${this.renderBranchen(marke.branchen)}</td>
         <td>${marke.webseite ? `<a href="${marke.webseite}" target="_blank" class="table-link">${marke.webseite}</a>` : '-'}</td>
         <td>${this.renderAnsprechpartner(marke.ansprechpartner)}</td>
@@ -500,6 +496,23 @@ export class MarkeList {
       .join('');
 
     return `<div class="tags tags-compact">${branchenTags}</div>`;
+  }
+
+  // Render Unternehmen als Avatar Bubble
+  renderUnternehmen(unternehmen) {
+    if (!unternehmen || !unternehmen.firmenname) {
+      return '-';
+    }
+
+    const items = [{
+      name: unternehmen.firmenname,
+      type: 'org',
+      id: unternehmen.id,
+      entityType: 'unternehmen',
+      logo_url: unternehmen.logo_url || null
+    }];
+
+    return avatarBubbles.renderBubbles(items);
   }
 
   // Render Ansprechpartner

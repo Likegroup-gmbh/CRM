@@ -509,8 +509,37 @@ export class DataService {
         filters: ['auftrag_id', 'kampagnenanzahl', 'gesamt_videos', 'gesamt_creator', 'created_at'],
         sortBy: 'created_at',
         sortOrder: 'desc'
-      }
-      ,
+      },
+      // Alias für auftragsdetails (ohne Unterstrich)
+      auftragsdetails: {
+        table: 'auftrag_details',
+        displayField: 'id',
+        fields: {
+          auftrag_id: 'uuid',
+          kampagnenanzahl: 'number',
+          ugc_video_anzahl: 'number',
+          ugc_creator_anzahl: 'number',
+          ugc_budget_info: 'text',
+          influencer_video_anzahl: 'number',
+          influencer_creator_anzahl: 'number',
+          influencer_budget_info: 'text',
+          vor_ort_video_anzahl: 'number',
+          vor_ort_creator_anzahl: 'number',
+          vor_ort_videographen_anzahl: 'number',
+          vor_ort_budget_info: 'text',
+          vor_ort_mitarbeiter_video_anzahl: 'number',
+          vor_ort_mitarbeiter_videographen_anzahl: 'number',
+          vor_ort_mitarbeiter_budget_info: 'text',
+          gesamt_videos: 'number',
+          gesamt_creator: 'number'
+        },
+        relations: {
+          auftrag: { table: 'auftrag', foreignKey: 'auftrag_id', displayField: 'auftragsname' }
+        },
+        filters: ['auftrag_id', 'kampagnenanzahl', 'gesamt_videos', 'gesamt_creator', 'created_at'],
+        sortBy: 'created_at',
+        sortOrder: 'desc'
+      },
       rechnung: {
         table: 'rechnung',
         displayField: 'rechnung_nr',
@@ -792,6 +821,48 @@ export class DataService {
                   )
                 `)
                 .order('created_at', { ascending: false });
+
+              // Spezielle Filter auf Junction-Tabellen anwenden (Branchen)
+              try {
+                const getIdFromFilter = (val) => {
+                  if (val == null) return null;
+                  if (typeof val === 'string') return val;
+                  if (typeof val === 'object') {
+                    return val.value || val.id || null;
+                  }
+                  return String(val);
+                };
+                
+                // Branche-Filter
+                if (filters && filters.branche_id) {
+                  const selectedId = getIdFromFilter(filters.branche_id);
+                  console.log('🔍 Filtere Marken nach Branche:', selectedId);
+                  
+                  const { data: links, error: lerr } = await window.supabase
+                    .from('marke_branchen')
+                    .select('marke_id')
+                    .eq('branche_id', selectedId);
+                  
+                  if (lerr) {
+                    console.error('❌ Fehler beim Laden der Marken-Branchen-Verknüpfungen:', lerr);
+                  } else {
+                    const markeIds = (links || []).map(r => r.marke_id).filter(Boolean);
+                    console.log(`✅ ${markeIds.length} Marken mit Branche ${selectedId} gefunden`);
+                    
+                    if (markeIds.length === 0) {
+                      // Keine Marken mit dieser Branche gefunden
+                      return [];
+                    }
+                    
+                    query = query.in('id', markeIds);
+                  }
+                  
+                  // Entferne den Filter aus filters, damit er nicht nochmal angewendet wird
+                  delete filters.branche_id;
+                }
+              } catch (e) {
+                console.warn('⚠️ Konnte Marken-Junction-Filter nicht anwenden:', e);
+              }
             } else if (entityType === 'creator') {
               // Creator ohne alte FK-Joins (M:N wird separat geladen)
               query = window.supabase
@@ -870,7 +941,8 @@ export class DataService {
                   *,
                   unternehmen:unternehmen_id (
                     id,
-                    firmenname
+                    firmenname,
+                    logo_url
                   ),
                   sprache:sprache_id (
                     id,
@@ -893,6 +965,20 @@ export class DataService {
                     name_de,
                     iso_code,
                     vorwahl
+                  ),
+                  ansprechpartner_unternehmen (
+                    unternehmen:unternehmen_id (
+                      id,
+                      firmenname,
+                      logo_url
+                    )
+                  ),
+                  ansprechpartner_marke (
+                    marke:marke_id (
+                      id,
+                      markenname,
+                      logo_url
+                    )
                   )
                 `)
                 .order('created_at', { ascending: false });
@@ -958,6 +1044,102 @@ export class DataService {
                   )
                 `)
                 .order('created_at', { ascending: false });
+
+              // Spezielle Filter auf Junction-Tabellen anwenden (Branchen)
+              try {
+                const getIdFromFilter = (val) => {
+                  if (val == null) return null;
+                  if (typeof val === 'string') return val;
+                  if (typeof val === 'object') {
+                    return val.value || val.id || null;
+                  }
+                  return String(val);
+                };
+                
+                // Branche-Filter
+                if (filters && filters.branche_id) {
+                  const selectedId = getIdFromFilter(filters.branche_id);
+                  console.log('🔍 Filtere Unternehmen nach Branche:', selectedId);
+                  
+                  const { data: links, error: lerr } = await window.supabase
+                    .from('unternehmen_branchen')
+                    .select('unternehmen_id')
+                    .eq('branche_id', selectedId);
+                  
+                  if (lerr) {
+                    console.error('❌ Fehler beim Laden der Branchen-Verknüpfungen:', lerr);
+                  } else {
+                    const unternehmenIds = (links || []).map(r => r.unternehmen_id).filter(Boolean);
+                    console.log(`✅ ${unternehmenIds.length} Unternehmen mit Branche ${selectedId} gefunden`);
+                    
+                    if (unternehmenIds.length === 0) {
+                      // Keine Unternehmen mit dieser Branche gefunden
+                      return [];
+                    }
+                    
+                    query = query.in('id', unternehmenIds);
+                  }
+                  
+                  // Entferne den Filter aus filters, damit er nicht nochmal angewendet wird
+                  delete filters.branche_id;
+                }
+              } catch (e) {
+                console.warn('⚠️ Konnte Unternehmen-Junction-Filter nicht anwenden:', e);
+              }
+            } else if (entityType === 'auftragsdetails' || entityType === 'auftrag_details') {
+              // Auftragsdetails: Standardquery mit Auftrag-Relation
+              query = window.supabase
+                .from('auftrag_details')
+                .select(`
+                  *,
+                  auftrag:auftrag_id(id, auftragsname, unternehmen_id, marke_id)
+                `)
+                .order('created_at', { ascending: false });
+              
+              // Spezial-Behandlung für auftragsname und auftrag_id Filter
+              try {
+                // Filter nach Auftragsname (über Relation)
+                if (filters && filters.auftragsname) {
+                  const auftragsname = filters.auftragsname;
+                  console.log('🔍 Filtere Auftragsdetails nach Auftragsname:', auftragsname);
+                  
+                  // Hole alle Aufträge mit diesem Namen
+                  const { data: auftraege, error: aerr } = await window.supabase
+                    .from('auftrag')
+                    .select('id')
+                    .eq('auftragsname', auftragsname);
+                  
+                  if (aerr) {
+                    console.error('❌ Fehler beim Laden der Aufträge:', aerr);
+                  } else {
+                    const auftragIds = (auftraege || []).map(r => r.id).filter(Boolean);
+                    console.log(`✅ ${auftragIds.length} Aufträge mit Name "${auftragsname}" gefunden`);
+                    
+                    if (auftragIds.length === 0) {
+                      // Keine Aufträge mit diesem Namen gefunden
+                      return [];
+                    }
+                    
+                    query = query.in('auftrag_id', auftragIds);
+                  }
+                  
+                  // Entferne den Filter aus filters, damit er nicht nochmal angewendet wird
+                  delete filters.auftragsname;
+                }
+                
+                // Filter nach Auftrag-ID (direkt)
+                if (filters && filters.auftrag_id) {
+                  const auftragId = filters.auftrag_id;
+                  console.log('🔍 Filtere Auftragsdetails nach Auftrag-ID:', auftragId);
+                  
+                  query = query.eq('auftrag_id', auftragId);
+                  
+                  // Entferne den Filter aus filters, damit er nicht nochmal angewendet wird
+                  delete filters.auftrag_id;
+                }
+              } catch (e) {
+                console.warn('⚠️ Konnte Auftragsdetails-Filter nicht anwenden:', e);
+              }
             } else {
               // Standard-Query für andere Entitäten
               query = window.supabase
@@ -966,8 +1148,20 @@ export class DataService {
                 .order('created_at', { ascending: false });
             }
 
-      // Filter anwenden (generisch)
-      query = await this.applyFilters(query, filters, entityConfig.fields, entityType);
+      // Filter anwenden (priorisiere FilterLogic wenn vorhanden)
+      if (window.filterSystem) {
+        const logic = await window.filterSystem.loadEntityLogic(entityType);
+        if (logic && logic.buildSupabaseQuery) {
+          console.log(`🔧 Nutze spezifische FilterLogic für ${entityType}`);
+          query = logic.buildSupabaseQuery(query, filters);
+        } else {
+          // Fallback: Generische Filter-Anwendung
+          query = await this.applyFilters(query, filters, entityConfig.fields, entityType);
+        }
+      } else {
+        // Fallback: Generische Filter-Anwendung
+        query = await this.applyFilters(query, filters, entityConfig.fields, entityType);
+      }
 
       // Daten aus Supabase laden
       const { data, error } = await query;
@@ -995,6 +1189,38 @@ export class DataService {
           } else {
             unternehmen.branchen = [];
           }
+        });
+      }
+      
+      // Spezielle Verarbeitung für Ansprechpartner: Many-to-Many Unternehmen/Marken vereinfachen
+      if (entityType === 'ansprechpartner' && data) {
+        data.forEach(ap => {
+          // Unternehmen aus der Junction Table extrahieren
+          if (ap.ansprechpartner_unternehmen) {
+            ap.unternehmen = ap.ansprechpartner_unternehmen
+              .map(au => au.unternehmen)
+              .filter(Boolean); // Entferne null-Werte
+            
+            // Cleanup: Entferne die ursprüngliche Junction-Struktur
+            delete ap.ansprechpartner_unternehmen;
+          } else if (!Array.isArray(ap.unternehmen)) {
+            // Falls Legacy-Format (Single unternehmen_id), in Array konvertieren
+            ap.unternehmen = ap.unternehmen ? [ap.unternehmen] : [];
+          }
+          
+          // Marken aus der Junction Table extrahieren
+          if (ap.ansprechpartner_marke) {
+            ap.marken = ap.ansprechpartner_marke
+              .map(am => am.marke)
+              .filter(Boolean); // Entferne null-Werte
+            
+            // Cleanup: Entferne die ursprüngliche Junction-Struktur
+            delete ap.ansprechpartner_marke;
+          } else {
+            ap.marken = [];
+          }
+          
+          console.log(`📋 Ansprechpartner ${ap.vorname} ${ap.nachname}: ${ap.unternehmen?.length || 0} Unternehmen, ${ap.marken?.length || 0} Marken`);
         });
       }
       

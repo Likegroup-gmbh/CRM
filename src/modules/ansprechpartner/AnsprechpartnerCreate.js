@@ -29,16 +29,6 @@ export class AnsprechpartnerCreate {
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('ansprechpartner');
     window.content.innerHTML = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>Neuen Ansprechpartner anlegen</h1>
-          <p>Erstellen Sie einen neuen Ansprechpartner für das CRM</p>
-        </div>
-        <div class="page-header-right">
-          <button onclick="window.navigateTo('/ansprechpartner')" class="secondary-btn">Zurück zur Übersicht</button>
-        </div>
-      </div>
-      
       <div class="form-page">
         ${formHtml}
       </div>

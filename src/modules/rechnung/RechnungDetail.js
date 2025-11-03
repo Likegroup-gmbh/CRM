@@ -70,13 +70,8 @@ export class RechnungDetail {
 
     const html = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>Rechnung ${this.data?.rechnung_nr || ''}</h1>
-          <p>Details zur Rechnung</p>
-        </div>
         <div class="page-header-right">
           <button id="btn-edit-rechnung" class="secondary-btn">Bearbeiten</button>
-          <button onclick="window.navigateTo('/rechnung')" class="secondary-btn">Zur Übersicht</button>
         </div>
       </div>
 
@@ -145,14 +140,6 @@ export class RechnungDetail {
     
     const formHtml = window.formSystem.renderFormOnly('rechnung');
     window.content.innerHTML = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>Neue Rechnung anlegen</h1>
-        </div>
-        <div class="page-header-right">
-          <button onclick="window.navigateTo('/rechnung')" class="secondary-btn">Zurück</button>
-        </div>
-      </div>
       <div class="form-page">${formHtml}</div>
     `;
     window.formSystem.bindFormEvents('rechnung', null);
@@ -286,9 +273,6 @@ export class RechnungDetail {
     const formHtml = window.formSystem.renderFormOnly('rechnung', this.data);
     window.content.innerHTML = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>Rechnung bearbeiten</h1>
-        </div>
         <div class="page-header-right">
           <button onclick="window.navigateTo('/rechnung/${this.id}')" class="secondary-btn">Abbrechen</button>
         </div>

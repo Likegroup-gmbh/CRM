@@ -16,6 +16,10 @@ import RechnungFilterConfig from '../../modules/rechnung/filters/RechnungFilterC
 // Importiere Filter-Logik (optional)
 import CreatorFilterLogic from '../../modules/creator/filters/CreatorFilterLogic.js';
 import KampagneFilterLogic from '../../modules/kampagne/filters/KampagneFilterLogic.js';
+import UnternehmenFilterLogic from '../../modules/unternehmen/filters/UnternehmenFilterLogic.js';
+import MarkeFilterLogic from '../../modules/marke/filters/MarkeFilterLogic.js';
+import AuftragFilterLogic from '../../modules/auftrag/filters/AuftragFilterLogic.js';
+import AuftragsdetailsFilterLogic from '../../modules/auftrag/filters/AuftragsdetailsFilterLogic.js';
 
 /**
  * Zentrale Registrierung aller Filter-Konfigurationen
@@ -38,7 +42,11 @@ export const FILTER_CONFIG_REGISTRY = {
  */
 export const FILTER_LOGIC_REGISTRY = {
   creator: CreatorFilterLogic,
-  kampagne: KampagneFilterLogic
+  kampagne: KampagneFilterLogic,
+  unternehmen: UnternehmenFilterLogic,
+  marke: MarkeFilterLogic,
+  auftrag: AuftragFilterLogic,
+  auftragsdetails: AuftragsdetailsFilterLogic
   // Weitere Logik-Module können hier hinzugefügt werden
 };
 

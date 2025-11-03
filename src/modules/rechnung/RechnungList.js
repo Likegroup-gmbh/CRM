@@ -119,10 +119,6 @@ export class RechnungList {
   async render() {
     const html = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>Rechnungen</h1>
-          <p>Alle Rechnungen im Überblick</p>
-        </div>
         <div class="page-header-right">
           ${window.currentUser?.permissions?.rechnung?.can_edit ? '<button id="btn-rechnung-new" class="primary-btn">Neue Rechnung anlegen</button>' : ''}
         </div>

@@ -165,21 +165,11 @@ class ModularFilterSystem {
    * Filter für eine Entität anwenden
    */
   async applyFilters(entityType, filterData) {
-    // Lade entitäts-spezifische Logik falls verfügbar
-    const logic = await this.loadEntityLogic(entityType);
+    // Speichere die Original-Filter (nicht die processed ones)
+    // Die Verarbeitung passiert später beim Query-Building
+    this.activeFilters[entityType] = filterData;
     
-    let processedFilters;
-    if (logic && logic.processFilters) {
-      // Verwende entitäts-spezifische Verarbeitung
-      processedFilters = logic.processFilters(filterData);
-    } else {
-      // Fallback zu Standard-Verarbeitung
-      processedFilters = filterData;
-    }
-
-    this.activeFilters[entityType] = processedFilters;
-    
-    console.log(`🔍 Filter für ${entityType} angewendet:`, processedFilters);
+    console.log(`🔍 Filter für ${entityType} angewendet:`, filterData);
   }
 
   /**

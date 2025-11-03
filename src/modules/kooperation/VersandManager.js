@@ -69,16 +69,12 @@ export class KooperationVersandManager {
     header.className = 'drawer-header';
     
     const headerLeft = document.createElement('div');
-    const title = document.createElement('h1');
+    const title = document.createElement('span');
+    title.className = 'drawer-title';
     title.textContent = 'Versand-Daten verwalten';
-    title.style.margin = '0';
-    title.style.fontSize = '1.25rem';
-    title.style.fontWeight = '600';
     
     const subtitle = document.createElement('p');
-    subtitle.style.margin = '0';
-    subtitle.style.color = '#6b7280';
-    subtitle.style.fontSize = '0.95rem';
+    subtitle.className = 'drawer-subtitle';
     subtitle.textContent = 'Tracking-Nummer und Versand-Status verwalten';
     
     headerLeft.appendChild(title);

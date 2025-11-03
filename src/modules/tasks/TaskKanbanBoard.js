@@ -161,7 +161,7 @@ export class TaskKanbanBoard {
       <div class="kanban-column" data-status="${status}">
         <div class="kanban-column-header">
           <div style="display: flex; align-items: center; gap: var(--space-xs);">
-            <h3>${safe(title)}</h3>
+            <span class="kanban-column-title">${safe(title)}</span>
             <span class="kanban-count">${tasks.length}</span>
           </div>
           <button class="btn-add-task-in-column" data-status="${status}" title="Aufgabe hinzufügen" style="background: none; border: none; cursor: pointer; padding: var(--space-xxs); display: flex; align-items: center; color: var(--text-secondary); transition: color 0.2s;">

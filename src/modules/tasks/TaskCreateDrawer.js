@@ -51,16 +51,12 @@ export class TaskCreateDrawer {
     header.className = 'drawer-header';
     
     const headerLeft = document.createElement('div');
-    const title = document.createElement('h1');
+    const title = document.createElement('span');
+    title.className = 'drawer-title';
     title.textContent = 'Neue Aufgabe erstellen';
-    title.style.margin = '0';
-    title.style.fontSize = '1.25rem';
-    title.style.fontWeight = '600';
     
     const subtitle = document.createElement('p');
-    subtitle.style.margin = '0';
-    subtitle.style.color = '#6b7280';
-    subtitle.style.fontSize = '0.95rem';
+    subtitle.className = 'drawer-subtitle';
     subtitle.textContent = 'Erstelle eine neue Aufgabe für eine Kampagne';
     
     headerLeft.appendChild(title);
@@ -243,21 +239,20 @@ export class TaskCreateDrawer {
     const safe = (str) => window.validatorSystem?.sanitizeHtml?.(str) ?? str;
 
     const html = `
-      <form id="task-create-form" style="display: flex; flex-direction: column; gap: var(--space-md);">
+      <form id="task-create-form" class="drawer-form">
         <!-- Validation Error Display -->
-        <div id="task-create-error" style="display: none; padding: var(--space-sm); background: var(--error-50); border: 1px solid var(--error-200); border-radius: var(--radius-md); color: var(--error-700);"></div>
+        <div id="task-create-error" class="drawer-form-error"></div>
         
         <!-- Kampagne Auswahl - PFLICHTFELD -->
         <div class="form-field">
-          <label for="kampagne_id" style="display: block; font-weight: 500; margin-bottom: var(--space-xs); color: var(--gray-700);">
+          <label for="kampagne_id" class="drawer-form-label">
             Kampagne *
           </label>
           <select 
             id="kampagne_id" 
             name="kampagne_id" 
-            class="form-input"
-            required
-            style="width: 100%; padding: var(--space-sm); border: 1px solid var(--gray-300); border-radius: var(--radius-md);">
+            class="form-input drawer-form-select"
+            required>
             <option value="">Kampagne auswählen...</option>
             ${this.kampagnen.map(k => `<option value="${k.id}">${safe(k.kampagnenname)}</option>`).join('')}
           </select>
@@ -265,45 +260,42 @@ export class TaskCreateDrawer {
 
         <!-- Titel -->
         <div class="form-field">
-          <label for="task_title" style="display: block; font-weight: 500; margin-bottom: var(--space-xs); color: var(--gray-700);">
+          <label for="task_title" class="drawer-form-label">
             Titel *
           </label>
           <input 
             type="text" 
             id="task_title" 
             name="title" 
-            class="form-input" 
+            class="form-input drawer-form-input" 
             required
-            placeholder="z.B. Skript erstellen"
-            style="width: 100%; padding: var(--space-sm); border: 1px solid var(--gray-300); border-radius: var(--radius-md);" />
+            placeholder="z.B. Skript erstellen" />
         </div>
 
         <!-- Beschreibung -->
         <div class="form-field">
-          <label for="task_description" style="display: block; font-weight: 500; margin-bottom: var(--space-xs); color: var(--gray-700);">
+          <label for="task_description" class="drawer-form-label">
             Beschreibung
           </label>
           <textarea 
             id="task_description" 
             name="description" 
-            class="form-input" 
+            class="form-input drawer-form-textarea" 
             rows="4"
-            placeholder="Weitere Details zur Aufgabe..."
-            style="width: 100%; padding: var(--space-sm); border: 1px solid var(--gray-300); border-radius: var(--radius-md); resize: vertical;"></textarea>
+            placeholder="Weitere Details zur Aufgabe..."></textarea>
         </div>
 
         <!-- Grid für Priorität und Fälligkeitsdatum -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
+        <div class="drawer-form-grid">
           <!-- Priorität -->
           <div class="form-field">
-            <label for="task_priority" style="display: block; font-weight: 500; margin-bottom: var(--space-xs); color: var(--gray-700);">
+            <label for="task_priority" class="drawer-form-label">
               Priorität
             </label>
             <select 
               id="task_priority" 
               name="priority" 
-              class="form-input"
-              style="width: 100%; padding: var(--space-sm); border: 1px solid var(--gray-300); border-radius: var(--radius-md);">
+              class="form-input drawer-form-select">
               <option value="low">Niedrig</option>
               <option value="medium" selected>Mittel</option>
               <option value="high">Hoch</option>
@@ -312,15 +304,14 @@ export class TaskCreateDrawer {
 
           <!-- Fälligkeitsdatum -->
           <div class="form-field">
-            <label for="task_due_date" style="display: block; font-weight: 500; margin-bottom: var(--space-xs); color: var(--gray-700);">
+            <label for="task_due_date" class="drawer-form-label">
               Fälligkeitsdatum
             </label>
             <input 
               type="date" 
               id="task_due_date" 
               name="due_date" 
-              class="form-input"
-              style="width: 100%; padding: var(--space-sm); border: 1px solid var(--gray-300); border-radius: var(--radius-md);" />
+              class="form-input drawer-form-input" />
           </div>
         </div>
 
@@ -333,18 +324,16 @@ export class TaskCreateDrawer {
         <input type="hidden" name="status" value="${this.initialStatus}" />
 
         <!-- Actions -->
-        <div style="display: flex; gap: var(--space-sm); margin-top: var(--space-md); padding-top: var(--space-md); border-top: 1px solid var(--gray-200);">
+        <div class="drawer-form-actions">
           <button 
             type="submit" 
-            class="primary-btn" 
-            style="flex: 1; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md);">
+            class="primary-btn drawer-form-btn-primary">
             Aufgabe erstellen
           </button>
           <button 
             type="button" 
             id="task-create-cancel" 
-            class="secondary-btn" 
-            style="padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md);">
+            class="secondary-btn drawer-form-btn-secondary">
             Abbrechen
           </button>
         </div>
@@ -435,15 +424,14 @@ export class TaskCreateDrawer {
     // HTML für Mitarbeiter-Dropdown (immer anzeigen)
     const mitarbeiterHtml = `
       <div class="form-field">
-        <label for="task_assigned_to_mitarbeiter" style="display: block; font-weight: 500; margin-bottom: var(--space-xs); color: var(--gray-700);">
+        <label for="task_assigned_to_mitarbeiter" class="drawer-form-label">
           Zuweisen an Mitarbeiter
         </label>
         <select 
           id="task_assigned_to_mitarbeiter" 
           name="assigned_to_user_id" 
-          class="form-input"
-          ${!hasKampagne ? 'disabled' : ''}
-          style="width: 100%; padding: var(--space-sm); border: 1px solid var(--gray-300); border-radius: var(--radius-md);">
+          class="form-input drawer-form-select"
+          ${!hasKampagne ? 'disabled' : ''}>
           ${!hasKampagne 
             ? '<option value="">Bitte wähle zuerst eine Kampagne</option>'
             : this.mitarbeiter.length > 0
@@ -461,15 +449,14 @@ export class TaskCreateDrawer {
     // HTML für Kunden-Dropdown (nur für Admins/Mitarbeiter, aber immer anzeigen)
     const kundenHtml = isAdminOrMitarbeiter ? `
       <div class="form-field">
-        <label for="task_assigned_to_kunde" style="display: block; font-weight: 500; margin-bottom: var(--space-xs); color: var(--gray-700);">
+        <label for="task_assigned_to_kunde" class="drawer-form-label">
           Zuweisen an Kunde
         </label>
         <select 
           id="task_assigned_to_kunde" 
           name="assigned_to_kunde_id" 
-          class="form-input"
-          ${!hasKampagne ? 'disabled' : ''}
-          style="width: 100%; padding: var(--space-sm); border: 1px solid var(--gray-300); border-radius: var(--radius-md);">
+          class="form-input drawer-form-select"
+          ${!hasKampagne ? 'disabled' : ''}>
           ${!hasKampagne 
             ? '<option value="">Bitte wähle zuerst eine Kampagne</option>'
             : this.kunden.length > 0

@@ -139,10 +139,6 @@ export class MitarbeiterList {
 
     const html = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>Mitarbeiter</h1>
-          <p>Benutzerverwaltung und Rechte</p>
-        </div>
         <div class="page-header-right">
         </div>
       </div>

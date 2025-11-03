@@ -324,17 +324,10 @@ export class AuftragDetail {
     
     const html = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>${this.auftrag?.auftragsname || 'Auftrag'} - Details</h1>
-          <p>Detaillierte Informationen zum Auftrag</p>
-        </div>
         <div class="page-header-right">
           <button id="btn-edit-auftrag" class="secondary-btn">
             <i class="icon-edit"></i>
             Auftrag bearbeiten
-          </button>
-          <button onclick="window.navigateTo('/auftrag')" class="secondary-btn">
-            Zurück zur Übersicht
           </button>
         </div>
       </div>
@@ -825,16 +818,6 @@ export class AuftragDetail {
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('auftrag', formData);
     window.content.innerHTML = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>Auftrag bearbeiten</h1>
-          <p>Bearbeiten Sie die Informationen von ${this.auftrag.auftragsname}</p>
-        </div>
-        <div class="page-header-right">
-          <button onclick="window.navigateTo('/auftrag/${this.auftragId}')" class="secondary-btn">Zurück zu Details</button>
-        </div>
-      </div>
-      
       <div class="form-page">
         ${formHtml}
       </div>

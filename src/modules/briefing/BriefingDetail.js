@@ -126,12 +126,7 @@ export class BriefingDetail {
 
     const html = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>${escape(title)}</h1>
-          <p>Briefing-Details und verwandte Informationen</p>
-        </div>
         <div class="page-header-right">
-          <button onclick="window.navigateTo('/briefing')" class="secondary-btn">Zurück zur Übersicht</button>
           ${canEdit ? `<button id="btn-edit-briefing" class="primary-btn">Bearbeiten</button>` : ''}
         </div>
       </div>
@@ -596,7 +591,6 @@ export class BriefingDetail {
       <div class="error-message">
         <h2>Briefing nicht gefunden</h2>
         <p>Das angeforderte Briefing konnte nicht gefunden werden.</p>
-        <button onclick="window.navigateTo('/briefing')" class="primary-btn">Zurück zur Übersicht</button>
       </div>
     `;
   }
@@ -609,16 +603,6 @@ export class BriefingDetail {
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('briefing', this.briefing);
     window.content.innerHTML = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>Briefing bearbeiten</h1>
-          <p>Bearbeiten Sie die Briefing-Informationen</p>
-        </div>
-        <div class="page-header-right">
-          <button onclick="window.navigateTo('/briefing/${this.briefingId}')" class="secondary-btn">Zurück zu Details</button>
-        </div>
-      </div>
-      
       <div class="form-page">
         ${formHtml}
       </div>

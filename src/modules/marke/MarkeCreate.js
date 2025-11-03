@@ -28,16 +28,6 @@ export class MarkeCreate {
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('marke');
     window.content.innerHTML = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h1>Neue Marke anlegen</h1>
-          <p>Erstellen Sie eine neue Marke für das CRM</p>
-        </div>
-        <div class="page-header-right">
-          <button onclick="window.navigateTo('/marke')" class="secondary-btn">Zurück zur Übersicht</button>
-        </div>
-      </div>
-      
       <div class="form-page">
         ${formHtml}
       </div>

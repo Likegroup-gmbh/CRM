@@ -1004,7 +1004,7 @@ body {
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  gap: var(--space-xl);
+  
 }
 
 .tab-navigation::-webkit-scrollbar {
@@ -1014,11 +1014,10 @@ body {
 .tab-button {
   display: flex;
   align-items: center;
-  
-  padding:  var(--space-sm )0 var(--space-sm) 0;
+  padding:  var(--space-sm );
   background: none;
   border: none;
-  border-bottom: 1px solid transparent;
+  border-bottom: 2px solid transparent;
   color: #666;
   font-weight: 500;
   cursor: pointer;
@@ -1063,8 +1062,8 @@ body {
 .tab-button .tab-count {
   background: var(--gray-100);
   color: var(--gray-500);
-  border-radius: 12px;
-  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  padding: 0.4rem 0.4rem;
   font-size: 0.8rem;
   font-weight: 200;
   margin-left: 0.25rem;
@@ -1616,7 +1615,7 @@ body {
 .kanban-board {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-md);
+ 
   height: calc(100vh - 300px);
   min-height: 500px;
 }
@@ -1631,19 +1630,17 @@ body {
 .kanban-column {
   display: flex;
   flex-direction: column;
-  background: var(--gray-50);
-  border-radius: var(--radius-lg);
-  border: var(--border-xs) solid var(--border-primary);
   overflow: hidden;
+  background: var(--gray-50);
+  border-radius: var(--radius-md);
 }
 
 .kanban-column-header {
   display: flex;
-
   align-items: center;
   justify-content: space-between;
   padding: var(--space-sm) var(--space-md);
-  background: var(--gray-100);
+  
   
 }
 
@@ -1661,7 +1658,7 @@ body {
   min-width: var(--icon-md);
   height: var(--icon-md);
   padding: 0 var(--space-xs);
-  background: var(--gray-200);
+  background: var(--gray-50);
   color: var(--gray-700);
   border-radius: 999px;
   font-size: var(--text-xs);
@@ -1774,6 +1771,7 @@ body {
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.4;
+  color: var(--text-primary);
 }
 
 .task-description {

@@ -78,10 +78,6 @@ export const taskListPage = {
 
     const html = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h1>Aufgaben</h1>
-          <p>Verwalten Sie alle Aufgaben für Kooperationen, Kampagnen und Aufträge</p>
-        </div>
         <div class="page-header-right">
           <div class="view-toggle">
             <button id="btn-view-kanban" class="secondary-btn ${this.currentView === 'kanban' ? 'active' : ''}">

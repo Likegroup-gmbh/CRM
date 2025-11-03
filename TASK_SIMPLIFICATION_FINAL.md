@@ -186,3 +186,6 @@ Beide Dateien wurden geprüft - keine Fehler.
 
 Die Lösung ist jetzt deutlich einfacher und fokussiert auf den tatsächlichen Workflow (Aufgaben gehören zu Kampagnen).
 
+
+
+
