@@ -2650,6 +2650,8 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: var(--gray-50);
+  border-radius: var(--radius-md);
 }
 
 .kanban-column-header {
