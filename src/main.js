@@ -1,3 +1,10 @@
+// CSS Imports - müssen für Vite-Build hier sein
+import '../assets/styles/variables.css';
+import '../assets/styles/base.css';
+import '../assets/styles/layout.css';
+import '../assets/styles/components.css';
+import '../assets/styles/dashboard.css';
+
 import { CONFIG } from './core/ConfigSystem.js';
 import { modularFilterSystem as filterSystem } from './core/filters/ModularFilterSystem.js';
 import { creatorList } from './modules/creator/CreatorList.js';
