@@ -251,7 +251,6 @@ export class MarkeDetail {
       <div class="detail-section">
         <div class="detail-grid">
           <div class="detail-card">
-            <h3>Marken-Informationen</h3>
             <div class="detail-item">
               <label>Markenname:</label>
               <span>${this.marke?.markenname || '-'}</span>
@@ -438,14 +437,8 @@ export class MarkeDetail {
       </div>
     ` : '';
 
-    const header = `
-      <div class="section-header">
-        <h3>Ansprechpartner</h3>
-      </div>
-    `;
-
     if (!hasAnsprechpartner) {
-      return header + emptyState;
+      return emptyState;
     }
 
     const rows = this.ansprechpartner.map(ap => `
@@ -473,7 +466,6 @@ export class MarkeDetail {
     `).join('');
 
     return `
-      ${header}
       <div class="data-table-container">
         <table class="data-table">
           <thead>

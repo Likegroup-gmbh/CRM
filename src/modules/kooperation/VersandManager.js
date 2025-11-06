@@ -173,9 +173,12 @@ export class KooperationVersandManager {
     try {
       const { data, error } = await window.supabase
         .from('kooperation_versand')
-        .select('*')
+        .select(`
+          *,
+          creator_adresse:creator_adresse_id(*)
+        `)
         .eq('kooperation_id', kooperationId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false});
       
       if (error) {
         console.warn('⚠️ Fehler beim Laden der Versand-Daten:', error);
@@ -189,42 +192,39 @@ export class KooperationVersandManager {
     }
   }
 
-  renderForm(kooperationId, kooperationData, versandDaten) {
+  async renderForm(kooperationId, kooperationData, versandDaten) {
     const body = document.getElementById(`${this.drawerId}-body`);
     if (!body) return;
 
     const creator = kooperationData.creator;
     
+    // Lade alle verfügbaren Adressen des Creators
+    let creatorAdressen = [];
+    try {
+      const { data } = await window.supabase
+        .from('creator_adressen')
+        .select('*')
+        .eq('creator_id', creator.id)
+        .order('ist_standard', { ascending: false })
+        .order('adressname');
+      creatorAdressen = data || [];
+    } catch (error) {
+      console.error('Fehler beim Laden der Creator-Adressen:', error);
+    }
+
+    // Adressauswahl-Dropdown erstellen
+    const adressOptionen = [
+      `<option value="">Hauptadresse (aus Creator-Profil)</option>`,
+      ...creatorAdressen.map(adresse => 
+        `<option value="${adresse.id}">${adresse.adressname}${adresse.ist_standard ? ' (Standard)' : ''}</option>`
+      )
+    ].join('');
+    
     body.innerHTML = `
       <div class="versand-form-layout">
-        <div class="creator-info">
-          <h3>Creator & Lieferadresse</h3>
-          <div class="creator-details">
-            <div class="detail-item">
-              <label>Name:</label>
-              <span>${creator?.vorname || ''} ${creator?.nachname || ''}</span>
-            </div>
-            <div class="detail-item">
-              <label>Kooperation:</label>
-              <span>${kooperationData.name || 'Unbekannt'}</span>
-            </div>
-          </div>
-          
-          <div class="address-preview">
-            <h4>Lieferadresse (aus Creator-Profil)</h4>
-            <div class="address-display">
-              <div class="address-name">${creator?.vorname || ''} ${creator?.nachname || ''}</div>
-              <div class="address-line">${creator?.lieferadresse_strasse || ''} ${creator?.lieferadresse_hausnummer || ''}</div>
-              <div class="address-line">${creator?.lieferadresse_plz || ''} ${creator?.lieferadresse_stadt || ''}</div>
-              <div class="address-line">${creator?.lieferadresse_land || 'Deutschland'}</div>
-            </div>
-            ${!creator?.lieferadresse_strasse ? '<p class="address-warning">⚠️ Keine Lieferadresse im Creator-Profil hinterlegt</p>' : ''}
-          </div>
-        </div>
-
         <div class="versand-table-section">
           <h3>Versand-Übersicht</h3>
-          ${this.renderVersandTable(versandDaten, creator)}
+          ${this.renderVersandTable(versandDaten, creator, creatorAdressen)}
         </div>
 
         <form id="versand-form" data-kooperation-id="${kooperationId}" class="versand-form">
@@ -233,6 +233,13 @@ export class KooperationVersandManager {
           <div class="form-section">
             <h3>Neues Produkt versenden</h3>
             <div class="versand-details-grid">
+              <div class="form-field">
+                <label for="creator_adresse_id">Lieferadresse auswählen</label>
+                <select id="creator_adresse_id" name="creator_adresse_id" class="form-select">
+                  ${adressOptionen}
+                </select>
+                <small class="field-hint">Wählen Sie die Zieladresse für diesen Versand</small>
+              </div>
               <div class="form-field">
                 <label for="produkt_name">Produktname</label>
                 <input type="text" name="produkt_name" placeholder="z.B. Produktpaket, Geschenkbox, etc." required>
@@ -266,7 +273,7 @@ export class KooperationVersandManager {
     `;
   }
 
-  renderVersandTable(versandDaten, creator) {
+  renderVersandTable(versandDaten, creator, creatorAdressen = []) {
     if (!versandDaten || versandDaten.length === 0) {
       return `
         <div class="empty-state-small">
@@ -276,9 +283,15 @@ export class KooperationVersandManager {
     }
 
     const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
-    const formatAddress = (creator) => {
-      if (!creator?.lieferadresse_strasse) return 'Keine Adresse hinterlegt';
-      return `${creator.lieferadresse_strasse} ${creator.lieferadresse_hausnummer || ''}, ${creator.lieferadresse_plz || ''} ${creator.lieferadresse_stadt || ''}, ${creator.lieferadresse_land || 'Deutschland'}`;
+    const formatAddress = (versand, creator) => {
+      // Verwende creator_adresse falls vorhanden, sonst Hauptadresse
+      if (versand.creator_adresse) {
+        const addr = versand.creator_adresse;
+        return `<strong>${addr.adressname}:</strong><br>${addr.strasse || ''} ${addr.hausnummer || ''}, ${addr.plz || ''} ${addr.stadt || ''}, ${addr.land || 'Deutschland'}`;
+      } else {
+        if (!creator?.lieferadresse_strasse) return 'Keine Adresse hinterlegt';
+        return `<strong>Hauptadresse:</strong><br>${creator.lieferadresse_strasse} ${creator.lieferadresse_hausnummer || ''}, ${creator.lieferadresse_plz || ''} ${creator.lieferadresse_stadt || ''}, ${creator.lieferadresse_land || 'Deutschland'}`;
+      }
     };
 
     const tableRows = versandDaten.map(versand => `
@@ -292,7 +305,7 @@ export class KooperationVersandManager {
         <td class="address-cell">
           <div class="address-compact">
             <div class="address-name">${creator?.vorname || ''} ${creator?.nachname || ''}</div>
-            <div class="address-text">${formatAddress(creator)}</div>
+            <div class="address-text">${formatAddress(versand, creator)}</div>
           </div>
         </td>
         <td class="text-center">
@@ -367,7 +380,9 @@ export class KooperationVersandManager {
 
       formData.forEach((value, key) => {
         if (key === 'kooperation_id') return;
-        if (value === '') {
+        if (key === 'creator_adresse_id' && value === '') {
+          payload[key] = null; // Leere Auswahl = Hauptadresse
+        } else if (value === '') {
           payload[key] = null;
         } else {
           payload[key] = value;

@@ -476,13 +476,6 @@ export class AuftragDetail {
 
     return `
       <div class="detail-section">
-        <div class="section-header">
-          <h3>Produktionsdetails</h3>
-          <button onclick="window.auftragsDetailsManager?.open('${this.auftragId}')" class="secondary-btn">
-            Bearbeiten
-          </button>
-        </div>
-
         <div class="auftragsdetails-summary">
           <div class="summary-cards">
             <div class="summary-card">

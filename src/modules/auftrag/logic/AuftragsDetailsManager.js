@@ -16,6 +16,31 @@ export class AuftragsDetailsManager {
     });
   }
 
+  async openForEdit(auftragsdetailsId) {
+    console.log('🎯 AUFTRAGSDETAILSMANAGER: openForEdit() aufgerufen mit auftragsdetails-ID:', auftragsdetailsId);
+    
+    try {
+      // Lade die auftragsdetails um die auftrag_id zu bekommen
+      const { data, error } = await window.supabase
+        .from('auftrag_details')
+        .select('auftrag_id')
+        .eq('id', auftragsdetailsId)
+        .single();
+      
+      if (error || !data) {
+        console.error('❌ Fehler beim Laden der auftragsdetails:', error);
+        window.notificationSystem?.show('Fehler beim Laden der Auftragsdetails', 'error');
+        return;
+      }
+      
+      // Öffne den Drawer mit der auftrag_id
+      await this.open(data.auftrag_id);
+    } catch (error) {
+      console.error('❌ AuftragsDetailsManager.openForEdit Fehler:', error);
+      window.notificationSystem?.show('Fehler beim Öffnen der Auftragsdetails', 'error');
+    }
+  }
+
   async open(auftragId) {
     console.log('🎯 AUFTRAGSDETAILSMANAGER: open() aufgerufen mit ID:', auftragId);
     try {
@@ -83,7 +108,11 @@ export class AuftragsDetailsManager {
     const headerRight = document.createElement('div');
     const closeBtn = document.createElement('button');
     closeBtn.className = 'drawer-close';
-    closeBtn.textContent = 'Schließen';
+    closeBtn.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 24px; height: 24px;">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    `;
     headerRight.appendChild(closeBtn);
     
     header.appendChild(headerLeft);
@@ -194,26 +223,8 @@ export class AuftragsDetailsManager {
       return obj[key] ?? fallback;
     };
 
-    const renderBasisRow = (label, value) => {
-      return `
-        <div class="detail-item">
-          <label>${label}</label>
-          <span>${value || '-'}</span>
-        </div>
-      `;
-    };
-
     body.innerHTML = `
       <div class="auftrag-details-layout">
-        <div class="auftrag-basis">
-          <h3>Basisdaten</h3>
-          ${renderBasisRow('Auftragsname', basisDaten?.auftragsname)}
-          ${renderBasisRow('Unternehmen', basisDaten?.unternehmen?.firmenname)}
-          ${renderBasisRow('Marke', basisDaten?.marke?.markenname)}
-          ${renderBasisRow('Ansprechpartner', this.formatAnsprechpartner(basisDaten?.ansprechpartner))}
-          ${renderBasisRow('Kampagnenanzahl', basisDaten?.kampagnenanzahl)}
-        </div>
-
         <form id="auftrag-details-form" data-auftrag-id="${auftragId}" class="auftrag-details-form">
           <input type="hidden" name="auftrag_id" value="${auftragId}">
 
@@ -266,10 +277,9 @@ export class AuftragsDetailsManager {
   }
 
   renderSection(title, details, keyPrefix, fields) {
-    const sectionData = details?.[keyPrefix] || {};
     const inputs = Object.entries(fields).map(([key, config]) => {
       const name = `${keyPrefix}_${key}`;
-      const value = sectionData[key] ?? '';
+      const value = details?.[name] ?? '';
       if (config.type === 'textarea') {
         return `
           <div class="form-field">

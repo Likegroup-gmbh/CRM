@@ -697,6 +697,18 @@ export class ActionsDropdown {
         break;
       
       case 'edit':
+        // Spezialfall für Auftragsdetails: Nur Drawer öffnen, nicht zur Edit-Seite navigieren
+        if (entityType === 'auftragsdetails') {
+          if (window.auftragsDetailsManager) {
+            // Extrahiere die auftrag_id aus den Details
+            // Die entityId ist hier die auftragsdetails-ID, wir brauchen aber die auftrag_id
+            // Wir öffnen den Drawer mit der auftragsdetails-ID
+            window.auftragsDetailsManager.openForEdit(entityId);
+          } else {
+            console.warn('AuftragsDetailsManager nicht verfügbar');
+          }
+          return;
+        }
         window.navigateTo(`/${entityType}/${entityId}/edit`);
         break;
       
@@ -799,6 +811,65 @@ export class ActionsDropdown {
       }
       case 'remove_ansprechpartner_unternehmen': {
         this.openRemoveAnsprechpartnerFromUnternehmenModalNew(entityId);
+        break;
+      }
+      case 'remove_ansprechpartner_link': {
+        // Verknüpfung zwischen Ansprechpartner und Unternehmen entfernen
+        if (entityType === 'ansprechpartner_unternehmen') {
+          // Unternehmen-ID aus dem aktuellen Kontext holen
+          const unternehmenId = window.moduleRegistry?.modules?.get('unternehmen-detail')?.unternehmenId;
+          if (unternehmenId && confirm('Möchten Sie diesen Ansprechpartner wirklich vom Unternehmen entfernen?')) {
+            await this.removeAnsprechpartnerFromUnternehmen(entityId, unternehmenId);
+            // UI aktualisieren
+            window.dispatchEvent(new CustomEvent('entityUpdated', { 
+              detail: { entity: 'ansprechpartner', action: 'removed', unternehmenId: unternehmenId } 
+            }));
+          }
+        }
+        break;
+      }
+      case 'edit_creator_adresse': {
+        // Creator-Adresse bearbeiten
+        if (entityType === 'creator_adresse') {
+          // Creator-ID aus dem aktuellen Kontext holen
+          const creatorId = window.moduleRegistry?.modules?.get('creator-detail')?.creatorId;
+          if (creatorId) {
+            window.creatorAdressenManager?.openEdit(creatorId, entityId);
+          }
+        }
+        break;
+      }
+      case 'set_standard_adresse': {
+        // Creator-Adresse als Standard festlegen
+        if (entityType === 'creator_adresse') {
+          const creatorId = window.moduleRegistry?.modules?.get('creator-detail')?.creatorId;
+          if (creatorId) {
+            if (confirm('Möchten Sie diese Adresse als Standard-Adresse festlegen?')) {
+              await this.setStandardAdresse(entityId, creatorId);
+            }
+          }
+        }
+        break;
+      }
+      case 'set_hauptadresse_standard': {
+        // Hauptadresse als Standard festlegen (setzt alle anderen auf nicht-standard)
+        if (entityType === 'creator_hauptadresse') {
+          const creatorId = entityId; // Bei Hauptadresse ist entityId = creatorId
+          if (confirm('Möchten Sie die Hauptadresse als Standard-Adresse festlegen?')) {
+            await this.setHauptadresseStandard(creatorId);
+          }
+        }
+        break;
+      }
+      case 'delete_creator_adresse': {
+        // Creator-Adresse löschen
+        if (entityType === 'creator_adresse') {
+          // Creator-ID aus dem aktuellen Kontext holen
+          const creatorId = window.moduleRegistry?.modules?.get('creator-detail')?.creatorId;
+          if (creatorId) {
+            window.creatorAdressenManager?.deleteAdresse(entityId, creatorId);
+          }
+        }
         break;
       }
       case 'unassign-kampagne': {
@@ -2517,6 +2588,83 @@ export class ActionsDropdown {
 
     } catch (error) {
       console.error('❌ Fehler beim Entfernen des Ansprechpartners:', error);
+      throw error;
+    }
+  }
+
+  // Standard-Adresse festlegen
+  async setStandardAdresse(adresseId, creatorId) {
+    try {
+      console.log('🔄 Setze Standard-Adresse:', adresseId, 'für Creator:', creatorId);
+      
+      // Erst alle anderen Adressen auf nicht-standard setzen
+      const { error: resetError } = await window.supabase
+        .from('creator_adressen')
+        .update({ ist_standard: false })
+        .eq('creator_id', creatorId);
+
+      if (resetError) {
+        console.error('❌ Fehler beim Zurücksetzen:', resetError);
+        throw resetError;
+      }
+
+      // Dann die gewählte Adresse auf standard setzen
+      const { error: setError } = await window.supabase
+        .from('creator_adressen')
+        .update({ ist_standard: true })
+        .eq('id', adresseId);
+
+      if (setError) {
+        console.error('❌ Fehler beim Setzen:', setError);
+        throw setError;
+      }
+
+      console.log('✅ Standard-Adresse erfolgreich gesetzt');
+      window.NotificationSystem?.show('success', 'Standard-Adresse erfolgreich festgelegt.');
+
+      // UI aktualisieren
+      window.dispatchEvent(new CustomEvent('entityUpdated', { 
+        detail: { entity: 'creator_adressen', creatorId: creatorId } 
+      }));
+
+      return true;
+
+    } catch (error) {
+      console.error('❌ Fehler beim Festlegen der Standard-Adresse:', error);
+      window.NotificationSystem?.show('error', 'Fehler beim Festlegen der Standard-Adresse: ' + error.message);
+      throw error;
+    }
+  }
+
+  // Hauptadresse als Standard festlegen (setzt alle zusätzlichen Adressen auf nicht-standard)
+  async setHauptadresseStandard(creatorId) {
+    try {
+      console.log('🔄 Setze Hauptadresse als Standard für Creator:', creatorId);
+      
+      // Alle zusätzlichen Adressen auf nicht-standard setzen
+      const { error: resetError } = await window.supabase
+        .from('creator_adressen')
+        .update({ ist_standard: false })
+        .eq('creator_id', creatorId);
+
+      if (resetError) {
+        console.error('❌ Fehler beim Zurücksetzen:', resetError);
+        throw resetError;
+      }
+
+      console.log('✅ Hauptadresse erfolgreich als Standard gesetzt');
+      window.NotificationSystem?.show('success', 'Hauptadresse erfolgreich als Standard festgelegt.');
+
+      // UI aktualisieren
+      window.dispatchEvent(new CustomEvent('entityUpdated', { 
+        detail: { entity: 'creator_adressen', creatorId: creatorId } 
+      }));
+
+      return true;
+
+    } catch (error) {
+      console.error('❌ Fehler beim Festlegen der Hauptadresse als Standard:', error);
+      window.NotificationSystem?.show('error', 'Fehler: ' + error.message);
       throw error;
     }
   }

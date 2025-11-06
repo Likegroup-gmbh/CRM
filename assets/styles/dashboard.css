@@ -735,6 +735,8 @@ body {
 /* ===== MAIN WRAPPER ===== */
 .main-wrapper {
   padding: var(--space-lg);
+  height: auto;
+  overflow: visible;
 }
 
 /* Overflow-Kontrolle nur für Kanban-View */
@@ -1298,7 +1300,7 @@ body {
     border-collapse: collapse; 
   }
   thead {
-    background-color: var(--gray-50);
+    
     margin: none;
     padding: none;
     table-layout: fixed;
@@ -1806,14 +1808,14 @@ body {
 /* Tab Navigation Styles */
 .tab-navigation {
   display: flex;
-  background: white;
-  border-radius: 8px 8px 0 0;
-  border-bottom: 1px solid #e9ecef;
+  gap: 0;
+  
+  padding: 0;
+  border-radius: 0;
   margin-bottom: 0;
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  
 }
 
 .tab-navigation::-webkit-scrollbar {
@@ -1823,43 +1825,36 @@ body {
 .tab-button {
   display: flex;
   align-items: center;
-  padding:  var(--space-sm );
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: #666;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm) var(--space-xs) var(--space-sm);
+  background: var(--color-white);
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  color: var(--text-secondary);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
-  
-  justify-content: center;
+  position: relative;
+  margin-right: var(--space-xxs);
+  margin-bottom: -1px;
 }
 
-.tab-button:hover {
-  color: var(--color-primary);
-  
-}
 
-.tab-button.active {
-  color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
-  
-}
 
 .tab-button i {
   font-size: 1.1rem;
 }
 
 .tab-content {
-  background: white;
-  border-radius: 0 0 8px 8px;
+  background: var(--bg-primary);
+  
   min-height: 400px;
+  
 }
 
 .tab-pane {
   display: none;
-  
 }
 
 .tab-pane.active {
@@ -1869,19 +1864,17 @@ body {
 
 /* Tab Badge für Counts */
 .tab-button .tab-count {
-  background: var(--gray-100);
-  color: var(--gray-500);
-  border-radius: 6px;
-  padding: 0.2rem 0.4rem;
-  font-size: 0.8rem;
-  font-weight: 200;
-  margin-left: 0.25rem;
-  
+  background: var(--gray-50);
+  color: var(--text-secondary);
+  border-radius: var(--radius-md);
+  padding: var(--space-xxs) var(--space-xs);
+  font-size: var(--text-xs);
+  font-weight: 500;
 }
 
 .tab-button.active .tab-count {
   background: var(--gray-200);
-  color: var(--gray-800);
+  color: var(--text-primary);
 }
 
 /* Responsive Tab Design */
@@ -1893,23 +1886,23 @@ body {
   .tab-button {
     flex: 1;
     min-width: auto;
-    padding: 0.75rem 1rem;
-    font-size: 0.9rem;
+    padding: var(--space-sm) var(--space-md);
+    font-size: var(--text-sm);
   }
   
   .tab-button i {
-    font-size: 1rem;
+    font-size: var(--text-md);
   }
 }
 
 @media (max-width: 480px) {
   .tab-button {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.8rem;
+    padding: var(--space-xs) var(--space-sm);
+    font-size: var(--text-xs);
   }
   
   .tab-button i {
-    font-size: 0.9rem;
+    font-size: var(--text-sm);
   }
 }
 
@@ -3356,8 +3349,8 @@ body {
 
 /* Auftragsdetails Layout für Drawer */
 .auftrag-details-layout {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
+  display: flex;
+  flex-direction: column;
   gap: 2rem;
   margin-top: 0;
 }
@@ -4521,11 +4514,7 @@ margin-bottom: var(--space-md);
 .data-table th {
   font-weight: 400;
   color: var(--gray-500);
-  background-color: var(--gray-50);
-  
-  position: sticky;
-  top: 0;
-  z-index: 10;
+
 }
 
 .data-table td {
@@ -5801,7 +5790,7 @@ margin-bottom: var(--space-md);
   flex-direction: row;
   align-items: center;
   gap: var(--space-xs);
-  font-size: var(--text-sm);
+  
   color: var(--color-text, #1f2937);
 }
 

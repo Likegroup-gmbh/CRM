@@ -4,6 +4,7 @@ import '../assets/styles/base.css';
 import '../assets/styles/layout.css';
 import '../assets/styles/components.css';
 import '../assets/styles/dashboard.css';
+import '../assets/styles/addresses.css';
 
 import { CONFIG } from './core/ConfigSystem.js';
 import { modularFilterSystem as filterSystem } from './core/filters/ModularFilterSystem.js';
@@ -11,6 +12,7 @@ import { creatorList } from './modules/creator/CreatorList.js';
 import { creatorListPage } from './modules/creator/CreatorListPage.js';
 import { creatorDetail } from './modules/creator/CreatorDetail.js';
 import { creatorListDetail } from './modules/creator/CreatorListDetail.js';
+import { CreatorAdressenManager } from './modules/creator/CreatorAdressenManager.js';
 import { unternehmenList } from './modules/unternehmen/UnternehmenList.js';
 import { unternehmenCreate } from './modules/unternehmen/UnternehmenCreate.js';
 import { auftragList } from './modules/auftrag/AuftragList.js';

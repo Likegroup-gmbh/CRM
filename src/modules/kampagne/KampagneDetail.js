@@ -664,7 +664,6 @@ export class KampagneDetail {
           <!-- Informationen Tab -->
           <div class="tab-pane active" id="tab-info">
             <div class="detail-section">
-              <h2>Kampagnen Informationen</h2>
               <div class="detail-grid">
                 <!-- Hauptinformationen -->
                 <div class="detail-card">
@@ -798,7 +797,6 @@ export class KampagneDetail {
           <!-- Kooperationen Tab -->
           <div class="tab-pane" id="tab-koops">
             <div class="detail-section">
-              <h2>Kooperationen</h2>
               ${this.renderKooperationen()}
             </div>
           </div>
@@ -806,7 +804,6 @@ export class KampagneDetail {
           <!-- Creators Tab (gebuchte Creator) -->
           <div class="tab-pane" id="tab-creators">
             <div class="detail-section">
-              <h2>Creator</h2>
               <div id="creators-list">
                 ${this.renderCreatorsList()}
               </div>
@@ -816,7 +813,6 @@ export class KampagneDetail {
           <!-- Creator Sourcing Tab (Kandidatenliste) -->
           <div class="tab-pane" id="tab-sourcing">
             <div class="detail-section">
-              <h2>Creator Sourcing</h2>
               ${this.renderCreatorSourcing()}
             </div>
           </div>
@@ -824,7 +820,6 @@ export class KampagneDetail {
           <!-- Favoriten Tab -->
           <div class="tab-pane" id="tab-favs">
             <div class="detail-section">
-              <h2>Favoriten</h2>
               ${this.renderFavoriten()}
             </div>
           </div>
@@ -832,7 +827,6 @@ export class KampagneDetail {
           <!-- Rechnungen Tab -->
           <div class="tab-pane" id="tab-rechnungen">
             <div class="detail-section">
-              <h2>Rechnungen</h2>
               ${this.renderRechnungen()}
             </div>
           </div>
@@ -840,7 +834,6 @@ export class KampagneDetail {
           <!-- Notizen Tab -->
           <div class="tab-pane" id="tab-notizen">
             <div class="detail-section">
-              <h2>Notizen</h2>
               <div id="notizen-list">
                 ${this.renderNotizen()}
               </div>
@@ -850,7 +843,6 @@ export class KampagneDetail {
           <!-- Bewertungen Tab -->
           <div class="tab-pane" id="tab-ratings">
             <div class="detail-section">
-              <h2>Bewertungen</h2>
               <div id="ratings-list">
                 ${this.renderRatings()}
               </div>
@@ -860,7 +852,6 @@ export class KampagneDetail {
           <!-- History Tab -->
           <div class="tab-pane" id="tab-history">
             <div class="detail-section">
-              <h2>History</h2>
               ${this.renderHistory()}
             </div>
           </div>
@@ -1126,7 +1117,7 @@ export class KampagneDetail {
       if (e.detail?.entity === 'kooperation') {
         await this.loadKampagneData();
         const pane = document.querySelector('#tab-history .detail-section');
-        if (pane) pane.innerHTML = `<h2>History</h2>${this.renderHistory()}`;
+        if (pane) pane.innerHTML = `${this.renderHistory()}`;
         const btn = document.querySelector('.tab-button[data-tab="history"] .tab-count');
         if (btn) btn.textContent = String(this.historyCount + this.koopHistoryCount);
       }
@@ -1183,7 +1174,7 @@ export class KampagneDetail {
         // Tab neu rendern
         const favPane = document.querySelector('#tab-favs .detail-section');
         if (favPane) {
-          favPane.innerHTML = `<h2>Favoriten</h2>${this.renderFavoriten()}`;
+          favPane.innerHTML = `${this.renderFavoriten()}`;
         }
         alert('Zu Favoriten hinzugefügt.');
       } catch (err) {

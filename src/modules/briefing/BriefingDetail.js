@@ -23,7 +23,7 @@ export class BriefingDetail {
       if (window.breadcrumbSystem && this.briefing) {
         window.breadcrumbSystem.updateBreadcrumb([
           { label: 'Briefing', url: '/briefing', clickable: true },
-          { label: this.briefing.titel || 'Details', url: `/briefing/${this.briefingId}`, clickable: false }
+          { label: this.briefing.product_service_offer || 'Details', url: `/briefing/${this.briefingId}`, clickable: false }
         ]);
       }
       
@@ -141,22 +141,11 @@ export class BriefingDetail {
             Dokumente
             <span class="tab-count">${this.briefing.documents?.length || 0}</span>
           </button>
-          <button class="tab-button" data-tab="notizen">
-            <i class="icon-document-text"></i>
-            Notizen
-            <span class="tab-count">${this.notizen.length}</span>
-          </button>
-          <button class="tab-button" data-tab="ratings">
-           
-            Bewertungen
-            <span class="tab-count">${this.ratings.length}</span>
-          </button>
         </div>
 
         <div class="tab-content">
           <div class="tab-pane active" id="tab-info">
             <div class="detail-section">
-              <h2>Briefing Informationen</h2>
               <div class="detail-grid">
                 <div class="detail-card">
                   <h3>Allgemein</h3>
@@ -235,12 +224,8 @@ export class BriefingDetail {
                 <div class="detail-card">
                   <h3>Guidelines</h3>
                   <div class="detail-item">
-                    <label>Do's:</label>
-                    <span>${escape(this.briefing.dos)}</span>
-                  </div>
-                  <div class="detail-item">
-                    <label>Don'ts:</label>
-                    <span>${escape(this.briefing.donts)}</span>
+                    <label>Must Haves:</label>
+                    <span>${escape(this.briefing.must_haves)}</span>
                   </div>
                   <div class="detail-item">
                     <label>Rechtlicher Hinweis:</label>
@@ -253,22 +238,7 @@ export class BriefingDetail {
 
           <div class="tab-pane" id="tab-dokumente">
             <div class="detail-section">
-              <h2>Dokumente</h2>
               ${this.renderDocumentsTable()}
-            </div>
-          </div>
-
-          <div class="tab-pane" id="tab-notizen">
-            <div class="detail-section">
-              <h2>Notizen</h2>
-              ${this.renderNotizen()}
-            </div>
-          </div>
-
-          <div class="tab-pane" id="tab-ratings">
-            <div class="detail-section">
-              <h2>Bewertungen</h2>
-              ${this.renderRatings()}
             </div>
           </div>
         </div>

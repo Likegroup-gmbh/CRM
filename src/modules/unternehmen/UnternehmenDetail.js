@@ -808,14 +808,8 @@ export class UnternehmenDetail {
   renderAnsprechpartner() {
     const hasAnsprechpartner = this.ansprechpartner && this.ansprechpartner.length > 0;
     
-    const addButton = `
-      <div class="section-header">
-        <h3>Ansprechpartner</h3>
-      </div>
-    `;
-
     if (!hasAnsprechpartner) {
-      return addButton + `
+      return `
         <div class="empty-state">
           <div class="empty-icon">👥</div>
           <h3>Keine Ansprechpartner vorhanden</h3>
@@ -846,17 +840,12 @@ export class UnternehmenDetail {
         <td>${ap.unternehmen?.firmenname || '-'}</td>
         <td>${ap.stadt || '-'}</td>
         <td>
-          <button class="btn-remove-ansprechpartner" data-ansprechpartner-id="${ap.id}" data-unternehmen-id="${this.unternehmenId}" title="Ansprechpartner entfernen">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          ${actionBuilder.create('ansprechpartner_unternehmen', ap.id)}
         </td>
       </tr>
     `).join('');
 
     return `
-      ${addButton}
       <div class="data-table-container">
         <table class="data-table">
           <thead>
@@ -868,7 +857,7 @@ export class UnternehmenDetail {
               <th>Telefon (Büro)</th>
               <th>Unternehmen</th>
               <th>Stadt</th>
-              <th></th>
+              <th>Aktion</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -947,18 +936,6 @@ export class UnternehmenDetail {
         const unternehmenId = e.target.dataset.unternehmenId || this.unternehmenId;
         if (window.actionsDropdown) {
           window.actionsDropdown.openAddAnsprechpartnerToUnternehmenModal(unternehmenId);
-        }
-      }
-    });
-
-    // Ansprechpartner entfernen Button
-    document.addEventListener('click', (e) => {
-      if (e.target.classList.contains('btn-remove-ansprechpartner')) {
-        const ansprechpartnerId = e.target.dataset.ansprechpartnerId;
-        const unternehmenId = e.target.dataset.unternehmenId || this.unternehmenId;
-        
-        if (confirm('Möchten Sie diesen Ansprechpartner wirklich vom Unternehmen entfernen?')) {
-          this.removeAnsprechpartner(ansprechpartnerId, unternehmenId);
         }
       }
     });

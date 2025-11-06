@@ -392,8 +392,7 @@ export class FormConfig {
           { name: 'zieldetails', label: 'Zieldetails', type: 'textarea', required: false, rows: 3 },
           { name: 'creator_aufgabe', label: 'Creator Aufgabe', type: 'textarea', required: false, rows: 4 },
           { name: 'usp', label: 'USPs', type: 'textarea', required: false, rows: 3, placeholder: 'Unique Selling Points, durch Komma getrennt oder als Fließtext' },
-          { name: 'dos', label: 'Do\'s', type: 'textarea', required: false, rows: 3 },
-          { name: 'donts', label: 'Don\'ts', type: 'textarea', required: false, rows: 3 },
+          { name: 'must_haves', label: 'Must Haves', type: 'textarea', required: false, rows: 4 },
           { name: 'rechtlicher_hinweis', label: 'Rechtlicher Hinweis', type: 'textarea', required: false, rows: 4 },
           { name: 'documents_files', label: 'Dokumente (PDFs, Bilder)', type: 'custom', customType: 'uploader', accept: 'application/pdf,image/*', multiple: true, required: false }
         ]

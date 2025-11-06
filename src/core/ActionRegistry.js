@@ -34,7 +34,10 @@ export class ActionRegistry {
       'set-role', 'set-field',
       'assign-unternehmen', 'remove-unternehmen',
       'assign-marke', 'remove-marke',
-      'rating', 'favorite'
+      'rating', 'favorite',
+      // Creator-Adressen Actions
+      'edit_creator_adresse', 'delete_creator_adresse',
+      'set_standard_adresse', 'set_hauptadresse_standard'
     ];
 
     if (legacyActions.includes(action)) {

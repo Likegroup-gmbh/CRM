@@ -81,22 +81,21 @@ export class AuftragList {
         </div>
       </div>
 
-      <div class="content-section">
-        <div class="table-filter-wrapper">
-          <div class="filter-bar">
-            <div id="filter-dropdown-container"></div>
-            
-          </div>
-          <div class="table-actions">
-            <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
-            <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
-            <span id="selected-count" style="display:none;">0 ausgewählt</span>
-            <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
-          </div>
+      <div class="table-filter-wrapper">
+        <div class="filter-bar">
+          <div id="filter-dropdown-container"></div>
+          
         </div>
+        <div class="table-actions">
+          <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
+          <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
+          <span id="selected-count" style="display:none;">0 ausgewählt</span>
+          <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
+        </div>
+      </div>
 
-        <!-- Daten-Tabelle -->
-        <div class="data-table-container">
+      <!-- Daten-Tabelle -->
+      <div class="table-container">
           <table class="data-table">
             <thead>
               <tr>

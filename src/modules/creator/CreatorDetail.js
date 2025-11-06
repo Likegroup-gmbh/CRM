@@ -1,6 +1,7 @@
 // CreatorDetail.js (ES6-Modul)
 // Creator-Detailseite mit allen relevanten Informationen
 import { renderKampagnenTable } from '../kampagne/KampagneTable.js';
+import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 
 export class CreatorDetail {
   constructor() {
@@ -13,6 +14,8 @@ export class CreatorDetail {
     this.kooperationen = [];
     this.rechnungen = [];
     this.unternehmen = []; // Neues Feld für Unternehmen
+    this.creatorAdressen = []; // Zusätzliche Adressen
+    this.eventsBound = false; // Flag um doppeltes Binden zu verhindern
   }
 
   // Initialisiere Creator-Detailseite
@@ -43,8 +46,11 @@ export class CreatorDetail {
       // Rendere die Seite
       await this.render();
       
-      // Binde Events
-      this.bindEvents();
+      // Binde Events (nur beim ersten Mal)
+      if (!this.eventsBound) {
+        this.bindEvents();
+        this.eventsBound = true;
+      }
       
       console.log('✅ CREATORDETAIL: Initialisierung abgeschlossen');
       
@@ -98,6 +104,20 @@ export class CreatorDetail {
         .eq('creator_id', this.creatorId);
       this.creator.creator_types = (creatorTypen || []).map(r => r.creator_type).filter(Boolean);
     } catch {}
+
+    // Lade zusätzliche Adressen
+    try {
+      const { data: adressen } = await window.supabase
+        .from('creator_adressen')
+        .select('*')
+        .eq('creator_id', this.creatorId)
+        .order('created_at', { ascending: false });
+      this.creatorAdressen = adressen || [];
+      console.log('✅ CREATORDETAIL: Creator-Adressen geladen:', this.creatorAdressen.length);
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Creator-Adressen:', error);
+      this.creatorAdressen = [];
+    }
 
     // Notizen über NotizenSystem laden
     this.notizen = await window.notizenSystem.loadNotizen('creator', this.creatorId);
@@ -347,7 +367,6 @@ export class CreatorDetail {
           <!-- Informationen Tab -->
           <div class="tab-pane active" id="tab-info">
             <div class="detail-section">
-              <h2>Creator Informationen</h2>
               <div class="detail-grid">
                 <div class="detail-card">
                   <h3>Kontakt</h3>
@@ -431,7 +450,6 @@ export class CreatorDetail {
           <!-- Kampagnen Tab -->
           <div class="tab-pane" id="tab-kampagnen">
             <div class="detail-section">
-              <h2>Kampagnen</h2>
               ${this.renderKampagnen()}
             </div>
           </div>
@@ -439,7 +457,6 @@ export class CreatorDetail {
           <!-- Kooperationen Tab -->
           <div class="tab-pane" id="tab-kooperationen">
             <div class="detail-section">
-              <h2>Kooperationen</h2>
               ${this.renderKooperationen()}
             </div>
           </div>
@@ -447,7 +464,6 @@ export class CreatorDetail {
           <!-- Listen Tab -->
           <div class="tab-pane" id="tab-listen">
             <div class="detail-section">
-              <h2>Listen</h2>
               ${this.renderLists()}
             </div>
           </div>
@@ -455,7 +471,6 @@ export class CreatorDetail {
           <!-- Unternehmen Tab -->
           <div class="tab-pane" id="tab-unternehmen">
             <div class="detail-section">
-              <h2>Unternehmen</h2>
               ${this.renderUnternehmen()}
             </div>
           </div>
@@ -463,7 +478,6 @@ export class CreatorDetail {
           <!-- Rechnungen Tab -->
           <div class="tab-pane" id="tab-rechnungen">
             <div class="detail-section">
-              <h2>Rechnungen</h2>
               ${this.renderRechnungen()}
             </div>
           </div>
@@ -471,7 +485,6 @@ export class CreatorDetail {
           <!-- Adresse Tab -->
           <div class="tab-pane" id="tab-adresse">
             <div class="detail-section">
-              <h2>Adresse</h2>
               ${this.renderAdresse()}
             </div>
           </div>
@@ -479,7 +492,6 @@ export class CreatorDetail {
           <!-- Notizen Tab -->
           <div class="tab-pane" id="tab-notizen">
             <div class="detail-section">
-              <h2>Notizen</h2>
               ${this.renderNotizen()}
             </div>
           </div>
@@ -487,7 +499,6 @@ export class CreatorDetail {
           <!-- Ratings Tab -->
           <div class="tab-pane" id="tab-ratings">
             <div class="detail-section">
-              <h2>Bewertungen</h2>
               ${this.renderRatings()}
             </div>
           </div>
@@ -711,30 +722,93 @@ export class CreatorDetail {
       return window.validatorSystem.sanitizeHtml(String(val));
     };
 
-    const columns = [
-      { label: 'Straße', value: c.lieferadresse_strasse || '-' },
-      { label: 'Hausnummer', value: c.lieferadresse_hausnummer || '-' },
-      { label: 'PLZ', value: c.lieferadresse_plz || '-' },
-      { label: 'Stadt', value: c.lieferadresse_stadt || '-' },
-      { label: 'Land', value: c.lieferadresse_land || '-' }
-    ];
-
-    return `
+    // Hauptadresse aus Creator-Tabelle als Tabelle
+    const hauptAdresseTable = `
       <div class="data-table-container">
-        <table class="data-table" id="creator-address-table">
+        <table class="data-table">
           <thead>
             <tr>
-              ${columns.map(col => `<th>${sanitize(col.label)}</th>`).join('')}
+              <th>Typ</th>
+              <th>Firma</th>
+              <th>Straße</th>
+              <th>Hausnummer</th>
+              <th>PLZ</th>
+              <th>Stadt</th>
+              <th>Land</th>
+              <th>Aktionen</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              ${columns.map(col => `<td>${sanitize(col.value)}</td>`).join('')}
+              <td><span class="badge badge-primary">Hauptadresse</span></td>
+              <td>-</td>
+              <td>${sanitize(c.lieferadresse_strasse)}</td>
+              <td>${sanitize(c.lieferadresse_hausnummer)}</td>
+              <td>${sanitize(c.lieferadresse_plz)}</td>
+              <td>${sanitize(c.lieferadresse_stadt)}</td>
+              <td>${sanitize(c.lieferadresse_land)}</td>
+              <td>
+                ${actionBuilder.create('creator_hauptadresse', this.creatorId)}
+              </td>
             </tr>
+            ${this.renderZusatzAdressenRows()}
           </tbody>
         </table>
       </div>
     `;
+
+    return `
+      <div class="creator-addresses-container">
+        <div class="address-section">
+          <div class="section-header">
+            <h3>Adressen</h3>
+            <button 
+              class="primary-btn btn-sm" 
+              onclick="window.creatorAdressenManager?.open('${this.creatorId}')"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px; margin-right: 4px;">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              Neue Adresse hinzufügen
+            </button>
+          </div>
+          ${this.creatorAdressen && this.creatorAdressen.length === 0 
+            ? `${hauptAdresseTable}<p class="empty-text" style="margin-top: 1rem; color: #6b7280;">Keine zusätzlichen Adressen hinterlegt.</p>` 
+            : hauptAdresseTable
+          }
+        </div>
+      </div>
+    `;
+  }
+
+  renderZusatzAdressenRows() {
+    if (!this.creatorAdressen || this.creatorAdressen.length === 0) {
+      return '';
+    }
+
+    return this.creatorAdressen.map(adresse => `
+      <tr>
+        <td>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span>${window.validatorSystem.sanitizeHtml(adresse.adressname)}</span>
+            ${adresse.ist_standard ? `
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="var(--color-warning, #f59e0b)" style="width: 18px; height: 18px; flex-shrink: 0;">
+                <path d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" />
+              </svg>
+            ` : ''}
+          </div>
+        </td>
+        <td>${window.validatorSystem.sanitizeHtml(adresse.firmenname || '-')}</td>
+        <td>${window.validatorSystem.sanitizeHtml(adresse.strasse || '-')}</td>
+        <td>${window.validatorSystem.sanitizeHtml(adresse.hausnummer || '-')}</td>
+        <td>${window.validatorSystem.sanitizeHtml(adresse.plz || '-')}</td>
+        <td>${window.validatorSystem.sanitizeHtml(adresse.stadt || '-')}</td>
+        <td>${window.validatorSystem.sanitizeHtml(adresse.land || 'Deutschland')}</td>
+        <td>
+          ${actionBuilder.create('creator_adresse', adresse.id)}
+        </td>
+      </tr>
+    `).join('');
   }
 
   formatFullAddress(creator) {
@@ -795,6 +869,38 @@ export class CreatorDetail {
       }
     });
 
+    // Creator-Adressen Update Event - mit eindeutiger Kennung
+    const adressenUpdateHandler = async (e) => {
+      if (e.detail?.entity === 'creator_adressen' && e.detail?.creatorId === this.creatorId) {
+        console.log('🔄 CREATORDETAIL: Creator-Adressen aktualisiert, lade Daten neu');
+        await this.loadCreatorData();
+        
+        // Tab neu rendern
+        const adresseTab = document.getElementById('tab-adresse');
+        console.log('🔍 CREATORDETAIL: Tab-Element gefunden?', !!adresseTab);
+        
+        if (adresseTab) {
+          adresseTab.innerHTML = `
+            <div class="detail-section">
+              ${this.renderAdresse()}
+            </div>
+          `;
+          console.log('✅ CREATORDETAIL: Adresse-Tab erfolgreich aktualisiert');
+        } else {
+          console.error('❌ CREATORDETAIL: Tab-Element nicht gefunden!');
+        }
+      }
+    };
+    
+    // Entferne alte Listener falls vorhanden
+    if (this.adressenUpdateHandler) {
+      window.removeEventListener('entityUpdated', this.adressenUpdateHandler);
+    }
+    
+    // Speichere Referenz und registriere
+    this.adressenUpdateHandler = adressenUpdateHandler;
+    window.addEventListener('entityUpdated', this.adressenUpdateHandler);
+
     // Bewertungen Update Event
     window.addEventListener('bewertungenUpdated', async (e) => {
       if (e.detail.entityType === 'creator' && e.detail.entityId === this.creatorId) {
@@ -817,7 +923,7 @@ export class CreatorDetail {
       console.log('🔄 CREATORDETAIL: Soft-Refresh - lade Daten neu');
       await this.loadCreatorData();
       this.render();
-      this.bindEvents();
+      // Events sind bereits gebunden, nicht erneut binden
     });
   }
 

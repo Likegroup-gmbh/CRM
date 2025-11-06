@@ -707,7 +707,7 @@
 }
 
 .primary-btn:hover {
-  background-color: var(--color-primary-light);
+  background-color: var(--color-primary);
 }
 
 .secondary-btn {

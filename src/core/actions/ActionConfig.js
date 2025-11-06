@@ -146,6 +146,36 @@ export const ActionConfigs = {
     kundenActions: ['view']
   },
 
+  // Ansprechpartner Actions (im Kontext von Unternehmen)
+  ansprechpartner_unternehmen: {
+    actions: [
+      { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
+      { id: 'separator' },
+      { id: 'remove_ansprechpartner_link', icon: 'delete', label: 'Verknüpfung entfernen', danger: true, roles: ['admin', 'mitarbeiter'] }
+    ],
+    kundenActions: ['view']
+  },
+
+  // Creator Adressen Actions
+  creator_adresse: {
+    actions: [
+      { id: 'edit_creator_adresse', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
+      { id: 'set_standard_adresse', icon: 'favorite', label: 'Als Standard festlegen', roles: ['admin', 'mitarbeiter'] },
+      { id: 'separator' },
+      { id: 'delete_creator_adresse', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
+    ],
+    kundenActions: []
+  },
+
+  // Creator Hauptadresse Actions (nur bearbeiten, nicht löschen)
+  creator_hauptadresse: {
+    actions: [
+      { id: 'edit_creator', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
+      { id: 'set_hauptadresse_standard', icon: 'favorite', label: 'Als Standard festlegen', roles: ['admin', 'mitarbeiter'] }
+    ],
+    kundenActions: []
+  },
+
   // Briefing Actions
   briefing: {
     actions: [

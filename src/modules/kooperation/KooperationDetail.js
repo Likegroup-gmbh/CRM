@@ -223,6 +223,7 @@ export class KooperationDetail {
         .from('kooperation_versand')
         .select(`
           *,
+          creator_adresse:creator_adresse_id(*),
           kooperation:kooperation_id(
             creator:creator_id(
               id, vorname, nachname,
@@ -236,11 +237,7 @@ export class KooperationDetail {
       
       if (!versandError) {
         this.versandDaten = versandListe || [];
-        console.log('✅ KOOPERATIONDETAIL: Versand-Daten mit Creator-Info geladen:', this.versandDaten.length, 'Einträge');
-        // Debug: Zeige Creator-Daten der ersten Sendung
-        if (this.versandDaten.length > 0) {
-          console.log('🔍 DEBUG: Erste Sendung Creator-Daten:', this.versandDaten[0].kooperation?.creator);
-        }
+        console.log('✅ KOOPERATIONDETAIL: Versand-Daten mit Creator-Info und Adressen geladen:', this.versandDaten.length, 'Einträge');
       } else {
         console.log('ℹ️ KOOPERATIONDETAIL: Keine Versand-Daten vorhanden oder Tabelle existiert nicht');
         this.versandDaten = [];
@@ -1037,15 +1034,17 @@ export class KooperationDetail {
     const creator = this.kooperation?.creator || this.creator; // Verwende Creator aus Kooperation
     
     const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
-    const formatAddress = (creator) => {
-      console.log('🔍 DEBUG formatAddress - Creator:', creator);
-      if (!creator?.lieferadresse_strasse) {
-        console.log('⚠️ DEBUG: Keine lieferadresse_strasse gefunden');
-        return 'Keine Adresse hinterlegt';
+    const formatAddress = (versand, creator) => {
+      // Verwende creator_adresse falls vorhanden, sonst Hauptadresse
+      if (versand.creator_adresse) {
+        const addr = versand.creator_adresse;
+        return `<strong>${addr.adressname}:</strong><br>${addr.strasse || ''} ${addr.hausnummer || ''}, ${addr.plz || ''} ${addr.stadt || ''}, ${addr.land || 'Deutschland'}`;
+      } else {
+        if (!creator?.lieferadresse_strasse) {
+          return 'Keine Adresse hinterlegt';
+        }
+        return `<strong>Hauptadresse:</strong><br>${creator.lieferadresse_strasse} ${creator.lieferadresse_hausnummer || ''}, ${creator.lieferadresse_plz || ''} ${creator.lieferadresse_stadt || ''}, ${creator.lieferadresse_land || 'Deutschland'}`;
       }
-      const address = `${creator.lieferadresse_strasse} ${creator.lieferadresse_hausnummer || ''}, ${creator.lieferadresse_plz || ''} ${creator.lieferadresse_stadt || ''}, ${creator.lieferadresse_land || 'Deutschland'}`;
-      console.log('✅ DEBUG: Formatierte Adresse:', address);
-      return address;
     };
 
     const tableRows = versandListe.map(versand => {
@@ -1063,7 +1062,7 @@ export class KooperationDetail {
           <td class="address-cell">
             <div class="address-compact">
               <div class="address-name">${versandCreator?.vorname || ''} ${versandCreator?.nachname || ''}</div>
-              <div class="address-text">${formatAddress(versandCreator)}</div>
+              <div class="address-text">${formatAddress(versand, versandCreator)}</div>
             </div>
           </td>
           <td class="text-center">

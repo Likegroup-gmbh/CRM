@@ -137,7 +137,7 @@ export class RechnungList {
         </div>
       </div>
 
-      <div class="data-table-container">
+      <div class="table-container">
         <table class="data-table">
           <thead>
             <tr>
