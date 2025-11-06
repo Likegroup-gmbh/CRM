@@ -80,27 +80,6 @@
 .feedback-cell .fb-text { white-space: pre-wrap; }
 
 
-/* Dashboard CSS - T-Shirt-Größen-System mit CSS-Variablen */
-
-/* ===== CSS-VARIABLEN ===== */
-
-
-/* ===== RESET UND BASIS ===== */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: 'Lexend', sans-serif;
-  background-color: var(--gray-100);
-  color: var(--text-primary);
-  font-size: var(--text-md);
-  line-height: 1.5;
-  
-}
-
 /* ===== PASSWORD INPUT ===== */
 .password-input-container {
   position: relative;
@@ -153,6 +132,68 @@ body {
   color: var(--color-info);
   font-size: var(--text-sm);
   margin-top: var(--space-xs);
+}
+
+/* ===== BUTTONS ===== */
+.btn {
+  padding: var(--space-sm) var(--space-lg);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+}
+
+.primary-btn {
+  background-color: var(--color-primary);
+  color: var(--text-inverse);
+  padding: var(--space-xs);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+}
+
+.primary-btn:hover {
+  background-color: var(--color-primary-light);
+}
+
+.secondary-btn {
+  border: 1px solid var(--gray-300);
+  padding: var(--space-xs);
+  background-color: var(--bg-primary);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  color: var(--text-primary);
+}
+
+.secondary-btn:hover {
+  background-color: var(--gray-50);
+}
+
+.danger-btn {
+  background-color: var(--color-error);
+  color: var(--text-inverse);
+  padding: var(--space-xs);
+  border: none;
+  border-radius: var(--radius-md);
+}
+
+.btn-sm {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
 }
 
 /* ===== DASHBOARD ===== */
@@ -994,16 +1035,14 @@ body {
 
 /* Tab Navigation Styles */
 .tab-navigation {
+  position: relative;
   display: flex;
   gap: 0;
   border-bottom: 1px solid var(--gray-200);
-  padding: 0;
-  border-radius: 0;
-  margin-bottom: 0;
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  position: relative;
+  background: var(--color-white);
 }
 
 .tab-navigation::-webkit-scrollbar {
@@ -1011,10 +1050,11 @@ body {
 }
 
 .tab-button {
-  display: flex;
+  position: relative;
+  display: inline-flex;
   align-items: center;
   gap: var(--space-xs);
-  padding: var(--space-xs) var(--space-sm);
+  padding: var(--space-xs);
   background: var(--color-white);
   border: 1px solid transparent;
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
@@ -1023,28 +1063,36 @@ body {
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
-  position: relative;
-  margin-right: var(--space-xxs);
   margin-bottom: -1px;
+  z-index: 1;
 }
 
 .tab-button:hover {
   color: var(--text-primary);
-  background: var(--gray-50);
 }
 
 .tab-button.active {
   color: var(--text-primary);
-  background: white;
+  background: var(--color-white);
   border-top: 1px solid var(--gray-200);
   border-left: 1px solid var(--gray-200);
   border-right: 1px solid var(--gray-200);
-  border-bottom: 1px solid white;
-  z-index: 10;
+  border-bottom: 0;
+  z-index: 3;
 }
-.tab-button i {
-  font-size: 1.1rem;
+
+/* Wichtig: Pseudo-Element überdeckt die Unterlinie der Navigation unter dem aktiven Tab */
+.tab-button.active::after {
+  content: "";
+  position: absolute;
+  left: -1px;
+  right: -1px;
+  bottom: -2px;
+  height: 3px;
+  background: var(--color-white);
+  pointer-events: none;
 }
+
 
 .tab-content {
   background: var(--bg-primary);
@@ -1086,24 +1134,18 @@ body {
   .tab-button {
     flex: 1;
     min-width: auto;
-    padding: var(--space-sm) var(--space-md);
+   
     font-size: var(--text-sm);
   }
-  
-  .tab-button i {
-    font-size: var(--text-md);
-  }
+ 
 }
 
 @media (max-width: 480px) {
   .tab-button {
-    padding: var(--space-xs) var(--space-sm);
+    
     font-size: var(--text-xs);
   }
-  
-  .tab-button i {
-    font-size: var(--text-sm);
-  }
+ 
 }
 
 /* Modal Styles */
@@ -1615,26 +1657,71 @@ body {
 }
 
 .kanban-board {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
   gap: var(--space-sm);
-  height: calc(100vh - 300px);
-  min-height: 500px;
+  flex: 1;
+  min-height: 0;
+  padding-bottom: var(--space-sm);
 }
 
-@media (max-width: 1200px) {
-  .kanban-board {
-    grid-template-columns: 1fr;
-    height: auto;
-  }
+/* Kampagnen-Kanban mit 11 Spalten und horizontalem Scrolling */
+.kampagne-kanban-board {
+  flex: none !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: calc(100vh - 250px);
+  min-height: 600px;
+  padding-bottom: var(--space-md);
+}
+
+.kampagne-kanban-board .kanban-column {
+  min-width: 280px;
+  max-width: 320px;
+  flex-shrink: 0;
+}
+
+/* Scrollbar-Styling für Kampagnen-Kanban */
+.kampagne-kanban-board::-webkit-scrollbar {
+  height: 10px;
+}
+
+.kampagne-kanban-board::-webkit-scrollbar-track {
+  background: var(--gray-100);
+  border-radius: var(--radius-md);
+}
+
+.kampagne-kanban-board::-webkit-scrollbar-thumb {
+  background: var(--gray-400);
+  border-radius: var(--radius-md);
+}
+
+.kampagne-kanban-board::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-500);
 }
 
 .kanban-column {
+  min-width: 320px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: var(--gray-50);
   border-radius: var(--radius-md);
+}
+
+@media (max-width: 1200px) {
+  .kanban-board {
+    flex-direction: column;
+  }
+  
+  .kampagne-kanban-board {
+    height: auto;
+    overflow-x: auto;
+  }
+  
+  .kanban-column {
+    min-width: 100%;
+  }
 }
 
 .kanban-column-header {
