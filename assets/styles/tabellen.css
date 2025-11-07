@@ -72,9 +72,24 @@
   background: white;
 }
 
-.kooperation-video-grid .grid-cell.read-only {
+/* Zebra-Striping für Zeilen - jede gerade Zeile bekommt grauen Hintergrund */
+.kooperation-video-grid tbody tr:nth-child(even) td {
   background: var(--gray-50);
-  color: var(--text-secondary);
+}
+
+.kooperation-video-grid tbody tr:nth-child(odd) td {
+  background: white;
+}
+
+/* Erste zwei Spalten (sticky) behalten das Zebra-Muster */
+.kooperation-video-grid tbody tr:nth-child(even) td:nth-child(1),
+.kooperation-video-grid tbody tr:nth-child(even) td:nth-child(2) {
+  background: var(--gray-50);
+}
+
+.kooperation-video-grid tbody tr:nth-child(odd) td:nth-child(1),
+.kooperation-video-grid tbody tr:nth-child(odd) td:nth-child(2) {
+  background: white;
 }
 
 .kooperation-row {
