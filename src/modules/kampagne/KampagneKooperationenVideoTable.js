@@ -737,14 +737,18 @@ export class KampagneKooperationenVideoTable {
         
         // Erstelle neuen Kommentar nur wenn Text vorhanden
         if (value && value.trim()) {
+          // Hole aktuellen User
+          const currentUser = window.currentUser;
+          const authorName = currentUser?.name || 'Unbekannt';
+          
           const { data, error } = await window.supabase
             .from('kooperation_video_comment')
             .insert({
               video_id: videoId,
               runde: runde,
               text: value.trim(),
-              author_benutzer_id: window.currentUser?.id || null,
-              author_name: window.currentUser ? `${window.currentUser.vorname} ${window.currentUser.nachname}` : 'Unbekannt',
+              author_benutzer_id: currentUser?.id || null,
+              author_name: authorName,
               is_public: true
             })
             .select('id, video_id, text, runde, author_name, created_at')
@@ -762,7 +766,7 @@ export class KampagneKooperationenVideoTable {
             this.videoComments[videoId].r2 = [data];
           }
           
-          console.log(`✅ Feedback Runde ${runde} gespeichert als Kommentar`);
+          console.log(`✅ Feedback Runde ${runde} gespeichert als Kommentar von ${authorName}`);
         } else {
           // Wenn Text leer, dann nur löschen (bereits oben gemacht)
           if (!this.videoComments[videoId]) {
