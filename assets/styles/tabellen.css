@@ -157,8 +157,51 @@
 .auto-resize-textarea {
   overflow: hidden;
   resize: none;
-  min-height: 40px;
+  min-height: 60px; /* Einheitliche Mindesthöhe */
   height: auto;
+}
+
+/* Video-Fields-Stack: Container für alle Video-Felder in einer Zelle */
+.video-fields-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+/* Video-Field-Wrapper: Jedes einzelne Video-Feld */
+.video-field-wrapper {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 81px;
+  
+  
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.video-field-wrapper:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+/* Gestapelte Video-Inputs innerhalb einer Kooperation */
+.stacked-video-input,
+.stacked-video-textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.stacked-video-textarea {
+  min-height: 60px; /* Einheitliche Höhe für alle Video-Textareas */
+  flex: 1;
+}
+
+/* Video-Stack-Zellen */
+.video-stack-cell {
+  padding: var(--space-xs) !important;
+  vertical-align: top;
 }
 
 .grid-input.save-success,

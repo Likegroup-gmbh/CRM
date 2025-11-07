@@ -490,7 +490,8 @@ export class KampagneKooperationenVideoTable {
       return '<span class="text-muted">-</span>';
     }
     
-    return videos.map(video => fieldRenderer(video)).join('');
+    // Wrapping-Container für einheitliche Höhe aller Felder in dieser Spalte
+    return `<div class="video-fields-stack">${videos.map(video => `<div class="video-field-wrapper">${fieldRenderer(video)}</div>`).join('')}</div>`;
   }
 
   // Hilfsfunktion
@@ -529,22 +530,72 @@ export class KampagneKooperationenVideoTable {
   
   // Auto-resize für Textareas initialisieren
   initAutoResizeTextareas() {
-    const autoResizeTextareas = document.querySelectorAll('.auto-resize-textarea');
+    // Finde alle Kooperations-Zeilen
+    const kooperationRows = document.querySelectorAll('.kooperation-row');
     
-    const adjustHeight = (textarea) => {
-      textarea.style.height = 'auto';
-      textarea.style.height = Math.max(40, textarea.scrollHeight) + 'px';
-    };
+    kooperationRows.forEach(row => {
+      // Finde alle Video-Stack-Cells in dieser Zeile
+      const videoStackCells = row.querySelectorAll('.video-stack-cell');
+      
+      videoStackCells.forEach(cell => {
+        // Finde alle video-field-wrapper in dieser Zelle
+        const fieldWrappers = cell.querySelectorAll('.video-field-wrapper');
+        
+        if (fieldWrappers.length > 0) {
+          // Berechne die maximale Höhe, die ein Feld in dieser Spalte braucht
+          let maxHeight = 60;
+          
+          fieldWrappers.forEach(wrapper => {
+            const textarea = wrapper.querySelector('.auto-resize-textarea, .stacked-video-textarea');
+            if (textarea) {
+              textarea.style.height = 'auto';
+              const neededHeight = Math.max(60, textarea.scrollHeight);
+              maxHeight = Math.max(maxHeight, neededHeight);
+            }
+          });
+          
+          // Setze alle Felder in dieser Spalte auf die gleiche Höhe
+          fieldWrappers.forEach(wrapper => {
+            const textarea = wrapper.querySelector('.auto-resize-textarea, .stacked-video-textarea');
+            if (textarea) {
+              textarea.style.height = maxHeight + 'px';
+              wrapper.style.minHeight = maxHeight + 'px';
+            }
+          });
+        }
+      });
+    });
     
-    autoResizeTextareas.forEach(textarea => {
-      // Initial-Höhe setzen
-      adjustHeight(textarea);
-      
-      // Bei Input Event Höhe anpassen
-      textarea.addEventListener('input', () => adjustHeight(textarea));
-      
-      // Bei Focus auch prüfen
-      textarea.addEventListener('focus', () => adjustHeight(textarea));
+    // Event-Listener für Input-Events
+    const allTextareas = document.querySelectorAll('.auto-resize-textarea, .stacked-video-textarea');
+    allTextareas.forEach(textarea => {
+      textarea.addEventListener('input', () => {
+        // Finde die Parent-Zelle
+        const cell = textarea.closest('.video-stack-cell');
+        if (!cell) return;
+        
+        // Finde alle field-wrapper in dieser Zelle
+        const fieldWrappers = cell.querySelectorAll('.video-field-wrapper');
+        let maxHeight = 60;
+        
+        // Berechne neue maximale Höhe
+        fieldWrappers.forEach(wrapper => {
+          const ta = wrapper.querySelector('.auto-resize-textarea, .stacked-video-textarea');
+          if (ta) {
+            ta.style.height = 'auto';
+            maxHeight = Math.max(maxHeight, ta.scrollHeight);
+          }
+        });
+        
+        // Setze alle auf die gleiche Höhe
+        fieldWrappers.forEach(wrapper => {
+          const ta = wrapper.querySelector('.auto-resize-textarea, .stacked-video-textarea');
+          if (ta) {
+            ta.style.height = maxHeight + 'px';
+            wrapper.style.minHeight = maxHeight + 'px';
+          }
+        });
+      });
     });
   }
 
