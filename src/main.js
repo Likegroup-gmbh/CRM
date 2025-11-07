@@ -5,6 +5,7 @@ import '../assets/styles/layout.css';
 import '../assets/styles/components.css';
 import '../assets/styles/dashboard.css';
 import '../assets/styles/addresses.css';
+import '../assets/styles/tabellen.css';
 
 import { CONFIG } from './core/ConfigSystem.js';
 import { modularFilterSystem as filterSystem } from './core/filters/ModularFilterSystem.js';
@@ -65,6 +66,7 @@ import { dashboardModule } from './modules/dashboard/DashboardModule.js';
 import { breadcrumbSystem } from './core/BreadcrumbSystem.js';
 import { TaskDetailDrawer } from './modules/tasks/TaskDetailDrawer.js';
 import { taskListPage } from './modules/tasks/TaskListPage.js';
+import { tabellenModule } from './modules/tabellen/TabellenModule.js';
 // Zentrales Bestätigungs-Modal (side-effect Import, hängt window.confirmationModal an)
 import './core/ConfirmationModal.js';
 // main.js - Haupt-Einstiegspunkt für ES6-Module
@@ -361,6 +363,7 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('kunden-kooperation-detail', kundenKooperationDetail);
   moduleRegistry.register('dashboard', dashboardModule);
   moduleRegistry.register('tasks', taskListPage);
+  moduleRegistry.register('tabellen', tabellenModule);
   
   // Profile-Modul initialisieren und registrieren
   const profileDetail = new ProfileDetail();

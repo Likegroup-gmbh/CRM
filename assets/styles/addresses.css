@@ -330,42 +330,6 @@
   border: 1px solid #fecaca;
 }
 
-/* Button Styles */
-.primary-btn {
-  background: var(--color-primary);
-  color: white;
-  border: none;
-  padding: 0.625rem 1.25rem;
-  border-radius: 6px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.primary-btn:hover {
-    background-color: var(--color-primary);
-}
-
-.secondary-btn {
-  background: white;
-  color: #374151;
-  border: 1px solid #d1d5db;
-  padding: 0.625rem 1.25rem;
-  border-radius: 6px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.secondary-btn:hover {
-  background: #f9fafb;
-  border-color: #9ca3af;
-}
-
 .btn-sm {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;

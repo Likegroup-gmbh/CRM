@@ -134,7 +134,6 @@ export class BriefingDetail {
       <div class="content-section">
         <div class="tab-navigation">
           <button class="tab-button active" data-tab="info">
-            <i class="icon-information-circle"></i>
             Informationen
           </button>
           <button class="tab-button" data-tab="dokumente">

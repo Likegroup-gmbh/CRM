@@ -742,7 +742,7 @@
 /* Creator Detail Styles */
 .detail-section {
   margin-bottom: 2rem;
-  
+  min-height: 100px;
   background: white;
   border-radius: var(--radius-lg);
   
@@ -1096,9 +1096,8 @@
 
 .tab-content {
   background: var(--bg-primary);
-  
   min-height: 400px;
- 
+  overflow-x: hidden; /* Verhindert horizontales Scrollen des Tab-Contents */
 }
 
 .tab-pane {
@@ -1106,8 +1105,36 @@
 }
 
 .tab-pane.active {
-  display: block;
+  display: block !important;
   padding-top: var(--space-xl);
+}
+
+/* Spezifischer Fix für koops-videos Tab */
+#tab-koops-videos.active {
+  display: block !important;
+  visibility: visible !important;
+  overflow-x: hidden; /* Verhindert horizontales Scrollen des Tabs */
+}
+
+#tab-koops-videos .detail-section {
+  overflow-x: hidden; /* Verhindert horizontales Scrollen der Section */
+}
+
+/* Overflow-Kontrolle für Kampagne-Detail mit Grid-Tabelle */
+.main-content.kampagne-detail-grid-active {
+  overflow-x: hidden;
+}
+
+.kampagne-detail-grid-active .main-wrapper {
+  overflow-x: hidden;
+}
+
+.kampagne-detail-grid-active .content-section {
+  overflow-x: hidden;
+}
+
+.kampagne-detail-grid-active .page-header {
+  overflow-x: hidden;
 }
 
 /* Tab Badge für Counts */

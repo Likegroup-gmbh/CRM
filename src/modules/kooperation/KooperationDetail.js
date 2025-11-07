@@ -270,31 +270,24 @@ export class KooperationDetail {
       <div class="content-section">
         <div class="tab-navigation">
           <button class="tab-button active" data-tab="info">
-            <i class="icon-information-circle"></i>
             Informationen
           </button>
           <button class="tab-button" data-tab="videos">
-            <i class="icon-film"></i>
             Videos <span class="tab-count">${this.videos.length}</span>
           </button>
           <button class="tab-button" data-tab="rechnungen">
-            <i class="icon-currency-euro"></i>
             Rechnungen <span class="tab-count">${this.rechnungen.length}</span>
           </button>
           <button class="tab-button" data-tab="versand">
-            <i class="icon-truck"></i>
             Versand <span class="tab-count">${this.versandDaten?.length || 0}</span>
           </button>
           <button class="tab-button" data-tab="notizen">
-            <i class="icon-document-text"></i>
             Notizen <span class="tab-count">${this.notizen.length}</span>
           </button>
           <button class="tab-button" data-tab="ratings">
-           
             Bewertungen <span class="tab-count">${this.ratings.length}</span>
           </button>
           <button class="tab-button" data-tab="history">
-            
             History <span class="tab-count">${this.historyCount}</span>
           </button>
           <button class="tab-button" data-tab="tasks">

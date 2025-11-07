@@ -318,45 +318,36 @@ export class CreatorDetail {
         <!-- Tab Navigation -->
         <div class="tab-navigation">
           <button class="tab-button active" data-tab="info">
-            <i class="icon-user"></i>
             Informationen
           </button>
           <button class="tab-button" data-tab="kampagnen">
-            <i class="icon-megaphone"></i>
             Kampagnen
             <span class="tab-count">${this.kampagnen.length}</span>
           </button>
           <button class="tab-button" data-tab="kooperationen">
-            <i class="icon-handshake"></i>
             Kooperationen
             <span class="tab-count">${this.kooperationen.length}</span>
           </button>
           <button class="tab-button" data-tab="listen">
-            <i class="icon-list"></i>
             Listen
             <span class="tab-count">${this.lists.length}</span>
           </button>
           <button class="tab-button" data-tab="unternehmen">
-            <i class="icon-building"></i>
             Unternehmen
             <span class="tab-count">${(this.unternehmen||[]).length}</span>
           </button>
           <button class="tab-button" data-tab="rechnungen">
-            <i class="icon-currency-euro"></i>
             Rechnungen
             <span class="tab-count">${this.rechnungen.length}</span>
           </button>
           <button class="tab-button" data-tab="adresse">
-            <i class="icon-map-pin"></i>
             Adresse
           </button>
           <button class="tab-button" data-tab="notizen">
-            <i class="icon-document-text"></i>
             Notizen
             <span class="tab-count">${this.notizen.length}</span>
           </button>
           <button class="tab-button" data-tab="ratings">
-            
             Bewertungen
             <span class="tab-count">${this.ratings.length}</span>
           </button>

@@ -1,6 +1,7 @@
 // KampagneDetail.js (ES6-Modul)
 // Kampagnen-Detail-Ansicht
 import { renderCreatorTable } from '../creator/CreatorTable.js';
+import { KampagneKooperationenVideoTable } from './KampagneKooperationenVideoTable.js';
 
 export class KampagneDetail {
   constructor() {
@@ -19,6 +20,7 @@ export class KampagneDetail {
     this.historyCount = 0;
     this.koopHistory = [];
     this.koopHistoryCount = 0;
+    this.kooperationenVideoTable = null;
   }
 
   // Initialisiere Kampagnen-Detail
@@ -51,6 +53,17 @@ export class KampagneDetail {
       // Binde Events
       this.bindEvents();
       this.bindAnsprechpartnerEvents();
+      
+      // Initial-Tab-Load: Warte bis DOM bereit ist, dann lade den Tab
+      if (window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false) {
+        console.log('🔄 KAMPAGNEDETAIL: Lade initialen Tab "koops-videos"');
+        // requestAnimationFrame stellt sicher, dass DOM vollständig gerendert ist
+        requestAnimationFrame(() => {
+          requestAnimationFrame(async () => {
+            await this.switchTab('koops-videos');
+          });
+        });
+      }
       
       console.log('✅ KAMPAGNEDETAIL: Initialisierung abgeschlossen');
       
@@ -605,55 +618,50 @@ export class KampagneDetail {
       <div class="content-section">
         <!-- Tab Navigation -->
         <div class="tab-navigation">
-          <button class="tab-button active" data-tab="info">
-            <i class="icon-information-circle"></i>
-            Informationen
-          </button>
           ${window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? `
-          <button class="tab-button" data-tab="koops">
-            <i class="icon-link"></i>
-            Kooperationen
+          <button class="tab-button active" data-tab="koops-videos">
+            Kooperationen & Videos
             <span class="tab-count">${this.kooperationen.length}</span>
+          </button>` : `
+          <button class="tab-button active" data-tab="info">
+            Informationen
+          </button>`}
+          ${window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? `
+          <button class="tab-button" data-tab="info">
+            Informationen
           </button>` : ''}
           ${window.canViewTable && window.canViewTable('kampagne','creators') !== false ? `
           <button class="tab-button" data-tab="creators">
-            <i class="icon-users"></i>
             Creator
             <span class="tab-count">${this.creator.length}</span>
           </button>` : ''}
           ${window.canViewTable && window.canViewTable('kampagne','sourcing') !== false ? `
           <button class="tab-button" data-tab="sourcing">
-            <i class="icon-user-plus"></i>
             Creator Sourcing
             <span class="tab-count">${this.sourcingCreators.length}</span>
           </button>` : ''}
           ${window.canViewTable && window.canViewTable('kampagne','favoriten') !== false ? `
           <button class="tab-button" data-tab="favs">
-            
             Favoriten
             <span class="tab-count">${this.favoriten.length}</span>
           </button>` : ''}
           ${window.canViewTable && window.canViewTable('kampagne','rechnungen') !== false ? `
           <button class="tab-button" data-tab="rechnungen">
-            <i class="icon-currency-euro"></i>
             Rechnungen
             <span class="tab-count">${this.rechnungen.length}</span>
           </button>` : ''}
           ${window.canViewTable && window.canViewTable('kampagne','notizen') !== false ? `
           <button class="tab-button" data-tab="notizen">
-            <i class="icon-document-text"></i>
             Notizen
             <span class="tab-count">${this.notizen.length}</span>
           </button>` : ''}
           ${window.canViewTable && window.canViewTable('kampagne','ratings') !== false ? `
           <button class="tab-button" data-tab="ratings">
-            
             Bewertungen
             <span class="tab-count">${this.ratings.length}</span>
           </button>` : ''}
           ${window.canViewTable && window.canViewTable('kampagne','history') !== false ? `
           <button class="tab-button" data-tab="history">
-            
             History
             <span class="tab-count">${this.historyCount + this.koopHistoryCount}</span>
           </button>` : ''}
@@ -662,7 +670,7 @@ export class KampagneDetail {
         <!-- Tab Content -->
         <div class="tab-content">
           <!-- Informationen Tab -->
-          <div class="tab-pane active" id="tab-info">
+          <div class="tab-pane ${window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? '' : 'active'}" id="tab-info">
             <div class="detail-section">
               <div class="detail-grid">
                 <!-- Hauptinformationen -->
@@ -794,12 +802,13 @@ export class KampagneDetail {
             </div>
           </div>
 
-          <!-- Kooperationen Tab -->
-          <div class="tab-pane" id="tab-koops">
+          <!-- Kooperationen & Videos Tab -->
+          ${window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? `
+          <div class="tab-pane active" id="tab-koops-videos">
             <div class="detail-section">
-              ${this.renderKooperationen()}
+              <div id="kooperationen-videos-container"></div>
             </div>
-          </div>
+          </div>` : ''}
 
           <!-- Creators Tab (gebuchte Creator) -->
           <div class="tab-pane" id="tab-creators">
@@ -1294,7 +1303,7 @@ export class KampagneDetail {
   }
 
   // Tab wechseln
-  switchTab(tabName) {
+  async switchTab(tabName) {
     console.log('🔄 KAMPAGNEDETAIL: Wechsle zu Tab:', tabName);
     
     // Alle Tab-Buttons deaktivieren
@@ -1305,15 +1314,49 @@ export class KampagneDetail {
     // Alle Tab-Panes ausblenden
     document.querySelectorAll('.tab-pane').forEach(pane => {
       pane.classList.remove('active');
+      console.log('  🔄 Entferne active von:', pane.id);
     });
     
     // Gewählten Tab aktivieren
     const activeButton = document.querySelector(`[data-tab="${tabName}"]`);
     const activePane = document.getElementById(`tab-${tabName}`);
     
+    console.log('  🔍 activeButton gefunden:', !!activeButton);
+    console.log('  🔍 activePane gefunden:', !!activePane, activePane?.id);
+    
     if (activeButton && activePane) {
       activeButton.classList.add('active');
       activePane.classList.add('active');
+      console.log('  ✅ Tab aktiviert:', tabName, '- Pane hat active class:', activePane.classList.contains('active'));
+      
+      // CSS-Klasse für Overflow-Kontrolle setzen/entfernen
+      const mainContent = document.querySelector('.main-content');
+      if (tabName === 'koops-videos') {
+        mainContent?.classList.add('kampagne-detail-grid-active');
+      } else {
+        mainContent?.classList.remove('kampagne-detail-grid-active');
+      }
+      
+      // Kooperationen-Video-Tabelle lazy-loaden
+      if (tabName === 'koops-videos') {
+        // Prüfe ob Container existiert und leer/nicht initialisiert ist
+        const container = document.getElementById('kooperationen-videos-container');
+        const needsInit = !this.kooperationenVideoTable || !container?.querySelector('.grid-wrapper');
+        
+        if (needsInit) {
+          console.log('🔄 Lade Kooperationen-Video-Tabelle...');
+          this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId);
+          await this.kooperationenVideoTable.init('kooperationen-videos-container');
+          console.log('✅ Kooperationen-Video-Tabelle geladen');
+        } else {
+          console.log('✅ Kooperationen-Video-Tabelle bereits geladen');
+        }
+      }
+      
+      // Nach dem Laden: Prüfe nochmal ob der Tab noch active ist
+      console.log('  🔍 NACH dem Laden - Pane hat noch active class:', activePane.classList.contains('active'));
+    } else {
+      console.error('❌ Tab oder Pane nicht gefunden!', { tabName, activeButton: !!activeButton, activePane: !!activePane });
     }
   }
 
