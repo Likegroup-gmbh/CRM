@@ -164,3 +164,5 @@ Das Feature ist im Menü unter **Tools → Tabellen** verfügbar.
 
 Alle Mitarbeiter mit Dashboard-Berechtigung können das Feature nutzen.
 
+
+

@@ -9,11 +9,36 @@
   background: white;
 }
 
+/* Standard-Spaltenbreiten für kooperation-video-grid */
+.kooperation-video-grid .col-nr { width: 50px; min-width: 50px; }
+.kooperation-video-grid .col-creator { width: 150px; min-width: 150px; }
+.kooperation-video-grid .col-creator-info { width: 180px; min-width: 180px; }
+.kooperation-video-grid .col-typ { width: 120px; min-width: 120px; }
+.kooperation-video-grid .col-organic-paid { width: 120px; min-width: 120px; }
+.kooperation-video-grid .col-kosten { width: 100px; min-width: 100px; }
+.kooperation-video-grid .col-kampagne { width: 150px; min-width: 150px; }
+.kooperation-video-grid .col-posting-datum { width: 130px; min-width: 130px; }
+.kooperation-video-grid .col-vertrag { width: 80px; min-width: 80px; }
+.kooperation-video-grid .col-nutzungsrechte { width: 150px; min-width: 150px; }
+.kooperation-video-grid .col-lieferadresse { width: 200px; min-width: 200px; }
+.kooperation-video-grid .col-paket-tracking { width: 200px; min-width: 200px; }
+.kooperation-video-grid .col-thema { width: 150px; min-width: 150px; }
+.kooperation-video-grid .col-link-produkte { width: 130px; min-width: 130px; }
+.kooperation-video-grid .col-link-skript { width: 130px; min-width: 130px; }
+.kooperation-video-grid .col-skript-freigegeben { width: 100px; min-width: 100px; }
+.kooperation-video-grid .col-link-content { width: 130px; min-width: 130px; }
+.kooperation-video-grid .col-link-story { width: 130px; min-width: 130px; }
+.kooperation-video-grid .col-caption { width: 200px; min-width: 200px; }
+.kooperation-video-grid .col-feedback-cj { width: 180px; min-width: 180px; }
+.kooperation-video-grid .col-feedback-kunde { width: 180px; min-width: 180px; }
+.kooperation-video-grid .col-freigabe { width: 80px; min-width: 80px; }
+
 .kooperation-video-grid .col-header {
-  background: var(--gray-50);
+ 
   border: 1px solid var(--gray-300);
   padding: var(--space-xs) var(--space-sm);
-  font-weight: 600;
+  font-weight: 400;
+  font-size: var(--text-xsm);
   color: var(--text-secondary);
   position: sticky;
   top: 0;
@@ -25,14 +50,14 @@
 /* Erste Spalte (Nr) fixieren */
 .kooperation-video-grid thead th:nth-child(1),
 .kooperation-video-grid tbody td:nth-child(1) {
-  position: sticky;
-  left: 0;
+  position: sticky !important;
+  left: 0 !important;
   z-index: 20;
   background: var(--gray-50);
+  border-right: none !important;
   /* Borders als Box-Shadow für permanente Sichtbarkeit */
   box-shadow: 
     inset 0 1px 0 0 var(--gray-300),     /* top */
-    inset -1px 0 0 0 var(--gray-300),    /* right */
     inset 0 -1px 0 0 var(--gray-300),    /* bottom */
     inset 1px 0 0 0 var(--gray-300);     /* left */
 }
@@ -40,17 +65,31 @@
 /* Zweite Spalte (Creator) fixieren */
 .kooperation-video-grid thead th:nth-child(2),
 .kooperation-video-grid tbody td:nth-child(2) {
-  position: sticky;
-  left: 50px; /* Breite der ersten Spalte */
+  position: sticky !important;
+  left: 50px !important; /* Breite der ersten Spalte */
   z-index: 20;
   background: var(--gray-50);
-  /* Borders als Box-Shadow + dickerer rechter Border + Schatten für Overlay-Effekt */
+  border-left: none !important; /* Kein Border zur ersten Spalte */
+  /* Borders als inset Box-Shadow */
   box-shadow: 
-    inset 0 1px 0 0 var(--gray-300),     /* top */
-    inset -2px 0 0 0 var(--gray-400),    /* right - dicker */
-    inset 0 -1px 0 0 var(--gray-300),    /* bottom */
-    inset 1px 0 0 0 var(--gray-300),     /* left */
-    2px 0 4px rgba(0, 0, 0, 0.1);        /* Overlay-Schatten nach rechts */
+    inset 0 1px 0 0 var(--gray-300),        /* top */
+    inset -2px 0 0 0 var(--gray-400),       /* right - dickerer Border */
+    inset 0 -1px 0 0 var(--gray-300),       /* bottom */
+    inset 1px 0 0 0 var(--gray-300);        /* left - Border zwischen Spalte 1 und 2 */
+}
+
+/* Schatten rechts von der zweiten Spalte (außerhalb, über den scrollenden Spalten) */
+.kooperation-video-grid thead th:nth-child(2)::after,
+.kooperation-video-grid tbody td:nth-child(2)::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: -10px;
+  bottom: 0;
+  width: 10px;
+  pointer-events: none;
+  z-index: 1; /* Über den scrollenden Spalten */
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.1), transparent);
 }
 
 /* Header der fixierten Spalten soll über allem liegen */
@@ -174,9 +213,9 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  min-height: 81px;
-  
-  
+  min-height: 60px;
+  max-height: 500px;
+  overflow: hidden;
   border-bottom: 1px solid var(--gray-200);
 }
 
@@ -272,7 +311,6 @@
   width: 100%;
   margin: 0;
   padding: 8px;
-  min-height: 60px;
   font-size: var(--text-sm);
   border: none;
   border-bottom: 1px solid var(--gray-300);
@@ -292,6 +330,8 @@
   margin: 0;
   padding: 8px;
   min-height: 80px;
+  max-height: 500px;
+  overflow-y: auto;
   font-size: var(--text-sm);
   resize: vertical;
   border: none;
@@ -327,8 +367,7 @@
 
 /* Gestapelte Video-Links */
 .stacked-video-link {
-  display: flex;
-  align-items: center;
+  display: block;
   margin: 0;
   padding: 8px;
   min-height: 60px;
@@ -340,6 +379,9 @@
   border-radius: 0;
   background: var(--gray-50);
   box-sizing: border-box;
+  word-break: break-all; /* Ermöglicht Umbruch bei langen URLs */
+  overflow-wrap: break-word;
+  line-height: 1.4;
 }
 
 .stacked-video-link:hover {
@@ -640,6 +682,14 @@
   overflow-y: visible;
   background: white;
   display: block;
+  /* Verstecke die inline Scrollbar, da wir die Floating-Scrollbar nutzen */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+/* Webkit Browser (Chrome, Safari) */
+.grid-wrapper::-webkit-scrollbar {
+  display: none;
 }
 
 .grid-table {
@@ -651,7 +701,7 @@
 
 /* Header Cells */
 .grid-table thead th {
-  background: var(--gray-50);
+  
   border: 1px solid var(--gray-300);
   padding: 0;
   font-weight: 600;
@@ -674,9 +724,9 @@
 /* Erste Datenspalte fixieren */
 .grid-table thead th.col-header[data-col="0"] {
   position: sticky !important;
-  left: 60px !important; /* Nach Row-Header */
+
   z-index: 15 !important; /* Über normalen Spalten */
-  background: var(--gray-50) !important;
+
   border: 1px solid var(--gray-300) !important; /* Alle Borders */
 }
 
@@ -685,7 +735,7 @@
   position: sticky !important;
   left: 180px; /* Initial-Wert, wird per JS überschrieben */
   z-index: 15 !important;
-  background: var(--gray-50) !important;
+ 
   border: 1px solid var(--gray-300) !important; /* Normale Borders */
   border-right: 2px solid var(--gray-400) !important; /* Dickere rechte Border für Trennung */
 }
@@ -975,5 +1025,53 @@
     align-items: flex-start;
     gap: var(--space-sm);
   }
+}
+
+/* === FLOATING SCROLLBAR === */
+/* Klebt am unteren Bildschirmrand für einfachere Navigation */
+/* Nur auf der Kampagnen-Detailseite, innerhalb des main-wrapper */
+.floating-scrollbar-kampagne {
+  position: fixed;
+  bottom: 0;
+  height: 20px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: rgba(255, 255, 255, 0.95);
+  border-top: 1px solid var(--gray-300);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  /* left und width werden dynamisch per JS gesetzt */
+}
+
+.floating-scrollbar-kampagne.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.floating-scrollbar-inner {
+  height: 1px;
+  /* Breite wird dynamisch per JS gesetzt */
+}
+
+/* Scrollbar Styling für bessere Sichtbarkeit */
+.floating-scrollbar-kampagne::-webkit-scrollbar {
+  height: 12px;
+}
+
+.floating-scrollbar-kampagne::-webkit-scrollbar-track {
+  background: var(--gray-100);
+}
+
+.floating-scrollbar-kampagne::-webkit-scrollbar-thumb {
+  background: var(--gray-400);
+  border-radius: 6px;
+  border: 2px solid var(--gray-100);
+}
+
+.floating-scrollbar-kampagne::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-500);
 }
 

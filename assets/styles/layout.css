@@ -9,6 +9,7 @@
  justify-content: space-between;
  align-items: center;
  margin-bottom: var(--space-xl);
+ padding: var(--space-lg) var(--space-lg) 0 var(--space-lg);
   
 }
 .page-header h1 {
@@ -568,7 +569,7 @@
 
 /* ===== MAIN WRAPPER ===== */
 .main-wrapper {
-  padding: var(--space-lg);
+  //padding: var(--space-lg);
 }
 
 /* ===== LOGIN ===== */

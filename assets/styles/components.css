@@ -489,6 +489,7 @@
     align-items: center;
     margin-bottom: var(--space-md);
     gap: var(--space-md);
+    padding: 0 var(--space-lg) 0 var(--space-lg);
   }
 
   .table-actions {
@@ -500,7 +501,7 @@
   .data-table {
     width: 100%;
     border-collapse: collapse;
-    
+   
   }
 
   td {
@@ -744,7 +745,7 @@
   margin-bottom: 2rem;
   min-height: 100px;
   background: white;
-  border-radius: var(--radius-lg);
+ 
   
 }
 
@@ -1039,7 +1040,7 @@
   display: flex;
   gap: 0;
   border-bottom: 1px solid var(--gray-200);
-  overflow-x: auto;
+ padding: 0 var(--space-lg) 0 var(--space-lg);
   scrollbar-width: none;
   -ms-overflow-style: none;
   background: var(--color-white);
@@ -1062,7 +1063,6 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
-  white-space: nowrap;
   margin-bottom: -1px;
   z-index: 1;
 }
@@ -1073,7 +1073,7 @@
 
 .tab-button.active {
   color: var(--text-primary);
-  background: var(--color-white);
+  background: var(--bg-primary);
   border-top: 1px solid var(--gray-200);
   border-left: 1px solid var(--gray-200);
   border-right: 1px solid var(--gray-200);
@@ -1081,23 +1081,13 @@
   z-index: 3;
 }
 
-/* Wichtig: Pseudo-Element überdeckt die Unterlinie der Navigation unter dem aktiven Tab */
-.tab-button.active::after {
-  content: "";
-  position: absolute;
-  left: -1px;
-  right: -1px;
-  bottom: -2px;
-  height: 3px;
-  background: var(--color-white);
-  pointer-events: none;
-}
 
 
 .tab-content {
   background: var(--bg-primary);
   min-height: 400px;
   overflow-x: hidden; /* Verhindert horizontales Scrollen des Tab-Contents */
+  padding: 0 var(--space-lg) 0 var(--space-lg);
 }
 
 .tab-pane {
@@ -1139,7 +1129,7 @@
 
 /* Tab Badge für Counts */
 .tab-button .tab-count {
-  background: var(--gray-50);
+  background: var(--gray-100);
   color: var(--text-secondary);
   border-radius: var(--radius-md);
   padding: var(--space-xxs) var(--space-xs);
@@ -1148,7 +1138,7 @@
 }
 
 .tab-button.active .tab-count {
-  background: var(--gray-200);
+  background: var(--gray-100);
   color: var(--text-primary);
 }
 
@@ -1664,6 +1654,7 @@
   flex-direction: column;
   gap: var(--space-md);
   height: 100%;
+  padding: 0 var(--space-lg) 0 var(--space-lg);
 }
 
 .kanban-filters {
@@ -3557,13 +3548,7 @@ flex-direction: column;
 gap: var(--space-xxxs);
 margin-bottom: var(--space-md);
 }
-/* Extended Table Styles */
-.data-table {
- 
-  width: 100%;
-  table-layout: auto; /* Flexiblere Spaltenbreite */
-  border-collapse: collapse;
-}
+
 
 .data-table th,
 .data-table td {
@@ -3729,6 +3714,7 @@ margin-bottom: var(--space-md);
   max-width: 100%;
   border-radius: var(--radius-md);
   background: transparent; /* Transparenter Hintergrund */
+  padding: 0 var(--space-lg) 0 var(--space-lg);
 }
 
 /* Responsive Table Improvements */

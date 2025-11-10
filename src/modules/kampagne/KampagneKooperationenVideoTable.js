@@ -56,14 +56,14 @@ export class KampagneKooperationenVideoTable {
           .select(`
             id, kooperation_id, position, asset_url,
             caption, feedback_creatorjobs, feedback_ritzenhoff, freigabe,
-            link_content, link_story, link_produkte, thema, link_skript
+            link_content, link_story, link_produkte, thema, link_skript, skript_freigegeben
           `)
           .in('kooperation_id', koopIds)
           .order('position', { ascending: true}),
         
         window.supabase
           .from('kooperation_versand')
-          .select('id, kooperation_id, versendet, tracking_nummer')
+          .select('id, kooperation_id, versendet, tracking_nummer, produkt_name')
           .in('kooperation_id', koopIds)
       ]);
 
@@ -174,97 +174,93 @@ export class KampagneKooperationenVideoTable {
         <table class="grid-table kooperation-video-grid">
           <thead>
             <tr>
-              <th class="col-header" style="width: 50px; min-width: 50px;">
+              <th class="col-header col-nr" data-col="0">
                 Nr
                 <div class="resize-handle resize-handle-col" data-col="0"></div>
               </th>
-              <th class="col-header" style="width: 150px; min-width: 150px;">
+              <th class="col-header col-creator" data-col="1">
                 Creator
                 <div class="resize-handle resize-handle-col" data-col="1"></div>
               </th>
-              <th class="col-header" style="width: 180px; min-width: 180px;">
+              <th class="col-header col-creator-info" data-col="2">
                 Info zum Creator
                 <div class="resize-handle resize-handle-col" data-col="2"></div>
               </th>
-              <th class="col-header" style="width: 120px; min-width: 120px;">
+              <th class="col-header col-typ" data-col="3">
                 Typ
                 <div class="resize-handle resize-handle-col" data-col="3"></div>
               </th>
-              <th class="col-header" style="width: 120px; min-width: 120px;">
+              <th class="col-header col-organic-paid" data-col="4">
                 Organic/Paid
                 <div class="resize-handle resize-handle-col" data-col="4"></div>
               </th>
-              <th class="col-header" style="width: 100px; min-width: 100px;">
+              <th class="col-header col-kosten" data-col="5">
                 Kosten
                 <div class="resize-handle resize-handle-col" data-col="5"></div>
               </th>
-              <th class="col-header" style="width: 150px; min-width: 150px;">
+              <th class="col-header col-kampagne" data-col="6">
                 Kampagne
                 <div class="resize-handle resize-handle-col" data-col="6"></div>
               </th>
-              <th class="col-header" style="width: 130px; min-width: 130px;">
+              <th class="col-header col-posting-datum" data-col="7">
                 Posting Datum
                 <div class="resize-handle resize-handle-col" data-col="7"></div>
               </th>
-              <th class="col-header" style="width: 80px; min-width: 80px;">
+              <th class="col-header col-vertrag" data-col="8">
                 Vertrag
                 <div class="resize-handle resize-handle-col" data-col="8"></div>
               </th>
-              <th class="col-header" style="width: 150px; min-width: 150px;">
+              <th class="col-header col-nutzungsrechte" data-col="9">
                 Nutzungsrechte
                 <div class="resize-handle resize-handle-col" data-col="9"></div>
               </th>
-              <th class="col-header" style="width: 200px; min-width: 200px;">
+              <th class="col-header col-lieferadresse" data-col="10">
                 Lieferadresse
                 <div class="resize-handle resize-handle-col" data-col="10"></div>
               </th>
-              <th class="col-header" style="width: 200px; min-width: 200px;">
+              <th class="col-header col-paket-tracking" data-col="11">
                 Paket/Tracking
                 <div class="resize-handle resize-handle-col" data-col="11"></div>
               </th>
-              <th class="col-header" style="width: 80px; min-width: 80px;">
-                Gläser
+              <th class="col-header col-thema" data-col="12">
+                Thema
                 <div class="resize-handle resize-handle-col" data-col="12"></div>
               </th>
-              <th class="col-header" style="width: 150px; min-width: 150px;">
-                Tracking Link
+              <th class="col-header col-link-produkte" data-col="13">
+                Link Produkte
                 <div class="resize-handle resize-handle-col" data-col="13"></div>
               </th>
-              <th class="col-header" style="width: 150px; min-width: 150px;">
-                Thema
+              <th class="col-header col-link-skript" data-col="14">
+                Link Skript
                 <div class="resize-handle resize-handle-col" data-col="14"></div>
               </th>
-              <th class="col-header" style="width: 130px; min-width: 130px;">
-                Link Produkte
+              <th class="col-header col-skript-freigegeben" data-col="15">
+                Skript freigegeben
                 <div class="resize-handle resize-handle-col" data-col="15"></div>
               </th>
-              <th class="col-header" style="width: 130px; min-width: 130px;">
-                Link Skript
+              <th class="col-header col-link-content" data-col="16">
+                Link Content
                 <div class="resize-handle resize-handle-col" data-col="16"></div>
               </th>
-              <th class="col-header" style="width: 130px; min-width: 130px;">
-                Link Content
+              <th class="col-header col-link-story" data-col="17">
+                Link Story
                 <div class="resize-handle resize-handle-col" data-col="17"></div>
               </th>
-              <th class="col-header" style="width: 130px; min-width: 130px;">
-                Link Story
+              <th class="col-header col-caption" data-col="18">
+                Caption
                 <div class="resize-handle resize-handle-col" data-col="18"></div>
               </th>
-              <th class="col-header" style="width: 200px; min-width: 200px;">
-                Caption
+              <th class="col-header col-feedback-cj" data-col="19">
+                Feedback CJ
                 <div class="resize-handle resize-handle-col" data-col="19"></div>
               </th>
-              <th class="col-header" style="width: 180px; min-width: 180px;">
-                Feedback CJ
+              <th class="col-header col-feedback-kunde" data-col="20">
+                Feedback Kunde
                 <div class="resize-handle resize-handle-col" data-col="20"></div>
               </th>
-              <th class="col-header" style="width: 180px; min-width: 180px;">
-                Feedback Kunde
-                <div class="resize-handle resize-handle-col" data-col="21"></div>
-              </th>
-              <th class="col-header" style="width: 80px; min-width: 80px;">
+              <th class="col-header col-freigabe" data-col="21">
                 Freigabe
-                <div class="resize-handle resize-handle-col" data-col="22"></div>
+                <div class="resize-handle resize-handle-col" data-col="21"></div>
               </th>
             </tr>
           </thead>
@@ -383,21 +379,18 @@ export class KampagneKooperationenVideoTable {
               placeholder="Tracking Nr."
               style="margin-top: 4px;"
             />
+            <input 
+              type="text" 
+              class="grid-input" 
+              data-entity="versand" 
+              data-id="${versand?.id || 'new'}"
+              data-kooperation-id="${koop.id}"
+              data-field="produkt_name"
+              value="${versand?.produkt_name || ''}"
+              placeholder="Produktname"
+              style="margin-top: 4px;"
+            />
           </div>
-        </td>
-        <td class="grid-cell" style="text-align: center;">
-          <span class="text-muted">-</span>
-        </td>
-        <td class="grid-cell">
-          <input 
-            type="text" 
-            class="grid-input" 
-            data-entity="kooperation" 
-            data-id="${koop.id}" 
-            data-field="tracking_link"
-            value="${koop.tracking_link || ''}"
-            placeholder="Tracking Link"
-          />
         </td>
         <!-- Video-Spalten: Jedes Video als eigene Zeile über alle Spalten -->
         <td class="grid-cell video-stack-cell">
@@ -421,11 +414,20 @@ export class KampagneKooperationenVideoTable {
               value="${this.escapeHtml(video.link_skript || '')}" placeholder="Link"/>
           `)}
         </td>
+        <td class="grid-cell video-stack-cell checkbox-stack">
+          ${this.renderVideoFieldStack(videos, (video) => `
+            <div class="stacked-video-checkbox-wrapper">
+              <input type="checkbox" class="grid-checkbox stacked-video-checkbox" 
+                data-entity="video" data-id="${video.id}" data-field="skript_freigegeben"
+                ${video.skript_freigegeben ? 'checked' : ''}/>
+            </div>
+          `)}
+        </td>
         <td class="grid-cell video-stack-cell">
           ${this.renderVideoFieldStack(videos, (video) => {
             const videoUrl = video.file_url || video.link_content || video.asset_url;
             if (videoUrl) {
-              return `<a href="${videoUrl}" target="_blank" class="table-link stacked-video-link">📹 Video ansehen</a>`;
+              return `<a href="${videoUrl}" target="_blank" class="table-link stacked-video-link" title="Link öffnen">${this.escapeHtml(videoUrl)}</a>`;
             } else {
               return `<input type="text" class="grid-input stacked-video-input" 
                 data-entity="video" data-id="${video.id}" data-field="link_content"
@@ -528,71 +530,111 @@ export class KampagneKooperationenVideoTable {
     this.bindResizeEvents();
   }
   
-  // Auto-resize für Textareas initialisieren
+  // Auto-resize für Textareas initialisieren (zeilen-basiert, max 500px)
   initAutoResizeTextareas() {
     // Finde alle Kooperations-Zeilen
     const kooperationRows = document.querySelectorAll('.kooperation-row');
     
     kooperationRows.forEach(row => {
-      // Finde alle Video-Stack-Cells in dieser Zeile
+      // Finde alle Video-Stack-Cells in dieser Kooperation
       const videoStackCells = row.querySelectorAll('.video-stack-cell');
       
-      videoStackCells.forEach(cell => {
-        // Finde alle video-field-wrapper in dieser Zelle
-        const fieldWrappers = cell.querySelectorAll('.video-field-wrapper');
+      if (videoStackCells.length === 0) return;
+      
+      // Ermittle die Anzahl der Videos (= Anzahl der video-field-wrapper in erster Zelle)
+      const firstCell = videoStackCells[0];
+      const videoCount = firstCell.querySelectorAll('.video-field-wrapper').length;
+      
+      // Für jedes Video (index 0, 1, 2, ...):
+      for (let videoIndex = 0; videoIndex < videoCount; videoIndex++) {
+        let maxHeightForThisVideo = 60;
         
-        if (fieldWrappers.length > 0) {
-          // Berechne die maximale Höhe, die ein Feld in dieser Spalte braucht
-          let maxHeight = 60;
+        // Gehe durch alle Spalten und finde das höchste Feld für dieses Video
+        videoStackCells.forEach(cell => {
+          const wrapper = cell.querySelectorAll('.video-field-wrapper')[videoIndex];
+          if (!wrapper) return;
           
-          fieldWrappers.forEach(wrapper => {
-            const textarea = wrapper.querySelector('.auto-resize-textarea, .stacked-video-textarea');
-            if (textarea) {
-              textarea.style.height = 'auto';
-              const neededHeight = Math.max(60, textarea.scrollHeight);
-              maxHeight = Math.max(maxHeight, neededHeight);
+          const field = wrapper.querySelector('.stacked-video-input, .stacked-video-textarea, .stacked-video-checkbox-wrapper, .stacked-video-link');
+          if (field) {
+            // Bei Textareas: scrollHeight berechnen
+            if (field.classList.contains('stacked-video-textarea')) {
+              field.style.height = 'auto';
+              const neededHeight = Math.min(500, Math.max(60, field.scrollHeight));
+              maxHeightForThisVideo = Math.max(maxHeightForThisVideo, neededHeight);
             }
-          });
-          
-          // Setze alle Felder in dieser Spalte auf die gleiche Höhe
-          fieldWrappers.forEach(wrapper => {
-            const textarea = wrapper.querySelector('.auto-resize-textarea, .stacked-video-textarea');
-            if (textarea) {
-              textarea.style.height = maxHeight + 'px';
-              wrapper.style.minHeight = maxHeight + 'px';
-            }
-          });
-        }
-      });
-    });
-    
-    // Event-Listener für Input-Events
-    const allTextareas = document.querySelectorAll('.auto-resize-textarea, .stacked-video-textarea');
-    allTextareas.forEach(textarea => {
-      textarea.addEventListener('input', () => {
-        // Finde die Parent-Zelle
-        const cell = textarea.closest('.video-stack-cell');
-        if (!cell) return;
-        
-        // Finde alle field-wrapper in dieser Zelle
-        const fieldWrappers = cell.querySelectorAll('.video-field-wrapper');
-        let maxHeight = 60;
-        
-        // Berechne neue maximale Höhe
-        fieldWrappers.forEach(wrapper => {
-          const ta = wrapper.querySelector('.auto-resize-textarea, .stacked-video-textarea');
-          if (ta) {
-            ta.style.height = 'auto';
-            maxHeight = Math.max(maxHeight, ta.scrollHeight);
           }
         });
         
-        // Setze alle auf die gleiche Höhe
-        fieldWrappers.forEach(wrapper => {
-          const ta = wrapper.querySelector('.auto-resize-textarea, .stacked-video-textarea');
+        // Begrenze auf maximal 500px
+        maxHeightForThisVideo = Math.min(500, maxHeightForThisVideo);
+        
+        // Setze ALLE Felder dieses Videos auf die gleiche Höhe
+        videoStackCells.forEach(cell => {
+          const wrapper = cell.querySelectorAll('.video-field-wrapper')[videoIndex];
+          if (!wrapper) return;
+          
+          wrapper.style.minHeight = maxHeightForThisVideo + 'px';
+          wrapper.style.maxHeight = '500px';
+          
+          const field = wrapper.querySelector('.stacked-video-input, .stacked-video-textarea, .stacked-video-checkbox-wrapper, .stacked-video-link');
+          if (field && !field.classList.contains('stacked-video-checkbox-wrapper')) {
+            field.style.minHeight = maxHeightForThisVideo + 'px';
+            if (field.classList.contains('stacked-video-textarea')) {
+              field.style.height = maxHeightForThisVideo + 'px';
+              field.style.maxHeight = '500px';
+            }
+          }
+        });
+      }
+    });
+    
+    // Event-Listener für Input-Events (bei Textareas)
+    const allTextareas = document.querySelectorAll('.stacked-video-textarea');
+    allTextareas.forEach(textarea => {
+      textarea.addEventListener('input', () => {
+        // Finde die Kooperations-Zeile
+        const koopRow = textarea.closest('.kooperation-row');
+        if (!koopRow) return;
+        
+        // Finde den Video-Index (welches Video in der Kooperation ist das?)
+        const wrapper = textarea.closest('.video-field-wrapper');
+        const cell = textarea.closest('.video-stack-cell');
+        const videoIndex = Array.from(cell.querySelectorAll('.video-field-wrapper')).indexOf(wrapper);
+        
+        // Berechne neue Höhe für DIESES Video über alle Spalten
+        const videoStackCells = koopRow.querySelectorAll('.video-stack-cell');
+        let maxHeight = 60;
+        
+        videoStackCells.forEach(vCell => {
+          const vWrapper = vCell.querySelectorAll('.video-field-wrapper')[videoIndex];
+          if (!vWrapper) return;
+          
+          const ta = vWrapper.querySelector('.stacked-video-textarea');
           if (ta) {
-            ta.style.height = maxHeight + 'px';
-            wrapper.style.minHeight = maxHeight + 'px';
+            ta.style.height = 'auto';
+            const neededHeight = Math.min(500, Math.max(60, ta.scrollHeight));
+            maxHeight = Math.max(maxHeight, neededHeight);
+          }
+        });
+        
+        // Begrenze auf maximal 500px
+        maxHeight = Math.min(500, maxHeight);
+        
+        // Setze alle Felder dieses Videos auf die neue Höhe
+        videoStackCells.forEach(vCell => {
+          const vWrapper = vCell.querySelectorAll('.video-field-wrapper')[videoIndex];
+          if (!vWrapper) return;
+          
+          vWrapper.style.minHeight = maxHeight + 'px';
+          vWrapper.style.maxHeight = '500px';
+          
+          const field = vWrapper.querySelector('.stacked-video-input, .stacked-video-textarea, .stacked-video-checkbox-wrapper, .stacked-video-link');
+          if (field && !field.classList.contains('stacked-video-checkbox-wrapper')) {
+            field.style.minHeight = maxHeight + 'px';
+            if (field.classList.contains('stacked-video-textarea')) {
+              field.style.height = maxHeight + 'px';
+              field.style.maxHeight = '500px';
+            }
           }
         });
       });
@@ -953,9 +995,151 @@ export class KampagneKooperationenVideoTable {
       this.bindEvents();
       console.log('🎬 Events gebunden');
       
+      // Floating Scrollbar initialisieren
+      this.initFloatingScrollbar();
+      console.log('🎬 Floating Scrollbar initialisiert');
+      
       // Gespeicherte Spaltenbreiten wiederherstellen
       this.loadColumnWidths();
     }
+  }
+
+  // Floating Scrollbar initialisieren (klebt am unteren Bildschirmrand, nur für diese Tabelle)
+  initFloatingScrollbar() {
+    // Prüfe ob Floating-Scrollbar bereits existiert
+    let floatingScrollbar = document.getElementById('floating-scrollbar-kampagne');
+    if (!floatingScrollbar) {
+      // Erstelle Floating-Scrollbar Container
+      floatingScrollbar = document.createElement('div');
+      floatingScrollbar.id = 'floating-scrollbar-kampagne';
+      floatingScrollbar.className = 'floating-scrollbar-kampagne';
+      
+      // Inner div für die Breite (muss breiter sein als viewport für Scrollbar)
+      const inner = document.createElement('div');
+      inner.className = 'floating-scrollbar-inner';
+      floatingScrollbar.appendChild(inner);
+      
+      document.body.appendChild(floatingScrollbar);
+    }
+    
+    // Finde die echte Tabelle und main-wrapper
+    const gridWrapper = document.querySelector('.grid-wrapper');
+    const table = document.querySelector('.kooperation-video-grid');
+    const mainWrapper = document.querySelector('.main-wrapper');
+    
+    if (!gridWrapper || !table || !mainWrapper) return;
+    
+    // Setze die Breite des Inner-Divs auf die Tabellenbreite
+    const inner = floatingScrollbar.querySelector('.floating-scrollbar-inner');
+    const updateScrollbarWidth = () => {
+      inner.style.width = table.scrollWidth + 'px';
+    };
+    
+    // Positioniere die Scrollbar basierend auf main-wrapper
+    const updateScrollbarPosition = () => {
+      const mainRect = mainWrapper.getBoundingClientRect();
+      floatingScrollbar.style.left = mainRect.left + 'px';
+      floatingScrollbar.style.width = mainRect.width + 'px';
+    };
+    
+    // Initial setzen
+    updateScrollbarWidth();
+    updateScrollbarPosition();
+    
+    // Bei Resize aktualisieren
+    const resizeObserver = new ResizeObserver(() => {
+      updateScrollbarWidth();
+      updateScrollbarPosition();
+    });
+    resizeObserver.observe(table);
+    resizeObserver.observe(mainWrapper);
+    
+    // Synchronisiere Scrolling zwischen Floating-Scrollbar und Tabelle
+    let isSyncingFromFloating = false;
+    let isSyncingFromTable = false;
+    
+    // Floating -> Table
+    const handleFloatingScroll = () => {
+      if (isSyncingFromTable) return;
+      isSyncingFromFloating = true;
+      gridWrapper.scrollLeft = floatingScrollbar.scrollLeft;
+      requestAnimationFrame(() => {
+        isSyncingFromFloating = false;
+      });
+    };
+    floatingScrollbar.addEventListener('scroll', handleFloatingScroll);
+    
+    // Table -> Floating
+    const handleTableScroll = () => {
+      if (isSyncingFromFloating) return;
+      isSyncingFromTable = true;
+      floatingScrollbar.scrollLeft = gridWrapper.scrollLeft;
+      requestAnimationFrame(() => {
+        isSyncingFromTable = false;
+      });
+    };
+    gridWrapper.addEventListener('scroll', handleTableScroll);
+    
+    // Zeige/Verstecke Floating-Scrollbar basierend auf Sichtbarkeit der Tabelle
+    const toggleFloatingScrollbar = () => {
+      const tableRect = gridWrapper.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      
+      // Zeige Floating-Scrollbar nur wenn:
+      // 1. Wir auf der Kampagnen-Detailseite sind
+      // 2. Tabelle breiter als Viewport ist (horizontales Scrollen nötig)
+      // 3. Tabelle teilweise oder ganz sichtbar ist
+      const isOnKampagnePage = window.location.pathname.includes('/kampagne/');
+      const needsHorizontalScroll = table.scrollWidth > gridWrapper.clientWidth;
+      const tableIsVisible = tableRect.top < viewportHeight && tableRect.bottom > 0;
+      
+      if (isOnKampagnePage && needsHorizontalScroll && tableIsVisible) {
+        updateScrollbarPosition(); // Position nochmal aktualisieren
+        floatingScrollbar.classList.add('visible');
+      } else {
+        floatingScrollbar.classList.remove('visible');
+      }
+    };
+    
+    // Initial check
+    toggleFloatingScrollbar();
+    
+    // Bei Scroll und Resize prüfen
+    const handleWindowScroll = () => toggleFloatingScrollbar();
+    const handleWindowResize = () => {
+      updateScrollbarPosition();
+      toggleFloatingScrollbar();
+    };
+    
+    window.addEventListener('scroll', handleWindowScroll);
+    window.addEventListener('resize', handleWindowResize);
+    
+    // Cleanup bei Tab-Wechsel oder Navigation
+    const cleanup = () => {
+      floatingScrollbar.classList.remove('visible');
+      resizeObserver.disconnect();
+      window.removeEventListener('scroll', handleWindowScroll);
+      window.removeEventListener('resize', handleWindowResize);
+      floatingScrollbar.removeEventListener('scroll', handleFloatingScroll);
+      gridWrapper.removeEventListener('scroll', handleTableScroll);
+    };
+    
+    // Event für Tab-Wechsel und Navigation
+    document.addEventListener('tab-changed', cleanup);
+    
+    // Cleanup bei Navigation
+    const navigationCleanup = () => {
+      if (!window.location.pathname.includes('/kampagne/')) {
+        cleanup();
+        if (floatingScrollbar && floatingScrollbar.parentNode) {
+          floatingScrollbar.parentNode.removeChild(floatingScrollbar);
+        }
+      }
+    };
+    window.addEventListener('popstate', navigationCleanup);
+    
+    // Speichere cleanup-Funktion für später
+    this.cleanupFloatingScrollbar = cleanup;
   }
 }
 

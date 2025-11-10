@@ -1,51 +1,91 @@
 export class KooperationVersandManager {
   constructor() {
     this.drawerId = 'kooperation-versand-drawer';
-    this.bindEvents();
+    this.currentKooperationId = null;
+    this.isSubmitting = false;
+    this.bindGlobalEvents();
   }
 
-  // Event-basierte Kommunikation
-  bindEvents() {
+  // Event-basierte Kommunikation (globale Events, einmal gebunden)
+  bindGlobalEvents() {
     document.addEventListener('actionRequested', (event) => {
       const { action, entityType, entityId } = event.detail;
       
       if (action === 'showVersand' && entityType === 'kooperation') {
-        console.log('🎯 VERSANDMANAGER: Event empfangen für ID:', entityId);
+        console.log('%c🎯 VERSANDMANAGER: Event empfangen für ID: ' + entityId, 'color: blue; font-weight: bold');
         this.open(entityId);
+      }
+    });
+
+    // Event-Delegation für Form-Submits (verhindert Page Reload)
+    document.addEventListener('submit', (e) => {
+      if (e.target.id === 'versand-form') {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('%c📝 VERSANDMANAGER: Form Submit abgefangen', 'color: green; font-weight: bold');
+        const kooperationId = e.target.dataset.kooperationId;
+        if (kooperationId && !this.isSubmitting) {
+          this.handleSubmit(e.target, kooperationId);
+        }
+      }
+    }, true); // Use capture phase!
+
+    // Event-Delegation für Delete-Buttons
+    document.addEventListener('click', async (e) => {
+      if (e.target.closest('.btn-delete-versand')) {
+        e.preventDefault();
+        const btn = e.target.closest('.btn-delete-versand');
+        const versandId = btn.dataset.id;
+        
+        if (confirm('Versand-Eintrag wirklich löschen?')) {
+          await this.deleteVersandEintrag(versandId, this.currentKooperationId);
+        }
+      }
+    });
+
+    // Event-Delegation für Abbrechen-Button
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('[data-close]') && e.target.closest(`#${this.drawerId}`)) {
+        e.preventDefault();
+        this.close();
       }
     });
   }
 
   async open(kooperationId) {
-    console.log('🎯 VERSANDMANAGER: open() aufgerufen mit ID:', kooperationId);
+    console.log('%c🎯 VERSANDMANAGER: open() aufgerufen mit ID: ' + kooperationId, 'color: blue; font-weight: bold');
+    this.currentKooperationId = kooperationId;
+    
+    // Speichere in LocalStorage für Debugging nach Reload
+    localStorage.setItem('versand_debug_last_open', JSON.stringify({
+      kooperationId,
+      timestamp: new Date().toISOString()
+    }));
+    
     try {
-      console.log('🎯 VERSANDMANAGER: Erstelle Drawer');
+      console.log('%c🎯 VERSANDMANAGER: Erstelle Drawer', 'color: blue');
       await this.createDrawer();
-      console.log('🎯 VERSANDMANAGER: Zeige Loading');
       this.showLoading();
 
-      console.log('🎯 VERSANDMANAGER: Lade Kooperation und Creator-Daten');
+      console.log('%c🎯 VERSANDMANAGER: Lade Kooperation und Creator-Daten', 'color: blue');
       const kooperationData = await this.loadKooperationData(kooperationId);
-      console.log('🎯 VERSANDMANAGER: Kooperation-Daten geladen:', kooperationData);
+      console.log('%c✅ VERSANDMANAGER: Kooperation-Daten geladen', 'color: green', kooperationData);
 
       // Versuche Versand-Daten zu laden
       let versandDaten = null;
       try {
-        console.log('🎯 VERSANDMANAGER: Lade Versand-Daten');
         versandDaten = await this.loadVersandDaten(kooperationId);
-        console.log('🎯 VERSANDMANAGER: Versand-Daten geladen:', versandDaten);
+        console.log('%c✅ VERSANDMANAGER: Versand-Daten geladen', 'color: green', versandDaten);
       } catch (detailError) {
         console.warn('⚠️ Konnte Versand-Daten nicht laden, zeige leeres Formular:', detailError);
       }
       
-      console.log('🎯 VERSANDMANAGER: Rendere Form');
-      this.renderForm(kooperationId, kooperationData, versandDaten);
-      console.log('🎯 VERSANDMANAGER: Binde Events');
-      this.bindFormEvents(kooperationId);
-      console.log('🎯 VERSANDMANAGER: Drawer sollte jetzt sichtbar sein');
+      console.log('%c🎯 VERSANDMANAGER: Rendere Form', 'color: blue');
+      await this.renderForm(kooperationId, kooperationData, versandDaten);
+      console.log('%c✅ VERSANDMANAGER: Drawer komplett geladen', 'color: green; font-weight: bold');
     } catch (error) {
-      console.error('❌ VersandManager.open Fehler:', error);
-      this.showError('Fehler beim Laden der Versand-Daten.');
+      console.error('%c❌ VersandManager.open Fehler:', 'color: red; font-weight: bold', error);
+      this.showErrorAlert('Fehler beim Laden der Versand-Daten: ' + error.message);
     }
   }
 
@@ -136,16 +176,48 @@ export class KooperationVersandManager {
   showError(message) {
     const body = document.getElementById(`${this.drawerId}-body`);
     if (!body) return;
-    body.innerHTML = `<div class="alert alert-danger">${message}</div>`;
+    
+    // Entferne alte Alerts
+    const oldAlerts = body.querySelectorAll('.alert');
+    oldAlerts.forEach(alert => alert.remove());
+    
+    // Füge neuen Error hinzu
+    const alert = document.createElement('div');
+    alert.className = 'alert alert-danger';
+    alert.style.marginBottom = '1rem';
+    alert.textContent = message;
+    body.insertBefore(alert, body.firstChild);
+    
+    // Scroll to top
+    body.scrollTop = 0;
+  }
+
+  showErrorAlert(message) {
+    // Fallback wenn body nicht existiert
+    alert(message);
+    const body = document.getElementById(`${this.drawerId}-body`);
+    if (body) {
+      body.innerHTML = `<div class="alert alert-danger">${message}</div>`;
+    }
   }
 
   showSuccess(message) {
     const body = document.getElementById(`${this.drawerId}-body`);
     if (!body) return;
+    
+    // Entferne alte Alerts
+    const oldAlerts = body.querySelectorAll('.alert');
+    oldAlerts.forEach(alert => alert.remove());
+    
+    // Füge neuen Success hinzu
     const alert = document.createElement('div');
     alert.className = 'alert alert-success';
+    alert.style.marginBottom = '1rem';
     alert.textContent = message;
     body.insertBefore(alert, body.firstChild);
+    
+    // Scroll to top
+    body.scrollTop = 0;
   }
 
   async loadKooperationData(kooperationId) {
@@ -222,50 +294,51 @@ export class KooperationVersandManager {
     
     body.innerHTML = `
       <div class="versand-form-layout">
-        <div class="versand-table-section">
-          <h3>Versand-Übersicht</h3>
-          ${this.renderVersandTable(versandDaten, creator, creatorAdressen)}
-        </div>
-
         <form id="versand-form" data-kooperation-id="${kooperationId}" class="versand-form">
           <input type="hidden" name="kooperation_id" value="${kooperationId}">
-
-          <div class="form-section">
-            <h3>Neues Produkt versenden</h3>
-            <div class="versand-details-grid">
-              <div class="form-field">
+          <div class="versand-details-grid">
+            <div class="form-field">
                 <label for="creator_adresse_id">Lieferadresse auswählen</label>
                 <select id="creator_adresse_id" name="creator_adresse_id" class="form-select">
                   ${adressOptionen}
                 </select>
                 <small class="field-hint">Wählen Sie die Zieladresse für diesen Versand</small>
               </div>
-              <div class="form-field">
-                <label for="produkt_name">Produktname</label>
-                <input type="text" name="produkt_name" placeholder="z.B. Produktpaket, Geschenkbox, etc." required>
-              </div>
-              <div class="form-field">
-                <label for="tracking_nummer">Tracking-Nummer</label>
-                <input type="text" name="tracking_nummer" placeholder="z.B. 1Z999AA1234567890">
-                <small class="field-hint">Status wird automatisch auf "versendet" gesetzt</small>
-              </div>
-              <div class="form-field">
-                <label for="versand_datum">Versand-Datum</label>
-                <input type="date" name="versand_datum">
-              </div>
-              <div class="form-field">
-                <label for="beschreibung">Beschreibung</label>
-                <textarea name="beschreibung" rows="2" placeholder="Details zum Produkt...""></textarea>
-              </div>
-              <div class="form-field form-field-full">
-                <label for="notizen">Versand-Notizen</label>
-                <textarea name="notizen" rows="2" placeholder="Zusätzliche Notizen zum Versand..."></textarea>
-              </div>
+            <div class="form-field">
+              <label for="produkt_name">Produktname</label>
+              <input type="text" name="produkt_name" placeholder="z.B. Produktpaket, Geschenkbox, etc." required>
+            </div>
+            <div class="form-field">
+              <label for="tracking_nummer">Tracking-Nummer</label>
+              <input type="text" name="tracking_nummer" placeholder="z.B. 1Z999AA1234567890">
+              <small class="field-hint">Status wird automatisch auf "versendet" gesetzt</small>
+            </div>
+            <div class="form-field">
+              <label for="versand_datum">Versand-Datum</label>
+              <input type="date" name="versand_datum">
+            </div>
+            <div class="form-field">
+              <label for="beschreibung">Beschreibung</label>
+              <textarea name="beschreibung" rows="2" placeholder="Details zum Produkt...""></textarea>
+            </div>
+            <div class="form-field form-field-full">
+              <label for="notizen">Versand-Notizen</label>
+              <textarea name="notizen" rows="2" placeholder="Zusätzliche Notizen zum Versand..."></textarea>
             </div>
           </div>
 
           <div class="drawer-actions">
-            <button type="submit" class="primary-btn">Produkt hinzufügen</button>
+            <button type="submit" class="primary-btn" id="versand-submit-btn">
+              <span class="btn-label">Produkt hinzufügen</span>
+              <span class="btn-loader" style="display: none;">
+                <svg class="spinner" width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="50" stroke-dashoffset="0">
+                    <animateTransform attributeName="transform" type="rotate" from="0 10 10" to="360 10 10" dur="1s" repeatCount="indefinite"/>
+                  </circle>
+                </svg>
+                Speichere...
+              </span>
+            </button>
             <button type="button" class="secondary-btn" data-close>Abbrechen</button>
           </div>
         </form>
@@ -273,146 +346,158 @@ export class KooperationVersandManager {
     `;
   }
 
-  renderVersandTable(versandDaten, creator, creatorAdressen = []) {
-    if (!versandDaten || versandDaten.length === 0) {
-      return `
-        <div class="empty-state-small">
-          <p>Noch keine Produkte versendet</p>
-        </div>
-      `;
-    }
-
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
-    const formatAddress = (versand, creator) => {
-      // Verwende creator_adresse falls vorhanden, sonst Hauptadresse
-      if (versand.creator_adresse) {
-        const addr = versand.creator_adresse;
-        return `<strong>${addr.adressname}:</strong><br>${addr.strasse || ''} ${addr.hausnummer || ''}, ${addr.plz || ''} ${addr.stadt || ''}, ${addr.land || 'Deutschland'}`;
-      } else {
-        if (!creator?.lieferadresse_strasse) return 'Keine Adresse hinterlegt';
-        return `<strong>Hauptadresse:</strong><br>${creator.lieferadresse_strasse} ${creator.lieferadresse_hausnummer || ''}, ${creator.lieferadresse_plz || ''} ${creator.lieferadresse_stadt || ''}, ${creator.lieferadresse_land || 'Deutschland'}`;
-      }
-    };
-
-    const tableRows = versandDaten.map(versand => `
-      <tr>
-        <td>
-          <div class="product-info">
-            <div class="product-name">${window.validatorSystem.sanitizeHtml(versand.produkt_name)}</div>
-            ${versand.beschreibung ? `<div class="product-desc">${window.validatorSystem.sanitizeHtml(versand.beschreibung)}</div>` : ''}
-          </div>
-        </td>
-        <td class="address-cell">
-          <div class="address-compact">
-            <div class="address-name">${creator?.vorname || ''} ${creator?.nachname || ''}</div>
-            <div class="address-text">${formatAddress(versand, creator)}</div>
-          </div>
-        </td>
-        <td class="text-center">
-          <span class="status-badge ${versand.versendet ? 'status-versendet' : 'status-offen'}">
-            ${versand.versendet ? 'Versendet' : 'Offen'}
-          </span>
-        </td>
-        <td class="text-center">
-          ${versand.tracking_nummer ? `<span class="tracking-number">${versand.tracking_nummer}</span>` : '-'}
-        </td>
-        <td class="text-center">${formatDate(versand.versand_datum)}</td>
-        <td class="text-center">
-          <button class="btn-delete-versand" data-id="${versand.id}" title="Löschen">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-              <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-            </svg>
-          </button>
-        </td>
-      </tr>
-    `).join('');
-
-    return `
-      <div class="data-table-container">
-        <table class="data-table versand-table">
-          <thead>
-            <tr>
-              <th>Produkt</th>
-              <th>Lieferadresse</th>
-              <th class="text-center">Status</th>
-              <th class="text-center">Tracking-Nr</th>
-              <th class="text-center">Versand-Datum</th>
-              <th class="text-center">Aktionen</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${tableRows}
-          </tbody>
-        </table>
-      </div>
-    `;
-  }
-
-  bindFormEvents(kooperationId) {
-    const form = document.getElementById('versand-form');
-    if (!form) return;
-
-    // Delete-Buttons für Versand-Einträge
-    document.addEventListener('click', async (e) => {
-      if (e.target.closest('.btn-delete-versand')) {
-        e.preventDefault();
-        const btn = e.target.closest('.btn-delete-versand');
-        const versandId = btn.dataset.id;
-        
-        if (confirm('Versand-Eintrag wirklich löschen?')) {
-          await this.deleteVersandEintrag(versandId, kooperationId);
-        }
-      }
-    });
-
-    form.querySelector('[data-close]')?.addEventListener('click', () => this.close());
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      await this.handleSubmit(form, kooperationId);
-    });
-  }
+  // ENTFERNT: Keine lokale Event-Bindung mehr nötig
+  // Events werden über globale Event-Delegation in bindGlobalEvents() behandelt
 
   async handleSubmit(form, kooperationId) {
+    // Guard gegen Mehrfach-Submits
+    if (this.isSubmitting) {
+      console.log('%c⏸️ Submit bereits in Bearbeitung, überspringe', 'color: orange');
+      return;
+    }
+
+    this.isSubmitting = true;
+    const submitBtn = document.getElementById('versand-submit-btn');
+    const btnLabel = submitBtn?.querySelector('.btn-label');
+    const btnLoader = submitBtn?.querySelector('.btn-loader');
+
+    // Speichere Submit-Versuch in LocalStorage für Debugging
+    localStorage.setItem('versand_debug_last_submit', JSON.stringify({
+      kooperationId,
+      timestamp: new Date().toISOString(),
+      formData: Object.fromEntries(new FormData(form))
+    }));
+
+    console.log('%c📝 VERSANDMANAGER: handleSubmit START', 'color: purple; font-weight: bold', { kooperationId });
+
     try {
+      // UI: Loading-State
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        if (btnLabel) btnLabel.style.display = 'none';
+        if (btnLoader) btnLoader.style.display = 'inline-flex';
+      }
+
       const formData = new FormData(form);
       const payload = { kooperation_id: kooperationId };
 
+      // Pflichtfelder, die nicht null sein dürfen
+      const requiredFields = ['produkt_name'];
+
       formData.forEach((value, key) => {
         if (key === 'kooperation_id') return;
+        
+        // creator_adresse_id: Leere Auswahl = null (Hauptadresse)
         if (key === 'creator_adresse_id' && value === '') {
-          payload[key] = null; // Leere Auswahl = Hauptadresse
-        } else if (value === '') {
           payload[key] = null;
-        } else {
+        } 
+        // Pflichtfelder: Leeren Wert nicht auf null setzen
+        else if (requiredFields.includes(key)) {
+          payload[key] = value;
+        }
+        // Andere Felder: Leeren Wert auf null setzen
+        else if (value === '') {
+          payload[key] = null;
+        } 
+        else {
           payload[key] = value;
         }
       });
+
+      // Validierung: produkt_name muss vorhanden sein
+      if (!payload.produkt_name || payload.produkt_name.trim() === '') {
+        throw new Error('Produktname ist erforderlich.');
+      }
 
       // Automatische Versand-Status-Logik: Tracking-Nummer vorhanden = versendet
       const hasTracking = payload.tracking_nummer && payload.tracking_nummer.trim() !== '';
       payload.versendet = hasTracking;
 
+      console.log('%c📦 VERSANDMANAGER: Versand-Payload:', 'color: blue; font-weight: bold', payload);
+
       if (window.supabase) {
         // Immer neuen Eintrag erstellen (mehrere Produkte möglich)
-        const { error } = await window.supabase
+        const { data, error } = await window.supabase
           .from('kooperation_versand')
-          .insert(payload);
+          .insert(payload)
+          .select();
 
-        if (error) throw error;
+        if (error) {
+          console.error('%c❌ VERSANDMANAGER: Supabase Insert Fehler', 'color: red; font-weight: bold', error);
+          localStorage.setItem('versand_debug_last_error', JSON.stringify({
+            error: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+            timestamp: new Date().toISOString()
+          }));
+          throw error;
+        }
+        console.log('%c✅ VERSANDMANAGER: Versand-Eintrag erstellt', 'color: green; font-weight: bold', data);
+        localStorage.setItem('versand_debug_last_success', JSON.stringify({
+          data,
+          timestamp: new Date().toISOString()
+        }));
       } else if (window.dataService?.createEntity) {
-        await window.dataService.createEntity('kooperation_versand', payload);
+        const result = await window.dataService.createEntity('kooperation_versand', payload);
+        console.log('%c✅ VERSANDMANAGER: Versand-Eintrag erstellt via DataService', 'color: green; font-weight: bold', result);
       }
 
-      this.showSuccess('Versand-Daten gespeichert.');
-      setTimeout(() => this.close(), 1200);
+      // Erfolg!
+      this.showSuccess('✅ Versand-Daten erfolgreich gespeichert!');
+      
+      // Form zurücksetzen
+      form.reset();
+      
+      // Drawer nach Erfolg schließen
+      setTimeout(() => {
+        this.close();
+      }, 1500);
 
+      // Event für andere Module
       window.dispatchEvent(new CustomEvent('entityUpdated', {
         detail: { entity: 'kooperation_versand', kooperation_id: kooperationId, action: 'saved' }
       }));
+
+      console.log('%c✅ VERSANDMANAGER: handleSubmit ERFOLGREICH', 'color: green; font-weight: bold');
+
     } catch (error) {
-      console.error('❌ Versand-Daten speichern fehlgeschlagen:', error);
-      this.showError(error.message || 'Speichern fehlgeschlagen.');
+      console.error('%c❌ VERSANDMANAGER: handleSubmit FEHLER', 'color: red; font-weight: bold', error);
+      
+      // Detaillierte Fehlermeldung anzeigen
+      let errorMessage = '❌ Speichern fehlgeschlagen.';
+      if (error.message) {
+        errorMessage = `❌ ${error.message}`;
+      } else if (error.details) {
+        errorMessage = `❌ Datenbankfehler: ${error.details}`;
+      } else if (error.hint) {
+        errorMessage = `❌ Fehler: ${error.hint}`;
+      }
+      
+      this.showError(errorMessage);
+
+      // UI: Error-State
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        if (btnLabel) btnLabel.style.display = 'inline';
+        if (btnLoader) btnLoader.style.display = 'none';
+      }
+
+    } finally {
+      this.isSubmitting = false;
+      
+      // UI: Reset nach Erfolg
+      if (submitBtn && !submitBtn.disabled) {
+        if (btnLabel) btnLabel.style.display = 'inline';
+        if (btnLoader) btnLoader.style.display = 'none';
+      } else if (submitBtn) {
+        // Bei Erfolg: Button nach kurzer Zeit wieder aktivieren
+        setTimeout(() => {
+          submitBtn.disabled = false;
+          if (btnLabel) btnLabel.style.display = 'inline';
+          if (btnLoader) btnLoader.style.display = 'none';
+        }, 1500);
+      }
     }
   }
 
@@ -427,11 +512,8 @@ export class KooperationVersandManager {
         if (error) throw error;
       }
 
-      // Drawer neu laden
-      const kooperationData = await this.loadKooperationData(kooperationId);
-      const versandDaten = await this.loadVersandDaten(kooperationId);
-      this.renderForm(kooperationId, kooperationData, versandDaten);
-      this.bindFormEvents(kooperationId);
+      // Drawer schließen nach Löschen
+      this.close();
 
       // Event für Tab-Update
       window.dispatchEvent(new CustomEvent('entityUpdated', {
