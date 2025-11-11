@@ -7,6 +7,7 @@ import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { KampagneKanbanBoard } from './KampagneKanbanBoard.js';
+import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 
 export class KampagneList {
   constructor() {
@@ -77,112 +78,54 @@ export class KampagneList {
 
   // Lade Kampagnen mit Beziehungen
   async loadKampagnenWithRelations() {
+    const startTime = performance.now();
+    
     try {
       if (!window.supabase) {
         console.warn('⚠️ Supabase nicht verfügbar - verwende Mock-Daten');
         return await window.dataService.loadEntities('kampagne');
       }
 
-      // Lade Status-Optionen und Kampagnenarten
-      try {
-        const [{ data: statusRows }, { data: artRows }] = await Promise.all([
-          window.supabase.from('kampagne_status').select('id, name, sort_order').order('sort_order', { ascending: true }).order('name', { ascending: true }),
-          window.supabase.from('kampagne_art_typen').select('id, name')
-        ]);
-        this.statusOptions = statusRows || [];
-        this.kampagneArtMap = new Map((artRows || []).map(r => [r.id, r.name]));
-      } catch (e) {
-        console.warn('⚠️ Konnte Status/Arten nicht laden', e);
-      }
-
-      // Sichtbarkeit: Nicht-Admins sehen nur zugewiesene Kampagnen
+      // PARALLEL: Status, Arten und Permission-Daten gleichzeitig laden
       const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+      
+      const [statusResult, artResult, permissionsResult] = await parallelLoad([
+        // 1. Status-Optionen laden
+        () => window.supabase
+          .from('kampagne_status')
+          .select('id, name, sort_order')
+          .order('sort_order', { ascending: true })
+          .order('name', { ascending: true }),
+        
+        // 2. Kampagnenarten laden
+        () => window.supabase
+          .from('kampagne_art_typen')
+          .select('id, name'),
+        
+        // 3. Permissions laden (nur für Nicht-Admins)
+        () => isAdmin ? Promise.resolve({ data: null }) : this.loadUserPermissions()
+      ]);
+      
+      // Status und Arten verarbeiten
+      this.statusOptions = statusResult.data || [];
+      this.kampagneArtMap = new Map((artResult.data || []).map(r => [r.id, r.name]));
+      
+      // Permissions verarbeiten
       let assignedKampagnenIds = [];
       if (!isAdmin) {
-        try {
-          // 1. Direkt zugeordnete Kampagnen
-          const { data: assignedKampagnen } = await window.supabase
-            .from('kampagne_mitarbeiter')
-            .select('kampagne_id')
-            .eq('mitarbeiter_id', window.currentUser?.id);
-          const directKampagnenIds = (assignedKampagnen || []).map(r => r.kampagne_id).filter(Boolean);
-          
-          // 2. Kampagnen über zugeordnete Marken
-          const { data: assignedMarken } = await window.supabase
-            .from('marke_mitarbeiter')
-            .select('marke_id')
-            .eq('mitarbeiter_id', window.currentUser?.id);
-          const markenIds = (assignedMarken || []).map(r => r.marke_id).filter(Boolean);
-          
-          let markenKampagnenIds = [];
-          if (markenIds.length > 0) {
-            const { data: markenKampagnen } = await window.supabase
-              .from('kampagne')
-              .select('id')
-              .in('marke_id', markenIds);
-            markenKampagnenIds = (markenKampagnen || []).map(k => k.id).filter(Boolean);
-          }
-          
-          // 3. NEU: Kampagnen über zugeordnete Unternehmen
-          const { data: mitarbeiterUnternehmen } = await window.supabase
-            .from('mitarbeiter_unternehmen')
-            .select('unternehmen_id')
-            .eq('mitarbeiter_id', window.currentUser?.id);
-          
-          const unternehmenIds = (mitarbeiterUnternehmen || [])
-            .map(r => r.unternehmen_id)
-            .filter(Boolean);
-          
-          let unternehmenKampagnenIds = [];
-          if (unternehmenIds.length > 0) {
-            // Alle Marken dieser Unternehmen finden
-            const { data: unternehmenMarken } = await window.supabase
-              .from('marke')
-              .select('id')
-              .in('unternehmen_id', unternehmenIds);
-            
-            const unternehmenMarkenIds = (unternehmenMarken || []).map(m => m.id).filter(Boolean);
-            
-            if (unternehmenMarkenIds.length > 0) {
-              // Alle Kampagnen dieser Marken laden
-              const { data: kampagnen } = await window.supabase
-                .from('kampagne')
-                .select('id')
-                .in('marke_id', unternehmenMarkenIds);
-              
-              unternehmenKampagnenIds = (kampagnen || []).map(k => k.id).filter(Boolean);
-            }
-          }
-          
-          // Alle zusammenführen und Duplikate entfernen
-          assignedKampagnenIds = [...new Set([
-            ...directKampagnenIds,
-            ...markenKampagnenIds,
-            ...unternehmenKampagnenIds
-          ])];
-          
-          console.log(`🔍 KAMPAGNELIST: Mitarbeiter ${window.currentUser?.id} hat Zugriff auf:`, {
-            direkteKampagnen: directKampagnenIds.length,
-            markenKampagnen: markenKampagnenIds.length,
-            unternehmenKampagnen: unternehmenKampagnenIds.length,
-            gesamt: assignedKampagnenIds.length
-          });
-          
-          // Für Mitarbeiter: Wenn keine zugewiesenen Kampagnen, dann keine Daten
-          // Für Kunden: RLS-Policies filtern automatisch, also weiter machen
-          if (assignedKampagnenIds.length === 0 && window.currentUser?.rolle !== 'kunde') {
-            return [];
-          }
-        } catch (error) {
-          console.error('❌ Fehler beim Laden der Zuordnungen:', error);
-          // Für Kunden: RLS-Policies filtern automatisch, also weiter machen
-          // Für Mitarbeiter: Bei Fehler keine Daten anzeigen
-          if (window.currentUser?.rolle !== 'kunde') {
-            return [];
-          }
+        assignedKampagnenIds = permissionsResult.data || [];
+        
+        console.log(`🔍 KAMPAGNELIST: Mitarbeiter ${window.currentUser?.id} hat Zugriff auf ${assignedKampagnenIds.length} Kampagnen`);
+        
+        // Für Mitarbeiter: Wenn keine zugewiesenen Kampagnen, dann keine Daten
+        // Für Kunden: RLS-Policies filtern automatisch, also weiter machen
+        if (assignedKampagnenIds.length === 0 && window.currentUser?.rolle !== 'kunde') {
+          console.log('⚠️ Keine zugewiesenen Kampagnen für Mitarbeiter gefunden');
+          return [];
         }
       }
 
+      // Haupt-Query
       let query = window.supabase
         .from('kampagne')
         .select(`
@@ -235,13 +178,104 @@ export class KampagneList {
         await window.dataService.loadManyToManyRelations(formattedData, 'kampagne', entityConfig.manyToMany);
       }
 
-      console.log('✅ Kampagnen mit Beziehungen geladen:', formattedData);
+      const loadTime = (performance.now() - startTime).toFixed(0);
+      console.log(`✅ KAMPAGNELIST: ${formattedData.length} Kampagnen geladen in ${loadTime}ms`);
       return formattedData;
 
     } catch (error) {
       console.error('❌ Fehler beim Laden der Kampagnen mit Beziehungen:', error);
       // Fallback zu normalem Laden
       return await window.dataService.loadEntities('kampagne');
+    }
+  }
+  
+  // Helper: Lade User Permissions parallel
+  async loadUserPermissions() {
+    try {
+      const userId = window.currentUser?.id;
+      if (!userId) return { data: [] };
+      
+      // Alle Permission-Queries PARALLEL ausführen
+      const [directResult, markenResult, unternehmenResult] = await parallelLoad([
+        // 1. Direkt zugeordnete Kampagnen
+        () => window.supabase
+          .from('kampagne_mitarbeiter')
+          .select('kampagne_id')
+          .eq('mitarbeiter_id', userId),
+        
+        // 2. Kampagnen über zugeordnete Marken
+        () => window.supabase
+          .from('marke_mitarbeiter')
+          .select('marke_id')
+          .eq('mitarbeiter_id', userId),
+        
+        // 3. Kampagnen über zugeordnete Unternehmen
+        () => window.supabase
+          .from('mitarbeiter_unternehmen')
+          .select('unternehmen_id')
+          .eq('mitarbeiter_id', userId)
+      ]);
+      
+      // Direkte Kampagnen-IDs
+      const directKampagnenIds = (directResult.data || []).map(r => r.kampagne_id).filter(Boolean);
+      
+      // Kampagnen über Marken
+      const markenIds = (markenResult.data || []).map(r => r.marke_id).filter(Boolean);
+      let markenKampagnenIds = [];
+      if (markenIds.length > 0) {
+        const { data: markenKampagnen } = await window.supabase
+          .from('kampagne')
+          .select('id')
+          .in('marke_id', markenIds);
+        markenKampagnenIds = (markenKampagnen || []).map(k => k.id).filter(Boolean);
+      }
+      
+      // Kampagnen über Unternehmen
+      const unternehmenIds = (unternehmenResult.data || []).map(r => r.unternehmen_id).filter(Boolean);
+      let unternehmenKampagnenIds = [];
+      if (unternehmenIds.length > 0) {
+        // PARALLEL: Marken und deren Kampagnen laden
+        const { data: unternehmenMarken } = await window.supabase
+          .from('marke')
+          .select('id')
+          .in('unternehmen_id', unternehmenIds);
+        
+        const unternehmenMarkenIds = (unternehmenMarken || []).map(m => m.id).filter(Boolean);
+        
+        if (unternehmenMarkenIds.length > 0) {
+          const { data: kampagnen } = await window.supabase
+            .from('kampagne')
+            .select('id')
+            .in('marke_id', unternehmenMarkenIds);
+          
+          unternehmenKampagnenIds = (kampagnen || []).map(k => k.id).filter(Boolean);
+        }
+      }
+      
+      // Alle zusammenführen und Duplikate entfernen
+      const allKampagnenIds = [...new Set([
+        ...directKampagnenIds,
+        ...markenKampagnenIds,
+        ...unternehmenKampagnenIds
+      ])];
+      
+      console.log(`🔍 Permission-Details:`, {
+        direkteKampagnen: directKampagnenIds.length,
+        markenKampagnen: markenKampagnenIds.length,
+        unternehmenKampagnen: unternehmenKampagnenIds.length,
+        gesamt: allKampagnenIds.length
+      });
+      
+      return { data: allKampagnenIds };
+      
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Permissions:', error);
+      // Für Kunden: RLS-Policies filtern automatisch, also weiter machen
+      // Für Mitarbeiter: Bei Fehler keine Daten anzeigen
+      if (window.currentUser?.rolle !== 'kunde') {
+        return { data: [] };
+      }
+      return { data: [] };
     }
   }
 
@@ -663,6 +697,12 @@ export class KampagneList {
     if (this.boundFilterResetHandler) {
       document.removeEventListener('click', this.boundFilterResetHandler);
       this.boundFilterResetHandler = null;
+    }
+    
+    // Kanban Board cleanup
+    if (this.kanbanBoard) {
+      this.kanbanBoard.destroy();
+      this.kanbanBoard = null;
     }
   }
 

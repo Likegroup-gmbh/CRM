@@ -489,7 +489,7 @@
     align-items: center;
     margin-bottom: var(--space-md);
     gap: var(--space-md);
-    padding: 0 var(--space-lg) 0 var(--space-lg);
+   
   }
 
   .table-actions {
@@ -1040,7 +1040,7 @@
   display: flex;
   gap: 0;
   border-bottom: 1px solid var(--gray-200);
- padding: 0 var(--space-lg) 0 var(--space-lg);
+  padding: 0 var(--space-lg) 0 0;
   scrollbar-width: none;
   -ms-overflow-style: none;
   background: var(--color-white);
@@ -1087,7 +1087,7 @@
   background: var(--bg-primary);
   min-height: 400px;
   overflow-x: hidden; /* Verhindert horizontales Scrollen des Tab-Contents */
-  padding: 0 var(--space-lg) 0 var(--space-lg);
+  
 }
 
 .tab-pane {
@@ -1099,32 +1099,32 @@
   padding-top: var(--space-xl);
 }
 
-/* Spezifischer Fix für koops-videos Tab */
+/* Spezifischer Fix für koops-videos Tab - erlaubt Scrollen für breite Tabellen */
 #tab-koops-videos.active {
   display: block !important;
   visibility: visible !important;
-  overflow-x: hidden; /* Verhindert horizontales Scrollen des Tabs */
+  overflow-x: auto !important; /* Erlaubt horizontales Scrollen für breite Tabellen */
 }
 
 #tab-koops-videos .detail-section {
-  overflow-x: hidden; /* Verhindert horizontales Scrollen der Section */
+  overflow-x: auto !important; /* Erlaubt horizontales Scrollen für breite Tabellen */
 }
 
 /* Overflow-Kontrolle für Kampagne-Detail mit Grid-Tabelle */
 .main-content.kampagne-detail-grid-active {
-  overflow-x: hidden;
+  overflow-x: auto; /* Erlaubt horizontales Scrollen für Grid-Tabelle */
 }
 
 .kampagne-detail-grid-active .main-wrapper {
-  overflow-x: hidden;
+  overflow-x: auto; /* Erlaubt horizontales Scrollen für Grid-Tabelle */
 }
 
 .kampagne-detail-grid-active .content-section {
-  overflow-x: hidden;
+  overflow-x: auto; /* Erlaubt horizontales Scrollen für Grid-Tabelle */
 }
 
 .kampagne-detail-grid-active .page-header {
-  overflow-x: hidden;
+  overflow-x: visible; /* Page Header bleibt sichtbar */
 }
 
 /* Tab Badge für Counts */
@@ -1654,7 +1654,7 @@
   flex-direction: column;
   gap: var(--space-md);
   height: 100%;
-  padding: 0 var(--space-lg) 0 var(--space-lg);
+  
 }
 
 .kanban-filters {
@@ -1680,6 +1680,7 @@
   flex: 1;
   min-height: 0;
   padding-bottom: var(--space-sm);
+  justify-content: space-between;
 }
 
 /* Kampagnen-Kanban mit 11 Spalten und horizontalem Scrolling */
@@ -1690,31 +1691,20 @@
   height: calc(100vh - 250px);
   min-height: 600px;
   padding-bottom: var(--space-md);
+  /* Verstecke Inline-Scrollbar, da Floating-Scrollbar verwendet wird */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+/* Verstecke Webkit-Scrollbar */
+.kampagne-kanban-board::-webkit-scrollbar {
+  display: none;
 }
 
 .kampagne-kanban-board .kanban-column {
   min-width: 280px;
   max-width: 320px;
   flex-shrink: 0;
-}
-
-/* Scrollbar-Styling für Kampagnen-Kanban */
-.kampagne-kanban-board::-webkit-scrollbar {
-  height: 10px;
-}
-
-.kampagne-kanban-board::-webkit-scrollbar-track {
-  background: var(--gray-100);
-  border-radius: var(--radius-md);
-}
-
-.kampagne-kanban-board::-webkit-scrollbar-thumb {
-  background: var(--gray-400);
-  border-radius: var(--radius-md);
-}
-
-.kampagne-kanban-board::-webkit-scrollbar-thumb:hover {
-  background: var(--gray-500);
 }
 
 .kanban-column {
@@ -3714,7 +3704,8 @@ margin-bottom: var(--space-md);
   max-width: 100%;
   border-radius: var(--radius-md);
   background: transparent; /* Transparenter Hintergrund */
-  padding: 0 var(--space-lg) 0 var(--space-lg);
+  
+  
 }
 
 /* Responsive Table Improvements */

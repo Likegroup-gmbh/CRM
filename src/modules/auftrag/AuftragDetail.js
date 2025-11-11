@@ -2,6 +2,8 @@
 // Auftrags-Detailseite mit Tabs für Informationen, Notizen, Bewertungen und Creator
 
 import { AuftragsDetailsManager, auftragsDetailsManager } from './logic/AuftragsDetailsManager.js';
+import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
+import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 
 export class AuftragDetail {
   constructor() {
@@ -26,7 +28,7 @@ export class AuftragDetail {
     
     try {
       this.auftragId = auftragId;
-      await this.loadAuftragData();
+      await this.loadCriticalData();
       
       // Breadcrumb aktualisieren
       if (window.breadcrumbSystem && this.auftrag) {
@@ -38,6 +40,7 @@ export class AuftragDetail {
       
       this.render();
       this.bindEvents();
+      this.setupCacheInvalidation();
       console.log('✅ AUFTRAGDETAIL: Initialisierung abgeschlossen');
     } catch (error) {
       console.error('❌ AUFTRAGDETAIL: Fehler bei der Initialisierung:', error);
@@ -45,136 +48,115 @@ export class AuftragDetail {
     }
   }
 
-  // Lade Auftrags-Daten
-  async loadAuftragData() {
-    console.log('🔄 AUFTRAGDETAIL: Lade Auftrags-Daten...');
+  // Lade kritische Daten parallel
+  async loadCriticalData() {
+    console.log('🔄 AUFTRAGDETAIL: Lade kritische Daten parallel...');
+    const startTime = performance.now();
     
     try {
-      // Auftrags-Basisdaten laden
-      const { data: auftrag, error } = await window.supabase
-        .from('auftrag')
-        .select(`
-          *,
-          marke:marke_id(markenname),
-          unternehmen:unternehmen_id(firmenname)
-        `)
-        .eq('id', this.auftragId)
-        .single();
-
-      if (error) throw error;
-      
-      this.auftrag = auftrag;
-      console.log('✅ AUFTRAGDETAIL: Auftrags-Basisdaten geladen:', this.auftrag);
-
-      // Notizen laden
-      if (window.notizenSystem) {
-        this.notizen = await window.notizenSystem.loadNotizen('auftrag', this.auftragId);
-        console.log('✅ AUFTRAGDETAIL: Notizen geladen:', this.notizen.length);
-      }
-
-      // Bewertungen laden
-      if (window.bewertungsSystem) {
-        this.ratings = await window.bewertungsSystem.loadBewertungen('auftrag', this.auftragId);
-        console.log('✅ AUFTRAGDETAIL: Ratings geladen:', this.ratings.length);
-      }
-
-      // Creator laden
-      const { data: creator, error: creatorError } = await window.supabase
-        .from('creator_auftrag')
-        .select(`
-          creator:creator_id(*)
-        `)
-        .eq('auftrag_id', this.auftragId);
-
-      if (!creatorError) {
-        this.creator = creator?.map(item => item.creator) || [];
-        console.log('✅ AUFTRAGDETAIL: Creator geladen:', this.creator.length);
-      }
-
-      // Mitarbeiter-Zuordnungen laden (Many-to-Many)
-      try {
-        const { data: mitarbeiterData, error: mitarbeiterError } = await window.supabase
+      // Alle kritischen Daten PARALLEL laden
+      const [
+        auftragResult,
+        notizenResult,
+        ratingsResult,
+        creatorResult,
+        mitarbeiterResult,
+        cutterResult,
+        copywriterResult,
+        auftragsDetailsResult
+      ] = await parallelLoad([
+        // 1. Auftrags-Basisdaten mit Relations
+        () => window.supabase
+          .from('auftrag')
+          .select(`
+            *,
+            marke:marke_id(markenname),
+            unternehmen:unternehmen_id(firmenname)
+          `)
+          .eq('id', this.auftragId)
+          .single(),
+        
+        // 2. Notizen
+        () => window.notizenSystem ? 
+          window.notizenSystem.loadNotizen('auftrag', this.auftragId) : 
+          Promise.resolve([]),
+        
+        // 3. Ratings
+        () => window.bewertungsSystem ? 
+          window.bewertungsSystem.loadBewertungen('auftrag', this.auftragId) : 
+          Promise.resolve([]),
+        
+        // 4. Creator
+        () => window.supabase
+          .from('creator_auftrag')
+          .select(`creator:creator_id(*)`)
+          .eq('auftrag_id', this.auftragId),
+        
+        // 5. Mitarbeiter
+        () => window.supabase
           .from('auftrag_mitarbeiter')
           .select('mitarbeiter_id')
-          .eq('auftrag_id', this.auftragId);
+          .eq('auftrag_id', this.auftragId),
         
-        if (mitarbeiterError) throw mitarbeiterError;
-        
-        // Lade die vollständigen Benutzer-Daten
-        if (mitarbeiterData && mitarbeiterData.length > 0) {
-          const mitarbeiterIds = mitarbeiterData.map(item => item.mitarbeiter_id);
-          const { data: benutzerData } = await window.supabase
-            .from('benutzer')
-            .select('id, name')
-            .in('id', mitarbeiterIds);
-          
-          this.auftrag.mitarbeiter = benutzerData || [];
-        } else {
-          this.auftrag.mitarbeiter = [];
-        }
-        console.log('✅ AUFTRAGDETAIL: Mitarbeiter geladen:', this.auftrag.mitarbeiter.length);
-      } catch (e) {
-        console.warn('⚠️ AUFTRAGDETAIL: Fehler beim Laden der Mitarbeiter:', e);
-        this.auftrag.mitarbeiter = [];
-      }
-
-      // Cutter-Zuordnungen laden (Many-to-Many)
-      try {
-        const { data: cutterData, error: cutterError } = await window.supabase
+        // 6. Cutter
+        () => window.supabase
           .from('auftrag_cutter')
           .select('mitarbeiter_id')
-          .eq('auftrag_id', this.auftragId);
+          .eq('auftrag_id', this.auftragId),
         
-        if (cutterError) throw cutterError;
-        
-        // Lade die vollständigen Benutzer-Daten
-        if (cutterData && cutterData.length > 0) {
-          const cutterIds = cutterData.map(item => item.mitarbeiter_id);
-          const { data: benutzerData } = await window.supabase
-            .from('benutzer')
-            .select('id, name')
-            .in('id', cutterIds);
-          
-          this.auftrag.cutter = benutzerData || [];
-        } else {
-          this.auftrag.cutter = [];
-        }
-        console.log('✅ AUFTRAGDETAIL: Cutter geladen:', this.auftrag.cutter.length);
-      } catch (e) {
-        console.warn('⚠️ AUFTRAGDETAIL: Fehler beim Laden der Cutter:', e);
-        this.auftrag.cutter = [];
-      }
-
-      // Copywriter-Zuordnungen laden (Many-to-Many)
-      try {
-        const { data: copywriterData, error: copywriterError } = await window.supabase
+        // 7. Copywriter
+        () => window.supabase
           .from('auftrag_copywriter')
           .select('mitarbeiter_id')
-          .eq('auftrag_id', this.auftragId);
+          .eq('auftrag_id', this.auftragId),
         
-        if (copywriterError) throw copywriterError;
+        // 8. Auftragsdetails
+        () => window.supabase
+          .from('auftrag_details')
+          .select('*')
+          .eq('auftrag_id', this.auftragId)
+          .maybeSingle()
+      ]);
+      
+      // Daten verarbeiten
+      if (auftragResult.error) throw auftragResult.error;
+      this.auftrag = auftragResult.data;
+      
+      this.notizen = notizenResult || [];
+      this.ratings = ratingsResult || [];
+      
+      // Creator verarbeiten
+      if (!creatorResult.error) {
+        this.creator = creatorResult.data?.map(item => item.creator) || [];
+      }
+      
+      // Mitarbeiter-IDs sammeln und parallel laden
+      const mitarbeiterIds = mitarbeiterResult.data?.map(item => item.mitarbeiter_id).filter(Boolean) || [];
+      const cutterIds = cutterResult.data?.map(item => item.mitarbeiter_id).filter(Boolean) || [];
+      const copywriterIds = copywriterResult.data?.map(item => item.mitarbeiter_id).filter(Boolean) || [];
+      
+      // Alle Benutzer-IDs sammeln (unique)
+      const allIds = [...new Set([...mitarbeiterIds, ...cutterIds, ...copywriterIds])];
+      
+      // Benutzer parallel laden
+      if (allIds.length > 0) {
+        const { data: benutzerData } = await window.supabase
+          .from('benutzer')
+          .select('id, name')
+          .in('id', allIds);
         
-        // Lade die vollständigen Benutzer-Daten
-        if (copywriterData && copywriterData.length > 0) {
-          const copywriterIds = copywriterData.map(item => item.mitarbeiter_id);
-          const { data: benutzerData } = await window.supabase
-            .from('benutzer')
-            .select('id, name')
-            .in('id', copywriterIds);
-          
-          this.auftrag.copywriter = benutzerData || [];
-        } else {
-          this.auftrag.copywriter = [];
-        }
-        console.log('✅ AUFTRAGDETAIL: Copywriter geladen:', this.auftrag.copywriter.length);
-      } catch (e) {
-        console.warn('⚠️ AUFTRAGDETAIL: Fehler beim Laden der Copywriter:', e);
+        const benutzerMap = (benutzerData || []).reduce((acc, b) => { acc[b.id] = b; return acc; }, {});
+        
+        this.auftrag.mitarbeiter = mitarbeiterIds.map(id => benutzerMap[id]).filter(Boolean);
+        this.auftrag.cutter = cutterIds.map(id => benutzerMap[id]).filter(Boolean);
+        this.auftrag.copywriter = copywriterIds.map(id => benutzerMap[id]).filter(Boolean);
+      } else {
+        this.auftrag.mitarbeiter = [];
+        this.auftrag.cutter = [];
         this.auftrag.copywriter = [];
       }
-
-      // Ansprechpartner aus Junction Table laden (falls vorhanden)
-      // Hinweis: Bei Auftrag ist Ansprechpartner eine direkte Beziehung (ansprechpartner_id), 
-      // aber wir laden hier trotzdem das vollständige Objekt für das Edit-Formular
+      
+      // Ansprechpartner laden (falls vorhanden)
       if (this.auftrag.ansprechpartner_id) {
         try {
           const { data: ansprechpartnerData } = await window.supabase
@@ -185,80 +167,108 @@ export class AuftragDetail {
           
           if (ansprechpartnerData) {
             this.auftrag.ansprechpartner = ansprechpartnerData;
-            console.log('✅ AUFTRAGDETAIL: Ansprechpartner geladen:', this.auftrag.ansprechpartner);
           }
         } catch (e) {
           console.warn('⚠️ AUFTRAGDETAIL: Fehler beim Laden des Ansprechpartners:', e);
         }
       }
-
-      // Rechnungen laden (über auftrag_id)
-      try {
-        const { data: rechnungen } = await window.supabase
-          .from('rechnung')
-          .select('id, rechnung_nr, status, nettobetrag, bruttobetrag, gestellt_am, bezahlt_am, pdf_url')
-          .eq('auftrag_id', this.auftragId)
-          .order('gestellt_am', { ascending: false });
-        this.rechnungen = rechnungen || [];
-        // Summaries bilden
-        const sumNetto = (this.rechnungen || []).reduce((s, r) => s + (parseFloat(r.nettobetrag) || 0), 0);
-        const sumBrutto = (this.rechnungen || []).reduce((s, r) => s + (parseFloat(r.bruttobetrag) || 0), 0);
-        const paidCount = (this.rechnungen || []).filter(r => r.status === 'Bezahlt').length;
-        const openCount = (this.rechnungen || []).filter(r => r.status !== 'Bezahlt').length;
-        this.rechnungSummary = { count: (this.rechnungen || []).length, sumNetto, sumBrutto, paidCount, openCount };
-      } catch (_) {
-        this.rechnungen = [];
-        this.rechnungSummary = { count: 0, sumNetto: 0, sumBrutto: 0, paidCount: 0, openCount: 0 };
-      }
-
-      // Kooperationen (Ausgaben) via Kampagnen ermitteln (optional)
-      try {
-        const { data: kampagnen } = await window.supabase
-          .from('kampagne')
-          .select('id')
-          .eq('auftrag_id', this.auftragId);
-        const kampagneIds = (kampagnen || []).map(k => k.id);
-        if (kampagneIds.length > 0) {
-          const { data: koops } = await window.supabase
-            .from('kooperationen')
-            .select('nettobetrag, gesamtkosten')
-            .in('kampagne_id', kampagneIds);
-          const sumNetto = (koops || []).reduce((s, k) => s + (parseFloat(k.nettobetrag) || 0), 0);
-          const sumGesamt = (koops || []).reduce((s, k) => s + (parseFloat(k.gesamtkosten) || 0), 0);
-          this.koopSummary = { count: (koops || []).length, sumNetto, sumGesamt };
-        } else {
-          this.koopSummary = { count: 0, sumNetto: 0, sumGesamt: 0 };
-        }
-      } catch (_) {
-        this.koopSummary = { count: 0, sumNetto: 0, sumGesamt: 0 };
-      }
-
-      // Auftragsdetails laden
-      try {
-        const { data: auftragsDetails, error: detailsError } = await window.supabase
-          .from('auftrag_details')
-          .select('*')
-          .eq('auftrag_id', this.auftragId)
-          .maybeSingle();
-        
-        if (!detailsError) {
-          this.auftragsDetails = auftragsDetails;
-          console.log('✅ AUFTRAGDETAIL: Auftragsdetails geladen:', this.auftragsDetails);
-        } else {
-          console.log('ℹ️ AUFTRAGDETAIL: Keine Auftragsdetails vorhanden');
-          this.auftragsDetails = null;
-        }
-      } catch (_) {
+      
+      // Auftragsdetails verarbeiten
+      if (!auftragsDetailsResult.error) {
+        this.auftragsDetails = auftragsDetailsResult.data;
+      } else {
         this.auftragsDetails = null;
       }
-
-      // Echte Video- und Creator-Anzahl aus Kampagnen/Kooperationen berechnen
-      await this.calculateRealCounts();
-
+      
+      const loadTime = (performance.now() - startTime).toFixed(0);
+      console.log(`✅ AUFTRAGDETAIL: Kritische Daten geladen in ${loadTime}ms`);
+      
     } catch (error) {
-      console.error('❌ AUFTRAGDETAIL: Fehler beim Laden der Auftrags-Daten:', error);
+      console.error('❌ AUFTRAGDETAIL: Fehler beim Laden der kritischen Daten:', error);
       throw error;
     }
+  }
+  
+  // Lade Tab-Daten lazy (Rechnungen & Kooperationen-Summaries)
+  async loadTabData(tabName) {
+    return await tabDataCache.load('auftrag', this.auftragId, tabName, async () => {
+      console.log(`🔄 Lade Tab: ${tabName}`);
+      
+      try {
+        switch(tabName) {
+          case 'rechnungen':
+            const { data: rechnungen } = await window.supabase
+              .from('rechnung')
+              .select('id, rechnung_nr, status, nettobetrag, bruttobetrag, gestellt_am, bezahlt_am, pdf_url')
+              .eq('auftrag_id', this.auftragId)
+              .order('gestellt_am', { ascending: false });
+            this.rechnungen = rechnungen || [];
+            
+            // Summaries bilden
+            const sumNetto = (this.rechnungen || []).reduce((s, r) => s + (parseFloat(r.nettobetrag) || 0), 0);
+            const sumBrutto = (this.rechnungen || []).reduce((s, r) => s + (parseFloat(r.bruttobetrag) || 0), 0);
+            const paidCount = (this.rechnungen || []).filter(r => r.status === 'Bezahlt').length;
+            const openCount = (this.rechnungen || []).filter(r => r.status !== 'Bezahlt').length;
+            this.rechnungSummary = { count: (this.rechnungen || []).length, sumNetto, sumBrutto, paidCount, openCount };
+            
+            // Auch Kooperationen-Summary laden (für Budget-Vergleich)
+            await this.calculateKoopSummary();
+            await this.calculateRealCounts();
+            
+            this.updateRechnungenTab();
+            return rechnungen;
+        }
+      } catch (error) {
+        console.error(`❌ Fehler beim Laden von Tab ${tabName}:`, error);
+        return null;
+      }
+    });
+  }
+  
+  // Kooperationen-Summary berechnen
+  async calculateKoopSummary() {
+    try {
+      const { data: kampagnen } = await window.supabase
+        .from('kampagne')
+        .select('id')
+        .eq('auftrag_id', this.auftragId);
+      const kampagneIds = (kampagnen || []).map(k => k.id);
+      if (kampagneIds.length > 0) {
+        const { data: koops } = await window.supabase
+          .from('kooperationen')
+          .select('nettobetrag, gesamtkosten')
+          .in('kampagne_id', kampagneIds);
+        const sumNetto = (koops || []).reduce((s, k) => s + (parseFloat(k.nettobetrag) || 0), 0);
+        const sumGesamt = (koops || []).reduce((s, k) => s + (parseFloat(k.gesamtkosten) || 0), 0);
+        this.koopSummary = { count: (koops || []).length, sumNetto, sumGesamt };
+      } else {
+        this.koopSummary = { count: 0, sumNetto: 0, sumGesamt: 0 };
+      }
+    } catch (_) {
+      this.koopSummary = { count: 0, sumNetto: 0, sumGesamt: 0 };
+    }
+  }
+  
+  // Tab-Update-Methoden
+  updateRechnungenTab() {
+    const container = document.querySelector('#tab-rechnungen');
+    if (container) {
+      container.innerHTML = this.renderRechnungenTab();
+    }
+  }
+  
+  // Setup Cache-Invalidierung bei Updates
+  setupCacheInvalidation() {
+    window.addEventListener('entityUpdated', (e) => {
+      if (e.detail?.entity === 'auftrag' && e.detail?.id === this.auftragId) {
+        console.log('🔄 AUFTRAGDETAIL: Entity updated - invalidiere Cache');
+        tabDataCache.invalidate('auftrag', this.auftragId);
+        
+        if (e.detail.action === 'updated') {
+          this.loadCriticalData().then(() => this.render());
+        }
+      }
+    });
   }
 
   // Berechne echte Video- und Creator-Anzahl aus Kampagnen/Kooperationen

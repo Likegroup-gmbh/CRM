@@ -39,12 +39,6 @@ export class NavigationSystem {
         ]
       },
       {
-        title: 'Tools',
-        items: [
-          { id: 'tabellen', label: 'Tabellen', icon: 'icon-table', url: '/tabellen' }
-        ]
-      },
-      {
         title: 'Admin',
         items: [
           { id: 'mitarbeiter', label: 'Mitarbeiter', icon: 'icon-users', url: '/mitarbeiter' },

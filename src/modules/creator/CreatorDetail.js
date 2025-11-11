@@ -2,6 +2,8 @@
 // Creator-Detailseite mit allen relevanten Informationen
 import { renderKampagnenTable } from '../kampagne/KampagneTable.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
+import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 
 export class CreatorDetail {
   constructor() {
@@ -31,8 +33,8 @@ export class CreatorDetail {
     }
     
     try {
-      // Lade alle Creator-Daten
-      await this.loadCreatorData();
+      // Lade kritische Creator-Daten parallel (optimiert!)
+      await this.loadCriticalData();
       
       // Breadcrumb aktualisieren
       if (window.breadcrumbSystem && this.creator) {
@@ -52,6 +54,9 @@ export class CreatorDetail {
         this.eventsBound = true;
       }
       
+      // Event-Listener für automatische Cache-Invalidierung
+      this.setupCacheInvalidation();
+      
       console.log('✅ CREATORDETAIL: Initialisierung abgeschlossen');
       
     } catch (error) {
@@ -60,75 +65,128 @@ export class CreatorDetail {
     }
   }
 
-  // Lade alle Creator-Daten
-  async loadCreatorData() {
-    console.log('🔄 CREATORDETAIL: Lade Creator-Daten...');
+  // Lade kritische Creator-Daten PARALLEL (Performance-Optimiert!)
+  async loadCriticalData() {
+    console.log('🔄 CREATORDETAIL: Lade kritische Daten parallel...');
+    const startTime = performance.now();
     
-    // Creator-Basisdaten laden (ohne alte FK-JOINs)
-    const { data: creator, error } = await window.supabase
-      .from('creator')
-      .select(`*`)
-      .eq('id', this.creatorId)
-      .single();
-
-    if (error) {
-      throw new Error(`Fehler beim Laden der Creator-Daten: ${error.message}`);
-    }
-
-    this.creator = creator;
-    console.log('✅ CREATORDETAIL: Creator-Basisdaten geladen:', creator);
-
-    // M:N: Sprachen
-    try {
-      const { data: creatorSprachen } = await window.supabase
+    // Alle kritischen Daten PARALLEL laden
+    const [
+      creatorResult,
+      sprachenResult,
+      branchenResult,
+      typenResult,
+      adressenResult,
+      notizenResult,
+      ratingsResult
+    ] = await parallelLoad([
+      // 1. Creator Basisdaten
+      () => window.supabase
+        .from('creator')
+        .select(`*`)
+        .eq('id', this.creatorId)
+        .single(),
+      
+      // 2. M:N Sprachen
+      () => window.supabase
         .from('creator_sprachen')
         .select('sprache_id, sprachen:sprache_id(id, name)')
-        .eq('creator_id', this.creatorId);
-      this.creator.sprachen = (creatorSprachen || []).map(r => r.sprachen).filter(Boolean);
-    } catch {}
-
-    // M:N: Branchen
-    try {
-      const { data: creatorBranchen } = await window.supabase
+        .eq('creator_id', this.creatorId)
+        .then(r => (r.data || []).map(x => x.sprachen).filter(Boolean)),
+      
+      // 3. M:N Branchen
+      () => window.supabase
         .from('creator_branchen')
         .select('branche_id, branchen_creator:branche_id(id, name)')
-        .eq('creator_id', this.creatorId);
-      this.creator.branchen = (creatorBranchen || []).map(r => r.branchen_creator).filter(Boolean);
-    } catch {}
-
-    // M:N: Creator-Typen
-    try {
-      const { data: creatorTypen } = await window.supabase
+        .eq('creator_id', this.creatorId)
+        .then(r => (r.data || []).map(x => x.branchen_creator).filter(Boolean)),
+      
+      // 4. M:N Creator-Typen
+      () => window.supabase
         .from('creator_creator_type')
         .select('creator_type_id, creator_type:creator_type_id(id, name)')
-        .eq('creator_id', this.creatorId);
-      this.creator.creator_types = (creatorTypen || []).map(r => r.creator_type).filter(Boolean);
-    } catch {}
-
-    // Lade zusätzliche Adressen
-    try {
-      const { data: adressen } = await window.supabase
+        .eq('creator_id', this.creatorId)
+        .then(r => (r.data || []).map(x => x.creator_type).filter(Boolean)),
+      
+      // 5. Zusätzliche Adressen
+      () => window.supabase
         .from('creator_adressen')
         .select('*')
         .eq('creator_id', this.creatorId)
-        .order('created_at', { ascending: false });
-      this.creatorAdressen = adressen || [];
-      console.log('✅ CREATORDETAIL: Creator-Adressen geladen:', this.creatorAdressen.length);
-    } catch (error) {
-      console.error('❌ Fehler beim Laden der Creator-Adressen:', error);
-      this.creatorAdressen = [];
+        .order('created_at', { ascending: false })
+        .then(r => r.data || []),
+      
+      // 6. Notizen
+      () => window.notizenSystem.loadNotizen('creator', this.creatorId),
+      
+      // 7. Ratings
+      () => window.bewertungsSystem.loadBewertungen('creator', this.creatorId)
+    ]);
+    
+    // Error-Handling
+    if (creatorResult.error) {
+      throw new Error(`Fehler beim Laden der Creator-Daten: ${creatorResult.error.message}`);
     }
-
-    // Notizen über NotizenSystem laden
-    this.notizen = await window.notizenSystem.loadNotizen('creator', this.creatorId);
-    console.log('✅ CREATORDETAIL: Notizen geladen:', this.notizen.length);
-
-    // Ratings über BewertungsSystem laden
-    this.ratings = await window.bewertungsSystem.loadBewertungen('creator', this.creatorId);
-    console.log('✅ CREATORDETAIL: Ratings geladen:', this.ratings.length);
-
-    // Kampagnen laden
-    const { data: kampagnen, error: kampagnenError } = await window.supabase
+    
+    // Daten verarbeiten
+    this.creator = creatorResult.data;
+    this.creator.sprachen = sprachenResult;
+    this.creator.branchen = branchenResult;
+    this.creator.creator_types = typenResult;
+    this.creatorAdressen = adressenResult;
+    this.notizen = notizenResult || [];
+    this.ratings = ratingsResult || [];
+    
+    const loadTime = (performance.now() - startTime).toFixed(0);
+    console.log(`✅ CREATORDETAIL: Kritische Daten geladen in ${loadTime}ms`);
+  }
+  
+  // Lazy-Load Tab-spezifische Daten
+  async loadTabData(tabName) {
+    return await tabDataCache.load('creator', this.creatorId, tabName, async () => {
+      console.log(`🔄 CREATORDETAIL: Lade Tab-Daten für "${tabName}"`);
+      const startTime = performance.now();
+      
+      try {
+        switch(tabName) {
+          case 'kampagnen':
+            await this.loadKampagnen();
+            this.updateKampagnenTab();
+            break;
+            
+          case 'kooperationen':
+            await this.loadKooperationen();
+            this.updateKooperationenTab();
+            break;
+            
+          case 'listen':
+            await this.loadListen();
+            this.updateListenTab();
+            break;
+            
+          case 'unternehmen':
+            await this.loadUnternehmen();
+            this.updateUnternehmenTab();
+            break;
+            
+          case 'rechnungen':
+            await this.loadRechnungen();
+            this.updateRechnungenTab();
+            break;
+        }
+        
+        const loadTime = (performance.now() - startTime).toFixed(0);
+        console.log(`✅ CREATORDETAIL: Tab "${tabName}" geladen in ${loadTime}ms`);
+        
+      } catch (error) {
+        console.error(`❌ CREATORDETAIL: Fehler beim Laden von Tab "${tabName}":`, error);
+      }
+    });
+  }
+  
+  // Lade Kampagnen
+  async loadKampagnen() {
+    const { data: kampagnen, error } = await window.supabase
       .from('kampagne_creator')
       .select(`
         *,
@@ -138,48 +196,48 @@ export class CreatorDetail {
           status,
           start,
           deadline,
-          unternehmen:unternehmen_id (
-            id,
-            firmenname
-          ),
-          marke:marke_id (
-            id,
-            markenname
-          )
+          unternehmen:unternehmen_id ( id, firmenname ),
+          marke:marke_id ( id, markenname )
         )
       `)
       .eq('creator_id', this.creatorId)
       .order('hinzugefuegt_am', { ascending: false });
 
-    if (!kampagnenError) {
+    if (!error) {
       this.kampagnen = kampagnen || [];
     }
-    console.log('✅ CREATORDETAIL: Kampagnen geladen:', this.kampagnen.length);
-
-    // Kooperationen für Creator laden
+  }
+  
+  // Lade Kooperationen
+  async loadKooperationen() {
     try {
       const { data: koops } = await window.supabase
         .from('kooperationen')
         .select(`
-          id,
-          name,
-          status,
-          videoanzahl,
-          gesamtkosten,
+          id, name, status, videoanzahl, gesamtkosten,
           kampagne:kampagne_id ( id, kampagnenname ),
           created_at
         `)
         .eq('creator_id', this.creatorId)
         .order('created_at', { ascending: false });
       this.kooperationen = koops || [];
+      
+      // Kampagnen aus Kooperationen mit Kampagnen aus kampagne_creator zusammenführen
+      await this.mergeKampagnenFromKooperationen();
     } catch (e) {
       console.warn('⚠️ CREATORDETAIL: Kooperationen konnten nicht geladen werden', e);
       this.kooperationen = [];
     }
-    console.log('✅ CREATORDETAIL: Kooperationen geladen:', this.kooperationen.length);
-
-    // Rechnungen für Creator (über kooperation_id)
+  }
+  
+  // Lade Rechnungen
+  async loadRechnungen() {
     try {
+      // Lade Kooperationen falls noch nicht geladen
+      if (!this.kooperationen || this.kooperationen.length === 0) {
+        await this.loadKooperationen();
+      }
+      
       const koopIds = (this.kooperationen || []).map(k => k.id).filter(Boolean);
       if (koopIds.length > 0) {
         const { data: rechnungen } = await window.supabase
@@ -194,8 +252,58 @@ export class CreatorDetail {
     } catch (_) {
       this.rechnungen = [];
     }
+  }
+  
+  // Lade Listen
+  async loadListen() {
+    const { data: lists, error } = await window.supabase
+      .from('creator_list_member')
+      .select(`
+        *,
+        list:list_id ( id, name, created_at )
+      `)
+      .eq('creator_id', this.creatorId)
+      .order('added_at', { ascending: false });
 
-    // Kampagnen aus Kooperationen mit Kampagnen aus kampagne_creator zusammenführen (einzigartig nach Kampagnen-ID)
+    if (!error) {
+      this.lists = lists || [];
+    }
+  }
+  
+  // Lade Unternehmen
+  async loadUnternehmen() {
+    try {
+      // Lade Kampagnen und Kooperationen falls noch nicht geladen
+      if (!this.kampagnen || this.kampagnen.length === 0) {
+        await this.loadKampagnen();
+      }
+      if (!this.kooperationen || this.kooperationen.length === 0) {
+        await this.loadKooperationen();
+      }
+      
+      const kampUnternehmen = (this.kampagnen || [])
+        .map(k => k?.kampagne?.unternehmen)
+        .filter(Boolean);
+      const koopKampIds = (this.kooperationen || []).map(k => k?.kampagne?.id).filter(Boolean);
+      let koopUnternehmen = [];
+      if (koopKampIds.length > 0) {
+        const { data: kampMeta } = await window.supabase
+          .from('kampagne')
+          .select('id, unternehmen:unternehmen_id ( id, firmenname )')
+          .in('id', Array.from(new Set(koopKampIds)));
+        koopUnternehmen = (kampMeta || []).map(k => k.unternehmen).filter(Boolean);
+      }
+      const all = [...kampUnternehmen, ...koopUnternehmen].filter(Boolean);
+      const map = new Map();
+      all.forEach(u => { if (u?.id) map.set(u.id, u); });
+      this.unternehmen = Array.from(map.values());
+    } catch (_) {
+      this.unternehmen = [];
+    }
+  }
+  
+  // Helper: Merge Kampagnen aus Kooperationen
+  async mergeKampagnenFromKooperationen() {
     try {
       const coopCampaigns = (this.kooperationen || [])
         .filter(k => k.kampagne)
@@ -240,7 +348,7 @@ export class CreatorDetail {
           const id = e?.kampagne?.id || e?.kampagne_id;
           const detail = id ? detailsMap[id] : null;
           if (detail) {
-            if (!e.kampagne) e.kampagne = { id }; // safety
+            if (!e.kampagne) e.kampagne = { id };
             if (!e.kampagne.unternehmen) e.kampagne.unternehmen = detail.unternehmen || null;
             if (!e.kampagne.marke) e.kampagne.marke = detail.marke || null;
           }
@@ -250,46 +358,51 @@ export class CreatorDetail {
     } catch (mergeErr) {
       console.warn('⚠️ CREATORDETAIL: Kampagnen-Merge aus Kooperationen fehlgeschlagen', mergeErr);
     }
-
-    // Listen laden
-    const { data: lists, error: listsError } = await window.supabase
-      .from('creator_list_member')
-      .select(`
-        *,
-        list:list_id (
-          id,
-          name,
-          created_at
-        )
-      `)
-      .eq('creator_id', this.creatorId)
-      .order('added_at', { ascending: false });
-
-    if (!listsError) {
-      this.lists = lists || [];
+  }
+  
+  // Tab-Update-Methoden
+  updateKampagnenTab() {
+    const container = document.querySelector('#tab-kampagnen');
+    if (container) {
+      container.innerHTML = this.renderKampagnen();
+      const btn = document.querySelector('.tab-button[data-tab="kampagnen"] .tab-count');
+      if (btn) btn.textContent = String(this.kampagnen?.length || 0);
     }
-    console.log('✅ CREATORDETAIL: Listen geladen:', this.lists.length);
-
-    // Unternehmen ableiten: aus Kampagnen und Kooperationen (Deduplizieren)
-    try {
-      const kampUnternehmen = (this.kampagnen || [])
-        .map(k => k?.kampagne?.unternehmen)
-        .filter(Boolean);
-      const koopKampIds = (this.kooperationen || []).map(k => k?.kampagne?.id).filter(Boolean);
-      let koopUnternehmen = [];
-      if (koopKampIds.length > 0) {
-        const { data: kampMeta } = await window.supabase
-          .from('kampagne')
-          .select('id, unternehmen:unternehmen_id ( id, firmenname )')
-          .in('id', Array.from(new Set(koopKampIds)));
-        koopUnternehmen = (kampMeta || []).map(k => k.unternehmen).filter(Boolean);
-      }
-      const all = [...kampUnternehmen, ...koopUnternehmen].filter(Boolean);
-      const map = new Map();
-      all.forEach(u => { if (u?.id) map.set(u.id, u); });
-      this.unternehmen = Array.from(map.values());
-    } catch (_) {
-      this.unternehmen = [];
+  }
+  
+  updateKooperationenTab() {
+    const container = document.querySelector('#tab-kooperationen');
+    if (container) {
+      container.innerHTML = this.renderKooperationen();
+      const btn = document.querySelector('.tab-button[data-tab="kooperationen"] .tab-count');
+      if (btn) btn.textContent = String(this.kooperationen?.length || 0);
+    }
+  }
+  
+  updateListenTab() {
+    const container = document.querySelector('#tab-listen');
+    if (container) {
+      container.innerHTML = this.renderListen();
+      const btn = document.querySelector('.tab-button[data-tab="listen"] .tab-count');
+      if (btn) btn.textContent = String(this.lists?.length || 0);
+    }
+  }
+  
+  updateUnternehmenTab() {
+    const container = document.querySelector('#tab-unternehmen');
+    if (container) {
+      container.innerHTML = this.renderUnternehmen();
+      const btn = document.querySelector('.tab-button[data-tab="unternehmen"] .tab-count');
+      if (btn) btn.textContent = String(this.unternehmen?.length || 0);
+    }
+  }
+  
+  updateRechnungenTab() {
+    const container = document.querySelector('#tab-rechnungen');
+    if (container) {
+      container.innerHTML = this.renderRechnungen();
+      const btn = document.querySelector('.tab-button[data-tab="rechnungen"] .tab-count');
+      if (btn) btn.textContent = String(this.rechnungen?.length || 0);
     }
   }
 
@@ -322,23 +435,23 @@ export class CreatorDetail {
           </button>
           <button class="tab-button" data-tab="kampagnen">
             Kampagnen
-            <span class="tab-count">${this.kampagnen.length}</span>
+            <span class="tab-count">${this.kampagnen?.length || 0}</span>
           </button>
           <button class="tab-button" data-tab="kooperationen">
             Kooperationen
-            <span class="tab-count">${this.kooperationen.length}</span>
+            <span class="tab-count">${this.kooperationen?.length || 0}</span>
           </button>
           <button class="tab-button" data-tab="listen">
             Listen
-            <span class="tab-count">${this.lists.length}</span>
+            <span class="tab-count">${this.lists?.length || 0}</span>
           </button>
           <button class="tab-button" data-tab="unternehmen">
             Unternehmen
-            <span class="tab-count">${(this.unternehmen||[]).length}</span>
+            <span class="tab-count">${(this.unternehmen||[]).length || 0}</span>
           </button>
           <button class="tab-button" data-tab="rechnungen">
             Rechnungen
-            <span class="tab-count">${this.rechnungen.length}</span>
+            <span class="tab-count">${this.rechnungen?.length || 0}</span>
           </button>
           <button class="tab-button" data-tab="adresse">
             Adresse
@@ -864,7 +977,8 @@ export class CreatorDetail {
     const adressenUpdateHandler = async (e) => {
       if (e.detail?.entity === 'creator_adressen' && e.detail?.creatorId === this.creatorId) {
         console.log('🔄 CREATORDETAIL: Creator-Adressen aktualisiert, lade Daten neu');
-        await this.loadCreatorData();
+        tabDataCache.invalidate('creator', this.creatorId);
+        await this.loadCriticalData();
         
         // Tab neu rendern
         const adresseTab = document.getElementById('tab-adresse');
@@ -912,22 +1026,22 @@ export class CreatorDetail {
         return;
       }
       console.log('🔄 CREATORDETAIL: Soft-Refresh - lade Daten neu');
-      await this.loadCreatorData();
+      tabDataCache.invalidate('creator', this.creatorId);
+      await this.loadCriticalData();
       this.render();
       // Events sind bereits gebunden, nicht erneut binden
     });
   }
 
   // Tab wechseln
-  switchTab(tabName) {
+  async switchTab(tabName) {
     console.log('🔄 CREATORDETAIL: Wechsle zu Tab:', tabName);
     
-    // Alle Tab-Buttons deaktivieren
+    // UI sofort updaten
     document.querySelectorAll('.tab-button').forEach(btn => {
       btn.classList.remove('active');
     });
     
-    // Alle Tab-Panes ausblenden
     document.querySelectorAll('.tab-pane').forEach(pane => {
       pane.classList.remove('active');
     });
@@ -939,6 +1053,11 @@ export class CreatorDetail {
     if (activeButton && activePane) {
       activeButton.classList.add('active');
       activePane.classList.add('active');
+      
+      // Lazy load Tab-Daten (außer für bereits geladene Tabs)
+      if (!['info', 'notizen', 'ratings', 'adresse'].includes(tabName)) {
+        await this.loadTabData(tabName);
+      }
     }
   }
 
@@ -1081,7 +1200,8 @@ export class CreatorDetail {
         
         // Creator-Daten neu laden und zur Detailseite zurückkehren
         setTimeout(async () => {
-          await this.loadCreatorData();
+          tabDataCache.invalidate('creator', this.creatorId);
+          await this.loadCriticalData();
           await this.render();
           window.navigateTo(`/creator/${this.creatorId}`);
         }, 1500);
@@ -1181,9 +1301,34 @@ export class CreatorDetail {
     return new Date(dateString).toLocaleDateString('de-DE');
   }
 
+  // Setup automatische Cache-Invalidierung bei Entity-Updates
+  setupCacheInvalidation() {
+    window.addEventListener('entityUpdated', (e) => {
+      if (e.detail.entity === 'creator' && e.detail.id === this.creatorId) {
+        console.log('🔄 CREATORDETAIL: Entity updated - invalidiere Cache');
+        tabDataCache.invalidate('creator', this.creatorId);
+        
+        // Optional: Reload kritische Daten bei Updates
+        if (e.detail.action === 'updated') {
+          this.loadCriticalData().then(() => {
+            // Aktualisiere nur die Info-Sektion ohne vollständiges Neu-Rendering
+            const infoTab = document.querySelector('#tab-info');
+            if (infoTab && infoTab.classList.contains('active')) {
+              infoTab.innerHTML = this.renderInfo();
+            }
+          });
+        }
+      }
+    });
+  }
+
   // Cleanup
   destroy() {
-    console.log('🗑️ CREATORDETAIL: Destroy aufgerufen');
+    console.log('🗑️ CREATORDETAIL: Destroy aufgerufen - räume auf');
+    
+    // Invalidiere Tab-Cache für diesen Creator
+    tabDataCache.invalidate('creator', this.creatorId);
+    
     // Content zurücksetzen
     window.setContentSafely('');
     console.log('✅ CREATORDETAIL: Destroy abgeschlossen');

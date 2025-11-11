@@ -36,8 +36,8 @@ export class KampagneDetail {
     }
     
     try {
-      // Lade alle Kampagnen-Daten
-      await this.loadKampagneData();
+      // Lade kritische Daten (PARALLEL statt sequentiell!)
+      await this.loadCriticalData();
       
       // Breadcrumb aktualisieren
       if (window.breadcrumbSystem && this.kampagneData) {
@@ -57,7 +57,6 @@ export class KampagneDetail {
       // Initial-Tab-Load: Warte bis DOM bereit ist, dann lade den Tab
       if (window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false) {
         console.log('🔄 KAMPAGNEDETAIL: Lade initialen Tab "koops-videos"');
-        // requestAnimationFrame stellt sicher, dass DOM vollständig gerendert ist
         requestAnimationFrame(() => {
           requestAnimationFrame(async () => {
             await this.switchTab('koops-videos');
@@ -70,44 +69,6 @@ export class KampagneDetail {
     } catch (error) {
       console.error('❌ KAMPAGNEDETAIL: Fehler bei der Initialisierung:', error);
       window.ErrorHandler.handle(error, 'KampagneDetail.init');
-    }
-  }
-
-  // Kooperationen zur Kampagne laden
-  async loadKooperationen() {
-    try {
-      const { data: koops, error } = await window.supabase
-        .from('kooperationen')
-        .select('id, name, status, gesamtkosten, videoanzahl, creator_id')
-        .eq('kampagne_id', this.kampagneId)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-
-      // Creator Daten mappen
-      const creatorIds = Array.from(new Set((koops || []).map(k => k.creator_id).filter(Boolean)));
-      let creatorMap = {};
-      if (creatorIds.length > 0) {
-        const { data: creators } = await window.supabase
-          .from('creator')
-          .select('id, vorname, nachname')
-          .in('id', creatorIds);
-        creatorMap = (creators || []).reduce((acc, c) => { acc[c.id] = c; return acc; }, {});
-      }
-
-      this.kooperationen = (koops || []).map(k => ({
-        ...k,
-        creator: creatorMap[k.creator_id] || null
-      }));
-
-      // Budgetsumme
-      this.koopBudgetSum = this.kooperationen.reduce((sum, k) => sum + (parseFloat(k.gesamtkosten) || 0), 0);
-      // Videosumme
-      this.koopVideosUsed = this.kooperationen.reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
-      console.log('✅ KAMPAGNEDETAIL: Kooperationen geladen:', this.kooperationen.length, 'Budgetsumme:', this.koopBudgetSum);
-    } catch (e) {
-      console.error('❌ KAMPAGNEDETAIL: Fehler beim Laden der Kooperationen:', e);
-      this.kooperationen = [];
-      this.koopBudgetSum = 0;
     }
   }
 
@@ -263,317 +224,354 @@ export class KampagneDetail {
      `;
    }
 
-  // Lade alle Kampagnen-Daten
-  async loadKampagneData() {
-    console.log('🔄 KAMPAGNEDETAIL: Lade Kampagnen-Daten...');
+  // Lade kritische Daten parallel (Performance-optimiert)
+  async loadCriticalData() {
+    console.log('🔄 KAMPAGNEDETAIL: Lade kritische Daten parallel...');
+    const startTime = performance.now();
     
     try {
-      // Kampagnen-Basisdaten laden
-      const { data: kampagne, error } = await window.supabase
-        .from('kampagne')
-        .select(`
-          *,
-          unternehmen:unternehmen_id(firmenname, webseite, branche_id),
-          marke:marke_id(markenname, webseite),
-          auftrag:auftrag_id(auftragsname, status, gesamt_budget, creator_budget)
-        `)
-        .eq('id', this.kampagneId)
-        .single();
-
-      if (error) throw error;
-      
-      this.kampagneData = kampagne;
-
-      // Ansprechpartner aus Junction Table laden
-      const { data: ansprechpartnerData, error: ansprechpartnerError } = await window.supabase
-        .from('ansprechpartner_kampagne')
-        .select(`
-          ansprechpartner:ansprechpartner_id(
-            id,
-            vorname,
-            nachname,
-            email,
-            unternehmen:unternehmen_id(firmenname),
-            position:position_id(name)
-          )
-        `)
-        .eq('kampagne_id', this.kampagneId);
-
-      if (!ansprechpartnerError) {
-        this.kampagneData.ansprechpartner = ansprechpartnerData?.map(item => item.ansprechpartner).filter(Boolean) || [];
-        console.log('✅ KAMPAGNEDETAIL: Ansprechpartner geladen:', this.kampagneData.ansprechpartner.length);
-      }
-      
-      // Alle Mitarbeiter-Rollen aus Junction Table laden
-      const { data: allMitarbeiterData, error: mitarbeiterError } = await window.supabase
-        .from('kampagne_mitarbeiter')
-        .select(`
-          role,
-          benutzer:mitarbeiter_id(
-            id,
-            name,
-            email
-          )
-        `)
-        .eq('kampagne_id', this.kampagneId);
-
-      if (!mitarbeiterError && allMitarbeiterData) {
-        // Nach Rollen aufteilen
-        this.kampagneData.mitarbeiter = allMitarbeiterData.filter(item => !item.role || item.role === 'mitarbeiter').map(item => item.benutzer).filter(Boolean);
-        this.kampagneData.projektmanager = allMitarbeiterData.filter(item => item.role === 'projektmanager').map(item => item.benutzer).filter(Boolean);
-        this.kampagneData.scripter = allMitarbeiterData.filter(item => item.role === 'scripter').map(item => item.benutzer).filter(Boolean);
-        this.kampagneData.cutter = allMitarbeiterData.filter(item => item.role === 'cutter').map(item => item.benutzer).filter(Boolean);
+      // ALLE kritischen Queries PARALLEL ausführen
+      const [
+        kampagneResult,
+        ansprechpartnerResult,
+        mitarbeiterResult,
+        kooperationenResult
+      ] = await Promise.all([
+        // 1. Kampagne mit Relations (für Header & Info-Tab)
+        window.supabase
+          .from('kampagne')
+          .select(`
+            *,
+            unternehmen:unternehmen_id(firmenname, webseite, branche_id),
+            marke:marke_id(markenname, webseite),
+            auftrag:auftrag_id(auftragsname, status, gesamt_budget, creator_budget)
+          `)
+          .eq('id', this.kampagneId)
+          .single(),
         
-        console.log('✅ KAMPAGNEDETAIL: Mitarbeiter geladen:', {
-          mitarbeiter: this.kampagneData.mitarbeiter.length,
-          projektmanager: this.kampagneData.projektmanager.length,
-          scripter: this.kampagneData.scripter.length,
-          cutter: this.kampagneData.cutter.length
-        });
-      }
-
-      // Plattformen aus Junction Table laden
-      try {
-        const { data: plattformData } = await window.supabase
+        // 2. Ansprechpartner (für Tab-Count & Info-Tab)
+        window.supabase
+          .from('ansprechpartner_kampagne')
+          .select(`
+            ansprechpartner:ansprechpartner_id(
+              id, vorname, nachname, email,
+              unternehmen:unternehmen_id(firmenname),
+              position:position_id(name)
+            )
+          `)
+          .eq('kampagne_id', this.kampagneId),
+        
+        // 3. Mitarbeiter (für Tab-Count & Info-Tab)
+        window.supabase
+          .from('kampagne_mitarbeiter')
+          .select(`
+            role,
+            benutzer:mitarbeiter_id(id, name, email)
+          `)
+          .eq('kampagne_id', this.kampagneId),
+        
+        // 4. Kooperationen mit Creator (für Tab-Count & koops-videos)
+        // Creator-Daten direkt joinen statt nachzuladen!
+        window.supabase
+          .from('kooperationen')
+          .select(`
+            id, name, status, gesamtkosten, videoanzahl,
+            creator:creator_id(id, vorname, nachname)
+          `)
+          .eq('kampagne_id', this.kampagneId)
+          .order('created_at', { ascending: false })
+      ]);
+      
+      // Fehler-Handling
+      if (kampagneResult.error) throw kampagneResult.error;
+      
+      // Kampagnen-Daten verarbeiten
+      this.kampagneData = kampagneResult.data;
+      
+      // Ansprechpartner
+      this.kampagneData.ansprechpartner = ansprechpartnerResult.data
+        ?.map(item => item.ansprechpartner)
+        .filter(Boolean) || [];
+      
+      // Mitarbeiter nach Rollen aufteilen
+      const mitarbeiterData = mitarbeiterResult.data || [];
+      this.kampagneData.mitarbeiter = mitarbeiterData
+        .filter(item => !item.role || item.role === 'mitarbeiter')
+        .map(item => item.benutzer)
+        .filter(Boolean);
+      this.kampagneData.projektmanager = mitarbeiterData
+        .filter(item => item.role === 'projektmanager')
+        .map(item => item.benutzer)
+        .filter(Boolean);
+      this.kampagneData.scripter = mitarbeiterData
+        .filter(item => item.role === 'scripter')
+        .map(item => item.benutzer)
+        .filter(Boolean);
+      this.kampagneData.cutter = mitarbeiterData
+        .filter(item => item.role === 'cutter')
+        .map(item => item.benutzer)
+        .filter(Boolean);
+      
+      // Kooperationen (Creator bereits gejoined)
+      this.kooperationen = kooperationenResult.data || [];
+      this.koopBudgetSum = this.kooperationen.reduce(
+        (sum, k) => sum + (parseFloat(k.gesamtkosten) || 0), 
+        0
+      );
+      this.koopVideosUsed = this.kooperationen.reduce(
+        (sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 
+        0
+      );
+      
+      // Plattformen & Formate parallel laden (für Info-Tab)
+      const [plattformResult, formatResult] = await Promise.all([
+        window.supabase
           .from('kampagne_plattformen')
-          .select(`
-            plattform:plattform_id(
-              id,
-              name
-            )
-          `)
-          .eq('kampagne_id', this.kampagneId);
-
-        if (plattformData) {
-          this.kampagneData.plattformen = plattformData.map(item => item.plattform).filter(Boolean);
-          this.kampagneData.plattform_ids = this.kampagneData.plattformen.map(p => p.id);
-          console.log('✅ KAMPAGNEDETAIL: Plattformen geladen:', this.kampagneData.plattformen.length);
-        }
-      } catch (e) {
-        console.warn('⚠️ KAMPAGNEDETAIL: Plattformen konnten nicht geladen werden', e);
-      }
-
-      // Formate aus Junction Table laden
-      try {
-        const { data: formatData } = await window.supabase
+          .select('plattform:plattform_id(id, name)')
+          .eq('kampagne_id', this.kampagneId),
+        
+        window.supabase
           .from('kampagne_formate')
-          .select(`
-            format:format_id(
-              id,
-              name
-            )
-          `)
-          .eq('kampagne_id', this.kampagneId);
-
-        if (formatData) {
-          this.kampagneData.formate = formatData.map(item => item.format).filter(Boolean);
-          this.kampagneData.format_ids = this.kampagneData.formate.map(f => f.id);
-          console.log('✅ KAMPAGNEDETAIL: Formate geladen:', this.kampagneData.formate.length);
-        }
-      } catch (e) {
-        console.warn('⚠️ KAMPAGNEDETAIL: Formate konnten nicht geladen werden', e);
+          .select('format:format_id(id, name)')
+          .eq('kampagne_id', this.kampagneId)
+      ]);
+      
+      if (plattformResult.data) {
+        this.kampagneData.plattformen = plattformResult.data
+          .map(item => item.plattform)
+          .filter(Boolean);
+        this.kampagneData.plattform_ids = this.kampagneData.plattformen.map(p => p.id);
       }
       
-      console.log('✅ KAMPAGNEDETAIL: Kampagnen-Basisdaten geladen:', this.kampagneData);
-
+      if (formatResult.data) {
+        this.kampagneData.formate = formatResult.data
+          .map(item => item.format)
+          .filter(Boolean);
+        this.kampagneData.format_ids = this.kampagneData.formate.map(f => f.id);
+      }
+      
       // Kampagnen-Arten laden (falls vorhanden)
-      if (this.kampagneData.art_der_kampagne && this.kampagneData.art_der_kampagne.length > 0) {
-        const { data: kampagneArten, error: artenError } = await window.supabase
+      if (this.kampagneData.art_der_kampagne?.length > 0) {
+        const { data: kampagneArten } = await window.supabase
           .from('kampagne_art_typen')
           .select('id, name, beschreibung')
           .in('id', this.kampagneData.art_der_kampagne);
-
-        if (!artenError) {
-          this.kampagneData.kampagne_art_typen = kampagneArten || [];
-          console.log('✅ KAMPAGNEDETAIL: Kampagnen-Arten geladen:', this.kampagneData.kampagne_art_typen.length);
-        }
+        this.kampagneData.kampagne_art_typen = kampagneArten || [];
       }
-
-      // Creators laden
-      const { data: creator, error: creatorError } = await window.supabase
-        .from('kampagne_creator')
-        .select(`
-          *,
-          creator:creator_id(
-            id,
-            vorname,
-            nachname,
-            instagram,
-            instagram_follower,
-            tiktok,
-            tiktok_follower,
-            mail,
-            telefonnummer
-          )
-        `)
-        .eq('kampagne_id', this.kampagneId);
-
-      if (!creatorError) {
-        this.creator = creator || [];
-        console.log('✅ KAMPAGNEDETAIL: Creators geladen:', this.creator.length);
-      }
-
-      // Creator Sourcing: aus eigener Tabelle laden
-      try {
-        const { data: sourcing } = await window.supabase
-          .from('kampagne_creator_sourcing')
-          .select(`
-            id,
-            creator:creator_id (
-              id,
-              vorname,
-              nachname,
-              creator_types:creator_creator_type(creator_type:creator_type_id(name)),
-              sprachen:creator_sprachen(sprachen:sprache_id(name)),
-              branchen:creator_branchen(branchen_creator:branche_id(name)),
-              instagram_follower,
-              tiktok_follower,
-              lieferadresse_stadt,
-              lieferadresse_land
-            )
-          `)
-          .eq('kampagne_id', this.kampagneId);
-        this.sourcingCreators = (sourcing || []).map(row => {
-          const c = row.creator || {};
-          return {
-            id: c.id,
-            vorname: c.vorname,
-            nachname: c.nachname,
-            creator_types: (c.creator_types || []).map(x => x.creator_type).filter(Boolean),
-            sprachen: (c.sprachen || []).map(x => x.sprachen).filter(Boolean),
-            branchen: (c.branchen || []).map(x => x.branchen_creator).filter(Boolean),
-            instagram_follower: c.instagram_follower,
-            tiktok_follower: c.tiktok_follower,
-            lieferadresse_stadt: c.lieferadresse_stadt,
-            lieferadresse_land: c.lieferadresse_land,
-          };
-        });
-      } catch (e) {
-        console.warn('⚠️ KAMPAGNEDETAIL: Creator Sourcing konnte nicht geladen werden', e);
-        this.sourcingCreators = [];
-      }
-
-      // Favoriten laden
-      try {
-        const { data: favs } = await window.supabase
-          .from('kampagne_creator_favoriten')
-          .select(`
-            id,
-            creator:creator_id (
-              id,
-              vorname,
-              nachname,
-              creator_types:creator_creator_type(creator_type:creator_type_id(name)),
-              sprachen:creator_sprachen(sprachen:sprache_id(name)),
-              branchen:creator_branchen(branchen_creator:branche_id(name)),
-              instagram_follower,
-              tiktok_follower,
-              lieferadresse_stadt,
-              lieferadresse_land
-            )
-          `)
-          .eq('kampagne_id', this.kampagneId);
-        this.favoriten = (favs || []).map(row => {
-          const c = row.creator || {};
-          return {
-            id: c.id,
-            vorname: c.vorname,
-            nachname: c.nachname,
-            creator_types: (c.creator_types || []).map(x => x.creator_type).filter(Boolean),
-            sprachen: (c.sprachen || []).map(x => x.sprachen).filter(Boolean),
-            branchen: (c.branchen || []).map(x => x.branchen_creator).filter(Boolean),
-            instagram_follower: c.instagram_follower,
-            tiktok_follower: c.tiktok_follower,
-            lieferadresse_stadt: c.lieferadresse_stadt,
-            lieferadresse_land: c.lieferadresse_land,
-          };
-        });
-      } catch (e) {
-        console.warn('⚠️ KAMPAGNEDETAIL: Favoriten konnten nicht geladen werden', e);
-        this.favoriten = [];
-      }
-
-      // Notizen laden
+      
+      // Notizen & Ratings parallel laden (nur Counts für Tabs)
       if (window.notizenSystem) {
         this.notizen = await window.notizenSystem.loadNotizen('kampagne', this.kampagneId);
-        console.log('✅ KAMPAGNEDETAIL: Notizen geladen:', this.notizen.length);
       }
-
-      // Ratings laden
       if (window.bewertungsSystem) {
         this.ratings = await window.bewertungsSystem.loadBewertungen('kampagne', this.kampagneId);
-        console.log('✅ KAMPAGNEDETAIL: Ratings geladen:', this.ratings.length);
       }
+      
+      const loadTime = (performance.now() - startTime).toFixed(0);
+      console.log(`✅ KAMPAGNEDETAIL: Kritische Daten geladen in ${loadTime}ms`);
+      
+    } catch (error) {
+      console.error('❌ KAMPAGNEDETAIL: Fehler beim Laden der kritischen Daten:', error);
+      throw error;
+    }
+  }
 
-      // Kooperationen laden (mit Creator-Namen) und Budgetsumme berechnen
-      await this.loadKooperationen();
-
-      // Rechnungen zur Kampagne laden
-      try {
-      const { data: rechnungen } = await window.supabase
-        .from('rechnung')
-        .select('id, rechnung_nr, status, nettobetrag, bruttobetrag, gestellt_am, bezahlt_am, pdf_url, kooperation:kooperation_id(id, name), creator:creator_id(id, vorname, nachname)')
+  // Lade History für Lazy Loading (Performance-optimiert)
+  async loadHistory() {
+    try {
+      // Kampagnen-History laden
+      const { data: hist } = await window.supabase
+        .from('kampagne_history')
+        .select('id, old_status, new_status, comment, created_at, benutzer:changed_by(name)')
         .eq('kampagne_id', this.kampagneId)
-        .order('gestellt_am', { ascending: false });
-        this.rechnungen = rechnungen || [];
-      } catch (_) {
-        this.rechnungen = [];
-      }
-
-      // History (Statuswechsel) laden
-      try {
-        const { data: hist } = await window.supabase
-          .from('kampagne_history')
-          .select('id, old_status, new_status, comment, created_at, benutzer:changed_by(name)')
-          .eq('kampagne_id', this.kampagneId)
+        .order('created_at', { ascending: false });
+      
+      this.history = (hist || []).map(h => ({
+        id: h.id,
+        old_status: h.old_status || null,
+        new_status: h.new_status || null,
+        comment: h.comment || '',
+        created_at: h.created_at,
+        user_name: h.benutzer?.name || '-'
+      }));
+      this.historyCount = this.history.length;
+      
+      // Kooperationen-History laden
+      const koopIds = (this.kooperationen || []).map(k => k.id).filter(Boolean);
+      if (koopIds.length > 0) {
+        const koopMap = (this.kooperationen || []).reduce((acc, k) => { 
+          acc[k.id] = k; 
+          return acc; 
+        }, {});
+        
+        const { data: khist } = await window.supabase
+          .from('kooperation_history')
+          .select('id, kooperation_id, old_status, new_status, comment, created_at, benutzer:changed_by(name)')
+          .in('kooperation_id', koopIds)
           .order('created_at', { ascending: false });
-        this.history = (hist || []).map(h => ({
+        
+        this.koopHistory = (khist || []).map(h => ({
           id: h.id,
+          kooperation_id: h.kooperation_id,
+          kooperation_name: koopMap[h.kooperation_id]?.name || h.kooperation_id,
           old_status: h.old_status || null,
           new_status: h.new_status || null,
           comment: h.comment || '',
           created_at: h.created_at,
           user_name: h.benutzer?.name || '-'
         }));
-        this.historyCount = this.history.length;
-      } catch (_) {
-        this.history = [];
-        this.historyCount = 0;
-      }
-
-      // Kooperationen-History laden (aggregiert)
-      try {
-        const koopIds = (this.kooperationen || []).map(k => k.id).filter(Boolean);
-        if (koopIds.length > 0) {
-          const koopMap = (this.kooperationen || []).reduce((acc, k) => { acc[k.id] = k; return acc; }, {});
-          const { data: khist } = await window.supabase
-            .from('kooperation_history')
-            .select('id, kooperation_id, old_status, new_status, comment, created_at, benutzer:changed_by(name)')
-            .in('kooperation_id', koopIds)
-            .order('created_at', { ascending: false });
-          this.koopHistory = (khist || []).map(h => ({
-            id: h.id,
-            kooperation_id: h.kooperation_id,
-            kooperation_name: koopMap[h.kooperation_id]?.name || h.kooperation_id,
-            old_status: h.old_status || null,
-            new_status: h.new_status || null,
-            comment: h.comment || '',
-            created_at: h.created_at,
-            user_name: h.benutzer?.name || '-'
-          }));
-          this.koopHistoryCount = this.koopHistory.length;
-        } else {
-          this.koopHistory = [];
-          this.koopHistoryCount = 0;
-        }
-      } catch (_) {
+        this.koopHistoryCount = this.koopHistory.length;
+      } else {
         this.koopHistory = [];
         this.koopHistoryCount = 0;
       }
+      
+      // Tab updaten
+      this.updateHistoryTab();
+      
+    } catch (e) {
+      console.error('❌ KAMPAGNEDETAIL: Fehler beim Laden der History:', e);
+      this.history = [];
+      this.koopHistory = [];
+      this.historyCount = 0;
+      this.koopHistoryCount = 0;
+    }
+  }
 
+  // Lade Tab-spezifische Daten on-demand (Performance-optimiert)
+  async loadTabData(tabName) {
+    // Nur laden wenn noch nicht geladen
+    const loadingKey = `_${tabName}Loaded`;
+    if (this[loadingKey]) {
+      console.log(`✅ KAMPAGNEDETAIL: Tab ${tabName} bereits geladen`);
+      return;
+    }
+    
+    console.log(`🔄 KAMPAGNEDETAIL: Lade Daten für Tab: ${tabName}`);
+    const startTime = performance.now();
+    
+    try {
+      switch(tabName) {
+        case 'creators':
+          if (!this.creator || this.creator.length === 0) {
+            const { data } = await window.supabase
+              .from('kampagne_creator')
+              .select(`
+                *,
+                creator:creator_id(
+                  id, vorname, nachname, instagram, instagram_follower,
+                  tiktok, tiktok_follower, mail, telefonnummer
+                )
+              `)
+              .eq('kampagne_id', this.kampagneId);
+            this.creator = data || [];
+            this.updateCreatorsTab();
+          }
+          break;
+          
+        case 'sourcing':
+          if (!this.sourcingCreators || this.sourcingCreators.length === 0) {
+            const { data } = await window.supabase
+              .from('kampagne_creator_sourcing')
+              .select(`
+                id,
+                creator:creator_id (
+                  id, vorname, nachname,
+                  creator_types:creator_creator_type(creator_type:creator_type_id(name)),
+                  sprachen:creator_sprachen(sprachen:sprache_id(name)),
+                  branchen:creator_branchen(branchen_creator:branche_id(name)),
+                  instagram_follower, tiktok_follower,
+                  lieferadresse_stadt, lieferadresse_land
+                )
+              `)
+              .eq('kampagne_id', this.kampagneId);
+            
+            this.sourcingCreators = (data || []).map(row => {
+              const c = row.creator || {};
+              return {
+                id: c.id,
+                vorname: c.vorname,
+                nachname: c.nachname,
+                creator_types: (c.creator_types || []).map(x => x.creator_type).filter(Boolean),
+                sprachen: (c.sprachen || []).map(x => x.sprachen).filter(Boolean),
+                branchen: (c.branchen || []).map(x => x.branchen_creator).filter(Boolean),
+                instagram_follower: c.instagram_follower,
+                tiktok_follower: c.tiktok_follower,
+                lieferadresse_stadt: c.lieferadresse_stadt,
+                lieferadresse_land: c.lieferadresse_land,
+              };
+            });
+            this.updateSourcingTab();
+          }
+          break;
+          
+        case 'favs':
+          if (!this.favoriten || this.favoriten.length === 0) {
+            const { data } = await window.supabase
+              .from('kampagne_creator_favoriten')
+              .select(`
+                id,
+                creator:creator_id (
+                  id, vorname, nachname,
+                  creator_types:creator_creator_type(creator_type:creator_type_id(name)),
+                  sprachen:creator_sprachen(sprachen:sprache_id(name)),
+                  branchen:creator_branchen(branchen_creator:branche_id(name)),
+                  instagram_follower, tiktok_follower,
+                  lieferadresse_stadt, lieferadresse_land
+                )
+              `)
+              .eq('kampagne_id', this.kampagneId);
+            
+            this.favoriten = (data || []).map(row => {
+              const c = row.creator || {};
+              return {
+                id: c.id,
+                vorname: c.vorname,
+                nachname: c.nachname,
+                creator_types: (c.creator_types || []).map(x => x.creator_type).filter(Boolean),
+                sprachen: (c.sprachen || []).map(x => x.sprachen).filter(Boolean),
+                branchen: (c.branchen || []).map(x => x.branchen_creator).filter(Boolean),
+                instagram_follower: c.instagram_follower,
+                tiktok_follower: c.tiktok_follower,
+                lieferadresse_stadt: c.lieferadresse_stadt,
+                lieferadresse_land: c.lieferadresse_land,
+              };
+            });
+            this.updateFavoritenTab();
+          }
+          break;
+          
+        case 'rechnungen':
+          if (!this.rechnungen || this.rechnungen.length === 0) {
+            const { data } = await window.supabase
+              .from('rechnung')
+              .select(`
+                id, rechnung_nr, status, nettobetrag, bruttobetrag,
+                gestellt_am, bezahlt_am, pdf_url,
+                kooperation:kooperation_id(id, name),
+                creator:creator_id(id, vorname, nachname)
+              `)
+              .eq('kampagne_id', this.kampagneId)
+              .order('gestellt_am', { ascending: false });
+            this.rechnungen = data || [];
+            this.updateRechnungenTab();
+          }
+          break;
+          
+        case 'history':
+          if ((!this.history || this.history.length === 0) && 
+              (!this.koopHistory || this.koopHistory.length === 0)) {
+            await this.loadHistory();
+          }
+          break;
+      }
+      
+      this[loadingKey] = true;
+      const loadTime = (performance.now() - startTime).toFixed(0);
+      console.log(`✅ KAMPAGNEDETAIL: Tab ${tabName} Daten geladen in ${loadTime}ms`);
+      
     } catch (error) {
-      console.error('❌ KAMPAGNEDETAIL: Fehler beim Laden der Kampagnen-Daten:', error);
-      throw error;
+      console.error(`❌ KAMPAGNEDETAIL: Fehler beim Laden von Tab ${tabName}:`, error);
     }
   }
 
@@ -633,22 +631,22 @@ export class KampagneDetail {
           ${window.canViewTable && window.canViewTable('kampagne','creators') !== false ? `
           <button class="tab-button" data-tab="creators">
             Creator
-            <span class="tab-count">${this.creator.length}</span>
+            <span class="tab-count">${this.creator?.length || 0}</span>
           </button>` : ''}
           ${window.canViewTable && window.canViewTable('kampagne','sourcing') !== false ? `
           <button class="tab-button" data-tab="sourcing">
             Creator Sourcing
-            <span class="tab-count">${this.sourcingCreators.length}</span>
+            <span class="tab-count">${this.sourcingCreators?.length || 0}</span>
           </button>` : ''}
           ${window.canViewTable && window.canViewTable('kampagne','favoriten') !== false ? `
           <button class="tab-button" data-tab="favs">
             Favoriten
-            <span class="tab-count">${this.favoriten.length}</span>
+            <span class="tab-count">${this.favoriten?.length || 0}</span>
           </button>` : ''}
           ${window.canViewTable && window.canViewTable('kampagne','rechnungen') !== false ? `
           <button class="tab-button" data-tab="rechnungen">
             Rechnungen
-            <span class="tab-count">${this.rechnungen.length}</span>
+            <span class="tab-count">${this.rechnungen?.length || 0}</span>
           </button>` : ''}
           ${window.canViewTable && window.canViewTable('kampagne','notizen') !== false ? `
           <button class="tab-button" data-tab="notizen">
@@ -1353,6 +1351,11 @@ export class KampagneDetail {
         }
       }
       
+      // NEU: Tab-spezifische Daten lazy-loaden (Performance-optimiert)
+      if (!['koops-videos', 'info', 'notizen', 'ratings'].includes(tabName)) {
+        await this.loadTabData(tabName);
+      }
+      
       // Nach dem Laden: Prüfe nochmal ob der Tab noch active ist
       console.log('  🔍 NACH dem Laden - Pane hat noch active class:', activePane.classList.contains('active'));
     } else {
@@ -1412,6 +1415,57 @@ export class KampagneDetail {
     } catch (error) {
       console.error('❌ Fehler beim Löschen der Kampagne:', error);
       alert('Ein unerwarteter Fehler ist aufgetreten.');
+    }
+  }
+
+  // Tab-Update-Methoden für Lazy Loading (Performance-optimiert)
+  updateCreatorsTab() {
+    const container = document.querySelector('#tab-creators #creators-list');
+    if (container) {
+      container.innerHTML = this.renderCreatorsList();
+      // Tab-Count aktualisieren
+      const btn = document.querySelector('.tab-button[data-tab="creators"] .tab-count');
+      if (btn) btn.textContent = String(this.creator.length);
+    }
+  }
+
+  updateSourcingTab() {
+    const container = document.querySelector('#tab-sourcing .detail-section');
+    if (container) {
+      container.innerHTML = this.renderCreatorSourcing();
+      // Tab-Count aktualisieren
+      const btn = document.querySelector('.tab-button[data-tab="sourcing"] .tab-count');
+      if (btn) btn.textContent = String(this.sourcingCreators.length);
+    }
+  }
+
+  updateFavoritenTab() {
+    const container = document.querySelector('#tab-favs .detail-section');
+    if (container) {
+      container.innerHTML = this.renderFavoriten();
+      // Tab-Count aktualisieren
+      const btn = document.querySelector('.tab-button[data-tab="favs"] .tab-count');
+      if (btn) btn.textContent = String(this.favoriten.length);
+    }
+  }
+
+  updateRechnungenTab() {
+    const container = document.querySelector('#tab-rechnungen .detail-section');
+    if (container) {
+      container.innerHTML = this.renderRechnungen();
+      // Tab-Count aktualisieren
+      const btn = document.querySelector('.tab-button[data-tab="rechnungen"] .tab-count');
+      if (btn) btn.textContent = String(this.rechnungen.length);
+    }
+  }
+
+  updateHistoryTab() {
+    const container = document.querySelector('#tab-history .detail-section');
+    if (container) {
+      container.innerHTML = this.renderHistory();
+      // Tab-Count aktualisieren
+      const btn = document.querySelector('.tab-button[data-tab="history"] .tab-count');
+      if (btn) btn.textContent = String(this.historyCount + this.koopHistoryCount);
     }
   }
 

@@ -837,6 +837,11 @@ export class UnternehmenCreate {
         ids = this.selectedBranches.map(branch => branch.id).filter(Boolean);
       }
 
+      // ✅ FIX: Duplikate entfernen
+      ids = [...new Set(ids)];
+      
+      console.log(`🔄 Speichere Branchen für Unternehmen ${unternehmenId}:`, ids);
+
       // Bestehende Zuordnungen löschen
       const { error: deleteError } = await window.supabase
         .from('unternehmen_branchen')
@@ -893,6 +898,7 @@ export class UnternehmenCreate {
     } catch (error) {
       console.error('❌ Fehler beim Speichern der Unternehmen-Branchen:', error);
       alert('Branchen-Zuordnungen konnten nicht vollständig gespeichert werden.');
+      throw error;
     }
   }
 

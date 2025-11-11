@@ -1035,11 +1035,11 @@ export class KampagneKooperationenVideoTable {
       inner.style.width = table.scrollWidth + 'px';
     };
     
-    // Positioniere die Scrollbar basierend auf main-wrapper
+    // Positioniere die Scrollbar basierend auf grid-wrapper (nicht main-wrapper)
     const updateScrollbarPosition = () => {
-      const mainRect = mainWrapper.getBoundingClientRect();
-      floatingScrollbar.style.left = mainRect.left + 'px';
-      floatingScrollbar.style.width = mainRect.width + 'px';
+      const wrapperRect = gridWrapper.getBoundingClientRect();
+      floatingScrollbar.style.left = wrapperRect.left + 'px';
+      floatingScrollbar.style.width = wrapperRect.width + 'px';
     };
     
     // Initial setzen

@@ -169,11 +169,13 @@ export class AuftragList {
         ...auftrag,
         unternehmen: auftrag.unternehmen ? { 
           id: auftrag.unternehmen.id,
-          firmenname: auftrag.unternehmen.firmenname 
+          firmenname: auftrag.unternehmen.firmenname,
+          logo_url: auftrag.unternehmen.logo_url
         } : null,
         marke: auftrag.marke ? { 
           id: auftrag.marke.id,
-          markenname: auftrag.marke.markenname 
+          markenname: auftrag.marke.markenname,
+          logo_url: auftrag.marke.logo_url
         } : null
       }));
 

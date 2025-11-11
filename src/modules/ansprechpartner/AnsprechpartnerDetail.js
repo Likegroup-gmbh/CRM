@@ -7,6 +7,8 @@ import { DynamicDataLoader } from '../../core/form/data/DynamicDataLoader.js';
 import { FormSystem } from '../../core/form/FormSystem.js';
 import { ansprechpartnerCreate } from './AnsprechpartnerCreate.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
+import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
+import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 
 export class AnsprechpartnerDetail {
   constructor() {
@@ -31,7 +33,7 @@ export class AnsprechpartnerDetail {
       ansprechpartnerCreate.showCreateForm();
       return;
     } else {
-      await this.loadAnsprechpartnerData();
+      await this.loadCriticalData();
       
       // Breadcrumb aktualisieren
       if (window.breadcrumbSystem && this.ansprechpartner) {
@@ -44,84 +46,76 @@ export class AnsprechpartnerDetail {
       
       this.render();
       this.bindEvents();
+      this.setupCacheInvalidation();
     }
   }
 
-  // Lade Ansprechpartner-Daten
-  async loadAnsprechpartnerData() {
+  // Lade kritische Daten parallel
+  async loadCriticalData() {
+    console.log('🔄 ANSPRECHPARTNERDETAIL: Lade kritische Daten parallel...');
+    const startTime = performance.now();
+    
     try {
-      console.log('🔄 ANSPRECHPARTNERDETAIL: Lade Ansprechpartner-Daten...');
+      // Alle kritischen Daten PARALLEL laden
+      const [
+        ansprechpartnerResult,
+        notizenResult,
+        ratingsResult
+      ] = await parallelLoad([
+        // 1. Ansprechpartner mit Relations
+        () => window.supabase
+          .from('ansprechpartner')
+          .select(`
+            *,
+            unternehmen:unternehmen_id (id, firmenname),
+            ansprechpartner_marke (marke:marke_id (id, markenname)),
+            ansprechpartner_kampagne (kampagne:kampagne_id (id, kampagnenname)),
+            ansprechpartner_unternehmen (unternehmen:unternehmen_id (id, firmenname, logo_url)),
+            telefonnummer_land:eu_laender!telefonnummer_land_id (id, name, name_de, iso_code, vorwahl),
+            telefonnummer_office_land:eu_laender!telefonnummer_office_land_id (id, name, name_de, iso_code, vorwahl)
+          `)
+          .eq('id', this.ansprechpartnerId)
+          .single(),
+        
+        // 2. Notizen
+        () => window.notizenSystem ? 
+          window.notizenSystem.loadNotizen('ansprechpartner', this.ansprechpartnerId) : 
+          Promise.resolve([]),
+        
+        // 3. Ratings
+        () => window.bewertungsSystem ? 
+          window.bewertungsSystem.loadBewertungen('ansprechpartner', this.ansprechpartnerId) : 
+          Promise.resolve([])
+      ]);
       
-      const { data, error } = await window.supabase
-        .from('ansprechpartner')
-        .select(`
-          *,
-          unternehmen:unternehmen_id (
-            id,
-            firmenname
-          ),
-          ansprechpartner_marke (
-            marke:marke_id (
-              id,
-              markenname
-            )
-          ),
-          ansprechpartner_kampagne (
-            kampagne:kampagne_id (
-              id,
-              kampagnenname
-            )
-          ),
-          ansprechpartner_unternehmen (
-            unternehmen:unternehmen_id (
-              id,
-              firmenname,
-              logo_url
-            )
-          ),
-          telefonnummer_land:eu_laender!telefonnummer_land_id (
-            id,
-            name,
-            name_de,
-            iso_code,
-            vorwahl
-          ),
-          telefonnummer_office_land:eu_laender!telefonnummer_office_land_id (
-            id,
-            name,
-            name_de,
-            iso_code,
-            vorwahl
-          )
-        `)
-        .eq('id', this.ansprechpartnerId)
-        .single();
-
-      if (error) {
-        console.error('❌ ANSPRECHPARTNERDETAIL: Fehler beim Laden:', error);
+      // Daten verarbeiten
+      if (ansprechpartnerResult.error) {
+        console.error('❌ ANSPRECHPARTNERDETAIL: Fehler beim Laden:', ansprechpartnerResult.error);
         this.showError('Ansprechpartner konnte nicht geladen werden.');
         return;
       }
-
-      this.ansprechpartner = data;
-      console.log('✅ ANSPRECHPARTNERDETAIL: Ansprechpartner geladen:', this.ansprechpartner);
-
-      // Notizen laden
-      if (window.notizenSystem) {
-        this.notizen = await window.notizenSystem.loadNotizen('ansprechpartner', this.ansprechpartnerId);
-        console.log('✅ ANSPRECHPARTNERDETAIL: Notizen geladen:', this.notizen.length);
-      }
-
-      // Bewertungen laden
-      if (window.bewertungsSystem) {
-        this.ratings = await window.bewertungsSystem.loadBewertungen('ansprechpartner', this.ansprechpartnerId);
-        console.log('✅ ANSPRECHPARTNERDETAIL: Ratings geladen:', this.ratings.length);
-      }
+      
+      this.ansprechpartner = ansprechpartnerResult.data;
+      this.notizen = notizenResult || [];
+      this.ratings = ratingsResult || [];
+      
+      const loadTime = (performance.now() - startTime).toFixed(0);
+      console.log(`✅ ANSPRECHPARTNERDETAIL: Kritische Daten geladen in ${loadTime}ms`);
       
     } catch (error) {
       console.error('❌ ANSPRECHPARTNERDETAIL: Unerwarteter Fehler:', error);
       this.showError('Ein unerwarteter Fehler ist aufgetreten.');
     }
+  }
+  
+  // Setup Cache-Invalidierung bei Updates
+  setupCacheInvalidation() {
+    window.addEventListener('entityUpdated', (e) => {
+      if (e.detail?.entity === 'ansprechpartner' && e.detail?.id === this.ansprechpartnerId) {
+        console.log('🔄 ANSPRECHPARTNERDETAIL: Entity updated - lade neu');
+        this.loadCriticalData().then(() => this.render());
+      }
+    });
   }
 
   // Hauptansicht rendern

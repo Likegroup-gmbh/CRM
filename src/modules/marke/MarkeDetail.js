@@ -4,6 +4,8 @@
 import { TableHelper } from '../../core/TableHelper.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
+import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 
 export class MarkeDetail {
   constructor() {
@@ -23,7 +25,7 @@ export class MarkeDetail {
     
     try {
       this.markeId = markeId;
-      await this.loadMarkeData();
+      await this.loadCriticalData();
       
       // Breadcrumb aktualisieren
       if (window.breadcrumbSystem && this.marke) {
@@ -35,6 +37,7 @@ export class MarkeDetail {
       
       this.render();
       this.bindEvents();
+      this.setupCacheInvalidation();
       console.log('✅ MARKENDETAIL: Initialisierung abgeschlossen');
     } catch (error) {
       console.error('❌ MARKENDETAIL: Fehler bei der Initialisierung:', error);
@@ -42,135 +45,185 @@ export class MarkeDetail {
     }
   }
 
-  // Lade Marken-Daten
-  async loadMarkeData() {
-    console.log('🔄 MARKENDETAIL: Lade Marken-Daten...');
+  // Lade kritische Daten parallel
+  async loadCriticalData() {
+    console.log('🔄 MARKENDETAIL: Lade kritische Daten parallel...');
+    const startTime = performance.now();
     
     try {
-      // Marken-Basisdaten laden
-      const { data: marke, error } = await window.supabase
-        .from('marke')
-        .select(`
-          *,
-          unternehmen:unternehmen_id(firmenname),
-          branche:branche_id(name)
-        `)
-        .eq('id', this.markeId)
-        .single();
-
-      if (error) throw error;
-      
-      this.marke = marke;
-      console.log('✅ MARKENDETAIL: Marken-Basisdaten geladen:', this.marke);
-
-      // Branchen aus Junction Table laden
-      try {
-        const { data: branchenData, error: branchenError } = await window.supabase
+      // Alle kritischen Daten PARALLEL laden
+      const [
+        markeResult,
+        branchenResult,
+        notizenResult,
+        ratingsResult,
+        ansprechpartnerResult
+      ] = await parallelLoad([
+        // 1. Marken-Basisdaten mit Relations
+        () => window.supabase
+          .from('marke')
+          .select(`
+            *,
+            unternehmen:unternehmen_id(firmenname),
+            branche:branche_id(name)
+          `)
+          .eq('id', this.markeId)
+          .single(),
+        
+        // 2. Branchen aus Junction Table
+        () => window.supabase
           .from('marke_branchen')
           .select(`
             branche_id,
             branche:branche_id(name)
           `)
-          .eq('marke_id', this.markeId);
+          .eq('marke_id', this.markeId),
         
-        if (!branchenError && branchenData && branchenData.length > 0) {
-          this.marke.branchen = branchenData.map(item => item.branche);
-          console.log('✅ MARKENDETAIL: Branchen aus Junction Table geladen:', this.marke.branchen);
-        } else {
-          this.marke.branchen = [];
-          console.log('ℹ️ MARKENDETAIL: Keine Branchen in Junction Table gefunden');
-        }
-      } catch (branchenError) {
-        console.warn('⚠️ MARKENDETAIL: Fehler beim Laden der Branchen:', branchenError);
+        // 3. Notizen
+        () => window.notizenSystem ? 
+          window.notizenSystem.loadNotizen('marke', this.markeId) : 
+          Promise.resolve([]),
+        
+        // 4. Ratings
+        () => window.bewertungsSystem ? 
+          window.bewertungsSystem.loadBewertungen('marke', this.markeId) : 
+          Promise.resolve([]),
+        
+        // 5. Ansprechpartner
+        () => window.supabase
+          .from('ansprechpartner_marke')
+          .select(`
+            ansprechpartner_id,
+            ansprechpartner:ansprechpartner_id (
+              *,
+              position:position_id(name),
+              unternehmen:unternehmen_id(firmenname),
+              telefonnummer_land:eu_laender!telefonnummer_land_id (
+                id, name, name_de, iso_code, vorwahl
+              ),
+              telefonnummer_office_land:eu_laender!telefonnummer_office_land_id (
+                id, name, name_de, iso_code, vorwahl
+              )
+            )
+          `)
+          .eq('marke_id', this.markeId)
+      ]);
+      
+      // Daten verarbeiten
+      if (markeResult.error) throw markeResult.error;
+      this.marke = markeResult.data;
+      
+      // Branchen verarbeiten
+      if (!branchenResult.error && branchenResult.data && branchenResult.data.length > 0) {
+        this.marke.branchen = branchenResult.data.map(item => item.branche);
+      } else {
         this.marke.branchen = [];
       }
-
-      // Notizen laden
-      if (window.notizenSystem) {
-        this.notizen = await window.notizenSystem.loadNotizen('marke', this.markeId);
-        console.log('✅ MARKENDETAIL: Notizen geladen:', this.notizen.length);
+      
+      this.notizen = notizenResult || [];
+      this.ratings = ratingsResult || [];
+      
+      // Ansprechpartner verarbeiten
+      if (!ansprechpartnerResult.error) {
+        this.ansprechpartner = ansprechpartnerResult.data?.map(item => item.ansprechpartner) || [];
       }
-
-      // Bewertungen laden
-      if (window.bewertungsSystem) {
-        this.ratings = await window.bewertungsSystem.loadBewertungen('marke', this.markeId);
-        console.log('✅ MARKENDETAIL: Ratings geladen:', this.ratings.length);
-      }
-
-      // Kampagnen laden (die mit dieser Marke verknüpft sind)
-      const { data: kampagnen, error: kampagnenError } = await window.supabase
-        .from('kampagne')
-        .select('*')
-        .eq('marke_id', this.markeId);
-
-      if (!kampagnenError) {
-        this.kampagnen = kampagnen || [];
-        console.log('✅ MARKENDETAIL: Kampagnen geladen:', this.kampagnen.length);
-      }
-
-      // Aufträge laden (die mit dieser Marke verknüpft sind)
-      const { data: auftraege, error: auftraegeError } = await window.supabase
-        .from('auftrag')
-        .select('*')
-        .eq('marke_id', this.markeId);
-
-      if (!auftraegeError) {
-        this.auftraege = auftraege || [];
-        console.log('✅ MARKENDETAIL: Aufträge geladen:', this.auftraege.length);
-      }
-
-      // Rechnungen über Aufträge (falls rechnung.auftrag_id gesetzt ist)
-      try {
-        const auftragIds = (this.auftraege || []).map(a => a.id).filter(Boolean);
-        if (auftragIds.length > 0) {
-          const { data: rechnungen } = await window.supabase
-            .from('rechnung')
-            .select('id, rechnung_nr, status, nettobetrag, bruttobetrag, gestellt_am, zahlungsziel, bezahlt_am, pdf_url, auftrag_id')
-            .in('auftrag_id', auftragIds);
-          this.rechnungen = rechnungen || [];
-        } else {
-          this.rechnungen = [];
-        }
-      } catch (_) {
-        this.rechnungen = [];
-      }
-
-      // Ansprechpartner laden
-      const { data: ansprechpartner, error: ansprechpartnerError } = await window.supabase
-        .from('ansprechpartner_marke')
-        .select(`
-          ansprechpartner_id,
-          ansprechpartner:ansprechpartner_id (
-            *,
-            position:position_id(name),
-            unternehmen:unternehmen_id(firmenname),
-            telefonnummer_land:eu_laender!telefonnummer_land_id (
-              id,
-              name,
-              name_de,
-              iso_code,
-              vorwahl
-            ),
-            telefonnummer_office_land:eu_laender!telefonnummer_office_land_id (
-              id,
-              name,
-              name_de,
-              iso_code,
-              vorwahl
-            )
-          )
-        `)
-        .eq('marke_id', this.markeId);
-
-      if (!ansprechpartnerError) {
-        this.ansprechpartner = ansprechpartner?.map(item => item.ansprechpartner) || [];
-        console.log('✅ MARKENDETAIL: Ansprechpartner geladen:', this.ansprechpartner.length);
-      }
-
+      
+      const loadTime = (performance.now() - startTime).toFixed(0);
+      console.log(`✅ MARKENDETAIL: Kritische Daten geladen in ${loadTime}ms`);
+      
     } catch (error) {
-      console.error('❌ MARKENDETAIL: Fehler beim Laden der Marken-Daten:', error);
+      console.error('❌ MARKENDETAIL: Fehler beim Laden der kritischen Daten:', error);
       throw error;
     }
+  }
+  
+  // Lade Tab-Daten lazy
+  async loadTabData(tabName) {
+    return await tabDataCache.load('marke', this.markeId, tabName, async () => {
+      console.log(`🔄 Lade Tab: ${tabName}`);
+      
+      try {
+        switch(tabName) {
+          case 'kampagnen':
+            const { data: kampagnen } = await window.supabase
+              .from('kampagne')
+              .select('*')
+              .eq('marke_id', this.markeId);
+            this.kampagnen = kampagnen || [];
+            this.updateKampagnenTab();
+            return kampagnen;
+          
+          case 'auftraege':
+            const { data: auftraege } = await window.supabase
+              .from('auftrag')
+              .select('*')
+              .eq('marke_id', this.markeId);
+            this.auftraege = auftraege || [];
+            this.updateAuftraegeTab();
+            return auftraege;
+          
+          case 'rechnungen':
+            // Erst Aufträge laden (falls noch nicht geladen)
+            if (!this.auftraege || this.auftraege.length === 0) {
+              await this.loadTabData('auftraege');
+            }
+            const auftragIds = (this.auftraege || []).map(a => a.id).filter(Boolean);
+            if (auftragIds.length > 0) {
+              const { data: rechnungen } = await window.supabase
+                .from('rechnung')
+                .select('id, rechnung_nr, status, nettobetrag, bruttobetrag, gestellt_am, zahlungsziel, bezahlt_am, pdf_url, auftrag_id')
+                .in('auftrag_id', auftragIds);
+              this.rechnungen = rechnungen || [];
+            } else {
+              this.rechnungen = [];
+            }
+            this.updateRechnungenTab();
+            return this.rechnungen;
+        }
+      } catch (error) {
+        console.error(`❌ Fehler beim Laden von Tab ${tabName}:`, error);
+        return null;
+      }
+    });
+  }
+  
+  // Tab-Update-Methoden
+  updateKampagnenTab() {
+    const container = document.querySelector('#kampagnen .data-table-container');
+    if (container) {
+      const parent = container.parentElement;
+      parent.innerHTML = this.renderKampagnen();
+    }
+  }
+  
+  updateAuftraegeTab() {
+    const container = document.querySelector('#auftraege .data-table-container');
+    if (container) {
+      const parent = container.parentElement;
+      parent.innerHTML = this.renderAuftraege();
+    }
+  }
+  
+  updateRechnungenTab() {
+    const container = document.querySelector('#rechnungen .data-table-container');
+    if (container) {
+      const parent = container.parentElement;
+      parent.innerHTML = this.renderRechnungen();
+    }
+  }
+  
+  // Setup Cache-Invalidierung bei Updates
+  setupCacheInvalidation() {
+    window.addEventListener('entityUpdated', (e) => {
+      if (e.detail?.entity === 'marke' && e.detail?.id === this.markeId) {
+        console.log('🔄 MARKENDETAIL: Entity updated - invalidiere Cache');
+        tabDataCache.invalidate('marke', this.markeId);
+        
+        if (e.detail.action === 'updated') {
+          this.loadCriticalData().then(() => this.render());
+        }
+      }
+    });
   }
 
   // Rendere Marken-Detailseite
@@ -616,24 +669,29 @@ export class MarkeDetail {
     });
   }
 
-  // Tab wechseln
-  switchTab(tabName) {
-    // Alle Tab-Buttons deaktivieren
+  // Tab wechseln mit Lazy Loading
+  async switchTab(tabName) {
+    // UI sofort updaten
     document.querySelectorAll('.tab-button').forEach(btn => {
       btn.classList.remove('active');
     });
 
-    // Alle Tab-Panes ausblenden
     document.querySelectorAll('.tab-pane').forEach(pane => {
       pane.classList.remove('active');
     });
 
-    // Gewählten Tab aktivieren
     const selectedButton = document.querySelector(`[data-tab="${tabName}"]`);
     const selectedPane = document.getElementById(tabName);
 
     if (selectedButton) selectedButton.classList.add('active');
-    if (selectedPane) selectedPane.classList.add('active');
+    if (selectedPane) {
+      selectedPane.classList.add('active');
+      
+      // Lazy load Tab-Daten (nur wenn nötig)
+      if (!['informationen', 'ansprechpartner'].includes(tabName)) {
+        await this.loadTabData(tabName);
+      }
+    }
   }
 
   // Bearbeitungsformular anzeigen
@@ -844,7 +902,9 @@ export class MarkeDetail {
 
   // Cleanup
   destroy() {
-    console.log('MarkeDetail: Cleaning up...');
+    console.log('🗑️ MARKENDETAIL: Destroy aufgerufen');
+    tabDataCache.invalidate('marke', this.markeId);
+    window.setContentSafely('');
   }
 }
 

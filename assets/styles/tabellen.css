@@ -4,9 +4,15 @@
 .kooperation-video-grid {
   border-collapse: separate;
   border-spacing: 0;
-  font-size: var(--text-sm);
   min-width: 100%;
   background: white;
+}
+
+/* Einheitliche Schriftgröße für alle Zellen */
+.kooperation-video-grid th,
+.kooperation-video-grid td {
+  font-size: var(--text-xsm);
+  font-weight: 400;
 }
 
 /* Standard-Spaltenbreiten für kooperation-video-grid */
@@ -34,17 +40,14 @@
 .kooperation-video-grid .col-freigabe { width: 80px; min-width: 80px; }
 
 .kooperation-video-grid .col-header {
- 
   border: 1px solid var(--gray-300);
   padding: var(--space-xs) var(--space-sm);
-  font-weight: 400;
-  font-size: var(--text-xsm);
   color: var(--text-secondary);
   position: sticky;
   top: 0;
   z-index: 10;
-  font-size: var(--text-xs);
   white-space: nowrap;
+  font-weight: 400;
 }
 
 /* Erste Spalte (Nr) fixieren */
@@ -160,14 +163,15 @@
   background: var(--primary-500, #3b82f6);
 }
 
-/* Grid Input-Felder */
+/* Grid Input-Felder - erben Schriftgröße von th/td */
 .grid-input,
 .grid-textarea {
   width: 100%;
   border: 1px solid transparent;
   background: transparent;
   padding: 4px 6px;
-  font-size: var(--text-sm);
+  font-size: inherit; /* Erbt von th/td */
+  font-weight: inherit; /* Erbt von th/td */
   border-radius: var(--radius-sm);
   transition: all 0.15s ease;
   font-family: inherit;
@@ -311,11 +315,12 @@
   width: 100%;
   margin: 0;
   padding: 8px;
-  font-size: var(--text-sm);
+  font-size: inherit; /* Erbt von th/td */
+  font-weight: inherit; /* Erbt von th/td */
   border: none;
   border-bottom: 1px solid var(--gray-300);
   border-radius: 0;
-  background: white;
+  background: inherit; /* Erbt Zebra-Striping von tr */
   box-sizing: border-box;
 }
 
@@ -332,12 +337,13 @@
   min-height: 80px;
   max-height: 500px;
   overflow-y: auto;
-  font-size: var(--text-sm);
+  font-size: inherit; /* Erbt von th/td */
+  font-weight: inherit; /* Erbt von th/td */
   resize: vertical;
   border: none;
   border-bottom: 1px solid var(--gray-300);
   border-radius: 0;
-  background: white;
+  background: inherit; /* Erbt Zebra-Striping von tr */
   box-sizing: border-box;
 }
 
@@ -373,11 +379,12 @@
   min-height: 60px;
   text-decoration: none;
   color: var(--primary-600);
-  font-size: var(--text-sm);
+  font-size: inherit; /* Erbt von th/td */
+  font-weight: inherit; /* Erbt von th/td */
   border: none;
   border-bottom: 1px solid var(--gray-300);
   border-radius: 0;
-  background: var(--gray-50);
+  background: inherit; /* Erbt Zebra-Striping von tr */
   box-sizing: border-box;
   word-break: break-all; /* Ermöglicht Umbruch bei langen URLs */
   overflow-wrap: break-word;
@@ -1032,6 +1039,74 @@
 /* Nur auf der Kampagnen-Detailseite, innerhalb des main-wrapper */
 .floating-scrollbar-kampagne {
   position: fixed;
+  bottom: 12px;
+  height: 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--bg-primary);
+  align-items: center;
+  
+  box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.05);
+  z-index: 100;
+  opacity: 0;
+  border: 1px solid var(--gray-200);
+  pointer-events: none;
+  transition: opacity 0.3s ease, box-shadow 0.2s ease;
+  /* left und width werden dynamisch per JS gesetzt */
+}
+
+.floating-scrollbar-kampagne.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.floating-scrollbar-kampagne:hover {
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.floating-scrollbar-inner {
+  height: px1;
+  /* Breite wird dynamisch per JS gesetzt */
+}
+
+/* Scrollbar Styling - modernes, subtiles Design */
+.floating-scrollbar-kampagne::-webkit-scrollbar {
+  height: 10px;
+}
+
+.floating-scrollbar-kampagne::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 8px;
+  margin: 0 4px;
+}
+
+.floating-scrollbar-kampagne::-webkit-scrollbar-thumb {
+  background: var(--gray-300);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background 0.2s ease;
+}
+
+.floating-scrollbar-kampagne::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-400);
+  background-clip: padding-box;
+}
+
+.floating-scrollbar-kampagne::-webkit-scrollbar-thumb:active {
+  background: var(--primary-500);
+  background-clip: padding-box;
+}
+
+/* Firefox Scrollbar Styling */
+.floating-scrollbar-kampagne {
+  scrollbar-width: thin;
+  scrollbar-color: var(--gray-300) transparent;
+}
+
+/* === FLOATING SCROLLBAR FÜR KANBAN === */
+.floating-scrollbar-kanban {
+  position: fixed;
   bottom: 0;
   height: 20px;
   overflow-x: auto;
@@ -1046,32 +1121,27 @@
   /* left und width werden dynamisch per JS gesetzt */
 }
 
-.floating-scrollbar-kampagne.visible {
+.floating-scrollbar-kanban.visible {
   opacity: 1;
   pointer-events: auto;
 }
 
-.floating-scrollbar-inner {
-  height: 1px;
-  /* Breite wird dynamisch per JS gesetzt */
-}
-
 /* Scrollbar Styling für bessere Sichtbarkeit */
-.floating-scrollbar-kampagne::-webkit-scrollbar {
+.floating-scrollbar-kanban::-webkit-scrollbar {
   height: 12px;
 }
 
-.floating-scrollbar-kampagne::-webkit-scrollbar-track {
+.floating-scrollbar-kanban::-webkit-scrollbar-track {
   background: var(--gray-100);
 }
 
-.floating-scrollbar-kampagne::-webkit-scrollbar-thumb {
+.floating-scrollbar-kanban::-webkit-scrollbar-thumb {
   background: var(--gray-400);
   border-radius: 6px;
   border: 2px solid var(--gray-100);
 }
 
-.floating-scrollbar-kampagne::-webkit-scrollbar-thumb:hover {
+.floating-scrollbar-kanban::-webkit-scrollbar-thumb:hover {
   background: var(--gray-500);
 }
 

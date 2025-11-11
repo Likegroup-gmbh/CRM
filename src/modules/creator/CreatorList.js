@@ -5,6 +5,7 @@ import { modularFilterSystem as filterSystem } from '../../core/filters/ModularF
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
+import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 
 export class CreatorList {
   constructor() {
@@ -41,9 +42,9 @@ export class CreatorList {
 
   // Lade und rendere Creator-Liste
   async loadAndRender() {
+    const startTime = performance.now();
+    
     try {
-      // PERFORMANCE: Keine separate loadFilterData() Query mehr!
-      
       // Rendere die Seite-Struktur
       await this.render();
       
@@ -55,6 +56,9 @@ export class CreatorList {
       
       // Aktualisiere nur die Tabelle mit gefilterten Daten
       this.updateTable(filteredCreators);
+      
+      const loadTime = (performance.now() - startTime).toFixed(0);
+      console.log(`✅ CREATORLIST: Creator geladen in ${loadTime}ms`);
       
     } catch (error) {
       window.ErrorHandler.handle(error, 'CreatorList.loadAndRender');

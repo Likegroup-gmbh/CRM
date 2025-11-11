@@ -3,13 +3,31 @@
   display: flex;
   min-height: 100vh;
 }
+
+/* Page Container: Flex-Column für Sticky Pagination */
+.page-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  width: 100%;
+}
+
+/* Page Content: Wächst und füllt verfügbaren Raum */
+.page-content {
+  flex: 1; /* Wächst um Raum einzunehmen */
+  display: flex;
+  flex-direction: column;
+  /* KEIN overflow: auto hier - globaler Scroll statt interner! */
+}
+
 .page-header {
  display: flex;
  width: 100%;
  justify-content: space-between;
  align-items: center;
  margin-bottom: var(--space-xl);
- padding: var(--space-lg) var(--space-lg) 0 var(--space-lg);
+ flex-shrink: 0; /* Header soll nicht schrumpfen */
   
 }
 .page-header h1 {
@@ -178,10 +196,15 @@
 /* ===== MAIN CONTENT ===== */
 .main-content {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   background-color: var(--bg-primary);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-xl);
   margin: var(--space-sm) var(--space-sm) var(--space-sm) var(--sidebar-width);
+  overflow: hidden;
+  /* Feste Höhe damit Flexbox funktioniert */
+  height: calc(100vh - var(--space-sm) * 2);
 }
 
 .main-header {
@@ -190,7 +213,7 @@
   align-items: center;
   padding: var(--space-sm) var(--space-lg);
   border-bottom: 1px solid var(--gray-100);
- 
+  flex-shrink: 0;
 }
 
 /* Breadcrumb Navigation */
@@ -569,7 +592,10 @@
 
 /* ===== MAIN WRAPPER ===== */
 .main-wrapper {
-  //padding: var(--space-lg);
+  flex: 1;
+  padding: var(--space-lg);
+  
+  
 }
 
 /* ===== LOGIN ===== */
@@ -677,4 +703,7 @@
 
 .input::placeholder {
   color: var(--text-muted);
+}
+.form-page {
+  padding: var(--space-lg);
 }

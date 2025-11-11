@@ -1,5 +1,7 @@
 // BriefingDetail.js (ES6-Modul)
 // Detailansicht für Briefings mit Tabs (Informationen, Notizen, Bewertungen)
+import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
+import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 
 export class BriefingDetail {
   constructor() {
@@ -17,7 +19,7 @@ export class BriefingDetail {
     }
 
     try {
-      await this.loadBriefingData();
+      await this.loadCriticalData();
       
       // Breadcrumb aktualisieren
       if (window.breadcrumbSystem && this.briefing) {
@@ -29,41 +31,74 @@ export class BriefingDetail {
       
       await this.render();
       this.bindEvents();
+      this.setupCacheInvalidation();
     } catch (error) {
       console.error('❌ BRIEFINGDETAIL: Fehler bei der Initialisierung:', error);
       window.ErrorHandler?.handle?.(error, 'BriefingDetail.init');
     }
   }
 
-  async loadBriefingData() {
+  async loadCriticalData() {
     if (!this.briefingId || this.briefingId === 'new') return;
 
+    console.log('🔄 BRIEFINGDETAIL: Lade kritische Daten parallel...');
+    const startTime = performance.now();
+
     try {
-      const { data: briefing, error } = await window.supabase
-        .from('briefings')
-        .select(`
-          *,
-          unternehmen:unternehmen_id(id, firmenname, webseite),
-          marke:marke_id(id, markenname, webseite),
-          kampagne:kampagne_id(id, kampagnenname),
-          assignee:assignee_id(id, name)
-        `)
-        .eq('id', this.briefingId)
-        .single();
+      // Alle kritischen Daten PARALLEL laden
+      const [
+        briefingResult,
+        notizenResult,
+        ratingsResult,
+        documentsResult
+      ] = await parallelLoad([
+        // 1. Briefing mit Relations
+        () => window.supabase
+          .from('briefings')
+          .select(`
+            *,
+            unternehmen:unternehmen_id(id, firmenname, webseite),
+            marke:marke_id(id, markenname, webseite),
+            kampagne:kampagne_id(id, kampagnenname),
+            assignee:assignee_id(id, name)
+          `)
+          .eq('id', this.briefingId)
+          .single(),
+        
+        // 2. Notizen
+        () => window.notizenSystem 
+          ? window.notizenSystem.loadNotizen('briefing', this.briefingId)
+          : Promise.resolve([]),
+        
+        // 3. Ratings
+        () => window.bewertungsSystem
+          ? window.bewertungsSystem.loadBewertungen('briefing', this.briefingId)
+          : Promise.resolve([]),
+        
+        // 4. Dokumente
+        () => window.supabase
+          .from('briefing_documents')
+          .select('*')
+          .eq('briefing_id', this.briefingId)
+          .order('created_at', { ascending: false })
+          .then(r => r.data || [])
+          .catch(() => [])
+      ]);
 
-      if (error) throw error;
+      if (briefingResult.error) throw briefingResult.error;
 
-      this.briefing = briefing;
+      this.briefing = briefingResult.data;
+      this.notizen = notizenResult || [];
+      this.ratings = ratingsResult || [];
+      this.briefing.documents = documentsResult;
 
-      // Kooperation separat laden (kein FK-Embed vorhanden in Schema Cache)
+      // Kooperation separat nachladen falls vorhanden
       if (this.briefing?.kooperation_id) {
         try {
           const { data: koop } = await window.supabase
             .from('kooperationen')
             .select(`
-              id,
-              name,
-              status,
+              id, name, status,
               kampagne:kampagne_id ( id, kampagnenname )
             `)
             .eq('id', this.briefing.kooperation_id)
@@ -75,38 +110,25 @@ export class BriefingDetail {
         }
       }
 
-      if (window.notizenSystem) {
-        this.notizen = await window.notizenSystem.loadNotizen('briefing', this.briefingId);
-      }
-      if (window.bewertungsSystem) {
-        this.ratings = await window.bewertungsSystem.loadBewertungen('briefing', this.briefingId);
-      }
-
-      // Dokumente laden
-      if (this.briefing?.id) {
-        try {
-          const { data: docs, error: docsError } = await window.supabase
-            .from('briefing_documents')
-            .select('*')
-            .eq('briefing_id', this.briefing.id)
-            .order('created_at', { ascending: false });
-          
-          if (docsError) {
-            console.warn('⚠️ BRIEFINGDETAIL: Dokumente laden fehlgeschlagen:', docsError);
-            this.briefing.documents = [];
-          } else {
-            this.briefing.documents = docs || [];
-            console.log(`📄 ${docs?.length || 0} Dokumente geladen für Briefing ${this.briefing.id}`);
-          }
-        } catch (e) {
-          console.warn('⚠️ BRIEFINGDETAIL: Dokumente konnten nicht geladen werden', e);
-          this.briefing.documents = [];
-        }
-      }
+      const loadTime = (performance.now() - startTime).toFixed(0);
+      console.log(`✅ BRIEFINGDETAIL: Kritische Daten geladen in ${loadTime}ms`);
     } catch (error) {
-      console.error('❌ BRIEFINGDETAIL: Fehler beim Laden der Briefing-Daten:', error);
+      console.error('❌ BRIEFINGDETAIL: Fehler beim Laden:', error);
       throw error;
     }
+  }
+  
+  setupCacheInvalidation() {
+    window.addEventListener('entityUpdated', (e) => {
+      if (e.detail.entity === 'briefing' && e.detail.id === this.briefingId) {
+        console.log('🔄 BRIEFINGDETAIL: Entity updated - invalidiere Cache');
+        tabDataCache.invalidate('briefing', this.briefingId);
+        
+        if (e.detail.action === 'updated') {
+          this.loadCriticalData().then(() => this.render());
+        }
+      }
+    });
   }
 
   async render() {
@@ -671,6 +693,11 @@ export class BriefingDetail {
   }
 
   destroy() {
+    console.log('🗑️ BRIEFINGDETAIL: Destroy aufgerufen - räume auf');
+    
+    // Invalidiere Tab-Cache für dieses Briefing
+    tabDataCache.invalidate('briefing', this.briefingId);
+    
     window.setContentSafely('');
   }
 }

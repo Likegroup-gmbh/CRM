@@ -20,6 +20,7 @@ import UnternehmenFilterLogic from '../../modules/unternehmen/filters/Unternehme
 import MarkeFilterLogic from '../../modules/marke/filters/MarkeFilterLogic.js';
 import AuftragFilterLogic from '../../modules/auftrag/filters/AuftragFilterLogic.js';
 import AuftragsdetailsFilterLogic from '../../modules/auftrag/filters/AuftragsdetailsFilterLogic.js';
+import KooperationFilterLogic from '../../modules/kooperation/filters/KooperationFilterLogic.js';
 
 /**
  * Zentrale Registrierung aller Filter-Konfigurationen
@@ -46,7 +47,8 @@ export const FILTER_LOGIC_REGISTRY = {
   unternehmen: UnternehmenFilterLogic,
   marke: MarkeFilterLogic,
   auftrag: AuftragFilterLogic,
-  auftragsdetails: AuftragsdetailsFilterLogic
+  auftragsdetails: AuftragsdetailsFilterLogic,
+  kooperation: KooperationFilterLogic
   // Weitere Logik-Module können hier hinzugefügt werden
 };
 

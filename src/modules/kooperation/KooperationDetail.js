@@ -3,6 +3,8 @@
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { kooperationVersandManager } from './VersandManager.js';
 import { TaskKanbanBoard } from '../tasks/TaskKanbanBoard.js';
+import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
+import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 
 export class KooperationDetail {
   constructor() {
@@ -34,8 +36,8 @@ export class KooperationDetail {
     }
     
     try {
-      // Lade alle Kooperations-Daten
-      await this.loadKooperationData();
+      // Lade kritische Kooperations-Daten parallel (optimiert!)
+      await this.loadCriticalData();
       
       // Breadcrumb aktualisieren
       if (window.breadcrumbSystem && this.kooperation) {
@@ -54,6 +56,9 @@ export class KooperationDetail {
       // Binde Events
       this.bindEvents();
       
+      // Event-Listener für automatische Cache-Invalidierung
+      this.setupCacheInvalidation();
+      
       console.log('✅ KOOPERATIONDETAIL: Initialisierung abgeschlossen');
       
     } catch (error) {
@@ -62,79 +67,121 @@ export class KooperationDetail {
     }
   }
 
-  // Lade alle Kooperations-Daten
-  async loadKooperationData() {
-    console.log('🔄 KOOPERATIONDETAIL: Lade Kooperations-Daten...');
+  // Lade kritische Kooperations-Daten PARALLEL (Performance-Optimiert!)
+  async loadCriticalData() {
+    console.log('🔄 KOOPERATIONDETAIL: Lade kritische Daten parallel...');
+    const startTime = performance.now();
     
-    // Kooperations-Basisdaten laden (inkl. Relationen)
-    const { data: kooperation, error } = await window.supabase
-      .from('kooperationen')
-      .select(`
-        id, name, status, nettobetrag, zusatzkosten, gesamtkosten, skript_deadline, content_deadline, videoanzahl,
-        creator_id, kampagne_id, unternehmen_id,
-        creator:creator_id ( 
-          id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, mail,
-          lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land
-        ),
-        kampagne:kampagne_id (
-          id, kampagnenname, status, deadline, start, creatoranzahl, videoanzahl,
-          unternehmen:unternehmen_id ( id, firmenname ),
-          marke:marke_id ( id, markenname )
-        ),
-        unternehmen:unternehmen_id ( id, firmenname )
-      `)
-      .eq('id', this.kooperationId)
-      .single();
-
-    if (error) {
-      throw new Error(`Fehler beim Laden der Kooperations-Daten: ${error.message}`);
-    }
-
-    this.kooperation = kooperation;
-    this.creator = kooperation.creator; // Creator-Daten direkt verfügbar machen
-    console.log('✅ KOOPERATIONDETAIL: Kooperations-Basisdaten geladen:', kooperation);
-    console.log('✅ KOOPERATIONDETAIL: Creator-Daten mit Adresse:', this.creator);
-
-    // Notizen über NotizenSystem laden
-    this.notizen = await window.notizenSystem.loadNotizen('kooperation', this.kooperationId);
-    console.log('✅ KOOPERATIONDETAIL: Notizen geladen:', this.notizen.length);
-
-    // Bewertungen über BewertungsSystem laden (Kooperation speichert Rating direkt)
-    if (window.bewertungsSystem) {
-      try {
-        this.ratings = await window.bewertungsSystem.loadBewertungen('kooperation', this.kooperationId);
-      } catch (_) {
-        this.ratings = [];
-      }
-    } else {
-      this.ratings = [];
-    }
-
-    // Creator-Daten aus Relation
-    this.creator = kooperation.creator || null;
-
-    // Kampagnen-Daten aus Relation
-    this.kampagne = kooperation.kampagne || null;
-
-    // Rechnungen zur Kooperation laden
-    try {
-      const { data: rechnungen } = await window.supabase
-        .from('rechnung')
-        .select('id, rechnung_nr, status, nettobetrag, bruttobetrag, gestellt_am, bezahlt_am, pdf_url')
+    // Alle kritischen Daten PARALLEL laden
+    const [
+      kooperationResult,
+      notizenResult,
+      ratingsResult,
+      versandResult
+    ] = await parallelLoad([
+      // 1. Kooperation mit allen Relations
+      () => window.supabase
+        .from('kooperationen')
+        .select(`
+          id, name, status, nettobetrag, zusatzkosten, gesamtkosten, skript_deadline, content_deadline, videoanzahl,
+          creator_id, kampagne_id, unternehmen_id,
+          creator:creator_id ( 
+            id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, mail,
+            lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land
+          ),
+          kampagne:kampagne_id (
+            id, kampagnenname, status, deadline, start, creatoranzahl, videoanzahl,
+            unternehmen:unternehmen_id ( id, firmenname ),
+            marke:marke_id ( id, markenname )
+          ),
+          unternehmen:unternehmen_id ( id, firmenname )
+        `)
+        .eq('id', this.kooperationId)
+        .single(),
+      
+      // 2. Notizen
+      () => window.notizenSystem.loadNotizen('kooperation', this.kooperationId),
+      
+      // 3. Ratings
+      () => window.bewertungsSystem?.loadBewertungen('kooperation', this.kooperationId).catch(() => []),
+      
+      // 4. Versand-Daten
+      () => window.supabase
+        .from('kooperation_versand')
+        .select(`
+          *,
+          creator_adresse:creator_adresse_id(*),
+          kooperation:kooperation_id(
+            creator:creator_id(
+              id, vorname, nachname,
+              lieferadresse_strasse, lieferadresse_hausnummer, 
+              lieferadresse_plz, lieferadresse_stadt, lieferadresse_land
+            )
+          )
+        `)
         .eq('kooperation_id', this.kooperationId)
-        .order('gestellt_am', { ascending: false });
-      this.rechnungen = rechnungen || [];
-    } catch (_) {
-      this.rechnungen = [];
+        .order('created_at', { ascending: false })
+    ]);
+    
+    // Error-Handling für Kooperation
+    if (kooperationResult.error) {
+      throw new Error(`Fehler beim Laden der Kooperations-Daten: ${kooperationResult.error.message}`);
     }
-
-    // Videos laden
+    
+    // Daten verarbeiten
+    this.kooperation = kooperationResult.data;
+    this.creator = kooperationResult.data.creator || null;
+    this.kampagne = kooperationResult.data.kampagne || null;
+    this.notizen = notizenResult || [];
+    this.ratings = ratingsResult || [];
+    this.versandDaten = versandResult.data || [];
+    
+    const loadTime = (performance.now() - startTime).toFixed(0);
+    console.log(`✅ KOOPERATIONDETAIL: Kritische Daten geladen in ${loadTime}ms`);
+  }
+  
+  // Lazy-Load Tab-spezifische Daten
+  async loadTabData(tabName) {
+    return await tabDataCache.load('kooperation', this.kooperationId, tabName, async () => {
+      console.log(`🔄 KOOPERATIONDETAIL: Lade Tab-Daten für "${tabName}"`);
+      const startTime = performance.now();
+      
+      try {
+        switch(tabName) {
+          case 'videos':
+            await this.loadVideos();
+            this.updateVideosTab();
+            break;
+            
+          case 'rechnungen':
+            await this.loadRechnungen();
+            this.updateRechnungenTab();
+            break;
+            
+          case 'history':
+            await this.loadHistory();
+            this.updateHistoryTab();
+            break;
+        }
+        
+        const loadTime = (performance.now() - startTime).toFixed(0);
+        console.log(`✅ KOOPERATIONDETAIL: Tab "${tabName}" geladen in ${loadTime}ms`);
+        
+      } catch (error) {
+        console.error(`❌ KOOPERATIONDETAIL: Fehler beim Laden von Tab "${tabName}":`, error);
+      }
+    });
+  }
+  
+  // Lade Videos mit allen Relationen
+  async loadVideos() {
     try {
       const { data: videos } = await window.supabase
         .from('kooperation_videos')
         .select('id, content_art, titel, asset_url, kommentar, status, position, created_at')
         .eq('kooperation_id', this.kooperationId)
         .order('position', { ascending: true });
+      
       this.videos = videos || [];
       
       // Für jedes Video die aktuelle Asset-Version laden
@@ -155,14 +202,14 @@ export class KooperationDetail {
       
       // Kampagnen-Kontingent (geplante Videos) aggregieren
       try {
-        const kampId = kooperation?.kampagne?.id || kooperation?.kampagne_id;
+        const kampId = this.kooperation?.kampagne?.id || this.kooperation?.kampagne_id;
         if (kampId) {
           const { data: koopCounts } = await window.supabase
             .from('kooperationen')
             .select('videoanzahl')
             .eq('kampagne_id', kampId);
           const used = (koopCounts || []).reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
-          const total = parseInt(kooperation?.kampagne?.videoanzahl, 10) || null;
+          const total = parseInt(this.kooperation?.kampagne?.videoanzahl, 10) || null;
           this.campaignVideoTotals = { total, used, remaining: total != null ? Math.max(0, total - used) : null };
         } else {
           this.campaignVideoTotals = null;
@@ -170,6 +217,7 @@ export class KooperationDetail {
       } catch (_) {
         this.campaignVideoTotals = null;
       }
+      
       // Kommentar-Zusammenfassung je Runde laden (1/2)
       try {
         const videoIds = (this.videos || []).map(v => v.id);
@@ -195,8 +243,24 @@ export class KooperationDetail {
     } catch (_) {
       this.videos = [];
     }
-
-    // History (Statuswechsel) laden
+  }
+  
+  // Lade Rechnungen
+  async loadRechnungen() {
+    try {
+      const { data: rechnungen } = await window.supabase
+        .from('rechnung')
+        .select('id, rechnung_nr, status, nettobetrag, bruttobetrag, gestellt_am, bezahlt_am, pdf_url')
+        .eq('kooperation_id', this.kooperationId)
+        .order('gestellt_am', { ascending: false });
+      this.rechnungen = rechnungen || [];
+    } catch (_) {
+      this.rechnungen = [];
+    }
+  }
+  
+  // Lade History
+  async loadHistory() {
     try {
       const { data: hist } = await window.supabase
         .from('kooperation_history')
@@ -216,34 +280,33 @@ export class KooperationDetail {
       this.history = [];
       this.historyCount = 0;
     }
-
-    // Versand-Daten laden (falls Tabelle existiert)
-    try {
-      const { data: versandListe, error: versandError } = await window.supabase
-        .from('kooperation_versand')
-        .select(`
-          *,
-          creator_adresse:creator_adresse_id(*),
-          kooperation:kooperation_id(
-            creator:creator_id(
-              id, vorname, nachname,
-              lieferadresse_strasse, lieferadresse_hausnummer, 
-              lieferadresse_plz, lieferadresse_stadt, lieferadresse_land
-            )
-          )
-        `)
-        .eq('kooperation_id', this.kooperationId)
-        .order('created_at', { ascending: false });
-      
-      if (!versandError) {
-        this.versandDaten = versandListe || [];
-        console.log('✅ KOOPERATIONDETAIL: Versand-Daten mit Creator-Info und Adressen geladen:', this.versandDaten.length, 'Einträge');
-      } else {
-        console.log('ℹ️ KOOPERATIONDETAIL: Keine Versand-Daten vorhanden oder Tabelle existiert nicht');
-        this.versandDaten = [];
-      }
-    } catch (_) {
-      this.versandDaten = [];
+  }
+  
+  // Tab-Update-Methoden
+  updateVideosTab() {
+    const container = document.querySelector('#tab-videos .detail-section');
+    if (container) {
+      container.innerHTML = `<h2>Videos ${this.renderVideoCounters()}</h2>${this.renderVideos()}`;
+      const btn = document.querySelector('.tab-button[data-tab="videos"] .tab-count');
+      if (btn) btn.textContent = String(this.videos.length);
+    }
+  }
+  
+  updateRechnungenTab() {
+    const container = document.querySelector('#tab-rechnungen .detail-section');
+    if (container) {
+      container.innerHTML = `<h2>Rechnungen</h2>${this.renderRechnungen()}`;
+      const btn = document.querySelector('.tab-button[data-tab="rechnungen"] .tab-count');
+      if (btn) btn.textContent = String(this.rechnungen.length);
+    }
+  }
+  
+  updateHistoryTab() {
+    const container = document.querySelector('#tab-history .detail-section');
+    if (container) {
+      container.innerHTML = `<h2>History</h2>${this.renderHistory()}`;
+      const btn = document.querySelector('.tab-button[data-tab="history"] .tab-count');
+      if (btn) btn.textContent = String(this.historyCount);
     }
   }
 
@@ -273,10 +336,10 @@ export class KooperationDetail {
             Informationen
           </button>
           <button class="tab-button" data-tab="videos">
-            Videos <span class="tab-count">${this.videos.length}</span>
+            Videos <span class="tab-count">${this.videos?.length || 0}</span>
           </button>
           <button class="tab-button" data-tab="rechnungen">
-            Rechnungen <span class="tab-count">${this.rechnungen.length}</span>
+            Rechnungen <span class="tab-count">${this.rechnungen?.length || 0}</span>
           </button>
           <button class="tab-button" data-tab="versand">
             Versand <span class="tab-count">${this.versandDaten?.length || 0}</span>
@@ -288,7 +351,7 @@ export class KooperationDetail {
             Bewertungen <span class="tab-count">${this.ratings.length}</span>
           </button>
           <button class="tab-button" data-tab="history">
-            History <span class="tab-count">${this.historyCount}</span>
+            History <span class="tab-count">${this.historyCount || 0}</span>
           </button>
           <button class="tab-button" data-tab="tasks">
             Aufgaben <span class="tab-count" id="tasks-count">...</span>
@@ -700,7 +763,9 @@ export class KooperationDetail {
     // Versand Updated Event
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail.entity === 'kooperation_versand' && e.detail.kooperation_id == this.kooperationId) {
-        this.loadKooperationData().then(() => {
+        // Invalidiere Cache und lade neu
+        tabDataCache.invalidate('kooperation', this.kooperationId);
+        this.loadCriticalData().then(() => {
           this.render();
           this.bindEvents();
         });
@@ -710,9 +775,10 @@ export class KooperationDetail {
     // Refresh bei Video-Status-Änderung
     window.addEventListener('entityUpdated', async (e) => {
       if (e.detail?.entity === 'kooperation_videos') {
-        await this.loadKooperationData();
-        const pane = document.querySelector('#tab-videos .detail-section');
-        if (pane) pane.innerHTML = `<h2>Videos</h2>${this.renderVideos()}`;
+        // Invalidiere Cache und lade Videos neu
+        tabDataCache.invalidate('kooperation', this.kooperationId);
+        await this.loadVideos();
+        this.updateVideosTab();
         // Wenn der Nutzer aktuell die Video-Detailseite offen hat, dort auch neu laden
         if (window.location.pathname.startsWith('/video/')) {
           try {
@@ -739,7 +805,8 @@ export class KooperationDetail {
       }
       
       console.log('🔄 KOOPERATIONDETAIL: Soft-Refresh - lade Daten neu');
-      await this.loadKooperationData();
+      tabDataCache.invalidate('kooperation', this.kooperationId);
+      await this.loadCriticalData();
       this.render();
       this.bindEvents();
     });
@@ -776,9 +843,11 @@ export class KooperationDetail {
             .delete()
             .eq('id', videoId);
           if (error) throw error;
-          await this.loadKooperationData();
-          const pane = document.querySelector('#tab-videos .detail-section');
-          if (pane) pane.innerHTML = `<h2>Videos</h2>${this.renderVideos()}`;
+          
+          // Invalidiere Cache und lade Videos neu
+          tabDataCache.invalidate('kooperation', this.kooperationId);
+          await this.loadVideos();
+          this.updateVideosTab();
         } catch (err) {
           console.error('Video löschen fehlgeschlagen', err);
           alert('Video konnte nicht gelöscht werden.');
@@ -787,6 +856,27 @@ export class KooperationDetail {
     });
 
     // (kein Inline-Video-Add – separate Implementierung folgt, falls gewünscht)
+  }
+  
+  // Setup automatische Cache-Invalidierung bei Entity-Updates
+  setupCacheInvalidation() {
+    window.addEventListener('entityUpdated', (e) => {
+      if (e.detail.entity === 'kooperation' && e.detail.id === this.kooperationId) {
+        console.log('🔄 KOOPERATIONDETAIL: Entity updated - invalidiere Cache');
+        tabDataCache.invalidate('kooperation', this.kooperationId);
+        
+        // Optional: Reload kritische Daten bei Updates
+        if (e.detail.action === 'updated') {
+          this.loadCriticalData().then(() => {
+            // Aktualisiere nur die Info-Sektion ohne vollständiges Neu-Rendering
+            const infoTab = document.querySelector('#tab-info');
+            if (infoTab && infoTab.classList.contains('active')) {
+              infoTab.innerHTML = this.renderInfo();
+            }
+          });
+        }
+      }
+    });
   }
 
   // Zeige Bearbeitungsformular
@@ -882,13 +972,21 @@ export class KooperationDetail {
 
   // Tab wechseln
   async switchTab(tabName) {
+    // UI sofort updaten
     document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
     document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+    
     const activeButton = document.querySelector(`[data-tab="${tabName}"]`);
     const activePane = document.getElementById(`tab-${tabName}`);
+    
     if (activeButton && activePane) {
       activeButton.classList.add('active');
       activePane.classList.add('active');
+      
+      // Lazy load Tab-Daten (außer für bereits geladene Tabs)
+      if (!['info', 'notizen', 'ratings', 'versand'].includes(tabName) && tabName !== 'tasks') {
+        await this.loadTabData(tabName);
+      }
       
       // Initialisiere Kanban Board wenn Tasks-Tab geöffnet wird
       if (tabName === 'tasks' && !this.taskKanbanBoard) {
@@ -1102,7 +1200,13 @@ export class KooperationDetail {
 
   // Cleanup
   destroy() {
-    console.log('KooperationDetail: Cleaning up...');
+    console.log('🗑️ KOOPERATIONDETAIL: Destroy aufgerufen - räume auf');
+    
+    // Invalidiere Tab-Cache für diese Kooperation
+    tabDataCache.invalidate('kooperation', this.kooperationId);
+    
+    // Bestehende Cleanup-Logik
+    window.setContentSafely('');
   }
 }
 

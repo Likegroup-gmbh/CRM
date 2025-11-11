@@ -22,6 +22,8 @@ export class KampagneKanbanBoard {
     await this.loadKampagnen();
     this.render();
     this.bindEvents();
+    // Warte bis DOM gerendert ist, dann initialisiere Floating Scrollbar
+    setTimeout(() => this.initFloatingScrollbar(), 100);
   }
 
   async loadStatusOptions() {
@@ -468,9 +470,146 @@ export class KampagneKanbanBoard {
     await this.loadKampagnen();
     this.render();
     this.bindEvents();
+    // Aktualisiere Floating Scrollbar nach Refresh
+    setTimeout(() => this.initFloatingScrollbar(), 100);
+  }
+
+  initFloatingScrollbar() {
+    console.log('🔧 KANBAN: Initialisiere Floating Scrollbar...');
+    
+    // Entferne vorhandene Floating Scrollbar falls vorhanden
+    const existingScrollbar = document.querySelector('.floating-scrollbar-kanban');
+    if (existingScrollbar) {
+      console.log('🗑️ KANBAN: Entferne vorhandene Scrollbar');
+      existingScrollbar.remove();
+    }
+
+    const kanbanBoard = document.querySelector('.kampagne-kanban-board');
+    if (!kanbanBoard) {
+      console.warn('⚠️ KANBAN: Kanban Board nicht gefunden!');
+      return;
+    }
+    
+    console.log('✅ KANBAN: Kanban Board gefunden', {
+      scrollWidth: kanbanBoard.scrollWidth,
+      clientWidth: kanbanBoard.clientWidth,
+      needsScroll: kanbanBoard.scrollWidth > kanbanBoard.clientWidth
+    });
+
+    // Erstelle Floating Scrollbar Container
+    const floatingScrollbar = document.createElement('div');
+    floatingScrollbar.className = 'floating-scrollbar-kanban';
+    
+    // Erstelle einen inneren Div mit der gleichen Breite wie der scrollbare Content
+    const scrollbarContent = document.createElement('div');
+    floatingScrollbar.appendChild(scrollbarContent);
+    
+    document.body.appendChild(floatingScrollbar);
+    console.log('✅ KANBAN: Floating Scrollbar in DOM eingefügt');
+
+    // Funktion zum Aktualisieren der Scrollbar-Position und -Breite
+    const updateScrollbar = () => {
+      const kanbanWrapper = document.querySelector('.kanban-board-wrapper');
+      if (!kanbanWrapper || !kanbanBoard) return;
+
+      // Setze die Breite des inneren Divs auf die scrollbare Breite
+      scrollbarContent.style.width = kanbanBoard.scrollWidth + 'px';
+      
+      // Positioniere die Floating Scrollbar über dem kanban-board-wrapper
+      const wrapperRect = kanbanWrapper.getBoundingClientRect();
+      floatingScrollbar.style.left = wrapperRect.left + 'px';
+      floatingScrollbar.style.width = wrapperRect.width + 'px';
+    };
+
+    // Synchronisiere Scroll zwischen Floating Scrollbar und Kanban Board
+    const handleFloatingScroll = () => {
+      kanbanBoard.scrollLeft = floatingScrollbar.scrollLeft;
+    };
+    floatingScrollbar.addEventListener('scroll', handleFloatingScroll);
+
+    const handleBoardScroll = () => {
+      floatingScrollbar.scrollLeft = kanbanBoard.scrollLeft;
+    };
+    kanbanBoard.addEventListener('scroll', handleBoardScroll);
+
+    // Zeige/verstecke die Floating Scrollbar basierend auf Scroll-Notwendigkeit
+    const checkScrollbarVisibility = () => {
+      if (!kanbanBoard) {
+        console.warn('⚠️ KANBAN: Board nicht gefunden');
+        return;
+      }
+
+      // Prüfe ob wir auf der Kampagnen-Übersichtsseite sind (nicht Detail-Seite)
+      const pathname = window.location.pathname;
+      const isKampagnenOverviewPage = (pathname === '/kampagne' || pathname === '/kampagne/' || pathname.startsWith('/kampagne?'));
+      
+      console.log('🔍 KANBAN: Sichtbarkeits-Check', {
+        pathname: pathname,
+        isKampagnenOverviewPage: isKampagnenOverviewPage,
+        scrollWidth: kanbanBoard.scrollWidth,
+        clientWidth: kanbanBoard.clientWidth,
+        needsScroll: kanbanBoard.scrollWidth > kanbanBoard.clientWidth,
+        offsetParent: kanbanBoard.offsetParent !== null
+      });
+      
+      // Zeige Scrollbar wenn auf Übersichtsseite UND Scrolling nötig ist
+      const shouldShow = isKampagnenOverviewPage && kanbanBoard.scrollWidth > kanbanBoard.clientWidth;
+      
+      if (shouldShow) {
+        floatingScrollbar.classList.add('visible');
+        console.log('✅ KANBAN: Floating Scrollbar SICHTBAR');
+      } else {
+        floatingScrollbar.classList.remove('visible');
+        console.log('❌ KANBAN: Floating Scrollbar VERSTECKT - Grund:', 
+          !isKampagnenOverviewPage ? 'Nicht auf Kampagnen-Übersicht' : 'Kein Scrolling nötig'
+        );
+      }
+    };
+
+    // Initial Setup
+    updateScrollbar();
+    checkScrollbarVisibility();
+    
+    // Zusätzlicher Check nach 500ms, falls Layout noch nicht fertig war
+    setTimeout(() => {
+      console.log('🔄 KANBAN: Verzögerter Sichtbarkeits-Check');
+      updateScrollbar();
+      checkScrollbarVisibility();
+    }, 500);
+
+    // Update bei Window Resize
+    const handleResize = () => {
+      updateScrollbar();
+      checkScrollbarVisibility();
+    };
+    window.addEventListener('resize', handleResize);
+
+    // Update bei Tab-Wechsel (falls Filter die Breite ändern)
+    const handleTabChanged = () => {
+      setTimeout(() => {
+        updateScrollbar();
+        checkScrollbarVisibility();
+      }, 100);
+    };
+    document.addEventListener('tab-changed', handleTabChanged);
+
+    // Cleanup bei destroy
+    this._cleanupFloatingScrollbar = () => {
+      console.log('🗑️ KANBAN: Cleanup Floating Scrollbar');
+      floatingScrollbar.remove();
+      window.removeEventListener('resize', handleResize);
+      document.removeEventListener('tab-changed', handleTabChanged);
+      floatingScrollbar.removeEventListener('scroll', handleFloatingScroll);
+      kanbanBoard.removeEventListener('scroll', handleBoardScroll);
+    };
   }
 
   destroy() {
+    // Cleanup Floating Scrollbar
+    if (this._cleanupFloatingScrollbar) {
+      this._cleanupFloatingScrollbar();
+    }
+    
     // Cleanup wenn Board nicht mehr benötigt wird
     this.container = null;
     this.kampagnen = [];
