@@ -261,13 +261,14 @@ export class BriefingList {
 
   async render() {
     const canEdit = window.currentUser?.permissions?.briefing?.can_edit || false;
+    const isKunde = window.currentUser?.rolle === 'kunde';
 
-    const filterHtml = `<div class="filter-bar">
+    const filterHtml = !isKunde ? `<div class="filter-bar">
       <div class="filter-left">
         <div id="filter-dropdown-container"></div>
       </div>
       
-    </div>`;
+    </div>` : '';
 
     const html = `
       <div class="page-header">
@@ -276,20 +277,20 @@ export class BriefingList {
         </div>
       </div>
 
-      <div class="table-filter-wrapper">
+      ${!isKunde ? `<div class="table-filter-wrapper">
         ${filterHtml}
         <div class="table-actions">
           <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
           <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
         </div>
-      </div>
+      </div>` : ''}
 
       <div class="data-table-container">
         <table class="data-table">
           <thead>
             <tr>
-              <th><input type="checkbox" id="select-all-briefings"></th>
+              ${!isKunde ? `<th><input type="checkbox" id="select-all-briefings"></th>` : ''}
               <th>Produkt/Angebot</th>
               <th>Unternehmen</th>
               <th>Marke</th>
@@ -300,7 +301,7 @@ export class BriefingList {
           </thead>
           <tbody id="briefings-table-body">
             <tr>
-              <td colspan="7" class="loading">Lade Briefings...</td>
+              <td colspan="${isKunde ? '6' : '7'}" class="loading">Lade Briefings...</td>
             </tr>
           </tbody>
         </table>
@@ -569,6 +570,8 @@ export class BriefingList {
     const tbody = document.getElementById('briefings-table-body');
     if (!tbody) return;
 
+    const isKunde = window.currentUser?.rolle === 'kunde';
+
     if (!items || items.length === 0) {
       const { renderEmptyState } = await import('../../core/FilterUI.js');
       renderEmptyState(tbody);
@@ -580,7 +583,7 @@ export class BriefingList {
 
     const rowsHtml = items.map(b => `
       <tr data-id="${b.id}">
-        <td><input type="checkbox" class="briefing-check" data-id="${b.id}"></td>
+        ${!isKunde ? `<td><input type="checkbox" class="briefing-check" data-id="${b.id}"></td>` : ''}
         <td>
           <a href="#" class="table-link" data-table="briefing" data-id="${b.id}">
             ${escapeHtml((b.product_service_offer || '').toString().slice(0, 80))}

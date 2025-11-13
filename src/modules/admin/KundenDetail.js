@@ -73,7 +73,7 @@ export class KundenDetail {
       if (kampagnenIds.length > 0) {
         const { data: kooperationen } = await window.supabase
           .from('kooperationen')
-          .select('id, name, status, nettobetrag, zusatzkosten, gesamtkosten, kampagne:kampagne_id(kampagnenname), creator:creator_id(vorname, nachname)')
+          .select('id, name, status, einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_gesamt, kampagne:kampagne_id(kampagnenname), creator:creator_id(vorname, nachname)')
           .in('kampagne_id', kampagnenIds)
           .order('created_at', { ascending: false });
         

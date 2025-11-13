@@ -89,9 +89,10 @@ export class MarkeFilterLogic {
           break;
 
         case 'branche_filter':
-          // Branche-Filter über Many-to-Many Junction Table
-          // Wird in DataService speziell behandelt
-          console.log('⚠️ Branche-Filter für Marken erfordert spezielle Behandlung:', filter.value);
+          // Many-to-Many Beziehung: Nutze inner join über Junction Table
+          // Supabase erlaubt Filter auf verknüpfte Tabellen
+          query = query.eq('marke_branchen.branche_id', filter.value);
+          console.log('✅ Branche-Filter angewendet für Marken:', filter.value);
           break;
 
         case 'equals':

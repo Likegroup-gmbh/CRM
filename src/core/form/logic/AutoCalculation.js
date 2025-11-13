@@ -17,7 +17,15 @@ export class AutoCalculation {
       // Nettobetrag aus Positionen (falls Felder vorhanden)
       nettobetrag: this.calculateNettoFromItems.bind(this),
       // Creator Budget = Netto - KSK - Deckungsbeitrag
-      creator_budget: this.calculateCreatorBudget.bind(this)
+      creator_budget: this.calculateCreatorBudget.bind(this),
+      
+      // Einkaufspreis-Berechnungen
+      einkaufspreis_ust: this.calculateEinkaufspreisUst.bind(this),
+      einkaufspreis_gesamt: this.calculateEinkaufspreisGesamt.bind(this),
+      
+      // Verkaufspreis-Berechnungen
+      verkaufspreis_ust: this.calculateVerkaufspreisUst.bind(this),
+      verkaufspreis_gesamt: this.calculateVerkaufspreisGesamt.bind(this)
     };
   }
 
@@ -230,6 +238,78 @@ export class AutoCalculation {
       return Math.round(result * 100) / 100;
     } catch (error) {
       console.error('❌ Fehler bei Creator-Budget-Berechnung:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Berechne Einkaufspreis USt (19% von Netto + Zusatzkosten)
+   */
+  calculateEinkaufspreisUst(form, targetField) {
+    try {
+      const nettoField = form.querySelector('[name="einkaufspreis_netto"]');
+      const zusatzField = form.querySelector('[name="einkaufspreis_zusatzkosten"]');
+      const netto = nettoField ? (parseFloat(nettoField.value) || 0) : 0;
+      const zusatz = zusatzField ? (parseFloat(zusatzField.value) || 0) : 0;
+      const ust = (netto + zusatz) * 0.19;
+      return Math.round(ust * 100) / 100;
+    } catch (error) {
+      console.error('❌ Fehler bei Einkaufspreis-USt-Berechnung:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Berechne Einkaufspreis Gesamt (Netto + Zusatzkosten + USt)
+   */
+  calculateEinkaufspreisGesamt(form, targetField) {
+    try {
+      const nettoField = form.querySelector('[name="einkaufspreis_netto"]');
+      const zusatzField = form.querySelector('[name="einkaufspreis_zusatzkosten"]');
+      const ustField = form.querySelector('[name="einkaufspreis_ust"]');
+      const netto = nettoField ? (parseFloat(nettoField.value) || 0) : 0;
+      const zusatz = zusatzField ? (parseFloat(zusatzField.value) || 0) : 0;
+      const ust = ustField ? (parseFloat(ustField.value) || this.calculateEinkaufspreisUst(form)) : this.calculateEinkaufspreisUst(form);
+      const gesamt = netto + zusatz + ust;
+      return Math.round(gesamt * 100) / 100;
+    } catch (error) {
+      console.error('❌ Fehler bei Einkaufspreis-Gesamt-Berechnung:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Berechne Verkaufspreis USt (19% von Netto + Zusatzkosten)
+   */
+  calculateVerkaufspreisUst(form, targetField) {
+    try {
+      const nettoField = form.querySelector('[name="verkaufspreis_netto"]');
+      const zusatzField = form.querySelector('[name="verkaufspreis_zusatzkosten"]');
+      const netto = nettoField ? (parseFloat(nettoField.value) || 0) : 0;
+      const zusatz = zusatzField ? (parseFloat(zusatzField.value) || 0) : 0;
+      const ust = (netto + zusatz) * 0.19;
+      return Math.round(ust * 100) / 100;
+    } catch (error) {
+      console.error('❌ Fehler bei Verkaufspreis-USt-Berechnung:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Berechne Verkaufspreis Gesamt (Netto + Zusatzkosten + USt)
+   */
+  calculateVerkaufspreisGesamt(form, targetField) {
+    try {
+      const nettoField = form.querySelector('[name="verkaufspreis_netto"]');
+      const zusatzField = form.querySelector('[name="verkaufspreis_zusatzkosten"]');
+      const ustField = form.querySelector('[name="verkaufspreis_ust"]');
+      const netto = nettoField ? (parseFloat(nettoField.value) || 0) : 0;
+      const zusatz = zusatzField ? (parseFloat(zusatzField.value) || 0) : 0;
+      const ust = ustField ? (parseFloat(ustField.value) || this.calculateVerkaufspreisUst(form)) : this.calculateVerkaufspreisUst(form);
+      const gesamt = netto + zusatz + ust;
+      return Math.round(gesamt * 100) / 100;
+    } catch (error) {
+      console.error('❌ Fehler bei Verkaufspreis-Gesamt-Berechnung:', error);
       return 0;
     }
   }

@@ -1,5 +1,5 @@
 // AnsprechpartnerList.js (ES6-Modul)
-// Ansprechpartner-Liste mit Filter und Verwaltung
+// Ansprechpartner-Liste mit Filter, Verwaltung und Pagination
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
@@ -7,11 +7,13 @@ import { ansprechpartnerCreate } from './AnsprechpartnerCreate.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
+import { PaginationSystem } from '../../core/PaginationSystem.js';
 
 export class AnsprechpartnerList {
   constructor() {
     this.selectedAnsprechpartner = new Set();
     this._boundEventListeners = new Set();
+    this.pagination = new PaginationSystem();
   }
 
   // Initialisiere Ansprechpartner-Liste
@@ -25,6 +27,13 @@ export class AnsprechpartnerList {
         { label: 'Ansprechpartner', url: '/ansprechpartner', clickable: false }
       ]);
     }
+    
+    // Pagination initialisieren
+    this.pagination.init('pagination-ansprechpartner', {
+      itemsPerPage: 10,
+      onPageChange: (page) => this.handlePageChange(page),
+      onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page)
+    });
     
     this.bindEvents();
     await this.loadAndRender();
@@ -83,6 +92,8 @@ export class AnsprechpartnerList {
           </tbody>
         </table>
       </div>
+      
+      <div class="pagination-container" id="pagination-ansprechpartner"></div>
     `;
     
     // Initialisiere Filterbar mit neuem System
@@ -105,6 +116,8 @@ export class AnsprechpartnerList {
   onFiltersApplied(filters) {
     console.log('Filter angewendet:', filters);
     filterSystem.applyFilters('ansprechpartner', filters);
+    // Reset pagination auf Seite 1 bei neuen Filtern
+    this.pagination.reset();
     this.loadAndRender();
   }
 
@@ -112,6 +125,8 @@ export class AnsprechpartnerList {
   onFiltersReset() {
     console.log('Filter zurückgesetzt');
     filterSystem.resetFilters('ansprechpartner');
+    // Reset pagination auf Seite 1
+    this.pagination.reset();
     this.loadAndRender();
   }
 
@@ -245,16 +260,27 @@ export class AnsprechpartnerList {
   }
 
   // Update Tabelle
-  updateTable(ansprechpartner) {
+  async updateTable(ansprechpartner) {
     const tbody = document.querySelector('.data-table tbody');
     if (!tbody) return;
+
+    // Fade-out Animation starten (behält alte Daten während Fade-out)
+    tbody.classList.add('table-fade-out');
+    
+    // Warte auf Animation (200ms)
+    await new Promise(resolve => setTimeout(resolve, 200));
 
     if (!ansprechpartner || ansprechpartner.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="11" class="no-data">Keine Ansprechpartner gefunden</td>
+          <td colspan="12" class="no-data">Keine Ansprechpartner gefunden</td>
         </tr>
       `;
+      
+      // Fade-in Animation
+      tbody.classList.remove('table-fade-out');
+      tbody.classList.add('table-fade-in');
+      setTimeout(() => tbody.classList.remove('table-fade-in'), 200);
       return;
     }
 
@@ -305,7 +331,13 @@ export class AnsprechpartnerList {
       </tr>
     `).join('');
 
+    // Content austauschen während Fade-out aktiv ist
     tbody.innerHTML = rowsHtml;
+    
+    // Fade-in Animation
+    tbody.classList.remove('table-fade-out');
+    tbody.classList.add('table-fade-in');
+    setTimeout(() => tbody.classList.remove('table-fade-in'), 200);
   }
 
   // Render Unternehmen (unterstützt sowohl Legacy-Einzelobjekt als auch Many-to-Many Array)
@@ -342,28 +374,34 @@ export class AnsprechpartnerList {
     try {
       console.log('🔄 ANSPRECHPARTNERLIST: Lade Ansprechpartner...');
       
-      // PERFORMANCE: Keine separate loadFilterData() Query mehr!
-      
       // Rendere die Seite-Struktur
       await this.render();
       
-      // Lade gefilterte Ansprechpartner für die Anzeige
+      // Lade gefilterte Ansprechpartner mit Pagination
       const currentFilters = filterSystem.getFilters('ansprechpartner');
-      console.log('🔍 Lade Ansprechpartner mit Filter:', currentFilters);
-      const filteredAnsprechpartner = await window.dataService.loadEntities('ansprechpartner', currentFilters);
-      console.log('📊 Ansprechpartner geladen:', filteredAnsprechpartner?.length || 0);
+      const { currentPage, itemsPerPage } = this.pagination.getState();
       
-      // DEBUG: Zeige erste Ansprechpartner mit Unternehmen/Marken Details
-      if (filteredAnsprechpartner && filteredAnsprechpartner.length > 0) {
-        console.log('🔍 DEBUG: Erster Ansprechpartner:', {
-          name: `${filteredAnsprechpartner[0].vorname} ${filteredAnsprechpartner[0].nachname}`,
-          unternehmen: filteredAnsprechpartner[0].unternehmen,
-          marken: filteredAnsprechpartner[0].marken
-        });
-      }
+      console.log('🔍 Lade Ansprechpartner mit Filter und Pagination:', {
+        filters: currentFilters,
+        page: currentPage,
+        limit: itemsPerPage
+      });
+      
+      const result = await window.dataService.loadEntitiesWithPagination(
+        'ansprechpartner',
+        currentFilters,
+        currentPage,
+        itemsPerPage
+      );
+      
+      console.log('📊 Ansprechpartner geladen:', result);
+      
+      // Pagination Total aktualisieren
+      this.pagination.updateTotal(result.total);
+      this.pagination.render();
       
       // Aktualisiere nur die Tabelle mit gefilterten Daten
-      this.updateTable(filteredAnsprechpartner);
+      await this.updateTable(result.data);
       
     } catch (error) {
       console.error('❌ ANSPRECHPARTNERLIST: Fehler beim Laden:', error);
@@ -371,11 +409,23 @@ export class AnsprechpartnerList {
       if (tbody) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="11" class="error">Fehler beim Laden der Ansprechpartner</td>
+            <td colspan="12" class="error">Fehler beim Laden der Ansprechpartner</td>
           </tr>
         `;
       }
     }
+  }
+
+  // Handler für Seitenwechsel
+  handlePageChange(page) {
+    console.log('📄 Seite gewechselt:', page);
+    this.loadAndRender();
+  }
+
+  // Handler für Items-per-page Änderung
+  handleItemsPerPageChange(limit, page) {
+    console.log('📊 Items per Page geändert:', { limit, page });
+    this.loadAndRender();
   }
 
 
@@ -504,6 +554,12 @@ export class AnsprechpartnerList {
   // Cleanup
   destroy() {
     console.log('AnsprechpartnerList: Cleaning up...');
+    
+    // Pagination cleanup
+    if (this.pagination) {
+      this.pagination.destroy();
+    }
+    
     // Event-Listener entfernen
     if (this.boundFilterResetHandler) {
       document.removeEventListener('click', this.boundFilterResetHandler);

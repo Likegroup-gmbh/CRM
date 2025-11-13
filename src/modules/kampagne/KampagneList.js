@@ -8,6 +8,7 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { KampagneKanbanBoard } from './KampagneKanbanBoard.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
+import { KampagneFilterLogic } from './filters/KampagneFilterLogic.js';
 
 export class KampagneList {
   constructor() {
@@ -143,6 +144,11 @@ export class KampagneList {
         query = query.in('id', assignedKampagnenIds);
       }
 
+      // Filter aus FilterSystem anwenden
+      const activeFilters = filterSystem.getFilters('kampagne');
+      console.log('🔍 KAMPAGNELIST: Wende Filter an:', activeFilters);
+      query = KampagneFilterLogic.buildSupabaseQuery(query, activeFilters);
+
       const { data, error } = await query;
 
       if (error) {
@@ -178,9 +184,12 @@ export class KampagneList {
         await window.dataService.loadManyToManyRelations(formattedData, 'kampagne', entityConfig.manyToMany);
       }
 
+      // Virtual Filter anwenden (z.B. creator_count, duration)
+      const filtered = KampagneFilterLogic.applyVirtualFilters(formattedData, activeFilters);
+
       const loadTime = (performance.now() - startTime).toFixed(0);
-      console.log(`✅ KAMPAGNELIST: ${formattedData.length} Kampagnen geladen in ${loadTime}ms`);
-      return formattedData;
+      console.log(`✅ KAMPAGNELIST: ${filtered.length} Kampagnen geladen (von ${formattedData.length} nach Filter) in ${loadTime}ms`);
+      return filtered;
 
     } catch (error) {
       console.error('❌ Fehler beim Laden der Kampagnen mit Beziehungen:', error);
@@ -337,7 +346,10 @@ export class KampagneList {
   }
 
   renderTableWrapper() {
+    const isKunde = window.currentUser?.rolle === 'kunde';
+    
     return `
+      ${!isKunde ? `
       <div class="table-filter-wrapper">
         <div class="filter-bar">
           <div class="filter-left">
@@ -349,14 +361,14 @@ export class KampagneList {
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
           <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
         </div>
-      </div>
+      </div>` : ''}
       <div class="data-table-container">
         <table class="data-table">
           <thead>
             <tr>
-              <th>
+              ${!isKunde ? `<th>
                 <input type="checkbox" id="select-all-kampagnen">
-              </th>
+              </th>` : ''}
               <th>Kampagnenname</th>
               <th>Unternehmen</th>
               <th>Marke</th>
@@ -373,7 +385,7 @@ export class KampagneList {
           </thead>
           <tbody id="kampagnen-table-body">
             <tr>
-              <td colspan="13" class="loading">Lade Kampagnen...</td>
+              <td colspan="${isKunde ? '12' : '13'}" class="loading">Lade Kampagnen...</td>
             </tr>
           </tbody>
         </table>
@@ -636,6 +648,8 @@ export class KampagneList {
     const tbody = document.getElementById('kampagnen-table-body');
     if (!tbody) return;
 
+    const isKunde = window.currentUser?.rolle === 'kunde';
+
     if (!kampagnen || kampagnen.length === 0) {
       const { renderEmptyState } = await import('../../core/FilterUI.js');
       renderEmptyState(tbody);
@@ -652,7 +666,7 @@ export class KampagneList {
 
       return `
         <tr data-id="${kampagne.id}">
-          <td><input type="checkbox" class="kampagne-check" data-id="${kampagne.id}"></td>
+          ${!isKunde ? `<td><input type="checkbox" class="kampagne-check" data-id="${kampagne.id}"></td>` : ''}
           <td>
             <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
               ${window.validatorSystem.sanitizeHtml(kampagne.kampagnenname || 'Unbekannt')}
@@ -704,6 +718,22 @@ export class KampagneList {
       this.kanbanBoard.destroy();
       this.kanbanBoard = null;
     }
+    
+    // Entferne CSS-Klasse von main-content
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) {
+      mainContent.classList.remove('kanban-view-active');
+      console.log('✅ KampagneList: CSS-Klasse "kanban-view-active" entfernt');
+    }
+    
+    // Sicherheits-Cleanup: Entferne alle Kanban-Floating-Scrollbars
+    const floatingScrollbars = document.querySelectorAll('.floating-scrollbar-kanban');
+    floatingScrollbars.forEach(scrollbar => {
+      if (scrollbar.parentNode) {
+        scrollbar.parentNode.removeChild(scrollbar);
+        console.log('✅ KampagneList: Floating-Scrollbar aus DOM entfernt (Fallback)');
+      }
+    });
   }
 
   // Show Create Form (für Routing)

@@ -2,6 +2,7 @@
 // Kampagnen-Detail-Ansicht
 import { renderCreatorTable } from '../creator/CreatorTable.js';
 import { KampagneKooperationenVideoTable } from './KampagneKooperationenVideoTable.js';
+import { VideoCreateDrawer } from './VideoCreateDrawer.js';
 
 export class KampagneDetail {
   constructor() {
@@ -21,6 +22,7 @@ export class KampagneDetail {
     this.koopHistory = [];
     this.koopHistoryCount = 0;
     this.kooperationenVideoTable = null;
+    this.videoCreateDrawer = null;
   }
 
   // Initialisiere Kampagnen-Detail
@@ -117,7 +119,7 @@ export class KampagneDetail {
         <td>${window.validatorSystem.sanitizeHtml(k.creator ? `${k.creator.vorname} ${k.creator.nachname}` : 'Unbekannt')}</td>
         <td>${k.videoanzahl || 0}</td>
         <td><span class="status-badge status-${(k.status || 'unknown').toLowerCase()}">${k.status || '-'}</span></td>
-        <td>${formatCurrency(k.gesamtkosten)}</td>
+        <td>${formatCurrency(k.einkaufspreis_gesamt)}</td>
       </tr>
     `).join('');
 
@@ -275,7 +277,7 @@ export class KampagneDetail {
         window.supabase
           .from('kooperationen')
           .select(`
-            id, name, status, gesamtkosten, videoanzahl,
+            id, name, status, einkaufspreis_gesamt, verkaufspreis_gesamt, videoanzahl,
             creator:creator_id(id, vorname, nachname)
           `)
           .eq('kampagne_id', this.kampagneId)
@@ -315,7 +317,7 @@ export class KampagneDetail {
       // Kooperationen (Creator bereits gejoined)
       this.kooperationen = kooperationenResult.data || [];
       this.koopBudgetSum = this.kooperationen.reduce(
-        (sum, k) => sum + (parseFloat(k.gesamtkosten) || 0), 
+        (sum, k) => sum + (parseFloat(k.einkaufspreis_gesamt) || 0), 
         0
       );
       this.koopVideosUsed = this.kooperationen.reduce(
@@ -587,6 +589,8 @@ export class KampagneDetail {
 
     const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
     const canDelete = window.currentUser?.permissions?.kampagne?.can_delete || false;
+    const canCreateKooperation = window.currentUser?.permissions?.kooperation?.can_edit || false;
+    const canCreateVideo = window.currentUser?.permissions?.kooperation?.can_edit || false;
     
     // Hilfsfunktionen für Formatierung
     const formatDate = (date) => {
@@ -608,7 +612,9 @@ export class KampagneDetail {
     const html = `
       <div class="page-header">
         <div class="page-header-right">
-          ${canEdit ? `<button id="btn-edit-kampagne" class="primary-btn">Bearbeiten</button>` : ''}
+          ${canCreateKooperation ? `<button id="btn-new-kooperation" class="primary-btn" ">Kooperation anlegen</button>` : ''}
+          ${canCreateVideo ? `<button id="btn-new-video" class="primary-btn" ">Video anlegen</button>` : ''}
+          ${canEdit ? `<button id="btn-edit-kampagne" class="primary-btn" ">Bearbeiten</button>` : ''}
           ${canDelete ? `<button id="btn-delete-kampagne" class="danger-btn">Kampagne löschen</button>` : ''}
         </div>
       </div>
@@ -624,39 +630,19 @@ export class KampagneDetail {
           <button class="tab-button active" data-tab="info">
             Informationen
           </button>`}
-          ${window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? `
+          ${window.currentUser?.rolle !== 'kunde' && window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? `
           <button class="tab-button" data-tab="info">
             Informationen
           </button>` : ''}
-          ${window.canViewTable && window.canViewTable('kampagne','creators') !== false ? `
-          <button class="tab-button" data-tab="creators">
-            Creator
-            <span class="tab-count">${this.creator?.length || 0}</span>
-          </button>` : ''}
-          ${window.canViewTable && window.canViewTable('kampagne','sourcing') !== false ? `
-          <button class="tab-button" data-tab="sourcing">
-            Creator Sourcing
-            <span class="tab-count">${this.sourcingCreators?.length || 0}</span>
-          </button>` : ''}
-          ${window.canViewTable && window.canViewTable('kampagne','favoriten') !== false ? `
-          <button class="tab-button" data-tab="favs">
-            Favoriten
-            <span class="tab-count">${this.favoriten?.length || 0}</span>
-          </button>` : ''}
-          ${window.canViewTable && window.canViewTable('kampagne','rechnungen') !== false ? `
+          ${window.currentUser?.rolle !== 'kunde' && window.canViewTable && window.canViewTable('kampagne','rechnungen') !== false ? `
           <button class="tab-button" data-tab="rechnungen">
             Rechnungen
             <span class="tab-count">${this.rechnungen?.length || 0}</span>
           </button>` : ''}
-          ${window.canViewTable && window.canViewTable('kampagne','notizen') !== false ? `
+          ${window.currentUser?.rolle !== 'kunde' && window.canViewTable && window.canViewTable('kampagne','notizen') !== false ? `
           <button class="tab-button" data-tab="notizen">
             Notizen
             <span class="tab-count">${this.notizen.length}</span>
-          </button>` : ''}
-          ${window.canViewTable && window.canViewTable('kampagne','ratings') !== false ? `
-          <button class="tab-button" data-tab="ratings">
-            Bewertungen
-            <span class="tab-count">${this.ratings.length}</span>
           </button>` : ''}
           ${window.canViewTable && window.canViewTable('kampagne','history') !== false ? `
           <button class="tab-button" data-tab="history">
@@ -1058,6 +1044,39 @@ export class KampagneDetail {
       if (e.target.classList.contains('tab-button')) {
         e.preventDefault();
         this.switchTab(e.target.dataset.tab);
+      }
+    });
+
+    // Kooperation anlegen Button
+    const btnNewKooperation = document.getElementById('btn-new-kooperation');
+    if (btnNewKooperation) {
+      btnNewKooperation.addEventListener('click', (e) => {
+        e.preventDefault();
+        console.log('🎯 Kooperation anlegen Button geklickt, kampagneId:', this.kampagneId);
+        window.navigateTo(`/kooperation/new?kampagne_id=${this.kampagneId}`);
+      });
+    }
+
+    // Video anlegen Button
+    const btnNewVideo = document.getElementById('btn-new-video');
+    if (btnNewVideo) {
+      btnNewVideo.addEventListener('click', (e) => {
+        e.preventDefault();
+        console.log('🎯 Video anlegen Button geklickt, kampagneId:', this.kampagneId);
+        if (!this.videoCreateDrawer) {
+          this.videoCreateDrawer = new VideoCreateDrawer();
+        }
+        this.videoCreateDrawer.open(this.kampagneId);
+      });
+    }
+
+    // Event-Listener für videoCreated Event (Live-Update der Tabelle)
+    window.addEventListener('videoCreated', async (event) => {
+      console.log('🎬 Video erstellt Event empfangen:', event.detail);
+      // Reload der Tabelle ohne Seitenneuladung
+      if (this.kooperationenVideoTable) {
+        await this.kooperationenVideoTable.refresh();
+        console.log('✅ Tabelle nach Video-Erstellung aktualisiert');
       }
     });
 
@@ -1472,6 +1491,30 @@ export class KampagneDetail {
   // Cleanup
   destroy() {
     console.log('🗑️ KAMPAGNEDETAIL: Destroy aufgerufen');
+    
+    // Cleanup der Kooperationen-Video-Tabelle (inkl. Floating-Scrollbar)
+    if (this.kooperationenVideoTable && typeof this.kooperationenVideoTable.destroy === 'function') {
+      console.log('🗑️ KAMPAGNEDETAIL: Cleanup Kooperationen-Video-Tabelle');
+      this.kooperationenVideoTable.destroy();
+      this.kooperationenVideoTable = null;
+    }
+    
+    // Entferne CSS-Klasse von main-content
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) {
+      mainContent.classList.remove('kampagne-detail-grid-active');
+      console.log('✅ KAMPAGNEDETAIL: CSS-Klasse "kampagne-detail-grid-active" entfernt');
+    }
+    
+    // Sicherheits-Cleanup: Entferne alle Kampagnen-Floating-Scrollbars
+    const floatingScrollbars = document.querySelectorAll('.floating-scrollbar-kampagne');
+    floatingScrollbars.forEach(scrollbar => {
+      if (scrollbar.parentNode) {
+        scrollbar.parentNode.removeChild(scrollbar);
+        console.log('✅ KAMPAGNEDETAIL: Floating-Scrollbar aus DOM entfernt (Fallback)');
+      }
+    });
+    
     // Content zurücksetzen
     window.setContentSafely('');
     console.log('✅ KAMPAGNEDETAIL: Destroy abgeschlossen');

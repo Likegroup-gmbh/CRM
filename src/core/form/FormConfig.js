@@ -26,7 +26,7 @@ export class FormConfig {
             customField: true
           },
           {
-            name: 'branchen_ids',
+            name: 'branche_ids',
             label: 'Branchen',
             type: 'multiselect',
             required: false,
@@ -269,9 +269,19 @@ export class FormConfig {
           },
           { name: 'content_art', label: 'Content Art', type: 'select', required: true, options: ['Paid', 'Organisch', 'Influencer', 'Videograph'] },
           { name: 'skript_autor', label: 'Skript schreibt', type: 'select', required: false, options: ['Brand', 'Creator'] },
-          { name: 'nettobetrag', label: 'Nettobetrag', type: 'number', required: false, validation: { type: 'number', min: 0 } },
-          { name: 'zusatzkosten', label: 'Zusatzkosten', type: 'number', required: false, validation: { type: 'number', min: 0 } },
-          { name: 'gesamtkosten', label: 'Gesamtkosten', type: 'number', required: false, validation: { type: 'number', min: 0 } },
+          
+          // Einkaufspreis
+          { name: 'einkaufspreis_netto', label: 'Einkaufspreis Netto', type: 'number', required: false, validation: { type: 'number', min: 0 } },
+          { name: 'einkaufspreis_zusatzkosten', label: 'Einkaufspreis Zusatzkosten', type: 'number', required: false, validation: { type: 'number', min: 0 } },
+          { name: 'einkaufspreis_ust', label: 'Einkaufspreis USt (19%)', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['einkaufspreis_netto', 'einkaufspreis_zusatzkosten'] },
+          { name: 'einkaufspreis_gesamt', label: 'Einkaufspreis Gesamt', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['einkaufspreis_netto', 'einkaufspreis_zusatzkosten', 'einkaufspreis_ust'] },
+          
+          // Verkaufspreis
+          { name: 'verkaufspreis_netto', label: 'Verkaufspreis Netto', type: 'number', required: false, validation: { type: 'number', min: 0 } },
+          { name: 'verkaufspreis_zusatzkosten', label: 'Verkaufspreis Zusatzkosten', type: 'number', required: false, validation: { type: 'number', min: 0 } },
+          { name: 'verkaufspreis_ust', label: 'Verkaufspreis USt (19%)', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['verkaufspreis_netto', 'verkaufspreis_zusatzkosten'] },
+          { name: 'verkaufspreis_gesamt', label: 'Verkaufspreis Gesamt', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['verkaufspreis_netto', 'verkaufspreis_zusatzkosten', 'verkaufspreis_ust'] },
+          
           { name: 'vertrag_unterschrieben', label: 'Vertrag unterschrieben', type: 'checkbox', required: false },
           { name: 'vertrag_link', label: 'Vertrag Link', type: 'url', required: false, validation: { type: 'url' } },
           { name: 'videoanzahl', label: 'Video Anzahl', type: 'number', required: false, validation: { type: 'number', min: 1 } },

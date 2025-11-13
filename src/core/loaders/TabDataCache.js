@@ -118,3 +118,7 @@ export class TabDataCache {
 // Globale Instanz für alle Detail-Seiten
 export const tabDataCache = new TabDataCache();
 
+
+
+
+

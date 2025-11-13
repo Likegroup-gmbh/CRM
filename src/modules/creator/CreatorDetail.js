@@ -214,7 +214,7 @@ export class CreatorDetail {
       const { data: koops } = await window.supabase
         .from('kooperationen')
         .select(`
-          id, name, status, videoanzahl, gesamtkosten,
+          id, name, status, videoanzahl, einkaufspreis_gesamt,
           kampagne:kampagne_id ( id, kampagnenname ),
           created_at
         `)
@@ -725,7 +725,7 @@ export class CreatorDetail {
         <td><span class="status-badge status-${(k.status || 'unknown').toLowerCase().replace(/\s+/g, '-')}">${k.status || '-'}</span></td>
         <td>${window.validatorSystem.sanitizeHtml(k.content_art || '-')}</td>
         <td>${k.videoanzahl || 0}</td>
-        <td>${k.gesamtkosten ? this.formatCurrency(k.gesamtkosten) : '-'}</td>
+        <td>${k.einkaufspreis_gesamt ? this.formatCurrency(k.einkaufspreis_gesamt) : '-'}</td>
         <td>${this.formatDate(k.skript_deadline)}</td>
         <td>${this.formatDate(k.content_deadline)}</td>
         <td>${this.formatDate(k.created_at)}</td>
@@ -1085,13 +1085,13 @@ export class CreatorDetail {
       _entityId: this.creatorId,
       // Multi-Select IDs extrahieren
       sprachen_ids: this.creator.sprachen ? this.creator.sprachen.map(s => s.id) : [],
-      branchen_ids: this.creator.branchen ? this.creator.branchen.map(b => b.id) : [],
+      branche_ids: this.creator.branchen ? this.creator.branchen.map(b => b.id) : [],
       creator_type_ids: this.creator.creator_types ? this.creator.creator_types.map(t => t.id) : []
     };
     
     console.log('📋 CREATORDETAIL: Edit-Daten vorbereitet:', {
       sprachen_ids: editData.sprachen_ids,
-      branchen_ids: editData.branchen_ids,
+      branche_ids: editData.branche_ids,
       creator_type_ids: editData.creator_type_ids
     });
     

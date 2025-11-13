@@ -1,16 +1,19 @@
 // MarkeList.js (ES6-Modul)
-// Marken-Liste mit neuem Filtersystem
+// Marken-Liste mit neuem Filtersystem und Pagination
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { markeCreate } from './MarkeCreate.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
+import { PaginationSystem } from '../../core/PaginationSystem.js';
+import { MarkeFilterLogic } from './filters/MarkeFilterLogic.js';
 
 export class MarkeList {
   constructor() {
     this.selectedMarken = new Set();
     this._boundEventListeners = new Set();
+    this.pagination = new PaginationSystem();
   }
 
   // Initialisiere Marken-Liste
@@ -48,6 +51,13 @@ export class MarkeList {
       return;
     }
 
+    // Pagination initialisieren
+    this.pagination.init('pagination-marke', {
+      itemsPerPage: 10,
+      onPageChange: (page) => this.handlePageChange(page),
+      onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page)
+    });
+
     console.log('✅ MARKELLIST: Berechtigung OK, lade Marken...');
     // Binde Events sofort
     this.bindEvents();
@@ -59,32 +69,61 @@ export class MarkeList {
   // Lade und rendere Marken-Liste
   async loadAndRender() {
     try {
-      // PERFORMANCE: Keine separate loadFilterData() Query mehr!
-      // Filter-Optionen werden aus den geladenen Entities extrahiert
-      
-      // Rendere die Seite-Struktur (ohne Filter-Daten)
+      // Rendere die Seite-Struktur
       await this.render();
       
-      // Lade gefilterte Marken für die Anzeige mit Sichtbarkeits-Logik
+      // Lade gefilterte Marken mit Pagination
       const currentFilters = filterSystem.getFilters('marke');
-      console.log('🔍 Lade Marken mit Filter:', currentFilters);
-      const filteredMarken = await this.loadMarkenWithRelations(currentFilters);
-      console.log('📊 Marken geladen:', filteredMarken?.length || 0);
+      const { currentPage, itemsPerPage } = this.pagination.getState();
+      
+      console.log('🔍 Lade Marken mit Filter und Pagination:', {
+        filters: currentFilters,
+        page: currentPage,
+        limit: itemsPerPage
+      });
+      
+      const result = await this.loadMarkenWithPagination(currentFilters, currentPage, itemsPerPage);
+      
+      console.log('📊 Marken geladen:', result);
+      
+      // Pagination Total aktualisieren
+      this.pagination.updateTotal(result.total);
+      this.pagination.render();
       
       // Aktualisiere nur die Tabelle mit gefilterten Daten
-      this.updateTable(filteredMarken);
+      this.updateTable(result.data);
       
     } catch (error) {
-      window.ErrorHandler.handle(error, 'MarkeList.loadAndRender');
+      console.error('❌ Fehler beim Laden der Marken:', error);
+      if (window.ErrorHandler && window.ErrorHandler.handle) {
+        window.ErrorHandler.handle(error, 'MarkeList.loadAndRender');
+      }
     }
   }
 
-  // Lade Marken mit Beziehungen und Sichtbarkeits-Logik
-  async loadMarkenWithRelations(filters = {}) {
+  // Handler für Seitenwechsel
+  handlePageChange(page) {
+    console.log('📄 Seite gewechselt:', page);
+    this.loadAndRender();
+  }
+
+  // Handler für Items-per-page Änderung
+  handleItemsPerPageChange(limit, page) {
+    console.log('📊 Items per Page geändert:', { limit, page });
+    this.loadAndRender();
+  }
+
+  // Lade Marken mit Pagination und Beziehungen
+  async loadMarkenWithPagination(filters = {}, page = 1, limit = 10) {
     try {
       if (!window.supabase) {
         console.warn('⚠️ Supabase nicht verfügbar - verwende Mock-Daten');
-        return await window.dataService.loadEntities('marke', filters);
+        return {
+          data: [],
+          total: 0,
+          page,
+          limit
+        };
       }
 
       // Sichtbarkeit: Nicht-Admins nur zugeordnete Marken (direkt oder über Unternehmen)
@@ -112,7 +151,7 @@ export class MarkeList {
           
           const directMarkeIds = (assignedMarken || []).map(r => r.marke_id).filter(Boolean);
           
-          // 2. NEU: Marken über zugeordnete Unternehmen
+          // 2. Marken über zugeordnete Unternehmen
           const { data: mitarbeiterUnternehmen } = await window.supabase
             .from('mitarbeiter_unternehmen')
             .select('unternehmen_id')
@@ -124,7 +163,6 @@ export class MarkeList {
           
           let unternehmenMarkeIds = [];
           if (unternehmenIds.length > 0) {
-            // Alle Marken dieser Unternehmen finden
             const { data: unternehmenMarken } = await window.supabase
               .from('marke')
               .select('id')
@@ -146,7 +184,11 @@ export class MarkeList {
         }
       }
 
-      // Basis-Query mit Embeds
+      // Berechne Range für Supabase (0-basiert)
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+
+      // Basis-Query mit Embeds und count
       let query = window.supabase
         .from('marke')
         .select(`
@@ -155,66 +197,95 @@ export class MarkeList {
           branchen:marke_branchen(branche:branche_id(id, name)),
           ansprechpartner:ansprechpartner_marke(ansprechpartner:ansprechpartner_id(id, vorname, nachname, email)),
           mitarbeiter:marke_mitarbeiter!fk_marke_mitarbeiter_marke_id(mitarbeiter:mitarbeiter_id(id, name))
-        `)
+        `, { count: 'exact' })
         .order('created_at', { ascending: false });
 
       // Nicht-Admin Filterung
       if (!isAdmin) {
         if (allowedMarkeIds.length > 0) {
           query = query.in('id', allowedMarkeIds);
-          console.log('🔍 MARKELIST: Query eingeschränkt auf Marken-IDs:', allowedMarkeIds);
         } else {
           // Keine zugeordneten Marken = leeres Ergebnis
-          console.log('⚠️ MARKELIST: Keine zugeordneten Marken - leeres Ergebnis');
-          return [];
+          return {
+            data: [],
+            total: 0,
+            page,
+            limit
+          };
         }
-      } else {
-        console.log('✅ MARKELIST: Admin-Benutzer - alle Marken werden geladen');
       }
 
-      // Filter anwenden (vereinfacht, analog zu anderen Listen)
-      if (filters) {
-        const apply = (field, val, type = 'string') => {
-          if (val == null || val === '' || val === '[object Object]') return;
-          if (type === 'string') {
-            query = query.ilike(field, `%${val}%`);
-          } else if (type === 'exact') {
-            query = query.eq(field, val);
-          } else if (type === 'uuid') {
-            query = query.eq(field, val);
+      // Branche-Filter: Hole zuerst IDs aus Junction-Tabelle
+      if (filters.branche_id) {
+        try {
+          const { data: branchenMarken, error: branchenError } = await window.supabase
+            .from('marke_branchen')
+            .select('marke_id')
+            .eq('branche_id', filters.branche_id);
+          
+          if (branchenError) {
+            console.error('❌ Fehler beim Laden der Marken-Branchen:', branchenError);
+          } else {
+            const markeIdsWithBranche = (branchenMarken || []).map(mb => mb.marke_id).filter(Boolean);
+            console.log(`🔍 Gefundene Marken mit Branche ${filters.branche_id}:`, markeIdsWithBranche.length);
+            
+            if (markeIdsWithBranche.length > 0) {
+              query = query.in('id', markeIdsWithBranche);
+            } else {
+              // Keine Marken mit dieser Branche
+              return {
+                data: [],
+                total: 0,
+                page,
+                limit
+              };
+            }
           }
-        };
-
-        apply('markenname', filters.markenname);
-        apply('unternehmen_id', filters.unternehmen_id, 'uuid');
-        apply('branche_id', filters.branche_id, 'uuid');
+        } catch (error) {
+          console.error('❌ Exception beim Branche-Filter:', error);
+        }
       }
 
-      const { data, error } = await query;
+      // Andere Filter anwenden (ohne branche_id, das wurde schon behandelt)
+      const filtersWithoutBranche = {...filters};
+      delete filtersWithoutBranche.branche_id;
+      query = MarkeFilterLogic.buildSupabaseQuery(query, filtersWithoutBranche);
+
+      // Range für Pagination
+      query = query.range(from, to);
+
+      const { data, error, count } = await query;
 
       if (error) {
-        console.error('❌ Fehler beim Laden der Marken mit Beziehungen:', error);
+        console.error('❌ Fehler beim Laden der Marken mit Pagination:', error);
         throw error;
       }
 
       // Daten transformieren für Kompatibilität mit bestehender UI
       const transformedData = (data || []).map(marke => ({
         ...marke,
-        // Branchen als Array extrahieren
         branchen: (marke.branchen || []).map(b => b.branche).filter(Boolean),
-        // Ansprechpartner als Array extrahieren  
         ansprechpartner: (marke.ansprechpartner || []).map(a => a.ansprechpartner).filter(Boolean),
-        // Mitarbeiter als Array extrahieren
         mitarbeiter: (marke.mitarbeiter || []).map(m => m.mitarbeiter).filter(Boolean)
       }));
 
-      console.log('✅ Marken mit Beziehungen geladen:', transformedData.length);
-      return transformedData;
+      console.log('✅ Marken mit Pagination geladen:', {
+        items: transformedData.length,
+        total: count,
+        page,
+        limit
+      });
+
+      return {
+        data: transformedData,
+        total: count || 0,
+        page,
+        limit
+      };
 
     } catch (error) {
-      console.error('❌ Fehler beim Laden der Marken:', error);
-      // Fallback auf DataService
-      return await window.dataService.loadEntities('marke', filters);
+      console.error('❌ Fehler beim Laden der Marken mit Pagination:', error);
+      throw error;
     }
   }
 
@@ -280,6 +351,8 @@ export class MarkeList {
           </tbody>
         </table>
       </div>
+      
+      <div class="pagination-container" id="pagination-marke"></div>
     `;
 
     window.setContentSafely(window.content, html);
@@ -304,6 +377,8 @@ export class MarkeList {
   onFiltersApplied(filters) {
     console.log('Filter angewendet:', filters);
     filterSystem.applyFilters('marke', filters);
+    // Reset pagination auf Seite 1 bei neuen Filtern
+    this.pagination.reset();
     this.loadAndRender();
   }
 
@@ -311,6 +386,8 @@ export class MarkeList {
   onFiltersReset() {
     console.log('Filter zurückgesetzt');
     filterSystem.resetFilters('marke');
+    // Reset pagination auf Seite 1
+    this.pagination.reset();
     this.loadAndRender();
   }
 
@@ -455,9 +532,20 @@ export class MarkeList {
     const tbody = document.querySelector('.data-table tbody');
     if (!tbody) return;
 
+    // Fade-out Animation starten (behält alte Daten während Fade-out)
+    tbody.classList.add('table-fade-out');
+    
+    // Warte auf Animation (200ms)
+    await new Promise(resolve => setTimeout(resolve, 200));
+
     if (!marken || marken.length === 0) {
       const { renderEmptyState } = await import('../../core/FilterUI.js');
       renderEmptyState(tbody);
+      
+      // Fade-in Animation
+      tbody.classList.remove('table-fade-out');
+      tbody.classList.add('table-fade-in');
+      setTimeout(() => tbody.classList.remove('table-fade-in'), 200);
       return;
     }
 
@@ -480,7 +568,13 @@ export class MarkeList {
       </tr>
     `).join('');
 
+    // Content austauschen während Fade-out aktiv ist
     tbody.innerHTML = rowsHtml;
+    
+    // Fade-in Animation
+    tbody.classList.remove('table-fade-out');
+    tbody.classList.add('table-fade-in');
+    setTimeout(() => tbody.classList.remove('table-fade-in'), 200);
   }
 
   // Rendere Branchen
@@ -569,6 +663,12 @@ export class MarkeList {
   // Cleanup
   destroy() {
     console.log('🗑️ MARKELLIST: Destroy aufgerufen');
+    
+    // Pagination cleanup
+    if (this.pagination) {
+      this.pagination.destroy();
+    }
+    
     this._boundEventListeners.forEach(({ element, type, handler }) => {
       element.removeEventListener(type, handler);
     });

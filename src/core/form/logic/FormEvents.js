@@ -485,7 +485,7 @@ export class FormEvents {
       // Hole Kooperation ohne FK-Expansions (robust gegen fehlende FK in Schema)
       const { data: koop, error } = await window.supabase
         .from('kooperationen')
-        .select('id, name, unternehmen_id, kampagne_id, nettobetrag, gesamtkosten, zusatzkosten, videoanzahl')
+        .select('id, name, unternehmen_id, kampagne_id, einkaufspreis_netto, einkaufspreis_gesamt, einkaufspreis_zusatzkosten, videoanzahl')
         .eq('id', koopId)
         .single();
       if (error) {
@@ -599,10 +599,10 @@ export class FormEvents {
       // Videoanzahl aus Kooperation
       if (videoInput) videoInput.value = koop?.videoanzahl || '';
 
-      // Beträge aus Kooperation: Netto, Zusatzkosten, USt, Brutto
-      const netto = parseFloat(koop?.nettobetrag || 0) || 0;
-      const zusatz = parseFloat(koop?.zusatzkosten || 0) || 0;
-      const brutto = (koop?.gesamtkosten != null) ? koop.gesamtkosten : (netto + zusatz);
+      // Beträge aus Kooperation: Netto, Zusatzkosten, USt, Brutto (Einkaufspreis!)
+      const netto = parseFloat(koop?.einkaufspreis_netto || 0) || 0;
+      const zusatz = parseFloat(koop?.einkaufspreis_zusatzkosten || 0) || 0;
+      const brutto = (koop?.einkaufspreis_gesamt != null) ? koop.einkaufspreis_gesamt : (netto + zusatz);
       if (nettoInput) nettoInput.value = netto ? String(netto) : '';
       if (zusatzInput) zusatzInput.value = zusatz ? String(zusatz) : '';
       if (bruttoInput) bruttoInput.value = isNaN(brutto) ? '' : String(brutto);

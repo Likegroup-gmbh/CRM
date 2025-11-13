@@ -236,10 +236,10 @@ export class AuftragDetail {
       if (kampagneIds.length > 0) {
         const { data: koops } = await window.supabase
           .from('kooperationen')
-          .select('nettobetrag, gesamtkosten')
+          .select('einkaufspreis_netto, einkaufspreis_gesamt')
           .in('kampagne_id', kampagneIds);
-        const sumNetto = (koops || []).reduce((s, k) => s + (parseFloat(k.nettobetrag) || 0), 0);
-        const sumGesamt = (koops || []).reduce((s, k) => s + (parseFloat(k.gesamtkosten) || 0), 0);
+        const sumNetto = (koops || []).reduce((s, k) => s + (parseFloat(k.einkaufspreis_netto) || 0), 0);
+        const sumGesamt = (koops || []).reduce((s, k) => s + (parseFloat(k.einkaufspreis_gesamt) || 0), 0);
         this.koopSummary = { count: (koops || []).length, sumNetto, sumGesamt };
       } else {
         this.koopSummary = { count: 0, sumNetto: 0, sumGesamt: 0 };

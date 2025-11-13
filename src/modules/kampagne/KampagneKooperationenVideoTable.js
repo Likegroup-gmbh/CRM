@@ -4,6 +4,7 @@
 export class KampagneKooperationenVideoTable {
   constructor(kampagneId) {
     this.kampagneId = kampagneId;
+    this.containerId = null; // Für refresh() Methode
     this.kooperationen = [];
     this.videos = {};
     this.videoComments = {}; // { video_id: { r1: [], r2: [] } }
@@ -13,7 +14,30 @@ export class KampagneKooperationenVideoTable {
     this.resizeCol = null;
     this.resizeStartX = 0;
     this.resizeStartWidth = 0;
-    this.storageKey = `kampagne_koops_videos_column_widths_${kampagneId}`;
+    this.storageKey = `kampagne_koops_videos_column_widths_v2_${kampagneId}`;
+  }
+
+  // Prüfe ob ein Feld für den aktuellen Benutzer editierbar ist
+  isFieldEditableForUser(entity, field) {
+    const userRole = window.currentUser?.rolle;
+    
+    // Admins und Mitarbeiter können alles bearbeiten
+    if (userRole === 'admin' || userRole === 'mitarbeiter') {
+      return true;
+    }
+    
+    // Kunden dürfen folgende Felder NICHT bearbeiten:
+    if (userRole === 'kunde') {
+      const readOnlyFieldsForKunden = {
+        'kooperation': ['vertrag_unterschrieben', 'typ'],
+        'versand': ['versendet', 'tracking_nummer'],
+        'video': ['thema', 'link_produkte', 'link_skript', 'skript_freigegeben', 'link_story']
+      };
+      
+      return !readOnlyFieldsForKunden[entity]?.includes(field);
+    }
+    
+    return false;
   }
 
   // Lade alle Daten für die Tabelle
@@ -26,8 +50,9 @@ export class KampagneKooperationenVideoTable {
       const { data: kooperationen, error: koopError } = await window.supabase
         .from('kooperationen')
         .select(`
-          id, name, status, nettobetrag, gesamtkosten, content_art,
+          id, name, status, einkaufspreis_netto, einkaufspreis_gesamt, content_art,
           posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ,
+          videoanzahl, skript_deadline, content_deadline,
           creator:creator_id (
             id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower,
             lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt
@@ -63,7 +88,7 @@ export class KampagneKooperationenVideoTable {
         
         window.supabase
           .from('kooperation_versand')
-          .select('id, kooperation_id, versendet, tracking_nummer, produkt_name')
+          .select('id, kooperation_id, versendet, tracking_nummer, produkt_name, produkt_link')
           .in('kooperation_id', koopIds)
       ]);
 
@@ -182,85 +207,101 @@ export class KampagneKooperationenVideoTable {
                 Creator
                 <div class="resize-handle resize-handle-col" data-col="1"></div>
               </th>
-              <th class="col-header col-creator-info" data-col="2">
-                Info zum Creator
+              <th class="col-header col-videoanzahl" data-col="2">
+                Videos
                 <div class="resize-handle resize-handle-col" data-col="2"></div>
               </th>
-              <th class="col-header col-typ" data-col="3">
-                Typ
+              <th class="col-header col-status" data-col="3">
+                Status
                 <div class="resize-handle resize-handle-col" data-col="3"></div>
               </th>
-              <th class="col-header col-organic-paid" data-col="4">
-                Organic/Paid
+              <th class="col-header col-start-datum" data-col="4">
+                Start
                 <div class="resize-handle resize-handle-col" data-col="4"></div>
               </th>
-              <th class="col-header col-kosten" data-col="5">
-                Kosten
+              <th class="col-header col-end-datum" data-col="5">
+                Ende
                 <div class="resize-handle resize-handle-col" data-col="5"></div>
               </th>
-              <th class="col-header col-kampagne" data-col="6">
-                Kampagne
+              <th class="col-header col-typ" data-col="6">
+                Typ
                 <div class="resize-handle resize-handle-col" data-col="6"></div>
               </th>
-              <th class="col-header col-posting-datum" data-col="7">
-                Posting Datum
+              <th class="col-header col-organic-paid" data-col="7">
+                Organic/Paid
                 <div class="resize-handle resize-handle-col" data-col="7"></div>
               </th>
-              <th class="col-header col-vertrag" data-col="8">
-                Vertrag
+              <th class="col-header col-kampagne" data-col="8">
+                Kampagne
                 <div class="resize-handle resize-handle-col" data-col="8"></div>
               </th>
-              <th class="col-header col-nutzungsrechte" data-col="9">
-                Nutzungsrechte
+              <th class="col-header col-posting-datum" data-col="9">
+                Posting Datum
                 <div class="resize-handle resize-handle-col" data-col="9"></div>
               </th>
-              <th class="col-header col-lieferadresse" data-col="10">
-                Lieferadresse
+              <th class="col-header col-vertrag" data-col="10">
+                Vertrag
                 <div class="resize-handle resize-handle-col" data-col="10"></div>
               </th>
-              <th class="col-header col-paket-tracking" data-col="11">
-                Paket/Tracking
+              <th class="col-header col-nutzungsrechte" data-col="11">
+                Nutzungsrechte
                 <div class="resize-handle resize-handle-col" data-col="11"></div>
               </th>
-              <th class="col-header col-thema" data-col="12">
-                Thema
+              <th class="col-header col-lieferadresse" data-col="12">
+                Lieferadresse
                 <div class="resize-handle resize-handle-col" data-col="12"></div>
               </th>
-              <th class="col-header col-link-produkte" data-col="13">
-                Link Produkte
+              <th class="col-header col-produkt" data-col="13">
+                Produkt
                 <div class="resize-handle resize-handle-col" data-col="13"></div>
               </th>
-              <th class="col-header col-link-skript" data-col="14">
-                Link Skript
+              <th class="col-header col-paket-tracking" data-col="14">
+                Paket/Tracking
                 <div class="resize-handle resize-handle-col" data-col="14"></div>
               </th>
-              <th class="col-header col-skript-freigegeben" data-col="15">
-                Skript freigegeben
+              <th class="col-header col-thema" data-col="15">
+                Thema
                 <div class="resize-handle resize-handle-col" data-col="15"></div>
               </th>
-              <th class="col-header col-link-content" data-col="16">
-                Link Content
+              <th class="col-header col-link-produkte" data-col="16">
+                Link Produkte
                 <div class="resize-handle resize-handle-col" data-col="16"></div>
               </th>
-              <th class="col-header col-link-story" data-col="17">
-                Link Story
+              <th class="col-header col-link-skript" data-col="17">
+                Link Skript
                 <div class="resize-handle resize-handle-col" data-col="17"></div>
               </th>
-              <th class="col-header col-caption" data-col="18">
-                Caption
+              <th class="col-header col-skript-freigegeben" data-col="18">
+                Skript freigegeben
                 <div class="resize-handle resize-handle-col" data-col="18"></div>
               </th>
-              <th class="col-header col-feedback-cj" data-col="19">
-                Feedback CJ
+              <th class="col-header col-link-content" data-col="19">
+                Link Content
                 <div class="resize-handle resize-handle-col" data-col="19"></div>
               </th>
-              <th class="col-header col-feedback-kunde" data-col="20">
-                Feedback Kunde
+              <th class="col-header col-link-story" data-col="20">
+                Link Story
                 <div class="resize-handle resize-handle-col" data-col="20"></div>
               </th>
-              <th class="col-header col-freigabe" data-col="21">
-                Freigabe
+              <th class="col-header col-feedback-cj" data-col="21">
+                Feedback CJ
                 <div class="resize-handle resize-handle-col" data-col="21"></div>
+              </th>
+              <th class="col-header col-feedback-kunde" data-col="22">
+                Feedback Kunde
+                <div class="resize-handle resize-handle-col" data-col="22"></div>
+              </th>
+              <th class="col-header col-freigabe" data-col="23">
+                Freigabe
+                <div class="resize-handle resize-handle-col" data-col="23"></div>
+              </th>
+              <th class="col-header col-caption" data-col="24">
+                Caption
+                <div class="resize-handle resize-handle-col" data-col="24"></div>
+              </th>
+              <th class="col-header col-kosten" data-col="25">
+                Kosten
+                <div class="resize-handle resize-handle-col" data-col="25"></div>
               </th>
             </tr>
           </thead>
@@ -282,12 +323,10 @@ export class KampagneKooperationenVideoTable {
       style: 'currency', 
       currency: 'EUR' 
     }).format(v) : '-';
-
-    // Creator-Info formatieren
-    const creatorInfo = [
-      creator.instagram ? `IG: @${creator.instagram} (${(creator.instagram_follower || 0).toLocaleString()})` : null,
-      creator.tiktok ? `TT: @${creator.tiktok} (${(creator.tiktok_follower || 0).toLocaleString()})` : null
-    ].filter(Boolean).join('\n') || '-';
+    
+    const formatDate = (date) => {
+      return date ? new Date(date).toLocaleDateString('de-DE') : '-';
+    };
 
     // Lieferadresse formatieren
     const lieferadresse = creator.lieferadresse_strasse 
@@ -299,11 +338,16 @@ export class KampagneKooperationenVideoTable {
       <tr class="kooperation-row" data-kooperation-id="${koop.id}">
         <td class="grid-cell read-only">${rowNumber}</td>
         <td class="grid-cell read-only">
-          <a href="/kooperation/${koop.id}" onclick="event.preventDefault(); window.navigateTo('/kooperation/${koop.id}')" class="table-link">
+          <a href="/creator/${creator.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${creator.id}')" class="table-link">
             ${this.escapeHtml(`${creator.vorname || ''} ${creator.nachname || ''}`.trim() || 'Unbekannt')}
           </a>
         </td>
-        <td class="grid-cell read-only small-text" style="white-space: pre-line;">${this.escapeHtml(creatorInfo)}</td>
+        <td class="grid-cell read-only">${koop.videoanzahl || 0}</td>
+        <td class="grid-cell read-only">
+          <span class="status-badge status-${(koop.status || 'unknown').toLowerCase()}">${koop.status || '-'}</span>
+        </td>
+        <td class="grid-cell read-only">${formatDate(koop.skript_deadline)}</td>
+        <td class="grid-cell read-only">${formatDate(koop.content_deadline)}</td>
         <td class="grid-cell">
           <input 
             type="text" 
@@ -311,12 +355,12 @@ export class KampagneKooperationenVideoTable {
             data-entity="kooperation" 
             data-id="${koop.id}" 
             data-field="typ"
+            ${!this.isFieldEditableForUser('kooperation', 'typ') ? 'readonly' : ''}
             value="${koop.typ || ''}"
             placeholder="UGC/Influencer"
           />
         </td>
         <td class="grid-cell read-only">${this.escapeHtml(koop.content_art || '-')}</td>
-        <td class="grid-cell read-only">${formatCurrency(koop.gesamtkosten)}</td>
         <td class="grid-cell read-only">
           <a href="/kampagne/${koop.kampagne?.id}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${koop.kampagne?.id}')" class="table-link">
             ${this.escapeHtml(koop.kampagne?.kampagnenname || '-')}
@@ -339,6 +383,7 @@ export class KampagneKooperationenVideoTable {
             data-entity="kooperation" 
             data-id="${koop.id}" 
             data-field="vertrag_unterschrieben"
+            ${!this.isFieldEditableForUser('kooperation', 'vertrag_unterschrieben') ? 'disabled' : ''}
             ${koop.vertrag_unterschrieben ? 'checked' : ''}
           />
         </td>
@@ -356,6 +401,31 @@ export class KampagneKooperationenVideoTable {
         <td class="grid-cell read-only small-text" style="white-space: pre-line;">${this.escapeHtml(lieferadresse)}</td>
         <td class="grid-cell">
           <div class="versand-fields">
+            <input 
+              type="text" 
+              class="grid-input" 
+              data-entity="versand" 
+              data-id="${versand?.id || 'new'}"
+              data-kooperation-id="${koop.id}"
+              data-field="produkt_name"
+              value="${versand?.produkt_name || ''}"
+              placeholder="Produktname"
+              style="margin-bottom: 4px;"
+            />
+            <input 
+              type="text" 
+              class="grid-input" 
+              data-entity="versand" 
+              data-id="${versand?.id || 'new'}"
+              data-kooperation-id="${koop.id}"
+              data-field="produkt_link"
+              value="${versand?.produkt_link || ''}"
+              placeholder="Produkt-Link"
+            />
+          </div>
+        </td>
+        <td class="grid-cell">
+          <div class="versand-fields">
             <label class="checkbox-label-grid">
               <input 
                 type="checkbox" 
@@ -364,6 +434,7 @@ export class KampagneKooperationenVideoTable {
                 data-id="${versand?.id || 'new'}"
                 data-kooperation-id="${koop.id}"
                 data-field="versendet"
+                ${!this.isFieldEditableForUser('versand', 'versendet') ? 'disabled' : ''}
                 ${versand?.versendet ? 'checked' : ''}
               />
               <span>Versendet</span>
@@ -375,19 +446,9 @@ export class KampagneKooperationenVideoTable {
               data-id="${versand?.id || 'new'}"
               data-kooperation-id="${koop.id}"
               data-field="tracking_nummer"
+              ${!this.isFieldEditableForUser('versand', 'tracking_nummer') ? 'readonly' : ''}
               value="${versand?.tracking_nummer || ''}"
               placeholder="Tracking Nr."
-              style="margin-top: 4px;"
-            />
-            <input 
-              type="text" 
-              class="grid-input" 
-              data-entity="versand" 
-              data-id="${versand?.id || 'new'}"
-              data-kooperation-id="${koop.id}"
-              data-field="produkt_name"
-              value="${versand?.produkt_name || ''}"
-              placeholder="Produktname"
               style="margin-top: 4px;"
             />
           </div>
@@ -397,6 +458,7 @@ export class KampagneKooperationenVideoTable {
           ${this.renderVideoFieldStack(videos, (video) => `
             <input type="text" class="grid-input stacked-video-input" 
               data-entity="video" data-id="${video.id}" data-field="thema"
+              ${!this.isFieldEditableForUser('video', 'thema') ? 'readonly' : ''}
               value="${this.escapeHtml(video.thema || '')}" placeholder="Thema"/>
           `)}
         </td>
@@ -404,6 +466,7 @@ export class KampagneKooperationenVideoTable {
           ${this.renderVideoFieldStack(videos, (video) => `
             <input type="text" class="grid-input stacked-video-input" 
               data-entity="video" data-id="${video.id}" data-field="link_produkte"
+              ${!this.isFieldEditableForUser('video', 'link_produkte') ? 'readonly' : ''}
               value="${this.escapeHtml(video.link_produkte || '')}" placeholder="Link"/>
           `)}
         </td>
@@ -411,6 +474,7 @@ export class KampagneKooperationenVideoTable {
           ${this.renderVideoFieldStack(videos, (video) => `
             <input type="text" class="grid-input stacked-video-input" 
               data-entity="video" data-id="${video.id}" data-field="link_skript"
+              ${!this.isFieldEditableForUser('video', 'link_skript') ? 'readonly' : ''}
               value="${this.escapeHtml(video.link_skript || '')}" placeholder="Link"/>
           `)}
         </td>
@@ -419,6 +483,7 @@ export class KampagneKooperationenVideoTable {
             <div class="stacked-video-checkbox-wrapper">
               <input type="checkbox" class="grid-checkbox stacked-video-checkbox" 
                 data-entity="video" data-id="${video.id}" data-field="skript_freigegeben"
+                ${!this.isFieldEditableForUser('video', 'skript_freigegeben') ? 'disabled' : ''}
                 ${video.skript_freigegeben ? 'checked' : ''}/>
             </div>
           `)}
@@ -439,17 +504,11 @@ export class KampagneKooperationenVideoTable {
           ${this.renderVideoFieldStack(videos, (video) => `
             <input type="text" class="grid-input stacked-video-input" 
               data-entity="video" data-id="${video.id}" data-field="link_story"
+              ${!this.isFieldEditableForUser('video', 'link_story') ? 'readonly' : ''}
               value="${this.escapeHtml(video.link_story || '')}" placeholder="Link"/>
           `)}
         </td>
-        <td class="grid-cell video-stack-cell">
-          ${this.renderVideoFieldStack(videos, (video) => `
-            <textarea class="grid-textarea stacked-video-textarea auto-resize-textarea" 
-              data-entity="video" data-id="${video.id}" data-field="caption"
-              placeholder="Caption" rows="1">${this.escapeHtml(video.caption || '')}</textarea>
-          `)}
-        </td>
-        <td class="grid-cell video-stack-cell">
+        <td class="grid-cell video-stack-cell wide-field">
           ${this.renderVideoFieldStack(videos, (video) => {
             const comments = this.videoComments[video.id];
             const relevantComments = comments?.r1 || [];
@@ -461,7 +520,7 @@ export class KampagneKooperationenVideoTable {
               placeholder="Feedback Runde 1" rows="1">${this.escapeHtml(value)}</textarea>`;
           })}
         </td>
-        <td class="grid-cell video-stack-cell">
+        <td class="grid-cell video-stack-cell wide-field">
           ${this.renderVideoFieldStack(videos, (video) => {
             const comments = this.videoComments[video.id];
             const relevantComments = comments?.r2 || [];
@@ -482,6 +541,14 @@ export class KampagneKooperationenVideoTable {
             </div>
           `)}
         </td>
+        <td class="grid-cell video-stack-cell wide-field">
+          ${this.renderVideoFieldStack(videos, (video) => `
+            <textarea class="grid-textarea stacked-video-textarea auto-resize-textarea" 
+              data-entity="video" data-id="${video.id}" data-field="caption"
+              placeholder="Caption" rows="1">${this.escapeHtml(video.caption || '')}</textarea>
+          `)}
+        </td>
+        <td class="grid-cell read-only">${formatCurrency(koop.einkaufspreis_gesamt)}</td>
       </tr>
     `;
   }
@@ -904,6 +971,7 @@ export class KampagneKooperationenVideoTable {
 
   // Initialisiere und rendere die Tabelle
   async init(containerId) {
+    this.containerId = containerId; // Für refresh() Methode speichern
     console.log('🎬 KampagneKooperationenVideoTable.init() - Container ID:', containerId);
     const container = document.getElementById(containerId);
     console.log('🎬 Container gefunden:', !!container, container);
@@ -1140,6 +1208,56 @@ export class KampagneKooperationenVideoTable {
     
     // Speichere cleanup-Funktion für später
     this.cleanupFloatingScrollbar = cleanup;
+  }
+
+  // Refresh-Methode: Lädt Daten neu und rendert Tabelle ohne Seitenneuladung
+  async refresh() {
+    console.log('🔄 KampagneKooperationenVideoTable.refresh() - Lade Daten neu und rendere Tabelle');
+    
+    // Container finden
+    const container = this.containerId ? document.getElementById(this.containerId) : null;
+    if (!container) {
+      console.error('❌ Container nicht gefunden für refresh, containerId:', this.containerId);
+      return;
+    }
+    
+    // Daten neu laden
+    await this.loadData();
+    
+    // Tabelle neu rendern
+    const html = this.render();
+    container.innerHTML = html;
+    
+    // Events neu binden
+    this.bindEvents();
+    
+    // Floating Scrollbar neu initialisieren
+    this.initFloatingScrollbar();
+    
+    // Gespeicherte Spaltenbreiten wiederherstellen
+    this.loadColumnWidths();
+    
+    console.log('✅ Tabelle erfolgreich refreshed');
+  }
+
+  // Cleanup-Methode für Modul-Wechsel
+  destroy() {
+    console.log('🗑️ KOOPERATIONENVIDEOTABLE: Cleanup aufgerufen');
+    
+    // Cleanup der Floating-Scrollbar (Event-Listener entfernen)
+    if (this.cleanupFloatingScrollbar) {
+      this.cleanupFloatingScrollbar();
+      this.cleanupFloatingScrollbar = null;
+    }
+    
+    // Floating-Scrollbar aus DOM entfernen
+    const floatingScrollbar = document.getElementById('floating-scrollbar-kampagne');
+    if (floatingScrollbar && floatingScrollbar.parentNode) {
+      floatingScrollbar.parentNode.removeChild(floatingScrollbar);
+      console.log('✅ KOOPERATIONENVIDEOTABLE: Floating-Scrollbar aus DOM entfernt');
+    }
+    
+    console.log('✅ KOOPERATIONENVIDEOTABLE: Cleanup abgeschlossen');
   }
 }
 

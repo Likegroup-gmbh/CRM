@@ -106,7 +106,9 @@ class ModuleRegistry {
 
     const path = route.replace(/^\//, '');
     const pathParts = path.split('/');
-    const [segment, id, action] = pathParts;
+    // ID von Query-Parametern trennen (z.B. "new?kampagne_id=123" → "new")
+    const [segment, idRaw, action] = pathParts;
+    const id = idRaw ? idRaw.split('?')[0] : idRaw;
 
     if (import.meta.env.DEV) {
       console.log(`🧭 Navigation zu: ${segment}${id ? ` (ID: ${id})` : ''}${action ? ` (Action: ${action})` : ''}`);
@@ -205,8 +207,14 @@ class ModuleRegistry {
       console.log(`🎯 Auftrags-Details erkannt, verwende Modul: ${moduleKey}`);
     }
     
+    // Spezielle Behandlung für Kooperations-Erstellung
+    if (id === 'new' && segment === 'kooperation') {
+      moduleKey = 'kooperation';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Kooperations-Erstellung erkannt, verwende Modul: ${moduleKey}`);
+    }
     // Spezielle Behandlung für Kooperations-Details (aber nicht für 'new')
-    if (id && segment === 'kooperation' && id !== 'new') {
+    else if (id && segment === 'kooperation' && id !== 'new') {
       moduleKey = 'kooperation-detail';
       module = this.modules.get(moduleKey);
       console.log(`🎯 Kooperations-Details erkannt, verwende Modul: ${moduleKey}`);

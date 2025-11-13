@@ -269,6 +269,7 @@
   border-radius: 6px;
   font-size: 0.875rem;
   transition: border-color 0.2s;
+  width: 100%;
 }
 
 .form-field input:focus,

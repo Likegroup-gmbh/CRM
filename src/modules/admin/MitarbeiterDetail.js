@@ -48,7 +48,7 @@ export class MitarbeiterDetail {
           .from('kampagne_mitarbeiter')
           .select('kampagne:kampagne_id(id, kampagnenname)')
           .eq('mitarbeiter_id', this.userId),
-        window.supabase.from('kooperationen').select('id, name, status, kampagne:kampagne_id(kampagnenname), nettobetrag, zusatzkosten, gesamtkosten').eq('assignee_id', this.userId),
+        window.supabase.from('kooperationen').select('id, name, status, kampagne:kampagne_id(kampagnenname), einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_gesamt').eq('assignee_id', this.userId),
         window.supabase.from('briefings').select('id, product_service_offer, status').eq('assignee_id', this.userId),
         window.supabase.from('kampagne_status').select('id, name, sort_order').order('sort_order', { ascending: true }).order('name', { ascending: true }),
         window.supabase
@@ -113,7 +113,7 @@ export class MitarbeiterDetail {
         try {
           const { data: kampagnenKoops } = await window.supabase
             .from('kooperationen')
-            .select('id, name, status, kampagne:kampagne_id(kampagnenname), nettobetrag, zusatzkosten, gesamtkosten')
+            .select('id, name, status, kampagne:kampagne_id(kampagnenname), einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_gesamt')
             .in('kampagne_id', allKampagnenIds);
           
           unternehmenKoops = kampagnenKoops || [];
@@ -158,9 +158,9 @@ export class MitarbeiterDetail {
         }
       }
       (this.assignments.kooperationen || []).forEach(k => {
-        totals.netto += Number(k.nettobetrag || 0);
-        totals.zusatz += Number(k.zusatzkosten || 0);
-        totals.gesamt += Number(k.gesamtkosten != null ? k.gesamtkosten : (Number(k.nettobetrag || 0) + Number(k.zusatzkosten || 0)));
+        totals.netto += Number(k.einkaufspreis_netto || 0);
+        totals.zusatz += Number(k.einkaufspreis_zusatzkosten || 0);
+        totals.gesamt += Number(k.einkaufspreis_gesamt != null ? k.einkaufspreis_gesamt : (Number(k.einkaufspreis_netto || 0) + Number(k.einkaufspreis_zusatzkosten || 0)));
       });
       this.budget = { invoicesByKoop, totals };
     } catch (e) {
@@ -568,9 +568,9 @@ export class MitarbeiterDetail {
       const invHtml = invoices.length
         ? invoices.map(r => `<div><a href="/rechnung/${r.id}" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${window.validatorSystem.sanitizeHtml(r.rechnung_nr || r.id)}</a> — ${this.formatCurrency(r.bruttobetrag)} <span class="status-badge status-${(r.status||'').toLowerCase().replace(/\s+/g,'-')}">${r.status || '-'}</span></div>`).join('')
         : '<span class="muted">Keine Rechnung</span>';
-      const netto = Number(k.nettobetrag || 0);
-      const zusatz = Number(k.zusatzkosten || 0);
-      const gesamt = (k.gesamtkosten != null) ? Number(k.gesamtkosten) : (netto + zusatz);
+      const netto = Number(k.einkaufspreis_netto || 0);
+      const zusatz = Number(k.einkaufspreis_zusatzkosten || 0);
+      const gesamt = (k.einkaufspreis_gesamt != null) ? Number(k.einkaufspreis_gesamt) : (netto + zusatz);
       return `
         <tr>
           <td><a href="/kooperation/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kooperation/${k.id}')">${window.validatorSystem.sanitizeHtml(k.name || k.id)}</a></td>

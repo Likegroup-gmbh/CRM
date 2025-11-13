@@ -199,7 +199,7 @@ export class UnternehmenDetail {
         if (kampagneIds.length > 0) {
           const { data: koops } = await window.supabase
             .from('kooperationen')
-            .select('id, name, status, videoanzahl, gesamtkosten, kampagne_id, creator_id, created_at')
+            .select('id, name, status, videoanzahl, einkaufspreis_gesamt, kampagne_id, creator_id, created_at')
             .in('kampagne_id', kampagneIds)
             .order('created_at', { ascending: false });
           this.kooperationen = koops || [];
@@ -759,7 +759,7 @@ export class UnternehmenDetail {
         <td>${k.creator ? `${k.creator.vorname || ''} ${k.creator.nachname || ''}`.trim() || '-' : '-'}</td>
         <td>${k.kampagne?.kampagnenname || '-'}</td>
         <td>${k.videoanzahl || 0}</td>
-        <td>${formatCurrency(k.gesamtkosten)}</td>
+        <td>${formatCurrency(k.einkaufspreis_gesamt)}</td>
         <td>
           ${actionBuilder.create('kooperation', k.id)}
         </td>

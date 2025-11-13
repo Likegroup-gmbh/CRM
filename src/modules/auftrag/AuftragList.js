@@ -1,17 +1,20 @@
 // AuftragList.js (ES6-Modul)
-// Auftrags-Liste mit Filter und Verwaltung
+// Auftrags-Liste mit Filter, Verwaltung und Pagination
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { AuftragsDetailsManager, auftragsDetailsManager } from './logic/AuftragsDetailsManager.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
+import { PaginationSystem } from '../../core/PaginationSystem.js';
+import { AuftragFilterLogic } from './filters/AuftragFilterLogic.js';
 
 export class AuftragList {
   constructor() {
     this.selectedAuftraege = new Set();
     this._boundEventListeners = new Set();
     this.boundFilterResetHandler = null;
+    this.pagination = new PaginationSystem();
   }
 
   // Initialisiere Auftrags-Liste
@@ -24,6 +27,13 @@ export class AuftragList {
         { label: 'Auftrag', url: '/auftrag', clickable: false }
       ]);
     }
+    
+    // Pagination initialisieren
+    this.pagination.init('pagination-auftrag', {
+      itemsPerPage: 10,
+      onPageChange: (page) => this.handlePageChange(page),
+      onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page)
+    });
     
     try {
       // BulkActionSystem für Auftrag registrieren
@@ -53,18 +63,45 @@ export class AuftragList {
       // Filter-Bar initialisieren
       await this.initializeFilterBar();
       
-      // Aufträge mit Beziehungen laden
-      console.log('🔍 AUFTRAGLIST: Lade Aufträge mit Beziehungen');
-      const auftraege = await this.loadAuftraegeWithRelations();
-      console.log('📊 AUFTRAGLIST: Aufträge mit Beziehungen geladen:', auftraege.length, auftraege);
+      // Aufträge mit Beziehungen und Pagination laden
+      console.log('🔍 AUFTRAGLIST: Lade Aufträge mit Beziehungen und Pagination');
+      const filters = filterSystem.getFilters('auftrag');
+      const { data: auftraege, count } = await this.loadAuftraegeWithPagination(
+        filters,
+        this.pagination.currentPage,
+        this.pagination.itemsPerPage
+      );
+      
+      console.log('📊 AUFTRAGLIST: Aufträge mit Beziehungen geladen:', auftraege?.length, auftraege);
+      
+      // Pagination Total aktualisieren
+      this.pagination.updateTotal(count);
       
       this.updateTable(auftraege);
+      
+      // Pagination rendern
+      this.pagination.render();
+      
       console.log('✅ AUFTRAGLIST: Tabelle aktualisiert');
       
     } catch (error) {
       console.error('❌ AUFTRAGLIST: Fehler beim Laden und Rendern:', error);
-      window.ErrorHandler.handle(error, 'AuftragList.loadAndRender');
+      if (window.ErrorHandler && window.ErrorHandler.handle) {
+        window.ErrorHandler.handle(error, 'AuftragList.loadAndRender');
+      }
     }
+  }
+
+  // Handler für Seiten-Wechsel
+  handlePageChange(page) {
+    console.log(`📄 AUFTRAGLIST: Wechsle zu Seite ${page}`);
+    this.loadAndRender();
+  }
+
+  // Handler für Items-Per-Page-Wechsel
+  handleItemsPerPageChange(limit, page) {
+    console.log(`📄 AUFTRAGLIST: Items pro Seite geändert auf ${limit}, Seite ${page}`);
+    this.loadAndRender();
   }
 
   // Rendere Auftrags-Liste
@@ -127,10 +164,13 @@ export class AuftragList {
             </thead>
             <tbody id="auftraege-table-body">
               <tr>
-                <td colspan="10" class="loading">Lade Aufträge...</td>
+                <td colspan="22" class="loading">Lade Aufträge...</td>
               </tr>
             </tbody>
           </table>
+          
+          <!-- Pagination -->
+          <div class="pagination-container" id="pagination-auftrag"></div>
         </div>
       </div>
     `;
@@ -138,7 +178,72 @@ export class AuftragList {
     window.setContentSafely(window.content, html);
   }
 
-  // Lade Aufträge mit Beziehungen
+  // Lade Aufträge mit Beziehungen und Pagination
+  async loadAuftraegeWithPagination(filters = {}, page = 1, limit = 10) {
+    try {
+      if (!window.supabase) {
+        console.warn('⚠️ Supabase nicht verfügbar - verwende Mock-Daten');
+        const mockData = await window.dataService.loadEntities('auftrag');
+        return { data: mockData, count: mockData.length };
+      }
+
+      // Berechne Range für Pagination
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+
+      // Query mit allen Relations aufbauen
+      let query = window.supabase
+        .from('auftrag')
+        .select(`
+          *,
+          unternehmen:unternehmen_id(id, firmenname, logo_url),
+          marke:marke_id(id, markenname, logo_url),
+          ansprechpartner:ansprechpartner_id(id, vorname, nachname, email),
+          cutter:auftrag_cutter(mitarbeiter:mitarbeiter_id(id, name)),
+          copywriter:auftrag_copywriter(mitarbeiter:mitarbeiter_id(id, name)),
+          mitarbeiter:auftrag_mitarbeiter(mitarbeiter:mitarbeiter_id(id, name))
+        `, { count: 'exact' });
+
+      // Filter anwenden
+      query = AuftragFilterLogic.buildSupabaseQuery(query, filters);
+
+      // Sortierung und Pagination
+      query = query
+        .order('created_at', { ascending: false })
+        .range(from, to);
+
+      const { data, error, count } = await query;
+
+      if (error) {
+        console.error('❌ Fehler beim Laden der Aufträge mit Beziehungen:', error);
+        throw error;
+      }
+
+      // Daten für Kompatibilität formatieren
+      const formattedData = data.map(auftrag => ({
+        ...auftrag,
+        unternehmen: auftrag.unternehmen ? { 
+          id: auftrag.unternehmen.id,
+          firmenname: auftrag.unternehmen.firmenname,
+          logo_url: auftrag.unternehmen.logo_url
+        } : null,
+        marke: auftrag.marke ? { 
+          id: auftrag.marke.id,
+          markenname: auftrag.marke.markenname,
+          logo_url: auftrag.marke.logo_url
+        } : null
+      }));
+
+      console.log('✅ Aufträge mit Beziehungen und Pagination geladen:', formattedData);
+      return { data: formattedData, count: count || 0 };
+
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Aufträge mit Beziehungen:', error);
+      throw error;
+    }
+  }
+
+  // DEPRECATED: Alte Methode ohne Pagination
   async loadAuftraegeWithRelations() {
     try {
       if (!window.supabase) {
@@ -206,6 +311,10 @@ export class AuftragList {
   onFiltersApplied(filters) {
     console.log('🔍 AUFTRAGLIST: Filter angewendet:', filters);
     filterSystem.applyFilters('auftrag', filters);
+    
+    // Pagination auf Seite 1 zurücksetzen bei Filter-Änderung
+    this.pagination.reset();
+    
     this.loadAndRender();
   }
 
@@ -213,6 +322,10 @@ export class AuftragList {
   onFiltersReset() {
     console.log('🔄 AUFTRAGLIST: Filter zurückgesetzt');
     filterSystem.resetFilters('auftrag');
+    
+    // Pagination auf Seite 1 zurücksetzen
+    this.pagination.reset();
+    
     this.loadAndRender();
   }
 
@@ -352,15 +465,21 @@ export class AuftragList {
     }
   }
 
-  // Update Tabelle
-  updateTable(auftraege) {
+  // Update Tabelle mit Fade-Animation
+  async updateTable(auftraege) {
     const tbody = document.querySelector('.data-table tbody');
     if (!tbody) return;
+
+    // Fade-out Animation starten (behält alte Daten während Fade-out)
+    tbody.classList.add('table-fade-out');
+    
+    // Warte auf Animation (200ms)
+    await new Promise(resolve => setTimeout(resolve, 200));
 
     if (!auftraege || auftraege.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="21" class="no-data">
+          <td colspan="22" class="no-data">
             <div style="text-align: center; padding: 40px 20px;">
               <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📋</div>
               <h3 style="color: #666; margin-bottom: 8px;">Keine Aufträge vorhanden</h3>
@@ -381,6 +500,11 @@ export class AuftragList {
           window.navigateTo('/auftrag/new');
         });
       }
+      
+      // Fade-in Animation
+      tbody.classList.remove('table-fade-out');
+      tbody.classList.add('table-fade-in');
+      setTimeout(() => tbody.classList.remove('table-fade-in'), 200);
       return;
     }
 
@@ -509,11 +633,22 @@ export class AuftragList {
     }).join('');
 
     tbody.innerHTML = rowsHtml;
+    
+    // Fade-in Animation
+    tbody.classList.remove('table-fade-out');
+    tbody.classList.add('table-fade-in');
+    setTimeout(() => tbody.classList.remove('table-fade-in'), 200);
   }
 
   // Cleanup
   destroy() {
     console.log('AuftragList: Cleaning up...');
+    
+    // Pagination cleanup
+    if (this.pagination) {
+      this.pagination.destroy();
+    }
+    
     this._boundEventListeners.forEach(({ element, type, handler }) => {
       element.removeEventListener(type, handler);
     });

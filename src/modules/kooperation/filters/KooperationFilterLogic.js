@@ -47,7 +47,7 @@ export class KooperationFilterLogic {
       const max = filters.budget.max ?? null;
       
       if (min !== null || max !== null) {
-        processedFilters.nettobetrag = {
+        processedFilters.einkaufspreis_gesamt = {
           type: 'number_range',
           min,
           max
@@ -251,4 +251,5 @@ export class KooperationFilterLogic {
 }
 
 export default KooperationFilterLogic;
+
 

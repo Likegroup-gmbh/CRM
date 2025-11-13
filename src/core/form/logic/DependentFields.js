@@ -490,6 +490,18 @@ export class DependentFields {
           return;
         }
 
+        // Edit-Mode: Aktuelle Kampagne-ID merken
+        let currentKampagneId = null;
+        if (form && form.dataset.isEditMode === 'true' && form.dataset.editModeData) {
+          try {
+            const editData = JSON.parse(form.dataset.editModeData);
+            currentKampagneId = editData.kampagne_id;
+            console.log('🎯 DEPENDENTFIELDS: Edit-Mode - Aktuelle Kampagne-ID:', currentKampagneId);
+          } catch (e) {
+            console.warn('⚠️ Fehler beim Parsen der Edit-Mode-Daten:', e);
+          }
+        }
+
         let filtered = kampagnen || [];
         try {
           const kampagneIds = filtered.map(k => k.id);
@@ -506,6 +518,11 @@ export class DependentFields {
                 usedMap[key] = (usedMap[key] || 0) + val;
               });
               filtered = filtered.filter(k => {
+                // Im Edit-Mode: Aktuelle Kampagne IMMER behalten
+                if (currentKampagneId && k.id === currentKampagneId) {
+                  console.log('✅ DEPENDENTFIELDS: Behalte aktuelle Kampagne:', k.kampagnenname);
+                  return true;
+                }
                 const total = parseInt(k.videoanzahl, 10) || 0;
                 const used = usedMap[k.id] || 0;
                 const remaining = Math.max(0, total - used);

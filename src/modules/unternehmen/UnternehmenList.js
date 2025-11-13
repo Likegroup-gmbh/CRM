@@ -1,15 +1,17 @@
 // UnternehmenList.js (ES6-Modul)
-// Unternehmen-Liste mit neuem Filtersystem
+// Unternehmen-Liste mit neuem Filtersystem und Pagination
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
+import { PaginationSystem } from '../../core/PaginationSystem.js';
 
 export class UnternehmenList {
   constructor() {
     this.selectedUnternehmen = new Set();
     this._boundEventListeners = new Set();
+    this.pagination = new PaginationSystem();
   }
 
   // Initialisiere Unternehmen-Liste
@@ -33,6 +35,13 @@ export class UnternehmenList {
       return;
     }
 
+    // Pagination initialisieren
+    this.pagination.init('pagination-unternehmen', {
+      itemsPerPage: 10,
+      onPageChange: (page) => this.handlePageChange(page),
+      onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page)
+    });
+
     // Binde Events sofort
     this.bindEvents();
     
@@ -42,23 +51,40 @@ export class UnternehmenList {
   // Lade und rendere Unternehmen-Liste
   async loadAndRender() {
     try {
-      // PERFORMANCE: Keine separate loadFilterData() Query mehr!
-      // Filter-Optionen werden vom FilterSystem bei Bedarf geladen
-      
       // Rendere die Seite-Struktur
       await this.render();
       
-      // Lade gefilterte Unternehmen für die Anzeige
+      // Lade gefilterte Unternehmen mit Pagination
       const currentFilters = filterSystem.getFilters('unternehmen');
-      console.log('🔍 Lade Unternehmen mit Filter:', currentFilters);
-      const filteredUnternehmen = await window.dataService.loadEntities('unternehmen', currentFilters);
-      console.log('📊 Unternehmen geladen:', filteredUnternehmen?.length || 0);
+      const { currentPage, itemsPerPage } = this.pagination.getState();
+      
+      console.log('🔍 Lade Unternehmen mit Filter und Pagination:', {
+        filters: currentFilters,
+        page: currentPage,
+        limit: itemsPerPage
+      });
+      
+      const result = await window.dataService.loadEntitiesWithPagination(
+        'unternehmen',
+        currentFilters,
+        currentPage,
+        itemsPerPage
+      );
+      
+      console.log('📊 Unternehmen geladen:', result);
+      
+      // Pagination Total aktualisieren
+      this.pagination.updateTotal(result.total);
+      this.pagination.render();
       
       // Aktualisiere nur die Tabelle mit gefilterten Daten
-      this.updateTable(filteredUnternehmen);
+      this.updateTable(result.data);
       
     } catch (error) {
-      window.ErrorHandler.handle(error, 'UnternehmenList.loadAndRender');
+      console.error('❌ Fehler beim Laden der Unternehmen:', error);
+      if (window.ErrorHandler && window.ErrorHandler.handle) {
+        window.ErrorHandler.handle(error, 'UnternehmenList.loadAndRender');
+      }
     }
   }
 
@@ -122,6 +148,8 @@ export class UnternehmenList {
           </tbody>
         </table>
       </div>
+      
+      <div class="pagination-container" id="pagination-unternehmen"></div>
     `;
 
     window.setContentSafely(window.content, html);
@@ -146,6 +174,8 @@ export class UnternehmenList {
   onFiltersApplied(filters) {
     console.log('Filter angewendet:', filters);
     filterSystem.applyFilters('unternehmen', filters);
+    // Reset pagination auf Seite 1 bei neuen Filtern
+    this.pagination.reset();
     this.loadAndRender();
   }
 
@@ -153,6 +183,20 @@ export class UnternehmenList {
   onFiltersReset() {
     console.log('Filter zurückgesetzt');
     filterSystem.resetFilters('unternehmen');
+    // Reset pagination auf Seite 1
+    this.pagination.reset();
+    this.loadAndRender();
+  }
+
+  // Handler für Seitenwechsel
+  handlePageChange(page) {
+    console.log('📄 Seite gewechselt:', page);
+    this.loadAndRender();
+  }
+
+  // Handler für Items-per-page Änderung
+  handleItemsPerPageChange(limit, page) {
+    console.log('📊 Items per Page geändert:', { limit, page });
     this.loadAndRender();
   }
 
@@ -300,10 +344,21 @@ export class UnternehmenList {
     const tbody = document.querySelector('.data-table tbody');
     if (!tbody) return;
 
+    // Fade-out Animation starten (behält alte Daten während Fade-out)
+    tbody.classList.add('table-fade-out');
+    
+    // Warte auf Animation (200ms)
+    await new Promise(resolve => setTimeout(resolve, 200));
+
     if (!unternehmen || unternehmen.length === 0) {
       // Einheitlicher Empty-State
       const { renderEmptyState } = await import('../../core/FilterUI.js');
       renderEmptyState(tbody);
+      
+      // Fade-in Animation
+      tbody.classList.remove('table-fade-out');
+      tbody.classList.add('table-fade-in');
+      setTimeout(() => tbody.classList.remove('table-fade-in'), 200);
       return;
     }
 
@@ -329,7 +384,13 @@ export class UnternehmenList {
       </tr>
     `).join('');
 
+    // Content austauschen während Fade-out aktiv ist
     tbody.innerHTML = rowsHtml;
+    
+    // Fade-in Animation
+    tbody.classList.remove('table-fade-out');
+    tbody.classList.add('table-fade-in');
+    setTimeout(() => tbody.classList.remove('table-fade-in'), 200);
   }
 
   // Render Branche Tags (kompatibel mit String oder Array/Objekten)
@@ -433,6 +494,12 @@ export class UnternehmenList {
   // Cleanup
   destroy() {
     console.log('UnternehmenList: Cleaning up...');
+    
+    // Pagination cleanup
+    if (this.pagination) {
+      this.pagination.destroy();
+    }
+    
     this._boundEventListeners.forEach(({ element, type, handler }) => {
       element.removeEventListener(type, handler);
     });

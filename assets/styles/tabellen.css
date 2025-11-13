@@ -18,26 +18,30 @@
 /* Standard-Spaltenbreiten für kooperation-video-grid */
 .kooperation-video-grid .col-nr { width: 50px; min-width: 50px; }
 .kooperation-video-grid .col-creator { width: 150px; min-width: 150px; }
-.kooperation-video-grid .col-creator-info { width: 180px; min-width: 180px; }
+.kooperation-video-grid .col-videoanzahl { width: 70px; min-width: 70px; }
+.kooperation-video-grid .col-status { width: 120px; min-width: 120px; }
+.kooperation-video-grid .col-start-datum { width: 80px; min-width: 80px; }
+.kooperation-video-grid .col-end-datum { width: 80px; min-width: 80px; }
 .kooperation-video-grid .col-typ { width: 120px; min-width: 120px; }
 .kooperation-video-grid .col-organic-paid { width: 120px; min-width: 120px; }
-.kooperation-video-grid .col-kosten { width: 100px; min-width: 100px; }
 .kooperation-video-grid .col-kampagne { width: 150px; min-width: 150px; }
 .kooperation-video-grid .col-posting-datum { width: 130px; min-width: 130px; }
-.kooperation-video-grid .col-vertrag { width: 80px; min-width: 80px; }
+.kooperation-video-grid .col-vertrag { width: 70px; min-width: 70px; }
 .kooperation-video-grid .col-nutzungsrechte { width: 150px; min-width: 150px; }
 .kooperation-video-grid .col-lieferadresse { width: 200px; min-width: 200px; }
-.kooperation-video-grid .col-paket-tracking { width: 200px; min-width: 200px; }
+.kooperation-video-grid .col-produkt { width: 200px; min-width: 200px; }
+.kooperation-video-grid .col-paket-tracking { width: 180px; min-width: 180px; }
 .kooperation-video-grid .col-thema { width: 150px; min-width: 150px; }
 .kooperation-video-grid .col-link-produkte { width: 130px; min-width: 130px; }
 .kooperation-video-grid .col-link-skript { width: 130px; min-width: 130px; }
-.kooperation-video-grid .col-skript-freigegeben { width: 100px; min-width: 100px; }
+.kooperation-video-grid .col-skript-freigegeben { width: 130px; min-width: 130px; }
 .kooperation-video-grid .col-link-content { width: 130px; min-width: 130px; }
 .kooperation-video-grid .col-link-story { width: 130px; min-width: 130px; }
-.kooperation-video-grid .col-caption { width: 200px; min-width: 200px; }
-.kooperation-video-grid .col-feedback-cj { width: 180px; min-width: 180px; }
-.kooperation-video-grid .col-feedback-kunde { width: 180px; min-width: 180px; }
 .kooperation-video-grid .col-freigabe { width: 80px; min-width: 80px; }
+.kooperation-video-grid .col-caption { width: 400px; min-width: 400px; }
+.kooperation-video-grid .col-feedback-cj { width: 400px; min-width: 400px; }
+.kooperation-video-grid .col-feedback-kunde { width: 400px; min-width: 400px; }
+.kooperation-video-grid .col-kosten { width: 100px; min-width: 100px; }
 
 .kooperation-video-grid .col-header {
   border: 1px solid var(--gray-300);
@@ -1107,13 +1111,14 @@
 /* === FLOATING SCROLLBAR FÜR KANBAN === */
 .floating-scrollbar-kanban {
   position: fixed;
-  bottom: 0;
-  height: 20px;
+  bottom: var(--space-lg);
+  height: 16px;
   overflow-x: auto;
   overflow-y: hidden;
-  background: rgba(255, 255, 255, 0.95);
-  border-top: 1px solid var(--gray-300);
-  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  
   z-index: 100;
   opacity: 0;
   pointer-events: none;
@@ -1143,5 +1148,322 @@
 
 .floating-scrollbar-kanban::-webkit-scrollbar-thumb:hover {
   background: var(--gray-500);
+}
+
+/* === PAGINATION === */
+/* Globales wiederverwendbares Pagination-System */
+
+.pagination-container {
+  margin-top: var(--space-sm);
+  padding: var(--space-md) 0;
+  
+  
+}
+
+.pagination-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.pagination-info {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.pagination-numbers {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xxs);
+}
+
+.pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  min-width: 36px;
+  height: 36px;
+  padding: 0 var(--space-sm);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  background: white;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: var(--gray-50);
+  border-color: var(--gray-400);
+}
+
+.pagination-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.pagination-btn:disabled {
+ 
+  cursor: not-allowed;
+  
+}
+
+.pagination-btn--number {
+  min-width: 36px;
+  padding: 0;
+}
+
+.pagination-btn--active {
+  background: var(--gray-900);
+  color: white;
+  border-color: var(--gray-900);
+}
+
+.pagination-btn--active:hover {
+  background: var(--gray-900);
+  border-color: var(--gray-900);
+}
+
+.pagination-btn--prev svg,
+.pagination-btn--next svg {
+  flex-shrink: 0;
+}
+
+.pagination-ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  user-select: none;
+}
+
+.pagination-items-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.pagination-items-selector label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.items-per-page-select {
+  min-width: 80px;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  background: white;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.items-per-page-select:hover {
+  border-color: var(--gray-400);
+  background: var(--gray-50);
+}
+
+.items-per-page-select:focus {
+  outline: none;
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Responsive Pagination */
+@media (max-width: 768px) {
+  .pagination-wrapper {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-sm);
+  }
+  
+  .pagination-controls {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .pagination-items-selector {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+/* === FADE ANIMATIONS === */
+/* Smooth 200ms Fade für Tabellen-Updates */
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.table-fade-out {
+  animation: fadeOut 200ms ease-out forwards;
+}
+
+.table-fade-in {
+  animation: fadeIn 200ms ease-in forwards;
+}
+
+/* Verhindert Layout-Shift während Animation */
+.data-table {
+  table-layout: auto; /* Dynamische Breiten für lesbare Inhalte */
+  width: 100%;
+}
+
+.data-table tbody {
+  min-height: 400px; /* Verhindert grobe Höhen-Shifts */
+  display: table-row-group;
+}
+
+/* Während Fade-Animationen: behalte Layout bei */
+.data-table tbody.table-fade-out {
+  pointer-events: none;
+}
+
+/* === SPALTENBREITEN FÜR BESSERE LESBARKEIT === */
+/* table-layout: auto ermöglicht natürliche, lesbare Breiten */
+
+/* Checkbox-Spalten kompakt halten */
+.data-table th:first-child,
+.data-table td:first-child {
+  width: 50px;
+  text-align: center;
+}
+
+/* Actions-Spalte (Letzte Spalte mit ...) */
+.data-table th:last-child,
+.data-table td:last-child {
+  width: 50px;
+  text-align: center;
+}
+
+/* Standard-Spalten: Natürliche Breite, kein Abschneiden */
+.data-table th,
+.data-table td {
+  padding: var(--space-sm) var(--space-md);
+  white-space: normal; /* Mehrzeilig erlaubt */
+  overflow: visible; /* Kein Abschneiden */
+  word-wrap: break-word; /* Lange Wörter umbrechen */
+}
+
+/* Für sehr lange Texte: Max-Width mit Tooltip-Option */
+.data-table td {
+  max-width: 300px; /* Begrenzt extreme Breiten */
+}
+
+/* Wichtige Name-Spalten etwas breiter */
+.data-table th:nth-child(2),
+.data-table td:nth-child(2) {
+  min-width: 150px;
+}
+
+/* Icon/Boolean-Spalten (✅/❌) kompakt */
+.data-table td:has(.icon-check),
+.data-table td:has(.icon-x) {
+  width: 60px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Table Container: KEIN overflow-x scroll */
+.table-container {
+  overflow-x: visible; /* Kein horizontaler Scroll */
+  overflow-y: visible; /* Nutzt globalen Scroll */
+  position: relative;
+  width: 100%;
+}
+
+/* === READ-ONLY / DISABLED FELDER FÜR KUNDEN === */
+/* Grid-Inputs (text, date, etc.) */
+.grid-input[readonly] {
+  background: var(--gray-100);
+  cursor: not-allowed;
+  opacity: 0.6;
+  color: var(--gray-600);
+}
+
+.grid-input[readonly]:hover,
+.grid-input[readonly]:focus {
+  background: var(--gray-100);
+  border-color: var(--gray-300);
+}
+
+/* Grid-Checkboxen */
+.grid-checkbox[disabled] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.grid-checkbox[disabled] + span {
+  color: var(--gray-500);
+  cursor: not-allowed;
+}
+
+/* Grid-Textareas */
+.grid-textarea[readonly] {
+  background: var(--gray-100);
+  cursor: not-allowed;
+  opacity: 0.6;
+  color: var(--gray-600);
+}
+
+.grid-textarea[readonly]:hover,
+.grid-textarea[readonly]:focus {
+  background: var(--gray-100);
+  border-color: var(--gray-300);
+}
+
+/* Stacked Video Inputs */
+.stacked-video-input[readonly] {
+  background: var(--gray-100);
+  cursor: not-allowed;
+  opacity: 0.6;
+  color: var(--gray-600);
+}
+
+.stacked-video-checkbox[disabled] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.stacked-video-textarea[readonly] {
+  background: var(--gray-100);
+  cursor: not-allowed;
+  opacity: 0.6;
+  color: var(--gray-600);
 }
 

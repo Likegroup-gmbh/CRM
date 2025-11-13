@@ -83,8 +83,10 @@ export class KooperationDetail {
       () => window.supabase
         .from('kooperationen')
         .select(`
-          id, name, status, nettobetrag, zusatzkosten, gesamtkosten, skript_deadline, content_deadline, videoanzahl,
-          creator_id, kampagne_id, unternehmen_id,
+          id, name, status, einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_ust, einkaufspreis_gesamt,
+          verkaufspreis_netto, verkaufspreis_zusatzkosten, verkaufspreis_ust, verkaufspreis_gesamt,
+          skript_deadline, content_deadline, videoanzahl, content_art, skript_autor,
+          creator_id, kampagne_id, unternehmen_id, briefing_id,
           creator:creator_id ( 
             id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, mail,
             lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land
@@ -471,7 +473,8 @@ export class KooperationDetail {
             <h3>Allgemein</h3>
             <div class="detail-grid-2">
               <div class="detail-item"><label>Status</label><span class="status-badge status-${this.kooperation.status?.toLowerCase() || 'unknown'}">${this.kooperation.status || '-'}</span></div>
-              <div class="detail-item"><label>Budget</label><span>${formatCurrency(this.kooperation.gesamtkosten ?? ((this.kooperation.nettobetrag||0) + (this.kooperation.zusatzkosten||0)))}</span></div>
+              <div class="detail-item"><label>Einkaufspreis</label><span>${formatCurrency(this.kooperation.einkaufspreis_gesamt)}</span></div>
+              <div class="detail-item"><label>Verkaufspreis</label><span>${formatCurrency(this.kooperation.verkaufspreis_gesamt)}</span></div>
               <div class="detail-item"><label>Skript-Deadline</label><span>${formatDate(this.kooperation.skript_deadline)}</span></div>
               <div class="detail-item"><label>Content-Deadline</label><span>${formatDate(this.kooperation.content_deadline)}</span></div>
             </div>
@@ -881,11 +884,57 @@ export class KooperationDetail {
 
   // Zeige Bearbeitungsformular
   showEditForm() {
-    console.log('🎯 Zeige Kooperations-Bearbeitungsformular');
+    console.log('🎯 KOOPERATIONDETAIL: Zeige Bearbeitungsformular');
     window.setHeadline('Kooperation bearbeiten');
     
+    // Daten für FormSystem vorbereiten
+    const formData = { ...this.kooperation };
+    
+    // Edit-Mode Flags setzen
+    formData._isEditMode = true;
+    formData._entityId = this.kooperationId;
+    
+    // Verknüpfte IDs für das Formular setzen
+    if (this.kooperation.unternehmen_id) {
+      formData.unternehmen_id = this.kooperation.unternehmen_id;
+      console.log('🏢 KOOPERATIONDETAIL: Unternehmen-ID für Edit-Mode:', this.kooperation.unternehmen_id);
+    }
+    if (this.kooperation.kampagne_id) {
+      formData.kampagne_id = this.kooperation.kampagne_id;
+      console.log('📋 KOOPERATIONDETAIL: Kampagne-ID für Edit-Mode:', this.kooperation.kampagne_id);
+    }
+    // Marke-ID aus Kampagne extrahieren (falls vorhanden)
+    if (this.kooperation.kampagne && this.kooperation.kampagne.marke && this.kooperation.kampagne.marke.id) {
+      formData.marke_id = this.kooperation.kampagne.marke.id;
+      console.log('🏷️ KOOPERATIONDETAIL: Marke-ID für Edit-Mode:', this.kooperation.kampagne.marke.id);
+    }
+    if (this.kooperation.briefing_id) {
+      formData.briefing_id = this.kooperation.briefing_id;
+      console.log('📄 KOOPERATIONDETAIL: Briefing-ID für Edit-Mode:', this.kooperation.briefing_id);
+    }
+    if (this.kooperation.creator_id) {
+      formData.creator_id = this.kooperation.creator_id;
+      console.log('👤 KOOPERATIONDETAIL: Creator-ID für Edit-Mode:', this.kooperation.creator_id);
+    }
+    
+    // Weitere Felder
+    if (this.kooperation.content_art) {
+      formData.content_art = this.kooperation.content_art;
+    }
+    if (this.kooperation.skript_autor) {
+      formData.skript_autor = this.kooperation.skript_autor;
+    }
+    
+    console.log('📋 KOOPERATIONDETAIL: FormData vorbereitet:', {
+      unternehmen_id: formData.unternehmen_id,
+      marke_id: formData.marke_id,
+      kampagne_id: formData.kampagne_id,
+      briefing_id: formData.briefing_id,
+      creator_id: formData.creator_id
+    });
+    
     // Formular direkt in content rendern
-    const formHtml = window.formSystem.renderFormOnly('kooperation', this.kooperation);
+    const formHtml = window.formSystem.renderFormOnly('kooperation', formData);
     window.content.innerHTML = `
       <div class="form-page">
         ${formHtml}
@@ -893,7 +942,7 @@ export class KooperationDetail {
     `;
 
     // Formular-Events binden
-    window.formSystem.bindFormEvents('kooperation', this.kooperationId);
+    window.formSystem.bindFormEvents('kooperation', formData);
     
     // Custom Submit Handler für Seiten-Formular
     const form = document.getElementById('kooperation-form');

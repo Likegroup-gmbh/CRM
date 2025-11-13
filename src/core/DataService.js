@@ -210,9 +210,14 @@ export class DataService {
           status_id: 'uuid',
           content_art: 'string',
           skript_autor: 'string',
-          nettobetrag: 'number',
-          zusatzkosten: 'number',
-          gesamtkosten: 'number',
+          einkaufspreis_netto: 'number',
+          einkaufspreis_zusatzkosten: 'number',
+          einkaufspreis_ust: 'number',
+          einkaufspreis_gesamt: 'number',
+          verkaufspreis_netto: 'number',
+          verkaufspreis_zusatzkosten: 'number',
+          verkaufspreis_ust: 'number',
+          verkaufspreis_gesamt: 'number',
           vertrag_unterschrieben: 'boolean',
           vertrag_link: 'string',
           videoanzahl: 'number',
@@ -1155,11 +1160,11 @@ export class DataService {
           query = logic.buildSupabaseQuery(query, filters);
         } else {
           // Fallback: Generische Filter-Anwendung
-          query = await this.applyFilters(query, filters, entityConfig.fields, entityType);
+          query = this.applyFilters(query, filters, entityConfig.fields, entityType);
         }
       } else {
         // Fallback: Generische Filter-Anwendung
-        query = await this.applyFilters(query, filters, entityConfig.fields, entityType);
+        query = this.applyFilters(query, filters, entityConfig.fields, entityType);
       }
 
       // Daten aus Supabase laden
@@ -1225,6 +1230,7 @@ export class DataService {
       
       // Lade Many-to-Many Beziehungen falls konfiguriert
       if (data && entityConfig.manyToMany) {
+        console.log(`🔗 DATASERVICE: Lade Many-to-Many für ${entityType}, Config:`, Object.keys(entityConfig.manyToMany));
         await this.loadManyToManyRelations(data, entityType, entityConfig.manyToMany);
       }
 
@@ -1235,6 +1241,7 @@ export class DataService {
           c.sprachen = c.sprachen || [];
           c.branchen = c.branchen || [];
           c.creator_types = c.creator_types || [];
+          console.log(`📊 CREATOR ${c.vorname} ${c.nachname}: sprachen=${c.sprachen.length}, branchen=${c.branchen.length}, types=${c.creator_types.length}`);
         });
       }
       
@@ -1693,20 +1700,29 @@ export class DataService {
     return supabaseData;
   }
 
-  async applyFilters(query, filters, fieldConfig, entityType) {
+  /**
+   * Generische Filter-Anwendung
+   * Wendet Filter basierend auf Feld-Typen an
+   */
+  applyFilters(query, filters, fieldConfig, entityType) {
     for (const [field, value] of Object.entries(filters)) {
+      // Ignoriere null/undefined/empty
+      if (!value || value === '') continue;
+      
+      // Stelle sicher, dass der Wert als String behandelt wird
+      const stringValue = typeof value === 'object' ? '' : String(value);
+      
       // Spezielle Behandlung für Name-Filter (sucht in vorname UND nachname)
       if (field === 'name' && value) {
         query = query.or(`vorname.ilike.%${value}%,nachname.ilike.%${value}%`);
         continue;
       }
       
-      if (value && fieldConfig[field]) {
-        const fieldType = fieldConfig[field];
-        
-        // Stelle sicher, dass der Wert als String behandelt wird
-        const stringValue = typeof value === 'object' ? '' : String(value);
-        
+      // Prüfe ob Feld im Config definiert ist
+      const fieldType = fieldConfig[field];
+      
+      if (fieldType) {
+        // Feld ist im Config definiert - nutze Typ-spezifische Logik
         switch (fieldType) {
           case 'number':
             if (filters[`${field}_min`]) {
@@ -1727,7 +1743,7 @@ export class DataService {
             break;
           case 'string':
             // Für Text-Felder verwende ilike für bessere Suche
-            if (field === 'firmenname' || field === 'markenname' || field === 'name') {
+            if (field === 'firmenname' || field === 'markenname' || field === 'name' || field === 'stadt') {
               query = query.ilike(field, `%${stringValue}%`);
             } else {
               query = query.eq(field, stringValue);
@@ -1765,32 +1781,33 @@ export class DataService {
           case 'uuid':
             // UUID-Felder für Beziehungen - stelle sicher, dass es ein gültiger UUID ist
             if (stringValue && stringValue !== '[object Object]') {
-              // Spezieller Fix: Unternehmen nach Branche filtern, auch wenn mehrere Branchen als Textfeld gespeichert sind
-              if (entityType === 'unternehmen' && field === 'branche_id') {
-                try {
-                  let branchName = null;
-                  if (window.supabase) {
-                    const { data: brancheRow, error } = await window.supabase
-                      .from('branchen')
-                      .select('name')
-                      .eq('id', stringValue)
-                      .single();
-                    if (!error) branchName = brancheRow?.name || null;
-                  }
-                  if (branchName) {
-                    // Treffer wenn entweder die primäre branche_id passt ODER der Name in der kommagetrennten 'branche' enthalten ist
-                    query = query.or(`branche_id.eq.${stringValue},branche.ilike.%${branchName}%`);
-                  } else {
-                    query = query.eq(field, stringValue);
-                  }
-                } catch (_) {
-                  query = query.eq(field, stringValue);
-                }
-              } else {
-                query = query.eq(field, stringValue);
-              }
+              query = query.eq(field, stringValue);
             }
             break;
+        }
+      } else {
+        // Feld ist NICHT im Config - nutze intelligente Fallback-Logik
+        console.log(`📋 Fallback-Filter für ${field} (nicht im fieldConfig)`);
+        
+        // UUID-Pattern erkennen (für Foreign Keys)
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(stringValue);
+        
+        if (isUuid || field.endsWith('_id')) {
+          // Foreign Key / UUID
+          query = query.eq(field, stringValue);
+        } else if (field === 'firmenname' || field === 'markenname' || field === 'kampagnenname' || 
+                   field === 'stadt' || field === 'land' || field === 'auftragsname') {
+          // Text-Felder: Partial-Match mit ilike
+          query = query.ilike(field, `%${stringValue}%`);
+        } else if (typeof value === 'boolean') {
+          // Boolean-Felder
+          query = query.eq(field, value);
+        } else if (typeof value === 'number') {
+          // Numerische Felder
+          query = query.eq(field, value);
+        } else {
+          // Default: Exakte Übereinstimmung
+          query = query.eq(field, stringValue);
         }
       }
     }
@@ -1919,6 +1936,137 @@ export class DataService {
     } catch (error) {
       console.error(`❌ Fehler beim Laden der Filter-Daten für ${entityType}:`, error);
       return this.getMockFilterData(entityType);
+    }
+  }
+
+  /**
+   * Lädt Entitäten mit Pagination
+   * @param {string} entityType - Typ der Entität
+   * @param {Object} filters - Filter-Objekt
+   * @param {number} page - Aktuelle Seite (1-basiert)
+   * @param {number} limit - Anzahl Items pro Seite
+   * @returns {Promise<Object>} { data, total, page, limit }
+   */
+  async loadEntitiesWithPagination(entityType, filters = {}, page = 1, limit = 10) {
+    try {
+      console.log(`📄 Lade ${entityType} mit Pagination:`, { filters, page, limit });
+      
+      if (!window.supabase) {
+        console.warn('⚠️ Supabase nicht verfügbar - verwende Mock-Daten');
+        const mockData = this.getMockData(entityType);
+        const start = (page - 1) * limit;
+        const end = start + limit;
+        return {
+          data: mockData.slice(start, end),
+          total: mockData.length,
+          page,
+          limit
+        };
+      }
+
+      const entityConfig = this.entities[entityType];
+      if (!entityConfig) {
+        throw new Error(`Unbekannte Entität: ${entityType}`);
+      }
+
+      // Berechne Range für Supabase (0-basiert)
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+
+      // Basisquery mit Select
+      let query = window.supabase.from(entityConfig.table).select('*', { count: 'exact' });
+
+      // Spezielle Behandlung für Many-to-Many Filter (z.B. branche_id für Unternehmen)
+      if (filters.branche_id && (entityType === 'unternehmen' || entityType === 'marke')) {
+        try {
+          const junctionTable = entityType === 'unternehmen' ? 'unternehmen_branchen' : 'marke_branchen';
+          const fkField = entityType === 'unternehmen' ? 'unternehmen_id' : 'marke_id';
+          
+          const { data: junctionData, error: junctionError } = await window.supabase
+            .from(junctionTable)
+            .select(fkField)
+            .eq('branche_id', filters.branche_id);
+          
+          if (junctionError) {
+            console.error(`❌ Fehler beim Laden der ${junctionTable}:`, junctionError);
+          } else {
+            const entityIds = (junctionData || []).map(item => item[fkField]).filter(Boolean);
+            console.log(`🔍 Gefundene ${entityType} mit Branche ${filters.branche_id}:`, entityIds.length);
+            
+            if (entityIds.length > 0) {
+              query = query.in('id', entityIds);
+            } else {
+              // Keine Entities mit dieser Branche
+              return {
+                data: [],
+                total: 0,
+                page,
+                limit
+              };
+            }
+          }
+        } catch (error) {
+          console.error(`❌ Exception beim Branche-Filter für ${entityType}:`, error);
+        }
+      }
+
+      // Andere Filter anwenden (ohne branche_id, das wurde schon behandelt)
+      const filtersWithoutBranche = {...filters};
+      delete filtersWithoutBranche.branche_id;
+      query = this.applyFilters(query, filtersWithoutBranche, entityConfig.fields, entityType);
+
+      // Sortierung anwenden
+      if (entityConfig.sortBy) {
+        query = query.order(entityConfig.sortBy, { ascending: entityConfig.sortOrder === 'asc' });
+      }
+
+      // Range für Pagination
+      query = query.range(from, to);
+
+      // Query ausführen
+      const { data, error, count } = await query;
+
+      if (error) {
+        console.error(`❌ Supabase Fehler beim Laden von ${entityType}:`, error);
+        throw error;
+      }
+
+      console.log(`✅ ${entityType} geladen:`, {
+        items: data?.length || 0,
+        total: count,
+        page,
+        limit,
+        from,
+        to
+      });
+
+      // Lade Many-to-Many Beziehungen falls konfiguriert
+      if (data && data.length > 0 && entityConfig.manyToMany) {
+        console.log(`🔗 DATASERVICE PAGINATION: Lade Many-to-Many für ${entityType}, Config:`, Object.keys(entityConfig.manyToMany));
+        await this.loadManyToManyRelations(data, entityType, entityConfig.manyToMany);
+      }
+
+      // Spezielle Projektion für Creator: Arrays direkt an Top-Level anhängen
+      if (entityType === 'creator' && data) {
+        data.forEach(c => {
+          // ensure arrays exist for rendering
+          c.sprachen = c.sprachen || [];
+          c.branchen = c.branchen || [];
+          c.creator_types = c.creator_types || [];
+          console.log(`📊 CREATOR ${c.vorname} ${c.nachname}: sprachen=${c.sprachen.length}, branchen=${c.branchen.length}, types=${c.creator_types.length}`);
+        });
+      }
+
+      return {
+        data: data || [],
+        total: count || 0,
+        page,
+        limit
+      };
+
+    } catch (error) {
+      console.error(`❌ Fehler beim Laden von ${entityType} mit Pagination:`, error);
+      throw error;
     }
   }
 

@@ -46,11 +46,9 @@
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  width: 100%;
-  justify-content: space-between;
- 
-  
+  margin-left: auto;
 }
+
 .page-header-right:only-child {
   align-self: flex-end;
   margin-left: auto;
@@ -594,8 +592,8 @@
 .main-wrapper {
   flex: 1;
   padding: var(--space-lg);
-  
-  
+  overflow-y: auto; /* Ermöglicht vertikales Scrollen für lange Inhalte */
+  overflow-x: hidden; /* Verhindert horizontales Scrollen (außer wenn explizit überschrieben) */
 }
 
 /* ===== LOGIN ===== */
@@ -703,7 +701,4 @@
 
 .input::placeholder {
   color: var(--text-muted);
-}
-.form-page {
-  padding: var(--space-lg);
 }

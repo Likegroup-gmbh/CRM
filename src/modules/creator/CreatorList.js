@@ -6,11 +6,13 @@ import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
+import { PaginationSystem } from '../../core/PaginationSystem.js';
 
 export class CreatorList {
   constructor() {
     this.selectedCreator = new Set();
     this._boundEventListeners = new Set();
+    this.pagination = new PaginationSystem();
   }
 
   // Initialisiere Creator-Liste
@@ -34,10 +36,22 @@ export class CreatorList {
       return;
     }
 
+    // Pagination initialisieren
+    this.pagination.init('pagination-container-creator', {
+      onPageChange: (page) => this.handlePageChange(page)
+    });
+
     // Binde Events sofort
     this.bindEvents();
     
     await this.loadAndRender();
+  }
+
+  // Handler für Seiten-Wechsel
+  handlePageChange(page) {
+    console.log(`📄 CREATORLIST: Wechsle zu Seite ${page}`);
+    this.pagination.currentPage = page;
+    this.loadAndRender();
   }
 
   // Lade und rendere Creator-Liste
@@ -48,14 +62,31 @@ export class CreatorList {
       // Rendere die Seite-Struktur
       await this.render();
       
-      // Lade gefilterte Creator für die Anzeige
+      // Lade gefilterte Creator mit Pagination
       const currentFilters = filterSystem.getFilters('creator');
-      console.log('🔍 Lade Creator mit Filter:', currentFilters);
-      const filteredCreators = await window.dataService.loadEntities('creator', currentFilters);
-      console.log('📊 Creator geladen:', filteredCreators?.length || 0);
+      const { currentPage, itemsPerPage } = this.pagination.getState();
+      
+      console.log('🔍 Lade Creator mit Filter und Pagination:', {
+        filters: currentFilters,
+        page: currentPage,
+        limit: itemsPerPage
+      });
+      
+      const result = await window.dataService.loadEntitiesWithPagination(
+        'creator',
+        currentFilters,
+        currentPage,
+        itemsPerPage
+      );
+      
+      console.log('📊 Creator geladen:', result);
+      
+      // Pagination Total aktualisieren
+      this.pagination.updateTotal(result.total);
+      this.pagination.render();
       
       // Aktualisiere nur die Tabelle mit gefilterten Daten
-      this.updateTable(filteredCreators);
+      this.updateTable(result.data);
       
       const loadTime = (performance.now() - startTime).toFixed(0);
       console.log(`✅ CREATORLIST: Creator geladen in ${loadTime}ms`);
@@ -128,6 +159,9 @@ export class CreatorList {
           </tbody>
         </table>
       </div>
+      
+      <!-- Pagination Container -->
+      <div class="pagination-container" id="pagination-container-creator"></div>
     `;
 
     window.setContentSafely(window.content, html);
@@ -620,6 +654,13 @@ export class CreatorList {
           } else {
             console.log(`⚠️ Überspringe ${key}, bereits als Array gesetzt:`, submitData[key]);
           }
+        }
+      }
+
+      // Duplikate aus Array-Feldern entfernen
+      for (const [key, value] of Object.entries(submitData)) {
+        if (Array.isArray(value)) {
+          submitData[key] = [...new Set(value)];
         }
       }
 

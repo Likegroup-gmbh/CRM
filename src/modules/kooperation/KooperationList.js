@@ -5,6 +5,7 @@ import { modularFilterSystem as filterSystem } from '../../core/filters/ModularF
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { KooperationFilterLogic } from './filters/KooperationFilterLogic.js';
 
 export class KooperationList {
   constructor() {
@@ -170,7 +171,7 @@ export class KooperationList {
 
       let coopQuery = window.supabase
         .from('kooperationen')
-        .select('id, name, status, status_id, videoanzahl, gesamtkosten, kampagne_id, creator_id, assignee_id, skript_deadline, content_deadline, created_at')
+        .select('id, name, status, status_id, videoanzahl, einkaufspreis_gesamt, verkaufspreis_gesamt, kampagne_id, creator_id, assignee_id, skript_deadline, content_deadline, created_at')
         .order('created_at', { ascending: false });
 
       // Für Mitarbeiter: Filtere nach zugewiesenen Kampagnen
@@ -178,6 +179,11 @@ export class KooperationList {
       if (!isAdmin && window.currentUser?.rolle !== 'kunde') {
         coopQuery = coopQuery.or(`assignee_id.eq.${window.currentUser?.id}${allowedKampagneIds.length ? `,kampagne_id.in.(${allowedKampagneIds.join(',')})` : ''}`);
       }
+
+      // Filter aus FilterSystem anwenden
+      const activeFilters = filterSystem.getFilters('kooperation');
+      console.log('🔍 KOOPERATIONLIST: Wende Filter an:', activeFilters);
+      coopQuery = KooperationFilterLogic.buildSupabaseQuery(coopQuery, activeFilters);
 
       const { data, error } = await coopQuery;
 
@@ -282,7 +288,8 @@ export class KooperationList {
               <th>Creator</th>
               <th>Videos</th>
               <th>Status</th>
-           <th>Gesamtkosten</th>
+              <th>Einkaufspreis</th>
+              <th>Verkaufspreis</th>
               <th>Start</th>
               <th>Ende</th>
               <th>Aktionen</th>
@@ -290,7 +297,7 @@ export class KooperationList {
           </thead>
           <tbody id="kooperationen-table-body">
             <tr>
-              <td colspan="9" class="loading">Lade Kooperationen...</td>
+              <td colspan="11" class="loading">Lade Kooperationen...</td>
             </tr>
           </tbody>
         </table>
@@ -512,7 +519,8 @@ export class KooperationList {
               ${kooperation.status || (this.statusOptions.find(s=>s.id===kooperation.status_id)?.name) || '-'}
             </span>
           </td>
-          <td>${formatCurrency(kooperation.gesamtkosten)}</td>
+          <td>${formatCurrency(kooperation.einkaufspreis_gesamt)}</td>
+          <td>${formatCurrency(kooperation.verkaufspreis_gesamt)}</td>
           <td>${formatDate(kooperation.skript_deadline)}</td>
           <td>${formatDate(kooperation.content_deadline)}</td>
           <td>
@@ -637,8 +645,15 @@ export class KooperationList {
       ]);
     }
     
+    // Prüfe auf kampagne_id Query-Parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const kampagneId = urlParams.get('kampagne_id');
+    
+    // Wenn kampagne_id vorhanden, setze als formData
+    const formData = kampagneId ? { kampagne_id: kampagneId } : null;
+    
     // Formular direkt in content rendern
-    const formHtml = window.formSystem.renderFormOnly('kooperation');
+    const formHtml = window.formSystem.renderFormOnly('kooperation', formData);
     window.content.innerHTML = `
       <div class="form-page">
         ${formHtml}
@@ -646,7 +661,7 @@ export class KooperationList {
     `;
 
     // Formular-Events binden
-    window.formSystem.bindFormEvents('kooperation', null);
+    window.formSystem.bindFormEvents('kooperation', formData);
     
     // Custom Submit Handler für Seiten-Formular
     const form = document.getElementById('kooperation-form');
@@ -703,10 +718,17 @@ export class KooperationList {
           detail: { entity: 'kooperation', action: 'created', id: result.id }
         }));
         
-        // Optional: Zurück zur Liste (nur wenn gewünscht)
-        // setTimeout(() => {
-        //   window.navigateTo('/kooperation');
-        // }, 1500);
+        // Wenn kampagne_id vorhanden, zurück zur Kampagnen-Detailseite
+        if (submitData.kampagne_id) {
+          setTimeout(() => {
+            window.navigateTo(`/kampagne/${submitData.kampagne_id}`);
+          }, 1500);
+        } else {
+          // Sonst zur Kooperations-Detailseite
+          setTimeout(() => {
+            window.navigateTo(`/kooperation/${result.id}`);
+          }, 1500);
+        }
       } else {
         this.showErrorMessage(`Fehler beim Erstellen: ${result.error}`);
       }
