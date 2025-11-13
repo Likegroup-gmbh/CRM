@@ -956,6 +956,10 @@ export class KampagneKooperationenVideoTable {
         console.log(`✅ ${entity} aktualisiert`);
       }
 
+      // Markiere als eigenes Update (für Realtime-Deduplizierung)
+      this._lastUpdateBy = window.currentUser?.id;
+      this._lastUpdateTime = Date.now();
+
       // Visuelles Feedback
       field.classList.add('save-success');
       setTimeout(() => field.classList.remove('save-success'), 1000);
@@ -1066,6 +1070,10 @@ export class KampagneKooperationenVideoTable {
       // Floating Scrollbar initialisieren
       this.initFloatingScrollbar();
       console.log('🎬 Floating Scrollbar initialisiert');
+      
+      // Starte Realtime-Subscription für Live-Updates
+      this.initRealtimeSubscription();
+      console.log('🎬 Realtime-Subscription initialisiert');
       
       // Gespeicherte Spaltenbreiten wiederherstellen
       this.loadColumnWidths();
@@ -1210,6 +1218,484 @@ export class KampagneKooperationenVideoTable {
     this.cleanupFloatingScrollbar = cleanup;
   }
 
+  // Initialisiere Realtime-Subscription für Live-Updates
+  initRealtimeSubscription() {
+    // Verhindere mehrfache Subscriptions
+    if (this._realtimeChannel) {
+      return;
+    }
+
+    // Prüfe ob wir Kooperationen haben (sonst können wir keinen Filter erstellen)
+    if (!this.kooperationen || this.kooperationen.length === 0) {
+      console.log('⏭️ REALTIME: Keine Kooperationen vorhanden, überspringe Subscription');
+      return;
+    }
+
+    console.log('🔴 REALTIME: Initialisiere Live-Updates für Kampagne', this.kampagneId);
+    console.log('📊 REALTIME: Kooperationen gefunden:', this.kooperationen.length);
+
+    // Erstelle einen einzigen Channel für diese Kampagne
+    // WICHTIG: Wir subscriben auf ALLE Videos und filtern client-seitig
+    this._realtimeChannel = window.supabase
+      .channel(`kampagne-koops-videos-${this.kampagneId}`, {
+        config: {
+          broadcast: { self: false }
+        }
+      })
+      
+      // 1. Überwache ALLE Video-Updates (RLS filtert automatisch)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'kooperation_videos'
+      }, (payload) => {
+        console.log('🔄 REALTIME: Video UPDATE Event empfangen', payload.new);
+        // Prüfe ob Video zu dieser Kampagne gehört
+        const belongsToThisKampagne = this.kooperationen.some(k => k.id === payload.new.kooperation_id);
+        if (belongsToThisKampagne) {
+          console.log('✅ REALTIME: Video gehört zu dieser Kampagne, verarbeite Update');
+          this.handleVideoUpdate(payload);
+        } else {
+          console.log('⏭️ REALTIME: Video gehört nicht zu dieser Kampagne, überspringe');
+        }
+      })
+      
+      // 2. Überwache neue Videos
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'kooperation_videos'
+      }, (payload) => {
+        console.log('🔄 REALTIME: Video INSERT Event empfangen', payload.new);
+        const belongsToThisKampagne = this.kooperationen.some(k => k.id === payload.new.kooperation_id);
+        if (belongsToThisKampagne) {
+          console.log('✅ REALTIME: Video gehört zu dieser Kampagne, verarbeite INSERT');
+          this.handleNewVideo(payload);
+        }
+      })
+      
+      // 3. Überwache neue Kooperationen für diese Kampagne
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'kooperationen'
+      }, (payload) => {
+        console.log('🔄 REALTIME: Kooperation INSERT Event empfangen', payload.new);
+        if (payload.new.kampagne_id === this.kampagneId) {
+          console.log('✅ REALTIME: Kooperation gehört zu dieser Kampagne');
+          this.handleNewKooperation(payload);
+        }
+      })
+      
+      // 3b. Überwache Kooperations-Updates
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'kooperationen'
+      }, (payload) => {
+        console.log('🔄 REALTIME: Kooperation UPDATE Event empfangen', payload.new);
+        if (payload.new.kampagne_id === this.kampagneId) {
+          console.log('✅ REALTIME: Kooperation gehört zu dieser Kampagne');
+          this.handleKooperationUpdate(payload);
+        }
+      })
+      
+      // 4. Überwache Video-Kommentare (für Feedback-Änderungen)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'kooperation_video_comment'
+      }, (payload) => {
+        console.log('🔄 REALTIME: Kommentar INSERT Event empfangen', payload);
+        this.handleCommentChange(payload);
+      })
+      
+      .on('postgres_changes', {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'kooperation_video_comment'
+      }, (payload) => {
+        console.log('🔄 REALTIME: Kommentar DELETE Event empfangen', payload);
+        this.handleCommentChange(payload);
+      })
+      
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'kooperation_video_comment'
+      }, (payload) => {
+        console.log('🔄 REALTIME: Kommentar UPDATE Event empfangen', payload);
+        this.handleCommentChange(payload);
+      })
+      
+      .subscribe((status, err) => {
+        console.log('📡 REALTIME: Subscription Status Update:', status);
+        
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ REALTIME: Live-Updates ERFOLGREICH aktiviert für Kampagne', this.kampagneId);
+          console.log('🎯 REALTIME: Listening for changes on kooperation_videos, kooperationen, kooperation_video_comment');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ REALTIME: Channel Error:', err);
+          console.error('📋 REALTIME: Error Details:', JSON.stringify(err));
+          // Versuche Reconnect nach 5 Sekunden
+          setTimeout(() => {
+            console.log('🔄 REALTIME: Versuche Reconnect...');
+            this.cleanupRealtimeSubscription();
+            this.initRealtimeSubscription();
+          }, 5000);
+        } else if (status === 'TIMED_OUT') {
+          console.error('❌ REALTIME: Subscription Timeout');
+        } else if (status === 'CLOSED') {
+          console.warn('⚠️ REALTIME: Channel wurde geschlossen');
+        } else {
+          console.log('📡 REALTIME: Status:', status);
+        }
+      });
+  }
+
+  async handleVideoUpdate(payload) {
+    const updatedVideo = payload.new;
+    
+    // Prüfe ob das Update vom aktuellen User stammt (dann nicht refreshen)
+    if (this._lastUpdateBy === window.currentUser?.id && 
+        Date.now() - this._lastUpdateTime < 2000) {
+      console.log('⏭️ REALTIME: Überspringe eigenes Update');
+      return;
+    }
+    
+    // Finde das Video in unseren Daten und aktualisiere es
+    for (const koopId in this.videos) {
+      const videoIndex = this.videos[koopId].findIndex(v => v.id === updatedVideo.id);
+      if (videoIndex !== -1) {
+        this.videos[koopId][videoIndex] = {
+          ...this.videos[koopId][videoIndex],
+          ...updatedVideo
+        };
+        
+        // Nur die betroffene Zeile neu rendern
+        await this.updateVideoRow(updatedVideo.id);
+        break;
+      }
+    }
+  }
+
+  async handleNewVideo(payload) {
+    const newVideo = payload.new;
+    
+    // Prüfe ob eigenes Update
+    if (this._lastUpdateBy === window.currentUser?.id && 
+        Date.now() - this._lastUpdateTime < 2000) {
+      return;
+    }
+    
+    // Füge das neue Video zu den lokalen Daten hinzu
+    const koopId = newVideo.kooperation_id;
+    if (!this.videos[koopId]) {
+      this.videos[koopId] = [];
+    }
+    this.videos[koopId].push(newVideo);
+    
+    // Komplette Tabelle neu rendern
+    await this.refresh();
+  }
+
+  async handleNewKooperation(payload) {
+    // Prüfe ob eigenes Update
+    if (this._lastUpdateBy === window.currentUser?.id && 
+        Date.now() - this._lastUpdateTime < 2000) {
+      return;
+    }
+    
+    // Komplette Tabelle neu rendern (neue Kooperation = neuer Row-Span-Block)
+    await this.refresh();
+  }
+
+  async handleKooperationUpdate(payload) {
+    const updatedKooperation = payload.new;
+    
+    // Prüfe ob eigenes Update
+    if (this._lastUpdateBy === window.currentUser?.id && 
+        Date.now() - this._lastUpdateTime < 2000) {
+      return;
+    }
+    
+    console.log('🔄 REALTIME: Kooperation Update verarbeiten:', updatedKooperation.id);
+    
+    // Finde und aktualisiere die Kooperation in den lokalen Daten
+    const koopIndex = this.kooperationen.findIndex(k => k.id === updatedKooperation.id);
+    if (koopIndex !== -1) {
+      this.kooperationen[koopIndex] = {
+        ...this.kooperationen[koopIndex],
+        ...updatedKooperation
+      };
+      
+      // Für Kooperationen machen wir einen kompletten Refresh
+      // da sich die Zeile strukturell ändern kann (Status, Creator, etc.)
+      console.log('🔄 REALTIME: Führe Refresh durch für Kooperations-Update');
+      await this.refresh();
+    }
+  }
+
+  async handleCommentChange(payload) {
+    const comment = payload.new || payload.old;
+    if (!comment || !comment.video_id) return;
+    
+    const videoId = comment.video_id;
+    
+    // Prüfe ob eigenes Update
+    if (this._lastUpdateBy === window.currentUser?.id && 
+        Date.now() - this._lastUpdateTime < 2000) {
+      return;
+    }
+    
+    // Lade Kommentare für dieses Video neu
+    const { data: comments } = await window.supabase
+      .from('kooperation_video_comment')
+      .select('id, video_id, text, runde, author_name, created_at')
+      .eq('video_id', videoId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true });
+    
+    // Aktualisiere lokale Kommentar-Map
+    if (!this.videoComments[videoId]) {
+      this.videoComments[videoId] = { r1: [], r2: [] };
+    }
+    
+    this.videoComments[videoId].r1 = (comments || []).filter(c => c.runde === 1);
+    this.videoComments[videoId].r2 = (comments || []).filter(c => c.runde === 2);
+    
+    console.log('✅ REALTIME: Kommentare für Video neu geladen:', videoId);
+    
+    // Aktualisiere nur die Feedback-Felder (nicht alle!)
+    this.updateVideoFeedbackFields(videoId);
+  }
+  
+  updateVideoFeedbackFields(videoId) {
+    console.log('🔄 REALTIME: Aktualisiere nur Feedback-Felder für Video:', videoId);
+    
+    // Feedback CreatorJobs (Runde 1)
+    const feedbackCJ = document.querySelector(`[data-entity="video"][data-id="${videoId}"][data-field="feedback_creatorjobs"]`);
+    if (feedbackCJ) {
+      const commentsR1 = this.videoComments[videoId]?.r1 || [];
+      const valueR1 = commentsR1.length > 0 
+        ? commentsR1.map(c => c.text).join('\n\n---\n\n')
+        : '';
+      feedbackCJ.value = valueR1;
+      feedbackCJ.classList.add('field-updated');
+      setTimeout(() => feedbackCJ.classList.remove('field-updated'), 2000);
+      console.log('✅ REALTIME: Feedback R1 aktualisiert');
+    }
+    
+    // Feedback Ritzenhoff (Runde 2)
+    const feedbackRH = document.querySelector(`[data-entity="video"][data-id="${videoId}"][data-field="feedback_ritzenhoff"]`);
+    if (feedbackRH) {
+      const commentsR2 = this.videoComments[videoId]?.r2 || [];
+      const valueR2 = commentsR2.length > 0 
+        ? commentsR2.map(c => c.text).join('\n\n---\n\n')
+        : '';
+      feedbackRH.value = valueR2;
+      feedbackRH.classList.add('field-updated');
+      setTimeout(() => feedbackRH.classList.remove('field-updated'), 2000);
+      console.log('✅ REALTIME: Feedback R2 aktualisiert');
+    }
+  }
+
+  async updateVideoRow(videoId) {
+    console.log('🔄 REALTIME: updateVideoRow für Video-ID:', videoId);
+    
+    // Finde das Video in den Daten
+    let video = null;
+    let kooperation = null;
+    
+    for (const koopId in this.videos) {
+      video = this.videos[koopId].find(v => v.id === videoId);
+      if (video) {
+        kooperation = this.kooperationen.find(k => k.id === koopId);
+        break;
+      }
+    }
+    
+    if (!video) {
+      console.warn('⚠️ REALTIME: Video nicht in lokalen Daten gefunden:', videoId);
+      return;
+    }
+    
+    // Aktualisiere die Felder direkt über data-id Selektoren
+    this.updateVideoFieldsInDOM(videoId, video);
+  }
+
+  updateVideoFieldsInDOM(videoId, video) {
+    console.log('🔄 REALTIME: Aktualisiere Felder für Video:', videoId, video);
+    
+    // Suche alle Felder mit dieser Video-ID
+    const fieldsToUpdate = document.querySelectorAll(`[data-entity="video"][data-id="${videoId}"]`);
+    console.log('📝 REALTIME: Gefundene Felder:', fieldsToUpdate.length);
+    
+    let anyUpdated = false;
+    
+    fieldsToUpdate.forEach(field => {
+      const fieldName = field.getAttribute('data-field');
+      let shouldUpdate = false;
+      let newValue = null;
+      
+      // Prüfe ob sich der Wert tatsächlich geändert hat
+      switch(fieldName) {
+        case 'feedback_creatorjobs':
+          const commentsR1 = this.videoComments[videoId]?.r1 || [];
+          const valueR1 = commentsR1.length > 0 
+            ? commentsR1.map(c => c.text).join('\n\n---\n\n')
+            : '';
+          if (field.value !== valueR1) {
+            field.value = valueR1;
+            shouldUpdate = true;
+            console.log('✅ REALTIME: Feedback R1 aktualisiert');
+          }
+          break;
+          
+        case 'feedback_ritzenhoff':
+          const commentsR2 = this.videoComments[videoId]?.r2 || [];
+          const valueR2 = commentsR2.length > 0 
+            ? commentsR2.map(c => c.text).join('\n\n---\n\n')
+            : '';
+          if (field.value !== valueR2) {
+            field.value = valueR2;
+            shouldUpdate = true;
+            console.log('✅ REALTIME: Feedback R2 aktualisiert');
+          }
+          break;
+          
+        case 'freigabe':
+          newValue = video.freigabe || false;
+          if (field.checked !== newValue) {
+            field.checked = newValue;
+            shouldUpdate = true;
+            console.log('✅ REALTIME: Freigabe Checkbox aktualisiert:', newValue);
+          }
+          break;
+          
+        case 'caption':
+          newValue = video.caption || '';
+          if (field.value !== newValue) {
+            field.value = newValue;
+            shouldUpdate = true;
+            console.log('✅ REALTIME: Caption aktualisiert');
+          }
+          break;
+          
+        case 'link_content':
+          newValue = video.link_content || '';
+          if (field.value !== newValue) {
+            field.value = newValue;
+            shouldUpdate = true;
+            console.log('✅ REALTIME: Link Content aktualisiert');
+          }
+          break;
+          
+        case 'thema':
+          newValue = video.thema || '';
+          if (field.value !== newValue) {
+            field.value = newValue;
+            shouldUpdate = true;
+            console.log('✅ REALTIME: Thema aktualisiert');
+          }
+          break;
+          
+        case 'titel':
+          newValue = video.titel || '';
+          if (field.value !== newValue) {
+            field.value = newValue;
+            shouldUpdate = true;
+            console.log('✅ REALTIME: Titel aktualisiert');
+          }
+          break;
+          
+        case 'status':
+          newValue = video.status || '';
+          if (field.value !== newValue) {
+            field.value = newValue;
+            shouldUpdate = true;
+            console.log('✅ REALTIME: Status aktualisiert');
+          }
+          break;
+          
+        case 'content_art':
+          newValue = video.content_art || '';
+          if (field.value !== newValue) {
+            field.value = newValue;
+            shouldUpdate = true;
+            console.log('✅ REALTIME: Content Art aktualisiert');
+          }
+          break;
+          
+        case 'link_produkte':
+          newValue = video.link_produkte || '';
+          if (field.value !== newValue) {
+            field.value = newValue;
+            shouldUpdate = true;
+          }
+          break;
+          
+        case 'link_skript':
+          newValue = video.link_skript || '';
+          if (field.value !== newValue) {
+            field.value = newValue;
+            shouldUpdate = true;
+          }
+          break;
+          
+        case 'link_story':
+          newValue = video.link_story || '';
+          if (field.value !== newValue) {
+            field.value = newValue;
+            shouldUpdate = true;
+          }
+          break;
+          
+        case 'skript_freigegeben':
+          newValue = video.skript_freigegeben || false;
+          if (field.checked !== newValue) {
+            field.checked = newValue;
+            shouldUpdate = true;
+          }
+          break;
+          
+        case 'kommentar':
+          newValue = video.kommentar || '';
+          if (field.value !== newValue) {
+            field.value = newValue;
+            shouldUpdate = true;
+            console.log('✅ REALTIME: Kommentar aktualisiert');
+          }
+          break;
+      }
+      
+      // Visueller Hinweis nur bei tatsächlicher Änderung
+      if (shouldUpdate) {
+        field.classList.add('field-updated');
+        setTimeout(() => field.classList.remove('field-updated'), 2000);
+        anyUpdated = true;
+      }
+    });
+    
+    // Finde die Zeile und füge visuellen Hinweis hinzu (nur wenn Update stattfand)
+    if (anyUpdated) {
+      const row = document.querySelector(`tr:has([data-id="${videoId}"])`);
+      if (row) {
+        row.classList.add('realtime-updated');
+        setTimeout(() => row.classList.remove('realtime-updated'), 2000);
+        console.log('✅ REALTIME: Zeile visuell markiert');
+      }
+    }
+  }
+
+  cleanupRealtimeSubscription() {
+    if (this._realtimeChannel) {
+      console.log('🗑️ REALTIME: Entferne Live-Update Subscription');
+      window.supabase.removeChannel(this._realtimeChannel);
+      this._realtimeChannel = null;
+    }
+  }
+
   // Refresh-Methode: Lädt Daten neu und rendert Tabelle ohne Seitenneuladung
   async refresh() {
     console.log('🔄 KampagneKooperationenVideoTable.refresh() - Lade Daten neu und rendere Tabelle');
@@ -1249,6 +1735,9 @@ export class KampagneKooperationenVideoTable {
       this.cleanupFloatingScrollbar();
       this.cleanupFloatingScrollbar = null;
     }
+    
+    // Cleanup Realtime-Subscription
+    this.cleanupRealtimeSubscription();
     
     // Floating-Scrollbar aus DOM entfernen
     const floatingScrollbar = document.getElementById('floating-scrollbar-kampagne');

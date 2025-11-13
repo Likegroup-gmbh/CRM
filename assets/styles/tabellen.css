@@ -1043,7 +1043,7 @@
 /* Nur auf der Kampagnen-Detailseite, innerhalb des main-wrapper */
 .floating-scrollbar-kampagne {
   position: fixed;
-  bottom: 12px;
+  bottom: 14px;
   height: 16px;
   overflow-x: auto;
   overflow-y: hidden;
@@ -1069,43 +1069,74 @@
 }
 
 .floating-scrollbar-inner {
-  height: px1;
+  height: 1px;
   /* Breite wird dynamisch per JS gesetzt */
 }
 
 /* Scrollbar Styling - modernes, subtiles Design */
+/* Safari benötigt explizite Scrollbar-Styles */
 .floating-scrollbar-kampagne::-webkit-scrollbar {
-  height: 10px;
+  height: 14px;
+  -webkit-appearance: none;
 }
 
 .floating-scrollbar-kampagne::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(0, 0, 0, 0.05);
   border-radius: 8px;
   margin: 0 4px;
 }
 
 .floating-scrollbar-kampagne::-webkit-scrollbar-thumb {
-  background: var(--gray-300);
+  background: #999;
   border-radius: 8px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-  transition: background 0.2s ease;
+  border: 2px solid rgba(0, 0, 0, 0.05);
+  min-width: 40px;
 }
 
 .floating-scrollbar-kampagne::-webkit-scrollbar-thumb:hover {
-  background: var(--primary-400);
-  background-clip: padding-box;
+  background: #666;
 }
 
 .floating-scrollbar-kampagne::-webkit-scrollbar-thumb:active {
-  background: var(--primary-500);
-  background-clip: padding-box;
+  background: #333;
 }
 
 /* Firefox Scrollbar Styling */
 .floating-scrollbar-kampagne {
   scrollbar-width: thin;
-  scrollbar-color: var(--gray-300) transparent;
+  scrollbar-color: #999 transparent;
+}
+
+/* Visueller Hinweis bei Realtime-Updates */
+.kooperation-video-grid tr.realtime-updated {
+  animation: highlight-update 2s ease;
+}
+
+@keyframes highlight-update {
+  0% {
+    background-color: rgba(59, 130, 246, 0.15);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+/* Visueller Hinweis für einzelne Felder */
+.grid-input.field-updated,
+.grid-checkbox.field-updated,
+.grid-textarea.field-updated {
+  animation: highlight-field 2s ease;
+}
+
+@keyframes highlight-field {
+  0% {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+    background-color: rgba(59, 130, 246, 0.1);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+    background-color: transparent;
+  }
 }
 
 /* === FLOATING SCROLLBAR FÜR KANBAN === */
