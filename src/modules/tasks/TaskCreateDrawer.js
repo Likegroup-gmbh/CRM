@@ -64,8 +64,10 @@ export class TaskCreateDrawer {
     
     const headerRight = document.createElement('div');
     const closeBtn = document.createElement('button');
-    closeBtn.className = 'drawer-close';
-    closeBtn.textContent = 'Schließen';
+    closeBtn.className = 'drawer-close-btn';
+    closeBtn.setAttribute('type', 'button');
+    closeBtn.setAttribute('aria-label', 'Schließen');
+    closeBtn.innerHTML = '&times;';
     headerRight.appendChild(closeBtn);
     
     header.appendChild(headerLeft);
@@ -324,16 +326,16 @@ export class TaskCreateDrawer {
         <input type="hidden" name="status" value="${this.initialStatus}" />
 
         <!-- Actions -->
-        <div class="drawer-form-actions">
+        <div class="drawer-actions">
           <button 
             type="submit" 
-            class="primary-btn drawer-form-btn-primary">
-            Aufgabe erstellen
+            class="mdc-btn mdc-btn--create">
+            <span class="mdc-btn__label">Aufgabe erstellen</span>
           </button>
           <button 
             type="button" 
             id="task-create-cancel" 
-            class="secondary-btn drawer-form-btn-secondary">
+            class="secondary-btn">
             Abbrechen
           </button>
         </div>

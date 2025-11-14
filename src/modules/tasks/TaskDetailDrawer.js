@@ -81,8 +81,10 @@ export class TaskDetailDrawer {
     
     const headerRight = document.createElement('div');
     const closeBtn = document.createElement('button');
-    closeBtn.className = 'drawer-close';
-    closeBtn.textContent = 'Schließen';
+    closeBtn.className = 'drawer-close-btn';
+    closeBtn.setAttribute('type', 'button');
+    closeBtn.setAttribute('aria-label', 'Schließen');
+    closeBtn.innerHTML = '&times;';
     headerRight.appendChild(closeBtn);
     
     header.appendChild(headerLeft);
@@ -355,7 +357,7 @@ export class TaskDetailDrawer {
         <div class="tab-pane" id="tab-comments">
           <div class="detail-section">
             ${this.renderComments()}
-            <h3 style="margin-top: var(--space-lg);">Neuer Kommentar</h3>
+            <h3 class="section-title">Neuer Kommentar</h3>
             <form id="comment-form">
               <div class="form-field">
                 <textarea name="text" class="form-input" rows="3" placeholder="Kommentar eingeben..." required></textarea>
@@ -371,7 +373,7 @@ export class TaskDetailDrawer {
         <div class="tab-pane" id="tab-attachments">
           <div class="detail-section">
             ${this.renderAttachments()}
-            <h3 style="margin-top: var(--space-lg);">Neuen Anhang hinzufügen</h3>
+            <h3 class="section-title">Neuen Anhang hinzufügen</h3>
             <form id="attachment-form">
               <div class="form-field">
                 <label>Datei-URL</label>
@@ -416,7 +418,7 @@ export class TaskDetailDrawer {
           <textarea name="description" class="form-input" rows="4">${safe(this.task.description || '')}</textarea>
         </div>
 
-        <div class="form-grid" style="grid-template-columns: repeat(2, 1fr); gap: var(--space-sm);">
+        <div class="form-grid form-grid-2">
           <div class="form-field">
             <label>Status *</label>
             <select name="status" class="form-input">
@@ -436,7 +438,7 @@ export class TaskDetailDrawer {
           </div>
         </div>
 
-        <div class="form-grid" style="grid-template-columns: repeat(2, 1fr); gap: var(--space-sm);">
+        <div class="form-grid form-grid-2">
           <div class="form-field">
             <label>Kategorie/Phase</label>
             <select name="category_id" class="form-input">
@@ -482,7 +484,7 @@ export class TaskDetailDrawer {
         ` : ''}
 
         <div class="form-field">
-          <label style="display: flex; align-items: center; gap: var(--space-xs);">
+          <label class="label-checkbox">
             <input type="checkbox" name="is_public" ${this.task.is_public ? 'checked' : ''} />
             Für alle sichtbar (öffentlich)
           </label>
@@ -494,7 +496,7 @@ export class TaskDetailDrawer {
             <span class="mdc-btn__spinner">${this.getSpinnerIcon()}</span>
             <span class="mdc-btn__label">Speichern</span>
           </button>
-          <button type="button" id="btn-delete-task" class="secondary-btn" style="color: #dc2626;">Löschen</button>
+          <button type="button" id="btn-delete-task" class="secondary-btn btn-danger">Löschen</button>
         </div>
       </form>
     `;
@@ -516,25 +518,13 @@ export class TaskDetailDrawer {
       high: 'Hoch'
     };
 
-    const priorityColors = {
-      low: '#10b981',
-      medium: '#f59e0b',
-      high: '#ef4444'
-    };
-
-    const statusColors = {
-      todo: '#6b7280',
-      in_progress: '#3b82f6',
-      completed: '#10b981'
-    };
-
     return `
       <div class="detail-section">
-        <div class="info-message" style="margin-bottom: var(--space-md); padding: var(--space-sm); background: #f3f4f6; border-radius: var(--radius-sm); color: #6b7280;">
+        <div class="info-message">
           Diese Aufgabe kann nur vom Ersteller bearbeitet werden. Sie können aber weiterhin Kommentare hinzufügen.
         </div>
 
-        <div style="display: grid; gap: var(--space-md);">
+        <div class="detail-grid">
           <!-- Titel -->
           <div>
             <div class="drawer-label">Titel</div>
@@ -545,29 +535,29 @@ export class TaskDetailDrawer {
           ${this.task.description ? `
           <div>
             <div class="drawer-label">Beschreibung</div>
-            <div class="drawer-value" style="white-space: pre-wrap;">${safe(this.task.description)}</div>
+            <div class="drawer-value text-pre-wrap">${safe(this.task.description)}</div>
           </div>
           ` : ''}
 
           <!-- Status und Priorität -->
-          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-md);">
+          <div class="detail-grid-2">
             <div>
               <div class="drawer-label">Status</div>
-              <span style="display: inline-flex; align-items: center; gap: var(--space-xs); padding: 4px 12px; background: ${statusColors[this.task.status]}20; color: ${statusColors[this.task.status]}; border-radius: var(--radius-sm); font-size: 0.875rem; font-weight: 500;">
+              <span class="task-status-badge task-status-badge--${this.task.status.replace('_', '-')}">
                 ${statusLabels[this.task.status] || this.task.status}
               </span>
             </div>
 
             <div>
               <div class="drawer-label">Priorität</div>
-              <span style="display: inline-flex; align-items: center; gap: var(--space-xs); padding: 4px 12px; background: ${priorityColors[this.task.priority]}20; color: ${priorityColors[this.task.priority]}; border-radius: var(--radius-sm); font-size: 0.875rem; font-weight: 500;">
+              <span class="task-priority-badge task-priority-badge--${this.task.priority}">
                 ${priorityLabels[this.task.priority] || this.task.priority}
               </span>
             </div>
           </div>
 
           <!-- Kategorie und Fälligkeitsdatum -->
-          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-md);">
+          <div class="detail-grid-2">
             <div>
               <div class="drawer-label">Kategorie/Phase</div>
               <div class="drawer-value">
@@ -642,7 +632,7 @@ export class TaskDetailDrawer {
               <tr>
                 <td>${safe(comment.author_name || 'Unbekannt')}</td>
                 <td>${formatDateTime(comment.created_at)}</td>
-                <td style="white-space: pre-wrap;">${safe(comment.text)}</td>
+                <td class="text-pre-wrap">${safe(comment.text)}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -683,7 +673,7 @@ export class TaskDetailDrawer {
                 <td>${formatSize(att.size)}</td>
                 <td>${formatDateTime(att.created_at)}</td>
                 <td>
-                  <a href="${att.file_url}" target="_blank" rel="noopener" class="primary-btn" style="padding: var(--space-xxs) var(--space-xs); font-size: var(--text-xs);">Öffnen</a>
+                  <a href="${att.file_url}" target="_blank" rel="noopener" class="primary-btn btn-link-small">Öffnen</a>
                 </td>
               </tr>
             `).join('')}

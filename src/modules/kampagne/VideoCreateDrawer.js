@@ -151,12 +151,12 @@ export class VideoCreateDrawer {
         </div>
 
         <!-- Form Actions -->
-        <div class="form-actions">
+        <div class="drawer-actions">
           <button type="button" id="btn-cancel-video" class="secondary-btn">
             Abbrechen
           </button>
-          <button type="submit" id="btn-submit-video" class="primary-btn" disabled>
-            Video anlegen
+          <button type="submit" id="btn-submit-video" class="mdc-btn mdc-btn--create">
+            <span class="mdc-btn__label">Video anlegen</span>
           </button>
         </div>
       </form>

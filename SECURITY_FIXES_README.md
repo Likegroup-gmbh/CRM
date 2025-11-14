@@ -192,3 +192,4 @@ ALTER TABLE public.eu_laender DISABLE ROW LEVEL SECURITY;
 - ✅ Kunden können nur erlaubte Felder ändern
 - ✅ Junction-Tabellen sind gegen unauthorized Access geschützt
 
+

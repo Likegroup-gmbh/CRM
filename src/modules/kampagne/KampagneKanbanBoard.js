@@ -14,6 +14,11 @@ export class KampagneKanbanBoard {
       drop: (e) => this.onDrop(e),
       dragLeave: (e) => this.onDragLeave(e)
     };
+    
+    // Drag-to-Scroll State
+    this.isDragging = false;
+    this.startX = 0;
+    this.scrollLeft = 0;
   }
 
   async init(containerElement) {
@@ -208,6 +213,73 @@ export class KampagneKanbanBoard {
     
     // Nach dem Rendern Drag & Drop Events binden
     this.bindDragDropEventsAfterRender();
+    
+    // Initialisiere Drag-to-Scroll
+    setTimeout(() => this.initDragToScroll(), 100);
+  }
+
+  initDragToScroll() {
+    const wrapper = this.container.querySelector('.kanban-board-wrapper');
+    if (!wrapper) {
+      console.warn('⚠️ Kanban Board Wrapper nicht gefunden für Drag-to-Scroll');
+      return;
+    }
+    
+    const board = wrapper.querySelector('.kanban-board');
+    if (!board) {
+      console.warn('⚠️ Kanban Board nicht gefunden für Drag-to-Scroll');
+      return;
+    }
+    
+    // Mouse Down - Start Dragging
+    const handleMouseDown = (e) => {
+      // Ignoriere wenn auf task-card geklickt wird
+      if (e.target.closest('.task-card')) return;
+      
+      this.isDragging = true;
+      this.startX = e.pageX - board.offsetLeft;
+      this.scrollLeft = board.scrollLeft;
+      board.style.cursor = 'grabbing';
+      board.style.userSelect = 'none';
+    };
+    
+    // Mouse Move - Scroll
+    const handleMouseMove = (e) => {
+      if (!this.isDragging) return;
+      e.preventDefault();
+      
+      const x = e.pageX - board.offsetLeft;
+      const walk = (x - this.startX) * 2; // Scroll-Speed
+      board.scrollLeft = this.scrollLeft - walk;
+    };
+    
+    // Mouse Up/Leave - Stop Dragging
+    const handleMouseUp = () => {
+      this.isDragging = false;
+      board.style.cursor = 'grab';
+      board.style.userSelect = '';
+    };
+    
+    // Events binden
+    board.addEventListener('mousedown', handleMouseDown);
+    board.addEventListener('mousemove', handleMouseMove);
+    board.addEventListener('mouseup', handleMouseUp);
+    board.addEventListener('mouseleave', handleMouseUp);
+    
+    // Initial cursor setzen
+    board.style.cursor = 'grab';
+    
+    // Cleanup-Handler speichern
+    this._dragToScrollCleanup = () => {
+      board.removeEventListener('mousedown', handleMouseDown);
+      board.removeEventListener('mousemove', handleMouseMove);
+      board.removeEventListener('mouseup', handleMouseUp);
+      board.removeEventListener('mouseleave', handleMouseUp);
+      board.style.cursor = '';
+      board.style.userSelect = '';
+    };
+    
+    console.log('✅ Drag-to-Scroll initialisiert');
   }
 
   renderColumn(statusId, statusName, kampagnen) {
@@ -605,6 +677,13 @@ export class KampagneKanbanBoard {
   }
 
   destroy() {
+    // Drag-to-Scroll Cleanup
+    if (this._dragToScrollCleanup) {
+      this._dragToScrollCleanup();
+      this._dragToScrollCleanup = null;
+      console.log('✅ Drag-to-Scroll cleanup abgeschlossen');
+    }
+    
     // Cleanup Floating Scrollbar
     if (this._cleanupFloatingScrollbar) {
       this._cleanupFloatingScrollbar();

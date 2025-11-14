@@ -145,36 +145,14 @@
 }
 
 /* Drawer Styles für Adress-Formular */
-.drawer-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: flex-end;
-  z-index: 1000;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s;
-}
+
 
 .drawer-overlay.active {
   opacity: 1;
   pointer-events: all;
 }
 
-.drawer-panel {
-  background: white;
-  width: 600px;
-  max-width: 90vw;
-  height: 100vh;
-  overflow-y: auto;
-  box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
-  transform: translateX(100%);
-  transition: transform 0.3s;
-}
+
 
 .drawer-overlay.active .drawer-panel {
   transform: translateX(0);
@@ -221,15 +199,6 @@
   padding: 1.5rem;
 }
 
-.drawer-actions {
-  display: flex;
-  gap: 1rem;
-  padding: 1.5rem;
-  border-top: 1px solid #e5e7eb;
-  position: sticky;
-  bottom: 0;
-  background: white;
-}
 
 /* Form Styles */
 .form-layout {
@@ -264,12 +233,14 @@
 .form-field input,
 .form-field textarea,
 .form-field select {
-  padding: 0.5rem 0.75rem;
+  padding: var(--space-xs);
   border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 0.875rem;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
   transition: border-color 0.2s;
-  width: 100%;
+  
+  font-family: 'Lexend', sans-serif;
+  
 }
 
 .form-field input:focus,

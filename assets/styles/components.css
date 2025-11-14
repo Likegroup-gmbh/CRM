@@ -168,7 +168,7 @@
 
 .secondary-btn {
   border: 1px solid var(--gray-300);
-  padding: var(--space-xs);
+  padding: var(--space-sm);
   background-color: var(--bg-primary);
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
@@ -1600,22 +1600,26 @@
   inset: 0;
   background: rgba(0, 0, 0, 0.35);
   z-index: 1400;
+  
 }
 
 .drawer-panel {
   position: fixed;
-  top: 0;
-  right: 0;
-  height: 100vh;
-  width: 450px;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  bottom: var(--space-sm);
+  height: auto;
+  width: 35%;
   max-width: 95vw;
-  background: #fff;
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.25);
-  transform: translateX(100%);
+  background: var(--bg-primary);
+  
+  border-radius: var(--radius-xl);
+  transform: translateX(calc(100% + var(--space-md)));
   transition: transform 0.25s ease-out;
   z-index: 1500;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .drawer-panel.show { transform: translateX(0); }
@@ -1624,13 +1628,15 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px;
+  padding: var(--space-md);
   border-bottom: 1px solid #e9ecef;
+  flex-shrink: 0;
 }
 
 .drawer-body {
+  flex: 1;
   overflow: auto;
-  padding: 16px;
+  padding: var(--space-md);
 }
 
 .drawer-close {
@@ -1687,17 +1693,17 @@
   background: transparent;
   border: none;
   color: var(--gray-500);
-  font-size: 32px;
+  font-size: var(--text-xxl);
   line-height: 1;
   cursor: pointer;
-  padding: 0;
-  width: 32px;
-  height: 32px;
+  width: var(--space-xl);
+  height: var(--space-xl);
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-sm);
   transition: all 0.2s ease;
+  font-weight: 200;
 }
 
 .drawer-close-btn:hover {
@@ -1929,7 +1935,8 @@
 
 .kanban-column-body.drag-over {
   background: var(--gray-100);
-  border: 2px dashed var(--gray-400);
+  border: 1px dashed var(--gray-300);
+  border-radius: var(--radius-md);
 }
 
 /* Task Cards */
@@ -2256,14 +2263,21 @@
   line-height: 1.5;
 }
 
-/* Drawer Actions */
-.drawer-actions {
+/* Drawer Actions - Sticky at bottom */
+.drawer-actions,
+.drawer-form-actions,
+.form-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--space-sm);
-  padding-top: var(--space-md);
-  margin-top: var(--space-md);
-  border-top: var(--border-xs) solid var(--border-primary);
+  padding: var(--space-md) 0 var(--space-md) var(--space-md);
+  background: var(--bg-primary);
+  border-top: 1px solid var(--gray-200);
+  margin-top: auto;
+  
+  
+  z-index: 10;
 }
 
 .drawer-loading {
@@ -2521,16 +2535,7 @@
   min-height: 100px;
 }
 
-.form-actions {
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-  margin-top: 1.5rem;
-  padding-top: 1rem;
- 
-}
-
-/* Alert Styles */
+/* Tab Layouts */
 .alert {
   padding: 1rem;
   border-radius: var(--radius-4);
@@ -2558,17 +2563,7 @@
   font-size: 1rem;
 }
 
-/* Drawer Actions */
-.drawer-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  padding-top: 1.5rem;
-  border-top: var(--space-xxxs) solid #e9ecef;
-  margin-top: 2rem;
-}
-
-/* Auftragsdetails Layout für Drawer */
+/* Tab Context - Legacy/deprecated? */
 .auftrag-details-layout {
   display: flex;
   flex-direction: column;
@@ -4817,9 +4812,113 @@ margin-bottom: var(--space-md);
 
 /* Detail Grid 2 Columns */
 .detail-grid-2 {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: var(--space-md);
+}
+
+/* Form Grid */
+.form-grid {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.form-grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+/* Task Status Badge */
+.task-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xxs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.task-status-badge--todo {
+  background: var(--gray-200);
+  color: var(--gray-700);
+}
+
+.task-status-badge--in-progress {
+  background: var(--blue-100);
+  color: var(--blue-600);
+}
+
+.task-status-badge--completed {
+  background: var(--green-100);
+  color: var(--green-600);
+}
+
+/* Task Priority Badge */
+.task-priority-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xxs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.task-priority-badge--low {
+  background: var(--green-100);
+  color: var(--green-600);
+}
+
+.task-priority-badge--medium {
+  background: var(--yellow-100);
+  color: var(--yellow-600);
+}
+
+.task-priority-badge--high {
+  background: var(--red-100);
+  color: var(--red-600);
+}
+
+/* Section Title - For in-tab headings */
+.section-title {
+  margin-top: var(--space-lg);
+  margin-bottom: var(--space-sm);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Info Message */
+.info-message {
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm);
+  background: var(--gray-100);
+  border-radius: var(--radius-sm);
+  color: var(--gray-600);
+  font-size: var(--text-sm);
+}
+
+/* Preformatted text (preserving whitespace) */
+.text-pre-wrap {
+  white-space: pre-wrap;
+}
+
+/* Label with Checkbox */
+.label-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+/* Button Link Small - for inline action buttons */
+.btn-link-small {
+  padding: var(--space-xxs) var(--space-xs);
+  font-size: var(--text-xs);
+}
+
+/* Danger Button */
+.btn-danger {
+  color: var(--red-600);
 }
 
 /* Responsive Design für Detail-Seiten */
@@ -4848,7 +4947,8 @@ margin-bottom: var(--space-md);
     justify-content: flex-end;
   }
   
-  .detail-grid-2 {
+  .detail-grid-2,
+  .form-grid-2 {
     grid-template-columns: 1fr;
   }
 }
@@ -5127,15 +5227,6 @@ margin-bottom: var(--space-md);
   font-size: var(--text-xs);
   color: var(--text-secondary);
   margin-top: var(--space-xxs);
-}
-
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-md);
-  padding-top: var(--space-xl);
-  
- 
 }
 
 .btn {

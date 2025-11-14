@@ -107,12 +107,10 @@ export class AuftragsDetailsManager {
     
     const headerRight = document.createElement('div');
     const closeBtn = document.createElement('button');
-    closeBtn.className = 'drawer-close';
-    closeBtn.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 24px; height: 24px;">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-      </svg>
-    `;
+    closeBtn.className = 'drawer-close-btn';
+    closeBtn.setAttribute('type', 'button');
+    closeBtn.setAttribute('aria-label', 'Schließen');
+    closeBtn.innerHTML = '&times;';
     headerRight.appendChild(closeBtn);
     
     header.appendChild(headerLeft);
@@ -268,7 +266,9 @@ export class AuftragsDetailsManager {
           </div>
 
           <div class="drawer-actions">
-            <button type="submit" class="primary-btn">Details speichern</button>
+            <button type="submit" class="mdc-btn mdc-btn--create">
+              <span class="mdc-btn__label">Details speichern</span>
+            </button>
             <button type="button" class="secondary-btn" data-close>Abbrechen</button>
           </div>
         </form>

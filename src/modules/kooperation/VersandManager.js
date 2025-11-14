@@ -122,8 +122,10 @@ export class KooperationVersandManager {
     
     const headerRight = document.createElement('div');
     const closeBtn = document.createElement('button');
-    closeBtn.className = 'drawer-close';
-    closeBtn.textContent = 'Schließen';
+    closeBtn.className = 'drawer-close-btn';
+    closeBtn.setAttribute('type', 'button');
+    closeBtn.setAttribute('aria-label', 'Schließen');
+    closeBtn.innerHTML = '&times;';
     headerRight.appendChild(closeBtn);
     
     header.appendChild(headerLeft);
@@ -328,9 +330,9 @@ export class KooperationVersandManager {
           </div>
 
           <div class="drawer-actions">
-            <button type="submit" class="primary-btn" id="versand-submit-btn">
-              <span class="btn-label">Produkt hinzufügen</span>
-              <span class="btn-loader" style="display: none;">
+            <button type="submit" class="mdc-btn mdc-btn--create" id="versand-submit-btn">
+              <span class="mdc-btn__label">Produkt hinzufügen</span>
+              <span class="mdc-btn__spinner" style="display: none;">
                 <svg class="spinner" width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
                   <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="50" stroke-dashoffset="0">
                     <animateTransform attributeName="transform" type="rotate" from="0 10 10" to="360 10 10" dur="1s" repeatCount="indefinite"/>
@@ -358,8 +360,8 @@ export class KooperationVersandManager {
 
     this.isSubmitting = true;
     const submitBtn = document.getElementById('versand-submit-btn');
-    const btnLabel = submitBtn?.querySelector('.btn-label');
-    const btnLoader = submitBtn?.querySelector('.btn-loader');
+    const btnLabel = submitBtn?.querySelector('.mdc-btn__label');
+    const btnSpinner = submitBtn?.querySelector('.mdc-btn__spinner');
 
     // Speichere Submit-Versuch in LocalStorage für Debugging
     localStorage.setItem('versand_debug_last_submit', JSON.stringify({
@@ -375,7 +377,7 @@ export class KooperationVersandManager {
       if (submitBtn) {
         submitBtn.disabled = true;
         if (btnLabel) btnLabel.style.display = 'none';
-        if (btnLoader) btnLoader.style.display = 'inline-flex';
+        if (btnSpinner) btnSpinner.style.display = 'inline-flex';
       }
 
       const formData = new FormData(form);
@@ -480,7 +482,7 @@ export class KooperationVersandManager {
       if (submitBtn) {
         submitBtn.disabled = false;
         if (btnLabel) btnLabel.style.display = 'inline';
-        if (btnLoader) btnLoader.style.display = 'none';
+        if (btnSpinner) btnSpinner.style.display = 'none';
       }
 
     } finally {
@@ -489,13 +491,13 @@ export class KooperationVersandManager {
       // UI: Reset nach Erfolg
       if (submitBtn && !submitBtn.disabled) {
         if (btnLabel) btnLabel.style.display = 'inline';
-        if (btnLoader) btnLoader.style.display = 'none';
+        if (btnSpinner) btnSpinner.style.display = 'none';
       } else if (submitBtn) {
         // Bei Erfolg: Button nach kurzer Zeit wieder aktivieren
         setTimeout(() => {
           submitBtn.disabled = false;
           if (btnLabel) btnLabel.style.display = 'inline';
-          if (btnLoader) btnLoader.style.display = 'none';
+          if (btnSpinner) btnSpinner.style.display = 'none';
         }, 1500);
       }
     }

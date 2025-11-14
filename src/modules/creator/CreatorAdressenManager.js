@@ -62,10 +62,8 @@ export class CreatorAdressenManager {
       <div class="drawer-panel">
         <div class="drawer-header">
           <h2>${this.adresseId ? 'Adresse bearbeiten' : 'Neue Adresse hinzufügen'}</h2>
-          <button class="drawer-close" data-close>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 24px; height: 24px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+          <button class="drawer-close-btn" type="button" aria-label="Schließen" data-close>
+            &times;
           </button>
         </div>
         <div class="drawer-body" id="${this.drawerId}-body"></div>
@@ -208,8 +206,8 @@ export class CreatorAdressenManager {
         </div>
 
         <div class="drawer-actions">
-          <button type="submit" class="primary-btn">
-            ${this.adresseId ? 'Aktualisieren' : 'Hinzufügen'}
+          <button type="submit" class="mdc-btn mdc-btn--create">
+            <span class="mdc-btn__label">${this.adresseId ? 'Aktualisieren' : 'Hinzufügen'}</span>
           </button>
           <button type="button" class="secondary-btn" data-close>Abbrechen</button>
         </div>

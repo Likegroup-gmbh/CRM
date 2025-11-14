@@ -1,6 +1,8 @@
 // DashboardModule.js (ES6-Modul)
 // Hauptdashboard für CRM-Mitarbeiter
 
+import { KampagneKanbanBoard } from '../kampagne/KampagneKanbanBoard.js';
+
 export class DashboardModule {
   constructor() {
     this.data = {
@@ -10,6 +12,9 @@ export class DashboardModule {
       alerts: []
     };
     this.refreshInterval = null;
+    this.kampagnenView = 'kanban'; // 'list' oder 'kanban' - Standard: kanban
+    this.kanbanBoard = null;
+    this.kampagnen = [];
   }
 
   async init() {
@@ -25,12 +30,15 @@ export class DashboardModule {
     // Für Kunden: Spezielle Dashboard-Ansicht
     if (window.currentUser?.rolle === 'kunde') {
       await this.renderKundenDashboard();
+      this.setupEventListeners();
+      this.setupKampagneEventListeners();
       return;
     }
     
     await this.loadDashboardData();
     await this.render();
     this.setupEventListeners();
+    this.setupKampagneEventListeners();
     this.startAutoRefresh();
   }
 
@@ -457,11 +465,45 @@ export class DashboardModule {
           </div>
           ${this.renderRecentActivityTable()}
         </div>
+
+        <!-- Kampagnen Section -->
+        <div class="content-section">
+          <div class="section-header">
+            <h2>Meine Kampagnen</h2>
+            <div class="section-header-right">
+              <div class="view-toggle">
+                <button id="dashboard-btn-view-list" class="secondary-btn ${this.kampagnenView === 'list' ? 'active' : ''}">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 1.5v-1.5m0 0c0-.621.504-1.125 1.125-1.125m0 0h7.5" />
+                  </svg>
+                  Liste
+                </button>
+                <button id="dashboard-btn-view-kanban" class="secondary-btn ${this.kampagnenView === 'kanban' ? 'active' : ''}">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+                  </svg>
+                  Kanban
+                </button>
+              </div>
+            </div>
+          </div>
+          <div id="dashboard-kampagnen-content" class="dashboard-kampagnen-section">
+            <div id="dashboard-kanban-container" style="display: ${this.kampagnenView === 'kanban' ? 'block' : 'none'};"></div>
+            <div id="dashboard-kampagnen-table" style="display: ${this.kampagnenView === 'list' ? 'block' : 'none'};"></div>
+          </div>
+        </div>
         ` : ''}
       </div>
     `;
 
     window.setContentSafely(window.content, html);
+    
+    // Initialisiere Kanban Board für Mitarbeiter/Admins wenn nicht pending
+    if (!isPending && this.kampagnenView === 'kanban') {
+      await this.initDashboardKanbanBoard();
+    } else if (!isPending && this.kampagnenView === 'list') {
+      await this.loadKampagnenTable();
+    }
   }
 
   async renderKundenDashboard() {
@@ -501,7 +543,7 @@ export class DashboardModule {
       const [{ data: kampagnen }, { data: kooperationen }] = await Promise.all([
         window.supabase
           .from('kampagne')
-          .select('id, kampagnenname, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname), status:status_id(name)')
+          .select('id, kampagnenname, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname), status:status_id(name), status_id')
           .order('created_at', { ascending: false }),
         window.supabase
           .from('kooperationen')
@@ -532,20 +574,41 @@ export class DashboardModule {
           <div class="content-section">
             <div class="section-header">
               <h2>Meine Kampagnen</h2>
-              <span class="section-count">${(kampagnen || []).length} Einträge</span>
+              <div class="section-header-right">
+                <span class="section-count">${(kampagnen || []).length} Einträge</span>
+                <div class="view-toggle" style="margin-left: var(--space-sm);">
+                  <button id="dashboard-kunden-btn-view-list" class="secondary-btn ${this.kampagnenView === 'list' ? 'active' : ''}">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 1.5v-1.5m0 0c0-.621.504-1.125 1.125-1.125m0 0h7.5" />
+                    </svg>
+                    Liste
+                  </button>
+                  <button id="dashboard-kunden-btn-view-kanban" class="secondary-btn ${this.kampagnenView === 'kanban' ? 'active' : ''}">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+                    </svg>
+                    Kanban
+                  </button>
+                </div>
+              </div>
             </div>
-            <div class="data-table-container">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Kampagne</th>
-                    <th>Unternehmen</th>
-                    <th>Marke</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>${kampagnenRows || '<tr><td colspan="4" class="loading">Keine Kampagnen</td></tr>'}</tbody>
-              </table>
+            <div id="dashboard-kunden-kampagnen-content" class="dashboard-kampagnen-section">
+              <div id="dashboard-kunden-kanban-container" style="display: ${this.kampagnenView === 'kanban' ? 'block' : 'none'};"></div>
+              <div id="dashboard-kunden-kampagnen-table" style="display: ${this.kampagnenView === 'list' ? 'block' : 'none'};">
+                <div class="data-table-container">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Kampagne</th>
+                        <th>Unternehmen</th>
+                        <th>Marke</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>${kampagnenRows || '<tr><td colspan="4" class="loading">Keine Kampagnen</td></tr>'}</tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </div>
           
@@ -572,6 +635,11 @@ export class DashboardModule {
       `;
       
       window.setContentSafely(window.content, html);
+      
+      // Initialisiere Kanban Board für Kunden wenn View = kanban
+      if (this.kampagnenView === 'kanban') {
+        await this.initDashboardKanbanBoard('dashboard-kunden-kanban-container');
+      }
     } catch (error) {
       console.error('❌ Fehler beim Laden des Kunden-Dashboards:', error);
       window.setContentSafely(window.content, '<p class="error">Fehler beim Laden der Daten.</p>');
@@ -1044,6 +1112,256 @@ export class DashboardModule {
     if (refreshBtn) {
       refreshBtn.addEventListener('click', () => this.refresh());
     }
+
+    // View Toggle Buttons für Mitarbeiter/Admins
+    const listBtn = document.getElementById('dashboard-btn-view-list');
+    const kanbanBtn = document.getElementById('dashboard-btn-view-kanban');
+
+    if (listBtn) {
+      listBtn.addEventListener('click', async () => {
+        console.log('🔄 Dashboard: Wechsel zu List-View');
+        if (this.kampagnenView === 'list') return; // Bereits in List-View
+        
+        this.kampagnenView = 'list';
+        
+        // Cleanup Kanban Board
+        if (this.kanbanBoard) {
+          this.kanbanBoard.destroy();
+          this.kanbanBoard = null;
+        }
+        
+        // Toggle Display
+        const kanbanContainer = document.getElementById('dashboard-kanban-container');
+        const tableContainer = document.getElementById('dashboard-kampagnen-table');
+        if (kanbanContainer) kanbanContainer.style.display = 'none';
+        if (tableContainer) tableContainer.style.display = 'block';
+        
+        // Toggle Button States
+        listBtn.classList.add('active');
+        kanbanBtn.classList.remove('active');
+        
+        // Lade Tabelle
+        await this.loadKampagnenTable();
+      });
+    }
+
+    if (kanbanBtn) {
+      kanbanBtn.addEventListener('click', async () => {
+        console.log('🔄 Dashboard: Wechsel zu Kanban-View');
+        if (this.kampagnenView === 'kanban') return; // Bereits in Kanban-View
+        
+        this.kampagnenView = 'kanban';
+        
+        // Toggle Display
+        const kanbanContainer = document.getElementById('dashboard-kanban-container');
+        const tableContainer = document.getElementById('dashboard-kampagnen-table');
+        if (kanbanContainer) kanbanContainer.style.display = 'block';
+        if (tableContainer) tableContainer.style.display = 'none';
+        
+        // Toggle Button States
+        kanbanBtn.classList.add('active');
+        listBtn.classList.remove('active');
+        
+        // Initialisiere Kanban Board
+        await this.initDashboardKanbanBoard();
+      });
+    }
+
+    // View Toggle Buttons für Kunden
+    const kundenListBtn = document.getElementById('dashboard-kunden-btn-view-list');
+    const kundenKanbanBtn = document.getElementById('dashboard-kunden-btn-view-kanban');
+
+    if (kundenListBtn) {
+      kundenListBtn.addEventListener('click', async () => {
+        console.log('🔄 Kunden Dashboard: Wechsel zu List-View');
+        if (this.kampagnenView === 'list') return;
+        
+        this.kampagnenView = 'list';
+        
+        // Cleanup Kanban Board
+        if (this.kanbanBoard) {
+          this.kanbanBoard.destroy();
+          this.kanbanBoard = null;
+        }
+        
+        // Toggle Display
+        const kanbanContainer = document.getElementById('dashboard-kunden-kanban-container');
+        const tableContainer = document.getElementById('dashboard-kunden-kampagnen-table');
+        if (kanbanContainer) kanbanContainer.style.display = 'none';
+        if (tableContainer) tableContainer.style.display = 'block';
+        
+        // Toggle Button States
+        kundenListBtn.classList.add('active');
+        kundenKanbanBtn.classList.remove('active');
+      });
+    }
+
+    if (kundenKanbanBtn) {
+      kundenKanbanBtn.addEventListener('click', async () => {
+        console.log('🔄 Kunden Dashboard: Wechsel zu Kanban-View');
+        if (this.kampagnenView === 'kanban') return;
+        
+        this.kampagnenView = 'kanban';
+        
+        // Toggle Display
+        const kanbanContainer = document.getElementById('dashboard-kunden-kanban-container');
+        const tableContainer = document.getElementById('dashboard-kunden-kampagnen-table');
+        if (kanbanContainer) kanbanContainer.style.display = 'block';
+        if (tableContainer) tableContainer.style.display = 'none';
+        
+        // Toggle Button States
+        kundenKanbanBtn.classList.add('active');
+        kundenListBtn.classList.remove('active');
+        
+        // Initialisiere Kanban Board
+        await this.initDashboardKanbanBoard('dashboard-kunden-kanban-container');
+      });
+    }
+  }
+
+  setupKampagneEventListeners() {
+    // Event-Listener für Kampagnen-Updates (bidirektionale Sync)
+    this.kampagneUpdatedHandler = (e) => {
+      console.log('📢 Dashboard: Kampagne Updated Event empfangen', e.detail);
+      if (this.kampagnenView === 'kanban' && this.kanbanBoard) {
+        this.kanbanBoard.refresh();
+      } else if (this.kampagnenView === 'list') {
+        this.loadKampagnenTable();
+      }
+    };
+    
+    window.addEventListener('kampagneUpdated', this.kampagneUpdatedHandler);
+    
+    // Entity Updated Event
+    this.entityUpdatedHandler = (e) => {
+      if (e.detail.entity === 'kampagne') {
+        console.log('📢 Dashboard: Entity Updated Event (kampagne) empfangen', e.detail);
+        if (this.kampagnenView === 'kanban' && this.kanbanBoard) {
+          this.kanbanBoard.refresh();
+        } else if (this.kampagnenView === 'list') {
+          this.loadKampagnenTable();
+        }
+      }
+    };
+    
+    window.addEventListener('entityUpdated', this.entityUpdatedHandler);
+    
+    console.log('✅ Dashboard: Kampagnen Event-Listener eingerichtet');
+  }
+
+  async initDashboardKanbanBoard(containerId = 'dashboard-kanban-container') {
+    const container = document.getElementById(containerId);
+    if (!container) {
+      console.warn(`⚠️ Dashboard Kanban Container '${containerId}' nicht gefunden`);
+      return;
+    }
+
+    // Cleanup old board
+    if (this.kanbanBoard) {
+      this.kanbanBoard.destroy();
+    }
+
+    // Neue Board-Instanz
+    this.kanbanBoard = new KampagneKanbanBoard();
+    await this.kanbanBoard.init(container);
+    console.log('✅ Dashboard Kanban Board initialisiert');
+  }
+
+  async loadKampagnenTable() {
+    try {
+      if (!window.supabase) {
+        console.warn('⚠️ Supabase nicht verfügbar');
+        return;
+      }
+
+      // Sichtbarkeits-Logik: Nicht-Admins nur zugeordnete Inhalte
+      const isAdmin = window.currentUser?.rolle === 'admin';
+      let allowedKampagneIds = [];
+      
+      if (!isAdmin) {
+        try {
+          // 1. Direkt zugeordnete Kampagnen
+          const { data: assignedKampagnen } = await window.supabase
+            .from('kampagne_mitarbeiter')
+            .select('kampagne_id')
+            .eq('mitarbeiter_id', window.currentUser?.id);
+          const directKampagnenIds = (assignedKampagnen || []).map(r => r.kampagne_id).filter(Boolean);
+          
+          // 2. Kampagnen über zugeordnete Marken
+          const { data: assignedMarken } = await window.supabase
+            .from('marke_mitarbeiter')
+            .select('marke_id')
+            .eq('mitarbeiter_id', window.currentUser?.id);
+          const markenIds = (assignedMarken || []).map(r => r.marke_id).filter(Boolean);
+          
+          let markenKampagnenIds = [];
+          if (markenIds.length > 0) {
+            const { data: markenKampagnen } = await window.supabase
+              .from('kampagne')
+              .select('id')
+              .in('marke_id', markenIds);
+            markenKampagnenIds = (markenKampagnen || []).map(k => k.id).filter(Boolean);
+          }
+          
+          // Kombiniere beide Listen und entferne Duplikate
+          allowedKampagneIds = [...new Set([...directKampagnenIds, ...markenKampagnenIds])];
+          
+          console.log(`🔍 DASHBOARD: Mitarbeiter ${window.currentUser?.id} hat Zugriff auf ${allowedKampagneIds.length} Kampagnen`);
+        } catch (error) {
+          console.error('❌ Fehler beim Laden der Zuordnungen für Dashboard:', error);
+        }
+      }
+
+      // Query mit Sichtbarkeits-Filterung
+      let kampagnenQuery = window.supabase
+        .from('kampagne')
+        .select('id, kampagnenname, unternehmen:unternehmen_id(id, firmenname, logo_url), marke:marke_id(id, markenname, logo_url), status_ref:status_id(id, name)')
+        .order('created_at', { ascending: false });
+      
+      // Nicht-Admin Filterung anwenden
+      if (!isAdmin && window.currentUser?.rolle !== 'kunde') {
+        if (allowedKampagneIds.length > 0) {
+          kampagnenQuery = kampagnenQuery.in('id', allowedKampagneIds);
+        } else {
+          // Keine Berechtigung = leere Ergebnisse
+          kampagnenQuery = kampagnenQuery.eq('id', '00000000-0000-0000-0000-000000000000');
+        }
+      }
+
+      const { data: kampagnen } = await kampagnenQuery;
+
+      // Rendere Tabelle
+      const container = document.getElementById('dashboard-kampagnen-table');
+      if (!container) return;
+
+      const kampagnenRows = (kampagnen || []).map(k => `
+        <tr onclick="window.navigateTo('/kampagne/${k.id}')" style="cursor: pointer;">
+          <td>${window.validatorSystem.sanitizeHtml(k.kampagnenname || 'Unbekannt')}</td>
+          <td>${window.validatorSystem.sanitizeHtml(k.unternehmen?.firmenname || '—')}</td>
+          <td>${window.validatorSystem.sanitizeHtml(k.marke?.markenname || '—')}</td>
+          <td><span class="status-badge">${window.validatorSystem.sanitizeHtml(k.status_ref?.name || '—')}</span></td>
+        </tr>
+      `).join('');
+
+      container.innerHTML = `
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Kampagne</th>
+                <th>Unternehmen</th>
+                <th>Marke</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>${kampagnenRows || '<tr><td colspan="4" class="loading">Keine Kampagnen</td></tr>'}</tbody>
+          </table>
+        </div>
+      `;
+      console.log('✅ Dashboard Kampagnen-Tabelle geladen:', kampagnen?.length || 0);
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Dashboard-Kampagnen-Tabelle:', error);
+    }
   }
 
   async refresh() {
@@ -1063,6 +1381,26 @@ export class DashboardModule {
       clearInterval(this.refreshInterval);
       this.refreshInterval = null;
     }
+    
+    // Cleanup Kanban Board
+    if (this.kanbanBoard) {
+      console.log('🗑️ Dashboard: Cleanup Kanban Board');
+      this.kanbanBoard.destroy();
+      this.kanbanBoard = null;
+    }
+    
+    // Cleanup Event-Listener
+    if (this.kampagneUpdatedHandler) {
+      window.removeEventListener('kampagneUpdated', this.kampagneUpdatedHandler);
+      this.kampagneUpdatedHandler = null;
+    }
+    
+    if (this.entityUpdatedHandler) {
+      window.removeEventListener('entityUpdated', this.entityUpdatedHandler);
+      this.entityUpdatedHandler = null;
+    }
+    
+    console.log('✅ Dashboard: Cleanup abgeschlossen');
   }
 
   // Mock-Daten für Offline/Test-Modus
