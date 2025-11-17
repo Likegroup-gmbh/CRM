@@ -172,7 +172,7 @@ export class BriefingList {
           unternehmen:unternehmen_id(id, firmenname, logo_url),
           marke:marke_id(id, markenname, logo_url),
           kampagne:kampagne_id(id, kampagnenname),
-          assignee:assignee_id(id, name)
+          assignee:assignee_id(id, name, profile_image_url)
         `)
         .order('created_at', { ascending: false });
 
@@ -558,7 +558,8 @@ export class BriefingList {
       name: assignee.name,
       type: 'person',
       id: assignee.id,
-      entityType: 'mitarbeiter'
+      entityType: 'mitarbeiter',
+      profile_image_url: assignee.profile_image_url
     }];
 
     return avatarBubbles.renderBubbles(items);

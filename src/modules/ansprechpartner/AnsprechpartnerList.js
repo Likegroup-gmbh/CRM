@@ -293,7 +293,9 @@ export class AnsprechpartnerList {
           </a>
         </td>
         <td>${window.validatorSystem.sanitizeHtml(ap.nachname || '-')}</td>
-        <td>${ap.position?.name || '-'}</td>
+        <td>
+          ${ap.positionen?.name ? `<div class="tag-list"><span class="tag tag--position">${window.validatorSystem.sanitizeHtml(ap.positionen.name)}</span></div>` : '-'}
+        </td>
         <td>
           ${this.renderUnternehmen(ap)}
         </td>

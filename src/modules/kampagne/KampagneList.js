@@ -1153,7 +1153,8 @@ export class KampagneList {
         name: u.name || u.email,
         type: 'person',
         id: u.id,
-        entityType: 'mitarbeiter'
+        entityType: 'mitarbeiter',
+        profile_image_url: u.profile_image_url
       }));
     
     console.log('🔍 KampagneList mitarbeiter items:', items); // Debug

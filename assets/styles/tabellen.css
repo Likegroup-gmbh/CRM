@@ -32,6 +32,7 @@
 .kooperation-video-grid .col-produkt { width: 200px; min-width: 200px; }
 .kooperation-video-grid .col-paket-tracking { width: 180px; min-width: 180px; }
 .kooperation-video-grid .col-thema { width: 150px; min-width: 150px; }
+.kooperation-video-grid .col-drehort { width: 150px; min-width: 150px; }
 .kooperation-video-grid .col-link-produkte { width: 130px; min-width: 130px; }
 .kooperation-video-grid .col-link-skript { width: 130px; min-width: 130px; }
 .kooperation-video-grid .col-skript-freigegeben { width: 130px; min-width: 130px; }
@@ -139,7 +140,7 @@
 }
 
 .kooperation-row {
-  background-color: var(--gray-100);
+  background-color: var(--gray-50);
   border-top: 2px solid var(--gray-400);
 }
 

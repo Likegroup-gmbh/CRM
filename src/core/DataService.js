@@ -123,7 +123,9 @@ export class DataService {
           { name: 'rechnungsadresse_land', type: 'string' },
           { name: 'webseite', type: 'string' },
           { name: 'status', type: 'string' },
-          { name: 'notiz', type: 'string' }
+          { name: 'notiz', type: 'string' },
+          { name: 'logo_url', type: 'string' },
+          { name: 'logo_path', type: 'string' }
         ],
         relations: {
           branche: { table: 'branchen', foreignKey: 'branche_id', displayField: 'name' }
@@ -190,7 +192,7 @@ export class DataService {
             junctionTable: 'kampagne_mitarbeiter',
             localKey: 'kampagne_id',
             foreignKey: 'mitarbeiter_id',
-            displayField: 'name'
+            displayField: 'name,profile_image_url'
           }
         },
         filters: ['kampagnenname', 'unternehmen_id', 'marke_id', 'status_id', 'art_der_kampagne', 'start', 'deadline'],
@@ -398,7 +400,9 @@ export class DataService {
           branche: 'string',
           branche_id: 'uuid',               // ← Hinzugefügt für Filter
           created_at: 'date',
-          updated_at: 'date'
+          updated_at: 'date',
+          logo_url: 'string',
+          logo_path: 'string'
         },
         relations: {
           unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' }
@@ -952,7 +956,7 @@ export class DataService {
                     id,
                     name
                   ),
-                  position:position_id (
+                  positionen:position_id (
                     id,
                     name
                   ),
@@ -1974,7 +1978,43 @@ export class DataService {
       const to = from + limit - 1;
 
       // Basisquery mit Select
-      let query = window.supabase.from(entityConfig.table).select('*', { count: 'exact' });
+      let selectClause = '*';
+      
+      // Spezielle Select-Klausel für Ansprechpartner mit JOINs
+      if (entityType === 'ansprechpartner') {
+        selectClause = `
+          *,
+          unternehmen:unternehmen_id (
+            id,
+            firmenname,
+            logo_url
+          ),
+          sprache:sprache_id (
+            id,
+            name
+          ),
+          positionen:position_id (
+            id,
+            name
+          ),
+          telefonnummer_land:eu_laender!telefonnummer_land_id (
+            id,
+            name,
+            name_de,
+            iso_code,
+            vorwahl
+          ),
+          telefonnummer_office_land:eu_laender!telefonnummer_office_land_id (
+            id,
+            name,
+            name_de,
+            iso_code,
+            vorwahl
+          )
+        `;
+      }
+      
+      let query = window.supabase.from(entityConfig.table).select(selectClause, { count: 'exact' });
 
       // Spezielle Behandlung für Many-to-Many Filter (z.B. branche_id für Unternehmen)
       if (filters.branche_id && (entityType === 'unternehmen' || entityType === 'marke')) {

@@ -30,12 +30,13 @@ export class AvatarBubbles {
 
   /**
    * Rendert HTML für überlappende Avatar-Bubbles
-   * @param {Array} items - Array von Objekten: {name, type, id?, entityType?, logo_url?}
+   * @param {Array} items - Array von Objekten: {name, type, id?, entityType?, logo_url?, profile_image_url?}
    *   - name: Anzeigename
    *   - type: 'person' oder 'org'
    *   - id: Optional, ID für Klickbarkeit
-   *   - entityType: Optional, 'unternehmen', 'marke', 'ansprechpartner' für Routing
-   *   - logo_url: Optional, Logo-URL (falls vorhanden, wird Logo statt Initialen angezeigt)
+   *   - entityType: Optional, 'unternehmen', 'marke', 'ansprechpartner', 'mitarbeiter' für Routing
+   *   - logo_url: Optional, Logo-URL für Organisationen
+   *   - profile_image_url: Optional, Profilbild-URL für Mitarbeiter (hat Priorität über logo_url)
    * @param {Object} config - Konfiguration {size?: number}
    * @returns {string} HTML-String
    */
@@ -50,12 +51,15 @@ export class AvatarBubbles {
         const initials = this.getInitials(item.name, item.type || 'org');
         const isClickable = item.id && item.entityType;
         const clickableClass = isClickable ? 'avatar-bubble--clickable' : '';
-        const hasLogo = item.logo_url && typeof item.logo_url === 'string' && item.logo_url.trim().length > 0;
-        const logoClass = hasLogo ? 'avatar-bubble--with-logo' : '';
+        
+        // Unterstütze beide: logo_url (für Orgs) UND profile_image_url (für Mitarbeiter)
+        const imageUrl = item.profile_image_url || item.logo_url;
+        const hasImage = imageUrl && typeof imageUrl === 'string' && imageUrl.trim().length > 0;
+        const imageClass = hasImage ? 'avatar-bubble--with-logo' : '';
         
         // Debug-Logging
-        if (item.type === 'org') {
-          console.log('🎨 Avatar Bubble:', item.name, '| hasLogo:', hasLogo, '| logo_url:', item.logo_url);
+        if (hasImage) {
+          console.log('🎨 Avatar Bubble:', item.name, '| type:', item.type, '| hasImage:', hasImage, '| imageUrl:', imageUrl);
         }
         
         // Sanitize name für title attribute
@@ -66,12 +70,12 @@ export class AvatarBubbles {
           ? `data-entity="${item.entityType}" data-id="${item.id}"` 
           : '';
         
-        // Content: Logo oder Initialen
-        const content = hasLogo 
-          ? `<img src="${item.logo_url}" alt="${safeName}" class="avatar-bubble-logo" />` 
+        // Content: Profilbild/Logo oder Initialen
+        const content = hasImage 
+          ? `<img src="${imageUrl}" alt="${safeName}" class="avatar-bubble-logo" />` 
           : initials;
         
-        return `<div class="avatar-bubble ${clickableClass} ${logoClass}" 
+        return `<div class="avatar-bubble ${clickableClass} ${imageClass}" 
                      title="${safeName}" 
                      ${dataAttrs}>
           ${content}

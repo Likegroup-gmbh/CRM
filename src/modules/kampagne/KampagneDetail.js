@@ -3,6 +3,7 @@
 import { renderCreatorTable } from '../creator/CreatorTable.js';
 import { KampagneKooperationenVideoTable } from './KampagneKooperationenVideoTable.js';
 import { VideoCreateDrawer } from './VideoCreateDrawer.js';
+import { VideoTableColumnVisibilityDrawer } from './VideoTableColumnVisibilityDrawer.js';
 
 export class KampagneDetail {
   constructor() {
@@ -23,6 +24,7 @@ export class KampagneDetail {
     this.koopHistoryCount = 0;
     this.kooperationenVideoTable = null;
     this.videoCreateDrawer = null;
+    this.videoColumnVisibilityDrawer = null;
   }
 
   // Initialisiere Kampagnen-Detail
@@ -790,6 +792,12 @@ export class KampagneDetail {
           ${window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? `
           <div class="tab-pane active" id="tab-koops-videos">
             <div class="detail-section">
+              ${window.currentUser?.rolle !== 'kunde' ? `
+              <div style="margin-bottom: 16px; display: flex; justify-content: flex-end;">
+                <button id="btn-column-visibility" class="secondary-btn">
+                  Sichtbarkeit anpassen
+                </button>
+              </div>` : ''}
               <div id="kooperationen-videos-container"></div>
             </div>
           </div>` : ''}
@@ -1112,6 +1120,19 @@ export class KampagneDetail {
       }
     });
 
+    // Spalten-Sichtbarkeit Button (delegiert)
+    const columnVisibilityHandler = (e) => {
+      if (e.target.id === 'btn-column-visibility') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        this.showColumnVisibilityDrawer();
+      }
+    };
+    // Entferne alten Handler falls vorhanden
+    document.removeEventListener('click', this._columnVisibilityHandler);
+    this._columnVisibilityHandler = columnVisibilityHandler;
+    document.addEventListener('click', this._columnVisibilityHandler);
+
     // Löschen Button
     document.addEventListener('click', (e) => {
       if (e.target.id === 'btn-delete-kampagne') {
@@ -1402,6 +1423,14 @@ export class KampagneDetail {
     if (window.bewertungsSystem) {
       window.bewertungsSystem.showAddRatingModal('kampagne', this.kampagneId);
     }
+  }
+
+  // Zeige Spalten-Sichtbarkeit Drawer
+  showColumnVisibilityDrawer() {
+    if (!this.videoColumnVisibilityDrawer) {
+      this.videoColumnVisibilityDrawer = new VideoTableColumnVisibilityDrawer(this.kampagneId);
+    }
+    this.videoColumnVisibilityDrawer.open();
   }
 
   // Zeige Lösch-Bestätigung

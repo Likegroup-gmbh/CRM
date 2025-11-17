@@ -15,6 +15,8 @@ export class KampagneKooperationenVideoTable {
     this.resizeStartX = 0;
     this.resizeStartWidth = 0;
     this.storageKey = `kampagne_koops_videos_column_widths_v2_${kampagneId}`;
+    this.hiddenColumns = []; // Spalten die für Kunden versteckt sind
+    this._visibilityEventBound = false; // Verhindere mehrfache Event-Registrierung
   }
 
   // Prüfe ob ein Feld für den aktuellen Benutzer editierbar ist
@@ -31,7 +33,7 @@ export class KampagneKooperationenVideoTable {
       const readOnlyFieldsForKunden = {
         'kooperation': ['vertrag_unterschrieben', 'typ'],
         'versand': ['versendet', 'tracking_nummer'],
-        'video': ['thema', 'link_produkte', 'link_skript', 'skript_freigegeben', 'link_story']
+        'video': ['thema', 'link_produkte', 'link_skript', 'skript_freigegeben']
       };
       
       return !readOnlyFieldsForKunden[entity]?.includes(field);
@@ -81,14 +83,14 @@ export class KampagneKooperationenVideoTable {
           .select(`
             id, kooperation_id, position, asset_url,
             caption, feedback_creatorjobs, feedback_ritzenhoff, freigabe,
-            link_content, link_story, link_produkte, thema, link_skript, skript_freigegeben
+            link_content, link_produkte, thema, link_skript, skript_freigegeben, drehort, posting_datum
           `)
           .in('kooperation_id', koopIds)
           .order('position', { ascending: true}),
         
         window.supabase
           .from('kooperation_versand')
-          .select('id, kooperation_id, versendet, tracking_nummer, produkt_name, produkt_link')
+          .select('id, kooperation_id, video_id, versendet, tracking_nummer, produkt_name, produkt_link, strasse, hausnummer, plz, stadt')
           .in('kooperation_id', koopIds)
       ]);
 
@@ -175,6 +177,50 @@ export class KampagneKooperationenVideoTable {
     }
   }
 
+  // Helper: Hole Versand-Info für ein spezifisches Video
+  getVersandForVideo(videoId) {
+    if (!this.versandInfos) return null;
+    // Finde Versand-Eintrag der dem Video zugeordnet ist
+    return Object.values(this.versandInfos).find(v => v.video_id === videoId);
+  }
+
+  // Lade Spalten-Sichtbarkeits-Einstellungen
+  async loadColumnVisibilitySettings() {
+    try {
+      const { data, error } = await window.supabase
+        .from('kampagne')
+        .select('video_table_hidden_columns')
+        .eq('id', this.kampagneId)
+        .single();
+
+      if (error) throw error;
+
+      this.hiddenColumns = data?.video_table_hidden_columns || [];
+    } catch (error) {
+      this.hiddenColumns = [];
+    }
+  }
+
+  // Prüfe ob eine Spalte für Kunden sichtbar ist
+  isColumnVisibleForCustomer(columnClass) {
+    const userRole = window.currentUser?.rolle;
+    
+    // Admin/Mitarbeiter sehen immer alles
+    if (userRole === 'admin' || userRole === 'mitarbeiter') {
+      return true;
+    }
+    
+    // Nr und Creator sind IMMER sichtbar für alle (essentiell)
+    if (columnClass === 'col-nr' || columnClass === 'col-creator') {
+      return true;
+    }
+    
+    // Kunden sehen nur nicht-versteckte Spalten
+    const isVisible = !this.hiddenColumns.includes(columnClass);
+    
+    return isVisible;
+  }
+
   // Rendere die Tabelle
   render() {
     if (!this.kooperationen || this.kooperationen.length === 0) {
@@ -207,101 +253,89 @@ export class KampagneKooperationenVideoTable {
                 Creator
                 <div class="resize-handle resize-handle-col" data-col="1"></div>
               </th>
-              <th class="col-header col-videoanzahl" data-col="2">
-                Videos
+              <th class="col-header col-typ" ${!this.isColumnVisibleForCustomer('col-typ') ? 'style="display:none;"' : ''} data-col="2">
+                Typ
                 <div class="resize-handle resize-handle-col" data-col="2"></div>
               </th>
-              <th class="col-header col-status" data-col="3">
-                Status
+              <th class="col-header col-organic-paid" ${!this.isColumnVisibleForCustomer('col-organic-paid') ? 'style="display:none;"' : ''} data-col="3">
+                Content/Art
                 <div class="resize-handle resize-handle-col" data-col="3"></div>
               </th>
-              <th class="col-header col-start-datum" data-col="4">
-                Start
+              <th class="col-header col-vertrag" ${!this.isColumnVisibleForCustomer('col-vertrag') ? 'style="display:none;"' : ''} data-col="4">
+                Vertrag
                 <div class="resize-handle resize-handle-col" data-col="4"></div>
               </th>
-              <th class="col-header col-end-datum" data-col="5">
-                Ende
+              <th class="col-header col-nutzungsrechte" ${!this.isColumnVisibleForCustomer('col-nutzungsrechte') ? 'style="display:none;"' : ''} data-col="5">
+                Nutzungsrechte
                 <div class="resize-handle resize-handle-col" data-col="5"></div>
               </th>
-              <th class="col-header col-typ" data-col="6">
-                Typ
+              <th class="col-header col-start-datum" ${!this.isColumnVisibleForCustomer('col-start-datum') ? 'style="display:none;"' : ''} data-col="6">
+                Start
                 <div class="resize-handle resize-handle-col" data-col="6"></div>
               </th>
-              <th class="col-header col-organic-paid" data-col="7">
-                Organic/Paid
+              <th class="col-header col-end-datum" ${!this.isColumnVisibleForCustomer('col-end-datum') ? 'style="display:none;"' : ''} data-col="7">
+                Ende
                 <div class="resize-handle resize-handle-col" data-col="7"></div>
               </th>
-              <th class="col-header col-kampagne" data-col="8">
-                Kampagne
+              <th class="col-header col-videoanzahl" ${!this.isColumnVisibleForCustomer('col-videoanzahl') ? 'style="display:none;"' : ''} data-col="8">
+                Videos
                 <div class="resize-handle resize-handle-col" data-col="8"></div>
               </th>
-              <th class="col-header col-posting-datum" data-col="9">
-                Posting Datum
+              <th class="col-header col-thema" ${!this.isColumnVisibleForCustomer('col-thema') ? 'style="display:none;"' : ''} data-col="9">
+                Thema
                 <div class="resize-handle resize-handle-col" data-col="9"></div>
               </th>
-              <th class="col-header col-vertrag" data-col="10">
-                Vertrag
+              <th class="col-header col-link-skript" ${!this.isColumnVisibleForCustomer('col-link-skript') ? 'style="display:none;"' : ''} data-col="10">
+                Link Skript / Briefing
                 <div class="resize-handle resize-handle-col" data-col="10"></div>
               </th>
-              <th class="col-header col-nutzungsrechte" data-col="11">
-                Nutzungsrechte
+              <th class="col-header col-skript-freigegeben" ${!this.isColumnVisibleForCustomer('col-skript-freigegeben') ? 'style="display:none;"' : ''} data-col="11">
+                Skript freigegeben
                 <div class="resize-handle resize-handle-col" data-col="11"></div>
               </th>
-              <th class="col-header col-lieferadresse" data-col="12">
-                Lieferadresse
+              <th class="col-header col-produkt" ${!this.isColumnVisibleForCustomer('col-produkt') ? 'style="display:none;"' : ''} data-col="12">
+                Produkte
                 <div class="resize-handle resize-handle-col" data-col="12"></div>
               </th>
-              <th class="col-header col-produkt" data-col="13">
-                Produkt
+              <th class="col-header col-lieferadresse" ${!this.isColumnVisibleForCustomer('col-lieferadresse') ? 'style="display:none;"' : ''} data-col="13">
+                Lieferadresse
                 <div class="resize-handle resize-handle-col" data-col="13"></div>
               </th>
-              <th class="col-header col-paket-tracking" data-col="14">
-                Paket/Tracking
+              <th class="col-header col-paket-tracking" ${!this.isColumnVisibleForCustomer('col-paket-tracking') ? 'style="display:none;"' : ''} data-col="14">
+                Tracking
                 <div class="resize-handle resize-handle-col" data-col="14"></div>
               </th>
-              <th class="col-header col-thema" data-col="15">
-                Thema
+              <th class="col-header col-drehort" ${!this.isColumnVisibleForCustomer('col-drehort') ? 'style="display:none;"' : ''} data-col="15">
+                Drehort
                 <div class="resize-handle resize-handle-col" data-col="15"></div>
               </th>
-              <th class="col-header col-link-produkte" data-col="16">
-                Link Produkte
+              <th class="col-header col-link-content" ${!this.isColumnVisibleForCustomer('col-link-content') ? 'style="display:none;"' : ''} data-col="16">
+                Link Content
                 <div class="resize-handle resize-handle-col" data-col="16"></div>
               </th>
-              <th class="col-header col-link-skript" data-col="17">
-                Link Skript
+              <th class="col-header col-feedback-cj" ${!this.isColumnVisibleForCustomer('col-feedback-cj') ? 'style="display:none;"' : ''} data-col="17">
+                Feedback CJ
                 <div class="resize-handle resize-handle-col" data-col="17"></div>
               </th>
-              <th class="col-header col-skript-freigegeben" data-col="18">
-                Skript freigegeben
+              <th class="col-header col-feedback-kunde" ${!this.isColumnVisibleForCustomer('col-feedback-kunde') ? 'style="display:none;"' : ''} data-col="18">
+                Feedback Kunde
                 <div class="resize-handle resize-handle-col" data-col="18"></div>
               </th>
-              <th class="col-header col-link-content" data-col="19">
-                Link Content
+              <th class="col-header col-freigabe" ${!this.isColumnVisibleForCustomer('col-freigabe') ? 'style="display:none;"' : ''} data-col="19">
+                Freigabe
                 <div class="resize-handle resize-handle-col" data-col="19"></div>
               </th>
-              <th class="col-header col-link-story" data-col="20">
-                Link Story
+              <th class="col-header col-caption" ${!this.isColumnVisibleForCustomer('col-caption') ? 'style="display:none;"' : ''} data-col="20">
+                Caption
                 <div class="resize-handle resize-handle-col" data-col="20"></div>
               </th>
-              <th class="col-header col-feedback-cj" data-col="21">
-                Feedback CJ
+              <th class="col-header col-posting-datum" ${!this.isColumnVisibleForCustomer('col-posting-datum') ? 'style="display:none;"' : ''} data-col="21">
+                Posting Datum
                 <div class="resize-handle resize-handle-col" data-col="21"></div>
               </th>
-              <th class="col-header col-feedback-kunde" data-col="22">
-                Feedback Kunde
-                <div class="resize-handle resize-handle-col" data-col="22"></div>
-              </th>
-              <th class="col-header col-freigabe" data-col="23">
-                Freigabe
-                <div class="resize-handle resize-handle-col" data-col="23"></div>
-              </th>
-              <th class="col-header col-caption" data-col="24">
-                Caption
-                <div class="resize-handle resize-handle-col" data-col="24"></div>
-              </th>
-              <th class="col-header col-kosten" data-col="25">
+              <th class="col-header col-kosten" ${!this.isColumnVisibleForCustomer('col-kosten') ? 'style="display:none;"' : ''} data-col="22">
                 Kosten
-                <div class="resize-handle resize-handle-col" data-col="25"></div>
+                <div class="resize-handle resize-handle-col" data-col="22"></div>
               </th>
             </tr>
           </thead>
@@ -336,19 +370,13 @@ export class KampagneKooperationenVideoTable {
     // Eine Zeile pro Kooperation - Videos als gestapelte Inputs in den Video-Spalten
     return `
       <tr class="kooperation-row" data-kooperation-id="${koop.id}">
-        <td class="grid-cell read-only">${rowNumber}</td>
-        <td class="grid-cell read-only">
+        <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-nr') ? 'style="display:none;"' : ''}>${rowNumber}</td>
+        <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-creator') ? 'style="display:none;"' : ''}>
           <a href="/creator/${creator.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${creator.id}')" class="table-link">
             ${this.escapeHtml(`${creator.vorname || ''} ${creator.nachname || ''}`.trim() || 'Unbekannt')}
           </a>
         </td>
-        <td class="grid-cell read-only">${koop.videoanzahl || 0}</td>
-        <td class="grid-cell read-only">
-          <span class="status-badge status-${(koop.status || 'unknown').toLowerCase()}">${koop.status || '-'}</span>
-        </td>
-        <td class="grid-cell read-only">${formatDate(koop.skript_deadline)}</td>
-        <td class="grid-cell read-only">${formatDate(koop.content_deadline)}</td>
-        <td class="grid-cell">
+        <td class="grid-cell" ${!this.isColumnVisibleForCustomer('col-typ') ? 'style="display:none;"' : ''}>
           <input 
             type="text" 
             class="grid-input" 
@@ -360,23 +388,8 @@ export class KampagneKooperationenVideoTable {
             placeholder="UGC/Influencer"
           />
         </td>
-        <td class="grid-cell read-only">${this.escapeHtml(koop.content_art || '-')}</td>
-        <td class="grid-cell read-only">
-          <a href="/kampagne/${koop.kampagne?.id}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${koop.kampagne?.id}')" class="table-link">
-            ${this.escapeHtml(koop.kampagne?.kampagnenname || '-')}
-          </a>
-        </td>
-        <td class="grid-cell">
-          <input 
-            type="date" 
-            class="grid-input" 
-            data-entity="kooperation" 
-            data-id="${koop.id}" 
-            data-field="posting_datum"
-            value="${koop.posting_datum || ''}"
-          />
-        </td>
-        <td class="grid-cell" style="text-align: center;">
+        <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-organic-paid') ? 'style="display:none;"' : ''}>${this.escapeHtml(koop.content_art || '-')}</td>
+        <td class="grid-cell" ${!this.isColumnVisibleForCustomer('col-vertrag') ? 'style="display:none;"' : 'style="text-align: center;"'}>
           <input 
             type="checkbox" 
             class="grid-checkbox" 
@@ -387,7 +400,7 @@ export class KampagneKooperationenVideoTable {
             ${koop.vertrag_unterschrieben ? 'checked' : ''}
           />
         </td>
-        <td class="grid-cell">
+        <td class="grid-cell" ${!this.isColumnVisibleForCustomer('col-nutzungsrechte') ? 'style="display:none;"' : ''}>
           <input 
             type="text" 
             class="grid-input" 
@@ -398,63 +411,11 @@ export class KampagneKooperationenVideoTable {
             placeholder="Nutzungsrechte"
           />
         </td>
-        <td class="grid-cell read-only small-text" style="white-space: pre-line;">${this.escapeHtml(lieferadresse)}</td>
-        <td class="grid-cell">
-          <div class="versand-fields">
-            <input 
-              type="text" 
-              class="grid-input" 
-              data-entity="versand" 
-              data-id="${versand?.id || 'new'}"
-              data-kooperation-id="${koop.id}"
-              data-field="produkt_name"
-              value="${versand?.produkt_name || ''}"
-              placeholder="Produktname"
-              style="margin-bottom: 4px;"
-            />
-            <input 
-              type="text" 
-              class="grid-input" 
-              data-entity="versand" 
-              data-id="${versand?.id || 'new'}"
-              data-kooperation-id="${koop.id}"
-              data-field="produkt_link"
-              value="${versand?.produkt_link || ''}"
-              placeholder="Produkt-Link"
-            />
-          </div>
-        </td>
-        <td class="grid-cell">
-          <div class="versand-fields">
-            <label class="checkbox-label-grid">
-              <input 
-                type="checkbox" 
-                class="grid-checkbox" 
-                data-entity="versand" 
-                data-id="${versand?.id || 'new'}"
-                data-kooperation-id="${koop.id}"
-                data-field="versendet"
-                ${!this.isFieldEditableForUser('versand', 'versendet') ? 'disabled' : ''}
-                ${versand?.versendet ? 'checked' : ''}
-              />
-              <span>Versendet</span>
-            </label>
-            <input 
-              type="text" 
-              class="grid-input" 
-              data-entity="versand" 
-              data-id="${versand?.id || 'new'}"
-              data-kooperation-id="${koop.id}"
-              data-field="tracking_nummer"
-              ${!this.isFieldEditableForUser('versand', 'tracking_nummer') ? 'readonly' : ''}
-              value="${versand?.tracking_nummer || ''}"
-              placeholder="Tracking Nr."
-              style="margin-top: 4px;"
-            />
-          </div>
-        </td>
+        <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-start-datum') ? 'style="display:none;"' : ''}>${formatDate(koop.skript_deadline)}</td>
+        <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-end-datum') ? 'style="display:none;"' : ''}>${formatDate(koop.content_deadline)}</td>
+        <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-videoanzahl') ? 'style="display:none;"' : ''}>${koop.videoanzahl || 0}</td>
         <!-- Video-Spalten: Jedes Video als eigene Zeile über alle Spalten -->
-        <td class="grid-cell video-stack-cell">
+        <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-thema') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => `
             <input type="text" class="grid-input stacked-video-input" 
               data-entity="video" data-id="${video.id}" data-field="thema"
@@ -462,15 +423,7 @@ export class KampagneKooperationenVideoTable {
               value="${this.escapeHtml(video.thema || '')}" placeholder="Thema"/>
           `)}
         </td>
-        <td class="grid-cell video-stack-cell">
-          ${this.renderVideoFieldStack(videos, (video) => `
-            <input type="text" class="grid-input stacked-video-input" 
-              data-entity="video" data-id="${video.id}" data-field="link_produkte"
-              ${!this.isFieldEditableForUser('video', 'link_produkte') ? 'readonly' : ''}
-              value="${this.escapeHtml(video.link_produkte || '')}" placeholder="Link"/>
-          `)}
-        </td>
-        <td class="grid-cell video-stack-cell">
+        <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-link-skript') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => `
             <input type="text" class="grid-input stacked-video-input" 
               data-entity="video" data-id="${video.id}" data-field="link_skript"
@@ -478,7 +431,7 @@ export class KampagneKooperationenVideoTable {
               value="${this.escapeHtml(video.link_skript || '')}" placeholder="Link"/>
           `)}
         </td>
-        <td class="grid-cell video-stack-cell checkbox-stack">
+        <td class="grid-cell video-stack-cell checkbox-stack" ${!this.isColumnVisibleForCustomer('col-skript-freigegeben') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => `
             <div class="stacked-video-checkbox-wrapper">
               <input type="checkbox" class="grid-checkbox stacked-video-checkbox" 
@@ -488,7 +441,54 @@ export class KampagneKooperationenVideoTable {
             </div>
           `)}
         </td>
-        <td class="grid-cell video-stack-cell">
+        <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-produkt') ? 'style="display:none;"' : ''}>
+          ${this.renderVideoFieldStack(videos, (video) => {
+            const versandForVideo = this.getVersandForVideo(video.id);
+            return `
+              <input type="text" class="grid-input stacked-video-input" 
+                data-entity="versand" 
+                data-id="${versandForVideo?.id || 'new'}"
+                data-video-id="${video.id}"
+                data-kooperation-id="${koop.id}"
+                data-field="produkt_name"
+                value="${this.escapeHtml(versandForVideo?.produkt_name || '')}" 
+                placeholder="Produkte"/>
+            `;
+          })}
+        </td>
+        <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-lieferadresse') ? 'style="display:none;"' : ''}>
+          ${this.renderVideoFieldStack(videos, (video) => {
+            const versandForVideo = this.getVersandForVideo(video.id);
+            const adresse = versandForVideo ? 
+              [versandForVideo.strasse, versandForVideo.hausnummer, versandForVideo.plz, versandForVideo.stadt]
+                .filter(Boolean).join(', ') : '';
+            return `<div class="small-text" style="white-space: pre-line;">${this.escapeHtml(adresse || '-')}</div>`;
+          })}
+        </td>
+        <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-paket-tracking') ? 'style="display:none;"' : ''}>
+          ${this.renderVideoFieldStack(videos, (video) => {
+            const versandForVideo = this.getVersandForVideo(video.id);
+            return `
+              <input type="text" class="grid-input stacked-video-input" 
+                data-entity="versand" 
+                data-id="${versandForVideo?.id || 'new'}"
+                data-video-id="${video.id}"
+                data-kooperation-id="${koop.id}"
+                data-field="tracking_nummer"
+                ${!this.isFieldEditableForUser('versand', 'tracking_nummer') ? 'readonly' : ''}
+                value="${this.escapeHtml(versandForVideo?.tracking_nummer || '')}" 
+                placeholder="Tracking Nr."/>
+            `;
+          })}
+        </td>
+        <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-drehort') ? 'style="display:none;"' : ''}>
+          ${this.renderVideoFieldStack(videos, (video) => `
+            <input type="text" class="grid-input stacked-video-input" 
+              data-entity="video" data-id="${video.id}" data-field="drehort"
+              value="${this.escapeHtml(video.drehort || '')}" placeholder="Drehort"/>
+          `)}
+        </td>
+        <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-link-content') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => {
             const videoUrl = video.file_url || video.link_content || video.asset_url;
             if (videoUrl) {
@@ -500,15 +500,7 @@ export class KampagneKooperationenVideoTable {
             }
           })}
         </td>
-        <td class="grid-cell video-stack-cell">
-          ${this.renderVideoFieldStack(videos, (video) => `
-            <input type="text" class="grid-input stacked-video-input" 
-              data-entity="video" data-id="${video.id}" data-field="link_story"
-              ${!this.isFieldEditableForUser('video', 'link_story') ? 'readonly' : ''}
-              value="${this.escapeHtml(video.link_story || '')}" placeholder="Link"/>
-          `)}
-        </td>
-        <td class="grid-cell video-stack-cell wide-field">
+        <td class="grid-cell video-stack-cell wide-field" ${!this.isColumnVisibleForCustomer('col-feedback-cj') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => {
             const comments = this.videoComments[video.id];
             const relevantComments = comments?.r1 || [];
@@ -520,7 +512,7 @@ export class KampagneKooperationenVideoTable {
               placeholder="Feedback Runde 1" rows="1">${this.escapeHtml(value)}</textarea>`;
           })}
         </td>
-        <td class="grid-cell video-stack-cell wide-field">
+        <td class="grid-cell video-stack-cell wide-field" ${!this.isColumnVisibleForCustomer('col-feedback-kunde') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => {
             const comments = this.videoComments[video.id];
             const relevantComments = comments?.r2 || [];
@@ -532,7 +524,7 @@ export class KampagneKooperationenVideoTable {
               placeholder="Feedback Runde 2" rows="1">${this.escapeHtml(value)}</textarea>`;
           })}
         </td>
-        <td class="grid-cell video-stack-cell checkbox-stack">
+        <td class="grid-cell video-stack-cell checkbox-stack" ${!this.isColumnVisibleForCustomer('col-freigabe') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => `
             <div class="stacked-video-checkbox-wrapper">
               <input type="checkbox" class="grid-checkbox stacked-video-checkbox" 
@@ -541,14 +533,22 @@ export class KampagneKooperationenVideoTable {
             </div>
           `)}
         </td>
-        <td class="grid-cell video-stack-cell wide-field">
+        <td class="grid-cell video-stack-cell wide-field" ${!this.isColumnVisibleForCustomer('col-caption') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => `
             <textarea class="grid-textarea stacked-video-textarea auto-resize-textarea" 
               data-entity="video" data-id="${video.id}" data-field="caption"
               placeholder="Caption" rows="1">${this.escapeHtml(video.caption || '')}</textarea>
           `)}
         </td>
-        <td class="grid-cell read-only">${formatCurrency(koop.einkaufspreis_gesamt)}</td>
+        <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-posting-datum') ? 'style="display:none;"' : ''}>
+          ${this.renderVideoFieldStack(videos, (video) => `
+            <input type="date" class="grid-input stacked-video-input" 
+              data-entity="video" data-id="${video.id}" data-field="posting_datum"
+              value="${video.posting_datum || ''}"
+              placeholder="TT.MM.JJJJ"/>
+          `)}
+        </td>
+        <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-kosten') ? 'style="display:none;"' : ''}>${formatCurrency(koop.einkaufspreis_gesamt)}</td>
       </tr>
     `;
   }
@@ -1030,6 +1030,9 @@ export class KampagneKooperationenVideoTable {
       return;
     }
     
+    // Lade Spalten-Sichtbarkeit VOR den Daten
+    await this.loadColumnVisibilitySettings();
+    
     await this.loadData();
     
     console.log('🎬 Daten geladen, rendere Tabelle...');
@@ -1066,6 +1069,20 @@ export class KampagneKooperationenVideoTable {
       
       this.bindEvents();
       console.log('🎬 Events gebunden');
+      
+      // Event-Listener für Spalten-Sichtbarkeits-Änderungen (nur für Kunden refreshen)
+      if (!this._visibilityEventBound) {
+        window.addEventListener('video-column-visibility-changed', (e) => {
+          if (e.detail.kampagneId === this.kampagneId) {
+            this.hiddenColumns = e.detail.hiddenColumns;
+            // Nur refreshen wenn der User ein Kunde ist
+            if (window.currentUser?.rolle === 'kunde') {
+              this.refresh();
+            }
+          }
+        });
+        this._visibilityEventBound = true;
+      }
       
       // Floating Scrollbar initialisieren
       this.initFloatingScrollbar();
@@ -1637,14 +1654,6 @@ export class KampagneKooperationenVideoTable {
           
         case 'link_skript':
           newValue = video.link_skript || '';
-          if (field.value !== newValue) {
-            field.value = newValue;
-            shouldUpdate = true;
-          }
-          break;
-          
-        case 'link_story':
-          newValue = video.link_story || '';
           if (field.value !== newValue) {
             field.value = newValue;
             shouldUpdate = true;

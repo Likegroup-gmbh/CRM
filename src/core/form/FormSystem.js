@@ -375,23 +375,49 @@ export class FormSystem {
       }
 
       if (result.success) {
+        console.log('🔍 DEBUG: result.success = true, entity:', entity, 'data:', !!data);
+        
         // Verknüpfungstabellen verarbeiten (nicht für Ansprechpartner - wird über DataService Many-to-Many verarbeitet)
         if (entity !== 'ansprechpartner') {
+          console.log('🔍 DEBUG: handleRelationTables wird aufgerufen');
           await this.relationTables.handleRelationTables(entity, result.id, submitData, form);
+          console.log('🔍 DEBUG: handleRelationTables abgeschlossen');
         }
 
         // Spezielle Behandlung für Kampagnen-Adressen
         if (entity === 'kampagne') {
+          console.log('🔍 DEBUG: handleKampagneAddresses wird aufgerufen');
           await this.handleKampagneAddresses(result.id, form);
+          console.log('🔍 DEBUG: handleKampagneAddresses abgeschlossen');
+        }
+
+        console.log('🔍 DEBUG: Vor handleFileUploads, data=', !!data, 'entity=', entity);
+        // File-Upload für Entities mit Uploader-Feldern (Logo, Dokumente, etc.)
+        if (!data) { // Nur bei Create, nicht bei Update
+          console.log('🔍 DEBUG: handleFileUploads wird JETZT aufgerufen!');
+          await this.handleFileUploads(entity, result.id, form);
+          console.log('🔍 DEBUG: handleFileUploads abgeschlossen');
+        } else {
+          console.log('🔍 DEBUG: handleFileUploads übersprungen (Update-Modus)');
         }
 
         this.showSuccessMessage(data ? 'Erfolgreich aktualisiert!' : 'Erfolgreich erstellt!');
-        this.closeForm();
         
         // Event auslösen für List-Update
         window.dispatchEvent(new CustomEvent('entityUpdated', { 
           detail: { entity, id: result.id, action: data ? 'updated' : 'created' } 
         }));
+
+        // Modal schließen ODER zur Liste navigieren
+        if (this.currentForm && this.currentForm.modal) {
+          // Modal-Modus: Formular schließen
+          this.closeForm();
+        } else {
+          // Seiten-Modus: Zur Liste navigieren nach kurzer Verzögerung
+          setTimeout(() => {
+            window.navigateTo(`/${entity}`);
+          }, 500);
+        }
       } else {
         this.showErrorMessage(`Fehler beim ${data ? 'Aktualisieren' : 'Erstellen'}: ${result.error}`);
       }
@@ -469,6 +495,153 @@ export class FormSystem {
 
     } catch (error) {
       console.error('❌ Fehler beim Verarbeiten der Kampagnen-Adressen:', error);
+    }
+  }
+
+  // File-Uploads verarbeiten (Logo, Dokumente, etc.)
+  async handleFileUploads(entity, entityId, form) {
+    try {
+      console.log(`🔵 handleFileUploads START: entity=${entity}, id=${entityId}`);
+      console.log(`  → Form:`, form);
+      console.log(`  → Form ID:`, form?.id);
+      
+      // Finde alle Uploader-Felder im Formular
+      const uploaders = form.querySelectorAll('.uploader[data-name]');
+      console.log(`  → Gefundene Uploader: ${uploaders.length}`);
+      
+      if (uploaders.length === 0) {
+        console.log(`  ⚠️ KEINE Uploader gefunden! Formular-HTML:`, form.innerHTML.substring(0, 500));
+      }
+      
+      for (const uploaderRoot of uploaders) {
+        const fieldName = uploaderRoot.getAttribute('data-name');
+        const uploaderInstance = uploaderRoot.__uploaderInstance;
+        
+        console.log(`  → Prüfe Uploader "${fieldName}":`, {
+          root: uploaderRoot,
+          hasInstance: !!uploaderInstance,
+          instance: uploaderInstance,
+          filesCount: uploaderInstance?.files?.length || 0,
+          files: uploaderInstance?.files
+        });
+        
+        if (!uploaderInstance || !uploaderInstance.files || uploaderInstance.files.length === 0) {
+          console.log(`    ℹ️ Keine Dateien in "${fieldName}"`);
+          continue;
+        }
+        
+        console.log(`    ✅ Dateien gefunden in "${fieldName}":`, uploaderInstance.files.length);
+        
+        // Logo-Upload für Unternehmen und Marken
+        if ((entity === 'unternehmen' || entity === 'marke') && fieldName === 'logo_file') {
+          console.log(`    📤 Logo-Upload wird gestartet für ${entity} ${entityId}`);
+          await this.uploadLogo(entity, entityId, uploaderInstance.files[0]);
+        }
+        
+        // Weitere File-Upload-Handler können hier hinzugefügt werden
+      }
+      
+      console.log(`✅ handleFileUploads ENDE`);
+    } catch (error) {
+      console.error('❌ Fehler bei File-Uploads:', error);
+      console.error('❌ Stack:', error.stack);
+      // Nicht werfen - Upload-Fehler sollen Entity-Erstellung nicht blockieren
+    }
+  }
+
+  // Logo-Upload für Unternehmen/Marke
+  async uploadLogo(entityType, entityId, file) {
+    try {
+      console.log(`📋 uploadLogo: ${entityType}/${entityId}, Datei: ${file.name}`);
+      
+      if (!window.supabase) {
+        console.warn('⚠️ Supabase nicht verfügbar');
+        return;
+      }
+
+      const bucket = 'logos';
+      const MAX_FILE_SIZE = 200 * 1024; // 200 KB
+      const ALLOWED_TYPES = ['image/png', 'image/jpeg'];
+      
+      // Validierung
+      if (file.size > MAX_FILE_SIZE) {
+        console.warn(`⚠️ Logo zu groß: ${(file.size / 1024).toFixed(2)} KB`);
+        alert(`Logo ist zu groß (max. 200 KB)`);
+        return;
+      }
+
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        console.warn(`⚠️ Nicht erlaubter Dateityp: ${file.type}`);
+        alert(`Nur PNG und JPG Dateien sind erlaubt`);
+        return;
+      }
+
+      const ext = file.name.split('.').pop().toLowerCase();
+      const path = `${entityType}/${entityId}/logo.${ext}`;
+      
+      console.log(`  → Upload: ${path}`);
+      
+      // Altes Logo löschen
+      try {
+        const { data: existingFiles } = await window.supabase.storage
+          .from(bucket)
+          .list(`${entityType}/${entityId}`);
+        
+        if (existingFiles && existingFiles.length > 0) {
+          for (const existingFile of existingFiles) {
+            await window.supabase.storage
+              .from(bucket)
+              .remove([`${entityType}/${entityId}/${existingFile.name}`]);
+          }
+        }
+      } catch (deleteErr) {
+        console.warn('⚠️ Fehler beim Löschen alter Logos:', deleteErr);
+      }
+      
+      // Upload
+      const { error: upErr } = await window.supabase.storage
+        .from(bucket)
+        .upload(path, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: file.type
+        });
+      
+      if (upErr) {
+        console.error(`❌ Upload-Fehler:`, upErr);
+        throw upErr;
+      }
+      
+      // Signierte URL erstellen
+      const { data: signed, error: signErr } = await window.supabase.storage
+        .from(bucket)
+        .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 Tage
+      
+      if (signErr) {
+        console.error(`❌ Fehler beim Erstellen der signierten URL:`, signErr);
+        throw signErr;
+      }
+      
+      const logo_url = signed?.signedUrl || '';
+      
+      // Datenbank aktualisieren
+      const { error: dbErr } = await window.supabase
+        .from(entityType)
+        .update({
+          logo_url,
+          logo_path: path
+        })
+        .eq('id', entityId);
+      
+      if (dbErr) {
+        console.error(`❌ DB-Fehler:`, dbErr);
+        throw dbErr;
+      }
+      
+      console.log(`✅ Logo erfolgreich hochgeladen und gespeichert`);
+    } catch (error) {
+      console.error('❌ Logo-Upload fehlgeschlagen:', error);
+      // Nicht werfen - Logo-Fehler soll Entity-Erstellung nicht blockieren
     }
   }
 

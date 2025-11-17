@@ -193,3 +193,5 @@ ALTER TABLE public.eu_laender DISABLE ROW LEVEL SECURITY;
 - ✅ Junction-Tabellen sind gegen unauthorized Access geschützt
 
 
+
+

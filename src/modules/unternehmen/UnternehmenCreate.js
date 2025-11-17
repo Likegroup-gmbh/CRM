@@ -647,7 +647,17 @@ export class UnternehmenCreate {
       console.log('✅ UNTERNEHMENCREATE: Unternehmen erstellt:', unternehmen);
 
       // Logo-Upload (falls vorhanden)
-      await this.uploadLogo(result.id, form);
+      try {
+        console.log('🔵 START: Logo-Upload für Unternehmen', result.id);
+        await this.uploadLogo(result.id, form);
+        console.log('✅ Logo-Upload abgeschlossen');
+      } catch (logoErr) {
+        console.error('❌ Logo-Upload fehlgeschlagen:', logoErr);
+        // Alert nur bei echten Fehlern, nicht bei "kein Logo ausgewählt"
+        if (logoErr && logoErr.message && !logoErr.message.includes('Kein Logo')) {
+          alert('Logo konnte nicht hochgeladen werden: ' + logoErr.message);
+        }
+      }
 
       await this.saveUnternehmenBranchen(result.id, data.branche_id, form);
 
@@ -706,9 +716,15 @@ export class UnternehmenCreate {
   // Logo-Upload
   async uploadLogo(unternehmenId, form) {
     try {
+      console.log('📋 uploadLogo() aufgerufen für Unternehmen:', unternehmenId);
+      
       const uploaderRoot = form.querySelector('.uploader[data-name="logo_file"]');
+      console.log('  → Uploader Root:', uploaderRoot);
+      console.log('  → Uploader Instance:', uploaderRoot?.__uploaderInstance);
+      console.log('  → Files:', uploaderRoot?.__uploaderInstance?.files);
+      
       if (!uploaderRoot || !uploaderRoot.__uploaderInstance || !uploaderRoot.__uploaderInstance.files.length) {
-        console.log('ℹ️ Kein Logo zum Hochladen');
+        console.log('ℹ️ Kein Logo zum Hochladen (kein Uploader/keine Files)');
         return;
       }
 

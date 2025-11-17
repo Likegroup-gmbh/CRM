@@ -306,7 +306,8 @@ export class TaskKanbanBoard {
     if (task.creator) {
       items.push({
         name: task.creator.name || 'Unbekannt',
-        type: 'person'
+        type: 'person',
+        profile_image_url: task.creator.profile_image_url
       });
     }
     
@@ -314,7 +315,8 @@ export class TaskKanbanBoard {
     if (task.assigned_to) {
       items.push({
         name: task.assigned_to.name || 'Unbekannt',
-        type: 'person'
+        type: 'person',
+        profile_image_url: task.assigned_to.profile_image_url
       });
     }
     

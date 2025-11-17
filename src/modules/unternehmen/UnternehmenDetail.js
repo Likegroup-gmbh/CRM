@@ -420,8 +420,8 @@ export class UnternehmenDetail {
   renderInformationen() {
     // Logo-Anzeige
     const logoHtml = this.unternehmen?.logo_url ? `
-      <div class="detail-logo">
-        <img src="${this.unternehmen.logo_url}" alt="${this.unternehmen.firmenname} Logo" class="logo-image" />
+      <div class="form-logo-display">
+        <img src="${this.unternehmen.logo_url}" alt="${this.unternehmen.firmenname} Logo" class="form-logo-image" />
       </div>
     ` : '';
     
@@ -1109,10 +1109,23 @@ export class UnternehmenDetail {
       // Formular rendern
       const formHtml = window.formSystem.renderFormOnly('unternehmen', formData);
       
+      // Logo-Anzeige wenn vorhanden
+      const currentLogoHtml = this.unternehmen?.logo_url ? `
+        <div class="form-logo-display">
+          <label class="form-logo-label">Aktuelles Logo:</label>
+          <img src="${this.unternehmen.logo_url}" alt="${this.unternehmen.firmenname} Logo" class="form-logo-image" />
+        </div>
+      ` : '';
+      
       window.setHeadline(`${this.unternehmen?.firmenname || 'Unternehmen'} bearbeiten`);
       window.content.innerHTML = `
         <div class="form-page">
+          ${currentLogoHtml}
           ${formHtml}
+          <div id="logo-preview-container" class="form-logo-preview" style="display: none;">
+            <label class="form-logo-label">Neues Logo Vorschau:</label>
+            <img id="logo-preview-image" class="form-logo-image" alt="Logo Vorschau" />
+          </div>
         </div>
       `;
 
@@ -1128,11 +1141,40 @@ export class UnternehmenDetail {
         };
       }
 
+      // Logo-Preview-Funktion für Uploader
+      this.setupLogoPreview(form);
+
       console.log('✅ UNTERNEHMENDETAIL: Edit-Formular gerendert und Events gebunden');
 
     } catch (error) {
       console.error('❌ UNTERNEHMENDETAIL: Fehler beim Anzeigen des Edit-Formulars:', error);
       this.showErrorMessage('Fehler beim Laden des Formulars: ' + error.message);
+    }
+  }
+
+  // Setup Logo Preview für Upload
+  setupLogoPreview(form) {
+    const uploaderRoot = form.querySelector('.uploader[data-name="logo_file"]');
+    if (!uploaderRoot) return;
+
+    // Event für File-Input (falls vorhanden)
+    const fileInput = uploaderRoot.querySelector('input[type="file"]');
+    if (fileInput) {
+      fileInput.addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        if (file && file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const previewContainer = document.getElementById('logo-preview-container');
+            const previewImage = document.getElementById('logo-preview-image');
+            if (previewContainer && previewImage) {
+              previewImage.src = event.target.result;
+              previewContainer.style.display = 'block';
+            }
+          };
+          reader.readAsDataURL(file);
+        }
+      });
     }
   }
   
@@ -1194,8 +1236,8 @@ export class UnternehmenDetail {
         throw new Error(result.error || 'Fehler beim Aktualisieren');
       }
 
-      // Branchen speichern
-      await this.saveUnternehmenBranchen(this.unternehmenId, data.branche_id, form);
+      // HINWEIS: Branchen werden automatisch durch DataService.handleManyToManyRelations() verwaltet
+      // Daher NICHT manuell saveUnternehmenBranchen() aufrufen - das führt zu Race Conditions!
       
       // Logo-Upload (falls vorhanden) - nach Branchen, damit Fehler nicht Branchen blockieren
       try {

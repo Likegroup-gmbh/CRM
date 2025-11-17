@@ -530,11 +530,53 @@ export class UnternehmenList {
     window.content.innerHTML = `
       <div class="form-page">
         ${formHtml}
+        <div id="logo-preview-container" class="form-logo-preview" style="display: none;">
+          <label class="form-logo-label">Logo Vorschau:</label>
+          <img id="logo-preview-image" class="form-logo-image" alt="Logo Vorschau" />
+        </div>
       </div>
     `;
 
     // Formular-Events binden
     window.formSystem.bindFormEvents('unternehmen', null);
+    
+    // Custom Submit Handler setzen (überschreibt FormSystem default)
+    const form = document.getElementById('unternehmen-form');
+    if (form) {
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        await this.handleFormSubmit();
+      };
+      
+      // Logo-Preview-Funktion
+      this.setupLogoPreview(form);
+    }
+  }
+
+  // Setup Logo Preview für Upload
+  setupLogoPreview(form) {
+    const uploaderRoot = form.querySelector('.uploader[data-name="logo_file"]');
+    if (!uploaderRoot) return;
+
+    // Event für File-Input (falls vorhanden)
+    const fileInput = uploaderRoot.querySelector('input[type="file"]');
+    if (fileInput) {
+      fileInput.addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        if (file && file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const previewContainer = document.getElementById('logo-preview-container');
+            const previewImage = document.getElementById('logo-preview-image');
+            if (previewContainer && previewImage) {
+              previewImage.src = event.target.result;
+              previewContainer.style.display = 'block';
+            }
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+    }
   }
 
   // Handle Form Submit für Seiten-Formular
@@ -568,6 +610,18 @@ export class UnternehmenList {
           } catch (relationError) {
             console.error('❌ Fehler beim Verarbeiten der Junction Tables:', relationError);
             // Nicht fatal - Hauptentität wurde bereits erstellt
+          }
+
+          // Logo-Upload (falls vorhanden)
+          try {
+            console.log('🔵 START: Logo-Upload für Unternehmen', result.id);
+            await this.uploadLogo(result.id, form);
+            console.log('✅ Logo-Upload abgeschlossen');
+          } catch (logoErr) {
+            console.error('❌ Logo-Upload fehlgeschlagen:', logoErr);
+            if (logoErr && logoErr.message && !logoErr.message.includes('Kein Logo')) {
+              alert('Logo konnte nicht hochgeladen werden: ' + logoErr.message);
+            }
           }
         }
 
@@ -746,6 +800,119 @@ export class UnternehmenList {
       
       // Liste neu laden um konsistenten Zustand herzustellen
       await this.loadAndRender();
+    }
+  }
+
+  // Logo-Upload
+  async uploadLogo(unternehmenId, form) {
+    try {
+      console.log('📋 uploadLogo() aufgerufen für Unternehmen:', unternehmenId);
+      
+      const uploaderRoot = form.querySelector('.uploader[data-name="logo_file"]');
+      console.log('  → Uploader Root:', uploaderRoot);
+      console.log('  → Uploader Instance:', uploaderRoot?.__uploaderInstance);
+      console.log('  → Files:', uploaderRoot?.__uploaderInstance?.files);
+      
+      if (!uploaderRoot || !uploaderRoot.__uploaderInstance || !uploaderRoot.__uploaderInstance.files.length) {
+        console.log('ℹ️ Kein Logo zum Hochladen (kein Uploader/keine Files)');
+        return;
+      }
+
+      if (!window.supabase) {
+        console.warn('⚠️ Supabase nicht verfügbar - Logo-Upload übersprungen');
+        return;
+      }
+
+      const files = uploaderRoot.__uploaderInstance.files;
+      const file = files[0]; // Nur ein Logo erlaubt
+      const bucket = 'logos';
+      
+      // Security: Max 200 KB
+      const MAX_FILE_SIZE = 200 * 1024; // 200 KB
+      const ALLOWED_TYPES = ['image/png', 'image/jpeg'];
+      
+      // Dateigröße prüfen
+      if (file.size > MAX_FILE_SIZE) {
+        console.warn(`⚠️ Logo zu groß: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
+        alert(`Logo ist zu groß (max. 200 KB)`);
+        return;
+      }
+
+      // Content-Type prüfen
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        console.warn(`⚠️ Nicht erlaubter Dateityp: ${file.name} (${file.type})`);
+        alert(`Nur PNG und JPG Dateien sind erlaubt`);
+        return;
+      }
+
+      // Dateiendung extrahieren
+      const ext = file.name.split('.').pop().toLowerCase();
+      const path = `unternehmen/${unternehmenId}/logo.${ext}`;
+      
+      console.log(`📤 Uploading Logo: ${file.name} -> ${path}`);
+      
+      // Altes Logo löschen (falls vorhanden)
+      try {
+        const { data: existingFiles } = await window.supabase.storage
+          .from(bucket)
+          .list(`unternehmen/${unternehmenId}`);
+        
+        if (existingFiles && existingFiles.length > 0) {
+          for (const existingFile of existingFiles) {
+            await window.supabase.storage
+              .from(bucket)
+              .remove([`unternehmen/${unternehmenId}/${existingFile.name}`]);
+          }
+        }
+      } catch (deleteErr) {
+        console.warn('⚠️ Fehler beim Löschen alter Logos:', deleteErr);
+      }
+      
+      // Upload zu Storage
+      const { error: upErr } = await window.supabase.storage
+        .from(bucket)
+        .upload(path, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: file.type
+        });
+      
+      if (upErr) {
+        console.error(`❌ Logo-Upload-Fehler:`, upErr);
+        throw upErr;
+      }
+      
+      // Signierte URL erstellen (7 Tage gültig)
+      const { data: signed, error: signErr } = await window.supabase.storage
+        .from(bucket)
+        .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 Tage
+      
+      if (signErr) {
+        console.error(`❌ Fehler beim Erstellen der signierten URL:`, signErr);
+        throw signErr;
+      }
+      
+      const logo_url = signed?.signedUrl || '';
+      
+      // Logo-Daten in Datenbank speichern
+      const { error: dbErr } = await window.supabase
+        .from('unternehmen')
+        .update({
+          logo_url,
+          logo_path: path
+        })
+        .eq('id', unternehmenId);
+      
+      if (dbErr) {
+        console.error(`❌ DB-Fehler beim Speichern der Logo-URL:`, dbErr);
+        throw dbErr;
+      }
+      
+      console.log(`✅ Logo erfolgreich hochgeladen`);
+    } catch (error) {
+      console.error('❌ Fehler beim Logo-Upload:', error);
+      alert(`⚠️ Logo konnte nicht hochgeladen werden: ${error.message}`);
+      // Nicht werfen - Unternehmen wurde bereits erstellt
     }
   }
 }

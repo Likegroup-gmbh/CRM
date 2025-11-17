@@ -373,10 +373,10 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('tasks', taskListPage);
   moduleRegistry.register('tabellen', tabellenModule);
   
-  // Profile-Modul initialisieren und registrieren
-  const profileDetail = new ProfileDetail();
-  window.profileDetail = profileDetail;
-  moduleRegistry.register('profile', profileDetail);
+  // Profile-Modul initialisieren und registrieren (V2 - neue Version mit zweispaltigem Layout)
+  const profileDetailV2 = new ProfileDetailV2();
+  window.profileDetailV2 = profileDetailV2;
+  moduleRegistry.register('profile', profileDetailV2);
 // Weitere Module folgen...
 
 // Globale Navigation-Funktion
@@ -431,7 +431,7 @@ window.dashboardModule = dashboardModule;
 window.breadcrumbSystem = breadcrumbSystem;
 
 // Profile-System importieren
-import { ProfileDetail } from './modules/admin/ProfileDetail.js';
+import { ProfileDetailV2 } from './modules/admin/ProfileDetailV2.js';
 
 // Initialisiere das System
 if (import.meta.env.DEV) {
@@ -455,7 +455,7 @@ if (import.meta.env.DEV) {
   console.log('KampagneList:', kampagneList);
   console.log('KampagneDetail:', kampagneDetail);
   console.log('KampagneUtils:', kampagneUtils);
-  console.log('ProfileDetail:', profileDetail);
+  console.log('ProfileDetailV2:', profileDetailV2);
 }
 
 // Initialisiere nach DOM-Load
