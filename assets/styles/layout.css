@@ -174,8 +174,8 @@
 }
 
 .nav-icon {
-  width: var(--space-md);
-  height: var(--space-md);
+  width: var(--space-lm);
+  height: var(--space-lm);
   margin-right: var(--space-xs);
   flex-shrink: 0;
 }

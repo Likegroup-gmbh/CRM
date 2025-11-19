@@ -267,8 +267,8 @@ export class FormConfig {
             readonly: true,
             placeholder: 'Wird automatisch generiert...'
           },
-          { name: 'content_art', label: 'Content Art', type: 'select', required: true, options: ['Paid', 'Organisch', 'Influencer', 'Videograph'] },
-          { name: 'skript_autor', label: 'Skript schreibt', type: 'select', required: false, options: ['Brand', 'Creator'] },
+          { name: 'content_art', label: 'Content Art', type: 'select', required: true, options: ['Paid', 'Organisch', 'Influencer', 'Whitelisting', 'Spark-Ad'] },
+          { name: 'skript_autor', label: 'Skript schreibt', type: 'select', required: false, options: ['Brand', 'Creator', 'Agentur'] },
           
           // Einkaufspreis
           { name: 'einkaufspreis_netto', label: 'Einkaufspreis Netto', type: 'number', required: false, validation: { type: 'number', min: 0 } },

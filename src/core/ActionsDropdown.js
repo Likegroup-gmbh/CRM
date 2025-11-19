@@ -881,35 +881,66 @@ export class ActionsDropdown {
         }
         const kampagneId = entityId;
         if (!kampagneId) break;
+        
+        let confirmed = false;
         if (window.confirmationModal) {
-          const res = await window.confirmationModal.open({ title: 'Zuweisung entfernen', message: 'Zuweisung dieser Kampagne vom Mitarbeiter entfernen?', confirmText: 'Entfernen', cancelText: 'Abbrechen', danger: true });
-          if (!res?.confirmed) break;
+          const res = await window.confirmationModal.open({ 
+            title: 'Zuweisung entfernen', 
+            message: 'Zuweisung dieser Kampagne vom Mitarbeiter entfernen?', 
+            confirmText: 'Entfernen', 
+            cancelText: 'Abbrechen', 
+            danger: true 
+          });
+          confirmed = res?.confirmed;
         } else {
-          if (!confirm('Zuweisung dieser Kampagne vom Mitarbeiter entfernen?')) break;
+          confirmed = confirm('Zuweisung dieser Kampagne vom Mitarbeiter entfernen?');
         }
-        (async () => {
-          try {
-            const { error } = await window.supabase
-              .from('kampagne_mitarbeiter')
-              .delete()
-              .eq('mitarbeiter_id', mitarbeiterId)
-              .eq('kampagne_id', kampagneId);
-            if (error) throw error;
-            // UI: Zeile entfernen
-            const row = actionItem.closest('tr');
-            if (row) row.remove();
-            // Tab-Count aktualisieren
-            const countEl = document.querySelector('.tab-button[data-tab="kampagnen"] .tab-count');
-            if (countEl) {
-              const current = parseInt(countEl.textContent || '1', 10);
-              countEl.textContent = String(Math.max(0, current - 1));
-            }
-            alert('Zuweisung entfernt');
-          } catch (err) {
-            console.error('❌ Zuweisung entfernen fehlgeschlagen', err);
-            alert('Entfernen fehlgeschlagen');
+        
+        if (!confirmed) break;
+        
+        try {
+          console.log(`🗑️ Entferne Kampagnen-Zuordnung: Mitarbeiter ${mitarbeiterId}, Kampagne ${kampagneId}`);
+          
+          const { error } = await window.supabase
+            .from('kampagne_mitarbeiter')
+            .delete()
+            .eq('mitarbeiter_id', mitarbeiterId)
+            .eq('kampagne_id', kampagneId);
+            
+          if (error) {
+            console.error('❌ Supabase Fehler:', error);
+            throw error;
           }
-        })();
+          
+          console.log('✅ Kampagnen-Zuordnung erfolgreich entfernt');
+          
+          // UI: Zeile entfernen
+          const row = actionItem.closest('tr');
+          if (row) {
+            row.remove();
+            console.log('✅ Tabellenzeile entfernt');
+          }
+          
+          // Tab-Count aktualisieren
+          const countEl = document.querySelector('.tab-button[data-tab="kampagnen"] .tab-count');
+          if (countEl) {
+            const current = parseInt(countEl.textContent || '1', 10);
+            countEl.textContent = String(Math.max(0, current - 1));
+            console.log(`✅ Tab-Count aktualisiert: ${current} → ${Math.max(0, current - 1)}`);
+          }
+          
+          // Mitarbeiter-Detail neu laden falls verfügbar
+          if (window.mitarbeiterDetail && window.mitarbeiterDetail.load) {
+            console.log('🔄 Lade Mitarbeiter-Detail neu...');
+            await window.mitarbeiterDetail.load();
+            await window.mitarbeiterDetail.render();
+          }
+          
+          alert('Zuweisung entfernt');
+        } catch (err) {
+          console.error('❌ Zuweisung entfernen fehlgeschlagen:', err);
+          alert(`Entfernen fehlgeschlagen: ${err.message}`);
+        }
         break;
       }
       

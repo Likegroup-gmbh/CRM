@@ -125,9 +125,9 @@
 }
 
 .stats-icon {
-  width: 48px;
-  height: 48px;
-  background: var(--bg-tertiary);
+  width: var(--space-lg);
+  height: var(--space-lg);
+
   border-radius: var(--radius-lg);
   display: flex;
   align-items: center;

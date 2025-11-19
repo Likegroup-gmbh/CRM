@@ -170,7 +170,8 @@
 
 /* Grid Input-Felder - erben Schriftgröße von th/td */
 .grid-input,
-.grid-textarea {
+.grid-textarea,
+.grid-select {
   width: 100%;
   border: 1px solid transparent;
   background: transparent;
@@ -183,13 +184,15 @@
 }
 
 .grid-input:hover,
-.grid-textarea:hover {
+.grid-textarea:hover,
+.grid-select:hover {
   border-color: var(--gray-300);
   background: white;
 }
 
 .grid-input:focus,
-.grid-textarea:focus {
+.grid-textarea:focus,
+.grid-select:focus {
   outline: none;
   border-color: var(--primary-400);
   background: white;
@@ -253,13 +256,15 @@
 }
 
 .grid-input.save-success,
-.grid-textarea.save-success {
+.grid-textarea.save-success,
+.grid-select.save-success {
   border-color: var(--success-400);
   background: var(--success-50);
 }
 
 .grid-input.save-error,
-.grid-textarea.save-error {
+.grid-textarea.save-error,
+.grid-select.save-error {
   border-color: var(--error-400);
   background: var(--error-50);
 }
@@ -1125,7 +1130,8 @@
 /* Visueller Hinweis für einzelne Felder */
 .grid-input.field-updated,
 .grid-checkbox.field-updated,
-.grid-textarea.field-updated {
+.grid-textarea.field-updated,
+.grid-select.field-updated {
   animation: highlight-field 2s ease;
 }
 
@@ -1450,6 +1456,20 @@
 
 .grid-input[readonly]:hover,
 .grid-input[readonly]:focus {
+  background: var(--gray-100);
+  border-color: var(--gray-300);
+}
+
+/* Grid-Select disabled Zustand */
+.grid-select[disabled] {
+  background: var(--gray-100);
+  cursor: not-allowed;
+  opacity: 0.6;
+  color: var(--gray-600);
+}
+
+.grid-select[disabled]:hover,
+.grid-select[disabled]:focus {
   background: var(--gray-100);
   border-color: var(--gray-300);
 }

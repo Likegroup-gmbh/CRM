@@ -18,7 +18,7 @@ export class RechnungDetail {
     if (window.breadcrumbSystem && this.data) {
       window.breadcrumbSystem.updateBreadcrumb([
         { label: 'Rechnung', url: '/rechnung', clickable: true },
-        { label: this.data.rechnungsnummer || 'Details', url: `/rechnung/${this.id}`, clickable: false }
+        { label: this.data.rechnung_nr || 'Details', url: `/rechnung/${this.id}`, clickable: false }
       ]);
     }
     
@@ -31,7 +31,8 @@ export class RechnungDetail {
       .from('rechnung')
       .select(`*,
         unternehmen:unternehmen_id(id, firmenname),
-        auftrag:auftrag_id(id, auftragsname)
+        auftrag:auftrag_id(id, auftragsname),
+        created_by:created_by_id(id, name)
       `)
       .eq('id', this.id)
       .single();
@@ -83,6 +84,7 @@ export class RechnungDetail {
             <div class="detail-item"><label>Unternehmen</label><span>${this.data?.unternehmen?.firmenname || '-'}</span></div>
             <div class="detail-item"><label>Auftrag</label><span>${this.data?.auftrag?.auftragsname || '-'}</span></div>
             <div class="detail-item"><label>Status</label><span>${this.data?.status || '-'}</span></div>
+            <div class="detail-item"><label>Erstellt von</label><span>${this.data?.created_by?.name || '-'}</span></div>
             <div class="detail-item"><label>Gestellt am</label><span>${formatDate(this.data?.gestellt_am)}</span></div>
             <div class="detail-item"><label>Zahlungsziel</label><span>${formatDate(this.data?.zahlungsziel)}</span></div>
             <div class="detail-item"><label>Bezahlt am</label><span>${formatDate(this.data?.bezahlt_am)}</span></div>
@@ -215,6 +217,9 @@ export class RechnungDetail {
         submitData.pdf_url = pdf_url;
         submitData.pdf_path = pdf_path;
       }
+
+      // Ersteller automatisch setzen
+      submitData.created_by_id = window.currentUser?.id || null;
 
       const result = await window.dataService.createEntity('rechnung', submitData);
       if (result.success) {

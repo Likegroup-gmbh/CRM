@@ -184,6 +184,43 @@ export class KampagneList {
         await window.dataService.loadManyToManyRelations(formattedData, 'kampagne', entityConfig.manyToMany);
       }
 
+      // Lade alle Mitarbeiter für die geladenen Kampagnen über die aggregierte View
+      const kampagneIds = formattedData.map(k => k.id).filter(Boolean);
+      let mitarbeiterByKampagne = {};
+
+      if (kampagneIds.length > 0) {
+        const { data: mitarbeiterData, error: mitarbeiterError } = await window.supabase
+          .from('v_kampagne_mitarbeiter_aggregated')
+          .select('kampagne_id, mitarbeiter_id, name, rolle, profile_image_url, zuordnungsart')
+          .in('kampagne_id', kampagneIds);
+        
+        if (!mitarbeiterError && mitarbeiterData) {
+          // Gruppiere Mitarbeiter nach Kampagne
+          mitarbeiterData.forEach(m => {
+            if (!mitarbeiterByKampagne[m.kampagne_id]) {
+              mitarbeiterByKampagne[m.kampagne_id] = [];
+            }
+            mitarbeiterByKampagne[m.kampagne_id].push({
+              id: m.mitarbeiter_id,
+              name: m.name,
+              rolle: m.rolle,
+              profile_image_url: m.profile_image_url,
+              zuordnungsart: m.zuordnungsart
+            });
+          });
+          console.log('✅ KAMPAGNELIST: Mitarbeiter geladen für', Object.keys(mitarbeiterByKampagne).length, 'Kampagnen');
+        } else if (mitarbeiterError) {
+          console.error('❌ Fehler beim Laden der Mitarbeiter:', mitarbeiterError);
+        }
+      }
+
+      // Füge Mitarbeiter zu den formatierten Daten hinzu
+      formattedData.forEach(kampagne => {
+        if (!kampagne.mitarbeiter || kampagne.mitarbeiter.length === 0) {
+          kampagne.mitarbeiter = mitarbeiterByKampagne[kampagne.id] || [];
+        }
+      });
+
       // Virtual Filter anwenden (z.B. creator_count, duration)
       const filtered = KampagneFilterLogic.applyVirtualFilters(formattedData, activeFilters);
 

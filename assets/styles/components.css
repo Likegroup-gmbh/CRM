@@ -168,7 +168,7 @@
 
 .secondary-btn {
   border: 1px solid var(--gray-300);
-  padding: var(--space-sm);
+  padding: var(--space-xs);
   background-color: var(--bg-primary);
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
@@ -240,17 +240,6 @@
   border-color: var(--border-secondary);
 }
 
-.stats-icon {
-  width: var(--icon-xl);
-  height: var(--icon-xl);
-  background: var(--bg-tertiary);
-  border-radius: var(--radius-lg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-  flex-shrink: 0;
-}
 
 .stats-icon svg {
   width: var(--icon-md);
@@ -1096,7 +1085,7 @@
 
 .tab-pane.active {
   display: block !important;
-  padding-top: var(--space-xl);
+  padding-top: var(--space-sm);
 }
 
 /* Spezifischer Fix für koops-videos Tab - erlaubt Scrollen für breite Tabellen */
@@ -2039,6 +2028,7 @@
   color: var(--text-primary);
   line-height: 1.4;
   color: var(--text-primary);
+  text-decoration: none;
 }
 
 .task-description {
@@ -2053,6 +2043,8 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-xs);
+  padding-top: var(--space-xs);
+  border-top: 1px solid var(--gray-100);
 }
 
 .task-meta-left {
@@ -4866,8 +4858,7 @@ margin-bottom: var(--space-md);
 .task-priority-badge {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-xs);
-  padding: var(--space-xxs) var(--space-sm);
+  gap: var(--space-xxs);
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);
   font-weight: 500;

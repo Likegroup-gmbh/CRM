@@ -31,6 +31,19 @@ export class KampagneDetail {
   async init(kampagneId) {
     console.log('🎯 KAMPAGNEDETAIL: Initialisiere Kampagnen-Detailseite für ID:', kampagneId);
     
+    // WICHTIG: IMMER Cleanup alte Tabellen-Instanz falls vorhanden
+    // (auch wenn gleiche kampagneId, weil der Container neu gerendert wird)
+    if (this.kooperationenVideoTable) {
+      console.log('🧹 Cleanup alte Kooperationen-Video-Tabelle', {
+        alteKampagneId: this.kooperationenVideoTable.kampagneId,
+        neueKampagneId: kampagneId
+      });
+      if (typeof this.kooperationenVideoTable.destroy === 'function') {
+        this.kooperationenVideoTable.destroy();
+      }
+      this.kooperationenVideoTable = null;
+    }
+    
     this.kampagneId = kampagneId;
     
     // Prüfen ob dieses Modul noch das aktuelle ist
@@ -58,14 +71,45 @@ export class KampagneDetail {
       this.bindEvents();
       this.bindAnsprechpartnerEvents();
       
-      // Initial-Tab-Load: Warte bis DOM bereit ist, dann lade den Tab
+      // Lade initialen Tab direkt nach render
+      // WICHTIG: Nach render() und bindEvents() damit der DOM vollständig ist
       if (window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false) {
-        console.log('🔄 KAMPAGNEDETAIL: Lade initialen Tab "koops-videos"');
-        requestAnimationFrame(() => {
-          requestAnimationFrame(async () => {
-            await this.switchTab('koops-videos');
+        // Verwende setTimeout mit längerer Verzögerung damit alte Instanz sicher beendet ist
+        setTimeout(async () => {
+          // Prüfe ob noch aktuelles Modul
+          if (window.moduleRegistry?.currentModule !== this) {
+            console.log('⚠️ Nicht mehr aktuelles Modul, überspringe Tabellen-Init');
+            return;
+          }
+          
+          const container = document.getElementById('kooperationen-videos-container');
+          if (!container) {
+            console.error('❌ Container nicht gefunden beim initialen Load');
+            return;
+          }
+          
+          const hasDOM = container.querySelector('.grid-wrapper');
+          
+          console.log('🔍 Container-Status beim Init:', {
+            containerExists: !!container,
+            hasDOM: !!hasDOM,
+            hasInstance: !!this.kooperationenVideoTable,
+            containerIsEmpty: container.innerHTML.trim() === ''
           });
-        });
+          
+          // Lade Tabelle nur wenn noch nicht initialisiert UND kein DOM vorhanden
+          if (!this.kooperationenVideoTable && !hasDOM) {
+            console.log('🔄 Lade Kooperationen-Video-Tabelle (Initial)');
+            this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId);
+            await this.kooperationenVideoTable.init('kooperationen-videos-container');
+            console.log('✅ Kooperationen-Video-Tabelle initialisiert');
+          } else {
+            console.log('✅ Tabelle bereits vorhanden - Skip:', { 
+              hasInstance: !!this.kooperationenVideoTable, 
+              hasDOM: !!hasDOM 
+            });
+          }
+        }, 200); // Längere Verzögerung um Race Conditions mit destroy() zu vermeiden
       }
       
       console.log('✅ KAMPAGNEDETAIL: Initialisierung abgeschlossen');
@@ -265,13 +309,10 @@ export class KampagneDetail {
           `)
           .eq('kampagne_id', this.kampagneId),
         
-        // 3. Mitarbeiter (für Tab-Count & Info-Tab)
+        // 3. Mitarbeiter (für Tab-Count & Info-Tab) - über aggregierte View
         window.supabase
-          .from('kampagne_mitarbeiter')
-          .select(`
-            role,
-            benutzer:mitarbeiter_id(id, name, email)
-          `)
+          .from('v_kampagne_mitarbeiter_aggregated')
+          .select('mitarbeiter_id, name, rolle, profile_image_url, zuordnungsart')
           .eq('kampagne_id', this.kampagneId),
         
         // 4. Kooperationen mit Creator (für Tab-Count & koops-videos)
@@ -297,24 +338,19 @@ export class KampagneDetail {
         ?.map(item => item.ansprechpartner)
         .filter(Boolean) || [];
       
-      // Mitarbeiter nach Rollen aufteilen
+      // Mitarbeiter verarbeiten (aus aggregierter View)
       const mitarbeiterData = mitarbeiterResult.data || [];
-      this.kampagneData.mitarbeiter = mitarbeiterData
-        .filter(item => !item.role || item.role === 'mitarbeiter')
-        .map(item => item.benutzer)
-        .filter(Boolean);
-      this.kampagneData.projektmanager = mitarbeiterData
-        .filter(item => item.role === 'projektmanager')
-        .map(item => item.benutzer)
-        .filter(Boolean);
-      this.kampagneData.scripter = mitarbeiterData
-        .filter(item => item.role === 'scripter')
-        .map(item => item.benutzer)
-        .filter(Boolean);
-      this.kampagneData.cutter = mitarbeiterData
-        .filter(item => item.role === 'cutter')
-        .map(item => item.benutzer)
-        .filter(Boolean);
+      this.kampagneData.mitarbeiter = mitarbeiterData.map(m => ({
+        id: m.mitarbeiter_id,
+        name: m.name,
+        rolle: m.rolle,
+        profile_image_url: m.profile_image_url,
+        zuordnungsart: m.zuordnungsart
+      }));
+      // Deprecated roles (falls UI noch darauf zugreift)
+      this.kampagneData.projektmanager = [];
+      this.kampagneData.scripter = [];
+      this.kampagneData.cutter = [];
       
       // Kooperationen (Creator bereits gejoined)
       this.kooperationen = kooperationenResult.data || [];
@@ -1352,20 +1388,16 @@ export class KampagneDetail {
     // Alle Tab-Panes ausblenden
     document.querySelectorAll('.tab-pane').forEach(pane => {
       pane.classList.remove('active');
-      console.log('  🔄 Entferne active von:', pane.id);
     });
     
     // Gewählten Tab aktivieren
     const activeButton = document.querySelector(`[data-tab="${tabName}"]`);
     const activePane = document.getElementById(`tab-${tabName}`);
     
-    console.log('  🔍 activeButton gefunden:', !!activeButton);
-    console.log('  🔍 activePane gefunden:', !!activePane, activePane?.id);
-    
     if (activeButton && activePane) {
       activeButton.classList.add('active');
       activePane.classList.add('active');
-      console.log('  ✅ Tab aktiviert:', tabName, '- Pane hat active class:', activePane.classList.contains('active'));
+      console.log('  ✅ Tab aktiviert:', tabName);
       
       // CSS-Klasse für Overflow-Kontrolle setzen/entfernen
       const mainContent = document.querySelector('.main-content');
@@ -1377,17 +1409,22 @@ export class KampagneDetail {
       
       // Kooperationen-Video-Tabelle lazy-loaden
       if (tabName === 'koops-videos') {
-        // Prüfe ob Container existiert und leer/nicht initialisiert ist
         const container = document.getElementById('kooperationen-videos-container');
-        const needsInit = !this.kooperationenVideoTable || !container?.querySelector('.grid-wrapper');
         
-        if (needsInit) {
-          console.log('🔄 Lade Kooperationen-Video-Tabelle...');
+        // Prüfe ob bereits initialisiert
+        const hasInstance = !!this.kooperationenVideoTable;
+        const hasDOM = container?.querySelector('.grid-wrapper');
+        
+        console.log('  🔍 Tabelle-Status:', { hasInstance, hasDOM });
+        
+        // Nur laden wenn komplett neu
+        if (!hasInstance && !hasDOM) {
+          console.log('  🔄 Lade Kooperationen-Video-Tabelle...');
           this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId);
           await this.kooperationenVideoTable.init('kooperationen-videos-container');
-          console.log('✅ Kooperationen-Video-Tabelle geladen');
+          console.log('  ✅ Kooperationen-Video-Tabelle geladen');
         } else {
-          console.log('✅ Kooperationen-Video-Tabelle bereits geladen');
+          console.log('  ✅ Kooperationen-Video-Tabelle bereits vorhanden');
         }
       }
       

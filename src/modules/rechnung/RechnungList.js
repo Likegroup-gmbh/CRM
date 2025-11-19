@@ -48,6 +48,7 @@ export class RechnungList {
       const isAdmin = window.currentUser?.rolle === 'admin';
       let allowedKampagneIds = [];
       let allowedKoopIds = [];
+      let unternehmenIds = []; // WICHTIG: Außerhalb des try-catch deklarieren!
       if (!isAdmin && window.supabase) {
         try {
           // 1. Direkt zugeordnete Kampagnen
@@ -73,8 +74,24 @@ export class RechnungList {
             markenKampagnenIds = (markenKampagnen || []).map(k => k.id).filter(Boolean);
           }
           
-          // Kombiniere beide Listen und entferne Duplikate
-          allowedKampagneIds = [...new Set([...directKampagnenIds, ...markenKampagnenIds])];
+          // 3. Kampagnen über zugeordnete Unternehmen
+          const { data: assignedUnternehmen } = await window.supabase
+            .from('mitarbeiter_unternehmen')
+            .select('unternehmen_id')
+            .eq('mitarbeiter_id', window.currentUser?.id);
+          unternehmenIds = (assignedUnternehmen || []).map(r => r.unternehmen_id).filter(Boolean);
+          
+          let unternehmenKampagnenIds = [];
+          if (unternehmenIds.length > 0) {
+            const { data: unternehmenKampagnen } = await window.supabase
+              .from('kampagne')
+              .select('id')
+              .in('unternehmen_id', unternehmenIds);
+            unternehmenKampagnenIds = (unternehmenKampagnen || []).map(k => k.id).filter(Boolean);
+          }
+          
+          // Kombiniere alle drei Listen und entferne Duplikate
+          allowedKampagneIds = [...new Set([...directKampagnenIds, ...markenKampagnenIds, ...unternehmenKampagnenIds])];
           
           // Kooperationen aus erlaubten Kampagnen laden
           if (allowedKampagneIds.length > 0) {
@@ -88,6 +105,7 @@ export class RechnungList {
           console.log(`🔍 RECHNUNGLIST: Mitarbeiter ${window.currentUser?.id} hat Zugriff auf:`, {
             direkteKampagnen: directKampagnenIds.length,
             markenKampagnen: markenKampagnenIds.length,
+            unternehmenKampagnen: unternehmenKampagnenIds.length,
             gesamtKampagnen: allowedKampagneIds.length,
             kooperationen: allowedKoopIds.length
           });
@@ -97,15 +115,15 @@ export class RechnungList {
       }
 
       let rechnungen;
-      // Für Mitarbeiter: Filtere nach zugewiesenen Kampagnen
+      // Für Mitarbeiter: Filtere nach zugewiesenen Kampagnen/Kooperationen/Unternehmen
       // Für Kunden: RLS-Policies filtern automatisch
-      if (!isAdmin && window.currentUser?.rolle !== 'kunde' && (allowedKampagneIds.length || allowedKoopIds.length)) {
+      if (!isAdmin && window.currentUser?.rolle !== 'kunde' && (allowedKampagneIds.length || allowedKoopIds.length || unternehmenIds.length)) {
         const baseFilters = { ...currentFilters };
-        // DataService.applyFilters wird später angewandt; wir schränken Query manuell in dataService.loadEntities ein → einfacher hier direkt mit RPC ersetzen ist nicht nötig.
-        // Also: hole initial alle und filter clientseitig minimal, falls Supabase-Filter nicht einfach addierbar ist.
         rechnungen = await window.dataService.loadEntities('rechnung', baseFilters);
         rechnungen = (rechnungen || []).filter(r => {
-          return (r.kampagne_id && allowedKampagneIds.includes(r.kampagne_id)) || (r.kooperation_id && allowedKoopIds.includes(r.kooperation_id));
+          return (r.kampagne_id && allowedKampagneIds.includes(r.kampagne_id)) || 
+                 (r.kooperation_id && allowedKoopIds.includes(r.kooperation_id)) ||
+                 (r.unternehmen_id && unternehmenIds.includes(r.unternehmen_id));
         });
       } else {
         rechnungen = await window.dataService.loadEntities('rechnung', currentFilters);

@@ -43,7 +43,7 @@ export function renderEmptyState(tbodyOrContainer) {
   const container = tbodyOrContainer.tagName === 'TBODY' ? tbodyOrContainer : null;
   const html = `
     <div class="empty-state not-found">
-        <img src="https://www.dropbox.com/scl/fi/1pdb17u2s4ct113m6lm1t/ghost-not-found.svg?rlkey=vwvcd0pz3828nk36f7o033zsp&raw=1" />
+        <img src="https://www.dropbox.com/scl/fi/6fgrk4u4aync0qfo0mcod/noti_not_found.svg?rlkey=x0idfb8fjl6kpp7850fkp8tto&raw=1" />
       <p>Leider konnten keine Einträge gefunden werden</p>
     </div>
   `;

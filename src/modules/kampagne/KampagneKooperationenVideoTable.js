@@ -1,5 +1,6 @@
 // KampagneKooperationenVideoTable.js (ES6-Modul)
 // Kombinierte Kooperations-Video-Tabelle für Kampagnendetails
+import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 
 export class KampagneKooperationenVideoTable {
   constructor(kampagneId) {
@@ -17,6 +18,12 @@ export class KampagneKooperationenVideoTable {
     this.storageKey = `kampagne_koops_videos_column_widths_v2_${kampagneId}`;
     this.hiddenColumns = []; // Spalten die für Kunden versteckt sind
     this._visibilityEventBound = false; // Verhindere mehrfache Event-Registrierung
+    
+    // Drag-to-Scroll State
+    this.isDragging = false;
+    this.startX = 0;
+    this.scrollLeft = 0;
+    this.dragScrollContainer = null;
   }
 
   // Prüfe ob ein Feld für den aktuellen Benutzer editierbar ist
@@ -45,76 +52,79 @@ export class KampagneKooperationenVideoTable {
   // Lade alle Daten für die Tabelle
   async loadData() {
     try {
-      console.log('🔄 Lade Kooperationen, Videos und Feedback...');
       const startTime = performance.now();
 
-      // 1. Kooperationen laden (muss zuerst, da wir die IDs brauchen)
-      const { data: kooperationen, error: koopError } = await window.supabase
+      // STUFE 1: Kooperationen MIT Videos in einem Query (LEFT JOIN)
+      const kooperationenResult = await window.supabase
         .from('kooperationen')
         .select(`
           id, name, status, einkaufspreis_netto, einkaufspreis_gesamt, content_art,
           posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ,
-          videoanzahl, skript_deadline, content_deadline,
+          videoanzahl, skript_deadline, content_deadline, created_at,
           creator:creator_id (
             id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower,
             lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt
           ),
           kampagne:kampagne_id (
             id, kampagnenname
+          ),
+          videos:kooperation_videos (
+            id, kooperation_id, position, asset_url,
+            caption, feedback_creatorjobs, feedback_ritzenhoff, freigabe,
+            link_content, link_produkte, thema, link_skript, skript_freigegeben, drehort, posting_datum
           )
         `)
         .eq('kampagne_id', this.kampagneId)
         .order('created_at', { ascending: false });
 
-      if (koopError) throw koopError;
-      this.kooperationen = kooperationen || [];
+      if (kooperationenResult.error) throw kooperationenResult.error;
       
-      if (this.kooperationen.length === 0) {
-        console.log('ℹ️ Keine Kooperationen gefunden');
+      const kooperationenMitVideos = kooperationenResult.data || [];
+      
+      if (kooperationenMitVideos.length === 0) {
+        this.kooperationen = [];
+        this.videos = {};
+        this.videoComments = {};
+        this.versandInfos = {};
         return;
       }
 
-      const koopIds = this.kooperationen.map(k => k.id);
+      // Extrahiere Kooperationen (ohne videos-Array)
+      this.kooperationen = kooperationenMitVideos.map(({ videos, ...koop }) => koop);
+      
+      // Extrahiere alle Videos und sammle IDs
+      const allVideos = [];
+      const koopIds = [];
+      kooperationenMitVideos.forEach(koop => {
+        koopIds.push(koop.id);
+        if (koop.videos && koop.videos.length > 0) {
+          // Sortiere Videos nach Position
+          const sortedVideos = [...koop.videos].sort((a, b) => (a.position || 0) - (b.position || 0));
+          allVideos.push(...sortedVideos);
+        }
+      });
+      
+      const videoIds = allVideos.map(v => v.id);
 
-      // 2. Videos UND Versand parallel laden
-      const [videosResult, versandResult] = await Promise.all([
-        window.supabase
-          .from('kooperation_videos')
-          .select(`
-            id, kooperation_id, position, asset_url,
-            caption, feedback_creatorjobs, feedback_ritzenhoff, freigabe,
-            link_content, link_produkte, thema, link_skript, skript_freigegeben, drehort, posting_datum
-          `)
-          .in('kooperation_id', koopIds)
-          .order('position', { ascending: true}),
-        
-        window.supabase
-          .from('kooperation_versand')
-          .select('id, kooperation_id, video_id, versendet, tracking_nummer, produkt_name, produkt_link, strasse, hausnummer, plz, stadt')
-          .in('kooperation_id', koopIds)
-      ]);
-
-      const { data: videos, error: videoError} = videosResult;
-      const { data: versandInfos, error: versandError } = versandResult;
-
-      if (videoError) throw videoError;
-      if (versandError) {
-        console.warn('⚠️ Versand-Infos konnten nicht geladen werden:', versandError);
-      }
-
-      // Videos verarbeiten
-      if (videos && videos.length > 0) {
-        const videoIds = videos.map(v => v.id);
-
-        // 3. Assets UND Kommentare parallel laden
-        const [assetsResult, commentsResult] = await Promise.all([
-          window.supabase
+      // STUFE 2: Versand, Assets und Kommentare PARALLEL laden (nur wenn Videos existieren)
+      let versandInfos = [];
+      let assets = [];
+      let comments = [];
+      
+      if (videoIds.length > 0) {
+        const [versandResult, assetsResult, commentsResult] = await parallelLoad([
+          () => window.supabase
+            .from('kooperation_versand')
+            .select('id, kooperation_id, video_id, versendet, tracking_nummer, produkt_name, produkt_link, strasse, hausnummer, plz, stadt')
+            .in('kooperation_id', koopIds),
+          
+          () => window.supabase
             .from('kooperation_video_asset')
             .select('id, video_id, file_url, is_current')
             .in('video_id', videoIds)
             .eq('is_current', true),
           
-          window.supabase
+          () => window.supabase
             .from('kooperation_video_comment')
             .select('id, video_id, text, runde, author_name, created_at')
             .in('video_id', videoIds)
@@ -122,54 +132,48 @@ export class KampagneKooperationenVideoTable {
             .order('created_at', { ascending: true })
         ]);
 
-        const { data: assets } = assetsResult;
-        const { data: comments } = commentsResult;
-
-        // Assets den Videos zuordnen
-        const enrichedVideos = videos.map(v => ({
-          ...v,
-          currentAsset: assets?.find(a => a.video_id === v.id),
-          file_url: assets?.find(a => a.video_id === v.id)?.file_url || v.asset_url || null
-        }));
-
-        // Videos nach Kooperation gruppieren
-        this.videos = {};
-        enrichedVideos.forEach(video => {
-          if (!this.videos[video.kooperation_id]) {
-            this.videos[video.kooperation_id] = [];
-          }
-          this.videos[video.kooperation_id].push(video);
-        });
-
-        // Kommentare nach Video und Runde gruppieren
-        this.videoComments = {};
-        (comments || []).forEach(comment => {
-          if (!this.videoComments[comment.video_id]) {
-            this.videoComments[comment.video_id] = { r1: [], r2: [] };
-          }
-          if (comment.runde === 1) {
-            this.videoComments[comment.video_id].r1.push(comment);
-          } else if (comment.runde === 2) {
-            this.videoComments[comment.video_id].r2.push(comment);
-          }
-        });
-      } else {
-        this.videos = {};
-        this.videoComments = {};
+        versandInfos = versandResult.data || [];
+        assets = assetsResult.data || [];
+        comments = commentsResult.data || [];
       }
+
+      // Videos verarbeiten und mit Assets anreichern
+      const enrichedVideos = allVideos.map(v => ({
+        ...v,
+        currentAsset: assets?.find(a => a.video_id === v.id),
+        file_url: assets?.find(a => a.video_id === v.id)?.file_url || v.asset_url || null
+      }));
+
+      // Videos nach Kooperation gruppieren
+      this.videos = {};
+      enrichedVideos.forEach(video => {
+        if (!this.videos[video.kooperation_id]) {
+          this.videos[video.kooperation_id] = [];
+        }
+        this.videos[video.kooperation_id].push(video);
+      });
+
+      // Kommentare nach Video und Runde gruppieren
+      this.videoComments = {};
+      comments.forEach(comment => {
+        if (!this.videoComments[comment.video_id]) {
+          this.videoComments[comment.video_id] = { r1: [], r2: [] };
+        }
+        if (comment.runde === 1) {
+          this.videoComments[comment.video_id].r1.push(comment);
+        } else if (comment.runde === 2) {
+          this.videoComments[comment.video_id].r2.push(comment);
+        }
+      });
 
       // Versand-Infos nach Kooperation gruppieren
       this.versandInfos = {};
-      (versandInfos || []).forEach(info => {
+      versandInfos.forEach(info => {
         this.versandInfos[info.kooperation_id] = info;
       });
 
       const loadTime = (performance.now() - startTime).toFixed(0);
-      console.log(`✅ Daten geladen in ${loadTime}ms:`, {
-        kooperationen: this.kooperationen.length,
-        videos: Object.keys(this.videos).length,
-        comments: Object.keys(this.videoComments).length
-      });
+      console.log(`⚡ Daten in ${loadTime}ms geladen: ${this.kooperationen.length} Kooperationen, ${allVideos.length} Videos`);
 
     } catch (error) {
       console.error('❌ Fehler beim Laden der Daten:', error);
@@ -270,72 +274,76 @@ export class KampagneKooperationenVideoTable {
                 <div class="resize-handle resize-handle-col" data-col="5"></div>
               </th>
               <th class="col-header col-start-datum" ${!this.isColumnVisibleForCustomer('col-start-datum') ? 'style="display:none;"' : ''} data-col="6">
-                Start
+                Erstellt
                 <div class="resize-handle resize-handle-col" data-col="6"></div>
               </th>
-              <th class="col-header col-end-datum" ${!this.isColumnVisibleForCustomer('col-end-datum') ? 'style="display:none;"' : ''} data-col="7">
-                Ende
+              <th class="col-header col-script-deadline" ${!this.isColumnVisibleForCustomer('col-script-deadline') ? 'style="display:none;"' : ''} data-col="7">
+                Script Deadline
                 <div class="resize-handle resize-handle-col" data-col="7"></div>
               </th>
-              <th class="col-header col-videoanzahl" ${!this.isColumnVisibleForCustomer('col-videoanzahl') ? 'style="display:none;"' : ''} data-col="8">
-                Videos
+              <th class="col-header col-end-datum" ${!this.isColumnVisibleForCustomer('col-end-datum') ? 'style="display:none;"' : ''} data-col="8">
+                Content Deadline
                 <div class="resize-handle resize-handle-col" data-col="8"></div>
               </th>
-              <th class="col-header col-thema" ${!this.isColumnVisibleForCustomer('col-thema') ? 'style="display:none;"' : ''} data-col="9">
-                Thema
+              <th class="col-header col-videoanzahl" ${!this.isColumnVisibleForCustomer('col-videoanzahl') ? 'style="display:none;"' : ''} data-col="9">
+                Videos
                 <div class="resize-handle resize-handle-col" data-col="9"></div>
               </th>
-              <th class="col-header col-link-skript" ${!this.isColumnVisibleForCustomer('col-link-skript') ? 'style="display:none;"' : ''} data-col="10">
-                Link Skript / Briefing
+              <th class="col-header col-thema" ${!this.isColumnVisibleForCustomer('col-thema') ? 'style="display:none;"' : ''} data-col="10">
+                Thema
                 <div class="resize-handle resize-handle-col" data-col="10"></div>
               </th>
-              <th class="col-header col-skript-freigegeben" ${!this.isColumnVisibleForCustomer('col-skript-freigegeben') ? 'style="display:none;"' : ''} data-col="11">
-                Skript freigegeben
+              <th class="col-header col-produkt" ${!this.isColumnVisibleForCustomer('col-produkt') ? 'style="display:none;"' : ''} data-col="11">
+                Produkte
                 <div class="resize-handle resize-handle-col" data-col="11"></div>
               </th>
-              <th class="col-header col-produkt" ${!this.isColumnVisibleForCustomer('col-produkt') ? 'style="display:none;"' : ''} data-col="12">
-                Produkte
+              <th class="col-header col-lieferadresse" ${!this.isColumnVisibleForCustomer('col-lieferadresse') ? 'style="display:none;"' : ''} data-col="12">
+                Lieferadresse
                 <div class="resize-handle resize-handle-col" data-col="12"></div>
               </th>
-              <th class="col-header col-lieferadresse" ${!this.isColumnVisibleForCustomer('col-lieferadresse') ? 'style="display:none;"' : ''} data-col="13">
-                Lieferadresse
+              <th class="col-header col-paket-tracking" ${!this.isColumnVisibleForCustomer('col-paket-tracking') ? 'style="display:none;"' : ''} data-col="13">
+                Tracking
                 <div class="resize-handle resize-handle-col" data-col="13"></div>
               </th>
-              <th class="col-header col-paket-tracking" ${!this.isColumnVisibleForCustomer('col-paket-tracking') ? 'style="display:none;"' : ''} data-col="14">
-                Tracking
+              <th class="col-header col-drehort" ${!this.isColumnVisibleForCustomer('col-drehort') ? 'style="display:none;"' : ''} data-col="14">
+                Drehort
                 <div class="resize-handle resize-handle-col" data-col="14"></div>
               </th>
-              <th class="col-header col-drehort" ${!this.isColumnVisibleForCustomer('col-drehort') ? 'style="display:none;"' : ''} data-col="15">
-                Drehort
+              <th class="col-header col-link-skript" ${!this.isColumnVisibleForCustomer('col-link-skript') ? 'style="display:none;"' : ''} data-col="15">
+                Link Skript / Briefing
                 <div class="resize-handle resize-handle-col" data-col="15"></div>
               </th>
-              <th class="col-header col-link-content" ${!this.isColumnVisibleForCustomer('col-link-content') ? 'style="display:none;"' : ''} data-col="16">
-                Link Content
+              <th class="col-header col-skript-freigegeben" ${!this.isColumnVisibleForCustomer('col-skript-freigegeben') ? 'style="display:none;"' : ''} data-col="16">
+                Skript freigegeben
                 <div class="resize-handle resize-handle-col" data-col="16"></div>
               </th>
-              <th class="col-header col-feedback-cj" ${!this.isColumnVisibleForCustomer('col-feedback-cj') ? 'style="display:none;"' : ''} data-col="17">
-                Feedback CJ
+              <th class="col-header col-link-content" ${!this.isColumnVisibleForCustomer('col-link-content') ? 'style="display:none;"' : ''} data-col="17">
+                Link Content
                 <div class="resize-handle resize-handle-col" data-col="17"></div>
               </th>
-              <th class="col-header col-feedback-kunde" ${!this.isColumnVisibleForCustomer('col-feedback-kunde') ? 'style="display:none;"' : ''} data-col="18">
-                Feedback Kunde
+              <th class="col-header col-feedback-cj" ${!this.isColumnVisibleForCustomer('col-feedback-cj') ? 'style="display:none;"' : ''} data-col="18">
+                Feedback CJ
                 <div class="resize-handle resize-handle-col" data-col="18"></div>
               </th>
-              <th class="col-header col-freigabe" ${!this.isColumnVisibleForCustomer('col-freigabe') ? 'style="display:none;"' : ''} data-col="19">
-                Freigabe
+              <th class="col-header col-feedback-kunde" ${!this.isColumnVisibleForCustomer('col-feedback-kunde') ? 'style="display:none;"' : ''} data-col="19">
+                Feedback Kunde
                 <div class="resize-handle resize-handle-col" data-col="19"></div>
               </th>
-              <th class="col-header col-caption" ${!this.isColumnVisibleForCustomer('col-caption') ? 'style="display:none;"' : ''} data-col="20">
-                Caption
+              <th class="col-header col-freigabe" ${!this.isColumnVisibleForCustomer('col-freigabe') ? 'style="display:none;"' : ''} data-col="20">
+                Freigabe
                 <div class="resize-handle resize-handle-col" data-col="20"></div>
               </th>
-              <th class="col-header col-posting-datum" ${!this.isColumnVisibleForCustomer('col-posting-datum') ? 'style="display:none;"' : ''} data-col="21">
-                Posting Datum
+              <th class="col-header col-caption" ${!this.isColumnVisibleForCustomer('col-caption') ? 'style="display:none;"' : ''} data-col="21">
+                Caption
                 <div class="resize-handle resize-handle-col" data-col="21"></div>
               </th>
-              <th class="col-header col-kosten" ${!this.isColumnVisibleForCustomer('col-kosten') ? 'style="display:none;"' : ''} data-col="22">
-                Kosten
+              <th class="col-header col-posting-datum" ${!this.isColumnVisibleForCustomer('col-posting-datum') ? 'style="display:none;"' : ''} data-col="22">
+                Posting Datum
                 <div class="resize-handle resize-handle-col" data-col="22"></div>
+              </th>
+              <th class="col-header col-kosten" ${!this.isColumnVisibleForCustomer('col-kosten') ? 'style="display:none;"' : ''} data-col="23">
+                Kosten
+                <div class="resize-handle resize-handle-col" data-col="23"></div>
               </th>
             </tr>
           </thead>
@@ -377,16 +385,20 @@ export class KampagneKooperationenVideoTable {
           </a>
         </td>
         <td class="grid-cell" ${!this.isColumnVisibleForCustomer('col-typ') ? 'style="display:none;"' : ''}>
-          <input 
-            type="text" 
-            class="grid-input" 
+          <select 
+            class="grid-select" 
             data-entity="kooperation" 
             data-id="${koop.id}" 
             data-field="typ"
-            ${!this.isFieldEditableForUser('kooperation', 'typ') ? 'readonly' : ''}
-            value="${koop.typ || ''}"
-            placeholder="UGC/Influencer"
-          />
+            ${!this.isFieldEditableForUser('kooperation', 'typ') ? 'disabled' : ''}
+          >
+            <option value="">-- Bitte wählen --</option>
+            <option value="UGC" ${koop.typ === 'UGC' ? 'selected' : ''}>UGC</option>
+            <option value="IGC" ${koop.typ === 'IGC' ? 'selected' : ''}>IGC</option>
+            <option value="Influencer" ${koop.typ === 'Influencer' ? 'selected' : ''}>Influencer</option>
+            <option value="Videograph" ${koop.typ === 'Videograph' ? 'selected' : ''}>Videograph</option>
+            <option value="Fotograph" ${koop.typ === 'Fotograph' ? 'selected' : ''}>Fotograph</option>
+          </select>
         </td>
         <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-organic-paid') ? 'style="display:none;"' : ''}>${this.escapeHtml(koop.content_art || '-')}</td>
         <td class="grid-cell" ${!this.isColumnVisibleForCustomer('col-vertrag') ? 'style="display:none;"' : 'style="text-align: center;"'}>
@@ -411,7 +423,8 @@ export class KampagneKooperationenVideoTable {
             placeholder="Nutzungsrechte"
           />
         </td>
-        <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-start-datum') ? 'style="display:none;"' : ''}>${formatDate(koop.skript_deadline)}</td>
+        <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-start-datum') ? 'style="display:none;"' : ''}>${formatDate(koop.created_at)}</td>
+        <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-script-deadline') ? 'style="display:none;"' : ''}>${formatDate(koop.skript_deadline)}</td>
         <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-end-datum') ? 'style="display:none;"' : ''}>${formatDate(koop.content_deadline)}</td>
         <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-videoanzahl') ? 'style="display:none;"' : ''}>${koop.videoanzahl || 0}</td>
         <!-- Video-Spalten: Jedes Video als eigene Zeile über alle Spalten -->
@@ -421,24 +434,6 @@ export class KampagneKooperationenVideoTable {
               data-entity="video" data-id="${video.id}" data-field="thema"
               ${!this.isFieldEditableForUser('video', 'thema') ? 'readonly' : ''}
               value="${this.escapeHtml(video.thema || '')}" placeholder="Thema"/>
-          `)}
-        </td>
-        <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-link-skript') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => `
-            <input type="text" class="grid-input stacked-video-input" 
-              data-entity="video" data-id="${video.id}" data-field="link_skript"
-              ${!this.isFieldEditableForUser('video', 'link_skript') ? 'readonly' : ''}
-              value="${this.escapeHtml(video.link_skript || '')}" placeholder="Link"/>
-          `)}
-        </td>
-        <td class="grid-cell video-stack-cell checkbox-stack" ${!this.isColumnVisibleForCustomer('col-skript-freigegeben') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => `
-            <div class="stacked-video-checkbox-wrapper">
-              <input type="checkbox" class="grid-checkbox stacked-video-checkbox" 
-                data-entity="video" data-id="${video.id}" data-field="skript_freigegeben"
-                ${!this.isFieldEditableForUser('video', 'skript_freigegeben') ? 'disabled' : ''}
-                ${video.skript_freigegeben ? 'checked' : ''}/>
-            </div>
           `)}
         </td>
         <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-produkt') ? 'style="display:none;"' : ''}>
@@ -486,6 +481,24 @@ export class KampagneKooperationenVideoTable {
             <input type="text" class="grid-input stacked-video-input" 
               data-entity="video" data-id="${video.id}" data-field="drehort"
               value="${this.escapeHtml(video.drehort || '')}" placeholder="Drehort"/>
+          `)}
+        </td>
+        <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-link-skript') ? 'style="display:none;"' : ''}>
+          ${this.renderVideoFieldStack(videos, (video) => `
+            <input type="text" class="grid-input stacked-video-input" 
+              data-entity="video" data-id="${video.id}" data-field="link_skript"
+              ${!this.isFieldEditableForUser('video', 'link_skript') ? 'readonly' : ''}
+              value="${this.escapeHtml(video.link_skript || '')}" placeholder="Link"/>
+          `)}
+        </td>
+        <td class="grid-cell video-stack-cell checkbox-stack" ${!this.isColumnVisibleForCustomer('col-skript-freigegeben') ? 'style="display:none;"' : ''}>
+          ${this.renderVideoFieldStack(videos, (video) => `
+            <div class="stacked-video-checkbox-wrapper">
+              <input type="checkbox" class="grid-checkbox stacked-video-checkbox" 
+                data-entity="video" data-id="${video.id}" data-field="skript_freigegeben"
+                ${!this.isFieldEditableForUser('video', 'skript_freigegeben') ? 'disabled' : ''}
+                ${video.skript_freigegeben ? 'checked' : ''}/>
+            </div>
           `)}
         </td>
         <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-link-content') ? 'style="display:none;"' : ''}>
@@ -585,7 +598,7 @@ export class KampagneKooperationenVideoTable {
 
     // Checkboxes - Auto-Save bei change
     container.addEventListener('change', async (e) => {
-      if (e.target.classList.contains('grid-checkbox')) {
+      if (e.target.classList.contains('grid-checkbox') || e.target.classList.contains('grid-select')) {
         await this.handleFieldUpdate(e.target);
       }
     });
@@ -595,6 +608,9 @@ export class KampagneKooperationenVideoTable {
 
     // Spaltenbreite-Anpassung
     this.bindResizeEvents();
+    
+    // Drag-to-Scroll
+    this.bindDragToScroll();
   }
   
   // Auto-resize für Textareas initialisieren (zeilen-basiert, max 500px)
@@ -792,6 +808,70 @@ export class KampagneKooperationenVideoTable {
     
     // Spaltenbreiten im localStorage speichern
     this.saveColumnWidths();
+  }
+  
+  // Drag-to-Scroll für horizontales Scrollen der Tabelle
+  bindDragToScroll() {
+    const container = document.querySelector('.grid-wrapper');
+    if (!container) return;
+    
+    this.dragScrollContainer = container;
+    
+    // Mousedown - Prüfe ob auf nicht-editierbarem Bereich
+    container.addEventListener('mousedown', (e) => {
+      // Ignoriere wenn auf Input, Textarea, Select, Button oder Resize-Handle geklickt wird
+      if (
+        e.target.tagName === 'INPUT' || 
+        e.target.tagName === 'TEXTAREA' || 
+        e.target.tagName === 'SELECT' ||
+        e.target.tagName === 'BUTTON' ||
+        e.target.classList.contains('resize-handle-col') ||
+        e.target.closest('.resize-handle-col') ||
+        this.isResizing
+      ) {
+        return;
+      }
+      
+      // Prüfe ob auf Link geklickt wurde
+      if (e.target.tagName === 'A' || e.target.closest('a')) {
+        return;
+      }
+      
+      this.isDragging = true;
+      this.startX = e.pageX - container.offsetLeft;
+      this.scrollLeft = container.scrollLeft;
+      
+      container.style.cursor = 'grabbing';
+      container.style.userSelect = 'none';
+      
+      e.preventDefault();
+    });
+    
+    // Mousemove - Scrolle wenn dragging aktiv ist
+    container.addEventListener('mousemove', (e) => {
+      if (!this.isDragging) return;
+      
+      e.preventDefault();
+      
+      const x = e.pageX - container.offsetLeft;
+      const walk = (x - this.startX) * 1.5; // Multiplikator für Scroll-Geschwindigkeit
+      container.scrollLeft = this.scrollLeft - walk;
+    });
+    
+    // Mouseup - Beende Dragging
+    const stopDragging = () => {
+      if (this.isDragging) {
+        this.isDragging = false;
+        container.style.cursor = 'grab';
+        container.style.userSelect = '';
+      }
+    };
+    
+    container.addEventListener('mouseup', stopDragging);
+    container.addEventListener('mouseleave', stopDragging);
+    
+    // Setze initialen Cursor
+    container.style.cursor = 'grab';
   }
   
   // Spaltenbreiten im localStorage speichern
@@ -1030,10 +1110,11 @@ export class KampagneKooperationenVideoTable {
       return;
     }
     
-    // Lade Spalten-Sichtbarkeit VOR den Daten
-    await this.loadColumnVisibilitySettings();
-    
-    await this.loadData();
+    // Lade Spalten-Sichtbarkeit UND Daten parallel
+    await Promise.all([
+      this.loadData(),
+      this.loadColumnVisibilitySettings()
+    ]);
     
     console.log('🎬 Daten geladen, rendere Tabelle...');
     const html = this.render();
@@ -1430,26 +1511,25 @@ export class KampagneKooperationenVideoTable {
   async handleKooperationUpdate(payload) {
     const updatedKooperation = payload.new;
     
-    // Prüfe ob eigenes Update
+    // Prüfe ob eigenes Update - wenn ja, überspringe komplett
     if (this._lastUpdateBy === window.currentUser?.id && 
         Date.now() - this._lastUpdateTime < 2000) {
+      console.log('⏭️ REALTIME: Überspringe eigenes Kooperations-Update');
       return;
     }
     
-    console.log('🔄 REALTIME: Kooperation Update verarbeiten:', updatedKooperation.id);
+    console.log('🔄 REALTIME: Kooperation Update von anderem User:', updatedKooperation.id);
     
-    // Finde und aktualisiere die Kooperation in den lokalen Daten
+    // Aktualisiere nur die lokalen Daten, KEIN DOM-Update
     const koopIndex = this.kooperationen.findIndex(k => k.id === updatedKooperation.id);
     if (koopIndex !== -1) {
       this.kooperationen[koopIndex] = {
         ...this.kooperationen[koopIndex],
-        ...updatedKooperation
+        ...updatedKooperation,
+        creator: this.kooperationen[koopIndex].creator,
+        kampagne: this.kooperationen[koopIndex].kampagne
       };
-      
-      // Für Kooperationen machen wir einen kompletten Refresh
-      // da sich die Zeile strukturell ändern kann (Status, Creator, etc.)
-      console.log('🔄 REALTIME: Führe Refresh durch für Kooperations-Update');
-      await this.refresh();
+      console.log('✅ REALTIME: Lokale Daten aktualisiert (kein DOM-Update)');
     }
   }
 
@@ -1738,6 +1818,13 @@ export class KampagneKooperationenVideoTable {
   // Cleanup-Methode für Modul-Wechsel
   destroy() {
     console.log('🗑️ KOOPERATIONENVIDEOTABLE: Cleanup aufgerufen');
+    
+    // Cleanup Drag-to-Scroll
+    if (this.dragScrollContainer) {
+      this.dragScrollContainer.style.cursor = '';
+      this.isDragging = false;
+      this.dragScrollContainer = null;
+    }
     
     // Cleanup der Floating-Scrollbar (Event-Listener entfernen)
     if (this.cleanupFloatingScrollbar) {

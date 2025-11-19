@@ -8,6 +8,7 @@ export class TaskCreateDrawer {
     this.kampagnen = [];
     this.mitarbeiter = [];
     this.kunden = [];
+    this.boundHandleEntityUpdate = null;
   }
 
   async open(initialStatus = 'todo') {
@@ -26,6 +27,10 @@ export class TaskCreateDrawer {
       
       // Initial die leeren Dropdowns anzeigen
       this.updateAssignmentDropdowns();
+      
+      // Event-Listener für Live-Updates hinzufügen
+      this.boundHandleEntityUpdate = this.handleEntityUpdate.bind(this);
+      window.addEventListener('entityUpdated', this.boundHandleEntityUpdate);
     } catch (error) {
       console.error('❌ TaskCreateDrawer.open Fehler:', error);
       this.showError('Fehler beim Öffnen des Formulars.');
@@ -111,10 +116,147 @@ export class TaskCreateDrawer {
 
   async loadKampagnen() {
     try {
-      const { data, error } = await window.supabase
+      const isAdmin = window.currentUser?.rolle === 'admin';
+      const isKunde = window.currentUser?.rolle === 'kunde';
+      let kampagneIds = [];
+
+      // Für Kunden: Lade über kunde_marke und kunde_unternehmen
+      if (isKunde) {
+        console.log('🔍 Lade Kampagnen für Kunde:', window.currentUser?.id);
+        
+        // 1. Kampagnen über zugeordnete Marken
+        const { data: kundeMarken, error: kundeMarkenError } = await window.supabase
+          .from('kunde_marke')
+          .select('marke_id')
+          .eq('kunde_id', window.currentUser?.id);
+        
+        if (kundeMarkenError) console.error('❌ Fehler bei kunde_marke:', kundeMarkenError);
+        const markenIds = (kundeMarken || []).map(r => r.marke_id).filter(Boolean);
+        console.log('  ✓ Zugeordnete Marken:', markenIds.length);
+        
+        let markenKampagnenIds = [];
+        if (markenIds.length > 0) {
+          const { data: markenKampagnen, error: markenKampagnenError } = await window.supabase
+            .from('kampagne')
+            .select('id')
+            .in('marke_id', markenIds);
+          if (markenKampagnenError) console.error('❌ Fehler bei Marken-Kampagnen:', markenKampagnenError);
+          markenKampagnenIds = (markenKampagnen || []).map(k => k.id).filter(Boolean);
+          console.log('  ✓ Kampagnen über Marken:', markenKampagnenIds.length);
+        }
+        
+        // 2. Kampagnen über zugeordnete Unternehmen
+        const { data: kundeUnternehmen, error: kundeUnternehmenError } = await window.supabase
+          .from('kunde_unternehmen')
+          .select('unternehmen_id')
+          .eq('kunde_id', window.currentUser?.id);
+        
+        if (kundeUnternehmenError) console.error('❌ Fehler bei kunde_unternehmen:', kundeUnternehmenError);
+        const unternehmenIds = (kundeUnternehmen || []).map(r => r.unternehmen_id).filter(Boolean);
+        console.log('  ✓ Zugeordnete Unternehmen:', unternehmenIds.length);
+        
+        let unternehmenKampagnenIds = [];
+        if (unternehmenIds.length > 0) {
+          const { data: unternehmenKampagnen, error: unternehmenKampagnenError } = await window.supabase
+            .from('kampagne')
+            .select('id')
+            .in('unternehmen_id', unternehmenIds);
+          if (unternehmenKampagnenError) console.error('❌ Fehler bei Unternehmen-Kampagnen:', unternehmenKampagnenError);
+          unternehmenKampagnenIds = (unternehmenKampagnen || []).map(k => k.id).filter(Boolean);
+          console.log('  ✓ Kampagnen über Unternehmen:', unternehmenKampagnenIds.length);
+        }
+        
+        // Kombiniere und dedupliziere
+        kampagneIds = [...new Set([...markenKampagnenIds, ...unternehmenKampagnenIds])];
+        
+        console.log(`🔍 Kunde ${window.currentUser?.id} hat Zugriff auf ${kampagneIds.length} Kampagnen`);
+        console.log('  → IDs:', kampagneIds);
+        
+        if (kampagneIds.length === 0) {
+          this.kampagnen = [];
+          return;
+        }
+      }
+      // Für Mitarbeiter: Lade über mitarbeiter-spezifische Junction-Tabellen
+      else if (!isAdmin) {
+        console.log('🔍 Lade Kampagnen für Mitarbeiter:', window.currentUser?.id);
+        
+        // 1. Direkt zugeordnete Kampagnen
+        const { data: directAssignments, error: directError } = await window.supabase
+          .from('kampagne_mitarbeiter')
+          .select('kampagne_id')
+          .eq('mitarbeiter_id', window.currentUser?.id);
+        
+        if (directError) console.error('❌ Fehler bei kampagne_mitarbeiter:', directError);
+        const directIds = (directAssignments || []).map(r => r.kampagne_id).filter(Boolean);
+        console.log('  ✓ Direkte Kampagnen:', directIds.length);
+        
+        // 2. Kampagnen über zugeordnete Marken
+        const { data: markenAssignments, error: markenError } = await window.supabase
+          .from('marke_mitarbeiter')
+          .select('marke_id')
+          .eq('mitarbeiter_id', window.currentUser?.id);
+        
+        if (markenError) console.error('❌ Fehler bei marke_mitarbeiter:', markenError);
+        const markenIds = (markenAssignments || []).map(r => r.marke_id).filter(Boolean);
+        console.log('  ✓ Zugeordnete Marken:', markenIds.length);
+        
+        let markenKampagnenIds = [];
+        if (markenIds.length > 0) {
+          const { data: markenKampagnen, error: markenKampagnenError } = await window.supabase
+            .from('kampagne')
+            .select('id')
+            .in('marke_id', markenIds);
+          if (markenKampagnenError) console.error('❌ Fehler bei Marken-Kampagnen:', markenKampagnenError);
+          markenKampagnenIds = (markenKampagnen || []).map(k => k.id).filter(Boolean);
+          console.log('  ✓ Kampagnen über Marken:', markenKampagnenIds.length);
+        }
+        
+        // 3. Kampagnen über zugeordnete Unternehmen
+        const { data: unternehmenAssignments, error: unternehmenError } = await window.supabase
+          .from('mitarbeiter_unternehmen')
+          .select('unternehmen_id')
+          .eq('mitarbeiter_id', window.currentUser?.id);
+        
+        if (unternehmenError) console.error('❌ Fehler bei mitarbeiter_unternehmen:', unternehmenError);
+        const unternehmenIds = (unternehmenAssignments || []).map(r => r.unternehmen_id).filter(Boolean);
+        console.log('  ✓ Zugeordnete Unternehmen:', unternehmenIds.length);
+        
+        let unternehmenKampagnenIds = [];
+        if (unternehmenIds.length > 0) {
+          const { data: unternehmenKampagnen, error: unternehmenKampagnenError } = await window.supabase
+            .from('kampagne')
+            .select('id')
+            .in('unternehmen_id', unternehmenIds);
+          if (unternehmenKampagnenError) console.error('❌ Fehler bei Unternehmen-Kampagnen:', unternehmenKampagnenError);
+          unternehmenKampagnenIds = (unternehmenKampagnen || []).map(k => k.id).filter(Boolean);
+          console.log('  ✓ Kampagnen über Unternehmen:', unternehmenKampagnenIds.length);
+        }
+        
+        // Kombiniere und dedupliziere
+        kampagneIds = [...new Set([...directIds, ...markenKampagnenIds, ...unternehmenKampagnenIds])];
+        
+        console.log(`🔍 Mitarbeiter ${window.currentUser?.id} hat Zugriff auf ${kampagneIds.length} Kampagnen`);
+        console.log('  → IDs:', kampagneIds);
+        
+        if (kampagneIds.length === 0) {
+          this.kampagnen = [];
+          return;
+        }
+      }
+
+      // Haupt-Query
+      let query = window.supabase
         .from('kampagne')
         .select('id, kampagnenname')
         .order('kampagnenname');
+      
+      // Für Nicht-Admins: Filter anwenden
+      if (!isAdmin && kampagneIds.length > 0) {
+        query = query.in('id', kampagneIds);
+      }
+      
+      const { data, error } = await query;
       
       if (error) throw error;
       this.kampagnen = data || [];
@@ -133,21 +275,69 @@ export class TaskCreateDrawer {
         return;
       }
 
-      // Lade Mitarbeiter die dieser Kampagne zugeordnet sind
-      const { data, error } = await window.supabase
+      // Lade die Kampagne um marke_id und unternehmen_id zu bekommen
+      const { data: kampagneData, error: kampagneError } = await window.supabase
+        .from('kampagne')
+        .select('marke_id, unternehmen_id')
+        .eq('id', kampagneId)
+        .single();
+      
+      if (kampagneError) {
+        console.error('❌ Fehler beim Laden der Kampagne:', kampagneError);
+        this.mitarbeiter = [];
+        return;
+      }
+
+      const mitarbeiterMap = new Map();
+
+      // 1. Direkt zugeordnete Mitarbeiter über kampagne_mitarbeiter
+      const { data: direkteMitarbeiter, error: direktError } = await window.supabase
         .from('kampagne_mitarbeiter')
         .select('mitarbeiter:mitarbeiter_id(id, name, rolle, profile_image_url)')
         .eq('kampagne_id', kampagneId);
       
-      if (error) {
-        console.error('❌ Fehler beim Laden der Mitarbeiter:', error);
-        this.mitarbeiter = [];
-        return;
+      if (!direktError && direkteMitarbeiter) {
+        direkteMitarbeiter.forEach(item => {
+          if (item.mitarbeiter) {
+            mitarbeiterMap.set(item.mitarbeiter.id, item.mitarbeiter);
+          }
+        });
       }
-      
-      this.mitarbeiter = (data || [])
-        .map(item => item.mitarbeiter)
-        .filter(Boolean);
+
+      // 2. Mitarbeiter über zugeordnete Marke (falls vorhanden)
+      if (kampagneData.marke_id) {
+        const { data: markenMitarbeiter, error: markenError } = await window.supabase
+          .from('marke_mitarbeiter')
+          .select('mitarbeiter:mitarbeiter_id(id, name, rolle, profile_image_url)')
+          .eq('marke_id', kampagneData.marke_id);
+        
+        if (!markenError && markenMitarbeiter) {
+          markenMitarbeiter.forEach(item => {
+            if (item.mitarbeiter) {
+              mitarbeiterMap.set(item.mitarbeiter.id, item.mitarbeiter);
+            }
+          });
+        }
+      }
+
+      // 3. Mitarbeiter über zugeordnetes Unternehmen (falls vorhanden)
+      if (kampagneData.unternehmen_id) {
+        const { data: unternehmenMitarbeiter, error: unternehmenError } = await window.supabase
+          .from('mitarbeiter_unternehmen')
+          .select('mitarbeiter:mitarbeiter_id(id, name, rolle, profile_image_url)')
+          .eq('unternehmen_id', kampagneData.unternehmen_id);
+        
+        if (!unternehmenError && unternehmenMitarbeiter) {
+          unternehmenMitarbeiter.forEach(item => {
+            if (item.mitarbeiter) {
+              mitarbeiterMap.set(item.mitarbeiter.id, item.mitarbeiter);
+            }
+          });
+        }
+      }
+
+      // Konvertiere Map zu Array (automatisch dedupliziert)
+      this.mitarbeiter = Array.from(mitarbeiterMap.values());
       console.log('✅ Mitarbeiter geladen für Kampagne:', this.mitarbeiter.length);
     } catch (error) {
       console.error('❌ Fehler beim Laden der Mitarbeiter:', error);
@@ -555,6 +745,12 @@ export class TaskCreateDrawer {
   }
 
   close() {
+    // Event-Listener entfernen
+    if (this.boundHandleEntityUpdate) {
+      window.removeEventListener('entityUpdated', this.boundHandleEntityUpdate);
+      this.boundHandleEntityUpdate = null;
+    }
+    
     const panel = document.getElementById(this.drawerId);
     const overlay = document.getElementById(`${this.drawerId}-overlay`);
     
@@ -574,6 +770,17 @@ export class TaskCreateDrawer {
     
     if (panel) panel.remove();
     if (overlay) overlay.remove();
+  }
+
+  handleEntityUpdate(event) {
+    if (event.detail?.entity === 'kampagne' && event.detail?.action === 'staff-assigned') {
+      console.log('🔄 Kampagne aktualisiert, lade neu...');
+      this.loadKampagnen().then(() => {
+        this.renderForm();
+        this.bindFormEvents();
+        this.updateAssignmentDropdowns();
+      });
+    }
   }
 }
 

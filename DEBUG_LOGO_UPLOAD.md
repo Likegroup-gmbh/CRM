@@ -162,3 +162,6 @@ Falls Logo-Upload weiterhin fehlschlägt, kann das Logo auch nachträglich im Ed
    - `❌ DB-Fehler` → Datenbank-Update fehlgeschlagen
    - Kein Log → uploadLogo() wird nicht aufgerufen
 
+
+
+

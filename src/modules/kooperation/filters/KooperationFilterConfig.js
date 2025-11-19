@@ -61,14 +61,14 @@ export const KOOPERATION_FILTERS = [
   // Start-Datum Filter
   createFilterConfig('dateRange', {
     id: 'start_datum',
-    label: 'Startdatum',
+    label: 'Script Deadline',
     priority: 5
   }),
 
   // End-Datum Filter
   createFilterConfig('dateRange', {
     id: 'end_datum',
-    label: 'Enddatum',
+    label: 'Content Deadline',
     priority: 6
   }),
 

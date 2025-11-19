@@ -34,6 +34,7 @@ export class ActionRegistry {
       'set-role', 'set-field',
       'assign-unternehmen', 'remove-unternehmen',
       'assign-marke', 'remove-marke',
+      'unassign-kampagne',  // Mitarbeiter-Detail: Kampagnen-Zuweisung entfernen
       'rating', 'favorite',
       // Creator-Adressen Actions
       'edit_creator_adresse', 'delete_creator_adresse',

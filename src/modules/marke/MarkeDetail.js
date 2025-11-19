@@ -15,6 +15,8 @@ export class MarkeDetail {
     this.ratings = [];
     this.kampagnen = [];
     this.auftraege = [];
+    this.briefings = [];
+    this.kooperationen = [];
     this.ansprechpartner = [];
     this.rechnungen = [];
   }
@@ -162,6 +164,39 @@ export class MarkeDetail {
             this.updateAuftraegeTab();
             return auftraege;
           
+          case 'briefings':
+            const { data: briefings } = await window.supabase
+              .from('briefings')
+              .select('id, product_service_offer, status, deadline, marke_id, kampagne_id, created_at')
+              .eq('marke_id', this.markeId)
+              .order('created_at', { ascending: false });
+            this.briefings = briefings || [];
+            this.updateBriefingsTab();
+            return briefings;
+          
+          case 'kooperationen':
+            // Erst Kampagnen laden (falls noch nicht geladen)
+            if (!this.kampagnen || this.kampagnen.length === 0) {
+              await this.loadTabData('kampagnen');
+            }
+            const kampagneIds = (this.kampagnen || []).map(k => k.id).filter(Boolean);
+            if (kampagneIds.length > 0) {
+              const { data: kooperationen } = await window.supabase
+                .from('kooperationen')
+                .select(`
+                  id, name, status, videoanzahl, einkaufspreis_gesamt, kampagne_id, creator_id, created_at,
+                  creator:creator_id (vorname, nachname),
+                  kampagne:kampagne_id (kampagnenname)
+                `)
+                .in('kampagne_id', kampagneIds)
+                .order('created_at', { ascending: false });
+              this.kooperationen = kooperationen || [];
+            } else {
+              this.kooperationen = [];
+            }
+            this.updateKooperationenTab();
+            return this.kooperationen;
+          
           case 'rechnungen':
             // Erst Aufträge laden (falls noch nicht geladen)
             if (!this.auftraege || this.auftraege.length === 0) {
@@ -201,6 +236,22 @@ export class MarkeDetail {
     if (container) {
       const parent = container.parentElement;
       parent.innerHTML = this.renderAuftraege();
+    }
+  }
+  
+  updateBriefingsTab() {
+    const container = document.querySelector('#briefings .data-table-container');
+    if (container) {
+      const parent = container.parentElement;
+      parent.innerHTML = this.renderBriefings();
+    }
+  }
+  
+  updateKooperationenTab() {
+    const container = document.querySelector('#kooperationen .data-table-container');
+    if (container) {
+      const parent = container.parentElement;
+      parent.innerHTML = this.renderKooperationen();
     }
   }
   
@@ -255,9 +306,17 @@ export class MarkeDetail {
             Aufträge
             <span class="tab-count">${this.auftraege.length}</span>
           </button>
+          <button class="tab-button" data-tab="briefings">
+            Briefings
+            <span class="tab-count">${this.briefings.length}</span>
+          </button>
           <button class="tab-button" data-tab="kampagnen">
             Kampagnen
             <span class="tab-count">${this.kampagnen.length}</span>
+          </button>
+          <button class="tab-button" data-tab="kooperationen">
+            Kooperationen
+            <span class="tab-count">${this.kooperationen.length}</span>
           </button>
           <button class="tab-button" data-tab="rechnungen">
             Rechnungen
@@ -282,9 +341,19 @@ export class MarkeDetail {
             ${this.renderAuftraege()}
           </div>
 
+          <!-- Briefings Tab -->
+          <div class="tab-pane" id="briefings">
+            ${this.renderBriefings()}
+          </div>
+
           <!-- Kampagnen Tab -->
           <div class="tab-pane" id="kampagnen">
             ${this.renderKampagnen()}
+          </div>
+
+          <!-- Kooperationen Tab -->
+          <div class="tab-pane" id="kooperationen">
+            ${this.renderKooperationen()}
           </div>
 
           <!-- Rechnungen Tab -->
@@ -600,6 +669,110 @@ export class MarkeDetail {
     }, 100);
     
     return tableHtml;
+  }
+
+  // Rendere Briefings
+  renderBriefings() {
+    if (!this.briefings || this.briefings.length === 0) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">📝</div>
+          <h3>Keine Briefings vorhanden</h3>
+          <p>Es wurden noch keine Briefings für diese Marke erstellt.</p>
+        </div>
+      `;
+    }
+
+    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
+
+    const rows = this.briefings.map(briefing => `
+      <tr>
+        <td>
+          <a href="#" class="table-link" data-table="briefing" data-id="${briefing.id}">
+            ${briefing.product_service_offer || 'Unbekanntes Briefing'}
+          </a>
+        </td>
+        <td><span class="status-badge status-${briefing.status?.toLowerCase() || 'unknown'}">${briefing.status || '-'}</span></td>
+        <td>${formatDate(briefing.deadline)}</td>
+        <td>${formatDate(briefing.created_at)}</td>
+        <td>
+          ${actionBuilder.create('briefing', briefing.id)}
+        </td>
+      </tr>
+    `).join('');
+
+    return `
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Produkt/Angebot</th>
+              <th>Status</th>
+              <th>Deadline</th>
+              <th>Erstellt am</th>
+              <th>Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  // Rendere Kooperationen
+  renderKooperationen() {
+    if (!this.kooperationen || this.kooperationen.length === 0) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">🤝</div>
+          <h3>Keine Kooperationen vorhanden</h3>
+          <p>Für die Kampagnen dieser Marke wurden keine Kooperationen gefunden.</p>
+        </div>
+      `;
+    }
+
+    const formatCurrency = (value) => value ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value) : '-';
+
+    const rows = this.kooperationen.map(k => `
+      <tr>
+        <td>
+          <a href="#" class="table-link" data-table="kooperation" data-id="${k.id}">
+            ${k.name || 'Kooperation'}
+          </a>
+        </td>
+        <td><span class="status-badge status-${k.status?.toLowerCase() || 'unknown'}">${k.status || '-'}</span></td>
+        <td>${k.creator ? `${k.creator.vorname || ''} ${k.creator.nachname || ''}`.trim() || '-' : '-'}</td>
+        <td>${k.kampagne?.kampagnenname || '-'}</td>
+        <td>${k.videoanzahl || 0}</td>
+        <td>${formatCurrency(k.einkaufspreis_gesamt)}</td>
+        <td>
+          ${actionBuilder.create('kooperation', k.id)}
+        </td>
+      </tr>
+    `).join('');
+
+    return `
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Status</th>
+              <th>Creator</th>
+              <th>Kampagne</th>
+              <th>Videos</th>
+              <th>Gesamtkosten</th>
+              <th>Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      </div>
+    `;
   }
 
   // Binde Events

@@ -55,13 +55,13 @@ export class KooperationFilterLogic {
       }
     }
     
-    // Start-Datum Range Filter
+    // Start-Datum Range Filter (mappt auf skript_deadline)
     if (filters.start_datum) {
       const from = filters.start_datum.from || filters.start_datum.min || null;
       const to = filters.start_datum.to || filters.start_datum.max || null;
       
       if (from || to) {
-        processedFilters.start_datum = {
+        processedFilters.skript_deadline = {
           type: 'date_range',
           from,
           to
@@ -69,13 +69,13 @@ export class KooperationFilterLogic {
       }
     }
     
-    // End-Datum Range Filter
+    // End-Datum Range Filter (mappt auf content_deadline)
     if (filters.end_datum) {
       const from = filters.end_datum.from || filters.end_datum.min || null;
       const to = filters.end_datum.to || filters.end_datum.max || null;
       
       if (from || to) {
-        processedFilters.end_datum = {
+        processedFilters.content_deadline = {
           type: 'date_range',
           from,
           to

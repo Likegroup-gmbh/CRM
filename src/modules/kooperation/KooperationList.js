@@ -12,6 +12,12 @@ export class KooperationList {
     this.selectedKooperation = new Set();
     this._boundEventListeners = new Set();
     this.statusOptions = [];
+    
+    // Drag-to-Scroll State
+    this.isDragging = false;
+    this.startX = 0;
+    this.scrollLeft = 0;
+    this.dragScrollContainer = null;
   }
 
   // Initialisiere Kooperations-Liste
@@ -290,14 +296,15 @@ export class KooperationList {
               <th>Status</th>
               <th>Einkaufspreis</th>
               <th>Verkaufspreis</th>
-              <th>Start</th>
-              <th>Ende</th>
+              <th>Erstellt</th>
+              <th>Script Deadline</th>
+              <th>Content Deadline</th>
               <th>Aktionen</th>
             </tr>
           </thead>
           <tbody id="kooperationen-table-body">
             <tr>
-              <td colspan="11" class="loading">Lade Kooperationen...</td>
+              <td colspan="12" class="loading">Lade Kooperationen...</td>
             </tr>
           </tbody>
         </table>
@@ -494,7 +501,7 @@ export class KooperationList {
     const rowsHtml = kooperationen.map(kooperation => {
       // Hilfsfunktionen für Formatierung
       const formatCurrency = (value) => {
-        return value ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value) : '-';
+        return value ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR'}).format(value) : '-';
       };
       
       const formatDate = (date) => {
@@ -521,6 +528,7 @@ export class KooperationList {
           </td>
           <td>${formatCurrency(kooperation.einkaufspreis_gesamt)}</td>
           <td>${formatCurrency(kooperation.verkaufspreis_gesamt)}</td>
+          <td>${formatDate(kooperation.created_at)}</td>
           <td>${formatDate(kooperation.skript_deadline)}</td>
           <td>${formatDate(kooperation.content_deadline)}</td>
           <td>
@@ -534,6 +542,76 @@ export class KooperationList {
     }).join('');
 
     tbody.innerHTML = rowsHtml;
+    
+    // Drag-to-Scroll nach dem Rendern initialisieren
+    this.bindDragToScroll();
+  }
+  
+  // Drag-to-Scroll für horizontales Scrollen der Tabelle
+  bindDragToScroll() {
+    const container = document.querySelector('.data-table-container');
+    if (!container) return;
+    
+    this.dragScrollContainer = container;
+    
+    // Entferne alte Event-Listener, falls vorhanden
+    if (this._dragMouseDown) {
+      container.removeEventListener('mousedown', this._dragMouseDown);
+      container.removeEventListener('mousemove', this._dragMouseMove);
+      container.removeEventListener('mouseup', this._dragMouseUp);
+      container.removeEventListener('mouseleave', this._dragMouseUp);
+    }
+    
+    // Mousedown - Prüfe ob auf nicht-editierbarem Bereich
+    this._dragMouseDown = (e) => {
+      // Ignoriere wenn auf Input, Checkbox, Link, Button geklickt wird
+      if (
+        e.target.tagName === 'INPUT' || 
+        e.target.tagName === 'BUTTON' ||
+        e.target.classList.contains('status-badge') ||
+        e.target.closest('a') ||
+        e.target.closest('.actions-dropdown-container')
+      ) {
+        return;
+      }
+      
+      this.isDragging = true;
+      this.startX = e.pageX - container.offsetLeft;
+      this.scrollLeft = container.scrollLeft;
+      
+      container.style.cursor = 'grabbing';
+      container.style.userSelect = 'none';
+      
+      e.preventDefault();
+    };
+    
+    // Mousemove - Scrolle wenn dragging aktiv ist
+    this._dragMouseMove = (e) => {
+      if (!this.isDragging) return;
+      
+      e.preventDefault();
+      
+      const x = e.pageX - container.offsetLeft;
+      const walk = (x - this.startX) * 1.5; // Multiplikator für Scroll-Geschwindigkeit
+      container.scrollLeft = this.scrollLeft - walk;
+    };
+    
+    // Mouseup - Beende Dragging
+    this._dragMouseUp = () => {
+      if (this.isDragging) {
+        this.isDragging = false;
+        container.style.cursor = 'grab';
+        container.style.userSelect = '';
+      }
+    };
+    
+    container.addEventListener('mousedown', this._dragMouseDown);
+    container.addEventListener('mousemove', this._dragMouseMove);
+    container.addEventListener('mouseup', this._dragMouseUp);
+    container.addEventListener('mouseleave', this._dragMouseUp);
+    
+    // Setze initialen Cursor
+    container.style.cursor = 'grab';
   }
 
   // Bestätigungsdialog für Bulk-Delete

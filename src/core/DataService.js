@@ -1696,8 +1696,14 @@ export class DataService {
             supabaseData[field] = value || null;
         }
       } else {
-        // Felder ohne Konfiguration NICHT übernehmen (um DB-400 zu vermeiden)
-        console.log(`🔧 Ignoriere unbekanntes Feld für ${entityType}: ${field}`);
+        // Ausnahme: Meta-Felder wie created_by_id immer übernehmen
+        if (field === 'created_by_id' || field === 'updated_by_id') {
+          supabaseData[field] = value || null;
+          console.log(`✅ Meta-Feld ${field} übernommen: ${value}`);
+        } else {
+          // Felder ohne Konfiguration NICHT übernehmen (um DB-400 zu vermeiden)
+          console.log(`🔧 Ignoriere unbekanntes Feld für ${entityType}: ${field}`);
+        }
       }
     }
     
