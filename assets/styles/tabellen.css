@@ -216,25 +216,38 @@
 .video-fields-stack {
   display: flex;
   flex-direction: column;
-  gap: 4px;
   width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 /* Video-Field-Wrapper: Jedes einzelne Video-Feld */
 .video-field-wrapper {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
   width: 100%;
-  min-height: 60px;
-  max-height: 500px;
-  overflow: hidden;
+  height:100%;
+  padding: var(--space-sm) var(--space-md);
   border-bottom: 1px solid var(--gray-200);
 }
 
 .video-field-wrapper:last-child {
   border-bottom: none;
   margin-bottom: 0;
-  padding-bottom: 0;
+  padding-bottom: var(--space-sm);
+}
+
+/* Entferne Padding von Tabellenzellen mit gestapelten Videos */
+.video-stack-cell {
+  padding: 0 !important;
+}
+
+.video-stack-cell .video-field-wrapper {
+  padding-left: var(--space-md);
+  padding-right: var(--space-md);
 }
 
 /* Gestapelte Video-Inputs innerhalb einer Kooperation */
@@ -242,6 +255,46 @@
 .stacked-video-textarea {
   width: 100%;
   box-sizing: border-box;
+  flex: 1; /* Inputs teilen sich den verfügbaren Platz gleichmäßig */
+  min-height: 0; /* Wichtig für flex-Kinder */
+}
+
+/* Lieferadresse Text mit Zeilenumbrüchen */
+.address-text {
+  white-space: pre-line;
+}
+
+/* Vertrag Checkbox - zentriert */
+.cell-centered {
+  text-align: center;
+}
+
+/* Loading Spinner Container */
+.table-loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: var(--space-2xl) var(--space-lg);
+  color: var(--gray-600);
+}
+
+.table-loading-content {
+  text-align: center;
+}
+
+.table-loading-spinner {
+  margin: 0 auto var(--space-md);
+  border: 3px solid var(--gray-200);
+  border-top-color: var(--primary-600);
+  border-radius: 50%;
+  width: 2.5rem; /* 40px */
+  height: 2.5rem; /* 40px */
+  animation: spin 0.8s linear infinite;
+}
+
+.table-loading-text {
+  font-size: var(--text-base);
+  font-weight: 500;
 }
 
 .stacked-video-textarea {
@@ -323,8 +376,9 @@
 .stacked-video-input {
   display: block;
   width: 100%;
+  height: 100%;
   margin: 0;
-  padding: 8px;
+  padding: var(--space-xs);
   font-size: inherit; /* Erbt von th/td */
   font-weight: inherit; /* Erbt von th/td */
   border: none;
@@ -332,6 +386,34 @@
   border-radius: 0;
   background: inherit; /* Erbt Zebra-Striping von tr */
   box-sizing: border-box;
+}
+
+/* Produkte-Spalte: Padding entfernen - höhere Spezifität mit !important */
+.col-produkt .stacked-video-input,
+td.col-produkt .stacked-video-input,
+.video-stack-cell.col-produkt .stacked-video-input,
+.grid-cell.col-produkt .stacked-video-input {
+  padding: 0 var(--space-xs) 0 var(--space-xs) !important;
+}
+
+/* Produkte-Spalte: Auch video-field-wrapper Padding entfernen */
+.col-produkt .video-field-wrapper {
+  padding: 0 !important;
+}
+
+/* Video-Nr Spalte: Zentrierte Nummerierung */
+.col-video-nr .video-field-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.col-video-nr .video-nr-text {
+  font-weight: 500;
+  color: var(--gray-700);
+  font-size: var(--text-sm);
 }
 
 .stacked-video-input:last-child {
@@ -344,8 +426,7 @@
   width: 100%;
   margin: 0;
   padding: 8px;
-  min-height: 80px;
-  max-height: 500px;
+  min-height: 5rem; /* 80px */
   overflow-y: auto;
   font-size: inherit; /* Erbt von th/td */
   font-weight: inherit; /* Erbt von th/td */
@@ -1517,5 +1598,39 @@
   cursor: not-allowed;
   opacity: 0.6;
   color: var(--gray-600);
+}
+
+/* External Link Button */
+.external-link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+  
+  border: 1px solid var(--primary-200);
+  border-radius: var(--radius-sm);
+  color: var(--primary-600);
+  transition: all 0.2s ease;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+
+
+.external-link-btn:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.external-link-btn svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2;
+}
+
+.video-field-wrapper .external-link-btn {
+  margin: auto;
 }
 

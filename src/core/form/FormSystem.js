@@ -612,17 +612,12 @@ export class FormSystem {
         throw upErr;
       }
       
-      // Signierte URL erstellen
-      const { data: signed, error: signErr } = await window.supabase.storage
+      // Öffentliche URL erstellen (permanent verfügbar)
+      const { data: publicUrlData } = window.supabase.storage
         .from(bucket)
-        .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 Tage
+        .getPublicUrl(path);
       
-      if (signErr) {
-        console.error(`❌ Fehler beim Erstellen der signierten URL:`, signErr);
-        throw signErr;
-      }
-      
-      const logo_url = signed?.signedUrl || '';
+      const logo_url = publicUrlData?.publicUrl || '';
       
       // Datenbank aktualisieren
       const { error: dbErr } = await window.supabase

@@ -384,6 +384,7 @@ export class KampagneList {
 
   renderTableWrapper() {
     const isKunde = window.currentUser?.rolle === 'kunde';
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
     
     return `
       ${!isKunde ? `
@@ -394,16 +395,16 @@ export class KampagneList {
           </div>
         </div>
         <div class="table-actions">
-          <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
-          <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
-          <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
+          ${isAdmin ? '<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>' : ''}
+          ${isAdmin ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
+          ${isAdmin ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
         </div>
       </div>` : ''}
       <div class="data-table-container">
         <table class="data-table">
           <thead>
             <tr>
-              ${!isKunde ? `<th>
+              ${!isKunde && isAdmin ? `<th>
                 <input type="checkbox" id="select-all-kampagnen">
               </th>` : ''}
               <th>Kampagnenname</th>
@@ -700,10 +701,11 @@ export class KampagneList {
       };
 
       const formatArray = (array) => array && Array.isArray(array) && array.length ? array.join(', ') : '-';
+      const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
 
       return `
         <tr data-id="${kampagne.id}">
-          ${!isKunde ? `<td><input type="checkbox" class="kampagne-check" data-id="${kampagne.id}"></td>` : ''}
+          ${!isKunde && isAdmin ? `<td><input type="checkbox" class="kampagne-check" data-id="${kampagne.id}"></td>` : ''}
           <td>
             <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
               ${window.validatorSystem.sanitizeHtml(kampagne.kampagnenname || 'Unbekannt')}
@@ -1067,6 +1069,8 @@ export class KampagneList {
 
   // Ausgewählte Kampagnen löschen
   async deleteSelectedKampagnen() {
+    if (window.currentUser?.rolle !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'admin') return;
+
     const selectedIds = Array.from(this.selectedKampagnen);
     const totalCount = selectedIds.length;
     

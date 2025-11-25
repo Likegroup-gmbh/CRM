@@ -243,7 +243,9 @@ export class FormConfig {
           { name: 'ust_betrag', label: 'USt Betrag', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['nettobetrag','ust_prozent'] },
           { name: 'bruttobetrag', label: 'Brutto Gesamtbudget', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['nettobetrag','ust_betrag'] },
           { name: 'rechnung_gestellt', label: 'Rechnung gestellt', type: 'toggle', required: false },
+          { name: 'rechnung_gestellt_am', label: 'Rechnung gestellt am', type: 'date', required: false, placeholder: 'Datum wann Rechnung gestellt wurde' },
           { name: 'ueberwiesen', label: 'Überwiesen', type: 'toggle', required: false },
+          { name: 'ueberwiesen_am', label: 'Überwiesen am', type: 'date', required: false, placeholder: 'Datum wann Zahlung überwiesen wurde' },
           { name: 'mitarbeiter_ids', label: 'Mitarbeiter zuweisen', type: 'multiselect', required: false, options: [], dynamic: true, searchable: true, tagBased: true, placeholder: 'Mitarbeiter suchen und auswählen...', table: 'benutzer', displayField: 'name', valueField: 'id', relationTable: 'auftrag_mitarbeiter', relationField: 'mitarbeiter_id' },
           { name: 'cutter_ids', label: 'Cutter zuweisen', type: 'multiselect', required: false, options: [], dynamic: true, searchable: true, tagBased: true, placeholder: 'Cutter suchen und auswählen...', table: 'benutzer', displayField: 'name', valueField: 'id', customField: true, relationTable: 'auftrag_cutter', relationField: 'mitarbeiter_id' },
           { name: 'copywriter_ids', label: 'Copywright zuweisen', type: 'multiselect', required: false, options: [], dynamic: true, searchable: true, tagBased: true, placeholder: 'Copywriter suchen und auswählen...', table: 'benutzer', displayField: 'name', valueField: 'id', customField: true, relationTable: 'auftrag_copywriter', relationField: 'mitarbeiter_id' }
@@ -267,7 +269,6 @@ export class FormConfig {
             readonly: true,
             placeholder: 'Wird automatisch generiert...'
           },
-          { name: 'content_art', label: 'Content Art', type: 'select', required: true, options: ['Paid', 'Organisch', 'Influencer', 'Whitelisting', 'Spark-Ad'] },
           { name: 'skript_autor', label: 'Skript schreibt', type: 'select', required: false, options: ['Brand', 'Creator', 'Agentur'] },
           
           // Einkaufspreis

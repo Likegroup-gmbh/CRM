@@ -29,7 +29,7 @@ export class ActionRegistry {
       'marken', 'auftraege', 'kampagnen',
       'assign_staff', 'assign-staff',
       'add_to_list', 'add_to_campaign',
-      'video-create', 'bewerten', 'rechnung',
+      'video-create', 'bewerten', 'rechnung', 'rechnung_anpassen',
       'invite', 'freischalten',
       'set-role', 'set-field',
       'assign-unternehmen', 'remove-unternehmen',

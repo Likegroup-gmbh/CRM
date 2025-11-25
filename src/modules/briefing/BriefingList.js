@@ -262,6 +262,7 @@ export class BriefingList {
   async render() {
     const canEdit = window.currentUser?.permissions?.briefing?.can_edit || false;
     const isKunde = window.currentUser?.rolle === 'kunde';
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
 
     const filterHtml = !isKunde ? `<div class="filter-bar">
       <div class="filter-left">
@@ -279,18 +280,18 @@ export class BriefingList {
 
       ${!isKunde ? `<div class="table-filter-wrapper">
         ${filterHtml}
-        <div class="table-actions">
+        ${isAdmin ? `<div class="table-actions">
           <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
           <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
-        </div>
+        </div>` : ''}
       </div>` : ''}
 
       <div class="data-table-container">
         <table class="data-table">
           <thead>
             <tr>
-              ${!isKunde ? `<th><input type="checkbox" id="select-all-briefings"></th>` : ''}
+              ${!isKunde && isAdmin ? `<th><input type="checkbox" id="select-all-briefings"></th>` : ''}
               <th>Produkt/Angebot</th>
               <th>Unternehmen</th>
               <th>Marke</th>
@@ -301,7 +302,7 @@ export class BriefingList {
           </thead>
           <tbody id="briefings-table-body">
             <tr>
-              <td colspan="${isKunde ? '6' : '7'}" class="loading">Lade Briefings...</td>
+              <td colspan="${!isKunde && isAdmin ? '7' : '6'}" class="loading">Lade Briefings...</td>
             </tr>
           </tbody>
         </table>
@@ -443,6 +444,8 @@ export class BriefingList {
 
   // Ausgewählte Briefings löschen
   async deleteSelectedBriefings() {
+    if (window.currentUser?.rolle !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'admin') return;
+    
     const selectedIds = Array.from(this.selectedBriefings);
     const totalCount = selectedIds.length;
     
@@ -572,6 +575,7 @@ export class BriefingList {
     if (!tbody) return;
 
     const isKunde = window.currentUser?.rolle === 'kunde';
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
 
     if (!items || items.length === 0) {
       const { renderEmptyState } = await import('../../core/FilterUI.js');
@@ -584,7 +588,7 @@ export class BriefingList {
 
     const rowsHtml = items.map(b => `
       <tr data-id="${b.id}">
-        ${!isKunde ? `<td><input type="checkbox" class="briefing-check" data-id="${b.id}"></td>` : ''}
+        ${!isKunde && isAdmin ? `<td><input type="checkbox" class="briefing-check" data-id="${b.id}"></td>` : ''}
         <td>
           <a href="#" class="table-link" data-table="briefing" data-id="${b.id}">
             ${escapeHtml((b.product_service_offer || '').toString().slice(0, 80))}

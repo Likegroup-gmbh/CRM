@@ -266,6 +266,8 @@ export class KooperationList {
       </div>
       
     </div>`;
+
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
     
     // Haupt-HTML
     let html = `
@@ -278,9 +280,9 @@ export class KooperationList {
       <div class="table-filter-wrapper">
         ${filterHtml}
         <div class="table-actions">
-          <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
-          <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
-          <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
+          ${isAdmin ? '<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>' : ''}
+          ${isAdmin ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
+          ${isAdmin ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
         </div>
       </div>
 
@@ -288,7 +290,7 @@ export class KooperationList {
         <table class="data-table">
           <thead>
             <tr>
-              <th><input type="checkbox" id="select-all-kooperationen"></th>
+              ${isAdmin ? '<th><input type="checkbox" id="select-all-kooperationen"></th>' : ''}
               <th>Name</th>
               <th>Kampagne</th>
               <th>Creator</th>
@@ -508,9 +510,11 @@ export class KooperationList {
         return date ? new Date(date).toLocaleDateString('de-DE') : '-';
       };
 
+      const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+
       return `
         <tr data-id="${kooperation.id}">
-          <td><input type="checkbox" class="kooperation-check" data-id="${kooperation.id}"></td>
+          ${isAdmin ? `<td><input type="checkbox" class="kooperation-check" data-id="${kooperation.id}"></td>` : ''}
           <td>
             <a href="#" class="table-link" data-table="kooperation" data-id="${kooperation.id}">
               ${window.validatorSystem.sanitizeHtml(kooperation.name || '—')}
@@ -642,6 +646,8 @@ export class KooperationList {
 
   // Ausgewählte Kooperationen löschen
   async deleteSelectedKooperationen() {
+    if (window.currentUser?.rolle !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'admin') return;
+    
     const selectedIds = Array.from(this.selectedKooperation);
     const totalCount = selectedIds.length;
     

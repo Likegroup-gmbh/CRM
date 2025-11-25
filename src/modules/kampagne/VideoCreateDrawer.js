@@ -134,6 +134,8 @@ export class VideoCreateDrawer {
               <option value="Organisch">Organisch</option>
               <option value="Influencer">Influencer</option>
               <option value="Videograph">Videograph</option>
+              <option value="Whitelisting">Whitelisting</option>
+              <option value="Spark-Ad">Spark-Ad</option>
             </select>
           </div>
 

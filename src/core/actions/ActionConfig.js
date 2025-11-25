@@ -128,6 +128,7 @@ export const ActionConfigs = {
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
       { id: 'notiz', icon: 'notiz', label: 'Notiz hinzufügen', roles: ['admin', 'mitarbeiter'] },
       { id: 'rechnung', icon: 'rechnung-create', label: 'Rechnung anlegen', roles: ['admin', 'mitarbeiter'] },
+      { id: 'rechnung_anpassen', icon: 'edit', label: 'Rechnung anpassen', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
     ],
@@ -151,7 +152,7 @@ export const ActionConfigs = {
     actions: [
       { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
       { id: 'separator' },
-      { id: 'remove_ansprechpartner_link', icon: 'delete', label: 'Verknüpfung entfernen', danger: true, roles: ['admin', 'mitarbeiter'] }
+      { id: 'remove_ansprechpartner_link', icon: 'delete', label: 'Verknüpfung entfernen', danger: true, roles: ['admin'] }
     ],
     kundenActions: ['view']
   },
@@ -162,7 +163,7 @@ export const ActionConfigs = {
       { id: 'edit_creator_adresse', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
       { id: 'set_standard_adresse', icon: 'favorite', label: 'Als Standard festlegen', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
-      { id: 'delete_creator_adresse', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
+      { id: 'delete_creator_adresse', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
     ],
     kundenActions: []
   },

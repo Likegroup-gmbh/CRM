@@ -24,8 +24,8 @@ export class NavigationSystem {
       {
         title: 'Projektmanagement',
         items: [
-          { id: 'kampagne', label: 'Kampagne', icon: 'icon-campaign', url: '/kampagne' },
           { id: 'briefing', label: 'Briefing', icon: 'icon-document', url: '/briefing' },
+          { id: 'kampagne', label: 'Kampagne', icon: 'icon-campaign', url: '/kampagne' },
           // { id: 'kooperation', label: 'Kooperation', icon: 'icon-handshake', url: '/kooperation' },
           { id: 'rechnung', label: 'Rechnung', icon: 'icon-currency-euro', url: '/rechnung' },
           { id: 'tasks', label: 'Aufgaben', icon: 'icon-tasks', url: '/tasks' }

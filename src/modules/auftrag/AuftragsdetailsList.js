@@ -1,432 +1,443 @@
 // AuftragsdetailsList.js (ES6-Modul)
-// Auftragsdetails-Liste mit Filter und Verwaltung
+// Auftragsdetails-Liste mit Filter, Verwaltung und Pagination
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
+import { PaginationSystem } from '../../core/PaginationSystem.js';
 
 export class AuftragsdetailsList {
   constructor() {
     this.selectedDetails = new Set();
     this._boundEventListeners = new Set();
+    this.boundFilterResetHandler = null;
+    this.pagination = new PaginationSystem();
   }
 
   // Initialisiere Auftragsdetails-Liste
   async init() {
-    // Security: Nur Mitarbeiter haben Zugriff (Kunden nicht)
-    const isKunde = window.currentUser?.rolle === 'kunde';
-    if (isKunde) {
-      window.setHeadline('Zugriff verweigert');
-      window.content.innerHTML = `
-        <div class="error-state">
-          <h2>Zugriff verweigert</h2>
-          <p>Sie haben keine Berechtigung, diese Seite zu sehen.</p>
-        </div>
-      `;
-      return;
-    }
-
-    window.setHeadline('Auftragsdetails Übersicht');
+    console.log('📋 AUFTRAGSDETAILSLIST: Initialisiere Auftragsdetails-Liste');
     
-    // Breadcrumb setzen
+    // Breadcrumb für Listen-Seite
     if (window.breadcrumbSystem) {
       window.breadcrumbSystem.updateBreadcrumb([
         { label: 'Auftragsdetails', url: '/auftragsdetails', clickable: false }
       ]);
     }
     
-    await this.loadAndRender();
+    // Pagination initialisieren
+    this.pagination.init('pagination-auftragsdetails', {
+      itemsPerPage: 10,
+      onPageChange: (page) => this.handlePageChange(page),
+      onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page)
+    });
+    
+    try {
+      // BulkActionSystem für Auftragsdetails registrieren
+      window.bulkActionSystem?.registerList('auftragsdetails', this);
+      
+      await this.loadAndRender();
+      this.bindEvents();
+      console.log('✅ AUFTRAGSDETAILSLIST: Initialisierung abgeschlossen');
+    } catch (error) {
+      console.error('❌ AUFTRAGSDETAILSLIST: Fehler bei der Initialisierung:', error);
+      window.ErrorHandler?.handle(error, 'AuftragsdetailsList.init');
+    }
   }
 
-  // Rendere Listen-Ansicht
-  async render() {
-    const canEdit = window.currentUser?.permissions?.auftrag?.can_edit || window.currentUser?.rolle !== 'kunde';
+  // Lade und rendere Auftragsdetails
+  async loadAndRender() {
+    console.log('🔄 AUFTRAGSDETAILSLIST: Lade und rendere Auftragsdetails');
     
-    // Filter-UI über dem Tabellen-Header
-    let filterHtml = `<div class="filter-bar">
-      <div class="filter-left">
-        <div id="filter-dropdown-container"></div>
-      </div>
+    try {
+      // Seite rendern
+      await this.render();
+      console.log('✅ AUFTRAGSDETAILSLIST: Content gesetzt');
       
-    </div>`;
+      // Filter-Bar initialisieren
+      await this.initializeFilterBar();
+      
+      // Auftragsdetails mit Beziehungen und Pagination laden
+      console.log('🔍 AUFTRAGSDETAILSLIST: Lade Auftragsdetails mit Beziehungen und Pagination');
+      const filters = filterSystem.getFilters('auftragsdetails');
+      const { data: details, count } = await this.loadDetailsWithPagination(
+        filters,
+        this.pagination.currentPage,
+        this.pagination.itemsPerPage
+      );
+      
+      console.log('📊 AUFTRAGSDETAILSLIST: Auftragsdetails mit Beziehungen geladen:', details?.length, details);
+      
+      // Pagination Total aktualisieren
+      this.pagination.updateTotal(count);
+      
+      this.updateTable(details);
+      
+      // Pagination rendern
+      this.pagination.render();
+      
+      console.log('✅ AUFTRAGSDETAILSLIST: Tabelle aktualisiert');
+      
+    } catch (error) {
+      console.error('❌ AUFTRAGSDETAILSLIST: Fehler beim Laden und Rendern:', error);
+      if (window.ErrorHandler && window.ErrorHandler.handle) {
+        window.ErrorHandler.handle(error, 'AuftragsdetailsList.loadAndRender');
+      }
+    }
+  }
+
+  // Handler für Seiten-Wechsel
+  handlePageChange(page) {
+    console.log(`📄 AUFTRAGSDETAILSLIST: Wechsle zu Seite ${page}`);
+    this.loadAndRender();
+  }
+
+  // Handler für Items-Per-Page-Wechsel
+  handleItemsPerPageChange(limit, page) {
+    console.log(`📄 AUFTRAGSDETAILSLIST: Items pro Seite geändert auf ${limit}, Seite ${page}`);
+    this.loadAndRender();
+  }
+
+  // Rendere Auftragsdetails-Liste
+  async render() {
+    window.setHeadline('Auftragsdetails');
     
-    // Haupt-HTML
-    let html = `
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+
+    const html = `
       <div class="page-header">
         <div class="page-header-right">
-          ${canEdit ? '<button id="btn-auftragsdetails-new" class="primary-btn">Neue Auftragsdetails anlegen</button>' : ''}
+          <button id="btn-auftragsdetails-new" class="primary-btn">
+            <i class="icon-plus"></i>
+            Neue Auftragsdetails anlegen
+          </button>
         </div>
       </div>
 
       <div class="table-filter-wrapper">
-        ${filterHtml}
+        <div class="filter-bar">
+          <div id="filter-dropdown-container"></div>
+        </div>
         <div class="table-actions">
-          <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
-          <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
+          ${isAdmin ? '<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>' : ''}
+          ${isAdmin ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
-          <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
+          ${isAdmin ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
         </div>
       </div>
 
+      <!-- Daten-Tabelle -->
       <div class="table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th><input type="checkbox" id="select-all-auftragsdetails"></th>
-              <th>Auftragsname</th>
-              <th>Unternehmen</th>
-              <th>Marke</th>
-              <th>Kampagnen</th>
-              <th>Geplante Videos</th>
-              <th>Geplante Creator</th>
-              <th>Erstellt am</th>
-              <th>Aktionen</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colspan="9" class="no-data">Lade Auftragsdetails...</td>
-            </tr>
-          </tbody>
-        </table>
+          <table class="data-table">
+            <thead>
+              <tr>
+                ${isAdmin ? `<th>
+                  <input type="checkbox" id="select-all-auftragsdetails">
+                </th>` : ''}
+                <th>Auftrag</th>
+                <th>Kategorie</th>
+                <th>Beschreibung</th>
+                <th>Erstellt am</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="auftragsdetails-table-body">
+              <tr>
+                <td colspan="6" class="loading">Lade Auftragsdetails...</td>
+              </tr>
+            </tbody>
+          </table>
+          
+          <!-- Pagination -->
+          <div class="pagination-container" id="pagination-auftragsdetails"></div>
+        </div>
       </div>
     `;
 
     window.setContentSafely(window.content, html);
-    
-    // Events binden
-    this.bindEvents();
-    
-    // Initialisiere Filterbar mit neuem System
-    await this.initializeFilterBar();
   }
 
-  // Prüfe ob aktive Filter vorhanden sind
-  hasActiveFilters() {
-    const currentFilters = filterSystem.getFilters('auftragsdetails') || {};
-    return Object.keys(currentFilters).length > 0;
+  // Lade Auftragsdetails mit Beziehungen und Pagination
+  async loadDetailsWithPagination(filters = {}, page = 1, limit = 10) {
+    try {
+      if (!window.supabase) {
+        console.warn('⚠️ Supabase nicht verfügbar - verwende Mock-Daten');
+        const mockData = await window.dataService.loadEntities('auftrag_details');
+        return { data: mockData, count: mockData.length };
+      }
+
+      // Berechne Range für Pagination
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+
+      // Query mit allen Relations aufbauen
+      let query = window.supabase
+        .from('auftrag_details')
+        .select(`
+          *,
+          auftrag:auftrag_id(
+            id,
+            auftragsname,
+            status,
+            unternehmen:unternehmen_id(id, firmenname, logo_url),
+            marke:marke_id(id, markenname, logo_url)
+          )
+        `, { count: 'exact' });
+
+      // Filter anwenden (einfache Implementierung - kann erweitert werden)
+      if (filters.kategorie) {
+        query = query.eq('kategorie', filters.kategorie);
+      }
+      if (filters.auftrag_id) {
+        query = query.eq('auftrag_id', filters.auftrag_id);
+      }
+
+      // Sortierung und Pagination
+      query = query
+        .order('created_at', { ascending: false })
+        .range(from, to);
+
+      const { data, error, count } = await query;
+
+      if (error) {
+        console.error('❌ Fehler beim Laden der Auftragsdetails mit Beziehungen:', error);
+        throw error;
+      }
+
+      console.log('✅ Auftragsdetails mit Beziehungen und Pagination geladen:', data);
+      return { data: data || [], count: count || 0 };
+
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Auftragsdetails mit Beziehungen:', error);
+      throw error;
+    }
   }
 
-  // Initialisiere Filterbar mit neuem Filtersystem
+  // Initialisiere Filterbar
   async initializeFilterBar() {
     const filterContainer = document.getElementById('filter-dropdown-container');
-    if (!filterContainer) return;
-    
-    const existingFilters = filterSystem.getFilters('auftragsdetails');
-    
-    // Nutze das neue Filter-Dropdown System
-    await filterDropdown.init('auftragsdetails', filterContainer, {
-      onFilterApply: (filters) => this.onFiltersApplied(filters),
-      onFilterReset: () => this.onFiltersReset()
-    });
-    
-    if (Object.keys(existingFilters).length > 0) {
-      await filterDropdown.setFilters('auftragsdetails', existingFilters);
-    }
-  }
-
-  // Filter angewendet
-  async onFiltersApplied(filters) {
-    console.log('🔍 AuftragsdetailsList: Filter angewendet:', filters);
-    // Wichtig: Filter an filterSystem übergeben
-    filterSystem.applyFilters('auftragsdetails', filters);
-    await this.reloadTableOnly();
-  }
-
-  // Filter zurückgesetzt
-  async onFiltersReset() {
-    console.log('🔄 AuftragsdetailsList: Filter zurückgesetzt');
-    // Filter zurücksetzen im filterSystem
-    filterSystem.resetFilters('auftragsdetails');
-    await this.reloadTableOnly();
-  }
-
-  async reloadTableOnly() {
-    try {
-      const currentFilters = filterSystem.getFilters('auftragsdetails');
-      const details = await window.dataService.loadEntities('auftragsdetails', currentFilters);
-      this.updateTable(details);
-    } catch (error) {
-      console.error('❌ Fehler beim Neuladen der Tabelle:', error);
-      window.ErrorHandler.handle(error, 'AuftragsdetailsList.reloadTableOnly');
-    }
-  }
-
-  // Events binden
-  bindEvents() {
-    // Cleanup alte Event-Listener
-    this._boundEventListeners.forEach(cleanup => cleanup());
-    this._boundEventListeners.clear();
-
-    // Neues Auftragsdetails Button
-    const newBtn = document.getElementById('btn-auftragsdetails-new');
-    if (newBtn) {
-      const handler = () => window.navigateTo('/auftragsdetails/new');
-      newBtn.addEventListener('click', handler);
-      this._boundEventListeners.add(() => newBtn.removeEventListener('click', handler));
-    }
-
-    // Select-All Button
-    const selectAllBtn = document.getElementById('btn-select-all');
-    if (selectAllBtn) {
-      const handler = () => this.selectAll();
-      selectAllBtn.addEventListener('click', handler);
-      this._boundEventListeners.add(() => selectAllBtn.removeEventListener('click', handler));
-    }
-
-    // Deselect-All Button
-    const deselectAllBtn = document.getElementById('btn-deselect-all');
-    if (deselectAllBtn) {
-      const handler = () => this.deselectAll();
-      deselectAllBtn.addEventListener('click', handler);
-      this._boundEventListeners.add(() => deselectAllBtn.removeEventListener('click', handler));
-    }
-
-    // Delete Selected Button
-    const deleteSelectedBtn = document.getElementById('btn-delete-selected');
-    if (deleteSelectedBtn) {
-      const handler = (e) => {
-        e.preventDefault();
-        e.stopImmediatePropagation(); // Verhindere dass globale Handler aufgerufen werden
-        this.bulkDelete();
-      };
-      deleteSelectedBtn.addEventListener('click', handler);
-      this._boundEventListeners.add(() => deleteSelectedBtn.removeEventListener('click', handler));
-    }
-
-    // Select-All Checkbox (Header)
-    const selectAllCheckbox = document.getElementById('select-all-auftragsdetails');
-    if (selectAllCheckbox) {
-      const handler = () => this.toggleSelectAll();
-      selectAllCheckbox.addEventListener('change', handler);
-      this._boundEventListeners.add(() => selectAllCheckbox.removeEventListener('change', handler));
-    }
-
-    // Table-Links und Checkboxes Event-Delegation
-    const tableHandler = (e) => {
-      const link = e.target.closest('.table-link');
-      if (link) {
-        e.preventDefault();
-        const table = link.dataset.table;
-        const id = link.dataset.id;
-        if (table && id) {
-          window.navigateTo(`/${table}/${id}`);
-        }
-      }
-
-      // Checkbox-Handler
-      const checkbox = e.target.closest('.detail-check');
-      if (checkbox) {
-        const id = checkbox.dataset.id;
-        if (checkbox.checked) {
-          this.selectedDetails.add(id);
-        } else {
-          this.selectedDetails.delete(id);
-        }
-        this.updateSelection();
-      }
-    };
-    
-    const tbody = document.querySelector('.data-table tbody');
-    if (tbody) {
-      tbody.addEventListener('click', tableHandler);
-      tbody.addEventListener('change', tableHandler);
-      this._boundEventListeners.add(() => {
-        tbody.removeEventListener('click', tableHandler);
-        tbody.removeEventListener('change', tableHandler);
+    if (filterContainer) {
+      // Nutze das neue Filter-Dropdown System
+      await filterDropdown.init('auftragsdetails', filterContainer, {
+        onFilterApply: (filters) => this.onFiltersApplied(filters),
+        onFilterReset: () => this.onFiltersReset()
       });
     }
   }
 
-  // Select All
-  selectAll() {
-    const checkboxes = document.querySelectorAll('.detail-check');
-    checkboxes.forEach(checkbox => {
-      checkbox.checked = true;
-      this.selectedDetails.add(checkbox.dataset.id);
-    });
-    const selectAllCheckbox = document.getElementById('select-all-auftragsdetails');
-    if (selectAllCheckbox) selectAllCheckbox.checked = true;
-    this.updateSelection();
+  // Filter angewendet
+  onFiltersApplied(filters) {
+    console.log('🔍 AUFTRAGSDETAILSLIST: Filter angewendet:', filters);
+    filterSystem.applyFilters('auftragsdetails', filters);
+    
+    // Pagination auf Seite 1 zurücksetzen bei Filter-Änderung
+    this.pagination.reset();
+    
+    this.loadAndRender();
   }
 
-  // Select-All Toggle
-  toggleSelectAll() {
-    const selectAllCheckbox = document.getElementById('select-all-auftragsdetails');
-    const checkboxes = document.querySelectorAll('.detail-check');
+  // Filter zurückgesetzt
+  onFiltersReset() {
+    console.log('🔄 AUFTRAGSDETAILSLIST: Filter zurückgesetzt');
+    filterSystem.resetFilters('auftragsdetails');
     
-    checkboxes.forEach(checkbox => {
-      checkbox.checked = selectAllCheckbox.checked;
-      const id = checkbox.dataset.id;
-      if (selectAllCheckbox.checked) {
-        this.selectedDetails.add(id);
-      } else {
-        this.selectedDetails.delete(id);
+    // Pagination auf Seite 1 zurücksetzen
+    this.pagination.reset();
+    
+    this.loadAndRender();
+  }
+
+  // Binde Events
+  bindEvents() {
+    // Neuen Auftragsdetails anlegen Button
+    document.addEventListener('click', (e) => {
+      if (e.target.id === 'btn-auftragsdetails-new' || e.target.closest('#btn-auftragsdetails-new')) {
+        e.preventDefault();
+        window.navigateTo('/auftragsdetails/new');
       }
     });
-    
-    this.updateSelection();
+
+    // Alle auswählen Button
+    document.addEventListener('click', (e) => {
+      if (e.target.id === 'btn-select-all') {
+        e.preventDefault();
+        const checkboxes = document.querySelectorAll('.auftragsdetails-check');
+        checkboxes.forEach(cb => {
+          cb.checked = true;
+          if (cb.dataset.id) this.selectedDetails.add(cb.dataset.id);
+        });
+        const selectAllHeader = document.getElementById('select-all-auftragsdetails');
+        if (selectAllHeader) {
+          selectAllHeader.indeterminate = false;
+          selectAllHeader.checked = true;
+        }
+        this.updateSelection();
+      }
+    });
+
+    // Auswahl aufheben Button
+    document.addEventListener('click', (e) => {
+      if (e.target.id === 'btn-deselect-all') {
+        e.preventDefault();
+        const checkboxes = document.querySelectorAll('.auftragsdetails-check');
+        checkboxes.forEach(cb => { cb.checked = false; });
+        this.selectedDetails.clear();
+        const selectAllHeader = document.getElementById('select-all-auftragsdetails');
+        if (selectAllHeader) {
+          selectAllHeader.indeterminate = false;
+          selectAllHeader.checked = false;
+        }
+        this.updateSelection();
+      }
+    });
+
+    // Auftragsdetails Detail Links
+    document.addEventListener('click', (e) => {
+      if (e.target.classList.contains('table-link') && e.target.dataset.table === 'auftragsdetails') {
+        e.preventDefault();
+        const detailsId = e.target.dataset.id;
+        console.log('🎯 AUFTRAGSDETAILSLIST: Navigiere zu Auftragsdetails Details:', detailsId);
+        window.navigateTo(`/auftragsdetails/${detailsId}`);
+      }
+    });
+
+    // Entity Updated Event
+    window.addEventListener('entityUpdated', (e) => {
+      if (e.detail.entity === 'auftragsdetails' || e.detail.entity === 'auftrag_details') {
+        this.loadAndRender();
+      }
+    });
+
+    // Filter-Tag X-Buttons
+    document.addEventListener('click', (e) => {
+      if (e.target.classList.contains('tag-x')) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const tagElement = e.target.closest('.filter-tag');
+        const key = tagElement.dataset.key;
+        
+        // Entferne Filter
+        const currentFilters = window.filterSystem.getFilters('auftragsdetails');
+        delete currentFilters[key];
+        window.filterSystem.applyFilters('auftragsdetails', currentFilters);
+        this.loadAndRender();
+      }
+    });
+
+    // Select-All Checkbox
+    document.addEventListener('change', (e) => {
+      if (e.target.id === 'select-all-auftragsdetails') {
+        const checkboxes = document.querySelectorAll('.auftragsdetails-check');
+        checkboxes.forEach(cb => {
+          cb.checked = e.target.checked;
+          if (e.target.checked) {
+            this.selectedDetails.add(cb.dataset.id);
+          } else {
+            this.selectedDetails.delete(cb.dataset.id);
+          }
+        });
+        this.updateSelection();
+      }
+    });
+
+    // Auftragsdetails Checkboxes
+    document.addEventListener('change', (e) => {
+      if (e.target.classList.contains('auftragsdetails-check')) {
+        if (e.target.checked) {
+          this.selectedDetails.add(e.target.dataset.id);
+        } else {
+          this.selectedDetails.delete(e.target.dataset.id);
+        }
+        this.updateSelection();
+      }
+    });
   }
 
-  // Deselect All
-  deselectAll() {
-    this.selectedDetails.clear();
-    document.querySelectorAll('.detail-check').forEach(cb => cb.checked = false);
-    const selectAllCheckbox = document.getElementById('select-all-auftragsdetails');
-    if (selectAllCheckbox) selectAllCheckbox.checked = false;
-    this.updateSelection();
-  }
-
-  // Update Selection UI
+  // Update Selection
   updateSelection() {
     const selectedCount = this.selectedDetails.size;
-    const countElement = document.getElementById('selected-count');
-    const selectAllBtn = document.getElementById('btn-select-all');
-    const deselectAllBtn = document.getElementById('btn-deselect-all');
+    const selectedCountElement = document.getElementById('selected-count');
+    const deselectBtn = document.getElementById('btn-deselect-all');
     const deleteBtn = document.getElementById('btn-delete-selected');
     
-    if (countElement) {
-      countElement.textContent = `${selectedCount} ausgewählt`;
-      countElement.style.display = selectedCount > 0 ? 'inline-block' : 'none';
+    if (selectedCountElement) {
+      selectedCountElement.textContent = `${selectedCount} ausgewählt`;
+      selectedCountElement.style.display = selectedCount > 0 ? 'inline' : 'none';
     }
     
-    if (selectAllBtn) {
-      selectAllBtn.style.display = selectedCount === 0 ? 'inline-block' : 'none';
-    }
-    
-    if (deselectAllBtn) {
-      deselectAllBtn.style.display = selectedCount > 0 ? 'inline-block' : 'none';
+    if (deselectBtn) {
+      deselectBtn.style.display = selectedCount > 0 ? 'inline-block' : 'none';
     }
     
     if (deleteBtn) {
       deleteBtn.style.display = selectedCount > 0 ? 'inline-block' : 'none';
     }
-
-    this.updateSelectAllCheckbox();
   }
 
-  // Update Select-All Checkbox Status
-  updateSelectAllCheckbox() {
-    const selectAllCheckbox = document.getElementById('select-all-auftragsdetails');
-    if (!selectAllCheckbox) return;
-
-    const checkboxes = document.querySelectorAll('.detail-check');
-    const allChecked = checkboxes.length > 0 && Array.from(checkboxes).every(cb => cb.checked);
-    const someChecked = Array.from(checkboxes).some(cb => cb.checked);
-
-    selectAllCheckbox.checked = allChecked;
-    selectAllCheckbox.indeterminate = someChecked && !allChecked;
-  }
-
-  // Bulk Delete
-  async bulkDelete() {
-    if (this.selectedDetails.size === 0) return;
-
-    const confirmed = await window.confirmationModal.open({
-      title: 'Auftragsdetails löschen',
-      message: `Möchten Sie wirklich ${this.selectedDetails.size} Auftragsdetails löschen?`,
-      confirmText: 'Endgültig löschen',
-      cancelText: 'Abbrechen',
-      danger: true
-    });
-
-    if (!confirmed?.confirmed) return;
-
-    const selectedIds = Array.from(this.selectedDetails);
-    const totalCount = selectedIds.length;
-    
-    console.log(`🗑️ Lösche ${totalCount} Auftragsdetails...`);
-    
-    // Optimistisches UI-Update: Zeilen ausblenden
-    selectedIds.forEach(id => {
-      const row = document.querySelector(`tr[data-id="${id}"]`);
-      if (row) row.style.opacity = '0.5';
-    });
-
-    try {
-      // Batch-Delete für bessere Performance
-      const result = await window.dataService.deleteEntities('auftrag_details', selectedIds);
-      
-      if (result.success) {
-        // Entferne Zeilen aus DOM
-        selectedIds.forEach(id => {
-          document.querySelector(`tr[data-id="${id}"]`)?.remove();
-        });
-        
-        alert(`✅ ${result.deletedCount} Auftragsdetails erfolgreich gelöscht.`);
-        
-        this.selectedDetails.clear();
-        this.updateSelection();
-        this.updateSelectAllCheckbox();
-        
-        // Nur neu laden wenn Liste leer ist
-        const tbody = document.querySelector('.data-table tbody');
-        if (tbody && tbody.children.length === 0) {
-          await this.loadAndRender();
-        }
-        
-        window.dispatchEvent(new CustomEvent('entityUpdated', {
-          detail: { entity: 'auftrag_details', action: 'bulk-deleted', count: result.deletedCount }
-        }));
-      } else {
-        throw new Error(result.error || 'Löschen fehlgeschlagen');
-      }
-    } catch (error) {
-      // Bei Fehler: Zeilen wiederherstellen
-      selectedIds.forEach(id => {
-        const row = document.querySelector(`tr[data-id="${id}"]`);
-        if (row) row.style.opacity = '1';
-      });
-      
-      console.error('❌ Fehler beim Löschen:', error);
-      alert(`❌ Fehler beim Löschen: ${error.message}`);
-      
-      // Liste neu laden um konsistenten Zustand herzustellen
-      await this.loadAndRender();
-    }
-  }
-
-  // Update Tabelle
-  updateTable(details) {
+  // Update Tabelle mit Fade-Animation
+  async updateTable(details) {
     const tbody = document.querySelector('.data-table tbody');
     if (!tbody) return;
+
+    // Fade-out Animation starten
+    tbody.classList.add('table-fade-out');
+    
+    // Warte auf Animation (200ms)
+    await new Promise(resolve => setTimeout(resolve, 200));
 
     if (!details || details.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="9" class="no-data">Keine Auftragsdetails gefunden</td>
+          <td colspan="6" class="no-data">
+            <div style="text-align: center; padding: 40px 20px;">
+              <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📄</div>
+              <h3 style="color: #666; margin-bottom: 8px;">Keine Auftragsdetails vorhanden</h3>
+              <p style="color: #999; margin-bottom: 20px;">Es wurden noch keine Auftragsdetails erstellt.</p>
+              <button id="btn-create-first-details" class="primary-btn">
+                Erste Auftragsdetails anlegen
+              </button>
+            </div>
+          </td>
         </tr>
       `;
+      
+      // Event für den "Erste Auftragsdetails anlegen" Button
+      const createBtn = document.getElementById('btn-create-first-details');
+      if (createBtn) {
+        createBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          window.navigateTo('/auftragsdetails/new');
+        });
+      }
+      
+      // Fade-in Animation
+      tbody.classList.remove('table-fade-out');
+      tbody.classList.add('table-fade-in');
+      setTimeout(() => tbody.classList.remove('table-fade-in'), 200);
       return;
     }
 
+    const formatDate = (date) => {
+      return date ? new Date(date).toLocaleDateString('de-DE') : '-';
+    };
+
     const rowsHtml = details.map(detail => {
       const auftrag = detail.auftrag || {};
-      const unternehmen = auftrag.unternehmen || {};
-      const marke = auftrag.marke || {};
-
+      const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+      
       return `
         <tr data-id="${detail.id}">
-          <td><input type="checkbox" class="detail-check" data-id="${detail.id}"></td>
+          ${isAdmin ? `<td><input type="checkbox" class="auftragsdetails-check" data-id="${detail.id}"></td>` : ''}
           <td>
-            <a href="#" class="table-link" data-table="auftrag" data-id="${auftrag.id || ''}">
-              ${window.validatorSystem.sanitizeHtml(auftrag.auftragsname || '-')}
+            <a href="#" class="table-link" data-table="auftragsdetails" data-id="${detail.id}">
+              ${window.validatorSystem?.sanitizeHtml(auftrag.auftragsname || 'Unbekannter Auftrag') || 'Unbekannter Auftrag'}
             </a>
           </td>
-          <td>
-            ${unternehmen.firmenname 
-              ? `<a href="#" class="table-link" data-table="unternehmen" data-id="${unternehmen.id}">${window.validatorSystem.sanitizeHtml(unternehmen.firmenname)}</a>`
-              : '-'}
-          </td>
-          <td>
-            ${marke.markenname 
-              ? `<a href="#" class="table-link" data-table="marke" data-id="${marke.id}">${window.validatorSystem.sanitizeHtml(marke.markenname)}</a>`
-              : '-'}
-          </td>
-          <td>${detail.kampagnenanzahl || auftrag.kampagnenanzahl || '-'}</td>
-          <td>${detail.gesamt_videos || '-'}</td>
-          <td>${detail.gesamt_creator || '-'}</td>
-          <td>${detail.created_at ? new Date(detail.created_at).toLocaleDateString('de-DE') : '-'}</td>
+          <td>${detail.kategorie || '-'}</td>
+          <td>${detail.beschreibung ? (detail.beschreibung.length > 100 ? detail.beschreibung.substring(0, 100) + '...' : detail.beschreibung) : '-'}</td>
+          <td>${formatDate(detail.created_at)}</td>
           <td>
             ${actionBuilder.create('auftragsdetails', detail.id)}
           </td>
@@ -435,113 +446,51 @@ export class AuftragsdetailsList {
     }).join('');
 
     tbody.innerHTML = rowsHtml;
-  }
-
-  // Lade und rendere Daten
-  async loadAndRender() {
-    try {
-      console.log('🔄 AUFTRAGSDETAILSLIST: Lade Auftragsdetails...');
-      
-      // Rendere die Seite-Struktur
-      await this.render();
-      
-      // Lade gefilterte Auftragsdetails für die Anzeige
-      const currentFilters = filterSystem.getFilters('auftragsdetails');
-      console.log('🔍 Lade Auftragsdetails mit Filter:', currentFilters);
-
-      // Query mit Joins für Performance
-      let query = window.supabase
-        .from('auftrag_details')
-        .select(`
-          *,
-          auftrag:auftrag_id (
-            id,
-            auftragsname,
-            kampagnenanzahl,
-            unternehmen:unternehmen_id (
-              id,
-              firmenname
-            ),
-            marke:marke_id (
-              id,
-              markenname
-            )
-          )
-        `);
-
-      // Filter anwenden
-      if (currentFilters && Object.keys(currentFilters).length > 0) {
-        // Auftrag-ID Filter
-        if (currentFilters.auftrag_id) {
-          query = query.eq('auftrag_id', currentFilters.auftrag_id);
-        }
-        
-        // Kampagnenanzahl Filter
-        if (currentFilters.kampagnenanzahl) {
-          if (currentFilters.kampagnenanzahl.min !== undefined) {
-            query = query.gte('kampagnenanzahl', currentFilters.kampagnenanzahl.min);
-          }
-          if (currentFilters.kampagnenanzahl.max !== undefined) {
-            query = query.lte('kampagnenanzahl', currentFilters.kampagnenanzahl.max);
-          }
-        }
-        
-        // Gesamt Videos Filter
-        if (currentFilters.gesamt_videos) {
-          if (currentFilters.gesamt_videos.min !== undefined) {
-            query = query.gte('gesamt_videos', currentFilters.gesamt_videos.min);
-          }
-          if (currentFilters.gesamt_videos.max !== undefined) {
-            query = query.lte('gesamt_videos', currentFilters.gesamt_videos.max);
-          }
-        }
-        
-        // Gesamt Creator Filter
-        if (currentFilters.gesamt_creator) {
-          if (currentFilters.gesamt_creator.min !== undefined) {
-            query = query.gte('gesamt_creator', currentFilters.gesamt_creator.min);
-          }
-          if (currentFilters.gesamt_creator.max !== undefined) {
-            query = query.lte('gesamt_creator', currentFilters.gesamt_creator.max);
-          }
-        }
-      }
-
-      const { data: details, error } = await query
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('❌ Fehler beim Laden:', error);
-        throw error;
-      }
-
-      console.log('📊 Auftragsdetails geladen:', details?.length || 0);
-      
-      // Aktualisiere nur die Tabelle mit gefilterten Daten
-      this.updateTable(details);
-      
-    } catch (error) {
-      console.error('❌ AUFTRAGSDETAILSLIST: Fehler beim Laden:', error);
-      const tbody = document.querySelector('.data-table tbody');
-      if (tbody) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="9" class="error">Fehler beim Laden der Auftragsdetails</td>
-          </tr>
-        `;
-      }
-    }
+    
+    // Fade-in Animation
+    tbody.classList.remove('table-fade-out');
+    tbody.classList.add('table-fade-in');
+    setTimeout(() => tbody.classList.remove('table-fade-in'), 200);
   }
 
   // Cleanup
   destroy() {
-    console.log('🗑️ AUFTRAGSDETAILSLIST: Cleanup');
-    this._boundEventListeners.forEach(cleanup => cleanup());
+    console.log('AuftragsdetailsList: Cleaning up...');
+    
+    // Pagination cleanup
+    if (this.pagination) {
+      this.pagination.destroy();
+    }
+    
+    this._boundEventListeners.forEach(({ element, type, handler }) => {
+      element.removeEventListener(type, handler);
+    });
     this._boundEventListeners.clear();
-    this.selectedDetails.clear();
+    
+    // Event-Listener entfernen
+    if (this.boundFilterResetHandler) {
+      document.removeEventListener('click', this.boundFilterResetHandler);
+      this.boundFilterResetHandler = null;
+    }
+  }
+
+  // Show Create Form (für Routing)
+  showCreateForm() {
+    console.log('🎯 Zeige Auftragsdetails-Erstellungsformular');
+    window.setHeadline('Neue Auftragsdetails anlegen');
+    
+    // Breadcrumb aktualisieren
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Auftragsdetails', url: '/auftragsdetails', clickable: true },
+        { label: 'Neue Auftragsdetails', url: '/auftragsdetails/new', clickable: false }
+      ]);
+    }
+
+    window.navigateTo('/auftragsdetails/new');
   }
 }
 
-// Exportiere Instanz für globale Nutzung
-export const auftragsdetailsList = new AuftragsdetailsList();
+const auftragsdetailsListInstance = new AuftragsdetailsList();
+export { auftragsdetailsListInstance as auftragsdetailsList };
 

@@ -728,6 +728,11 @@ export class ActionsDropdown {
         this.openRatingModal(entityId, entityType);
         break;
       
+      case 'rechnung_anpassen':
+        // Öffne Rechnung-Anpassen-Drawer
+        this.openRechnungAnpassenDrawer(entityId);
+        break;
+      
       case 'marken':
         window.navigateTo(`/unternehmen/${entityId}/marken`);
         break;
@@ -3051,6 +3056,20 @@ export class ActionsDropdown {
         alert('Fehler beim Hinzufügen: ' + (error.message || 'Unbekannter Fehler'));
       }
     };
+  }
+
+  // Rechnung-Anpassen-Drawer öffnen
+  async openRechnungAnpassenDrawer(auftragId) {
+    console.log('📋 ACTIONSDROPDOWN: Öffne Rechnung-Anpassen-Drawer für Auftrag', auftragId);
+    
+    try {
+      const { RechnungAnpassenDrawer } = await import('/src/modules/auftrag/RechnungAnpassenDrawer.js');
+      const drawer = new RechnungAnpassenDrawer();
+      await drawer.open(auftragId);
+    } catch (error) {
+      console.error('❌ Fehler beim Öffnen des Rechnung-Anpassen-Drawers:', error);
+      alert('Fehler beim Öffnen: ' + (error.message || 'Unbekannter Fehler'));
+    }
   }
 
   // Cleanup

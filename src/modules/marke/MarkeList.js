@@ -312,6 +312,8 @@ export class MarkeList {
       
     </div>`;
     
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    
     // Haupt-HTML
     let html = `
       <div class="page-header">
@@ -322,19 +324,19 @@ export class MarkeList {
 
       <div class="table-filter-wrapper">
         ${filterHtml}
-        <div class="table-actions">
+        ${isAdmin ? `<div class="table-actions">
           <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
           <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
-        </div>
+        </div>` : ''}
       </div>
 
       <div class="table-container">
         <table class="data-table">
           <thead>
             <tr>
-              <th><input type="checkbox" id="select-all-marken"></th>
+              ${isAdmin ? `<th><input type="checkbox" id="select-all-marken"></th>` : ''}
               <th>Markenname</th>
               <th>Unternehmen</th>
               <th>Branche</th>
@@ -346,7 +348,7 @@ export class MarkeList {
           </thead>
           <tbody>
             <tr>
-              <td colspan="8" class="no-data">Lade Marken...</td>
+              <td colspan="${isAdmin ? '8' : '7'}" class="no-data">Lade Marken...</td>
             </tr>
           </tbody>
         </table>
@@ -532,6 +534,8 @@ export class MarkeList {
     const tbody = document.querySelector('.data-table tbody');
     if (!tbody) return;
 
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+
     // Fade-out Animation starten (behält alte Daten während Fade-out)
     tbody.classList.add('table-fade-out');
     
@@ -551,7 +555,7 @@ export class MarkeList {
 
     const rowsHtml = marken.map(marke => `
       <tr data-id="${marke.id}">
-        <td><input type="checkbox" class="marke-check" data-id="${marke.id}"></td>
+        ${isAdmin ? `<td><input type="checkbox" class="marke-check" data-id="${marke.id}"></td>` : ''}
         <td>
           <a href="#" class="table-link" data-table="marke" data-id="${marke.id}">
             ${window.validatorSystem.sanitizeHtml(marke.markenname || '')}
@@ -710,6 +714,8 @@ export class MarkeList {
 
   // Ausgewählte Marken löschen
   async deleteSelectedMarken() {
+    if (window.currentUser?.rolle !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'admin') return;
+    
     const selectedIds = Array.from(this.selectedMarken);
     const totalCount = selectedIds.length;
     

@@ -6,9 +6,11 @@ import '../assets/styles/components.css';
 import '../assets/styles/dashboard.css';
 import '../assets/styles/addresses.css';
 import '../assets/styles/tabellen.css';
+import '../assets/styles/toast.css';
 
 import { CONFIG } from './core/ConfigSystem.js';
 import { modularFilterSystem as filterSystem } from './core/filters/ModularFilterSystem.js';
+import { toastSystem } from './core/ToastSystem.js';
 import { creatorList } from './modules/creator/CreatorList.js';
 import { creatorListPage } from './modules/creator/CreatorListPage.js';
 import { creatorDetail } from './modules/creator/CreatorDetail.js';
@@ -69,6 +71,8 @@ import { taskListPage } from './modules/tasks/TaskListPage.js';
 import { tabellenModule } from './modules/tabellen/TabellenModule.js';
 // Zentrales Bestätigungs-Modal (side-effect Import, hängt window.confirmationModal an)
 import './core/ConfirmationModal.js';
+// Duplicate Checker für Creator, Marke, Unternehmen
+import { DuplicateChecker } from './core/validation/DuplicateChecker.js';
 // main.js - Haupt-Einstiegspunkt für ES6-Module
 
 // Zentrale Modul-Registry (Event-basiert)
@@ -423,6 +427,10 @@ window.notizenSystem = notizenSystem;
 window.bewertungsSystem = bewertungsSystem;
 window.ActionsDropdown = actionsDropdown;
 window.bulkActionSystem = bulkActionSystem;
+
+// Duplicate Checker Service
+window.duplicateChecker = new DuplicateChecker();
+console.log('✅ DuplicateChecker initialisiert');
 window.notificationSystem = notificationSystem;
 window.ansprechpartnerList = ansprechpartnerList;
 window.ansprechpartnerDetail = ansprechpartnerDetail;
@@ -516,11 +524,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.loginRoot.style.display = 'none';
     
     // Starte mit Dashboard oder aktuelle Route
-    const currentRoute = location.pathname;
-    if (currentRoute === '/' || currentRoute === '/dashboard') {
+    let initialRoute = location.pathname;
+    
+    // Hash-Support für Deep-Links (z.B. aus Duplicate-Check oder Bookmarks)
+    // Wenn Pfad "/" ist, aber ein Hash existiert, nutze den Hash als Route
+    if ((initialRoute === '/' || initialRoute === '/index.html') && location.hash) {
+      // Entferne das führende '#' aus dem Hash (z.B. "#/unternehmen/123" -> "/unternehmen/123")
+      initialRoute = location.hash.substring(1);
+      console.log('Hash-Route erkannt:', initialRoute);
+    }
+
+    if (!initialRoute || initialRoute === '/' || initialRoute === '/dashboard' || initialRoute === '/index.html') {
       moduleRegistry.loadDashboard();
     } else {
-      moduleRegistry.navigateTo(currentRoute);
+      moduleRegistry.navigateTo(initialRoute);
     }
 
     // Header/UI-Setup (Initialen, Quick-Menu etc.)
@@ -559,15 +576,24 @@ window.setupHeaderUI = () => {
     const profileImg = document.querySelector('.profile-img');
     const profileInitials = document.querySelector('.profile-initials');
     const userName = (window.currentUser?.name || '').trim();
+    
+    // Initialen berechnen und setzen
     if (userName && profileInitials) {
       const parts = userName.split(/\s+/).filter(Boolean);
       const initials = (parts[0]?.[0] || '').toUpperCase() + (parts[1]?.[0] || '').toUpperCase();
       profileInitials.textContent = initials || (userName[0] || '?').toUpperCase();
     }
-    if (window.currentUser?.avatar_url && profileImg) {
-      profileImg.src = window.currentUser.avatar_url;
+    
+    // Profilbild anzeigen falls vorhanden (profile_image_url hat Priorität über avatar_url)
+    const imageUrl = window.currentUser?.profile_image_url || window.currentUser?.avatar_url;
+    if (imageUrl && profileImg) {
+      profileImg.src = imageUrl;
       profileImg.style.display = '';
       if (profileInitials) profileInitials.style.display = 'none';
+    } else {
+      // Kein Bild vorhanden - zeige Initialen
+      if (profileImg) profileImg.style.display = 'none';
+      if (profileInitials) profileInitials.style.display = 'flex';
     }
 
     // Profile dropdown setup

@@ -96,7 +96,7 @@ export class AuthService {
 
       const { data, error } = await window.supabase
         .from('benutzer')
-        .select('id, name, rolle, unterrolle, auth_user_id, zugriffsrechte, freigeschaltet')
+        .select('id, name, rolle, unterrolle, auth_user_id, zugriffsrechte, freigeschaltet, profile_image_url')
         .eq('auth_user_id', authUserId)
         .single();
 

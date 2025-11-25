@@ -110,6 +110,8 @@ export class UnternehmenList {
       </div>
     </div>`;
     
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    
     // Haupt-HTML
     let html = `
       <div class="page-header">
@@ -120,19 +122,19 @@ export class UnternehmenList {
 
       <div class="table-filter-wrapper">
         ${filterHtml}
-        <div class="table-actions">
+        ${isAdmin ? `<div class="table-actions">
           <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
           <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
-        </div>
+        </div>` : ''}
       </div>
 
       <div class="table-container">
         <table class="data-table">
           <thead>
             <tr>
-              <th><input type="checkbox" id="select-all-unternehmen"></th>
+              ${isAdmin ? `<th><input type="checkbox" id="select-all-unternehmen"></th>` : ''}
               <th>Name</th>
               <th>Branche</th>
               <th>Ansprechpartner</th>
@@ -143,7 +145,7 @@ export class UnternehmenList {
           </thead>
           <tbody>
             <tr>
-              <td colspan="7" class="no-data">Lade Unternehmen...</td>
+              <td colspan="${isAdmin ? '7' : '6'}" class="no-data">Lade Unternehmen...</td>
             </tr>
           </tbody>
         </table>
@@ -344,6 +346,8 @@ export class UnternehmenList {
     const tbody = document.querySelector('.data-table tbody');
     if (!tbody) return;
 
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+
     // Fade-out Animation starten (behält alte Daten während Fade-out)
     tbody.classList.add('table-fade-out');
     
@@ -368,7 +372,7 @@ export class UnternehmenList {
 
     const rowsHtml = unternehmen.map(unternehmen => `
       <tr data-id="${unternehmen.id}">
-        <td><input type="checkbox" class="unternehmen-check" data-id="${unternehmen.id}"></td>
+        ${isAdmin ? `<td><input type="checkbox" class="unternehmen-check" data-id="${unternehmen.id}"></td>` : ''}
         <td>
           <a href="#" class="table-link" data-table="unternehmen" data-id="${unternehmen.id}">
             ${window.validatorSystem.sanitizeHtml(unternehmen.firmenname || '')}
@@ -550,6 +554,169 @@ export class UnternehmenList {
       
       // Logo-Preview-Funktion
       this.setupLogoPreview(form);
+      
+      // Duplikat-Validierung auf Firmenname
+      this.setupDuplicateValidation(form);
+    }
+  }
+
+  // Setup Duplikat-Validierung für Firmenname
+  setupDuplicateValidation(form) {
+    const firmennameField = form.querySelector('#firmenname, input[name="firmenname"]');
+    if (!firmennameField) {
+      console.warn('⚠️ UNTERNEHMENLIST: Firmenname-Feld nicht gefunden');
+      return;
+    }
+
+    // Container für Duplicate-Messages (falls nicht existiert)
+    let messageContainer = firmennameField.parentElement.querySelector('.duplicate-message-container');
+    if (!messageContainer) {
+      messageContainer = document.createElement('div');
+      messageContainer.className = 'duplicate-message-container';
+      firmennameField.parentElement.appendChild(messageContainer);
+    }
+
+    // Blur Event
+    firmennameField.addEventListener('blur', async (e) => {
+      await this.validateUnternehmenDuplicate(e.target.value, messageContainer);
+    });
+
+    // Clear beim Tippen
+    firmennameField.addEventListener('input', () => {
+      this.clearDuplicateMessages(messageContainer);
+      this.enableSubmitButton();
+    });
+  }
+
+  // Validiere Unternehmen Duplikat
+  async validateUnternehmenDuplicate(firmenname, messageContainer) {
+    if (!firmenname || firmenname.trim().length < 2) {
+      this.clearDuplicateMessages(messageContainer);
+      return;
+    }
+
+    if (!window.duplicateChecker) {
+      console.warn('⚠️ UNTERNEHMENLIST: DuplicateChecker nicht verfügbar');
+      return;
+    }
+
+    try {
+      const result = await window.duplicateChecker.checkUnternehmen(firmenname, null);
+
+      if (result.exact) {
+        // Exakt vorhanden → Button disablen, Fehler anzeigen
+        this.showDuplicateError(messageContainer, result.similar);
+        this.disableSubmitButton(true);
+      } else if (result.similar.length > 0) {
+        // Ähnlich → Info-Box (nicht blockierend)
+        this.showDuplicateWarning(messageContainer, result.similar);
+        this.enableSubmitButton();
+      } else {
+        // Alles gut
+        this.clearDuplicateMessages(messageContainer);
+        this.enableSubmitButton();
+      }
+    } catch (error) {
+      console.error('❌ UNTERNEHMENLIST: Fehler bei Duplikat-Validierung:', error);
+    }
+  }
+
+  // Zeige Duplikat-Fehler
+  showDuplicateError(container, entries) {
+    container.innerHTML = `
+      <div class="duplicate-error">
+        <strong>Dieser Firmenname existiert bereits!</strong>
+        ${entries.length > 0 ? `
+          <ul class="duplicate-list">
+            ${entries.map(entry => `
+              <li class="duplicate-list-item">
+                <a href="javascript:void(0)" class="duplicate-link" data-entity-id="${entry.id}">
+                  ${entry.logo_url ? `<img src="${entry.logo_url}" alt="${entry.firmenname}" class="duplicate-avatar" />` : '<div class="duplicate-avatar duplicate-avatar-placeholder"></div>'}
+                  <span class="duplicate-name">${entry.firmenname}${entry.webseite ? ` <span class="duplicate-meta">(${entry.webseite})</span>` : ''}</span>
+                </a>
+              </li>
+            `).join('')}
+          </ul>
+        ` : ''}
+      </div>
+    `;
+    
+    // Event-Listener für Links
+    this.bindDuplicateLinks(container, 'unternehmen');
+  }
+
+  // Zeige Duplikat-Warnung
+  showDuplicateWarning(container, entries) {
+    container.innerHTML = `
+      <div class="duplicate-warning">
+        <strong>Folgende ähnliche Einträge gefunden:</strong>
+        <ul class="duplicate-list">
+          ${entries.map(entry => `
+            <li class="duplicate-list-item">
+              <a href="javascript:void(0)" class="duplicate-link" data-entity-id="${entry.id}">
+                ${entry.logo_url ? `<img src="${entry.logo_url}" alt="${entry.firmenname}" class="duplicate-avatar" />` : '<div class="duplicate-avatar duplicate-avatar-placeholder"></div>'}
+                <span class="duplicate-name">${entry.firmenname}${entry.webseite ? ` <span class="duplicate-meta">(${entry.webseite})</span>` : ''}</span>
+              </a>
+            </li>
+          `).join('')}
+        </ul>
+      </div>
+    `;
+    
+    // Event-Listener für Links
+    this.bindDuplicateLinks(container, 'unternehmen');
+  }
+
+  // Bind Click-Events für Duplikat-Links
+  bindDuplicateLinks(container, entityType) {
+    const links = container.querySelectorAll('.duplicate-link[data-entity-id]');
+    links.forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const id = e.currentTarget.dataset.entityId;
+        if (id) {
+          // Internes Routing verwenden (ohne Reload, im gleichen Tab)
+          const route = `/${entityType}/${id}`;
+          if (window.navigationSystem) {
+            window.navigationSystem.navigateTo(route);
+          }
+        }
+      });
+    });
+  }
+
+  // Lösche Duplikat-Messages
+  clearDuplicateMessages(container) {
+    if (container) {
+      container.innerHTML = '';
+    }
+  }
+
+  // Disable Submit Button
+  disableSubmitButton(disable) {
+    const form = document.getElementById('unternehmen-form');
+    if (form) {
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.disabled = disable;
+        if (disable) {
+          submitBtn.style.opacity = '0.5';
+          submitBtn.style.cursor = 'not-allowed';
+        }
+      }
+    }
+  }
+
+  // Enable Submit Button
+  enableSubmitButton() {
+    const form = document.getElementById('unternehmen-form');
+    if (form) {
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = '1';
+        submitBtn.style.cursor = 'pointer';
+      }
     }
   }
 
@@ -751,6 +918,8 @@ export class UnternehmenList {
 
   // Ausgewählte Unternehmen löschen
   async deleteSelectedUnternehmen() {
+    if (window.currentUser?.rolle !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'admin') return;
+    
     const selectedIds = Array.from(this.selectedUnternehmen);
     const totalCount = selectedIds.length;
     

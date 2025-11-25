@@ -1,5 +1,5 @@
 // AuftragsdetailsDetail.js (ES6-Modul)
-// Auftragsdetails-Detailseite mit Tabs für verschiedene Kategorien
+// Auftragsdetails-Detailseite ohne Tabs - direkte Anzeige der Informationen
 
 export class AuftragsdetailsDetail {
   constructor() {
@@ -8,6 +8,15 @@ export class AuftragsdetailsDetail {
     this.auftrag = null;
     this.notizen = [];
     this.ratings = [];
+    this.kampagnen = [];
+    this.kooperationen = [];
+    this.videos = [];
+    this.budgetSummary = {
+      totalBudget: 0,
+      usedBudget: 0,
+      totalVideos: 0,
+      totalCreators: 0
+    };
   }
 
   // Initialisiere Auftragsdetails-Detailseite
@@ -65,6 +74,10 @@ export class AuftragsdetailsDetail {
             status,
             start,
             ende,
+            gesamt_budget,
+            creator_budget,
+            bruttobetrag,
+            nettobetrag,
             unternehmen:unternehmen_id (
               id,
               firmenname
@@ -102,10 +115,126 @@ export class AuftragsdetailsDetail {
         console.log('✅ AUFTRAGSDETAILSDETAIL: Ratings geladen:', this.ratings.length);
       }
 
+      // Lade Kampagnen, Kooperationen und Budget-Informationen
+      await this.loadBudgetData();
+
     } catch (error) {
       console.error('❌ AUFTRAGSDETAILSDETAIL: Fehler beim Laden der Auftragsdetails-Daten:', error);
       throw error;
     }
+  }
+
+  // Lade Budget- und Kooperations-Daten
+  async loadBudgetData() {
+    try {
+      const auftragId = this.auftrag?.id;
+      if (!auftragId) return;
+
+      console.log('🔄 AUFTRAGSDETAILSDETAIL: Lade Budget-Daten für Auftrag:', auftragId);
+
+      // Lade alle Kampagnen des Auftrags
+      const { data: kampagnen, error: kampagnenError } = await window.supabase
+        .from('kampagne')
+        .select('id, kampagnenname')
+        .eq('auftrag_id', auftragId);
+
+      if (kampagnenError) throw kampagnenError;
+      
+      this.kampagnen = kampagnen || [];
+      const kampagneIds = this.kampagnen.map(k => k.id);
+
+      console.log('✅ AUFTRAGSDETAILSDETAIL: Kampagnen geladen:', kampagneIds.length);
+
+      if (kampagneIds.length === 0) {
+        this.kooperationen = [];
+        this.videos = [];
+        this.calculateBudgetSummary();
+        return;
+      }
+
+      // Lade alle Kooperationen der Kampagnen mit Creator-Informationen
+      const { data: kooperationen, error: koopError } = await window.supabase
+        .from('kooperationen')
+        .select(`
+          id,
+          name,
+          status,
+          videoanzahl,
+          einkaufspreis_gesamt,
+          content_art,
+          kampagne_id,
+          creator:creator_id (
+            id,
+            vorname,
+            nachname
+          )
+        `)
+        .in('kampagne_id', kampagneIds)
+        .order('created_at', { ascending: false });
+
+      if (koopError) throw koopError;
+      
+      this.kooperationen = (kooperationen || []).map(koop => ({
+        ...koop,
+        kampagne: this.kampagnen.find(k => k.id === koop.kampagne_id)
+      }));
+
+      console.log('✅ AUFTRAGSDETAILSDETAIL: Kooperationen geladen:', this.kooperationen.length);
+
+      // Lade Videos für alle Kooperationen mit Link-Informationen
+      if (this.kooperationen.length > 0) {
+        const koopIds = this.kooperationen.map(k => k.id);
+        const { data: videos, error: videoError } = await window.supabase
+          .from('kooperation_videos')
+          .select('id, titel, thema, content_art, kooperation_id, link_content, asset_url')
+          .in('kooperation_id', koopIds);
+
+        if (videoError) throw videoError;
+        this.videos = videos || [];
+        console.log('✅ AUFTRAGSDETAILSDETAIL: Videos geladen:', this.videos.length);
+      }
+
+      // Berechne Budget-Zusammenfassung
+      this.calculateBudgetSummary();
+
+    } catch (error) {
+      console.error('❌ AUFTRAGSDETAILSDETAIL: Fehler beim Laden der Budget-Daten:', error);
+      this.kooperationen = [];
+      this.videos = [];
+      this.calculateBudgetSummary();
+    }
+  }
+
+  // Berechne Budget-Zusammenfassung
+  calculateBudgetSummary() {
+    // Gesamt-Budget aus Auftrag - mehrere Fallbacks
+    this.budgetSummary.totalBudget = parseFloat(
+      this.auftrag?.creator_budget || 
+      this.auftrag?.gesamt_budget || 
+      this.auftrag?.bruttobetrag || 
+      0
+    );
+    
+    // Verbrauchtes Budget = Summe aller einkaufspreis_gesamt
+    this.budgetSummary.usedBudget = this.kooperationen.reduce((sum, koop) => {
+      return sum + (parseFloat(koop.einkaufspreis_gesamt) || 0);
+    }, 0);
+    
+    // Gesamtanzahl Videos = Summe aller videoanzahl aus Kooperationen
+    this.budgetSummary.totalVideos = this.kooperationen.reduce((sum, koop) => {
+      return sum + (parseInt(koop.videoanzahl, 10) || 0);
+    }, 0);
+    
+    // Anzahl einzigartiger Creator
+    const uniqueCreatorIds = new Set();
+    this.kooperationen.forEach(koop => {
+      if (koop.creator?.id) {
+        uniqueCreatorIds.add(koop.creator.id);
+      }
+    });
+    this.budgetSummary.totalCreators = uniqueCreatorIds.size;
+
+    console.log('✅ AUFTRAGSDETAILSDETAIL: Budget-Zusammenfassung berechnet:', this.budgetSummary);
   }
 
   // Rendere Auftragsdetails-Detailseite
@@ -123,74 +252,7 @@ export class AuftragsdetailsDetail {
       </div>
 
       <div class="content-section">
-        <!-- Tab-Navigation -->
-        <div class="tab-navigation">
-          <button class="tab-button active" data-tab="informationen">
-            Informationen
-            <span class="tab-count">1</span>
-          </button>
-          <button class="tab-button" data-tab="ugc">
-            UGC
-          </button>
-          <button class="tab-button" data-tab="influencer">
-            Influencer
-          </button>
-          <button class="tab-button" data-tab="vor-ort">
-            Vor Ort Dreh
-          </button>
-          <button class="tab-button" data-tab="vor-ort-mitarbeiter">
-            Vor Ort Mitarbeiter
-          </button>
-          <button class="tab-button" data-tab="zusammenfassung">
-            Zusammenfassung
-          </button>
-          ${window.notizenSystem ? `
-          <button class="tab-button" data-tab="notizen">
-            Notizen
-            <span class="tab-count">${this.notizen.length}</span>
-          </button>
-          ` : ''}
-        </div>
-
-        <!-- Tab-Content -->
-        <div class="tab-content">
-          <!-- Informationen Tab -->
-          <div class="tab-pane active" id="informationen">
-            ${this.renderInformationen()}
-          </div>
-
-          <!-- UGC Tab -->
-          <div class="tab-pane" id="ugc">
-            ${this.renderUGC()}
-          </div>
-
-          <!-- Influencer Tab -->
-          <div class="tab-pane" id="influencer">
-            ${this.renderInfluencer()}
-          </div>
-
-          <!-- Vor Ort Tab -->
-          <div class="tab-pane" id="vor-ort">
-            ${this.renderVorOrt()}
-          </div>
-
-          <!-- Vor Ort Mitarbeiter Tab -->
-          <div class="tab-pane" id="vor-ort-mitarbeiter">
-            ${this.renderVorOrtMitarbeiter()}
-          </div>
-
-          <!-- Zusammenfassung Tab -->
-          <div class="tab-pane" id="zusammenfassung">
-            ${this.renderZusammenfassung()}
-          </div>
-
-          ${window.notizenSystem ? `
-          <!-- Notizen Tab -->
-          <div class="tab-pane" id="notizen">
-            ${this.renderNotizen()}
-          </div>
-          ` : ''}
-        </div>
+        ${this.renderInformationen()}
       </div>
     `;
 
@@ -199,253 +261,172 @@ export class AuftragsdetailsDetail {
 
   // Rendere Informationen
   renderInformationen() {
-    const auftrag = this.auftrag || {};
-    const unternehmen = auftrag.unternehmen || {};
-    const marke = auftrag.marke || {};
-    const ansprechpartner = auftrag.ansprechpartner || {};
-
-    return `
-      <div class="detail-section">
-        <div class="detail-grid">
-          <div class="detail-card">
-            <h3>Auftrags-Informationen</h3>
-            <div class="detail-item">
-              <label>Auftragsname:</label>
-              <span>
-                <a href="#" class="table-link" data-table="auftrag" data-id="${auftrag.id || ''}">
-                  ${window.validatorSystem.sanitizeHtml(auftrag.auftragsname || '-')}
-                </a>
-              </span>
-            </div>
-            <div class="detail-item">
-              <label>Unternehmen:</label>
-              <span>
-                ${unternehmen.firmenname 
-                  ? `<a href="#" class="table-link" data-table="unternehmen" data-id="${unternehmen.id}">${window.validatorSystem.sanitizeHtml(unternehmen.firmenname)}</a>`
-                  : '-'}
-              </span>
-            </div>
-            <div class="detail-item">
-              <label>Marke:</label>
-              <span>
-                ${marke.markenname 
-                  ? `<a href="#" class="table-link" data-table="marke" data-id="${marke.id}">${window.validatorSystem.sanitizeHtml(marke.markenname)}</a>`
-                  : '-'}
-              </span>
-            </div>
-            <div class="detail-item">
-              <label>Ansprechpartner:</label>
-              <span>${this.formatAnsprechpartner(ansprechpartner)}</span>
-            </div>
-            <div class="detail-item">
-              <label>Status:</label>
-              <span class="status-${auftrag.status?.toLowerCase() || 'unknown'}">
-                ${auftrag.status || 'Unbekannt'}
-              </span>
-            </div>
-            <div class="detail-item">
-              <label>Kampagnenanzahl:</label>
-              <span>${this.details?.kampagnenanzahl || auftrag.kampagnenanzahl || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Zeitraum:</label>
-              <span>
-                ${auftrag.start ? new Date(auftrag.start).toLocaleDateString('de-DE') : '-'} 
-                bis 
-                ${auftrag.ende ? new Date(auftrag.ende).toLocaleDateString('de-DE') : '-'}
-              </span>
-            </div>
-            <div class="detail-item">
-              <label>Erstellt am:</label>
-              <span>${this.details?.created_at ? new Date(this.details.created_at).toLocaleDateString('de-DE') : '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Zuletzt aktualisiert:</label>
-              <span>${this.details?.updated_at ? new Date(this.details.updated_at).toLocaleDateString('de-DE') : '-'}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  // Rendere UGC Details
-  renderUGC() {
-    const details = this.details || {};
-    return `
-      <div class="detail-section">
-        <div class="detail-grid">
-          <div class="detail-card">
-            <h3>UGC (User Generated Content)</h3>
-            <div class="detail-item">
-              <label>Anzahl Videos:</label>
-              <span>${details.ugc_video_anzahl || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Anzahl Creator:</label>
-              <span>${details.ugc_creator_anzahl || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Budget & Informationen:</label>
-              <div class="budget-info">
-                ${details.ugc_budget_info 
-                  ? window.validatorSystem.sanitizeHtml(details.ugc_budget_info) 
-                  : '<em>Keine Informationen hinterlegt</em>'}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  // Rendere Influencer Details
-  renderInfluencer() {
-    const details = this.details || {};
-    return `
-      <div class="detail-section">
-        <div class="detail-grid">
-          <div class="detail-card">
-            <h3>Influencer</h3>
-            <div class="detail-item">
-              <label>Anzahl Videos:</label>
-              <span>${details.influencer_video_anzahl || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Anzahl Creator:</label>
-              <span>${details.influencer_creator_anzahl || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Budget & Informationen:</label>
-              <div class="budget-info">
-                ${details.influencer_budget_info 
-                  ? window.validatorSystem.sanitizeHtml(details.influencer_budget_info) 
-                  : '<em>Keine Informationen hinterlegt</em>'}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  // Rendere Vor Ort Details
-  renderVorOrt() {
-    const details = this.details || {};
-    return `
-      <div class="detail-section">
-        <div class="detail-grid">
-          <div class="detail-card">
-            <h3>Vor Ort Dreh</h3>
-            <div class="detail-item">
-              <label>Anzahl Videos:</label>
-              <span>${details.vor_ort_video_anzahl || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Anzahl Creator:</label>
-              <span>${details.vor_ort_creator_anzahl || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Anzahl Videographen:</label>
-              <span>${details.vor_ort_videographen_anzahl || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Budget & Informationen:</label>
-              <div class="budget-info">
-                ${details.vor_ort_budget_info 
-                  ? window.validatorSystem.sanitizeHtml(details.vor_ort_budget_info) 
-                  : '<em>Keine Informationen hinterlegt</em>'}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  // Rendere Vor Ort Mitarbeiter Details
-  renderVorOrtMitarbeiter() {
-    const details = this.details || {};
-    return `
-      <div class="detail-section">
-        <div class="detail-grid">
-          <div class="detail-card">
-            <h3>Vor Ort Dreh Mitarbeiter</h3>
-            <div class="detail-item">
-              <label>Anzahl Videos:</label>
-              <span>${details.vor_ort_mitarbeiter_video_anzahl || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Anzahl Videographen:</label>
-              <span>${details.vor_ort_mitarbeiter_videographen_anzahl || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Budget & Informationen:</label>
-              <div class="budget-info">
-                ${details.vor_ort_mitarbeiter_budget_info 
-                  ? window.validatorSystem.sanitizeHtml(details.vor_ort_mitarbeiter_budget_info) 
-                  : '<em>Keine Informationen hinterlegt</em>'}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  // Rendere Zusammenfassung
-  renderZusammenfassung() {
-    const details = this.details || {};
     const num = (v) => v || v === 0 ? new Intl.NumberFormat('de-DE').format(v) : '-';
-    
+    const formatCurrency = (v) => {
+      if (v === null || v === undefined) return '-';
+      return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v);
+    };
+
     return `
       <div class="detail-section">
-        <div class="detail-grid">
-          <div class="detail-card">
-            <h3>Gesamtübersicht</h3>
-            <div class="detail-item">
-              <label>Gesamtanzahl Videos (geplant):</label>
-              <span class="highlight-value">${num(details.gesamt_videos)}</span>
+        <!-- Budget-Kacheln -->
+        <div class="auftragsdetails-summary">
+          <div class="summary-cards">
+            <div class="summary-card">
+              <div class="summary-value">${num(this.budgetSummary.totalVideos)} von ${num(this.details?.gesamt_videos || 0)}</div>
+              <div class="summary-label">Aktuell gebuchte Videos</div>
+              <div class="summary-progress">
+                <div class="summary-progress-fill ${this.getProgressColorClass(this.budgetSummary.totalVideos, this.details?.gesamt_videos)}" 
+                     style="width: ${this.getProgressPercentage(this.budgetSummary.totalVideos, this.details?.gesamt_videos)}%">
+                </div>
+              </div>
             </div>
-            <div class="detail-item">
-              <label>Gesamtanzahl Creator (geplant):</label>
-              <span class="highlight-value">${num(details.gesamt_creator)}</span>
+            <div class="summary-card">
+              <div class="summary-value">${num(this.budgetSummary.totalCreators)} von ${num(this.details?.gesamt_creator || 0)}</div>
+              <div class="summary-label">Aktuell gebuchte Creator</div>
+              <div class="summary-progress">
+                <div class="summary-progress-fill ${this.getProgressColorClass(this.budgetSummary.totalCreators, this.details?.gesamt_creator)}" 
+                     style="width: ${this.getProgressPercentage(this.budgetSummary.totalCreators, this.details?.gesamt_creator)}%">
+                </div>
+              </div>
             </div>
-          </div>
-          
-          <div class="detail-card">
-            <h3>Aufschlüsselung nach Kategorie</h3>
-            <div class="category-breakdown">
-              <div class="breakdown-item">
-                <strong>UGC:</strong>
-                <span>${num(details.ugc_video_anzahl)} Videos, ${num(details.ugc_creator_anzahl)} Creator</span>
-              </div>
-              <div class="breakdown-item">
-                <strong>Influencer:</strong>
-                <span>${num(details.influencer_video_anzahl)} Videos, ${num(details.influencer_creator_anzahl)} Creator</span>
-              </div>
-              <div class="breakdown-item">
-                <strong>Vor Ort:</strong>
-                <span>${num(details.vor_ort_video_anzahl)} Videos, ${num(details.vor_ort_creator_anzahl)} Creator, ${num(details.vor_ort_videographen_anzahl)} Videographen</span>
-              </div>
-              <div class="breakdown-item">
-                <strong>Vor Ort Mitarbeiter:</strong>
-                <span>${num(details.vor_ort_mitarbeiter_video_anzahl)} Videos, ${num(details.vor_ort_mitarbeiter_videographen_anzahl)} Videographen</span>
+            <div class="summary-card">
+              <div class="summary-value">${formatCurrency(this.budgetSummary.usedBudget)} von ${formatCurrency(this.budgetSummary.totalBudget)}</div>
+              <div class="summary-label">Budget verbraucht</div>
+              <div class="summary-progress">
+                <div class="summary-progress-fill ${this.getBudgetProgressColorClass()}" 
+                     style="width: ${this.getBudgetProgressPercentage()}%">
+                </div>
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- Creator & Videos Übersicht -->
+        ${this.renderCreatorVideosTable()}
+      </div>
+    `;
+  }
+
+  // Rendere Creator & Videos Tabelle
+  renderCreatorVideosTable() {
+    if (!this.kooperationen || this.kooperationen.length === 0) {
+      return `
+        <div style="margin-top: var(--space-xl);">
+          <h3 style="margin-bottom: var(--space-md);">Creator & Videos Übersicht</h3>
+          <div class="empty-state">
+            <div class="empty-icon">📹</div>
+            <h3>Keine Kooperationen vorhanden</h3>
+            <p>Für diesen Auftrag wurden noch keine Kooperationen mit Creator und Videos angelegt.</p>
+          </div>
+        </div>
+      `;
+    }
+
+    // Erstelle eine Liste aller Videos mit Creator-Informationen
+    const videoRows = [];
+    
+    this.kooperationen.forEach(koop => {
+      const creator = koop.creator || {};
+      const creatorName = [creator.vorname, creator.nachname].filter(Boolean).join(' ') || 'Unbekannt';
+      const creatorId = creator.id;
+      
+      // Videos für diese Kooperation
+      const koopVideos = this.videos.filter(v => v.kooperation_id === koop.id);
+      
+      if (koopVideos.length === 0) {
+        // Wenn keine Videos vorhanden, zeige trotzdem die Kooperation mit Creator
+        videoRows.push({
+          creatorName,
+          creatorId,
+          kategorie: koop.content_art || '-',
+          videoTitel: '-',
+          videoLink: null,
+          kooperationId: koop.id,
+          kooperationName: koop.name || 'Kooperation'
+        });
+      } else {
+        // Für jedes Video eine Zeile erstellen
+        koopVideos.forEach(video => {
+          const videoLink = video.link_content || video.asset_url || null;
+          videoRows.push({
+            creatorName,
+            creatorId,
+            kategorie: video.content_art || koop.content_art || '-',
+            videoTitel: video.titel || video.thema || 'Video',
+            videoLink,
+            kooperationId: koop.id,
+            kooperationName: koop.name || 'Kooperation',
+            videoId: video.id
+          });
+        });
+      }
+    });
+
+    if (videoRows.length === 0) {
+      return `
+        <div style="margin-top: var(--space-xl);">
+          <h3 style="margin-bottom: var(--space-md);">Creator & Videos Übersicht</h3>
+          <div class="empty-state">
+            <div class="empty-icon">📹</div>
+            <h3>Keine Videos vorhanden</h3>
+            <p>Für diesen Auftrag wurden noch keine Videos angelegt.</p>
+          </div>
+        </div>
+      `;
+    }
+
+    const rowsHtml = videoRows.map(row => {
+      const videoLinkHtml = row.videoLink 
+        ? `<a href="${window.validatorSystem.sanitizeHtml(row.videoLink)}" target="_blank" rel="noopener noreferrer" class="table-link">
+             ${window.validatorSystem.sanitizeHtml(row.videoLink)}
+           </a>`
+        : '-';
+      
+      const creatorLinkHtml = row.creatorId
+        ? `<a href="#" class="table-link" data-table="creator" data-id="${row.creatorId}">
+             ${window.validatorSystem.sanitizeHtml(row.creatorName)}
+           </a>`
+        : window.validatorSystem.sanitizeHtml(row.creatorName);
+
+      const videoTitelHtml = row.videoId
+        ? `<a href="#" class="table-link" data-table="video" data-id="${row.videoId}">
+             ${window.validatorSystem.sanitizeHtml(row.videoTitel)}
+           </a>`
+        : window.validatorSystem.sanitizeHtml(row.videoTitel);
+
+      return `
+        <tr>
+          <td>${creatorLinkHtml}</td>
+          <td>${window.validatorSystem.sanitizeHtml(row.kategorie)}</td>
+          <td>${videoTitelHtml}</td>
+          <td>${videoLinkHtml}</td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div style="margin-top: var(--space-xl);">
+        <h3 style="margin-bottom: var(--space-md);">Creator & Videos Übersicht</h3>
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Creator</th>
+                <th>Kategorie</th>
+                <th>Video</th>
+                <th>Link</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
         </div>
       </div>
     `;
   }
 
-  // Rendere Notizen
-  renderNotizen() {
-    if (window.notizenSystem) {
-      return window.notizenSystem.renderNotizenContainer(this.notizen, 'auftrag_details', this.detailsId);
-    }
-    return '<p>Notizen-System nicht verfügbar</p>';
-  }
 
   // Formatiere Ansprechpartner
   formatAnsprechpartner(ansprechpartner) {
@@ -454,17 +435,43 @@ export class AuftragsdetailsDetail {
     return ansprechpartner.email ? `${name} (${ansprechpartner.email})` : name;
   }
 
+  // Berechne Progress-Prozentsatz für Videos/Creator
+  getProgressPercentage(current, total) {
+    if (!total || total <= 0) return 0;
+    return Math.min(100, Math.round((current / total) * 100));
+  }
+
+  // Bestimme Farbe für Progress-Bar basierend auf Prozentsatz (Videos/Creator)
+  getProgressColorClass(current, total) {
+    if (!total || total <= 0) return '';
+    const percentage = this.getProgressPercentage(current, total);
+    
+    if (percentage >= 100) return 'summary-progress-fill--success';
+    if (percentage >= 75) return 'summary-progress-fill--warning';
+    return '';
+  }
+
+  // Berechne Budget Progress-Prozentsatz
+  getBudgetProgressPercentage() {
+    if (this.budgetSummary.totalBudget <= 0) return 0;
+    return Math.min(100, Math.round((this.budgetSummary.usedBudget / this.budgetSummary.totalBudget) * 100));
+  }
+
+  // Bestimme Farbe für Budget Progress-Bar
+  getBudgetProgressColorClass() {
+    const percentage = this.getBudgetProgressPercentage();
+    
+    if (percentage >= 90) return 'summary-progress-fill--danger';
+    if (percentage >= 75) return 'summary-progress-fill--warning';
+    return '';
+  }
+
   // Binde Events
   bindEvents() {
-    // Tab-Navigation
+    // Edit-Button
     document.addEventListener('click', (e) => {
-      if (e.target.classList.contains('tab-button')) {
-        const tabName = e.target.dataset.tab;
-        this.switchTab(tabName);
-      }
-
-      // Edit-Button
       if (e.target.id === 'btn-edit-details' || e.target.closest('#btn-edit-details')) {
+        e.preventDefault();
         this.showEditForm();
       }
 
@@ -494,26 +501,6 @@ export class AuftragsdetailsDetail {
         this.bindEvents();
       });
     });
-  }
-
-  // Tab wechseln
-  switchTab(tabName) {
-    // Alle Tab-Buttons deaktivieren
-    document.querySelectorAll('.tab-button').forEach(btn => {
-      btn.classList.remove('active');
-    });
-
-    // Alle Tab-Panes ausblenden
-    document.querySelectorAll('.tab-pane').forEach(pane => {
-      pane.classList.remove('active');
-    });
-
-    // Gewählten Tab aktivieren
-    const selectedButton = document.querySelector(`[data-tab="${tabName}"]`);
-    const selectedPane = document.getElementById(tabName);
-
-    if (selectedButton) selectedButton.classList.add('active');
-    if (selectedPane) selectedPane.classList.add('active');
   }
 
   // Bearbeitungsformular anzeigen

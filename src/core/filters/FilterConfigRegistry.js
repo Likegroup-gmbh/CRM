@@ -10,6 +10,7 @@ import KampagneFilterConfig from '../../modules/kampagne/filters/KampagneFilterC
 import BriefingFilterConfig from '../../modules/briefing/filters/BriefingFilterConfig.js';
 import AuftragFilterConfig from '../../modules/auftrag/filters/AuftragFilterConfig.js';
 import AuftragsdetailsFilterConfig from '../../modules/auftrag/filters/AuftragsdetailsFilterConfig.js';
+import AuftragCashFlowFilterConfig from '../../modules/auftrag/filters/AuftragCashFlowFilterConfig.js';
 import KooperationFilterConfig from '../../modules/kooperation/filters/KooperationFilterConfig.js';
 import RechnungFilterConfig from '../../modules/rechnung/filters/RechnungFilterConfig.js';
 
@@ -33,6 +34,7 @@ export const FILTER_CONFIG_REGISTRY = {
   kampagne: KampagneFilterConfig,
   auftrag: AuftragFilterConfig,
   auftragsdetails: AuftragsdetailsFilterConfig,
+  auftrag_cashflow: AuftragCashFlowFilterConfig,
   kooperation: KooperationFilterConfig,
   briefing: BriefingFilterConfig,
   rechnung: RechnungFilterConfig

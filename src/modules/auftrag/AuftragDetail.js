@@ -20,6 +20,9 @@ export class AuftragDetail {
     this.auftragsDetails = null;
     this.realVideoCount = 0;
     this.realCreatorCount = 0;
+    this.kampagnen = [];
+    this.kooperationen = [];
+    this.videos = [];
   }
 
   // Initialisiere Auftrags-Detailseite
@@ -180,12 +183,95 @@ export class AuftragDetail {
         this.auftragsDetails = null;
       }
       
+      // Lade Kooperationen und Videos für Budget-Anzeige
+      await this.loadKooperationenVideos();
+      
       const loadTime = (performance.now() - startTime).toFixed(0);
       console.log(`✅ AUFTRAGDETAIL: Kritische Daten geladen in ${loadTime}ms`);
       
     } catch (error) {
       console.error('❌ AUFTRAGDETAIL: Fehler beim Laden der kritischen Daten:', error);
       throw error;
+    }
+  }
+  
+  // Lade Kooperationen und Videos für Budget-Anzeige
+  async loadKooperationenVideos() {
+    try {
+      // Lade alle Kampagnen des Auftrags
+      const { data: kampagnen } = await window.supabase
+        .from('kampagne')
+        .select('id, kampagnenname')
+        .eq('auftrag_id', this.auftragId);
+      
+      this.kampagnen = kampagnen || [];
+      const kampagneIds = this.kampagnen.map(k => k.id);
+      
+      if (kampagneIds.length === 0) {
+        this.kooperationen = [];
+        this.videos = [];
+        this.realVideoCount = 0;
+        this.realCreatorCount = 0;
+        return;
+      }
+      
+      // Lade alle Kooperationen der Kampagnen
+      const { data: kooperationen } = await window.supabase
+        .from('kooperationen')
+        .select(`
+          id,
+          name,
+          status,
+          typ,
+          videoanzahl,
+          einkaufspreis_gesamt,
+          kampagne_id,
+          creator:creator_id (
+            id,
+            vorname,
+            nachname
+          )
+        `)
+        .in('kampagne_id', kampagneIds)
+        .order('created_at', { ascending: false });
+      
+      this.kooperationen = (kooperationen || []).map(koop => ({
+        ...koop,
+        kampagne: this.kampagnen.find(k => k.id === koop.kampagne_id)
+      }));
+      
+      // Lade Videos für alle Kooperationen
+      if (this.kooperationen.length > 0) {
+        const koopIds = this.kooperationen.map(k => k.id);
+        const { data: videos } = await window.supabase
+          .from('kooperation_videos')
+          .select('id, titel, thema, content_art, kooperation_id, asset_url, link_content')
+          .in('kooperation_id', koopIds);
+        
+        this.videos = videos || [];
+      } else {
+        this.videos = [];
+      }
+      
+      // Berechne realVideoCount und realCreatorCount
+      this.realVideoCount = this.videos.length;
+      
+      // Anzahl einzigartiger Creator
+      const uniqueCreatorIds = new Set();
+      this.kooperationen.forEach(koop => {
+        if (koop.creator?.id) {
+          uniqueCreatorIds.add(koop.creator.id);
+        }
+      });
+      this.realCreatorCount = uniqueCreatorIds.size;
+      
+      console.log(`✅ AUFTRAGDETAIL: ${this.kooperationen.length} Kooperationen, ${this.realCreatorCount} Creator und ${this.realVideoCount} Videos geladen`);
+    } catch (error) {
+      console.error('❌ AUFTRAGDETAIL: Fehler beim Laden von Kooperationen/Videos:', error);
+      this.kooperationen = [];
+      this.videos = [];
+      this.realVideoCount = 0;
+      this.realCreatorCount = 0;
     }
   }
   
@@ -489,14 +575,34 @@ export class AuftragDetail {
         <div class="auftragsdetails-summary">
           <div class="summary-cards">
             <div class="summary-card">
-              <div class="summary-value">${num(this.realVideoCount)}</div>
-              <div class="summary-label">Aktuell gebuchte Videos</div>
-              ${details?.gesamt_videos ? `<div class="summary-planned">Geplant: ${num(details.gesamt_videos)}</div>` : ''}
+              <div class="summary-value">${num(this.realVideoCount)} von ${num(details?.gesamt_videos || 0)}</div>
+              <div class="summary-label">Videos erstellt</div>
+              <div class="summary-progress">
+                <div class="summary-progress-fill ${this.getProgressColorClass(this.realVideoCount, details?.gesamt_videos)}" 
+                     style="width: ${details?.gesamt_videos && details.gesamt_videos > 0 ? Math.min(100, Math.round((this.realVideoCount / details.gesamt_videos) * 100)) : 0}%">
+                </div>
+              </div>
+              ${details?.gesamt_videos && details.gesamt_videos > 0 ? `<div class="summary-planned">${Math.round((this.realVideoCount / details.gesamt_videos) * 100)}%</div>` : ''}
             </div>
             <div class="summary-card">
-              <div class="summary-value">${num(this.realCreatorCount)}</div>
-              <div class="summary-label">Aktuell gebuchte Creator</div>
-              ${details?.gesamt_creator ? `<div class="summary-planned">Geplant: ${num(details.gesamt_creator)}</div>` : ''}
+              <div class="summary-value">${num(this.realCreatorCount)} von ${num(details?.gesamt_creator || 0)}</div>
+              <div class="summary-label">Creator gebucht</div>
+              <div class="summary-progress">
+                <div class="summary-progress-fill ${this.getProgressColorClass(this.realCreatorCount, details?.gesamt_creator)}" 
+                     style="width: ${details?.gesamt_creator && details.gesamt_creator > 0 ? Math.min(100, Math.round((this.realCreatorCount / details.gesamt_creator) * 100)) : 0}%">
+                </div>
+              </div>
+              ${details?.gesamt_creator && details.gesamt_creator > 0 ? `<div class="summary-planned">${Math.round((this.realCreatorCount / details.gesamt_creator) * 100)}%</div>` : ''}
+            </div>
+            <div class="summary-card">
+              <div class="summary-value">${this.formatBudgetUsage()}</div>
+              <div class="summary-label">Budget verbraucht</div>
+              <div class="summary-progress">
+                <div class="summary-progress-fill ${this.getBudgetProgressColorClass()}" 
+                     style="width: ${Math.min(100, this.getBudgetPercentage())}%">
+                </div>
+              </div>
+              ${(this.auftrag?.creator_budget || this.auftrag?.gesamt_budget || this.auftrag?.nettobetrag) ? `<div class="summary-planned">${this.getBudgetPercentage()}%</div>` : ''}
             </div>
           </div>
         </div>
@@ -522,6 +628,12 @@ export class AuftragDetail {
               `}
             </tbody>
           </table>
+        </div>
+
+        <!-- Kooperationen & Videos Tabelle -->
+        <div style="margin-top: 32px;">
+          <h3>Kooperationen & Videos</h3>
+          ${this.renderKooperationenVideosTable()}
         </div>
       </div>
     `;
@@ -999,6 +1111,181 @@ export class AuftragDetail {
     if (formPage) {
       formPage.insertBefore(errorDiv, formPage.firstChild);
     }
+  }
+
+  // Formatiere Budget-Verbrauch
+  formatBudgetUsage() {
+    // Fallback-Kette: creator_budget -> gesamt_budget -> nettobetrag
+    const totalBudget = parseFloat(
+      this.auftrag?.creator_budget || 
+      this.auftrag?.gesamt_budget || 
+      this.auftrag?.nettobetrag || 
+      0
+    );
+    
+    const usedBudget = this.kooperationen.reduce((sum, koop) => {
+      return sum + (parseFloat(koop.einkaufspreis_gesamt) || 0);
+    }, 0);
+    
+    console.log('💰 Budget Debug:', {
+      creator_budget: this.auftrag?.creator_budget,
+      gesamt_budget: this.auftrag?.gesamt_budget,
+      nettobetrag: this.auftrag?.nettobetrag,
+      totalBudget,
+      usedBudget,
+      kooperationenCount: this.kooperationen.length
+    });
+    
+    const formatCurrency = (v) => v ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v) : '0,00 €';
+    return `${formatCurrency(usedBudget)} von ${formatCurrency(totalBudget)}`;
+  }
+
+  // Berechne Budget-Prozentsatz
+  getBudgetPercentage() {
+    // Fallback-Kette: creator_budget -> gesamt_budget -> nettobetrag
+    const totalBudget = parseFloat(
+      this.auftrag?.creator_budget || 
+      this.auftrag?.gesamt_budget || 
+      this.auftrag?.nettobetrag || 
+      0
+    );
+    
+    const usedBudget = this.kooperationen.reduce((sum, koop) => {
+      return sum + (parseFloat(koop.einkaufspreis_gesamt) || 0);
+    }, 0);
+    
+    if (totalBudget <= 0) return 0;
+    return Math.round((usedBudget / totalBudget) * 100);
+  }
+
+  // Bestimme Farbe für Progress-Bar basierend auf Prozentsatz (Videos/Creator)
+  getProgressColorClass(current, total) {
+    if (!total || total <= 0) return '';
+    const percentage = (current / total) * 100;
+    
+    if (percentage >= 100) return 'summary-progress-fill--success';
+    if (percentage >= 75) return 'summary-progress-fill--warning';
+    return '';
+  }
+
+  // Bestimme Farbe für Budget Progress-Bar
+  getBudgetProgressColorClass() {
+    const percentage = this.getBudgetPercentage();
+    
+    if (percentage >= 90) return 'summary-progress-fill--danger';
+    if (percentage >= 75) return 'summary-progress-fill--warning';
+    return '';
+  }
+
+  // Rendere Kooperationen & Videos Tabelle
+  renderKooperationenVideosTable() {
+    if (!this.kooperationen || this.kooperationen.length === 0) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">🤝</div>
+          <h3>Keine Kooperationen vorhanden</h3>
+          <p>Für diesen Auftrag wurden noch keine Kooperationen angelegt.</p>
+        </div>
+      `;
+    }
+
+    const formatCurrency = (value) => value ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value) : '-';
+
+    const rows = this.kooperationen.map(koop => {
+      const creator = koop.creator || {};
+      const creatorName = [creator.vorname, creator.nachname].filter(Boolean).join(' ') || '-';
+      
+      // Videos für diese Kooperation
+      const koopVideos = this.videos.filter(v => v.kooperation_id === koop.id);
+      
+      // Budget-Info aus den Auftragsdetails holen (basierend auf Typ)
+      let budgetInfo = '-';
+      if (this.auftragsDetails && koop.typ) {
+        const typ = koop.typ.toLowerCase().replace(/\s+/g, '_');
+        budgetInfo = this.auftragsDetails[`${typ}_budget_info`] || '-';
+      }
+      
+      // Video-Links rendern (wie in KampagneKooperationenVideoTable)
+      const renderVideoLinks = (videos) => {
+        if (!videos || videos.length === 0) {
+          return '<span class="text-muted">-</span>';
+        }
+        
+        return `<div class="video-fields-stack">${videos.map(video => {
+          const videoUrl = video.asset_url || video.link_content;
+          if (videoUrl) {
+            return `
+              <div class="video-field-wrapper">
+                <a href="${videoUrl}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Link in neuem Tab öffnen">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                  </svg>
+                </a>
+              </div>
+            `;
+          } else {
+            return '<div class="video-field-wrapper"><span class="text-muted">-</span></div>';
+          }
+        }).join('')}</div>`;
+      };
+      
+      // Video-Titel rendern
+      const renderVideoTitles = (videos) => {
+        if (!videos || videos.length === 0) {
+          return '<span class="text-muted">-</span>';
+        }
+        
+        return `<div class="video-fields-stack">${videos.map(video => `
+          <div class="video-field-wrapper">
+            ${window.validatorSystem.sanitizeHtml(video.titel || video.thema || 'Video')}
+            ${video.content_art ? `<span style="color: #666; font-size: 0.9em;"> (${video.content_art})</span>` : ''}
+          </div>
+        `).join('')}</div>`;
+      };
+      
+      return `
+        <tr>
+          <td>
+            <a href="#" class="table-link" data-table="creator" data-id="${creator.id || ''}">
+              ${window.validatorSystem.sanitizeHtml(creatorName)}
+            </a>
+          </td>
+          <td class="text-center">${koop.videoanzahl || 0}</td>
+          <td>
+            <span class="status-badge status-${koop.status?.toLowerCase() || 'unknown'}">
+              ${koop.status || '-'}
+            </span>
+          </td>
+          <td class="budget-cell">
+            ${budgetInfo !== '-' ? `<div class="budget-info">${window.validatorSystem.sanitizeHtml(budgetInfo)}</div>` : '-'}
+          </td>
+          <td class="text-right">${formatCurrency(koop.einkaufspreis_gesamt)}</td>
+          <td class="video-stack-cell">${renderVideoTitles(koopVideos)}</td>
+          <td class="video-stack-cell text-center">${renderVideoLinks(koopVideos)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Creator</th>
+              <th class="text-center">Anzahl Videos</th>
+              <th>Status</th>
+              <th>Budget & Informationen</th>
+              <th class="text-right">Kosten (Einkauf)</th>
+              <th>Video Titel</th>
+              <th class="text-center">Video Link</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      </div>
+    `;
   }
 
   // Cleanup

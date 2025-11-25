@@ -135,6 +135,8 @@ export class RechnungList {
   }
 
   async render() {
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    
     const html = `
       <div class="page-header">
         <div class="page-header-right">
@@ -147,19 +149,19 @@ export class RechnungList {
           <div id="filter-dropdown-container"></div>
           
         </div>
-        <div class="table-actions">
+        ${isAdmin ? `<div class="table-actions">
           <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
           <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
-        </div>
+        </div>` : ''}
       </div>
 
       <div class="table-container">
         <table class="data-table">
           <thead>
             <tr>
-              <th><input type="checkbox" id="select-all-rechnungen"></th>
+              ${isAdmin ? `<th><input type="checkbox" id="select-all-rechnungen"></th>` : ''}
               <th>Rechnungs-Nr</th>
               <th>Unternehmen</th>
               <th>Auftrag</th>
@@ -175,7 +177,7 @@ export class RechnungList {
           </thead>
           <tbody id="rechnungen-table-body">
             <tr>
-              <td colspan="9" class="loading">Lade Rechnungen...</td>
+              <td colspan="${isAdmin ? '12' : '11'}" class="loading">Lade Rechnungen...</td>
             </tr>
           </tbody>
         </table>
@@ -214,6 +216,8 @@ export class RechnungList {
     const tbody = document.getElementById('rechnungen-table-body');
     if (!tbody) return;
 
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+
     if (!rechnungen || rechnungen.length === 0) {
       const { renderEmptyState } = await import('../../core/FilterUI.js');
       renderEmptyState(tbody);
@@ -225,7 +229,7 @@ export class RechnungList {
 
     const rows = rechnungen.map(r => `
       <tr data-id="${r.id}">
-        <td><input type="checkbox" class="rechnung-check" data-id="${r.id}"></td>
+        ${isAdmin ? `<td><input type="checkbox" class="rechnung-check" data-id="${r.id}"></td>` : ''}
         <td>${r.rechnung_nr || '-'}</td>
         <td>${r.unternehmen?.firmenname || '-'}</td>
         <td>${r.auftrag?.auftragsname || '-'}</td>
@@ -315,6 +319,8 @@ export class RechnungList {
   }
 
   async deleteSelected() {
+    if (window.currentUser?.rolle !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'admin') return;
+    
     const selectedIds = Array.from(this.selectedRechnungen);
     if (selectedIds.length === 0) {
       alert('Keine Rechnungen ausgewählt.');

@@ -792,17 +792,12 @@ export class UnternehmenCreate {
         throw upErr;
       }
       
-      // Signierte URL erstellen (7 Tage gültig)
-      const { data: signed, error: signErr } = await window.supabase.storage
+      // Öffentliche URL erstellen (permanent verfügbar)
+      const { data: publicUrlData } = window.supabase.storage
         .from(bucket)
-        .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 Tage
+        .getPublicUrl(path);
       
-      if (signErr) {
-        console.error(`❌ Fehler beim Erstellen der signierten URL:`, signErr);
-        throw signErr;
-      }
-      
-      const logo_url = signed?.signedUrl || '';
+      const logo_url = publicUrlData?.publicUrl || '';
       
       // Logo-Daten in Datenbank speichern
       const { error: dbErr } = await window.supabase

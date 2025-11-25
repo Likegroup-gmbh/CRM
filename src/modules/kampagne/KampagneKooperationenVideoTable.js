@@ -10,6 +10,7 @@ export class KampagneKooperationenVideoTable {
     this.videos = {};
     this.videoComments = {}; // { video_id: { r1: [], r2: [] } }
     this.versandInfos = {};
+    this.creators = new Map(); // Creator-Cache für Performance
     this.columnWidths = new Map();
     this.isResizing = false;
     this.resizeCol = null;
@@ -18,6 +19,20 @@ export class KampagneKooperationenVideoTable {
     this.storageKey = `kampagne_koops_videos_column_widths_v2_${kampagneId}`;
     this.hiddenColumns = []; // Spalten die für Kunden versteckt sind
     this._visibilityEventBound = false; // Verhindere mehrfache Event-Registrierung
+    
+    // Filter-State
+    this.hideApprovedKooperationen = false; // Filter für freigegebene Kooperationen
+    
+    // Loading State (verhindert doppeltes Laden)
+    this._isLoading = false;
+    this._dataLoaded = false;
+    
+    // Performance-Tracking
+    this.performanceMetrics = {
+      startTime: null,
+      stages: {},
+      errors: []
+    };
     
     // Drag-to-Scroll State
     this.isDragging = false;
@@ -49,108 +64,438 @@ export class KampagneKooperationenVideoTable {
     return false;
   }
 
+  // Prüfe ob ALLE Videos einer Kooperation freigegeben sind
+  areAllVideosApproved(kooperationId) {
+    const videos = this.videos[kooperationId] || [];
+    
+    // Keine Videos = nicht als "komplett freigegeben" zählen
+    if (videos.length === 0) {
+      return false;
+    }
+    
+    // Alle Videos müssen freigegeben sein
+    return videos.every(video => video.freigabe === true);
+  }
+
+  // Toggle Filter für freigegebene Kooperationen
+  toggleApprovedFilter() {
+    this.hideApprovedKooperationen = !this.hideApprovedKooperationen;
+    
+    // Speichere Filter-State in localStorage (v2 = neuer Key)
+    try {
+      const key = `kampagne_${this.kampagneId}_hide_approved_v2`;
+      localStorage.setItem(key, JSON.stringify(this.hideApprovedKooperationen));
+    } catch (e) {
+      // localStorage nicht verfügbar
+    }
+    
+    // Render Tabelle neu
+    this.refresh();
+    
+    console.log(`🔄 Filter "Freigegebene ausblenden": ${this.hideApprovedKooperationen ? 'AN ✅' : 'AUS (alle anzeigen)'}`);
+  }
+
+  // Lade Filter-State aus localStorage (Standard: false = alle anzeigen)
+  loadApprovedFilterState() {
+    try {
+      const key = `kampagne_${this.kampagneId}_hide_approved_v2`;
+      const saved = localStorage.getItem(key);
+      // Nur wenn explizit gespeichert, sonst default false (alle anzeigen)
+      this.hideApprovedKooperationen = saved !== null ? JSON.parse(saved) : false;
+      console.log(`📋 Filter-State geladen: ${this.hideApprovedKooperationen ? 'Freigegebene AUSBLENDEN' : 'ALLE ANZEIGEN (Standard)'}`);
+    } catch (e) {
+      this.hideApprovedKooperationen = false;
+      console.log('📋 Filter-State: ALLE ANZEIGEN (Standard/Fehler)');
+    }
+  }
+
+  // ========================================
+  // PERFORMANCE-MONITORING SYSTEM
+  // ========================================
+
+  // Performance-Tracking für eine Stage starten
+  _startPerformanceTracking(stageName) {
+    const timestamp = performance.now();
+    this.performanceMetrics.stages[stageName] = {
+      start: timestamp,
+      end: null,
+      duration: null,
+      status: 'running'
+    };
+    return timestamp;
+  }
+
+  // Performance-Tracking für eine Stage beenden
+  _endPerformanceTracking(stageName, success = true, error = null) {
+    const timestamp = performance.now();
+    const stage = this.performanceMetrics.stages[stageName];
+    if (stage) {
+      stage.end = timestamp;
+      stage.duration = timestamp - stage.start;
+      stage.status = success ? 'success' : 'failed';
+      if (error) {
+        stage.error = error;
+        this.performanceMetrics.errors.push({ stage: stageName, error });
+      }
+    }
+    return timestamp;
+  }
+
+  // Vorherige Performance-Daten abrufen
+  _getPreviousPerformance() {
+    try {
+      const key = `perf_koops_videos_${this.kampagneId}`;
+      const history = JSON.parse(localStorage.getItem(key) || '[]');
+      return history.length > 0 ? history[history.length - 1] : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Speichere Metriken für Verlaufs-Analyse
+  _savePerformanceMetrics(totalTime) {
+    try {
+      const key = `perf_koops_videos_${this.kampagneId}`;
+      const history = JSON.parse(localStorage.getItem(key) || '[]');
+      
+      history.push({
+        timestamp: new Date().toISOString(),
+        totalTime,
+        stages: this.performanceMetrics.stages,
+        errorCount: this.performanceMetrics.errors.length,
+        dataSize: {
+          kooperationen: this.kooperationen.length,
+          videos: Object.values(this.videos).flat().length,
+          creators: this.creators.size
+        }
+      });
+      
+      // Nur letzte 20 Messungen behalten
+      if (history.length > 20) history.shift();
+      
+      localStorage.setItem(key, JSON.stringify(history));
+    } catch (e) {
+      // localStorage voll oder deaktiviert
+    }
+  }
+
+  // Detailliertes Performance-Log ausgeben
+  _logPerformanceSummary() {
+    const totalTime = performance.now() - this.performanceMetrics.startTime;
+    
+    console.group(
+      `%c⚡ Performance-Report: Kooperationen-Video-Tabelle (${totalTime.toFixed(0)}ms)`,
+      'background: #2563eb; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;'
+    );
+    
+    // Stages sortiert nach Dauer
+    const stageEntries = Object.entries(this.performanceMetrics.stages)
+      .sort((a, b) => (b[1].duration || 0) - (a[1].duration || 0));
+    
+    stageEntries.forEach(([name, metrics]) => {
+      const icon = metrics.status === 'success' ? '✅' : 
+                   metrics.status === 'failed' ? '❌' : '⏳';
+      const percent = ((metrics.duration / totalTime) * 100).toFixed(1);
+      const color = metrics.status === 'failed' ? '#ef4444' : 
+                    metrics.duration > 1000 ? '#f59e0b' : '#10b981';
+      
+      console.log(
+        `${icon} %c${name}%c ${metrics.duration?.toFixed(0)}ms %c(${percent}%)`,
+        `color: ${color}; font-weight: bold;`,
+        'color: inherit;',
+        'color: #6b7280; font-size: 0.9em;'
+      );
+      
+      if (metrics.error) {
+        console.error('  └─ Error:', metrics.error);
+      }
+    });
+    
+    // Fehler-Zusammenfassung
+    if (this.performanceMetrics.errors.length > 0) {
+      console.group('%c⚠️ Fehler-Details', 'color: #ef4444; font-weight: bold;');
+      this.performanceMetrics.errors.forEach(({ stage, error }) => {
+        console.error(`${stage}:`, error);
+      });
+      console.groupEnd();
+    }
+    
+    // Daten-Zusammenfassung
+    console.group('%c📊 Geladene Daten', 'color: #6366f1; font-weight: bold;');
+    console.log('Kooperationen:', this.kooperationen.length);
+    console.log('Videos:', Object.values(this.videos).flat().length);
+    console.log('Creators:', this.creators.size);
+    console.log('Comments:', Object.keys(this.videoComments).length);
+    console.log('Versand-Infos:', Object.keys(this.versandInfos).length);
+    console.groupEnd();
+    
+    // Performance-Vergleich mit letztem Load
+    const previousLoad = this._getPreviousPerformance();
+    if (previousLoad) {
+      const diff = totalTime - previousLoad.totalTime;
+      const diffPercent = ((diff / previousLoad.totalTime) * 100).toFixed(1);
+      const icon = diff > 0 ? '🔴' : '🟢';
+      console.log(
+        `${icon} Vergleich zu letztem Load: ${diff > 0 ? '+' : ''}${diff.toFixed(0)}ms (${diffPercent}%)`
+      );
+    }
+    
+    // Speichern für nächsten Vergleich
+    this._savePerformanceMetrics(totalTime);
+    
+    console.groupEnd();
+  }
+
+  // UI-Loading-Indicator aktualisieren
+  _updateLoadingProgress(message, percent) {
+    const container = document.getElementById(this.containerId);
+    if (!container) return;
+    
+    let progressBar = container.querySelector('.koops-videos-progress');
+    if (!progressBar) {
+      progressBar = document.createElement('div');
+      progressBar.className = 'koops-videos-progress';
+      progressBar.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #2563eb 0%, #3b82f6 100%);
+        transition: width 0.3s ease;
+        z-index: 100;
+      `;
+      container.style.position = 'relative';
+      container.appendChild(progressBar);
+    }
+    
+    progressBar.style.width = `${percent}%`;
+    
+    // Message-Overlay
+    let messageEl = container.querySelector('.koops-videos-loading-msg');
+    if (!messageEl) {
+      messageEl = document.createElement('div');
+      messageEl.className = 'koops-videos-loading-msg';
+      messageEl.style.cssText = `
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        padding: 16px 24px;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        z-index: 101;
+        font-size: 14px;
+        color: #374151;
+      `;
+      container.appendChild(messageEl);
+    }
+    
+    messageEl.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="width: 20px; height: 20px; border: 2px solid #e5e7eb; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+        <div>
+          <div style="font-weight: 600;">${message}</div>
+          <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">${percent}%</div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Loading-Indicator entfernen
+  _removeLoadingProgress() {
+    const container = document.getElementById(this.containerId);
+    if (!container) return;
+    
+    container.querySelector('.koops-videos-progress')?.remove();
+    container.querySelector('.koops-videos-loading-msg')?.remove();
+  }
+
+  // ========================================
+  // DATEN-LOADING
+  // ========================================
+
   // Lade alle Daten für die Tabelle
   async loadData() {
-    try {
-      const startTime = performance.now();
+    // Verhindere doppeltes Laden (Fix 3)
+    if (this._isLoading || this._dataLoaded) {
+      console.log('⚠️ LoadData bereits in Arbeit oder abgeschlossen, überspringe...');
+      return;
+    }
 
-      // STUFE 1: Kooperationen MIT Videos in einem Query (LEFT JOIN)
+    this._isLoading = true;
+    this.performanceMetrics.startTime = performance.now();
+    this.performanceMetrics.stages = {};
+    this.performanceMetrics.errors = [];
+
+    try {
+      // UI-Progress anzeigen
+      this._updateLoadingProgress('Lade Kooperationen...', 10);
+
+      // ========================================
+      // STUFE 1: Kooperationen laden (ohne Creator-Join)
+      // ========================================
+      this._startPerformanceTracking('Query: kooperationen');
+      
       const kooperationenResult = await window.supabase
         .from('kooperationen')
         .select(`
           id, name, status, einkaufspreis_netto, einkaufspreis_gesamt, content_art,
           posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ,
-          videoanzahl, skript_deadline, content_deadline, created_at,
-          creator:creator_id (
-            id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower,
-            lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt
-          ),
-          kampagne:kampagne_id (
-            id, kampagnenname
-          ),
-          videos:kooperation_videos (
-            id, kooperation_id, position, asset_url,
-            caption, feedback_creatorjobs, feedback_ritzenhoff, freigabe,
-            link_content, link_produkte, thema, link_skript, skript_freigegeben, drehort, posting_datum
-          )
+          videoanzahl, skript_deadline, content_deadline, created_at, creator_id,
+          kampagne:kampagne_id (id, kampagnenname)
         `)
         .eq('kampagne_id', this.kampagneId)
         .order('created_at', { ascending: false });
 
+      this._endPerformanceTracking('Query: kooperationen', !kooperationenResult.error, kooperationenResult.error);
+
       if (kooperationenResult.error) throw kooperationenResult.error;
       
-      const kooperationenMitVideos = kooperationenResult.data || [];
+      this.kooperationen = kooperationenResult.data || [];
       
-      if (kooperationenMitVideos.length === 0) {
-        this.kooperationen = [];
+      // Leeres Ergebnis: Early Return
+      if (this.kooperationen.length === 0) {
         this.videos = {};
         this.videoComments = {};
         this.versandInfos = {};
+        this._dataLoaded = true;
+        this._logPerformanceSummary();
+        this._removeLoadingProgress();
         return;
       }
 
-      // Extrahiere Kooperationen (ohne videos-Array)
-      this.kooperationen = kooperationenMitVideos.map(({ videos, ...koop }) => koop);
-      
-      // Extrahiere alle Videos und sammle IDs
-      const allVideos = [];
-      const koopIds = [];
-      kooperationenMitVideos.forEach(koop => {
-        koopIds.push(koop.id);
-        if (koop.videos && koop.videos.length > 0) {
-          // Sortiere Videos nach Position
-          const sortedVideos = [...koop.videos].sort((a, b) => (a.position || 0) - (b.position || 0));
-          allVideos.push(...sortedVideos);
+      const koopIds = this.kooperationen.map(k => k.id);
+      const creatorIds = [...new Set(this.kooperationen.map(k => k.creator_id).filter(Boolean))];
+
+      this._updateLoadingProgress('Lade Videos & Creator...', 30);
+
+      // ========================================
+      // STUFE 2: Videos + Creator parallel laden
+      // ========================================
+      this._startPerformanceTracking('Query: kooperation_videos');
+      this._startPerformanceTracking('Query: creator');
+
+      const [videosResult, creatorsResult] = await Promise.allSettled([
+        window.supabase
+          .from('kooperation_videos')
+          .select('id, kooperation_id, position, asset_url, content_art, caption, feedback_creatorjobs, feedback_ritzenhoff, freigabe, link_content, link_produkte, thema, link_skript, skript_freigegeben, drehort, posting_datum')
+          .in('kooperation_id', koopIds)
+          .order('position', { ascending: true }),
+        
+        window.supabase
+          .from('creator')
+          .select('id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt')
+          .in('id', creatorIds)
+      ]);
+
+      this._endPerformanceTracking('Query: kooperation_videos', videosResult.status === 'fulfilled', videosResult.reason);
+      this._endPerformanceTracking('Query: creator', creatorsResult.status === 'fulfilled', creatorsResult.reason);
+
+      const allVideos = videosResult.status === 'fulfilled' ? (videosResult.value.data || []) : [];
+      const creators = creatorsResult.status === 'fulfilled' ? (creatorsResult.value.data || []) : [];
+
+      // Creator-Cache aufbauen
+      this.creators.clear();
+      creators.forEach(c => this.creators.set(c.id, c));
+
+      // Creator-Daten an Kooperationen anhängen (client-side)
+      this.kooperationen.forEach(koop => {
+        if (koop.creator_id) {
+          koop.creator = this.creators.get(koop.creator_id) || null;
         }
       });
-      
+
       const videoIds = allVideos.map(v => v.id);
 
-      // STUFE 2: Versand, Assets und Kommentare PARALLEL laden (nur wenn Videos existieren)
+      this._updateLoadingProgress('Lade Zusatzdaten...', 60);
+
+      // ========================================
+      // STUFE 3: Versand, Assets, Comments parallel mit Timeout (Fix 1)
+      // ========================================
       let versandInfos = [];
       let assets = [];
       let comments = [];
       
       if (videoIds.length > 0) {
-        const [versandResult, assetsResult, commentsResult] = await parallelLoad([
-          () => window.supabase
+        this._startPerformanceTracking('Query: kooperation_versand');
+        this._startPerformanceTracking('Query: kooperation_video_asset');
+        this._startPerformanceTracking('Query: kooperation_video_comment');
+
+        const [versandResult, assetsResult, commentsResult] = await Promise.allSettled([
+          window.supabase
             .from('kooperation_versand')
             .select('id, kooperation_id, video_id, versendet, tracking_nummer, produkt_name, produkt_link, strasse, hausnummer, plz, stadt')
             .in('kooperation_id', koopIds),
           
-          () => window.supabase
-            .from('kooperation_video_asset')
-            .select('id, video_id, file_url, is_current')
-            .in('video_id', videoIds)
-            .eq('is_current', true),
+          // Timeout für Assets (500-Error-Workaround)
+          Promise.race([
+            window.supabase
+              .from('kooperation_video_asset')
+              .select('id, video_id, file_url, is_current')
+              .in('video_id', videoIds)
+              .eq('is_current', true),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Assets-Query Timeout nach 3s')), 3000)
+            )
+          ]),
           
-          () => window.supabase
-            .from('kooperation_video_comment')
-            .select('id, video_id, text, runde, author_name, created_at')
-            .in('video_id', videoIds)
-            .is('deleted_at', null)
-            .order('created_at', { ascending: true })
+          // Timeout für Comments (500-Error-Workaround)
+          Promise.race([
+            window.supabase
+              .from('kooperation_video_comment')
+              .select('id, video_id, text, runde, author_name, created_at')
+              .in('video_id', videoIds)
+              .is('deleted_at', null)
+              .order('created_at', { ascending: true }),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Comments-Query Timeout nach 3s')), 3000)
+            )
+          ])
         ]);
 
-        versandInfos = versandResult.data || [];
-        assets = assetsResult.data || [];
-        comments = commentsResult.data || [];
+        this._endPerformanceTracking('Query: kooperation_versand', versandResult.status === 'fulfilled', versandResult.reason);
+        this._endPerformanceTracking('Query: kooperation_video_asset', assetsResult.status === 'fulfilled', assetsResult.reason);
+        this._endPerformanceTracking('Query: kooperation_video_comment', commentsResult.status === 'fulfilled', commentsResult.reason);
+
+        versandInfos = versandResult.status === 'fulfilled' ? (versandResult.value.data || []) : [];
+        assets = assetsResult.status === 'fulfilled' ? (assetsResult.value.data || []) : [];
+        comments = commentsResult.status === 'fulfilled' ? (commentsResult.value.data || []) : [];
+
+        // Warnungen bei Fehlern
+        if (assetsResult.status === 'rejected') {
+          console.warn('⚠️ Assets konnten nicht geladen werden:', assetsResult.reason);
+        }
+        if (commentsResult.status === 'rejected') {
+          console.warn('⚠️ Comments konnten nicht geladen werden:', commentsResult.reason);
+        }
       }
 
-      // Videos verarbeiten und mit Assets anreichern
-      const enrichedVideos = allVideos.map(v => ({
-        ...v,
-        currentAsset: assets?.find(a => a.video_id === v.id),
-        file_url: assets?.find(a => a.video_id === v.id)?.file_url || v.asset_url || null
-      }));
+      this._updateLoadingProgress('Verarbeite Daten...', 80);
 
-      // Videos nach Kooperation gruppieren
+      // ========================================
+      // STUFE 4: Client-Side Mapping (Fix 2: Map statt find)
+      // ========================================
+      this._startPerformanceTracking('Client-Side: Mapping');
+
+      // Map für O(1) Lookups erstellen
+      const assetsByVideoId = new Map(assets.map(a => [a.video_id, a]));
+
+      // Videos mit Assets anreichern und nach Kooperation gruppieren
       this.videos = {};
-      enrichedVideos.forEach(video => {
+      allVideos.forEach(video => {
+        const currentAsset = assetsByVideoId.get(video.id);
+        const enrichedVideo = {
+          ...video,
+          currentAsset,
+          file_url: currentAsset?.file_url || video.asset_url || null
+        };
+        
         if (!this.videos[video.kooperation_id]) {
           this.videos[video.kooperation_id] = [];
         }
-        this.videos[video.kooperation_id].push(video);
+        this.videos[video.kooperation_id].push(enrichedVideo);
       });
 
       // Kommentare nach Video und Runde gruppieren
@@ -166,26 +511,45 @@ export class KampagneKooperationenVideoTable {
         }
       });
 
-      // Versand-Infos nach Kooperation gruppieren
+      // Versand-Infos nach Video gruppieren
       this.versandInfos = {};
       versandInfos.forEach(info => {
-        this.versandInfos[info.kooperation_id] = info;
+        if (info.video_id) {
+          this.versandInfos[info.video_id] = info;
+        }
       });
 
-      const loadTime = (performance.now() - startTime).toFixed(0);
-      console.log(`⚡ Daten in ${loadTime}ms geladen: ${this.kooperationen.length} Kooperationen, ${allVideos.length} Videos`);
+      this._endPerformanceTracking('Client-Side: Mapping');
+
+      this._updateLoadingProgress('Fertig!', 100);
+
+      // ========================================
+      // Performance-Summary ausgeben
+      // ========================================
+      this._logPerformanceSummary();
+      
+      // Daten erfolgreich geladen
+      this._dataLoaded = true;
+
+      // UI-Progress entfernen
+      setTimeout(() => this._removeLoadingProgress(), 500);
 
     } catch (error) {
-      console.error('❌ Fehler beim Laden der Daten:', error);
+      console.error('❌ Kritischer Fehler beim Laden:', error);
+      this._endPerformanceTracking('CRITICAL_ERROR', false, error);
+      this._logPerformanceSummary();
+      this._removeLoadingProgress();
       window.ErrorHandler.handle(error, 'KampagneKooperationenVideoTable.loadData');
+    } finally {
+      this._isLoading = false;
     }
   }
 
   // Helper: Hole Versand-Info für ein spezifisches Video
   getVersandForVideo(videoId) {
     if (!this.versandInfos) return null;
-    // Finde Versand-Eintrag der dem Video zugeordnet ist
-    return Object.values(this.versandInfos).find(v => v.video_id === videoId);
+    // Direkter Zugriff via video_id (da versandInfos jetzt nach video_id gruppiert ist)
+    return this.versandInfos[videoId] || null;
   }
 
   // Lade Spalten-Sichtbarkeits-Einstellungen
@@ -240,7 +604,23 @@ export class KampagneKooperationenVideoTable {
       `;
     }
 
-    const rows = this.kooperationen.map((koop, idx) => 
+    // Filter anwenden: Verstecke Kooperationen mit allen freigegebenen Videos
+    const filteredKooperationen = this.hideApprovedKooperationen
+      ? this.kooperationen.filter(koop => !this.areAllVideosApproved(koop.id))
+      : this.kooperationen;
+
+    // Wenn nach Filter keine Kooperationen übrig sind
+    if (filteredKooperationen.length === 0) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">✅</div>
+          <h3>Alle Kooperationen freigegeben</h3>
+          <p>Es gibt keine offenen Kooperationen mehr. Alle Videos wurden freigegeben.</p>
+        </div>
+      `;
+    }
+
+    const rows = filteredKooperationen.map((koop, idx) => 
       this.renderKooperationWithVideos(koop, idx + 1)
     ).join('');
 
@@ -261,89 +641,93 @@ export class KampagneKooperationenVideoTable {
                 Typ
                 <div class="resize-handle resize-handle-col" data-col="2"></div>
               </th>
-              <th class="col-header col-organic-paid" ${!this.isColumnVisibleForCustomer('col-organic-paid') ? 'style="display:none;"' : ''} data-col="3">
-                Content/Art
+              <th class="col-header col-vertrag" ${!this.isColumnVisibleForCustomer('col-vertrag') ? 'style="display:none;"' : ''} data-col="3">
+                Vertrag
                 <div class="resize-handle resize-handle-col" data-col="3"></div>
               </th>
-              <th class="col-header col-vertrag" ${!this.isColumnVisibleForCustomer('col-vertrag') ? 'style="display:none;"' : ''} data-col="4">
-                Vertrag
+              <th class="col-header col-nutzungsrechte" ${!this.isColumnVisibleForCustomer('col-nutzungsrechte') ? 'style="display:none;"' : ''} data-col="4">
+                Nutzungsrechte
                 <div class="resize-handle resize-handle-col" data-col="4"></div>
               </th>
-              <th class="col-header col-nutzungsrechte" ${!this.isColumnVisibleForCustomer('col-nutzungsrechte') ? 'style="display:none;"' : ''} data-col="5">
-                Nutzungsrechte
+              <th class="col-header col-start-datum" ${!this.isColumnVisibleForCustomer('col-start-datum') ? 'style="display:none;"' : ''} data-col="5">
+                Erstellt
                 <div class="resize-handle resize-handle-col" data-col="5"></div>
               </th>
-              <th class="col-header col-start-datum" ${!this.isColumnVisibleForCustomer('col-start-datum') ? 'style="display:none;"' : ''} data-col="6">
-                Erstellt
+              <th class="col-header col-script-deadline" ${!this.isColumnVisibleForCustomer('col-script-deadline') ? 'style="display:none;"' : ''} data-col="6">
+                Script Deadline
                 <div class="resize-handle resize-handle-col" data-col="6"></div>
               </th>
-              <th class="col-header col-script-deadline" ${!this.isColumnVisibleForCustomer('col-script-deadline') ? 'style="display:none;"' : ''} data-col="7">
-                Script Deadline
+              <th class="col-header col-end-datum" ${!this.isColumnVisibleForCustomer('col-end-datum') ? 'style="display:none;"' : ''} data-col="7">
+                Content Deadline
                 <div class="resize-handle resize-handle-col" data-col="7"></div>
               </th>
-              <th class="col-header col-end-datum" ${!this.isColumnVisibleForCustomer('col-end-datum') ? 'style="display:none;"' : ''} data-col="8">
-                Content Deadline
+              <th class="col-header col-videoanzahl" ${!this.isColumnVisibleForCustomer('col-videoanzahl') ? 'style="display:none;"' : ''} data-col="8">
+                Videos
                 <div class="resize-handle resize-handle-col" data-col="8"></div>
               </th>
-              <th class="col-header col-videoanzahl" ${!this.isColumnVisibleForCustomer('col-videoanzahl') ? 'style="display:none;"' : ''} data-col="9">
-                Videos
+              <th class="col-header col-video-nr" ${!this.isColumnVisibleForCustomer('col-video-nr') ? 'style="display:none;"' : ''} data-col="9">
+                Video-Nr
                 <div class="resize-handle resize-handle-col" data-col="9"></div>
               </th>
               <th class="col-header col-thema" ${!this.isColumnVisibleForCustomer('col-thema') ? 'style="display:none;"' : ''} data-col="10">
                 Thema
                 <div class="resize-handle resize-handle-col" data-col="10"></div>
               </th>
-              <th class="col-header col-produkt" ${!this.isColumnVisibleForCustomer('col-produkt') ? 'style="display:none;"' : ''} data-col="11">
-                Produkte
+              <th class="col-header col-organic-paid" ${!this.isColumnVisibleForCustomer('col-organic-paid') ? 'style="display:none;"' : ''} data-col="11">
+                Content/Art
                 <div class="resize-handle resize-handle-col" data-col="11"></div>
               </th>
-              <th class="col-header col-lieferadresse" ${!this.isColumnVisibleForCustomer('col-lieferadresse') ? 'style="display:none;"' : ''} data-col="12">
-                Lieferadresse
+              <th class="col-header col-produkt" ${!this.isColumnVisibleForCustomer('col-produkt') ? 'style="display:none;"' : ''} data-col="12">
+                Produkte
                 <div class="resize-handle resize-handle-col" data-col="12"></div>
               </th>
-              <th class="col-header col-paket-tracking" ${!this.isColumnVisibleForCustomer('col-paket-tracking') ? 'style="display:none;"' : ''} data-col="13">
-                Tracking
+              <th class="col-header col-lieferadresse" ${!this.isColumnVisibleForCustomer('col-lieferadresse') ? 'style="display:none;"' : ''} data-col="13">
+                Lieferadresse
                 <div class="resize-handle resize-handle-col" data-col="13"></div>
               </th>
-              <th class="col-header col-drehort" ${!this.isColumnVisibleForCustomer('col-drehort') ? 'style="display:none;"' : ''} data-col="14">
-                Drehort
+              <th class="col-header col-paket-tracking" ${!this.isColumnVisibleForCustomer('col-paket-tracking') ? 'style="display:none;"' : ''} data-col="14">
+                Tracking
                 <div class="resize-handle resize-handle-col" data-col="14"></div>
               </th>
-              <th class="col-header col-link-skript" ${!this.isColumnVisibleForCustomer('col-link-skript') ? 'style="display:none;"' : ''} data-col="15">
-                Link Skript / Briefing
+              <th class="col-header col-drehort" ${!this.isColumnVisibleForCustomer('col-drehort') ? 'style="display:none;"' : ''} data-col="15">
+                Drehort
                 <div class="resize-handle resize-handle-col" data-col="15"></div>
               </th>
-              <th class="col-header col-skript-freigegeben" ${!this.isColumnVisibleForCustomer('col-skript-freigegeben') ? 'style="display:none;"' : ''} data-col="16">
-                Skript freigegeben
+              <th class="col-header col-link-skript" ${!this.isColumnVisibleForCustomer('col-link-skript') ? 'style="display:none;"' : ''} data-col="16">
+                Link Skript / Briefing
                 <div class="resize-handle resize-handle-col" data-col="16"></div>
               </th>
-              <th class="col-header col-link-content" ${!this.isColumnVisibleForCustomer('col-link-content') ? 'style="display:none;"' : ''} data-col="17">
-                Link Content
+              <th class="col-header col-skript-freigegeben" ${!this.isColumnVisibleForCustomer('col-skript-freigegeben') ? 'style="display:none;"' : ''} data-col="17">
+                Skript freigegeben
                 <div class="resize-handle resize-handle-col" data-col="17"></div>
               </th>
-              <th class="col-header col-feedback-cj" ${!this.isColumnVisibleForCustomer('col-feedback-cj') ? 'style="display:none;"' : ''} data-col="18">
-                Feedback CJ
+              <th class="col-header col-link-content" ${!this.isColumnVisibleForCustomer('col-link-content') ? 'style="display:none;"' : ''} data-col="18">
+                Link Content
                 <div class="resize-handle resize-handle-col" data-col="18"></div>
               </th>
-              <th class="col-header col-feedback-kunde" ${!this.isColumnVisibleForCustomer('col-feedback-kunde') ? 'style="display:none;"' : ''} data-col="19">
-                Feedback Kunde
+              <th class="col-header col-feedback-cj" ${!this.isColumnVisibleForCustomer('col-feedback-cj') ? 'style="display:none;"' : ''} data-col="19">
+                Feedback CJ
                 <div class="resize-handle resize-handle-col" data-col="19"></div>
               </th>
-              <th class="col-header col-freigabe" ${!this.isColumnVisibleForCustomer('col-freigabe') ? 'style="display:none;"' : ''} data-col="20">
-                Freigabe
+              <th class="col-header col-feedback-kunde" ${!this.isColumnVisibleForCustomer('col-feedback-kunde') ? 'style="display:none;"' : ''} data-col="20">
+                Feedback Kunde
                 <div class="resize-handle resize-handle-col" data-col="20"></div>
               </th>
-              <th class="col-header col-caption" ${!this.isColumnVisibleForCustomer('col-caption') ? 'style="display:none;"' : ''} data-col="21">
-                Caption
+              <th class="col-header col-freigabe" ${!this.isColumnVisibleForCustomer('col-freigabe') ? 'style="display:none;"' : ''} data-col="21">
+                Freigabe
                 <div class="resize-handle resize-handle-col" data-col="21"></div>
               </th>
-              <th class="col-header col-posting-datum" ${!this.isColumnVisibleForCustomer('col-posting-datum') ? 'style="display:none;"' : ''} data-col="22">
-                Posting Datum
+              <th class="col-header col-caption" ${!this.isColumnVisibleForCustomer('col-caption') ? 'style="display:none;"' : ''} data-col="22">
+                Caption
                 <div class="resize-handle resize-handle-col" data-col="22"></div>
               </th>
-              <th class="col-header col-kosten" ${!this.isColumnVisibleForCustomer('col-kosten') ? 'style="display:none;"' : ''} data-col="23">
-                Kosten
+              <th class="col-header col-posting-datum" ${!this.isColumnVisibleForCustomer('col-posting-datum') ? 'style="display:none;"' : ''} data-col="23">
+                Posting Datum
                 <div class="resize-handle resize-handle-col" data-col="23"></div>
+              </th>
+              <th class="col-header col-kosten" ${!this.isColumnVisibleForCustomer('col-kosten') ? 'style="display:none;"' : ''} data-col="24">
+                Kosten
+                <div class="resize-handle resize-handle-col" data-col="24"></div>
               </th>
             </tr>
           </thead>
@@ -400,8 +784,7 @@ export class KampagneKooperationenVideoTable {
             <option value="Fotograph" ${koop.typ === 'Fotograph' ? 'selected' : ''}>Fotograph</option>
           </select>
         </td>
-        <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-organic-paid') ? 'style="display:none;"' : ''}>${this.escapeHtml(koop.content_art || '-')}</td>
-        <td class="grid-cell" ${!this.isColumnVisibleForCustomer('col-vertrag') ? 'style="display:none;"' : 'style="text-align: center;"'}>
+        <td class="grid-cell cell-centered" ${!this.isColumnVisibleForCustomer('col-vertrag') ? 'style="display:none;"' : ''}>
           <input 
             type="checkbox" 
             class="grid-checkbox" 
@@ -427,6 +810,12 @@ export class KampagneKooperationenVideoTable {
         <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-script-deadline') ? 'style="display:none;"' : ''}>${formatDate(koop.skript_deadline)}</td>
         <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-end-datum') ? 'style="display:none;"' : ''}>${formatDate(koop.content_deadline)}</td>
         <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-videoanzahl') ? 'style="display:none;"' : ''}>${koop.videoanzahl || 0}</td>
+        <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-video-nr') ? 'style="display:none;"' : ''}>
+          ${this.renderVideoFieldStack(videos, (video, index, total) => {
+            const videoNr = index + 1;
+            return `<div class="video-nr-text">${videoNr}/${total}</div>`;
+          })}
+        </td>
         <!-- Video-Spalten: Jedes Video als eigene Zeile über alle Spalten -->
         <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-thema') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => `
@@ -436,7 +825,21 @@ export class KampagneKooperationenVideoTable {
               value="${this.escapeHtml(video.thema || '')}" placeholder="Thema"/>
           `)}
         </td>
-        <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-produkt') ? 'style="display:none;"' : ''}>
+        <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-organic-paid') ? 'style="display:none;"' : ''}>
+          ${this.renderVideoFieldStack(videos, (video) => `
+            <select class="grid-select stacked-video-select" 
+              data-entity="video" data-id="${video.id}" data-field="content_art">
+              <option value="">– bitte wählen –</option>
+              <option value="Paid" ${video.content_art === 'Paid' ? 'selected' : ''}>Paid</option>
+              <option value="Organisch" ${video.content_art === 'Organisch' ? 'selected' : ''}>Organisch</option>
+              <option value="Influencer" ${video.content_art === 'Influencer' ? 'selected' : ''}>Influencer</option>
+              <option value="Videograph" ${video.content_art === 'Videograph' ? 'selected' : ''}>Videograph</option>
+              <option value="Whitelisting" ${video.content_art === 'Whitelisting' ? 'selected' : ''}>Whitelisting</option>
+              <option value="Spark-Ad" ${video.content_art === 'Spark-Ad' ? 'selected' : ''}>Spark-Ad</option>
+            </select>
+          `)}
+        </td>
+        <td class="grid-cell video-stack-cell col-produkt" ${!this.isColumnVisibleForCustomer('col-produkt') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => {
             const versandForVideo = this.getVersandForVideo(video.id);
             return `
@@ -447,7 +850,15 @@ export class KampagneKooperationenVideoTable {
                 data-kooperation-id="${koop.id}"
                 data-field="produkt_name"
                 value="${this.escapeHtml(versandForVideo?.produkt_name || '')}" 
-                placeholder="Produkte"/>
+                placeholder="Produktname"/>
+              <input type="url" class="grid-input stacked-video-input" 
+                data-entity="versand" 
+                data-id="${versandForVideo?.id || 'new'}"
+                data-video-id="${video.id}"
+                data-kooperation-id="${koop.id}"
+                data-field="produkt_link"
+                value="${this.escapeHtml(versandForVideo?.produkt_link || '')}" 
+                placeholder="Produktlink (optional)"/>
             `;
           })}
         </td>
@@ -457,7 +868,7 @@ export class KampagneKooperationenVideoTable {
             const adresse = versandForVideo ? 
               [versandForVideo.strasse, versandForVideo.hausnummer, versandForVideo.plz, versandForVideo.stadt]
                 .filter(Boolean).join(', ') : '';
-            return `<div class="small-text" style="white-space: pre-line;">${this.escapeHtml(adresse || '-')}</div>`;
+            return `<div class="small-text address-text">${this.escapeHtml(adresse || '-')}</div>`;
           })}
         </td>
         <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-paket-tracking') ? 'style="display:none;"' : ''}>
@@ -505,10 +916,17 @@ export class KampagneKooperationenVideoTable {
           ${this.renderVideoFieldStack(videos, (video) => {
             const videoUrl = video.file_url || video.link_content || video.asset_url;
             if (videoUrl) {
-              return `<a href="${videoUrl}" target="_blank" class="table-link stacked-video-link" title="Link öffnen">${this.escapeHtml(videoUrl)}</a>`;
+              return `
+                <a href="${videoUrl}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Link in neuem Tab öffnen">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                  </svg>
+                </a>
+              `;
             } else {
               return `<input type="text" class="grid-input stacked-video-input" 
                 data-entity="video" data-id="${video.id}" data-field="link_content"
+                ${!this.isFieldEditableForUser('video', 'link_content') ? 'readonly' : ''}
                 value="" placeholder="Link"/>`;
             }
           })}
@@ -572,8 +990,15 @@ export class KampagneKooperationenVideoTable {
       return '<span class="text-muted">-</span>';
     }
     
+    const total = videos.length;
     // Wrapping-Container für einheitliche Höhe aller Felder in dieser Spalte
-    return `<div class="video-fields-stack">${videos.map(video => `<div class="video-field-wrapper">${fieldRenderer(video)}</div>`).join('')}</div>`;
+    // fieldRenderer kann jetzt auch (video, index, total) als Parameter erhalten
+    return `<div class="video-fields-stack">${videos.map((video, index) => {
+      const result = fieldRenderer(video, index, total);
+      // Füge CSS-Klasse hinzu wenn Video freigegeben ist
+      const approvedClass = video.freigabe ? 'video-field-wrapper--approved' : '';
+      return `<div class="video-field-wrapper ${approvedClass}" data-video-id="${video.id}">${result}</div>`;
+    }).join('')}</div>`;
   }
 
   // Hilfsfunktion
@@ -599,6 +1024,15 @@ export class KampagneKooperationenVideoTable {
     // Checkboxes - Auto-Save bei change
     container.addEventListener('change', async (e) => {
       if (e.target.classList.contains('grid-checkbox') || e.target.classList.contains('grid-select')) {
+        // Optimistisches UI-Update für Freigabe-Checkbox
+        if (e.target.classList.contains('grid-checkbox') && e.target.dataset.field === 'freigabe') {
+          const videoId = e.target.dataset.id;
+          const isApproved = e.target.checked;
+          
+          // Sofort visuelles Feedback (optimistisch)
+          this.toggleVideoRowApproval(videoId, isApproved);
+        }
+        
         await this.handleFieldUpdate(e.target);
       }
     });
@@ -613,115 +1047,10 @@ export class KampagneKooperationenVideoTable {
     this.bindDragToScroll();
   }
   
-  // Auto-resize für Textareas initialisieren (zeilen-basiert, max 500px)
+  // Auto-resize für Textareas initialisieren
   initAutoResizeTextareas() {
-    // Finde alle Kooperations-Zeilen
-    const kooperationRows = document.querySelectorAll('.kooperation-row');
-    
-    kooperationRows.forEach(row => {
-      // Finde alle Video-Stack-Cells in dieser Kooperation
-      const videoStackCells = row.querySelectorAll('.video-stack-cell');
-      
-      if (videoStackCells.length === 0) return;
-      
-      // Ermittle die Anzahl der Videos (= Anzahl der video-field-wrapper in erster Zelle)
-      const firstCell = videoStackCells[0];
-      const videoCount = firstCell.querySelectorAll('.video-field-wrapper').length;
-      
-      // Für jedes Video (index 0, 1, 2, ...):
-      for (let videoIndex = 0; videoIndex < videoCount; videoIndex++) {
-        let maxHeightForThisVideo = 60;
-        
-        // Gehe durch alle Spalten und finde das höchste Feld für dieses Video
-        videoStackCells.forEach(cell => {
-          const wrapper = cell.querySelectorAll('.video-field-wrapper')[videoIndex];
-          if (!wrapper) return;
-          
-          const field = wrapper.querySelector('.stacked-video-input, .stacked-video-textarea, .stacked-video-checkbox-wrapper, .stacked-video-link');
-          if (field) {
-            // Bei Textareas: scrollHeight berechnen
-            if (field.classList.contains('stacked-video-textarea')) {
-              field.style.height = 'auto';
-              const neededHeight = Math.min(500, Math.max(60, field.scrollHeight));
-              maxHeightForThisVideo = Math.max(maxHeightForThisVideo, neededHeight);
-            }
-          }
-        });
-        
-        // Begrenze auf maximal 500px
-        maxHeightForThisVideo = Math.min(500, maxHeightForThisVideo);
-        
-        // Setze ALLE Felder dieses Videos auf die gleiche Höhe
-        videoStackCells.forEach(cell => {
-          const wrapper = cell.querySelectorAll('.video-field-wrapper')[videoIndex];
-          if (!wrapper) return;
-          
-          wrapper.style.minHeight = maxHeightForThisVideo + 'px';
-          wrapper.style.maxHeight = '500px';
-          
-          const field = wrapper.querySelector('.stacked-video-input, .stacked-video-textarea, .stacked-video-checkbox-wrapper, .stacked-video-link');
-          if (field && !field.classList.contains('stacked-video-checkbox-wrapper')) {
-            field.style.minHeight = maxHeightForThisVideo + 'px';
-            if (field.classList.contains('stacked-video-textarea')) {
-              field.style.height = maxHeightForThisVideo + 'px';
-              field.style.maxHeight = '500px';
-            }
-          }
-        });
-      }
-    });
-    
-    // Event-Listener für Input-Events (bei Textareas)
-    const allTextareas = document.querySelectorAll('.stacked-video-textarea');
-    allTextareas.forEach(textarea => {
-      textarea.addEventListener('input', () => {
-        // Finde die Kooperations-Zeile
-        const koopRow = textarea.closest('.kooperation-row');
-        if (!koopRow) return;
-        
-        // Finde den Video-Index (welches Video in der Kooperation ist das?)
-        const wrapper = textarea.closest('.video-field-wrapper');
-        const cell = textarea.closest('.video-stack-cell');
-        const videoIndex = Array.from(cell.querySelectorAll('.video-field-wrapper')).indexOf(wrapper);
-        
-        // Berechne neue Höhe für DIESES Video über alle Spalten
-        const videoStackCells = koopRow.querySelectorAll('.video-stack-cell');
-        let maxHeight = 60;
-        
-        videoStackCells.forEach(vCell => {
-          const vWrapper = vCell.querySelectorAll('.video-field-wrapper')[videoIndex];
-          if (!vWrapper) return;
-          
-          const ta = vWrapper.querySelector('.stacked-video-textarea');
-          if (ta) {
-            ta.style.height = 'auto';
-            const neededHeight = Math.min(500, Math.max(60, ta.scrollHeight));
-            maxHeight = Math.max(maxHeight, neededHeight);
-          }
-        });
-        
-        // Begrenze auf maximal 500px
-        maxHeight = Math.min(500, maxHeight);
-        
-        // Setze alle Felder dieses Videos auf die neue Höhe
-        videoStackCells.forEach(vCell => {
-          const vWrapper = vCell.querySelectorAll('.video-field-wrapper')[videoIndex];
-          if (!vWrapper) return;
-          
-          vWrapper.style.minHeight = maxHeight + 'px';
-          vWrapper.style.maxHeight = '500px';
-          
-          const field = vWrapper.querySelector('.stacked-video-input, .stacked-video-textarea, .stacked-video-checkbox-wrapper, .stacked-video-link');
-          if (field && !field.classList.contains('stacked-video-checkbox-wrapper')) {
-            field.style.minHeight = maxHeight + 'px';
-            if (field.classList.contains('stacked-video-textarea')) {
-              field.style.height = maxHeight + 'px';
-              field.style.maxHeight = '500px';
-            }
-          }
-        });
-      });
-    });
+    // Feste Höhe wird über CSS geregelt (.video-field-wrapper)
+    // Keine dynamische Höhenanpassung mehr nötig
   }
 
   // Resize-Events für Spaltenbreite
@@ -923,12 +1252,15 @@ export class KampagneKooperationenVideoTable {
     try {
       // Versand-Tabelle besonders behandeln (ggf. neue Zeile erstellen)
       if (entity === 'versand') {
+        const videoId = field.getAttribute('data-video-id');
+        
         if (id === 'new') {
           // Neue Versand-Info erstellen
           const { data, error } = await window.supabase
             .from('kooperation_versand')
             .insert({
               kooperation_id: kooperationId,
+              video_id: videoId,
               [fieldName]: value
             })
             .select('id')
@@ -936,14 +1268,14 @@ export class KampagneKooperationenVideoTable {
 
           if (error) throw error;
           
-          // ID in ALLEN Versand-Feldern dieser Kooperation aktualisieren
+          // ID in ALLEN Versand-Feldern dieses Videos aktualisieren
           const versandFields = document.querySelectorAll(
-            `[data-entity="versand"][data-kooperation-id="${kooperationId}"][data-id="new"]`
+            `[data-entity="versand"][data-video-id="${videoId}"][data-id="new"]`
           );
           versandFields.forEach(f => f.setAttribute('data-id', data.id));
           
-          // Speichere in lokaler Map für zukünftige Renders
-          this.versandInfos[kooperationId] = { id: data.id, [fieldName]: value };
+          // Speichere in lokaler Map für zukünftige Renders (nach video_id gruppiert)
+          this.versandInfos[videoId] = { id: data.id, [fieldName]: value };
           
           console.log('✅ Versand-Info erstellt:', data.id);
         } else {
@@ -1055,6 +1387,26 @@ export class KampagneKooperationenVideoTable {
 
   // Initialisiere und rendere die Tabelle
   async init(containerId) {
+    // Verhindere nur paralleles Init für den GLEICHEN Container
+    if (this._isLoading && this.containerId === containerId) {
+      console.log('⚠️ Init bereits in Arbeit für diesen Container, überspringe...');
+      return;
+    }
+
+    // Bei wiederholtem Init für den gleichen Container: nur refresh
+    if (this._dataLoaded && this.containerId === containerId) {
+      console.log('⚠️ Tabelle bereits initialisiert für diesen Container, refreshe stattdessen...');
+      await this.refresh();
+      return;
+    }
+
+    // Bei neuem Container: Reset der Flags (z.B. Kampagnenwechsel)
+    if (this.containerId !== containerId) {
+      console.log('🔄 Neuer Container erkannt, reset Loading-State');
+      this._isLoading = false;
+      this._dataLoaded = false;
+    }
+
     this.containerId = containerId; // Für refresh() Methode speichern
     console.log('🎬 KampagneKooperationenVideoTable.init() - Container ID:', containerId);
     const container = document.getElementById(containerId);
@@ -1098,10 +1450,10 @@ export class KampagneKooperationenVideoTable {
     // Loading-Spinner anzeigen
     if (container) {
       container.innerHTML = `
-        <div style="display: flex; justify-content: center; align-items: center; padding: 60px 20px; color: var(--gray-600);">
-          <div style="text-align: center;">
-            <div class="spinner" style="margin: 0 auto 16px; border: 3px solid var(--gray-200); border-top-color: var(--primary-600); border-radius: 50%; width: 40px; height: 40px; animation: spin 0.8s linear infinite;"></div>
-            <p style="font-size: var(--text-base); font-weight: 500;">Lädt Kooperationen & Videos...</p>
+        <div class="table-loading-container">
+          <div class="table-loading-content">
+            <div class="spinner table-loading-spinner"></div>
+            <p class="table-loading-text">Lädt Kooperationen & Videos...</p>
           </div>
         </div>
       `;
@@ -1110,10 +1462,11 @@ export class KampagneKooperationenVideoTable {
       return;
     }
     
-    // Lade Spalten-Sichtbarkeit UND Daten parallel
+    // Lade Spalten-Sichtbarkeit, Filter-State UND Daten parallel
     await Promise.all([
       this.loadData(),
-      this.loadColumnVisibilitySettings()
+      this.loadColumnVisibilitySettings(),
+      this.loadApprovedFilterState()
     ]);
     
     console.log('🎬 Daten geladen, rendere Tabelle...');
@@ -1667,6 +2020,9 @@ export class KampagneKooperationenVideoTable {
             field.checked = newValue;
             shouldUpdate = true;
             console.log('✅ REALTIME: Freigabe Checkbox aktualisiert:', newValue);
+            
+            // Aktualisiere visuelles Feedback (grüner Hintergrund)
+            this.toggleVideoRowApproval(videoId, newValue);
           }
           break;
           
@@ -1777,6 +2133,22 @@ export class KampagneKooperationenVideoTable {
     }
   }
 
+  // Toggle visuelles Feedback für freigegebene Video-Zeilen
+  toggleVideoRowApproval(videoId, isApproved) {
+    // Finde alle video-field-wrapper für dieses Video über alle Spalten hinweg
+    const videoRows = document.querySelectorAll(`.video-field-wrapper[data-video-id="${videoId}"]`);
+    
+    videoRows.forEach(row => {
+      if (isApproved) {
+        row.classList.add('video-field-wrapper--approved');
+      } else {
+        row.classList.remove('video-field-wrapper--approved');
+      }
+    });
+    
+    console.log(`✅ VIDEO APPROVAL: ${videoRows.length} Zeilen aktualisiert für Video ${videoId}, approved=${isApproved}`);
+  }
+
   cleanupRealtimeSubscription() {
     if (this._realtimeChannel) {
       console.log('🗑️ REALTIME: Entferne Live-Update Subscription');
@@ -1852,4 +2224,27 @@ export async function renderKooperationenVideoTable(kampagneId, containerId) {
   await table.init(containerId);
   return table;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

@@ -455,7 +455,9 @@ export class DataService {
           ust_betrag: 'number',
           bruttobetrag: 'number',
           rechnung_gestellt: 'boolean',
-          ueberwiesen: 'boolean'
+          rechnung_gestellt_am: 'date',
+          ueberwiesen: 'boolean',
+          ueberwiesen_am: 'date'
         },
         relations: {
           unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' },
@@ -630,23 +632,6 @@ export class DataService {
       const entityConfig = this.entities[entityType];
       if (!entityConfig) {
         throw new Error(`Unbekannte Entität: ${entityType}`);
-      }
-
-      // Koop: content_art-Fallback aus erstem Video-Item ableiten (für alte NOT NULL-Constraint)
-      if (entityType === 'kooperation' && (!data.content_art || data.content_art === '')) {
-        try {
-          const firstVideoContent = Object.entries(data)
-            .filter(([k, v]) => k.startsWith('video_content_art_') && v)
-            .map(([, v]) => v)[0];
-          if (firstVideoContent) {
-            data.content_art = firstVideoContent;
-          } else {
-            // Fallback, falls DB noch NOT NULL verlangt
-            data.content_art = 'N/A';
-          }
-        } catch (_) {
-          data.content_art = 'N/A';
-        }
       }
 
       // Daten für Supabase vorbereiten
@@ -2016,6 +2001,20 @@ export class DataService {
             name_de,
             iso_code,
             vorwahl
+          ),
+          ansprechpartner_marke (
+            marke:marke_id (
+              id,
+              markenname,
+              logo_url
+            )
+          ),
+          ansprechpartner_unternehmen (
+            unternehmen:unternehmen_id (
+              id,
+              firmenname,
+              logo_url
+            )
           )
         `;
       }
@@ -2100,6 +2099,41 @@ export class DataService {
           c.branchen = c.branchen || [];
           c.creator_types = c.creator_types || [];
           console.log(`📊 CREATOR ${c.vorname} ${c.nachname}: sprachen=${c.sprachen.length}, branchen=${c.branchen.length}, types=${c.creator_types.length}`);
+        });
+      }
+
+      // Spezielle Projektion für Ansprechpartner: Marken und Unternehmen aus Junction-Tables extrahieren
+      if (entityType === 'ansprechpartner' && data) {
+        data.forEach(ap => {
+          // Marken: Extrahiere aus ansprechpartner_marke Junction-Table
+          if (ap.ansprechpartner_marke && Array.isArray(ap.ansprechpartner_marke)) {
+            ap.marken = ap.ansprechpartner_marke
+              .map(junction => junction.marke)
+              .filter(Boolean);
+            delete ap.ansprechpartner_marke; // Clean up
+          } else {
+            ap.marken = [];
+          }
+
+          // Unternehmen: Extrahiere aus ansprechpartner_unternehmen Junction-Table UND Legacy unternehmen_id
+          const unternehmenList = [];
+          
+          // Many-to-Many aus Junction-Table
+          if (ap.ansprechpartner_unternehmen && Array.isArray(ap.ansprechpartner_unternehmen)) {
+            ap.ansprechpartner_unternehmen.forEach(junction => {
+              if (junction.unternehmen) {
+                unternehmenList.push(junction.unternehmen);
+              }
+            });
+            delete ap.ansprechpartner_unternehmen; // Clean up
+          }
+          
+          // Legacy: unternehmen_id (als Einzelobjekt)
+          if (ap.unternehmen && ap.unternehmen.id && !unternehmenList.find(u => u.id === ap.unternehmen.id)) {
+            unternehmenList.push(ap.unternehmen);
+          }
+          
+          ap.unternehmen = unternehmenList;
         });
       }
 

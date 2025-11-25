@@ -100,6 +100,14 @@ export class BulkActionSystem {
   handleDeleteSelected() {
     console.log('🔧 BulkActionSystem: Handle Delete Selected');
     
+    // Sicherheits-Check: Nur Admins dürfen löschen
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    if (!isAdmin) {
+      console.warn('⚠️ Löschen verweigert: Fehlende Berechtigung (Nur Admins)');
+      alert('Nur Administratoren dürfen Einträge löschen.');
+      return;
+    }
+    
     // Prüfe zuerst die registrierten Listen
     if (this.currentListInstance && typeof this.currentListInstance.showDeleteSelectedConfirmation === 'function') {
       console.log(`✅ BulkActionSystem: Rufe showDeleteSelectedConfirmation() für ${this.currentEntityType} auf`);
@@ -153,6 +161,14 @@ export class BulkActionSystem {
 
   // Generische Delete-Selected Funktion
   async genericDeleteSelected() {
+    // Sicherheits-Check: Nur Admins dürfen löschen
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    if (!isAdmin) {
+      console.warn('⚠️ Löschen verweigert: Fehlende Berechtigung (Nur Admins)');
+      alert('Nur Administratoren dürfen Einträge löschen.');
+      return;
+    }
+
     const entityType = this.detectCurrentEntityType();
     if (!entityType) {
       console.log('❌ BulkActionSystem: Kann Entity-Type nicht erkennen');
@@ -182,6 +198,14 @@ export class BulkActionSystem {
 
   // Führe generische Löschung aus
   async performGenericDelete(entityType, checkedBoxes) {
+    // Sicherheits-Check: Nur Admins dürfen löschen
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    if (!isAdmin) {
+      console.warn('⚠️ Löschen verweigert: Fehlende Berechtigung (Nur Admins)');
+      alert('Nur Administratoren dürfen Einträge löschen.');
+      return;
+    }
+    
     const selectedIds = Array.from(checkedBoxes).map(cb => cb.dataset.id);
     const totalCount = selectedIds.length;
     

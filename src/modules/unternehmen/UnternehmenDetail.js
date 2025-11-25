@@ -1316,10 +1316,8 @@ export class UnternehmenDetail {
       
       if (upErr) throw upErr;
       
-      const { data: signed, error: signErr } = await window.supabase.storage.from(bucket).createSignedUrl(path, 60 * 60 * 24 * 7);
-      if (signErr) throw signErr;
-      
-      const logo_url = signed?.signedUrl || '';
+      const { data: publicUrlData } = window.supabase.storage.from(bucket).getPublicUrl(path);
+      const logo_url = publicUrlData?.publicUrl || '';
       
       const { error: dbErr } = await window.supabase.from('unternehmen').update({
         logo_url,

@@ -50,6 +50,169 @@ export class MarkeCreate {
       
       // Logo-Preview-Funktion
       this.setupLogoPreview(form);
+      
+      // Duplikat-Validierung auf Markenname
+      this.setupDuplicateValidation(form);
+    }
+  }
+
+  // Setup Duplikat-Validierung für Markenname
+  setupDuplicateValidation(form) {
+    const markennameField = form.querySelector('#markenname, input[name="markenname"]');
+    if (!markennameField) {
+      console.warn('⚠️ MARKECREATE: Markenname-Feld nicht gefunden');
+      return;
+    }
+
+    // Container für Duplicate-Messages (falls nicht existiert)
+    let messageContainer = markennameField.parentElement.querySelector('.duplicate-message-container');
+    if (!messageContainer) {
+      messageContainer = document.createElement('div');
+      messageContainer.className = 'duplicate-message-container';
+      markennameField.parentElement.appendChild(messageContainer);
+    }
+
+    // Blur Event
+    markennameField.addEventListener('blur', async (e) => {
+      await this.validateMarkeDuplicate(e.target.value, messageContainer);
+    });
+
+    // Clear beim Tippen
+    markennameField.addEventListener('input', () => {
+      this.clearDuplicateMessages(messageContainer);
+      this.enableSubmitButton();
+    });
+  }
+
+  // Validiere Marke Duplikat
+  async validateMarkeDuplicate(markenname, messageContainer) {
+    if (!markenname || markenname.trim().length < 2) {
+      this.clearDuplicateMessages(messageContainer);
+      return;
+    }
+
+    if (!window.duplicateChecker) {
+      console.warn('⚠️ MARKECREATE: DuplicateChecker nicht verfügbar');
+      return;
+    }
+
+    try {
+      const result = await window.duplicateChecker.checkMarke(markenname, null);
+
+      if (result.exact) {
+        // Exakt vorhanden → Button disablen, Fehler anzeigen
+        this.showDuplicateError(messageContainer, result.similar);
+        this.disableSubmitButton(true);
+      } else if (result.similar.length > 0) {
+        // Ähnlich → Info-Box (nicht blockierend)
+        this.showDuplicateWarning(messageContainer, result.similar);
+        this.enableSubmitButton();
+      } else {
+        // Alles gut
+        this.clearDuplicateMessages(messageContainer);
+        this.enableSubmitButton();
+      }
+    } catch (error) {
+      console.error('❌ MARKECREATE: Fehler bei Duplikat-Validierung:', error);
+    }
+  }
+
+  // Zeige Duplikat-Fehler
+  showDuplicateError(container, entries) {
+    container.innerHTML = `
+      <div class="duplicate-error">
+        <strong>Dieser Markenname existiert bereits!</strong>
+        ${entries.length > 0 ? `
+          <ul class="duplicate-list">
+            ${entries.map(entry => `
+              <li class="duplicate-list-item">
+                <a href="javascript:void(0)" class="duplicate-link" data-entity-id="${entry.id}">
+                  ${entry.logo_url ? `<img src="${entry.logo_url}" alt="${entry.markenname}" class="duplicate-avatar" />` : '<div class="duplicate-avatar duplicate-avatar-placeholder"></div>'}
+                  <span class="duplicate-name">${entry.markenname}${entry.unternehmen_name ? ` <span class="duplicate-meta">(${entry.unternehmen_name})</span>` : ''}</span>
+                </a>
+              </li>
+            `).join('')}
+          </ul>
+        ` : ''}
+      </div>
+    `;
+    
+    // Event-Listener für Links
+    this.bindDuplicateLinks(container, 'marke');
+  }
+
+  // Zeige Duplikat-Warnung
+  showDuplicateWarning(container, entries) {
+    container.innerHTML = `
+      <div class="duplicate-warning">
+        <strong>Folgende ähnliche Einträge gefunden:</strong>
+        <ul class="duplicate-list">
+          ${entries.map(entry => `
+            <li class="duplicate-list-item">
+              <a href="javascript:void(0)" class="duplicate-link" data-entity-id="${entry.id}">
+                ${entry.logo_url ? `<img src="${entry.logo_url}" alt="${entry.markenname}" class="duplicate-avatar" />` : '<div class="duplicate-avatar duplicate-avatar-placeholder"></div>'}
+                <span class="duplicate-name">${entry.markenname}${entry.unternehmen_name ? ` <span class="duplicate-meta">(${entry.unternehmen_name})</span>` : ''}</span>
+              </a>
+            </li>
+          `).join('')}
+        </ul>
+      </div>
+    `;
+    
+    // Event-Listener für Links
+    this.bindDuplicateLinks(container, 'marke');
+  }
+
+  // Bind Click-Events für Duplikat-Links
+  bindDuplicateLinks(container, entityType) {
+    const links = container.querySelectorAll('.duplicate-link[data-entity-id]');
+    links.forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const id = e.currentTarget.dataset.entityId;
+        if (id) {
+          // Internes Routing verwenden (ohne Reload, im gleichen Tab)
+          const route = `/${entityType}/${id}`;
+          if (window.navigationSystem) {
+            window.navigationSystem.navigateTo(route);
+          }
+        }
+      });
+    });
+  }
+
+  // Lösche Duplikat-Messages
+  clearDuplicateMessages(container) {
+    if (container) {
+      container.innerHTML = '';
+    }
+  }
+
+  // Disable Submit Button
+  disableSubmitButton(disable) {
+    const form = document.getElementById('marke-form');
+    if (form) {
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.disabled = disable;
+        if (disable) {
+          submitBtn.style.opacity = '0.5';
+          submitBtn.style.cursor = 'not-allowed';
+        }
+      }
+    }
+  }
+
+  // Enable Submit Button
+  enableSubmitButton() {
+    const form = document.getElementById('marke-form');
+    if (form) {
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = '1';
+        submitBtn.style.cursor = 'pointer';
+      }
     }
   }
 
@@ -384,17 +547,12 @@ export class MarkeCreate {
         throw upErr;
       }
       
-      // Signierte URL erstellen (7 Tage gültig)
-      const { data: signed, error: signErr } = await window.supabase.storage
+      // Öffentliche URL erstellen (permanent verfügbar)
+      const { data: publicUrlData } = window.supabase.storage
         .from(bucket)
-        .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 Tage
+        .getPublicUrl(path);
       
-      if (signErr) {
-        console.error(`❌ Fehler beim Erstellen der signierten URL:`, signErr);
-        throw signErr;
-      }
-      
-      const logo_url = signed?.signedUrl || '';
+      const logo_url = publicUrlData?.publicUrl || '';
       
       // Logo-Daten in Datenbank speichern
       const { error: dbErr } = await window.supabase

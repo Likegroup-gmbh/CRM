@@ -8,6 +8,7 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { AuftragFilterLogic } from './filters/AuftragFilterLogic.js';
+import { AuftragCashFlowCalendar } from './AuftragCashFlowCalendar.js';
 
 export class AuftragList {
   constructor() {
@@ -15,6 +16,9 @@ export class AuftragList {
     this._boundEventListeners = new Set();
     this.boundFilterResetHandler = null;
     this.pagination = new PaginationSystem();
+    this.currentView = 'list'; // 'list' oder 'calendar'
+    this.cashFlowCalendar = null;
+    this._auftragNewBound = false; // Flag für einmaliges Binden
   }
 
   // Initialisiere Auftrags-Liste
@@ -53,13 +57,15 @@ export class AuftragList {
     console.log('🔄 AUFTRAGLIST: Lade und rendere Aufträge');
     
     try {
-      // PERFORMANCE: Keine separate loadFilterData() Query mehr!
-      console.log('✅ AUFTRAGLIST: Rendere Seite');
-      
       // Seite rendern
       await this.render();
       console.log('✅ AUFTRAGLIST: Content gesetzt');
       
+      // Event-Listener neu binden (wichtig nach jedem Render!)
+      this.bindEvents();
+      
+      // Nur in List-View: Filter initialisieren und Daten laden
+      if (this.currentView === 'list') {
       // Filter-Bar initialisieren
       await this.initializeFilterBar();
       
@@ -83,6 +89,7 @@ export class AuftragList {
       this.pagination.render();
       
       console.log('✅ AUFTRAGLIST: Tabelle aktualisiert');
+      }
       
     } catch (error) {
       console.error('❌ AUFTRAGLIST: Fehler beim Laden und Rendern:', error);
@@ -107,10 +114,46 @@ export class AuftragList {
   // Rendere Auftrags-Liste
   async render() {
     window.setHeadline('Aufträge');
+
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    
+    // Filter-Bar nur in List-View anzeigen
+    let filterHtml = '';
+    let tableActionsHtml = '';
+    
+    if (this.currentView === 'list') {
+      filterHtml = `
+        <div class="table-filter-wrapper">
+          <div class="filter-bar">
+            <div id="filter-dropdown-container"></div>
+          </div>
+          <div class="table-actions">
+            ${isAdmin ? '<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>' : ''}
+            ${isAdmin ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
+            <span id="selected-count" style="display:none;">0 ausgewählt</span>
+            ${isAdmin ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
+          </div>
+        </div>
+      `;
+    }
     
     const html = `
       <div class="page-header">
         <div class="page-header-right">
+          <div class="view-toggle">
+            <button id="btn-view-list" class="secondary-btn ${this.currentView === 'list' ? 'active' : ''}">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 1.5v-1.5m0 0c0-.621.504-1.125 1.125-1.125m0 0h7.5" />
+              </svg>
+              Liste
+            </button>
+            <button id="btn-view-calendar" class="secondary-btn ${this.currentView === 'calendar' ? 'active' : ''}">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+              </svg>
+              Kalender
+            </button>
+          </div>
           <button id="btn-auftrag-new" class="primary-btn">
             <i class="icon-plus"></i>
             Neuen Auftrag anlegen
@@ -118,27 +161,33 @@ export class AuftragList {
         </div>
       </div>
 
-      <div class="table-filter-wrapper">
-        <div class="filter-bar">
-          <div id="filter-dropdown-container"></div>
-          
-        </div>
-        <div class="table-actions">
-          <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
-          <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
-          <span id="selected-count" style="display:none;">0 ausgewählt</span>
-          <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
-        </div>
-      </div>
+      ${filterHtml}
 
+      <!-- Content Container für beide Views -->
+      <div id="auftrag-content-container">
+        ${this.currentView === 'list' ? this.renderListView(isAdmin) : '<div id="calendar-container"></div>'}
+      </div>
+    `;
+
+    window.setContentSafely(window.content, html);
+    
+    // Wenn Calendar-View, initialisiere Calendar
+    if (this.currentView === 'calendar') {
+      await this.initCashFlowCalendar();
+    }
+  }
+
+  // Rendere List-View HTML
+  renderListView(isAdmin) {
+    return `
       <!-- Daten-Tabelle -->
       <div class="table-container">
           <table class="data-table">
             <thead>
               <tr>
-                <th>
+                ${isAdmin ? `<th>
                   <input type="checkbox" id="select-all-auftraege">
-                </th>
+                </th>` : ''}
                 <th>Auftragsname</th>
                 <th>Unternehmen</th>
                 <th>Marke</th>
@@ -153,29 +202,23 @@ export class AuftragList {
                 <th>Brutto</th>
                 <th>Ansprechpartner</th>
                 <th>Mitarbeiter</th>
-                <th>Cutter</th>
-                <th>Copywriter</th>
                 <th>Rechnung gestellt</th>
                 <th>Überwiesen</th>
                 <th>Status</th>
-                <th>Zugewiesen an</th>
                 <th></th>
               </tr>
             </thead>
             <tbody id="auftraege-table-body">
               <tr>
-                <td colspan="22" class="loading">Lade Aufträge...</td>
+                <td colspan="19" class="loading">Lade Aufträge...</td>
               </tr>
             </tbody>
           </table>
           
           <!-- Pagination -->
           <div class="pagination-container" id="pagination-auftrag"></div>
-        </div>
       </div>
     `;
-
-    window.setContentSafely(window.content, html);
   }
 
   // Lade Aufträge mit Beziehungen und Pagination
@@ -331,15 +374,62 @@ export class AuftragList {
 
   // Binde Events
   bindEvents() {
-    // Filter-Events werden vom FilterDropdown gehandelt
+    // View-Toggle Events
+    const listBtn = document.getElementById('btn-view-list');
+    const calendarBtn = document.getElementById('btn-view-calendar');
 
-    // Neuen Auftrag anlegen Button
+    if (listBtn) {
+      // Entferne alte Listener falls vorhanden
+      const newListBtn = listBtn.cloneNode(true);
+      listBtn.parentNode.replaceChild(newListBtn, listBtn);
+      
+      newListBtn.addEventListener('click', async () => {
+        console.log('🔄 AUFTRAGLIST: Wechsel zu List-View');
+        if (this.currentView === 'list') return; // Bereits in List-View
+        
+        // Cleanup Calendar
+        if (this.cashFlowCalendar) {
+          this.cashFlowCalendar.destroy();
+          this.cashFlowCalendar = null;
+        }
+        
+        this.currentView = 'list';
+        await this.loadAndRender(); // Re-render und Daten laden
+      });
+    }
+
+    if (calendarBtn) {
+      // Entferne alte Listener falls vorhanden
+      const newCalendarBtn = calendarBtn.cloneNode(true);
+      calendarBtn.parentNode.replaceChild(newCalendarBtn, calendarBtn);
+      
+      newCalendarBtn.addEventListener('click', async () => {
+        console.log('🔄 AUFTRAGLIST: Wechsel zu Calendar-View');
+        if (this.currentView === 'calendar') return; // Bereits in Calendar-View
+        
+        this.currentView = 'calendar';
+        await this.loadAndRender(); // Re-render (nutzt jetzt loadAndRender statt render)
+      });
+    }
+
+    // Filter-Events werden vom FilterDropdown gehandelt (nur in List-View)
+    if (this.currentView === 'list') {
+      // Filter-Events bereits durch initializeFilterBar() gebunden
+    }
+
+    // Neuen Auftrag anlegen Button (nur einmal binden)
+    if (!this._auftragNewBound) {
     document.addEventListener('click', (e) => {
       if (e.target.id === 'btn-auftrag-new' || e.target.id === 'btn-auftrag-new-filter') {
         e.preventDefault();
         window.navigateTo('/auftrag/new');
       }
     });
+      this._auftragNewBound = true;
+    }
+
+    // Nur in List-View die restlichen Events binden
+    if (this.currentView !== 'list') return;
 
     // Alle auswählen Button
     document.addEventListener('click', (e) => {
@@ -479,7 +569,7 @@ export class AuftragList {
     if (!auftraege || auftraege.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="22" class="no-data">
+          <td colspan="19" class="no-data">
             <div style="text-align: center; padding: 40px 20px;">
               <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📋</div>
               <h3 style="color: #666; margin-bottom: 8px;">Keine Aufträge vorhanden</h3>
@@ -523,7 +613,15 @@ export class AuftragList {
       };
       
       const formatBoolean = (value) => {
-        return value ? '✅' : '❌';
+        if (value) {
+          return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: var(--icon-xs); height: var(--icon-xs); display: inline-block; vertical-align: middle;">
+  <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+</svg>`;
+        } else {
+          return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: var(--icon-xs); height: var(--icon-xs); display: inline-block; vertical-align: middle;">
+  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+</svg>`;
+        }
       };
       
       const formatAssignee = (assigneeId) => {
@@ -594,9 +692,11 @@ export class AuftragList {
         return items.length > 0 ? avatarBubbles.renderBubbles(items) : '-';
       };
 
+      const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+
       return `
         <tr data-id="${auftrag.id}">
-          <td><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>
+          ${isAdmin ? `<td><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
           <td>
             <a href="#" class="table-link" data-table="auftrag" data-id="${auftrag.id}">
               ${window.validatorSystem.sanitizeHtml(auftrag.auftragsname || 'Unbekannt')}
@@ -615,8 +715,6 @@ export class AuftragList {
           <td>${formatCurrency(auftrag.bruttobetrag)}</td>
           <td>${formatAnsprechpartner(auftrag.ansprechpartner)}</td>
           <td>${formatMitarbeiterTags(auftrag.mitarbeiter)}</td>
-          <td>${formatMitarbeiterTags(auftrag.cutter)}</td>
-          <td>${formatMitarbeiterTags(auftrag.copywriter)}</td>
           <td>${formatBoolean(auftrag.rechnung_gestellt)}</td>
           <td>${formatBoolean(auftrag.ueberwiesen)}</td>
           <td>
@@ -624,7 +722,6 @@ export class AuftragList {
               ${auftrag.status || '-'}
             </span>
           </td>
-          <td>${formatAssignee(auftrag.assignee_id)}</td>
           <td>
             ${actionBuilder.create('auftrag', auftrag.id)}
           </td>
@@ -638,6 +735,19 @@ export class AuftragList {
     tbody.classList.remove('table-fade-out');
     tbody.classList.add('table-fade-in');
     setTimeout(() => tbody.classList.remove('table-fade-in'), 200);
+  }
+
+  // Initialisiere Cash Flow Calendar
+  async initCashFlowCalendar() {
+    console.log('📅 AUFTRAGLIST: Initialisiere Cash Flow Calendar');
+    const container = document.getElementById('calendar-container');
+    if (!container) {
+      console.error('❌ Calendar-Container nicht gefunden');
+      return;
+    }
+    
+    this.cashFlowCalendar = new AuftragCashFlowCalendar();
+    await this.cashFlowCalendar.init(container);
   }
 
   // Cleanup

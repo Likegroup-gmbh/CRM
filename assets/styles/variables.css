@@ -127,6 +127,23 @@
   --color-purple-100: #e0def6;
   --color-purple-200: #362786;
 
+  /* Semantic Status Aliases für einfachere Verwendung */
+  --success: var(--color-success);
+  --success-bg: var(--color-success-light);
+  --success-50: #f0fdf4;
+  --success-100: #dcfce7;
+  --success-400: #4ade80;
+  --success-700: #15803d;
+  
+  --danger: var(--color-error);
+  --danger-bg: #fee2e2;
+  
+  --warning: var(--color-warning);
+  --warning-bg: #fef3c7;
+  
+  --info: var(--color-info);
+  --info-bg: var(--color-info-light);
+
   /* ===== LAYOUT VARIABLEN ===== */
   --sidebar-width: 14rem;
   --header-height: 64px;

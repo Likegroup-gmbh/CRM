@@ -118,6 +118,8 @@ export class CreatorList {
       </div>
     </div>`;
     
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    
     // Haupt-HTML
     let html = `
       <div class="page-header">
@@ -128,19 +130,19 @@ export class CreatorList {
 
       <div class="table-filter-wrapper">
         ${filterHtml}
-        <div class="table-actions">
+        ${isAdmin ? `<div class="table-actions">
           <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
           <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
-        </div>
+        </div>` : ''}
       </div>
 
       <div class="table-container">
         <table class="data-table">
           <thead>
             <tr>
-              <th><input type="checkbox" id="select-all-creators"></th>
+              ${isAdmin ? `<th><input type="checkbox" id="select-all-creators"></th>` : ''}
               <th>Name</th>
               <th>Typen</th>
               <th>Sprachen</th>
@@ -154,7 +156,7 @@ export class CreatorList {
           </thead>
           <tbody>
             <tr>
-              <td colspan="10" class="no-data">Lade Creator...</td>
+              <td colspan="${isAdmin ? '10' : '9'}" class="no-data">Lade Creator...</td>
             </tr>
           </tbody>
         </table>
@@ -466,6 +468,8 @@ export class CreatorList {
     const tbody = document.querySelector('.data-table tbody');
     if (!tbody) return;
 
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+
     if (!creators || creators.length === 0) {
       const { renderEmptyState } = await import('../../core/FilterUI.js');
       renderEmptyState(tbody);
@@ -474,7 +478,7 @@ export class CreatorList {
 
     const rowsHtml = creators.map(creator => `
       <tr data-id="${creator.id}">
-        <td><input type="checkbox" class="creator-check" data-id="${creator.id}"></td>
+        ${isAdmin ? `<td><input type="checkbox" class="creator-check" data-id="${creator.id}"></td>` : ''}
         <td>
           <a href="#" class="table-link" data-table="creator" data-id="${creator.id}">
             ${window.CreatorUtils.sanitizeHtml(`${creator.vorname} ${creator.nachname}`)}
@@ -592,6 +596,180 @@ export class CreatorList {
         e.preventDefault();
         await this.handleFormSubmit();
       };
+      
+      // Duplikat-Validierung auf Vor- und Nachname
+      this.setupDuplicateValidation(form);
+    }
+  }
+
+  // Setup Duplikat-Validierung für Creator (Vor- und Nachname)
+  setupDuplicateValidation(form) {
+    const vornameField = form.querySelector('#vorname, input[name="vorname"]');
+    const nachnameField = form.querySelector('#nachname, input[name="nachname"]');
+    
+    if (!vornameField || !nachnameField) {
+      console.warn('⚠️ CREATORLIST: Vorname- oder Nachname-Feld nicht gefunden');
+      return;
+    }
+
+    // Container für Duplicate-Messages (nach Nachname-Feld)
+    let messageContainer = nachnameField.parentElement.querySelector('.duplicate-message-container');
+    if (!messageContainer) {
+      messageContainer = document.createElement('div');
+      messageContainer.className = 'duplicate-message-container';
+      nachnameField.parentElement.appendChild(messageContainer);
+    }
+
+    // Blur Events für beide Felder
+    [vornameField, nachnameField].forEach(field => {
+      field.addEventListener('blur', async () => {
+        const vorname = vornameField.value.trim();
+        const nachname = nachnameField.value.trim();
+        
+        if (vorname && nachname) {
+          await this.validateCreatorDuplicate(vorname, nachname, messageContainer);
+        } else {
+          this.clearDuplicateMessages(messageContainer);
+        }
+      });
+
+      // Clear beim Tippen
+      field.addEventListener('input', () => {
+        this.clearDuplicateMessages(messageContainer);
+        this.enableSubmitButton();
+      });
+    });
+  }
+
+  // Validiere Creator Duplikat
+  async validateCreatorDuplicate(vorname, nachname, messageContainer) {
+    if (!vorname || !nachname || vorname.trim().length < 1 || nachname.trim().length < 1) {
+      this.clearDuplicateMessages(messageContainer);
+      return;
+    }
+
+    if (!window.duplicateChecker) {
+      console.warn('⚠️ CREATORLIST: DuplicateChecker nicht verfügbar');
+      return;
+    }
+
+    try {
+      const result = await window.duplicateChecker.checkCreator(vorname, nachname, null);
+
+      if (result.exact) {
+        // Exakt vorhanden → Button disablen, Fehler anzeigen
+        this.showDuplicateError(messageContainer, result.similar);
+        this.disableSubmitButton(true);
+      } else if (result.similar.length > 0) {
+        // Ähnlich → Info-Box (nicht blockierend)
+        this.showDuplicateWarning(messageContainer, result.similar);
+        this.enableSubmitButton();
+      } else {
+        // Alles gut
+        this.clearDuplicateMessages(messageContainer);
+        this.enableSubmitButton();
+      }
+    } catch (error) {
+      console.error('❌ CREATORLIST: Fehler bei Duplikat-Validierung:', error);
+    }
+  }
+
+  // Zeige Duplikat-Fehler
+  showDuplicateError(container, entries) {
+    container.innerHTML = `
+      <div class="duplicate-error">
+        <strong>Dieser Creator existiert bereits!</strong>
+        ${entries.length > 0 ? `
+          <ul class="duplicate-list">
+            ${entries.map(entry => `
+              <li class="duplicate-list-item">
+                <a href="javascript:void(0)" class="duplicate-link" data-entity-id="${entry.id}">
+                  ${entry.profilbild_url ? `<img src="${entry.profilbild_url}" alt="${entry.vorname} ${entry.nachname}" class="duplicate-avatar" />` : '<div class="duplicate-avatar duplicate-avatar-placeholder"></div>'}
+                  <span class="duplicate-name">${entry.vorname} ${entry.nachname}${entry.instagram ? ` <span class="duplicate-meta">(@${entry.instagram})</span>` : ''}</span>
+                </a>
+              </li>
+            `).join('')}
+          </ul>
+        ` : ''}
+      </div>
+    `;
+    
+    // Event-Listener für Links
+    this.bindDuplicateLinks(container, 'creator');
+  }
+
+  // Zeige Duplikat-Warnung
+  showDuplicateWarning(container, entries) {
+    container.innerHTML = `
+      <div class="duplicate-warning">
+        <strong>Folgende ähnliche Einträge gefunden:</strong>
+        <ul class="duplicate-list">
+          ${entries.map(entry => `
+            <li class="duplicate-list-item">
+              <a href="javascript:void(0)" class="duplicate-link" data-entity-id="${entry.id}">
+                ${entry.profilbild_url ? `<img src="${entry.profilbild_url}" alt="${entry.vorname} ${entry.nachname}" class="duplicate-avatar" />` : '<div class="duplicate-avatar duplicate-avatar-placeholder"></div>'}
+                <span class="duplicate-name">${entry.vorname} ${entry.nachname}${entry.instagram ? ` <span class="duplicate-meta">(@${entry.instagram})</span>` : ''}</span>
+              </a>
+            </li>
+          `).join('')}
+        </ul>
+      </div>
+    `;
+    
+    // Event-Listener für Links
+    this.bindDuplicateLinks(container, 'creator');
+  }
+
+  // Bind Click-Events für Duplikat-Links
+  bindDuplicateLinks(container, entityType) {
+    const links = container.querySelectorAll('.duplicate-link[data-entity-id]');
+    links.forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const id = e.currentTarget.dataset.entityId;
+        if (id) {
+          // Internes Routing verwenden (ohne Reload, im gleichen Tab)
+          const route = `/${entityType}/${id}`;
+          if (window.navigationSystem) {
+            window.navigationSystem.navigateTo(route);
+          }
+        }
+      });
+    });
+  }
+
+  // Lösche Duplikat-Messages
+  clearDuplicateMessages(container) {
+    if (container) {
+      container.innerHTML = '';
+    }
+  }
+
+  // Disable Submit Button
+  disableSubmitButton(disable) {
+    const form = document.getElementById('creator-form');
+    if (form) {
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.disabled = disable;
+        if (disable) {
+          submitBtn.style.opacity = '0.5';
+          submitBtn.style.cursor = 'not-allowed';
+        }
+      }
+    }
+  }
+
+  // Enable Submit Button
+  enableSubmitButton() {
+    const form = document.getElementById('creator-form');
+    if (form) {
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = '1';
+        submitBtn.style.cursor = 'pointer';
+      }
     }
   }
 

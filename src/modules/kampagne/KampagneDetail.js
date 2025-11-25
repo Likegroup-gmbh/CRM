@@ -15,6 +15,7 @@ export class KampagneDetail {
     this.kooperationen = [];
     this.koopBudgetSum = 0;
     this.koopVideosUsed = 0;
+    this.koopCreatorsUsed = 0;
     this.sourcingCreators = [];
     this.favoriten = [];
     this.rechnungen = [];
@@ -97,14 +98,20 @@ export class KampagneDetail {
             containerIsEmpty: container.innerHTML.trim() === ''
           });
           
-          // Lade Tabelle nur wenn noch nicht initialisiert UND kein DOM vorhanden
-          if (!this.kooperationenVideoTable && !hasDOM) {
-            console.log('🔄 Lade Kooperationen-Video-Tabelle (Initial)');
-            this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId);
+          // Lade Tabelle wenn kein DOM vorhanden ist (egal ob Instanz existiert)
+          if (!hasDOM) {
+            console.log('🔄 Lade Kooperationen-Video-Tabelle (DOM fehlt)');
+            // Erstelle neue Instanz nur wenn noch keine existiert
+            if (!this.kooperationenVideoTable) {
+              this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId);
+            }
             await this.kooperationenVideoTable.init('kooperationen-videos-container');
             console.log('✅ Kooperationen-Video-Tabelle initialisiert');
+            
+            // Update Button-State nach Init
+            this.updateToggleApprovedButton();
           } else {
-            console.log('✅ Tabelle bereits vorhanden - Skip:', { 
+            console.log('✅ Tabelle DOM bereits vorhanden - Skip:', { 
               hasInstance: !!this.kooperationenVideoTable, 
               hasDOM: !!hasDOM 
             });
@@ -292,7 +299,7 @@ export class KampagneDetail {
             *,
             unternehmen:unternehmen_id(firmenname, webseite, branche_id),
             marke:marke_id(markenname, webseite),
-            auftrag:auftrag_id(auftragsname, status, gesamt_budget, creator_budget)
+            auftrag:auftrag_id(auftragsname, status, gesamt_budget, creator_budget, bruttobetrag, nettobetrag)
           `)
           .eq('id', this.kampagneId)
           .single(),
@@ -362,6 +369,15 @@ export class KampagneDetail {
         (sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 
         0
       );
+      
+      // Anzahl einzigartiger Creator berechnen
+      const uniqueCreatorIds = new Set();
+      this.kooperationen.forEach(koop => {
+        if (koop.creator?.id) {
+          uniqueCreatorIds.add(koop.creator.id);
+        }
+      });
+      this.koopCreatorsUsed = uniqueCreatorIds.size;
       
       // Plattformen & Formate parallel laden (für Info-Tab)
       const [plattformResult, formatResult] = await Promise.all([
@@ -658,6 +674,9 @@ export class KampagneDetail {
       </div>
 
       <div class="content-section">
+        <!-- Budget-Kacheln -->
+        ${this.renderSummaryCards()}
+
         <!-- Tab Navigation -->
         <div class="tab-navigation">
           ${window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? `
@@ -828,12 +847,18 @@ export class KampagneDetail {
           ${window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? `
           <div class="tab-pane active" id="tab-koops-videos">
             <div class="detail-section">
-              ${window.currentUser?.rolle !== 'kunde' ? `
-              <div style="margin-bottom: 16px; display: flex; justify-content: flex-end;">
+              <div style="margin-bottom: 16px; display: flex; justify-content: flex-end; gap: 8px;">
+                <button id="btn-toggle-approved" class="secondary-btn" title="Blende Kooperationen aus, bei denen alle Videos freigegeben sind">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  <span id="btn-toggle-approved-text">Freigegebene ausblenden</span>
+                </button>
+                ${window.currentUser?.rolle !== 'kunde' ? `
                 <button id="btn-column-visibility" class="secondary-btn">
                   Sichtbarkeit anpassen
-                </button>
-              </div>` : ''}
+                </button>` : ''}
+              </div>
               <div id="kooperationen-videos-container"></div>
             </div>
           </div>` : ''}
@@ -899,6 +924,89 @@ export class KampagneDetail {
     `;
 
     window.setContentSafely(window.content, html);
+  }
+
+  // Rendere Summary-Kacheln
+  renderSummaryCards() {
+    const num = (v) => v || v === 0 ? new Intl.NumberFormat('de-DE').format(v) : '-';
+    const formatCurrency = (v) => {
+      if (v === null || v === undefined) return '-';
+      return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v);
+    };
+
+    // Budget-Daten - mehrere Fallbacks
+    const totalBudget = parseFloat(
+      this.kampagneData?.auftrag?.creator_budget || 
+      this.kampagneData?.auftrag?.gesamt_budget || 
+      this.kampagneData?.auftrag?.bruttobetrag || 
+      this.kampagneData?.auftrag?.nettobetrag || 
+      0
+    );
+    const usedBudget = this.koopBudgetSum || 0;
+    
+    // Video-Daten
+    const totalVideos = this.kampagneData?.videoanzahl || 0;
+    const usedVideos = this.koopVideosUsed || 0;
+    
+    // Creator-Daten
+    const totalCreators = this.kampagneData?.creatoranzahl || 0;
+    const usedCreators = this.koopCreatorsUsed || 0;
+
+    // Progress-Prozentsätze
+    const getProgressPercentage = (current, total) => {
+      if (!total || total <= 0) return 0;
+      return Math.min(100, Math.round((current / total) * 100));
+    };
+
+    // Progress-Farben
+    const getProgressColorClass = (current, total) => {
+      if (!total || total <= 0) return '';
+      const percentage = getProgressPercentage(current, total);
+      if (percentage >= 100) return 'summary-progress-fill--success';
+      if (percentage >= 75) return 'summary-progress-fill--warning';
+      return '';
+    };
+
+    const getBudgetProgressColorClass = () => {
+      const percentage = getProgressPercentage(usedBudget, totalBudget);
+      if (percentage >= 90) return 'summary-progress-fill--danger';
+      if (percentage >= 75) return 'summary-progress-fill--warning';
+      return '';
+    };
+
+    return `
+      <div class="auftragsdetails-summary" style="margin-bottom: var(--space-xl);">
+        <div class="summary-cards">
+          <div class="summary-card">
+            <div class="summary-value">${num(usedVideos)} von ${num(totalVideos)}</div>
+            <div class="summary-label">Aktuell gebuchte Videos</div>
+            <div class="summary-progress">
+              <div class="summary-progress-fill ${getProgressColorClass(usedVideos, totalVideos)}" 
+                   style="width: ${getProgressPercentage(usedVideos, totalVideos)}%">
+              </div>
+            </div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-value">${num(usedCreators)} von ${num(totalCreators)}</div>
+            <div class="summary-label">Aktuell gebuchte Creator</div>
+            <div class="summary-progress">
+              <div class="summary-progress-fill ${getProgressColorClass(usedCreators, totalCreators)}" 
+                   style="width: ${getProgressPercentage(usedCreators, totalCreators)}%">
+              </div>
+            </div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-value">${formatCurrency(usedBudget)} von ${formatCurrency(totalBudget)}</div>
+            <div class="summary-label">Budget verbraucht</div>
+            <div class="summary-progress">
+              <div class="summary-progress-fill ${getBudgetProgressColorClass()}" 
+                   style="width: ${getProgressPercentage(usedBudget, totalBudget)}%">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   // Rendere Creators-Liste
@@ -1168,6 +1276,40 @@ export class KampagneDetail {
     document.removeEventListener('click', this._columnVisibilityHandler);
     this._columnVisibilityHandler = columnVisibilityHandler;
     document.addEventListener('click', this._columnVisibilityHandler);
+
+    // Toggle Freigegebene Button (delegiert)
+    const toggleApprovedHandler = (e) => {
+      if (e.target.id === 'btn-toggle-approved' || e.target.closest('#btn-toggle-approved')) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        
+        if (this.kooperationenVideoTable) {
+          this.kooperationenVideoTable.toggleApprovedFilter();
+          
+          // Update Button-Text
+          const btnText = document.getElementById('btn-toggle-approved-text');
+          if (btnText) {
+            btnText.textContent = this.kooperationenVideoTable.hideApprovedKooperationen 
+              ? 'Freigegebene anzeigen' 
+              : 'Freigegebene ausblenden';
+          }
+          
+          // Update Button-Style für aktiven Zustand
+          const btn = document.getElementById('btn-toggle-approved');
+          if (btn) {
+            if (this.kooperationenVideoTable.hideApprovedKooperationen) {
+              btn.classList.add('btn-active');
+            } else {
+              btn.classList.remove('btn-active');
+            }
+          }
+        }
+      }
+    };
+    // Entferne alten Handler falls vorhanden
+    document.removeEventListener('click', this._toggleApprovedHandler);
+    this._toggleApprovedHandler = toggleApprovedHandler;
+    document.addEventListener('click', this._toggleApprovedHandler);
 
     // Löschen Button
     document.addEventListener('click', (e) => {
@@ -1468,6 +1610,39 @@ export class KampagneDetail {
       this.videoColumnVisibilityDrawer = new VideoTableColumnVisibilityDrawer(this.kampagneId);
     }
     this.videoColumnVisibilityDrawer.open();
+  }
+
+  // Update Toggle-Button-State
+  updateToggleApprovedButton() {
+    if (!this.kooperationenVideoTable) {
+      console.log('⚠️ updateToggleApprovedButton: Keine Tabellen-Instanz');
+      return;
+    }
+    
+    const btn = document.getElementById('btn-toggle-approved');
+    const btnText = document.getElementById('btn-toggle-approved-text');
+    
+    console.log('🔘 Update Button-State:', {
+      hasBtn: !!btn,
+      hasBtnText: !!btnText,
+      filterActive: this.kooperationenVideoTable.hideApprovedKooperationen
+    });
+    
+    if (btn && btnText) {
+      const isHiding = this.kooperationenVideoTable.hideApprovedKooperationen;
+      
+      btnText.textContent = isHiding 
+        ? 'Freigegebene anzeigen' 
+        : 'Freigegebene ausblenden';
+      
+      if (isHiding) {
+        btn.classList.add('btn-active');
+      } else {
+        btn.classList.remove('btn-active');
+      }
+      
+      console.log(`✅ Button aktualisiert: "${btnText.textContent}", active=${isHiding}`);
+    }
   }
 
   // Zeige Lösch-Bestätigung

@@ -18,6 +18,7 @@ export class VideoTableColumnVisibilityDrawer {
       { className: 'col-script-deadline', label: 'Script Deadline' },
       { className: 'col-end-datum', label: 'Content Deadline' },
       { className: 'col-videoanzahl', label: 'Videos' },
+      { className: 'col-video-nr', label: 'Video-Nr' },
       { className: 'col-thema', label: 'Thema' },
       { className: 'col-link-skript', label: 'Link Skript / Briefing' },
       { className: 'col-skript-freigegeben', label: 'Skript freigegeben' },

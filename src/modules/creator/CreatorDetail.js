@@ -723,7 +723,6 @@ export class CreatorDetail {
         </td>
         <td>${window.validatorSystem.sanitizeHtml(k.unternehmen?.firmenname || '-')}</td>
         <td><span class="status-badge status-${(k.status || 'unknown').toLowerCase().replace(/\s+/g, '-')}">${k.status || '-'}</span></td>
-        <td>${window.validatorSystem.sanitizeHtml(k.content_art || '-')}</td>
         <td>${k.videoanzahl || 0}</td>
         <td>${k.einkaufspreis_gesamt ? this.formatCurrency(k.einkaufspreis_gesamt) : '-'}</td>
         <td>${this.formatDate(k.skript_deadline)}</td>
@@ -741,7 +740,6 @@ export class CreatorDetail {
               <th>Kampagne</th>
               <th>Unternehmen</th>
               <th>Status</th>
-              <th>Content Art</th>
               <th>Videos</th>
               <th>Gesamtkosten</th>
               <th>Skript Deadline</th>

@@ -47,6 +47,8 @@ export class AnsprechpartnerList {
       return;
     }
 
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    
     content.innerHTML = `
       <div class="page-header">
         <div class="page-header-right">
@@ -61,19 +63,19 @@ export class AnsprechpartnerList {
           </div>
           
         </div>
-        <div class="table-actions">
+        ${isAdmin ? `<div class="table-actions">
           <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
           <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
-        </div>
+        </div>` : ''}
       </div>
 
       <div class="table-container">
         <table class="data-table" id="ansprechpartner-table">
           <thead>
             <tr>
-              <th><input type="checkbox" id="select-all-ansprechpartner"></th>
+              ${isAdmin ? `<th><input type="checkbox" id="select-all-ansprechpartner"></th>` : ''}
               <th>Vorname</th>
               <th>Nachname</th>
               <th>Position</th>
@@ -264,6 +266,8 @@ export class AnsprechpartnerList {
     const tbody = document.querySelector('.data-table tbody');
     if (!tbody) return;
 
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+
     // Fade-out Animation starten (behält alte Daten während Fade-out)
     tbody.classList.add('table-fade-out');
     
@@ -273,7 +277,7 @@ export class AnsprechpartnerList {
     if (!ansprechpartner || ansprechpartner.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="12" class="no-data">Keine Ansprechpartner gefunden</td>
+          <td colspan="${isAdmin ? '12' : '11'}" class="no-data">Keine Ansprechpartner gefunden</td>
         </tr>
       `;
       
@@ -286,7 +290,7 @@ export class AnsprechpartnerList {
 
     const rowsHtml = ansprechpartner.map(ap => `
       <tr data-id="${ap.id}">
-        <td><input type="checkbox" class="ansprechpartner-check" data-id="${ap.id}"></td>
+        ${isAdmin ? `<td><input type="checkbox" class="ansprechpartner-check" data-id="${ap.id}"></td>` : ''}
         <td>
           <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
             ${window.validatorSystem.sanitizeHtml(ap.vorname || '-')}

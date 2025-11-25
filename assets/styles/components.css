@@ -176,11 +176,22 @@
   cursor: pointer;
   transition: all 0.2s ease;
   display: inline-flex;
+  align-items: center;
   color: var(--text-primary);
 }
 
 .secondary-btn:hover {
   background-color: var(--gray-50);
+}
+
+.secondary-btn.btn-active {
+  background-color: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.secondary-btn.btn-active:hover {
+  background-color: var(--color-primary-light);
 }
 
 .danger-btn {
@@ -404,6 +415,40 @@
 .status-badge.success {
   background: #dcfce7;
   color: var(--color-success-dark);
+}
+
+.status-badge.inactive,
+.status-badge.status-inactive {
+  background: var(--gray-100);
+  color: var(--gray-500);
+}
+
+.status-badge.status-error {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.status-badge.status-warning {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.status-badge.status-info {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.status-badge.status-success {
+  background: #dcfce7;
+  color: var(--color-success-dark);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+}
+
+.status-badge.status-success svg {
+  display: block;
 }
 
 /* Responsive Design */
@@ -1611,6 +1656,12 @@
   overflow: hidden;
 }
 
+/* Breitere Drawer-Variante für Tabellen/Listen */
+.drawer-panel-wide {
+  width: 60%;
+  max-width: 1200px;
+}
+
 .drawer-panel.show { transform: translateX(0); }
 
 .drawer-header {
@@ -2029,6 +2080,10 @@
   line-height: 1.4;
   color: var(--text-primary);
   text-decoration: none;
+}
+.kampagne-link {
+  text-decoration: none;
+  color: var(--gray-800);
 }
 
 .task-description {
@@ -2770,18 +2825,18 @@
 }
 
 .summary-cards {
-  display: grid;
+  display: flex;
   grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
+  gap: var(--space-sm);
 }
 
 .summary-card {
-  background: transparent;
-  border: 2px solid #e9ecef;
-  color: #495057;
-  padding: 1.5rem;
+  width: 100%;
+  border: 1px solid var(--gray-200);
+  position: relative;
+  padding: var(--space-lg);
   border-radius: var(--radius-lg);
-  text-align: center;
+  text-align: left;
 }
 
 .summary-card:nth-child(2) {
@@ -2789,23 +2844,27 @@
 }
 
 .summary-value {
-  font-size: 2rem;
-  font-weight: 700;
-  margin-bottom: 0.5rem;
-  color: #495057;
+  font-size: var(--text-xl);
+  font-weight: 400;
+  color: var(--text-primary);
+  
 }
 
 .summary-label {
-  font-size: 0.9rem;
-  color: #6c757d;
-  font-weight: 500;
+  font-size: var(--text-sm);
+  color: var(--gray-400);
+  font-weight: 300;
 }
 
 .summary-planned {
+  padding: var(--space-xxs) var(--space-xs);
   font-size: 0.8rem;
-  color: #adb5bd;
+  background: var(--bg-tertiary);
   font-weight: 400;
-  margin-top: 0.25rem;
+  position: absolute;
+  top: var(--space-xs);
+  right: var(--space-xs);
+  border-radius: var(--radius-xl);
 }
 
 .auftragsdetails-table .section-indicator {
@@ -5040,13 +5099,20 @@ margin-bottom: var(--space-md);
 
 .form-input,
 .form-select {
-  padding: var(--space-sm) var(--space-md);
-  border: var(--border-xs) solid var(--border-primary);
+  padding: var(--space-xs);
+  border: 1px solid var(--gray-300);
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
+  font-weight: 500;
   color: var(--text-primary);
   background: var(--bg-primary);
+  cursor: pointer;
   transition: all 0.2s ease;
+}
+
+.form-select:hover {
+  background-color: var(--gray-50);
+  border-color: var(--gray-400);
 }
 
 .form-input:focus,
@@ -6284,3 +6350,456 @@ margin-bottom: var(--space-md);
     transform: translateY(0);
   }
 }
+
+/* Progress Bar für Summary Cards */
+.summary-progress {
+  width: 100%;
+  height: var(--space-xxs);
+  background-color: var(--gray-200);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  margin-top: var(--space-sm);
+}
+
+.summary-progress-fill {
+  height: 100%;
+  background-color: var(--gray-600);
+  border-radius: var(--radius-xl);
+  transition: width 0.3s ease;
+}
+
+/* Progress Bar Farben für verschiedene Zustände */
+.summary-progress-fill--success {
+  background-color: var(--color-success);
+}
+
+.summary-progress-fill--warning {
+  background-color: var(--color-warning);
+}
+
+.summary-progress-fill--danger {
+  background-color: var(--color-error);
+}
+
+
+/* ===== DUPLICATE DETECTION SYSTEM ===== */
+
+/* Container für Duplicate Messages */
+.duplicate-message-container {
+  margin-top: var(--space-xs);
+}
+
+/* Duplicate Error (Exakt vorhanden - blockiert Submit) */
+.duplicate-error {
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  
+  margin-top: var(--space-xs);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.duplicate-error strong {
+  display: block;
+  margin-bottom: var(--space-xs);
+  font-weight: 500;
+  padding:  var(--space-sm) var(--space-sm) 0 var(--space-sm);
+  font-size: var(--text-sm);
+}
+
+/* Duplicate Warning (Ähnlich - nur Info) */
+.duplicate-warning {
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  margin-top: var(--space-xs);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.duplicate-warning strong {
+  display: block;
+  margin-bottom: var(--space-xs);
+  font-weight: 500;
+  font-size: var(--text-sm);
+ padding:  var(--space-sm) var(--space-sm) 0 var(--space-sm);
+}
+
+/* Duplicate Liste */
+.duplicate-list { 
+  margin-top: var(--space-xs);
+  margin-bottom: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.duplicate-list-item {
+  padding: var(--space-xxs) 0;
+  border-top: 1px solid var(--gray-300);
+  padding: var(--space-sm);
+}
+
+/* Duplicate Link mit Avatar/Logo Layout */
+.duplicate-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: inherit;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  font-weight: 400;
+}
+
+.duplicate-link:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+/* Avatar/Logo Bild */
+.duplicate-avatar {
+  width: var(--space-lg);
+  height: var(--space-lg);
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--gray-100);
+  border: 1px solid var(--border-primary);
+}
+
+/* Placeholder wenn kein Bild vorhanden */
+.duplicate-avatar-placeholder {
+  background: var(--gray-200);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.duplicate-avatar-placeholder::before {
+  content: "?";
+  color: var(--gray-500);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+/* Name und Meta-Info Container */
+.duplicate-name {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxxs);
+  flex: 1;
+  min-width: 0;
+}
+
+/* Meta-Informationen (Webseite, Instagram, etc.) */
+.duplicate-meta {
+  font-size: var(--text-xs);
+  opacity: 0.7;
+  font-weight: normal;
+}
+
+/* ============================================
+   Video Freigabe - Grünes Highlighting
+   ============================================ */
+
+/* Video-Zeile mit Freigabe bekommt grünen Hintergrund */
+.video-field-wrapper--approved {
+  background-color: var(--color-success-light);
+  transition: background-color 0.3s ease;
+}
+
+/* Smooth fade animation */
+.video-field-wrapper {
+  transition: background-color 0.3s ease;
+}
+
+/* ============================================
+   CASH FLOW CALENDAR
+   ============================================ */
+
+/* Calendar Container */
+.cash-flow-calendar {
+  width: 100%;
+  
+  background: var(--surface-primary);
+  border-radius: var(--radius-md);
+}
+
+/* Header mit Jahr-Navigation */
+.cash-flow-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+  padding: var(--space-md) 0 var(--space-md) 0;
+  background: var(--surface-secondary);
+  border-radius: var(--radius-md);
+}
+
+.cash-flow-header .filter-bar {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cash-flow-year {
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  margin: 0;
+  min-width: var(--space-xl);
+  text-align: center;
+}
+
+/* Tabellen-Container mit Scroll */
+.cash-flow-table-container {
+  width: 100%;
+  overflow-x: auto;
+  background: var(--surface-primary);
+  /* Verstecke die inline Scrollbar, da wir die Floating-Scrollbar nutzen */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+/* Webkit Browser (Chrome, Safari) */
+.cash-flow-table-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* Cash Flow Tabelle */
+.cash-flow-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: var(--text-sm);
+  border: 1px solid var(--border-primary);
+}
+
+.cash-flow-table thead th {
+  background: var(--surface-secondary);
+  padding: var(--space-sm) var(--space-xs);
+  text-align: center;
+  font-weight: 600;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  color: var(--text-primary);
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border-primary);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  white-space: nowrap;
+}
+
+/* Sticky Columns */
+.cash-flow-table .sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 20;
+  background: var(--surface-primary);
+  min-width: 180px;
+  max-width: 180px;
+  text-align: left;
+  font-weight: 500;
+  padding: var(--space-sm) var(--space-xs);
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
+}
+
+.cash-flow-table .sticky-col::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border-primary);
+}
+
+.cash-flow-table .sticky-col-2 {
+  position: sticky;
+  left: 180px;
+  z-index: 20;
+  background: var(--surface-primary);
+  min-width: 160px;
+  max-width: 160px;
+  text-align: left;
+  font-weight: 500;
+  padding: var(--space-sm) var(--space-xs);
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
+}
+
+.cash-flow-table .sticky-col-2::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border-primary);
+}
+
+.cash-flow-table thead .sticky-col,
+.cash-flow-table thead .sticky-col-2 {
+  background: var(--bg-primary);
+  z-index: 30;
+}
+
+/* Ensure solid background for body sticky cells */
+.cash-flow-table tbody .sticky-col,
+.cash-flow-table tbody .sticky-col-2 {
+  background: var(--bg-primary);
+  z-index: 30;
+}
+
+/* Totals row sticky cells background */
+.cash-flow-table tfoot .sticky-col,
+.cash-flow-table tfoot .sticky-col-2 {
+  background: var(--bg-primary);
+  z-index: 30;
+}
+
+.cash-flow-table thead .sticky-col::after,
+.cash-flow-table thead .sticky-col-2::after {
+  background: var(--border-primary);
+}
+
+/* TOTAL Spalte */
+.cash-flow-table .total-col {
+  background: var(--surface-secondary);
+  border-left: 1px solid var(--border-primary);
+  font-weight: 600;
+  min-width: 120px;
+  padding: var(--space-sm) var(--space-xs);
+}
+
+/* Gruppen-Header Zeilen */
+.cash-flow-group-header td {
+  background: var(--gray-50);
+  padding: var(--space-sm) var(--space-xs);
+  font-weight: 500;
+  font-size: var(--text-sm);
+  border-top: 1px solid var(--border-primary);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+/* Daten-Zeilen */
+.cash-flow-data-row td {
+  border-bottom: 1px solid var(--border-primary);
+  padding: var(--space-sm) var(--space-xs);
+}
+
+.cash-flow-data-row:hover {
+  background: var(--surface-hover);
+}
+
+/* Zellen */
+.cash-flow-cell {
+  text-align: center;
+  font-weight: 500;
+  min-width: 90px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+
+
+/* Leere Zellen */
+.cash-flow-cell.empty-cell {
+  color: var(--text-tertiary);
+  cursor: default;
+}
+
+/* Status-Farben */
+.cash-flow-cell.invoiced {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.cash-flow-cell.paid {
+  background-color: var(--success-50);
+  color: var(--color-success-dark);
+  font-weight: 600;
+}
+
+/* Unternehmen und Marke Zellen */
+.unternehmen-cell {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.marke-cell {
+  color: var(--text-secondary);
+}
+
+/* Total Zellen */
+.total-cell {
+  font-weight: 600;
+  text-align: center;
+  border: 1px solid var(--border-primary);
+  
+}
+
+/* Footer mit Summen */
+.cash-flow-totals td {
+  background: var(--surface-secondary);
+  padding: var(--space-md) var(--space-sm);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  border-top: 2px solid var(--border-primary);
+  border-bottom: 1px solid var(--border-primary);
+  text-align: center;
+}
+
+.cash-flow-totals .sticky-col,
+.cash-flow-totals .sticky-col-2 {
+  background: var(--surface-secondary);
+  text-align: left;
+  font-weight: 700;
+}
+
+.grand-total {
+  
+  font-size: var(--text-sm);
+}
+
+/* Empty State */
+.empty-state-cell {
+  padding: var(--space-xl) !important;
+}
+
+/* Responsive Anpassungen */
+@media (max-width: 1400px) {
+  .cash-flow-table {
+    font-size: var(--text-xs);
+  }
+  
+  .cash-flow-cell {
+    min-width: 75px;
+    padding: var(--space-xs);
+  }
+  
+  .cash-flow-table .sticky-col {
+    min-width: 140px;
+    max-width: 140px;
+  }
+  
+  .cash-flow-table .sticky-col-2 {
+    left: 140px;
+    min-width: 120px;
+    max-width: 120px;
+  }
+}
+
+@media (max-width: 768px) {
+  .cash-flow-header {
+    padding: var(--space-sm);
+  }
+  
+  .cash-flow-year {
+    font-size: var(--text-xl);
+  }
+  
+  .cash-flow-calendar {
+    padding: var(--space-sm);
+  }
+}
+
