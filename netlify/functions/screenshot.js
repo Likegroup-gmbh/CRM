@@ -79,38 +79,27 @@ exports.handler = async (event, context) => {
       }
     });
 
-    // Navigation
+    // Navigation - SCHNELL (Social Media Seiten sind langsam)
     console.log('🌐 Navigating...');
     await page.goto(url, { 
-      waitUntil: 'networkidle2',  // Warte bis Netzwerk ruhig ist
-      timeout: 15000 
+      waitUntil: 'domcontentloaded',  // Schneller als networkidle2
+      timeout: 20000 
     });
 
-    // Warte etwas länger damit Content lädt
-    await new Promise(r => setTimeout(r, 2000));
+    // Warte damit Content lädt
+    await new Promise(r => setTimeout(r, 3000));
 
-    // Versuche Cookie-Banner zu schließen (TikTok, Instagram)
+    // Versuche Cookie-Banner zu schließen (schnell, max 2s)
     try {
-      // TikTok Cookie Banner
-      const tiktokAccept = await page.$('[data-testid="cookie-banner-accept"]');
-      if (tiktokAccept) await tiktokAccept.click();
-      
-      // Allgemeine Cookie-Banner
-      const acceptButtons = await page.$$('button');
-      for (const btn of acceptButtons) {
-        const text = await btn.evaluate(el => el.textContent?.toLowerCase() || '');
-        if (text.includes('accept') || text.includes('akzeptieren') || text.includes('allow')) {
-          await btn.click();
-          await new Promise(r => setTimeout(r, 500));
-          break;
-        }
-      }
+      await Promise.race([
+        page.click('[data-testid="cookie-banner-accept"]').catch(() => {}),
+        page.click('button[class*="accept"]').catch(() => {}),
+        page.click('button[class*="cookie"]').catch(() => {}),
+        new Promise(r => setTimeout(r, 1000))
+      ]);
     } catch (e) {
-      console.log('No cookie banner found or already closed');
+      // Ignorieren
     }
-
-    // Nochmal kurz warten nach Cookie-Klick
-    await new Promise(r => setTimeout(r, 1000));
 
     // Screenshot
     console.log('📸 Taking screenshot...');
