@@ -6,6 +6,10 @@
   # Publish-Verzeichnis (das wird deployed)
   publish = "dist"
 
+# Chromium Plugin für Puppeteer Support
+[[plugins]]
+  package = "netlify-plugin-chromium"
+
 # Netlify Functions Configuration
 [functions]
   directory = "netlify/functions"
