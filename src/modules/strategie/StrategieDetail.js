@@ -1,0 +1,649 @@
+// StrategieDetail.js
+// Detail-Ansicht einer Strategie mit Items und Screenshot-Generierung
+
+import { strategieService } from './StrategieService.js';
+
+export class StrategieDetail {
+  constructor() {
+    this._boundEventListeners = new Set();
+    this.strategie = null;
+    this.items = [];
+    this.draggedItem = null;
+    this.isKunde = window.currentUser?.rolle === 'kunde';
+  }
+
+  /**
+   * Initialisiere Strategie-Detail
+   */
+  async init(strategieId) {
+    this.strategieId = strategieId;
+
+    try {
+      // Daten laden
+      this.strategie = await strategieService.getStrategieById(strategieId);
+      this.items = await strategieService.getStrategieItems(strategieId);
+
+      // Breadcrumb
+      if (window.breadcrumbSystem) {
+        window.breadcrumbSystem.updateBreadcrumb([
+          { label: 'Strategien', url: '/strategie', clickable: true },
+          { label: this.strategie.name, url: `/strategie/${strategieId}`, clickable: false }
+        ]);
+      }
+
+      window.setHeadline(this.strategie.name);
+
+      // Rendern
+      await this.render();
+      this.bindEvents();
+
+    } catch (error) {
+      console.error('Fehler beim Laden der Strategie:', error);
+      window.content.innerHTML = `
+        <div class="error-message">
+          <p>Fehler beim Laden der Strategie</p>
+        </div>
+      `;
+    }
+  }
+
+  /**
+   * Rendere die Strategie-Detail-Ansicht
+   */
+  async render() {
+    const canEdit = !this.isKunde;
+
+    const html = `
+      <div class="detail-container">
+        ${this.renderHeader()}
+        
+        ${canEdit ? this.renderAddItemSection() : ''}
+        
+        ${this.renderItemsTable()}
+      </div>
+    `;
+
+    window.content.innerHTML = html;
+  }
+
+  /**
+   * Rendere Header mit Strategie-Infos
+   */
+  renderHeader() {
+    let verknuepfung = '';
+    if (this.strategie.marke) {
+      verknuepfung = `Marke: ${this.strategie.marke.name}`;
+    } else if (this.strategie.unternehmen) {
+      verknuepfung = `Unternehmen: ${this.strategie.unternehmen.name}`;
+    }
+
+    return `
+      <div class="detail-header" style="margin-bottom: var(--space-lg);">
+        <div style="display: flex; justify-content: space-between; align-items: start;">
+          <div>
+            <h2 style="margin: 0; font-size: var(--text-xxl);">${this.strategie.name}</h2>
+            ${this.strategie.beschreibung ? `<p style="margin-top: var(--space-xs); color: var(--text-secondary);">${this.strategie.beschreibung}</p>` : ''}
+            ${verknuepfung ? `<p style="margin-top: var(--space-xs); font-size: var(--text-sm); color: var(--text-secondary);">${verknuepfung}</p>` : ''}
+          </div>
+          <button class="secondary-btn" onclick="window.navigateTo('/strategie')">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+            </svg>
+            Zurück
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Rendere Section zum Hinzufügen von Items
+   */
+  renderAddItemSection() {
+    return `
+      <div class="add-item-section" style="background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius-lg); margin-bottom: var(--space-lg);">
+        <h3 style="margin: 0 0 var(--space-md) 0; font-size: var(--text-lg);">Video hinzufügen</h3>
+        
+        <form id="add-item-form" style="display: grid; grid-template-columns: 1fr auto; gap: var(--space-sm); align-items: end;">
+          <div class="form-field" style="margin: 0;">
+            <label for="video-url" style="margin-bottom: var(--space-xs); display: block;">Video-URL *</label>
+            <input 
+              type="url" 
+              id="video-url" 
+              name="video_link" 
+              required 
+              class="form-input" 
+              placeholder="https://www.youtube.com/watch?v=... oder TikTok/Instagram Link"
+              style="width: 100%;"
+            >
+          </div>
+          <button type="submit" class="primary-btn" style="height: var(--height-input);">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
+            </svg>
+            Screenshot generieren
+          </button>
+        </form>
+      </div>
+    `;
+  }
+
+  /**
+   * Rendere Tabelle mit Items
+   */
+  renderItemsTable() {
+    if (this.items.length === 0) {
+      return `
+        <div style="text-align: center; padding: var(--space-xxl); color: var(--text-secondary);">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor" style="width: 64px; height: 64px; margin: 0 auto var(--space-md); opacity: 0.5;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+          </svg>
+          <p>Noch keine Videos hinzugefügt</p>
+          ${!this.isKunde ? '<p style="font-size: var(--text-sm);">Fügen Sie oben eine Video-URL ein, um zu starten</p>' : ''}
+        </div>
+      `;
+    }
+
+    return `
+      <div class="table-container">
+        <table class="data-table strategie-items-table">
+          <thead>
+            <tr>
+              ${!this.isKunde ? '<th style="width: 40px;"></th>' : ''}
+              <th style="width: 120px;">Bild</th>
+              <th>Link</th>
+              <th>Beschreibung</th>
+              ${this.isKunde ? '<th>Anmerkung</th>' : '<th>Creator</th>'}
+              <th style="width: 80px; text-align: center;">Auswahl</th>
+              ${!this.isKunde ? '<th class="col-actions">Aktionen</th>' : ''}
+            </tr>
+          </thead>
+          <tbody id="items-table-body">
+            ${this.items.map((item, index) => this.renderItemRow(item, index)).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  /**
+   * Rendere eine Item-Zeile
+   */
+  renderItemRow(item, index) {
+    const platformIcon = this.getPlatformIcon(item.plattform);
+
+    return `
+      <tr class="item-row ${!this.isKunde ? 'draggable' : ''}" data-item-id="${item.id}" draggable="${!this.isKunde}">
+        ${!this.isKunde ? `
+          <td class="drag-handle" style="cursor: move; text-align: center;">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px; color: var(--text-muted);">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+            </svg>
+          </td>
+        ` : ''}
+        <td>
+          ${item.screenshot_url ? `
+            <img src="${item.screenshot_url}" alt="Screenshot" style="width: 100px; height: auto; border-radius: var(--radius-md); display: block; cursor: pointer;" onclick="window.open('${item.screenshot_url}', '_blank')">
+          ` : `
+            <div style="width: 100px; height: 60px; background: var(--gray-200); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;">
+              <span style="font-size: var(--text-xs); color: var(--text-muted);">Lädt...</span>
+            </div>
+          `}
+        </td>
+        <td>
+          <a href="${item.video_link}" target="_blank" rel="noopener noreferrer" style="display: flex; align-items: center; gap: var(--space-xs); color: var(--color-primary); text-decoration: none;">
+            ${platformIcon}
+            <span style="font-size: var(--text-sm); word-break: break-all;">${this.shortenUrl(item.video_link)}</span>
+          </a>
+        </td>
+        <td>
+          ${!this.isKunde ? `
+            <input 
+              type="text" 
+              class="form-input" 
+              style="width: 100%; font-size: var(--text-sm);" 
+              value="${item.beschreibung || ''}" 
+              placeholder="Beschreibung..."
+              data-field="beschreibung"
+              data-item-id="${item.id}"
+            >
+          ` : `
+            <span style="font-size: var(--text-sm);">${item.beschreibung || '-'}</span>
+          `}
+        </td>
+        <td>
+          ${this.isKunde ? `
+            <input 
+              type="text" 
+              class="form-input" 
+              style="width: 100%; font-size: var(--text-sm);" 
+              value="${item.kunde_anmerkung || ''}" 
+              placeholder="Ihre Anmerkung..."
+              data-field="kunde_anmerkung"
+              data-item-id="${item.id}"
+            >
+          ` : `
+            <div class="creator-search-wrapper" data-item-id="${item.id}">
+              <input 
+                type="text" 
+                class="form-input creator-search" 
+                style="width: 100%; font-size: var(--text-sm);" 
+                value="${item.creator ? `${item.creator.vorname || ''} ${item.creator.nachname || ''}`.trim() : ''}" 
+                placeholder="Creator suchen..."
+                data-creator-id="${item.creator_id || ''}"
+                autocomplete="off"
+              >
+              <div class="creator-search-results" style="display: none;"></div>
+            </div>
+          `}
+        </td>
+        <td style="text-align: center;">
+          <input 
+            type="checkbox" 
+            ${item.ausgewaehlt ? 'checked' : ''} 
+            data-field="ausgewaehlt"
+            data-item-id="${item.id}"
+            style="width: 20px; height: 20px; cursor: pointer;"
+          >
+        </td>
+        ${!this.isKunde ? `
+          <td class="col-actions">
+            <button class="danger-btn" data-action="delete-item" data-id="${item.id}" title="Item löschen">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+              </svg>
+            </button>
+          </td>
+        ` : ''}
+      </tr>
+    `;
+  }
+
+  /**
+   * Plattform-Icon zurückgeben
+   */
+  getPlatformIcon(platform) {
+    const icons = {
+      youtube: `<svg style="width: 20px; height: 20px; color: #FF0000;" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>`,
+      tiktok: `<svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>`,
+      instagram: `<svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>`
+    };
+    return icons[platform] || '';
+  }
+
+  /**
+   * URL kürzen für Anzeige
+   */
+  shortenUrl(url) {
+    if (url.length > 50) {
+      return url.substring(0, 47) + '...';
+    }
+    return url;
+  }
+
+  /**
+   * Events binden
+   */
+  bindEvents() {
+    // Cleanup alte Events
+    this._boundEventListeners.forEach(cleanup => cleanup());
+    this._boundEventListeners.clear();
+
+    // Form zum Hinzufügen
+    if (!this.isKunde) {
+      const form = document.getElementById('add-item-form');
+      if (form) {
+        const handler = (e) => this.handleAddItem(e);
+        form.addEventListener('submit', handler);
+        this._boundEventListeners.add(() => form.removeEventListener('submit', handler));
+      }
+
+      // Drag & Drop
+      this.bindDragAndDropEvents();
+
+      // Creator-Suche
+      this.bindCreatorSearchEvents();
+    }
+
+    // Beschreibung/Anmerkung Inputs
+    document.querySelectorAll('input[data-field], textarea[data-field]').forEach(input => {
+      const handler = () => this.handleFieldUpdate(input);
+      input.addEventListener('blur', handler);
+      this._boundEventListeners.add(() => input.removeEventListener('blur', handler));
+    });
+
+    // Checkbox Auswahl
+    document.querySelectorAll('input[type="checkbox"][data-field]').forEach(checkbox => {
+      const handler = () => this.handleFieldUpdate(checkbox);
+      checkbox.addEventListener('change', handler);
+      this._boundEventListeners.add(() => checkbox.removeEventListener('change', handler));
+    });
+
+    // Delete Buttons
+    if (!this.isKunde) {
+      document.querySelectorAll('[data-action="delete-item"]').forEach(btn => {
+        const handler = () => this.handleDeleteItem(btn.dataset.id);
+        btn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
+      });
+    }
+  }
+
+  /**
+   * Drag & Drop Events binden
+   */
+  bindDragAndDropEvents() {
+    const rows = document.querySelectorAll('.item-row.draggable');
+    
+    rows.forEach(row => {
+      // Dragstart
+      const dragstartHandler = (e) => {
+        this.draggedItem = row;
+        row.style.opacity = '0.5';
+        e.dataTransfer.effectAllowed = 'move';
+      };
+      row.addEventListener('dragstart', dragstartHandler);
+      this._boundEventListeners.add(() => row.removeEventListener('dragstart', dragstartHandler));
+
+      // Dragend
+      const dragendHandler = () => {
+        row.style.opacity = '1';
+        this.draggedItem = null;
+      };
+      row.addEventListener('dragend', dragendHandler);
+      this._boundEventListeners.add(() => row.removeEventListener('dragend', dragendHandler));
+
+      // Dragover
+      const dragoverHandler = (e) => {
+        e.preventDefault();
+        if (row === this.draggedItem) return;
+        
+        const tbody = row.parentNode;
+        const draggingIndex = Array.from(tbody.children).indexOf(this.draggedItem);
+        const targetIndex = Array.from(tbody.children).indexOf(row);
+        
+        if (draggingIndex < targetIndex) {
+          row.parentNode.insertBefore(this.draggedItem, row.nextSibling);
+        } else {
+          row.parentNode.insertBefore(this.draggedItem, row);
+        }
+      };
+      row.addEventListener('dragover', dragoverHandler);
+      this._boundEventListeners.add(() => row.removeEventListener('dragover', dragoverHandler));
+
+      // Drop
+      const dropHandler = (e) => {
+        e.stopPropagation();
+        this.handleSortUpdate();
+      };
+      row.addEventListener('drop', dropHandler);
+      this._boundEventListeners.add(() => row.removeEventListener('drop', dropHandler));
+    });
+  }
+
+  /**
+   * Creator-Suche Events binden
+   */
+  bindCreatorSearchEvents() {
+    document.querySelectorAll('.creator-search').forEach(input => {
+      let debounceTimer;
+
+      const searchHandler = async () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(async () => {
+          const searchTerm = input.value.trim();
+          if (searchTerm.length < 2) {
+            this.hideCreatorResults(input);
+            return;
+          }
+
+          try {
+            const creators = await strategieService.searchCreators(searchTerm);
+            this.showCreatorResults(input, creators);
+          } catch (error) {
+            console.error('Fehler bei Creator-Suche:', error);
+          }
+        }, 300);
+      };
+
+      input.addEventListener('input', searchHandler);
+      this._boundEventListeners.add(() => input.removeEventListener('input', searchHandler));
+
+      // Blur mit Verzögerung für Klick auf Ergebnis
+      const blurHandler = () => {
+        setTimeout(() => this.hideCreatorResults(input), 200);
+      };
+      input.addEventListener('blur', blurHandler);
+      this._boundEventListeners.add(() => input.removeEventListener('blur', blurHandler));
+    });
+  }
+
+  /**
+   * Zeige Creator-Suchergebnisse
+   */
+  showCreatorResults(input, creators) {
+    const wrapper = input.closest('.creator-search-wrapper');
+    let resultsDiv = wrapper.querySelector('.creator-search-results');
+    
+    if (!resultsDiv) {
+      resultsDiv = document.createElement('div');
+      resultsDiv.className = 'creator-search-results';
+      wrapper.appendChild(resultsDiv);
+    }
+
+    if (creators.length === 0) {
+      resultsDiv.innerHTML = '<div style="padding: var(--space-xs); font-size: var(--text-sm); color: var(--text-muted);">Keine Creator gefunden</div>';
+    } else {
+      resultsDiv.innerHTML = creators.map(creator => `
+        <div class="creator-result-item" data-creator-id="${creator.id}" data-creator-name="${creator.name}" style="padding: var(--space-xs); cursor: pointer; border-bottom: 1px solid var(--gray-200); font-size: var(--text-sm);">
+          <strong>${creator.name}</strong>
+          ${creator.instagram ? `<span style="color: var(--text-muted); font-size: var(--text-xs); margin-left: var(--space-xs);">@${creator.instagram}</span>` : ''}
+        </div>
+      `).join('');
+
+      // Klick auf Ergebnis
+      resultsDiv.querySelectorAll('.creator-result-item').forEach(item => {
+        item.addEventListener('click', () => {
+          input.value = item.dataset.creatorName;
+          input.dataset.creatorId = item.dataset.creatorId;
+          this.hideCreatorResults(input);
+          
+          // Item aktualisieren
+          const itemId = wrapper.dataset.itemId;
+          this.updateItemField(itemId, 'creator_id', item.dataset.creatorId);
+        });
+      });
+    }
+
+    resultsDiv.style.display = 'block';
+    resultsDiv.style.position = 'absolute';
+    resultsDiv.style.background = 'white';
+    resultsDiv.style.border = '1px solid var(--gray-300)';
+    resultsDiv.style.borderRadius = 'var(--radius-md)';
+    resultsDiv.style.boxShadow = 'var(--shadow-md)';
+    resultsDiv.style.zIndex = '1000';
+    resultsDiv.style.maxHeight = '200px';
+    resultsDiv.style.overflow = 'auto';
+    resultsDiv.style.width = '100%';
+  }
+
+  /**
+   * Verstecke Creator-Suchergebnisse
+   */
+  hideCreatorResults(input) {
+    const wrapper = input.closest('.creator-search-wrapper');
+    const resultsDiv = wrapper?.querySelector('.creator-search-results');
+    if (resultsDiv) {
+      resultsDiv.style.display = 'none';
+    }
+  }
+
+  /**
+   * Video hinzufügen und Screenshot generieren
+   */
+  async handleAddItem(e) {
+    e.preventDefault();
+
+    const formData = new FormData(e.target);
+    const videoUrl = formData.get('video_link');
+
+    if (!videoUrl) return;
+
+    // Button referenz und original text AUSSERHALB try-catch
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+
+    try {
+      // Button in Loading-State
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `
+        <svg class="spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" style="width: 16px; height: 16px; animation: spin 1s linear infinite;">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Generiere...
+      `;
+
+      // Plattform aus URL erkennen
+      let platform = 'other';
+      if (videoUrl.includes('tiktok.com')) platform = 'tiktok';
+      else if (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) platform = 'youtube';
+      else if (videoUrl.includes('instagram.com')) platform = 'instagram';
+
+      // Screenshot generieren (nur auf Netlify, nicht lokal)
+      let screenshotUrl = null;
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      
+      if (!isLocalhost) {
+        try {
+          window.toastSystem?.show('Screenshot wird generiert...', 'info');
+          const screenshotResult = await strategieService.generateScreenshot(videoUrl);
+          screenshotUrl = screenshotResult.screenshot_url;
+        } catch (screenshotError) {
+          console.warn('Screenshot-Generierung fehlgeschlagen:', screenshotError);
+          window.toastSystem?.show('Screenshot konnte nicht generiert werden', 'warning');
+        }
+      } else {
+        console.log('📸 Screenshot-Generierung übersprungen (localhost)');
+      }
+
+      // Item erstellen (auch ohne Screenshot)
+      const itemData = {
+        strategie_id: this.strategieId,
+        video_link: videoUrl,
+        screenshot_url: screenshotUrl,
+        plattform: platform,
+        sortierung: this.items.length
+      };
+
+      await strategieService.createStrategieItem(itemData);
+
+      // Erfolg
+      window.toastSystem?.show('Video erfolgreich hinzugefügt', 'success');
+      e.target.reset();
+
+      // Button zurücksetzen vor dem Reload
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalText;
+
+      // Neu laden
+      await this.init(this.strategieId);
+
+    } catch (error) {
+      console.error('Fehler beim Hinzufügen des Videos:', error);
+      window.toastSystem?.show(error.message || 'Fehler beim Hinzufügen des Videos', 'error');
+      
+      // Button zurücksetzen
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalText;
+    }
+  }
+
+  /**
+   * Feld-Update (Beschreibung, Anmerkung, Checkbox)
+   */
+  async handleFieldUpdate(element) {
+    const itemId = element.dataset.itemId;
+    const field = element.dataset.field;
+    let value = element.type === 'checkbox' ? element.checked : element.value;
+
+    await this.updateItemField(itemId, field, value);
+  }
+
+  /**
+   * Item-Feld aktualisieren
+   */
+  async updateItemField(itemId, field, value) {
+    try {
+      await strategieService.updateStrategieItem(itemId, { [field]: value });
+      
+      // Item in lokalem State aktualisieren
+      const item = this.items.find(i => i.id === itemId);
+      if (item) {
+        item[field] = value;
+      }
+    } catch (error) {
+      console.error('Fehler beim Aktualisieren des Items:', error);
+      window.toastSystem?.show('Fehler beim Speichern', 'error');
+    }
+  }
+
+  /**
+   * Sortierung aktualisieren nach Drag & Drop
+   */
+  async handleSortUpdate() {
+    const tbody = document.getElementById('items-table-body');
+    const rows = Array.from(tbody.querySelectorAll('.item-row'));
+    
+    const reorderedItems = rows.map(row => {
+      const itemId = row.dataset.itemId;
+      return this.items.find(i => i.id === itemId);
+    });
+
+    try {
+      await strategieService.updateItemsSortierung(reorderedItems);
+      this.items = reorderedItems;
+      window.toastSystem?.show('Sortierung gespeichert', 'success');
+    } catch (error) {
+      console.error('Fehler beim Aktualisieren der Sortierung:', error);
+      window.toastSystem?.show('Fehler beim Speichern der Sortierung', 'error');
+    }
+  }
+
+  /**
+   * Item löschen
+   */
+  async handleDeleteItem(itemId) {
+    const confirmed = await window.confirmationModal?.show({
+      title: 'Item löschen?',
+      message: 'Möchten Sie dieses Video wirklich aus der Strategie entfernen?',
+      confirmText: 'Löschen',
+      cancelText: 'Abbrechen',
+      type: 'danger'
+    });
+
+    if (!confirmed) return;
+
+    try {
+      await strategieService.deleteStrategieItem(itemId);
+      window.toastSystem?.show('Item erfolgreich gelöscht', 'success');
+      await this.init(this.strategieId);
+    } catch (error) {
+      console.error('Fehler beim Löschen des Items:', error);
+      window.toastSystem?.show('Fehler beim Löschen', 'error');
+    }
+  }
+
+  /**
+   * Cleanup
+   */
+  destroy() {
+    this._boundEventListeners.forEach(cleanup => cleanup());
+    this._boundEventListeners.clear();
+  }
+}
+
+// Singleton-Instanz exportieren
+export const strategieDetail = new StrategieDetail();
+

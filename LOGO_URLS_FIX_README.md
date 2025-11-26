@@ -119,3 +119,5 @@ UPDATE storage.buckets SET public = false WHERE name = 'logos';
 - Die Änderung betrifft nur den `logos` Bucket
 
 
+
+

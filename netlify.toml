@@ -6,6 +6,17 @@
   # Publish-Verzeichnis (das wird deployed)
   publish = "dist"
 
+# Netlify Functions Configuration
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+  # External modules (Chromium ist zu groß für Bundling)
+  external_node_modules = ["@sparticuz/chromium-min"]
+
+# Screenshot Function mit längerer Laufzeit
+[functions."screenshot"]
+  timeout = 60
+
 # SPA-Fallback: Alle URLs auf index.html umleiten
 [[redirects]]
   from = "/*"

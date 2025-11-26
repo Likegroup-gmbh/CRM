@@ -6527,9 +6527,9 @@ margin-bottom: var(--space-md);
 .cash-flow-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: left;
   gap: var(--space-md);
-  margin-bottom: var(--space-md);
+  
   padding: var(--space-md) 0 var(--space-md) 0;
   background: var(--surface-secondary);
   border-radius: var(--radius-md);

@@ -621,17 +621,25 @@ export class AuftragCashFlowCalendar {
   }
 
   // Filter angewendet
-  onFiltersApplied(filters) {
+  async onFiltersApplied(filters) {
     console.log('🔍 CASHFLOW: Filter angewendet:', filters);
     this.currentFilters = filters;
-    this.loadData();
+    await this.loadData();
+    this.render();
+    this.bindEvents();
+    this.initFloatingScrollbar();
+    this.bindDragToScroll();
   }
 
   // Filter zurückgesetzt
-  onFiltersReset() {
+  async onFiltersReset() {
     console.log('🔄 CASHFLOW: Filter zurückgesetzt');
     this.currentFilters = {};
-    this.loadData();
+    await this.loadData();
+    this.render();
+    this.bindEvents();
+    this.initFloatingScrollbar();
+    this.bindDragToScroll();
   }
 }
 

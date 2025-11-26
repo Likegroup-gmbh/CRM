@@ -69,6 +69,8 @@ import { breadcrumbSystem } from './core/BreadcrumbSystem.js';
 import { TaskDetailDrawer } from './modules/tasks/TaskDetailDrawer.js';
 import { taskListPage } from './modules/tasks/TaskListPage.js';
 import { tabellenModule } from './modules/tabellen/TabellenModule.js';
+import { strategieList } from './modules/strategie/StrategieList.js';
+import { strategieDetail } from './modules/strategie/StrategieDetail.js';
 // Zentrales Bestätigungs-Modal (side-effect Import, hängt window.confirmationModal an)
 import './core/ConfirmationModal.js';
 // Duplicate Checker für Creator, Marke, Unternehmen
@@ -259,6 +261,13 @@ class ModuleRegistry {
       console.log(`🎯 Rechnung-Details erkannt, verwende Modul: ${moduleKey}`);
     }
     
+    // Spezielle Behandlung für Strategie-Details (aber nicht für 'new')
+    if (id && segment === 'strategie' && id !== 'new') {
+      moduleKey = 'strategie-detail';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Strategie-Details erkannt, verwende Modul: ${moduleKey}`);
+    }
+    
     // Spezielle Behandlung für Ansprechpartner-Details und -Erstellung
     if (id && segment === 'ansprechpartner') {
       moduleKey = 'ansprechpartner-detail';
@@ -376,6 +385,8 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('dashboard', dashboardModule);
   moduleRegistry.register('tasks', taskListPage);
   moduleRegistry.register('tabellen', tabellenModule);
+  moduleRegistry.register('strategie', strategieList);
+  moduleRegistry.register('strategie-detail', strategieDetail);
   
   // Profile-Modul initialisieren und registrieren (V2 - neue Version mit zweispaltigem Layout)
   const profileDetailV2 = new ProfileDetailV2();
