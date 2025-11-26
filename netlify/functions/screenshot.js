@@ -107,14 +107,31 @@ exports.handler = async (event, context) => {
     const waitTime = platform === 'tiktok' ? 5000 : 3000;
     await new Promise(r => setTimeout(r, waitTime));
 
-    // Cookie-Banner schließen
+    // Popups und Banner schließen
     try {
-      await Promise.race([
-        page.click('[data-testid="cookie-banner-accept"]').catch(() => {}),
-        page.click('button[class*="accept"]').catch(() => {}),
-        new Promise(r => setTimeout(r, 500))
-      ]);
-    } catch (e) {}
+      // TikTok: "Not now" klicken
+      await page.click('button:has-text("Not now")').catch(() => {});
+      await page.click('[data-e2e="modal-close-inner-button"]').catch(() => {});
+      
+      // Instagram: "Continue on web" oder Banner schließen
+      await page.click('a:has-text("Continue on web")').catch(() => {});
+      await page.click('button:has-text("Not Now")').catch(() => {});
+      
+      // Cookie-Banner
+      await page.click('[data-testid="cookie-banner-accept"]').catch(() => {});
+      
+      await new Promise(r => setTimeout(r, 500));
+      
+      // Störende Elemente per CSS ausblenden
+      await page.evaluate(() => {
+        // TikTok App-Banner
+        document.querySelectorAll('[class*="DivBrowserModeContainer"], [class*="modal"], [class*="Modal"]').forEach(el => el.style.display = 'none');
+        // Instagram App-Banner
+        document.querySelectorAll('[class*="HpNGH"], [class*="RnEpo"], [role="dialog"]').forEach(el => el.style.display = 'none');
+      });
+    } catch (e) {
+      console.log('Banner handling:', e.message);
+    }
 
     // Versuche Element-Screenshot (nur Content, nicht ganze Seite)
     console.log('📸 Taking screenshot...');
