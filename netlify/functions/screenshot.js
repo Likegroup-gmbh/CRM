@@ -1,9 +1,17 @@
 // Netlify Function: Screenshot-Generierung mit Puppeteer
-// OPTIMIERT FÜR SOCIAL MEDIA SEITEN
+// OPTIMIERT FÜR SOCIAL MEDIA - Element-Screenshots
 
 const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
 const { createClient } = require('@supabase/supabase-js');
+
+// Plattform-spezifische Selektoren für Content-Bereich
+const PLATFORM_SELECTORS = {
+  youtube: 'video, #movie_player, ytd-player',
+  tiktok: '[data-e2e="browse-video"], [class*="DivVideoContainer"], video',
+  instagram: 'article video, article img, [role="presentation"] video, main article',
+  other: 'body'
+};
 
 /**
  * Plattform anhand der URL erkennen
@@ -55,20 +63,29 @@ exports.handler = async (event, context) => {
     const platform = detectPlatform(url);
     console.log(`📸 Screenshot: ${platform} - ${url}`);
 
-    // Browser starten
+    // Browser starten - Mobile Viewport für TikTok/Instagram
+    const isMobile = platform === 'tiktok' || platform === 'instagram';
+    const viewport = isMobile 
+      ? { width: 430, height: 932 }  // iPhone 14 Pro Max
+      : { width: 1280, height: 720 };
+
     browser = await puppeteer.launch({
       args: chromium.args,
-      defaultViewport: { width: 1280, height: 720 },
+      defaultViewport: viewport,
       executablePath: await chromium.executablePath(),
       headless: chromium.headless
     });
 
     const page = await browser.newPage();
     
-    // User-Agent setzen (wichtig für TikTok/Instagram!)
-    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    // User-Agent (Mobile für TikTok/Instagram)
+    const userAgent = isMobile
+      ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
+      : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+    
+    await page.setUserAgent(userAgent);
 
-    // Ressourcen blocken für Geschwindigkeit (aber nicht Bilder!)
+    // Ressourcen blocken für Geschwindigkeit
     await page.setRequestInterception(true);
     page.on('request', (req) => {
       const resourceType = req.resourceType();
@@ -79,35 +96,55 @@ exports.handler = async (event, context) => {
       }
     });
 
-    // Navigation - SCHNELL (Social Media Seiten sind langsam)
+    // Navigation
     console.log('🌐 Navigating...');
     await page.goto(url, { 
-      waitUntil: 'domcontentloaded',  // Schneller als networkidle2
-      timeout: 20000 
+      waitUntil: 'domcontentloaded',
+      timeout: 25000 
     });
 
-    // Warte damit Content lädt
-    await new Promise(r => setTimeout(r, 3000));
+    // Plattform-spezifische Wartezeit
+    const waitTime = platform === 'tiktok' ? 5000 : 3000;
+    await new Promise(r => setTimeout(r, waitTime));
 
-    // Versuche Cookie-Banner zu schließen (schnell, max 2s)
+    // Cookie-Banner schließen
     try {
       await Promise.race([
         page.click('[data-testid="cookie-banner-accept"]').catch(() => {}),
         page.click('button[class*="accept"]').catch(() => {}),
-        page.click('button[class*="cookie"]').catch(() => {}),
-        new Promise(r => setTimeout(r, 1000))
+        new Promise(r => setTimeout(r, 500))
       ]);
-    } catch (e) {
-      // Ignorieren
-    }
+    } catch (e) {}
 
-    // Screenshot
+    // Versuche Element-Screenshot (nur Content, nicht ganze Seite)
     console.log('📸 Taking screenshot...');
-    const screenshotBuffer = await page.screenshot({
-      type: 'jpeg',
-      quality: 80,
-      fullPage: false
-    });
+    let screenshotBuffer;
+    
+    const selector = PLATFORM_SELECTORS[platform];
+    try {
+      // Warte auf Content-Element
+      await page.waitForSelector(selector, { timeout: 5000 });
+      const element = await page.$(selector);
+      
+      if (element) {
+        // Element-Screenshot
+        screenshotBuffer = await element.screenshot({
+          type: 'jpeg',
+          quality: 85
+        });
+        console.log('✅ Element screenshot taken');
+      } else {
+        throw new Error('Element not found');
+      }
+    } catch (e) {
+      // Fallback: Volle Seite
+      console.log('⚠️ Fallback to full page screenshot');
+      screenshotBuffer = await page.screenshot({
+        type: 'jpeg',
+        quality: 85,
+        fullPage: false
+      });
+    }
 
     // Zu Supabase hochladen
     const fileName = `screenshot-${platform}-${Date.now()}.jpg`;
