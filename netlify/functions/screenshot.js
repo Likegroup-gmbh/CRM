@@ -1,23 +1,10 @@
 // Netlify Function: Screenshot-Generierung mit Puppeteer
 // Nimmt Video-URLs entgegen und generiert Screenshots
+// Nutzt @sparticuz/chromium für serverless Umgebungen
 
 const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
 const { createClient } = require('@supabase/supabase-js');
-
-// Executable Path - nutze Umgebungsvariable falls gesetzt, sonst @sparticuz/chromium
-const getExecutablePath = async () => {
-  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-    console.log('📍 Nutze PUPPETEER_EXECUTABLE_PATH:', process.env.PUPPETEER_EXECUTABLE_PATH);
-    return process.env.PUPPETEER_EXECUTABLE_PATH;
-  }
-  if (process.env.CHROME_PATH) {
-    console.log('📍 Nutze CHROME_PATH:', process.env.CHROME_PATH);
-    return process.env.CHROME_PATH;
-  }
-  console.log('📍 Nutze @sparticuz/chromium executablePath');
-  return await chromium.executablePath();
-};
 
 // Platform-spezifische Konfiguration
 const PLATFORM_CONFIG = {
@@ -77,19 +64,12 @@ async function createAndUploadScreenshot(url, platform, config, supabase) {
   try {
     console.log(`🚀 Starte Browser für ${platform}...`);
     
-    const executablePath = await getExecutablePath();
-    
+    // @sparticuz/chromium konfiguriert sich selbst für Lambda/Netlify
     browser = await puppeteer.launch({
-      args: [
-        ...chromium.args,
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu'
-      ],
+      args: chromium.args,
       defaultViewport: chromium.defaultViewport,
-      executablePath: executablePath,
-      headless: 'new'
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless
     });
 
     const page = await browser.newPage();

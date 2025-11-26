@@ -1,32 +1,21 @@
 # Netlify Build Configuration
 
 [build]
-  # Build-Befehl
   command = "npm run build"
-  # Publish-Verzeichnis (das wird deployed)
   publish = "dist"
-
-# Umgebungsvariablen für Puppeteer
-[build.environment]
-  PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
-  PUPPETEER_EXECUTABLE_PATH = "/opt/buildhome/.cache/puppeteer/chrome"
-
-# Chromium Plugin für Puppeteer Support
-[[plugins]]
-  package = "netlify-plugin-chromium"
 
 # Netlify Functions Configuration
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
-  # External modules (Chromium ist zu groß für Bundling)
+  # WICHTIG: @sparticuz/chromium MUSS external sein (zu groß für Bundling)
   external_node_modules = ["@sparticuz/chromium"]
 
-# Screenshot Function mit längerer Laufzeit
+# Screenshot Function mit 60s Timeout
 [functions."screenshot"]
   timeout = 60
 
-# SPA-Fallback: Alle URLs auf index.html umleiten
+# SPA-Fallback
 [[redirects]]
   from = "/*"
   to = "/index.html"
