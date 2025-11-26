@@ -1,16 +1,9 @@
 // Netlify Function: Screenshot-Generierung mit Puppeteer
-// OPTIMIERT FÜR GESCHWINDIGKEIT - Netlify Free Tier hat 10s Timeout!
+// OPTIMIERT FÜR SOCIAL MEDIA SEITEN
 
 const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
 const { createClient } = require('@supabase/supabase-js');
-
-// Minimale, schnelle Konfiguration
-const FAST_CONFIG = {
-  viewport: { width: 1280, height: 720 },
-  timeout: 8000,  // Max 8 Sekunden für Navigation
-  delay: 500      // Nur 0.5s Wartezeit
-};
 
 /**
  * Plattform anhand der URL erkennen
@@ -25,7 +18,7 @@ function detectPlatform(url) {
 }
 
 /**
- * Netlify Function Handler - OPTIMIERT
+ * Netlify Function Handler
  */
 exports.handler = async (event, context) => {
   const headers = {
@@ -62,21 +55,23 @@ exports.handler = async (event, context) => {
     const platform = detectPlatform(url);
     console.log(`📸 Screenshot: ${platform} - ${url}`);
 
-    // Browser starten - SCHNELL
+    // Browser starten
     browser = await puppeteer.launch({
       args: chromium.args,
-      defaultViewport: FAST_CONFIG.viewport,
+      defaultViewport: { width: 1280, height: 720 },
       executablePath: await chromium.executablePath(),
       headless: chromium.headless
     });
 
     const page = await browser.newPage();
     
-    // Ressourcen blocken für Geschwindigkeit
+    // User-Agent setzen (wichtig für TikTok/Instagram!)
+    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+
+    // Ressourcen blocken für Geschwindigkeit (aber nicht Bilder!)
     await page.setRequestInterception(true);
     page.on('request', (req) => {
       const resourceType = req.resourceType();
-      // Nur HTML, CSS, JS und Bilder laden - keine Fonts, Media, etc.
       if (['font', 'media', 'websocket'].includes(resourceType)) {
         req.abort();
       } else {
@@ -84,19 +79,44 @@ exports.handler = async (event, context) => {
       }
     });
 
-    // Navigation - SCHNELL (domcontentloaded statt networkidle2)
+    // Navigation
+    console.log('🌐 Navigating...');
     await page.goto(url, { 
-      waitUntil: 'domcontentloaded', 
-      timeout: FAST_CONFIG.timeout 
+      waitUntil: 'networkidle2',  // Warte bis Netzwerk ruhig ist
+      timeout: 15000 
     });
 
-    // Kurze Wartezeit
-    await new Promise(r => setTimeout(r, FAST_CONFIG.delay));
+    // Warte etwas länger damit Content lädt
+    await new Promise(r => setTimeout(r, 2000));
+
+    // Versuche Cookie-Banner zu schließen (TikTok, Instagram)
+    try {
+      // TikTok Cookie Banner
+      const tiktokAccept = await page.$('[data-testid="cookie-banner-accept"]');
+      if (tiktokAccept) await tiktokAccept.click();
+      
+      // Allgemeine Cookie-Banner
+      const acceptButtons = await page.$$('button');
+      for (const btn of acceptButtons) {
+        const text = await btn.evaluate(el => el.textContent?.toLowerCase() || '');
+        if (text.includes('accept') || text.includes('akzeptieren') || text.includes('allow')) {
+          await btn.click();
+          await new Promise(r => setTimeout(r, 500));
+          break;
+        }
+      }
+    } catch (e) {
+      console.log('No cookie banner found or already closed');
+    }
+
+    // Nochmal kurz warten nach Cookie-Klick
+    await new Promise(r => setTimeout(r, 1000));
 
     // Screenshot
+    console.log('📸 Taking screenshot...');
     const screenshotBuffer = await page.screenshot({
       type: 'jpeg',
-      quality: 75,  // Etwas geringere Qualität = schneller
+      quality: 80,
       fullPage: false
     });
 
