@@ -6,6 +6,11 @@
   # Publish-Verzeichnis (das wird deployed)
   publish = "dist"
 
+# Umgebungsvariablen für Puppeteer
+[build.environment]
+  PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
+  PUPPETEER_EXECUTABLE_PATH = "/opt/buildhome/.cache/puppeteer/chrome"
+
 # Chromium Plugin für Puppeteer Support
 [[plugins]]
   package = "netlify-plugin-chromium"
