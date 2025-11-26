@@ -490,15 +490,15 @@ export class StrategieList {
    * Strategie löschen
    */
   async handleDelete(id) {
-    const confirmed = await window.confirmationModal?.show({
+    const result = await window.confirmationModal?.open({
       title: 'Strategie löschen?',
       message: 'Möchten Sie diese Strategie wirklich löschen? Alle zugehörigen Items werden ebenfalls gelöscht.',
       confirmText: 'Löschen',
       cancelText: 'Abbrechen',
-      type: 'danger'
+      danger: true
     });
 
-    if (!confirmed) return;
+    if (!result?.confirmed) return;
 
     try {
       await strategieService.deleteStrategie(id);

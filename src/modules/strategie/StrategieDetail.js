@@ -615,15 +615,15 @@ export class StrategieDetail {
    * Item löschen
    */
   async handleDeleteItem(itemId) {
-    const confirmed = await window.confirmationModal?.show({
+    const result = await window.confirmationModal?.open({
       title: 'Item löschen?',
       message: 'Möchten Sie dieses Video wirklich aus der Strategie entfernen?',
       confirmText: 'Löschen',
       cancelText: 'Abbrechen',
-      type: 'danger'
+      danger: true
     });
 
-    if (!confirmed) return;
+    if (!result?.confirmed) return;
 
     try {
       await strategieService.deleteStrategieItem(itemId);
