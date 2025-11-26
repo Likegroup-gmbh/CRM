@@ -1,37 +1,15 @@
 // Netlify Function: Screenshot-Generierung mit Puppeteer
-// Nimmt Video-URLs entgegen und generiert Screenshots
-// Nutzt @sparticuz/chromium für serverless Umgebungen
+// OPTIMIERT FÜR GESCHWINDIGKEIT - Netlify Free Tier hat 10s Timeout!
 
 const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
 const { createClient } = require('@supabase/supabase-js');
 
-// Platform-spezifische Konfiguration
-const PLATFORM_CONFIG = {
-  youtube: {
-    waitFor: '#movie_player video',
-    viewport: { width: 1280, height: 720 },
-    delay: 2000,
-    timeout: 15000
-  },
-  tiktok: {
-    waitFor: 'video',
-    viewport: { width: 414, height: 896 },
-    delay: 3000,
-    timeout: 15000
-  },
-  instagram: {
-    waitFor: 'video, article img',
-    viewport: { width: 414, height: 896 },
-    delay: 2000,
-    timeout: 15000
-  },
-  other: {
-    waitFor: 'body',
-    viewport: { width: 1280, height: 720 },
-    delay: 1500,
-    timeout: 10000
-  }
+// Minimale, schnelle Konfiguration
+const FAST_CONFIG = {
+  viewport: { width: 1280, height: 720 },
+  timeout: 8000,  // Max 8 Sekunden für Navigation
+  delay: 500      // Nur 0.5s Wartezeit
 };
 
 /**
@@ -39,217 +17,126 @@ const PLATFORM_CONFIG = {
  */
 function detectPlatform(url) {
   if (!url) return 'other';
-  
   const urlLower = url.toLowerCase();
-  
-  if (urlLower.includes('youtube.com') || urlLower.includes('youtu.be')) {
-    return 'youtube';
-  }
-  if (urlLower.includes('tiktok.com')) {
-    return 'tiktok';
-  }
-  if (urlLower.includes('instagram.com')) {
-    return 'instagram';
-  }
-  
+  if (urlLower.includes('youtube.com') || urlLower.includes('youtu.be')) return 'youtube';
+  if (urlLower.includes('tiktok.com')) return 'tiktok';
+  if (urlLower.includes('instagram.com')) return 'instagram';
   return 'other';
 }
 
 /**
- * Screenshot erstellen und zu Supabase Storage hochladen
+ * Netlify Function Handler - OPTIMIERT
  */
-async function createAndUploadScreenshot(url, platform, config, supabase) {
+exports.handler = async (event, context) => {
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Content-Type': 'application/json'
+  };
+
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 200, headers, body: '' };
+  }
+
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, headers, body: JSON.stringify({ error: 'POST only' }) };
+  }
+
   let browser;
   
   try {
-    console.log(`🚀 Starte Browser für ${platform}...`);
-    
-    // @sparticuz/chromium konfiguriert sich selbst für Lambda/Netlify
+    const { url } = JSON.parse(event.body || '{}');
+    if (!url) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'URL required' }) };
+    }
+
+    // Supabase
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase config missing');
+    }
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const platform = detectPlatform(url);
+    console.log(`📸 Screenshot: ${platform} - ${url}`);
+
+    // Browser starten - SCHNELL
     browser = await puppeteer.launch({
       args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
+      defaultViewport: FAST_CONFIG.viewport,
       executablePath: await chromium.executablePath(),
       headless: chromium.headless
     });
 
     const page = await browser.newPage();
-    await page.setViewport(config.viewport);
     
-    console.log(`🌐 Navigiere zu URL: ${url}`);
-    
-    // Zu URL navigieren
-    await page.goto(url, { 
-      waitUntil: 'networkidle2', 
-      timeout: 30000 
+    // Ressourcen blocken für Geschwindigkeit
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+      const resourceType = req.resourceType();
+      // Nur HTML, CSS, JS und Bilder laden - keine Fonts, Media, etc.
+      if (['font', 'media', 'websocket'].includes(resourceType)) {
+        req.abort();
+      } else {
+        req.continue();
+      }
     });
-    
-    // Warte auf Haupt-Element
-    try {
-      await page.waitForSelector(config.waitFor, { timeout: config.timeout });
-      console.log(`✅ Element gefunden: ${config.waitFor}`);
-    } catch (err) {
-      console.warn(`⚠️ Element nicht gefunden, fahre trotzdem fort: ${config.waitFor}`);
-    }
-    
-    // Zusätzliche Wartezeit für Content-Laden
-    await new Promise(resolve => setTimeout(resolve, config.delay));
 
-    console.log('📸 Erstelle Screenshot...');
-    
-    // Screenshot als Buffer
+    // Navigation - SCHNELL (domcontentloaded statt networkidle2)
+    await page.goto(url, { 
+      waitUntil: 'domcontentloaded', 
+      timeout: FAST_CONFIG.timeout 
+    });
+
+    // Kurze Wartezeit
+    await new Promise(r => setTimeout(r, FAST_CONFIG.delay));
+
+    // Screenshot
     const screenshotBuffer = await page.screenshot({
       type: 'jpeg',
-      quality: 85,
+      quality: 75,  // Etwas geringere Qualität = schneller
       fullPage: false
     });
 
-    // Dateiname generieren
-    const timestamp = Date.now();
-    const randomStr = Math.random().toString(36).substring(7);
-    const fileName = `screenshot-${platform}-${timestamp}-${randomStr}.jpg`;
+    // Zu Supabase hochladen
+    const fileName = `screenshot-${platform}-${Date.now()}.jpg`;
     const filePath = `screenshots/${fileName}`;
 
-    console.log(`☁️ Lade hoch zu Supabase Storage: ${filePath}`);
-
-    // Upload zu Supabase Storage
-    const { data, error } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('strategie-screenshots')
       .upload(filePath, screenshotBuffer, {
         contentType: 'image/jpeg',
-        cacheControl: '3600',
-        upsert: false
+        cacheControl: '3600'
       });
 
-    if (error) {
-      console.error('❌ Supabase Upload Error:', error);
-      throw new Error(`Upload fehlgeschlagen: ${error.message}`);
-    }
+    if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
 
-    // Public URL generieren
     const { data: { publicUrl } } = supabase.storage
       .from('strategie-screenshots')
       .getPublicUrl(filePath);
 
-    console.log(`✅ Screenshot erfolgreich hochgeladen: ${publicUrl}`);
+    console.log(`✅ Done: ${publicUrl}`);
 
-    return {
-      success: true,
-      screenshot_url: publicUrl,
-      platform,
-      url,
-      fileName
-    };
-
-  } catch (error) {
-    console.error('❌ Fehler bei Screenshot-Erstellung:', error);
-    throw error;
-  } finally {
-    if (browser) {
-      await browser.close();
-      console.log('🔒 Browser geschlossen');
-    }
-  }
-}
-
-/**
- * Netlify Function Handler
- */
-exports.handler = async (event, context) => {
-  // CORS Headers
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Content-Type': 'application/json'
-  };
-
-  // Handle OPTIONS (CORS Preflight)
-  if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,
       headers,
-      body: ''
-    };
-  }
-
-  // Nur POST erlauben
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ 
-        success: false, 
-        error: 'Method Not Allowed. Use POST.' 
+      body: JSON.stringify({
+        success: true,
+        screenshot_url: publicUrl,
+        platform
       })
     };
-  }
-
-  try {
-    // Request Body parsen
-    const { url } = JSON.parse(event.body || '{}');
-
-    // Validierung
-    if (!url) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ 
-          success: false, 
-          error: 'URL ist erforderlich' 
-        })
-      };
-    }
-
-    // URL validieren
-    try {
-      new URL(url);
-    } catch (e) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ 
-          success: false, 
-          error: 'Ungültige URL' 
-        })
-      };
-    }
-
-    // Supabase Client initialisieren
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Supabase Konfiguration fehlt');
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Plattform erkennen
-    const platform = detectPlatform(url);
-    const config = PLATFORM_CONFIG[platform];
-
-    console.log(`🎯 Erkannte Plattform: ${platform}`);
-
-    // Screenshot erstellen und hochladen
-    const result = await createAndUploadScreenshot(url, platform, config, supabase);
-
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify(result)
-    };
 
   } catch (error) {
-    console.error('❌ Function Error:', error);
-
+    console.error('❌ Error:', error.message);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({
-        success: false,
-        error: error.message || 'Interner Serverfehler'
-      })
+      body: JSON.stringify({ success: false, error: error.message })
     };
+  } finally {
+    if (browser) await browser.close();
   }
 };
-
