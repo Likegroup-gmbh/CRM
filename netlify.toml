@@ -11,7 +11,7 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
   # External modules (Chromium ist zu groß für Bundling)
-  external_node_modules = ["@sparticuz/chromium-min"]
+  external_node_modules = ["@sparticuz/chromium"]
 
 # Screenshot Function mit längerer Laufzeit
 [functions."screenshot"]

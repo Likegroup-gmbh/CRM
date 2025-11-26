@@ -1,12 +1,9 @@
 // Netlify Function: Screenshot-Generierung mit Puppeteer
 // Nimmt Video-URLs entgegen und generiert Screenshots
 
-const chromium = require('@sparticuz/chromium-min');
+const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
 const { createClient } = require('@supabase/supabase-js');
-
-// Chromium Binary URL (gehostet auf GitHub, ~48MB)
-const CHROMIUM_URL = 'https://github.com/Sparticuz/chromium/releases/download/v123.0.0/chromium-v123.0.0-pack.tar';
 
 // Platform-spezifische Konfiguration
 const PLATFORM_CONFIG = {
@@ -69,7 +66,7 @@ async function createAndUploadScreenshot(url, platform, config, supabase) {
     browser = await puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(CHROMIUM_URL),
+      executablePath: await chromium.executablePath(),
       headless: chromium.headless
     });
 
