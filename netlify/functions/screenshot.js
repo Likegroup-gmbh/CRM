@@ -121,6 +121,11 @@ async function handleTikTokPopups(page) {
     document.querySelectorAll('[type="top"], [class*="DivFixedWrapper"], [class*="DivTopBannerAB"]').forEach(el => {
       el.style.display = 'none';
     });
+    
+    // Info-Section ausblenden (Username, Hashtags, Likes)
+    document.querySelectorAll('[class*="DivInfoSection"], [class*="enavrgt1"]').forEach(el => {
+      el.style.display = 'none';
+    });
   });
   
   // Minimale Wartezeit für Rendering
@@ -276,7 +281,7 @@ exports.handler = async (event, context) => {
           x: 0,
           y: 0,
           width: 430,  // Mobile viewport width
-          height: 650  // Nur Video-Bereich, ohne "Today's top videos"
+          height: 645  // Nur Video-Bereich, ohne Info-Section
         }
       });
       console.log('✅ TikTok cropped screenshot taken (650px)');
