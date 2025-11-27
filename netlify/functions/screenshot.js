@@ -177,11 +177,11 @@ exports.handler = async (event, context) => {
     const platform = detectPlatform(url);
     console.log(`📸 Screenshot: ${platform} - ${url}`);
 
-    // Browser starten - Mobile Viewport für TikTok/Instagram
-    const isMobile = platform === 'tiktok' || platform === 'instagram';
+    // Browser starten - Nur Instagram mobile, TikTok & YouTube Desktop
+    const isMobile = platform === 'instagram';  // NUR Instagram mobile
     const viewport = isMobile 
       ? { width: 430, height: 932 }  // iPhone 14 Pro Max
-      : { width: 1280, height: 720 };
+      : { width: 1920, height: 1080 };  // TikTok & YouTube Desktop
 
     browser = await puppeteer.launch({
       args: chromium.args,
