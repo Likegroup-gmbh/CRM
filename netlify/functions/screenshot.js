@@ -63,31 +63,39 @@ async function handleTikTokPopups(page) {
   
   // "Watch on TikTok" Modal schließen (Mobile)
   try {
-    await new Promise(r => setTimeout(r, 1000));
+    // Länger warten bis Modal erscheint
+    await new Promise(r => setTimeout(r, 2000));
     
     const modalClosed = await page.evaluate(() => {
+      // Suche nach "Jetzt nicht" / "Not now" Button
       const buttons = document.querySelectorAll('button, [role="button"]');
       for (const btn of buttons) {
-        const dataE2e = btn.querySelector('[data-e2e="launch-popup-close"]');
-        if (dataE2e || (btn.textContent || '').includes('Jetzt nicht') || 
-            (btn.textContent || '').includes('Not now')) {
+        const text = btn.textContent || btn.innerText || '';
+        if (text.includes('Jetzt nicht') || text.includes('Not now') || 
+            text.includes('Nicht jetzt')) {
           btn.click();
-          return true;
+          return 'clicked';
         }
       }
       
-      // Fallback: Modal ausblenden
-      document.querySelectorAll('[class*="tux-base-dialog"]').forEach(el => {
-        if ((el.textContent || '').includes('Schau dir dieses Video') || 
-            (el.textContent || '').includes('Watch this video')) {
-          el.style.display = 'none';
-        }
+      // Fallback: Modal komplett ausblenden
+      const modals = document.querySelectorAll('[class*="tux-base-dialog"], [class*="dialog__container"], [class*="DivDialogContainer"], [role="dialog"]');
+      modals.forEach(el => {
+        el.style.display = 'none';
+        el.style.visibility = 'hidden';
       });
-      return false;
+      
+      // Overlay/Backdrop ausblenden
+      document.querySelectorAll('[class*="overlay"], [class*="Overlay"], [class*="backdrop"], [class*="Backdrop"]').forEach(el => {
+        el.style.display = 'none';
+      });
+      
+      return modals.length > 0 ? 'hidden' : false;
     });
     
     if (modalClosed) {
-      await new Promise(r => setTimeout(r, 800));
+      console.log(`Modal: ${modalClosed}`);
+      await new Promise(r => setTimeout(r, 1000));
     }
   } catch (e) {
     console.log('Modal:', e.message);
