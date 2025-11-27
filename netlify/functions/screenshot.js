@@ -8,7 +8,7 @@ const { createClient } = require('@supabase/supabase-js');
 // Plattform-spezifische Selektoren für Content-Bereich
 const PLATFORM_SELECTORS = {
   youtube: 'video, #movie_player, ytd-player',
-  tiktok: '#sharing-main-video-el, #video-card-normal, [data-e2e="detail-video"]',
+  tiktok: '#video-card-normal, [data-e2e="detail-video"], [class*="DivVideoCard"]',
   instagram: 'article video, article img, [role="presentation"] video, main article',
   other: 'body'
 };
@@ -267,44 +267,30 @@ exports.handler = async (event, context) => {
     console.log('📸 Taking screenshot...');
     let screenshotBuffer;
     
-    if (platform === 'tiktok') {
-      // TikTok: Viewport-Screenshot auf 645px Höhe gecroppt
+    const selector = PLATFORM_SELECTORS[platform];
+    try {
+      // Warte auf Content-Element
+      await page.waitForSelector(selector, { timeout: 8000 });
+      const element = await page.$(selector);
+      
+      if (element) {
+        // Element-Screenshot
+        screenshotBuffer = await element.screenshot({
+          type: 'jpeg',
+          quality: 85
+        });
+        console.log('✅ Element screenshot taken');
+      } else {
+        throw new Error('Element not found');
+      }
+    } catch (e) {
+      // Fallback: Volle Seite
+      console.log('⚠️ Fallback to full page screenshot');
       screenshotBuffer = await page.screenshot({
         type: 'jpeg',
         quality: 85,
-        clip: {
-          x: 0,
-          y: 0,
-          width: 430,   // Mobile viewport width
-          height: 645   // Nur Video-Bereich abschneiden
-        }
+        fullPage: false
       });
-      console.log('✅ TikTok cropped screenshot (645px height)');
-    } else {
-      // Andere Plattformen: Element-Screenshot versuchen
-      const selector = PLATFORM_SELECTORS[platform];
-      try {
-        await page.waitForSelector(selector, { timeout: 5000 });
-        const element = await page.$(selector);
-        
-        if (element) {
-          screenshotBuffer = await element.screenshot({
-            type: 'jpeg',
-            quality: 85
-          });
-          console.log('✅ Element screenshot taken');
-        } else {
-          throw new Error('Element not found');
-        }
-      } catch (e) {
-        // Fallback: Volle Seite
-        console.log('⚠️ Fallback to full page screenshot');
-        screenshotBuffer = await page.screenshot({
-          type: 'jpeg',
-          quality: 85,
-          fullPage: false
-        });
-      }
     }
 
     // Zu Supabase hochladen
