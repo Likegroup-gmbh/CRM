@@ -169,8 +169,23 @@ async function handleInstagramPopups(page) {
     
     await new Promise(r => setTimeout(r, 500));
     
-    // App-Banner und Overlays ausblenden
+    // App-Banner, Header und Overlays entfernen
     await page.evaluate(() => {
+      // Header mit Instagram Logo, Anmelden, App öffnen
+      document.querySelectorAll('._ab16, ._ab1a, ._ab18, [class*="x1qjc9v5"]').forEach(el => {
+        // Nur Header-Container entfernen, nicht Video-Content
+        if (el.querySelector('svg[aria-label="Instagram"]') || 
+            el.textContent?.includes('Anmelden') || 
+            el.textContent?.includes('App öffnen')) {
+          el.remove();
+        }
+      });
+      
+      // Direkter Header-Selector
+      const header = document.querySelector('div._ab16');
+      if (header) header.remove();
+      
+      // App-Banner und Overlays
       document.querySelectorAll('[class*="HpNGH"], [class*="RnEpo"], [role="dialog"], [class*="overlay"]').forEach(el => {
         el.remove();
       });
