@@ -121,11 +121,6 @@ async function handleTikTokPopups(page) {
     document.querySelectorAll('[type="top"], [class*="DivFixedWrapper"], [class*="DivTopBannerAB"]').forEach(el => {
       el.style.display = 'none';
     });
-    
-    // Seitenleiste ausblenden (Author, Like, Comment, Share Icons)
-    document.querySelectorAll('[data-e2e="play-side-author"], [data-e2e="play-side-like"], [data-e2e="play-side-comment"], [data-e2e="play-side-share"]').forEach(el => {
-      el.style.display = 'none';
-    });
   });
   
   // Minimale Wartezeit für Rendering
