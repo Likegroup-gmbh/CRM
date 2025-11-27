@@ -32,7 +32,7 @@ async function handleTikTokPopups(page) {
   console.log('🍪 TikTok: Cookie-Banner & Popups...');
   
   // Reduzierte Wartezeit für serverless
-  await new Promise(r => setTimeout(r, 1500));
+  await new Promise(r => setTimeout(r, 2000));
   
   try {
     // Shadow DOM Cookie-Banner klicken
@@ -55,10 +55,42 @@ async function handleTikTokPopups(page) {
     });
     
     if (clicked) {
-      await new Promise(r => setTimeout(r, 800));
+      await new Promise(r => setTimeout(r, 1000));
     }
   } catch (e) {
     console.log('Cookie-Banner:', e.message);
+  }
+  
+  // "Watch on TikTok" Modal schließen (Mobile)
+  try {
+    await new Promise(r => setTimeout(r, 1000));
+    
+    const modalClosed = await page.evaluate(() => {
+      const buttons = document.querySelectorAll('button, [role="button"]');
+      for (const btn of buttons) {
+        const dataE2e = btn.querySelector('[data-e2e="launch-popup-close"]');
+        if (dataE2e || (btn.textContent || '').includes('Jetzt nicht') || 
+            (btn.textContent || '').includes('Not now')) {
+          btn.click();
+          return true;
+        }
+      }
+      
+      // Fallback: Modal ausblenden
+      document.querySelectorAll('[class*="tux-base-dialog"]').forEach(el => {
+        if ((el.textContent || '').includes('Schau dir dieses Video') || 
+            (el.textContent || '').includes('Watch this video')) {
+          el.style.display = 'none';
+        }
+      });
+      return false;
+    });
+    
+    if (modalClosed) {
+      await new Promise(r => setTimeout(r, 800));
+    }
+  } catch (e) {
+    console.log('Modal:', e.message);
   }
   
   // Popups & Overlays ausblenden
@@ -84,46 +116,8 @@ async function handleTikTokPopups(page) {
     document.querySelectorAll('[class*="DivBrowserModeContainer"]').forEach(el => {
       el.style.display = 'none';
     });
-  });
-  
-  // "Watch on TikTok" Modal schließen (Mobile)
-  try {
-    await new Promise(r => setTimeout(r, 800));
     
-    const modalClosed = await page.evaluate(() => {
-      // "Jetzt nicht" / "Not now" Button klicken
-      const buttons = document.querySelectorAll('button, [role="button"]');
-      for (const btn of buttons) {
-        const text = btn.textContent || '';
-        const dataE2e = btn.querySelector('[data-e2e="launch-popup-close"]');
-        
-        if (dataE2e || text.includes('Jetzt nicht') || text.includes('Not now')) {
-          btn.click();
-          return true;
-        }
-      }
-      
-      // Fallback: Modal ausblenden
-      document.querySelectorAll('[class*="tux-base-dialog"], [class*="dialog"], [class*="Dialog"]').forEach(el => {
-        if (el.textContent?.includes('Schau dir dieses Video') || 
-            el.textContent?.includes('Watch this video') ||
-            el.textContent?.includes('Jetzt ansehen')) {
-          el.style.display = 'none';
-        }
-      });
-      
-      return false;
-    });
-    
-    if (modalClosed) {
-      await new Promise(r => setTimeout(r, 600));
-    }
-  } catch (e) {
-    console.log('Modal:', e.message);
-  }
-  
-  // Top-Banner ausblenden
-  await page.evaluate(() => {
+    // Top-Banner ausblenden (Mobile)
     document.querySelectorAll('[type="top"], [class*="DivFixedWrapper"], [class*="DivTopBannerAB"]').forEach(el => {
       el.style.display = 'none';
     });
@@ -220,11 +214,11 @@ exports.handler = async (event, context) => {
     const platform = detectPlatform(url);
     console.log(`📸 Screenshot: ${platform} - ${url}`);
 
-    // Browser starten - Mobile für TikTok & Instagram, Desktop für YouTube
+    // Browser starten - TikTok & Instagram mobile, YouTube Desktop
     const isMobile = platform === 'tiktok' || platform === 'instagram';
     const viewport = isMobile 
-      ? { width: 430, height: 932 }  // iPhone 14 Pro Max
-      : { width: 1920, height: 1080 };  // YouTube Desktop
+      ? { width: 430, height: 932 }  // TikTok & Instagram: iPhone 14 Pro Max
+      : { width: 1920, height: 1080 };  // YouTube: Desktop
 
     browser = await puppeteer.launch({
       args: chromium.args,
