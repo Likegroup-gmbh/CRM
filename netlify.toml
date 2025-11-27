@@ -11,9 +11,9 @@
   # WICHTIG: @sparticuz/chromium MUSS external sein (zu groß für Bundling)
   external_node_modules = ["@sparticuz/chromium"]
 
-# Screenshot Function mit maximalem Timeout (26s für Netlify Free/Pro)
+# Screenshot Function mit 60s Timeout
 [functions."screenshot"]
-  timeout = 26
+  timeout = 60
 
 # SPA-Fallback
 [[redirects]]

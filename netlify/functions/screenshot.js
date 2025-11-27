@@ -8,7 +8,7 @@ const { createClient } = require('@supabase/supabase-js');
 // Plattform-spezifische Selektoren für Content-Bereich
 const PLATFORM_SELECTORS = {
   youtube: 'video, #movie_player, ytd-player',
-  tiktok: '[data-e2e="detail-video"], [class*="DivVideoWrapper"], [data-e2e="browse-video"]',
+  tiktok: '#video-card-normal, [data-e2e="detail-video"], [class*="DivVideoWrapper"]',
   instagram: 'article video, article img, [role="presentation"] video, main article',
   other: 'body'
 };
@@ -31,8 +31,8 @@ function detectPlatform(url) {
 async function handleTikTokPopups(page) {
   console.log('🍪 TikTok: Cookie-Banner & Popups...');
   
-  // Warte bis Banner geladen
-  await new Promise(r => setTimeout(r, 3000));
+  // Reduzierte Wartezeit für serverless
+  await new Promise(r => setTimeout(r, 1500));
   
   try {
     // Shadow DOM Cookie-Banner klicken
@@ -55,7 +55,7 @@ async function handleTikTokPopups(page) {
     });
     
     if (clicked) {
-      await new Promise(r => setTimeout(r, 1500));
+      await new Promise(r => setTimeout(r, 800));
     }
   } catch (e) {
     console.log('Cookie-Banner:', e.message);
@@ -86,8 +86,51 @@ async function handleTikTokPopups(page) {
     });
   });
   
-  // Kurze Wartezeit für Rendering
-  await new Promise(r => setTimeout(r, 1000));
+  // "Watch on TikTok" Modal schließen (Mobile)
+  try {
+    await new Promise(r => setTimeout(r, 800));
+    
+    const modalClosed = await page.evaluate(() => {
+      // "Jetzt nicht" / "Not now" Button klicken
+      const buttons = document.querySelectorAll('button, [role="button"]');
+      for (const btn of buttons) {
+        const text = btn.textContent || '';
+        const dataE2e = btn.querySelector('[data-e2e="launch-popup-close"]');
+        
+        if (dataE2e || text.includes('Jetzt nicht') || text.includes('Not now')) {
+          btn.click();
+          return true;
+        }
+      }
+      
+      // Fallback: Modal ausblenden
+      document.querySelectorAll('[class*="tux-base-dialog"], [class*="dialog"], [class*="Dialog"]').forEach(el => {
+        if (el.textContent?.includes('Schau dir dieses Video') || 
+            el.textContent?.includes('Watch this video') ||
+            el.textContent?.includes('Jetzt ansehen')) {
+          el.style.display = 'none';
+        }
+      });
+      
+      return false;
+    });
+    
+    if (modalClosed) {
+      await new Promise(r => setTimeout(r, 600));
+    }
+  } catch (e) {
+    console.log('Modal:', e.message);
+  }
+  
+  // Top-Banner ausblenden
+  await page.evaluate(() => {
+    document.querySelectorAll('[type="top"], [class*="DivFixedWrapper"], [class*="DivTopBannerAB"]').forEach(el => {
+      el.style.display = 'none';
+    });
+  });
+  
+  // Minimale Wartezeit für Rendering
+  await new Promise(r => setTimeout(r, 500));
 }
 
 /**
@@ -177,11 +220,11 @@ exports.handler = async (event, context) => {
     const platform = detectPlatform(url);
     console.log(`📸 Screenshot: ${platform} - ${url}`);
 
-    // Browser starten - Nur Instagram mobile, TikTok & YouTube Desktop
-    const isMobile = platform === 'instagram';  // NUR Instagram mobile
+    // Browser starten - Mobile für TikTok & Instagram, Desktop für YouTube
+    const isMobile = platform === 'tiktok' || platform === 'instagram';
     const viewport = isMobile 
       ? { width: 430, height: 932 }  // iPhone 14 Pro Max
-      : { width: 1920, height: 1080 };  // TikTok & YouTube Desktop
+      : { width: 1920, height: 1080 };  // YouTube Desktop
 
     browser = await puppeteer.launch({
       args: chromium.args,

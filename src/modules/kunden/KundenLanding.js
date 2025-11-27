@@ -85,16 +85,16 @@ export class KundenLanding {
         <!-- Kampagnen Section -->
         <div style="margin-bottom: var(--space-xxl);">
           <h2 style="margin-bottom: var(--space-md);">Meine Kampagnen</h2>
-          <div class="data-table-container">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Kampagne</th>
-                  <th>Unternehmen</th>
-                  <th>Marke</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Kampagne</th>
+              <th>Unternehmen</th>
+              <th>Marke</th>
+              <th>Status</th>
+            </tr>
+          </thead>
               <tbody>
                 ${kampagnenRows || '<tr><td colspan="4" style="text-align: center; padding: var(--space-lg); color: var(--text-secondary);">Keine Kampagnen</td></tr>'}
               </tbody>
@@ -117,7 +117,7 @@ export class KundenLanding {
               <tbody>
                 ${strategienRows || '<tr><td colspan="3" style="text-align: center; padding: var(--space-lg); color: var(--text-secondary);">Keine Strategien</td></tr>'}
               </tbody>
-            </table>
+        </table>
           </div>
         </div>
       </div>
