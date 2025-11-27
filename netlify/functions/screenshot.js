@@ -333,13 +333,16 @@ exports.handler = async (event, context) => {
     let screenshotBuffer;
     
     const selector = PLATFORM_SELECTORS[platform];
+    // Screenshot-Höhe je nach Plattform
+    const maxHeight = platform === 'instagram' ? 850 : 645;
+    
     try {
       // Warte auf Content-Element
       await page.waitForSelector(selector, { timeout: 5000 });
       const element = await page.$(selector);
       
       if (element) {
-        // Element-Screenshot mit max 645px Höhe
+        // Element-Screenshot mit max Höhe
         const box = await element.boundingBox();
         if (box) {
           screenshotBuffer = await page.screenshot({
@@ -349,10 +352,10 @@ exports.handler = async (event, context) => {
               x: box.x,
               y: box.y,
               width: box.width,
-              height: Math.min(box.height, 645)
+              height: Math.min(box.height, maxHeight)
             }
           });
-          console.log('✅ Element screenshot taken (max 645px height)');
+          console.log(`✅ Element screenshot taken (max ${maxHeight}px height)`);
         } else {
           throw new Error('Element bounding box not found');
         }
@@ -360,7 +363,7 @@ exports.handler = async (event, context) => {
         throw new Error('Element not found');
       }
     } catch (e) {
-      // Fallback: Viewport-Screenshot mit 645px Höhe
+      // Fallback: Viewport-Screenshot
       console.log('⚠️ Fallback to viewport screenshot');
       screenshotBuffer = await page.screenshot({
         type: 'jpeg',
@@ -369,7 +372,7 @@ exports.handler = async (event, context) => {
           x: 0,
           y: 0,
           width: 430,
-          height: 645
+          height: maxHeight
         }
       });
     }
