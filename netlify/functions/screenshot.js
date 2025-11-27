@@ -122,8 +122,8 @@ async function handleTikTokPopups(page) {
       el.style.display = 'none';
     });
     
-    // Info-Section ausblenden (Username, Hashtags, Likes)
-    document.querySelectorAll('[class*="DivInfoSection"], [class*="enavrgt1"]').forEach(el => {
+    // Seitenleiste ausblenden (Author, Like, Comment, Share Icons)
+    document.querySelectorAll('[data-e2e="play-side-author"], [data-e2e="play-side-like"], [data-e2e="play-side-comment"], [data-e2e="play-side-share"]').forEach(el => {
       el.style.display = 'none';
     });
   });
@@ -281,7 +281,7 @@ exports.handler = async (event, context) => {
           x: 0,
           y: 0,
           width: 430,  // Mobile viewport width
-          height: 645  // Nur Video-Bereich, ohne Info-Section
+          height: 645  // Nur Video-Bereich
         }
       });
       console.log('✅ TikTok cropped screenshot taken (650px)');
