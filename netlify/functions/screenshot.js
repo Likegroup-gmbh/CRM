@@ -8,7 +8,7 @@ const { createClient } = require('@supabase/supabase-js');
 // Plattform-spezifische Selektoren für Content-Bereich
 const PLATFORM_SELECTORS = {
   youtube: 'video, #movie_player, ytd-player',
-  tiktok: '#video-card-normal, [data-e2e="detail-video"], [class*="DivVideoCard"]',
+  tiktok: '#video-card-normal, [data-e2e="detail-video"], [class*="DivVideoWrapper"]',
   instagram: 'article video, article img, [role="presentation"] video, main article',
   other: 'body'
 };
@@ -263,14 +263,14 @@ exports.handler = async (event, context) => {
       await handleYouTubePopups(page);
     }
 
-    // Screenshot machen
+    // Versuche Element-Screenshot (nur Content, nicht ganze Seite)
     console.log('📸 Taking screenshot...');
     let screenshotBuffer;
     
     const selector = PLATFORM_SELECTORS[platform];
     try {
       // Warte auf Content-Element
-      await page.waitForSelector(selector, { timeout: 8000 });
+      await page.waitForSelector(selector, { timeout: 5000 });
       const element = await page.$(selector);
       
       if (element) {
