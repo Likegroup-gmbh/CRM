@@ -8,7 +8,7 @@ const { createClient } = require('@supabase/supabase-js');
 // Plattform-spezifische Selektoren für Content-Bereich
 const PLATFORM_SELECTORS = {
   youtube: 'video, #movie_player, ytd-player',
-  tiktok: '[class*="DivWrapper"][class*="e1bmslyg"], #sharing-main-video-el, #video-card-normal',
+  tiktok: '#sharing-main-video-el, [class*="e1bmslyg"], [class*="VideoStyledPlayer"]',
   instagram: 'article video, article img, [role="presentation"] video, main article',
   other: 'body'
 };
