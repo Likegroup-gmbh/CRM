@@ -8,7 +8,7 @@ const { createClient } = require('@supabase/supabase-js');
 // Plattform-spezifische Selektoren für Content-Bereich
 const PLATFORM_SELECTORS = {
   youtube: 'video, #movie_player, ytd-player',
-  tiktok: '#sharing-main-video-el, [class*="e1bmslyg"], [class*="VideoStyledPlayer"]',
+  tiktok: '#video-card-normal, [data-e2e="detail-video"], [class*="DivVideoWrapper"]',
   instagram: 'article video, article img, [role="presentation"] video, main article',
   other: 'body'
 };
@@ -63,39 +63,31 @@ async function handleTikTokPopups(page) {
   
   // "Watch on TikTok" Modal schließen (Mobile)
   try {
-    // Länger warten bis Modal erscheint
-    await new Promise(r => setTimeout(r, 2000));
+    await new Promise(r => setTimeout(r, 1000));
     
     const modalClosed = await page.evaluate(() => {
-      // Suche nach "Jetzt nicht" / "Not now" Button
       const buttons = document.querySelectorAll('button, [role="button"]');
       for (const btn of buttons) {
-        const text = btn.textContent || btn.innerText || '';
-        if (text.includes('Jetzt nicht') || text.includes('Not now') || 
-            text.includes('Nicht jetzt')) {
+        const dataE2e = btn.querySelector('[data-e2e="launch-popup-close"]');
+        if (dataE2e || (btn.textContent || '').includes('Jetzt nicht') || 
+            (btn.textContent || '').includes('Not now')) {
           btn.click();
-          return 'clicked';
+          return true;
         }
       }
       
-      // Fallback: Modal komplett ausblenden
-      const modals = document.querySelectorAll('[class*="tux-base-dialog"], [class*="dialog__container"], [class*="DivDialogContainer"], [role="dialog"]');
-      modals.forEach(el => {
-        el.style.display = 'none';
-        el.style.visibility = 'hidden';
+      // Fallback: Modal ausblenden
+      document.querySelectorAll('[class*="tux-base-dialog"]').forEach(el => {
+        if ((el.textContent || '').includes('Schau dir dieses Video') || 
+            (el.textContent || '').includes('Watch this video')) {
+          el.style.display = 'none';
+        }
       });
-      
-      // Overlay/Backdrop ausblenden
-      document.querySelectorAll('[class*="overlay"], [class*="Overlay"], [class*="backdrop"], [class*="Backdrop"]').forEach(el => {
-        el.style.display = 'none';
-      });
-      
-      return modals.length > 0 ? 'hidden' : false;
+      return false;
     });
     
     if (modalClosed) {
-      console.log(`Modal: ${modalClosed}`);
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise(r => setTimeout(r, 800));
     }
   } catch (e) {
     console.log('Modal:', e.message);
