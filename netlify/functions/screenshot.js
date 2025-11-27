@@ -31,61 +31,100 @@ function detectPlatform(url) {
 async function handleTikTokPopups(page) {
   console.log('🍪 TikTok: Cookie-Banner & Popups...');
   
-  // Kurze Wartezeit für initiales Laden
-  await new Promise(r => setTimeout(r, 1000));
+  // Reduzierte Wartezeit für serverless
+  await new Promise(r => setTimeout(r, 2000));
   
-  // Alles in EINEM evaluate-Block für Speed
-  await page.evaluate(() => {
-    // 1. Shadow DOM Cookie-Banner klicken
-    const shadowHosts = document.querySelectorAll('*');
-    for (const el of shadowHosts) {
-      if (el.shadowRoot) {
-        const shadowButtons = el.shadowRoot.querySelectorAll('button');
-        for (const btn of shadowButtons) {
-          const text = btn.textContent || '';
-          if (text.includes('ablehnen') || text.includes('Decline')) {
-            btn.click();
-            break;
+  try {
+    // Shadow DOM Cookie-Banner klicken
+    const clicked = await page.evaluate(() => {
+      const shadowHosts = document.querySelectorAll('*');
+      for (const el of shadowHosts) {
+        if (el.shadowRoot) {
+          const shadowButtons = el.shadowRoot.querySelectorAll('button');
+          for (const btn of shadowButtons) {
+            const text = btn.textContent || '';
+            if (text.includes('ablehnen') || text.includes('Decline') || 
+                text.includes('Optionale Cookies ablehnen')) {
+              btn.click();
+              return true;
+            }
           }
         }
       }
-    }
+      return false;
+    });
     
-    // 2. "Watch on TikTok" Modal - "Jetzt nicht" klicken
-    document.querySelectorAll('button, [role="button"]').forEach(btn => {
-      const text = btn.textContent || '';
-      if (text.includes('Jetzt nicht') || text.includes('Not now')) {
-        btn.click();
+    if (clicked) {
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  } catch (e) {
+    console.log('Cookie-Banner:', e.message);
+  }
+  
+  // "Watch on TikTok" Modal schließen (Mobile)
+  try {
+    await new Promise(r => setTimeout(r, 1000));
+    
+    const modalClosed = await page.evaluate(() => {
+      const buttons = document.querySelectorAll('button, [role="button"]');
+      for (const btn of buttons) {
+        const dataE2e = btn.querySelector('[data-e2e="launch-popup-close"]');
+        if (dataE2e || (btn.textContent || '').includes('Jetzt nicht') || 
+            (btn.textContent || '').includes('Not now')) {
+          btn.click();
+          return true;
+        }
+      }
+      
+      // Fallback: Modal ausblenden
+      document.querySelectorAll('[class*="tux-base-dialog"]').forEach(el => {
+        if ((el.textContent || '').includes('Schau dir dieses Video') || 
+            (el.textContent || '').includes('Watch this video')) {
+          el.style.display = 'none';
+        }
+      });
+      return false;
+    });
+    
+    if (modalClosed) {
+      await new Promise(r => setTimeout(r, 800));
+    }
+  } catch (e) {
+    console.log('Modal:', e.message);
+  }
+  
+  // Popups & Overlays ausblenden
+  await page.evaluate(() => {
+    // Tastenkombinationen-Popup
+    document.querySelectorAll('[class*="XMarkWrapper"], [class*="KeyboardShortcut"], [class*="FixedBottomContainer"]').forEach(el => {
+      el.style.display = 'none';
+    });
+    
+    // Captcha/Verify Modals
+    document.querySelectorAll('[class*="captcha"], [class*="Captcha"], [class*="verify"], [class*="Verify"]').forEach(el => {
+      el.style.display = 'none';
+    });
+    
+    // Modal Overlays
+    document.querySelectorAll('[class*="modal"], [class*="Modal"], [role="dialog"]').forEach(el => {
+      if (el.textContent?.includes('Puzzle') || el.textContent?.includes('Schieberegler')) {
+        el.style.display = 'none';
       }
     });
     
-    // 3. ALLES per CSS ausblenden (schneller als warten)
-    const hideSelectors = [
-      '[role="dialog"]',
-      '[class*="tux-base-dialog"]',
-      '[class*="Dialog"]',
-      '[class*="modal"]',
-      '[class*="Modal"]',
-      '[class*="overlay"]',
-      '[class*="Overlay"]',
-      '[class*="XMarkWrapper"]',
-      '[class*="KeyboardShortcut"]',
-      '[class*="FixedBottomContainer"]',
-      '[class*="DivBrowserModeContainer"]',
-      '[type="top"]',
-      '[class*="DivFixedWrapper"]',
-      '[class*="DivTopBannerAB"]'
-    ];
+    // App-Banner
+    document.querySelectorAll('[class*="DivBrowserModeContainer"]').forEach(el => {
+      el.style.display = 'none';
+    });
     
-    hideSelectors.forEach(sel => {
-      document.querySelectorAll(sel).forEach(el => {
-        el.style.display = 'none';
-      });
+    // Top-Banner ausblenden (Mobile)
+    document.querySelectorAll('[type="top"], [class*="DivFixedWrapper"], [class*="DivTopBannerAB"]').forEach(el => {
+      el.style.display = 'none';
     });
   });
   
-  // Minimale Wartezeit
-  await new Promise(r => setTimeout(r, 300));
+  // Minimale Wartezeit für Rendering
+  await new Promise(r => setTimeout(r, 500));
 }
 
 /**
@@ -227,43 +266,15 @@ exports.handler = async (event, context) => {
     // Versuche Element-Screenshot (nur Content, nicht ganze Seite)
     console.log('📸 Taking screenshot...');
     
-    // WICHTIG: Warte kurz damit Modal erscheinen kann, dann ausblenden
-    await new Promise(r => setTimeout(r, 1500));
-    
-    // Alle störenden Elemente ausblenden (direkt vor Screenshot!)
+    // WICHTIG: Direkt vor Screenshot nochmal alle Modals ausblenden (Timing-Fix)
     await page.evaluate(() => {
-      const hideSelectors = [
-        // Modals & Dialogs
-        '[role="dialog"]',
-        '[class*="tux-base-dialog"]',
-        '[class*="Dialog"]',
-        '[class*="modal"]',
-        '[class*="Modal"]',
-        // Overlays
-        '[class*="overlay"]',
-        '[class*="Overlay"]',
-        '[class*="backdrop"]',
-        '[class*="Backdrop"]',
-        // TikTok spezifisch
-        '[class*="DivBrowserModeContainer"]',
-        '[type="top"]',
-        '[class*="DivFixedWrapper"]',
-        '[class*="DivTopBannerAB"]',
-        // Sidebar
-        '[data-e2e="play-side-author"]',
-        '[data-e2e="play-side-like"]',
-        '[data-e2e="play-side-comment"]',
-        '[data-e2e="play-side-share"]',
-        '[class*="DivMusicBox"]',
-        '[class*="DivTapableArea"]'
-      ];
-      
-      hideSelectors.forEach(sel => {
-        document.querySelectorAll(sel).forEach(el => {
-          el.style.setProperty('display', 'none', 'important');
-          el.style.setProperty('visibility', 'hidden', 'important');
-          el.style.setProperty('opacity', '0', 'important');
-        });
+      // "Watch on TikTok" Modal ausblenden
+      document.querySelectorAll('[role="dialog"], [class*="tux-base-dialog"], [class*="Dialog"]').forEach(el => {
+        el.style.display = 'none';
+      });
+      // Overlay/Backdrop ausblenden
+      document.querySelectorAll('[class*="overlay"], [class*="Overlay"], [class*="backdrop"], [class*="Backdrop"]').forEach(el => {
+        el.style.display = 'none';
       });
     });
     
