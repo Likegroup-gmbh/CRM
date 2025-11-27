@@ -136,16 +136,43 @@ async function handleInstagramPopups(page) {
   await new Promise(r => setTimeout(r, 2000));
   
   try {
-    // "Continue on web" oder "Not Now"
-    await page.click('a:has-text("Continue on web")').catch(() => {});
-    await page.click('button:has-text("Not Now")').catch(() => {});
+    // "Weiter im Web" Button klicken (deutsch) oder "Continue on web" (englisch)
+    const clicked = await page.evaluate(() => {
+      const links = document.querySelectorAll('a[role="link"]');
+      for (const link of links) {
+        const text = link.textContent || '';
+        if (text.includes('Weiter im Web') || text.includes('Continue on web') || 
+            text.includes('View on web') || text.includes('Continue')) {
+          link.click();
+          return true;
+        }
+      }
+      return false;
+    });
+    
+    if (clicked) {
+      console.log('✅ "Weiter im Web" geklickt');
+      await new Promise(r => setTimeout(r, 2000));
+    }
+    
+    // "Not Now" Button für App-Download Popup
+    await page.evaluate(() => {
+      const buttons = document.querySelectorAll('button');
+      for (const btn of buttons) {
+        const text = btn.textContent || '';
+        if (text.includes('Not Now') || text.includes('Jetzt nicht') || text.includes('Not now')) {
+          btn.click();
+          return;
+        }
+      }
+    });
     
     await new Promise(r => setTimeout(r, 500));
     
-    // App-Banner ausblenden
+    // App-Banner und Overlays ausblenden
     await page.evaluate(() => {
-      document.querySelectorAll('[class*="HpNGH"], [class*="RnEpo"], [role="dialog"]').forEach(el => {
-        el.style.display = 'none';
+      document.querySelectorAll('[class*="HpNGH"], [class*="RnEpo"], [role="dialog"], [class*="overlay"]').forEach(el => {
+        el.remove();
       });
     });
   } catch (e) {
