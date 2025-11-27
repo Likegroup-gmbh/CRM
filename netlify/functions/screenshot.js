@@ -268,18 +268,18 @@ exports.handler = async (event, context) => {
     let screenshotBuffer;
     
     if (platform === 'tiktok') {
-      // TikTok: Viewport-Screenshot auf 650px Höhe gecroppt
+      // TikTok: Viewport-Screenshot auf 645px Höhe gecroppt
       screenshotBuffer = await page.screenshot({
         type: 'jpeg',
         quality: 85,
         clip: {
           x: 0,
           y: 0,
-          width: 430,  // Mobile viewport width
-          height: 645  // Nur Video-Bereich
+          width: 430,   // Mobile viewport width
+          height: 645   // Nur Video-Bereich abschneiden
         }
       });
-      console.log('✅ TikTok cropped screenshot taken (650px)');
+      console.log('✅ TikTok cropped screenshot (645px height)');
     } else {
       // Andere Plattformen: Element-Screenshot versuchen
       const selector = PLATFORM_SELECTORS[platform];
