@@ -333,8 +333,7 @@ exports.handler = async (event, context) => {
     let screenshotBuffer;
     
     const selector = PLATFORM_SELECTORS[platform];
-    // Screenshot-Höhe je nach Plattform
-    const maxHeight = platform === 'instagram' ? 850 : 645;
+    const maxHeight = platform === 'instagram' ? 820 : 645;
     
     try {
       // Warte auf Content-Element
