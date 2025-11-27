@@ -263,34 +263,48 @@ exports.handler = async (event, context) => {
       await handleYouTubePopups(page);
     }
 
-    // Versuche Element-Screenshot (nur Content, nicht ganze Seite)
+    // Screenshot machen
     console.log('📸 Taking screenshot...');
     let screenshotBuffer;
     
-    const selector = PLATFORM_SELECTORS[platform];
-    try {
-      // Warte auf Content-Element
-      await page.waitForSelector(selector, { timeout: 5000 });
-      const element = await page.$(selector);
-      
-      if (element) {
-        // Element-Screenshot
-        screenshotBuffer = await element.screenshot({
-          type: 'jpeg',
-          quality: 85
-        });
-        console.log('✅ Element screenshot taken');
-      } else {
-        throw new Error('Element not found');
-      }
-    } catch (e) {
-      // Fallback: Volle Seite
-      console.log('⚠️ Fallback to full page screenshot');
+    if (platform === 'tiktok') {
+      // TikTok: Viewport-Screenshot auf 650px Höhe gecroppt
       screenshotBuffer = await page.screenshot({
         type: 'jpeg',
         quality: 85,
-        fullPage: false
+        clip: {
+          x: 0,
+          y: 0,
+          width: 430,  // Mobile viewport width
+          height: 650  // Nur Video-Bereich, ohne "Today's top videos"
+        }
       });
+      console.log('✅ TikTok cropped screenshot taken (650px)');
+    } else {
+      // Andere Plattformen: Element-Screenshot versuchen
+      const selector = PLATFORM_SELECTORS[platform];
+      try {
+        await page.waitForSelector(selector, { timeout: 5000 });
+        const element = await page.$(selector);
+        
+        if (element) {
+          screenshotBuffer = await element.screenshot({
+            type: 'jpeg',
+            quality: 85
+          });
+          console.log('✅ Element screenshot taken');
+        } else {
+          throw new Error('Element not found');
+        }
+      } catch (e) {
+        // Fallback: Volle Seite
+        console.log('⚠️ Fallback to full page screenshot');
+        screenshotBuffer = await page.screenshot({
+          type: 'jpeg',
+          quality: 85,
+          fullPage: false
+        });
+      }
     }
 
     // Zu Supabase hochladen
