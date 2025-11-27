@@ -32,7 +32,7 @@ async function handleTikTokPopups(page) {
   console.log('🍪 TikTok: Cookie-Banner & Popups...');
   
   // Kurze Wartezeit für initiales Laden
-  await new Promise(r => setTimeout(r, 1500));
+  await new Promise(r => setTimeout(r, 1000));
   
   // Alles in EINEM evaluate-Block für Speed
   await page.evaluate(() => {
@@ -227,23 +227,43 @@ exports.handler = async (event, context) => {
     // Versuche Element-Screenshot (nur Content, nicht ganze Seite)
     console.log('📸 Taking screenshot...');
     
-    // WICHTIG: Direkt vor Screenshot nochmal alle Modals ausblenden (Timing-Fix)
+    // WICHTIG: Warte kurz damit Modal erscheinen kann, dann ausblenden
+    await new Promise(r => setTimeout(r, 1500));
+    
+    // Alle störenden Elemente ausblenden (direkt vor Screenshot!)
     await page.evaluate(() => {
-      // "Watch on TikTok" Modal ausblenden
-      document.querySelectorAll('[role="dialog"], [class*="tux-base-dialog"], [class*="Dialog"]').forEach(el => {
-        el.style.display = 'none';
-      });
-      // Overlay/Backdrop ausblenden
-      document.querySelectorAll('[class*="overlay"], [class*="Overlay"], [class*="backdrop"], [class*="Backdrop"]').forEach(el => {
-        el.style.display = 'none';
-      });
-      // Sidebar-Elemente ausblenden (Like, Comment, Share, Author)
-      document.querySelectorAll('[data-e2e="play-side-author"], [data-e2e="play-side-like"], [data-e2e="play-side-comment"], [data-e2e="play-side-share"]').forEach(el => {
-        el.style.display = 'none';
-      });
-      // Music-Box und TapableArea ausblenden
-      document.querySelectorAll('[class*="DivMusicBox"], [class*="DivTapableArea"]').forEach(el => {
-        el.style.display = 'none';
+      const hideSelectors = [
+        // Modals & Dialogs
+        '[role="dialog"]',
+        '[class*="tux-base-dialog"]',
+        '[class*="Dialog"]',
+        '[class*="modal"]',
+        '[class*="Modal"]',
+        // Overlays
+        '[class*="overlay"]',
+        '[class*="Overlay"]',
+        '[class*="backdrop"]',
+        '[class*="Backdrop"]',
+        // TikTok spezifisch
+        '[class*="DivBrowserModeContainer"]',
+        '[type="top"]',
+        '[class*="DivFixedWrapper"]',
+        '[class*="DivTopBannerAB"]',
+        // Sidebar
+        '[data-e2e="play-side-author"]',
+        '[data-e2e="play-side-like"]',
+        '[data-e2e="play-side-comment"]',
+        '[data-e2e="play-side-share"]',
+        '[class*="DivMusicBox"]',
+        '[class*="DivTapableArea"]'
+      ];
+      
+      hideSelectors.forEach(sel => {
+        document.querySelectorAll(sel).forEach(el => {
+          el.style.setProperty('display', 'none', 'important');
+          el.style.setProperty('visibility', 'hidden', 'important');
+          el.style.setProperty('opacity', '0', 'important');
+        });
       });
     });
     
