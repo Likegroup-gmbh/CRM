@@ -276,9 +276,15 @@ exports.handler = async (event, context) => {
       // Overlay/Backdrop entfernen
       document.querySelectorAll('[class*="DivModalMask"], [class*="overlay"], [class*="Overlay"], [class*="backdrop"]').forEach(el => el.remove());
       
+      // TOP-BAR entfernen (TikTok Logo, Open app, Unmute)
+      document.querySelectorAll('[type="top"], [class*="DivFixedWrapper"], [class*="DivTopBannerAB"], [class*="TopBanner"], [class*="DivHeaderContainer"]').forEach(el => el.remove());
+      
+      // Bottom-Bar entfernen (Today's top videos)
+      document.querySelectorAll('[class*="DivTabContainer"], [class*="TabBar"], footer').forEach(el => el.remove());
+      
       // CSS Injection für alles was noch kommt
       const style = document.createElement('style');
-      style.textContent = '[role="dialog"],[class*="tux-base-dialog"],[class*="Modal"],[class*="DivModalMask"],[class*="overlay"],[class*="backdrop"]{display:none!important;visibility:hidden!important;}';
+      style.textContent = '[role="dialog"],[class*="tux-base-dialog"],[class*="Modal"],[class*="DivModalMask"],[class*="overlay"],[class*="backdrop"],[type="top"],[class*="DivFixedWrapper"],[class*="TopBanner"]{display:none!important;visibility:hidden!important;}';
       document.head.appendChild(style);
     });
     
@@ -291,22 +297,38 @@ exports.handler = async (event, context) => {
       const element = await page.$(selector);
       
       if (element) {
-        // Element-Screenshot
-        screenshotBuffer = await element.screenshot({
-          type: 'jpeg',
-          quality: 85
-        });
-        console.log('✅ Element screenshot taken');
+        // Element-Screenshot mit max 645px Höhe
+        const box = await element.boundingBox();
+        if (box) {
+          screenshotBuffer = await page.screenshot({
+            type: 'jpeg',
+            quality: 85,
+            clip: {
+              x: box.x,
+              y: box.y,
+              width: box.width,
+              height: Math.min(box.height, 645)
+            }
+          });
+          console.log('✅ Element screenshot taken (max 645px height)');
+        } else {
+          throw new Error('Element bounding box not found');
+        }
       } else {
         throw new Error('Element not found');
       }
     } catch (e) {
-      // Fallback: Volle Seite
-      console.log('⚠️ Fallback to full page screenshot');
+      // Fallback: Viewport-Screenshot mit 645px Höhe
+      console.log('⚠️ Fallback to viewport screenshot');
       screenshotBuffer = await page.screenshot({
         type: 'jpeg',
         quality: 85,
-        fullPage: false
+        clip: {
+          x: 0,
+          y: 0,
+          width: 430,
+          height: 645
+        }
       });
     }
 
