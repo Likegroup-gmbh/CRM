@@ -266,16 +266,20 @@ exports.handler = async (event, context) => {
     // Versuche Element-Screenshot (nur Content, nicht ganze Seite)
     console.log('📸 Taking screenshot...');
     
-    // WICHTIG: Direkt vor Screenshot nochmal alle Modals ausblenden (Timing-Fix)
+    // WICHTIG: Warte bis Modal erscheint, dann ENTFERNEN (nicht nur ausblenden!)
+    await new Promise(r => setTimeout(r, 1500));
+    
     await page.evaluate(() => {
-      // "Watch on TikTok" Modal ausblenden
-      document.querySelectorAll('[role="dialog"], [class*="tux-base-dialog"], [class*="Dialog"]').forEach(el => {
-        el.style.display = 'none';
-      });
-      // Overlay/Backdrop ausblenden
-      document.querySelectorAll('[class*="overlay"], [class*="Overlay"], [class*="backdrop"], [class*="Backdrop"]').forEach(el => {
-        el.style.display = 'none';
-      });
+      // Modal komplett aus DOM ENTFERNEN
+      document.querySelectorAll('[role="dialog"], [class*="tux-base-dialog"]').forEach(el => el.remove());
+      
+      // Overlay/Backdrop entfernen
+      document.querySelectorAll('[class*="DivModalMask"], [class*="overlay"], [class*="Overlay"], [class*="backdrop"]').forEach(el => el.remove());
+      
+      // CSS Injection für alles was noch kommt
+      const style = document.createElement('style');
+      style.textContent = '[role="dialog"],[class*="tux-base-dialog"],[class*="Modal"],[class*="DivModalMask"],[class*="overlay"],[class*="backdrop"]{display:none!important;visibility:hidden!important;}';
+      document.head.appendChild(style);
     });
     
     let screenshotBuffer;
