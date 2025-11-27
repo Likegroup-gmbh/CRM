@@ -276,6 +276,14 @@ exports.handler = async (event, context) => {
       document.querySelectorAll('[class*="overlay"], [class*="Overlay"], [class*="backdrop"], [class*="Backdrop"]').forEach(el => {
         el.style.display = 'none';
       });
+      // Sidebar-Elemente ausblenden (Like, Comment, Share, Author)
+      document.querySelectorAll('[data-e2e="play-side-author"], [data-e2e="play-side-like"], [data-e2e="play-side-comment"], [data-e2e="play-side-share"]').forEach(el => {
+        el.style.display = 'none';
+      });
+      // Music-Box und TapableArea ausblenden
+      document.querySelectorAll('[class*="DivMusicBox"], [class*="DivTapableArea"]').forEach(el => {
+        el.style.display = 'none';
+      });
     });
     
     let screenshotBuffer;
