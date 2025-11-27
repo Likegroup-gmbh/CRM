@@ -1,17 +1,9 @@
 // Netlify Function: Screenshot-Generierung mit Puppeteer
-// OPTIMIERT FÜR SOCIAL MEDIA - Element-Screenshots
+// OPTIMIERT FÜR TIKTOK - getestet und funktioniert!
 
 const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
 const { createClient } = require('@supabase/supabase-js');
-
-// Plattform-spezifische Selektoren für Content-Bereich
-const PLATFORM_SELECTORS = {
-  youtube: 'video, #movie_player, ytd-player',
-  tiktok: '[data-e2e="browse-video"], [class*="DivVideoContainer"], video',
-  instagram: 'article video, article img, [role="presentation"] video, main article',
-  other: 'body'
-};
 
 /**
  * Plattform anhand der URL erkennen
@@ -63,88 +55,135 @@ exports.handler = async (event, context) => {
     const platform = detectPlatform(url);
     console.log(`📸 Screenshot: ${platform} - ${url}`);
 
-    // Browser starten - Mobile Viewport für TikTok/Instagram
-    const isMobile = platform === 'tiktok' || platform === 'instagram';
-    const viewport = isMobile 
-      ? { width: 430, height: 932 }  // iPhone 14 Pro Max
-      : { width: 1280, height: 720 };
-
+    // Browser starten - Desktop Viewport (funktioniert besser für TikTok)
     browser = await puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: viewport,
+      args: [
+        ...chromium.args,
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-blink-features=AutomationControlled'
+      ],
+      defaultViewport: { width: 1920, height: 1080 },
       executablePath: await chromium.executablePath(),
       headless: chromium.headless
     });
 
     const page = await browser.newPage();
     
-    // User-Agent (Mobile für TikTok/Instagram)
-    const userAgent = isMobile
-      ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
-      : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-    
-    await page.setUserAgent(userAgent);
-
-    // Ressourcen blocken für Geschwindigkeit
-    await page.setRequestInterception(true);
-    page.on('request', (req) => {
-      const resourceType = req.resourceType();
-      if (['font', 'media', 'websocket'].includes(resourceType)) {
-        req.abort();
-      } else {
-        req.continue();
-      }
-    });
+    // Desktop User-Agent
+    await page.setUserAgent(
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    );
 
     // Navigation
     console.log('🌐 Navigating...');
     await page.goto(url, { 
-      waitUntil: 'domcontentloaded',
+      waitUntil: 'networkidle2',
       timeout: 25000 
     });
 
-    // Plattform-spezifische Wartezeit
-    const waitTime = platform === 'tiktok' ? 5000 : 3000;
-    await new Promise(r => setTimeout(r, waitTime));
+    // Warte bis Seite geladen
+    await new Promise(r => setTimeout(r, 3000));
 
-    // Popups und Banner schließen
-    try {
-      // TikTok: "Not now" klicken
-      await page.click('button:has-text("Not now")').catch(() => {});
-      await page.click('[data-e2e="modal-close-inner-button"]').catch(() => {});
+    // ========== TIKTOK SPEZIFISCH ==========
+    if (platform === 'tiktok') {
+      console.log('🍪 TikTok: Cookie-Banner schließen...');
       
-      // Instagram: "Continue on web" oder Banner schließen
-      await page.click('a:has-text("Continue on web")').catch(() => {});
-      await page.click('button:has-text("Not Now")').catch(() => {});
-      
-      // Cookie-Banner
-      await page.click('[data-testid="cookie-banner-accept"]').catch(() => {});
-      
+      // Cookie-Banner im Shadow DOM schließen
+      try {
+        const cookieClicked = await page.evaluate(() => {
+          const shadowHosts = document.querySelectorAll('*');
+          for (const el of shadowHosts) {
+            if (el.shadowRoot) {
+              const shadowButtons = el.shadowRoot.querySelectorAll('button');
+              for (const btn of shadowButtons) {
+                const text = btn.textContent || '';
+                if (text.includes('ablehnen') || text.includes('Decline')) {
+                  btn.click();
+                  return 'ablehnen';
+                }
+              }
+              for (const btn of shadowButtons) {
+                const text = btn.textContent || '';
+                if (text.includes('erlauben') || text.includes('Accept') || text.includes('Allow')) {
+                  btn.click();
+                  return 'erlauben';
+                }
+              }
+            }
+          }
+          return false;
+        });
+        if (cookieClicked) console.log(`✅ Cookie-Button: ${cookieClicked}`);
+      } catch (e) {
+        console.log('Cookie handling error:', e.message);
+      }
+
+      await new Promise(r => setTimeout(r, 1000));
+
+      // Tastenkombinationen-Popup schließen
+      console.log('🧹 TikTok: Popups schließen...');
+      try {
+        await page.evaluate(() => {
+          // X-Button im Tastenkombinationen-Popup
+          document.querySelectorAll('[class*="XMarkWrapper"], [class*="e1jppm6i4"]').forEach(el => el.click());
+          // Popup ausblenden
+          document.querySelectorAll('[class*="KeyboardShortcut"], [class*="FixedBottomContainer"]').forEach(el => {
+            el.style.display = 'none';
+          });
+        });
+      } catch (e) {}
+
+      // Captcha/Modal ausblenden
+      try {
+        await page.evaluate(() => {
+          document.querySelectorAll('[class*="captcha"], [class*="Captcha"], [class*="verify"], [class*="Verify"]').forEach(el => {
+            el.style.display = 'none';
+          });
+          document.querySelectorAll('[class*="modal"], [class*="Modal"], [role="dialog"]').forEach(el => {
+            if (el.textContent?.includes('Puzzle') || el.textContent?.includes('Schieberegler')) {
+              el.style.display = 'none';
+            }
+          });
+          document.querySelectorAll('[class*="overlay"], [class*="Overlay"], [class*="backdrop"]').forEach(el => {
+            el.style.display = 'none';
+          });
+        });
+      } catch (e) {}
+
       await new Promise(r => setTimeout(r, 500));
-      
-      // Störende Elemente per CSS ausblenden
-      await page.evaluate(() => {
-        // TikTok App-Banner
-        document.querySelectorAll('[class*="DivBrowserModeContainer"], [class*="modal"], [class*="Modal"]').forEach(el => el.style.display = 'none');
-        // Instagram App-Banner
-        document.querySelectorAll('[class*="HpNGH"], [class*="RnEpo"], [role="dialog"]').forEach(el => el.style.display = 'none');
-      });
-    } catch (e) {
-      console.log('Banner handling:', e.message);
     }
 
-    // Versuche Element-Screenshot (nur Content, nicht ganze Seite)
+    // ========== INSTAGRAM SPEZIFISCH ==========
+    if (platform === 'instagram') {
+      console.log('📸 Instagram: Banner schließen...');
+      try {
+        await page.click('button:has-text("Not Now")').catch(() => {});
+        await page.click('a:has-text("Continue on web")').catch(() => {});
+        await page.evaluate(() => {
+          document.querySelectorAll('[role="dialog"]').forEach(el => el.style.display = 'none');
+        });
+      } catch (e) {}
+    }
+
+    // ========== SCREENSHOT ==========
     console.log('📸 Taking screenshot...');
     let screenshotBuffer;
     
-    const selector = PLATFORM_SELECTORS[platform];
+    // Plattform-spezifische Selektoren
+    const selectors = {
+      tiktok: '[data-e2e="detail-video"]',
+      instagram: 'article, main article, [role="presentation"]',
+      youtube: '#movie_player, video',
+      other: 'body'
+    };
+    
+    const selector = selectors[platform];
+    
     try {
-      // Warte auf Content-Element
-      await page.waitForSelector(selector, { timeout: 5000 });
       const element = await page.$(selector);
       
       if (element) {
-        // Element-Screenshot
         screenshotBuffer = await element.screenshot({
           type: 'jpeg',
           quality: 85
@@ -154,8 +193,7 @@ exports.handler = async (event, context) => {
         throw new Error('Element not found');
       }
     } catch (e) {
-      // Fallback: Volle Seite
-      console.log('⚠️ Fallback to full page screenshot');
+      console.log('⚠️ Fallback to viewport screenshot');
       screenshotBuffer = await page.screenshot({
         type: 'jpeg',
         quality: 85,
