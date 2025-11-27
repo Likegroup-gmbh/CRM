@@ -265,6 +265,19 @@ exports.handler = async (event, context) => {
 
     // Versuche Element-Screenshot (nur Content, nicht ganze Seite)
     console.log('📸 Taking screenshot...');
+    
+    // WICHTIG: Direkt vor Screenshot nochmal alle Modals ausblenden (Timing-Fix)
+    await page.evaluate(() => {
+      // "Watch on TikTok" Modal ausblenden
+      document.querySelectorAll('[role="dialog"], [class*="tux-base-dialog"], [class*="Dialog"]').forEach(el => {
+        el.style.display = 'none';
+      });
+      // Overlay/Backdrop ausblenden
+      document.querySelectorAll('[class*="overlay"], [class*="Overlay"], [class*="backdrop"], [class*="Backdrop"]').forEach(el => {
+        el.style.display = 'none';
+      });
+    });
+    
     let screenshotBuffer;
     
     const selector = PLATFORM_SELECTORS[platform];
