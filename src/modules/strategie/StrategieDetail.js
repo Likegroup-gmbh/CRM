@@ -173,16 +173,16 @@ export class StrategieDetail {
         <table class="data-table strategie-items-table">
           <thead>
             <tr>
-              <th style="width: 50px; text-align: center;">#</th>
-              ${!this.isKunde ? '<th style="width: 40px;"></th>' : ''}
-              <th style="width: 120px;">Bild</th>
-              <th style="width: 60px; text-align: center;">Plattform</th>
-              <th style="width: 60px; text-align: center;">Link</th>
-              <th>Beschreibung</th>
-              <th>Anmerkung Kunde</th>
-              <th style="width: 80px; text-align: center;">Prio 1</th>
-              <th style="width: 80px; text-align: center;">Prio 2</th>
-              <th style="width: 100px; text-align: center;">Nicht umsetzen</th>
+              <th class="col-number">#</th>
+              ${!this.isKunde ? '<th class="col-drag"></th>' : ''}
+              <th class="col-image">Bild</th>
+              <th class="col-platform">Plattform</th>
+              <th class="col-link">Link</th>
+              <th class="col-beschreibung">Beschreibung</th>
+              <th class="col-anmerkung">Anmerkung Kunde</th>
+              <th class="col-prio">Prio 1</th>
+              <th class="col-prio">Prio 2</th>
+              <th class="col-nicht-umsetzen">Nicht umsetzen</th>
               ${!this.isKunde ? '<th class="col-actions">Aktionen</th>' : ''}
             </tr>
           </thead>
@@ -248,12 +248,12 @@ export class StrategieDetail {
 
     return `
       <tr class="item-row ${!this.isKunde ? 'draggable' : ''}" data-item-id="${item.id}" draggable="${!this.isKunde}">
-        <td style="text-align: center; font-weight: 600; color: var(--text-secondary);">
+        <td class="col-number">
           ${index + 1}
         </td>
         ${!this.isKunde ? `
-          <td class="drag-handle" style="cursor: move; text-align: center;">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px; color: var(--text-muted);">
+          <td class="col-drag drag-handle">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="drag-icon">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
             </svg>
           </td>

@@ -6922,3 +6922,59 @@ margin-bottom: var(--space-md);
   cursor: grabbing;
 }
 
+/* ==========================================================================
+   Strategie Items Tabelle - Spalten
+   ========================================================================== */
+
+.strategie-items-table .col-number {
+  width: var(--space-xl);
+  text-align: center;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.strategie-items-table .col-drag {
+  width: var(--space-lg);
+  text-align: center;
+  cursor: move;
+  padding: var(--space-xs);
+}
+
+.strategie-items-table .col-drag .drag-icon {
+  width: var(--space-md);
+  height: var(--space-md);
+  color: var(--text-muted);
+}
+
+.strategie-items-table .col-image {
+  width: calc(var(--space-xxl) * 2.5);
+}
+
+.strategie-items-table .col-platform {
+  width: var(--space-xxl);
+  text-align: center;
+}
+
+.strategie-items-table .col-link {
+  width: var(--space-xxl);
+  text-align: center;
+}
+
+.strategie-items-table .col-beschreibung {
+  min-width: calc(var(--space-xxl) * 3);
+}
+
+.strategie-items-table .col-anmerkung {
+  min-width: calc(var(--space-xxl) * 3);
+}
+
+.strategie-items-table .col-prio {
+  width: var(--space-xxl);
+  text-align: center;
+}
+
+.strategie-items-table .col-nicht-umsetzen {
+  width: calc(var(--space-xxl) * 1.5);
+  text-align: center;
+}
+
