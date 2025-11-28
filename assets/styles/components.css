@@ -1675,9 +1675,10 @@
 
 .drawer-body {
   flex: 1;
-  overflow: auto;
+  overflow-y: auto;
   padding: var(--space-md);
 }
+
 
 .drawer-close {
   background: var(--gray-100);
@@ -1704,9 +1705,67 @@
   border: 1px solid #e0e0e0;
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
+  z-index: 10000;
   margin-top: 4px;
 }
+
+
+/* Teilbereiche dynamische Rows */
+#teilbereiche-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.teilbereich-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.teilbereich-row .form-input {
+  flex: 1;
+}
+
+.teilbereich-add-btn,
+.teilbereich-remove-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.teilbereich-add-btn:hover {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+}
+
+.teilbereich-add-btn:hover svg {
+  stroke: white;
+}
+
+.teilbereich-remove-btn {
+  color: var(--color-error);
+  border-color: var(--color-error);
+}
+
+.teilbereich-remove-btn:hover {
+  background: var(--color-error);
+  color: white;
+}
+
+.teilbereich-remove-btn:hover svg {
+  stroke: white;
+}
+
 
 .dropdown-item {
   padding: 12px 16px;
@@ -3458,7 +3517,7 @@
   padding: var(--space-xxs) var(--space-xs);
   border-radius: 12px;
   font-size: var(--text-xs);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: var(--space-xxs);
   cursor: default;
@@ -3467,6 +3526,26 @@
 
 .tag-based-select .tag:hover {
   background: var(--color-primary-dark);
+}
+
+.tag-based-select .tag-remove,
+.tag-remove {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: var(--text-md);
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0;
+  margin-left: var(--space-xxs);
+  line-height: 1;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.tag-based-select .tag-remove:hover,
+.tag-remove:hover {
+  opacity: 1;
 }
 
 .tag-based-select .tag span:last-child {
@@ -4775,7 +4854,7 @@ margin-bottom: var(--space-md);
 
 /* Detail Container Styles */
 .detail-container {
-  max-width: 1200px;
+  
   margin: 0 auto;
   padding: var(--space-lg);
 }

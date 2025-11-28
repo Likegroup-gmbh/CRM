@@ -54,13 +54,11 @@ export class StrategieDetail {
     const canEdit = !this.isKunde;
 
     const html = `
-      <div class="detail-container">
-        ${this.renderHeader()}
-        
-        ${canEdit ? this.renderAddItemSection() : ''}
-        
-        ${this.renderItemsTable()}
-      </div>
+      ${this.renderHeader()}
+      
+      ${canEdit ? this.renderAddItemSection() : ''}
+      
+      ${this.renderItemsTable()}
     `;
 
     window.content.innerHTML = html;
@@ -150,12 +148,16 @@ export class StrategieDetail {
         <table class="data-table strategie-items-table">
           <thead>
             <tr>
+              <th style="width: 50px; text-align: center;">#</th>
               ${!this.isKunde ? '<th style="width: 40px;"></th>' : ''}
               <th style="width: 120px;">Bild</th>
-              <th>Link</th>
+              <th style="width: 60px; text-align: center;">Plattform</th>
+              <th style="width: 60px; text-align: center;">Link</th>
               <th>Beschreibung</th>
-              ${this.isKunde ? '<th>Anmerkung</th>' : '<th>Creator</th>'}
-              <th style="width: 80px; text-align: center;">Auswahl</th>
+              <th>Anmerkung Kunde</th>
+              <th style="width: 80px; text-align: center;">Prio 1</th>
+              <th style="width: 80px; text-align: center;">Prio 2</th>
+              <th style="width: 100px; text-align: center;">Nicht umsetzen</th>
               ${!this.isKunde ? '<th class="col-actions">Aktionen</th>' : ''}
             </tr>
           </thead>
@@ -172,9 +174,13 @@ export class StrategieDetail {
    */
   renderItemRow(item, index) {
     const platformIcon = this.getPlatformIcon(item.plattform);
+    const externalLinkIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>`;
 
     return `
       <tr class="item-row ${!this.isKunde ? 'draggable' : ''}" data-item-id="${item.id}" draggable="${!this.isKunde}">
+        <td style="text-align: center; font-weight: 600; color: var(--text-secondary);">
+          ${index + 1}
+        </td>
         ${!this.isKunde ? `
           <td class="drag-handle" style="cursor: move; text-align: center;">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px; color: var(--text-muted);">
@@ -191,10 +197,12 @@ export class StrategieDetail {
             </div>
           `}
         </td>
-        <td>
-          <a href="${item.video_link}" target="_blank" rel="noopener noreferrer" style="display: flex; align-items: center; gap: var(--space-xs); color: var(--color-primary); text-decoration: none;">
-            ${platformIcon}
-            <span style="font-size: var(--text-sm); word-break: break-all;">${this.shortenUrl(item.video_link)}</span>
+        <td style="text-align: center;">
+          ${platformIcon}
+        </td>
+        <td style="text-align: center;">
+          <a href="${item.video_link}" target="_blank" rel="noopener noreferrer" style="color: var(--color-primary); display: inline-flex;" title="${item.video_link}">
+            ${externalLinkIcon}
           </a>
         </td>
         <td>
@@ -213,47 +221,62 @@ export class StrategieDetail {
           `}
         </td>
         <td>
-          ${this.isKunde ? `
-            <input 
-              type="text" 
-              class="form-input" 
-              style="width: 100%; font-size: var(--text-sm);" 
-              value="${item.kunde_anmerkung || ''}" 
-              placeholder="Ihre Anmerkung..."
-              data-field="kunde_anmerkung"
-              data-item-id="${item.id}"
-            >
-          ` : `
-            <div class="creator-search-wrapper" data-item-id="${item.id}">
-              <input 
-                type="text" 
-                class="form-input creator-search" 
-                style="width: 100%; font-size: var(--text-sm);" 
-                value="${item.creator ? `${item.creator.vorname || ''} ${item.creator.nachname || ''}`.trim() : ''}" 
-                placeholder="Creator suchen..."
-                data-creator-id="${item.creator_id || ''}"
-                autocomplete="off"
-              >
-              <div class="creator-search-results" style="display: none;"></div>
-            </div>
-          `}
+          <input 
+            type="text" 
+            class="form-input" 
+            style="width: 100%; font-size: var(--text-sm);" 
+            value="${item.kunde_anmerkung || ''}" 
+            placeholder="${this.isKunde ? 'Ihre Anmerkung...' : 'Anmerkung Kunde...'}"
+            data-field="kunde_anmerkung"
+            data-item-id="${item.id}"
+            ${this.isKunde ? '' : 'readonly'}
+          >
         </td>
         <td style="text-align: center;">
           <input 
             type="checkbox" 
-            ${item.ausgewaehlt ? 'checked' : ''} 
-            data-field="ausgewaehlt"
+            ${item.prio_1 ? 'checked' : ''} 
+            data-field="prio_1"
+            data-item-id="${item.id}"
+            style="width: 20px; height: 20px; cursor: pointer;"
+          >
+        </td>
+        <td style="text-align: center;">
+          <input 
+            type="checkbox" 
+            ${item.prio_2 ? 'checked' : ''} 
+            data-field="prio_2"
+            data-item-id="${item.id}"
+            style="width: 20px; height: 20px; cursor: pointer;"
+          >
+        </td>
+        <td style="text-align: center;">
+          <input 
+            type="checkbox" 
+            ${item.nicht_umsetzen ? 'checked' : ''} 
+            data-field="nicht_umsetzen"
             data-item-id="${item.id}"
             style="width: 20px; height: 20px; cursor: pointer;"
           >
         </td>
         ${!this.isKunde ? `
           <td class="col-actions">
-            <button class="danger-btn" data-action="delete-item" data-id="${item.id}" title="Item löschen">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
-                <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-              </svg>
-            </button>
+            <div class="actions-dropdown-container" data-entity-type="strategie_item">
+              <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                </svg>
+              </button>
+              <div class="actions-dropdown">
+                <a href="#" class="action-item" data-action="add-to-video" data-id="${item.id}">
+                  Zu Video hinzufügen
+                </a>
+                <div class="action-separator"></div>
+                <a href="#" class="action-item action-danger" data-action="delete-item" data-id="${item.id}">
+                  Löschen
+                </a>
+              </div>
+            </div>
           </td>
         ` : ''}
       </tr>
@@ -301,9 +324,6 @@ export class StrategieDetail {
 
       // Drag & Drop
       this.bindDragAndDropEvents();
-
-      // Creator-Suche
-      this.bindCreatorSearchEvents();
     }
 
     // Beschreibung/Anmerkung Inputs
@@ -313,17 +333,29 @@ export class StrategieDetail {
       this._boundEventListeners.add(() => input.removeEventListener('blur', handler));
     });
 
-    // Checkbox Auswahl
+    // Checkbox Auswahl (Prio 1, Prio 2, Nicht umsetzen)
     document.querySelectorAll('input[type="checkbox"][data-field]').forEach(checkbox => {
       const handler = () => this.handleFieldUpdate(checkbox);
       checkbox.addEventListener('change', handler);
       this._boundEventListeners.add(() => checkbox.removeEventListener('change', handler));
     });
 
-    // Delete Buttons
+    // Actions Dropdown (Delete, Add to Video)
     if (!this.isKunde) {
       document.querySelectorAll('[data-action="delete-item"]').forEach(btn => {
-        const handler = () => this.handleDeleteItem(btn.dataset.id);
+        const handler = (e) => {
+          e.preventDefault();
+          this.handleDeleteItem(btn.dataset.id);
+        };
+        btn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
+      });
+
+      document.querySelectorAll('[data-action="add-to-video"]').forEach(btn => {
+        const handler = (e) => {
+          e.preventDefault();
+          this.handleAddToVideo(btn.dataset.id);
+        };
         btn.addEventListener('click', handler);
         this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
       });
@@ -590,6 +622,56 @@ export class StrategieDetail {
   }
 
   /**
+   * Nur die Tabelle neu rendern (ohne Events neu zu binden)
+   */
+  rerenderItemsTable() {
+    const tableContainer = document.querySelector('.table-container');
+    if (!tableContainer) return;
+
+    tableContainer.outerHTML = this.renderItemsTable();
+    
+    // Events für die neu gerenderte Tabelle binden
+    if (!this.isKunde) {
+      this.bindDragAndDropEvents();
+    }
+    
+    // Beschreibung/Anmerkung Inputs
+    document.querySelectorAll('input[data-field], textarea[data-field]').forEach(input => {
+      const handler = () => this.handleFieldUpdate(input);
+      input.addEventListener('blur', handler);
+      this._boundEventListeners.add(() => input.removeEventListener('blur', handler));
+    });
+
+    // Checkbox Auswahl (Prio 1, Prio 2, Nicht umsetzen)
+    document.querySelectorAll('input[type="checkbox"][data-field]').forEach(checkbox => {
+      const handler = () => this.handleFieldUpdate(checkbox);
+      checkbox.addEventListener('change', handler);
+      this._boundEventListeners.add(() => checkbox.removeEventListener('change', handler));
+    });
+
+    // Actions Dropdown (Delete, Add to Video)
+    if (!this.isKunde) {
+      document.querySelectorAll('[data-action="delete-item"]').forEach(btn => {
+        const handler = (e) => {
+          e.preventDefault();
+          this.handleDeleteItem(btn.dataset.id);
+        };
+        btn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
+      });
+
+      document.querySelectorAll('[data-action="add-to-video"]').forEach(btn => {
+        const handler = (e) => {
+          e.preventDefault();
+          this.handleAddToVideo(btn.dataset.id);
+        };
+        btn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
+      });
+    }
+  }
+
+  /**
    * Sortierung aktualisieren nach Drag & Drop
    */
   async handleSortUpdate() {
@@ -604,6 +686,10 @@ export class StrategieDetail {
     try {
       await strategieService.updateItemsSortierung(reorderedItems);
       this.items = reorderedItems;
+      
+      // Tabelle neu rendern um Nummerierung zu aktualisieren
+      this.rerenderItemsTable();
+      
       window.toastSystem?.show('Sortierung gespeichert', 'success');
     } catch (error) {
       console.error('Fehler beim Aktualisieren der Sortierung:', error);
@@ -633,6 +719,14 @@ export class StrategieDetail {
       console.error('Fehler beim Löschen des Items:', error);
       window.toastSystem?.show('Fehler beim Löschen', 'error');
     }
+  }
+
+  /**
+   * Item zu Video hinzufügen (Platzhalter)
+   */
+  async handleAddToVideo(itemId) {
+    window.toastSystem?.show('Diese Funktion wird demnächst implementiert', 'info');
+    console.log('Add to Video:', itemId);
   }
 
   /**
