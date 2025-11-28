@@ -160,6 +160,8 @@
   cursor: pointer;
   transition: all 0.2s ease;
   display: inline-flex;
+  gap: var(--space-xs);
+ 
 }
 
 .primary-btn:hover {
@@ -178,6 +180,7 @@
   display: inline-flex;
   align-items: center;
   color: var(--text-primary);
+  gap: var(--space-xs);
 }
 
 .secondary-btn:hover {
@@ -6887,7 +6890,7 @@ margin-bottom: var(--space-md);
    ========================================================================== */
 
 .category-header-cell {
-  background-color: var(--gray-200);
+  background-color: var(--gray-100);
   
  
   font-size: var(--text-xl);
@@ -6936,9 +6939,8 @@ margin-bottom: var(--space-md);
 .strategie-items-table .col-drag,
 .strategie-items-table th.col-drag,
 .strategie-items-table td.col-drag {
-  width: var(--space-lg) !important;
-  min-width: var(--space-lg) !important;
-  max-width: var(--space-lg) !important;
+  width: var(--space-xxl) !important;
+  min-width: var(--space-xs) !important;
   text-align: center;
   cursor: move;
   padding: var(--space-xxs);
@@ -6980,5 +6982,24 @@ margin-bottom: var(--space-md);
 .strategie-items-table .col-nicht-umsetzen {
   width: calc(var(--space-xxl) * 1.5);
   text-align: center;
+}
+
+/* Add Item Section */
+.add-item-section {
+  margin-bottom: var(--space-xl);
+
+  gap: var(--space-xs);
+}
+
+#add-item-form {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-sm);
+  align-items: end;
+  justify-content: space-between;
+}
+
+#add-item-form button[type="submit"] {
+  white-space: nowrap;
 }
 

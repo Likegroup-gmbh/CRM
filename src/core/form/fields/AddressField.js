@@ -52,7 +52,7 @@ export class AddressField extends BaseField {
           align-items: center;
           margin-bottom: 16px;
         ">
-          <h4 style="margin: 0; font-size: 16px; font-weight: 600; color: #374151;">Adresse ${addressId}</h4>
+          <h4>Adresse ${addressId}</h4>
           <button type="button" class="btn-remove-address" onclick="this.closest('.address-item').remove()" style="
             background: #ef4444;
             color: white;

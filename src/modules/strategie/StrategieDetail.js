@@ -79,7 +79,7 @@ export class StrategieDetail {
       <div class="detail-header" style="margin-bottom: var(--space-lg);">
         <div style="display: flex; justify-content: space-between; align-items: start;">
           <div>
-            <h2 style="margin: 0; font-size: var(--text-xxl);">${this.strategie.name}</h2>
+            <h2>${this.strategie.name}</h2>
             ${this.strategie.beschreibung ? `<p style="margin-top: var(--space-xs); color: var(--text-secondary);">${this.strategie.beschreibung}</p>` : ''}
             ${verknuepfung ? `<p style="margin-top: var(--space-xs); font-size: var(--text-sm); color: var(--text-secondary);">${verknuepfung}</p>` : ''}
           </div>
@@ -102,8 +102,8 @@ export class StrategieDetail {
     const teilbereiche = this.getTeilbereicheFromStrategie();
     
     const teilbereichSelect = teilbereiche.length > 0 ? `
-      <div class="form-field" style="margin: 0;">
-        <label for="item-teilbereich" style="margin-bottom: var(--space-xs); display: block;">Kategorie</label>
+      <div class="form-field">
+        <label for="item-teilbereich" >Kategorie</label>
         <select id="item-teilbereich" name="teilbereich" class="form-input">
           ${teilbereiche.map(tb => `<option value="${tb}">${tb}</option>`).join('')}
         </select>
@@ -111,12 +111,12 @@ export class StrategieDetail {
     ` : '';
     
     return `
-      <div class="add-item-section" style="background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius-lg); margin-bottom: var(--space-lg);">
-        <h3 style="margin: 0 0 var(--space-md) 0; font-size: var(--text-lg);">Video hinzufügen</h3>
+      <div class="add-item-section" >
+        <span>Video hinzufügen</span>
         
-        <form id="add-item-form" style="display: grid; grid-template-columns: ${teilbereiche.length > 0 ? '1fr 200px auto' : '1fr auto'}; gap: var(--space-sm); align-items: end;">
-          <div class="form-field" style="margin: 0;">
-            <label for="video-url" style="margin-bottom: var(--space-xs); display: block;">Video-URL *</label>
+        <form id="add-item-form" >
+          <div class="form-field">
+            <label for="video-url" >Video-URL *</label>
             <input 
               type="url" 
               id="video-url" 
@@ -128,7 +128,7 @@ export class StrategieDetail {
             >
           </div>
           ${teilbereichSelect}
-          <button type="submit" class="primary-btn" style="height: var(--height-input);">
+          <button type="submit" class="primary-btn">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
               <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
