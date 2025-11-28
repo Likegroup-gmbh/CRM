@@ -98,11 +98,23 @@ export class StrategieDetail {
    * Rendere Section zum Hinzufügen von Items
    */
   renderAddItemSection() {
+    // Teilbereiche aus der Strategie holen
+    const teilbereiche = this.getTeilbereicheFromStrategie();
+    
+    const teilbereichSelect = teilbereiche.length > 0 ? `
+      <div class="form-field" style="margin: 0;">
+        <label for="item-teilbereich" style="margin-bottom: var(--space-xs); display: block;">Kategorie</label>
+        <select id="item-teilbereich" name="teilbereich" class="form-input">
+          ${teilbereiche.map(tb => `<option value="${tb}">${tb}</option>`).join('')}
+        </select>
+      </div>
+    ` : '';
+    
     return `
       <div class="add-item-section" style="background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius-lg); margin-bottom: var(--space-lg);">
         <h3 style="margin: 0 0 var(--space-md) 0; font-size: var(--text-lg);">Video hinzufügen</h3>
         
-        <form id="add-item-form" style="display: grid; grid-template-columns: 1fr auto; gap: var(--space-sm); align-items: end;">
+        <form id="add-item-form" style="display: grid; grid-template-columns: ${teilbereiche.length > 0 ? '1fr 200px auto' : '1fr auto'}; gap: var(--space-sm); align-items: end;">
           <div class="form-field" style="margin: 0;">
             <label for="video-url" style="margin-bottom: var(--space-xs); display: block;">Video-URL *</label>
             <input 
@@ -115,6 +127,7 @@ export class StrategieDetail {
               style="width: 100%;"
             >
           </div>
+          ${teilbereichSelect}
           <button type="submit" class="primary-btn" style="height: var(--height-input);">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
@@ -128,7 +141,15 @@ export class StrategieDetail {
   }
 
   /**
-   * Rendere Tabelle mit Items
+   * Hole Teilbereiche aus der Strategie
+   */
+  getTeilbereicheFromStrategie() {
+    if (!this.strategie?.teilbereich) return [];
+    return this.strategie.teilbereich.split(',').map(tb => tb.trim()).filter(tb => tb);
+  }
+
+  /**
+   * Rendere Tabelle mit Items (gruppiert nach Teilbereich)
    */
   renderItemsTable() {
     if (this.items.length === 0) {
@@ -142,6 +163,10 @@ export class StrategieDetail {
         </div>
       `;
     }
+
+    // Items nach Teilbereich gruppieren
+    const groupedItems = this.groupItemsByTeilbereich(this.items);
+    const colCount = this.isKunde ? 10 : 11;
 
     return `
       <div class="table-container">
@@ -162,11 +187,56 @@ export class StrategieDetail {
             </tr>
           </thead>
           <tbody id="items-table-body">
-            ${this.items.map((item, index) => this.renderItemRow(item, index)).join('')}
+            ${this.renderGroupedItems(groupedItems, colCount)}
           </tbody>
         </table>
       </div>
     `;
+  }
+
+  /**
+   * Gruppiere Items nach Teilbereich
+   */
+  groupItemsByTeilbereich(items) {
+    const groups = {};
+    let globalIndex = 0;
+    
+    items.forEach(item => {
+      const teilbereich = item.teilbereich || 'Ohne Kategorie';
+      if (!groups[teilbereich]) {
+        groups[teilbereich] = [];
+      }
+      groups[teilbereich].push({ ...item, globalIndex: globalIndex++ });
+    });
+    
+    return groups;
+  }
+
+  /**
+   * Rendere gruppierte Items mit Kategorie-Headern
+   */
+  renderGroupedItems(groupedItems, colCount) {
+    const teilbereiche = Object.keys(groupedItems);
+    
+    // Wenn nur "Ohne Kategorie" existiert, keine Header anzeigen
+    if (teilbereiche.length === 1 && teilbereiche[0] === 'Ohne Kategorie') {
+      return groupedItems['Ohne Kategorie']
+        .map(item => this.renderItemRow(item, item.globalIndex))
+        .join('');
+    }
+    
+    // Mit Kategorie-Headern rendern
+    return teilbereiche.map(teilbereich => {
+      const items = groupedItems[teilbereich];
+      return `
+        <tr class="category-header-row">
+          <td colspan="${colCount}" style="background: var(--color-primary-light, #FFF3CD); padding: var(--space-sm) var(--space-md); font-weight: 600; text-align: center; color: var(--color-primary-dark, #856404); border-top: 2px solid var(--color-primary, #FFC107); border-bottom: 2px solid var(--color-primary, #FFC107);">
+            ${teilbereich}
+          </td>
+        </tr>
+        ${items.map(item => this.renderItemRow(item, item.globalIndex)).join('')}
+      `;
+    }).join('');
   }
 
   /**
@@ -560,13 +630,17 @@ export class StrategieDetail {
         console.log('📸 Screenshot-Generierung übersprungen (localhost)');
       }
 
+      // Teilbereich aus Formular holen
+      const teilbereich = formData.get('teilbereich') || null;
+
       // Item erstellen (auch ohne Screenshot)
       const itemData = {
         strategie_id: this.strategieId,
         video_link: videoUrl,
         screenshot_url: screenshotUrl,
         plattform: platform,
-        sortierung: this.items.length
+        sortierung: this.items.length,
+        teilbereich: teilbereich
       };
 
       await strategieService.createStrategieItem(itemData);

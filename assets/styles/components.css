@@ -6882,3 +6882,29 @@ margin-bottom: var(--space-md);
   }
 }
 
+/* ==========================================================================
+   Strategie Kategorie-Header
+   ========================================================================== */
+
+.category-header-row td {
+  background: linear-gradient(135deg, #FFF3CD 0%, #FFEEBA 100%) !important;
+  padding: var(--space-sm) var(--space-md) !important;
+  font-weight: 600 !important;
+  text-align: center !important;
+  color: #856404 !important;
+  border-top: 2px solid #FFC107 !important;
+  border-bottom: 2px solid #FFC107 !important;
+  font-size: var(--text-base) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Drag & Drop nicht für Header-Zeilen */
+.category-header-row {
+  cursor: default !important;
+}
+
+.category-header-row:hover td {
+  background: linear-gradient(135deg, #FFF3CD 0%, #FFEEBA 100%) !important;
+}
+
