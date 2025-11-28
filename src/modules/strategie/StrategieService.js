@@ -96,9 +96,45 @@ export class StrategieService {
   }
 
   /**
-   * Strategie löschen
+   * Strategie löschen (inkl. aller Items und Screenshots)
    */
   async deleteStrategie(id) {
+    // Zuerst alle Items dieser Strategie abrufen um Screenshots zu löschen
+    const { data: items } = await window.supabase
+      .from('strategie_items')
+      .select('id, screenshot_url')
+      .eq('strategie_id', id);
+
+    // Screenshots aus dem Storage löschen
+    if (items && items.length > 0) {
+      const screenshotPaths = items
+        .filter(item => item.screenshot_url)
+        .map(item => this.extractStoragePath(item.screenshot_url))
+        .filter(path => path);
+
+      if (screenshotPaths.length > 0) {
+        const { error: storageError } = await window.supabase.storage
+          .from('strategie-screenshots')
+          .remove(screenshotPaths);
+
+        if (storageError) {
+          console.warn('Fehler beim Löschen der Screenshots:', storageError);
+          // Nicht abbrechen, Strategie trotzdem löschen
+        }
+      }
+    }
+
+    // Items werden durch CASCADE automatisch gelöscht, aber zur Sicherheit:
+    const { error: itemsError } = await window.supabase
+      .from('strategie_items')
+      .delete()
+      .eq('strategie_id', id);
+
+    if (itemsError) {
+      console.warn('Fehler beim Löschen der Items:', itemsError);
+    }
+
+    // Strategie löschen
     const { error } = await window.supabase
       .from('strategie')
       .delete()
@@ -108,6 +144,16 @@ export class StrategieService {
       console.error('Fehler beim Löschen der Strategie:', error);
       throw error;
     }
+  }
+
+  /**
+   * Extrahiert den Storage-Pfad aus einer Screenshot-URL
+   */
+  extractStoragePath(url) {
+    if (!url) return null;
+    // URL-Format: https://xxx.supabase.co/storage/v1/object/public/strategie-screenshots/screenshots/filename.jpg
+    const match = url.match(/strategie-screenshots\/(.+)$/);
+    return match ? match[1] : null;
   }
 
   /**
@@ -172,9 +218,32 @@ export class StrategieService {
   }
 
   /**
-   * Strategie-Item löschen
+   * Strategie-Item löschen (inkl. Screenshot)
    */
   async deleteStrategieItem(id) {
+    // Zuerst das Item abrufen um Screenshot-URL zu bekommen
+    const { data: item } = await window.supabase
+      .from('strategie_items')
+      .select('screenshot_url')
+      .eq('id', id)
+      .single();
+
+    // Screenshot aus dem Storage löschen
+    if (item?.screenshot_url) {
+      const storagePath = this.extractStoragePath(item.screenshot_url);
+      if (storagePath) {
+        const { error: storageError } = await window.supabase.storage
+          .from('strategie-screenshots')
+          .remove([storagePath]);
+
+        if (storageError) {
+          console.warn('Fehler beim Löschen des Screenshots:', storageError);
+          // Nicht abbrechen, Item trotzdem löschen
+        }
+      }
+    }
+
+    // Item löschen
     const { error } = await window.supabase
       .from('strategie_items')
       .delete()
