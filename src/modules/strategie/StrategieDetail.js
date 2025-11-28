@@ -437,13 +437,16 @@ export class StrategieDetail {
    */
   bindDragAndDropEvents() {
     const rows = document.querySelectorAll('.item-row.draggable');
+    const categoryHeaders = document.querySelectorAll('.category-header-row');
     
     rows.forEach(row => {
       // Dragstart
       const dragstartHandler = (e) => {
         this.draggedItem = row;
+        this.draggedItemId = row.dataset.itemId;
         row.style.opacity = '0.5';
         e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', row.dataset.itemId);
       };
       row.addEventListener('dragstart', dragstartHandler);
       this._boundEventListeners.add(() => row.removeEventListener('dragstart', dragstartHandler));
@@ -452,11 +455,16 @@ export class StrategieDetail {
       const dragendHandler = () => {
         row.style.opacity = '1';
         this.draggedItem = null;
+        this.draggedItemId = null;
+        // Highlight von Kategorie-Headern entfernen
+        document.querySelectorAll('.category-header-row').forEach(h => {
+          h.classList.remove('drag-over');
+        });
       };
       row.addEventListener('dragend', dragendHandler);
       this._boundEventListeners.add(() => row.removeEventListener('dragend', dragendHandler));
 
-      // Dragover
+      // Dragover auf Item-Zeilen
       const dragoverHandler = (e) => {
         e.preventDefault();
         if (row === this.draggedItem) return;
@@ -474,7 +482,7 @@ export class StrategieDetail {
       row.addEventListener('dragover', dragoverHandler);
       this._boundEventListeners.add(() => row.removeEventListener('dragover', dragoverHandler));
 
-      // Drop
+      // Drop auf Item-Zeilen
       const dropHandler = (e) => {
         e.stopPropagation();
         this.handleSortUpdate();
@@ -482,6 +490,67 @@ export class StrategieDetail {
       row.addEventListener('drop', dropHandler);
       this._boundEventListeners.add(() => row.removeEventListener('drop', dropHandler));
     });
+
+    // Kategorie-Header als Drop-Ziele
+    categoryHeaders.forEach(header => {
+      const kategorie = header.querySelector('td')?.textContent?.trim();
+      
+      // Dragover auf Kategorie-Header
+      const dragoverHandler = (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        header.classList.add('drag-over');
+      };
+      header.addEventListener('dragover', dragoverHandler);
+      this._boundEventListeners.add(() => header.removeEventListener('dragover', dragoverHandler));
+
+      // Dragleave
+      const dragleaveHandler = () => {
+        header.classList.remove('drag-over');
+      };
+      header.addEventListener('dragleave', dragleaveHandler);
+      this._boundEventListeners.add(() => header.removeEventListener('dragleave', dragleaveHandler));
+
+      // Drop auf Kategorie-Header
+      const dropHandler = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        header.classList.remove('drag-over');
+        
+        if (!this.draggedItemId || !kategorie) return;
+        
+        // Teilbereich des Items ändern
+        await this.handleCategoryChange(this.draggedItemId, kategorie);
+      };
+      header.addEventListener('drop', dropHandler);
+      this._boundEventListeners.add(() => header.removeEventListener('drop', dropHandler));
+    });
+  }
+
+  /**
+   * Item in andere Kategorie verschieben
+   */
+  async handleCategoryChange(itemId, newKategorie) {
+    try {
+      // "Ohne Kategorie" auf null setzen
+      const teilbereich = newKategorie === 'Ohne Kategorie' ? null : newKategorie;
+      
+      await strategieService.updateStrategieItem(itemId, { teilbereich });
+      
+      // Items lokal aktualisieren
+      const item = this.items.find(i => i.id === itemId);
+      if (item) {
+        item.teilbereich = teilbereich;
+      }
+      
+      // Tabelle neu rendern
+      this.rerenderItemsTable();
+      
+      window.toastSystem?.show(`Video in "${newKategorie}" verschoben`, 'success');
+    } catch (error) {
+      console.error('Fehler beim Ändern der Kategorie:', error);
+      window.toastSystem?.show('Fehler beim Verschieben', 'error');
+    }
   }
 
   /**

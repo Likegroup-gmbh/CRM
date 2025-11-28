@@ -6899,12 +6899,31 @@ margin-bottom: var(--space-md);
   letter-spacing: 0.5px;
 }
 
-/* Drag & Drop nicht für Header-Zeilen */
+/* Drag & Drop für Header-Zeilen (als Drop-Target) */
 .category-header-row {
   cursor: default !important;
+  transition: all 0.2s ease;
 }
 
 .category-header-row:hover td {
   background: linear-gradient(135deg, #FFF3CD 0%, #FFEEBA 100%) !important;
+}
+
+/* Drag-Over Effekt für Kategorie-Header */
+.category-header-row.drag-over td {
+  background: linear-gradient(135deg, #D4EDDA 0%, #C3E6CB 100%) !important;
+  border-color: #28A745 !important;
+  color: #155724 !important;
+  transform: scale(1.01);
+  box-shadow: 0 0 10px rgba(40, 167, 69, 0.3);
+}
+
+/* Draggable Item Styling */
+.item-row.draggable {
+  cursor: grab;
+}
+
+.item-row.draggable:active {
+  cursor: grabbing;
 }
 
