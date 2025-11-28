@@ -99,11 +99,19 @@ export class StrategieService {
    * Strategie löschen (inkl. aller Items und Screenshots)
    */
   async deleteStrategie(id) {
+    console.log('🗑️ Lösche Strategie:', id);
+    
     // Zuerst alle Items dieser Strategie abrufen um Screenshots zu löschen
-    const { data: items } = await window.supabase
+    const { data: items, error: fetchError } = await window.supabase
       .from('strategie_items')
       .select('id, screenshot_url')
       .eq('strategie_id', id);
+
+    if (fetchError) {
+      console.warn('Fehler beim Abrufen der Items:', fetchError);
+    }
+
+    console.log('📸 Gefundene Items:', items?.length || 0);
 
     // Screenshots aus dem Storage löschen
     if (items && items.length > 0) {
@@ -112,14 +120,17 @@ export class StrategieService {
         .map(item => this.extractStoragePath(item.screenshot_url))
         .filter(path => path);
 
+      console.log('📸 Screenshot-Pfade zum Löschen:', screenshotPaths);
+
       if (screenshotPaths.length > 0) {
-        const { error: storageError } = await window.supabase.storage
+        const { error: storageError, data: storageData } = await window.supabase.storage
           .from('strategie-screenshots')
           .remove(screenshotPaths);
 
         if (storageError) {
-          console.warn('Fehler beim Löschen der Screenshots:', storageError);
-          // Nicht abbrechen, Strategie trotzdem löschen
+          console.warn('❌ Fehler beim Löschen der Screenshots:', storageError);
+        } else {
+          console.log('✅ Screenshots gelöscht:', storageData);
         }
       }
     }
@@ -144,6 +155,8 @@ export class StrategieService {
       console.error('Fehler beim Löschen der Strategie:', error);
       throw error;
     }
+    
+    console.log('✅ Strategie erfolgreich gelöscht');
   }
 
   /**
@@ -153,7 +166,10 @@ export class StrategieService {
     if (!url) return null;
     // URL-Format: https://xxx.supabase.co/storage/v1/object/public/strategie-screenshots/screenshots/filename.jpg
     const match = url.match(/strategie-screenshots\/(.+)$/);
-    return match ? match[1] : null;
+    const path = match ? match[1] : null;
+    console.log('📸 Screenshot-URL:', url);
+    console.log('📸 Extrahierter Pfad:', path);
+    return path;
   }
 
   /**
@@ -221,26 +237,38 @@ export class StrategieService {
    * Strategie-Item löschen (inkl. Screenshot)
    */
   async deleteStrategieItem(id) {
+    console.log('🗑️ Lösche Strategie-Item:', id);
+    
     // Zuerst das Item abrufen um Screenshot-URL zu bekommen
-    const { data: item } = await window.supabase
+    const { data: item, error: fetchError } = await window.supabase
       .from('strategie_items')
       .select('screenshot_url')
       .eq('id', id)
       .single();
 
+    if (fetchError) {
+      console.warn('Fehler beim Abrufen des Items:', fetchError);
+    }
+
+    console.log('📸 Item-Daten:', item);
+
     // Screenshot aus dem Storage löschen
     if (item?.screenshot_url) {
       const storagePath = this.extractStoragePath(item.screenshot_url);
       if (storagePath) {
-        const { error: storageError } = await window.supabase.storage
+        console.log('🗑️ Lösche Screenshot aus Bucket:', storagePath);
+        const { error: storageError, data: storageData } = await window.supabase.storage
           .from('strategie-screenshots')
           .remove([storagePath]);
 
         if (storageError) {
-          console.warn('Fehler beim Löschen des Screenshots:', storageError);
-          // Nicht abbrechen, Item trotzdem löschen
+          console.warn('❌ Fehler beim Löschen des Screenshots:', storageError);
+        } else {
+          console.log('✅ Screenshot gelöscht:', storageData);
         }
       }
+    } else {
+      console.log('ℹ️ Kein Screenshot vorhanden');
     }
 
     // Item löschen
@@ -253,6 +281,8 @@ export class StrategieService {
       console.error('Fehler beim Löschen des Strategie-Items:', error);
       throw error;
     }
+    
+    console.log('✅ Item erfolgreich gelöscht');
   }
 
   /**
