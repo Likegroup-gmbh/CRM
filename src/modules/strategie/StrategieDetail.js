@@ -230,7 +230,7 @@ export class StrategieDetail {
       const items = groupedItems[teilbereich];
       return `
         <tr class="category-header-row">
-          <td colspan="${colCount}" style="background: var(--color-primary-light, #FFF3CD); padding: var(--space-sm) var(--space-md); font-weight: 600; text-align: center; color: var(--color-primary-dark, #856404); border-top: 2px solid var(--color-primary, #FFC107); border-bottom: 2px solid var(--color-primary, #FFC107);">
+          <td colspan="${colCount}" class="category-header-cell">
             ${teilbereich}
           </td>
         </tr>

@@ -6886,15 +6886,15 @@ margin-bottom: var(--space-md);
    Strategie Kategorie-Header
    ========================================================================== */
 
-.category-header-row td {
-  background: linear-gradient(135deg, #FFF3CD 0%, #FFEEBA 100%) !important;
-  padding: var(--space-sm) var(--space-md) !important;
-  font-weight: 600 !important;
-  text-align: center !important;
-  color: #856404 !important;
-  border-top: 2px solid #FFC107 !important;
-  border-bottom: 2px solid #FFC107 !important;
-  font-size: var(--text-base) !important;
+.category-header-cell {
+  background: linear-gradient(135deg, #FFF3CD 0%, #FFEEBA 100%);
+  padding: var(--space-sm) var(--space-md);
+  font-weight: 600;
+  text-align: center;
+  color: #856404;
+  border-top: 2px solid #FFC107;
+  border-bottom: 2px solid #FFC107;
+  font-size: var(--text-base);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -6905,15 +6905,15 @@ margin-bottom: var(--space-md);
   transition: all 0.2s ease;
 }
 
-.category-header-row:hover td {
-  background: linear-gradient(135deg, #FFF3CD 0%, #FFEEBA 100%) !important;
+.category-header-row:hover .category-header-cell {
+  background: linear-gradient(135deg, #FFF3CD 0%, #FFEEBA 100%);
 }
 
 /* Drag-Over Effekt für Kategorie-Header */
-.category-header-row.drag-over td {
-  background: linear-gradient(135deg, #D4EDDA 0%, #C3E6CB 100%) !important;
-  border-color: #28A745 !important;
-  color: #155724 !important;
+.category-header-row.drag-over .category-header-cell {
+  background: linear-gradient(135deg, #D4EDDA 0%, #C3E6CB 100%);
+  border-color: #28A745;
+  color: #155724;
   transform: scale(1.01);
   box-shadow: 0 0 10px rgba(40, 167, 69, 0.3);
 }
