@@ -6933,11 +6933,15 @@ margin-bottom: var(--space-md);
   color: var(--text-secondary);
 }
 
-.strategie-items-table .col-drag {
-  width: var(--space-lg);
+.strategie-items-table .col-drag,
+.strategie-items-table th.col-drag,
+.strategie-items-table td.col-drag {
+  width: var(--space-lg) !important;
+  min-width: var(--space-lg) !important;
+  max-width: var(--space-lg) !important;
   text-align: center;
   cursor: move;
-  padding: var(--space-xs);
+  padding: var(--space-xxs);
 }
 
 .strategie-items-table .col-drag .drag-icon {
