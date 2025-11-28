@@ -819,16 +819,36 @@ export class StrategieDetail {
    */
   async handleSortUpdate() {
     const tbody = document.getElementById('items-table-body');
-    const rows = Array.from(tbody.querySelectorAll('.item-row'));
+    const allRows = Array.from(tbody.querySelectorAll('tr'));
     
-    const reorderedItems = rows.map(row => {
-      const itemId = row.dataset.itemId;
-      return this.items.find(i => i.id === itemId);
+    // Ermittle für jedes Item den aktuellen Teilbereich basierend auf Position in der Tabelle
+    let currentKategorie = null;
+    const updatedItems = [];
+    
+    allRows.forEach(row => {
+      if (row.classList.contains('category-header-row')) {
+        // Kategorie-Header gefunden - merke die aktuelle Kategorie
+        currentKategorie = row.querySelector('td')?.textContent?.trim();
+        if (currentKategorie === 'Ohne Kategorie') {
+          currentKategorie = null;
+        }
+      } else if (row.classList.contains('item-row')) {
+        // Item-Zeile gefunden
+        const itemId = row.dataset.itemId;
+        const item = this.items.find(i => i.id === itemId);
+        if (item) {
+          updatedItems.push({
+            ...item,
+            teilbereich: currentKategorie
+          });
+        }
+      }
     });
 
     try {
-      await strategieService.updateItemsSortierung(reorderedItems);
-      this.items = reorderedItems;
+      // Sortierung und Teilbereich aktualisieren
+      await strategieService.updateItemsSortierungWithTeilbereich(updatedItems);
+      this.items = updatedItems;
       
       // Tabelle neu rendern um Nummerierung zu aktualisieren
       this.rerenderItemsTable();

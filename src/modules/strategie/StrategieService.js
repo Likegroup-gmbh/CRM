@@ -281,6 +281,29 @@ export class StrategieService {
   }
 
   /**
+   * Sortierung und Teilbereich mehrerer Items aktualisieren
+   */
+  async updateItemsSortierungWithTeilbereich(items) {
+    const promises = items.map((item, index) =>
+      window.supabase
+        .from('strategie_items')
+        .update({ 
+          sortierung: index,
+          teilbereich: item.teilbereich 
+        })
+        .eq('id', item.id)
+    );
+
+    const results = await Promise.all(promises);
+    
+    const errors = results.filter(r => r.error);
+    if (errors.length > 0) {
+      console.error('Fehler beim Aktualisieren der Sortierung/Teilbereich:', errors);
+      throw new Error('Sortierung konnte nicht aktualisiert werden');
+    }
+  }
+
+  /**
    * Screenshot über Netlify Function generieren
    */
   async generateScreenshot(videoUrl) {
