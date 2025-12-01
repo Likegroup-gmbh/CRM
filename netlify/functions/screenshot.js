@@ -203,41 +203,77 @@ async function handleInstagramPopups(page) {
 async function handleYouTubePopups(page) {
   console.log('🍪 YouTube: Cookie-Banner...');
   
-  // Länger warten für serverless Environment
-  await new Promise(r => setTimeout(r, 3000));
+  // Länger warten für Cookie-Banner (5 Sekunden)
+  await new Promise(r => setTimeout(r, 5000));
   
   try {
     let clicked = false;
     
-    // STRATEGIE 0: IFRAME-Suche (Google Consent ist typischerweise in iframe!)
-    const frames = page.frames();
-    console.log(`🔍 Gefunden: ${frames.length} frames`);
-    
-    // ALLE Frames durchsuchen (nicht nur consent URLs)
-    for (const frame of frames) {
-      const url = frame.url();
-      try {
-        const frameClicked = await frame.evaluate(() => {
-          const buttons = document.querySelectorAll('button, [role="button"]');
+    // STRATEGIE 0: YouTube-spezifische Consent-Elemente direkt suchen
+    const consentFound = await page.evaluate(() => {
+      // YouTube Consent Custom Elements
+      const consentSelectors = [
+        'ytd-consent-bump-v2-lightbox',
+        'tp-yt-paper-dialog',
+        '[class*="consent"]',
+        '#dialog[class*="consent"]'
+      ];
+      
+      for (const sel of consentSelectors) {
+        const el = document.querySelector(sel);
+        if (el) {
+          // Suche Buttons innerhalb des Consent Elements
+          const buttons = el.querySelectorAll('button, [role="button"]');
           for (const btn of buttons) {
             const text = btn.textContent || '';
             const ariaLabel = btn.getAttribute('aria-label') || '';
             if (text.includes('Alle ablehnen') || text.includes('Reject all') ||
-                ariaLabel.includes('Alle ablehnen') || ariaLabel.includes('Reject all')) {
+                text.includes('ablehnen') || text.includes('Reject') ||
+                ariaLabel.includes('ablehnen') || ariaLabel.includes('Reject')) {
               btn.click();
-              return true;
+              return { clicked: true, selector: sel };
             }
           }
-          return false;
-        });
-        
-        if (frameClicked) {
-          clicked = true;
-          console.log(`✅ YouTube Cookie-Banner geschlossen (iframe: ${url.substring(0, 50)})`);
-          break;
         }
-      } catch (e) {
-        // Frame nicht mehr verfügbar oder Cross-Origin
+      }
+      return { clicked: false };
+    });
+    
+    if (consentFound.clicked) {
+      clicked = true;
+      console.log(`✅ YouTube Cookie-Banner geschlossen (${consentFound.selector})`);
+    }
+    
+    // STRATEGIE 1: IFRAME-Suche (consent.youtube.com)
+    if (!clicked) {
+      const frames = page.frames();
+      console.log(`🔍 Gefunden: ${frames.length} frames`);
+      
+      for (const frame of frames) {
+        const url = frame.url();
+        try {
+          const frameClicked = await frame.evaluate(() => {
+            const buttons = document.querySelectorAll('button, [role="button"]');
+            for (const btn of buttons) {
+              const text = btn.textContent || '';
+              const ariaLabel = btn.getAttribute('aria-label') || '';
+              if (text.includes('Alle ablehnen') || text.includes('Reject all') ||
+                  ariaLabel.includes('Alle ablehnen') || ariaLabel.includes('Reject all')) {
+                btn.click();
+                return true;
+              }
+            }
+            return false;
+          });
+          
+          if (frameClicked) {
+            clicked = true;
+            console.log(`✅ YouTube Cookie-Banner geschlossen (iframe: ${url.substring(0, 50)})`);
+            break;
+          }
+        } catch (e) {
+          // Frame nicht mehr verfügbar oder Cross-Origin
+        }
       }
     }
     
@@ -321,40 +357,49 @@ async function handleYouTubePopups(page) {
         if (i === 2 && !clicked) {
           const debug = await page.evaluate(() => {
             const info = [];
+            
+            // YouTube-spezifische Consent Elemente suchen
+            const consentSelectors = ['ytd-consent-bump-v2-lightbox', 'tp-yt-paper-dialog', '[class*="consent"]'];
+            let consentFound = 'none';
+            for (const sel of consentSelectors) {
+              if (document.querySelector(sel)) {
+                consentFound = sel;
+                break;
+              }
+            }
+            info.push(`Consent: ${consentFound}`);
+            
             let shadowCount = 0;
             document.querySelectorAll('*').forEach(el => {
               if (el.shadowRoot) shadowCount++;
             });
-            info.push(`Shadow DOMs: ${shadowCount}`);
+            info.push(`Shadow: ${shadowCount}`);
+            
             const buttons = document.querySelectorAll('button');
             info.push(`Buttons: ${buttons.length}`);
-            buttons.forEach((btn, idx) => {
-              if (idx < 5) {
-                const text = btn.textContent?.trim().substring(0, 30);
-                const aria = btn.getAttribute('aria-label')?.substring(0, 30);
-                info.push(`${idx+1}:"${text}"|"${aria}"`);
-              }
-            });
+            
             return info.join(' | ');
           });
-          console.log('Debug Main:', debug);
+          console.log('Debug:', debug);
           
-          // Debug alle Frames mit Button-Details
-          for (const frame of frames) {
+          // Debug alle Frames
+          const allFrames = page.frames();
+          for (const frame of allFrames) {
             try {
               const frameDebug = await frame.evaluate(() => {
                 const buttons = document.querySelectorAll('button, [role="button"]');
-                const info = [`Buttons: ${buttons.length}`];
+                const ablehnenButtons = [];
                 buttons.forEach((btn, idx) => {
-                  if (idx < 20) {
-                    const text = btn.textContent?.trim().substring(0, 40) || '';
-                    const ariaLabel = btn.getAttribute('aria-label')?.substring(0, 30) || '';
-                    info.push(`${idx+1}:"${text}"|"${ariaLabel}"`);
+                  const text = btn.textContent?.trim() || '';
+                  if (text.toLowerCase().includes('ablehnen') || text.toLowerCase().includes('reject')) {
+                    ablehnenButtons.push(text.substring(0, 30));
                   }
                 });
-                return info.join(' | ');
+                return { total: buttons.length, ablehnen: ablehnenButtons };
               });
-              console.log(`Frame (${frame.url().substring(0, 40)}): ${frameDebug}`);
+              if (frameDebug.ablehnen.length > 0) {
+                console.log(`Frame mit Ablehnen: ${frameDebug.ablehnen.join(', ')}`);
+              }
             } catch (e) {}
           }
         }
@@ -435,6 +480,12 @@ exports.handler = async (event, context) => {
     
     await page.setUserAgent(userAgent);
 
+    // Extra Headers für EU/DE Region (GDPR Cookie-Banner)
+    await page.setExtraHTTPHeaders({
+      'Accept-Language': 'de-DE,de;q=0.9,en;q=0.8',
+      'X-Forwarded-For': '85.214.132.117' // Deutsche IP simulieren
+    });
+
     // Ressourcen blocken für Geschwindigkeit
     await page.setRequestInterception(true);
     page.on('request', (req) => {
@@ -446,10 +497,10 @@ exports.handler = async (event, context) => {
       }
     });
 
-    // Navigation
+    // Navigation - YouTube braucht networkidle2 für Cookie-Banner
     console.log('🌐 Navigating...');
     await page.goto(url, { 
-      waitUntil: 'domcontentloaded',
+      waitUntil: platform === 'youtube' ? 'networkidle2' : 'domcontentloaded',
       timeout: 25000 
     });
 
