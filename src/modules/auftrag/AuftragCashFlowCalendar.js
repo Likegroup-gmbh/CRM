@@ -2,6 +2,7 @@
 // Cash Flow Kalender-Ansicht für Aufträge mit monatlicher Übersicht
 
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
+import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 
 export class AuftragCashFlowCalendar {
   constructor() {
@@ -246,7 +247,15 @@ export class AuftragCashFlowCalendar {
     
     this.groupedData.forEach((group, index) => {
       const unternehmenName = group.unternehmen?.firmenname || 'Unbekanntes Unternehmen';
-      const markeName = group.marke?.markenname || '';
+      
+      // Marke als Avatar-Bubble rendern
+      const markeBubble = group.marke ? avatarBubbles.renderBubbles([{
+        name: group.marke.markenname,
+        logo_url: group.marke.logo_url,
+        type: 'org',
+        id: group.marke.id,
+        entityType: 'marke'
+      }]) : '';
       
       // Jahres-Total für diese Marke berechnen
       const yearTotal = group.months.reduce((sum, m) => sum + m.total, 0);
@@ -255,7 +264,7 @@ export class AuftragCashFlowCalendar {
       rows.push(`
         <tr class="cash-flow-data-row" data-group-index="${index}">
           <td class="sticky-col unternehmen-cell">${this.escapeHtml(unternehmenName)}</td>
-          <td class="sticky-col-2 marke-cell">${markeName ? this.escapeHtml(markeName) : ''}</td>
+          <td class="sticky-col-2 marke-cell">${markeBubble}</td>
           ${group.months.map((month, monthIndex) => this.renderCell(month, index, monthIndex)).join('')}
           <td class="total-cell">${this.formatCurrency(yearTotal)}</td>
         </tr>
@@ -273,12 +282,19 @@ export class AuftragCashFlowCalendar {
     
     const statusClass = month.status === 'paid' ? 'paid' : 'invoiced';
     const tooltip = this.generateTooltip(month.auftraege);
+    const auftragCount = month.auftraege.length;
+    
+    // Zeige Indikator nur wenn mehr als 1 Auftrag
+    const countIndicator = auftragCount > 1 
+      ? `<span class="cash-flow-count-indicator" title="${auftragCount} Aufträge">${auftragCount}</span>` 
+      : '';
     
     return `
       <td class="cash-flow-cell ${statusClass}" 
           data-group="${groupIndex}" 
           data-month="${monthIndex}"
           title="${tooltip}">
+        ${countIndicator}
         ${this.formatCurrency(month.total)}
       </td>
     `;
