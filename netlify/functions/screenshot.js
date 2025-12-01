@@ -354,41 +354,88 @@ exports.handler = async (event, context) => {
     browser = await puppeteerExtra.launch({
       args: [
         ...chromium.args,
-        '--disable-blink-features=AutomationControlled', // Versteckt Automation-Flag
+        '--disable-blink-features=AutomationControlled',
+        '--disable-features=IsolateOrigins,site-per-process',
         '--no-sandbox',
-        '--disable-setuid-sandbox'
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--disable-gpu',
+        '--window-size=1920,1080'
       ],
       defaultViewport: viewport,
       executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
-      ignoreDefaultArgs: ['--enable-automation'] // Entfernt Automation-Hinweis
+      headless: 'new', // Neuer Headless-Modus (weniger Bot-Detection)
+      ignoreDefaultArgs: ['--enable-automation']
     });
 
     const page = await browser.newPage();
     
-    // User-Agent (Mobile für TikTok/Instagram)
+    // Aktueller User-Agent (wichtig für Bot-Detection!)
     const userAgent = isMobile
-      ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
-      : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+      ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1'
+      : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
     
     await page.setUserAgent(userAgent);
 
-    // Extra Headers für EU/DE Region (GDPR Cookie-Banner)
+    // Vollständige Browser-Headers (wie ein echter Browser)
     await page.setExtraHTTPHeaders({
-      'Accept-Language': 'de-DE,de;q=0.9,en;q=0.8',
-      'X-Forwarded-For': '85.214.132.117' // Deutsche IP simulieren
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+      'Accept-Language': 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Connection': 'keep-alive',
+      'Upgrade-Insecure-Requests': '1',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'none',
+      'Sec-Fetch-User': '?1',
+      'Cache-Control': 'max-age=0'
     });
 
-    // Ressourcen blocken für Geschwindigkeit
-    await page.setRequestInterception(true);
-    page.on('request', (req) => {
-      const resourceType = req.resourceType();
-      if (['font', 'media', 'websocket'].includes(resourceType)) {
-        req.abort();
-      } else {
-        req.continue();
-      }
+    // Anti-Bot JavaScript Injection
+    await page.evaluateOnNewDocument(() => {
+      // Navigator plugins (wie ein echter Browser)
+      Object.defineProperty(navigator, 'plugins', {
+        get: () => [
+          { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer' },
+          { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai' },
+          { name: 'Native Client', filename: 'internal-nacl-plugin' }
+        ]
+      });
+      
+      // Navigator language
+      Object.defineProperty(navigator, 'language', { get: () => 'de-DE' });
+      Object.defineProperty(navigator, 'languages', { get: () => ['de-DE', 'de', 'en-US', 'en'] });
+      
+      // WebDriver Flag verstecken
+      Object.defineProperty(navigator, 'webdriver', { get: () => false });
+      
+      // Chrome runtime
+      window.chrome = { runtime: {} };
+      
+      // Permissions
+      const originalQuery = window.navigator.permissions.query;
+      window.navigator.permissions.query = (parameters) => (
+        parameters.name === 'notifications' ?
+          Promise.resolve({ state: Notification.permission }) :
+          originalQuery(parameters)
+      );
     });
+
+    // WICHTIG: Media NICHT blockieren für YouTube!
+    if (platform !== 'youtube') {
+      await page.setRequestInterception(true);
+      page.on('request', (req) => {
+        const resourceType = req.resourceType();
+        if (['font', 'websocket'].includes(resourceType)) {
+          req.abort();
+        } else {
+          req.continue();
+        }
+      });
+    }
 
     // Navigation
     console.log('🌐 Navigating...');
