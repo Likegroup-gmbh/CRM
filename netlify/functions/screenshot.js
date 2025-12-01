@@ -493,6 +493,28 @@ exports.handler = async (event, context) => {
         }
       }
       
+      // DEBUG: Fullscreen Screenshot für Analyse
+      console.log('📸 DEBUG: Mache Fullscreen-Screenshot...');
+      const debugScreenshot = await page.screenshot({
+        type: 'jpeg',
+        quality: 80,
+        fullPage: false
+      });
+      
+      // Upload Debug-Screenshot
+      const debugFileName = `debug-youtube-${Date.now()}.jpg`;
+      const { data: debugUpload, error: debugError } = await supabase.storage
+        .from('strategie-screenshots')
+        .upload(`screenshots/${debugFileName}`, debugScreenshot, {
+          contentType: 'image/jpeg',
+          upsert: true
+        });
+      
+      if (!debugError) {
+        const debugUrl = `${supabaseUrl}/storage/v1/object/public/strategie-screenshots/screenshots/${debugFileName}`;
+        console.log('🔍 DEBUG Screenshot:', debugUrl);
+      }
+      
       // Extra Wartezeit
       await new Promise(r => setTimeout(r, 1000));
     }
