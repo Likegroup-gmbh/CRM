@@ -885,6 +885,7 @@ export class StrategieList {
    * Setup Auto-Suggestion für Edit-Dialog
    */
   setupEditAutoSuggestion(strategie) {
+    // State für ausgewählte Werte (mit Vorauswahl aus Strategie)
     let selectedUnternehmenId = strategie.unternehmen_id || null;
     let selectedMarkeId = strategie.marke_id || null;
     let selectedKampagneId = strategie.kampagne_id || null;
@@ -893,152 +894,191 @@ export class StrategieList {
     const addTag = (containerId, id, label, onRemove) => {
       const container = document.getElementById(containerId);
       if (!container) return;
+      
+      // Nur ein Tag erlaubt - vorher leeren
       container.innerHTML = '';
       
       const tag = document.createElement('span');
       tag.className = 'tag';
       tag.dataset.id = id;
-      tag.innerHTML = `
-        ${label}
-        <button type="button" class="tag-remove" aria-label="Entfernen">&times;</button>
-      `;
-      tag.querySelector('.tag-remove').addEventListener('click', () => {
-        tag.remove();
+      tag.textContent = label;
+      
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'tag-remove';
+      closeBtn.innerHTML = '&times;';
+      closeBtn.addEventListener('click', () => {
         onRemove();
+        tag.remove();
       });
+      
+      tag.appendChild(closeBtn);
       container.appendChild(tag);
     };
 
     // Bestehende Tags setzen
     if (strategie.unternehmen) {
-      addTag('edit-tags-unternehmen', strategie.unternehmen.id, strategie.unternehmen.firmenname, () => { selectedUnternehmenId = null; });
+      addTag('edit-tags-unternehmen', strategie.unternehmen.id, strategie.unternehmen.firmenname, () => { 
+        selectedUnternehmenId = null; 
+      });
     }
     if (strategie.marke) {
-      addTag('edit-tags-marke', strategie.marke.id, strategie.marke.markenname, () => { selectedMarkeId = null; });
+      addTag('edit-tags-marke', strategie.marke.id, strategie.marke.markenname, () => { 
+        selectedMarkeId = null; 
+      });
     }
     if (strategie.kampagne) {
-      addTag('edit-tags-kampagne', strategie.kampagne.id, strategie.kampagne.kampagnenname, () => { selectedKampagneId = null; });
-    }
-
-    // Unternehmen Auto-Suggest
-    const unternehmenInput = document.getElementById('edit-as-unternehmen');
-    const unternehmenDropdown = document.getElementById('edit-asdd-unternehmen');
-    
-    if (unternehmenInput && unternehmenDropdown) {
-      let debounceTimer;
-      unternehmenInput.addEventListener('input', async () => {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(async () => {
-          const searchTerm = unternehmenInput.value.trim();
-          if (searchTerm.length < 2) {
-            unternehmenDropdown.innerHTML = '';
-            unternehmenDropdown.style.display = 'none';
-            return;
-          }
-          
-          const results = await strategieService.getAllUnternehmen();
-          const filtered = results.filter(u => u.firmenname.toLowerCase().includes(searchTerm.toLowerCase()));
-          
-          if (filtered.length === 0) {
-            unternehmenDropdown.innerHTML = '<div class="auto-suggest-item">Keine Ergebnisse</div>';
-          } else {
-            unternehmenDropdown.innerHTML = filtered.map(u => 
-              `<div class="auto-suggest-item" data-id="${u.id}" data-name="${u.firmenname}">${u.firmenname}</div>`
-            ).join('');
-          }
-          unternehmenDropdown.style.display = 'block';
-          
-          unternehmenDropdown.querySelectorAll('.auto-suggest-item[data-id]').forEach(item => {
-            item.addEventListener('click', () => {
-              selectedUnternehmenId = item.dataset.id;
-              addTag('edit-tags-unternehmen', item.dataset.id, item.dataset.name, () => { selectedUnternehmenId = null; });
-              unternehmenInput.value = '';
-              unternehmenDropdown.style.display = 'none';
-            });
-          });
-        }, 300);
+      addTag('edit-tags-kampagne', strategie.kampagne.id, strategie.kampagne.kampagnenname, () => { 
+        selectedKampagneId = null; 
       });
     }
 
-    // Marke Auto-Suggest
-    const markeInput = document.getElementById('edit-as-marke');
-    const markeDropdown = document.getElementById('edit-asdd-marke');
-    
-    if (markeInput && markeDropdown) {
-      let debounceTimer;
-      markeInput.addEventListener('input', async () => {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(async () => {
-          const searchTerm = markeInput.value.trim();
-          if (searchTerm.length < 2) {
-            markeDropdown.innerHTML = '';
-            markeDropdown.style.display = 'none';
-            return;
-          }
-          
-          const results = await strategieService.getAllMarken();
-          const filtered = results.filter(m => m.markenname.toLowerCase().includes(searchTerm.toLowerCase()));
-          
-          if (filtered.length === 0) {
-            markeDropdown.innerHTML = '<div class="auto-suggest-item">Keine Ergebnisse</div>';
-          } else {
-            markeDropdown.innerHTML = filtered.map(m => 
-              `<div class="auto-suggest-item" data-id="${m.id}" data-name="${m.markenname}">${m.markenname}</div>`
-            ).join('');
-          }
-          markeDropdown.style.display = 'block';
-          
-          markeDropdown.querySelectorAll('.auto-suggest-item[data-id]').forEach(item => {
-            item.addEventListener('click', () => {
-              selectedMarkeId = item.dataset.id;
-              addTag('edit-tags-marke', item.dataset.id, item.dataset.name, () => { selectedMarkeId = null; });
-              markeInput.value = '';
-              markeDropdown.style.display = 'none';
-            });
-          });
-        }, 300);
-      });
-    }
+    // Helper: Auto-Suggest binden
+    const bindAutoSuggest = (inputId, dropdownId, queryFn, onSelect, renderItem) => {
+      const input = document.getElementById(inputId);
+      const dropdown = document.getElementById(dropdownId);
+      if (!input || !dropdown) return;
 
-    // Kampagne Auto-Suggest
-    const kampagneInput = document.getElementById('edit-as-kampagne');
-    const kampagneDropdown = document.getElementById('edit-asdd-kampagne');
-    
-    if (kampagneInput && kampagneDropdown) {
-      let debounceTimer;
-      kampagneInput.addEventListener('input', async () => {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(async () => {
-          const searchTerm = kampagneInput.value.trim();
-          if (searchTerm.length < 2) {
-            kampagneDropdown.innerHTML = '';
-            kampagneDropdown.style.display = 'none';
-            return;
-          }
-          
-          const results = await strategieService.getAllKampagnen();
-          const filtered = results.filter(k => k.kampagnenname.toLowerCase().includes(searchTerm.toLowerCase()));
-          
-          if (filtered.length === 0) {
-            kampagneDropdown.innerHTML = '<div class="auto-suggest-item">Keine Ergebnisse</div>';
-          } else {
-            kampagneDropdown.innerHTML = filtered.map(k => 
-              `<div class="auto-suggest-item" data-id="${k.id}" data-name="${k.kampagnenname}">${k.kampagnenname}</div>`
-            ).join('');
-          }
-          kampagneDropdown.style.display = 'block';
-          
-          kampagneDropdown.querySelectorAll('.auto-suggest-item[data-id]').forEach(item => {
-            item.addEventListener('click', () => {
-              selectedKampagneId = item.dataset.id;
-              addTag('edit-tags-kampagne', item.dataset.id, item.dataset.name, () => { selectedKampagneId = null; });
-              kampagneInput.value = '';
-              kampagneDropdown.style.display = 'none';
-            });
-          });
-        }, 300);
+      let debounce;
+      const renderNoResults = (text) => {
+        dropdown.innerHTML = `<div class="dropdown-item no-results">${text}</div>`;
+      };
+
+      // Bei Focus: Vorschläge laden
+      input.addEventListener('focus', async () => {
+        try {
+          const rows = await queryFn('');
+          dropdown.innerHTML = rows && rows.length 
+            ? rows.map(r => renderItem(r)).join('') 
+            : '<div class="dropdown-item no-results">Keine Treffer</div>';
+          dropdown.classList.add('show');
+        } catch (err) {
+          renderNoResults('Fehler bei der Suche');
+          dropdown.classList.add('show');
+        }
       });
-    }
+
+      // Bei Blur: Dropdown schließen
+      input.addEventListener('blur', () => {
+        setTimeout(() => dropdown.classList.remove('show'), 150);
+      });
+
+      // Bei Input: Suchen
+      input.addEventListener('input', () => {
+        clearTimeout(debounce);
+        debounce = setTimeout(async () => {
+          const query = input.value.trim();
+          try {
+            const rows = await queryFn(query);
+            if (!rows || rows.length === 0) {
+              renderNoResults('Keine Treffer');
+              dropdown.classList.add('show');
+              return;
+            }
+            dropdown.innerHTML = rows.map(r => renderItem(r)).join('');
+            dropdown.classList.add('show');
+          } catch (err) {
+            console.warn('AutoSuggest Fehler:', err);
+            renderNoResults('Fehler bei der Suche');
+            dropdown.classList.add('show');
+          }
+        }, 200);
+      });
+
+      // Bei Klick auf Item: Auswählen
+      dropdown.addEventListener('click', (e) => {
+        const item = e.target.closest('.dropdown-item[data-id]');
+        if (!item) return;
+        
+        const id = item.dataset.id;
+        const label = item.dataset.label;
+        onSelect(id, label);
+        dropdown.classList.remove('show');
+        input.value = '';
+      });
+    };
+
+    // Unternehmen (single)
+    bindAutoSuggest(
+      'edit-as-unternehmen', 
+      'edit-asdd-unternehmen',
+      async (q) => {
+        let query = window.supabase
+          .from('unternehmen')
+          .select('id, firmenname')
+          .order('firmenname', { ascending: true })
+          .limit(20);
+        if (q && q.length > 0) query = query.ilike('firmenname', `%${q}%`);
+        const { data } = await query;
+        return data || [];
+      },
+      (id, label) => {
+        selectedUnternehmenId = id;
+        addTag('edit-tags-unternehmen', id, label, () => { 
+          selectedUnternehmenId = null;
+        });
+        // Marke und Kampagne zurücksetzen
+        document.getElementById('edit-tags-marke').innerHTML = '';
+        document.getElementById('edit-tags-kampagne').innerHTML = '';
+        selectedMarkeId = null;
+        selectedKampagneId = null;
+      },
+      (r) => `<div class="dropdown-item" data-id="${r.id}" data-label="${window.validatorSystem.sanitizeHtml(r.firmenname)}">${window.validatorSystem.sanitizeHtml(r.firmenname)}</div>`
+    );
+
+    // Marke (single, gefiltert nach Unternehmen)
+    bindAutoSuggest(
+      'edit-as-marke',
+      'edit-asdd-marke',
+      async (q) => {
+        let query = window.supabase
+          .from('marke')
+          .select('id, markenname, unternehmen:unternehmen_id(firmenname)')
+          .order('markenname', { ascending: true })
+          .limit(20);
+        if (q && q.length > 0) query = query.ilike('markenname', `%${q}%`);
+        if (selectedUnternehmenId) query = query.eq('unternehmen_id', selectedUnternehmenId);
+        const { data } = await query;
+        return data || [];
+      },
+      (id, label) => {
+        selectedMarkeId = id;
+        addTag('edit-tags-marke', id, label, () => {
+          selectedMarkeId = null;
+        });
+      },
+      (r) => {
+        const subtitle = r.unternehmen ? ` <span style="color: var(--text-muted); font-size: var(--text-xs);">(${window.validatorSystem.sanitizeHtml(r.unternehmen.firmenname)})</span>` : '';
+        return `<div class="dropdown-item" data-id="${r.id}" data-label="${window.validatorSystem.sanitizeHtml(r.markenname)}">${window.validatorSystem.sanitizeHtml(r.markenname)}${subtitle}</div>`;
+      }
+    );
+
+    // Kampagne (single, gefiltert nach Marke)
+    bindAutoSuggest(
+      'edit-as-kampagne',
+      'edit-asdd-kampagne',
+      async (q) => {
+        let query = window.supabase
+          .from('kampagne')
+          .select('id, kampagnenname, marke:marke_id(markenname)')
+          .order('kampagnenname', { ascending: true })
+          .limit(20);
+        if (q && q.length > 0) query = query.ilike('kampagnenname', `%${q}%`);
+        if (selectedMarkeId) query = query.eq('marke_id', selectedMarkeId);
+        const { data } = await query;
+        return data || [];
+      },
+      (id, label) => {
+        selectedKampagneId = id;
+        addTag('edit-tags-kampagne', id, label, () => {
+          selectedKampagneId = null;
+        });
+      },
+      (r) => {
+        const subtitle = r.marke ? ` <span style="color: var(--text-muted); font-size: var(--text-xs);">(${window.validatorSystem.sanitizeHtml(r.marke.markenname)})</span>` : '';
+        return `<div class="dropdown-item" data-id="${r.id}" data-label="${window.validatorSystem.sanitizeHtml(r.kampagnenname)}">${window.validatorSystem.sanitizeHtml(r.kampagnenname)}${subtitle}</div>`;
+      }
+    );
   }
 
   /**
