@@ -26,6 +26,7 @@ export class KampagneDetail {
     this.kooperationenVideoTable = null;
     this.videoCreateDrawer = null;
     this.videoColumnVisibilityDrawer = null;
+    this.strategien = [];
   }
 
   // Initialisiere Kampagnen-Detail
@@ -415,13 +416,25 @@ export class KampagneDetail {
         this.kampagneData.kampagne_art_typen = kampagneArten || [];
       }
       
-      // Notizen & Ratings parallel laden (nur Counts für Tabs)
-      if (window.notizenSystem) {
-        this.notizen = await window.notizenSystem.loadNotizen('kampagne', this.kampagneId);
-      }
-      if (window.bewertungsSystem) {
-        this.ratings = await window.bewertungsSystem.loadBewertungen('kampagne', this.kampagneId);
-      }
+      // Notizen, Ratings & Strategien parallel laden (nur Counts für Tabs)
+      const [notizenResult, ratingsResult, strategienResult] = await Promise.all([
+        window.notizenSystem ? window.notizenSystem.loadNotizen('kampagne', this.kampagneId) : [],
+        window.bewertungsSystem ? window.bewertungsSystem.loadBewertungen('kampagne', this.kampagneId) : [],
+        window.supabase
+          .from('strategie')
+          .select(`
+            id, name, beschreibung, created_at,
+            unternehmen:unternehmen_id(id, firmenname, logo_url),
+            marke:marke_id(id, markenname, logo_url),
+            created_by_user:created_by(id, name, profile_image_url)
+          `)
+          .eq('kampagne_id', this.kampagneId)
+          .order('created_at', { ascending: false })
+      ]);
+      
+      this.notizen = notizenResult || [];
+      this.ratings = ratingsResult || [];
+      this.strategien = strategienResult.data || [];
       
       const loadTime = (performance.now() - startTime).toFixed(0);
       console.log(`✅ KAMPAGNEDETAIL: Kritische Daten geladen in ${loadTime}ms`);
@@ -687,6 +700,10 @@ export class KampagneDetail {
           <button class="tab-button active" data-tab="info">
             Informationen
           </button>`}
+          <button class="tab-button" data-tab="strategien">
+            Strategien
+            <span class="tab-count">${this.strategien.length}</span>
+          </button>
           ${window.currentUser?.rolle !== 'kunde' && window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? `
           <button class="tab-button" data-tab="info">
             Informationen
@@ -862,6 +879,13 @@ export class KampagneDetail {
               <div id="kooperationen-videos-container"></div>
             </div>
           </div>` : ''}
+
+          <!-- Strategien Tab -->
+          <div class="tab-pane" id="tab-strategien">
+            <div class="detail-section">
+              ${this.renderStrategien()}
+            </div>
+          </div>
 
           <!-- Creators Tab (gebuchte Creator) -->
           <div class="tab-pane" id="tab-creators">
@@ -1074,6 +1098,66 @@ export class KampagneDetail {
     `;
   }
 
+  // Rendere Strategien-Tabelle
+  renderStrategien() {
+    if (!this.strategien || this.strategien.length === 0) {
+      return `
+        <div class="empty-state">
+          <p>Keine Strategien für diese Kampagne vorhanden</p>
+        </div>
+      `;
+    }
+
+    const formatDate = (dateStr) => {
+      if (!dateStr) return '-';
+      return new Date(dateStr).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    };
+
+    // Avatar-Bubble Rendering
+    const renderBubble = (item, type) => {
+      if (!item) return '-';
+      const name = type === 'unternehmen' ? item.firmenname : 
+                   type === 'marke' ? item.markenname : 
+                   item.name;
+      const logoUrl = item.logo_url || item.profile_image_url;
+      const initials = name ? name.substring(0, 2).toUpperCase() : '??';
+      
+      if (logoUrl) {
+        return `<span class="avatar-bubble" title="${name || ''}">
+          <img src="${logoUrl}" alt="${name || ''}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+        </span>`;
+      }
+      return `<span class="avatar-bubble" title="${name || ''}">${initials}</span>`;
+    };
+
+    const rows = this.strategien.map(strategie => `
+      <tr class="table-row-clickable" data-strategie-id="${strategie.id}">
+        <td><strong>${window.validatorSystem.sanitizeHtml(strategie.name || 'Ohne Namen')}</strong></td>
+        <td>${strategie.unternehmen ? renderBubble(strategie.unternehmen, 'unternehmen') : '-'}</td>
+        <td>${strategie.marke ? renderBubble(strategie.marke, 'marke') : '-'}</td>
+        <td>${strategie.created_by_user ? renderBubble(strategie.created_by_user, 'benutzer') : '-'}</td>
+        <td>${formatDate(strategie.created_at)}</td>
+      </tr>
+    `).join('');
+
+    return `
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Unternehmen</th>
+              <th>Marke</th>
+              <th>Erstellt von</th>
+              <th>Erstellt am</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
   // Rendere Bewertungen
   renderRatings() {
     if (!this.ratings || this.ratings.length === 0) {
@@ -1261,6 +1345,18 @@ export class KampagneDetail {
       if (e.target.id === 'btn-add-rating') {
         e.preventDefault();
         this.showAddRatingModal();
+      }
+    });
+
+    // Strategie-Zeile klicken -> zur Strategie-Detailseite navigieren
+    document.addEventListener('click', (e) => {
+      const row = e.target.closest('#tab-strategien tr[data-strategie-id]');
+      if (row) {
+        e.preventDefault();
+        const strategieId = row.dataset.strategieId;
+        if (strategieId) {
+          window.navigateTo(`/strategie/${strategieId}`);
+        }
       }
     });
 
