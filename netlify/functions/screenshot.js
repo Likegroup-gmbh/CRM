@@ -497,10 +497,10 @@ exports.handler = async (event, context) => {
       }
     });
 
-    // Navigation - YouTube braucht networkidle2 für Cookie-Banner
+    // Navigation
     console.log('🌐 Navigating...');
     await page.goto(url, { 
-      waitUntil: platform === 'youtube' ? 'networkidle2' : 'domcontentloaded',
+      waitUntil: 'domcontentloaded',
       timeout: 25000 
     });
 
