@@ -403,72 +403,75 @@ exports.handler = async (event, context) => {
     } else if (platform === 'instagram') {
       await handleInstagramPopups(page);
     } else if (platform === 'youtube') {
-      // YouTube: Warte auf Video und starte es
-      console.log('🔍 YouTube: Suche nach Video...');
+      // YouTube: Warte länger und versuche Video zu starten
+      console.log('🔍 YouTube: Warte auf Seite...');
       
-      // Warte auf Seitenaufbau
-      await new Promise(r => setTimeout(r, 4000));
+      // Länger warten für Server-Umgebung
+      await new Promise(r => setTimeout(r, 6000));
       
-      // Versuche Video zu finden und zu starten
-      const videoStatus = await page.evaluate(() => {
-        // Suche Video-Element (verschiedene Selektoren)
-        const video = document.querySelector('video.video-stream, video.html5-main-video, video');
+      // Step 1: Klicke Play-Button
+      console.log('▶️ Klicke Play-Button...');
+      const playClicked = await page.evaluate(() => {
+        // Verschiedene Play-Button Selektoren
+        const playSelectors = [
+          'button[aria-label="Abspielen (k)"]',
+          'button[aria-label="Play (k)"]',
+          '#play-pause-button-shape button',
+          '.ytp-large-play-button',
+          'button[title*="Abspielen"]',
+          'button[title*="Play"]'
+        ];
         
+        for (const sel of playSelectors) {
+          const btn = document.querySelector(sel);
+          if (btn) {
+            btn.click();
+            return { clicked: true, selector: sel };
+          }
+        }
+        return { clicked: false };
+      });
+      console.log('▶️ Play-Button:', JSON.stringify(playClicked));
+      
+      // Warte nach Play-Klick
+      await new Promise(r => setTimeout(r, 2000));
+      
+      // Step 2: Check Video-Element
+      const videoInfo = await page.evaluate(() => {
+        const video = document.querySelector('video');
         if (!video) {
-          return { found: false, error: 'Kein video Element' };
+          return { found: false };
         }
         
-        // Video starten
+        // Versuche Video zu starten
         video.muted = true;
         video.play().catch(() => {});
         
-        // Klick auf Player um zu starten
-        const player = document.querySelector('.html5-video-player, #shorts-player');
-        if (player) {
-          player.click();
-        }
-        
         return {
           found: true,
-          src: video.src ? video.src.substring(0, 50) : 'keine src',
+          src: video.src ? 'blob:...' : 'keine src',
           readyState: video.readyState,
           paused: video.paused,
-          currentTime: video.currentTime,
-          width: video.videoWidth,
-          height: video.videoHeight
+          duration: video.duration
         };
       });
+      console.log('📹 Video:', JSON.stringify(videoInfo));
       
-      console.log('📹 Video-Status:', JSON.stringify(videoStatus));
-      
-      if (videoStatus.found) {
-        // Warte bis Video tatsächlich spielt
-        console.log('⏳ Warte auf Video-Playback...');
-        
+      // Step 3: Warte auf Video-Frame
+      if (videoInfo.found) {
         try {
           await page.waitForFunction(() => {
             const video = document.querySelector('video');
-            // Video muss entweder spielen ODER readyState >= 2 haben
-            return video && (video.readyState >= 2 || video.currentTime > 0);
-          }, { timeout: 8000 });
-          
-          // Extra warten für gutes Frame
-          await new Promise(r => setTimeout(r, 1500));
-          
-          const finalStatus = await page.evaluate(() => {
-            const video = document.querySelector('video');
-            return {
-              readyState: video?.readyState,
-              currentTime: video?.currentTime,
-              paused: video?.paused
-            };
-          });
-          console.log('✅ Video bereit:', JSON.stringify(finalStatus));
-          
+            return video && video.readyState >= 2;
+          }, { timeout: 5000 });
+          console.log('✅ Video bereit');
         } catch (e) {
-          console.log('⚠️ Video-Playback Timeout - mache trotzdem Screenshot');
+          console.log('⚠️ Video nicht bereit');
         }
       }
+      
+      // Extra Wartezeit
+      await new Promise(r => setTimeout(r, 1000));
     }
 
     // Versuche Element-Screenshot (nur Content, nicht ganze Seite)
