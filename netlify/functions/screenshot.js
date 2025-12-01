@@ -403,37 +403,65 @@ exports.handler = async (event, context) => {
     } else if (platform === 'instagram') {
       await handleInstagramPopups(page);
     } else if (platform === 'youtube') {
-      // YouTube auf USA-Servern: Kein Cookie-Banner nötig
-      // Aber wir versuchen trotzdem das Video zu laden
-      console.log('▶️ YouTube: Versuche Video zu laden...');
+      // YouTube Debug: Suche nach short-video-container
+      console.log('🔍 YouTube: Suche nach short-video-container...');
       
-      try {
-        // Kurz warten für Seitenaufbau
-        await new Promise(r => setTimeout(r, 3000));
+      // Warte auf Seitenaufbau
+      await new Promise(r => setTimeout(r, 5000));
+      
+      // Explizit nach short-video-container suchen
+      const elementCheck = await page.evaluate(() => {
+        const selectors = [
+          '.short-video-container',
+          '#short-video-container',
+          '[class*="short-video-container"]',
+          '#shorts-player',
+          '.html5-video-player',
+          '#player-container',
+          'ytd-reel-video-renderer',
+          'video'
+        ];
         
-        // Versuche Video zu starten
-        await page.evaluate(() => {
-          const video = document.querySelector('video');
-          if (video) {
-            video.muted = true;
-            video.play().catch(() => {});
+        const results = {};
+        for (const sel of selectors) {
+          const el = document.querySelector(sel);
+          if (el) {
+            const rect = el.getBoundingClientRect();
+            results[sel] = {
+              found: true,
+              width: Math.round(rect.width),
+              height: Math.round(rect.height),
+              visible: rect.width > 0 && rect.height > 0
+            };
+          } else {
+            results[sel] = { found: false };
           }
-        });
-        
-        // Kurz warten - NICHT auf readyState warten (blockiert auf Servern)
-        await new Promise(r => setTimeout(r, 2000));
-        
-        // Debug: Video-Status
-        const videoStatus = await page.evaluate(() => {
-          const video = document.querySelector('video');
-          if (!video) return 'kein video element';
-          return `ready=${video.readyState} time=${video.currentTime} paused=${video.paused}`;
-        });
-        console.log('📹 Video-Status:', videoStatus);
-        
-      } catch (e) {
-        console.log('⚠️ Video-Error:', e.message);
+        }
+        return results;
+      });
+      
+      console.log('📋 Element-Check Ergebnis:');
+      for (const [selector, info] of Object.entries(elementCheck)) {
+        if (info.found) {
+          console.log(`  ✅ ${selector}: ${info.width}x${info.height} (visible: ${info.visible})`);
+        } else {
+          console.log(`  ❌ ${selector}: NICHT GEFUNDEN`);
+        }
       }
+      
+      // TEMPORÄR: Kein Screenshot, nur Debug
+      console.log('🛑 DEBUG MODE: Kein Screenshot, nur Element-Check');
+      
+      await browser.close();
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ 
+          debug: true, 
+          message: 'Element-Check abgeschlossen',
+          elements: elementCheck
+        })
+      };
     }
 
     // Versuche Element-Screenshot (nur Content, nicht ganze Seite)
