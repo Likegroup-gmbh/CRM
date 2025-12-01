@@ -7,8 +7,34 @@ const puppeteerExtra = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const { createClient } = require('@supabase/supabase-js');
 
-// Stealth Plugin aktivieren (umgeht Bot-Erkennung)
-puppeteerExtra.use(StealthPlugin());
+// Stealth Plugin mit WebGL Configuration (wichtig für Fingerprinting!)
+const stealth = StealthPlugin({
+  enabledEvasions: new Set([
+    'chrome.app',
+    'chrome.csi',
+    'chrome.loadTimes',
+    'chrome.runtime',
+    'defaultArgs',
+    'iframe.contentWindow',
+    'media.codecs',
+    'navigator.hardwareConcurrency',
+    'navigator.languages',
+    'navigator.permissions',
+    'navigator.plugins',
+    'navigator.webdriver',
+    'sourceurl',
+    'user-agent-override',
+    'webgl.vendor',
+    'window.outerdimensions'
+  ])
+});
+stealth.enabledEvasions.add('webgl.vendor');
+puppeteerExtra.use(stealth);
+
+// Random Delay Funktion (menschliches Verhalten)
+const randomDelay = (min, max) => {
+  return Math.floor(Math.random() * (max - min + 1) + min);
+};
 
 // Plattform-spezifische Selektoren für Content-Bereich
 const PLATFORM_SELECTORS = {
@@ -394,14 +420,17 @@ exports.handler = async (event, context) => {
       'Cache-Control': 'max-age=0'
     });
 
-    // Anti-Bot JavaScript Injection
+    // Anti-Bot JavaScript Injection (vollständig nach Latenode Best Practices)
     await page.evaluateOnNewDocument(() => {
+      // Navigator platform (wichtig!)
+      Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
+      
       // Navigator plugins (wie ein echter Browser)
       Object.defineProperty(navigator, 'plugins', {
         get: () => [
-          { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer' },
-          { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai' },
-          { name: 'Native Client', filename: 'internal-nacl-plugin' }
+          { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+          { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai', description: '' },
+          { name: 'Native Client', filename: 'internal-nacl-plugin', description: '' }
         ]
       });
       
@@ -409,11 +438,30 @@ exports.handler = async (event, context) => {
       Object.defineProperty(navigator, 'language', { get: () => 'de-DE' });
       Object.defineProperty(navigator, 'languages', { get: () => ['de-DE', 'de', 'en-US', 'en'] });
       
+      // Hardware Concurrency (typischer Wert)
+      Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 4 });
+      
+      // Device Memory
+      Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
+      
       // WebDriver Flag verstecken
       Object.defineProperty(navigator, 'webdriver', { get: () => false });
       
-      // Chrome runtime
-      window.chrome = { runtime: {} };
+      // Chrome runtime (vollständig)
+      window.chrome = {
+        runtime: {},
+        loadTimes: () => ({}),
+        csi: () => ({}),
+        app: {}
+      };
+      
+      // WebGL Vendor/Renderer
+      const getParameter = WebGLRenderingContext.prototype.getParameter;
+      WebGLRenderingContext.prototype.getParameter = function(parameter) {
+        if (parameter === 37445) return 'Google Inc. (Intel)'; // UNMASKED_VENDOR_WEBGL
+        if (parameter === 37446) return 'Intel Iris OpenGL Engine'; // UNMASKED_RENDERER_WEBGL
+        return getParameter.call(this, parameter);
+      };
       
       // Permissions
       const originalQuery = window.navigator.permissions.query;
@@ -450,11 +498,22 @@ exports.handler = async (event, context) => {
     } else if (platform === 'instagram') {
       await handleInstagramPopups(page);
     } else if (platform === 'youtube') {
-      // YouTube: Warte länger und versuche Video zu starten
-      console.log('🔍 YouTube: Warte auf Seite...');
+      // YouTube: Menschliches Verhalten simulieren
+      console.log('🔍 YouTube: Simuliere menschliches Verhalten...');
       
-      // Länger warten für Server-Umgebung
-      await new Promise(r => setTimeout(r, 6000));
+      // Random Delay (menschlich)
+      await new Promise(r => setTimeout(r, randomDelay(4000, 6000)));
+      
+      // Natural Scrolling (wie ein echter User)
+      await page.evaluate(() => {
+        window.scrollBy({
+          top: Math.random() * 200,
+          behavior: 'smooth'
+        });
+      });
+      
+      // Kurze Pause nach Scroll
+      await new Promise(r => setTimeout(r, randomDelay(500, 1500)));
       
       // Step 1: Klicke Play-Button
       console.log('▶️ Klicke Play-Button...');
@@ -480,8 +539,8 @@ exports.handler = async (event, context) => {
       });
       console.log('▶️ Play-Button:', JSON.stringify(playClicked));
       
-      // Warte nach Play-Klick
-      await new Promise(r => setTimeout(r, 2000));
+      // Random Delay nach Play-Klick (menschlich)
+      await new Promise(r => setTimeout(r, randomDelay(1500, 3000)));
       
       // Step 2: Check Video-Element mit spezifischen Klassen
       const videoInfo = await page.evaluate(() => {
