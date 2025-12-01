@@ -7,7 +7,7 @@ const puppeteerExtra = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const { createClient } = require('@supabase/supabase-js');
 
-// Stealth Plugin mit WebGL Configuration (wichtig für Fingerprinting!)
+// Stealth Plugin mit ALLEN Evasions laut scrapingdog.com/blog/puppeteer-stealth/
 const stealth = StealthPlugin({
   enabledEvasions: new Set([
     'chrome.app',
@@ -25,11 +25,35 @@ const stealth = StealthPlugin({
     'sourceurl',
     'user-agent-override',
     'webgl.vendor',
-    'window.outerdimensions'
+    'window.outerdimensions',
+    'navigator.vendor'  // Extra: Vendor-Fingerprinting
   ])
 });
-stealth.enabledEvasions.add('webgl.vendor');
 puppeteerExtra.use(stealth);
+
+// Randomisierte User-Agents (laut Scrapingdog Best Practice)
+const DESKTOP_USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+];
+
+const MOBILE_USER_AGENTS = [
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1',
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1',
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+  'Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.230 Mobile Safari/537.36',
+  'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.230 Mobile Safari/537.36'
+];
+
+// Zufälligen User-Agent wählen
+const getRandomUserAgent = (isMobile) => {
+  const agents = isMobile ? MOBILE_USER_AGENTS : DESKTOP_USER_AGENTS;
+  return agents[Math.floor(Math.random() * agents.length)];
+};
 
 // Random Delay Funktion (menschliches Verhalten)
 const randomDelay = (min, max) => {
@@ -399,10 +423,9 @@ exports.handler = async (event, context) => {
 
     const page = await browser.newPage();
     
-    // Aktueller User-Agent (wichtig für Bot-Detection!)
-    const userAgent = isMobile
-      ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1'
-      : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+    // Randomisierter User-Agent (laut scrapingdog.com Best Practice!)
+    const userAgent = getRandomUserAgent(isMobile);
+    console.log(`🎭 User-Agent: ${userAgent.substring(0, 50)}...`);
     
     await page.setUserAgent(userAgent);
 
@@ -420,10 +443,13 @@ exports.handler = async (event, context) => {
       'Cache-Control': 'max-age=0'
     });
 
-    // Anti-Bot JavaScript Injection (vollständig nach Latenode Best Practices)
+    // Anti-Bot JavaScript Injection (vollständig nach Scrapingdog + Latenode Best Practices)
     await page.evaluateOnNewDocument(() => {
       // Navigator platform (wichtig!)
       Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
+      
+      // Navigator vendor (wichtig für Fingerprinting!)
+      Object.defineProperty(navigator, 'vendor', { get: () => 'Google Inc.' });
       
       // Navigator plugins (wie ein echter Browser)
       Object.defineProperty(navigator, 'plugins', {
@@ -447,6 +473,21 @@ exports.handler = async (event, context) => {
       // WebDriver Flag verstecken
       Object.defineProperty(navigator, 'webdriver', { get: () => false });
       
+      // Timezone-Spoofing (laut Scrapingdog wichtig!)
+      const originalDateTimeFormat = Intl.DateTimeFormat;
+      Intl.DateTimeFormat = function(locale, options) {
+        if (options && options.timeZone === undefined) {
+          options = { ...options, timeZone: 'Europe/Berlin' };
+        }
+        return new originalDateTimeFormat(locale, options);
+      };
+      Intl.DateTimeFormat.prototype = originalDateTimeFormat.prototype;
+      
+      // Date.prototype.getTimezoneOffset spoofen (für Europe/Berlin = -60 oder -120)
+      Date.prototype.getTimezoneOffset = function() {
+        return -60; // Europe/Berlin Winter
+      };
+      
       // Chrome runtime (vollständig)
       window.chrome = {
         runtime: {},
@@ -462,6 +503,16 @@ exports.handler = async (event, context) => {
         if (parameter === 37446) return 'Intel Iris OpenGL Engine'; // UNMASKED_RENDERER_WEBGL
         return getParameter.call(this, parameter);
       };
+      
+      // Connection (für Network Information API)
+      Object.defineProperty(navigator, 'connection', {
+        get: () => ({
+          effectiveType: '4g',
+          rtt: 50,
+          downlink: 10,
+          saveData: false
+        })
+      });
       
       // Permissions
       const originalQuery = window.navigator.permissions.query;
