@@ -215,7 +215,10 @@ async function handleYouTubePopups(page) {
         const buttons = document.querySelectorAll('button, [role="button"]');
         for (const btn of buttons) {
           const text = btn.textContent || '';
-          if (text.includes('Alle ablehnen') || text.includes('Reject all')) {
+          const ariaLabel = btn.getAttribute('aria-label') || '';
+          
+          if (text.includes('Alle ablehnen') || text.includes('Reject all') ||
+              ariaLabel.includes('Alle ablehnen') || ariaLabel.includes('Reject all')) {
             btn.click();
             return true;
           }
