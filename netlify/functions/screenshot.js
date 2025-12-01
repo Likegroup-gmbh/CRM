@@ -403,30 +403,71 @@ exports.handler = async (event, context) => {
     } else if (platform === 'instagram') {
       await handleInstagramPopups(page);
     } else if (platform === 'youtube') {
-      // YouTube: Warte auf short-video-container
-      console.log('🔍 YouTube: Suche nach .short-video-container...');
+      // YouTube: Warte auf Video und starte es
+      console.log('🔍 YouTube: Suche nach Video...');
       
       // Warte auf Seitenaufbau
-      await new Promise(r => setTimeout(r, 5000));
+      await new Promise(r => setTimeout(r, 4000));
       
-      // Prüfe ob Element existiert
-      const elementInfo = await page.evaluate(() => {
-        const el = document.querySelector('.short-video-container');
-        if (el) {
-          const rect = el.getBoundingClientRect();
-          return {
-            found: true,
-            width: Math.round(rect.width),
-            height: Math.round(rect.height)
-          };
+      // Versuche Video zu finden und zu starten
+      const videoStatus = await page.evaluate(() => {
+        // Suche Video-Element (verschiedene Selektoren)
+        const video = document.querySelector('video.video-stream, video.html5-main-video, video');
+        
+        if (!video) {
+          return { found: false, error: 'Kein video Element' };
         }
-        return { found: false };
+        
+        // Video starten
+        video.muted = true;
+        video.play().catch(() => {});
+        
+        // Klick auf Player um zu starten
+        const player = document.querySelector('.html5-video-player, #shorts-player');
+        if (player) {
+          player.click();
+        }
+        
+        return {
+          found: true,
+          src: video.src ? video.src.substring(0, 50) : 'keine src',
+          readyState: video.readyState,
+          paused: video.paused,
+          currentTime: video.currentTime,
+          width: video.videoWidth,
+          height: video.videoHeight
+        };
       });
       
-      if (elementInfo.found) {
-        console.log(`✅ .short-video-container gefunden: ${elementInfo.width}x${elementInfo.height}`);
-      } else {
-        console.log('❌ .short-video-container NICHT gefunden');
+      console.log('📹 Video-Status:', JSON.stringify(videoStatus));
+      
+      if (videoStatus.found) {
+        // Warte bis Video tatsächlich spielt
+        console.log('⏳ Warte auf Video-Playback...');
+        
+        try {
+          await page.waitForFunction(() => {
+            const video = document.querySelector('video');
+            // Video muss entweder spielen ODER readyState >= 2 haben
+            return video && (video.readyState >= 2 || video.currentTime > 0);
+          }, { timeout: 8000 });
+          
+          // Extra warten für gutes Frame
+          await new Promise(r => setTimeout(r, 1500));
+          
+          const finalStatus = await page.evaluate(() => {
+            const video = document.querySelector('video');
+            return {
+              readyState: video?.readyState,
+              currentTime: video?.currentTime,
+              paused: video?.paused
+            };
+          });
+          console.log('✅ Video bereit:', JSON.stringify(finalStatus));
+          
+        } catch (e) {
+          console.log('⚠️ Video-Playback Timeout - mache trotzdem Screenshot');
+        }
       }
     }
 
