@@ -200,246 +200,104 @@ async function handleInstagramPopups(page) {
 
 /**
  * YouTube-spezifisches Popup/Banner Handling
+ * Mit detailliertem Debug-Logging für Online-Tests
  */
 async function handleYouTubePopups(page) {
-  console.log('🍪 YouTube: Cookie-Banner...');
+  console.log('🍪 YouTube: Start Cookie-Handling...');
   
-  // Warten für Cookie-Banner
-  await new Promise(r => setTimeout(r, 3000));
+  // Step 1: Aktuelle URL prüfen
+  const currentUrl = page.url();
+  console.log(`📍 Step 1 - URL: ${currentUrl}`);
   
-  try {
-    let clicked = false;
-    
-    // STRATEGIE 0: SocialKit-Methode - Wildcard aria-label Selektoren
-    // Quelle: https://www.socialkit.dev/blog/how-to-scrape-youtube-transcripts-with-puppeteer
-    clicked = await page.evaluate(() => {
-      // Wildcard-Selektoren für Cookie-Buttons
-      const cookieSelectors = [
-        'button[aria-label*="cookies"]',
-        'button[aria-label*="Cookies"]',
-        'button[aria-label*="cookie"]',
-        'button[aria-label*="Cookie"]',
-        'button[aria-label*="ablehnen"]',
-        'button[aria-label*="Ablehnen"]',
-        'button[aria-label*="reject"]',
-        'button[aria-label*="Reject"]',
-        'button[aria-label*="decline"]',
-        'button[aria-label*="Decline"]'
-      ];
-      
-      for (const selector of cookieSelectors) {
-        const btn = document.querySelector(selector);
-        if (btn) {
-          btn.click();
-          console.log('Clicked:', selector);
-          return true;
-        }
+  const isConsentPage = currentUrl.includes('consent.youtube.com') || currentUrl.includes('consent.google.com');
+  console.log(`📍 Step 1 - Consent-Seite: ${isConsentPage ? 'JA' : 'NEIN'}`);
+  
+  // Step 2: Warten
+  await new Promise(r => setTimeout(r, 2000));
+  
+  // Step 3: Alle Frames auflisten
+  const frames = page.frames();
+  console.log(`📍 Step 2 - Frames: ${frames.length}`);
+  frames.forEach((f, i) => {
+    console.log(`   Frame ${i}: ${f.url().substring(0, 60)}`);
+  });
+  
+  // Step 4: Buttons auf der Hauptseite zählen
+  const mainPageInfo = await page.evaluate(() => {
+    const buttons = document.querySelectorAll('button, [role="button"]');
+    const buttonList = [];
+    buttons.forEach((btn, i) => {
+      if (i < 10) {
+        const text = btn.textContent?.trim().substring(0, 30) || '';
+        const aria = btn.getAttribute('aria-label')?.substring(0, 30) || '';
+        buttonList.push(`"${text}"|"${aria}"`);
       }
-      return false;
     });
+    return {
+      buttonCount: buttons.length,
+      buttons: buttonList
+    };
+  });
+  console.log(`📍 Step 3 - Main Buttons: ${mainPageInfo.buttonCount}`);
+  console.log(`   Erste 10: ${mainPageInfo.buttons.join(' | ')}`);
+  
+  let clicked = false;
+  
+  // Step 5: In jedem Frame nach Consent-Button suchen
+  console.log('📍 Step 4 - Suche Consent-Button...');
+  
+  for (let i = 0; i < frames.length; i++) {
+    const frame = frames[i];
+    const frameUrl = frame.url();
     
-    if (clicked) {
-      console.log('✅ YouTube Cookie-Banner geschlossen (aria-label wildcard)');
-    }
-    
-    // STRATEGIE 1: Text-basierte Suche in allen Buttons
-    if (!clicked) {
-      clicked = await page.evaluate(() => {
+    try {
+      const result = await frame.evaluate(() => {
         const buttons = document.querySelectorAll('button, [role="button"]');
+        const info = { buttonCount: buttons.length, found: null };
+        
         for (const btn of buttons) {
-          const text = (btn.textContent || '').toLowerCase();
-          const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
+          const text = btn.textContent || '';
+          const ariaLabel = btn.getAttribute('aria-label') || '';
           
-          // Suche nach Reject/Ablehnen Keywords
-          if (text.includes('alle ablehnen') || text.includes('reject all') ||
+          // Suche nach Reject/Ablehnen
+          if (text.includes('Alle ablehnen') || text.includes('Reject all') ||
               text.includes('ablehnen') || text.includes('reject') ||
-              ariaLabel.includes('alle ablehnen') || ariaLabel.includes('reject all')) {
+              ariaLabel.includes('Alle ablehnen') || ariaLabel.includes('Reject')) {
             btn.click();
-            return true;
+            info.found = text.trim().substring(0, 30);
+            return info;
           }
         }
-        return false;
+        return info;
       });
       
-      if (clicked) {
-        console.log('✅ YouTube Cookie-Banner geschlossen (text search)');
-      }
-    }
-    
-    // STRATEGIE 2: #lightbox Element (StackOverflow)
-    if (!clicked) {
-      const lightbox = await page.$('#lightbox');
-      if (lightbox) {
-        console.log('🔍 #lightbox gefunden');
-        const lightboxFrame = await lightbox.contentFrame();
-        if (lightboxFrame) {
-          clicked = await lightboxFrame.evaluate(() => {
-            const buttons = document.querySelectorAll('button');
-            for (const btn of buttons) {
-              const text = (btn.textContent || '').toLowerCase();
-              if (text.includes('ablehnen') || text.includes('reject')) {
-                btn.click();
-                return true;
-              }
-            }
-            return false;
-          });
-          if (clicked) {
-            console.log('✅ YouTube Cookie-Banner geschlossen (#lightbox iframe)');
-          }
-        }
-      }
-    }
-    
-    // STRATEGIE 3: Alle Frames durchsuchen
-    if (!clicked) {
-      const frames = page.frames();
-      console.log(`🔍 ${frames.length} frames`);
+      console.log(`   Frame ${i}: ${result.buttonCount} buttons, found: ${result.found || 'NEIN'}`);
       
-      for (const frame of frames) {
-        try {
-          const frameClicked = await frame.evaluate(() => {
-            const buttons = document.querySelectorAll('button');
-            for (const btn of buttons) {
-              const text = (btn.textContent || '').toLowerCase();
-              const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
-              if (text.includes('alle ablehnen') || text.includes('reject all') ||
-                  ariaLabel.includes('ablehnen') || ariaLabel.includes('reject')) {
-                btn.click();
-                return true;
-              }
-            }
-            return false;
-          });
-          
-          if (frameClicked) {
-            clicked = true;
-            console.log(`✅ YouTube Cookie-Banner geschlossen (frame)`);
-            break;
-          }
-        } catch (e) {}
+      if (result.found) {
+        clicked = true;
+        console.log(`✅ Consent-Button geklickt in Frame ${i}: "${result.found}"`);
+        break;
       }
+    } catch (e) {
+      console.log(`   Frame ${i}: Nicht zugänglich (${e.message.substring(0, 30)})`);
     }
-    
-    // Falls iframe nicht geklappt hat, normale Strategien
-    if (!clicked) {
-      for (let i = 0; i < 3; i++) {
-        // Strategie 1: Shadow DOM durchsuchen
-        clicked = await page.evaluate(() => {
-          const shadowHosts = document.querySelectorAll('*');
-          for (const el of shadowHosts) {
-            if (el.shadowRoot) {
-              const shadowButtons = el.shadowRoot.querySelectorAll('button');
-              for (const btn of shadowButtons) {
-                const text = btn.textContent || '';
-                const ariaLabel = btn.getAttribute('aria-label') || '';
-                if (text.includes('Alle ablehnen') || text.includes('Reject all') ||
-                    ariaLabel.includes('Alle ablehnen') || ariaLabel.includes('Reject all')) {
-                  btn.click();
-                  return true;
-                }
-              }
-            }
-          }
-          return false;
-        });
-        
-        if (clicked) {
-          console.log('✅ YouTube Cookie-Banner geschlossen (Shadow DOM)');
-          break;
-        }
-        
-        // Strategie 2: aria-label Selektor
-        if (!clicked) {
-          try {
-            const button = await page.$('button[aria-label*="Alle ablehnen"], button[aria-label*="Reject all"]');
-            if (button) {
-              await button.click();
-              clicked = true;
-              console.log('✅ YouTube Cookie-Banner geschlossen (aria-label)');
-              break;
-            }
-          } catch (e) {}
-        }
-        
-        // Strategie 3: jsname
-        if (!clicked) {
-          try {
-            const button = await page.$('button[jsname="tWT92d"]');
-            if (button) {
-              await button.click();
-              clicked = true;
-              console.log('✅ YouTube Cookie-Banner geschlossen (jsname)');
-              break;
-            }
-          } catch (e) {}
-        }
-        
-        // Strategie 4: Text-basiert
-        if (!clicked) {
-          clicked = await page.evaluate(() => {
-            const buttons = document.querySelectorAll('button, [role="button"]');
-            for (const btn of buttons) {
-              const text = btn.textContent || '';
-              const ariaLabel = btn.getAttribute('aria-label') || '';
-              if (text.includes('Alle ablehnen') || text.includes('Reject all') ||
-                  ariaLabel.includes('Alle ablehnen') || ariaLabel.includes('Reject all')) {
-                btn.click();
-                return true;
-              }
-            }
-            return false;
-          });
-          
-          if (clicked) {
-            console.log('✅ YouTube Cookie-Banner geschlossen (text search)');
-            break;
-          }
-        }
-        
-        // Debug beim letzten Versuch
-        if (i === 2 && !clicked) {
-          const debug = await page.evaluate(() => {
-            const info = [];
-            
-            // Wildcard Selektoren testen
-            const cookieBtn = document.querySelector('button[aria-label*="cookie"], button[aria-label*="Cookie"]');
-            info.push(`cookie-aria: ${cookieBtn ? cookieBtn.getAttribute('aria-label')?.substring(0, 30) : 'NEIN'}`);
-            
-            // #lightbox Check
-            const lightbox = document.querySelector('#lightbox');
-            info.push(`#lightbox: ${lightbox ? 'JA' : 'NEIN'}`);
-            
-            // Alle Buttons mit aria-label auflisten
-            const buttons = document.querySelectorAll('button[aria-label]');
-            const ariaLabels = [];
-            buttons.forEach(btn => {
-              const aria = btn.getAttribute('aria-label') || '';
-              if (aria && ariaLabels.length < 5) {
-                ariaLabels.push(aria.substring(0, 25));
-              }
-            });
-            info.push(`aria-labels: [${ariaLabels.join(', ')}]`);
-            
-            return info.join(' | ');
-          });
-          console.log('Debug:', debug);
-        }
-        
-        await new Promise(r => setTimeout(r, 1000));
-      }
-    }
-    
-    if (clicked) {
-      await new Promise(r => setTimeout(r, 1500));
-    } else {
-      console.log('⚠️ Cookie-Banner nicht gefunden');
-    }
-  } catch (e) {
-    console.log('YouTube Banner:', e.message);
   }
   
-  await new Promise(r => setTimeout(r, 1000));
+  if (clicked) {
+    // Nach Klick auf Navigation warten
+    console.log('📍 Step 5 - Warte auf Navigation...');
+    try {
+      await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 8000 });
+      console.log('✅ Navigation erfolgt');
+    } catch (e) {
+      console.log('⚠️ Keine Navigation (Timeout)');
+    }
+    await new Promise(r => setTimeout(r, 2000));
+  } else {
+    console.log('⚠️ Kein Consent-Button gefunden - wahrscheinlich nicht nötig (USA Server)');
+  }
+  
+  console.log('🍪 YouTube: Cookie-Handling abgeschlossen');
 }
 
 /**
@@ -534,13 +392,13 @@ exports.handler = async (event, context) => {
     } else if (platform === 'youtube') {
       await handleYouTubePopups(page);
       
-      // YouTube: Warte auf Player-Element und versuche Video zu laden
-      console.log('▶️ YouTube: Warte auf Player...');
+      // YouTube: Warte auf Video und starte es
+      console.log('▶️ YouTube: Warte auf Video...');
       try {
-        // Warte auf irgendeinen Player-Container
-        await page.waitForSelector('#shorts-player, #player-container, #movie_player, video', { timeout: 5000 });
+        // Warte auf Video-Element
+        await page.waitForSelector('video', { timeout: 8000 });
         
-        // Versuche Video zu starten (wird wahrscheinlich blockiert, aber versuchen)
+        // Versuche Video zu starten
         await page.evaluate(() => {
           const video = document.querySelector('video');
           if (video) {
@@ -549,21 +407,19 @@ exports.handler = async (event, context) => {
           }
         });
         
-        // Warte etwas für Thumbnail/Poster
-        await new Promise(r => setTimeout(r, 3000));
-        
-        // Debug: Was ist sichtbar?
-        const videoInfo = await page.evaluate(() => {
+        // Warte bis Video tatsächlich Frames hat (readyState >= 3 = HAVE_FUTURE_DATA)
+        await page.waitForFunction(() => {
           const video = document.querySelector('video');
-          const poster = video?.poster || 'kein poster';
-          const readyState = video?.readyState || 0;
-          const currentTime = video?.currentTime || 0;
-          return `poster: ${poster.substring(0, 30)} | ready: ${readyState} | time: ${currentTime}`;
-        });
-        console.log('📹 Video-Info:', videoInfo);
+          return video && video.readyState >= 3;
+        }, { timeout: 10000 });
+        
+        console.log('✅ Video geladen');
+        await new Promise(r => setTimeout(r, 500)); // Kurz warten für gutes Frame
         
       } catch (e) {
-        console.log('⚠️ Player nicht gefunden:', e.message);
+        console.log('⚠️ Video nicht geladen:', e.message);
+        // Fallback: Warte trotzdem ein bisschen
+        await new Promise(r => setTimeout(r, 2000));
       }
     }
 
