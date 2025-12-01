@@ -203,54 +203,69 @@ async function handleInstagramPopups(page) {
 async function handleYouTubePopups(page) {
   console.log('🍪 YouTube: Cookie-Banner...');
   
-  // Länger warten für Cookie-Banner (5 Sekunden)
-  await new Promise(r => setTimeout(r, 5000));
+  // Warten für Cookie-Banner
+  await new Promise(r => setTimeout(r, 4000));
   
   try {
     let clicked = false;
     
-    // STRATEGIE 0: YouTube-spezifische Consent-Elemente direkt suchen
-    const consentFound = await page.evaluate(() => {
-      // YouTube Consent Custom Elements
-      const consentSelectors = [
-        'ytd-consent-bump-v2-lightbox',
-        'tp-yt-paper-dialog',
-        '[class*="consent"]',
-        '#dialog[class*="consent"]'
-      ];
+    // STRATEGIE 0: #lightbox Element mit iframe (StackOverflow Lösung!)
+    const lightbox = await page.$('#lightbox');
+    if (lightbox) {
+      console.log('🔍 #lightbox gefunden!');
       
-      for (const sel of consentSelectors) {
-        const el = document.querySelector(sel);
-        if (el) {
-          // Suche Buttons innerhalb des Consent Elements
-          const buttons = el.querySelectorAll('button, [role="button"]');
+      // Versuche iframe innerhalb von lightbox zu finden
+      const lightboxFrame = await lightbox.contentFrame();
+      if (lightboxFrame) {
+        console.log('🔍 iframe in #lightbox gefunden!');
+        clicked = await lightboxFrame.evaluate(() => {
+          const buttons = document.querySelectorAll('button, [role="button"]');
           for (const btn of buttons) {
             const text = btn.textContent || '';
             const ariaLabel = btn.getAttribute('aria-label') || '';
+            // Deutsch + Englisch
             if (text.includes('Alle ablehnen') || text.includes('Reject all') ||
-                text.includes('ablehnen') || text.includes('Reject') ||
-                ariaLabel.includes('ablehnen') || ariaLabel.includes('Reject')) {
+                ariaLabel.includes('Alle ablehnen') || ariaLabel.includes('Reject') ||
+                ariaLabel.includes('Agree to the use of cookies')) {
               btn.click();
-              return { clicked: true, selector: sel };
+              return true;
             }
           }
+          return false;
+        });
+        if (clicked) {
+          console.log('✅ YouTube Cookie-Banner geschlossen (#lightbox iframe)');
+        }
+      } else {
+        // Kein iframe - direkt im lightbox suchen
+        clicked = await page.evaluate(() => {
+          const lightbox = document.querySelector('#lightbox');
+          if (lightbox) {
+            const buttons = lightbox.querySelectorAll('button, [role="button"]');
+            for (const btn of buttons) {
+              const text = btn.textContent || '';
+              const ariaLabel = btn.getAttribute('aria-label') || '';
+              if (text.includes('Alle ablehnen') || text.includes('Reject all') ||
+                  ariaLabel.includes('ablehnen') || ariaLabel.includes('Reject')) {
+                btn.click();
+                return true;
+              }
+            }
+          }
+          return false;
+        });
+        if (clicked) {
+          console.log('✅ YouTube Cookie-Banner geschlossen (#lightbox direkt)');
         }
       }
-      return { clicked: false };
-    });
-    
-    if (consentFound.clicked) {
-      clicked = true;
-      console.log(`✅ YouTube Cookie-Banner geschlossen (${consentFound.selector})`);
     }
     
-    // STRATEGIE 1: IFRAME-Suche (consent.youtube.com)
+    // STRATEGIE 1: Alle page.frames() durchsuchen
     if (!clicked) {
       const frames = page.frames();
-      console.log(`🔍 Gefunden: ${frames.length} frames`);
+      console.log(`🔍 ${frames.length} frames, suche Cookie-Button...`);
       
       for (const frame of frames) {
-        const url = frame.url();
         try {
           const frameClicked = await frame.evaluate(() => {
             const buttons = document.querySelectorAll('button, [role="button"]');
@@ -258,7 +273,8 @@ async function handleYouTubePopups(page) {
               const text = btn.textContent || '';
               const ariaLabel = btn.getAttribute('aria-label') || '';
               if (text.includes('Alle ablehnen') || text.includes('Reject all') ||
-                  ariaLabel.includes('Alle ablehnen') || ariaLabel.includes('Reject all')) {
+                  ariaLabel.includes('Alle ablehnen') || ariaLabel.includes('Reject all') ||
+                  ariaLabel.includes('Agree to the use of cookies')) {
                 btn.click();
                 return true;
               }
@@ -268,12 +284,10 @@ async function handleYouTubePopups(page) {
           
           if (frameClicked) {
             clicked = true;
-            console.log(`✅ YouTube Cookie-Banner geschlossen (iframe: ${url.substring(0, 50)})`);
+            console.log(`✅ YouTube Cookie-Banner geschlossen (frame)`);
             break;
           }
-        } catch (e) {
-          // Frame nicht mehr verfügbar oder Cross-Origin
-        }
+        } catch (e) {}
       }
     }
     
@@ -358,50 +372,30 @@ async function handleYouTubePopups(page) {
           const debug = await page.evaluate(() => {
             const info = [];
             
-            // YouTube-spezifische Consent Elemente suchen
-            const consentSelectors = ['ytd-consent-bump-v2-lightbox', 'tp-yt-paper-dialog', '[class*="consent"]'];
-            let consentFound = 'none';
-            for (const sel of consentSelectors) {
-              if (document.querySelector(sel)) {
-                consentFound = sel;
-                break;
-              }
-            }
-            info.push(`Consent: ${consentFound}`);
+            // #lightbox Check (wichtig!)
+            const lightbox = document.querySelector('#lightbox');
+            info.push(`#lightbox: ${lightbox ? 'JA' : 'NEIN'}`);
             
-            let shadowCount = 0;
-            document.querySelectorAll('*').forEach(el => {
-              if (el.shadowRoot) shadowCount++;
-            });
-            info.push(`Shadow: ${shadowCount}`);
+            // Andere Consent-Elemente
+            const ytConsent = document.querySelector('ytd-consent-bump-v2-lightbox');
+            info.push(`ytd-consent: ${ytConsent ? 'JA' : 'NEIN'}`);
             
             const buttons = document.querySelectorAll('button');
             info.push(`Buttons: ${buttons.length}`);
             
+            // Suche nach "ablehnen" oder "reject" Buttons
+            let rejectBtn = 'NICHT GEFUNDEN';
+            buttons.forEach(btn => {
+              const text = btn.textContent?.toLowerCase() || '';
+              if (text.includes('ablehnen') || text.includes('reject')) {
+                rejectBtn = text.substring(0, 30);
+              }
+            });
+            info.push(`Reject-Btn: ${rejectBtn}`);
+            
             return info.join(' | ');
           });
           console.log('Debug:', debug);
-          
-          // Debug alle Frames
-          const allFrames = page.frames();
-          for (const frame of allFrames) {
-            try {
-              const frameDebug = await frame.evaluate(() => {
-                const buttons = document.querySelectorAll('button, [role="button"]');
-                const ablehnenButtons = [];
-                buttons.forEach((btn, idx) => {
-                  const text = btn.textContent?.trim() || '';
-                  if (text.toLowerCase().includes('ablehnen') || text.toLowerCase().includes('reject')) {
-                    ablehnenButtons.push(text.substring(0, 30));
-                  }
-                });
-                return { total: buttons.length, ablehnen: ablehnenButtons };
-              });
-              if (frameDebug.ablehnen.length > 0) {
-                console.log(`Frame mit Ablehnen: ${frameDebug.ablehnen.join(', ')}`);
-              }
-            } catch (e) {}
-          }
         }
         
         await new Promise(r => setTimeout(r, 1000));
