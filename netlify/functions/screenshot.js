@@ -534,36 +534,36 @@ exports.handler = async (event, context) => {
     } else if (platform === 'youtube') {
       await handleYouTubePopups(page);
       
-      // YouTube-spezifisch: Video starten und warten bis Frame geladen
-      console.log('▶️ YouTube: Video starten...');
+      // YouTube: Warte auf Player-Element und versuche Video zu laden
+      console.log('▶️ YouTube: Warte auf Player...');
       try {
-        // Versuche Video zu starten
+        // Warte auf irgendeinen Player-Container
+        await page.waitForSelector('#shorts-player, #player-container, #movie_player, video', { timeout: 5000 });
+        
+        // Versuche Video zu starten (wird wahrscheinlich blockiert, aber versuchen)
         await page.evaluate(() => {
           const video = document.querySelector('video');
           if (video) {
-            video.muted = true; // Mute um Autoplay zu ermöglichen
+            video.muted = true;
             video.play().catch(() => {});
           }
-          // Klick auf Player um Video zu starten
-          const player = document.querySelector('#movie_player, .html5-video-player');
-          if (player) player.click();
         });
         
-        // Warte bis Video tatsächlich spielt (hat Frames)
-        await page.waitForFunction(() => {
+        // Warte etwas für Thumbnail/Poster
+        await new Promise(r => setTimeout(r, 3000));
+        
+        // Debug: Was ist sichtbar?
+        const videoInfo = await page.evaluate(() => {
           const video = document.querySelector('video');
-          return video && video.readyState >= 2 && video.currentTime > 0;
-        }, { timeout: 8000 });
-        
-        console.log('✅ YouTube Video läuft');
-        
-        // Kurz warten für besseres Frame
-        await new Promise(r => setTimeout(r, 1000));
+          const poster = video?.poster || 'kein poster';
+          const readyState = video?.readyState || 0;
+          const currentTime = video?.currentTime || 0;
+          return `poster: ${poster.substring(0, 30)} | ready: ${readyState} | time: ${currentTime}`;
+        });
+        console.log('📹 Video-Info:', videoInfo);
         
       } catch (e) {
-        console.log('⚠️ Video nicht gestartet:', e.message);
-        // Trotzdem weitermachen - vielleicht ist ein Thumbnail da
-        await new Promise(r => setTimeout(r, 2000));
+        console.log('⚠️ Player nicht gefunden:', e.message);
       }
     }
 
@@ -624,16 +624,18 @@ exports.handler = async (event, context) => {
         throw new Error('Element not found');
       }
     } catch (e) {
-      // Fallback: Viewport-Screenshot
-      console.log('⚠️ Fallback to viewport screenshot');
+      // Fallback: Viewport-Screenshot (Desktop für YouTube, Mobile für andere)
+      console.log('⚠️ Fallback to viewport screenshot:', e.message);
+      const fallbackWidth = platform === 'youtube' ? 1920 : 430;
+      const fallbackHeight = platform === 'youtube' ? 1080 : maxHeight;
       screenshotBuffer = await page.screenshot({
         type: 'jpeg',
         quality: 85,
         clip: {
           x: 0,
           y: 0,
-          width: 430,
-          height: maxHeight
+          width: fallbackWidth,
+          height: fallbackHeight
         }
       });
     }
