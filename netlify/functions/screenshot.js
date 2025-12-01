@@ -436,11 +436,33 @@ exports.handler = async (event, context) => {
       // Warte nach Play-Klick
       await new Promise(r => setTimeout(r, 2000));
       
-      // Step 2: Check Video-Element
+      // Step 2: Check Video-Element mit spezifischen Klassen
       const videoInfo = await page.evaluate(() => {
-        const video = document.querySelector('video');
+        // Spezifische YouTube Shorts Video-Selektoren
+        const videoSelectors = [
+          'video.video-stream.html5-main-video',
+          'video.video-stream',
+          'video.html5-main-video',
+          '.html5-video-container video',
+          '#shorts-player video',
+          'video'
+        ];
+        
+        let video = null;
+        let usedSelector = '';
+        
+        for (const sel of videoSelectors) {
+          video = document.querySelector(sel);
+          if (video) {
+            usedSelector = sel;
+            break;
+          }
+        }
+        
         if (!video) {
-          return { found: false };
+          // Debug: Alle video-Elemente zählen
+          const allVideos = document.querySelectorAll('video');
+          return { found: false, totalVideos: allVideos.length };
         }
         
         // Versuche Video zu starten
@@ -449,6 +471,7 @@ exports.handler = async (event, context) => {
         
         return {
           found: true,
+          selector: usedSelector,
           src: video.src ? 'blob:...' : 'keine src',
           readyState: video.readyState,
           paused: video.paused,
@@ -461,7 +484,7 @@ exports.handler = async (event, context) => {
       if (videoInfo.found) {
         try {
           await page.waitForFunction(() => {
-            const video = document.querySelector('video');
+            const video = document.querySelector('video.video-stream, video');
             return video && video.readyState >= 2;
           }, { timeout: 5000 });
           console.log('✅ Video bereit');
