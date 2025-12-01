@@ -213,34 +213,31 @@ async function handleYouTubePopups(page) {
     const frames = page.frames();
     console.log(`🔍 Gefunden: ${frames.length} frames`);
     
+    // ALLE Frames durchsuchen (nicht nur consent URLs)
     for (const frame of frames) {
       const url = frame.url();
-      // Google Consent iframe URLs enthalten "consent.google" oder "consent.youtube"
-      if (url.includes('consent') || url.includes('google.com') || frames.length <= 2) {
-        try {
-          const frameClicked = await frame.evaluate(() => {
-            const buttons = document.querySelectorAll('button, [role="button"]');
-            for (const btn of buttons) {
-              const text = btn.textContent || '';
-              const ariaLabel = btn.getAttribute('aria-label') || '';
-              if (text.includes('Alle ablehnen') || text.includes('Reject all') ||
-                  text.includes('Reject') || text.includes('ablehnen') ||
-                  ariaLabel.includes('Alle ablehnen') || ariaLabel.includes('Reject all')) {
-                btn.click();
-                return true;
-              }
+      try {
+        const frameClicked = await frame.evaluate(() => {
+          const buttons = document.querySelectorAll('button, [role="button"]');
+          for (const btn of buttons) {
+            const text = btn.textContent || '';
+            const ariaLabel = btn.getAttribute('aria-label') || '';
+            if (text.includes('Alle ablehnen') || text.includes('Reject all') ||
+                ariaLabel.includes('Alle ablehnen') || ariaLabel.includes('Reject all')) {
+              btn.click();
+              return true;
             }
-            return false;
-          });
-          
-          if (frameClicked) {
-            clicked = true;
-            console.log(`✅ YouTube Cookie-Banner geschlossen (iframe: ${url.substring(0, 50)})`);
-            break;
           }
-        } catch (e) {
-          // Frame nicht mehr verfügbar oder Cross-Origin
+          return false;
+        });
+        
+        if (frameClicked) {
+          clicked = true;
+          console.log(`✅ YouTube Cookie-Banner geschlossen (iframe: ${url.substring(0, 50)})`);
+          break;
         }
+      } catch (e) {
+        // Frame nicht mehr verfügbar oder Cross-Origin
       }
     }
     
@@ -342,14 +339,22 @@ async function handleYouTubePopups(page) {
           });
           console.log('Debug Main:', debug);
           
-          // Debug alle Frames
+          // Debug alle Frames mit Button-Details
           for (const frame of frames) {
             try {
               const frameDebug = await frame.evaluate(() => {
-                const buttons = document.querySelectorAll('button');
-                return `Buttons: ${buttons.length}`;
+                const buttons = document.querySelectorAll('button, [role="button"]');
+                const info = [`Buttons: ${buttons.length}`];
+                buttons.forEach((btn, idx) => {
+                  if (idx < 20) {
+                    const text = btn.textContent?.trim().substring(0, 40) || '';
+                    const ariaLabel = btn.getAttribute('aria-label')?.substring(0, 30) || '';
+                    info.push(`${idx+1}:"${text}"|"${ariaLabel}"`);
+                  }
+                });
+                return info.join(' | ');
               });
-              console.log(`Debug Frame (${frame.url().substring(0, 40)}): ${frameDebug}`);
+              console.log(`Frame (${frame.url().substring(0, 40)}): ${frameDebug}`);
             } catch (e) {}
           }
         }
