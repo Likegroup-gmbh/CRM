@@ -12,8 +12,8 @@ puppeteerExtra.use(StealthPlugin());
 
 // Plattform-spezifische Selektoren für Content-Bereich
 const PLATFORM_SELECTORS = {
-  // YouTube Shorts: Der Player-Container, nicht das video-Element direkt
-  youtube: '#shorts-player, #player-container, #movie_player, ytd-player, .html5-video-player',
+  // YouTube Shorts: Spezifische Selektoren aus dem HTML
+  youtube: '#short-video-container, #shorts-player, .html5-video-player, #player-container, ytd-reel-video-renderer',
   tiktok: '#video-card-normal, [data-e2e="detail-video"], [class*="DivVideoWrapper"]',
   instagram: 'article video, article img, [role="presentation"] video, main article',
   other: 'body'
