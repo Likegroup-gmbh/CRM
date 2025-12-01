@@ -1,9 +1,14 @@
 // Netlify Function: Screenshot-Generierung mit Puppeteer
 // OPTIMIERT FÜR SOCIAL MEDIA - Element-Screenshots
+// MIT STEALTH MODE für YouTube Bot-Umgehung
 
 const chromium = require('@sparticuz/chromium');
-const puppeteer = require('puppeteer-core');
+const puppeteerExtra = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const { createClient } = require('@supabase/supabase-js');
+
+// Stealth Plugin aktivieren (umgeht Bot-Erkennung)
+puppeteerExtra.use(StealthPlugin());
 
 // Plattform-spezifische Selektoren für Content-Bereich
 const PLATFORM_SELECTORS = {
@@ -344,11 +349,19 @@ exports.handler = async (event, context) => {
       ? { width: 430, height: 932 }  // TikTok & Instagram: iPhone 14 Pro Max
       : { width: 1920, height: 1080 };  // YouTube: Desktop
 
-    browser = await puppeteer.launch({
-      args: chromium.args,
+    // Stealth Mode für YouTube Bot-Umgehung
+    console.log('🥷 Starte Browser mit Stealth Mode...');
+    browser = await puppeteerExtra.launch({
+      args: [
+        ...chromium.args,
+        '--disable-blink-features=AutomationControlled', // Versteckt Automation-Flag
+        '--no-sandbox',
+        '--disable-setuid-sandbox'
+      ],
       defaultViewport: viewport,
       executablePath: await chromium.executablePath(),
-      headless: chromium.headless
+      headless: chromium.headless,
+      ignoreDefaultArgs: ['--enable-automation'] // Entfernt Automation-Hinweis
     });
 
     const page = await browser.newPage();
@@ -390,13 +403,13 @@ exports.handler = async (event, context) => {
     } else if (platform === 'instagram') {
       await handleInstagramPopups(page);
     } else if (platform === 'youtube') {
-      await handleYouTubePopups(page);
+      // YouTube auf USA-Servern: Kein Cookie-Banner nötig
+      // Aber wir versuchen trotzdem das Video zu laden
+      console.log('▶️ YouTube: Versuche Video zu laden...');
       
-      // YouTube: Warte auf Video und starte es
-      console.log('▶️ YouTube: Warte auf Video...');
       try {
-        // Warte auf Video-Element
-        await page.waitForSelector('video', { timeout: 8000 });
+        // Kurz warten für Seitenaufbau
+        await new Promise(r => setTimeout(r, 3000));
         
         // Versuche Video zu starten
         await page.evaluate(() => {
@@ -407,19 +420,19 @@ exports.handler = async (event, context) => {
           }
         });
         
-        // Warte bis Video tatsächlich Frames hat (readyState >= 3 = HAVE_FUTURE_DATA)
-        await page.waitForFunction(() => {
-          const video = document.querySelector('video');
-          return video && video.readyState >= 3;
-        }, { timeout: 10000 });
+        // Kurz warten - NICHT auf readyState warten (blockiert auf Servern)
+        await new Promise(r => setTimeout(r, 2000));
         
-        console.log('✅ Video geladen');
-        await new Promise(r => setTimeout(r, 500)); // Kurz warten für gutes Frame
+        // Debug: Video-Status
+        const videoStatus = await page.evaluate(() => {
+          const video = document.querySelector('video');
+          if (!video) return 'kein video element';
+          return `ready=${video.readyState} time=${video.currentTime} paused=${video.paused}`;
+        });
+        console.log('📹 Video-Status:', videoStatus);
         
       } catch (e) {
-        console.log('⚠️ Video nicht geladen:', e.message);
-        // Fallback: Warte trotzdem ein bisschen
-        await new Promise(r => setTimeout(r, 2000));
+        console.log('⚠️ Video-Error:', e.message);
       }
     }
 
