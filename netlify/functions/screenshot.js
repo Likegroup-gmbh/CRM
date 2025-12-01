@@ -204,77 +204,106 @@ async function handleYouTubePopups(page) {
   console.log('🍪 YouTube: Cookie-Banner...');
   
   // Warten für Cookie-Banner
-  await new Promise(r => setTimeout(r, 4000));
+  await new Promise(r => setTimeout(r, 3000));
   
   try {
     let clicked = false;
     
-    // STRATEGIE 0: #lightbox Element mit iframe (StackOverflow Lösung!)
-    const lightbox = await page.$('#lightbox');
-    if (lightbox) {
-      console.log('🔍 #lightbox gefunden!');
+    // STRATEGIE 0: SocialKit-Methode - Wildcard aria-label Selektoren
+    // Quelle: https://www.socialkit.dev/blog/how-to-scrape-youtube-transcripts-with-puppeteer
+    clicked = await page.evaluate(() => {
+      // Wildcard-Selektoren für Cookie-Buttons
+      const cookieSelectors = [
+        'button[aria-label*="cookies"]',
+        'button[aria-label*="Cookies"]',
+        'button[aria-label*="cookie"]',
+        'button[aria-label*="Cookie"]',
+        'button[aria-label*="ablehnen"]',
+        'button[aria-label*="Ablehnen"]',
+        'button[aria-label*="reject"]',
+        'button[aria-label*="Reject"]',
+        'button[aria-label*="decline"]',
+        'button[aria-label*="Decline"]'
+      ];
       
-      // Versuche iframe innerhalb von lightbox zu finden
-      const lightboxFrame = await lightbox.contentFrame();
-      if (lightboxFrame) {
-        console.log('🔍 iframe in #lightbox gefunden!');
-        clicked = await lightboxFrame.evaluate(() => {
-          const buttons = document.querySelectorAll('button, [role="button"]');
-          for (const btn of buttons) {
-            const text = btn.textContent || '';
-            const ariaLabel = btn.getAttribute('aria-label') || '';
-            // Deutsch + Englisch
-            if (text.includes('Alle ablehnen') || text.includes('Reject all') ||
-                ariaLabel.includes('Alle ablehnen') || ariaLabel.includes('Reject') ||
-                ariaLabel.includes('Agree to the use of cookies')) {
-              btn.click();
-              return true;
-            }
-          }
-          return false;
-        });
-        if (clicked) {
-          console.log('✅ YouTube Cookie-Banner geschlossen (#lightbox iframe)');
+      for (const selector of cookieSelectors) {
+        const btn = document.querySelector(selector);
+        if (btn) {
+          btn.click();
+          console.log('Clicked:', selector);
+          return true;
         }
-      } else {
-        // Kein iframe - direkt im lightbox suchen
-        clicked = await page.evaluate(() => {
-          const lightbox = document.querySelector('#lightbox');
-          if (lightbox) {
-            const buttons = lightbox.querySelectorAll('button, [role="button"]');
+      }
+      return false;
+    });
+    
+    if (clicked) {
+      console.log('✅ YouTube Cookie-Banner geschlossen (aria-label wildcard)');
+    }
+    
+    // STRATEGIE 1: Text-basierte Suche in allen Buttons
+    if (!clicked) {
+      clicked = await page.evaluate(() => {
+        const buttons = document.querySelectorAll('button, [role="button"]');
+        for (const btn of buttons) {
+          const text = (btn.textContent || '').toLowerCase();
+          const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
+          
+          // Suche nach Reject/Ablehnen Keywords
+          if (text.includes('alle ablehnen') || text.includes('reject all') ||
+              text.includes('ablehnen') || text.includes('reject') ||
+              ariaLabel.includes('alle ablehnen') || ariaLabel.includes('reject all')) {
+            btn.click();
+            return true;
+          }
+        }
+        return false;
+      });
+      
+      if (clicked) {
+        console.log('✅ YouTube Cookie-Banner geschlossen (text search)');
+      }
+    }
+    
+    // STRATEGIE 2: #lightbox Element (StackOverflow)
+    if (!clicked) {
+      const lightbox = await page.$('#lightbox');
+      if (lightbox) {
+        console.log('🔍 #lightbox gefunden');
+        const lightboxFrame = await lightbox.contentFrame();
+        if (lightboxFrame) {
+          clicked = await lightboxFrame.evaluate(() => {
+            const buttons = document.querySelectorAll('button');
             for (const btn of buttons) {
-              const text = btn.textContent || '';
-              const ariaLabel = btn.getAttribute('aria-label') || '';
-              if (text.includes('Alle ablehnen') || text.includes('Reject all') ||
-                  ariaLabel.includes('ablehnen') || ariaLabel.includes('Reject')) {
+              const text = (btn.textContent || '').toLowerCase();
+              if (text.includes('ablehnen') || text.includes('reject')) {
                 btn.click();
                 return true;
               }
             }
+            return false;
+          });
+          if (clicked) {
+            console.log('✅ YouTube Cookie-Banner geschlossen (#lightbox iframe)');
           }
-          return false;
-        });
-        if (clicked) {
-          console.log('✅ YouTube Cookie-Banner geschlossen (#lightbox direkt)');
         }
       }
     }
     
-    // STRATEGIE 1: Alle page.frames() durchsuchen
+    // STRATEGIE 3: Alle Frames durchsuchen
     if (!clicked) {
       const frames = page.frames();
-      console.log(`🔍 ${frames.length} frames, suche Cookie-Button...`);
+      console.log(`🔍 ${frames.length} frames`);
       
       for (const frame of frames) {
         try {
           const frameClicked = await frame.evaluate(() => {
-            const buttons = document.querySelectorAll('button, [role="button"]');
+            const buttons = document.querySelectorAll('button');
             for (const btn of buttons) {
-              const text = btn.textContent || '';
-              const ariaLabel = btn.getAttribute('aria-label') || '';
-              if (text.includes('Alle ablehnen') || text.includes('Reject all') ||
-                  ariaLabel.includes('Alle ablehnen') || ariaLabel.includes('Reject all') ||
-                  ariaLabel.includes('Agree to the use of cookies')) {
+              const text = (btn.textContent || '').toLowerCase();
+              const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
+              if (text.includes('alle ablehnen') || text.includes('reject all') ||
+                  ariaLabel.includes('ablehnen') || ariaLabel.includes('reject')) {
                 btn.click();
                 return true;
               }
@@ -372,26 +401,24 @@ async function handleYouTubePopups(page) {
           const debug = await page.evaluate(() => {
             const info = [];
             
-            // #lightbox Check (wichtig!)
+            // Wildcard Selektoren testen
+            const cookieBtn = document.querySelector('button[aria-label*="cookie"], button[aria-label*="Cookie"]');
+            info.push(`cookie-aria: ${cookieBtn ? cookieBtn.getAttribute('aria-label')?.substring(0, 30) : 'NEIN'}`);
+            
+            // #lightbox Check
             const lightbox = document.querySelector('#lightbox');
             info.push(`#lightbox: ${lightbox ? 'JA' : 'NEIN'}`);
             
-            // Andere Consent-Elemente
-            const ytConsent = document.querySelector('ytd-consent-bump-v2-lightbox');
-            info.push(`ytd-consent: ${ytConsent ? 'JA' : 'NEIN'}`);
-            
-            const buttons = document.querySelectorAll('button');
-            info.push(`Buttons: ${buttons.length}`);
-            
-            // Suche nach "ablehnen" oder "reject" Buttons
-            let rejectBtn = 'NICHT GEFUNDEN';
+            // Alle Buttons mit aria-label auflisten
+            const buttons = document.querySelectorAll('button[aria-label]');
+            const ariaLabels = [];
             buttons.forEach(btn => {
-              const text = btn.textContent?.toLowerCase() || '';
-              if (text.includes('ablehnen') || text.includes('reject')) {
-                rejectBtn = text.substring(0, 30);
+              const aria = btn.getAttribute('aria-label') || '';
+              if (aria && ariaLabels.length < 5) {
+                ariaLabels.push(aria.substring(0, 25));
               }
             });
-            info.push(`Reject-Btn: ${rejectBtn}`);
+            info.push(`aria-labels: [${ariaLabels.join(', ')}]`);
             
             return info.join(' | ');
           });
