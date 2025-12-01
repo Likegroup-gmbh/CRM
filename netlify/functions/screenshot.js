@@ -7,7 +7,8 @@ const { createClient } = require('@supabase/supabase-js');
 
 // Plattform-spezifische Selektoren für Content-Bereich
 const PLATFORM_SELECTORS = {
-  youtube: 'video, #movie_player, ytd-player',
+  // YouTube Shorts: Der Player-Container, nicht das video-Element direkt
+  youtube: '#shorts-player, #player-container, #movie_player, ytd-player, .html5-video-player',
   tiktok: '#video-card-normal, [data-e2e="detail-video"], [class*="DivVideoWrapper"]',
   instagram: 'article video, article img, [role="presentation"] video, main article',
   other: 'body'
@@ -532,6 +533,38 @@ exports.handler = async (event, context) => {
       await handleInstagramPopups(page);
     } else if (platform === 'youtube') {
       await handleYouTubePopups(page);
+      
+      // YouTube-spezifisch: Video starten und warten bis Frame geladen
+      console.log('▶️ YouTube: Video starten...');
+      try {
+        // Versuche Video zu starten
+        await page.evaluate(() => {
+          const video = document.querySelector('video');
+          if (video) {
+            video.muted = true; // Mute um Autoplay zu ermöglichen
+            video.play().catch(() => {});
+          }
+          // Klick auf Player um Video zu starten
+          const player = document.querySelector('#movie_player, .html5-video-player');
+          if (player) player.click();
+        });
+        
+        // Warte bis Video tatsächlich spielt (hat Frames)
+        await page.waitForFunction(() => {
+          const video = document.querySelector('video');
+          return video && video.readyState >= 2 && video.currentTime > 0;
+        }, { timeout: 8000 });
+        
+        console.log('✅ YouTube Video läuft');
+        
+        // Kurz warten für besseres Frame
+        await new Promise(r => setTimeout(r, 1000));
+        
+      } catch (e) {
+        console.log('⚠️ Video nicht gestartet:', e.message);
+        // Trotzdem weitermachen - vielleicht ist ein Thumbnail da
+        await new Promise(r => setTimeout(r, 2000));
+      }
     }
 
     // Versuche Element-Screenshot (nur Content, nicht ganze Seite)
