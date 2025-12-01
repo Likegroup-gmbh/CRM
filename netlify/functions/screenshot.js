@@ -203,25 +203,35 @@ async function handleInstagramPopups(page) {
 async function handleYouTubePopups(page) {
   console.log('🍪 YouTube: Cookie-Banner...');
   
-  await new Promise(r => setTimeout(r, 2000));
+  // Länger warten für serverless Environment
+  await new Promise(r => setTimeout(r, 3000));
   
   try {
-    // Cookie-Banner: "Alle ablehnen" oder "Reject all" klicken
-    const clicked = await page.evaluate(() => {
-      const buttons = document.querySelectorAll('button, [role="button"]');
-      for (const btn of buttons) {
-        const text = btn.textContent || '';
-        if (text.includes('Alle ablehnen') || text.includes('Reject all')) {
-          btn.click();
-          return true;
+    // Mehrere Versuche mit Wartezeit
+    let clicked = false;
+    
+    for (let i = 0; i < 3; i++) {
+      clicked = await page.evaluate(() => {
+        const buttons = document.querySelectorAll('button, [role="button"]');
+        for (const btn of buttons) {
+          const text = btn.textContent || '';
+          if (text.includes('Alle ablehnen') || text.includes('Reject all')) {
+            btn.click();
+            return true;
+          }
         }
-      }
-      return false;
-    });
+        return false;
+      });
+      
+      if (clicked) break;
+      await new Promise(r => setTimeout(r, 1000));
+    }
     
     if (clicked) {
       console.log('✅ YouTube Cookie-Banner geschlossen');
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise(r => setTimeout(r, 1500));
+    } else {
+      console.log('⚠️ Cookie-Banner nicht gefunden');
     }
   } catch (e) {
     console.log('YouTube Banner:', e.message);
