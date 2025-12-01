@@ -12,8 +12,8 @@ puppeteerExtra.use(StealthPlugin());
 
 // Plattform-spezifische Selektoren für Content-Bereich
 const PLATFORM_SELECTORS = {
-  // YouTube Shorts: Spezifische Selektoren aus dem HTML
-  youtube: '#short-video-container, #shorts-player, .html5-video-player, #player-container, ytd-reel-video-renderer',
+  // YouTube Shorts: .short-video-container ist der beste Selektor (554x984)
+  youtube: '.short-video-container, #player-container',
   tiktok: '#video-card-normal, [data-e2e="detail-video"], [class*="DivVideoWrapper"]',
   instagram: 'article video, article img, [role="presentation"] video, main article',
   other: 'body'
@@ -403,65 +403,31 @@ exports.handler = async (event, context) => {
     } else if (platform === 'instagram') {
       await handleInstagramPopups(page);
     } else if (platform === 'youtube') {
-      // YouTube Debug: Suche nach short-video-container
-      console.log('🔍 YouTube: Suche nach short-video-container...');
+      // YouTube: Warte auf short-video-container
+      console.log('🔍 YouTube: Suche nach .short-video-container...');
       
       // Warte auf Seitenaufbau
       await new Promise(r => setTimeout(r, 5000));
       
-      // Explizit nach short-video-container suchen
-      const elementCheck = await page.evaluate(() => {
-        const selectors = [
-          '.short-video-container',
-          '#short-video-container',
-          '[class*="short-video-container"]',
-          '#shorts-player',
-          '.html5-video-player',
-          '#player-container',
-          'ytd-reel-video-renderer',
-          'video'
-        ];
-        
-        const results = {};
-        for (const sel of selectors) {
-          const el = document.querySelector(sel);
-          if (el) {
-            const rect = el.getBoundingClientRect();
-            results[sel] = {
-              found: true,
-              width: Math.round(rect.width),
-              height: Math.round(rect.height),
-              visible: rect.width > 0 && rect.height > 0
-            };
-          } else {
-            results[sel] = { found: false };
-          }
+      // Prüfe ob Element existiert
+      const elementInfo = await page.evaluate(() => {
+        const el = document.querySelector('.short-video-container');
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          return {
+            found: true,
+            width: Math.round(rect.width),
+            height: Math.round(rect.height)
+          };
         }
-        return results;
+        return { found: false };
       });
       
-      console.log('📋 Element-Check Ergebnis:');
-      for (const [selector, info] of Object.entries(elementCheck)) {
-        if (info.found) {
-          console.log(`  ✅ ${selector}: ${info.width}x${info.height} (visible: ${info.visible})`);
-        } else {
-          console.log(`  ❌ ${selector}: NICHT GEFUNDEN`);
-        }
+      if (elementInfo.found) {
+        console.log(`✅ .short-video-container gefunden: ${elementInfo.width}x${elementInfo.height}`);
+      } else {
+        console.log('❌ .short-video-container NICHT gefunden');
       }
-      
-      // TEMPORÄR: Kein Screenshot, nur Debug
-      console.log('🛑 DEBUG MODE: Kein Screenshot, nur Element-Check');
-      
-      await browser.close();
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({ 
-          debug: true, 
-          message: 'Element-Check abgeschlossen',
-          elements: elementCheck
-        })
-      };
     }
 
     // Versuche Element-Screenshot (nur Content, nicht ganze Seite)
