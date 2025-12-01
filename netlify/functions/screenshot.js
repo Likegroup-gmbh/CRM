@@ -209,15 +209,100 @@ async function handleYouTubePopups(page) {
   try {
     let clicked = false;
     
-    for (let i = 0; i < 3; i++) {
-      // Strategie 1: Shadow DOM durchsuchen (wie bei TikTok)
-      clicked = await page.evaluate(() => {
-        // Shadow DOM durchsuchen
-        const shadowHosts = document.querySelectorAll('*');
-        for (const el of shadowHosts) {
-          if (el.shadowRoot) {
-            const shadowButtons = el.shadowRoot.querySelectorAll('button');
-            for (const btn of shadowButtons) {
+    // STRATEGIE 0: IFRAME-Suche (Google Consent ist typischerweise in iframe!)
+    const frames = page.frames();
+    console.log(`🔍 Gefunden: ${frames.length} frames`);
+    
+    for (const frame of frames) {
+      const url = frame.url();
+      // Google Consent iframe URLs enthalten "consent.google" oder "consent.youtube"
+      if (url.includes('consent') || url.includes('google.com') || frames.length <= 2) {
+        try {
+          const frameClicked = await frame.evaluate(() => {
+            const buttons = document.querySelectorAll('button, [role="button"]');
+            for (const btn of buttons) {
+              const text = btn.textContent || '';
+              const ariaLabel = btn.getAttribute('aria-label') || '';
+              if (text.includes('Alle ablehnen') || text.includes('Reject all') ||
+                  text.includes('Reject') || text.includes('ablehnen') ||
+                  ariaLabel.includes('Alle ablehnen') || ariaLabel.includes('Reject all')) {
+                btn.click();
+                return true;
+              }
+            }
+            return false;
+          });
+          
+          if (frameClicked) {
+            clicked = true;
+            console.log(`✅ YouTube Cookie-Banner geschlossen (iframe: ${url.substring(0, 50)})`);
+            break;
+          }
+        } catch (e) {
+          // Frame nicht mehr verfügbar oder Cross-Origin
+        }
+      }
+    }
+    
+    // Falls iframe nicht geklappt hat, normale Strategien
+    if (!clicked) {
+      for (let i = 0; i < 3; i++) {
+        // Strategie 1: Shadow DOM durchsuchen
+        clicked = await page.evaluate(() => {
+          const shadowHosts = document.querySelectorAll('*');
+          for (const el of shadowHosts) {
+            if (el.shadowRoot) {
+              const shadowButtons = el.shadowRoot.querySelectorAll('button');
+              for (const btn of shadowButtons) {
+                const text = btn.textContent || '';
+                const ariaLabel = btn.getAttribute('aria-label') || '';
+                if (text.includes('Alle ablehnen') || text.includes('Reject all') ||
+                    ariaLabel.includes('Alle ablehnen') || ariaLabel.includes('Reject all')) {
+                  btn.click();
+                  return true;
+                }
+              }
+            }
+          }
+          return false;
+        });
+        
+        if (clicked) {
+          console.log('✅ YouTube Cookie-Banner geschlossen (Shadow DOM)');
+          break;
+        }
+        
+        // Strategie 2: aria-label Selektor
+        if (!clicked) {
+          try {
+            const button = await page.$('button[aria-label*="Alle ablehnen"], button[aria-label*="Reject all"]');
+            if (button) {
+              await button.click();
+              clicked = true;
+              console.log('✅ YouTube Cookie-Banner geschlossen (aria-label)');
+              break;
+            }
+          } catch (e) {}
+        }
+        
+        // Strategie 3: jsname
+        if (!clicked) {
+          try {
+            const button = await page.$('button[jsname="tWT92d"]');
+            if (button) {
+              await button.click();
+              clicked = true;
+              console.log('✅ YouTube Cookie-Banner geschlossen (jsname)');
+              break;
+            }
+          } catch (e) {}
+        }
+        
+        // Strategie 4: Text-basiert
+        if (!clicked) {
+          clicked = await page.evaluate(() => {
+            const buttons = document.querySelectorAll('button, [role="button"]');
+            for (const btn of buttons) {
               const text = btn.textContent || '';
               const ariaLabel = btn.getAttribute('aria-label') || '';
               if (text.includes('Alle ablehnen') || text.includes('Reject all') ||
@@ -226,92 +311,51 @@ async function handleYouTubePopups(page) {
                 return true;
               }
             }
-          }
-        }
-        return false;
-      });
-      
-      if (clicked) {
-        console.log('✅ YouTube Cookie-Banner geschlossen (Shadow DOM)');
-        break;
-      }
-      
-      // Strategie 2: Normales DOM - Per aria-label Selektor
-      if (!clicked) {
-        try {
-          const button = await page.$('button[aria-label*="Alle ablehnen"], button[aria-label*="Reject all"]');
-          if (button) {
-            await button.click();
-            clicked = true;
-            console.log('✅ YouTube Cookie-Banner geschlossen (aria-label)');
-            break;
-          }
-        } catch (e) {}
-      }
-      
-      // Strategie 3: Per jsname="tWT92d"
-      if (!clicked) {
-        try {
-          const button = await page.$('button[jsname="tWT92d"]');
-          if (button) {
-            await button.click();
-            clicked = true;
-            console.log('✅ YouTube Cookie-Banner geschlossen (jsname)');
-            break;
-          }
-        } catch (e) {}
-      }
-      
-      // Strategie 4: Text-basierte Suche
-      if (!clicked) {
-        clicked = await page.evaluate(() => {
-          const buttons = document.querySelectorAll('button, [role="button"]');
-          for (const btn of buttons) {
-            const text = btn.textContent || '';
-            const ariaLabel = btn.getAttribute('aria-label') || '';
-            
-            if (text.includes('Alle ablehnen') || text.includes('Reject all') ||
-                ariaLabel.includes('Alle ablehnen') || ariaLabel.includes('Reject all')) {
-              btn.click();
-              return true;
-            }
-          }
-          return false;
-        });
-        
-        if (clicked) {
-          console.log('✅ YouTube Cookie-Banner geschlossen (text search)');
-          break;
-        }
-      }
-      
-      // Debug beim letzten Versuch
-      if (i === 2 && !clicked) {
-        const debug = await page.evaluate(() => {
-          const info = [];
-          // Shadow DOM Info
-          let shadowCount = 0;
-          document.querySelectorAll('*').forEach(el => {
-            if (el.shadowRoot) shadowCount++;
+            return false;
           });
-          info.push(`Shadow DOMs: ${shadowCount}`);
           
-          // Normale Buttons
-          const buttons = document.querySelectorAll('button');
-          info.push(`Buttons: ${buttons.length}`);
-          buttons.forEach((btn, idx) => {
-            if (idx < 5) {
-              const text = btn.textContent?.trim().substring(0, 30);
-              const aria = btn.getAttribute('aria-label')?.substring(0, 30);
-              info.push(`${idx+1}:"${text}"|"${aria}"`);
-            }
+          if (clicked) {
+            console.log('✅ YouTube Cookie-Banner geschlossen (text search)');
+            break;
+          }
+        }
+        
+        // Debug beim letzten Versuch
+        if (i === 2 && !clicked) {
+          const debug = await page.evaluate(() => {
+            const info = [];
+            let shadowCount = 0;
+            document.querySelectorAll('*').forEach(el => {
+              if (el.shadowRoot) shadowCount++;
+            });
+            info.push(`Shadow DOMs: ${shadowCount}`);
+            const buttons = document.querySelectorAll('button');
+            info.push(`Buttons: ${buttons.length}`);
+            buttons.forEach((btn, idx) => {
+              if (idx < 5) {
+                const text = btn.textContent?.trim().substring(0, 30);
+                const aria = btn.getAttribute('aria-label')?.substring(0, 30);
+                info.push(`${idx+1}:"${text}"|"${aria}"`);
+              }
+            });
+            return info.join(' | ');
           });
-          return info.join(' | ');
-        });
-        console.log('Debug:', debug);
+          console.log('Debug Main:', debug);
+          
+          // Debug alle Frames
+          for (const frame of frames) {
+            try {
+              const frameDebug = await frame.evaluate(() => {
+                const buttons = document.querySelectorAll('button');
+                return `Buttons: ${buttons.length}`;
+              });
+              console.log(`Debug Frame (${frame.url().substring(0, 40)}): ${frameDebug}`);
+            } catch (e) {}
+          }
+        }
+        
+        await new Promise(r => setTimeout(r, 1000));
       }
-      
-      await new Promise(r => setTimeout(r, 1000));
     }
     
     if (clicked) {
