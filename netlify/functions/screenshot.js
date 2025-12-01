@@ -206,11 +206,23 @@ async function handleYouTubePopups(page) {
   await new Promise(r => setTimeout(r, 2000));
   
   try {
-    // Cookie-Banner akzeptieren
-    await page.click('[data-testid="cookie-banner-accept"]').catch(() => {});
-    await page.click('button[aria-label*="Accept"]').catch(() => {});
+    // Cookie-Banner: "Alle ablehnen" oder "Reject all" klicken
+    const clicked = await page.evaluate(() => {
+      const buttons = document.querySelectorAll('button, [role="button"]');
+      for (const btn of buttons) {
+        const text = btn.textContent || '';
+        if (text.includes('Alle ablehnen') || text.includes('Reject all')) {
+          btn.click();
+          return true;
+        }
+      }
+      return false;
+    });
     
-    await new Promise(r => setTimeout(r, 500));
+    if (clicked) {
+      console.log('✅ YouTube Cookie-Banner geschlossen');
+      await new Promise(r => setTimeout(r, 1000));
+    }
   } catch (e) {
     console.log('YouTube Banner:', e.message);
   }
