@@ -3,6 +3,7 @@
 
 import { strategieService } from './StrategieService.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
+import { AvatarBubbles } from '../../core/components/AvatarBubbles.js';
 
 export class StrategieList {
   constructor() {
@@ -132,9 +133,9 @@ export class StrategieList {
             <thead>
               <tr>
                 <th>Name</th>
-                <th>Verknüpfung</th>
-                <th>Items</th>
-                <th>Erstellt</th>
+                <th>Unternehmen</th>
+                <th>Marke</th>
+                <th>Kampagne</th>
                 <th>Erstellt von</th>
                 <th class="col-actions">Aktionen</th>
               </tr>
@@ -174,35 +175,49 @@ export class StrategieList {
     }
 
     tbody.innerHTML = strategien.map(strategie => {
-      // Verknüpfung ermitteln
-      let verknuepfung = '';
-      if (strategie.marke) {
-        verknuepfung = `Marke: ${strategie.marke.markenname}`;
-      } else if (strategie.unternehmen) {
-        verknuepfung = `Unternehmen: ${strategie.unternehmen.firmenname}`;
-      } else if (strategie.kampagne) {
-        verknuepfung = `Kampagne: ${strategie.kampagne.kampagnenname}`;
-      } else if (strategie.auftrag) {
-        verknuepfung = `Auftrag: ${strategie.auftrag.auftragsname}`;
-      }
+      // Unternehmen Bubble
+      const unternehmenBubble = strategie.unternehmen 
+        ? AvatarBubbles.renderBubbles([{
+            name: strategie.unternehmen.firmenname,
+            type: 'org',
+            id: strategie.unternehmen.id,
+            entityType: 'unternehmen',
+            logo_url: strategie.unternehmen.logo_url
+          }])
+        : '-';
 
-      // Datum formatieren
-      const createdAt = new Date(strategie.created_at).toLocaleDateString('de-DE', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      });
+      // Marke Bubble
+      const markeBubble = strategie.marke 
+        ? AvatarBubbles.renderBubbles([{
+            name: strategie.marke.markenname,
+            type: 'org',
+            id: strategie.marke.id,
+            entityType: 'marke',
+            logo_url: strategie.marke.logo_url
+          }])
+        : '-';
+
+      // Kampagne (kein Bubble, nur Text)
+      const kampagneName = strategie.kampagne?.kampagnenname || '-';
+
+      // Erstellt von Bubble
+      const createdByBubble = strategie.created_by_user 
+        ? AvatarBubbles.renderBubbles([{
+            name: strategie.created_by_user.name,
+            type: 'person',
+            id: strategie.created_by_user.id,
+            entityType: 'mitarbeiter',
+            profile_image_url: strategie.created_by_user.profile_image_url
+          }])
+        : '-';
 
       return `
         <tr class="table-row-clickable" data-strategie-id="${strategie.id}">
-          <td>
-            <strong>${strategie.name || 'Ohne Namen'}</strong>
-            ${strategie.beschreibung ? `<br><span style="font-size: var(--text-xs); color: var(--text-secondary);">${strategie.beschreibung}</span>` : ''}
-          </td>
-          <td>${verknuepfung}</td>
-          <td><span style="color: var(--text-secondary);">-</span></td>
-          <td>${createdAt}</td>
-          <td>${strategie.created_by_user?.name || '-'}</td>
+          <td><strong>${strategie.name || 'Ohne Namen'}</strong></td>
+          <td>${unternehmenBubble}</td>
+          <td>${markeBubble}</td>
+          <td>${kampagneName}</td>
+          <td>${createdByBubble}</td>
           <td class="col-actions">
             <div class="actions-dropdown-container" data-entity-type="strategie">
               <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
@@ -216,6 +231,10 @@ export class StrategieList {
                   Details anzeigen
                 </a>
                 ${window.currentUser?.rolle !== 'kunde' ? `
+                  <a href="#" class="action-item" data-action="edit-strategie" data-id="${strategie.id}">
+                    ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
+                    Bearbeiten
+                  </a>
                   <div class="action-separator"></div>
                   <a href="#" class="action-item action-danger" data-action="delete-strategie" data-id="${strategie.id}">
                     ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
@@ -274,6 +293,18 @@ export class StrategieList {
         e.stopPropagation();
         const id = btn.dataset.id;
         window.navigateTo(`/strategie/${id}`);
+      };
+      btn.addEventListener('click', handler);
+      this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
+    });
+
+    // Edit Action (im Dropdown)
+    document.querySelectorAll('[data-action="edit-strategie"]').forEach(btn => {
+      const handler = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        this.showEditDialog(id);
       };
       btn.addEventListener('click', handler);
       this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
@@ -657,25 +688,472 @@ export class StrategieList {
    * Drawer entfernen
    */
   removeDrawer() {
-    const overlay = document.getElementById('create-strategie-overlay');
-    const panel = document.getElementById('create-strategie-drawer');
-    if (overlay) overlay.remove();
-    if (panel) panel.remove();
+    // Create Drawer
+    const createOverlay = document.getElementById('create-strategie-overlay');
+    const createPanel = document.getElementById('create-strategie-drawer');
+    if (createOverlay) createOverlay.remove();
+    if (createPanel) createPanel.remove();
+    
+    // Edit Drawer
+    const editOverlay = document.getElementById('edit-strategie-overlay');
+    const editPanel = document.getElementById('edit-strategie-drawer');
+    if (editOverlay) editOverlay.remove();
+    if (editPanel) editPanel.remove();
   }
 
   /**
    * Drawer schließen
    */
   closeDrawer() {
-    const overlay = document.getElementById('create-strategie-overlay');
-    const panel = document.getElementById('create-strategie-drawer');
+    const createOverlay = document.getElementById('create-strategie-overlay');
+    const createPanel = document.getElementById('create-strategie-drawer');
+    const editOverlay = document.getElementById('edit-strategie-overlay');
+    const editPanel = document.getElementById('edit-strategie-drawer');
     
-    if (overlay) overlay.classList.remove('active');
-    if (panel) panel.classList.remove('show');
+    if (createOverlay) createOverlay.classList.remove('active');
+    if (createPanel) createPanel.classList.remove('show');
+    if (editOverlay) editOverlay.classList.remove('active');
+    if (editPanel) editPanel.classList.remove('show');
     
     setTimeout(() => {
       this.removeDrawer();
     }, 300);
+  }
+
+  /**
+   * Zeige Bearbeiten-Drawer
+   */
+  async showEditDialog(strategieId) {
+    // Strategie laden
+    const strategie = this.strategien.find(s => s.id === strategieId);
+    if (!strategie) {
+      window.toastSystem?.show('Strategie nicht gefunden', 'error');
+      return;
+    }
+
+    // Entferne bestehenden Drawer
+    this.removeDrawer();
+
+    // Drawer Overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'drawer-overlay';
+    overlay.id = 'edit-strategie-overlay';
+
+    // Drawer Panel
+    const panel = document.createElement('div');
+    panel.setAttribute('role', 'dialog');
+    panel.className = 'drawer-panel';
+    panel.id = 'edit-strategie-drawer';
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'drawer-header';
+    
+    const headerLeft = document.createElement('div');
+    const title = document.createElement('span');
+    title.className = 'drawer-title';
+    title.textContent = 'Strategie bearbeiten';
+    
+    const subtitle = document.createElement('p');
+    subtitle.className = 'drawer-subtitle';
+    subtitle.textContent = strategie.name;
+    
+    headerLeft.appendChild(title);
+    headerLeft.appendChild(subtitle);
+    
+    const headerRight = document.createElement('div');
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'drawer-close-btn';
+    closeBtn.setAttribute('type', 'button');
+    closeBtn.setAttribute('aria-label', 'Schließen');
+    closeBtn.innerHTML = '&times;';
+    headerRight.appendChild(closeBtn);
+    
+    header.appendChild(headerLeft);
+    header.appendChild(headerRight);
+
+    // Teilbereiche als einzelne Inputs vorbereiten
+    const teilbereiche = strategie.teilbereich ? strategie.teilbereich.split(',').map(t => t.trim()).filter(t => t) : [];
+    const teilbereicheHTML = teilbereiche.length > 0 
+      ? teilbereiche.map((tb, idx) => `
+          <div class="teilbereich-row" data-index="${idx}">
+            <input type="text" class="form-input teilbereich-input" name="teilbereich[]" value="${tb}" placeholder="Teilbereich...">
+            ${idx === 0 ? `
+              <button type="button" class="teilbereich-add-btn" title="Weiteren Teilbereich hinzufügen">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px;">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+              </button>
+            ` : `
+              <button type="button" class="teilbereich-remove-btn" title="Teilbereich entfernen">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px;">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
+            `}
+          </div>
+        `).join('')
+      : `
+          <div class="teilbereich-row" data-index="0">
+            <input type="text" class="form-input teilbereich-input" name="teilbereich[]" placeholder="z.B. Food, Sport, Leistungssport">
+            <button type="button" class="teilbereich-add-btn" title="Weiteren Teilbereich hinzufügen">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px;">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+            </button>
+          </div>
+        `;
+
+    // Body
+    const body = document.createElement('div');
+    body.className = 'drawer-body';
+    body.innerHTML = `
+      <form id="edit-strategie-form" data-strategie-id="${strategie.id}">
+        <div class="form-field">
+          <label class="form-label">Name *</label>
+          <input type="text" id="edit-strategie-name" name="name" required class="form-input" value="${strategie.name || ''}" placeholder="z.B. Q1 2025 Content Ideen">
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Beschreibung</label>
+          <textarea id="edit-strategie-beschreibung" name="beschreibung" class="form-input" rows="3" placeholder="Optional">${strategie.beschreibung || ''}</textarea>
+        </div>
+
+        <div class="form-field tag-based-select">
+          <label class="form-label">Unternehmen</label>
+          <input type="text" id="edit-as-unternehmen" class="form-input auto-suggest-input" placeholder="Unternehmen suchen..." autocomplete="off">
+          <div id="edit-asdd-unternehmen" class="auto-suggest-dropdown"></div>
+          <div id="edit-tags-unternehmen" class="tags-container"></div>
+        </div>
+
+        <div class="form-field tag-based-select">
+          <label class="form-label">Marke</label>
+          <input type="text" id="edit-as-marke" class="form-input auto-suggest-input" placeholder="Marke suchen..." autocomplete="off">
+          <div id="edit-asdd-marke" class="auto-suggest-dropdown"></div>
+          <div id="edit-tags-marke" class="tags-container"></div>
+        </div>
+
+        <div class="form-field tag-based-select">
+          <label class="form-label">Kampagne</label>
+          <input type="text" id="edit-as-kampagne" class="form-input auto-suggest-input" placeholder="Kampagne suchen..." autocomplete="off">
+          <div id="edit-asdd-kampagne" class="auto-suggest-dropdown"></div>
+          <div id="edit-tags-kampagne" class="tags-container"></div>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Teilbereiche</label>
+          <div id="edit-teilbereiche-container">
+            ${teilbereicheHTML}
+          </div>
+          <small style="color: var(--text-secondary); font-size: var(--text-xs);">Optional: Kategorisieren Sie Ihre Strategie in mehrere Teilbereiche</small>
+        </div>
+
+        <div class="drawer-footer">
+          <button type="button" class="secondary-btn" data-action="close-drawer">Abbrechen</button>
+          <button type="submit" class="primary-btn">Speichern</button>
+        </div>
+      </form>
+    `;
+
+    panel.appendChild(header);
+    panel.appendChild(body);
+
+    // Event: Overlay-Klick schließt Drawer
+    overlay.addEventListener('click', () => this.closeDrawer());
+    closeBtn.addEventListener('click', () => this.closeDrawer());
+
+    document.body.appendChild(overlay);
+    document.body.appendChild(panel);
+
+    // Animation
+    requestAnimationFrame(() => {
+      overlay.classList.add('active');
+      panel.classList.add('show');
+    });
+
+    // Auto-Suggestion setup mit bestehenden Werten
+    this.setupEditAutoSuggestion(strategie);
+
+    // Teilbereiche Events
+    this.setupEditTeilbereicheEvents();
+
+    // Form Events
+    this.bindEditDialogEvents(strategie.id);
+  }
+
+  /**
+   * Setup Auto-Suggestion für Edit-Dialog
+   */
+  setupEditAutoSuggestion(strategie) {
+    let selectedUnternehmenId = strategie.unternehmen_id || null;
+    let selectedMarkeId = strategie.marke_id || null;
+    let selectedKampagneId = strategie.kampagne_id || null;
+
+    // Helper: Tag erstellen
+    const addTag = (containerId, id, label, onRemove) => {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      container.innerHTML = '';
+      
+      const tag = document.createElement('span');
+      tag.className = 'tag';
+      tag.dataset.id = id;
+      tag.innerHTML = `
+        ${label}
+        <button type="button" class="tag-remove" aria-label="Entfernen">&times;</button>
+      `;
+      tag.querySelector('.tag-remove').addEventListener('click', () => {
+        tag.remove();
+        onRemove();
+      });
+      container.appendChild(tag);
+    };
+
+    // Bestehende Tags setzen
+    if (strategie.unternehmen) {
+      addTag('edit-tags-unternehmen', strategie.unternehmen.id, strategie.unternehmen.firmenname, () => { selectedUnternehmenId = null; });
+    }
+    if (strategie.marke) {
+      addTag('edit-tags-marke', strategie.marke.id, strategie.marke.markenname, () => { selectedMarkeId = null; });
+    }
+    if (strategie.kampagne) {
+      addTag('edit-tags-kampagne', strategie.kampagne.id, strategie.kampagne.kampagnenname, () => { selectedKampagneId = null; });
+    }
+
+    // Unternehmen Auto-Suggest
+    const unternehmenInput = document.getElementById('edit-as-unternehmen');
+    const unternehmenDropdown = document.getElementById('edit-asdd-unternehmen');
+    
+    if (unternehmenInput && unternehmenDropdown) {
+      let debounceTimer;
+      unternehmenInput.addEventListener('input', async () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(async () => {
+          const searchTerm = unternehmenInput.value.trim();
+          if (searchTerm.length < 2) {
+            unternehmenDropdown.innerHTML = '';
+            unternehmenDropdown.style.display = 'none';
+            return;
+          }
+          
+          const results = await strategieService.getAllUnternehmen();
+          const filtered = results.filter(u => u.firmenname.toLowerCase().includes(searchTerm.toLowerCase()));
+          
+          if (filtered.length === 0) {
+            unternehmenDropdown.innerHTML = '<div class="auto-suggest-item">Keine Ergebnisse</div>';
+          } else {
+            unternehmenDropdown.innerHTML = filtered.map(u => 
+              `<div class="auto-suggest-item" data-id="${u.id}" data-name="${u.firmenname}">${u.firmenname}</div>`
+            ).join('');
+          }
+          unternehmenDropdown.style.display = 'block';
+          
+          unternehmenDropdown.querySelectorAll('.auto-suggest-item[data-id]').forEach(item => {
+            item.addEventListener('click', () => {
+              selectedUnternehmenId = item.dataset.id;
+              addTag('edit-tags-unternehmen', item.dataset.id, item.dataset.name, () => { selectedUnternehmenId = null; });
+              unternehmenInput.value = '';
+              unternehmenDropdown.style.display = 'none';
+            });
+          });
+        }, 300);
+      });
+    }
+
+    // Marke Auto-Suggest
+    const markeInput = document.getElementById('edit-as-marke');
+    const markeDropdown = document.getElementById('edit-asdd-marke');
+    
+    if (markeInput && markeDropdown) {
+      let debounceTimer;
+      markeInput.addEventListener('input', async () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(async () => {
+          const searchTerm = markeInput.value.trim();
+          if (searchTerm.length < 2) {
+            markeDropdown.innerHTML = '';
+            markeDropdown.style.display = 'none';
+            return;
+          }
+          
+          const results = await strategieService.getAllMarken();
+          const filtered = results.filter(m => m.markenname.toLowerCase().includes(searchTerm.toLowerCase()));
+          
+          if (filtered.length === 0) {
+            markeDropdown.innerHTML = '<div class="auto-suggest-item">Keine Ergebnisse</div>';
+          } else {
+            markeDropdown.innerHTML = filtered.map(m => 
+              `<div class="auto-suggest-item" data-id="${m.id}" data-name="${m.markenname}">${m.markenname}</div>`
+            ).join('');
+          }
+          markeDropdown.style.display = 'block';
+          
+          markeDropdown.querySelectorAll('.auto-suggest-item[data-id]').forEach(item => {
+            item.addEventListener('click', () => {
+              selectedMarkeId = item.dataset.id;
+              addTag('edit-tags-marke', item.dataset.id, item.dataset.name, () => { selectedMarkeId = null; });
+              markeInput.value = '';
+              markeDropdown.style.display = 'none';
+            });
+          });
+        }, 300);
+      });
+    }
+
+    // Kampagne Auto-Suggest
+    const kampagneInput = document.getElementById('edit-as-kampagne');
+    const kampagneDropdown = document.getElementById('edit-asdd-kampagne');
+    
+    if (kampagneInput && kampagneDropdown) {
+      let debounceTimer;
+      kampagneInput.addEventListener('input', async () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(async () => {
+          const searchTerm = kampagneInput.value.trim();
+          if (searchTerm.length < 2) {
+            kampagneDropdown.innerHTML = '';
+            kampagneDropdown.style.display = 'none';
+            return;
+          }
+          
+          const results = await strategieService.getAllKampagnen();
+          const filtered = results.filter(k => k.kampagnenname.toLowerCase().includes(searchTerm.toLowerCase()));
+          
+          if (filtered.length === 0) {
+            kampagneDropdown.innerHTML = '<div class="auto-suggest-item">Keine Ergebnisse</div>';
+          } else {
+            kampagneDropdown.innerHTML = filtered.map(k => 
+              `<div class="auto-suggest-item" data-id="${k.id}" data-name="${k.kampagnenname}">${k.kampagnenname}</div>`
+            ).join('');
+          }
+          kampagneDropdown.style.display = 'block';
+          
+          kampagneDropdown.querySelectorAll('.auto-suggest-item[data-id]').forEach(item => {
+            item.addEventListener('click', () => {
+              selectedKampagneId = item.dataset.id;
+              addTag('edit-tags-kampagne', item.dataset.id, item.dataset.name, () => { selectedKampagneId = null; });
+              kampagneInput.value = '';
+              kampagneDropdown.style.display = 'none';
+            });
+          });
+        }, 300);
+      });
+    }
+  }
+
+  /**
+   * Setup Events für dynamische Teilbereiche im Edit-Dialog
+   */
+  setupEditTeilbereicheEvents() {
+    const container = document.getElementById('edit-teilbereiche-container');
+    if (!container) return;
+
+    let teilbereichIndex = container.querySelectorAll('.teilbereich-row').length;
+
+    container.addEventListener('click', (e) => {
+      const addBtn = e.target.closest('.teilbereich-add-btn');
+      const removeBtn = e.target.closest('.teilbereich-remove-btn');
+
+      if (addBtn) {
+        const newRow = document.createElement('div');
+        newRow.className = 'teilbereich-row';
+        newRow.dataset.index = teilbereichIndex++;
+        newRow.innerHTML = `
+          <input type="text" class="form-input teilbereich-input" name="teilbereich[]" placeholder="Weiterer Teilbereich...">
+          <button type="button" class="teilbereich-remove-btn" title="Teilbereich entfernen">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        `;
+        container.appendChild(newRow);
+        newRow.querySelector('input').focus();
+      }
+
+      if (removeBtn) {
+        const rows = container.querySelectorAll('.teilbereich-row');
+        if (rows.length > 1) {
+          removeBtn.closest('.teilbereich-row').remove();
+        }
+      }
+    });
+  }
+
+  /**
+   * Binde Events für Bearbeiten-Drawer
+   */
+  bindEditDialogEvents(strategieId) {
+    const drawer = document.getElementById('edit-strategie-drawer');
+    const form = document.getElementById('edit-strategie-form');
+
+    if (!drawer || !form) return;
+
+    // Close button
+    drawer.querySelectorAll('[data-action="close-drawer"]').forEach(btn => {
+      btn.addEventListener('click', () => this.closeDrawer());
+    });
+
+    // Form Submit
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const submitBtn = form.querySelector('button[type="submit"]');
+      const originalText = submitBtn?.innerHTML;
+      
+      try {
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = 'Speichern...';
+        }
+
+        const formData = new FormData(form);
+        
+        // Teilbereiche sammeln
+        const teilbereiche = formData.getAll('teilbereich[]')
+          .map(t => t.trim())
+          .filter(t => t.length > 0);
+        
+        // IDs aus Tags holen
+        const unternehmenTag = document.querySelector('#edit-tags-unternehmen .tag');
+        const markeTag = document.querySelector('#edit-tags-marke .tag');
+        const kampagneTag = document.querySelector('#edit-tags-kampagne .tag');
+        
+        const data = {
+          name: formData.get('name'),
+          beschreibung: formData.get('beschreibung') || null,
+          unternehmen_id: unternehmenTag?.dataset.id || null,
+          marke_id: markeTag?.dataset.id || null,
+          kampagne_id: kampagneTag?.dataset.id || null,
+          teilbereich: teilbereiche.length > 0 ? teilbereiche.join(', ') : null
+        };
+
+        // Validierung: Mindestens eine Verknüpfung
+        if (!data.unternehmen_id && !data.marke_id && !data.kampagne_id) {
+          window.toastSystem?.show('Bitte wählen Sie mindestens ein Unternehmen, eine Marke oder eine Kampagne aus', 'error');
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+          }
+          return;
+        }
+
+        await strategieService.updateStrategie(strategieId, data);
+        window.toastSystem?.show('Strategie erfolgreich aktualisiert', 'success');
+        this.closeDrawer();
+        
+        // Liste neu laden
+        await this.loadAndRender();
+        
+      } catch (error) {
+        console.error('Fehler beim Aktualisieren der Strategie:', error);
+        window.toastSystem?.show('Fehler beim Aktualisieren der Strategie', 'error');
+        
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = originalText;
+        }
+      }
+    });
   }
 
   /**

@@ -101,41 +101,85 @@ export class StrategieDetail {
     // Teilbereiche aus der Strategie holen
     const teilbereiche = this.getTeilbereicheFromStrategie();
     
-    const teilbereichSelect = teilbereiche.length > 0 ? `
-      <div class="form-field">
-        <label for="item-teilbereich" >Kategorie</label>
-        <select id="item-teilbereich" name="teilbereich" class="form-input">
-          ${teilbereiche.map(tb => `<option value="${tb}">${tb}</option>`).join('')}
-        </select>
+    const teilbereichSelect = `
+      <div class="form-field kategorie-field-wrapper">
+        <label for="item-teilbereich">Kategorie</label>
+        <div class="kategorie-select-row">
+          <select id="item-teilbereich" name="teilbereich" class="form-input">
+            <option value="">Ohne Kategorie</option>
+            ${teilbereiche.map(tb => `<option value="${tb}">${tb}</option>`).join('')}
+          </select>
+          <button type="button" class="kategorie-manage-btn" id="btn-manage-kategorien" title="Kategorien verwalten">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 18px; height: 18px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+          </button>
+        </div>
       </div>
-    ` : '';
+    `;
     
     return `
       <div class="add-item-section" >
-        <span>Video hinzufügen</span>
+        <span>Video/Idee hinzufügen</span>
         
         <form id="add-item-form" >
           <div class="form-field">
-            <label for="video-url" >Video-URL *</label>
+            <label for="video-url">Video-URL (optional)</label>
             <input 
               type="url" 
               id="video-url" 
               name="video_link" 
-              required 
               class="form-input" 
-              placeholder="https://www.youtube.com/watch?v=... oder TikTok/Instagram Link"
+              placeholder="https://youtube.com/... oder leer für Idee"
               style="width: 100%;"
             >
           </div>
           ${teilbereichSelect}
           <button type="submit" class="primary-btn">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
-              <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
-            Screenshot generieren
+            Hinzufügen
           </button>
         </form>
+      </div>
+    `;
+  }
+
+  /**
+   * Kategorien-Drawer ID
+   */
+  get kategorienDrawerId() {
+    return 'kategorien-drawer';
+  }
+
+  /**
+   * Rendere Drawer-Body für Kategorien-Verwaltung
+   */
+  renderKategorienDrawerBody() {
+    const teilbereiche = this.getTeilbereicheFromStrategie();
+    
+    return `
+      <div class="kategorien-list" id="kategorien-list">
+        ${teilbereiche.length > 0 ? teilbereiche.map(tb => `
+          <div class="kategorie-item" data-kategorie="${tb}">
+            <span class="kategorie-name">${tb}</span>
+            <button type="button" class="kategorie-delete-btn" data-kategorie="${tb}" title="Kategorie löschen">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        `).join('') : '<p class="no-kategorien">Keine Kategorien vorhanden</p>'}
+      </div>
+      <div class="kategorie-add-form">
+        <input type="text" id="new-kategorie-input" class="form-input" placeholder="Neue Kategorie...">
+        <button type="button" class="primary-btn" id="btn-add-kategorie">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Hinzufügen
+        </button>
       </div>
     `;
   }
@@ -216,22 +260,33 @@ export class StrategieDetail {
    * Rendere gruppierte Items mit Kategorie-Headern
    */
   renderGroupedItems(groupedItems, colCount) {
-    const teilbereiche = Object.keys(groupedItems);
+    // Alle definierten Kategorien holen (damit auch leere angezeigt werden)
+    const definierteKategorien = this.getTeilbereicheFromStrategie();
+    const hatDefinierteKategorien = definierteKategorien.length > 0;
     
-    // Wenn nur "Ohne Kategorie" existiert, keine Header anzeigen
-    if (teilbereiche.length === 1 && teilbereiche[0] === 'Ohne Kategorie') {
+    // Wenn keine Kategorien definiert sind und nur "Ohne Kategorie" Items existieren
+    if (!hatDefinierteKategorien && Object.keys(groupedItems).length === 1 && groupedItems['Ohne Kategorie']) {
       return groupedItems['Ohne Kategorie']
         .map(item => this.renderItemRow(item, item.globalIndex))
         .join('');
     }
     
-    // Mit Kategorie-Headern rendern
-    return teilbereiche.map(teilbereich => {
-      const items = groupedItems[teilbereich];
+    // Alle Kategorien sammeln: definierte + "Ohne Kategorie"
+    const alleKategorien = [...definierteKategorien];
+    if (!alleKategorien.includes('Ohne Kategorie')) {
+      alleKategorien.push('Ohne Kategorie');
+    }
+    
+    // Mit Kategorie-Headern rendern (auch leere Kategorien)
+    return alleKategorien.map(kategorie => {
+      const items = groupedItems[kategorie] || [];
+      const isEmpty = items.length === 0;
+      
       return `
-        <tr class="category-header-row">
+        <tr class="category-header-row ${isEmpty ? 'category-empty' : ''}" data-kategorie="${kategorie}">
           <td colspan="${colCount}" class="category-header-cell">
-            ${teilbereich}
+            <span class="category-name">${kategorie}</span>
+            ${isEmpty ? '<span class="category-empty-hint">(leer - Videos hierher ziehen)</span>' : ''}
           </td>
         </tr>
         ${items.map(item => this.renderItemRow(item, item.globalIndex)).join('')}
@@ -245,9 +300,11 @@ export class StrategieDetail {
   renderItemRow(item, index) {
     const platformIcon = this.getPlatformIcon(item.plattform);
     const externalLinkIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>`;
+    const ideaIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 24px; height: 24px; color: var(--amber-500);"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" /></svg>`;
+    const isIdea = !item.video_link;
 
     return `
-      <tr class="item-row ${!this.isKunde ? 'draggable' : ''}" data-item-id="${item.id}" draggable="${!this.isKunde}">
+      <tr class="item-row ${!this.isKunde ? 'draggable' : ''} ${isIdea ? 'idea-row' : ''}" data-item-id="${item.id}" draggable="${!this.isKunde}">
         <td class="col-number">
           ${index + 1}
         </td>
@@ -261,6 +318,11 @@ export class StrategieDetail {
         <td>
           ${item.screenshot_url ? `
             <img src="${item.screenshot_url}" alt="Screenshot" style="width: 100px; height: auto; border-radius: var(--radius-md); display: block; cursor: pointer;" onclick="window.open('${item.screenshot_url}', '_blank')">
+          ` : isIdea ? `
+            <div class="idea-placeholder">
+              ${ideaIcon}
+              <span>Idee</span>
+            </div>
           ` : `
             <div style="width: 100px; height: 60px; background: var(--gray-200); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;">
               <span style="font-size: var(--text-xs); color: var(--text-muted);">Lädt...</span>
@@ -268,39 +330,35 @@ export class StrategieDetail {
           `}
         </td>
         <td style="text-align: center;">
-          ${platformIcon}
+          ${isIdea ? `<span style="font-size: var(--text-xs); color: var(--text-muted);">-</span>` : platformIcon}
         </td>
         <td style="text-align: center;">
-          <a href="${item.video_link}" target="_blank" rel="noopener noreferrer" style="color: var(--color-primary); display: inline-flex;" title="${item.video_link}">
-            ${externalLinkIcon}
-          </a>
+          ${item.video_link ? `
+            <a href="${item.video_link}" target="_blank" rel="noopener noreferrer" style="color: var(--color-primary); display: inline-flex;" title="${item.video_link}">
+              ${externalLinkIcon}
+            </a>
+          ` : `<span style="font-size: var(--text-xs); color: var(--text-muted);">-</span>`}
         </td>
-        <td>
+        <td class="cell-textarea">
           ${!this.isKunde ? `
-            <input 
-              type="text" 
-              class="form-input" 
-              style="width: 100%; font-size: var(--text-sm);" 
-              value="${item.beschreibung || ''}" 
+            <textarea 
+              class="strategie-textarea" 
               placeholder="Beschreibung..."
               data-field="beschreibung"
               data-item-id="${item.id}"
-            >
+            >${item.beschreibung || ''}</textarea>
           ` : `
-            <span style="font-size: var(--text-sm);">${item.beschreibung || '-'}</span>
+            <div class="cell-text-readonly">${item.beschreibung || '-'}</div>
           `}
         </td>
-        <td>
-          <input 
-            type="text" 
-            class="form-input" 
-            style="width: 100%; font-size: var(--text-sm);" 
-            value="${item.kunde_anmerkung || ''}" 
+        <td class="cell-textarea">
+          <textarea 
+            class="strategie-textarea ${this.isKunde ? '' : 'readonly-textarea'}" 
             placeholder="${this.isKunde ? 'Ihre Anmerkung...' : 'Anmerkung Kunde...'}"
             data-field="kunde_anmerkung"
             data-item-id="${item.id}"
             ${this.isKunde ? '' : 'readonly'}
-          >
+          >${item.kunde_anmerkung || ''}</textarea>
         </td>
         <td style="text-align: center;">
           <input 
@@ -308,7 +366,8 @@ export class StrategieDetail {
             ${item.prio_1 ? 'checked' : ''} 
             data-field="prio_1"
             data-item-id="${item.id}"
-            style="width: 20px; height: 20px; cursor: pointer;"
+            style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'pointer' : 'default'};"
+            ${this.isKunde ? '' : 'disabled'}
           >
         </td>
         <td style="text-align: center;">
@@ -317,7 +376,8 @@ export class StrategieDetail {
             ${item.prio_2 ? 'checked' : ''} 
             data-field="prio_2"
             data-item-id="${item.id}"
-            style="width: 20px; height: 20px; cursor: pointer;"
+            style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'pointer' : 'default'};"
+            ${this.isKunde ? '' : 'disabled'}
           >
         </td>
         <td style="text-align: center;">
@@ -326,7 +386,8 @@ export class StrategieDetail {
             ${item.nicht_umsetzen ? 'checked' : ''} 
             data-field="nicht_umsetzen"
             data-item-id="${item.id}"
-            style="width: 20px; height: 20px; cursor: pointer;"
+            style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'pointer' : 'default'};"
+            ${this.isKunde ? '' : 'disabled'}
           >
         </td>
         ${!this.isKunde ? `
@@ -338,11 +399,17 @@ export class StrategieDetail {
                 </svg>
               </button>
               <div class="actions-dropdown">
+                <a href="#" class="action-item" data-action="edit-item" data-id="${item.id}">
+                  ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
+                  Bearbeiten
+                </a>
                 <a href="#" class="action-item" data-action="add-to-video" data-id="${item.id}">
+                  ${window.ActionsDropdown?.getHeroIcon('add-to-list') || ''}
                   Zu Video hinzufügen
                 </a>
                 <div class="action-separator"></div>
                 <a href="#" class="action-item action-danger" data-action="delete-item" data-id="${item.id}">
+                  ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
                   Löschen
                 </a>
               </div>
@@ -392,6 +459,14 @@ export class StrategieDetail {
         this._boundEventListeners.add(() => form.removeEventListener('submit', handler));
       }
 
+      // Kategorien-Verwaltung Button
+      const manageKategorienBtn = document.getElementById('btn-manage-kategorien');
+      if (manageKategorienBtn) {
+        const handler = () => this.showKategorienModal();
+        manageKategorienBtn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => manageKategorienBtn.removeEventListener('click', handler));
+      }
+
       // Drag & Drop
       this.bindDragAndDropEvents();
     }
@@ -410,8 +485,17 @@ export class StrategieDetail {
       this._boundEventListeners.add(() => checkbox.removeEventListener('change', handler));
     });
 
-    // Actions Dropdown (Delete, Add to Video)
+    // Actions Dropdown (Edit, Delete, Add to Video)
     if (!this.isKunde) {
+      document.querySelectorAll('[data-action="edit-item"]').forEach(btn => {
+        const handler = (e) => {
+          e.preventDefault();
+          this.showEditItemDrawer(btn.dataset.id);
+        };
+        btn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
+      });
+
       document.querySelectorAll('[data-action="delete-item"]').forEach(btn => {
         const handler = (e) => {
           e.preventDefault();
@@ -493,7 +577,7 @@ export class StrategieDetail {
 
     // Kategorie-Header als Drop-Ziele
     categoryHeaders.forEach(header => {
-      const kategorie = header.querySelector('td')?.textContent?.trim();
+      const kategorie = header.dataset.kategorie;
       
       // Dragover auf Kategorie-Header
       const dragoverHandler = (e) => {
@@ -651,15 +735,13 @@ export class StrategieDetail {
   }
 
   /**
-   * Video hinzufügen und Screenshot generieren
+   * Video/Idee hinzufügen und ggf. Screenshot generieren
    */
   async handleAddItem(e) {
     e.preventDefault();
 
     const formData = new FormData(e.target);
-    const videoUrl = formData.get('video_link');
-
-    if (!videoUrl) return;
+    const videoUrl = formData.get('video_link')?.trim() || null;
 
     // Button referenz und original text AUSSERHALB try-catch
     const submitBtn = e.target.querySelector('button[type="submit"]');
@@ -673,36 +755,41 @@ export class StrategieDetail {
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
-        Generiere...
+        Wird hinzugefügt...
       `;
 
-      // Plattform aus URL erkennen
-      let platform = 'other';
-      if (videoUrl.includes('tiktok.com')) platform = 'tiktok';
-      else if (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) platform = 'youtube';
-      else if (videoUrl.includes('instagram.com')) platform = 'instagram';
+      // Plattform aus URL erkennen (nur wenn URL vorhanden)
+      let platform = null;
+      if (videoUrl) {
+        if (videoUrl.includes('tiktok.com')) platform = 'tiktok';
+        else if (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) platform = 'youtube';
+        else if (videoUrl.includes('instagram.com')) platform = 'instagram';
+        else platform = 'other';
+      }
 
-      // Screenshot generieren (nur auf Netlify, nicht lokal)
+      // Screenshot generieren (nur wenn URL vorhanden und auf Netlify)
       let screenshotUrl = null;
-      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      
-      if (!isLocalhost) {
-        try {
-          window.toastSystem?.show('Screenshot wird generiert...', 'info');
-          const screenshotResult = await strategieService.generateScreenshot(videoUrl);
-          screenshotUrl = screenshotResult.screenshot_url;
-        } catch (screenshotError) {
-          console.warn('Screenshot-Generierung fehlgeschlagen:', screenshotError);
-          window.toastSystem?.show('Screenshot konnte nicht generiert werden', 'warning');
+      if (videoUrl) {
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        
+        if (!isLocalhost) {
+          try {
+            window.toastSystem?.show('Screenshot wird generiert...', 'info');
+            const screenshotResult = await strategieService.generateScreenshot(videoUrl);
+            screenshotUrl = screenshotResult.screenshot_url;
+          } catch (screenshotError) {
+            console.warn('Screenshot-Generierung fehlgeschlagen:', screenshotError);
+            window.toastSystem?.show('Screenshot konnte nicht generiert werden', 'warning');
+          }
+        } else {
+          console.log('📸 Screenshot-Generierung übersprungen (localhost)');
         }
-      } else {
-        console.log('📸 Screenshot-Generierung übersprungen (localhost)');
       }
 
       // Teilbereich aus Formular holen
       const teilbereich = formData.get('teilbereich') || null;
 
-      // Item erstellen (auch ohne Screenshot)
+      // Item erstellen (auch ohne URL/Screenshot - dann ist es eine Idee)
       const itemData = {
         strategie_id: this.strategieId,
         video_link: videoUrl,
@@ -715,7 +802,8 @@ export class StrategieDetail {
       await strategieService.createStrategieItem(itemData);
 
       // Erfolg
-      window.toastSystem?.show('Video erfolgreich hinzugefügt', 'success');
+      const successMsg = videoUrl ? 'Video erfolgreich hinzugefügt' : 'Idee erfolgreich hinzugefügt';
+      window.toastSystem?.show(successMsg, 'success');
       e.target.reset();
 
       // Button zurücksetzen vor dem Reload
@@ -726,8 +814,8 @@ export class StrategieDetail {
       await this.init(this.strategieId);
 
     } catch (error) {
-      console.error('Fehler beim Hinzufügen des Videos:', error);
-      window.toastSystem?.show(error.message || 'Fehler beim Hinzufügen des Videos', 'error');
+      console.error('Fehler beim Hinzufügen:', error);
+      window.toastSystem?.show(error.message || 'Fehler beim Hinzufügen', 'error');
       
       // Button zurücksetzen
       submitBtn.disabled = false;
@@ -792,8 +880,17 @@ export class StrategieDetail {
       this._boundEventListeners.add(() => checkbox.removeEventListener('change', handler));
     });
 
-    // Actions Dropdown (Delete, Add to Video)
+    // Actions Dropdown (Edit, Delete, Add to Video)
     if (!this.isKunde) {
+      document.querySelectorAll('[data-action="edit-item"]').forEach(btn => {
+        const handler = (e) => {
+          e.preventDefault();
+          this.showEditItemDrawer(btn.dataset.id);
+        };
+        btn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
+      });
+
       document.querySelectorAll('[data-action="delete-item"]').forEach(btn => {
         const handler = (e) => {
           e.preventDefault();
@@ -827,11 +924,9 @@ export class StrategieDetail {
     
     allRows.forEach(row => {
       if (row.classList.contains('category-header-row')) {
-        // Kategorie-Header gefunden - merke die aktuelle Kategorie
-        currentKategorie = row.querySelector('td')?.textContent?.trim();
-        if (currentKategorie === 'Ohne Kategorie') {
-          currentKategorie = null;
-        }
+        // Kategorie-Header gefunden - merke die aktuelle Kategorie (aus data-attribut)
+        const kategorieFromData = row.dataset.kategorie;
+        currentKategorie = kategorieFromData === 'Ohne Kategorie' ? null : kategorieFromData;
       } else if (row.classList.contains('item-row')) {
         // Item-Zeile gefunden
         const itemId = row.dataset.itemId;
@@ -857,6 +952,234 @@ export class StrategieDetail {
     } catch (error) {
       console.error('Fehler beim Aktualisieren der Sortierung:', error);
       window.toastSystem?.show('Fehler beim Speichern der Sortierung', 'error');
+    }
+  }
+
+  /**
+   * Edit-Drawer ID
+   */
+  get editItemDrawerId() {
+    return 'edit-item-drawer';
+  }
+
+  /**
+   * Edit-Item-Drawer anzeigen
+   */
+  showEditItemDrawer(itemId) {
+    const item = this.items.find(i => i.id === itemId);
+    if (!item) {
+      window.toastSystem?.show('Item nicht gefunden', 'error');
+      return;
+    }
+
+    // Entferne bestehendes Drawer
+    this.removeEditItemDrawer();
+    
+    // Erstelle Overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'drawer-overlay';
+    overlay.id = `${this.editItemDrawerId}-overlay`;
+    
+    // Erstelle Panel
+    const panel = document.createElement('div');
+    panel.setAttribute('role', 'dialog');
+    panel.className = 'drawer-panel';
+    panel.id = this.editItemDrawerId;
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'drawer-header';
+    
+    const headerLeft = document.createElement('div');
+    const title = document.createElement('span');
+    title.className = 'drawer-title';
+    title.textContent = 'Item bearbeiten';
+    
+    const subtitle = document.createElement('p');
+    subtitle.className = 'drawer-subtitle';
+    subtitle.textContent = item.video_link ? 'Video-Eintrag anpassen' : 'Idee anpassen';
+    
+    headerLeft.appendChild(title);
+    headerLeft.appendChild(subtitle);
+    
+    const headerRight = document.createElement('div');
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'drawer-close-btn';
+    closeBtn.setAttribute('type', 'button');
+    closeBtn.setAttribute('aria-label', 'Schließen');
+    closeBtn.innerHTML = '&times;';
+    headerRight.appendChild(closeBtn);
+    
+    header.appendChild(headerLeft);
+    header.appendChild(headerRight);
+
+    // Body
+    const body = document.createElement('div');
+    body.className = 'drawer-body';
+    body.id = `${this.editItemDrawerId}-body`;
+    body.innerHTML = this.renderEditItemDrawerBody(item);
+
+    panel.appendChild(header);
+    panel.appendChild(body);
+
+    // Events
+    overlay.addEventListener('click', () => this.closeEditItemDrawer());
+    closeBtn.addEventListener('click', () => this.closeEditItemDrawer());
+
+    // Zum DOM hinzufügen
+    document.body.appendChild(overlay);
+    document.body.appendChild(panel);
+
+    // Slide-in Animation
+    requestAnimationFrame(() => {
+      panel.classList.add('show');
+    });
+    
+    // Form-Events binden
+    this.bindEditItemDrawerEvents(itemId);
+  }
+
+  /**
+   * Edit-Item-Drawer Body rendern
+   */
+  renderEditItemDrawerBody(item) {
+    const teilbereiche = this.getTeilbereicheFromStrategie();
+    
+    return `
+      <form id="edit-item-form" class="drawer-form">
+        <div class="form-field">
+          <label for="edit-video-url">Video-URL (optional)</label>
+          <input 
+            type="url" 
+            id="edit-video-url" 
+            name="video_link" 
+            class="form-input" 
+            value="${item.video_link || ''}"
+            placeholder="https://youtube.com/... oder leer für Idee"
+          >
+        </div>
+
+        <div class="form-field">
+          <label for="edit-teilbereich">Kategorie</label>
+          <select id="edit-teilbereich" name="teilbereich" class="form-input">
+            <option value="">Ohne Kategorie</option>
+            ${teilbereiche.map(tb => `<option value="${tb}" ${item.teilbereich === tb ? 'selected' : ''}>${tb}</option>`).join('')}
+          </select>
+        </div>
+
+        <div class="form-field">
+          <label for="edit-beschreibung">Beschreibung</label>
+          <textarea 
+            id="edit-beschreibung" 
+            name="beschreibung" 
+            class="form-input" 
+            rows="3"
+            placeholder="Beschreibung für das Video/die Idee..."
+          >${item.beschreibung || ''}</textarea>
+        </div>
+
+        <div class="drawer-footer">
+          <button type="button" class="secondary-btn" data-action="close-drawer">Abbrechen</button>
+          <button type="submit" class="primary-btn">Speichern</button>
+        </div>
+      </form>
+    `;
+  }
+
+  /**
+   * Edit-Item-Drawer Events binden
+   */
+  bindEditItemDrawerEvents(itemId) {
+    const form = document.getElementById('edit-item-form');
+    const cancelBtn = form?.querySelector('[data-action="close-drawer"]');
+    
+    cancelBtn?.addEventListener('click', () => this.closeEditItemDrawer());
+    
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await this.handleEditItemSubmit(itemId, new FormData(form));
+    });
+  }
+
+  /**
+   * Edit-Item speichern
+   */
+  async handleEditItemSubmit(itemId, formData) {
+    const submitBtn = document.querySelector('#edit-item-form button[type="submit"]');
+    const originalText = submitBtn?.innerHTML;
+    
+    try {
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = 'Speichern...';
+      }
+
+      const videoUrl = formData.get('video_link')?.trim() || null;
+      const teilbereich = formData.get('teilbereich') || null;
+      const beschreibung = formData.get('beschreibung')?.trim() || null;
+
+      // Plattform aus URL erkennen
+      let platform = null;
+      if (videoUrl) {
+        if (videoUrl.includes('tiktok.com')) platform = 'tiktok';
+        else if (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) platform = 'youtube';
+        else if (videoUrl.includes('instagram.com')) platform = 'instagram';
+        else platform = 'other';
+      }
+
+      // Item aktualisieren
+      await strategieService.updateStrategieItem(itemId, {
+        video_link: videoUrl,
+        teilbereich: teilbereich,
+        beschreibung: beschreibung,
+        plattform: platform
+      });
+
+      // Lokalen State aktualisieren
+      const item = this.items.find(i => i.id === itemId);
+      if (item) {
+        item.video_link = videoUrl;
+        item.teilbereich = teilbereich;
+        item.beschreibung = beschreibung;
+        item.plattform = platform;
+      }
+
+      window.toastSystem?.show('Änderungen gespeichert', 'success');
+      this.closeEditItemDrawer();
+      this.rerenderItemsTable();
+
+    } catch (error) {
+      console.error('Fehler beim Speichern:', error);
+      window.toastSystem?.show('Fehler beim Speichern', 'error');
+      
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+      }
+    }
+  }
+
+  /**
+   * Edit-Item-Drawer entfernen
+   */
+  removeEditItemDrawer() {
+    document.getElementById(`${this.editItemDrawerId}-overlay`)?.remove();
+    document.getElementById(this.editItemDrawerId)?.remove();
+  }
+
+  /**
+   * Edit-Item-Drawer schließen
+   */
+  closeEditItemDrawer() {
+    const panel = document.getElementById(this.editItemDrawerId);
+    
+    if (panel) {
+      panel.classList.remove('show');
+      setTimeout(() => {
+        this.removeEditItemDrawer();
+      }, 300);
+    } else {
+      this.removeEditItemDrawer();
     }
   }
 
@@ -893,11 +1216,250 @@ export class StrategieDetail {
   }
 
   /**
+   * Kategorien-Drawer anzeigen
+   */
+  showKategorienModal() {
+    // Entferne bestehendes Drawer falls vorhanden
+    this.removeKategorienDrawer();
+    
+    // Erstelle Overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'drawer-overlay';
+    overlay.id = `${this.kategorienDrawerId}-overlay`;
+    
+    // Erstelle Panel
+    const panel = document.createElement('div');
+    panel.setAttribute('role', 'dialog');
+    panel.className = 'drawer-panel';
+    panel.id = this.kategorienDrawerId;
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'drawer-header';
+    
+    const headerLeft = document.createElement('div');
+    const title = document.createElement('span');
+    title.className = 'drawer-title';
+    title.textContent = 'Kategorien verwalten';
+    
+    const subtitle = document.createElement('p');
+    subtitle.className = 'drawer-subtitle';
+    subtitle.textContent = 'Kategorien hinzufügen oder entfernen';
+    
+    headerLeft.appendChild(title);
+    headerLeft.appendChild(subtitle);
+    
+    const headerRight = document.createElement('div');
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'drawer-close-btn';
+    closeBtn.setAttribute('type', 'button');
+    closeBtn.setAttribute('aria-label', 'Schließen');
+    closeBtn.innerHTML = '&times;';
+    headerRight.appendChild(closeBtn);
+    
+    header.appendChild(headerLeft);
+    header.appendChild(headerRight);
+
+    // Body
+    const body = document.createElement('div');
+    body.className = 'drawer-body';
+    body.id = `${this.kategorienDrawerId}-body`;
+    body.innerHTML = this.renderKategorienDrawerBody();
+
+    panel.appendChild(header);
+    panel.appendChild(body);
+
+    // Events
+    overlay.addEventListener('click', () => this.closeKategorienModal());
+    closeBtn.addEventListener('click', () => this.closeKategorienModal());
+
+    // Zum DOM hinzufügen
+    document.body.appendChild(overlay);
+    document.body.appendChild(panel);
+
+    // Slide-in Animation
+    requestAnimationFrame(() => {
+      panel.classList.add('show');
+    });
+    
+    // Body-Events binden
+    this.bindKategorienDrawerEvents();
+  }
+
+  /**
+   * Events für Kategorien-Drawer binden
+   */
+  bindKategorienDrawerEvents() {
+    const addBtn = document.getElementById('btn-add-kategorie');
+    const input = document.getElementById('new-kategorie-input');
+    
+    // Hinzufügen-Events
+    const addHandler = () => this.handleAddKategorie();
+    addBtn?.addEventListener('click', addHandler);
+    input?.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addHandler();
+      }
+    });
+    
+    // Löschen-Events
+    document.querySelectorAll('.kategorie-delete-btn').forEach(btn => {
+      btn.addEventListener('click', () => this.handleDeleteKategorie(btn.dataset.kategorie));
+    });
+    
+    // Focus auf Input
+    input?.focus();
+  }
+
+  /**
+   * Kategorien-Drawer entfernen
+   */
+  removeKategorienDrawer() {
+    document.getElementById(`${this.kategorienDrawerId}-overlay`)?.remove();
+    document.getElementById(this.kategorienDrawerId)?.remove();
+  }
+
+  /**
+   * Kategorien-Drawer schließen mit Animation
+   */
+  closeKategorienModal() {
+    const panel = document.getElementById(this.kategorienDrawerId);
+    const overlay = document.getElementById(`${this.kategorienDrawerId}-overlay`);
+    
+    if (panel) {
+      panel.classList.remove('show');
+      setTimeout(() => {
+        this.removeKategorienDrawer();
+      }, 300);
+    } else {
+      this.removeKategorienDrawer();
+    }
+  }
+
+  /**
+   * Neue Kategorie hinzufügen
+   */
+  async handleAddKategorie() {
+    const input = document.getElementById('new-kategorie-input');
+    const newKategorie = input?.value?.trim();
+    
+    if (!newKategorie) {
+      window.toastSystem?.show('Bitte Kategorie-Name eingeben', 'warning');
+      return;
+    }
+    
+    // Prüfen ob Kategorie bereits existiert
+    const existingKategorien = this.getTeilbereicheFromStrategie();
+    if (existingKategorien.includes(newKategorie)) {
+      window.toastSystem?.show('Diese Kategorie existiert bereits', 'warning');
+      return;
+    }
+    
+    try {
+      // Neue Kategorien-Liste erstellen
+      const updatedKategorien = [...existingKategorien, newKategorie];
+      const teilbereichString = updatedKategorien.join(', ');
+      
+      // Strategie aktualisieren
+      await strategieService.updateStrategie(this.strategieId, { teilbereich: teilbereichString });
+      
+      // Lokalen State aktualisieren
+      this.strategie.teilbereich = teilbereichString;
+      
+      // Drawer-Body neu rendern
+      this.rerenderKategorienDrawerBody();
+      
+      // Dropdown aktualisieren
+      this.updateKategorienDropdown();
+      
+      window.toastSystem?.show(`Kategorie "${newKategorie}" hinzugefügt`, 'success');
+    } catch (error) {
+      console.error('Fehler beim Hinzufügen der Kategorie:', error);
+      window.toastSystem?.show('Fehler beim Hinzufügen der Kategorie', 'error');
+    }
+  }
+
+  /**
+   * Kategorie löschen
+   */
+  async handleDeleteKategorie(kategorie) {
+    const result = await window.confirmationModal?.open({
+      title: 'Kategorie löschen?',
+      message: `Möchten Sie die Kategorie "${kategorie}" wirklich löschen? Videos in dieser Kategorie werden zu "Ohne Kategorie" verschoben.`,
+      confirmText: 'Löschen',
+      cancelText: 'Abbrechen',
+      danger: true
+    });
+
+    if (!result?.confirmed) return;
+    
+    try {
+      // Kategorie aus Liste entfernen
+      const existingKategorien = this.getTeilbereicheFromStrategie();
+      const updatedKategorien = existingKategorien.filter(k => k !== kategorie);
+      const teilbereichString = updatedKategorien.length > 0 ? updatedKategorien.join(', ') : null;
+      
+      // Strategie aktualisieren
+      await strategieService.updateStrategie(this.strategieId, { teilbereich: teilbereichString });
+      
+      // Alle Items dieser Kategorie auf null setzen
+      const itemsToUpdate = this.items.filter(item => item.teilbereich === kategorie);
+      for (const item of itemsToUpdate) {
+        await strategieService.updateStrategieItem(item.id, { teilbereich: null });
+        item.teilbereich = null;
+      }
+      
+      // Lokalen State aktualisieren
+      this.strategie.teilbereich = teilbereichString;
+      
+      // Drawer-Body neu rendern
+      this.rerenderKategorienDrawerBody();
+      
+      // Dropdown und Tabelle aktualisieren
+      this.updateKategorienDropdown();
+      this.rerenderItemsTable();
+      
+      window.toastSystem?.show(`Kategorie "${kategorie}" gelöscht`, 'success');
+    } catch (error) {
+      console.error('Fehler beim Löschen der Kategorie:', error);
+      window.toastSystem?.show('Fehler beim Löschen der Kategorie', 'error');
+    }
+  }
+
+  /**
+   * Drawer-Body neu rendern (ohne den ganzen Drawer zu schließen)
+   */
+  rerenderKategorienDrawerBody() {
+    const body = document.getElementById(`${this.kategorienDrawerId}-body`);
+    if (body) {
+      body.innerHTML = this.renderKategorienDrawerBody();
+      this.bindKategorienDrawerEvents();
+    }
+  }
+
+  /**
+   * Kategorien-Dropdown aktualisieren
+   */
+  updateKategorienDropdown() {
+    const select = document.getElementById('item-teilbereich');
+    if (!select) return;
+    
+    const teilbereiche = this.getTeilbereicheFromStrategie();
+    select.innerHTML = `
+      <option value="">Ohne Kategorie</option>
+      ${teilbereiche.map(tb => `<option value="${tb}">${tb}</option>`).join('')}
+    `;
+  }
+
+  /**
    * Cleanup
    */
   destroy() {
     this._boundEventListeners.forEach(cleanup => cleanup());
     this._boundEventListeners.clear();
+    this.removeKategorienDrawer();
+    this.removeEditItemDrawer();
   }
 }
 

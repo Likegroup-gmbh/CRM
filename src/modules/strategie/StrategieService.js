@@ -14,11 +14,11 @@ export class StrategieService {
       .from('strategie')
       .select(`
         *,
-        unternehmen:unternehmen_id(id, firmenname),
-        marke:marke_id(id, markenname),
+        unternehmen:unternehmen_id(id, firmenname, logo_url),
+        marke:marke_id(id, markenname, logo_url),
         kampagne:kampagne_id(id, kampagnenname),
         auftrag:auftrag_id(id, auftragsname),
-        created_by_user:created_by(id, name)
+        created_by_user:created_by(id, name, profile_image_url)
       `)
       .order('created_at', { ascending: false });
 
@@ -38,11 +38,11 @@ export class StrategieService {
       .from('strategie')
       .select(`
         *,
-        unternehmen:unternehmen_id(id, firmenname),
-        marke:marke_id(id, markenname),
+        unternehmen:unternehmen_id(id, firmenname, logo_url),
+        marke:marke_id(id, markenname, logo_url),
         kampagne:kampagne_id(id, kampagnenname),
         auftrag:auftrag_id(id, auftragsname),
-        created_by_user:created_by(id, name)
+        created_by_user:created_by(id, name, profile_image_url)
       `)
       .eq('id', id)
       .single();
