@@ -380,7 +380,7 @@ export class KampagneKooperationenVideoTable {
       const [videosResult, creatorsResult] = await Promise.allSettled([
         window.supabase
           .from('kooperation_videos')
-          .select('id, kooperation_id, position, asset_url, content_art, caption, feedback_creatorjobs, feedback_ritzenhoff, freigabe, link_content, link_produkte, thema, link_skript, skript_freigegeben, drehort, posting_datum')
+          .select('id, kooperation_id, position, asset_url, content_art, caption, feedback_creatorjobs, feedback_ritzenhoff, freigabe, link_content, link_produkte, thema, link_skript, skript_freigegeben, drehort, posting_datum, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id)')
           .in('kooperation_id', koopIds)
           .order('position', { ascending: true }),
         
@@ -587,6 +587,47 @@ export class KampagneKooperationenVideoTable {
     const isVisible = !this.hiddenColumns.includes(columnClass);
     
     return isVisible;
+  }
+
+  // Render Skeleton Loading (für initialen Lade-Zustand)
+  renderSkeletonLoading() {
+    const rows = [];
+    
+    // Generiere 4 Skeleton-Zeilen mit der Tabellenstruktur
+    for (let i = 0; i < 4; i++) {
+      rows.push(`
+        <div class="skeleton-video-table-row">
+          <div class="skeleton-video-cell"><div class="skeleton skeleton-text" style="width: 30px;"></div></div>
+          <div class="skeleton-video-cell"><div class="skeleton skeleton-text skeleton-text--medium"></div></div>
+          <div class="skeleton-video-cell"><div class="skeleton skeleton-text" style="width: 40px;"></div></div>
+          <div class="skeleton-video-cell"><div class="skeleton skeleton-badge"></div></div>
+          <div class="skeleton-video-cell"><div class="skeleton skeleton-text skeleton-text--short"></div></div>
+          <div class="skeleton-video-cell"><div class="skeleton skeleton-text skeleton-text--short"></div></div>
+          <div class="skeleton-video-cell"><div class="skeleton skeleton-text skeleton-text--medium"></div></div>
+          <div class="skeleton-video-cell"><div class="skeleton skeleton-text skeleton-text--medium"></div></div>
+          <div class="skeleton-video-cell"><div class="skeleton skeleton-text skeleton-text--short"></div></div>
+          <div class="skeleton-video-cell"><div class="skeleton skeleton-text skeleton-text--long"></div></div>
+        </div>
+      `);
+    }
+    
+    return `
+      <div class="skeleton-wrapper skeleton-video-table">
+        <div class="skeleton-video-table-row" style="background: var(--gray-100); margin-bottom: var(--space-sm);">
+          <div class="skeleton-video-cell"><div class="skeleton skeleton-header-cell" style="width: 30px;"></div></div>
+          <div class="skeleton-video-cell"><div class="skeleton skeleton-header-cell" style="width: 120px;"></div></div>
+          <div class="skeleton-video-cell"><div class="skeleton skeleton-header-cell" style="width: 50px;"></div></div>
+          <div class="skeleton-video-cell"><div class="skeleton skeleton-header-cell" style="width: 80px;"></div></div>
+          <div class="skeleton-video-cell"><div class="skeleton skeleton-header-cell" style="width: 60px;"></div></div>
+          <div class="skeleton-video-cell"><div class="skeleton skeleton-header-cell" style="width: 60px;"></div></div>
+          <div class="skeleton-video-cell"><div class="skeleton skeleton-header-cell" style="width: 100px;"></div></div>
+          <div class="skeleton-video-cell"><div class="skeleton skeleton-header-cell" style="width: 100px;"></div></div>
+          <div class="skeleton-video-cell"><div class="skeleton skeleton-header-cell" style="width: 60px;"></div></div>
+          <div class="skeleton-video-cell"><div class="skeleton skeleton-header-cell" style="width: 150px;"></div></div>
+        </div>
+        ${rows.join('')}
+      </div>
+    `;
   }
 
   // Rendere die Tabelle
@@ -818,12 +859,26 @@ export class KampagneKooperationenVideoTable {
         </td>
         <!-- Video-Spalten: Jedes Video als eigene Zeile über alle Spalten -->
         <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-thema') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => `
-            <input type="text" class="grid-input stacked-video-input" 
-              data-entity="video" data-id="${video.id}" data-field="thema"
-              ${!this.isFieldEditableForUser('video', 'thema') ? 'readonly' : ''}
-              value="${this.escapeHtml(video.thema || '')}" placeholder="Thema"/>
-          `)}
+          ${this.renderVideoFieldStack(videos, (video) => {
+            // Wenn Strategie-Item verknüpft: Thumbnail mit Link zur Strategie
+            if (video.strategie_item && video.strategie_item.screenshot_url) {
+              const strategieId = video.strategie_item.strategie_id;
+              const screenshotUrl = video.strategie_item.screenshot_url;
+              const beschreibung = video.strategie_item.beschreibung || 'Strategie-Idee';
+              return `
+                <a href="/strategie/${strategieId}" class="thema-thumbnail-link" title="${this.escapeHtml(beschreibung)}">
+                  <img src="${screenshotUrl}" alt="Thema" class="thema-thumbnail" />
+                </a>
+              `;
+            }
+            // Sonst: normales Text-Input
+            return `
+              <input type="text" class="grid-input stacked-video-input" 
+                data-entity="video" data-id="${video.id}" data-field="thema"
+                ${!this.isFieldEditableForUser('video', 'thema') ? 'readonly' : ''}
+                value="${this.escapeHtml(video.thema || '')}" placeholder="Thema"/>
+            `;
+          })}
         </td>
         <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-organic-paid') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => `
@@ -1409,7 +1464,7 @@ export class KampagneKooperationenVideoTable {
 
     this.containerId = containerId; // Für refresh() Methode speichern
     console.log('🎬 KampagneKooperationenVideoTable.init() - Container ID:', containerId);
-    const container = document.getElementById(containerId);
+    let container = document.getElementById(containerId);
     console.log('🎬 Container gefunden:', !!container, container);
     
     if (container) {
@@ -1447,16 +1502,9 @@ export class KampagneKooperationenVideoTable {
       }
     }
     
-    // Loading-Spinner anzeigen
+    // Skeleton Loading anzeigen (statt Spinner)
     if (container) {
-      container.innerHTML = `
-        <div class="table-loading-container">
-          <div class="table-loading-content">
-            <div class="spinner table-loading-spinner"></div>
-            <p class="table-loading-text">Lädt Kooperationen & Videos...</p>
-          </div>
-        </div>
-      `;
+      container.innerHTML = this.renderSkeletonLoading();
     } else {
       console.error('❌ Container nicht gefunden:', containerId);
       return;
@@ -1474,8 +1522,12 @@ export class KampagneKooperationenVideoTable {
     console.log('🎬 HTML generiert, Länge:', html.length);
     console.log('🎬 HTML Preview (erste 500 Zeichen):', html.substring(0, 500));
     
-    if (container) {
-      container.innerHTML = html;
+    // Container nochmal per ID holen (DOM-Referenz könnte veraltet sein nach async)
+    const currentContainer = document.getElementById(containerId);
+    if (currentContainer) {
+      currentContainer.innerHTML = html;
+      // Update container-Referenz für nachfolgende Operationen
+      container = currentContainer;
       console.log('🎬 HTML in Container gesetzt');
       console.log('🎬 Container hat jetzt innerHTML mit Länge:', container.innerHTML.length);
       console.log('🎬 Container children count:', container.children.length);
@@ -1528,6 +1580,8 @@ export class KampagneKooperationenVideoTable {
       
       // Gespeicherte Spaltenbreiten wiederherstellen
       this.loadColumnWidths();
+    } else {
+      console.error('❌ Container nicht mehr im DOM nach async Laden:', containerId);
     }
   }
 

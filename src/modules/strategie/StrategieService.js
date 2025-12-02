@@ -173,7 +173,7 @@ export class StrategieService {
   }
 
   /**
-   * Items einer Strategie abrufen
+   * Items einer Strategie abrufen (inkl. Verknüpfungs-Status)
    */
   async getStrategieItems(strategieId) {
     const { data, error } = await window.supabase
@@ -188,6 +188,25 @@ export class StrategieService {
     if (error) {
       console.error('Fehler beim Abrufen der Strategie-Items:', error);
       throw error;
+    }
+
+    // Prüfen welche Items bereits mit Videos verknüpft sind
+    if (data && data.length > 0) {
+      const itemIds = data.map(item => item.id);
+      const { data: linkedVideos } = await window.supabase
+        .from('kooperation_videos')
+        .select('id, strategie_item_id, titel, kooperation_id')
+        .in('strategie_item_id', itemIds);
+
+      // Verknüpfungs-Info an Items anhängen
+      const linkedMap = new Map();
+      (linkedVideos || []).forEach(video => {
+        linkedMap.set(video.strategie_item_id, video);
+      });
+
+      data.forEach(item => {
+        item.linked_video = linkedMap.get(item.id) || null;
+      });
     }
 
     return data;

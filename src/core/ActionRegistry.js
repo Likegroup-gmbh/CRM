@@ -38,7 +38,9 @@ export class ActionRegistry {
       'rating', 'favorite',
       // Creator-Adressen Actions
       'edit_creator_adresse', 'delete_creator_adresse',
-      'set_standard_adresse', 'set_hauptadresse_standard'
+      'set_standard_adresse', 'set_hauptadresse_standard',
+      // Rechnung Download
+      'download'
     ];
 
     if (legacyActions.includes(action)) {

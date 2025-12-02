@@ -7,9 +7,43 @@ export class FormConfig {
           { name: 'vorname', label: 'Vorname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
           { name: 'nachname', label: 'Nachname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
           { name: 'instagram', label: 'Instagram', type: 'text', required: false },
-          { name: 'instagram_follower', label: 'Instagram Follower', type: 'number', required: false },
+          { 
+            name: 'instagram_follower', 
+            label: 'Instagram Follower', 
+            type: 'select', 
+            required: false,
+            options: [
+              { value: '0-2500', label: '0 - 2.500' },
+              { value: '2500-5000', label: '2.500 - 5.000' },
+              { value: '5000-10000', label: '5.000 - 10.000' },
+              { value: '10000-25000', label: '10.000 - 25.000' },
+              { value: '25000-50000', label: '25.000 - 50.000' },
+              { value: '50000-100000', label: '50.000 - 100.000' },
+              { value: '100000-250000', label: '100.000 - 250.000' },
+              { value: '250000-500000', label: '250.000 - 500.000' },
+              { value: '500000-1000000', label: '500.000 - 1.000.000' },
+              { value: '1000000+', label: '+ 1.000.000' }
+            ]
+          },
           { name: 'tiktok', label: 'TikTok', type: 'text', required: false },
-          { name: 'tiktok_follower', label: 'TikTok Follower', type: 'number', required: false },
+          { 
+            name: 'tiktok_follower', 
+            label: 'TikTok Follower', 
+            type: 'select', 
+            required: false,
+            options: [
+              { value: '0-2500', label: '0 - 2.500' },
+              { value: '2500-5000', label: '2.500 - 5.000' },
+              { value: '5000-10000', label: '5.000 - 10.000' },
+              { value: '10000-25000', label: '10.000 - 25.000' },
+              { value: '25000-50000', label: '25.000 - 50.000' },
+              { value: '50000-100000', label: '50.000 - 100.000' },
+              { value: '100000-250000', label: '100.000 - 250.000' },
+              { value: '250000-500000', label: '250.000 - 500.000' },
+              { value: '500000-1000000', label: '500.000 - 1.000.000' },
+              { value: '1000000+', label: '+ 1.000.000' }
+            ]
+          },
           {
             name: 'sprachen_ids',
             label: 'Sprachen',
@@ -231,24 +265,22 @@ export class FormConfig {
           { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...' },
           { name: 'marke_id', label: 'Marke', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Marke suchen und auswählen...', dependsOn: 'unternehmen_id', table: 'marke', displayField: 'markenname', valueField: 'id' },
           { name: 'status', label: 'Status', type: 'select', required: false, options: ['Beauftragt', 'In Produktion', 'Abgeschlossen', 'Storniert'] },
+          { name: 'mitarbeiter_ids', label: 'Lead Mitarbeiter zuweisen', type: 'multiselect', required: false, options: [], dynamic: true, searchable: true, tagBased: true, placeholder: 'Mitarbeiter suchen und auswählen...', table: 'benutzer', displayField: 'name', valueField: 'id', relationTable: 'auftrag_mitarbeiter', relationField: 'mitarbeiter_id' },
           { name: 'ansprechpartner_id', label: 'Ansprechpartner', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Ansprechpartner auswählen...', table: 'ansprechpartner', displayField: 'vorname,nachname,email', valueField: 'id', dependsOn: 'unternehmen_id' },
           { name: 'po', label: 'PO', type: 'text', required: false, placeholder: 'Purchase Order Nummer...' },
           { name: 're_nr', label: 'RE. Nr', type: 'text', required: false, placeholder: 'Rechnungsnummer...' },
           { name: 're_faelligkeit', label: 'RE-Fälligkeit', type: 'date', required: false },
+          { name: 'rechnung_gestellt', label: 'Rechnung gestellt', type: 'toggle', required: false },
+          { name: 'rechnung_gestellt_am', label: 'Rechnung gestellt am', type: 'date', required: false, placeholder: 'Datum wann Rechnung gestellt wurde', dependsOn: 'rechnung_gestellt' },
+          { name: 'ueberwiesen', label: 'Überwiesen', type: 'toggle', required: false },
+          { name: 'ueberwiesen_am', label: 'Überwiesen am', type: 'date', required: false, placeholder: 'Datum wann Zahlung überwiesen wurde', dependsOn: 'ueberwiesen' },
           { name: 'kampagnenanzahl', label: 'Kampagnenanzahl', type: 'number', required: false, validation: { type: 'number', min: 1 } },
           { name: 'start', label: 'Startdatum', type: 'date', required: false },
           { name: 'ende', label: 'Enddatum', type: 'date', required: false },
           { name: 'nettobetrag', label: 'Nettobetrag', type: 'number', required: false, validation: { type: 'number', min: 0 } },
           { name: 'ust_prozent', label: 'USt (%)', type: 'number', required: false, validation: { type: 'number', min: 0, max: 100 }, readonly: true, defaultValue: 19 },
           { name: 'ust_betrag', label: 'USt Betrag', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['nettobetrag','ust_prozent'] },
-          { name: 'bruttobetrag', label: 'Brutto Gesamtbudget', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['nettobetrag','ust_betrag'] },
-          { name: 'rechnung_gestellt', label: 'Rechnung gestellt', type: 'toggle', required: false },
-          { name: 'rechnung_gestellt_am', label: 'Rechnung gestellt am', type: 'date', required: false, placeholder: 'Datum wann Rechnung gestellt wurde' },
-          { name: 'ueberwiesen', label: 'Überwiesen', type: 'toggle', required: false },
-          { name: 'ueberwiesen_am', label: 'Überwiesen am', type: 'date', required: false, placeholder: 'Datum wann Zahlung überwiesen wurde' },
-          { name: 'mitarbeiter_ids', label: 'Mitarbeiter zuweisen', type: 'multiselect', required: false, options: [], dynamic: true, searchable: true, tagBased: true, placeholder: 'Mitarbeiter suchen und auswählen...', table: 'benutzer', displayField: 'name', valueField: 'id', relationTable: 'auftrag_mitarbeiter', relationField: 'mitarbeiter_id' },
-          { name: 'cutter_ids', label: 'Cutter zuweisen', type: 'multiselect', required: false, options: [], dynamic: true, searchable: true, tagBased: true, placeholder: 'Cutter suchen und auswählen...', table: 'benutzer', displayField: 'name', valueField: 'id', customField: true, relationTable: 'auftrag_cutter', relationField: 'mitarbeiter_id' },
-          { name: 'copywriter_ids', label: 'Copywright zuweisen', type: 'multiselect', required: false, options: [], dynamic: true, searchable: true, tagBased: true, placeholder: 'Copywriter suchen und auswählen...', table: 'benutzer', displayField: 'name', valueField: 'id', customField: true, relationTable: 'auftrag_copywriter', relationField: 'mitarbeiter_id' }
+          { name: 'bruttobetrag', label: 'Brutto Gesamtbudget', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['nettobetrag','ust_betrag'] }
         ]
       },
       kooperation: {

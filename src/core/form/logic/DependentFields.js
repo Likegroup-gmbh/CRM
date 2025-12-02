@@ -24,8 +24,10 @@ export class DependentFields {
       
       if (parentField) {
         const toggleField = () => {
-          const parentValue = parentField.value;
-          console.log(`🔍 Prüfe abhängiges Feld: ${dependsOn} = "${parentValue}", showWhen = "${showWhen}"`);
+          // Für Checkbox/Toggle: checked Property verwenden
+          const isCheckbox = parentField.type === 'checkbox';
+          const parentValue = isCheckbox ? parentField.checked : parentField.value;
+          console.log(`🔍 Prüfe abhängiges Feld: ${dependsOn} = "${parentValue}", showWhen = "${showWhen}", isCheckbox = ${isCheckbox}`);
           
           // Für Select-Felder den angezeigten Text verwenden
           let shouldShow = false;
@@ -34,6 +36,10 @@ export class DependentFields {
             const displayText = selectedOption ? selectedOption.textContent : '';
             shouldShow = showWhen ? displayText.includes(showWhen) : !!parentValue;
             console.log(`🔍 Select-Feld: "${displayText}" enthält "${showWhen}" = ${shouldShow}`);
+          } else if (isCheckbox) {
+            // Für Checkbox/Toggle: showWhen ignorieren, nur checked Status prüfen
+            shouldShow = showWhen ? (parentValue === (showWhen === 'true')) : parentValue;
+            console.log(`🔍 Checkbox/Toggle: checked = ${parentValue}, shouldShow = ${shouldShow}`);
           } else {
             shouldShow = showWhen ? 
               (parentValue === showWhen || parentValue.includes(showWhen)) : 
@@ -42,7 +48,12 @@ export class DependentFields {
           
           const fieldContainer = field.closest('.form-field');
           if (fieldContainer) {
-            fieldContainer.style.display = shouldShow ? 'block' : 'none';
+            // Klasse toggeln statt inline-Style (für bessere Flexbox-Kompatibilität)
+            if (shouldShow) {
+              fieldContainer.classList.remove('form-field--hidden');
+            } else {
+              fieldContainer.classList.add('form-field--hidden');
+            }
             console.log(`🔍 Feld ${field.dataset.dependsOn} ${shouldShow ? 'angezeigt' : 'versteckt'}`);
             
             // Auto-Generierung für Kampagnenname

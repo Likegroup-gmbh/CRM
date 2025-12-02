@@ -132,6 +132,7 @@ export class AuftragList {
             ${isAdmin ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
             <span id="selected-count" style="display:none;">0 ausgewählt</span>
             ${isAdmin ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
+            <button id="btn-auftrag-new" class="primary-btn">Neuen Auftrag anlegen</button>
           </div>
         </div>
       `;
@@ -154,10 +155,6 @@ export class AuftragList {
               Kalender
             </button>
           </div>
-          <button id="btn-auftrag-new" class="primary-btn">
-            <i class="icon-plus"></i>
-            Neuen Auftrag anlegen
-          </button>
         </div>
       </div>
 
@@ -538,12 +535,17 @@ export class AuftragList {
   updateSelection() {
     const selectedCount = this.selectedAuftraege.size;
     const selectedCountElement = document.getElementById('selected-count');
+    const selectBtn = document.getElementById('btn-select-all');
     const deselectBtn = document.getElementById('btn-deselect-all');
     const deleteBtn = document.getElementById('btn-delete-selected');
     
     if (selectedCountElement) {
       selectedCountElement.textContent = `${selectedCount} ausgewählt`;
       selectedCountElement.style.display = selectedCount > 0 ? 'inline' : 'none';
+    }
+    
+    if (selectBtn) {
+      selectBtn.style.display = selectedCount > 0 ? 'none' : 'inline-block';
     }
     
     if (deselectBtn) {

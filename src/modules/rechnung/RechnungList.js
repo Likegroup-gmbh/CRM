@@ -9,6 +9,7 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 export class RechnungList {
   constructor() {
     this.selectedRechnungen = new Set();
+    this.rechnungen = []; // Speichert geladene Rechnungen für Download-Zugriff
   }
 
   async init() {
@@ -34,6 +35,39 @@ export class RechnungList {
         this.showCreateForm();
       }
     });
+    
+    // Download-Action Handler
+    document.addEventListener('click', (e) => {
+      const actionItem = e.target.closest('.action-item[data-action="download"]');
+      if (actionItem) {
+        e.preventDefault();
+        const id = actionItem.dataset.id;
+        this.handleDownload(id);
+      }
+    });
+  }
+  
+  // Rechnung PDF herunterladen
+  handleDownload(rechnungId) {
+    const rechnung = this.rechnungen.find(r => r.id === rechnungId);
+    if (!rechnung) {
+      window.toastSystem?.show('Rechnung nicht gefunden', 'error');
+      return;
+    }
+    
+    if (!rechnung.pdf_url) {
+      window.toastSystem?.show('Keine PDF für diese Rechnung hinterlegt', 'warning');
+      return;
+    }
+    
+    // PDF in neuem Tab öffnen / Download starten
+    const link = document.createElement('a');
+    link.href = rechnung.pdf_url;
+    link.target = '_blank';
+    link.download = `Rechnung_${rechnung.rechnung_nr || rechnungId}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
 
   async loadAndRender() {
@@ -128,6 +162,7 @@ export class RechnungList {
       } else {
         rechnungen = await window.dataService.loadEntities('rechnung', currentFilters);
       }
+      this.rechnungen = rechnungen; // Speichern für Download-Zugriff
       this.updateTable(rechnungen);
     } catch (error) {
       window.ErrorHandler?.handle?.(error, 'RechnungList.loadAndRender');
@@ -138,23 +173,23 @@ export class RechnungList {
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
     
     const html = `
-      <div class="page-header">
-        <div class="page-header-right">
-          ${window.currentUser?.permissions?.rechnung?.can_edit ? '<button id="btn-rechnung-new" class="primary-btn">Neue Rechnung anlegen</button>' : ''}
-        </div>
-      </div>
-
       <div class="table-filter-wrapper">
         <div class="filter-bar">
           <div id="filter-dropdown-container"></div>
-          
         </div>
-        ${isAdmin ? `<div class="table-actions">
-          <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
+        <div class="table-actions">
+          ${isAdmin ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
-          <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
-        </div>` : ''}
+          <button id="btn-download-selected" class="secondary-btn" style="display:none;">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:16px;height:16px;margin-right:4px;vertical-align:middle;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 0 0-2.25 2.25v9a2.25 2.25 0 0 0 2.25 2.25h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25H15M9 12l3 3m0 0 3-3m-3 3V2.25" />
+            </svg>
+            Ausgewählte herunterladen
+          </button>
+          <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>` : ''}
+          ${window.currentUser?.permissions?.rechnung?.can_edit ? '<button id="btn-rechnung-new" class="primary-btn">Neue Rechnung anlegen</button>' : ''}
+        </div>
       </div>
 
       <div class="table-container">
@@ -275,28 +310,105 @@ export class RechnungList {
       });
     }
 
-    // Buttons
-    document.getElementById('btn-select-all')?.addEventListener('click', (e) => {
-      e.preventDefault();
-      document.querySelectorAll('.rechnung-check').forEach(cb => { cb.checked = true; this.selectedRechnungen.add(cb.dataset.id); });
-      const header = document.getElementById('select-all-rechnungen');
-      if (header) { header.indeterminate = false; header.checked = true; }
-      this.updateSelectionUI();
-    });
+    // Buttons - onclick statt addEventListener um doppelte Handler zu vermeiden
+    const selectAllBtn = document.getElementById('btn-select-all');
+    if (selectAllBtn) {
+      selectAllBtn.onclick = (e) => {
+        e.preventDefault();
+        document.querySelectorAll('.rechnung-check').forEach(cb => { cb.checked = true; this.selectedRechnungen.add(cb.dataset.id); });
+        const header = document.getElementById('select-all-rechnungen');
+        if (header) { header.indeterminate = false; header.checked = true; }
+        this.updateSelectionUI();
+      };
+    }
 
-    document.getElementById('btn-deselect-all')?.addEventListener('click', (e) => {
-      e.preventDefault();
-      document.querySelectorAll('.rechnung-check').forEach(cb => { cb.checked = false; });
-      this.selectedRechnungen.clear();
-      const header = document.getElementById('select-all-rechnungen');
-      if (header) { header.indeterminate = false; header.checked = false; }
-      this.updateSelectionUI();
-    });
+    const deselectAllBtn = document.getElementById('btn-deselect-all');
+    if (deselectAllBtn) {
+      deselectAllBtn.onclick = (e) => {
+        e.preventDefault();
+        document.querySelectorAll('.rechnung-check').forEach(cb => { cb.checked = false; });
+        this.selectedRechnungen.clear();
+        const header = document.getElementById('select-all-rechnungen');
+        if (header) { header.indeterminate = false; header.checked = false; }
+        this.updateSelectionUI();
+      };
+    }
 
-    document.getElementById('btn-delete-selected')?.addEventListener('click', async (e) => {
-      e.preventDefault();
-      await this.deleteSelected();
-    });
+    const deleteBtn = document.getElementById('btn-delete-selected');
+    if (deleteBtn) {
+      deleteBtn.onclick = async (e) => {
+        e.preventDefault();
+        await this.deleteSelected();
+      };
+    }
+
+    const downloadBtn = document.getElementById('btn-download-selected');
+    if (downloadBtn) {
+      downloadBtn.onclick = async (e) => {
+        e.preventDefault();
+        await this.downloadSelected();
+      };
+    }
+  }
+
+  // Ausgewählte Rechnungen herunterladen
+  async downloadSelected() {
+    const selectedIds = Array.from(this.selectedRechnungen);
+    if (selectedIds.length === 0) {
+      window.toastSystem?.show('Keine Rechnungen ausgewählt', 'warning');
+      return;
+    }
+
+    // Rechnungen mit PDF-URLs aus gespeicherten Daten filtern
+    const rechnungenToDownload = this.rechnungen.filter(r => 
+      selectedIds.includes(r.id) && r.pdf_url
+    );
+
+    if (rechnungenToDownload.length === 0) {
+      window.toastSystem?.show('Keine der ausgewählten Rechnungen hat eine PDF hinterlegt', 'warning');
+      return;
+    }
+
+    const skipped = selectedIds.length - rechnungenToDownload.length;
+    if (skipped > 0) {
+      window.toastSystem?.show(`${skipped} Rechnung(en) ohne PDF übersprungen`, 'info');
+    }
+
+    window.toastSystem?.show(`Starte Download von ${rechnungenToDownload.length} Rechnung(en)...`, 'info');
+
+    // Downloads nacheinander mit kurzer Verzögerung starten
+    for (let i = 0; i < rechnungenToDownload.length; i++) {
+      const rechnung = rechnungenToDownload[i];
+      
+      try {
+        // PDF als Blob herunterladen
+        const response = await fetch(rechnung.pdf_url);
+        if (!response.ok) throw new Error(`Fehler beim Laden von ${rechnung.rechnung_nr}`);
+        
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        
+        // Download-Link erstellen und klicken
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = `Rechnung_${rechnung.rechnung_nr || rechnung.id}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Blob URL freigeben
+        URL.revokeObjectURL(blobUrl);
+        
+        // Kurze Verzögerung zwischen Downloads damit Browser nicht blockiert
+        if (i < rechnungenToDownload.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      } catch (error) {
+        console.error(`❌ Fehler beim Download von Rechnung ${rechnung.rechnung_nr}:`, error);
+      }
+    }
+
+    window.toastSystem?.show(`${rechnungenToDownload.length} Rechnung(en) heruntergeladen`, 'success');
   }
 
   updateHeaderSelectAll() {
@@ -311,10 +423,14 @@ export class RechnungList {
   updateSelectionUI() {
     const count = this.selectedRechnungen.size;
     const countEl = document.getElementById('selected-count');
+    const selectBtn = document.getElementById('btn-select-all');
     const deselectBtn = document.getElementById('btn-deselect-all');
+    const downloadBtn = document.getElementById('btn-download-selected');
     const deleteBtn = document.getElementById('btn-delete-selected');
     if (countEl) { countEl.textContent = `${count} ausgewählt`; countEl.style.display = count > 0 ? 'inline' : 'none'; }
+    if (selectBtn) selectBtn.style.display = count > 0 ? 'none' : 'inline-block';
     if (deselectBtn) deselectBtn.style.display = count > 0 ? 'inline-block' : 'none';
+    if (downloadBtn) downloadBtn.style.display = count > 0 ? 'inline-flex' : 'none';
     if (deleteBtn) deleteBtn.style.display = count > 0 ? 'inline-block' : 'none';
   }
 

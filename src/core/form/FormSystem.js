@@ -117,6 +117,32 @@ export class FormSystem {
         totalFields: Object.keys(data).length
       });
       
+      // Konvertiere Follower-Integer zu Bereich-String für Creator Edit-Mode
+      if (entity === 'creator') {
+        const intToFollowerRange = (value) => {
+          if (!value || value === 0) return null;
+          if (value <= 2500) return '0-2500';
+          if (value <= 5000) return '2500-5000';
+          if (value <= 10000) return '5000-10000';
+          if (value <= 25000) return '10000-25000';
+          if (value <= 50000) return '25000-50000';
+          if (value <= 100000) return '50000-100000';
+          if (value <= 250000) return '100000-250000';
+          if (value <= 500000) return '250000-500000';
+          if (value <= 1000000) return '500000-1000000';
+          return '1000000+';
+        };
+        
+        if (data.instagram_follower) {
+          data.instagram_follower = intToFollowerRange(data.instagram_follower);
+          console.log('🔢 FORMSYSTEM: Instagram Follower konvertiert:', data.instagram_follower);
+        }
+        if (data.tiktok_follower) {
+          data.tiktok_follower = intToFollowerRange(data.tiktok_follower);
+          console.log('🔢 FORMSYSTEM: TikTok Follower konvertiert:', data.tiktok_follower);
+        }
+      }
+      
       form.dataset.editModeData = JSON.stringify(data);
       form.dataset.isEditMode = 'true';
       form.dataset.entityType = entity;

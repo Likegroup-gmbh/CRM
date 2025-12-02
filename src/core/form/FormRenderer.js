@@ -68,11 +68,41 @@ export class FormRenderer {
       'influencer','influencer_preis','ugc','ugc_preis','vor_ort_produktion','vor_ort_preis',
       'ust_prozent','ust_betrag','deckungsbeitrag_prozent','deckungsbeitrag_betrag'
     ]);
+    
+    // Toggle+Datum Inline-Gruppen (Toggle mit zugehörigem Datum nebeneinander)
+    const toggleDateGroups = {
+      'rechnung_gestellt': 'rechnung_gestellt_am',
+      'ueberwiesen': 'ueberwiesen_am'
+    };
+    
     const parts = [];
     let inTwoCol = false;
+    const processedFields = new Set(); // Um bereits verarbeitete Felder zu tracken
+    
     for (const field of fields) {
+      // Überspringe bereits verarbeitete Felder (z.B. Datum-Felder die mit Toggle gerendert wurden)
+      if (processedFields.has(field.name)) continue;
+      
       const value = data ? data[field.name] : '';
       const isTwoCol = twoColNames.has(field.name);
+      
+      // Prüfe ob es ein Toggle mit zugehörigem Datum-Feld ist
+      const dateFieldName = toggleDateGroups[field.name];
+      if (dateFieldName) {
+        // Toggle + Datum inline rendern
+        const dateField = fields.find(f => f.name === dateFieldName);
+        if (dateField) {
+          const dateValue = data ? data[dateFieldName] : '';
+          processedFields.add(dateFieldName);
+          
+          const toggleHtml = this.renderField(field, value);
+          const dateHtml = this.renderField(dateField, dateValue);
+          
+          parts.push(`<div class="form-inline-group">${toggleHtml}${dateHtml}</div>`);
+          continue;
+        }
+      }
+      
       if (isTwoCol && !inTwoCol) {
         parts.push('<div class="form-two-col">');
         inTwoCol = true;
@@ -150,8 +180,12 @@ export class FormRenderer {
         `;
 
       case 'date':
+        const dateDependsOn = field.dependsOn ? `data-depends-on="${field.dependsOn}"` : '';
+        const dateShowWhen = field.showWhen ? `data-show-when="${field.showWhen}"` : '';
+        const dateHiddenClass = field.dependsOn ? 'form-field--hidden' : '';
+        const dateInlineClass = field.dependsOn ? 'form-field--inline' : '';
         return `
-          <div class="form-field">
+          <div class="form-field ${dateHiddenClass} ${dateInlineClass}" ${dateDependsOn} ${dateShowWhen}>
             <label for="${fieldId}">${field.label} ${requiredMark}</label>
             <input type="date" id="${fieldId}" name="${field.name}" value="${value}" ${required}>
           </div>

@@ -1502,6 +1502,28 @@ export class DataService {
           // ignore parse error, keep original value
         }
       }
+      
+      // Konvertiere Follower-Bereiche zu Integer für Creator
+      if (entityType === 'creator' && (field === 'instagram_follower' || field === 'tiktok_follower')) {
+        if (value && typeof value === 'string') {
+          // Konvertiere Bereich-String zu Maximalwert
+          const followerRangeToInt = {
+            '0-2500': 2500,
+            '2500-5000': 5000,
+            '5000-10000': 10000,
+            '10000-25000': 25000,
+            '25000-50000': 50000,
+            '50000-100000': 100000,
+            '100000-250000': 250000,
+            '250000-500000': 500000,
+            '500000-1000000': 1000000,
+            '1000000+': 1500000
+          };
+          value = followerRangeToInt[value] || null;
+          console.log(`🔢 Konvertiere ${field}: "${rawValue}" → ${value}`);
+        }
+      }
+      
       // Spezielle Behandlung für branche_id - prüfe ob Junction Table verwendet wird
       if (field === 'branche_id' && entityType === 'unternehmen') {
         console.log(`🏷️ Verarbeite ${field}:`, value);

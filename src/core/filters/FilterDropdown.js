@@ -250,7 +250,12 @@ export class FilterDropdown {
    * Lädt Labels nachträglich wenn nötig
    */
   formatFilterValueSync(filterConfig, value) {
-    if (!value) return '';
+    // Boolean-Werte speziell behandeln
+    if (filterConfig.type === 'boolean') {
+      return value === true ? 'Ja' : value === false ? 'Nein' : '';
+    }
+    
+    if (value === null || value === undefined || value === '') return '';
     
     // Versuche erst in Config-Optionen
     if (filterConfig.type === 'select') {
@@ -322,7 +327,12 @@ export class FilterDropdown {
    * Formatiert Filter-Wert für Anzeige (async Version - für komplexe Fälle)
    */
   async formatFilterValue(filterConfig, value) {
-    if (!value) return '';
+    // Boolean-Werte speziell behandeln (false ist ein gültiger Wert)
+    if (filterConfig.type === 'boolean') {
+      return value === true ? 'Ja' : value === false ? 'Nein' : '';
+    }
+    
+    if (value === null || value === undefined || value === '') return '';
 
     switch (filterConfig.type) {
       case 'select':
@@ -1148,7 +1158,13 @@ export class FilterDropdown {
     }
 
     // Setze oder entferne Filter
-    if (filterValue && (typeof filterValue !== 'object' || Object.keys(filterValue).length > 0) && (!Array.isArray(filterValue) || filterValue.length > 0)) {
+    // Boolean-Werte (true/false) sind gültig, daher spezielle Prüfung
+    const hasValidValue = filterValue !== null && filterValue !== undefined && filterValue !== '' &&
+      (typeof filterValue === 'boolean' || 
+       (typeof filterValue !== 'object' || Object.keys(filterValue).length > 0) && 
+       (!Array.isArray(filterValue) || filterValue.length > 0));
+    
+    if (hasValidValue) {
       instance.activeFilters.set(filterId, filterValue);
       console.log(`✅ Filter gesetzt: ${filterId} = `, filterValue);
       

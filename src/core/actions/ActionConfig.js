@@ -193,10 +193,11 @@ export const ActionConfigs = {
     actions: [
       { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
+      { id: 'download', icon: 'download', label: 'Rechnung herunterladen', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
     ],
-    kundenActions: ['view']
+    kundenActions: ['view', 'download']
   },
 
   // Kunden Actions (Admin-Bereich)

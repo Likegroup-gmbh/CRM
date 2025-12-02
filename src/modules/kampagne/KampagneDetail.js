@@ -27,11 +27,28 @@ export class KampagneDetail {
     this.videoCreateDrawer = null;
     this.videoColumnVisibilityDrawer = null;
     this.strategien = [];
+    
+    // Race Condition Prevention
+    this._isMounted = false;
+    this._initPromise = null;
   }
 
   // Initialisiere Kampagnen-Detail
   async init(kampagneId) {
     console.log('🎯 KAMPAGNEDETAIL: Initialisiere Kampagnen-Detailseite für ID:', kampagneId);
+    
+    // Setze kampagneId früh für Guard-Vergleich
+    const previousKampagneId = this.kampagneId;
+    this.kampagneId = kampagneId;
+    
+    // Guard gegen doppelte parallele Initialisierung für DIESELBE Kampagne
+    if (this._initPromise && previousKampagneId === kampagneId) {
+      console.log('⚠️ KAMPAGNEDETAIL: Init bereits in Arbeit für diese Kampagne, warte...');
+      return this._initPromise;
+    }
+    
+    // Setze Mount-Status
+    this._isMounted = true;
     
     // WICHTIG: IMMER Cleanup alte Tabellen-Instanz falls vorhanden
     // (auch wenn gleiche kampagneId, weil der Container neu gerendert wird)
@@ -46,17 +63,24 @@ export class KampagneDetail {
       this.kooperationenVideoTable = null;
     }
     
-    this.kampagneId = kampagneId;
-    
     // Prüfen ob dieses Modul noch das aktuelle ist
     if (window.moduleRegistry?.currentModule !== this) {
       console.log('⚠️ KAMPAGNEDETAIL: Nicht mehr das aktuelle Modul, breche ab');
+      this._isMounted = false;
       return;
     }
     
+    // Speichere Promise für Guard
+    this._initPromise = (async () => {
     try {
       // Lade kritische Daten (PARALLEL statt sequentiell!)
       await this.loadCriticalData();
+      
+      // Prüfe Mount-Status vor DOM-Updates
+      if (!this._isMounted) {
+        console.log('⚠️ KAMPAGNEDETAIL: Nicht mehr gemounted nach Laden');
+        return;
+      }
       
       // Breadcrumb aktualisieren
       if (window.breadcrumbSystem && this.kampagneData) {
@@ -73,51 +97,10 @@ export class KampagneDetail {
       this.bindEvents();
       this.bindAnsprechpartnerEvents();
       
-      // Lade initialen Tab direkt nach render
-      // WICHTIG: Nach render() und bindEvents() damit der DOM vollständig ist
+      // Lade initialen Tab mit Promise-basierter Logik (statt setTimeout)
       if (window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false) {
-        // Verwende setTimeout mit längerer Verzögerung damit alte Instanz sicher beendet ist
-        setTimeout(async () => {
-          // Prüfe ob noch aktuelles Modul
-          if (window.moduleRegistry?.currentModule !== this) {
-            console.log('⚠️ Nicht mehr aktuelles Modul, überspringe Tabellen-Init');
-            return;
-          }
-          
-          const container = document.getElementById('kooperationen-videos-container');
-          if (!container) {
-            console.error('❌ Container nicht gefunden beim initialen Load');
-            return;
-          }
-          
-          const hasDOM = container.querySelector('.grid-wrapper');
-          
-          console.log('🔍 Container-Status beim Init:', {
-            containerExists: !!container,
-            hasDOM: !!hasDOM,
-            hasInstance: !!this.kooperationenVideoTable,
-            containerIsEmpty: container.innerHTML.trim() === ''
-          });
-          
-          // Lade Tabelle wenn kein DOM vorhanden ist (egal ob Instanz existiert)
-          if (!hasDOM) {
-            console.log('🔄 Lade Kooperationen-Video-Tabelle (DOM fehlt)');
-            // Erstelle neue Instanz nur wenn noch keine existiert
-            if (!this.kooperationenVideoTable) {
-              this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId);
-            }
-            await this.kooperationenVideoTable.init('kooperationen-videos-container');
-            console.log('✅ Kooperationen-Video-Tabelle initialisiert');
-            
-            // Update Button-State nach Init
-            this.updateToggleApprovedButton();
-          } else {
-            console.log('✅ Tabelle DOM bereits vorhanden - Skip:', { 
-              hasInstance: !!this.kooperationenVideoTable, 
-              hasDOM: !!hasDOM 
-            });
-          }
-        }, 200); // Längere Verzögerung um Race Conditions mit destroy() zu vermeiden
+        // Warte bis DOM gerendert ist (requestAnimationFrame ist zuverlässiger als setTimeout)
+        await this._initVideoTableSafe();
       }
       
       console.log('✅ KAMPAGNEDETAIL: Initialisierung abgeschlossen');
@@ -125,6 +108,65 @@ export class KampagneDetail {
     } catch (error) {
       console.error('❌ KAMPAGNEDETAIL: Fehler bei der Initialisierung:', error);
       window.ErrorHandler.handle(error, 'KampagneDetail.init');
+    } finally {
+      this._initPromise = null;
+    }
+    })();
+    
+    return this._initPromise;
+  }
+  
+  // Promise-basierte Video-Tabellen-Initialisierung (Race-Condition-sicher)
+  async _initVideoTableSafe() {
+    // Warte auf nächsten Animation Frame um DOM-Rendering abzuschließen
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    
+    // Prüfe ob noch gemounted und aktuelles Modul
+    if (!this._isMounted || window.moduleRegistry?.currentModule !== this) {
+      console.log('⚠️ Nicht mehr aktuelles Modul, überspringe Tabellen-Init');
+      return;
+    }
+    
+    const container = document.getElementById('kooperationen-videos-container');
+    if (!container) {
+      console.error('❌ Container nicht gefunden beim initialen Load');
+      return;
+    }
+    
+    const hasDOM = container.querySelector('.grid-wrapper');
+    
+    console.log('🔍 Container-Status beim Init:', {
+      containerExists: !!container,
+      hasDOM: !!hasDOM,
+      hasInstance: !!this.kooperationenVideoTable,
+      containerIsEmpty: container.innerHTML.trim() === ''
+    });
+    
+    // Lade Tabelle wenn kein DOM vorhanden ist (egal ob Instanz existiert)
+    if (!hasDOM) {
+      console.log('🔄 Lade Kooperationen-Video-Tabelle (DOM fehlt)');
+      // Erstelle neue Instanz nur wenn noch keine existiert
+      if (!this.kooperationenVideoTable) {
+        this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId);
+      }
+      
+      await this.kooperationenVideoTable.init('kooperationen-videos-container');
+      
+      // Prüfe nochmal ob noch gemounted nach async init
+      if (!this._isMounted) {
+        console.log('⚠️ Nicht mehr gemounted nach Tabellen-Init');
+        return;
+      }
+      
+      console.log('✅ Kooperationen-Video-Tabelle initialisiert');
+      
+      // Update Button-State nach Init
+      this.updateToggleApprovedButton();
+    } else {
+      console.log('✅ Tabelle DOM bereits vorhanden - Skip:', { 
+        hasInstance: !!this.kooperationenVideoTable, 
+        hasDOM: !!hasDOM 
+      });
     }
   }
 
@@ -1828,6 +1870,12 @@ export class KampagneDetail {
   // Cleanup
   destroy() {
     console.log('🗑️ KAMPAGNEDETAIL: Destroy aufgerufen');
+    
+    // Setze Mount-Status auf false (verhindert weitere DOM-Updates)
+    this._isMounted = false;
+    
+    // Reset init Promise (damit neuer init() nicht auf altes Promise wartet)
+    this._initPromise = null;
     
     // Cleanup der Kooperationen-Video-Tabelle (inkl. Floating-Scrollbar)
     if (this.kooperationenVideoTable && typeof this.kooperationenVideoTable.destroy === 'function') {

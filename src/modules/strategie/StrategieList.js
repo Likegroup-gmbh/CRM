@@ -115,15 +115,15 @@ export class StrategieList {
 
     const html = `
       <div class="list-container">
-        <div class="list-header">
-          <div class="list-header-actions">
+        <div class="table-filter-wrapper">
+          <div class="filter-bar">
+            <div class="filter-left">
+              <div id="filter-dropdown-container"></div>
+            </div>
+          </div>
+          <div class="table-actions">
             ${canCreate ? `
-              <button class="primary-btn" data-action="create-strategie">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px;">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
-                Neue Strategie
-              </button>
+              <button class="primary-btn" data-action="create-strategie">Neue Strategie anlegen</button>
             ` : ''}
           </div>
         </div>

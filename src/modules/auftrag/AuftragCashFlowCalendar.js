@@ -3,6 +3,8 @@
 
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
+import { tableExport } from '../../core/TableExport.js';
+import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 
 export class AuftragCashFlowCalendar {
   constructor() {
@@ -19,9 +21,15 @@ export class AuftragCashFlowCalendar {
     console.log('📅 CASHFLOW: Initialisiere Cash Flow Calendar');
     this.container = container;
     
+    // Übernehme bereits gesetzte Filter aus dem globalen FilterSystem
+    const existingFilters = filterSystem.getFilters('auftrag_cashflow') || {};
+    this.currentFilters = { ...existingFilters };
+    console.log('📅 CASHFLOW: Übernommene Filter:', this.currentFilters);
+    
     await this.loadData();
     this.render();
     this.bindEvents();
+    this.bindExportEvents();
     await this.initializeFilterBar();
     this.initFloatingScrollbar();
     this.bindDragToScroll();
@@ -220,6 +228,12 @@ export class AuftragCashFlowCalendar {
               ${this.renderFooter()}
             </tfoot>
           </table>
+        </div>
+        
+        <!-- Export-Button -->
+        <div class="table-footer">
+          <div></div>
+          ${tableExport.renderExportButton('cashflow')}
         </div>
       </div>
     `;
@@ -643,6 +657,8 @@ export class AuftragCashFlowCalendar {
     await this.loadData();
     this.render();
     this.bindEvents();
+    this.bindExportEvents();
+    await this.initializeFilterBar(); // FilterBar nach Render neu initialisieren
     this.initFloatingScrollbar();
     this.bindDragToScroll();
   }
@@ -654,8 +670,94 @@ export class AuftragCashFlowCalendar {
     await this.loadData();
     this.render();
     this.bindEvents();
+    this.bindExportEvents();
+    await this.initializeFilterBar(); // FilterBar nach Render neu initialisieren
     this.initFloatingScrollbar();
     this.bindDragToScroll();
+  }
+
+  // Spalten-Definition für Export
+  getExportColumns() {
+    return [
+      { key: 'unternehmen', label: 'Unternehmen' },
+      { key: 'marke', label: 'Marke' },
+      ...this.months.map((m, i) => ({ key: `month_${i}`, label: m, type: 'currency' })),
+      { key: 'total', label: 'TOTAL', type: 'currency' }
+    ];
+  }
+
+  // Bereite Daten für Export vor
+  prepareExportData() {
+    // Datenzeilen
+    const rows = this.groupedData.map(group => {
+      const row = {
+        unternehmen: group.unternehmen?.firmenname || 'Unbekannt',
+        marke: group.marke?.markenname || '',
+        total: group.months.reduce((sum, m) => sum + m.total, 0)
+      };
+      
+      // Monats-Werte hinzufügen
+      group.months.forEach((month, i) => {
+        row[`month_${i}`] = month.total;
+      });
+      
+      return row;
+    });
+
+    // Summenzeile berechnen
+    const monthTotals = Array(12).fill(0);
+    let grandTotal = 0;
+    
+    this.groupedData.forEach(group => {
+      group.months.forEach((month, i) => {
+        monthTotals[i] += month.total;
+        grandTotal += month.total;
+      });
+    });
+
+    // Summenzeile hinzufügen
+    const sumRow = {
+      unternehmen: 'SUMME',
+      marke: '',
+      total: grandTotal
+    };
+    monthTotals.forEach((total, i) => {
+      sumRow[`month_${i}`] = total;
+    });
+    
+    rows.push(sumRow);
+    
+    return rows;
+  }
+
+  // Export durchführen
+  async handleExport(format) {
+    try {
+      console.log(`📥 Cash Flow Export starten: ${format.toUpperCase()}`);
+      
+      window.toastSystem?.show('Export wird vorbereitet...', 'info');
+      
+      const data = this.prepareExportData();
+      const columns = this.getExportColumns();
+      const filename = `cashflow_${this.currentYear}_${new Date().toISOString().split('T')[0]}`;
+      
+      if (format === 'csv') {
+        tableExport.exportToCSV(data, columns, filename);
+      } else {
+        tableExport.exportToXLSX(data, columns, filename);
+      }
+      
+      window.toastSystem?.show(`${data.length} Zeilen exportiert`, 'success');
+      
+    } catch (error) {
+      console.error('❌ Export fehlgeschlagen:', error);
+      window.toastSystem?.show('Export fehlgeschlagen', 'error');
+    }
+  }
+
+  // Binde Export-Events
+  bindExportEvents() {
+    tableExport.bindExportEvents('cashflow', (format) => this.handleExport(format));
   }
 }
 

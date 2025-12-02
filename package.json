@@ -16,7 +16,8 @@
     "fuse.js": "^7.1.0",
     "puppeteer-core": "^23.0.0",
     "puppeteer-extra": "^3.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2"
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "puppeteer": "^24.31.0",

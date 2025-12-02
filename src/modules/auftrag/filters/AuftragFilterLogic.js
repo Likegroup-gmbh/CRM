@@ -15,7 +15,8 @@ export class AuftragFilterLogic {
     const processedFilters = {};
 
     for (const [key, value] of Object.entries(filters)) {
-      if (!value) continue;
+      // Für Boolean-Filter: false ist ein gültiger Wert, also nicht überspringen
+      if (value === null || value === undefined || value === '') continue;
 
       switch (key) {
         case 'auftragsname':

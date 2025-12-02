@@ -223,10 +223,9 @@
 }
 
 .breadcrumb {
-  display: flex;
-  align-items: center;
+  display: flex; 
   gap: var(--space-xs);
-  flex-wrap: wrap;
+ 
 }
 
 .breadcrumb-item {
@@ -248,6 +247,7 @@
 .breadcrumb-current {
   color: var(--text-primary);
   font-weight: 500;
+  
 }
 
 .breadcrumb-separator {
@@ -255,6 +255,17 @@
   align-items: center;
   color: var(--text-muted);
   flex-shrink: 0;
+}
+
+.breadcrumb-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-right: var(--space-xs);
+}
+
+.breadcrumb-icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* Search Box - jetzt in Sidebar */

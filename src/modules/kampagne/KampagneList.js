@@ -10,6 +10,44 @@ import { KampagneKanbanBoard } from './KampagneKanbanBoard.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { KampagneFilterLogic } from './filters/KampagneFilterLogic.js';
 
+// Kampagnen-Cache mit TTL
+const kampagnenCache = {
+  data: null,
+  timestamp: 0,
+  ttl: 60000, // 60 Sekunden
+  filterKey: null,
+  
+  get(filterKey) {
+    const now = Date.now();
+    if (this.data && this.filterKey === filterKey && (now - this.timestamp) < this.ttl) {
+      console.log('📦 CACHE HIT: Kampagnen aus Cache geladen');
+      return this.data;
+    }
+    return null;
+  },
+  
+  set(data, filterKey) {
+    this.data = data;
+    this.filterKey = filterKey;
+    this.timestamp = Date.now();
+    console.log('📦 CACHE SET: Kampagnen im Cache gespeichert');
+  },
+  
+  invalidate() {
+    this.data = null;
+    this.filterKey = null;
+    this.timestamp = 0;
+    console.log('📦 CACHE INVALIDATED');
+  }
+};
+
+// Globaler Event-Listener für Cache-Invalidierung
+window.addEventListener('entityUpdated', (e) => {
+  if (e.detail.entity === 'kampagne') {
+    kampagnenCache.invalidate();
+  }
+});
+
 export class KampagneList {
   constructor() {
     this.selectedKampagnen = new Set();
@@ -18,10 +56,23 @@ export class KampagneList {
     this.kampagneArtMap = new Map();
     this.currentView = 'kanban'; // 'list' oder 'kanban' - Standard: kanban
     this.kanbanBoard = null;
+    
+    // AbortController und Mount-Status für Race Condition Prevention
+    this._abortController = null;
+    this._isMounted = false;
   }
 
   // Initialisiere Kampagnen-Liste
   async init() {
+    // Setze Mount-Status
+    this._isMounted = true;
+    
+    // Abort vorherige Requests wenn vorhanden
+    if (this._abortController) {
+      this._abortController.abort();
+    }
+    this._abortController = new AbortController();
+    
     window.setHeadline('Kampagnen Übersicht');
     
     // Breadcrumb für Listen-Seite
@@ -53,6 +104,12 @@ export class KampagneList {
   // Lade und rendere Kampagnen-Liste
   async loadAndRender() {
     try {
+      // Prüfe Mount-Status vor DOM-Updates
+      if (!this._isMounted) {
+        console.log('⚠️ KAMPAGNELIST: Nicht mehr gemounted, breche ab');
+        return;
+      }
+      
       // Rendere die Seite (asynchron)
       await this.render();
       
@@ -61,10 +118,23 @@ export class KampagneList {
         // Initialisiere Filterbar mit neuem System
         await this.initializeFilterBar();
         
+        // Prüfe ob abgebrochen wurde
+        if (this._abortController?.signal.aborted || !this._isMounted) {
+          console.log('⚠️ KAMPAGNELIST: Request abgebrochen');
+          return;
+        }
+        
         // Lade gefilterte Kampagnen für die Anzeige
         const currentFilters = filterSystem.getFilters('kampagne');
         console.log('🔍 Lade Kampagnen mit Filter:', currentFilters);
         const filteredKampagnen = await this.loadKampagnenWithRelations();
+        
+        // Prüfe nochmal ob noch gemounted vor DOM-Update
+        if (!this._isMounted || this._abortController?.signal.aborted) {
+          console.log('⚠️ KAMPAGNELIST: Nicht mehr gemounted nach Laden, überspringe DOM-Update');
+          return;
+        }
+        
         console.log('📊 Kampagnen geladen:', filteredKampagnen?.length || 0);
         
         // Aktualisiere nur die Tabelle mit gefilterten Daten
@@ -73,6 +143,11 @@ export class KampagneList {
       // Für Kanban-View: Kanban Board lädt seine eigenen Daten
       
     } catch (error) {
+      // Ignoriere Abort-Fehler
+      if (error.name === 'AbortError') {
+        console.log('⚠️ KAMPAGNELIST: Request wurde abgebrochen');
+        return;
+      }
       window.ErrorHandler.handle(error, 'KampagneList.loadAndRender');
     }
   }
@@ -85,6 +160,14 @@ export class KampagneList {
       if (!window.supabase) {
         console.warn('⚠️ Supabase nicht verfügbar - verwende Mock-Daten');
         return await window.dataService.loadEntities('kampagne');
+      }
+      
+      // Cache-Check: Prüfe ob Daten im Cache sind
+      const activeFilters = filterSystem.getFilters('kampagne');
+      const cacheKey = JSON.stringify(activeFilters);
+      const cachedData = kampagnenCache.get(cacheKey);
+      if (cachedData) {
+        return cachedData;
       }
 
       // PARALLEL: Status, Arten und Permission-Daten gleichzeitig laden
@@ -144,8 +227,7 @@ export class KampagneList {
         query = query.in('id', assignedKampagnenIds);
       }
 
-      // Filter aus FilterSystem anwenden
-      const activeFilters = filterSystem.getFilters('kampagne');
+      // Filter aus FilterSystem anwenden (activeFilters bereits oben definiert)
       console.log('🔍 KAMPAGNELIST: Wende Filter an:', activeFilters);
       query = KampagneFilterLogic.buildSupabaseQuery(query, activeFilters);
 
@@ -226,6 +308,10 @@ export class KampagneList {
 
       const loadTime = (performance.now() - startTime).toFixed(0);
       console.log(`✅ KAMPAGNELIST: ${filtered.length} Kampagnen geladen (von ${formattedData.length} nach Filter) in ${loadTime}ms`);
+      
+      // Cache speichern
+      kampagnenCache.set(filtered, cacheKey);
+      
       return filtered;
 
     } catch (error) {
@@ -235,13 +321,13 @@ export class KampagneList {
     }
   }
   
-  // Helper: Lade User Permissions parallel
+  // Helper: Lade User Permissions parallel (OPTIMIERT)
   async loadUserPermissions() {
     try {
       const userId = window.currentUser?.id;
       if (!userId) return { data: [] };
       
-      // Alle Permission-Queries PARALLEL ausführen
+      // STUFE 1: Alle Basis-Permission-Queries PARALLEL ausführen
       const [directResult, markenResult, unternehmenResult] = await parallelLoad([
         // 1. Direkt zugeordnete Kampagnen
         () => window.supabase
@@ -265,37 +351,35 @@ export class KampagneList {
       // Direkte Kampagnen-IDs
       const directKampagnenIds = (directResult.data || []).map(r => r.kampagne_id).filter(Boolean);
       
-      // Kampagnen über Marken
+      // IDs extrahieren
       const markenIds = (markenResult.data || []).map(r => r.marke_id).filter(Boolean);
-      let markenKampagnenIds = [];
-      if (markenIds.length > 0) {
-        const { data: markenKampagnen } = await window.supabase
+      const unternehmenIds = (unternehmenResult.data || []).map(r => r.unternehmen_id).filter(Boolean);
+      
+      // STUFE 2: Folge-Queries PARALLEL ausführen (statt sequentiell!)
+      const [markenKampagnenResult, unternehmenMarkenResult] = await Promise.all([
+        // Kampagnen über Marken
+        markenIds.length > 0 
+          ? window.supabase.from('kampagne').select('id').in('marke_id', markenIds)
+          : Promise.resolve({ data: [] }),
+        
+        // Marken über Unternehmen
+        unternehmenIds.length > 0
+          ? window.supabase.from('marke').select('id').in('unternehmen_id', unternehmenIds)
+          : Promise.resolve({ data: [] })
+      ]);
+      
+      const markenKampagnenIds = (markenKampagnenResult.data || []).map(k => k.id).filter(Boolean);
+      const unternehmenMarkenIds = (unternehmenMarkenResult.data || []).map(m => m.id).filter(Boolean);
+      
+      // STUFE 3: Kampagnen über Unternehmen-Marken (falls nötig)
+      let unternehmenKampagnenIds = [];
+      if (unternehmenMarkenIds.length > 0) {
+        const { data: kampagnen } = await window.supabase
           .from('kampagne')
           .select('id')
-          .in('marke_id', markenIds);
-        markenKampagnenIds = (markenKampagnen || []).map(k => k.id).filter(Boolean);
-      }
-      
-      // Kampagnen über Unternehmen
-      const unternehmenIds = (unternehmenResult.data || []).map(r => r.unternehmen_id).filter(Boolean);
-      let unternehmenKampagnenIds = [];
-      if (unternehmenIds.length > 0) {
-        // PARALLEL: Marken und deren Kampagnen laden
-        const { data: unternehmenMarken } = await window.supabase
-          .from('marke')
-          .select('id')
-          .in('unternehmen_id', unternehmenIds);
+          .in('marke_id', unternehmenMarkenIds);
         
-        const unternehmenMarkenIds = (unternehmenMarken || []).map(m => m.id).filter(Boolean);
-        
-        if (unternehmenMarkenIds.length > 0) {
-          const { data: kampagnen } = await window.supabase
-            .from('kampagne')
-            .select('id')
-            .in('marke_id', unternehmenMarkenIds);
-          
-          unternehmenKampagnenIds = (kampagnen || []).map(k => k.id).filter(Boolean);
-        }
+        unternehmenKampagnenIds = (kampagnen || []).map(k => k.id).filter(Boolean);
       }
       
       // Alle zusammenführen und Duplikate entfernen
@@ -357,7 +441,6 @@ export class KampagneList {
               Kanban
             </button>
           </div>
-          ${canEdit ? '<button id="btn-kampagne-new" class="primary-btn" style="margin-left: var(--space-sm);">Neue Kampagne anlegen</button>' : ''}
         </div>
       </div>
 
@@ -385,6 +468,7 @@ export class KampagneList {
   renderTableWrapper() {
     const isKunde = window.currentUser?.rolle === 'kunde';
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
     
     return `
       ${!isKunde ? `
@@ -397,7 +481,9 @@ export class KampagneList {
         <div class="table-actions">
           ${isAdmin ? '<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>' : ''}
           ${isAdmin ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
+          ${isAdmin ? '<span id="selected-count" style="display:none;">0 ausgewählt</span>' : ''}
           ${isAdmin ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
+          ${canEdit ? '<button id="btn-kampagne-new" class="primary-btn">Neue Kampagne anlegen</button>' : ''}
         </div>
       </div>` : ''}
       <div class="data-table-container">
@@ -664,12 +750,17 @@ export class KampagneList {
   updateSelection() {
     const selectedCount = this.selectedKampagnen.size;
     const selectedCountElement = document.getElementById('selected-count');
+    const selectBtn = document.getElementById('btn-select-all');
     const deselectBtn = document.getElementById('btn-deselect-all');
     const deleteBtn = document.getElementById('btn-delete-selected');
     
     if (selectedCountElement) {
       selectedCountElement.textContent = `${selectedCount} ausgewählt`;
       selectedCountElement.style.display = selectedCount > 0 ? 'inline' : 'none';
+    }
+    
+    if (selectBtn) {
+      selectBtn.style.display = selectedCount > 0 ? 'none' : 'inline-block';
     }
     
     if (deselectBtn) {
@@ -741,6 +832,16 @@ export class KampagneList {
   // Cleanup
   destroy() {
     console.log('KampagneList: Cleaning up...');
+    
+    // Setze Mount-Status auf false (verhindert weitere DOM-Updates)
+    this._isMounted = false;
+    
+    // Abort laufende Requests
+    if (this._abortController) {
+      this._abortController.abort();
+      this._abortController = null;
+    }
+    
     this._boundEventListeners.forEach(({ element, type, handler }) => {
       element.removeEventListener(type, handler);
     });

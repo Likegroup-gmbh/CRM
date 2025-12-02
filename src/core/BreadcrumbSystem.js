@@ -1,10 +1,30 @@
 // BreadcrumbSystem.js (ES6-Modul)
 // Zentrale Breadcrumb-Navigation für das CRM
 
+import { navigationSystem } from '../modules/navigation/NavigationSystem.js';
+
 export class BreadcrumbSystem {
   constructor() {
     this.container = null;
     this.currentBreadcrumbs = [];
+  }
+
+  // Finde das Icon für eine gegebene URL aus der Navigation
+  getIconForUrl(url) {
+    if (!url) return null;
+    
+    // Extrahiere den Basis-Pfad (z.B. /auftrag aus /auftrag/123)
+    const basePath = '/' + url.split('/').filter(Boolean)[0];
+    
+    // Durchsuche alle Nav-Sections
+    for (const section of navigationSystem.navSections) {
+      for (const item of section.items) {
+        if (item.url === basePath || item.url === url) {
+          return navigationSystem.getIcon(item.icon);
+        }
+      }
+    }
+    return null;
   }
 
   // Initialisiere Breadcrumb-System
@@ -46,17 +66,22 @@ export class BreadcrumbSystem {
     }
 
     const breadcrumbHtml = this.currentBreadcrumbs.map((crumb, index) => {
+      const isFirst = index === 0;
       const isLast = index === this.currentBreadcrumbs.length - 1;
       const sanitizedLabel = window.validatorSystem?.sanitizeHtml?.(crumb.label) || crumb.label;
       
+      // Für den ersten Eintrag das passende Icon aus der Navigation holen
+      const iconHtml = isFirst ? this.getIconForUrl(crumb.url) : null;
+      const iconPrefix = iconHtml ? `<span class="breadcrumb-icon">${iconHtml}</span>` : '';
+      
       if (isLast || !crumb.clickable) {
         // Aktuelle Seite - nicht klickbar
-        return `<span class="breadcrumb-item breadcrumb-current">${sanitizedLabel}</span>`;
+        return `<span class="breadcrumb-item breadcrumb-current">${iconPrefix}${sanitizedLabel}</span>`;
       } else {
         // Klickbare Breadcrumb-Items
         return `
           <a href="${crumb.url}" class="breadcrumb-item breadcrumb-link" data-route="${crumb.url}">
-            ${sanitizedLabel}
+            ${iconPrefix}${sanitizedLabel}
           </a>
           <span class="breadcrumb-separator">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">

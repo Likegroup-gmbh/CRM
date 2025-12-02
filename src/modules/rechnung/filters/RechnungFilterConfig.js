@@ -7,6 +7,12 @@ export const RECHNUNG_FILTERS = [
     label: 'Rechnungs-Nr.',
     placeholder: 'z.B. RE-2025-001'
   }),
+  {
+    id: 'gestellt_am',
+    label: 'Zeitraum (Rechnungsdatum)',
+    type: 'dateRange',
+    field: 'gestellt_am'
+  },
   createFilterConfig('select', {
     id: 'unternehmen_id',
     label: 'Unternehmen',

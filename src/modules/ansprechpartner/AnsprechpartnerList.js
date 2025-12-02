@@ -50,12 +50,6 @@ export class AnsprechpartnerList {
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
     
     content.innerHTML = `
-      <div class="page-header">
-        <div class="page-header-right">
-          <button id="btn-ansprechpartner-new" class="primary-btn">Neuen Ansprechpartner anlegen</button>
-        </div>
-      </div>
-
       <div class="table-filter-wrapper">
         <div class="filter-bar">
           <div class="filter-left">
@@ -63,12 +57,13 @@ export class AnsprechpartnerList {
           </div>
           
         </div>
-        ${isAdmin ? `<div class="table-actions">
-          <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
+        <div class="table-actions">
+          ${isAdmin ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
-          <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
-        </div>` : ''}
+          <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>` : ''}
+          <button id="btn-ansprechpartner-new" class="primary-btn">Neuen Ansprechpartner anlegen</button>
+        </div>
       </div>
 
       <div class="table-container">
@@ -244,12 +239,18 @@ export class AnsprechpartnerList {
   updateSelection() {
     const selectedCount = this.selectedAnsprechpartner.size;
     const selectedCountElement = document.getElementById('selected-count');
+    const selectBtn = document.getElementById('btn-select-all');
     const deselectBtn = document.getElementById('btn-deselect-all');
     const deleteBtn = document.getElementById('btn-delete-selected');
     
     if (selectedCountElement) {
       selectedCountElement.textContent = `${selectedCount} ausgewählt`;
       selectedCountElement.style.display = selectedCount > 0 ? 'inline' : 'none';
+    }
+    
+    // "Alle auswählen" verstecken wenn Auswahl vorhanden, sonst anzeigen
+    if (selectBtn) {
+      selectBtn.style.display = selectedCount > 0 ? 'none' : 'inline-block';
     }
     
     if (deselectBtn) {

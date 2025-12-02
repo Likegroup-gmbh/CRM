@@ -272,19 +272,15 @@ export class BriefingList {
     </div>` : '';
 
     const html = `
-      <div class="page-header">
-        <div class="page-header-right">
-          ${window.currentUser?.permissions?.briefing?.can_edit ? '<button id="btn-briefing-new" class="primary-btn">Neues Briefing anlegen</button>' : ''}
-        </div>
-      </div>
-
       ${!isKunde ? `<div class="table-filter-wrapper">
         ${filterHtml}
-        ${isAdmin ? `<div class="table-actions">
-          <button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
+        <div class="table-actions">
+          ${isAdmin ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
-          <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>
-        </div>` : ''}
+          <span id="selected-count" style="display:none;">0 ausgewählt</span>
+          <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>` : ''}
+          ${window.currentUser?.permissions?.briefing?.can_edit ? '<button id="btn-briefing-new" class="primary-btn">Neues Briefing anlegen</button>' : ''}
+        </div>
       </div>` : ''}
 
       <div class="data-table-container">
@@ -502,8 +498,16 @@ export class BriefingList {
 
   updateSelection() {
     const selectedCount = this.selectedBriefings.size;
+    const selectedCountEl = document.getElementById('selected-count');
+    const selectBtn = document.getElementById('btn-select-all');
     const deselectBtn = document.getElementById('btn-deselect-all');
     const deleteBtn = document.getElementById('btn-delete-selected');
+    
+    if (selectedCountEl) {
+      selectedCountEl.textContent = `${selectedCount} ausgewählt`;
+      selectedCountEl.style.display = selectedCount > 0 ? 'inline' : 'none';
+    }
+    if (selectBtn) selectBtn.style.display = selectedCount > 0 ? 'none' : 'inline-block';
     if (deselectBtn) deselectBtn.style.display = selectedCount > 0 ? 'inline-block' : 'none';
     if (deleteBtn) deleteBtn.style.display = selectedCount > 0 ? 'inline-block' : 'none';
   }

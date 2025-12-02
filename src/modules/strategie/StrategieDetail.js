@@ -2,6 +2,7 @@
 // Detail-Ansicht einer Strategie mit Items und Screenshot-Generierung
 
 import { strategieService } from './StrategieService.js';
+import { AddToVideoDrawer } from './AddToVideoDrawer.js';
 
 export class StrategieDetail {
   constructor() {
@@ -302,9 +303,10 @@ export class StrategieDetail {
     const externalLinkIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>`;
     const ideaIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 24px; height: 24px; color: var(--amber-500);"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" /></svg>`;
     const isIdea = !item.video_link;
+    const isLinked = !!item.linked_video;
 
     return `
-      <tr class="item-row ${!this.isKunde ? 'draggable' : ''} ${isIdea ? 'idea-row' : ''}" data-item-id="${item.id}" draggable="${!this.isKunde}">
+      <tr class="item-row ${!this.isKunde ? 'draggable' : ''} ${isIdea ? 'idea-row' : ''} ${isLinked ? 'item-linked' : ''}" data-item-id="${item.id}" draggable="${!this.isKunde}">
         <td class="col-number">
           ${index + 1}
         </td>
@@ -403,10 +405,17 @@ export class StrategieDetail {
                   ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
                   Bearbeiten
                 </a>
-                <a href="#" class="action-item" data-action="add-to-video" data-id="${item.id}">
-                  ${window.ActionsDropdown?.getHeroIcon('add-to-list') || ''}
-                  Zu Video hinzufügen
-                </a>
+                ${isLinked ? `
+                  <a href="#" class="action-item action-warning" data-action="unlink-from-video" data-id="${item.id}" data-video-id="${item.linked_video.id}">
+                    ${window.ActionsDropdown?.getHeroIcon('unlink') || ''}
+                    Idee von Video entfernen
+                  </a>
+                ` : `
+                  <a href="#" class="action-item" data-action="add-to-video" data-id="${item.id}">
+                    ${window.ActionsDropdown?.getHeroIcon('add-to-list') || ''}
+                    Zu Video hinzufügen
+                  </a>
+                `}
                 <div class="action-separator"></div>
                 <a href="#" class="action-item action-danger" data-action="delete-item" data-id="${item.id}">
                   ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
@@ -449,6 +458,16 @@ export class StrategieDetail {
     // Cleanup alte Events
     this._boundEventListeners.forEach(cleanup => cleanup());
     this._boundEventListeners.clear();
+
+    // Event-Listener für Strategie-Item Verknüpfung (aus AddToVideoDrawer)
+    const linkHandler = async (event) => {
+      const { itemId } = event.detail;
+      // Items neu laden um linked_video Status zu aktualisieren
+      this.items = await strategieService.getStrategieItems(this.strategieId);
+      this.rerenderItemsTable();
+    };
+    window.addEventListener('strategieItemLinked', linkHandler);
+    this._boundEventListeners.add(() => window.removeEventListener('strategieItemLinked', linkHandler));
 
     // Form zum Hinzufügen
     if (!this.isKunde) {
@@ -509,6 +528,15 @@ export class StrategieDetail {
         const handler = (e) => {
           e.preventDefault();
           this.handleAddToVideo(btn.dataset.id);
+        };
+        btn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
+      });
+
+      document.querySelectorAll('[data-action="unlink-from-video"]').forEach(btn => {
+        const handler = (e) => {
+          e.preventDefault();
+          this.handleUnlinkFromVideo(btn.dataset.id, btn.dataset.videoId);
         };
         btn.addEventListener('click', handler);
         this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
@@ -908,6 +936,15 @@ export class StrategieDetail {
         btn.addEventListener('click', handler);
         this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
       });
+
+      document.querySelectorAll('[data-action="unlink-from-video"]').forEach(btn => {
+        const handler = (e) => {
+          e.preventDefault();
+          this.handleUnlinkFromVideo(btn.dataset.id, btn.dataset.videoId);
+        };
+        btn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
+      });
     }
   }
 
@@ -1208,11 +1245,57 @@ export class StrategieDetail {
   }
 
   /**
-   * Item zu Video hinzufügen (Platzhalter)
+   * Item zu Video hinzufügen - öffnet AddToVideoDrawer
    */
   async handleAddToVideo(itemId) {
-    window.toastSystem?.show('Diese Funktion wird demnächst implementiert', 'info');
-    console.log('Add to Video:', itemId);
+    const item = this.items.find(i => i.id === itemId);
+    if (!item) {
+      window.toastSystem?.show('Item nicht gefunden', 'error');
+      return;
+    }
+
+    const drawer = new AddToVideoDrawer();
+    await drawer.open(item, this.strategie);
+  }
+
+  /**
+   * Verknüpfung zwischen Item und Video entfernen
+   */
+  async handleUnlinkFromVideo(itemId, videoId) {
+    const result = await window.confirmationModal?.open({
+      title: 'Verknüpfung entfernen?',
+      message: 'Möchten Sie die Verknüpfung zwischen dieser Idee und dem Video wirklich entfernen?',
+      confirmText: 'Entfernen',
+      cancelText: 'Abbrechen',
+      danger: true
+    });
+
+    if (!result?.confirmed) return;
+
+    try {
+      // Verknüpfung im Video entfernen (strategie_item_id auf null setzen)
+      const { error } = await window.supabase
+        .from('kooperation_videos')
+        .update({ strategie_item_id: null })
+        .eq('id', videoId);
+
+      if (error) throw error;
+
+      // Lokalen State aktualisieren
+      const item = this.items.find(i => i.id === itemId);
+      if (item) {
+        item.linked_video = null;
+      }
+
+      window.toastSystem?.show('Verknüpfung erfolgreich entfernt', 'success');
+      
+      // Tabelle neu rendern
+      this.rerenderItemsTable();
+
+    } catch (error) {
+      console.error('Fehler beim Entfernen der Verknüpfung:', error);
+      window.toastSystem?.show('Fehler beim Entfernen der Verknüpfung', 'error');
+    }
   }
 
   /**

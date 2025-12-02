@@ -733,6 +733,13 @@ export class ActionsDropdown {
         this.openRechnungAnpassenDrawer(entityId);
         break;
       
+      case 'download':
+        // PDF-Download für Rechnungen
+        if (entityType === 'rechnung') {
+          this.handleRechnungDownload(entityId);
+        }
+        break;
+      
       case 'marken':
         window.navigateTo(`/unternehmen/${entityId}/marken`);
         break;
@@ -3069,6 +3076,57 @@ export class ActionsDropdown {
     } catch (error) {
       console.error('❌ Fehler beim Öffnen des Rechnung-Anpassen-Drawers:', error);
       alert('Fehler beim Öffnen: ' + (error.message || 'Unbekannter Fehler'));
+    }
+  }
+
+  // Rechnung PDF herunterladen
+  async handleRechnungDownload(rechnungId) {
+    console.log('📥 ACTIONSDROPDOWN: Lade Rechnung PDF herunter für ID', rechnungId);
+    
+    try {
+      // Rechnung-Daten direkt von Supabase laden
+      const { data: rechnung, error } = await window.supabase
+        .from('rechnung')
+        .select('id, rechnung_nr, pdf_url')
+        .eq('id', rechnungId)
+        .single();
+      
+      if (error) throw error;
+      
+      if (!rechnung) {
+        window.toastSystem?.show('Rechnung nicht gefunden', 'error');
+        return;
+      }
+      
+      if (!rechnung.pdf_url) {
+        window.toastSystem?.show('Keine PDF für diese Rechnung hinterlegt', 'warning');
+        return;
+      }
+      
+      window.toastSystem?.show('Download wird vorbereitet...', 'info');
+      
+      // PDF als Blob herunterladen für echten Download
+      const response = await fetch(rechnung.pdf_url);
+      if (!response.ok) throw new Error('PDF konnte nicht geladen werden');
+      
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      
+      // Download-Link erstellen und klicken
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `Rechnung_${rechnung.rechnung_nr || rechnungId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Blob URL freigeben
+      URL.revokeObjectURL(blobUrl);
+      
+      window.toastSystem?.show('Download gestartet', 'success');
+    } catch (error) {
+      console.error('❌ Fehler beim Herunterladen der Rechnung:', error);
+      window.toastSystem?.show('Fehler beim Herunterladen: ' + (error.message || 'Unbekannter Fehler'), 'error');
     }
   }
 

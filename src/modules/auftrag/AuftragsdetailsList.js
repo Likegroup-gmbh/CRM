@@ -106,15 +106,6 @@ export class AuftragsdetailsList {
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
 
     const html = `
-      <div class="page-header">
-        <div class="page-header-right">
-          <button id="btn-auftragsdetails-new" class="primary-btn">
-            <i class="icon-plus"></i>
-            Neue Auftragsdetails anlegen
-          </button>
-        </div>
-      </div>
-
       <div class="table-filter-wrapper">
         <div class="filter-bar">
           <div id="filter-dropdown-container"></div>
@@ -124,6 +115,7 @@ export class AuftragsdetailsList {
           ${isAdmin ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
           ${isAdmin ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
+          <button id="btn-auftragsdetails-new" class="primary-btn">Neue Auftragsdetails anlegen</button>
         </div>
       </div>
 
@@ -359,12 +351,17 @@ export class AuftragsdetailsList {
   updateSelection() {
     const selectedCount = this.selectedDetails.size;
     const selectedCountElement = document.getElementById('selected-count');
+    const selectBtn = document.getElementById('btn-select-all');
     const deselectBtn = document.getElementById('btn-deselect-all');
     const deleteBtn = document.getElementById('btn-delete-selected');
     
     if (selectedCountElement) {
       selectedCountElement.textContent = `${selectedCount} ausgewählt`;
       selectedCountElement.style.display = selectedCount > 0 ? 'inline' : 'none';
+    }
+    
+    if (selectBtn) {
+      selectBtn.style.display = selectedCount > 0 ? 'none' : 'inline-block';
     }
     
     if (deselectBtn) {
