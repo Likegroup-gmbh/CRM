@@ -7566,39 +7566,14 @@ margin-bottom: var(--space-xl);
 }
 
 /* Toggle für Modus-Auswahl */
+/* Add-to-Video Toggle nutzt view-toggle aus layout.css */
 .add-to-video-toggle {
-  display: flex;
-  gap: var(--space-xs);
   margin-bottom: var(--space-lg);
-  background: var(--bg-secondary);
-  padding: 4px;
-  border-radius: var(--radius-md);
 }
 
-.add-to-video-toggle .toggle-option {
+.add-to-video-toggle .secondary-btn {
   flex: 1;
-  display: flex;
-  align-items: center;
   justify-content: center;
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: var(--text-sm);
-}
-
-.add-to-video-toggle .toggle-option input {
-  display: none;
-}
-
-.add-to-video-toggle .toggle-option.active {
-  background: var(--bg-primary);
-  box-shadow: var(--shadow-sm);
-  font-weight: 500;
-}
-
-.add-to-video-toggle .toggle-option:not(.active):hover {
-  background: var(--gray-100);
 }
 
 /* Sections */
@@ -7992,7 +7967,7 @@ margin-bottom: var(--space-xl);
 
 .queue-item--processing {
   background: var(--blue-50);
-  border-color: var(--blue-200);
+  border-color: var(--gray-300);
 }
 
 .queue-item--done {

@@ -172,16 +172,14 @@ export class AddToVideoDrawer {
           <span>Diese Strategie ist keiner Kampagne zugeordnet. Bitte erst eine Kampagne verknüpfen.</span>
         </div>
       ` : `
-        <!-- Mode Toggle -->
-        <div class="add-to-video-toggle">
-          <label class="toggle-option ${this.selectedMode === 'existing' ? 'active' : ''}">
-            <input type="radio" name="video-mode" value="existing" ${this.selectedMode === 'existing' ? 'checked' : ''}>
-            <span class="toggle-label">Zu bestehendem Video</span>
-          </label>
-          <label class="toggle-option ${this.selectedMode === 'new' ? 'active' : ''}">
-            <input type="radio" name="video-mode" value="new" ${this.selectedMode === 'new' ? 'checked' : ''}>
-            <span class="toggle-label">Neues Video anlegen</span>
-          </label>
+        <!-- Mode Toggle (view-toggle Style) -->
+        <div class="view-toggle add-to-video-toggle">
+          <button type="button" class="secondary-btn ${this.selectedMode === 'existing' ? 'active' : ''}" data-mode="existing">
+            Zu bestehendem Video
+          </button>
+          <button type="button" class="secondary-btn ${this.selectedMode === 'new' ? 'active' : ''}" data-mode="new">
+            Neues Video anlegen
+          </button>
         </div>
 
         <!-- Bereich A: Bestehendes Video -->
@@ -194,9 +192,12 @@ export class AddToVideoDrawer {
                 ${this.renderVideoOptions()}
               </select>
             </div>
-            <div class="drawer-actions">
-              <button type="button" id="btn-link-existing" class="primary-btn" disabled>
-                Verknüpfen
+            <div class="drawer-footer">
+              <button type="button" class="mdc-btn mdc-btn--cancel" data-action="close">
+                <span class="mdc-btn__label">Abbrechen</span>
+              </button>
+              <button type="button" id="btn-link-existing" class="mdc-btn mdc-btn--create" disabled>
+                <span class="mdc-btn__label">Verknüpfen</span>
               </button>
             </div>
           ` : `
@@ -251,9 +252,12 @@ export class AddToVideoDrawer {
                 </select>
               </div>
 
-              <div class="drawer-actions">
-                <button type="submit" id="btn-create-video" class="primary-btn">
-                  Video anlegen & verknüpfen
+              <div class="drawer-footer">
+                <button type="button" class="mdc-btn mdc-btn--cancel" data-action="close">
+                  <span class="mdc-btn__label">Abbrechen</span>
+                </button>
+                <button type="submit" id="btn-create-video" class="mdc-btn mdc-btn--create">
+                  <span class="mdc-btn__label">Video anlegen & verknüpfen</span>
                 </button>
               </div>
             </form>
@@ -345,12 +349,17 @@ export class AddToVideoDrawer {
    * Events binden
    */
   bindEvents() {
-    // Mode Toggle
-    document.querySelectorAll('input[name="video-mode"]').forEach(radio => {
-      radio.addEventListener('change', (e) => {
-        this.selectedMode = e.target.value;
+    // Mode Toggle (view-toggle buttons)
+    document.querySelectorAll('.add-to-video-toggle [data-mode]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.selectedMode = btn.dataset.mode;
         this.updateModeView();
       });
+    });
+
+    // Abbrechen-Buttons
+    document.querySelectorAll('[data-action="close"]').forEach(btn => {
+      btn.addEventListener('click', () => this.close());
     });
 
     // Video-Dropdown
@@ -386,10 +395,9 @@ export class AddToVideoDrawer {
    * Mode-Ansicht aktualisieren
    */
   updateModeView() {
-    // Toggle-Buttons aktualisieren
-    document.querySelectorAll('.toggle-option').forEach(opt => {
-      const radio = opt.querySelector('input[type="radio"]');
-      opt.classList.toggle('active', radio?.checked);
+    // Toggle-Buttons aktualisieren (view-toggle style)
+    document.querySelectorAll('.add-to-video-toggle [data-mode]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.mode === this.selectedMode);
     });
 
     // Sections ein-/ausblenden
