@@ -3,6 +3,7 @@
 
 import { strategieService } from './StrategieService.js';
 import { AddToVideoDrawer } from './AddToVideoDrawer.js';
+import { AddItemDrawer } from './AddItemDrawer.js';
 
 export class StrategieDetail {
   constructor() {
@@ -10,7 +11,7 @@ export class StrategieDetail {
     this.strategie = null;
     this.items = [];
     this.draggedItem = null;
-    this.isKunde = window.currentUser?.rolle === 'kunde';
+    this.isKunde = false; // Wird in init() gesetzt
   }
 
   /**
@@ -18,6 +19,7 @@ export class StrategieDetail {
    */
   async init(strategieId) {
     this.strategieId = strategieId;
+    this.isKunde = window.currentUser?.rolle === 'kunde';
 
     try {
       // Daten laden
@@ -32,7 +34,7 @@ export class StrategieDetail {
         ]);
       }
 
-      window.setHeadline(this.strategie.name);
+      window.setHeadline(''); // Name wird bereits in Breadcrumb angezeigt
 
       // Rendern
       await this.render();
@@ -69,80 +71,30 @@ export class StrategieDetail {
    * Rendere Header mit Strategie-Infos
    */
   renderHeader() {
-    let verknuepfung = '';
-    if (this.strategie.marke) {
-      verknuepfung = `Marke: ${this.strategie.marke.name}`;
-    } else if (this.strategie.unternehmen) {
-      verknuepfung = `Unternehmen: ${this.strategie.unternehmen.name}`;
-    }
-
-    return `
-      <div class="detail-header" style="margin-bottom: var(--space-lg);">
-        <div style="display: flex; justify-content: space-between; align-items: start;">
-          <div>
-            <h2>${this.strategie.name}</h2>
-            ${this.strategie.beschreibung ? `<p style="margin-top: var(--space-xs); color: var(--text-secondary);">${this.strategie.beschreibung}</p>` : ''}
-            ${verknuepfung ? `<p style="margin-top: var(--space-xs); font-size: var(--text-sm); color: var(--text-secondary);">${verknuepfung}</p>` : ''}
-          </div>
-          <button class="secondary-btn" onclick="window.navigateTo('/strategie')">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-            </svg>
-            Zurück
-          </button>
-        </div>
-      </div>
-    `;
+    return ''; // Name wird bereits in Breadcrumb angezeigt
   }
 
   /**
-   * Rendere Section zum Hinzufügen von Items
+   * Rendere Section zum Hinzufügen von Items (Button + Kategorien-Verwaltung)
    */
   renderAddItemSection() {
-    // Teilbereiche aus der Strategie holen
-    const teilbereiche = this.getTeilbereicheFromStrategie();
-    
-    const teilbereichSelect = `
-      <div class="form-field kategorie-field-wrapper">
-        <label for="item-teilbereich">Kategorie</label>
-        <div class="kategorie-select-row">
-          <select id="item-teilbereich" name="teilbereich" class="form-input">
-            <option value="">Ohne Kategorie</option>
-            ${teilbereiche.map(tb => `<option value="${tb}">${tb}</option>`).join('')}
-          </select>
-          <button type="button" class="kategorie-manage-btn" id="btn-manage-kategorien" title="Kategorien verwalten">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 18px; height: 18px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    `;
-    
     return `
-      <div class="add-item-section" >
-        <span>Video/Idee hinzufügen</span>
-        
-        <form id="add-item-form" >
-          <div class="form-field">
-            <label for="video-url">Video-URL (optional)</label>
-            <input 
-              type="url" 
-              id="video-url" 
-              name="video_link" 
-              class="form-input" 
-              placeholder="https://youtube.com/... oder leer für Idee"
-              style="width: 100%;"
-            >
-          </div>
-          ${teilbereichSelect}
-          <button type="submit" class="primary-btn">
+      <div class="add-item-section add-item-section--compact">
+        <div class="add-item-actions">
+          <button type="button" class="primary-btn" id="btn-open-add-drawer">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
             Hinzufügen
           </button>
-        </form>
+          <button type="button" class="secondary-btn" id="btn-manage-kategorien" title="Kategorien verwalten">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z" />
+            </svg>
+            Kategorien
+          </button>
+        </div>
       </div>
     `;
   }
@@ -368,8 +320,7 @@ export class StrategieDetail {
             ${item.prio_1 ? 'checked' : ''} 
             data-field="prio_1"
             data-item-id="${item.id}"
-            style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'pointer' : 'default'};"
-            ${this.isKunde ? '' : 'disabled'}
+            style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'pointer' : 'default'}; ${!this.isKunde ? 'pointer-events: none;' : ''}"
           >
         </td>
         <td style="text-align: center;">
@@ -378,8 +329,7 @@ export class StrategieDetail {
             ${item.prio_2 ? 'checked' : ''} 
             data-field="prio_2"
             data-item-id="${item.id}"
-            style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'pointer' : 'default'};"
-            ${this.isKunde ? '' : 'disabled'}
+            style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'pointer' : 'default'}; ${!this.isKunde ? 'pointer-events: none;' : ''}"
           >
         </td>
         <td style="text-align: center;">
@@ -388,8 +338,7 @@ export class StrategieDetail {
             ${item.nicht_umsetzen ? 'checked' : ''} 
             data-field="nicht_umsetzen"
             data-item-id="${item.id}"
-            style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'pointer' : 'default'};"
-            ${this.isKunde ? '' : 'disabled'}
+            style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'pointer' : 'default'}; ${!this.isKunde ? 'pointer-events: none;' : ''}"
           >
         </td>
         ${!this.isKunde ? `
@@ -469,13 +418,24 @@ export class StrategieDetail {
     window.addEventListener('strategieItemLinked', linkHandler);
     this._boundEventListeners.add(() => window.removeEventListener('strategieItemLinked', linkHandler));
 
-    // Form zum Hinzufügen
+    // Event-Listener für Live-Updates aus AddItemDrawer
+    const itemCreatedHandler = async (event) => {
+      if (event.detail?.strategieId === this.strategieId) {
+        // Items neu laden und Tabelle aktualisieren
+        this.items = await strategieService.getStrategieItems(this.strategieId);
+        this.rerenderItemsTable();
+      }
+    };
+    window.addEventListener('strategieItemCreated', itemCreatedHandler);
+    this._boundEventListeners.add(() => window.removeEventListener('strategieItemCreated', itemCreatedHandler));
+
+    // Button zum Öffnen des Add-Drawers
     if (!this.isKunde) {
-      const form = document.getElementById('add-item-form');
-      if (form) {
-        const handler = (e) => this.handleAddItem(e);
-        form.addEventListener('submit', handler);
-        this._boundEventListeners.add(() => form.removeEventListener('submit', handler));
+      const openDrawerBtn = document.getElementById('btn-open-add-drawer');
+      if (openDrawerBtn) {
+        const handler = () => this.openAddItemDrawer();
+        openDrawerBtn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => openDrawerBtn.removeEventListener('click', handler));
       }
 
       // Kategorien-Verwaltung Button
@@ -763,92 +723,12 @@ export class StrategieDetail {
   }
 
   /**
-   * Video/Idee hinzufügen und ggf. Screenshot generieren
+   * AddItemDrawer öffnen
    */
-  async handleAddItem(e) {
-    e.preventDefault();
-
-    const formData = new FormData(e.target);
-    const videoUrl = formData.get('video_link')?.trim() || null;
-
-    // Button referenz und original text AUSSERHALB try-catch
-    const submitBtn = e.target.querySelector('button[type="submit"]');
-    const originalText = submitBtn.innerHTML;
-
-    try {
-      // Button in Loading-State
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = `
-        <svg class="spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" style="width: 16px; height: 16px; animation: spin 1s linear infinite;">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        Wird hinzugefügt...
-      `;
-
-      // Plattform aus URL erkennen (nur wenn URL vorhanden)
-      let platform = null;
-      if (videoUrl) {
-        if (videoUrl.includes('tiktok.com')) platform = 'tiktok';
-        else if (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) platform = 'youtube';
-        else if (videoUrl.includes('instagram.com')) platform = 'instagram';
-        else platform = 'other';
-      }
-
-      // Screenshot generieren (nur wenn URL vorhanden und auf Netlify)
-      let screenshotUrl = null;
-      if (videoUrl) {
-        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        
-        if (!isLocalhost) {
-          try {
-            window.toastSystem?.show('Screenshot wird generiert...', 'info');
-            const screenshotResult = await strategieService.generateScreenshot(videoUrl);
-            screenshotUrl = screenshotResult.screenshot_url;
-          } catch (screenshotError) {
-            console.warn('Screenshot-Generierung fehlgeschlagen:', screenshotError);
-            window.toastSystem?.show('Screenshot konnte nicht generiert werden', 'warning');
-          }
-        } else {
-          console.log('📸 Screenshot-Generierung übersprungen (localhost)');
-        }
-      }
-
-      // Teilbereich aus Formular holen
-      const teilbereich = formData.get('teilbereich') || null;
-
-      // Item erstellen (auch ohne URL/Screenshot - dann ist es eine Idee)
-      const itemData = {
-        strategie_id: this.strategieId,
-        video_link: videoUrl,
-        screenshot_url: screenshotUrl,
-        plattform: platform,
-        sortierung: this.items.length,
-        teilbereich: teilbereich
-      };
-
-      await strategieService.createStrategieItem(itemData);
-
-      // Erfolg
-      const successMsg = videoUrl ? 'Video erfolgreich hinzugefügt' : 'Idee erfolgreich hinzugefügt';
-      window.toastSystem?.show(successMsg, 'success');
-      e.target.reset();
-
-      // Button zurücksetzen vor dem Reload
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = originalText;
-
-      // Neu laden
-      await this.init(this.strategieId);
-
-    } catch (error) {
-      console.error('Fehler beim Hinzufügen:', error);
-      window.toastSystem?.show(error.message || 'Fehler beim Hinzufügen', 'error');
-      
-      // Button zurücksetzen
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = originalText;
-    }
+  openAddItemDrawer() {
+    const teilbereiche = this.getTeilbereicheFromStrategie();
+    const drawer = new AddItemDrawer();
+    drawer.open(this.strategie, teilbereiche);
   }
 
   /**
@@ -1116,8 +996,27 @@ export class StrategieDetail {
         </div>
 
         <div class="drawer-footer">
-          <button type="button" class="secondary-btn" data-action="close-drawer">Abbrechen</button>
-          <button type="submit" class="primary-btn">Speichern</button>
+          <button type="button" class="mdc-btn mdc-btn--cancel" data-action="close-drawer">
+            <span class="mdc-btn__icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Abbrechen</span>
+          </button>
+          <button type="submit" class="mdc-btn mdc-btn--create">
+            <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__spinner" aria-hidden="true">
+              <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
+                <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Speichern</span>
+          </button>
         </div>
       </form>
     `;
@@ -1522,17 +1421,10 @@ export class StrategieDetail {
   }
 
   /**
-   * Kategorien-Dropdown aktualisieren
+   * Kategorien-Dropdown aktualisieren (nicht mehr benötigt, da Dropdown im Drawer)
    */
   updateKategorienDropdown() {
-    const select = document.getElementById('item-teilbereich');
-    if (!select) return;
-    
-    const teilbereiche = this.getTeilbereicheFromStrategie();
-    select.innerHTML = `
-      <option value="">Ohne Kategorie</option>
-      ${teilbereiche.map(tb => `<option value="${tb}">${tb}</option>`).join('')}
-    `;
+    // Dropdown ist jetzt im AddItemDrawer, diese Methode ist nur noch für Kompatibilität
   }
 
   /**

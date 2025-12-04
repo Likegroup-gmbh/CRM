@@ -41,6 +41,21 @@
 .mdc-btn.is-success { background: var(--bg-primary); color: var(--text-primary); border-color: var(--gray-300); }
 .mdc-btn.is-success .mdc-btn__spinner { display: none; }
 .mdc-btn.is-success .mdc-btn__icon--check { display: inline-flex; }
+
+/* ===== MDC CANCEL BUTTON ===== */
+.mdc-btn--cancel {
+  background: var(--bg-primary) !important;
+  border: 1px solid var(--gray-300) !important;
+  color: var(--gray-900) !important;
+}
+
+.mdc-btn--cancel .mdc-btn__icon {
+  opacity: 0.7;
+}
+.mdc-btn--cancel:hover .mdc-btn__icon {
+  opacity: 1;
+}
+
 .form-two-col {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2001,7 +2016,7 @@
   flex: 1;
   min-height: 0;
   padding-bottom: var(--space-sm);
-  justify-content: space-between;
+  justify-content: left;
 }
 
 /* Kampagnen-Kanban mit 11 Spalten und horizontalem Scrolling */
@@ -2029,7 +2044,7 @@
 }
 
 .kanban-column {
-  min-width: 320px;
+  min-width: 24.875em;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -2077,9 +2092,9 @@
   min-width: var(--icon-md);
   height: var(--icon-md);
   padding: 0 var(--space-xs);
-  background: var(--gray-50);
+  background: var(--gray-100);
   color: var(--gray-700);
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   font-size: var(--text-xs);
   font-weight: 600;
 }
@@ -3873,6 +3888,7 @@ display: flex;
 flex-direction: column;
 gap: var(--space-xxxs);
 margin-bottom: var(--space-xl);
+
 }
 
 
@@ -4171,11 +4187,7 @@ margin-bottom: var(--space-xl);
   transition: all 0.2s ease;
 }
 
-.filter-dropdown-toggle:hover {
-  background: var(--gray-50);
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
+
 
 .filter-dropdown-toggle:focus {
   outline: none;
@@ -5533,6 +5545,58 @@ margin-bottom: var(--space-xl);
 
 .fi.fis {
   width: 1em;
+}
+
+/* ========================================
+   URL Input Field with Prefix (https://)
+   ======================================== */
+.url-input-field {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background-color: #ffffff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  overflow: hidden;
+}
+
+.url-input-field:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.url-input-field .url-prefix {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-sm);
+  background-color: #f3f4f6;
+  color: var(--gray-600);
+  font-size: var(--text-sm);
+  border-right: 1px solid #d1d5db;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.url-input-field .url-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: none !important;
+  background: transparent;
+  font-size: 14px;
+  color: #1f2937;
+  outline: none !important;
+  min-width: 0;
+  box-shadow: none !important;
+}
+
+.url-input-field .url-input:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.url-input-field .url-input::placeholder {
+  color: #9ca3af;
 }
 
 /* PhoneNumberField Styling */
@@ -6954,11 +7018,10 @@ margin-bottom: var(--space-xl);
 
 .category-header-cell {
   background-color: var(--gray-100);
-  
- 
   font-size: var(--text-xl);
   border-top: 1px solid var(--gray-500);
   border-bottom: 1px solid var(--gray-500);
+  text-align: left !important;
   
 }
 
@@ -7047,7 +7110,6 @@ margin-bottom: var(--space-xl);
 .strategie-items-table .col-beschreibung,
 .strategie-items-table .col-anmerkung {
   min-width: calc(var(--space-xxl) * 4);
-  padding: 0 !important;
 }
 
 /* Excel-ähnliche Textarea-Zellen */
@@ -7113,8 +7175,21 @@ margin-bottom: var(--space-xl);
 /* Add Item Section */
 .add-item-section {
   margin-bottom: var(--space-xl);
-
   gap: var(--space-xs);
+}
+
+/* Strategie Add Item Felder */
+.strategie-add-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  width: 100%;
+}
+
+.strategie-add-field label {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--text-secondary);
 }
 
 #add-item-form {
@@ -7642,5 +7717,409 @@ margin-bottom: var(--space-xl);
 .action-item.action-warning:hover {
   background: var(--amber-50);
   color: var(--amber-700);
+}
+
+/* ============================================
+   TABLE USER CELL (für Mitarbeiter, etc.)
+   ============================================ */
+
+.table-user-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.table-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.table-avatar-placeholder {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--primary-100);
+  color: var(--primary-700);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* Zuordnungsart Badges */
+.zuordnungsart-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.zuordnungsart-direkt {
+  background: var(--green-50);
+  color: var(--green-700);
+}
+
+.zuordnungsart-marke {
+  background: var(--blue-50);
+  color: var(--blue-700);
+}
+
+.zuordnungsart-unternehmen {
+  background: var(--purple-50);
+  color: var(--purple-700);
+}
+
+.zuordnungsart-auftrag {
+  background: var(--amber-50);
+  color: var(--amber-700);
+}
+
+/* Role Badges */
+.role-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  text-transform: capitalize;
+  background: var(--gray-100);
+  color: var(--text-secondary);
+}
+
+.role-badge.role-admin {
+  background: var(--red-50);
+  color: var(--red-700);
+}
+
+.role-badge.role-mitarbeiter {
+  background: var(--blue-50);
+  color: var(--blue-700);
+}
+
+.role-badge.role-kunde {
+  background: var(--green-50);
+  color: var(--green-700);
+}
+
+/* Rollen Badges (für Kampagne Mitarbeiter) */
+.rolle-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  background: var(--gray-100);
+  color: var(--text-secondary);
+}
+
+.rolle-projektmanager {
+  background: var(--blue-50);
+  color: var(--blue-700);
+}
+
+.rolle-scripter {
+  background: var(--purple-50);
+  color: var(--purple-700);
+}
+
+.rolle-cutter {
+  background: var(--amber-50);
+  color: var(--amber-700);
+}
+
+.rolle-copywriter {
+  background: var(--green-50);
+  color: var(--green-700);
+}
+
+.rolle-strategie {
+  background: var(--red-50);
+  color: var(--red-700);
+}
+
+.rolle-creator_sourcing {
+  background: var(--teal-50);
+  color: var(--teal-700);
+}
+
+/* Runde Avatare in Tabellen */
+.table-avatar-round {
+  border-radius: 50% !important;
+}
+
+/* ===== FORM SECTION FIELDSET ===== */
+/* Für gruppierte Formular-Bereiche wie Auftragsdetails */
+.form-section-fieldset {
+ border:none;
+ padding: var(--space-md) 0 var(--space-md) 0;
+
+}
+
+.form-section-fieldset legend {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-primary);
+  padding: 0 var(--space-sm);
+  margin-left: calc(-1 * var(--space-sm));
+}
+
+.form-section-fieldset .form-two-col {
+  margin-bottom: var(--space-md);
+}
+
+.form-section-fieldset .form-field:last-child {
+  margin-bottom: 0;
+}
+
+/* ===== ADD ITEM DRAWER (Strategie) ===== */
+/* Kompakte Add-Item Section */
+.add-item-section--compact {
+  display: flex;
+  justify-content: flex-start;
+  padding: var(--space-md) 0;
+  margin-bottom: var(--space-md);
+}
+
+.add-item-actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+/* Drawer Form */
+.add-item-drawer-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--gray-200);
+  margin-bottom: var(--space-lg);
+}
+
+.add-item-drawer-submit {
+  align-self: flex-start;
+}
+
+/* Queue Container */
+.add-item-queue {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+}
+
+.queue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-md);
+}
+
+.queue-title {
+  font-weight: 600;
+  font-size: var(--text-md);
+  color: var(--text-primary);
+}
+
+.queue-counter {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  background: var(--gray-100);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-full);
+}
+
+/* Queue Liste */
+.queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  flex: 1;
+  overflow-y: auto;
+  max-height: 400px;
+}
+
+.queue-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xl);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.queue-empty svg {
+  width: 48px;
+  height: 48px;
+  margin-bottom: var(--space-sm);
+  opacity: 0.5;
+}
+
+.queue-empty p {
+  font-size: var(--text-sm);
+}
+
+/* Queue Item */
+.queue-item {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  transition: all 0.2s ease;
+}
+
+.queue-item--processing {
+  background: var(--blue-50);
+  border-color: var(--blue-200);
+}
+
+.queue-item--done {
+  background: var(--green-50);
+  border-color: var(--green-200);
+}
+
+.queue-item--error {
+  background: var(--red-50);
+  border-color: var(--red-200);
+}
+
+.queue-item-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* Queue Item Icons */
+.queue-item-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.queue-item-icon--pending {
+  color: var(--gray-400);
+}
+
+.queue-item-icon--processing {
+  color: var(--blue-500);
+  animation: spin 1s linear infinite;
+}
+
+.queue-item-icon--done {
+  color: var(--green-500);
+}
+
+.queue-item-icon--error {
+  color: var(--red-500);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Queue Item Info */
+.queue-item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.queue-item-platform {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.queue-item-url {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queue-item-kategorie {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  background: var(--gray-200);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  width: fit-content;
+}
+
+/* Queue Item Thumbnail */
+.queue-item-thumbnail {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+/* Phase Label */
+.queue-item-phase {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--blue-600);
+  margin-top: var(--space-sm);
+}
+
+/* Progress Bar */
+.queue-item-progress {
+  height: 4px;
+  background: var(--blue-100);
+  border-radius: var(--radius-full);
+  margin-top: var(--space-xs);
+  overflow: hidden;
+}
+
+.queue-item-progress-bar {
+  height: 100%;
+  background: var(--blue-500);
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+}
+
+.queue-item-time {
+  font-size: var(--text-xs);
+  color: var(--blue-600);
+  margin-top: var(--space-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Idea Badge (für Items ohne Screenshot) */
+.queue-item-idea-badge {
+  background: var(--amber-100);
+  color: var(--amber-700);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+/* Error Message */
+.queue-item-error {
+  font-size: var(--text-xs);
+  color: var(--red-600);
+  margin-top: var(--space-xs);
+}
+
+/* Footer */
+.add-item-drawer-footer {
+  margin-top: auto;
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--gray-200);
 }
 
