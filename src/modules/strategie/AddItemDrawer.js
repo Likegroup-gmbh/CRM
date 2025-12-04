@@ -339,14 +339,17 @@ export class AddItemDrawer {
     return `
       <div class="queue-item queue-item--${item.status}" data-item-id="${item.id}">
         <div class="queue-item-header">
-          ${statusIcons[item.status]}
           <div class="queue-item-info">
             <span class="queue-item-platform">${platformLabels[item.platform]}</span>
             <span class="queue-item-url">${this.escapeHtml(displayUrl)}</span>
-            ${item.kategorie ? `<span class="queue-item-kategorie">${this.escapeHtml(item.kategorie)}</span>` : ''}
           </div>
-          ${thumbnailHtml}
+          <div class="queue-item-right">
+            ${item.kategorie ? `<span class="queue-item-kategorie">${this.escapeHtml(item.kategorie)}</span>` : ''}
+            ${item.status === 'done' ? statusIcons[item.status] : ''}
+            ${thumbnailHtml}
+          </div>
         </div>
+        ${item.status === 'processing' || item.status === 'pending' ? `<div class="queue-item-status-left">${statusIcons[item.status]}</div>` : ''}
         ${progressHtml}
         ${errorHtml}
       </div>
