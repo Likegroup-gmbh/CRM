@@ -7856,12 +7856,14 @@ margin-bottom: var(--space-xl);
 /* Kompakte Add-Item Section */
 .add-item-section--compact {
   display: flex;
-  justify-content: flex-start;
+  justify-content: space-between;
+  align-items: center;
   padding: var(--space-md) 0;
   margin-bottom: var(--space-md);
 }
 
-.add-item-actions {
+.add-item-actions-left,
+.add-item-actions-right {
   display: flex;
   gap: var(--space-sm);
 }
