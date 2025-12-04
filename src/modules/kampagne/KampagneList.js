@@ -923,16 +923,27 @@ export class KampagneList {
       const tagBasedSelects = form.querySelectorAll('select[data-tag-based="true"]');
       tagBasedSelects.forEach(select => {
         const fieldName = select.name;
+        const selectId = select.id;
         
-        // Suche das versteckte Select mit den tatsächlichen Werten
-        let hiddenSelect = form.querySelector(`select[name="${fieldName}[]"][style*="display: none"]`);
+        // Methode 1: Suche Hidden-Select mit _hidden ID-Suffix (vom OptionsManager erstellt)
+        let hiddenSelect = document.getElementById(`${selectId}_hidden`);
+        
+        // Methode 2: Suche nach Name mit [] Suffix
         if (!hiddenSelect) {
-          hiddenSelect = form.querySelector(`select[name="${fieldName}"][style*="display: none"]`);
+          hiddenSelect = form.querySelector(`select[name="${fieldName}[]"]`);
         }
         
-        // Alternative: Suche nach Tag-Container und sammle Werte aus Tags
+        // Methode 3: Suche in Tag-Container
         if (!hiddenSelect) {
-          const tagContainer = form.querySelector(`select[name="${fieldName}"]`)?.closest('.form-field')?.querySelector('.tag-based-select');
+          const tagContainer = select.closest('.form-field')?.querySelector('.tag-based-select');
+          if (tagContainer) {
+            hiddenSelect = tagContainer.querySelector('select[multiple]');
+          }
+        }
+        
+        // Methode 4: Sammle direkt aus Tags
+        if (!hiddenSelect) {
+          const tagContainer = select.closest('.form-field')?.querySelector('.tag-based-select');
           if (tagContainer) {
             const tags = tagContainer.querySelectorAll('.tag[data-value]');
             const tagValues = Array.from(tags).map(tag => tag.dataset.value).filter(Boolean);
@@ -949,6 +960,8 @@ export class KampagneList {
           if (values.length > 0) {
             submitData[fieldName] = values;
             console.log(`🏷️ Tag-basiertes Feld ${fieldName} aus Hidden-Select gesammelt:`, values);
+          } else {
+            console.log(`ℹ️ Hidden-Select für ${fieldName} gefunden, aber keine Werte ausgewählt`);
           }
         } else {
           console.warn(`⚠️ Kein Hidden-Select oder Tags für ${fieldName} gefunden`);
@@ -990,12 +1003,15 @@ export class KampagneList {
       }
 
       // Erstelle Kampagne
+      console.log('🚀 Erstelle Kampagne mit Daten:', JSON.stringify(submitData, null, 2));
       const result = await window.dataService.createEntity('kampagne', submitData);
+      console.log('📦 DataService Ergebnis:', result);
       
       if (result.success) {
         // Nach Erstellung: Many-to-Many Beziehungen speichern
         try {
           const kampagneId = result.id;
+          console.log('🎯 Kampagne erstellt mit ID:', kampagneId);
           const toArray = (v) => Array.isArray(v) ? v : (v ? [v] : []);
           const uniq = (arr) => Array.from(new Set((arr || []).filter(Boolean)));
           
@@ -1015,6 +1031,11 @@ export class KampagneList {
           const pm = uniq(toArray(submitData.pm_ids));
           const sc = uniq(toArray(submitData.scripter_ids));
           const cu = uniq(toArray(submitData.cutter_ids));
+          const cw = uniq(toArray(submitData.copywriter_ids));
+          const st = uniq(toArray(submitData.strategie_ids));
+          const cs = uniq(toArray(submitData.creator_sourcing_ids));
+          
+          console.log('👥 Mitarbeiter-Daten:', { mitarbeiter, pm, sc, cu, cw, st, cs });
           
           const mitarbeiterRows = [];
           // Allgemeine Mitarbeiter als 'projektmanager' einfügen (da 'mitarbeiter' nicht erlaubt ist)
@@ -1022,10 +1043,43 @@ export class KampagneList {
           pm.forEach(uid => mitarbeiterRows.push({ kampagne_id: kampagneId, mitarbeiter_id: uid, role: 'projektmanager' }));
           sc.forEach(uid => mitarbeiterRows.push({ kampagne_id: kampagneId, mitarbeiter_id: uid, role: 'scripter' }));
           cu.forEach(uid => mitarbeiterRows.push({ kampagne_id: kampagneId, mitarbeiter_id: uid, role: 'cutter' }));
+          cw.forEach(uid => mitarbeiterRows.push({ kampagne_id: kampagneId, mitarbeiter_id: uid, role: 'copywriter' }));
+          st.forEach(uid => mitarbeiterRows.push({ kampagne_id: kampagneId, mitarbeiter_id: uid, role: 'strategie' }));
+          cs.forEach(uid => mitarbeiterRows.push({ kampagne_id: kampagneId, mitarbeiter_id: uid, role: 'creator_sourcing' }));
+          
+          console.log('📋 Zu speichernde Mitarbeiter-Rows:', mitarbeiterRows);
           
           if (mitarbeiterRows.length > 0 && window.supabase) {
-            await window.supabase.from('kampagne_mitarbeiter').insert(mitarbeiterRows);
-            console.log('✅ Mitarbeiter-Zuordnungen gespeichert:', mitarbeiterRows.length);
+            const { data, error } = await window.supabase.from('kampagne_mitarbeiter').insert(mitarbeiterRows);
+            if (error) {
+              console.error('❌ Fehler beim Speichern der Mitarbeiter:', error);
+            } else {
+              console.log('✅ Mitarbeiter-Zuordnungen gespeichert:', mitarbeiterRows.length, data);
+            }
+          } else {
+            console.log('ℹ️ Keine Mitarbeiter-Rows zu speichern (Länge:', mitarbeiterRows.length, ')');
+          }
+          
+          // Paid-Ziele Zuordnungen
+          const paidZiele = uniq(toArray(submitData.paid_ziele_ids));
+          if (paidZiele.length > 0) {
+            const paidZieleRows = paidZiele.map(zielId => ({
+              kampagne_id: kampagneId,
+              ziel_id: zielId
+            }));
+            await window.supabase.from('kampagne_paid_ziele').insert(paidZieleRows);
+            console.log('✅ Paid-Ziele Zuordnungen gespeichert:', paidZieleRows.length);
+          }
+          
+          // Organic-Ziele Zuordnungen
+          const organicZiele = uniq(toArray(submitData.organic_ziele_ids));
+          if (organicZiele.length > 0) {
+            const organicZieleRows = organicZiele.map(zielId => ({
+              kampagne_id: kampagneId,
+              ziel_id: zielId
+            }));
+            await window.supabase.from('kampagne_organic_ziele').insert(organicZieleRows);
+            console.log('✅ Organic-Ziele Zuordnungen gespeichert:', organicZieleRows.length);
           }
         } catch (e) {
           console.warn('⚠️ Many-to-Many Zuordnungen konnten nicht gespeichert werden', e);

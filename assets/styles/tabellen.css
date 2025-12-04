@@ -1285,6 +1285,7 @@ td.col-produkt .stacked-video-input,
   justify-content: space-between;
   gap: var(--space-md);
   flex-wrap: wrap;
+  margin-top: var(--space-md);
 }
 
 .pagination-info {

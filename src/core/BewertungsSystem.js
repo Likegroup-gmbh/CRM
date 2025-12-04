@@ -375,8 +375,22 @@ export class BewertungsSystem {
                 </select>
               </div>
               <div class="form-actions">
-                <button type="button" class="secondary-btn" onclick="window.bewertungsSystem.closeModal()">Abbrechen</button>
-                <button type="submit" class="primary-btn">Bewertung speichern</button>
+                <button type="button" class="mdc-btn mdc-btn--cancel" onclick="window.bewertungsSystem.closeModal()">
+                  <span class="mdc-btn__icon" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+                    </svg>
+                  </span>
+                  <span class="mdc-btn__label">Abbrechen</span>
+                </button>
+                <button type="submit" class="mdc-btn mdc-btn--create">
+                  <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                      <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+                    </svg>
+                  </span>
+                  <span class="mdc-btn__label">Bewertung speichern</span>
+                </button>
               </div>
             </form>
           </div>

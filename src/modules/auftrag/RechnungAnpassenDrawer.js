@@ -75,8 +75,22 @@ export class RechnungAnpassenDrawer {
     const footer = document.createElement('div');
     footer.className = 'drawer-footer';
     footer.innerHTML = `
-      <button type="button" class="secondary-btn" data-action="cancel">Abbrechen</button>
-      <button type="button" class="primary-btn" data-action="save">Speichern</button>
+      <button type="button" class="mdc-btn mdc-btn--cancel" data-action="cancel">
+        <span class="mdc-btn__icon" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+          </svg>
+        </span>
+        <span class="mdc-btn__label">Abbrechen</span>
+      </button>
+      <button type="button" class="mdc-btn mdc-btn--create" data-action="save">
+        <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+            <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+          </svg>
+        </span>
+        <span class="mdc-btn__label">Speichern</span>
+      </button>
     `;
 
     panel.appendChild(header);

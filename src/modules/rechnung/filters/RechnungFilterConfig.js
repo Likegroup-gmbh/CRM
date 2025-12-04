@@ -40,15 +40,7 @@ export const RECHNUNG_FILTERS = [
       { value: 'Bezahlt', label: 'Bezahlt' },
       { value: 'Storniert', label: 'Storniert' }
     ]
-  }),
-  {
-    id: 'nettobetrag',
-    label: 'Betrag (Netto)',
-    type: 'range',
-    min: 0,
-    max: 200000,
-    step: 100
-  }
+  })
 ];
 
 export default {

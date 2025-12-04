@@ -23,43 +23,56 @@ export class AuthUtils {
   // Login-Formular HTML erstellen
   createLoginFormHtml() {
     return `
-      <div class="login-box">
-        <h2>Anmeldung</h2>
-        <form id="loginForm" class="login-form">
-          <div class="form-box">
-            <label for="loginEmail" class="label">E-Mail</label>
-            <input type="email" id="loginEmail" class="input" placeholder="ihre@email.com" required>
-          </div>
-          <div class="form-box">
-            <label for="loginPassword" class="label">Passwort</label>
-            <div class="password-input-container">
-              <input type="password" id="loginPassword" class="input" placeholder="Passwort" required>
-              <button type="button" class="password-toggle" onclick="window.authUtils.togglePassword('loginPassword')">
-                <svg class="eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                </svg>
-              </button>
+      <div class="login-split-container">
+        <div class="login-left">
+          <div class="login-box">
+            <div class="login-logo-wrapper">
+              <img src="/assets/background/Logo-Icon-gray.svg" alt="Logo" class="login-logo">
             </div>
+            <h2>Willkommen bei LikeBase</h2>
+            <form id="loginForm" class="login-form">
+              <div class="form-box">
+                <label for="loginEmail" class="label">E-Mail</label>
+                <input type="email" id="loginEmail" class="input" placeholder="ihre@email.com" required>
+              </div>
+              <div class="form-box">
+                <label for="loginPassword" class="label">Passwort</label>
+                <div class="password-input-container">
+                  <input type="password" id="loginPassword" class="input" placeholder="Passwort" required>
+                  <button type="button" class="password-toggle" onclick="window.authUtils.togglePassword('loginPassword')">
+                    <svg class="eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div class="form-box">
+                <button type="submit" class="btn primary-btn" style="width: 100%;">Anmelden</button>
+              </div>
+              <div class="login-divider">
+                <span>Registrierung</span>
+              </div>
+              <div class="register-links-row">
+                <a href="/src/auth/kunden-register.html" class="register-link-btn">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                  Kunden
+                </a>
+                <a href="javascript:void(0)" onclick="window.authUtils.showRegister()" class="register-link-btn">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  Mitarbeiter
+                </a>
+              </div>
+              <div class="login-version">Version 1.0</div>
+              <div id="loginError" class="text-error" style="display: none;"></div>
+            </form>
           </div>
-          <div class="form-box">
-            <div class="auth-buttons-row">
-              <button type="submit" class="btn primary-btn">Anmelden</button>
-              <button type="button" class="btn btn-outlined" onclick="window.authUtils.showRegister()">
-                Registrieren
-              </button>
-            </div>
-          </div>
-          <div class="form-box customer-link">
-            <a href="/src/auth/kunden-register.html">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
-              Registrierung für Kunden
-            </a>
-          </div>
-          <div id="loginError" class="text-error" style="display: none;"></div>
-        </form>
+        </div>
+        <div class="login-right"></div>
       </div>
     `;
   }
@@ -119,47 +132,54 @@ export class AuthUtils {
   // Registrierungs-Formular HTML erstellen
   createRegisterFormHtml() {
     return `
-      <div class="login-box">
-        <h2>Registrierung</h2>
-        <form id="registerForm" class="register-form">
-          <div class="form-box">
-            <label for="registerName" class="label">Name</label>
-            <input type="text" id="registerName" class="input" placeholder="Ihr Name" required>
-          </div>
-          <div class="form-box">
-            <label for="registerEmail" class="label">E-Mail</label>
-            <input type="email" id="registerEmail" class="input" placeholder="ihre@email.com" required>
-          </div>
-          <div class="form-box">
-            <label for="registerPassword" class="label">Passwort</label>
-            <div class="password-input-container">
-              <input type="password" id="registerPassword" class="input" placeholder="Passwort" required>
-              <button type="button" class="password-toggle" onclick="window.authUtils.togglePassword('registerPassword')">
-                <svg class="eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                </svg>
-              </button>
+      <div class="login-split-container">
+        <div class="login-left">
+          <div class="login-box">
+            <div class="login-logo-wrapper">
+              <img src="/assets/background/Logo-Icon-gray.svg" alt="Logo" class="login-logo">
             </div>
+            <h2>Registrierung</h2>
+            <form id="registerForm" class="register-form">
+              <div class="form-box">
+                <label for="registerName" class="label">Name</label>
+                <input type="text" id="registerName" class="input" placeholder="Ihr Name" required>
+              </div>
+              <div class="form-box">
+                <label for="registerEmail" class="label">E-Mail</label>
+                <input type="email" id="registerEmail" class="input" placeholder="ihre@email.com" required>
+              </div>
+              <div class="form-box">
+                <label for="registerPassword" class="label">Passwort</label>
+                <div class="password-input-container">
+                  <input type="password" id="registerPassword" class="input" placeholder="Passwort" required>
+                  <button type="button" class="password-toggle" onclick="window.authUtils.togglePassword('registerPassword')">
+                    <svg class="eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div class="form-box">
+                <button type="submit" class="btn primary-btn" style="width: 100%;">Registrieren</button>
+              </div>
+              <div class="login-divider">
+                <span>Login</span>
+              </div>
+              <div class="register-links-row">
+                <a href="javascript:void(0)" onclick="window.authUtils.showLogin()" class="register-link-btn">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                  </svg>
+                  Zurück zum Login
+                </a>
+              </div>
+              <div class="login-version">Version 1.0</div>
+              <div id="registerError" class="text-error" style="display: none;"></div>
+            </form>
           </div>
-          <div class="form-box">
-            <div class="auth-buttons-row">
-              <button type="submit" class="btn primary-btn">Registrieren</button>
-              <button type="button" class="btn btn-outlined" onclick="window.authUtils.showLogin()">
-                Zurück zum Login
-              </button>
-            </div>
-          </div>
-          <div class="form-box customer-link">
-            <a href="/src/auth/kunden-register.html">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
-              Registrierung für Kunden
-            </a>
-          </div>
-          <div id="registerError" class="text-error" style="display: none;"></div>
-        </form>
+        </div>
+        <div class="login-right"></div>
       </div>
     `;
   }
@@ -215,30 +235,35 @@ export class AuthUtils {
   // Zeige Registrierungserfolg und leite zur OTP-Seite weiter
   showRegistrationSuccess(email, redirectUrl) {
     const successHtml = `
-      <div class="login-box">
-        <div class="success-icon" style="text-align: center; margin-bottom: 2rem;">
-          <svg style="width: 80px; height: 80px; color: #10b981; margin: 0 auto;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-          </svg>
+      <div class="login-split-container">
+        <div class="login-left">
+          <div class="login-box">
+            <div class="success-icon" style="text-align: center; margin-bottom: 2rem;">
+              <svg style="width: 80px; height: 80px; color: #10b981; margin: 0 auto;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+            </div>
+            <h2 style="text-align: center; color: #10b981;">Registrierung erfolgreich!</h2>
+            <p style="text-align: center; margin: 1.5rem 0; color: #6b7280;">
+              Wir haben einen 6-stelligen Bestätigungscode an<br>
+              <strong style="color: #4f46e5;">${email}</strong> gesendet.
+            </p>
+            <p style="text-align: center; margin-bottom: 2rem; color: #6b7280; font-size: 0.875rem;">
+              Sie werden in <span id="countdown">3</span> Sekunden zur Bestätigungsseite weitergeleitet...
+            </p>
+            <div class="form-box text-center">
+              <button type="button" class="btn primary-btn" onclick="window.location.href='${redirectUrl}'">
+                Jetzt bestätigen
+              </button>
+            </div>
+            <div class="form-box text-center" style="margin-top: 1rem;">
+              <button type="button" class="btn secondary-btn" onclick="window.authUtils.showLogin()">
+                Zurück zum Login
+              </button>
+            </div>
+          </div>
         </div>
-        <h2 style="text-align: center; color: #10b981;">Registrierung erfolgreich!</h2>
-        <p style="text-align: center; margin: 1.5rem 0; color: #6b7280;">
-          Wir haben einen 6-stelligen Bestätigungscode an<br>
-          <strong style="color: #4f46e5;">${email}</strong> gesendet.
-        </p>
-        <p style="text-align: center; margin-bottom: 2rem; color: #6b7280; font-size: 0.875rem;">
-          Sie werden in <span id="countdown">3</span> Sekunden zur Bestätigungsseite weitergeleitet...
-        </p>
-        <div class="form-box text-center">
-          <button type="button" class="btn primary-btn" onclick="window.location.href='${redirectUrl}'">
-            Jetzt bestätigen
-          </button>
-        </div>
-        <div class="form-box text-center" style="margin-top: 1rem;">
-          <button type="button" class="btn secondary-btn" onclick="window.authUtils.showLogin()">
-            Zurück zum Login
-          </button>
-        </div>
+        <div class="login-right"></div>
       </div>
     `;
     

@@ -380,6 +380,22 @@ export class FormSystem {
         }
       }
 
+      // =====================================================
+      // URL-Felder: https:// Präfix automatisch hinzufügen
+      // =====================================================
+      const urlFields = form.querySelectorAll('input[data-url-field="true"]');
+      urlFields.forEach(input => {
+        const fieldName = input.name;
+        if (submitData[fieldName] && submitData[fieldName].trim() !== '') {
+          let urlValue = submitData[fieldName].trim();
+          // Nur hinzufügen wenn nicht schon ein Protokoll vorhanden
+          if (!urlValue.match(/^https?:\/\//i)) {
+            submitData[fieldName] = 'https://' + urlValue;
+            console.log(`🔗 URL-Feld ${fieldName}: https:// Präfix hinzugefügt -> ${submitData[fieldName]}`);
+          }
+        }
+      });
+
       console.log('📤 Finale Submit-Daten:', submitData);
       console.log('🚨 FORMSYSTEM: Submit-Daten für DataService:', JSON.stringify(submitData, null, 2));
 

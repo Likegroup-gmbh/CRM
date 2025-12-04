@@ -9,39 +9,50 @@
     <link rel="stylesheet" href="../../assets/styles/layout.css">
     <link rel="stylesheet" href="../../assets/styles/components.css">
 </head>
-<body style="background: #0f172a; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem;">
+<body style="margin: 0; padding: 0;">
   
-  <div class="login-box">
-    <h2 style="margin-bottom: 0.5rem;">Kunden-Registrierung</h2>
-    <p style="text-align: center; color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1.5rem;">
-      Erstellen Sie Ihren Zugang zum Kunden-Portal
-    </p>
+  <div class="login-split-container">
+    <div class="login-left">
+      <div class="login-box">
+        <div class="login-logo-wrapper">
+          <img src="/assets/background/Logo-Icon-gray.svg" alt="Logo" class="login-logo">
+        </div>
+        <h2>Kunden-Registrierung</h2>
 
-    <div id="msg" style="display: none; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem;"></div>
+        <div id="msg" class="text-error" style="display: none;"></div>
 
-    <form id="register-form">
-      <div class="form-box">
-        <label class="label" for="name">Name</label>
-        <input id="name" class="input" type="text" placeholder="Max Mustermann" required />
+        <form id="register-form">
+          <div class="form-box">
+            <label class="label" for="name">Name</label>
+            <input id="name" class="input" type="text" placeholder="Max Mustermann" required />
+          </div>
+          <div class="form-box">
+            <label class="label" for="email">E-Mail</label>
+            <input id="email" class="input" type="email" placeholder="kunde@example.com" required />
+          </div>
+          <div class="form-box">
+            <label class="label" for="password">Passwort</label>
+            <input id="password" class="input" type="password" placeholder="••••••••" minlength="8" required />
+          </div>
+          <div class="form-box">
+            <button id="btn-submit" type="submit" class="btn primary-btn" style="width: 100%;">Konto erstellen</button>
+          </div>
+          <div class="login-divider">
+            <span>Login</span>
+          </div>
+          <div class="register-links-row">
+            <a href="/" class="register-link-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+              </svg>
+              Zurück zum Login
+            </a>
+          </div>
+          <div class="login-version">Version 1.0</div>
+        </form>
       </div>
-      <div class="form-box">
-        <label class="label" for="email">E-Mail</label>
-        <input id="email" class="input" type="email" placeholder="kunde@example.com" required />
-      </div>
-      <div class="form-box">
-        <label class="label" for="password">Passwort</label>
-        <input id="password" class="input" type="password" placeholder="••••••••" minlength="8" required />
-      </div>
-      <div class="form-box">
-        <button id="btn-submit" type="submit" class="btn primary-btn" style="width: 100%;">Konto erstellen</button>
-      </div>
-      <div class="form-box" style="text-align: center; margin-top: 0.5rem;">
-        <a href="/" style="color: var(--text-secondary); text-decoration: none; font-size: 0.875rem;">Zurück zum Login</a>
-      </div>
-      <p style="color: var(--text-tertiary); font-size: 0.75rem; text-align: center; margin-top: 1rem;">
-        Mit der Registrierung stimmen Sie unseren Nutzungsbedingungen zu.
-      </p>
-    </form>
+    </div>
+    <div class="login-right"></div>
   </div>
 
 <script type="module">
@@ -51,7 +62,7 @@
   const cfg = getSupabaseConfig();
   if (!cfg) {
     const msg = document.getElementById('msg');
-    msg.style.cssText = 'display: block; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;';
+    msg.style.display = 'block';
     msg.textContent = 'Supabase-Konfiguration fehlt.';
     throw new Error('Missing Supabase config');
   }
@@ -62,10 +73,7 @@
   const msg = document.getElementById('msg');
 
   function show(type, text) {
-    const styles = type === 'success' 
-      ? 'display: block; background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46;'
-      : 'display: block; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;';
-    msg.style.cssText = styles;
+    msg.style.display = 'block';
     msg.textContent = text;
   }
 
@@ -102,5 +110,3 @@
 </script>
 </body>
 </html>
-
-

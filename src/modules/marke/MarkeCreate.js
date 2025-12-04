@@ -339,6 +339,15 @@ export class MarkeCreate {
         data[key] = Array.isArray(value) ? value : value.trim();
       }
       
+      // URL-Felder: https:// automatisch hinzufügen
+      if (data.webseite && data.webseite.trim() !== '') {
+        let urlValue = data.webseite.trim();
+        if (!urlValue.match(/^https?:\/\//i)) {
+          data.webseite = 'https://' + urlValue;
+          console.log('🔗 Webseite: https:// Präfix hinzugefügt ->', data.webseite);
+        }
+      }
+      
       console.log('📤 Finale Marke-Daten:', data);
 
       // Validierung (wie bei Unternehmen)

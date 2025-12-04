@@ -56,10 +56,13 @@ export class KundenLanding {
 
     const strategienRows = (this.strategien || []).map(s => {
       let verknuepfung = '';
+      // Prüfe alle möglichen Verknüpfungen: Marke, Unternehmen, Kampagne
       if (s.marke) {
-        verknuepfung = s.marke.name;
+        verknuepfung = s.marke.markenname || s.marke.name || '';
       } else if (s.unternehmen) {
-        verknuepfung = s.unternehmen.name;
+        verknuepfung = s.unternehmen.firmenname || s.unternehmen.name || '';
+      } else if (s.kampagne) {
+        verknuepfung = s.kampagne.kampagnenname || s.kampagne.name || '';
       }
 
       const createdAt = new Date(s.created_at).toLocaleDateString('de-DE', {

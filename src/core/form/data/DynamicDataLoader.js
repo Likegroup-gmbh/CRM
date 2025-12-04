@@ -217,7 +217,9 @@ export class DynamicDataLoader {
       }
       
       // Prüfe ob das Feld abhängig ist - im Kampagne/Ansprechpartner/Auftrag/Kooperation Edit-Mode trotzdem laden
-      if (field.dependsOn) {
+      // AUSNAHME: Ziel-Felder werden IMMER geladen (auch wenn abhängig), da sie statische Lookup-Tabellen sind
+      const alwaysLoadFields = ['paid_ziele_ids', 'organic_ziele_ids'];
+      if (field.dependsOn && !alwaysLoadFields.includes(field.name)) {
         const isKampagneEditMode = form.dataset.entityType === 'kampagne' && form.dataset.isEditMode === 'true';
         const isAnsprechpartnerEditMode = form.dataset.entityType === 'ansprechpartner' && form.dataset.isEditMode === 'true';
         const isAuftragEditMode = form.dataset.entityType === 'auftrag' && form.dataset.isEditMode === 'true';
@@ -228,6 +230,8 @@ export class DynamicDataLoader {
         } else {
           console.log(`🎯 Edit-Mode (${form.dataset.entityType}): Lade abhängiges Feld trotzdem: ${field.name}`);
         }
+      } else if (alwaysLoadFields.includes(field.name)) {
+        console.log(`🎯 Lade Ziel-Feld ${field.name} immer (statische Lookup-Tabelle)`);
       }
       
       let options = [];
@@ -250,6 +254,16 @@ export class DynamicDataLoader {
           return null;
         }).filter(Boolean);
         console.log(`✅ ${field.name} statische Optionen:`, options.length);
+      }
+      // Spezielle Behandlung für Felder die immer geladen werden sollen (unabhängig von dependsOn)
+      // Diese werden VOR dem normalen table-Check behandelt
+      else if (field.name === 'paid_ziele_ids') {
+        console.log(`🎯 Lade Paid-Ziele (immer, unabhängig von dependsOn)`);
+        options = await this.loadZieleOptions('kampagne_paid_ziele_typen');
+      }
+      else if (field.name === 'organic_ziele_ids') {
+        console.log(`🎯 Lade Organic-Ziele (immer, unabhängig von dependsOn)`);
+        options = await this.loadZieleOptions('kampagne_organic_ziele_typen');
       }
       // Für Felder mit table-Konfiguration standardmäßig loadDirectQueryOptions verwenden
       else if (field.table) {
@@ -458,10 +472,20 @@ export class DynamicDataLoader {
           options = await this.loadBenutzerOptions();
           break;
         case 'cutter_ids':
-          options = await this.loadBenutzerOptions({ role: 'cutter' });
+          // Alle Mitarbeiter (keine Kunden) - Rolle wird beim Speichern gesetzt
+          options = await this.loadBenutzerOptions();
           break;
         case 'copywriter_ids':
-          options = await this.loadBenutzerOptions({ role: 'copywriter' });
+          // Alle Mitarbeiter (keine Kunden) - Rolle wird beim Speichern gesetzt
+          options = await this.loadBenutzerOptions();
+          break;
+        case 'strategie_ids':
+          // Alle Mitarbeiter (keine Kunden) - Rolle wird beim Speichern gesetzt
+          options = await this.loadBenutzerOptions();
+          break;
+        case 'creator_sourcing_ids':
+          // Alle Mitarbeiter (keine Kunden) - Rolle wird beim Speichern gesetzt
+          options = await this.loadBenutzerOptions();
           break;
         case 'ansprechpartner_id':
           options = await this.loadAnsprechpartnerOptions(field, form);
@@ -593,7 +617,9 @@ export class DynamicDataLoader {
         'kampagne_art_typen',
         'drehort_typen',
         'creator_type',
-        'mitarbeiter_klasse'
+        'mitarbeiter_klasse',
+        'kampagne_paid_ziele_typen',
+        'kampagne_organic_ziele_typen'
       ];
       
       let data;
@@ -612,6 +638,12 @@ export class DynamicDataLoader {
         // Spezialbehandlung für eu_laender: Sortierung nach sort_order
         if (field.table === 'eu_laender') {
           query = query.order('sort_order', { ascending: true });
+        }
+
+        // Filter: Keine Kunden anzeigen (für Mitarbeiter-Felder)
+        if (field.filterNoKunden && field.table === 'benutzer') {
+          query = query.neq('rolle', 'kunde');
+          console.log(`🚫 Filtere Kunden aus für ${field.name}`);
         }
 
         // Filter anwenden, wenn vorhanden
@@ -803,9 +835,13 @@ export class DynamicDataLoader {
               'scripter_ids': editData.scripter_ids || editData.scripter || [],
               'cutter_ids': editData.cutter_ids || editData.cutter || [],
               'copywriter_ids': editData.copywriter_ids || editData.copywriter || [],
+              'strategie_ids': editData.strategie_ids || editData.strategie || [],
+              'creator_sourcing_ids': editData.creator_sourcing_ids || editData.creator_sourcing || [],
               'art_der_kampagne': editData.art_der_kampagne || editData.kampagnenarten || [],
               'plattform_ids': editData.plattform_ids || editData.plattformen || [],
-              'format_ids': editData.format_ids || editData.formate || []
+              'format_ids': editData.format_ids || editData.formate || [],
+              'paid_ziele_ids': editData.paid_ziele_ids || editData.paid_ziele || [],
+              'organic_ziele_ids': editData.organic_ziele_ids || editData.organic_ziele || []
             };
             
             console.log(`🔍 DYNAMICDATALOADER: Multi-Select Check für ${field.name}:`, {
@@ -1487,6 +1523,31 @@ export class DynamicDataLoader {
       }));
     } catch (e) {
       console.error('❌ Unerwarteter Fehler beim Laden der Benutzer-Optionen:', e);
+      return [];
+    }
+  }
+
+  // Ziele-Optionen aus Lookup-Tabelle laden (statisch, kein Filter)
+  async loadZieleOptions(tableName) {
+    if (!window.supabase) return [];
+    try {
+      const { data, error } = await window.supabase
+        .from(tableName)
+        .select('id, name')
+        .order('sort_order');
+
+      if (error) {
+        console.error(`❌ Fehler beim Laden der Ziele aus ${tableName}:`, error);
+        return [];
+      }
+
+      console.log(`✅ ${(data || []).length} Ziele aus ${tableName} geladen`);
+      return (data || []).map(ziel => ({
+        value: ziel.id,
+        label: ziel.name
+      }));
+    } catch (e) {
+      console.error(`❌ Unerwarteter Fehler beim Laden der Ziele aus ${tableName}:`, e);
       return [];
     }
   }

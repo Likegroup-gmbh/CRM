@@ -1165,8 +1165,22 @@ export class ActionsDropdown {
           <div id="staff-dropdown" class="auto-suggest-dropdown"></div>
         </div>
         <div class="modal-footer">
-          <button class="secondary-btn" id="assign-staff-cancel">Abbrechen</button>
-          <button class="primary-btn" id="assign-staff-confirm" disabled>Zuordnen</button>
+          <button class="mdc-btn mdc-btn--cancel" id="assign-staff-cancel">
+            <span class="mdc-btn__icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Abbrechen</span>
+          </button>
+          <button class="mdc-btn mdc-btn--create" id="assign-staff-confirm" disabled>
+            <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Zuordnen</span>
+          </button>
         </div>
       </div>`;
     document.body.appendChild(modal);
@@ -1338,8 +1352,22 @@ export class ActionsDropdown {
           <div id="mitarbeiter-dropdown" class="auto-suggest-dropdown"></div>
         </div>
         <div class="modal-footer">
-          <button class="secondary-btn" id="add-mitarbeiter-cancel">Abbrechen</button>
-          <button class="primary-btn" id="add-mitarbeiter-confirm" disabled>Hinzufügen</button>
+          <button class="mdc-btn mdc-btn--cancel" id="add-mitarbeiter-cancel">
+            <span class="mdc-btn__icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Abbrechen</span>
+          </button>
+          <button class="mdc-btn mdc-btn--create" id="add-mitarbeiter-confirm" disabled>
+            <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Hinzufügen</span>
+          </button>
         </div>
       </div>`;
     
@@ -1608,8 +1636,22 @@ export class ActionsDropdown {
           <div id="campaign-dropdown" class="auto-suggest-dropdown"></div>
         </div>
         <div class="modal-footer">
-          <button class="secondary-btn" id="add-to-campaign-cancel">Abbrechen</button>
-          <button class="primary-btn" id="add-to-campaign-confirm" disabled>Hinzufügen</button>
+          <button class="mdc-btn mdc-btn--cancel" id="add-to-campaign-cancel">
+            <span class="mdc-btn__icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Abbrechen</span>
+          </button>
+          <button class="mdc-btn mdc-btn--create" id="add-to-campaign-confirm" disabled>
+            <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Hinzufügen</span>
+          </button>
         </div>
       </div>`;
     document.body.appendChild(modal);
@@ -1767,8 +1809,22 @@ export class ActionsDropdown {
           <div id="ansprechpartner-dropdown" class="auto-suggest-dropdown"></div>
         </div>
         <div class="modal-footer">
-          <button class="secondary-btn" id="add-ansprechpartner-cancel">Abbrechen</button>
-          <button class="primary-btn" id="add-ansprechpartner-confirm" disabled>Hinzufügen</button>
+          <button class="mdc-btn mdc-btn--cancel" id="add-ansprechpartner-cancel">
+            <span class="mdc-btn__icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Abbrechen</span>
+          </button>
+          <button class="mdc-btn mdc-btn--create" id="add-ansprechpartner-confirm" disabled>
+            <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Hinzufügen</span>
+          </button>
         </div>
       </div>`;
     
@@ -1981,8 +2037,22 @@ export class ActionsDropdown {
           <div id="ansprechpartner-unternehmen-dropdown" class="auto-suggest-dropdown"></div>
         </div>
         <div class="modal-footer">
-          <button class="secondary-btn" id="add-ansprechpartner-unternehmen-cancel">Abbrechen</button>
-          <button class="primary-btn" id="add-ansprechpartner-unternehmen-confirm" disabled>Hinzufügen</button>
+          <button class="mdc-btn mdc-btn--cancel" id="add-ansprechpartner-unternehmen-cancel">
+            <span class="mdc-btn__icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Abbrechen</span>
+          </button>
+          <button class="mdc-btn mdc-btn--create" id="add-ansprechpartner-unternehmen-confirm" disabled>
+            <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Hinzufügen</span>
+          </button>
         </div>
       </div>`;
     document.body.appendChild(modal);
@@ -2195,7 +2265,14 @@ export class ActionsDropdown {
           <div id="ansprechpartner-unternehmen-remove-dropdown" class="auto-suggest-dropdown"></div>
         </div>
         <div class="modal-footer">
-          <button class="secondary-btn" id="remove-ansprechpartner-unternehmen-cancel">Abbrechen</button>
+          <button class="mdc-btn mdc-btn--cancel" id="remove-ansprechpartner-unternehmen-cancel">
+            <span class="mdc-btn__icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Abbrechen</span>
+          </button>
           <button class="danger-btn" id="remove-ansprechpartner-unternehmen-confirm" disabled>Entfernen</button>
         </div>
       </div>`;
@@ -2435,7 +2512,14 @@ export class ActionsDropdown {
           </div>
         </div>
         <div class="modal-footer">
-          <button class="secondary-btn" id="remove-ansprechpartner-unternehmen-cancel">Abbrechen</button>
+          <button class="mdc-btn mdc-btn--cancel" id="remove-ansprechpartner-unternehmen-cancel">
+            <span class="mdc-btn__icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Abbrechen</span>
+          </button>
           <button class="danger-btn" id="remove-selected-ansprechpartner" disabled>Ausgewählte entfernen</button>
         </div>
       </div>`;
@@ -2744,8 +2828,22 @@ export class ActionsDropdown {
           <div id="list-dropdown" class="auto-suggest-dropdown"></div>
         </div>
         <div class="modal-footer">
-          <button class="secondary-btn" id="add-to-list-cancel">Abbrechen</button>
-          <button class="primary-btn" id="add-to-list-confirm" disabled>Hinzufügen</button>
+          <button class="mdc-btn mdc-btn--cancel" id="add-to-list-cancel">
+            <span class="mdc-btn__icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Abbrechen</span>
+          </button>
+          <button class="mdc-btn mdc-btn--create" id="add-to-list-confirm" disabled>
+            <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Hinzufügen</span>
+          </button>
         </div>
       </div>`;
     document.body.appendChild(modal);
@@ -2905,8 +3003,22 @@ export class ActionsDropdown {
           <div id="ansprechpartner-kampagne-dropdown" class="auto-suggest-dropdown"></div>
         </div>
         <div class="modal-footer">
-          <button class="secondary-btn" id="add-ansprechpartner-kampagne-cancel">Abbrechen</button>
-          <button class="primary-btn" id="add-ansprechpartner-kampagne-confirm" disabled>Hinzufügen</button>
+          <button class="mdc-btn mdc-btn--cancel" id="add-ansprechpartner-kampagne-cancel">
+            <span class="mdc-btn__icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Abbrechen</span>
+          </button>
+          <button class="mdc-btn mdc-btn--create" id="add-ansprechpartner-kampagne-confirm" disabled>
+            <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Hinzufügen</span>
+          </button>
         </div>
       </div>`;
     

@@ -206,10 +206,27 @@ export class CreatorAdressenManager {
         </div>
 
         <div class="drawer-actions">
+          <button type="button" class="mdc-btn mdc-btn--cancel" data-close>
+            <span class="mdc-btn__icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Abbrechen</span>
+          </button>
           <button type="submit" class="mdc-btn mdc-btn--create">
+            <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__spinner" aria-hidden="true">
+              <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
+                <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
+              </svg>
+            </span>
             <span class="mdc-btn__label">${this.adresseId ? 'Aktualisieren' : 'Hinzufügen'}</span>
           </button>
-          <button type="button" class="secondary-btn" data-close>Abbrechen</button>
         </div>
 
         <div id="form-feedback" class="form-feedback"></div>

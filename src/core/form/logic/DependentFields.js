@@ -29,13 +29,18 @@ export class DependentFields {
           const parentValue = isCheckbox ? parentField.checked : parentField.value;
           console.log(`🔍 Prüfe abhängiges Feld: ${dependsOn} = "${parentValue}", showWhen = "${showWhen}", isCheckbox = ${isCheckbox}`);
           
-          // Für Select-Felder den angezeigten Text verwenden
+          // Für Select-Felder sowohl Value als auch Text prüfen (case-insensitive)
           let shouldShow = false;
           if (parentField.tagName === 'SELECT') {
             const selectedOption = parentField.selectedOptions[0];
-            const displayText = selectedOption ? selectedOption.textContent : '';
-            shouldShow = showWhen ? displayText.includes(showWhen) : !!parentValue;
-            console.log(`🔍 Select-Feld: "${displayText}" enthält "${showWhen}" = ${shouldShow}`);
+            const displayText = selectedOption ? selectedOption.textContent.toLowerCase() : '';
+            const selectValue = parentValue ? parentValue.toLowerCase() : '';
+            const showWhenLower = showWhen ? showWhen.toLowerCase() : '';
+            // Prüfe sowohl Value als auch displayText (case-insensitive)
+            shouldShow = showWhen ? 
+              (selectValue === showWhenLower || displayText.includes(showWhenLower)) : 
+              !!parentValue;
+            console.log(`🔍 Select-Feld: value="${selectValue}", text="${displayText}", showWhen="${showWhenLower}" = ${shouldShow}`);
           } else if (isCheckbox) {
             // Für Checkbox/Toggle: showWhen ignorieren, nur checked Status prüfen
             shouldShow = showWhen ? (parentValue === (showWhen === 'true')) : parentValue;
@@ -51,6 +56,111 @@ export class DependentFields {
             // Klasse toggeln statt inline-Style (für bessere Flexbox-Kompatibilität)
             if (shouldShow) {
               fieldContainer.classList.remove('form-field--hidden');
+              
+              // Tag-basiertes Select reinitialisieren wenn es sichtbar wird
+              const selectElement = fieldContainer.querySelector('select[data-tag-based="true"]');
+              if (selectElement && window.formSystem?.optionsManager) {
+                const fieldName = selectElement.name;
+                
+                // Debounce: Verhindere mehrfache gleichzeitige Initialisierungen
+                if (!this._zieleFeldDebounce) this._zieleFeldDebounce = {};
+                if (this._zieleFeldDebounce[fieldName]) {
+                  clearTimeout(this._zieleFeldDebounce[fieldName]);
+                }
+                
+                // Lock: Verhindere parallele Ausführungen
+                if (!this._zieleInitRunning) this._zieleInitRunning = {};
+                if (this._zieleInitRunning[fieldName]) {
+                  console.log(`⏳ Initialisierung für ${fieldName} läuft bereits - überspringe`);
+                  return;
+                }
+                
+                this._zieleFeldDebounce[fieldName] = setTimeout(async () => {
+                  this._zieleInitRunning[fieldName] = true;
+                  console.log(`🏷️ Reinitialisiere Tag-Select für ${fieldName} nach Sichtbar-Werden`);
+                  
+                  try {
+                    const selectId = selectElement.id;
+                    
+                    // Entferne bestehenden Container komplett
+                    const existingContainer = fieldContainer.querySelector('.tag-based-select');
+                    if (existingContainer) {
+                      existingContainer.remove();
+                      console.log(`🗑️ Bestehenden Tag-Container entfernt für ${fieldName}`);
+                    }
+                    
+                    // Entferne verstecktes Select falls vorhanden
+                    const existingHidden = document.getElementById(selectId + '_hidden');
+                    if (existingHidden) {
+                      existingHidden.remove();
+                    }
+                    
+                    // Auch im Form nach versteckten Selects suchen
+                    const formHidden = form.querySelector(`select[name="${fieldName}[]"]`);
+                    if (formHidden && formHidden !== selectElement) {
+                      formHidden.remove();
+                    }
+                    
+                    // Entferne aus dem "bereits erstellt" Set
+                    if (window.formSystem.optionsManager.constructor.createdTagBasedSelects) {
+                      window.formSystem.optionsManager.constructor.createdTagBasedSelects.delete(selectId);
+                    }
+                    
+                    // Original Select wieder sichtbar machen
+                    selectElement.style.display = '';
+                    
+                    // Lade Optionen direkt aus Supabase
+                    let options = [];
+                    if (window.supabase) {
+                      let tableName = null;
+                      if (fieldName === 'paid_ziele_ids') {
+                        tableName = 'kampagne_paid_ziele_typen';
+                      } else if (fieldName === 'organic_ziele_ids') {
+                        tableName = 'kampagne_organic_ziele_typen';
+                      }
+                      
+                      if (tableName) {
+                        const { data, error } = await window.supabase
+                          .from(tableName)
+                          .select('id, name')
+                          .order('sort_order');
+                        
+                        if (!error && data) {
+                          options = data.map(item => ({ value: item.id, label: item.name }));
+                          console.log(`✅ ${options.length} Optionen aus ${tableName} geladen`);
+                          
+                          // Optionen ins Select schreiben
+                          selectElement.innerHTML = '<option value="">Bitte wählen...</option>';
+                          options.forEach(opt => {
+                            const optEl = document.createElement('option');
+                            optEl.value = opt.value;
+                            optEl.textContent = opt.label;
+                            selectElement.appendChild(optEl);
+                          });
+                        } else {
+                          console.error(`❌ Fehler beim Laden aus ${tableName}:`, error);
+                        }
+                      }
+                    }
+                    
+                    if (options.length > 0) {
+                      const fieldConfig = this.getFormConfig(form.dataset.entity)?.fields?.find(f => f.name === fieldName);
+                      if (fieldConfig) {
+                        // Kleine Verzögerung damit DOM sich stabilisiert
+                        await new Promise(resolve => setTimeout(resolve, 50));
+                        window.formSystem.optionsManager.createTagBasedSelect(selectElement, options, fieldConfig);
+                        console.log(`✅ Tag-Select neu erstellt mit ${options.length} Optionen`);
+                      }
+                    } else {
+                      console.warn(`⚠️ Keine Optionen für ${fieldName} verfügbar`);
+                    }
+                  } catch (e) {
+                    console.error(`❌ Fehler bei Tag-Select Initialisierung für ${fieldName}:`, e);
+                  } finally {
+                    this._zieleInitRunning[fieldName] = false;
+                  }
+                }, 100); // 100ms Debounce
+              }
             } else {
               fieldContainer.classList.add('form-field--hidden');
             }
@@ -155,6 +265,25 @@ export class DependentFields {
     
     form.addEventListener('change', handler, true); // Capturing = true
     this.formEventHandlers.set(form, handler);
+    
+    // Spezieller Handler: Wenn Marke geändert wird, Aufträge neu laden (filterByMarke)
+    const auftragConfig = config.fields.find(f => f.name === 'auftrag_id' && f.filterByMarke);
+    if (auftragConfig) {
+      const markeField = form.querySelector('[name="marke_id"]');
+      const auftragField = form.querySelector('[name="auftrag_id"]');
+      const unternehmenField = form.querySelector('[name="unternehmen_id"]');
+      
+      if (markeField && auftragField && unternehmenField) {
+        markeField.addEventListener('change', async () => {
+          const unternehmenValue = this.getFieldValue(unternehmenField);
+          if (unternehmenValue) {
+            console.log('🔄 Marke geändert - lade Aufträge neu...');
+            await this.loadDependentFieldData(auftragField, auftragConfig, unternehmenValue, form);
+          }
+        });
+        console.log('✅ Marke→Auftrag Filter-Handler registriert');
+      }
+    }
     
     // Initial State laden
     setTimeout(() => {
@@ -407,28 +536,74 @@ export class DependentFields {
         this.updateDependentFieldOptions(field, fieldConfig, options);
       }
       
-      // Spezielle Logik für Aufträge basierend auf Unternehmen (wenn keine Marken vorhanden)
+      // Spezielle Logik für Aufträge basierend auf Unternehmen (intelligent: mit/ohne Marke)
       if (fieldConfig.name === 'auftrag_id' && fieldConfig.dependsOn === 'unternehmen_id') {
-        const { data: auftraege, error } = await window.supabase
+        const markeField = form.querySelector('[name="marke_id"]');
+        const markeValue = markeField?.value;
+        
+        // Erst alle Aufträge des Unternehmens laden um zu prüfen ob welche ohne Marke existieren
+        const { data: alleAuftraege, error: checkError } = await window.supabase
           .from('auftrag')
-          .select('id, auftragsname')
+          .select('id, auftragsname, marke_id')
           .eq('unternehmen_id', parentValue)
           .order('auftragsname');
         
-        if (error) {
-          console.error('❌ Fehler beim Laden der Aufträge für Unternehmen:', error);
+        if (checkError) {
+          console.error('❌ Fehler beim Prüfen der Aufträge:', checkError);
           return;
         }
         
-        const options = auftraege.map(auftrag => ({
+        // Prüfe ob es Aufträge ohne Marke gibt
+        const auftraegeOhneMarke = alleAuftraege.filter(a => !a.marke_id);
+        const auftraegeMitMarke = alleAuftraege.filter(a => a.marke_id);
+        
+        console.log(`📊 Aufträge-Analyse: ${auftraegeOhneMarke.length} ohne Marke, ${auftraegeMitMarke.length} mit Marke`);
+        
+        let auftraegeZuZeigen = [];
+        
+        if (markeValue) {
+          // Marke ist ausgewählt → zeige nur Aufträge dieser Marke + Aufträge ohne Marke
+          auftraegeZuZeigen = alleAuftraege.filter(a => !a.marke_id || a.marke_id === markeValue);
+          console.log(`🔍 Marke ausgewählt: zeige ${auftraegeZuZeigen.length} Aufträge (ohne Marke + passende Marke)`);
+        } else if (auftraegeOhneMarke.length > 0) {
+          // Keine Marke ausgewählt, aber es gibt Aufträge ohne Marke → zeige diese
+          auftraegeZuZeigen = auftraegeOhneMarke;
+          console.log(`🔍 Keine Marke, aber ${auftraegeOhneMarke.length} Aufträge ohne Marke verfügbar`);
+        } else if (auftraegeMitMarke.length > 0) {
+          // Alle Aufträge haben eine Marke → Feld deaktivieren, Hinweis zeigen
+          console.log(`⚠️ Alle ${auftraegeMitMarke.length} Aufträge haben eine Marke - bitte erst Marke auswählen`);
+          field.disabled = true;
+          this.updateDependentFieldOptions(field, fieldConfig, []);
+          
+          // Placeholder anpassen um Hinweis zu geben
+          const container = field.nextElementSibling;
+          if (container?.classList.contains('searchable-select-container')) {
+            const input = container.querySelector('.searchable-select-input');
+            if (input) {
+              input.placeholder = 'Bitte erst eine Marke auswählen...';
+            }
+          }
+          return;
+        }
+        
+        const options = auftraegeZuZeigen.map(auftrag => ({
           value: auftrag.id,
-          label: auftrag.auftragsname
+          label: auftrag.auftragsname + (auftrag.marke_id ? '' : ' (ohne Marke)')
         }));
         
-        console.log(`✅ ${options.length} Aufträge direkt für Unternehmen ${parentValue} geladen`);
+        console.log(`✅ ${options.length} Aufträge für Unternehmen geladen`);
         
-        // Feld wieder aktivieren
+        // Feld aktivieren
         field.disabled = false;
+        
+        // Placeholder zurücksetzen
+        const container = field.nextElementSibling;
+        if (container?.classList.contains('searchable-select-container')) {
+          const input = container.querySelector('.searchable-select-input');
+          if (input) {
+            input.placeholder = fieldConfig.placeholder || 'Auftrag suchen und auswählen...';
+          }
+        }
         
         // Optionen aktualisieren
         this.updateDependentFieldOptions(field, fieldConfig, options);

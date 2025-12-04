@@ -279,7 +279,14 @@ export class RechnungDetail {
     window.content.innerHTML = `
       <div class="page-header">
         <div class="page-header-right">
-          <button onclick="window.navigateTo('/rechnung/${this.id}')" class="secondary-btn">Abbrechen</button>
+          <button onclick="window.navigateTo('/rechnung/${this.id}')" class="mdc-btn mdc-btn--cancel">
+            <span class="mdc-btn__icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Abbrechen</span>
+          </button>
         </div>
       </div>
       <div class="form-page">${formHtml}</div>

@@ -420,8 +420,27 @@ export class StrategieList {
         </div>
 
         <div class="drawer-footer">
-          <button type="button" class="secondary-btn" data-action="close-drawer">Abbrechen</button>
-          <button type="submit" class="primary-btn">Erstellen</button>
+          <button type="button" class="mdc-btn mdc-btn--cancel" data-action="close-drawer">
+            <span class="mdc-btn__icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Abbrechen</span>
+          </button>
+          <button type="submit" class="mdc-btn mdc-btn--create">
+            <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__spinner" aria-hidden="true">
+              <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
+                <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Erstellen</span>
+          </button>
         </div>
       </form>
     `;
@@ -651,18 +670,75 @@ export class StrategieList {
       }
     );
 
-    // Kampagne (single, gefiltert nach Marke)
+    // Kampagne (single, gefiltert nach Marke oder Unternehmen)
     bindAutoSuggest(
       'as-kampagne',
       'asdd-kampagne',
       async (q) => {
+        // Wenn Marke ausgewählt: nur Kampagnen dieser Marke
+        if (selectedMarkeId) {
+          let query = window.supabase
+            .from('kampagne')
+            .select('id, kampagnenname, marke:marke_id(markenname)')
+            .eq('marke_id', selectedMarkeId)
+            .order('kampagnenname', { ascending: true })
+            .limit(20);
+          if (q && q.length > 0) query = query.ilike('kampagnenname', `%${q}%`);
+          const { data } = await query;
+          return data || [];
+        } 
+        // Wenn nur Unternehmen ausgewählt (keine Marke): 
+        // Kampagnen die DIREKT mit Unternehmen verknüpft sind ODER über Marken des Unternehmens
+        else if (selectedUnternehmenId) {
+          // 1. Kampagnen direkt über unternehmen_id
+          let directQuery = window.supabase
+            .from('kampagne')
+            .select('id, kampagnenname, marke:marke_id(markenname)')
+            .eq('unternehmen_id', selectedUnternehmenId)
+            .order('kampagnenname', { ascending: true })
+            .limit(20);
+          if (q && q.length > 0) directQuery = directQuery.ilike('kampagnenname', `%${q}%`);
+          
+          // 2. Kampagnen über Marken des Unternehmens
+          const { data: markenData } = await window.supabase
+            .from('marke')
+            .select('id')
+            .eq('unternehmen_id', selectedUnternehmenId);
+          const markenIds = (markenData || []).map(m => m.id);
+          
+          let markenQuery = null;
+          if (markenIds.length > 0) {
+            markenQuery = window.supabase
+              .from('kampagne')
+              .select('id, kampagnenname, marke:marke_id(markenname)')
+              .in('marke_id', markenIds)
+              .order('kampagnenname', { ascending: true })
+              .limit(20);
+            if (q && q.length > 0) markenQuery = markenQuery.ilike('kampagnenname', `%${q}%`);
+          }
+          
+          // Beide Queries ausführen und zusammenführen
+          const [directResult, markenResult] = await Promise.all([
+            directQuery,
+            markenQuery ? markenQuery : Promise.resolve({ data: [] })
+          ]);
+          
+          // Duplikate entfernen (falls eine Kampagne sowohl direkt als auch über Marke verknüpft ist)
+          const allKampagnen = [...(directResult.data || []), ...(markenResult.data || [])];
+          const uniqueKampagnen = allKampagnen.filter((k, index, self) => 
+            index === self.findIndex(t => t.id === k.id)
+          );
+          
+          return uniqueKampagnen.sort((a, b) => a.kampagnenname.localeCompare(b.kampagnenname));
+        }
+        
+        // Kein Filter: alle Kampagnen
         let query = window.supabase
           .from('kampagne')
           .select('id, kampagnenname, marke:marke_id(markenname)')
           .order('kampagnenname', { ascending: true })
           .limit(20);
         if (q && q.length > 0) query = query.ilike('kampagnenname', `%${q}%`);
-        if (selectedMarkeId) query = query.eq('marke_id', selectedMarkeId);
         const { data } = await query;
         return data || [];
       },
@@ -849,8 +925,27 @@ export class StrategieList {
         </div>
 
         <div class="drawer-footer">
-          <button type="button" class="secondary-btn" data-action="close-drawer">Abbrechen</button>
-          <button type="submit" class="primary-btn">Speichern</button>
+          <button type="button" class="mdc-btn mdc-btn--cancel" data-action="close-drawer">
+            <span class="mdc-btn__icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Abbrechen</span>
+          </button>
+          <button type="submit" class="mdc-btn mdc-btn--create">
+            <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__spinner" aria-hidden="true">
+              <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
+                <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Speichern</span>
+          </button>
         </div>
       </form>
     `;

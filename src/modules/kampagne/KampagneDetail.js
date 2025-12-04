@@ -27,6 +27,7 @@ export class KampagneDetail {
     this.videoCreateDrawer = null;
     this.videoColumnVisibilityDrawer = null;
     this.strategien = [];
+    this.briefings = [];
     
     // Race Condition Prevention
     this._isMounted = false;
@@ -401,6 +402,9 @@ export class KampagneDetail {
       this.kampagneData.projektmanager = [];
       this.kampagneData.scripter = [];
       this.kampagneData.cutter = [];
+      this.kampagneData.copywriter = [];
+      this.kampagneData.strategie = [];
+      this.kampagneData.creator_sourcing = [];
       
       // Kooperationen (Creator bereits gejoined)
       this.kooperationen = kooperationenResult.data || [];
@@ -449,6 +453,81 @@ export class KampagneDetail {
         this.kampagneData.format_ids = this.kampagneData.formate.map(f => f.id);
       }
       
+      // Mitarbeiter nach Rollen laden (für Edit-Formular)
+      const [
+        cutterResult, 
+        copywriterResult, 
+        strategieResult, 
+        creatorSourcingResult,
+        paidZieleResult,
+        organicZieleResult
+      ] = await Promise.all([
+        window.supabase
+          .from('kampagne_mitarbeiter')
+          .select('mitarbeiter:mitarbeiter_id(id, name)')
+          .eq('kampagne_id', this.kampagneId)
+          .eq('role', 'cutter'),
+        window.supabase
+          .from('kampagne_mitarbeiter')
+          .select('mitarbeiter:mitarbeiter_id(id, name)')
+          .eq('kampagne_id', this.kampagneId)
+          .eq('role', 'copywriter'),
+        window.supabase
+          .from('kampagne_mitarbeiter')
+          .select('mitarbeiter:mitarbeiter_id(id, name)')
+          .eq('kampagne_id', this.kampagneId)
+          .eq('role', 'strategie'),
+        window.supabase
+          .from('kampagne_mitarbeiter')
+          .select('mitarbeiter:mitarbeiter_id(id, name)')
+          .eq('kampagne_id', this.kampagneId)
+          .eq('role', 'creator_sourcing'),
+        window.supabase
+          .from('kampagne_paid_ziele')
+          .select('ziel:ziel_id(id, name)')
+          .eq('kampagne_id', this.kampagneId),
+        window.supabase
+          .from('kampagne_organic_ziele')
+          .select('ziel:ziel_id(id, name)')
+          .eq('kampagne_id', this.kampagneId)
+      ]);
+      
+      // Cutter
+      if (cutterResult.data) {
+        this.kampagneData.cutter = cutterResult.data.map(item => item.mitarbeiter).filter(Boolean);
+        this.kampagneData.cutter_ids = this.kampagneData.cutter.map(c => c.id);
+      }
+      
+      // Copywriter
+      if (copywriterResult.data) {
+        this.kampagneData.copywriter = copywriterResult.data.map(item => item.mitarbeiter).filter(Boolean);
+        this.kampagneData.copywriter_ids = this.kampagneData.copywriter.map(c => c.id);
+      }
+      
+      // Strategie
+      if (strategieResult.data) {
+        this.kampagneData.strategie = strategieResult.data.map(item => item.mitarbeiter).filter(Boolean);
+        this.kampagneData.strategie_ids = this.kampagneData.strategie.map(s => s.id);
+      }
+      
+      // Creator Sourcing
+      if (creatorSourcingResult.data) {
+        this.kampagneData.creator_sourcing = creatorSourcingResult.data.map(item => item.mitarbeiter).filter(Boolean);
+        this.kampagneData.creator_sourcing_ids = this.kampagneData.creator_sourcing.map(c => c.id);
+      }
+      
+      // Paid-Ziele
+      if (paidZieleResult.data) {
+        this.kampagneData.paid_ziele = paidZieleResult.data.map(item => item.ziel).filter(Boolean);
+        this.kampagneData.paid_ziele_ids = this.kampagneData.paid_ziele.map(z => z.id);
+      }
+      
+      // Organic-Ziele
+      if (organicZieleResult.data) {
+        this.kampagneData.organic_ziele = organicZieleResult.data.map(item => item.ziel).filter(Boolean);
+        this.kampagneData.organic_ziele_ids = this.kampagneData.organic_ziele.map(z => z.id);
+      }
+      
       // Kampagnen-Arten laden (falls vorhanden)
       if (this.kampagneData.art_der_kampagne?.length > 0) {
         const { data: kampagneArten } = await window.supabase
@@ -458,8 +537,8 @@ export class KampagneDetail {
         this.kampagneData.kampagne_art_typen = kampagneArten || [];
       }
       
-      // Notizen, Ratings & Strategien parallel laden (nur Counts für Tabs)
-      const [notizenResult, ratingsResult, strategienResult] = await Promise.all([
+      // Notizen, Ratings, Strategien & Briefings parallel laden (nur Counts für Tabs)
+      const [notizenResult, ratingsResult, strategienResult, briefingsResult] = await Promise.all([
         window.notizenSystem ? window.notizenSystem.loadNotizen('kampagne', this.kampagneId) : [],
         window.bewertungsSystem ? window.bewertungsSystem.loadBewertungen('kampagne', this.kampagneId) : [],
         window.supabase
@@ -471,12 +550,24 @@ export class KampagneDetail {
             created_by_user:created_by(id, name, profile_image_url)
           `)
           .eq('kampagne_id', this.kampagneId)
+          .order('created_at', { ascending: false }),
+        window.supabase
+          .from('briefings')
+          .select('id, product_service_offer, deadline, status, created_at, kooperation_id, assignee_id')
+          .eq('kampagne_id', this.kampagneId)
           .order('created_at', { ascending: false })
       ]);
       
       this.notizen = notizenResult || [];
       this.ratings = ratingsResult || [];
       this.strategien = strategienResult.data || [];
+      
+      // Debug: Briefings laden mit Error-Handling
+      if (briefingsResult.error) {
+        console.error('❌ KAMPAGNEDETAIL: Fehler beim Laden der Briefings:', briefingsResult.error);
+      }
+      this.briefings = briefingsResult.data || [];
+      console.log('📋 KAMPAGNEDETAIL: Briefings geladen:', this.briefings.length, this.briefings);
       
       const loadTime = (performance.now() - startTime).toFixed(0);
       console.log(`✅ KAMPAGNEDETAIL: Kritische Daten geladen in ${loadTime}ms`);
@@ -724,7 +815,6 @@ export class KampagneDetail {
           ${canCreateKooperation ? `<button id="btn-new-kooperation" class="primary-btn" ">Kooperation anlegen</button>` : ''}
           ${canCreateVideo ? `<button id="btn-new-video" class="primary-btn" ">Video anlegen</button>` : ''}
           ${canEdit ? `<button id="btn-edit-kampagne" class="primary-btn" ">Bearbeiten</button>` : ''}
-          ${canDelete ? `<button id="btn-delete-kampagne" class="danger-btn">Kampagne löschen</button>` : ''}
         </div>
       </div>
 
@@ -746,6 +836,10 @@ export class KampagneDetail {
             Strategien
             <span class="tab-count">${this.strategien.length}</span>
           </button>
+          <button class="tab-button" data-tab="briefings">
+            Briefings
+            <span class="tab-count">${this.briefings.length}</span>
+          </button>
           ${window.currentUser?.rolle !== 'kunde' && window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? `
           <button class="tab-button" data-tab="info">
             Informationen
@@ -764,6 +858,11 @@ export class KampagneDetail {
           <button class="tab-button" data-tab="history">
             History
             <span class="tab-count">${this.historyCount + this.koopHistoryCount}</span>
+          </button>` : ''}
+          ${window.currentUser?.rolle !== 'kunde' ? `
+          <button class="tab-button" data-tab="mitarbeiter">
+            Mitarbeiter
+            <span class="tab-count">${this.kampagneData?.mitarbeiter?.length || 0}</span>
           </button>` : ''}
         </div>
 
@@ -929,6 +1028,13 @@ export class KampagneDetail {
             </div>
           </div>
 
+          <!-- Briefings Tab -->
+          <div class="tab-pane" id="tab-briefings">
+            <div class="detail-section">
+              ${this.renderBriefings()}
+            </div>
+          </div>
+
           <!-- Creators Tab (gebuchte Creator) -->
           <div class="tab-pane" id="tab-creators">
             <div class="detail-section">
@@ -981,6 +1087,13 @@ export class KampagneDetail {
           <div class="tab-pane" id="tab-history">
             <div class="detail-section">
               ${this.renderHistory()}
+            </div>
+          </div>
+
+          <!-- Mitarbeiter Tab -->
+          <div class="tab-pane" id="tab-mitarbeiter">
+            <div class="detail-section">
+              ${this.renderMitarbeiter()}
             </div>
           </div>
         </div>
@@ -1200,6 +1313,54 @@ export class KampagneDetail {
     `;
   }
 
+  // Rendere Briefings
+  renderBriefings() {
+    if (!this.briefings || this.briefings.length === 0) {
+      return `
+        <div class="empty-state">
+          <p>Keine Briefings für diese Kampagne vorhanden</p>
+        </div>
+      `;
+    }
+
+    const formatDate = (dateStr) => {
+      if (!dateStr) return '-';
+      return new Date(dateStr).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    };
+
+    // Status-Badge Rendering
+    const renderStatusBadge = (status) => {
+      if (!status) return '-';
+      const statusClass = status.toLowerCase().replace(/\s+/g, '-');
+      return `<span class="status-badge status-${statusClass}">${status}</span>`;
+    };
+
+    const rows = this.briefings.map(briefing => `
+      <tr class="table-row-clickable" data-briefing-id="${briefing.id}">
+        <td><strong>${window.validatorSystem.sanitizeHtml(briefing.product_service_offer || 'Ohne Titel')}</strong></td>
+        <td>${renderStatusBadge(briefing.status)}</td>
+        <td>${formatDate(briefing.deadline)}</td>
+        <td>${formatDate(briefing.created_at)}</td>
+      </tr>
+    `).join('');
+
+    return `
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Produkt/Service</th>
+              <th>Status</th>
+              <th>Deadline</th>
+              <th>Erstellt am</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
   // Rendere Bewertungen
   renderRatings() {
     if (!this.ratings || this.ratings.length === 0) {
@@ -1304,6 +1465,70 @@ export class KampagneDetail {
     return `${kampagneSection}${koopSection}`;
   }
 
+  // Rendere Mitarbeiter-Tab
+  renderMitarbeiter() {
+    const mitarbeiter = this.kampagneData?.mitarbeiter || [];
+    
+    if (mitarbeiter.length === 0) {
+      return `
+        <div class="empty-state">
+          <p>Keine Mitarbeiter zugeordnet</p>
+        </div>
+      `;
+    }
+
+    // Sortiere nach Zuordnungsart, dann nach Name
+    const artOrder = ['Direkt', 'Marke', 'Unternehmen', 'Auftrag'];
+    const sorted = [...mitarbeiter].sort((a, b) => {
+      const aIdx = artOrder.indexOf(a.zuordnungsart || 'Direkt');
+      const bIdx = artOrder.indexOf(b.zuordnungsart || 'Direkt');
+      if (aIdx !== bIdx) return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
+    // Rolle-Labels für bessere Lesbarkeit
+    const rolleLabels = {
+      'projektmanager': 'Projektmanager',
+      'scripter': 'Scripter',
+      'cutter': 'Cutter',
+      'copywriter': 'Copywriter',
+      'strategie': 'Strategie',
+      'creator_sourcing': 'Creator Sourcing'
+    };
+    
+    const rows = sorted.map(m => {
+      const initials = (m.name || '?').split(' ').map(n => n.charAt(0).toUpperCase()).slice(0, 2).join('');
+      const avatar = m.profile_image_url 
+        ? `<img src="${m.profile_image_url}" alt="${window.validatorSystem.sanitizeHtml(m.name)}" class="table-avatar table-avatar-round">`
+        : `<div class="table-avatar-placeholder table-avatar-round">${initials}</div>`;
+      
+      const rolleDisplay = rolleLabels[m.rolle] || m.rolle || 'Mitarbeiter';
+      
+      return `
+        <tr>
+          <td>${avatar}</td>
+          <td>${window.validatorSystem.sanitizeHtml(m.name || '-')}</td>
+          <td><span class="tag">${window.validatorSystem.sanitizeHtml(rolleDisplay)}</span></td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width: 50px;">Bild</th>
+              <th>Name</th>
+              <th>Rolle</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
   // Zeige "Nicht gefunden" Ansicht
   showNotFound() {
     window.setHeadline('Kampagne nicht gefunden');
@@ -1398,6 +1623,18 @@ export class KampagneDetail {
         const strategieId = row.dataset.strategieId;
         if (strategieId) {
           window.navigateTo(`/strategie/${strategieId}`);
+        }
+      }
+    });
+
+    // Briefing-Zeile klicken -> zur Briefing-Detailseite navigieren
+    document.addEventListener('click', (e) => {
+      const row = e.target.closest('#tab-briefings tr[data-briefing-id]');
+      if (row) {
+        e.preventDefault();
+        const briefingId = row.dataset.briefingId;
+        if (briefingId) {
+          window.navigateTo(`/briefing/${briefingId}`);
         }
       }
     });
@@ -1981,6 +2218,11 @@ export class KampagneDetail {
     formData.pm_ids = this.kampagneData.projektmanager ? this.kampagneData.projektmanager.map(p => p.id) : [];
     formData.scripter_ids = this.kampagneData.scripter ? this.kampagneData.scripter.map(s => s.id) : [];
     formData.cutter_ids = this.kampagneData.cutter ? this.kampagneData.cutter.map(c => c.id) : [];
+    formData.copywriter_ids = this.kampagneData.copywriter ? this.kampagneData.copywriter.map(c => c.id) : [];
+    formData.strategie_ids = this.kampagneData.strategie ? this.kampagneData.strategie.map(s => s.id) : [];
+    formData.creator_sourcing_ids = this.kampagneData.creator_sourcing ? this.kampagneData.creator_sourcing.map(c => c.id) : [];
+    formData.paid_ziele_ids = this.kampagneData.paid_ziele ? this.kampagneData.paid_ziele.map(z => z.id) : [];
+    formData.organic_ziele_ids = this.kampagneData.organic_ziele ? this.kampagneData.organic_ziele.map(z => z.id) : [];
     
     // Single-Select IDs korrekt setzen
     if (this.kampagneData.status_id) {
@@ -2060,9 +2302,14 @@ export class KampagneDetail {
         pm_ids: formData.pm_ids,
         scripter_ids: formData.scripter_ids,
         cutter_ids: formData.cutter_ids,
+        copywriter_ids: formData.copywriter_ids,
+        strategie_ids: formData.strategie_ids,
+        creator_sourcing_ids: formData.creator_sourcing_ids,
         art_der_kampagne: formData.art_der_kampagne,
         plattform_ids: formData.plattform_ids,
-        format_ids: formData.format_ids
+        format_ids: formData.format_ids,
+        paid_ziele_ids: formData.paid_ziele_ids,
+        organic_ziele_ids: formData.organic_ziele_ids
       };
       
       form.dataset.editModeData = JSON.stringify(editModeData);
@@ -2220,25 +2467,61 @@ export class KampagneDetail {
           const pm = uniq(toArray(submitData.pm_ids));
           const sc = uniq(toArray(submitData.scripter_ids));
           const cu = uniq(toArray(submitData.cutter_ids));
+          const cw = uniq(toArray(submitData.copywriter_ids));
+          const st = uniq(toArray(submitData.strategie_ids));
+          const cs = uniq(toArray(submitData.creator_sourcing_ids));
           
-          if (mitarbeiter.length > 0 || pm.length > 0 || sc.length > 0 || cu.length > 0) {
-            // Alte Verknüpfungen löschen
-            await window.supabase
-              .from('kampagne_mitarbeiter')
-              .delete()
-              .eq('kampagne_id', this.kampagneId);
-            
-            // Neue Verknüpfungen erstellen
-            const mitarbeiterRows = [];
-            mitarbeiter.forEach(uid => mitarbeiterRows.push({ kampagne_id: this.kampagneId, mitarbeiter_id: uid, role: 'projektmanager' }));
-            pm.forEach(uid => mitarbeiterRows.push({ kampagne_id: this.kampagneId, mitarbeiter_id: uid, role: 'projektmanager' }));
-            sc.forEach(uid => mitarbeiterRows.push({ kampagne_id: this.kampagneId, mitarbeiter_id: uid, role: 'scripter' }));
-            cu.forEach(uid => mitarbeiterRows.push({ kampagne_id: this.kampagneId, mitarbeiter_id: uid, role: 'cutter' }));
-            
-            if (mitarbeiterRows.length > 0) {
-              await window.supabase.from('kampagne_mitarbeiter').insert(mitarbeiterRows);
-              console.log('✅ KAMPAGNEDETAIL: Mitarbeiter-Zuordnungen aktualisiert:', mitarbeiterRows.length);
-            }
+          // Immer alte Verknüpfungen löschen (auch wenn keine neuen)
+          await window.supabase
+            .from('kampagne_mitarbeiter')
+            .delete()
+            .eq('kampagne_id', this.kampagneId);
+          
+          // Neue Verknüpfungen erstellen
+          const mitarbeiterRows = [];
+          mitarbeiter.forEach(uid => mitarbeiterRows.push({ kampagne_id: this.kampagneId, mitarbeiter_id: uid, role: 'projektmanager' }));
+          pm.forEach(uid => mitarbeiterRows.push({ kampagne_id: this.kampagneId, mitarbeiter_id: uid, role: 'projektmanager' }));
+          sc.forEach(uid => mitarbeiterRows.push({ kampagne_id: this.kampagneId, mitarbeiter_id: uid, role: 'scripter' }));
+          cu.forEach(uid => mitarbeiterRows.push({ kampagne_id: this.kampagneId, mitarbeiter_id: uid, role: 'cutter' }));
+          cw.forEach(uid => mitarbeiterRows.push({ kampagne_id: this.kampagneId, mitarbeiter_id: uid, role: 'copywriter' }));
+          st.forEach(uid => mitarbeiterRows.push({ kampagne_id: this.kampagneId, mitarbeiter_id: uid, role: 'strategie' }));
+          cs.forEach(uid => mitarbeiterRows.push({ kampagne_id: this.kampagneId, mitarbeiter_id: uid, role: 'creator_sourcing' }));
+          
+          if (mitarbeiterRows.length > 0) {
+            await window.supabase.from('kampagne_mitarbeiter').insert(mitarbeiterRows);
+            console.log('✅ KAMPAGNEDETAIL: Mitarbeiter-Zuordnungen aktualisiert:', mitarbeiterRows.length);
+          }
+          
+          // 3b. Paid-Ziele Zuordnungen aktualisieren
+          const paidZiele = uniq(toArray(submitData.paid_ziele_ids));
+          await window.supabase
+            .from('kampagne_paid_ziele')
+            .delete()
+            .eq('kampagne_id', this.kampagneId);
+          
+          if (paidZiele.length > 0) {
+            const paidZieleRows = paidZiele.map(zielId => ({
+              kampagne_id: this.kampagneId,
+              ziel_id: zielId
+            }));
+            await window.supabase.from('kampagne_paid_ziele').insert(paidZieleRows);
+            console.log('✅ KAMPAGNEDETAIL: Paid-Ziele Zuordnungen aktualisiert:', paidZieleRows.length);
+          }
+          
+          // 3c. Organic-Ziele Zuordnungen aktualisieren
+          const organicZiele = uniq(toArray(submitData.organic_ziele_ids));
+          await window.supabase
+            .from('kampagne_organic_ziele')
+            .delete()
+            .eq('kampagne_id', this.kampagneId);
+          
+          if (organicZiele.length > 0) {
+            const organicZieleRows = organicZiele.map(zielId => ({
+              kampagne_id: this.kampagneId,
+              ziel_id: zielId
+            }));
+            await window.supabase.from('kampagne_organic_ziele').insert(organicZieleRows);
+            console.log('✅ KAMPAGNEDETAIL: Organic-Ziele Zuordnungen aktualisiert:', organicZieleRows.length);
           }
           
           // 4. Ansprechpartner-Zuordnungen aktualisieren

@@ -65,7 +65,8 @@ export class PermissionSystem {
         rechnung: { can_view: true, can_edit: true, can_delete: true },
         ansprechpartner: { can_view: true, can_edit: true, can_delete: true },
         dashboard: { can_view: true, can_edit: true, can_delete: true },
-        tasks: { can_view: true, can_edit: true, can_delete: true }
+        tasks: { can_view: true, can_edit: true, can_delete: true },
+        strategie: { can_view: true, can_edit: true, can_delete: true }
       },
       mitarbeiter: {
         creator: { can_view: true, can_edit: false, can_delete: false },
@@ -79,7 +80,8 @@ export class PermissionSystem {
         rechnung: { can_view: false, can_edit: false, can_delete: false },
         ansprechpartner: { can_view: true, can_edit: false, can_delete: false },
         dashboard: { can_view: false, can_edit: false, can_delete: false },
-        tasks: { can_view: true, can_edit: false, can_delete: false }
+        tasks: { can_view: true, can_edit: false, can_delete: false },
+        strategie: { can_view: true, can_edit: true, can_delete: false }
       },
       // Kunden: read-only Einsicht in relevante Module
       kunde: {
@@ -94,7 +96,8 @@ export class PermissionSystem {
         rechnung: { can_view: false, can_edit: false, can_delete: false },
         ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
         dashboard: { can_view: true, can_edit: false, can_delete: false },
-        tasks: { can_view: true, can_edit: true, can_delete: false }
+        tasks: { can_view: true, can_edit: true, can_delete: false },
+        strategie: { can_view: true, can_edit: true, can_delete: false }
       },
       // Kunde-Editor: perspektivisch eingeschränkt bearbeitbar; v1 wie kunde
       'kunde_editor': {
@@ -109,7 +112,8 @@ export class PermissionSystem {
         rechnung: { can_view: false, can_edit: false, can_delete: false },
         ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
         dashboard: { can_view: true, can_edit: false, can_delete: false },
-        tasks: { can_view: true, can_edit: true, can_delete: false }
+        tasks: { can_view: true, can_edit: true, can_delete: false },
+        strategie: { can_view: true, can_edit: true, can_delete: false }
       }
     };
 
@@ -126,7 +130,8 @@ export class PermissionSystem {
       tasks: { can_view: false, can_edit: false, can_delete: false },
       rechnung: { can_view: false, can_edit: false, can_delete: false },
       ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
-      dashboard: { can_view: true, can_edit: false, can_delete: false }
+      dashboard: { can_view: true, can_edit: false, can_delete: false },
+      strategie: { can_view: false, can_edit: false, can_delete: false }
     };
 
     // Kunden-Berechtigungen (NUR LESEN - RLS filtert die Daten)
@@ -142,7 +147,8 @@ export class PermissionSystem {
       rechnung: { can_view: false, can_edit: false, can_delete: false }, // Kunden können Rechnungen NICHT sehen
       ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
       dashboard: { can_view: true, can_edit: false, can_delete: false },
-      tasks: { can_view: true, can_edit: true, can_delete: false } // Kunden können Tasks sehen und bearbeiten
+      tasks: { can_view: true, can_edit: true, can_delete: false }, // Kunden können Tasks sehen und bearbeiten
+      strategie: { can_view: true, can_edit: true, can_delete: false } // Kunden können Strategien sehen und Items bearbeiten
     };
 
     // Pending-User: Nur Dashboard, keine anderen Rechte
@@ -157,7 +163,8 @@ export class PermissionSystem {
       briefing: { can_view: false, can_edit: false, can_delete: false },
       rechnung: { can_view: false, can_edit: false, can_delete: false },
       ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
-      dashboard: { can_view: true, can_edit: false, can_delete: false }
+      dashboard: { can_view: true, can_edit: false, can_delete: false },
+      strategie: { can_view: false, can_edit: false, can_delete: false }
     };
 
     // Pending-User: Warten auf Admin-Freischaltung
@@ -189,7 +196,8 @@ export class PermissionSystem {
         briefing: { can_view: true, can_edit: true, can_delete: false },
         rechnung: { can_view: true, can_edit: true, can_delete: false },
         ansprechpartner: { can_view: true, can_edit: true, can_delete: false },
-        dashboard: { can_view: true, can_edit: false, can_delete: false }
+        dashboard: { can_view: true, can_edit: false, can_delete: false },
+        strategie: { can_view: true, can_edit: true, can_delete: false }
       };
     }
 

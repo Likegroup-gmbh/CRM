@@ -43,7 +43,10 @@ export class FormRenderer {
         <form id="${entity}-form" data-entity="${entity}" data-entity-id="${data?.id || ''}">
           ${formHtml}
           <div class="form-actions">
-            <button type="button" class="btn-secondary" onclick="this.closest('.modal-content').querySelector('.btn-close').click()">Abbrechen</button>
+            <button type="button" class="mdc-btn mdc-btn--cancel" onclick="this.closest('.modal-content').querySelector('.btn-close').click()">
+              <span class="mdc-btn__icon" aria-hidden="true">${this.getCancelIcon()}</span>
+              <span class="mdc-btn__label">Abbrechen</span>
+            </button>
             <button type="submit" class="mdc-btn mdc-btn--create" data-variant="@create-prd.mdc" data-entity-label="${this.getEntityLabel(entity)}" data-mode="${isEdit ? 'update' : 'create'}">
               <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">${this.getCheckIcon()}</span>
               <span class="mdc-btn__spinner" aria-hidden="true">${this.getSpinnerIcon()}</span>
@@ -123,7 +126,10 @@ export class FormRenderer {
       <form id="${entity}-form" data-entity="${entity}" data-entity-id="${data?.id || data?._entityId || ''}" data-is-edit-mode="${data?._isEditMode ? 'true' : 'false'}">
         ${parts.join('')}
         <div class="form-actions">
-          <button type="button" class="btn-secondary" onclick="window.navigateTo('/${entity}')">Abbrechen</button>
+          <button type="button" class="mdc-btn mdc-btn--cancel" onclick="window.navigateTo('/${entity}')">
+            <span class="mdc-btn__icon" aria-hidden="true">${this.getCancelIcon()}</span>
+            <span class="mdc-btn__label">Abbrechen</span>
+          </button>
           <button type="submit" class="mdc-btn mdc-btn--create" data-variant="@create-prd.mdc" data-entity-label="${this.getEntityLabel(entity)}" data-mode="${data ? 'update' : 'create'}">
             <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">${this.getCheckIcon()}</span>
             <span class="mdc-btn__spinner" aria-hidden="true">${this.getSpinnerIcon()}</span>
@@ -144,7 +150,6 @@ export class FormRenderer {
       case 'text':
       case 'email':
       case 'tel':
-      case 'url':
         const textDependsOn = field.dependsOn ? `data-depends-on="${field.dependsOn}"` : '';
         const textShowWhen = field.showWhen ? `data-show-when="${field.showWhen}"` : '';
         const autoGenerateAttr = field.autoGenerate ? `data-auto-generate="true"` : '';
@@ -157,6 +162,37 @@ export class FormRenderer {
             <label for="${fieldId}">${field.label} ${requiredMark}</label>
             <input type="${field.type}" id="${fieldId}" name="${field.name}" value="${this.validator.sanitizeHtml(value)}" ${required} ${autoGenerateAttr} ${readonlyAttr} ${placeholder}>
             ${field.autoGenerate ? '<small style="color: #6b7280; font-size: 12px;">Wird automatisch generiert</small>' : ''}
+          </div>
+        `;
+
+      case 'url':
+        // URL-Wert ohne https:// Prefix anzeigen (wird automatisch hinzugefügt)
+        let urlValue = value || '';
+        if (urlValue.startsWith('https://')) {
+          urlValue = urlValue.substring(8);
+        } else if (urlValue.startsWith('http://')) {
+          urlValue = urlValue.substring(7);
+        }
+        
+        const urlDependsOn = field.dependsOn ? `data-depends-on="${field.dependsOn}"` : '';
+        const urlShowWhen = field.showWhen ? `data-show-when="${field.showWhen}"` : '';
+        const urlInitialStyle = field.dependsOn ? 'style="display: none;"' : '';
+        const urlPlaceholder = field.placeholder || 'beispiel.de';
+        
+        return `
+          <div class="form-field" ${urlDependsOn} ${urlShowWhen} ${urlInitialStyle}>
+            <label for="${fieldId}">${field.label} ${requiredMark}</label>
+            <div class="url-input-field">
+              <span class="url-prefix">https://</span>
+              <input type="text" 
+                     id="${fieldId}" 
+                     name="${field.name}" 
+                     class="url-input"
+                     value="${this.validator.sanitizeHtml(urlValue)}" 
+                     placeholder="${urlPlaceholder}"
+                     data-url-field="true"
+                     ${required}>
+            </div>
           </div>
         `;
 
@@ -277,6 +313,11 @@ export class FormRenderer {
       case 'multiselect':
         const selectedValues = Array.isArray(value) ? value : (value ? value.split(',') : []);
         
+        // Abhängigkeits-Attribute für bedingte Sichtbarkeit (verwende CSS-Klasse statt inline-Style)
+        const multiDependsOn = field.dependsOn ? `data-depends-on="${field.dependsOn}"` : '';
+        const multiShowWhen = field.showWhen ? `data-show-when="${field.showWhen}"` : '';
+        const multiHiddenClass = field.dependsOn ? 'form-field--hidden' : '';
+        
         let multiOptions = '';
         if (!field.dynamic) {
           multiOptions = field.options.map(option => {
@@ -290,7 +331,7 @@ export class FormRenderer {
           const editModeData = selectedValues.length > 0 ? `data-existing-values='${JSON.stringify(selectedValues)}'` : '';
           
           return `
-            <div class="form-field">
+            <div class="form-field ${multiHiddenClass}" ${multiDependsOn} ${multiShowWhen}>
               <label for="${fieldId}">${field.label} ${requiredMark}</label>
               <select id="${fieldId}" name="${field.name}" ${required} multiple data-searchable="true" data-tag-based="${field.tagBased || 'false'}" data-placeholder="${field.placeholder || 'Bitte wählen...'}" ${editModeData}>
                 ${multiOptions}
@@ -300,7 +341,7 @@ export class FormRenderer {
         }
         
         return `
-          <div class="form-field">
+          <div class="form-field ${multiHiddenClass}" ${multiDependsOn} ${multiShowWhen}>
             <label for="${fieldId}">${field.label} ${requiredMark}</label>
             <select id="${fieldId}" name="${field.name}" ${required} multiple>
               ${multiOptions}
@@ -386,6 +427,13 @@ export class FormRenderer {
     return `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
   <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+</svg>`;
+  }
+
+  getCancelIcon() {
+    return `
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+  <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
 </svg>`;
   }
 
