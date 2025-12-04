@@ -7920,12 +7920,13 @@ margin-bottom: var(--space-xl);
   margin: 0;
 }
 
-/* Queue Container */
+/* Queue Container - füllt den verfügbaren Platz */
 .add-item-queue {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 200px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .queue-header {
@@ -7949,14 +7950,14 @@ margin-bottom: var(--space-xl);
   border-radius: var(--radius-full);
 }
 
-/* Queue Liste */
+/* Queue Liste - scrollbar, füllt verfügbaren Platz */
 .queue-list {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
   flex: 1;
   overflow-y: auto;
-  max-height: 400px;
+  min-height: 0;
 }
 
 .queue-empty {
@@ -8027,7 +8028,7 @@ margin-bottom: var(--space-xl);
 }
 
 .queue-item-spinner .mdc-spinner-path {
-  stroke: var(--blue-500);
+  stroke: var(--gray-900);
 }
 
 .queue-item-icon--done {
@@ -8134,8 +8135,14 @@ margin-bottom: var(--space-xl);
 
 /* Footer */
 .add-item-drawer-footer {
-  margin-top: auto;
+  flex-shrink: 0;
   padding-top: var(--space-lg);
   border-top: 1px solid var(--gray-200);
+}
+
+/* Drawer Body für Add-Item - flex column für volle Höhe */
+#add-item-drawer .drawer-body {
+  display: flex;
+  flex-direction: column;
 }
 
