@@ -114,9 +114,9 @@ export class AddItemDrawer {
     if (!body) return;
 
     body.innerHTML = `
-      <!-- Input-Bereich -->
-      <form id="add-item-form" class="add-item-drawer-form">
-        <div class="form-field">
+      <!-- Input-Bereich (eine Zeile) -->
+      <form id="add-item-form" class="add-item-drawer-form-row">
+        <div class="form-field form-field--grow">
           <label for="drawer-video-url">Video-URL</label>
           <input 
             type="url" 
@@ -125,7 +125,6 @@ export class AddItemDrawer {
             placeholder="https://youtube.com/shorts/... oder leer für Idee"
             autocomplete="off"
           >
-          <p class="form-hint">Leer lassen für eine Idee ohne Screenshot</p>
         </div>
         
         <div class="form-field">
@@ -136,12 +135,15 @@ export class AddItemDrawer {
           </select>
         </div>
 
-        <button type="submit" class="primary-btn add-item-drawer-submit">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          Zur Queue hinzufügen
-        </button>
+        <div class="form-field form-field--btn">
+          <label>&nbsp;</label>
+          <button type="submit" class="primary-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Zur Queue hinzufügen
+          </button>
+        </div>
       </form>
 
       <!-- Queue-Liste -->
@@ -280,7 +282,7 @@ export class AddItemDrawer {
   renderQueueItem(item) {
     const statusIcons = {
       pending: `<svg class="queue-item-icon queue-item-icon--pending" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`,
-      processing: `<svg class="queue-item-icon queue-item-icon--processing" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>`,
+      processing: `<svg class="mdc-spinner queue-item-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="20" height="20"><circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/></svg>`,
       done: `<svg class="queue-item-icon queue-item-icon--done" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`,
       error: `<svg class="queue-item-icon queue-item-icon--error" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`
     };

@@ -7891,18 +7891,33 @@ margin-bottom: var(--space-xl);
   gap: var(--space-sm);
 }
 
-/* Drawer Form */
-.add-item-drawer-form {
+/* Drawer Form (eine Zeile) */
+.add-item-drawer-form-row {
   display: flex;
-  flex-direction: column;
+  align-items: flex-end;
   gap: var(--space-md);
   padding-bottom: var(--space-lg);
   border-bottom: 1px solid var(--gray-200);
   margin-bottom: var(--space-lg);
 }
 
-.add-item-drawer-submit {
-  align-self: flex-start;
+.add-item-drawer-form-row .form-field {
+  margin-bottom: 0;
+}
+
+.add-item-drawer-form-row .form-field--grow {
+  flex: 1;
+  min-width: 200px;
+}
+
+.add-item-drawer-form-row .form-field--btn {
+  flex-shrink: 0;
+}
+
+.add-item-drawer-form-row .form-field--btn label {
+  visibility: hidden;
+  height: 0;
+  margin: 0;
 }
 
 /* Queue Container */
@@ -8006,9 +8021,13 @@ margin-bottom: var(--space-xl);
   color: var(--gray-400);
 }
 
-.queue-item-icon--processing {
-  color: var(--blue-500);
-  animation: spin 1s linear infinite;
+/* Queue Spinner (nutzt mdc-spinner) */
+.queue-item-spinner {
+  flex-shrink: 0;
+}
+
+.queue-item-spinner .mdc-spinner-path {
+  stroke: var(--blue-500);
 }
 
 .queue-item-icon--done {
@@ -8019,10 +8038,7 @@ margin-bottom: var(--space-xl);
   color: var(--red-500);
 }
 
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
+/* spin animation wird von mdc-spin übernommen */
 
 /* Queue Item Info */
 .queue-item-info {
