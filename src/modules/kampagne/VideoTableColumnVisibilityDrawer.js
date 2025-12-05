@@ -119,29 +119,19 @@ export class VideoTableColumnVisibilityDrawer {
     header.appendChild(headerLeft);
     header.appendChild(headerRight);
 
-    // Body
+    // Body (mit Footer drin)
     const body = document.createElement('div');
     body.className = 'drawer-body';
     body.id = `${this.drawerId}-body`;
     body.innerHTML = this.renderContent();
 
-    // Footer
-    const footer = document.createElement('div');
-    footer.className = 'drawer-footer';
-    footer.innerHTML = `
-      <button type="button" class="primary-btn" id="btn-close-visibility-drawer">
-        Fertig
-      </button>
-    `;
-
     panel.appendChild(header);
     panel.appendChild(body);
-    panel.appendChild(footer);
 
     // Events
     overlay.addEventListener('click', () => this.close());
     closeBtn.addEventListener('click', () => this.close());
-    footer.querySelector('#btn-close-visibility-drawer').addEventListener('click', () => this.close());
+    body.querySelector('#btn-close-visibility-drawer').addEventListener('click', () => this.close());
 
     // Zum DOM hinzufügen
     document.body.appendChild(overlay);
@@ -182,8 +172,8 @@ export class VideoTableColumnVisibilityDrawer {
       const isVisible = !this.hiddenColumns.includes(col.className);
       return `
         <tr>
-          <td>${col.label}</td>
-          <td class="toggle-cell">
+          <td style="text-align: left;">${col.label}</td>
+          <td style="text-align: right;">
             <label class="toggle-switch">
               <input 
                 type="checkbox" 
@@ -203,14 +193,19 @@ export class VideoTableColumnVisibilityDrawer {
         <table class="data-table">
           <thead>
             <tr>
-              <th>Spalte</th>
-              <th>Sichtbar</th>
+              <th style="text-align: left;">Spalte</th>
+              <th style="text-align: right;">Sichtbar</th>
             </tr>
           </thead>
           <tbody>
             ${rows}
           </tbody>
         </table>
+      </div>
+      <div class="drawer-footer">
+        <button type="button" class="primary-btn" id="btn-close-visibility-drawer">
+          Fertig
+        </button>
       </div>
     `;
   }

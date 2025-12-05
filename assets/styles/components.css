@@ -2456,9 +2456,8 @@
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-sm);
-  padding: var(--space-md) 0 var(--space-lg);
-
-
+  padding-top: var(--space-lg);
+  margin-top: auto;
 }
 
 .drawer-loading {
