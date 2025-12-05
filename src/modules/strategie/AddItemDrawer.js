@@ -423,8 +423,11 @@ export class AddItemDrawer {
       retryHtml = `<button type="button" class="queue-item-retry" data-item-id="${item.id}" title="Erneut versuchen">${retryIcon}</button>`;
     }
 
-    // Delete-Button immer anzeigen
-    const deleteHtml = `<button type="button" class="queue-item-delete" data-item-id="${item.id}" title="Aus Queue entfernen">${deleteIcon}</button>`;
+    // Delete-Button nur bei pending oder processing
+    let deleteHtml = '';
+    if (item.status === 'pending' || item.status === 'processing') {
+      deleteHtml = `<button type="button" class="queue-item-delete" data-item-id="${item.id}" title="Aus Queue entfernen">${deleteIcon}</button>`;
+    }
 
     return `
       <div class="queue-item queue-item--${item.status}" data-item-id="${item.id}">
@@ -440,8 +443,10 @@ export class AddItemDrawer {
           </div>
           <div class="queue-item-right">
             ${retryHtml}
-            ${statusIcons[item.status]}
-            ${deleteHtml}
+            <div class="queue-item-status-stack">
+              ${statusIcons[item.status]}
+              ${deleteHtml}
+            </div>
           </div>
         </div>
       </div>

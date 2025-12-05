@@ -8012,6 +8012,13 @@ margin-bottom: var(--space-xl);
   gap: var(--space-xs);
 }
 
+.queue-item-status-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
 /* Plattform-Icons (links) */
 .queue-platform-icon {
   width: 20px;
