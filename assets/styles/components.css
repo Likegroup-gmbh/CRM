@@ -8143,9 +8143,6 @@ margin-bottom: var(--space-xl);
   height: 16px;
   color: var(--gray-600);
 }
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
 
 .queue-item-url {
   font-size: var(--text-sm);
