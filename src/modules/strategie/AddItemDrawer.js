@@ -163,9 +163,9 @@ export class AddItemDrawer {
       </div>
 
       <!-- Footer -->
-      <div class="drawer-footer add-item-drawer-footer">
-        <button type="button" class="mdc-btn mdc-btn--cancel" id="btn-close-drawer">
-          <span class="mdc-btn__label">Fertig</span>
+      <div class="drawer-footer add-item-drawer-footer" style="justify-content: flex-end;">
+        <button type="button" class="primary-btn" id="btn-close-drawer">
+          Fertig
         </button>
       </div>
     `;
