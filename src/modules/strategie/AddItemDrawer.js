@@ -196,6 +196,12 @@ export class AddItemDrawer {
     const url = urlInput?.value?.trim() || null;
     const kategorie = kategorieSelect?.value || null;
 
+    // URL-Validierung: Nur YouTube, TikTok, Instagram oder leer (Idee)
+    if (url && !this.isAllowedUrl(url)) {
+      window.toastSystem?.show('Nur YouTube, TikTok und Instagram Links sind erlaubt', 'warning');
+      return;
+    }
+
     // Eindeutige ID generieren
     const id = `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
@@ -229,6 +235,24 @@ export class AddItemDrawer {
     if (!this.isProcessing) {
       this.processQueue();
     }
+  }
+
+  /**
+   * Prüft ob URL erlaubt ist (nur YouTube, TikTok, Instagram)
+   */
+  isAllowedUrl(url) {
+    if (!url) return true; // Leere URL = Idee, erlaubt
+    const urlLower = url.toLowerCase();
+    
+    // Erlaubte Plattformen
+    const allowedDomains = [
+      'youtube.com',
+      'youtu.be',
+      'tiktok.com',
+      'instagram.com'
+    ];
+    
+    return allowedDomains.some(domain => urlLower.includes(domain));
   }
 
   /**
