@@ -125,12 +125,23 @@ export class VideoTableColumnVisibilityDrawer {
     body.id = `${this.drawerId}-body`;
     body.innerHTML = this.renderContent();
 
+    // Footer
+    const footer = document.createElement('div');
+    footer.className = 'drawer-footer';
+    footer.innerHTML = `
+      <button type="button" class="primary-btn" id="btn-close-visibility-drawer">
+        Fertig
+      </button>
+    `;
+
     panel.appendChild(header);
     panel.appendChild(body);
+    panel.appendChild(footer);
 
     // Events
     overlay.addEventListener('click', () => this.close());
     closeBtn.addEventListener('click', () => this.close());
+    footer.querySelector('#btn-close-visibility-drawer').addEventListener('click', () => this.close());
 
     // Zum DOM hinzufügen
     document.body.appendChild(overlay);
@@ -188,11 +199,6 @@ export class VideoTableColumnVisibilityDrawer {
     }).join('');
 
     return `
-      <div class="form-actions">
-        <button type="button" class="secondary-btn" data-action="toggle-all">
-          Alle an/aus
-        </button>
-      </div>
       <div class="data-table-container">
         <table class="data-table">
           <thead>
@@ -213,10 +219,6 @@ export class VideoTableColumnVisibilityDrawer {
   bindEvents() {
     const body = document.getElementById(`${this.drawerId}-body`);
     if (!body) return;
-
-    // Toggle-All Button
-    const toggleAllBtn = body.querySelector('[data-action="toggle-all"]');
-    toggleAllBtn?.addEventListener('click', () => this.toggleAll());
 
     // Spalten-Toggles
     const toggles = body.querySelectorAll('.column-visibility-toggle');
