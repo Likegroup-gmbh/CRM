@@ -8145,6 +8145,31 @@ margin-bottom: var(--space-xl);
   color: var(--gray-600);
 }
 
+.queue-item-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  opacity: 0.5;
+}
+
+.queue-item-delete:hover {
+  background: var(--red-50);
+  opacity: 1;
+}
+
+.queue-item-delete svg {
+  width: 16px;
+  height: 16px;
+  color: var(--red-500);
+}
+
 .queue-item-url {
   font-size: var(--text-sm);
   color: var(--text-primary);

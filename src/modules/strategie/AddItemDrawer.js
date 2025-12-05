@@ -299,14 +299,15 @@ export class AddItemDrawer {
     // Queue-Items rendern
     listEl.innerHTML = this.queue.map(item => this.renderQueueItem(item)).join('');
 
-    // Retry-Button Events binden
-    this.bindRetryEvents();
+    // Button Events binden
+    this.bindQueueItemEvents();
   }
 
   /**
-   * Retry-Button Events binden
+   * Queue-Item Button Events binden (Retry & Delete)
    */
-  bindRetryEvents() {
+  bindQueueItemEvents() {
+    // Retry-Buttons
     document.querySelectorAll('.queue-item-retry').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -314,6 +315,37 @@ export class AddItemDrawer {
         this.handleRetry(itemId);
       });
     });
+
+    // Delete-Buttons
+    document.querySelectorAll('.queue-item-delete').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const itemId = btn.dataset.itemId;
+        this.handleDelete(itemId);
+      });
+    });
+  }
+
+  /**
+   * Item aus Queue löschen
+   */
+  handleDelete(itemId) {
+    const itemIndex = this.queue.findIndex(i => i.id === itemId);
+    if (itemIndex === -1) return;
+
+    const item = this.queue[itemIndex];
+
+    // Wenn Item gerade verarbeitet wird, als cancelled markieren
+    if (item.status === 'processing') {
+      item.status = 'cancelled';
+      this.stopTimer();
+    }
+
+    // Aus Queue entfernen
+    this.queue.splice(itemIndex, 1);
+
+    // Queue neu rendern
+    this.renderQueue();
   }
 
   /**
@@ -362,6 +394,9 @@ export class AddItemDrawer {
     // Retry-Icon
     const retryIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>`;
 
+    // Delete-Icon
+    const deleteIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>`;
+
     const displayUrl = item.url 
       ? (item.url.length > 50 ? item.url.substring(0, 50) + '...' : item.url)
       : 'Idee (ohne URL)';
@@ -388,6 +423,9 @@ export class AddItemDrawer {
       retryHtml = `<button type="button" class="queue-item-retry" data-item-id="${item.id}" title="Erneut versuchen">${retryIcon}</button>`;
     }
 
+    // Delete-Button immer anzeigen
+    const deleteHtml = `<button type="button" class="queue-item-delete" data-item-id="${item.id}" title="Aus Queue entfernen">${deleteIcon}</button>`;
+
     return `
       <div class="queue-item queue-item--${item.status}" data-item-id="${item.id}">
         <div class="queue-item-row">
@@ -403,6 +441,7 @@ export class AddItemDrawer {
           <div class="queue-item-right">
             ${retryHtml}
             ${statusIcons[item.status]}
+            ${deleteHtml}
           </div>
         </div>
       </div>
@@ -450,6 +489,15 @@ export class AddItemDrawer {
         }
       }
 
+      // Prüfen ob Item noch existiert (könnte gelöscht worden sein)
+      if (!this.queue.find(i => i.id === nextItem.id)) {
+        console.log('⏭️ Item während Verarbeitung gelöscht, überspringe...');
+        this.stopTimer();
+        this.isProcessing = false;
+        this.processQueue();
+        return;
+      }
+
       // Phase wechseln zu "speichern"
       nextItem.phase = 'saving';
       this.renderQueue();
@@ -466,6 +514,15 @@ export class AddItemDrawer {
       };
 
       await strategieService.createStrategieItem(itemData);
+
+      // Nochmal prüfen ob Item noch existiert
+      if (!this.queue.find(i => i.id === nextItem.id)) {
+        console.log('⏭️ Item während Speichern gelöscht');
+        this.stopTimer();
+        this.isProcessing = false;
+        this.processQueue();
+        return;
+      }
 
       // Erfolg
       nextItem.status = 'done';
