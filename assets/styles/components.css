@@ -2456,7 +2456,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-sm);
-  padding-top: var(--space-lg);
+  
   margin-top: auto;
 }
 
@@ -4682,8 +4682,8 @@ margin-bottom: var(--space-xl);
 
 /* Einheitlicher Look für Heroicons in Actions */
 .action-item svg {
-  width: var(--icon-xs);
-  height: var(--icon-xs);
+  width: var(--icon-sm);
+  height: var(--icon-sm);
   stroke: currentColor;
 }
 
