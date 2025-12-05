@@ -7919,11 +7919,11 @@ margin-bottom: var(--space-xl);
 }
 
 .queue-counter {
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-  background: var(--gray-100);
+  font-size: var(--text-xs);
+  color: var(--gray-900);
   padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--gray-200);
 }
 
 /* Queue Liste - scrollbar, füllt verfügbaren Platz */
@@ -7972,8 +7972,8 @@ margin-bottom: var(--space-xl);
 }
 
 .queue-item--done {
-  background: var(--green-50);
-  border-color: var(--green-400);
+  background: var(--background-primary);
+  border-color: var(--green-500);
 }
 
 .queue-item--error {
@@ -8019,7 +8019,7 @@ margin-bottom: var(--space-xl);
 }
 
 .queue-platform-icon--youtube {
-  color: #FF0000;
+  color: #000000;
 }
 
 .queue-platform-icon--tiktok {
@@ -8027,7 +8027,7 @@ margin-bottom: var(--space-xl);
 }
 
 .queue-platform-icon--instagram {
-  color: #E4405F;
+  color: #000000;
 }
 
 .queue-platform-icon--other {
@@ -8092,6 +8092,7 @@ margin-bottom: var(--space-xl);
   display: flex;
   align-items: center;
   gap: var(--space-sm);
+  border-radius: var(--radius-md);
 }
 
 /* Progress Bar */
