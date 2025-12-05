@@ -2448,6 +2448,7 @@
 }
 
 /* Drawer Actions - Sticky at bottom */
+.drawer-footer,
 .drawer-actions,
 .drawer-form-actions,
 .form-actions {
@@ -2455,13 +2456,9 @@
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-sm);
-  padding: var(--space-md) 0 var(--space-md) var(--space-md);
-  background: var(--bg-primary);
-  
-  margin-top: auto;
-  
-  
-  z-index: 10;
+  padding: var(--space-md) 0 var(--space-lg);
+
+
 }
 
 .drawer-loading {
@@ -8193,15 +8190,6 @@ margin-bottom: var(--space-xl);
   border-radius: var(--radius-sm);
   border: 1px solid var(--gray-200);
   white-space: nowrap;
-}
-
-/* (alte Queue-Item Styles entfernt - neue sind weiter oben) */
-
-/* Footer */
-.add-item-drawer-footer {
-  flex-shrink: 0;
-  padding-top: var(--space-lg);
-  border-top: 1px solid var(--gray-200);
 }
 
 /* Drawer Body für Add-Item - flex column für volle Höhe */

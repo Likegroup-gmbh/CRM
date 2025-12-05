@@ -163,7 +163,7 @@ export class AddItemDrawer {
       </div>
 
       <!-- Footer -->
-      <div class="drawer-footer add-item-drawer-footer" style="justify-content: flex-end;">
+      <div class="drawer-footer">
         <button type="button" class="primary-btn" id="btn-close-drawer">
           Fertig
         </button>
