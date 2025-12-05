@@ -274,84 +274,113 @@ export class AddItemDrawer {
 
     // Queue-Items rendern
     listEl.innerHTML = this.queue.map(item => this.renderQueueItem(item)).join('');
+
+    // Retry-Button Events binden
+    this.bindRetryEvents();
   }
 
   /**
-   * Einzelnes Queue-Item rendern
+   * Retry-Button Events binden
+   */
+  bindRetryEvents() {
+    document.querySelectorAll('.queue-item-retry').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const itemId = btn.dataset.itemId;
+        this.handleRetry(itemId);
+      });
+    });
+  }
+
+  /**
+   * Item erneut versuchen
+   */
+  handleRetry(itemId) {
+    const item = this.queue.find(i => i.id === itemId);
+    if (!item) return;
+
+    // Status zurücksetzen
+    item.status = 'pending';
+    item.error = null;
+    item.elapsed = 0;
+    item.startTime = null;
+
+    // Queue neu rendern
+    this.renderQueue();
+
+    // Verarbeitung starten falls nicht bereits läuft
+    if (!this.isProcessing) {
+      this.processQueue();
+    }
+  }
+
+  /**
+   * Einzelnes Queue-Item rendern (Download-Style)
    */
   renderQueueItem(item) {
-    const statusIcons = {
-      pending: `<svg class="queue-item-icon queue-item-icon--pending" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`,
-      processing: `<svg class="mdc-spinner queue-item-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="20" height="20"><circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/></svg>`,
-      done: `<svg class="queue-item-icon queue-item-icon--done" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`,
-      error: `<svg class="queue-item-icon queue-item-icon--error" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`
+    // Plattform-Icons
+    const platformIcons = {
+      youtube: `<svg class="queue-platform-icon queue-platform-icon--youtube" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>`,
+      tiktok: `<svg class="queue-platform-icon queue-platform-icon--tiktok" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>`,
+      instagram: `<svg class="queue-platform-icon queue-platform-icon--instagram" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>`,
+      other: `<svg class="queue-platform-icon queue-platform-icon--other" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5a17.92 17.92 0 0 1-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418" /></svg>`,
+      idea: `<svg class="queue-platform-icon queue-platform-icon--idea" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" /></svg>`
     };
 
-    const platformLabels = {
-      youtube: 'YouTube',
-      tiktok: 'TikTok',
-      instagram: 'Instagram',
-      other: 'Website',
-      idea: 'Idee'
+    // Status-Icons (rechts)
+    const statusIcons = {
+      pending: `<svg class="queue-status-icon queue-status-icon--pending" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`,
+      processing: `<svg class="mdc-spinner queue-status-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="18" height="18"><circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/></svg>`,
+      done: `<svg class="queue-status-icon queue-status-icon--done" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>`,
+      error: `<svg class="queue-status-icon queue-status-icon--error" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>`
     };
+
+    // Retry-Icon
+    const retryIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>`;
 
     const displayUrl = item.url 
-      ? (item.url.length > 45 ? item.url.substring(0, 45) + '...' : item.url)
+      ? (item.url.length > 50 ? item.url.substring(0, 50) + '...' : item.url)
       : 'Idee (ohne URL)';
 
-    // Phase-Labels
-    const phaseLabels = {
-      screenshot: 'Screenshot wird erstellt...',
-      saving: 'Speichere...'
-    };
+    // Progress in Prozent
+    const progressPercent = Math.min(Math.round((item.elapsed / item.estimatedTime) * 100), 99);
 
-    // Progress-Bar nur bei processing
+    // Progress-Bar (bei processing)
     let progressHtml = '';
     if (item.status === 'processing') {
-      const progressPercent = Math.min((item.elapsed / item.estimatedTime) * 100, 95);
-      const phaseLabel = item.phase ? phaseLabels[item.phase] : 'Verarbeite...';
       progressHtml = `
-        <div class="queue-item-phase">${phaseLabel}</div>
-        <div class="queue-item-progress">
-          <div class="queue-item-progress-bar" style="width: ${progressPercent}%"></div>
-        </div>
-        <div class="queue-item-time" id="queue-time-${item.id}">
-          ${item.elapsed} Sek. / ~${item.estimatedTime} Sek.
+        <div class="queue-item-progress-row">
+          <div class="queue-item-progress">
+            <div class="queue-item-progress-bar" style="width: ${progressPercent}%"></div>
+          </div>
+          <span class="queue-item-percent" id="queue-percent-${item.id}">${progressPercent}%</span>
         </div>
       `;
     }
 
-    // Thumbnail bei done
-    let thumbnailHtml = '';
-    if (item.status === 'done' && item.screenshot_url) {
-      thumbnailHtml = `<img class="queue-item-thumbnail" src="${item.screenshot_url}" alt="Screenshot" onerror="this.style.display='none'">`;
-    } else if (item.status === 'done' && !item.url) {
-      // Idee ohne Screenshot
-      thumbnailHtml = `<div class="queue-item-idea-badge">Idee</div>`;
-    }
-
-    // Error-Nachricht
-    let errorHtml = '';
-    if (item.status === 'error' && item.error) {
-      errorHtml = `<div class="queue-item-error">${this.escapeHtml(item.error)}</div>`;
+    // Retry-Button nur bei error
+    let retryHtml = '';
+    if (item.status === 'error') {
+      retryHtml = `<button type="button" class="queue-item-retry" data-item-id="${item.id}" title="Erneut versuchen">${retryIcon}</button>`;
     }
 
     return `
       <div class="queue-item queue-item--${item.status}" data-item-id="${item.id}">
-        <div class="queue-item-header">
-          <div class="queue-item-info">
-            <span class="queue-item-platform">${platformLabels[item.platform]}</span>
+        <div class="queue-item-row">
+          <div class="queue-item-left">
+            ${platformIcons[item.platform]}
+          </div>
+          <div class="queue-item-center">
             <span class="queue-item-url">${this.escapeHtml(displayUrl)}</span>
+            ${item.kategorie ? `<span class="queue-item-kategorie">${this.escapeHtml(item.kategorie)}</span>` : ''}
+            ${progressHtml}
+            ${item.status === 'error' ? `<span class="queue-item-error-text">Fehlgeschlagen</span>` : ''}
           </div>
           <div class="queue-item-right">
-            ${item.kategorie ? `<span class="queue-item-kategorie">${this.escapeHtml(item.kategorie)}</span>` : ''}
-            ${item.status === 'done' ? statusIcons[item.status] : ''}
-            ${thumbnailHtml}
+            ${retryHtml}
+            ${statusIcons[item.status]}
           </div>
         </div>
-        ${item.status === 'processing' || item.status === 'pending' ? `<div class="queue-item-status-left">${statusIcons[item.status]}</div>` : ''}
-        ${progressHtml}
-        ${errorHtml}
       </div>
     `;
   }
@@ -446,7 +475,7 @@ export class AddItemDrawer {
   }
 
   /**
-   * Timer für Echtzeit-Anzeige starten
+   * Timer für Echtzeit-Anzeige starten (Prozent)
    */
   startTimer(item) {
     this.stopTimer();
@@ -458,20 +487,20 @@ export class AddItemDrawer {
       }
 
       item.elapsed = Math.floor((Date.now() - item.startTime) / 1000);
+      const progressPercent = Math.min(Math.round((item.elapsed / item.estimatedTime) * 100), 99);
       
-      // Zeit-Element aktualisieren
-      const timeEl = document.getElementById(`queue-time-${item.id}`);
-      if (timeEl) {
-        timeEl.textContent = `${item.elapsed} Sek. / ~${item.estimatedTime} Sek.`;
+      // Prozent-Element aktualisieren
+      const percentEl = document.getElementById(`queue-percent-${item.id}`);
+      if (percentEl) {
+        percentEl.textContent = `${progressPercent}%`;
       }
 
       // Progress-Bar aktualisieren
       const progressBar = document.querySelector(`.queue-item[data-item-id="${item.id}"] .queue-item-progress-bar`);
       if (progressBar) {
-        const progressPercent = Math.min((item.elapsed / item.estimatedTime) * 100, 95);
         progressBar.style.width = `${progressPercent}%`;
       }
-    }, 1000);
+    }, 500);
   }
 
   /**

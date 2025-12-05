@@ -7981,67 +7981,168 @@ margin-bottom: var(--space-xl);
   border-color: var(--red-200);
 }
 
-.queue-item-header {
+/* Queue Item Row Layout (Download-Style) */
+.queue-item-row {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
   gap: var(--space-sm);
 }
 
-.queue-item-right {
+.queue-item-left {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
-  flex-shrink: 0;
+  justify-content: center;
 }
 
-.queue-item-status-left {
-  margin-top: var(--space-xs);
-}
-
-/* Queue Item Icons */
-.queue-item-icon {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-}
-
-.queue-item-icon--pending {
-  color: var(--gray-400);
-}
-
-/* Queue Spinner (nutzt mdc-spinner) */
-.queue-item-spinner {
-  flex-shrink: 0;
-}
-
-.queue-item-spinner .mdc-spinner-path {
-  stroke: var(--gray-900);
-}
-
-.queue-item-icon--done {
-  color: var(--green-500);
-}
-
-.queue-item-icon--error {
-  color: var(--red-500);
-}
-
-/* spin animation wird von mdc-spin übernommen */
-
-/* Queue Item Info */
-.queue-item-info {
+.queue-item-center {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-xs);
 }
 
-.queue-item-platform {
+.queue-item-right {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+/* Plattform-Icons (links) */
+.queue-platform-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.queue-platform-icon--youtube {
+  color: #FF0000;
+}
+
+.queue-platform-icon--tiktok {
+  color: #000000;
+}
+
+.queue-platform-icon--instagram {
+  color: #E4405F;
+}
+
+.queue-platform-icon--other {
+  color: var(--gray-500);
+}
+
+.queue-platform-icon--idea {
+  color: var(--amber-500);
+}
+
+/* Status-Icons (rechts) */
+.queue-status-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.queue-status-icon--pending {
+  color: var(--gray-400);
+}
+
+.queue-status-icon--done {
+  color: var(--green-500);
+}
+
+.queue-status-icon--error {
+  color: var(--red-500);
+}
+
+.queue-status-icon .mdc-spinner-path {
+  stroke: var(--gray-600);
+}
+
+/* URL Text */
+.queue-item-url {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Kategorie Badge */
+.queue-item-kategorie {
   font-size: var(--text-xs);
-  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-primary);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--gray-200);
+  width: fit-content;
+}
+
+/* Error Text */
+.queue-item-error-text {
+  font-size: var(--text-xs);
+  color: var(--red-600);
+}
+
+/* Progress Row */
+.queue-item-progress-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* Progress Bar */
+.queue-item-progress {
+  flex: 1;
+  height: 4px;
+  background: var(--gray-200);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.queue-item-progress-bar {
+  height: 100%;
+  background: var(--green-500);
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+}
+
+/* Percent Text */
+.queue-item-percent {
+  font-size: var(--text-xs);
   color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  min-width: 32px;
+  text-align: right;
+}
+
+/* Retry Button */
+.queue-item-retry {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: var(--gray-100);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.queue-item-retry:hover {
+  background: var(--gray-200);
+}
+
+.queue-item-retry svg {
+  width: 16px;
+  height: 16px;
+  color: var(--gray-600);
+}
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -8064,63 +8165,7 @@ margin-bottom: var(--space-xl);
   white-space: nowrap;
 }
 
-/* Queue Item Thumbnail */
-.queue-item-thumbnail {
-  width: 48px;
-  height: 48px;
-  object-fit: cover;
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-}
-
-/* Phase Label */
-.queue-item-phase {
-  font-size: var(--text-xs);
-  font-weight: 500;
-  color: var(--blue-600);
-  margin-top: var(--space-sm);
-}
-
-/* Progress Bar */
-.queue-item-progress {
-  height: 4px;
-  background: var(--blue-100);
-  border-radius: var(--radius-full);
-  margin-top: var(--space-xs);
-  overflow: hidden;
-}
-
-.queue-item-progress-bar {
-  height: 100%;
-  background: var(--blue-500);
-  border-radius: var(--radius-full);
-  transition: width 0.3s ease;
-}
-
-.queue-item-time {
-  font-size: var(--text-xs);
-  color: var(--blue-600);
-  margin-top: var(--space-xs);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Idea Badge (für Items ohne Screenshot) */
-.queue-item-idea-badge {
-  background: var(--amber-100);
-  color: var(--amber-700);
-  font-size: var(--text-xs);
-  font-weight: 500;
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-}
-
-/* Error Message */
-.queue-item-error {
-  font-size: var(--text-xs);
-  color: var(--red-600);
-  margin-top: var(--space-xs);
-}
+/* (alte Queue-Item Styles entfernt - neue sind weiter oben) */
 
 /* Footer */
 .add-item-drawer-footer {
