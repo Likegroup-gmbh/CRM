@@ -371,18 +371,18 @@ export class FormConfig {
           { name: 'logo_file', label: 'Logo', type: 'custom', customType: 'uploader', accept: 'image/png,image/jpeg', multiple: false, required: false },
           { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...', table: 'unternehmen', displayField: 'firmenname', valueField: 'id' },
           { name: 'webseite', label: 'Webseite', type: 'url', required: false, validation: { type: 'url' } },
-          { name: 'branche_ids', label: 'Branchen', type: 'multiselect', required: false, dynamic: true, searchable: true, tagBased: true, placeholder: 'Branchen suchen und hinzufügen...', table: 'branchen', displayField: 'name', valueField: 'id' }
+          { name: 'branche_id', label: 'Branchen', type: 'multiselect', required: false, dynamic: true, searchable: true, tagBased: true, placeholder: 'Branchen suchen und hinzufügen...', table: 'branchen', displayField: 'name', valueField: 'id', relationTable: 'marke_branchen', relationField: 'branche_id' }
         ]
       },
       auftrag: {
         title: 'Neuen Auftrag anlegen',
         fields: [
-          { name: 'art_der_kampagne', label: 'Art der Kampagne', type: 'multiselect', required: false, options: [], dynamic: true, searchable: true, tagBased: true, table: 'kampagne_art_typen', displayField: 'name', valueField: 'id' },
+          { name: 'art_der_kampagne', label: 'Art der Kampagne', type: 'multiselect', required: false, options: [], dynamic: true, searchable: true, tagBased: true, table: 'kampagne_art_typen', displayField: 'name', valueField: 'id', relationTable: 'auftrag_kampagne_art', relationField: 'kampagne_art_id' },
           { name: 'auftragsname', label: 'Auftragsname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
           { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...' },
           { name: 'marke_id', label: 'Marke', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Marke suchen und auswählen...', dependsOn: 'unternehmen_id', table: 'marke', displayField: 'markenname', valueField: 'id' },
           { name: 'status', label: 'Status', type: 'select', required: false, options: ['Beauftragt', 'In Produktion', 'Abgeschlossen', 'Storniert'] },
-          { name: 'mitarbeiter_ids', label: 'Lead Mitarbeiter zuweisen', type: 'multiselect', required: false, options: [], dynamic: true, searchable: true, tagBased: true, placeholder: 'Mitarbeiter suchen und auswählen...', table: 'benutzer', displayField: 'name', valueField: 'id', relationTable: 'auftrag_mitarbeiter', relationField: 'mitarbeiter_id' },
+          { name: 'mitarbeiter_ids', label: 'Lead Mitarbeiter zuweisen', type: 'multiselect', required: false, options: [], dynamic: true, searchable: true, tagBased: true, placeholder: 'Mitarbeiter suchen und auswählen...', table: 'benutzer', displayField: 'name', valueField: 'id', relationTable: 'auftrag_mitarbeiter', relationField: 'mitarbeiter_id', filterNoKunden: true },
           { name: 'ansprechpartner_id', label: 'Ansprechpartner', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Ansprechpartner auswählen...', table: 'ansprechpartner', displayField: 'vorname,nachname,email', valueField: 'id', dependsOn: 'unternehmen_id' },
           { name: 'po', label: 'PO', type: 'text', required: false, placeholder: 'Purchase Order Nummer...' },
           { name: 're_nr', label: 'RE. Nr', type: 'text', required: false, placeholder: 'Rechnungsnummer...' },
@@ -471,7 +471,7 @@ export class FormConfig {
             searchable: true,
             tagBased: true,
             placeholder: 'Marken suchen und hinzufügen...',
-            dependsOn: 'unternehmen_id',
+            filterBy: 'unternehmen_id',
             table: 'marke',
             displayField: 'markenname',
             valueField: 'id',

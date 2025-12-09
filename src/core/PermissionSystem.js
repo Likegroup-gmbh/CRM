@@ -164,6 +164,7 @@ export class PermissionSystem {
       rechnung: { can_view: false, can_edit: false, can_delete: false },
       ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
       dashboard: { can_view: true, can_edit: false, can_delete: false },
+      tasks: { can_view: false, can_edit: false, can_delete: false },
       strategie: { can_view: false, can_edit: false, can_delete: false }
     };
 
@@ -188,6 +189,7 @@ export class PermissionSystem {
     if (normalizedRole === 'mitarbeiter' && subRole === 'can_edit') {
       return {
         creator: { can_view: true, can_edit: true, can_delete: false },
+        'creator-lists': { can_view: true, can_edit: true, can_delete: false },
         unternehmen: { can_view: true, can_edit: true, can_delete: false },
         marke: { can_view: true, can_edit: true, can_delete: false },
         auftrag: { can_view: true, can_edit: true, can_delete: false },
@@ -197,6 +199,7 @@ export class PermissionSystem {
         rechnung: { can_view: true, can_edit: true, can_delete: false },
         ansprechpartner: { can_view: true, can_edit: true, can_delete: false },
         dashboard: { can_view: true, can_edit: false, can_delete: false },
+        tasks: { can_view: true, can_edit: true, can_delete: false },
         strategie: { can_view: true, can_edit: true, can_delete: false }
       };
     }

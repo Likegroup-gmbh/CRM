@@ -2375,9 +2375,10 @@ export class KampagneDetail {
       // Tag-basierte Multi-Selects aus Hidden-Selects sammeln (wie bei Creator)
       const hiddenSelects = form.querySelectorAll('select[style*="display: none"], select[style*="display:none"]');
       hiddenSelects.forEach(select => {
-        if (select.name && select.name.includes('_ids')) {
+        // Verarbeite alle Multi-Selects (inklusive art_der_kampagne)
+        if (select.name && (select.name.includes('_ids') || select.name.includes('art_der_kampagne'))) {
           const fieldName = select.name.replace('[]', '');
-          const selectedValues = Array.from(select.selectedOptions).map(option => option.value);
+          const selectedValues = Array.from(select.selectedOptions).map(option => option.value).filter(val => val !== '');
           if (selectedValues.length > 0) {
             submitData[fieldName] = selectedValues;
             console.log(`🏷️ Tag-basiertes Feld ${fieldName} aus Hidden-Select gesammelt:`, selectedValues);

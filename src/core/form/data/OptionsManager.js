@@ -202,8 +202,12 @@ export class OptionsManager {
         
         // 5. Input wieder aktivieren falls deaktiviert (auch bei 0 Optionen!)
         existingInput.disabled = options.length === 0;
-        if (options.length === 0) {
-          existingInput.placeholder = 'Erst Unternehmen auswählen...';
+        if (options.length === 0 && field.filterBy) {
+          const filterByLabel = field.filterBy.replace('_id', '').replace(/_/g, ' ');
+          const capitalizedLabel = filterByLabel.charAt(0).toUpperCase() + filterByLabel.slice(1);
+          existingInput.placeholder = `Erst ${capitalizedLabel} auswählen...`;
+        } else if (options.length === 0) {
+          existingInput.placeholder = 'Keine Optionen verfügbar';
         } else {
           existingInput.placeholder = field.placeholder || 'Suchen und Tags hinzufügen...';
         }
@@ -254,7 +258,16 @@ export class OptionsManager {
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'searchable-select-input';
-    input.placeholder = field.placeholder || selectElement.dataset?.placeholder || 'Suchen und Tags hinzufügen...';
+    
+    // Placeholder: Wenn filterBy gesetzt und keine Optionen, dann Hinweis anzeigen
+    if (field.filterBy && (!options || options.length === 0)) {
+      const filterByLabel = field.filterBy.replace('_id', '').replace(/_/g, ' ');
+      const capitalizedLabel = filterByLabel.charAt(0).toUpperCase() + filterByLabel.slice(1);
+      input.placeholder = `Erst ${capitalizedLabel} auswählen...`;
+      input.disabled = true;
+    } else {
+      input.placeholder = field.placeholder || selectElement.dataset?.placeholder || 'Suchen und Tags hinzufügen...';
+    }
     // Explizite Styles für Sichtbarkeit
     input.style.cssText = `
       width: 100%;

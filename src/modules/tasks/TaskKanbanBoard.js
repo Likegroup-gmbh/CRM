@@ -258,6 +258,7 @@ export class TaskKanbanBoard {
     if (!dueDate) return '';
     
     const relativeDate = this.getRelativeDate(dueDate);
+    const isOverdue = this.isOverdue(dueDate);
     
     const calendarIcon = `
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
@@ -265,7 +266,16 @@ export class TaskKanbanBoard {
       </svg>
     `;
     
-    return `<span class="task-due-date">${calendarIcon}${relativeDate}</span>`;
+    return `<span class="task-due-date${isOverdue ? ' task-overdue' : ''}">${calendarIcon}${relativeDate}</span>`;
+  }
+
+  isOverdue(dueDate) {
+    if (!dueDate) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const due = new Date(dueDate);
+    due.setHours(0, 0, 0, 0);
+    return due < today;
   }
 
   getRelativeDate(dateString) {

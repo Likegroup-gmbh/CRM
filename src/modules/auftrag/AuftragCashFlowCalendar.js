@@ -136,36 +136,15 @@ export class AuftragCashFlowCalendar {
     const rechnungDatum = auftrag.rechnung_gestellt_am ? new Date(auftrag.rechnung_gestellt_am) : null;
     const ueberweisenDatum = auftrag.ueberwiesen_am ? new Date(auftrag.ueberwiesen_am) : null;
     const betrag = parseFloat(auftrag.nettobetrag) || 0;
+    const istUeberwiesen = !!ueberweisenDatum;
     
-    // Füge Auftrag im Rechnungsmonat hinzu (wenn Rechnung gestellt wurde)
-    if (rechnungDatum && rechnungDatum.getFullYear() === this.currentYear) {
-      const monthIndex = rechnungDatum.getMonth();
-      
-      // Prüfe ob bereits ein Eintrag für diesen Auftrag existiert
-      const existingEntry = months[monthIndex].auftraege.find(a => a.id === auftrag.id);
-      
-      if (!existingEntry) {
-        months[monthIndex].auftraege.push({
-          id: auftrag.id,
-          auftragsname: auftrag.auftragsname,
-          betrag: betrag,
-          status: 'invoiced',
-          datum: rechnungDatum
-        });
-        months[monthIndex].total += betrag;
-        
-        // Setze Status auf invoiced wenn noch nicht paid
-        if (!months[monthIndex].status || months[monthIndex].status === 'invoiced') {
-          months[monthIndex].status = 'invoiced';
-        }
-      }
-    }
+    // LOGIK: Wenn überwiesen → nur grün anzeigen (kein orange für Rechnung gestellt)
+    //        Wenn nur Rechnung gestellt → orange anzeigen
     
-    // Füge Auftrag im Überweisungsmonat hinzu (wenn überwiesen wurde)
-    if (ueberweisenDatum && ueberweisenDatum.getFullYear() === this.currentYear) {
+    if (istUeberwiesen && ueberweisenDatum.getFullYear() === this.currentYear) {
+      // Auftrag ist überwiesen → NUR im Überweisungsmonat als GRÜN anzeigen
       const monthIndex = ueberweisenDatum.getMonth();
       
-      // Prüfe ob bereits ein Eintrag für diesen Auftrag existiert
       const existingEntry = months[monthIndex].auftraege.find(a => a.id === auftrag.id);
       
       if (!existingEntry) {
@@ -179,8 +158,30 @@ export class AuftragCashFlowCalendar {
         months[monthIndex].total += betrag;
       }
       
-      // Setze Status auf paid (überschreibt invoiced)
+      // Setze Status auf paid (überschreibt ggf. invoiced von anderen Aufträgen)
       months[monthIndex].status = 'paid';
+      
+    } else if (rechnungDatum && rechnungDatum.getFullYear() === this.currentYear) {
+      // Auftrag ist NICHT überwiesen, aber Rechnung gestellt → ORANGE anzeigen
+      const monthIndex = rechnungDatum.getMonth();
+      
+      const existingEntry = months[monthIndex].auftraege.find(a => a.id === auftrag.id);
+      
+      if (!existingEntry) {
+        months[monthIndex].auftraege.push({
+          id: auftrag.id,
+          auftragsname: auftrag.auftragsname,
+          betrag: betrag,
+          status: 'invoiced',
+          datum: rechnungDatum
+        });
+        months[monthIndex].total += betrag;
+        
+        // Setze Status auf invoiced wenn noch nicht paid (von anderem Auftrag)
+        if (!months[monthIndex].status || months[monthIndex].status === 'invoiced') {
+          months[monthIndex].status = 'invoiced';
+        }
+      }
     }
     
     // Wenn kein Datum vorhanden ist, wird der Auftrag nicht in einem Monat angezeigt

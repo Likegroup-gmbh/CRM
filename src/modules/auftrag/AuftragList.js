@@ -241,7 +241,8 @@ export class AuftragList {
           ansprechpartner:ansprechpartner_id(id, vorname, nachname, email),
           cutter:auftrag_cutter(mitarbeiter:mitarbeiter_id(id, name)),
           copywriter:auftrag_copywriter(mitarbeiter:mitarbeiter_id(id, name)),
-          mitarbeiter:auftrag_mitarbeiter(mitarbeiter:mitarbeiter_id(id, name))
+          mitarbeiter:auftrag_mitarbeiter(mitarbeiter:mitarbeiter_id(id, name)),
+          kampagne_arten:auftrag_kampagne_art(art:kampagne_art_id(id, name))
         `, { count: 'exact' });
 
       // Filter anwenden
@@ -271,7 +272,11 @@ export class AuftragList {
           id: auftrag.marke.id,
           markenname: auftrag.marke.markenname,
           logo_url: auftrag.marke.logo_url
-        } : null
+        } : null,
+        // Art der Kampagne aus Junction-Table extrahieren
+        art_der_kampagne: (auftrag.kampagne_arten || [])
+          .map(ka => ka.art?.name)
+          .filter(Boolean)
       }));
 
       console.log('✅ Aufträge mit Beziehungen und Pagination geladen:', formattedData);

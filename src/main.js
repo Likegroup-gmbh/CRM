@@ -94,6 +94,17 @@ class ModuleRegistry {
 
   // Navigation zu Modul
   navigateTo(route) {
+    // Blockiere Navigation für nicht freigeschaltete Benutzer (außer Dashboard)
+    if (window.currentUser?.isBlocked === true) {
+      const allowedRoutes = ['/', '/dashboard', ''];
+      const normalizedRoute = route.startsWith('/') ? route : `/${route}`;
+      if (!allowedRoutes.includes(normalizedRoute)) {
+        console.log('🚫 Navigation blockiert: Benutzer nicht freigeschaltet');
+        window.toastSystem?.show('Ihr Account wartet auf Freischaltung', 'warning');
+        return; // Blockiere Navigation
+      }
+    }
+
     // URL aktualisieren (inkl. Query-String), damit searchParams verfügbar sind
     try {
       if (window.history && window.history.pushState) {
@@ -646,12 +657,17 @@ window.setupHeaderUI = () => {
     const quickDropdown = document.querySelector('.quick-menu-dropdown');
     const quickMenuContainer = document.querySelector('.quick-menu-container');
     
-    // Quick-Menu für Kunden ausblenden
-    if (quickMenuContainer && window.currentUser?.rolle === 'kunde') {
+    // Quick-Menu temporär komplett ausgeblendet (kann später wieder aktiviert werden)
+    // Um wieder zu aktivieren: diese Zeile entfernen und den else-Block unten einkommentieren
+    if (quickMenuContainer) {
       quickMenuContainer.style.display = 'none';
-    } else if (quickMenuContainer) {
-      quickMenuContainer.style.display = '';
     }
+    // Ursprüngliche Logik (auskommentiert):
+    // if (quickMenuContainer && window.currentUser?.rolle === 'kunde') {
+    //   quickMenuContainer.style.display = 'none';
+    // } else if (quickMenuContainer) {
+    //   quickMenuContainer.style.display = '';
+    // }
     
     if (quickBtn && quickDropdown && !quickBtn.dataset.bound) {
       const closeAll = () => {

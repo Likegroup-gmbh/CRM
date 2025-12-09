@@ -86,7 +86,15 @@ export class FormRenderer {
       // Überspringe bereits verarbeitete Felder (z.B. Datum-Felder die mit Toggle gerendert wurden)
       if (processedFields.has(field.name)) continue;
       
-      const value = data ? data[field.name] : '';
+      // Spezielle Behandlung für Phone-Felder: Land-ID mit übergeben
+      let value = data ? data[field.name] : '';
+      if (field.type === 'phone' && data) {
+        const countryFieldName = field.nameCountry || `${field.name}_land_id`;
+        value = {
+          telefonnummer: data[field.name] || '',
+          land_id: data[countryFieldName] || ''
+        };
+      }
       const isTwoCol = twoColNames.has(field.name);
       
       // Prüfe ob es ein Toggle mit zugehörigem Datum-Feld ist

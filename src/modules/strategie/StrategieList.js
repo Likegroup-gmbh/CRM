@@ -48,8 +48,10 @@ export class StrategieList {
    * Berechtigungsprüfung
    */
   async checkPermission() {
-    const rolle = window.currentUser?.rolle;
-    return rolle === 'admin' || rolle === 'mitarbeiter' || rolle === 'kunde';
+    // Admin hat immer Zugriff
+    if (window.currentUser?.rolle === 'admin') return true;
+    // Sonst über Permission-System prüfen
+    return window.currentUser?.permissions?.strategie?.can_view || false;
   }
 
   /**
@@ -111,7 +113,10 @@ export class StrategieList {
    * Rendere die Seiten-Struktur
    */
   async render() {
-    const canCreate = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle === 'mitarbeiter';
+    // Kunden dürfen keine Strategien erstellen, nur ansehen und Items bearbeiten
+    const rolle = window.currentUser?.rolle?.toLowerCase();
+    const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+    const canCreate = !isKunde && (rolle === 'admin' || window.currentUser?.permissions?.strategie?.can_edit);
 
     const html = `
       <div class="list-container">
@@ -162,6 +167,10 @@ export class StrategieList {
    */
   updateTable(strategien) {
     const tbody = document.getElementById('strategien-table-body');
+    
+    // Berechtigungen für UI
+    const rolle = window.currentUser?.rolle?.toLowerCase();
+    const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
     
     if (!strategien || strategien.length === 0) {
       tbody.innerHTML = `
@@ -230,16 +239,18 @@ export class StrategieList {
                   ${window.ActionsDropdown?.getHeroIcon('view') || ''}
                   Details anzeigen
                 </a>
-                ${window.currentUser?.rolle !== 'kunde' ? `
+                ${!isKunde ? `
                   <a href="#" class="action-item" data-action="edit-strategie" data-id="${strategie.id}">
                     ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
                     Bearbeiten
                   </a>
-                  <div class="action-separator"></div>
-                  <a href="#" class="action-item action-danger" data-action="delete-strategie" data-id="${strategie.id}">
-                    ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
-                    Löschen
-                  </a>
+                  ${rolle === 'admin' ? `
+                    <div class="action-separator"></div>
+                    <a href="#" class="action-item action-danger" data-action="delete-strategie" data-id="${strategie.id}">
+                      ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
+                      Löschen
+                    </a>
+                  ` : ''}
                 ` : ''}
               </div>
             </div>

@@ -14,10 +14,32 @@ export const taskListPage = {
     priority: null
   },
 
+  // Prüft ob Task überfällig ist
+  isOverdue(dueDate, status) {
+    if (!dueDate || status === 'completed') return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const due = new Date(dueDate);
+    due.setHours(0, 0, 0, 0);
+    return due < today;
+  },
+
   async init() {
     console.log('🎯 TaskListPage: init()');
     
     window.setHeadline('Aufgaben');
+    
+    // Berechtigungsprüfung
+    const canView = window.currentUser?.rolle === 'admin' || window.currentUser?.permissions?.tasks?.can_view;
+    if (!canView) {
+      window.content.innerHTML = `
+        <div class="error-message">
+          <p>Sie haben keine Berechtigung, Aufgaben anzuzeigen.</p>
+        </div>
+      `;
+      return;
+    }
+    
     this.createDrawer = new TaskCreateDrawer();
     await this.loadTasks();
     this.render();
@@ -75,6 +97,7 @@ export const taskListPage = {
 
   render() {
     const safe = (str) => window.validatorSystem?.sanitizeHtml?.(str) ?? str;
+    const canEdit = window.currentUser?.rolle === 'admin' || window.currentUser?.permissions?.tasks?.can_edit;
 
     const html = `
       <div class="page-header">
@@ -93,12 +116,14 @@ export const taskListPage = {
               Tabelle
             </button>
           </div>
+          ${canEdit ? `
           <button id="btn-add-task" class="primary-btn" style="margin-left: var(--space-sm);">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
             Neue Aufgabe
           </button>
+          ` : ''}
         </div>
       </div>
 
@@ -170,7 +195,7 @@ export const taskListPage = {
                 <td>${entityTypeLabels[task.entity_type] || task.entity_type}</td>
                 <td>${task.category ? safe(task.category.name) : '-'}</td>
                 <td>${task.assigned_to ? safe(task.assigned_to.name) : 'Nicht zugewiesen'}</td>
-                <td>${formatDate(task.due_date)}</td>
+                <td class="${this.isOverdue(task.due_date, task.status) ? 'task-overdue' : ''}">${formatDate(task.due_date)}</td>
                 <td>
                   <button class="primary-btn" data-action="task-detail" data-task-id="${task.id}" style="padding: var(--space-xxs) var(--space-xs); font-size: var(--text-xs);">
                     Details

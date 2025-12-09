@@ -66,7 +66,8 @@ export class AuftragDetail {
         mitarbeiterResult,
         cutterResult,
         copywriterResult,
-        auftragsDetailsResult
+        auftragsDetailsResult,
+        artDerKampagneResult
       ] = await parallelLoad([
         // 1. Auftrags-Basisdaten mit Relations
         () => window.supabase
@@ -118,7 +119,13 @@ export class AuftragDetail {
           .from('auftrag_details')
           .select('*')
           .eq('auftrag_id', this.auftragId)
-          .maybeSingle()
+          .maybeSingle(),
+        
+        // 9. Art der Kampagne aus Junction-Table
+        () => window.supabase
+          .from('auftrag_kampagne_art')
+          .select('kampagne_art_id')
+          .eq('auftrag_id', this.auftragId)
       ]);
       
       // Daten verarbeiten
@@ -181,6 +188,14 @@ export class AuftragDetail {
         this.auftragsDetails = auftragsDetailsResult.data;
       } else {
         this.auftragsDetails = null;
+      }
+      
+      // Art der Kampagne verarbeiten (aus Junction-Table)
+      if (!artDerKampagneResult.error && artDerKampagneResult.data) {
+        this.auftrag.art_der_kampagne = artDerKampagneResult.data.map(item => item.kampagne_art_id).filter(Boolean);
+        console.log('🎨 AUFTRAGDETAIL: art_der_kampagne geladen:', this.auftrag.art_der_kampagne);
+      } else {
+        this.auftrag.art_der_kampagne = [];
       }
       
       // Lade Kooperationen und Videos für Budget-Anzeige
@@ -938,10 +953,7 @@ export class AuftragDetail {
       </div>
     `;
 
-    // Formular-Events binden mit vorbereiteten Daten
-    window.formSystem.bindFormEvents('auftrag', formData);
-    
-    // Form-Datasets für DynamicDataLoader setzen
+    // Form-Datasets für DynamicDataLoader setzen - WICHTIG: VOR bindFormEvents!
     const form = document.getElementById('auftrag-form');
     if (form) {
       form.dataset.isEditMode = 'true';
@@ -964,9 +976,6 @@ export class AuftragDetail {
       
       form.dataset.editModeData = JSON.stringify(editModeData);
       
-      console.log('📋 AUFTRAGDETAIL: EditModeData gesetzt:', editModeData);
-      console.log('🎨 AUFTRAGDETAIL: art_der_kampagne in editModeData:', editModeData.art_der_kampagne);
-      
       // Bestehende Werte für Auto-Suggestion verfügbar machen
       if (formData.unternehmen_id) {
         form.dataset.existingUnternehmenId = formData.unternehmen_id;
@@ -978,30 +987,19 @@ export class AuftragDetail {
         form.dataset.existingAnsprechpartnerId = formData.ansprechpartner_id;
       }
       
-      console.log('📋 AUFTRAGDETAIL: Form-Datasets gesetzt:', {
-        isEditMode: form.dataset.isEditMode,
-        entityType: form.dataset.entityType,
-        entityId: form.dataset.entityId,
-        existingUnternehmenId: form.dataset.existingUnternehmenId,
-        existingMarkeId: form.dataset.existingMarkeId,
-        existingAnsprechpartnerId: form.dataset.existingAnsprechpartnerId,
-        editModeData: 'Set'
-      });
-      
-      // Custom Submit Handler für Bearbeitungsformular
+      console.log('📋 AUFTRAGDETAIL: EditModeData gesetzt VOR bindFormEvents:', editModeData);
+      console.log('🎨 AUFTRAGDETAIL: art_der_kampagne in editModeData:', editModeData.art_der_kampagne);
+    }
+
+    // Formular-Events binden mit vorbereiteten Daten - NACH dem Setzen der editModeData!
+    window.formSystem.bindFormEvents('auftrag', formData);
+    
+    // Custom Submit Handler für Bearbeitungsformular
+    if (form) {
       form.onsubmit = async (e) => {
         e.preventDefault();
         await this.handleEditFormSubmit();
       };
-      
-      console.log('🔍 AUFTRAGDETAIL: Form Datasets gesetzt:', {
-        entityId: form.dataset.entityId,
-        isEditMode: form.dataset.isEditMode,
-        entityType: form.dataset.entityType,
-        existingUnternehmenId: form.dataset.existingUnternehmenId,
-        existingMarkeId: form.dataset.existingMarkeId,
-        existingAnsprechpartnerId: form.dataset.existingAnsprechpartnerId
-      });
     }
   }
 
@@ -1012,10 +1010,40 @@ export class AuftragDetail {
       const formData = new FormData(form);
       const submitData = {};
 
-      // FormData zu Objekt konvertieren
+      // Tag-basierte Multi-Selects aus Hidden-Selects sammeln (wie bei Kampagne)
+      const hiddenSelects = form.querySelectorAll('select[style*="display: none"], select[style*="display:none"]');
+      hiddenSelects.forEach(select => {
+        // Verarbeite alle Multi-Selects (inklusive art_der_kampagne)
+        if (select.name && (select.name.includes('_ids') || select.name.includes('art_der_kampagne'))) {
+          const fieldName = select.name.replace('[]', '');
+          const selectedValues = Array.from(select.selectedOptions).map(option => option.value).filter(val => val !== '');
+          if (selectedValues.length > 0) {
+            submitData[fieldName] = selectedValues;
+            console.log(`🏷️ Tag-basiertes Feld ${fieldName} aus Hidden-Select gesammelt:`, selectedValues);
+          }
+        }
+      });
+
+      // FormData zu Objekt konvertieren (aber Tag-basierte Felder nicht überschreiben)
       for (const [key, value] of formData.entries()) {
-        submitData[key] = value;
+        if (key.includes('[]')) {
+          // Multi-Select behandeln
+          const cleanKey = key.replace('[]', '');
+          if (!submitData[cleanKey]) {
+            submitData[cleanKey] = [];
+          }
+          if (!submitData[cleanKey].includes(value)) {
+            submitData[cleanKey].push(value);
+          }
+        } else {
+          // Nur setzen wenn nicht bereits als Array von Tag-basierten Feldern gesetzt
+          if (!submitData.hasOwnProperty(key) || !Array.isArray(submitData[key])) {
+            submitData[key] = value;
+          }
+        }
       }
+
+      console.log('📋 AUFTRAGDETAIL: Submit-Daten gesammelt:', submitData);
 
       // Validierung
       const validation = window.validatorSystem.validateForm(submitData, {
@@ -1035,7 +1063,7 @@ export class AuftragDetail {
         
         // Daten neu laden und zur Detailseite zurückkehren
         setTimeout(async () => {
-          await this.loadAuftragData();
+          await this.loadCriticalData();
           this.render();
           this.bindEvents();
         }, 1500);

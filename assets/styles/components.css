@@ -56,6 +56,27 @@
   opacity: 1;
 }
 
+/* ===== MDC CREATE BUTTON ===== */
+.mdc-btn--create {
+  background: var(--gray-900) !important;
+  border: 1px solid var(--gray-900) !important;
+  color: #fff !important;
+}
+.mdc-btn--create:hover {
+  background: var(--gray-800) !important;
+}
+
+/* ===== MDC DELETE BUTTON ===== */
+.mdc-btn--delete {
+  background: var(--color-error) !important;
+  border: 1px solid var(--color-error) !important;
+  color: #fff !important;
+}
+.mdc-btn--delete:hover {
+  background: #dc2626 !important;
+  border-color: #dc2626 !important;
+}
+
 .form-two-col {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -3589,7 +3610,7 @@
   border: none;
   color: inherit;
   font-size: var(--text-md);
-  font-weight: bold;
+  font-weight: 500;
   cursor: pointer;
   padding: 0;
   margin-left: var(--space-xxs);
@@ -3648,10 +3669,18 @@
 .tag--lang,
 .tag--branche,
 .tag--ansprechpartner {
-  
   color: var(--gray-800);
   border-color: var(--gray-300);
   transition: all 0.2s ease;
+}
+
+.tag--type svg,
+.tag--lang svg,
+.tag--branche svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+  flex-shrink: 0;
+  margin-right: 4px;
 }
 
 
@@ -4150,8 +4179,18 @@ margin-bottom: var(--space-xl);
 .status-badge.status-beauftragt {
   background-color: var(--color-success-light);
   color: var(--color-success-dark);
- 
-  
+}
+
+.status-badge.status-pending {
+  background-color: #fef3c7;
+  color: #d97706;
+}
+
+.status-hint {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: var(--space-xs);
+  font-style: italic;
 }
 
 /* Actions Dropdown Styles */
@@ -4654,11 +4693,14 @@ margin-bottom: var(--space-xl);
   display: 
   flex; align-items: 
   center; 
-  gap: var(--space-sm);
+  gap: var(--space-xs);
   padding: var(--space-sm) var(--space-md);
-  color: var(--gray-600); 
-  text-decoration: none; white-space: nowrap; }
-.submenu-item svg { width: var(--icon-xs); height: var(--icon-xs); }
+  color: var(--gray-800); 
+  text-decoration: none; white-space: nowrap;
+  font-weight: 500;
+  font-size: var(--text-sm); }
+  
+.submenu-item svg { width: var(--icon-sm); height: var(--icon-sm); stroke-width: 2; }
 .submenu-item:hover { background: #f5f7fb; }
 .submenu-check { margin-left: auto; color: #16a34a; display: inline-flex; }
 
@@ -4671,13 +4713,14 @@ margin-bottom: var(--space-xl);
 .action-item {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-xs);
   padding: var(--space-sm) var(--space-md);
-  color: var(--gray-600);
+  color: var(--gray-800);
   text-decoration: none;
   transition: background-color 0.2s ease;
   font-size: var(--text-sm);
   white-space: nowrap;
+  font-weight: 500;
 }
 
 /* Einheitlicher Look für Heroicons in Actions */
@@ -4685,6 +4728,7 @@ margin-bottom: var(--space-xl);
   width: var(--icon-sm);
   height: var(--icon-sm);
   stroke: currentColor;
+  stroke-width: 2;
 }
 
 .action-item:hover {
@@ -4712,7 +4756,7 @@ margin-bottom: var(--space-xl);
 }
 
 .action-danger {
-  color: var(--color-danger);
+  color: var(--red-700);
 }
 
 .action-danger:hover {
@@ -7469,6 +7513,14 @@ margin-bottom: var(--space-xl);
   border: 1px solid var(--border-color);
 }
 
+.no-strategie-hint {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-style: italic;
+  padding: var(--space-xs) 0;
+}
+
 /* ============================================
    ADD-TO-VIDEO DRAWER
    ============================================ */
@@ -8195,5 +8247,16 @@ margin-bottom: var(--space-xl);
 #add-item-drawer .drawer-body {
   display: flex;
   flex-direction: column;
+}
+
+/* Task überfällig */
+.task-overdue,
+.task-due-date.task-overdue {
+  color: var(--red-600) !important;
+  font-weight: 500;
+}
+
+.task-due-date.task-overdue svg {
+  stroke: var(--red-600);
 }
 

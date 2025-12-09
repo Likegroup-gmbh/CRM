@@ -485,6 +485,13 @@ export class DataService {
             localKey: 'auftrag_id',
             foreignKey: 'mitarbeiter_id',
             displayField: 'name'
+          },
+          kampagne_arten: {
+            table: 'kampagne_art_typen',
+            junctionTable: 'auftrag_kampagne_art',
+            localKey: 'auftrag_id',
+            foreignKey: 'kampagne_art_id',
+            displayField: 'name'
           }
         },
         filters: ['auftragsname', 'status', 'unternehmen_id', 'marke_id', 'ansprechpartner_id'],
@@ -1273,6 +1280,8 @@ export class DataService {
           fieldName = 'cutter_ids';
         } else if (relationName === 'copywriter') {
           fieldName = 'copywriter_ids';
+        } else if (relationName === 'kampagne_arten') {
+          fieldName = 'art_der_kampagne';
         } else {
           fieldName = `${relationName.slice(0, -1)}_ids`;
         }
@@ -1625,6 +1634,10 @@ export class DataService {
         field === 'pm_ids' || field === 'pm_ids[]' ||
         field === 'scripter_ids' || field === 'scripter_ids[]' ||
         field === 'cutter_ids' || field === 'cutter_ids[]' ||
+        field === 'copywriter_ids' || field === 'copywriter_ids[]' ||
+        field === 'strategie_ids' || field === 'strategie_ids[]' ||
+        field === 'creator_sourcing_ids' || field === 'creator_sourcing_ids[]' ||
+        field === 'organic_ziele_ids' || field === 'organic_ziele_ids[]' ||
         field === 'plattform_ids' || field === 'plattform_ids[]' ||
         field === 'format_ids' || field === 'format_ids[]'
       )) {
@@ -1633,7 +1646,12 @@ export class DataService {
         continue;
       }
       
-      // art_der_kampagne ist ein direktes Array-Feld (kein Junction Table) - normal verarbeiten
+      // art_der_kampagne: Für Kampagne ist es ein direktes Array-Feld, für Auftrag wird es über Junction Table verwaltet
+      if (entityType === 'auftrag' && (field === 'art_der_kampagne' || field === 'art_der_kampagne[]')) {
+        console.log(`🏷️ Verarbeite ${field} für Auftrag:`, value);
+        // Auftrag art_der_kampagne wird über handleManyToManyRelations verwaltet - hier überspringen
+        continue;
+      }
       
       // Datei-/virtuelle Felder überspringen (werden separat gehandhabt)
       if (

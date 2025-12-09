@@ -373,6 +373,80 @@ export class AuftragsdetailsList {
     }
   }
 
+  // Ausgewählte Auftragsdetails löschen
+  async showDeleteSelectedConfirmation() {
+    if (window.currentUser?.rolle !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'admin') return;
+    
+    const selectedIds = Array.from(this.selectedDetails);
+    if (selectedIds.length === 0) {
+      alert('Keine Auftragsdetails ausgewählt.');
+      return;
+    }
+    
+    const message = selectedIds.length === 1 
+      ? 'Möchten Sie die ausgewählten Auftragsdetails wirklich löschen?' 
+      : `Möchten Sie die ${selectedIds.length} ausgewählten Auftragsdetails wirklich löschen?`;
+
+    const res = await window.confirmationModal.open({
+      title: 'Löschvorgang bestätigen',
+      message: message,
+      confirmText: 'Endgültig löschen',
+      cancelText: 'Abbrechen',
+      danger: true
+    });
+
+    if (!res?.confirmed) return;
+
+    console.log(`🗑️ Lösche ${selectedIds.length} Auftragsdetails...`);
+    
+    // Optimistisches UI-Update: Zeilen ausblenden
+    selectedIds.forEach(id => {
+      const row = document.querySelector(`tr[data-id="${id}"]`);
+      if (row) row.style.opacity = '0.5';
+    });
+
+    try {
+      // Batch-Delete für bessere Performance
+      const result = await window.dataService.deleteEntities('auftrag_details', selectedIds);
+      
+      if (result.success) {
+        // Entferne Zeilen aus DOM
+        selectedIds.forEach(id => {
+          document.querySelector(`tr[data-id="${id}"]`)?.remove();
+        });
+        
+        alert(`✅ ${result.deletedCount} Auftragsdetails erfolgreich gelöscht.`);
+        
+        this.selectedDetails.clear();
+        this.updateSelection();
+        
+        // Nur neu laden wenn Liste leer ist
+        const tbody = document.querySelector('.data-table tbody');
+        if (tbody && tbody.children.length === 0) {
+          await this.loadAndRender();
+        }
+        
+        window.dispatchEvent(new CustomEvent('entityUpdated', {
+          detail: { entity: 'auftragsdetails', action: 'bulk-deleted', count: result.deletedCount }
+        }));
+      } else {
+        throw new Error(result.error || 'Löschen fehlgeschlagen');
+      }
+    } catch (error) {
+      // Bei Fehler: Zeilen wiederherstellen
+      selectedIds.forEach(id => {
+        const row = document.querySelector(`tr[data-id="${id}"]`);
+        if (row) row.style.opacity = '1';
+      });
+      
+      console.error('❌ Fehler beim Löschen:', error);
+      alert(`❌ Fehler beim Löschen: ${error.message}`);
+      
+      // Liste neu laden um konsistenten Zustand herzustellen
+      await this.loadAndRender();
+    }
+  }
+
   // Update Tabelle mit Fade-Animation
   async updateTable(details) {
     const tbody = document.querySelector('.data-table tbody');

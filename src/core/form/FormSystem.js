@@ -293,6 +293,12 @@ export class FormSystem {
       console.log('🔧 Searchable Selects gefunden:', searchableSelects.length);
       
       searchableSelects.forEach(select => {
+        // Skip multi-selects - sie wurden bereits durch Tag-basierte Verarbeitung gehandhabt
+        if (select.multiple) {
+          console.log(`⏭️ Überspringe Multi-Select ${select.name} - bereits durch Tag-basierte Verarbeitung gesetzt`);
+          return;
+        }
+        
         console.log(`🔧 Prüfe Select ${select.name}:`, {
           value: select.value,
           options: select.options.length,
@@ -1026,8 +1032,10 @@ export class FormSystem {
 
   // Erfolgsmeldung anzeigen
   showSuccessMessage(message) {
-    // Hier könnte eine schönere Benachrichtigung implementiert werden
     console.log(`✅ ${message}`);
+    if (window.toastSystem) {
+      window.toastSystem.success(message, 2500);
+    }
   }
 
   // Fehlermeldung anzeigen

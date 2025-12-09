@@ -263,7 +263,7 @@ export class MitarbeiterDetail {
 
   generatePermissionsTable() {
     const perms = this.user?.zugriffsrechte || {};
-    return [['creator','Creator'],['creator-lists','Creator Listen'],['unternehmen','Unternehmen'],['marke','Marken'],['auftrag','Aufträge'],['kampagne','Kampagnen'],['kooperation','Kooperationen'],['rechnung','Rechnungen'],['briefing','Briefings']].map(([key,label]) => `
+    return [['creator','Creator'],['creator-lists','Creator Listen'],['unternehmen','Unternehmen'],['marke','Marken'],['auftrag','Aufträge'],['kampagne','Kampagnen'],['kooperation','Kooperationen'],['rechnung','Rechnungen'],['briefing','Briefings'],['ansprechpartner','Ansprechpartner'],['strategie','Strategie'],['tasks','Aufgaben']].map(([key,label]) => `
       <tr>
         <td>${label}</td>
         <td style="text-align:right;">
@@ -688,12 +688,12 @@ export class MitarbeiterDetail {
           if (updateData.unterrolle) self.user.unterrolle = updateData.unterrolle;
           if (updateData.zugriffsrechte !== undefined) self.user.zugriffsrechte = updateData.zugriffsrechte;
           
-          // Notification senden
-          if (window.notificationSystem && self.user.auth_user_id) {
-            await window.notificationSystem.pushNotification(self.user.auth_user_id, {
+          // Notification senden (entity null da 'benutzer' nicht im CHECK constraint)
+          if (window.notificationSystem && self.userId) {
+            await window.notificationSystem.pushNotification(self.userId, {
               type: 'system',
-              entity: 'benutzer',
-              entityId: self.userId,
+              entity: null,
+              entityId: null,
               title: isFreigeschaltet ? 'Ihr Account wurde freigeschaltet' : 'Ihr Account wurde gesperrt',
               message: isFreigeschaltet ? 
                 'Sie können sich jetzt anmelden und das System nutzen.' : 
@@ -806,14 +806,13 @@ export class MitarbeiterDetail {
           this.user.freigeschaltet = freigeschaltet;
           this.user.zugriffsrechte = updated;
           
-          // Notification an den betroffenen User
+          // Notification an den betroffenen User (entity null da nicht im CHECK constraint)
           try {
-            const statusMsg = freigeschaltet ? 'freigeschaltet' : 'gesperrt';
             const changes = Object.entries(updated).map(([k,v]) => `${k}: ${(v?.can_view?'R':'-')}/${(v?.can_edit?'E':'-')}`).join(', ');
             await window.notificationSystem?.pushNotification(this.userId, {
               type: 'update',
-              entity: 'mitarbeiter',
-              entityId: this.userId,
+              entity: null,
+              entityId: null,
               title: freigeschaltet ? 'Account freigeschaltet' : 'Account gesperrt',
               message: freigeschaltet ? 
                 `Ihr Account wurde freigeschaltet. ${changes ? 'Rechte: ' + changes : ''}` :
@@ -1177,9 +1176,9 @@ export class MitarbeiterDetail {
       };
 
       selectedContainer.innerHTML = `
-        <div class="selected-item">
-          <span class="selected-item-name">${window.validatorSystem.sanitizeHtml(selectedUnternehmen.name)}</span>
-          <button type="button" class="selected-item-remove">&times;</button>
+        <div class="tag">
+          <span>${window.validatorSystem.sanitizeHtml(selectedUnternehmen.name)}</span>
+          <span class="tag-remove">×</span>
         </div>
       `;
 
@@ -1190,7 +1189,7 @@ export class MitarbeiterDetail {
 
     // Auswahl entfernen
     selectedContainer.addEventListener('click', (e) => {
-      if (e.target.classList.contains('selected-item-remove')) {
+      if (e.target.classList.contains('tag-remove')) {
         selectedUnternehmen = null;
         selectedContainer.innerHTML = '';
         saveBtn.disabled = true;

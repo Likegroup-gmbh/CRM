@@ -21,6 +21,20 @@ export class AnsprechpartnerList {
     window.setHeadline('Ansprechpartner Übersicht');
     console.log('🎯 ANSPRECHPARTNERLIST: Initialisiere Ansprechpartner-Liste');
     
+    // Berechtigungsprüfung
+    const canView = window.currentUser?.rolle === 'admin' || window.currentUser?.permissions?.ansprechpartner?.can_view;
+    if (!canView) {
+      const content = document.getElementById('dashboard-content');
+      if (content) {
+        content.innerHTML = `
+          <div class="error-message">
+            <p>Sie haben keine Berechtigung, Ansprechpartner anzuzeigen.</p>
+          </div>
+        `;
+      }
+      return;
+    }
+    
     // Breadcrumb für Listen-Seite
     if (window.breadcrumbSystem) {
       window.breadcrumbSystem.updateBreadcrumb([
@@ -48,6 +62,7 @@ export class AnsprechpartnerList {
     }
 
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    const canEdit = isAdmin || window.currentUser?.permissions?.ansprechpartner?.can_edit;
     
     content.innerHTML = `
       <div class="table-filter-wrapper">
@@ -62,7 +77,7 @@ export class AnsprechpartnerList {
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
           <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>` : ''}
-          <button id="btn-ansprechpartner-new" class="primary-btn">Neuen Ansprechpartner anlegen</button>
+          ${canEdit ? `<button id="btn-ansprechpartner-new" class="primary-btn">Neuen Ansprechpartner anlegen</button>` : ''}
         </div>
       </div>
 

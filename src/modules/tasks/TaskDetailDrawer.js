@@ -183,29 +183,31 @@ export class TaskDetailDrawer {
   async loadAvailableMitarbeiter() {
     if (!this.task) return;
     
-    const { entity_type, entity_id } = this.task;
-    let query;
+    try {
+      // Lade alle freigeschalteten Mitarbeiter (wie bei TaskCreateDrawer)
+      const { data: alleMitarbeiter, error } = await window.supabase
+        .from('benutzer')
+        .select('id, name, rolle, profile_image_url')
+        .in('rolle', ['admin', 'mitarbeiter'])
+        .eq('freigeschaltet', true)
+        .order('name');
+      
+      if (error) {
+        console.error('❌ Fehler beim Laden der Mitarbeiter:', error);
+        this.availableMitarbeiter = [];
+        return;
+      }
 
-    if (entity_type === 'kooperation') {
-      // Mitarbeiter der Kampagne der Kooperation
-      query = window.supabase
-        .from('kampagne_mitarbeiter')
-        .select('mitarbeiter:mitarbeiter_id(id, name, rolle, profile_image_url)')
-        .eq('kampagne_id', (await this.getKampagneIdForKooperation(entity_id)));
-    } else if (entity_type === 'kampagne') {
-      query = window.supabase
-        .from('kampagne_mitarbeiter')
-        .select('mitarbeiter:mitarbeiter_id(id, name, rolle, profile_image_url)')
-        .eq('kampagne_id', entity_id);
-    } else if (entity_type === 'auftrag') {
-      query = window.supabase
-        .from('auftrag_mitarbeiter')
-        .select('mitarbeiter:mitarbeiter_id(id, name, rolle, profile_image_url)')
-        .eq('auftrag_id', entity_id);
+      // Filtere den aktuellen User raus (man kann sich nicht selbst zuweisen)
+      const currentUserId = window.currentUser?.id;
+      this.availableMitarbeiter = (alleMitarbeiter || [])
+        .filter(user => user.id !== currentUserId);
+      
+      console.log('✅ Mitarbeiter für TaskDetail geladen:', this.availableMitarbeiter.length);
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Mitarbeiter:', error);
+      this.availableMitarbeiter = [];
     }
-
-    const { data } = await query;
-    this.availableMitarbeiter = (data || []).map(item => item.mitarbeiter).filter(Boolean);
   }
 
   async loadAvailableKunden() {
@@ -279,7 +281,7 @@ export class TaskDetailDrawer {
       
       this.availableKunden = (kundenData || [])
         .map(item => item.kunde)
-        .filter(Boolean);
+        .filter(kunde => kunde && kunde.rolle === 'kunde');
       
       console.log('✅ Kunden final geladen für Task:', this.availableKunden.length);
     } catch (error) {
@@ -438,23 +440,9 @@ export class TaskDetailDrawer {
           </div>
         </div>
 
-        <div class="form-grid form-grid-2">
-          <div class="form-field">
-            <label>Kategorie/Phase</label>
-            <select name="category_id" class="form-input">
-              <option value="">– keine –</option>
-              ${this.categories.map(cat => `
-                <option value="${cat.id}" ${this.task.category_id === cat.id ? 'selected' : ''}>
-                  ${safe(cat.name)}
-                </option>
-              `).join('')}
-            </select>
-          </div>
-
-          <div class="form-field">
-            <label>Fälligkeitsdatum</label>
-            <input type="date" name="due_date" class="form-input" value="${this.task.due_date || ''}" />
-          </div>
+        <div class="form-field">
+          <label>Fälligkeitsdatum</label>
+          <input type="date" name="due_date" class="form-input" value="${this.task.due_date || ''}" />
         </div>
 
         <div class="form-field">
@@ -491,12 +479,27 @@ export class TaskDetailDrawer {
         </div>
 
         <div class="drawer-actions">
+          <button type="button" class="mdc-btn mdc-btn--cancel" id="btn-cancel-task">
+            <span class="mdc-btn__icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Abbrechen</span>
+          </button>
           <button type="submit" class="mdc-btn mdc-btn--create">
             <span class="mdc-btn__icon mdc-btn__icon--check">${this.getCheckIcon()}</span>
             <span class="mdc-btn__spinner">${this.getSpinnerIcon()}</span>
             <span class="mdc-btn__label">Speichern</span>
           </button>
-          <button type="button" id="btn-delete-task" class="secondary-btn btn-danger">Löschen</button>
+          <button type="button" id="btn-delete-task" class="mdc-btn mdc-btn--delete">
+            <span class="mdc-btn__icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Aufgabe löschen</span>
+          </button>
         </div>
       </form>
     `;
@@ -556,19 +559,10 @@ export class TaskDetailDrawer {
             </div>
           </div>
 
-          <!-- Kategorie und Fälligkeitsdatum -->
-          <div class="detail-grid-2">
-            <div>
-              <div class="drawer-label">Kategorie/Phase</div>
-              <div class="drawer-value">
-                ${this.task.category ? safe(this.task.category.name) : '–'}
-              </div>
-            </div>
-
-            <div>
-              <div class="drawer-label">Fälligkeitsdatum</div>
-              <div class="drawer-value">${formatDate(this.task.due_date)}</div>
-            </div>
+          <!-- Fälligkeitsdatum -->
+          <div>
+            <div class="drawer-label">Fälligkeitsdatum</div>
+            <div class="drawer-value">${formatDate(this.task.due_date)}</div>
           </div>
 
           <!-- Zugewiesen an Mitarbeiter -->
@@ -750,6 +744,12 @@ export class TaskDetailDrawer {
         e.preventDefault();
         await this.handleAttachmentAdd(new FormData(attachmentForm));
       });
+    }
+
+    // Cancel Button
+    const cancelBtn = document.getElementById('btn-cancel-task');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => this.close());
     }
 
     // Delete Task

@@ -804,12 +804,8 @@ export class KampagneList {
           </td>
           <td>${this.renderUnternehmen(kampagne.unternehmen)}</td>
           <td>${this.renderMarke(kampagne.marke)}</td>
-          <td>${formatArray(kampagne.art_der_kampagne_display || kampagne.art_der_kampagne)}</td>
-          <td>
-            <span class="status-badge status-${(kampagne.status_name || '').toLowerCase().replace(/\s+/g,'-') || 'unknown'}">
-              ${kampagne.status_name || '-'}
-            </span>
-          </td>
+          <td>${this.renderArtTags(kampagne.art_der_kampagne_display || kampagne.art_der_kampagne)}</td>
+          <td>${this.renderStatusBadge(kampagne.status_name)}</td>
           <td>${formatDate(kampagne.start)}</td>
           <td>${formatDate(kampagne.deadline)}</td>
           <td>${kampagne.creatoranzahl || 0}</td>
@@ -819,7 +815,7 @@ export class KampagneList {
           <td>
             ${actionBuilder.create('kampagne', kampagne.id, window.currentUser, { 
               statusOptions: this.statusOptions, 
-              currentStatus: { id: kampagne.status_id, name: kampagne.status } 
+              currentStatus: { id: kampagne.status_id, name: kampagne.status_name } 
             })}
           </td>
         </tr>
@@ -920,10 +916,19 @@ export class KampagneList {
       const submitData = {};
 
       // Tag-basierte Multi-Selects aus Hidden-Selects sammeln
+      // Tracke bereits verarbeitete Feldnamen um Duplikate zu vermeiden
+      const processedFields = new Set();
       const tagBasedSelects = form.querySelectorAll('select[data-tag-based="true"]');
       tagBasedSelects.forEach(select => {
         const fieldName = select.name;
         const selectId = select.id;
+        
+        // Skip wenn bereits verarbeitet (verhindert Duplikate bei mehreren Selects mit gleichem Namen)
+        if (processedFields.has(fieldName)) {
+          console.log(`⏭️ Feld ${fieldName} bereits verarbeitet, überspringe`);
+          return;
+        }
+        processedFields.add(fieldName);
         
         // Methode 1: Suche Hidden-Select mit _hidden ID-Suffix (vom OptionsManager erstellt)
         let hiddenSelect = document.getElementById(`${selectId}_hidden`);
@@ -946,7 +951,7 @@ export class KampagneList {
           const tagContainer = select.closest('.form-field')?.querySelector('.tag-based-select');
           if (tagContainer) {
             const tags = tagContainer.querySelectorAll('.tag[data-value]');
-            const tagValues = Array.from(tags).map(tag => tag.dataset.value).filter(Boolean);
+            const tagValues = [...new Set(Array.from(tags).map(tag => tag.dataset.value).filter(Boolean))];
             if (tagValues.length > 0) {
               submitData[fieldName] = tagValues;
               console.log(`🏷️ Tag-basiertes Feld ${fieldName} aus Tags gesammelt:`, tagValues);
@@ -956,7 +961,7 @@ export class KampagneList {
         }
         
         if (hiddenSelect) {
-          const values = Array.from(hiddenSelect.selectedOptions).map(opt => opt.value).filter(Boolean);
+          const values = [...new Set(Array.from(hiddenSelect.selectedOptions).map(opt => opt.value).filter(Boolean))];
           if (values.length > 0) {
             submitData[fieldName] = values;
             console.log(`🏷️ Tag-basiertes Feld ${fieldName} aus Hidden-Select gesammelt:`, values);
@@ -973,10 +978,13 @@ export class KampagneList {
         if (key.includes('[]')) {
           // Multi-Select behandeln
           const cleanKey = key.replace('[]', '');
-          if (!submitData[cleanKey]) {
+          if (!submitData.hasOwnProperty(cleanKey)) {
             submitData[cleanKey] = [];
           }
-          submitData[cleanKey].push(value);
+          // Nur pushen wenn der Wert noch nicht drin ist (Duplikat-Vermeidung)
+          if (!submitData[cleanKey].includes(value)) {
+            submitData[cleanKey].push(value);
+          }
         } else {
           // Nur setzen wenn nicht bereits als Array von Tag-basierten Feldern gesetzt
           if (!submitData.hasOwnProperty(key) || !Array.isArray(submitData[key])) {
@@ -991,6 +999,18 @@ export class KampagneList {
       const kampagnennameInput = form.querySelector('input[name="kampagnenname"]');
       if (kampagnennameInput && kampagnennameInput.value) {
         submitData.kampagnenname = kampagnennameInput.value;
+      }
+
+      // GLOBALE DEDUPLIZIERUNG: Entferne Duplikate aus allen Array-Feldern
+      for (const key of Object.keys(submitData)) {
+        if (Array.isArray(submitData[key])) {
+          const before = submitData[key].length;
+          submitData[key] = [...new Set(submitData[key])];
+          const after = submitData[key].length;
+          if (before !== after) {
+            console.log(`🧹 Dedupliziert ${key}: ${before} → ${after} Einträge`);
+          }
+        }
       }
 
       console.log('📝 Kampagne Submit-Daten:', submitData);
@@ -1333,6 +1353,28 @@ export class KampagneList {
     }];
 
     return avatarBubbles.renderBubbles(items);
+  }
+
+  // Render Art der Kampagne als Tags
+  renderArtTags(artArray) {
+    if (!artArray || artArray.length === 0) {
+      return '-';
+    }
+
+    const arr = Array.isArray(artArray) ? artArray : [artArray];
+    const inner = arr.map(art => {
+      return `<span class="tag tag--type">${window.validatorSystem?.sanitizeHtml(art) || art}</span>`;
+    }).join('');
+    return `<div class="tags tags-compact">${inner}</div>`;
+  }
+
+  // Render Status als Tag mit Icon
+  renderStatusBadge(statusName) {
+    if (!statusName) {
+      return '-';
+    }
+    const icon = actionsDropdown.getStatusIcon(statusName);
+    return `<div class="tags tags-compact"><span class="tag tag--type">${icon || ''}${window.validatorSystem?.sanitizeHtml(statusName) || statusName}</span></div>`;
   }
 
   // Render Mitarbeiter (Avatar-Bubbles mit Klickbarkeit)

@@ -207,7 +207,19 @@ export class DependentFields {
       }
     });
     
+    // FilterBy Map erstellen: parent → [children] (für Felder die immer sichtbar sind aber gefiltert werden)
+    const filterByMap = new Map();
+    config.fields.forEach(field => {
+      if (field.filterBy) {
+        if (!filterByMap.has(field.filterBy)) {
+          filterByMap.set(field.filterBy, []);
+        }
+        filterByMap.get(field.filterBy).push(field);
+      }
+    });
+    
     console.log('🗺️ DELEGATION: Dependency Map:', Object.fromEntries(dependencyMap));
+    console.log('🗺️ DELEGATION: FilterBy Map:', Object.fromEntries(filterByMap));
     
     // Field Cache erstellen (Performance Optimierung #2)
     const fieldCache = new Map();
@@ -226,6 +238,7 @@ export class DependentFields {
       const changedField = e.target;
       const fieldName = changedField.name;
       
+      // dependsOn-Logik: Felder die versteckt/angezeigt werden
       if (dependencyMap.has(fieldName)) {
         // Bestehenden Timer abbrechen (Debouncing)
         if (debounceTimers.has(fieldName)) {
@@ -254,6 +267,31 @@ export class DependentFields {
         }, 150); // 150ms Debounce
         
         debounceTimers.set(fieldName, timer);
+      }
+      
+      // filterBy-Logik: Felder die immer sichtbar sind aber gefiltert werden
+      if (filterByMap.has(fieldName)) {
+        // Bestehenden Timer abbrechen (Debouncing)
+        const timerKey = `filter_${fieldName}`;
+        if (debounceTimers.has(timerKey)) {
+          clearTimeout(debounceTimers.get(timerKey));
+        }
+        
+        // Neuen Timer setzen
+        const timer = setTimeout(async () => {
+          const filteredFields = filterByMap.get(fieldName);
+          const parentValue = this.getFieldValue(changedField);
+          
+          console.log(`🔄 FILTERBY: ${fieldName} → "${parentValue}", ${filteredFields.length} gefilterte Felder`);
+          
+          for (const fieldConfig of filteredFields) {
+            await this.reloadFilteredField(form, fieldConfig, parentValue);
+          }
+          
+          debounceTimers.delete(timerKey);
+        }, 150); // 150ms Debounce
+        
+        debounceTimers.set(timerKey, timer);
       }
     };
     
@@ -1115,6 +1153,80 @@ export class DependentFields {
           input.placeholder = fieldConfig.placeholder || 'Bitte wählen...';
         }, 3000);
       }
+    }
+  }
+
+  // Gefiltertes Feld neu laden (für filterBy-Logik)
+  async reloadFilteredField(form, fieldConfig, parentValue) {
+    console.log(`🔄 RELOADFILTEREDFIELD: Lade ${fieldConfig.name} mit Filter ${fieldConfig.filterBy}=${parentValue}`);
+    
+    const field = form.querySelector(`[name="${fieldConfig.name}"]`);
+    if (!field) {
+      console.warn(`⚠️ Feld ${fieldConfig.name} nicht gefunden`);
+      return;
+    }
+    
+    // Loading State anzeigen
+    this.showLoadingState(field, fieldConfig);
+    
+    try {
+      let options = [];
+      
+      if (parentValue && fieldConfig.table) {
+        // Lade gefilterte Daten aus der Datenbank
+        const { data, error } = await window.supabase
+          .from(fieldConfig.table)
+          .select('*')
+          .eq(fieldConfig.filterBy, parentValue)
+          .order(fieldConfig.displayField || 'name', { ascending: true });
+        
+        if (error) {
+          console.error(`❌ Fehler beim Laden von ${fieldConfig.table}:`, error);
+          this.showErrorState(field, fieldConfig);
+          return;
+        }
+        
+        options = (data || []).map(item => ({
+          value: item[fieldConfig.valueField || 'id'],
+          label: item[fieldConfig.displayField] || item.name || 'Unbekannt'
+        }));
+        
+        console.log(`✅ ${options.length} Optionen geladen für ${fieldConfig.name}`);
+      } else {
+        console.log(`⏸️ Kein Parent-Wert - zeige leere Optionen für ${fieldConfig.name}`);
+      }
+      
+      // Tag-basiertes Multiselect aktualisieren
+      if (fieldConfig.tagBased && window.formSystem?.optionsManager) {
+        // Bestehende Tags entfernen (da Unternehmen gewechselt wurde)
+        const tagContainer = field.closest('.form-field')?.querySelector('.tag-based-select');
+        if (tagContainer) {
+          const tagsContainer = tagContainer.querySelector('.tags-container');
+          if (tagsContainer) {
+            // Alle Tags entfernen
+            const tags = tagsContainer.querySelectorAll('.tag');
+            tags.forEach(tag => tag.remove());
+            
+            // Placeholder wieder hinzufügen wenn keine Tags
+            const placeholder = document.createElement('span');
+            placeholder.className = 'tags-placeholder';
+            placeholder.textContent = 'Keine Auswahl';
+            placeholder.style.color = '#6b7280';
+            placeholder.style.fontStyle = 'italic';
+            placeholder.style.fontSize = '14px';
+            tagsContainer.appendChild(placeholder);
+          }
+        }
+        
+        // Optionen aktualisieren
+        window.formSystem.optionsManager.createTagBasedSelect(field, options, fieldConfig);
+      }
+      
+      this.hideLoadingState(field);
+      
+    } catch (error) {
+      console.error(`❌ Fehler bei reloadFilteredField für ${fieldConfig.name}:`, error);
+      this.showErrorState(field, fieldConfig);
     }
   }
 } 

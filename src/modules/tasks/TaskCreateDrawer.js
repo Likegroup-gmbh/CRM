@@ -336,8 +336,26 @@ export class TaskCreateDrawer {
         }
       }
 
-      // Konvertiere Map zu Array (automatisch dedupliziert)
-      this.mitarbeiter = Array.from(mitarbeiterMap.values());
+      // 4. Zusätzlich: Lade alle freigeschalteten Mitarbeiter (damit alle im Dropdown verfügbar sind)
+      const { data: alleMitarbeiter, error: alleError } = await window.supabase
+        .from('benutzer')
+        .select('id, name, rolle, profile_image_url')
+        .in('rolle', ['admin', 'mitarbeiter'])
+        .eq('freigeschaltet', true);
+      
+      if (!alleError && alleMitarbeiter) {
+        alleMitarbeiter.forEach(user => {
+          // Nur hinzufügen wenn noch nicht vorhanden (zugeordnete haben Priorität)
+          if (!mitarbeiterMap.has(user.id)) {
+            mitarbeiterMap.set(user.id, user);
+          }
+        });
+      }
+
+      // Konvertiere Map zu Array (automatisch dedupliziert) und filtere den aktuellen User raus
+      const currentUserId = window.currentUser?.id;
+      this.mitarbeiter = Array.from(mitarbeiterMap.values())
+        .filter(user => user.id !== currentUserId);
       console.log('✅ Mitarbeiter geladen für Kampagne:', this.mitarbeiter.length);
     } catch (error) {
       console.error('❌ Fehler beim Laden der Mitarbeiter:', error);
@@ -416,7 +434,7 @@ export class TaskCreateDrawer {
       
       this.kunden = (kundenData || [])
         .map(item => item.kunde)
-        .filter(Boolean);
+        .filter(kunde => kunde && kunde.rolle === 'kunde');
       console.log('✅ Kunden final geladen für Kampagne:', this.kunden.length);
     } catch (error) {
       console.error('❌ Fehler beim Laden der Kunden:', error);

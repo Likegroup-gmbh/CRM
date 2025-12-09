@@ -8,8 +8,39 @@ export class StrategieService {
 
   /**
    * Alle Strategien abrufen (mit Verknüpfungen)
+   * Filtert basierend auf Benutzerrolle und Kampagnen-Zuordnung
    */
   async getAllStrategien() {
+    const user = window.currentUser;
+    const rolle = user?.rolle?.toLowerCase();
+    
+    // Admin sieht alle Strategien
+    if (rolle === 'admin') {
+      return this._fetchAllStrategien();
+    }
+    
+    // Für Mitarbeiter und Kunden: erlaubte Kampagnen ermitteln
+    const allowedKampagneIds = await this._getAllowedKampagneIds(user, rolle);
+    
+    console.log('🔐 Erlaubte Kampagnen für Benutzer:', allowedKampagneIds);
+    
+    // Alle Strategien laden
+    const allStrategien = await this._fetchAllStrategien();
+    
+    // Filtern: Strategie muss einer erlaubten Kampagne zugeordnet sein
+    const filtered = allStrategien.filter(s => 
+      s.kampagne_id && allowedKampagneIds.includes(s.kampagne_id)
+    );
+    
+    console.log(`🔐 Strategien gefiltert: ${filtered.length} von ${allStrategien.length}`);
+    
+    return filtered;
+  }
+
+  /**
+   * Interne Methode: Alle Strategien ohne Filter laden
+   */
+  async _fetchAllStrategien() {
     const { data, error } = await window.supabase
       .from('strategie')
       .select(`
@@ -31,7 +62,92 @@ export class StrategieService {
   }
 
   /**
+   * Ermittelt alle Kampagnen-IDs, auf die der Benutzer Zugriff hat
+   * - Mitarbeiter: via kampagne_mitarbeiter, mitarbeiter_unternehmen, marke_mitarbeiter
+   * - Kunden: via kunde_unternehmen, kunde_marke
+   */
+  async _getAllowedKampagneIds(user, rolle) {
+    const userId = user?.id;
+    if (!userId) return [];
+    
+    const kampagneIds = new Set();
+    
+    if (rolle === 'mitarbeiter') {
+      // 1. Direkt zugeordnete Kampagnen (kampagne_mitarbeiter)
+      const { data: directKampagnen } = await window.supabase
+        .from('kampagne_mitarbeiter')
+        .select('kampagne_id')
+        .eq('mitarbeiter_id', userId);
+      (directKampagnen || []).forEach(k => kampagneIds.add(k.kampagne_id));
+      
+      // 2. Kampagnen über Unternehmen-Zuordnung (mitarbeiter_unternehmen)
+      const { data: userUnternehmen } = await window.supabase
+        .from('mitarbeiter_unternehmen')
+        .select('unternehmen_id')
+        .eq('mitarbeiter_id', userId);
+      const unternehmenIds = (userUnternehmen || []).map(u => u.unternehmen_id);
+      
+      if (unternehmenIds.length > 0) {
+        const { data: unternehmensKampagnen } = await window.supabase
+          .from('kampagne')
+          .select('id')
+          .in('unternehmen_id', unternehmenIds);
+        (unternehmensKampagnen || []).forEach(k => kampagneIds.add(k.id));
+      }
+      
+      // 3. Kampagnen über Marken-Zuordnung (marke_mitarbeiter)
+      const { data: userMarken } = await window.supabase
+        .from('marke_mitarbeiter')
+        .select('marke_id')
+        .eq('mitarbeiter_id', userId);
+      const markeIds = (userMarken || []).map(m => m.marke_id);
+      
+      if (markeIds.length > 0) {
+        const { data: markenKampagnen } = await window.supabase
+          .from('kampagne')
+          .select('id')
+          .in('marke_id', markeIds);
+        (markenKampagnen || []).forEach(k => kampagneIds.add(k.id));
+      }
+      
+    } else if (rolle === 'kunde' || rolle === 'kunde_editor') {
+      // 1. Kampagnen über Unternehmen-Zuordnung (kunde_unternehmen)
+      const { data: userUnternehmen } = await window.supabase
+        .from('kunde_unternehmen')
+        .select('unternehmen_id')
+        .eq('kunde_id', userId);
+      const unternehmenIds = (userUnternehmen || []).map(u => u.unternehmen_id);
+      
+      if (unternehmenIds.length > 0) {
+        const { data: unternehmensKampagnen } = await window.supabase
+          .from('kampagne')
+          .select('id')
+          .in('unternehmen_id', unternehmenIds);
+        (unternehmensKampagnen || []).forEach(k => kampagneIds.add(k.id));
+      }
+      
+      // 2. Kampagnen über Marken-Zuordnung (kunde_marke)
+      const { data: userMarken } = await window.supabase
+        .from('kunde_marke')
+        .select('marke_id')
+        .eq('kunde_id', userId);
+      const markeIds = (userMarken || []).map(m => m.marke_id);
+      
+      if (markeIds.length > 0) {
+        const { data: markenKampagnen } = await window.supabase
+          .from('kampagne')
+          .select('id')
+          .in('marke_id', markeIds);
+        (markenKampagnen || []).forEach(k => kampagneIds.add(k.id));
+      }
+    }
+    
+    return Array.from(kampagneIds);
+  }
+
+  /**
    * Strategie nach ID abrufen
+   * Prüft Zugriffsberechtigungen basierend auf Kampagnen-Zuordnung
    */
   async getStrategieById(id) {
     const { data, error } = await window.supabase
@@ -52,13 +168,34 @@ export class StrategieService {
       throw error;
     }
 
+    // Berechtigungsprüfung für Nicht-Admins
+    const user = window.currentUser;
+    const rolle = user?.rolle?.toLowerCase();
+    
+    if (rolle !== 'admin' && data?.kampagne_id) {
+      const allowedKampagneIds = await this._getAllowedKampagneIds(user, rolle);
+      
+      if (!allowedKampagneIds.includes(data.kampagne_id)) {
+        console.warn('🔐 Zugriff verweigert: Benutzer hat keinen Zugriff auf diese Strategie');
+        throw new Error('Keine Berechtigung für diese Strategie');
+      }
+    }
+
     return data;
   }
 
   /**
    * Strategie erstellen
+   * Nur für Admins und Mitarbeiter - Kunden dürfen keine Strategien erstellen
    */
   async createStrategie(strategieData) {
+    // Berechtigungsprüfung: Kunden dürfen keine Strategien erstellen
+    const rolle = window.currentUser?.rolle?.toLowerCase();
+    if (rolle === 'kunde' || rolle === 'kunde_editor') {
+      console.warn('🔐 Kunden dürfen keine Strategien erstellen');
+      throw new Error('Keine Berechtigung zum Erstellen von Strategien');
+    }
+    
     const { data, error } = await window.supabase
       .from('strategie')
       .insert({
@@ -78,8 +215,16 @@ export class StrategieService {
 
   /**
    * Strategie aktualisieren
+   * Nur für Admins und Mitarbeiter - Kunden dürfen Strategien nicht bearbeiten
    */
   async updateStrategie(id, updates) {
+    // Berechtigungsprüfung: Kunden dürfen Strategien nicht bearbeiten
+    const rolle = window.currentUser?.rolle?.toLowerCase();
+    if (rolle === 'kunde' || rolle === 'kunde_editor') {
+      console.warn('🔐 Kunden dürfen Strategien nicht bearbeiten');
+      throw new Error('Keine Berechtigung zum Bearbeiten von Strategien');
+    }
+    
     const { data, error } = await window.supabase
       .from('strategie')
       .update(updates)
@@ -97,8 +242,16 @@ export class StrategieService {
 
   /**
    * Strategie löschen (inkl. aller Items und Screenshots)
+   * Nur für Admins - Kunden und normale Mitarbeiter dürfen Strategien nicht löschen
    */
   async deleteStrategie(id) {
+    // Berechtigungsprüfung: Nur Admins dürfen Strategien löschen
+    const rolle = window.currentUser?.rolle?.toLowerCase();
+    if (rolle !== 'admin') {
+      console.warn('🔐 Nur Admins dürfen Strategien löschen');
+      throw new Error('Keine Berechtigung zum Löschen von Strategien');
+    }
+    
     console.log('🗑️ Lösche Strategie:', id);
     
     // Zuerst alle Items dieser Strategie abrufen um Screenshots zu löschen

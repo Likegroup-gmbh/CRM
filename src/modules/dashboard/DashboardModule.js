@@ -524,13 +524,13 @@ export class DashboardModule {
               <tbody>
                 <tr>
                   <td>${window.validatorSystem.sanitizeHtml(window.currentUser?.name || 'Unbekannt')}</td>
-                  <td><span class="status-badge status-pending">Wartet auf Freischaltung</span></td>
+                  <td>
+                    <span class="status-badge status-pending">Wartet auf Freischaltung</span>
+                    <div class="status-hint">Ein Administrator wird Ihren Account in Kürze überprüfen und freischalten.</div>
+                  </td>
                 </tr>
               </tbody>
             </table>
-          </div>
-          <div class="content-section" style="margin-top: 24px;">
-            <p>Ein Administrator wird Ihren Account in Kürze überprüfen und freischalten.</p>
           </div>
         </div>
       `;

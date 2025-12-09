@@ -872,6 +872,13 @@ export class AnsprechpartnerDetail {
       formData.unternehmen_id = this.ansprechpartner?.unternehmen_id || this.ansprechpartner?.unternehmen?.id || null;
       // Position (einfache FK)
       formData.position_id = this.ansprechpartner?.position_id || null;
+      // Telefonnummer-Länder (für Phone-Fields im Edit-Modus)
+      formData.telefonnummer_land_id = this.ansprechpartner?.telefonnummer_land_id || this.ansprechpartner?.telefonnummer_land?.id || null;
+      formData.telefonnummer_office_land_id = this.ansprechpartner?.telefonnummer_office_land_id || this.ansprechpartner?.telefonnummer_office_land?.id || null;
+      console.log('📱 ANSPRECHPARTNERDETAIL: Telefonnummer-Länder:', {
+        mobil: formData.telefonnummer_land_id,
+        buero: formData.telefonnummer_office_land_id
+      });
     } catch (_) {}
     
     // M:N: marke_ids

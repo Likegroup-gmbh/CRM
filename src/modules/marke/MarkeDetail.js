@@ -906,14 +906,14 @@ export class MarkeDetail {
       if (!error && branchenData && branchenData.length > 0) {
         const branchenIds = branchenData.map(b => b.branche_id);
         console.log('🏷️ MARKENDETAIL: Formatiere Branchen-Daten für FormSystem:', branchenIds);
-        formData.branche_ids = branchenIds;
+        formData.branche_id = branchenIds;
       } else {
         console.log('ℹ️ MARKENDETAIL: Keine Branchen-Daten vorhanden für Edit-Modus');
-        formData.branche_ids = [];
+        formData.branche_id = [];
       }
     } catch (branchenError) {
       console.warn('⚠️ MARKENDETAIL: Fehler beim Laden der Branchen-Daten:', branchenError);
-      formData.branche_ids = [];
+      formData.branche_id = [];
     }
     
     console.log('📋 MARKENDETAIL: FormData für Rendering:', formData);

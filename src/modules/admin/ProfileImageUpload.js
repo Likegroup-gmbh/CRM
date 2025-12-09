@@ -75,27 +75,36 @@ export class ProfileImageUpload {
           <label>Profilbild</label>
           <div class="uploader" data-name="profile_image"></div>
         </div>
-      </form>
-    `;
 
-    // Actions (außerhalb des Body, direkt im Panel)
-    const actions = document.createElement('div');
-    actions.className = 'drawer-actions';
-    actions.innerHTML = `
-      <button type="button" class="btn btn-secondary" data-action="cancel">
-        Abbrechen
-      </button>
-      <button type="submit" class="btn btn-primary" id="profile-image-submit">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-        </svg>
-        Speichern
-      </button>
+        <!-- Actions innerhalb des Body -->
+        <div class="drawer-actions">
+          <button type="button" class="mdc-btn mdc-btn--cancel" data-action="cancel">
+            <span class="mdc-btn__icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Abbrechen</span>
+          </button>
+          <button type="submit" class="mdc-btn mdc-btn--create" id="profile-image-submit">
+            <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__spinner" aria-hidden="true">
+              <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
+                <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Speichern</span>
+          </button>
+        </div>
+      </form>
     `;
 
     panel.appendChild(header);
     panel.appendChild(body);
-    panel.appendChild(actions);
 
     // Events
     overlay.addEventListener('click', () => this.close());
@@ -183,12 +192,7 @@ export class ProfileImageUpload {
       const submitBtn = this.drawer.querySelector('button[type="submit"]');
       if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.innerHTML = `
-          <svg class="animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-          </svg>
-          Wird hochgeladen...
-        `;
+        submitBtn.classList.add('loading');
       }
 
       // Upload zu Supabase
@@ -210,12 +214,7 @@ export class ProfileImageUpload {
       const submitBtn = this.drawer.querySelector('button[type="submit"]');
       if (submitBtn) {
         submitBtn.disabled = false;
-        submitBtn.innerHTML = `
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-          </svg>
-          Speichern
-        `;
+        submitBtn.classList.remove('loading');
       }
     }
   }

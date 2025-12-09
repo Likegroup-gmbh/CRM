@@ -272,13 +272,13 @@ export class BulkActionSystem {
     const pathSegments = window.location.pathname.split('/').filter(segment => segment);
     if (pathSegments.length > 0) {
       const urlEntityType = pathSegments[0];
-      if (['creator', 'unternehmen', 'kampagne', 'marke', 'auftrag', 'ansprechpartner', 'kooperation'].includes(urlEntityType)) {
+      if (['creator', 'unternehmen', 'kampagne', 'marke', 'auftrag', 'ansprechpartner', 'kooperation', 'rechnung', 'briefing', 'auftragsdetails'].includes(urlEntityType)) {
         return urlEntityType;
       }
     }
 
     // 2. Aus verfügbaren Checkboxen
-    const entityTypes = ['creator', 'unternehmen', 'kampagne', 'marke', 'auftrag', 'ansprechpartner', 'kooperation'];
+    const entityTypes = ['creator', 'unternehmen', 'kampagne', 'marke', 'auftrag', 'ansprechpartner', 'kooperation', 'rechnung', 'briefing', 'auftragsdetails'];
     for (const entityType of entityTypes) {
       const config = this.getEntityConfig(entityType);
       const checkboxes = document.querySelectorAll(config.checkboxSelector);
@@ -328,6 +328,21 @@ export class BulkActionSystem {
         checkboxSelector: '.kooperation-check',
         selectAllId: 'select-all-kooperationen',
         displayName: 'Kooperationen'
+      },
+      rechnung: {
+        checkboxSelector: '.rechnung-check',
+        selectAllId: 'select-all-rechnungen',
+        displayName: 'Rechnungen'
+      },
+      briefing: {
+        checkboxSelector: '.briefing-check',
+        selectAllId: 'select-all-briefings',
+        displayName: 'Briefings'
+      },
+      auftragsdetails: {
+        checkboxSelector: '.auftragsdetails-check',
+        selectAllId: 'select-all-auftragsdetails',
+        displayName: 'Auftragsdetails'
       }
     };
 

@@ -22,6 +22,11 @@ export class RechnungList {
       ]);
     }
 
+    // Registriere beim BulkActionSystem für konsistente Bulk-Löschung
+    if (window.bulkActionSystem) {
+      window.bulkActionSystem.registerList('rechnung', this);
+    }
+
     await this.loadAndRender();
     // Reload Liste bei Änderungen (z. B. Status geändert, gelöscht)
     window.addEventListener('entityUpdated', (e) => {
@@ -338,7 +343,7 @@ export class RechnungList {
     if (deleteBtn) {
       deleteBtn.onclick = async (e) => {
         e.preventDefault();
-        await this.deleteSelected();
+        await this.showDeleteSelectedConfirmation();
       };
     }
 
@@ -434,7 +439,7 @@ export class RechnungList {
     if (deleteBtn) deleteBtn.style.display = count > 0 ? 'inline-block' : 'none';
   }
 
-  async deleteSelected() {
+  async showDeleteSelectedConfirmation() {
     if (window.currentUser?.rolle !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'admin') return;
     
     const selectedIds = Array.from(this.selectedRechnungen);

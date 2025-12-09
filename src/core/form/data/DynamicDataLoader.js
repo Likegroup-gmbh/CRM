@@ -89,8 +89,29 @@ export class DynamicDataLoader {
 
       // WICHTIG: Jetzt NACH dem Laden aller Optionen die Searchable Selects initialisieren
       phoneCountrySelects.forEach(select => {
+        // Im Edit-Modus: Gespeichertes Land setzen
+        if (form.dataset.isEditMode === 'true' && form.dataset.editModeData) {
+          try {
+            const editData = JSON.parse(form.dataset.editModeData);
+            const countryFieldName = select.name; // z.B. telefonnummer_land_id
+            const savedCountryId = editData[countryFieldName];
+            
+            if (savedCountryId) {
+              const savedCountryOption = Array.from(select.options).find(opt => 
+                opt.value === savedCountryId
+              );
+              if (savedCountryOption) {
+                savedCountryOption.selected = true;
+                select.value = savedCountryId;
+                console.log(`📱 Edit-Modus: Land vorausgewählt für ${countryFieldName}:`, savedCountryOption.textContent);
+              }
+            }
+          } catch (e) {
+            console.warn('⚠️ Fehler beim Setzen des gespeicherten Landes:', e);
+          }
+        }
         // Standard: Deutschland vorauswählen (nur im Create-Mode)
-        if (!select.value && form.dataset.isEditMode !== 'true') {
+        else if (!select.value) {
           const deutschlandOption = Array.from(select.options).find(opt => 
             opt.dataset.isoCode === 'de'
           );
@@ -519,16 +540,14 @@ export class DynamicDataLoader {
             selectElement.appendChild(optionElement);
           });
           
-          // Tag-basiertes System nur initialisieren wenn Optionen vorhanden sind
-          if (options.length > 0 && window.formSystem?.optionsManager?.createTagBasedSelect) {
+          // Tag-basiertes System IMMER initialisieren (auch bei 0 Optionen für filterBy-Felder)
+          if (window.formSystem?.optionsManager?.createTagBasedSelect) {
             console.log('🏷️ DYNAMICDATALOADER: Erstelle Tag-System mit', options.length, 'Optionen für:', field.name);
             // DEBUG: Zeige welche Optionen selected sind
             const selectedOptions = options.filter(o => o.selected);
             console.log(`🎯 DYNAMICDATALOADER: Übergebe ${selectedOptions.length} selected Optionen an createTagBasedSelect:`, selectedOptions.map(o => `${o.label} (${o.value})`));
             window.formSystem.optionsManager.createTagBasedSelect(selectElement, options, field);
             console.log('✅ DYNAMICDATALOADER: Tag-basiertes Multi-Select initialisiert für:', field.name);
-          } else if (options.length === 0) {
-            console.log('⏭️ DYNAMICDATALOADER: Keine Optionen für Tag-System verfügbar:', field.name);
           } else {
             console.warn('⚠️ DYNAMICDATALOADER: OptionsManager nicht verfügbar für:', field.name);
           }
@@ -624,8 +643,48 @@ export class DynamicDataLoader {
       
       let data;
       
+      // filterBy: Prüfe ob Parent-Feld ausgewählt ist (z.B. marke_ids filterBy unternehmen_id)
+      if (field.filterBy) {
+        const parentField = form.querySelector(`[name="${field.filterBy}"]`);
+        let parentValue = parentField?.value;
+        
+        // Im Edit-Modus: Auch editModeData prüfen falls DOM-Feld noch nicht befüllt
+        if (!parentValue && form.dataset.isEditMode === 'true') {
+          try {
+            const editModeData = JSON.parse(form.dataset.editModeData || '{}');
+            parentValue = editModeData[field.filterBy];
+            if (parentValue) {
+              console.log(`🔧 ${field.name}: Parent-Wert aus editModeData: ${field.filterBy}=${parentValue}`);
+            }
+          } catch (e) {
+            console.warn('⚠️ Fehler beim Parsen von editModeData:', e);
+          }
+        }
+        
+        if (!parentValue) {
+          console.log(`⏸️ ${field.name}: Kein ${field.filterBy} ausgewählt - zeige leere Optionen`);
+          return []; // Leere Optionen -> Placeholder "Erst Unternehmen auswählen..." wird angezeigt
+        }
+        
+        console.log(`🔍 ${field.name}: Filtere nach ${field.filterBy} = ${parentValue}`);
+        
+        // Lade gefilterte Daten
+        const { data: filteredData, error } = await window.supabase
+          .from(field.table)
+          .select('*')
+          .eq(field.filterBy, parentValue)
+          .order(field.displayField || 'name', { ascending: true });
+        
+        if (error) {
+          console.error(`❌ Fehler beim Laden von ${field.table}:`, error);
+          return [];
+        }
+        
+        data = filteredData || [];
+        console.log(`✅ ${data.length} ${field.table} geladen für ${field.filterBy}=${parentValue}`);
+      }
       // Prüfe ob Tabelle statisch ist UND kein Filter gesetzt ist
-      if (staticTables.includes(field.table) && !field.filter) {
+      else if (staticTables.includes(field.table) && !field.filter) {
         // PERFORMANCE: Lade aus Cache
         data = await this.cache.get(field.table, '*', 'sort_order');
         console.log(`📦 ${field.table} aus Cache geladen (${data.length} Einträge)`);

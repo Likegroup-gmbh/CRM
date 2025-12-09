@@ -54,6 +54,8 @@ export class RelationTables {
         entityField = 'ansprechpartner_id';
       } else if (field.name === 'sprachen_ids') {
         entityField = 'ansprechpartner_id';
+      } else if (field.name === 'art_der_kampagne' && field.relationTable === 'auftrag_kampagne_art') {
+        entityField = 'auftrag_id';
       } else {
         entityField = `${field.name.replace('_ids', '_id')}`;
       }

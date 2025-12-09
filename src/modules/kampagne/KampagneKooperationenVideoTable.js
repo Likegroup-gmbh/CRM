@@ -871,13 +871,8 @@ export class KampagneKooperationenVideoTable {
                 </a>
               `;
             }
-            // Sonst: normales Text-Input
-            return `
-              <input type="text" class="grid-input stacked-video-input" 
-                data-entity="video" data-id="${video.id}" data-field="thema"
-                ${!this.isFieldEditableForUser('video', 'thema') ? 'readonly' : ''}
-                value="${this.escapeHtml(video.thema || '')}" placeholder="Thema"/>
-            `;
+            // Sonst: Hinweistext (kein Input-Feld, da Strategie verknüpft werden soll)
+            return `<span class="no-strategie-hint">Noch kein Thema/Strategie verknüpft</span>`;
           })}
         </td>
         <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-organic-paid') ? 'style="display:none;"' : ''}>

@@ -291,13 +291,13 @@ export class MarkeCreate {
       
       // Spezielle Behandlung für Tag-basierte Multi-Selects - versteckte Selects manuell verarbeiten
       // Das versteckte Select wird möglicherweise nicht korrekt von FormData erfasst
-      const hiddenBranchenSelect = form.querySelector('select[name="branche_ids[]"]');
+      const hiddenBranchenSelect = form.querySelector('select[name="branche_id[]"]');
       if (hiddenBranchenSelect && hiddenBranchenSelect.multiple) {
         const selectedOptions = Array.from(hiddenBranchenSelect.selectedOptions);
         if (selectedOptions.length > 0) {
           const branchenIds = selectedOptions.map(option => option.value).filter(val => val !== '');
           if (branchenIds.length > 0) {
-            allFormData['branche_ids'] = branchenIds;
+            allFormData['branche_id[]'] = branchenIds;
             console.log('🏷️ MARKECREATE: Verstecktes Branchen-Select manuell verarbeitet:', branchenIds);
           }
         }

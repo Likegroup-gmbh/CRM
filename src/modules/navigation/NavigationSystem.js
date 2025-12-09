@@ -65,6 +65,11 @@ export class NavigationSystem {
         return true;
       }
       
+      // Nicht freigeschaltete Benutzer dürfen nur das Dashboard sehen
+      if (window.currentUser?.isBlocked === true) {
+        return false;
+      }
+      
       // 1) Page-Scoped Check (DB-Overrides)
       if (window.canViewPage && typeof window.canViewPage === 'function') {
         const allowed = window.canViewPage(id);
