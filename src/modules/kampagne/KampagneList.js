@@ -1101,6 +1101,36 @@ export class KampagneList {
             await window.supabase.from('kampagne_organic_ziele').insert(organicZieleRows);
             console.log('✅ Organic-Ziele Zuordnungen gespeichert:', organicZieleRows.length);
           }
+          
+          // Plattformen Zuordnungen
+          const plattformen = uniq(toArray(submitData.plattform_ids));
+          if (plattformen.length > 0) {
+            const plattformenRows = plattformen.map(plattformId => ({
+              kampagne_id: kampagneId,
+              plattform_id: plattformId
+            }));
+            const { error: plattformError } = await window.supabase.from('kampagne_plattformen').insert(plattformenRows);
+            if (plattformError) {
+              console.error('❌ Fehler beim Speichern der Plattformen:', plattformError);
+            } else {
+              console.log('✅ Plattformen Zuordnungen gespeichert:', plattformenRows.length);
+            }
+          }
+          
+          // Formate Zuordnungen
+          const formate = uniq(toArray(submitData.format_ids));
+          if (formate.length > 0) {
+            const formateRows = formate.map(formatId => ({
+              kampagne_id: kampagneId,
+              format_id: formatId
+            }));
+            const { error: formatError } = await window.supabase.from('kampagne_formate').insert(formateRows);
+            if (formatError) {
+              console.error('❌ Fehler beim Speichern der Formate:', formatError);
+            } else {
+              console.log('✅ Formate Zuordnungen gespeichert:', formateRows.length);
+            }
+          }
         } catch (e) {
           console.warn('⚠️ Many-to-Many Zuordnungen konnten nicht gespeichert werden', e);
         }
