@@ -501,7 +501,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Supabase initialisieren
   if (window.supabase && window.CONFIG?.SUPABASE?.URL && window.CONFIG?.SUPABASE?.KEY) {
     try {
-      window.supabase = window.supabase.createClient(
+      const { createClient } = window.supabase;
+      window.supabase = createClient(
         window.CONFIG.SUPABASE.URL,
         window.CONFIG.SUPABASE.KEY
       );
