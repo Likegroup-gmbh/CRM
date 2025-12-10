@@ -207,9 +207,20 @@ export class AnsprechpartnerDetail {
 
   // Rendere Informationen-Tab
   renderInformationen() {
+    // Profilbild HTML generieren
+    const profileImageHtml = this.ansprechpartner?.profile_image_url ? `
+      <div class="detail-card profile-image-card">
+        <h3>Profilbild</h3>
+        <div class="profile-image-container">
+          <img src="${this.ansprechpartner.profile_image_url}" alt="${this.ansprechpartner.vorname} ${this.ansprechpartner.nachname}" class="profile-image-large" />
+        </div>
+      </div>
+    ` : '';
+
     return `
       <div class="detail-section">
         <div class="detail-grid">
+          ${profileImageHtml}
           <!-- Kontaktinformationen -->
           <div class="detail-card">
             <h3>Kontaktinformationen</h3>
@@ -895,17 +906,170 @@ export class AnsprechpartnerDetail {
     
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('ansprechpartner', formData);
+    
+    // Aktuelles Profilbild anzeigen wenn vorhanden
+    const currentProfileImageHtml = this.ansprechpartner?.profile_image_url ? `
+      <div class="form-logo-display">
+        <label class="form-logo-label">Aktuelles Profilbild:</label>
+        <img src="${this.ansprechpartner.profile_image_url}" alt="${this.ansprechpartner.vorname} ${this.ansprechpartner.nachname}" class="form-logo-image" />
+      </div>
+    ` : '';
+    
     window.content.innerHTML = `
       <div class="form-page">
+        ${currentProfileImageHtml}
         ${formHtml}
+        <div id="profile-image-preview-container" class="form-logo-preview" style="display: none;">
+          <label class="form-logo-label">Neues Profilbild Vorschau:</label>
+          <img id="profile-image-preview-image" class="form-logo-image" alt="Profilbild Vorschau" />
+        </div>
       </div>
     `;
 
     // Formular-Events binden
     window.formSystem.bindFormEvents('ansprechpartner', formData);
     
-    // ENTFERNT: Custom Submit Handler - das FormSystem übernimmt die Verarbeitung
-    console.log('⚠️ ANSPRECHPARTNERDETAIL: Custom Submit Handler entfernt - FormSystem übernimmt');
+    // Profilbild-Preview Setup
+    const form = document.getElementById('ansprechpartner-form');
+    if (form) {
+      this.setupProfileImagePreview(form);
+    }
+    
+    console.log('✅ ANSPRECHPARTNERDETAIL: Edit-Form mit Profilbild-Upload initialisiert');
+  }
+
+  // Setup Profilbild Preview für Upload
+  setupProfileImagePreview(form) {
+    const uploaderRoot = form.querySelector('.uploader[data-name="profile_image_file"]');
+    if (!uploaderRoot) return;
+
+    // Event für File-Input (falls vorhanden)
+    const fileInput = uploaderRoot.querySelector('input[type="file"]');
+    if (fileInput) {
+      fileInput.addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        if (file && file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const previewContainer = document.getElementById('profile-image-preview-container');
+            const previewImage = document.getElementById('profile-image-preview-image');
+            if (previewContainer && previewImage) {
+              previewImage.src = event.target.result;
+              previewContainer.style.display = 'block';
+            }
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+    }
+  }
+
+  // Profilbild-Upload
+  async uploadProfileImage(ansprechpartnerId, form) {
+    try {
+      console.log('📋 uploadProfileImage() aufgerufen für Ansprechpartner:', ansprechpartnerId);
+      
+      const uploaderRoot = form.querySelector('.uploader[data-name="profile_image_file"]');
+      console.log('  → Uploader Root:', uploaderRoot);
+      console.log('  → Uploader Instance:', uploaderRoot?.__uploaderInstance);
+      console.log('  → Files:', uploaderRoot?.__uploaderInstance?.files);
+      
+      if (!uploaderRoot || !uploaderRoot.__uploaderInstance || !uploaderRoot.__uploaderInstance.files.length) {
+        console.log('ℹ️ Kein Profilbild zum Hochladen (kein Uploader/keine Files)');
+        return;
+      }
+
+      if (!window.supabase) {
+        console.warn('⚠️ Supabase nicht verfügbar - Profilbild-Upload übersprungen');
+        return;
+      }
+
+      const files = uploaderRoot.__uploaderInstance.files;
+      const file = files[0]; // Nur ein Bild erlaubt
+      const bucket = 'ansprechpartner-images';
+      
+      // Security: Max 500 KB
+      const MAX_FILE_SIZE = 500 * 1024; // 500 KB
+      const ALLOWED_TYPES = ['image/png', 'image/jpeg'];
+      
+      // Dateigröße prüfen
+      if (file.size > MAX_FILE_SIZE) {
+        console.warn(`⚠️ Profilbild zu groß: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
+        alert(`Profilbild ist zu groß (max. 500 KB)`);
+        return;
+      }
+
+      // Content-Type prüfen
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        console.warn(`⚠️ Nicht erlaubter Dateityp: ${file.name} (${file.type})`);
+        alert(`Nur PNG und JPG Dateien sind erlaubt`);
+        return;
+      }
+
+      // Dateiendung extrahieren
+      const ext = file.name.split('.').pop().toLowerCase();
+      const path = `${ansprechpartnerId}/profile.${ext}`;
+      
+      console.log(`📤 Uploading Profilbild: ${file.name} -> ${path}`);
+      
+      // Altes Bild löschen (falls vorhanden)
+      try {
+        const { data: existingFiles } = await window.supabase.storage
+          .from(bucket)
+          .list(ansprechpartnerId);
+        
+        if (existingFiles && existingFiles.length > 0) {
+          for (const existingFile of existingFiles) {
+            await window.supabase.storage
+              .from(bucket)
+              .remove([`${ansprechpartnerId}/${existingFile.name}`]);
+          }
+        }
+      } catch (deleteErr) {
+        console.warn('⚠️ Fehler beim Löschen alter Profilbilder:', deleteErr);
+      }
+      
+      // Upload zu Storage
+      const { error: upErr } = await window.supabase.storage
+        .from(bucket)
+        .upload(path, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: file.type
+        });
+      
+      if (upErr) {
+        console.error(`❌ Profilbild-Upload-Fehler:`, upErr);
+        throw upErr;
+      }
+      
+      // Öffentliche URL erstellen
+      const { data: publicUrlData } = window.supabase.storage
+        .from(bucket)
+        .getPublicUrl(path);
+      
+      const profile_image_url = publicUrlData?.publicUrl || '';
+      
+      // Profilbild-Daten in Datenbank speichern
+      const { error: dbErr } = await window.supabase
+        .from('ansprechpartner')
+        .update({
+          profile_image_url,
+          profile_image_path: path
+        })
+        .eq('id', ansprechpartnerId);
+      
+      if (dbErr) {
+        console.error(`❌ DB-Fehler beim Speichern der Profilbild-URL:`, dbErr);
+        throw dbErr;
+      }
+      
+      console.log(`✅ Profilbild erfolgreich hochgeladen`);
+    } catch (error) {
+      console.error('❌ Fehler beim Profilbild-Upload:', error);
+      alert(`⚠️ Profilbild konnte nicht hochgeladen werden: ${error.message}`);
+      // Nicht werfen - Ansprechpartner wurde bereits aktualisiert
+    }
   }
 
   // Handle Edit Form Submit
@@ -944,6 +1108,15 @@ export class AnsprechpartnerDetail {
       const result = await window.dataService.updateEntity('ansprechpartner', this.ansprechpartnerId, submitData);
       
       if (result.success) {
+        // Profilbild-Upload (falls vorhanden)
+        try {
+          console.log('🔵 START: Profilbild-Upload für Ansprechpartner', this.ansprechpartnerId);
+          await this.uploadProfileImage(this.ansprechpartnerId, form);
+        } catch (uploadError) {
+          console.error('⚠️ Profilbild-Upload fehlgeschlagen:', uploadError);
+          // Upload-Fehler blockiert nicht den Update-Erfolg
+        }
+        
         this.showSuccessMessage('Ansprechpartner erfolgreich aktualisiert!');
         
         // Event auslösen für Listen-Update

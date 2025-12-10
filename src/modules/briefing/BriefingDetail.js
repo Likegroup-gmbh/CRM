@@ -141,7 +141,8 @@ export class BriefingDetail {
     window.setHeadline(`Briefing: ${window.validatorSystem?.sanitizeHtml?.(title) || title}`);
 
     const canEdit = window.currentUser?.permissions?.briefing?.can_edit || false;
-    const canDelete = window.currentUser?.permissions?.briefing?.can_delete || false;
+    const isAdmin = window.currentUser?.rolle === 'admin';
+    const canDelete = isAdmin; // Nur Admins dürfen löschen
 
     const formatDate = (d) => (d ? new Date(d).toLocaleDateString('de-DE') : '-');
     const escape = (s) => window.validatorSystem?.sanitizeHtml?.(s || '-') || (s || '-');
@@ -149,6 +150,7 @@ export class BriefingDetail {
     const html = `
       <div class="page-header">
         <div class="page-header-right">
+          ${canDelete ? `<button id="btn-delete-briefing" class="danger-btn">Löschen</button>` : ''}
           ${canEdit ? `<button id="btn-edit-briefing" class="primary-btn">Bearbeiten</button>` : ''}
         </div>
       </div>
@@ -264,11 +266,6 @@ export class BriefingDetail {
           </div>
         </div>
       </div>
-
-      <div class="detail-actions">
-        ${canEdit ? `<button id="btn-edit-briefing-bottom" class="primary-btn">Briefing bearbeiten</button>` : ''}
-        ${canDelete ? `<button id="btn-delete-briefing" class="danger-btn">Briefing löschen</button>` : ''}
-      </div>
     `;
 
     window.setContentSafely(window.content, html);
@@ -335,7 +332,7 @@ export class BriefingDetail {
     });
 
     document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-edit-briefing' || e.target.id === 'btn-edit-briefing-bottom') {
+      if (e.target.id === 'btn-edit-briefing') {
         e.preventDefault();
         window.navigateTo(`/briefing/${this.briefingId}/edit`);
       }

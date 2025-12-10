@@ -311,11 +311,9 @@ export class VideoCreateDrawer {
 
       // Zeige ausgewählte Kooperation
       displayDiv.innerHTML = `
-        <div class="selected-kooperation-badge">
-          <span class="badge-name">${this.escapeHtml(koopName)}</span>
-          <button type="button" id="btn-remove-kooperation" class="badge-remove-btn">
-            ✕
-          </button>
+        <div class="tag">
+          <span>${this.escapeHtml(koopName)}</span>
+          <button type="button" id="btn-remove-kooperation" class="tag-remove">✕</button>
         </div>
       `;
 

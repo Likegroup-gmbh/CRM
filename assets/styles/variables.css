@@ -160,6 +160,14 @@
 
   --color-purple-100: #e0def6;
   --color-purple-200: #362786;
+  
+  /* Badge Colors */
+  --badge-blue-bg: #dbeafe;
+  --badge-blue-text: #1e40af;
+  --badge-indigo-bg: #e0e7ff;
+  --badge-indigo-text: #3730a3;
+  --badge-pink-bg: #fce7f3;
+  --badge-pink-text: #be185d;
 
   /* Semantic Status Aliases für einfachere Verwendung */
   --success: var(--color-success);

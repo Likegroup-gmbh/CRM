@@ -137,6 +137,11 @@ export class FormFieldLoader {
         query = query.or(filter);
       }
 
+      // Benutzer-Tabelle: Kunden ausschließen (nur Mitarbeiter/Admins anzeigen)
+      if (table === 'benutzer') {
+        query = query.neq('rolle', 'kunde');
+      }
+
       const { data, error } = await query;
 
       if (error) {

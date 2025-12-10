@@ -441,13 +441,10 @@ export class FormSystem {
 
         console.log('🔍 DEBUG: Vor handleFileUploads, data=', !!data, 'entity=', entity);
         // File-Upload für Entities mit Uploader-Feldern (Logo, Dokumente, etc.)
-        if (!data) { // Nur bei Create, nicht bei Update
-          console.log('🔍 DEBUG: handleFileUploads wird JETZT aufgerufen!');
-          await this.handleFileUploads(entity, result.id, form);
-          console.log('🔍 DEBUG: handleFileUploads abgeschlossen');
-        } else {
-          console.log('🔍 DEBUG: handleFileUploads übersprungen (Update-Modus)');
-        }
+        // Wird sowohl bei Create als auch bei Update aufgerufen
+        console.log('🔍 DEBUG: handleFileUploads wird JETZT aufgerufen!');
+        await this.handleFileUploads(entity, result.id, form);
+        console.log('🔍 DEBUG: handleFileUploads abgeschlossen');
 
         this.showSuccessMessage(data ? 'Erfolgreich aktualisiert!' : 'Erfolgreich erstellt!');
         
@@ -586,6 +583,12 @@ export class FormSystem {
           await this.uploadLogo(entity, entityId, uploaderInstance.files[0]);
         }
         
+        // Profilbild-Upload für Ansprechpartner
+        if (entity === 'ansprechpartner' && fieldName === 'profile_image_file') {
+          console.log(`    📤 Profilbild-Upload wird gestartet für ${entity} ${entityId}`);
+          await this.uploadProfileImage(entityId, uploaderInstance.files[0]);
+        }
+        
         // Weitere File-Upload-Handler können hier hinzugefügt werden
       }
       
@@ -685,6 +688,97 @@ export class FormSystem {
     } catch (error) {
       console.error('❌ Logo-Upload fehlgeschlagen:', error);
       // Nicht werfen - Logo-Fehler soll Entity-Erstellung nicht blockieren
+    }
+  }
+
+  // Profilbild-Upload für Ansprechpartner
+  async uploadProfileImage(ansprechpartnerId, file) {
+    try {
+      console.log(`📋 uploadProfileImage: ${ansprechpartnerId}, Datei: ${file.name}`);
+      
+      if (!window.supabase) {
+        console.warn('⚠️ Supabase nicht verfügbar');
+        return;
+      }
+
+      const bucket = 'ansprechpartner-images';
+      const MAX_FILE_SIZE = 500 * 1024; // 500 KB
+      const ALLOWED_TYPES = ['image/png', 'image/jpeg'];
+      
+      // Validierung
+      if (file.size > MAX_FILE_SIZE) {
+        console.warn(`⚠️ Profilbild zu groß: ${(file.size / 1024).toFixed(2)} KB`);
+        alert(`Profilbild ist zu groß (max. 500 KB)`);
+        return;
+      }
+
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        console.warn(`⚠️ Nicht erlaubter Dateityp: ${file.type}`);
+        alert(`Nur PNG und JPG Dateien sind erlaubt`);
+        return;
+      }
+
+      const ext = file.name.split('.').pop().toLowerCase();
+      const path = `${ansprechpartnerId}/profile.${ext}`;
+      
+      console.log(`  → Upload: ${path}`);
+      
+      // Altes Profilbild löschen
+      try {
+        const { data: existingFiles } = await window.supabase.storage
+          .from(bucket)
+          .list(ansprechpartnerId);
+        
+        if (existingFiles && existingFiles.length > 0) {
+          for (const existingFile of existingFiles) {
+            await window.supabase.storage
+              .from(bucket)
+              .remove([`${ansprechpartnerId}/${existingFile.name}`]);
+          }
+        }
+      } catch (deleteErr) {
+        console.warn('⚠️ Fehler beim Löschen alter Profilbilder:', deleteErr);
+      }
+      
+      // Upload
+      const { error: upErr } = await window.supabase.storage
+        .from(bucket)
+        .upload(path, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: file.type
+        });
+      
+      if (upErr) {
+        console.error(`❌ Upload-Fehler:`, upErr);
+        throw upErr;
+      }
+      
+      // Öffentliche URL erstellen
+      const { data: publicUrlData } = window.supabase.storage
+        .from(bucket)
+        .getPublicUrl(path);
+      
+      const profile_image_url = publicUrlData?.publicUrl || '';
+      
+      // Datenbank aktualisieren
+      const { error: dbErr } = await window.supabase
+        .from('ansprechpartner')
+        .update({
+          profile_image_url,
+          profile_image_path: path
+        })
+        .eq('id', ansprechpartnerId);
+      
+      if (dbErr) {
+        console.error(`❌ DB-Fehler:`, dbErr);
+        throw dbErr;
+      }
+      
+      console.log(`✅ Profilbild erfolgreich hochgeladen und gespeichert`);
+    } catch (error) {
+      console.error('❌ Profilbild-Upload fehlgeschlagen:', error);
+      // Nicht werfen - Profilbild-Fehler soll Entity-Erstellung nicht blockieren
     }
   }
 

@@ -9,12 +9,42 @@ export class DashboardModule {
       stats: {},
       deadlines: [],
       recentActivity: [],
-      alerts: []
+      alerts: [],
+      monthlyRevenue: { total: 0, auftraege: [] },
+      monthlyExpenses: { total: 0, rechnungen: [] }
     };
     this.refreshInterval = null;
     this.kampagnenView = 'kanban'; // 'list' oder 'kanban' - Standard: kanban
     this.kanbanBoard = null;
     this.kampagnen = [];
+    
+    // Farben für Umsatz-Balken (verschiedene Farben pro Auftrag)
+    this.revenueColors = [
+      '#3b82f6', // Blau
+      '#8b5cf6', // Lila
+      '#f59e0b', // Orange
+      '#10b981', // Grün
+      '#ef4444', // Rot
+      '#06b6d4', // Cyan
+      '#ec4899', // Pink
+      '#84cc16', // Lime
+      '#f97316', // Orange-Rot
+      '#6366f1'  // Indigo
+    ];
+    
+    // Farben für Ausgaben-Balken (verschiedene Rot-Töne für Ausgaben)
+    this.expenseColors = [
+      '#ef4444', // Rot
+      '#f97316', // Orange
+      '#f59e0b', // Amber
+      '#dc2626', // Dunkelrot
+      '#ea580c', // Dark Orange
+      '#d97706', // Dark Amber
+      '#b91c1c', // Rot-700
+      '#c2410c', // Orange-700
+      '#b45309', // Amber-700
+      '#991b1b'  // Rot-800
+    ];
   }
 
   async init() {
@@ -44,14 +74,141 @@ export class DashboardModule {
 
   async loadDashboardData() {
     try {
-      await Promise.all([
+      console.log('🔄 DASHBOARD: Lade Daten... Rolle:', window.currentUser?.rolle);
+      
+      const loadPromises = [
         this.loadStats(),
-        this.loadUpcomingDeadlines(),
-        this.loadRecentActivity(),
-        this.loadAlerts()
-      ]);
+        this.loadUpcomingDeadlines()
+      ];
+      
+      // Monatsumsatz und Ausgaben nur für Admins laden
+      if (window.currentUser?.rolle === 'admin') {
+        console.log('✅ DASHBOARD: Admin erkannt - lade Umsatz und Ausgaben');
+        loadPromises.push(this.loadMonthlyRevenue());
+        loadPromises.push(this.loadMonthlyExpenses());
+      } else {
+        console.log('⚠️ DASHBOARD: Kein Admin - überspringe Umsatz/Ausgaben');
+      }
+      
+      await Promise.all(loadPromises);
+      console.log('✅ DASHBOARD: Daten geladen:', this.data);
     } catch (error) {
       console.error('❌ Fehler beim Laden der Dashboard-Daten:', error);
+    }
+  }
+
+  // Lade Monatsumsatz (nur für Admins)
+  async loadMonthlyRevenue() {
+    try {
+      if (!window.supabase) {
+        this.data.monthlyRevenue = { total: 0, auftraege: [] };
+        return;
+      }
+
+      // Aktueller Monat Bereich
+      const now = new Date();
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+      
+      const firstDayStr = firstDayOfMonth.toISOString().split('T')[0];
+      const lastDayStr = lastDayOfMonth.toISOString().split('T')[0];
+
+      console.log(`💰 DASHBOARD: Lade Umsatz für ${firstDayStr} bis ${lastDayStr}`);
+
+      // Alle überwiesenen Aufträge im aktuellen Monat laden
+      const { data: auftraege, error } = await window.supabase
+        .from('auftrag')
+        .select(`
+          id,
+          auftragsname,
+          nettobetrag,
+          ueberwiesen_am,
+          unternehmen:unternehmen_id(firmenname),
+          marke:marke_id(markenname)
+        `)
+        .not('ueberwiesen_am', 'is', null)
+        .gte('ueberwiesen_am', firstDayStr)
+        .lte('ueberwiesen_am', lastDayStr)
+        .order('nettobetrag', { ascending: false });
+
+      if (error) {
+        console.error('❌ Fehler beim Laden des Monatsumsatzes:', error);
+        this.data.monthlyRevenue = { total: 0, auftraege: [] };
+        return;
+      }
+
+      // Gesamtsumme berechnen
+      const total = (auftraege || []).reduce((sum, a) => sum + (parseFloat(a.nettobetrag) || 0), 0);
+      
+      this.data.monthlyRevenue = {
+        total,
+        auftraege: auftraege || [],
+        month: now.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
+      };
+
+      console.log(`✅ DASHBOARD: ${auftraege?.length || 0} Aufträge mit Gesamtumsatz ${total.toFixed(2)}€`);
+
+    } catch (error) {
+      console.error('❌ Fehler beim Laden des Monatsumsatzes:', error);
+      this.data.monthlyRevenue = { total: 0, auftraege: [] };
+    }
+  }
+
+  // Lade Monatsausgaben (nur für Admins)
+  async loadMonthlyExpenses() {
+    try {
+      if (!window.supabase) {
+        this.data.monthlyExpenses = { total: 0, rechnungen: [] };
+        return;
+      }
+
+      // Aktueller Monat Bereich
+      const now = new Date();
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+      
+      const firstDayStr = firstDayOfMonth.toISOString().split('T')[0];
+      const lastDayStr = lastDayOfMonth.toISOString().split('T')[0];
+
+      console.log(`💸 DASHBOARD: Lade Ausgaben für ${firstDayStr} bis ${lastDayStr}`);
+
+      // Alle bezahlten Rechnungen im aktuellen Monat laden
+      const { data: rechnungen, error } = await window.supabase
+        .from('rechnung')
+        .select(`
+          id,
+          rechnung_nr,
+          nettobetrag,
+          bruttobetrag,
+          bezahlt_am,
+          creator:creator_id(vorname, nachname),
+          kooperation:kooperation_id(name)
+        `)
+        .not('bezahlt_am', 'is', null)
+        .gte('bezahlt_am', firstDayStr)
+        .lte('bezahlt_am', lastDayStr)
+        .order('nettobetrag', { ascending: false });
+
+      if (error) {
+        console.error('❌ Fehler beim Laden der Monatsausgaben:', error);
+        this.data.monthlyExpenses = { total: 0, rechnungen: [] };
+        return;
+      }
+
+      // Gesamtsumme berechnen (Netto)
+      const total = (rechnungen || []).reduce((sum, r) => sum + (parseFloat(r.nettobetrag) || 0), 0);
+      
+      this.data.monthlyExpenses = {
+        total,
+        rechnungen: rechnungen || [],
+        month: now.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
+      };
+
+      console.log(`✅ DASHBOARD: ${rechnungen?.length || 0} Rechnungen mit Gesamtausgaben ${total.toFixed(2)}€`);
+
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Monatsausgaben:', error);
+      this.data.monthlyExpenses = { total: 0, rechnungen: [] };
     }
   }
 
@@ -62,52 +219,36 @@ export class DashboardModule {
         return;
       }
 
-      // Parallele Abfragen für bessere Performance
-      const [
-        { data: kampagnen },
-        { data: auftraege },
-        { data: briefings },
-        { data: kooperationen },
-        { data: creator },
-        { data: rechnungen }
-      ] = await Promise.all([
-        window.supabase.from('kampagne').select('id, status_id, deadline'),
-        window.supabase.from('auftrag').select('id, status, ende, re_faelligkeit'),
-        window.supabase.from('briefings').select('id, status, deadline'),
-        window.supabase.from('kooperationen').select('id, status, content_deadline, skript_deadline'),
-        window.supabase.from('creator').select('id'),
-        window.supabase.from('rechnungen').select('id, status, zahlungsziel')
-      ]);
+      // Kampagnen mit Status-Name laden
+      const { data: kampagnen, error } = await window.supabase
+        .from('kampagne')
+        .select('id, deadline, status:status_id(id, name)');
+
+      if (error) {
+        console.error('❌ Fehler beim Laden der Kampagnen:', error);
+        this.data.stats = this.getMockStats();
+        return;
+      }
+
+      // "Aktiv" = alle die NICHT "Abgeschlossen" sind
+      const aktiveKampagnen = (kampagnen || []).filter(k => 
+        k.status?.name !== 'Abgeschlossen'
+      );
+      
+      // Überfällig = Deadline in der Vergangenheit UND nicht abgeschlossen
+      const ueberfaelligeKampagnen = aktiveKampagnen.filter(k => 
+        k.deadline && new Date(k.deadline) < new Date()
+      );
 
       this.data.stats = {
         kampagnen: {
           total: kampagnen?.length || 0,
-          aktiv: kampagnen?.filter(k => k.status_id === 'active')?.length || 0,
-          ueberfaellig: kampagnen?.filter(k => k.deadline && new Date(k.deadline) < new Date())?.length || 0
-        },
-        auftraege: {
-          total: auftraege?.length || 0,
-          aktiv: auftraege?.filter(a => a.status === 'aktiv')?.length || 0,
-          ueberfaellig: auftraege?.filter(a => a.ende && new Date(a.ende) < new Date())?.length || 0
-        },
-        briefings: {
-          total: briefings?.length || 0,
-          offen: briefings?.filter(b => b.status !== 'completed')?.length || 0,
-          ueberfaellig: briefings?.filter(b => b.deadline && new Date(b.deadline) < new Date())?.length || 0
-        },
-        kooperationen: {
-          total: kooperationen?.length || 0,
-          aktiv: kooperationen?.filter(k => k.status === 'active')?.length || 0
-        },
-        creator: {
-          total: creator?.length || 0
-        },
-        rechnungen: {
-          total: rechnungen?.length || 0,
-          offen: rechnungen?.filter(r => r.status !== 'bezahlt')?.length || 0,
-          ueberfaellig: rechnungen?.filter(r => r.zahlungsziel && new Date(r.zahlungsziel) < new Date())?.length || 0
+          aktiv: aktiveKampagnen.length,
+          ueberfaellig: ueberfaelligeKampagnen.length
         }
       };
+      
+      console.log('📊 Dashboard Stats:', this.data.stats);
     } catch (error) {
       console.error('❌ Fehler beim Laden der Statistiken:', error);
       this.data.stats = this.getMockStats();
@@ -436,6 +577,8 @@ export class DashboardModule {
         ${!isPending ? `
         <!-- KPI Cards -->
         <div class="dashboard-stats">
+          ${window.currentUser?.rolle === 'admin' ? this.renderAdminRevenueCard() : ''}
+          ${window.currentUser?.rolle === 'admin' ? this.renderAdminExpensesCard() : ''}
           ${this.renderStatsCards()}
         </div>
 
@@ -446,24 +589,6 @@ export class DashboardModule {
             <span class="section-count">${this.data.deadlines.length} Einträge</span>
           </div>
           ${this.renderDeadlinesTable()}
-        </div>
-
-        <!-- Alerts Section -->
-        <div class="content-section">
-          <div class="section-header">
-            <h2>Wichtige Hinweise</h2>
-            <span class="section-count">${this.data.alerts.length} Einträge</span>
-          </div>
-          ${this.renderAlertsTable()}
-        </div>
-
-        <!-- Recent Activity Section -->
-        <div class="content-section">
-          <div class="section-header">
-            <h2>Letzte Aktivitäten</h2>
-            <span class="section-count">${this.data.recentActivity.length} Einträge</span>
-          </div>
-          ${this.renderRecentActivityTable()}
         </div>
 
         <!-- Kampagnen Section -->
@@ -488,8 +613,8 @@ export class DashboardModule {
             </div>
           </div>
           <div id="dashboard-kampagnen-content" class="dashboard-kampagnen-section">
-            <div id="dashboard-kanban-container" style="display: ${this.kampagnenView === 'kanban' ? 'block' : 'none'};"></div>
-            <div id="dashboard-kampagnen-table" style="display: ${this.kampagnenView === 'list' ? 'block' : 'none'};"></div>
+            <div id="dashboard-kanban-container" class="${this.kampagnenView === 'kanban' ? '' : 'hidden'}"></div>
+            <div id="dashboard-kampagnen-table" class="${this.kampagnenView === 'list' ? '' : 'hidden'}"></div>
           </div>
         </div>
         ` : ''}
@@ -592,8 +717,8 @@ export class DashboardModule {
               </div>
             </div>
             <div id="dashboard-kunden-kampagnen-content" class="dashboard-kampagnen-section">
-              <div id="dashboard-kunden-kanban-container" style="display: ${this.kampagnenView === 'kanban' ? 'block' : 'none'};"></div>
-              <div id="dashboard-kunden-kampagnen-table" style="display: ${this.kampagnenView === 'list' ? 'block' : 'none'};">
+              <div id="dashboard-kunden-kanban-container" class="${this.kampagnenView === 'kanban' ? '' : 'hidden'}"></div>
+              <div id="dashboard-kunden-kampagnen-table" class="${this.kampagnenView === 'list' ? '' : 'hidden'}">
                 <div class="data-table-container">
                   <table class="data-table">
                     <thead>
@@ -649,7 +774,7 @@ export class DashboardModule {
       <div class="content-section">
         <div class="pending-user-message">
           <div class="pending-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 48px; height: 48px;">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
             </svg>
           </div>
@@ -679,110 +804,6 @@ export class DashboardModule {
           </div>
         </div>
       </div>
-      
-      <style>
-        .pending-user-message {
-          background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-          border: 2px solid #e2e8f0;
-          border-radius: 12px;
-          padding: 2rem;
-          text-align: center;
-          max-width: 600px;
-          margin: 0 auto;
-        }
-        
-        .pending-icon {
-          margin-bottom: 1rem;
-          color: #64748b;
-        }
-        
-        .pending-user-message h3 {
-          color: #1e293b;
-          font-size: 1.5rem;
-          margin-bottom: 0.5rem;
-          font-weight: 600;
-        }
-        
-        .pending-user-message > p {
-          color: #64748b;
-          font-size: 1.1rem;
-          margin-bottom: 1.5rem;
-          line-height: 1.6;
-        }
-        
-        .pending-details {
-          background: white;
-          border-radius: 8px;
-          padding: 1.5rem;
-          margin: 1.5rem 0;
-          text-align: left;
-          border: 1px solid #e2e8f0;
-        }
-        
-        .pending-info {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 0.5rem 0;
-          border-bottom: 1px solid #f1f5f9;
-        }
-        
-        .pending-info:last-child {
-          border-bottom: none;
-        }
-        
-        .pending-status {
-          color: #f59e0b;
-          font-weight: 600;
-          background: #fef3c7;
-          padding: 0.25rem 0.75rem;
-          border-radius: 20px;
-          font-size: 0.875rem;
-        }
-        
-        .pending-actions {
-          background: #f8fafc;
-          border-radius: 8px;
-          padding: 1.5rem;
-          margin: 1.5rem 0;
-          text-align: left;
-        }
-        
-        .pending-actions p {
-          margin-bottom: 1rem;
-          color: #1e293b;
-          font-weight: 600;
-        }
-        
-        .pending-actions ul {
-          list-style: none;
-          padding: 0;
-          margin: 0;
-        }
-        
-        .pending-actions li {
-          color: #64748b;
-          padding: 0.5rem 0;
-          position: relative;
-          padding-left: 1.5rem;
-        }
-        
-        .pending-actions li::before {
-          content: "✓";
-          position: absolute;
-          left: 0;
-          color: #10b981;
-          font-weight: bold;
-        }
-        
-        .pending-contact {
-          margin-top: 1.5rem;
-          padding-top: 1rem;
-          border-top: 1px solid #e2e8f0;
-          color: #64748b;
-          font-size: 0.95rem;
-        }
-      </style>
     `;
   }
 
@@ -802,59 +823,168 @@ export class DashboardModule {
         </div>
         ${stats.kampagnen?.ueberfaellig > 0 ? `<div class="stats-alert status-badge danger">${stats.kampagnen.ueberfaellig} überfällig</div>` : ''}
       </div>
+    `;
+  }
 
-      <div class="stats-card">
-        <div class="stats-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-          </svg>
+  // Admin-Umsatz-Kachel mit Portfolio-Style Balken
+  renderAdminRevenueCard() {
+    const revenue = this.data.monthlyRevenue;
+    const total = revenue.total || 0;
+    const auftraege = revenue.auftraege || [];
+    const month = revenue.month || new Date().toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+    
+    // Formatierung für Währung
+    const formatCurrency = (value) => {
+      return new Intl.NumberFormat('de-DE', { 
+        style: 'currency', 
+        currency: 'EUR',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+      }).format(value);
+    };
+    
+    // Balken generieren (proportional zur Gesamtsumme)
+    let barsHtml = '';
+    let legendHtml = '';
+    
+    if (auftraege.length > 0 && total > 0) {
+      auftraege.forEach((auftrag, index) => {
+        const betrag = parseFloat(auftrag.nettobetrag) || 0;
+        const percentage = (betrag / total) * 100;
+        const color = this.revenueColors[index % this.revenueColors.length];
+        const name = auftrag.auftragsname || auftrag.marke?.markenname || auftrag.unternehmen?.firmenname || 'Auftrag';
+        
+        // Balken (nur wenn > 0.5%) - width und background-color müssen dynamisch bleiben
+        if (percentage > 0.5) {
+          barsHtml += `<div class="revenue-bar" style="width: ${percentage}%; background-color: ${color};" title="${name}: ${formatCurrency(betrag)}"></div>`;
+        }
+        
+        // Legende (max. 5 Einträge)
+        if (index < 5) {
+          legendHtml += `
+            <div class="revenue-legend-item">
+              <span class="revenue-legend-color" style="background-color: ${color};"></span>
+              <span class="revenue-legend-value">${formatCurrency(betrag)}</span>
+              <span class="revenue-legend-name">${name.length > 20 ? name.substring(0, 20) + '...' : name}</span>
+            </div>
+          `;
+        }
+      });
+      
+      // "Weitere" anzeigen wenn mehr als 5 Aufträge
+      if (auftraege.length > 5) {
+        const weitereAnzahl = auftraege.length - 5;
+        const weitereBetrag = auftraege.slice(5).reduce((sum, a) => sum + (parseFloat(a.nettobetrag) || 0), 0);
+        legendHtml += `
+          <div class="revenue-legend-item revenue-legend-item--more">
+            <span class="revenue-legend-color" style="background-color: var(--gray-400);"></span>
+            <span class="revenue-legend-value">${formatCurrency(weitereBetrag)}</span>
+            <span class="revenue-legend-name">+${weitereAnzahl} weitere</span>
+          </div>
+        `;
+      }
+    } else {
+      barsHtml = '<div class="revenue-bar revenue-bar--empty"></div>';
+      legendHtml = '<div class="revenue-legend-empty">Keine Umsätze in diesem Monat</div>';
+    }
+
+    return `
+      <div class="stats-card stats-card--revenue">
+        <div class="revenue-content">
+          <span class="revenue-title">Umsatz ${month}</span>
+          <div class="revenue-total">
+            <span class="revenue-currency">€</span>
+            <span class="revenue-amount">${total.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+          </div>
+          <div class="revenue-bars">
+            ${barsHtml}
+          </div>
+          <div class="revenue-legend">
+            ${legendHtml}
+          </div>
         </div>
-        <div class="stats-content">
-          <div class="stats-number">${stats.auftraege?.aktiv || 0}</div>
-          <div class="stats-label">Aktive Aufträge</div>
-          <div class="stats-sublabel">${stats.auftraege?.total || 0} gesamt</div>
-        </div>
-        ${stats.auftraege?.ueberfaellig > 0 ? `<div class="stats-alert status-badge danger">${stats.auftraege.ueberfaellig} überfällig</div>` : ''}
       </div>
+    `;
+  }
 
-      <div class="stats-card">
-        <div class="stats-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 11.625h4.5m-4.5 2.25h4.5m2.121 1.527c-1.171 1.464-3.07 1.464-4.242 0-1.172-1.465-1.172-3.84 0-5.304 1.171-1.464 3.07-1.464 4.242 0M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-          </svg>
-        </div>
-        <div class="stats-content">
-          <div class="stats-number">${stats.briefings?.offen || 0}</div>
-          <div class="stats-label">Offene Briefings</div>
-          <div class="stats-sublabel">${stats.briefings?.total || 0} gesamt</div>
-        </div>
-        ${stats.briefings?.ueberfaellig > 0 ? `<div class="stats-alert status-badge danger">${stats.briefings.ueberfaellig} überfällig</div>` : ''}
-      </div>
+  // Admin-Ausgaben-Kachel mit Portfolio-Style Balken
+  renderAdminExpensesCard() {
+    const expenses = this.data.monthlyExpenses;
+    const total = expenses.total || 0;
+    const rechnungen = expenses.rechnungen || [];
+    const month = expenses.month || new Date().toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+    
+    // Formatierung für Währung
+    const formatCurrency = (value) => {
+      return new Intl.NumberFormat('de-DE', { 
+        style: 'currency', 
+        currency: 'EUR',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+      }).format(value);
+    };
+    
+    // Balken generieren (proportional zur Gesamtsumme)
+    let barsHtml = '';
+    let legendHtml = '';
+    
+    if (rechnungen.length > 0 && total > 0) {
+      rechnungen.forEach((rechnung, index) => {
+        const betrag = parseFloat(rechnung.nettobetrag) || 0;
+        const percentage = (betrag / total) * 100;
+        const color = this.expenseColors[index % this.expenseColors.length];
+        // Name: Creator-Name oder Kooperations-Name oder Rechnungsnummer
+        const creatorName = rechnung.creator ? `${rechnung.creator.vorname || ''} ${rechnung.creator.nachname || ''}`.trim() : null;
+        const name = creatorName || rechnung.kooperation?.name || rechnung.rechnung_nr || 'Rechnung';
+        
+        // Balken (nur wenn > 0.5%)
+        if (percentage > 0.5) {
+          barsHtml += `<div class="expense-bar" style="width: ${percentage}%; background-color: ${color};" title="${name}: ${formatCurrency(betrag)}"></div>`;
+        }
+        
+        // Legende (max. 5 Einträge)
+        if (index < 5) {
+          legendHtml += `
+            <div class="expense-legend-item">
+              <span class="expense-legend-color" style="background-color: ${color};"></span>
+              <span class="expense-legend-value">${formatCurrency(betrag)}</span>
+              <span class="expense-legend-name">${name.length > 20 ? name.substring(0, 20) + '...' : name}</span>
+            </div>
+          `;
+        }
+      });
+      
+      // "Weitere" anzeigen wenn mehr als 5 Rechnungen
+      if (rechnungen.length > 5) {
+        const weitereAnzahl = rechnungen.length - 5;
+        const weitereBetrag = rechnungen.slice(5).reduce((sum, r) => sum + (parseFloat(r.nettobetrag) || 0), 0);
+        legendHtml += `
+          <div class="expense-legend-item expense-legend-item--more">
+            <span class="expense-legend-color" style="background-color: var(--gray-400);"></span>
+            <span class="expense-legend-value">${formatCurrency(weitereBetrag)}</span>
+            <span class="expense-legend-name">+${weitereAnzahl} weitere</span>
+          </div>
+        `;
+      }
+    } else {
+      barsHtml = '<div class="expense-bar expense-bar--empty"></div>';
+      legendHtml = '<div class="expense-legend-empty">Keine Ausgaben in diesem Monat</div>';
+    }
 
-      <div class="stats-card">
-        <div class="stats-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12s-1.536.219-2.121.659c-1.172.879-1.172 2.303 0 3.182.879.659 1.879.659 2.758 0L15 13.5M12 6V4.5" />
-          </svg>
-        </div>
-        <div class="stats-content">
-          <div class="stats-number">${stats.rechnungen?.offen || 0}</div>
-          <div class="stats-label">Offene Rechnungen</div>
-          <div class="stats-sublabel">${stats.rechnungen?.total || 0} gesamt</div>
-        </div>
-        ${stats.rechnungen?.ueberfaellig > 0 ? `<div class="stats-alert status-badge danger">${stats.rechnungen.ueberfaellig} überfällig</div>` : ''}
-      </div>
-
-      <div class="stats-card">
-        <div class="stats-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
-          </svg>
-        </div>
-        <div class="stats-content">
-          <div class="stats-number">${stats.creator?.total || 0}</div>
-          <div class="stats-label">Creator</div>
-          <div class="stats-sublabel">Im System</div>
+    return `
+      <div class="stats-card stats-card--expenses">
+        <div class="expense-content">
+          <span class="expense-title">Ausgaben ${month}</span>
+          <div class="expense-total">
+            <span class="expense-currency">€</span>
+            <span class="expense-amount">${total.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+          </div>
+          <div class="expense-bars">
+            ${barsHtml}
+          </div>
+          <div class="expense-legend">
+            ${legendHtml}
+          </div>
         </div>
       </div>
     `;
@@ -1128,11 +1258,11 @@ export class DashboardModule {
           this.kanbanBoard = null;
         }
         
-        // Toggle Display
+        // Toggle Display via CSS-Klassen
         const kanbanContainer = document.getElementById('dashboard-kanban-container');
         const tableContainer = document.getElementById('dashboard-kampagnen-table');
-        if (kanbanContainer) kanbanContainer.style.display = 'none';
-        if (tableContainer) tableContainer.style.display = 'block';
+        if (kanbanContainer) kanbanContainer.classList.add('hidden');
+        if (tableContainer) tableContainer.classList.remove('hidden');
         
         // Toggle Button States
         listBtn.classList.add('active');
@@ -1150,11 +1280,11 @@ export class DashboardModule {
         
         this.kampagnenView = 'kanban';
         
-        // Toggle Display
+        // Toggle Display via CSS-Klassen
         const kanbanContainer = document.getElementById('dashboard-kanban-container');
         const tableContainer = document.getElementById('dashboard-kampagnen-table');
-        if (kanbanContainer) kanbanContainer.style.display = 'block';
-        if (tableContainer) tableContainer.style.display = 'none';
+        if (kanbanContainer) kanbanContainer.classList.remove('hidden');
+        if (tableContainer) tableContainer.classList.add('hidden');
         
         // Toggle Button States
         kanbanBtn.classList.add('active');
@@ -1182,11 +1312,11 @@ export class DashboardModule {
           this.kanbanBoard = null;
         }
         
-        // Toggle Display
+        // Toggle Display via CSS-Klassen
         const kanbanContainer = document.getElementById('dashboard-kunden-kanban-container');
         const tableContainer = document.getElementById('dashboard-kunden-kampagnen-table');
-        if (kanbanContainer) kanbanContainer.style.display = 'none';
-        if (tableContainer) tableContainer.style.display = 'block';
+        if (kanbanContainer) kanbanContainer.classList.add('hidden');
+        if (tableContainer) tableContainer.classList.remove('hidden');
         
         // Toggle Button States
         kundenListBtn.classList.add('active');
@@ -1201,11 +1331,11 @@ export class DashboardModule {
         
         this.kampagnenView = 'kanban';
         
-        // Toggle Display
+        // Toggle Display via CSS-Klassen
         const kanbanContainer = document.getElementById('dashboard-kunden-kanban-container');
         const tableContainer = document.getElementById('dashboard-kunden-kampagnen-table');
-        if (kanbanContainer) kanbanContainer.style.display = 'block';
-        if (tableContainer) tableContainer.style.display = 'none';
+        if (kanbanContainer) kanbanContainer.classList.remove('hidden');
+        if (tableContainer) tableContainer.classList.add('hidden');
         
         // Toggle Button States
         kundenKanbanBtn.classList.add('active');
@@ -1333,7 +1463,7 @@ export class DashboardModule {
       if (!container) return;
 
       const kampagnenRows = (kampagnen || []).map(k => `
-        <tr onclick="window.navigateTo('/kampagne/${k.id}')" style="cursor: pointer;">
+        <tr class="table-row-clickable" onclick="window.navigateTo('/kampagne/${k.id}')">
           <td>${window.validatorSystem.sanitizeHtml(k.kampagnenname || 'Unbekannt')}</td>
           <td>${window.validatorSystem.sanitizeHtml(k.unternehmen?.firmenname || '—')}</td>
           <td>${window.validatorSystem.sanitizeHtml(k.marke?.markenname || '—')}</td>
@@ -1404,12 +1534,7 @@ export class DashboardModule {
   // Mock-Daten für Offline/Test-Modus
   getMockStats() {
     return {
-      kampagnen: { total: 12, aktiv: 8, ueberfaellig: 2 },
-      auftraege: { total: 15, aktiv: 10, ueberfaellig: 1 },
-      briefings: { total: 8, offen: 5, ueberfaellig: 1 },
-      kooperationen: { total: 25, aktiv: 18 },
-      creator: { total: 45 },
-      rechnungen: { total: 20, offen: 8, ueberfaellig: 3 }
+      kampagnen: { total: 12, aktiv: 8, ueberfaellig: 2 }
     };
   }
 

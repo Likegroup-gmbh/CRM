@@ -438,6 +438,7 @@ export class FormConfig {
           { name: 'skript_deadline', label: 'Skript Deadline', type: 'date', required: false },
           { name: 'skript_link', label: 'Skript Link', type: 'url', required: false, validation: { type: 'url' } },
           { name: 'content_deadline', label: 'Content Deadline', type: 'date', required: false },
+          { name: 'content_art', label: 'Content Art', type: 'select', required: true, options: ['Paid', 'Organisch', 'Influencer', 'Whitelisting', 'Spark-Ad'] },
           
           { name: 'status', label: 'Status', type: 'select', required: true, options: ['Todo', 'In progress', 'Done'] }
                 ]
@@ -447,6 +448,7 @@ export class FormConfig {
         fields: [
           { name: 'vorname', label: 'Vorname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
           { name: 'nachname', label: 'Nachname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
+          { name: 'profile_image_file', label: 'Profilbild', type: 'custom', customType: 'uploader', accept: 'image/png,image/jpeg', multiple: false, required: false },
           { 
             name: 'unternehmen_id', 
             label: 'Unternehmen', 

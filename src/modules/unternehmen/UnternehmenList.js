@@ -449,7 +449,8 @@ export class UnternehmenList {
             id,
             vorname,
             nachname,
-            email
+            email,
+            profile_image_url
           )
         `)
         .in('unternehmen_id', unternehmenIds);
@@ -489,7 +490,8 @@ export class UnternehmenList {
         name: `${ap.vorname} ${ap.nachname}`,
         type: 'person',
         id: ap.id,
-        entityType: 'ansprechpartner'
+        entityType: 'ansprechpartner',
+        profile_image_url: ap.profile_image_url || null
       }));
     
     return avatarBubbles.renderBubbles(items);

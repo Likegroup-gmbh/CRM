@@ -487,9 +487,9 @@ export class AddToVideoDrawer {
 
       // Anzeigen
       displayDiv.innerHTML = `
-        <div class="selected-item-badge">
+        <div class="tag">
           <span>${this.escapeHtml(koopName)}</span>
-          <button type="button" class="badge-remove-btn">✕</button>
+          <button type="button" class="tag-remove">✕</button>
         </div>
       `;
 
@@ -500,7 +500,7 @@ export class AddToVideoDrawer {
       await this.checkVideoLimit(koopId, limitInfo);
 
       // Remove-Button
-      displayDiv.querySelector('.badge-remove-btn')?.addEventListener('click', () => {
+      displayDiv.querySelector('.tag-remove')?.addEventListener('click', () => {
         this.selectedKooperationId = null;
         displayDiv.innerHTML = '';
         limitInfo.innerHTML = '';

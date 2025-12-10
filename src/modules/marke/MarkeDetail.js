@@ -1016,12 +1016,13 @@ export class MarkeDetail {
         allFormData[key] = value;
       }
 
-      // Tag-basierte Multi-Selects explizit sammeln (wie bei UnternehmenDetail)
+      // Tag-basierte Multi-Selects explizit sammeln
+      // WICHTIG: DataService erwartet für Marke "branche_ids[]" (mit s), nicht "branche_id[]"
       const hiddenSelect = form.querySelector('select[name="branche_id[]"]');
       if (hiddenSelect) {
         const selectedValues = Array.from(hiddenSelect.selectedOptions).map(option => option.value).filter(val => val !== '');
         if (selectedValues.length > 0) {
-          allFormData['branche_id[]'] = selectedValues;
+          allFormData['branche_ids[]'] = selectedValues;
           console.log('🏷️ MARKEDETAIL: Alle ausgewählten Branchen gesammelt:', selectedValues);
         }
       }
@@ -1054,13 +1055,11 @@ export class MarkeDetail {
           }
         }
 
-        this.showSuccessMessage('Marke erfolgreich aktualisiert!');
+        window.toastSystem.success('Marke erfolgreich aktualisiert!');
         
-        // Daten neu laden und zur Detailseite zurückkehren
-        setTimeout(async () => {
-          await this.loadMarkeData();
-          this.render();
-          this.bindEvents();
+        // Zur Markenübersicht navigieren
+        setTimeout(() => {
+          window.navigateTo('/marke');
         }, 1500);
       } else {
         throw new Error(result.error || 'Unbekannter Fehler');
@@ -1094,26 +1093,6 @@ export class MarkeDetail {
         field.style.borderColor = '#dc3545';
       }
     });
-  }
-
-  // Show Success Message
-  showSuccessMessage(message) {
-    const successDiv = document.createElement('div');
-    successDiv.className = 'alert alert-success';
-    successDiv.textContent = message;
-    successDiv.style.cssText = `
-      background: #d4edda;
-      color: #155724;
-      padding: 1rem;
-      border-radius: 4px;
-      margin-bottom: 1rem;
-      border: 1px solid #c3e6cb;
-    `;
-    
-    const formPage = document.querySelector('.form-page');
-    if (formPage) {
-      formPage.insertBefore(successDiv, formPage.firstChild);
-    }
   }
 
   // Show Error Message

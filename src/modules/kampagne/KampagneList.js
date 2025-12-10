@@ -1341,7 +1341,8 @@ export class KampagneList {
         name: `${ap.vorname} ${ap.nachname}`,
         type: 'person',
         id: ap.id,
-        entityType: 'ansprechpartner'
+        entityType: 'ansprechpartner',
+        profile_image_url: ap.profile_image_url || null
       }));
 
     return avatarBubbles.renderBubbles(items);

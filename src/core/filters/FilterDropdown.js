@@ -10,9 +10,50 @@ export class FilterDropdown {
     this.instances = new Map(); // Dropdown-Instanzen für verschiedene Entity-Types
     this.activeFilters = new Map(); // Aktive Filter pro Entity-Type
     this.filterConfigs = new Map(); // Cache für Filter-Konfigurationen
+    this.optionsCache = new Map(); // Cache für dynamisch geladene Filter-Optionen
     this.currentEntityType = null;
     this.callbacks = new Map(); // Callbacks für Filter-Events
     this.eventsBound = false; // Guard: Events nur einmal binden
+  }
+
+  /**
+   * Generiert Cache-Key für Filter-Optionen
+   */
+  getOptionsCacheKey(entityType, filterId) {
+    return `${entityType}:${filterId}`;
+  }
+
+  /**
+   * Holt gecachte Optionen oder null
+   */
+  getCachedOptions(entityType, filterId) {
+    const key = this.getOptionsCacheKey(entityType, filterId);
+    return this.optionsCache.get(key) || null;
+  }
+
+  /**
+   * Speichert Optionen im Cache
+   */
+  setCachedOptions(entityType, filterId, options) {
+    const key = this.getOptionsCacheKey(entityType, filterId);
+    this.optionsCache.set(key, options);
+  }
+
+  /**
+   * Invalidiert Cache für einen Entity-Type (bei Bedarf)
+   */
+  invalidateOptionsCache(entityType = null) {
+    if (entityType) {
+      // Nur Optionen für diesen Entity-Type löschen
+      for (const key of this.optionsCache.keys()) {
+        if (key.startsWith(`${entityType}:`)) {
+          this.optionsCache.delete(key);
+        }
+      }
+    } else {
+      // Alle Optionen löschen
+      this.optionsCache.clear();
+    }
   }
 
   /**
@@ -664,6 +705,11 @@ export class FilterDropdown {
         if (selectOptions.length > 0) {
           console.log(`✅ Nutze vordefinierte Optionen für ${filterConfig.id}:`, selectOptions.length);
         }
+        // Prüfe ob Optionen im Cache sind (Performance-Optimierung)
+        else if (this.getCachedOptions(entityType, filterConfig.id)) {
+          selectOptions = this.getCachedOptions(entityType, filterConfig.id);
+          console.log(`⚡ Nutze gecachte Optionen für ${filterConfig.id}:`, selectOptions.length);
+        }
         // Falls keine Optionen vorhanden UND dynamisch, lade sie
         else if (filterConfig.dynamic || filterConfig.table) {
           try {
@@ -891,6 +937,11 @@ export class FilterDropdown {
             } else {
               console.log(`✅ ${selectOptions.length} Optionen aus aktuellen Daten extrahiert für ${filterConfig.id}`);
             }
+            
+            // Optionen im Cache speichern für spätere Verwendung
+            if (selectOptions.length > 0) {
+              this.setCachedOptions(entityType, filterConfig.id, selectOptions);
+            }
           } catch (error) {
             console.error(`❌ Fehler beim Laden der Optionen:`, error);
           }
@@ -921,8 +972,13 @@ export class FilterDropdown {
         // Prüfe ob Optionen bereits geladen sind
         let multiOptions = filterConfig.options || [];
         
+        // Prüfe ob Optionen im Cache sind (Performance-Optimierung)
+        if (multiOptions.length === 0 && this.getCachedOptions(entityType, filterConfig.id)) {
+          multiOptions = this.getCachedOptions(entityType, filterConfig.id);
+          console.log(`⚡ Nutze gecachte Optionen für ${filterConfig.id}:`, multiOptions.length);
+        }
         // Falls keine Optionen vorhanden, extrahiere aus aktuellen Daten
-        if (multiOptions.length === 0 && (filterConfig.dynamic || filterConfig.table)) {
+        else if (multiOptions.length === 0 && (filterConfig.dynamic || filterConfig.table)) {
           try {
             console.log(`🔄 Extrahiere Optionen aus aktuellen Daten für ${filterConfig.id}...`);
             
@@ -951,6 +1007,11 @@ export class FilterDropdown {
               }
             } else {
               console.log(`✅ ${multiOptions.length} Optionen aus aktuellen Daten extrahiert für ${filterConfig.id}`);
+            }
+            
+            // Optionen im Cache speichern für spätere Verwendung
+            if (multiOptions.length > 0) {
+              this.setCachedOptions(entityType, filterConfig.id, multiOptions);
             }
           } catch (error) {
             console.error(`❌ Fehler beim Laden der Optionen:`, error);
@@ -1323,6 +1384,7 @@ export class FilterDropdown {
     this.instances.clear();
     this.activeFilters.clear();
     this.filterConfigs.clear();
+    this.optionsCache.clear();
     this.callbacks.clear();
   }
 }

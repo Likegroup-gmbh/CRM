@@ -195,7 +195,7 @@ export class MarkeList {
           *,
           unternehmen:unternehmen_id(id, firmenname, logo_url),
           branchen:marke_branchen(branche:branche_id(id, name)),
-          ansprechpartner:ansprechpartner_marke(ansprechpartner:ansprechpartner_id(id, vorname, nachname, email)),
+          ansprechpartner:ansprechpartner_marke(ansprechpartner:ansprechpartner_id(id, vorname, nachname, email, profile_image_url)),
           mitarbeiter:marke_mitarbeiter!fk_marke_mitarbeiter_marke_id(mitarbeiter:mitarbeiter_id(id, name))
         `, { count: 'exact' })
         .order('created_at', { ascending: false });
@@ -626,7 +626,8 @@ export class MarkeList {
         name: `${ap.vorname} ${ap.nachname}`,
         type: 'person',
         id: ap.id,
-        entityType: 'ansprechpartner'
+        entityType: 'ansprechpartner',
+        profile_image_url: ap.profile_image_url || null
       }));
 
     return avatarBubbles.renderBubbles(items);

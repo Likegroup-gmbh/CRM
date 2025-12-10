@@ -266,6 +266,11 @@ export class FormSystem {
           await this.handleKooperationVideos(result.id, form);
         }
 
+        // File-Upload für Ansprechpartner Profilbild
+        if (entity === 'ansprechpartner') {
+          await this.handleAnsprechpartnerProfileImage(result.id, form);
+        }
+
         this.validator.showSuccessMessage(data ? 'Erfolgreich aktualisiert!' : 'Erfolgreich erstellt!');
 
         // Micro-Animation greifen lassen, dann schließen (falls Button-Flow aktiv)
@@ -875,6 +880,110 @@ export class FormSystem {
     }
     
     console.log(`🗑️ FORMSYSTEM: Smart Initialization Cleanup abgeschlossen`);
+  }
+
+  // Profilbild-Upload für Ansprechpartner
+  async handleAnsprechpartnerProfileImage(ansprechpartnerId, form) {
+    try {
+      console.log('📋 handleAnsprechpartnerProfileImage() aufgerufen für:', ansprechpartnerId);
+      
+      const uploaderRoot = form.querySelector('.uploader[data-name="profile_image_file"]');
+      console.log('  → Uploader Root:', uploaderRoot);
+      console.log('  → Uploader Instance:', uploaderRoot?.__uploaderInstance);
+      console.log('  → Files:', uploaderRoot?.__uploaderInstance?.files);
+      
+      if (!uploaderRoot || !uploaderRoot.__uploaderInstance || !uploaderRoot.__uploaderInstance.files.length) {
+        console.log('ℹ️ Kein Profilbild zum Hochladen');
+        return;
+      }
+
+      if (!window.supabase) {
+        console.warn('⚠️ Supabase nicht verfügbar');
+        return;
+      }
+
+      const files = uploaderRoot.__uploaderInstance.files;
+      const file = files[0];
+      const bucket = 'ansprechpartner-images';
+      
+      // Validierung
+      const MAX_FILE_SIZE = 500 * 1024; // 500 KB
+      const ALLOWED_TYPES = ['image/png', 'image/jpeg'];
+      
+      if (file.size > MAX_FILE_SIZE) {
+        console.warn(`⚠️ Profilbild zu groß: ${(file.size / 1024).toFixed(2)} KB`);
+        alert(`Profilbild ist zu groß (max. 500 KB)`);
+        return;
+      }
+
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        console.warn(`⚠️ Nicht erlaubter Dateityp: ${file.type}`);
+        alert(`Nur PNG und JPG Dateien sind erlaubt`);
+        return;
+      }
+
+      const ext = file.name.split('.').pop().toLowerCase();
+      const path = `${ansprechpartnerId}/profile.${ext}`;
+      
+      console.log(`📤 Uploading Profilbild: ${file.name} -> ${path}`);
+      
+      // Altes Bild löschen
+      try {
+        const { data: existingFiles } = await window.supabase.storage
+          .from(bucket)
+          .list(ansprechpartnerId);
+        
+        if (existingFiles && existingFiles.length > 0) {
+          for (const existingFile of existingFiles) {
+            await window.supabase.storage
+              .from(bucket)
+              .remove([`${ansprechpartnerId}/${existingFile.name}`]);
+          }
+        }
+      } catch (deleteErr) {
+        console.warn('⚠️ Fehler beim Löschen alter Profilbilder:', deleteErr);
+      }
+      
+      // Upload
+      const { error: upErr } = await window.supabase.storage
+        .from(bucket)
+        .upload(path, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: file.type
+        });
+      
+      if (upErr) {
+        console.error(`❌ Upload-Fehler:`, upErr);
+        throw upErr;
+      }
+      
+      // Öffentliche URL
+      const { data: publicUrlData } = window.supabase.storage
+        .from(bucket)
+        .getPublicUrl(path);
+      
+      const profile_image_url = publicUrlData?.publicUrl || '';
+      
+      // DB aktualisieren
+      const { error: dbErr } = await window.supabase
+        .from('ansprechpartner')
+        .update({
+          profile_image_url,
+          profile_image_path: path
+        })
+        .eq('id', ansprechpartnerId);
+      
+      if (dbErr) {
+        console.error(`❌ DB-Fehler:`, dbErr);
+        throw dbErr;
+      }
+      
+      console.log(`✅ Profilbild erfolgreich hochgeladen: ${profile_image_url}`);
+    } catch (error) {
+      console.error('❌ Profilbild-Upload fehlgeschlagen:', error);
+      // Nicht werfen - Update war erfolgreich
+    }
   }
 
   // Zerstöre FormSystem komplett

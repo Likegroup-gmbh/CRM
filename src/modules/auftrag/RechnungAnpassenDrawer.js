@@ -222,7 +222,12 @@ export class RechnungAnpassenDrawer {
     const footer = document.querySelector(`#${this.drawerId} .drawer-footer`);
     if (footer) {
       footer.addEventListener('click', async (e) => {
-        const action = e.target.dataset.action;
+        // Finde den Button mit data-action (auch wenn auf Icon/Label geklickt wurde)
+        const button = e.target.closest('[data-action]');
+        if (!button) return;
+        
+        const action = button.dataset.action;
+        console.log('🖱️ RECHNUNG-ANPASSEN: Button geklickt:', action);
         
         if (action === 'cancel') {
           this.close();

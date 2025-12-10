@@ -53,9 +53,9 @@ export class KampagneKooperationenVideoTable {
     // Kunden dürfen folgende Felder NICHT bearbeiten:
     if (userRole === 'kunde') {
       const readOnlyFieldsForKunden = {
-        'kooperation': ['vertrag_unterschrieben', 'typ'],
-        'versand': ['versendet', 'tracking_nummer'],
-        'video': ['thema', 'link_produkte', 'link_skript', 'skript_freigegeben']
+        'kooperation': ['vertrag_unterschrieben', 'typ', 'nutzungsrechte'],
+        'versand': ['versendet', 'tracking_nummer', 'produkt_name', 'produkt_link'],
+        'video': ['thema', 'link_produkte', 'link_skript', 'skript_freigegeben', 'feedback_creatorjobs', 'caption', 'posting_datum', 'drehort', 'content_art']
       };
       
       return !readOnlyFieldsForKunden[entity]?.includes(field);
@@ -843,6 +843,7 @@ export class KampagneKooperationenVideoTable {
             data-entity="kooperation" 
             data-id="${koop.id}" 
             data-field="nutzungsrechte"
+            ${!this.isFieldEditableForUser('kooperation', 'nutzungsrechte') ? 'readonly' : ''}
             value="${koop.nutzungsrechte || ''}"
             placeholder="Nutzungsrechte"
           />
@@ -878,7 +879,8 @@ export class KampagneKooperationenVideoTable {
         <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-organic-paid') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => `
             <select class="grid-select stacked-video-select" 
-              data-entity="video" data-id="${video.id}" data-field="content_art">
+              data-entity="video" data-id="${video.id}" data-field="content_art"
+              ${!this.isFieldEditableForUser('video', 'content_art') ? 'disabled' : ''}>
               <option value="">– bitte wählen –</option>
               <option value="Paid" ${video.content_art === 'Paid' ? 'selected' : ''}>Paid</option>
               <option value="Organisch" ${video.content_art === 'Organisch' ? 'selected' : ''}>Organisch</option>
@@ -899,6 +901,7 @@ export class KampagneKooperationenVideoTable {
                 data-video-id="${video.id}"
                 data-kooperation-id="${koop.id}"
                 data-field="produkt_name"
+                ${!this.isFieldEditableForUser('versand', 'produkt_name') ? 'readonly' : ''}
                 value="${this.escapeHtml(versandForVideo?.produkt_name || '')}" 
                 placeholder="Produktname"/>
               <input type="url" class="grid-input stacked-video-input" 
@@ -907,6 +910,7 @@ export class KampagneKooperationenVideoTable {
                 data-video-id="${video.id}"
                 data-kooperation-id="${koop.id}"
                 data-field="produkt_link"
+                ${!this.isFieldEditableForUser('versand', 'produkt_link') ? 'readonly' : ''}
                 value="${this.escapeHtml(versandForVideo?.produkt_link || '')}" 
                 placeholder="Produktlink (optional)"/>
             `;
@@ -941,6 +945,7 @@ export class KampagneKooperationenVideoTable {
           ${this.renderVideoFieldStack(videos, (video) => `
             <input type="text" class="grid-input stacked-video-input" 
               data-entity="video" data-id="${video.id}" data-field="drehort"
+              ${!this.isFieldEditableForUser('video', 'drehort') ? 'readonly' : ''}
               value="${this.escapeHtml(video.drehort || '')}" placeholder="Drehort"/>
           `)}
         </td>
@@ -990,6 +995,7 @@ export class KampagneKooperationenVideoTable {
               : '';
             return `<textarea class="grid-textarea stacked-video-textarea auto-resize-textarea" 
               data-entity="video" data-id="${video.id}" data-field="feedback_creatorjobs"
+              ${!this.isFieldEditableForUser('video', 'feedback_creatorjobs') ? 'readonly' : ''}
               placeholder="Feedback Runde 1" rows="1">${this.escapeHtml(value)}</textarea>`;
           })}
         </td>
@@ -1018,6 +1024,7 @@ export class KampagneKooperationenVideoTable {
           ${this.renderVideoFieldStack(videos, (video) => `
             <textarea class="grid-textarea stacked-video-textarea auto-resize-textarea" 
               data-entity="video" data-id="${video.id}" data-field="caption"
+              ${!this.isFieldEditableForUser('video', 'caption') ? 'readonly' : ''}
               placeholder="Caption" rows="1">${this.escapeHtml(video.caption || '')}</textarea>
           `)}
         </td>
@@ -1025,6 +1032,7 @@ export class KampagneKooperationenVideoTable {
           ${this.renderVideoFieldStack(videos, (video) => `
             <input type="date" class="grid-input stacked-video-input" 
               data-entity="video" data-id="${video.id}" data-field="posting_datum"
+              ${!this.isFieldEditableForUser('video', 'posting_datum') ? 'readonly' : ''}
               value="${video.posting_datum || ''}"
               placeholder="TT.MM.JJJJ"/>
           `)}

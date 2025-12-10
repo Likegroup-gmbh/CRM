@@ -699,8 +699,8 @@ export class DynamicDataLoader {
           query = query.order('sort_order', { ascending: true });
         }
 
-        // Filter: Keine Kunden anzeigen (für Mitarbeiter-Felder)
-        if (field.filterNoKunden && field.table === 'benutzer') {
+        // Filter: Keine Kunden anzeigen für benutzer-Tabelle (automatisch)
+        if (field.table === 'benutzer') {
           query = query.neq('rolle', 'kunde');
           console.log(`🚫 Filtere Kunden aus für ${field.name}`);
         }

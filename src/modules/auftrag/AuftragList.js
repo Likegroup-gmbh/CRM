@@ -19,6 +19,7 @@ export class AuftragList {
     this.currentView = 'list'; // 'list' oder 'calendar'
     this.cashFlowCalendar = null;
     this._auftragNewBound = false; // Flag für einmaliges Binden
+    this._globalEventsBound = false; // Flag für globale Events (Performance)
   }
 
   // Initialisiere Auftrags-Liste
@@ -231,14 +232,27 @@ export class AuftragList {
       const from = (page - 1) * limit;
       const to = from + limit - 1;
 
-      // Query mit allen Relations aufbauen
+      // Query mit nur benötigten Feldern aufbauen (Performance-Optimierung)
       let query = window.supabase
         .from('auftrag')
         .select(`
-          *,
+          id,
+          auftragsname,
+          status,
+          po,
+          re_nr,
+          re_faelligkeit,
+          start,
+          ende,
+          nettobetrag,
+          ust_betrag,
+          bruttobetrag,
+          rechnung_gestellt,
+          ueberwiesen,
+          created_at,
           unternehmen:unternehmen_id(id, firmenname, logo_url),
           marke:marke_id(id, markenname, logo_url),
-          ansprechpartner:ansprechpartner_id(id, vorname, nachname, email),
+          ansprechpartner:ansprechpartner_id(id, vorname, nachname, email, profile_image_url),
           cutter:auftrag_cutter(mitarbeiter:mitarbeiter_id(id, name)),
           copywriter:auftrag_copywriter(mitarbeiter:mitarbeiter_id(id, name)),
           mitarbeiter:auftrag_mitarbeiter(mitarbeiter:mitarbeiter_id(id, name)),
@@ -302,7 +316,7 @@ export class AuftragList {
           *,
           unternehmen:unternehmen_id(id, firmenname, logo_url),
           marke:marke_id(id, markenname, logo_url),
-          ansprechpartner:ansprechpartner_id(id, vorname, nachname, email),
+          ansprechpartner:ansprechpartner_id(id, vorname, nachname, email, profile_image_url),
           cutter:auftrag_cutter(mitarbeiter:mitarbeiter_id(id, name)),
           copywriter:auftrag_copywriter(mitarbeiter:mitarbeiter_id(id, name)),
           mitarbeiter:auftrag_mitarbeiter(mitarbeiter:mitarbeiter_id(id, name))
@@ -376,7 +390,18 @@ export class AuftragList {
 
   // Binde Events
   bindEvents() {
-    // View-Toggle Events
+    // View-Toggle Events (diese müssen bei jedem Render gebunden werden wegen DOM-Ersetzung)
+    this.bindViewToggleEvents();
+
+    // Globale delegierte Events nur EINMAL binden (Performance-Optimierung)
+    if (!this._globalEventsBound) {
+      this.bindGlobalDelegatedEvents();
+      this._globalEventsBound = true;
+    }
+  }
+
+  // View-Toggle Events separat - werden bei jedem Render neu gebunden (DOM wird ersetzt)
+  bindViewToggleEvents() {
     const listBtn = document.getElementById('btn-view-list');
     const calendarBtn = document.getElementById('btn-view-calendar');
 
@@ -387,54 +412,44 @@ export class AuftragList {
       
       newListBtn.addEventListener('click', async () => {
         console.log('🔄 AUFTRAGLIST: Wechsel zu List-View');
-        if (this.currentView === 'list') return; // Bereits in List-View
+        if (this.currentView === 'list') return;
         
-        // Cleanup Calendar
         if (this.cashFlowCalendar) {
           this.cashFlowCalendar.destroy();
           this.cashFlowCalendar = null;
         }
         
         this.currentView = 'list';
-        await this.loadAndRender(); // Re-render und Daten laden
+        await this.loadAndRender();
       });
     }
 
     if (calendarBtn) {
-      // Entferne alte Listener falls vorhanden
       const newCalendarBtn = calendarBtn.cloneNode(true);
       calendarBtn.parentNode.replaceChild(newCalendarBtn, calendarBtn);
       
       newCalendarBtn.addEventListener('click', async () => {
         console.log('🔄 AUFTRAGLIST: Wechsel zu Calendar-View');
-        if (this.currentView === 'calendar') return; // Bereits in Calendar-View
+        if (this.currentView === 'calendar') return;
         
         this.currentView = 'calendar';
-        await this.loadAndRender(); // Re-render (nutzt jetzt loadAndRender statt render)
+        await this.loadAndRender();
       });
     }
+  }
 
-    // Filter-Events werden vom FilterDropdown gehandelt (nur in List-View)
-    if (this.currentView === 'list') {
-      // Filter-Events bereits durch initializeFilterBar() gebunden
-    }
-
-    // Neuen Auftrag anlegen Button (nur einmal binden)
-    if (!this._auftragNewBound) {
-    document.addEventListener('click', (e) => {
+  // Globale delegierte Events - nur EINMAL gebunden (Performance)
+  bindGlobalDelegatedEvents() {
+    // Ein einziger Click-Handler für alle delegierten Click-Events
+    this._globalClickHandler = (e) => {
+      // Neuen Auftrag anlegen Button
       if (e.target.id === 'btn-auftrag-new' || e.target.id === 'btn-auftrag-new-filter') {
         e.preventDefault();
         window.navigateTo('/auftrag/new');
+        return;
       }
-    });
-      this._auftragNewBound = true;
-    }
 
-    // Nur in List-View die restlichen Events binden
-    if (this.currentView !== 'list') return;
-
-    // Alle auswählen Button
-    document.addEventListener('click', (e) => {
+      // Alle auswählen Button
       if (e.target.id === 'btn-select-all') {
         e.preventDefault();
         const checkboxes = document.querySelectorAll('.auftrag-check');
@@ -448,11 +463,10 @@ export class AuftragList {
           selectAllHeader.checked = true;
         }
         this.updateSelection();
+        return;
       }
-    });
 
-    // Auswahl aufheben Button
-    document.addEventListener('click', (e) => {
+      // Auswahl aufheben Button
       if (e.target.id === 'btn-deselect-all') {
         e.preventDefault();
         const checkboxes = document.querySelectorAll('.auftrag-check');
@@ -464,45 +478,39 @@ export class AuftragList {
           selectAllHeader.checked = false;
         }
         this.updateSelection();
+        return;
       }
-    });
 
-    // Auftrag Detail Links
-    document.addEventListener('click', (e) => {
+      // Auftrag Detail Links
       if (e.target.classList.contains('table-link') && e.target.dataset.table === 'auftrag') {
         e.preventDefault();
         const auftragId = e.target.dataset.id;
         console.log('🎯 AUFTRAGLIST: Navigiere zu Auftrag Details:', auftragId);
         window.navigateTo(`/auftrag/${auftragId}`);
+        return;
       }
-    });
 
-    // Entity Updated Event
-    window.addEventListener('entityUpdated', (e) => {
-      if (e.detail.entity === 'auftrag') {
-        this.loadAndRender();
-      }
-    });
-
-    // Filter-Tag X-Buttons
-    document.addEventListener('click', (e) => {
+      // Filter-Tag X-Buttons
       if (e.target.classList.contains('tag-x')) {
         e.preventDefault();
         e.stopPropagation();
         
         const tagElement = e.target.closest('.filter-tag');
-        const key = tagElement.dataset.key;
+        const key = tagElement?.dataset?.key;
         
-        // Entferne Filter
-        const currentFilters = window.filterSystem.getFilters('auftrag');
-        delete currentFilters[key];
-        window.filterSystem.applyFilters('auftrag', currentFilters);
-        this.loadAndRender();
+        if (key) {
+          const currentFilters = window.filterSystem.getFilters('auftrag');
+          delete currentFilters[key];
+          window.filterSystem.applyFilters('auftrag', currentFilters);
+          this.loadAndRender();
+        }
+        return;
       }
-    });
+    };
 
-    // Select-All Checkbox
-    document.addEventListener('change', (e) => {
+    // Ein einziger Change-Handler für alle delegierten Change-Events
+    this._globalChangeHandler = (e) => {
+      // Select-All Checkbox
       if (e.target.id === 'select-all-auftraege') {
         const checkboxes = document.querySelectorAll('.auftrag-check');
         checkboxes.forEach(cb => {
@@ -514,11 +522,10 @@ export class AuftragList {
           }
         });
         this.updateSelection();
+        return;
       }
-    });
 
-    // Auftrag Checkboxes
-    document.addEventListener('change', (e) => {
+      // Auftrag Checkboxes
       if (e.target.classList.contains('auftrag-check')) {
         if (e.target.checked) {
           this.selectedAuftraege.add(e.target.dataset.id);
@@ -526,8 +533,23 @@ export class AuftragList {
           this.selectedAuftraege.delete(e.target.dataset.id);
         }
         this.updateSelection();
+        return;
       }
-    });
+    };
+
+    // Entity Updated Event Handler
+    this._entityUpdatedHandler = (e) => {
+      if (e.detail.entity === 'auftrag') {
+        this.loadAndRender();
+      }
+    };
+
+    // Events registrieren
+    document.addEventListener('click', this._globalClickHandler);
+    document.addEventListener('change', this._globalChangeHandler);
+    window.addEventListener('entityUpdated', this._entityUpdatedHandler);
+    
+    console.log('✅ AUFTRAGLIST: Globale Event-Listener gebunden (einmalig)');
   }
 
   // Prüfe ob aktive Filter vorhanden
@@ -644,7 +666,8 @@ export class AuftragList {
           name: fullName,
           type: 'person',
           id: person.id,
-          entityType: 'ansprechpartner'
+          entityType: 'ansprechpartner',
+          profile_image_url: person.profile_image_url || null
         }];
         return avatarBubbles.renderBubbles(items);
       };
@@ -760,22 +783,42 @@ export class AuftragList {
   // Cleanup
   destroy() {
     console.log('AuftragList: Cleaning up...');
-    
+
     // Pagination cleanup
     if (this.pagination) {
       this.pagination.destroy();
     }
-    
+
     this._boundEventListeners.forEach(({ element, type, handler }) => {
       element.removeEventListener(type, handler);
     });
     this._boundEventListeners.clear();
+
+    // Globale Event-Listener entfernen
+    if (this._globalClickHandler) {
+      document.removeEventListener('click', this._globalClickHandler);
+      this._globalClickHandler = null;
+    }
+    if (this._globalChangeHandler) {
+      document.removeEventListener('change', this._globalChangeHandler);
+      this._globalChangeHandler = null;
+    }
+    if (this._entityUpdatedHandler) {
+      window.removeEventListener('entityUpdated', this._entityUpdatedHandler);
+      this._entityUpdatedHandler = null;
+    }
     
-    // Event-Listener entfernen
+    // Flags zurücksetzen
+    this._globalEventsBound = false;
+    this._auftragNewBound = false;
+
+    // Legacy Filter-Handler entfernen
     if (this.boundFilterResetHandler) {
       document.removeEventListener('click', this.boundFilterResetHandler);
       this.boundFilterResetHandler = null;
     }
+    
+    console.log('✅ AUFTRAGLIST: Cleanup abgeschlossen');
   }
 
   // Show Create Form (für Routing)

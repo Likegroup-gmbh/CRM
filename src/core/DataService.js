@@ -184,7 +184,7 @@ export class DataService {
             junctionTable: 'ansprechpartner_kampagne',
             localKey: 'kampagne_id',
             foreignKey: 'ansprechpartner_id',
-            displayField: 'id,vorname,nachname,email'
+            displayField: 'id,vorname,nachname,email,profile_image_url'
           }
           ,
           mitarbeiter: {
