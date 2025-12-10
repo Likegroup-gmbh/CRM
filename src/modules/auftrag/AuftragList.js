@@ -253,9 +253,9 @@ export class AuftragList {
           unternehmen:unternehmen_id(id, firmenname, logo_url),
           marke:marke_id(id, markenname, logo_url),
           ansprechpartner:ansprechpartner_id(id, vorname, nachname, email, profile_image_url),
-          cutter:auftrag_cutter(mitarbeiter:mitarbeiter_id(id, name)),
-          copywriter:auftrag_copywriter(mitarbeiter:mitarbeiter_id(id, name)),
-          mitarbeiter:auftrag_mitarbeiter(mitarbeiter:mitarbeiter_id(id, name)),
+          cutter:auftrag_cutter(mitarbeiter:mitarbeiter_id(id, name, profile_image_url)),
+          copywriter:auftrag_copywriter(mitarbeiter:mitarbeiter_id(id, name, profile_image_url)),
+          mitarbeiter:auftrag_mitarbeiter(mitarbeiter:mitarbeiter_id(id, name, profile_image_url)),
           kampagne_arten:auftrag_kampagne_art(art:kampagne_art_id(id, name))
         `, { count: 'exact' });
 
@@ -705,20 +705,26 @@ export class AuftragList {
       const formatMitarbeiterTags = (entries) => {
         if (!entries || entries.length === 0) return '-';
         
+        console.log('🔍 formatMitarbeiterTags entries:', JSON.stringify(entries, null, 2));
+        
         const items = entries
           .map(item => {
             const name = item?.mitarbeiter?.name || item?.name;
             const id = item?.mitarbeiter?.id || item?.id;
+            const profileImageUrl = item?.mitarbeiter?.profile_image_url || item?.profile_image_url;
+            console.log(`  → Mitarbeiter: ${name}, profile_image_url: ${profileImageUrl}`);
             if (!name) return null;
             return {
               name: name,
               type: 'person',
               id: id,
-              entityType: 'mitarbeiter'
+              entityType: 'mitarbeiter',
+              profile_image_url: profileImageUrl || null
             };
           })
           .filter(Boolean);
         
+        console.log('🔍 formatMitarbeiterTags items für Bubbles:', items);
         return items.length > 0 ? avatarBubbles.renderBubbles(items) : '-';
       };
 
