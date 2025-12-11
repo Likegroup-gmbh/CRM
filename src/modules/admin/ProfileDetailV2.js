@@ -1,10 +1,14 @@
 // ProfileDetailV2.js (ES6-Modul)
 // Moderne Profilseite mit zweispaltigem Layout
+// Nutzt einheitliches PersonDetailBase Pattern
 
 import { profileImageUpload } from './ProfileImageUpload.js';
+import { PersonDetailBase } from './PersonDetailBase.js';
+import { getTabIcon } from '../../core/TabUtils.js';
 
-export class ProfileDetailV2 {
+export class ProfileDetailV2 extends PersonDetailBase {
   constructor() {
+    super();
     this.userId = null;
     this.user = null;
     this.unternehmen = [];
@@ -13,9 +17,7 @@ export class ProfileDetailV2 {
     this.kampagnen = [];
     this.kooperationen = [];
     this.videos = [];
-    this.activities = [];
     this.sprachen = [];
-    this.activeSidebarTab = 'info';
     this.activeMainTab = 'unternehmen';
   }
 
@@ -34,7 +36,7 @@ export class ProfileDetailV2 {
   async loadAllData() {
     await this.loadUserData();
     await this.loadAssignedEntities();
-    await this.loadActivities();
+    await this.loadActivitiesData();
   }
 
   async loadUserData() {
@@ -51,7 +53,6 @@ export class ProfileDetailV2 {
       if (error) throw error;
       this.user = user || {};
 
-      // Lade Sprachen wenn vorhanden
       if (this.user.sprachen_ids && this.user.sprachen_ids.length > 0) {
         const { data: sprachen } = await window.supabase
           .from('sprachen')
@@ -82,7 +83,6 @@ export class ProfileDetailV2 {
   }
 
   async loadKundeEntities() {
-    // 1. Unternehmen über kunde_unternehmen Junction
     const { data: unternehmenLinks } = await window.supabase
       .from('kunde_unternehmen')
       .select('unternehmen:unternehmen_id(id, firmenname, webseite, logo_url)')
@@ -94,10 +94,8 @@ export class ProfileDetailV2 {
 
     const unternehmenIds = this.unternehmen.map(u => u.id);
 
-    // 2. Marken - ERWEITERT: über kunde_marke UND über zugeordnete Unternehmen
     const markenSet = new Set();
     
-    // 2a. Direkt zugeordnete Marken über kunde_marke
     const { data: markenLinks } = await window.supabase
       .from('kunde_marke')
       .select('marke:marke_id(id, markenname, logo_url, unternehmen:unternehmen_id(firmenname))')
@@ -108,7 +106,6 @@ export class ProfileDetailV2 {
       .filter(Boolean)
       .forEach(m => markenSet.add(JSON.stringify(m)));
 
-    // 2b. Marken über zugeordnete Unternehmen
     if (unternehmenIds.length > 0) {
       const { data: markenViaUnternehmen } = await window.supabase
         .from('marke')
@@ -122,11 +119,9 @@ export class ProfileDetailV2 {
 
     this.marken = Array.from(markenSet).map(m => JSON.parse(m));
 
-    // 3. Kampagnen - ERWEITERT: über Marken UND über Unternehmen
     const kampagnenSet = new Map();
     const markenIds = this.marken.map(m => m.id);
     
-    // 3a. Kampagnen über Marken
     if (markenIds.length > 0) {
       const { data: kampagnenViaMarke } = await window.supabase
         .from('kampagne')
@@ -138,7 +133,6 @@ export class ProfileDetailV2 {
       (kampagnenViaMarke || []).forEach(k => kampagnenSet.set(k.id, k));
     }
 
-    // 3b. Kampagnen über Unternehmen
     if (unternehmenIds.length > 0) {
       const { data: kampagnenViaUnternehmen } = await window.supabase
         .from('kampagne')
@@ -154,12 +148,11 @@ export class ProfileDetailV2 {
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       .slice(0, 50);
 
-    // 4. Kooperationen über Kampagnen
     const kampagnenIds = this.kampagnen.map(k => k.id);
     if (kampagnenIds.length > 0) {
       const { data: kooperationen } = await window.supabase
-        .from('kooperation')
-        .select('id, kooperationsname, status, created_at, kampagne:kampagne_id(kampagnenname)')
+        .from('kooperationen')
+        .select('id, name, status, created_at, kampagne:kampagne_id(kampagnenname)')
         .in('kampagne_id', kampagnenIds)
         .order('created_at', { ascending: false })
         .limit(50);
@@ -169,12 +162,11 @@ export class ProfileDetailV2 {
       this.kooperationen = [];
     }
 
-    // 5. Videos über Kooperationen
     const kooperationenIds = this.kooperationen.map(k => k.id);
     if (kooperationenIds.length > 0) {
       const { data: videos } = await window.supabase
         .from('kooperation_video')
-        .select('id, videoname, status, version, created_at, kooperation:kooperation_id(kooperationsname)')
+        .select('id, videoname, status, version, created_at, kooperation:kooperation_id(name)')
         .in('kooperation_id', kooperationenIds)
         .order('created_at', { ascending: false })
         .limit(50);
@@ -194,7 +186,6 @@ export class ProfileDetailV2 {
   }
 
   async loadMitarbeiterEntities() {
-    // Unternehmen über mitarbeiter_unternehmen Junction
     const { data: unternehmenLinks } = await window.supabase
       .from('mitarbeiter_unternehmen')
       .select('unternehmen:unternehmen_id(id, firmenname, webseite, logo_url)')
@@ -204,7 +195,6 @@ export class ProfileDetailV2 {
       .map(link => link.unternehmen)
       .filter(Boolean);
 
-    // Marken über marke_mitarbeiter
     const { data: marken } = await window.supabase
       .from('marke_mitarbeiter')
       .select('marke:marke_id(id, markenname, logo_url, unternehmen:unternehmen_id(firmenname))')
@@ -214,7 +204,6 @@ export class ProfileDetailV2 {
       .map(link => link.marke)
       .filter(Boolean);
 
-    // Aufträge
     const markenIds = this.marken.map(m => m.id);
     const unternehmenIds = this.unternehmen.map(u => u.id);
     
@@ -235,7 +224,6 @@ export class ProfileDetailV2 {
       this.auftraege = [];
     }
 
-    // Kampagnen über Marken UND Unternehmen (analog zu Kunde-Logik)
     const kampagnenSet = new Map();
     
     if (markenIds.length > 0) {
@@ -264,10 +252,8 @@ export class ProfileDetailV2 {
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       .slice(0, 50);
 
-    // Kooperationen über zugewiesene Tasks UND über Kampagnen
     const kooperationenSet = new Map();
     
-    // Via Tasks
     const { data: assignedTasks } = await window.supabase
       .from('kooperation_task')
       .select('entity_id')
@@ -278,20 +264,19 @@ export class ProfileDetailV2 {
     
     if (kooperationIdsFromTasks.length > 0) {
       const { data: kooperationen } = await window.supabase
-        .from('kooperation')
-        .select('id, kooperationsname, status, created_at, kampagne:kampagne_id(kampagnenname)')
+        .from('kooperationen')
+        .select('id, name, status, created_at, kampagne:kampagne_id(kampagnenname)')
         .in('id', kooperationIdsFromTasks)
         .order('created_at', { ascending: false });
       
       (kooperationen || []).forEach(k => kooperationenSet.set(k.id, k));
     }
     
-    // Via Kampagnen
     const kampagnenIds = this.kampagnen.map(k => k.id);
     if (kampagnenIds.length > 0) {
       const { data: kooperationen } = await window.supabase
-        .from('kooperation')
-        .select('id, kooperationsname, status, created_at, kampagne:kampagne_id(kampagnenname)')
+        .from('kooperationen')
+        .select('id, name, status, created_at, kampagne:kampagne_id(kampagnenname)')
         .in('kampagne_id', kampagnenIds)
         .order('created_at', { ascending: false })
         .limit(50);
@@ -303,12 +288,11 @@ export class ProfileDetailV2 {
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       .slice(0, 50);
 
-    // Videos
     const allKoopIds = Array.from(kooperationenSet.keys());
     if (allKoopIds.length > 0) {
       const { data: videos } = await window.supabase
         .from('kooperation_video')
-        .select('id, videoname, status, version, created_at, kooperation:kooperation_id(kooperationsname)')
+        .select('id, videoname, status, version, created_at, kooperation:kooperation_id(name)')
         .in('kooperation_id', allKoopIds)
         .order('created_at', { ascending: false })
         .limit(50);
@@ -328,14 +312,13 @@ export class ProfileDetailV2 {
     });
   }
 
-  async loadActivities() {
+  async loadActivitiesData() {
     try {
       const allActivities = [];
 
-      // Kampagne History
       const { data: kampagneHistory } = await window.supabase
         .from('kampagne_history')
-        .select('id, old_status, new_status, comment, created_at, kampagne:kampagne_id(name)')
+        .select('id, old_status, new_status, comment, created_at, kampagne:kampagne_id(kampagnenname)')
         .eq('changed_by', this.userId)
         .order('created_at', { ascending: false })
         .limit(20);
@@ -344,12 +327,12 @@ export class ProfileDetailV2 {
         allActivities.push(...kampagneHistory.map(h => ({
           ...h,
           type: 'kampagne',
-          entity_name: h.kampagne?.name || 'Unbekannt',
-          action: this.getActionLabel('status_changed', h.old_status, h.new_status)
+          title: 'Kampagne',
+          entity_name: h.kampagne?.kampagnenname || 'Unbekannt',
+          action: h.old_status && h.new_status ? `Status: ${h.old_status} → ${h.new_status}` : 'Status geändert'
         })));
       }
 
-      // Kooperation History
       const { data: kooperationHistory } = await window.supabase
         .from('kooperation_history')
         .select('id, old_status, new_status, comment, created_at, kooperation:kooperation_id(name)')
@@ -361,12 +344,12 @@ export class ProfileDetailV2 {
         allActivities.push(...kooperationHistory.map(h => ({
           ...h,
           type: 'kooperation',
+          title: 'Kooperation',
           entity_name: h.kooperation?.name || 'Unbekannt',
-          action: this.getActionLabel('status_changed', h.old_status, h.new_status)
+          action: h.old_status && h.new_status ? `Status: ${h.old_status} → ${h.new_status}` : 'Status geändert'
         })));
       }
 
-      // Task History
       const { data: taskHistory } = await window.supabase
         .from('kooperation_task_history')
         .select('id, change_type, old_value, new_value, created_at, task:task_id(title)')
@@ -378,12 +361,12 @@ export class ProfileDetailV2 {
         allActivities.push(...taskHistory.map(h => ({
           ...h,
           type: 'task',
+          title: 'Aufgabe',
           entity_name: h.task?.title || 'Unbekannt',
           action: this.getActionLabel(h.change_type, h.old_value, h.new_value)
         })));
       }
 
-      // Sortiere alle Activities nach Datum
       this.activities = allActivities.sort((a, b) => 
         new Date(b.created_at) - new Date(a.created_at)
       ).slice(0, 30);
@@ -415,7 +398,6 @@ export class ProfileDetailV2 {
       return;
     }
 
-    // Finde den main-wrapper und ersetze die Klasse
     const mainWrapper = container.closest('.main-wrapper');
     if (mainWrapper) {
       mainWrapper.classList.remove('main-wrapper');
@@ -424,70 +406,47 @@ export class ProfileDetailV2 {
 
     const isKunde = this.user?.rolle === 'kunde';
     
-    container.innerHTML = `
-      <div class="profile-detail-layout">
-        <!-- Linke Spalte: Sidebar -->
-        <div class="profile-sidebar">
-          ${this.renderSidebar()}
-        </div>
+    // Person-Config für die Sidebar
+    const personConfig = {
+      name: this.user?.name || 'Unbekannt',
+      email: this.user?.email || '',
+      subtitle: this.user?.mitarbeiter_klasse?.name || this.user?.rolle || 'Benutzer',
+      avatarUrl: this.user?.profile_image_url,
+      avatarClickable: true,
+      lastActivity: this.user?.updated_at
+    };
 
-        <!-- Rechte Spalte: Haupt-Content -->
-        <div class="profile-main-content">
-          ${this.renderMainContent(isKunde)}
-        </div>
-      </div>
-    `;
+    // Quick Actions
+    const quickActions = [
+      { icon: 'edit', label: 'Bearbeiten', action: 'edit-profile' }
+    ];
+
+    // Stats für die Cards
+    const stats = [
+      { label: 'Unternehmen', value: this.unternehmen.length, link: '#main-unternehmen' },
+      { label: 'Kampagnen', value: this.kampagnen.length, link: '#main-kampagnen' },
+      { label: 'Kooperationen', value: this.kooperationen.length, link: '#main-kooperationen' }
+    ];
+
+    // Info-Items für Sidebar
+    const sidebarInfo = this.renderProfileInfo();
+
+    // Main Content
+    const mainContent = this.renderProfileMainContent(isKunde);
+
+    // Zwei-Spalten-Layout rendern
+    const html = this.renderTwoColumnLayout({
+      person: personConfig,
+      stats,
+      quickActions,
+      sidebarInfo,
+      mainContent
+    });
+
+    container.innerHTML = html;
   }
 
-  renderSidebar() {
-    const userName = this.user?.name || 'Unbekannt';
-    const userEmail = this.user?.email || 'Keine E-Mail';
-    const initials = this.getInitials(userName);
-
-    return `
-      <div class="profile-sidebar-card">
-        <!-- Avatar Section -->
-        <div class="profile-avatar-section">
-          <div class="profile-avatar-large profile-avatar-clickable" id="profile-avatar-upload">
-            ${this.user?.profile_image_url 
-              ? `<img src="${this.user.profile_image_url}" alt="${userName}" />` 
-              : `<div class="profile-initials-large">${initials}</div>`
-            }
-            <div class="profile-avatar-overlay">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
-              </svg>
-            </div>
-          </div>
-          <h2 class="profile-name">${this.sanitize(userName)}</h2>
-          <p class="profile-email">${this.sanitize(userEmail)}</p>
-        </div>
-
-        <!-- Sidebar Tabs -->
-        <div class="profile-info-tabs">
-          <button class="profile-sidebar-tab ${this.activeSidebarTab === 'info' ? 'active' : ''}" data-sidebar-tab="info">
-            Info
-          </button>
-          <button class="profile-sidebar-tab ${this.activeSidebarTab === 'activities' ? 'active' : ''}" data-sidebar-tab="activities">
-            Activities
-          </button>
-        </div>
-
-        <!-- Sidebar Tab Content -->
-        <div class="profile-sidebar-content">
-          <div class="profile-sidebar-pane ${this.activeSidebarTab === 'info' ? 'active' : ''}" id="sidebar-info">
-            ${this.renderInfoTab()}
-          </div>
-          <div class="profile-sidebar-pane ${this.activeSidebarTab === 'activities' ? 'active' : ''}" id="sidebar-activities">
-            ${this.renderActivitiesTab()}
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  renderInfoTab() {
+  renderProfileInfo() {
     const rolle = this.user?.rolle || 'Nicht definiert';
     const unterrolle = this.user?.unterrolle || 'Keine';
     const mitarbeiterKlasse = this.user?.mitarbeiter_klasse?.name || 'Nicht zugewiesen';
@@ -495,104 +454,42 @@ export class ProfileDetailV2 {
       ? this.sprachen.map(s => s.name).join(', ') 
       : 'Keine Sprachen';
 
-    return `
-      <div class="profile-info-section">
-        <div class="profile-info-item">
-          <div class="info-label">Rolle</div>
-          <div class="info-value">
-            <span class="badge badge-${rolle === 'admin' ? 'primary' : 'secondary'}">${this.sanitize(rolle)}</span>
-          </div>
-        </div>
-        
-        ${unterrolle !== 'Keine' ? `
-          <div class="profile-info-item">
-            <div class="info-label">Unterrolle</div>
-            <div class="info-value">
-              <span class="badge badge-outline">${this.sanitize(unterrolle)}</span>
-            </div>
-          </div>
-        ` : ''}
-        
-        ${mitarbeiterKlasse !== 'Nicht zugewiesen' ? `
-          <div class="profile-info-item">
-            <div class="info-label">Mitarbeiter-Klasse</div>
-            <div class="info-value">${this.sanitize(mitarbeiterKlasse)}</div>
-          </div>
-        ` : ''}
-        
-        <div class="profile-info-item">
-          <div class="info-label">Sprachen</div>
-          <div class="info-value">${this.sanitize(sprachenText)}</div>
-        </div>
-        
-        <div class="profile-info-item">
-          <div class="info-label">Mitglied seit</div>
-          <div class="info-value">${this.formatDate(this.user?.created_at)}</div>
-        </div>
-      </div>
-    `;
-  }
+    const items = [
+      { label: 'Rolle', value: rolle, badge: true, badgeType: rolle === 'admin' ? 'primary' : 'secondary' }
+    ];
 
-  renderActivitiesTab() {
-    if (this.activities.length === 0) {
-      return '<div class="empty-state"><p>Keine Aktivitäten vorhanden.</p></div>';
+    if (unterrolle !== 'Keine') {
+      items.push({ label: 'Unterrolle', value: unterrolle, badge: true, badgeType: 'outline' });
     }
 
-    return `
-      <div class="timeline">
-        ${this.activities.map(activity => `
-          <div class="timeline-entry">
-            <div class="timeline-icon"></div>
-            <div class="timeline-content">
-              <div class="timeline-header">
-                <strong>${this.sanitize(activity.type)}</strong>
-                <span class="timeline-date">${this.formatDateTime(activity.created_at)}</span>
-              </div>
-              <div class="timeline-body">
-                <div class="timeline-entity">${this.sanitize(activity.entity_name)}</div>
-                <div class="timeline-action">${this.sanitize(activity.action)}</div>
-                ${activity.comment ? `<div class="timeline-comment">${this.sanitize(activity.comment)}</div>` : ''}
-              </div>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    `;
+    if (mitarbeiterKlasse !== 'Nicht zugewiesen') {
+      items.push({ label: 'Klasse', value: mitarbeiterKlasse });
+    }
+
+    items.push({ label: 'Sprachen', value: sprachenText });
+    items.push({ label: 'Mitglied seit', value: this.formatDate(this.user?.created_at) });
+
+    return this.renderInfoItems(items);
   }
 
-  renderMainContent(isKunde) {
+  renderProfileMainContent(isKunde) {
+    const renderMainTab = (tab, label, count) => `
+      <button class="tab-button ${this.activeMainTab === tab ? 'active' : ''}" data-main-tab="${tab}">
+        <span class="tab-icon">${getTabIcon(tab)}</span>
+        ${label}<span class="tab-count">${count}</span>
+      </button>
+    `;
+
     return `
-      <!-- Main Tabs -->
       <div class="tab-navigation">
-        <button class="tab-button ${this.activeMainTab === 'unternehmen' ? 'active' : ''}" data-main-tab="unternehmen">
-          Unternehmen
-          <span class="tab-count">${this.unternehmen.length}</span>
-        </button>
-        <button class="tab-button ${this.activeMainTab === 'marken' ? 'active' : ''}" data-main-tab="marken">
-          Marken
-          <span class="tab-count">${this.marken.length}</span>
-        </button>
-        ${!isKunde ? `
-          <button class="tab-button ${this.activeMainTab === 'auftraege' ? 'active' : ''}" data-main-tab="auftraege">
-            Aufträge
-            <span class="tab-count">${this.auftraege.length}</span>
-          </button>
-        ` : ''}
-        <button class="tab-button ${this.activeMainTab === 'kampagnen' ? 'active' : ''}" data-main-tab="kampagnen">
-          Kampagnen
-          <span class="tab-count">${this.kampagnen.length}</span>
-        </button>
-        <button class="tab-button ${this.activeMainTab === 'kooperationen' ? 'active' : ''}" data-main-tab="kooperationen">
-          Kooperationen
-          <span class="tab-count">${this.kooperationen.length}</span>
-        </button>
-        <button class="tab-button ${this.activeMainTab === 'videos' ? 'active' : ''}" data-main-tab="videos">
-          Videos
-          <span class="tab-count">${this.videos.length}</span>
-        </button>
+        ${renderMainTab('unternehmen', 'Unternehmen', this.unternehmen.length)}
+        ${renderMainTab('marken', 'Marken', this.marken.length)}
+        ${!isKunde ? renderMainTab('auftraege', 'Aufträge', this.auftraege.length) : ''}
+        ${renderMainTab('kampagnen', 'Kampagnen', this.kampagnen.length)}
+        ${renderMainTab('kooperationen', 'Kooperationen', this.kooperationen.length)}
+        ${renderMainTab('videos', 'Videos', this.videos.length)}
       </div>
 
-      <!-- Main Tab Content -->
       <div class="tab-content">
         <div class="tab-pane ${this.activeMainTab === 'unternehmen' ? 'active' : ''}" id="main-unternehmen">
           ${this.renderUnternehmenTab()}
@@ -644,16 +541,7 @@ export class ProfileDetailV2 {
                 </td>
                 <td>${u.webseite ? `<a href="${u.webseite}" target="_blank" rel="noopener">${this.sanitize(u.webseite)}</a>` : '-'}</td>
                 <td style="text-align: right;">
-                  <div class="actions-dropdown-container" data-entity-type="unternehmen">
-                    <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                        <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
-                      </svg>
-                    </button>
-                    <div class="actions-dropdown">
-                      <a href="#" class="action-item" data-action="view" data-id="${u.id}">Details anzeigen</a>
-                    </div>
-                  </div>
+                  <a href="/unternehmen/${u.id}" onclick="event.preventDefault(); window.navigateTo('/unternehmen/${u.id}')" class="secondary-btn btn-sm">Details</a>
                 </td>
               </tr>
             `).join('')}
@@ -689,16 +577,7 @@ export class ProfileDetailV2 {
                 </td>
                 <td>${m.unternehmen?.firmenname ? this.sanitize(m.unternehmen.firmenname) : '-'}</td>
                 <td style="text-align: right;">
-                  <div class="actions-dropdown-container" data-entity-type="marke">
-                    <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                        <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
-                      </svg>
-                    </button>
-                    <div class="actions-dropdown">
-                      <a href="#" class="action-item" data-action="view" data-id="${m.id}">Details anzeigen</a>
-                    </div>
-                  </div>
+                  <a href="/marke/${m.id}" onclick="event.preventDefault(); window.navigateTo('/marke/${m.id}')" class="secondary-btn btn-sm">Details</a>
                 </td>
               </tr>
             `).join('')}
@@ -733,16 +612,7 @@ export class ProfileDetailV2 {
                 <td><span class="badge badge-secondary">${this.sanitize(a.status || 'Unbekannt')}</span></td>
                 <td>${this.formatDate(a.created_at)}</td>
                 <td style="text-align: right;">
-                  <div class="actions-dropdown-container" data-entity-type="auftrag">
-                    <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                        <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
-                      </svg>
-                    </button>
-                    <div class="actions-dropdown">
-                      <a href="#" class="action-item" data-action="view" data-id="${a.id}">Details anzeigen</a>
-                    </div>
-                  </div>
+                  <a href="/auftrag/${a.id}" onclick="event.preventDefault(); window.navigateTo('/auftrag/${a.id}')" class="secondary-btn btn-sm">Details</a>
                 </td>
               </tr>
             `).join('')}
@@ -777,16 +647,7 @@ export class ProfileDetailV2 {
                 <td><span class="badge badge-secondary">${this.sanitize(k.status || 'Unbekannt')}</span></td>
                 <td>${this.formatDate(k.created_at)}</td>
                 <td style="text-align: right;">
-                  <div class="actions-dropdown-container" data-entity-type="kampagne">
-                    <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                        <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
-                      </svg>
-                    </button>
-                    <div class="actions-dropdown">
-                      <a href="#" class="action-item" data-action="view" data-id="${k.id}">Details anzeigen</a>
-                    </div>
-                  </div>
+                  <a href="/kampagne/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${k.id}')" class="secondary-btn btn-sm">Details</a>
                 </td>
               </tr>
             `).join('')}
@@ -806,7 +667,7 @@ export class ProfileDetailV2 {
         <table class="data-table">
           <thead>
             <tr>
-              <th>Kooperationsname</th>
+              <th>Name</th>
               <th>Kampagne</th>
               <th>Status</th>
               <th>Erstellt am</th>
@@ -816,21 +677,12 @@ export class ProfileDetailV2 {
           <tbody>
             ${this.kooperationen.map(k => `
               <tr>
-                <td>${this.sanitize(k.kooperationsname)}</td>
+                <td>${this.sanitize(k.name)}</td>
                 <td>${k.kampagne?.kampagnenname ? this.sanitize(k.kampagne.kampagnenname) : '-'}</td>
                 <td><span class="badge badge-secondary">${this.sanitize(k.status || 'Unbekannt')}</span></td>
                 <td>${this.formatDate(k.created_at)}</td>
                 <td style="text-align: right;">
-                  <div class="actions-dropdown-container" data-entity-type="kooperation">
-                    <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                        <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
-                      </svg>
-                    </button>
-                    <div class="actions-dropdown">
-                      <a href="#" class="action-item" data-action="view" data-id="${k.id}">Details anzeigen</a>
-                    </div>
-                  </div>
+                  <a href="/kooperation/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kooperation/${k.id}')" class="secondary-btn btn-sm">Details</a>
                 </td>
               </tr>
             `).join('')}
@@ -855,29 +707,16 @@ export class ProfileDetailV2 {
               <th>Version</th>
               <th>Status</th>
               <th>Erstellt am</th>
-              <th style="width: 80px; text-align: right;">Aktionen</th>
             </tr>
           </thead>
           <tbody>
             ${this.videos.map(v => `
               <tr>
                 <td>${this.sanitize(v.videoname || 'Unbenannt')}</td>
-                <td>${v.kooperation?.kooperationsname ? this.sanitize(v.kooperation.kooperationsname) : '-'}</td>
+                <td>${v.kooperation?.name ? this.sanitize(v.kooperation.name) : '-'}</td>
                 <td><span class="badge badge-outline">V${v.version || 1}</span></td>
                 <td><span class="badge badge-secondary">${this.sanitize(v.status || 'Unbekannt')}</span></td>
                 <td>${this.formatDate(v.created_at)}</td>
-                <td style="text-align: right;">
-                  <div class="actions-dropdown-container" data-entity-type="video">
-                    <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                        <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
-                      </svg>
-                    </button>
-                    <div class="actions-dropdown">
-                      <a href="#" class="action-item" data-action="view" data-id="${v.id}">Details anzeigen</a>
-                    </div>
-                  </div>
-                </td>
               </tr>
             `).join('')}
           </tbody>
@@ -887,29 +726,16 @@ export class ProfileDetailV2 {
   }
 
   bind() {
+    // Sidebar Tabs binden (aus Basis-Klasse)
+    this.bindSidebarTabs();
+
     // Avatar Upload Click
     const avatarBtn = document.getElementById('profile-avatar-upload');
     avatarBtn?.addEventListener('click', () => {
       profileImageUpload.open(this.userId, async () => {
-        // Nach Upload neu laden
         await this.loadUserData();
         await this.render();
         this.bind();
-      });
-    });
-
-    // Sidebar Tabs
-    document.querySelectorAll('[data-sidebar-tab]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const tab = e.currentTarget.dataset.sidebarTab;
-        this.activeSidebarTab = tab;
-        
-        // Update UI
-        document.querySelectorAll('.profile-sidebar-tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.profile-sidebar-pane').forEach(p => p.classList.remove('active'));
-        
-        e.currentTarget.classList.add('active');
-        document.getElementById(`sidebar-${tab}`)?.classList.add('active');
       });
     });
 
@@ -919,7 +745,6 @@ export class ProfileDetailV2 {
         const tab = e.currentTarget.dataset.mainTab;
         this.activeMainTab = tab;
         
-        // Update UI
         document.querySelectorAll('.tab-button').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
         
@@ -927,42 +752,18 @@ export class ProfileDetailV2 {
         document.getElementById(`main-${tab}`)?.classList.add('active');
       });
     });
-  }
 
-  getInitials(name) {
-    if (!name) return '?';
-    const parts = name.trim().split(/\s+/).filter(Boolean);
-    if (parts.length === 0) return '?';
-    if (parts.length === 1) return parts[0][0].toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  }
-
-  sanitize(text) {
-    if (!text) return '';
-    return window.validatorSystem?.sanitizeHtml?.(String(text)) ?? String(text);
-  }
-
-  formatDate(dateString) {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('de-DE', {
-      year: 'numeric',
-      month: 'short',
-      day: '2-digit'
-    });
-  }
-
-  formatDateTime(dateString) {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleString('de-DE', {
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit'
+    // Edit Profile Action
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('[data-action="edit-profile"]')) {
+        e.preventDefault();
+        // TODO: Profil-Bearbeitung implementieren
+        console.log('Profil bearbeiten geklickt');
+      }
     });
   }
 
   destroy() {
-    // Stelle die original main-wrapper Klasse wieder her
     const container = document.getElementById('dashboard-content');
     if (container) {
       const mainWrapper = container.closest('.profile-page-container');
@@ -976,4 +777,3 @@ export class ProfileDetailV2 {
 }
 
 export const profileDetailV2 = new ProfileDetailV2();
-

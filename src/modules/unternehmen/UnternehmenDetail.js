@@ -3,6 +3,7 @@
 import { renderCreatorTable } from '../creator/CreatorTable.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { renderTabButton } from '../../core/TabUtils.js';
 
 export class UnternehmenDetail {
   constructor() {
@@ -316,46 +317,16 @@ export class UnternehmenDetail {
       <div class="content-section">
         <!-- Tab-Navigation -->
         <div class="tab-navigation">
-          <button class="tab-button active" data-tab="informationen">
-            Informationen
-            <span class="tab-count">1</span>
-          </button>
-          <button class="tab-button" data-tab="marken">
-            Marken
-            <span class="tab-count">${this.marken.length}</span>
-          </button>
-          <button class="tab-button" data-tab="ansprechpartner">
-            Ansprechpartner
-            <span class="tab-count">${this.ansprechpartner.length}</span>
-          </button>
-          <button class="tab-button" data-tab="auftraege">
-            Aufträge
-            <span class="tab-count">${this.auftraege.length}</span>
-          </button>
-          <button class="tab-button" data-tab="auftragsdetails">
-            Auftragsdetails
-            <span class="tab-count">${this.auftragsdetails.length}</span>
-          </button>
-          <button class="tab-button" data-tab="briefings">
-            Briefings
-            <span class="tab-count">${this.briefings.length}</span>
-          </button>
-          <button class="tab-button" data-tab="kampagnen">
-            Kampagnen
-            <span class="tab-count">${this.kampagnen.length}</span>
-          </button>
-          <button class="tab-button" data-tab="kooperationen">
-            Kooperationen
-            <span class="tab-count">${this.kooperationen.length}</span>
-          </button>
-          <button class="tab-button" data-tab="creators">
-            Creator
-            <span class="tab-count">${this.creators.length}</span>
-          </button>
-          <button class="tab-button" data-tab="rechnungen">
-            Rechnungen
-            <span class="tab-count">${this.rechnungen.length}</span>
-          </button>
+          ${renderTabButton({ tab: 'informationen', label: 'Informationen', isActive: true })}
+          ${renderTabButton({ tab: 'marken', label: 'Marken', count: this.marken.length })}
+          ${renderTabButton({ tab: 'ansprechpartner', label: 'Ansprechpartner', count: this.ansprechpartner.length })}
+          ${renderTabButton({ tab: 'auftraege', label: 'Aufträge', count: this.auftraege.length })}
+          ${renderTabButton({ tab: 'auftragsdetails', label: 'Auftragsdetails', count: this.auftragsdetails.length })}
+          ${renderTabButton({ tab: 'briefings', label: 'Briefings', count: this.briefings.length })}
+          ${renderTabButton({ tab: 'kampagnen', label: 'Kampagnen', count: this.kampagnen.length })}
+          ${renderTabButton({ tab: 'kooperationen', label: 'Kooperationen', count: this.kooperationen.length })}
+          ${renderTabButton({ tab: 'creators', label: 'Creator', count: this.creators.length })}
+          ${renderTabButton({ tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen.length })}
         </div>
 
         <!-- Tab-Content -->

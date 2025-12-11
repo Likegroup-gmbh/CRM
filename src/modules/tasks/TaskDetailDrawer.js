@@ -1,5 +1,6 @@
 // TaskDetailDrawer.js - Drawer für Task-Details mit Tabs
 // Basiert auf VersandManager.js & AuftragsDetailsManager.js Pattern
+import { getTabIcon } from '../../core/TabUtils.js';
 
 export class TaskDetailDrawer {
   constructor() {
@@ -343,10 +344,22 @@ export class TaskDetailDrawer {
 
     const html = `
       <div class="tab-navigation">
-        <button class="tab-button active" data-tab="details">Details</button>
-        <button class="tab-button" data-tab="comments">Kommentare <span class="tab-count">${this.comments.length}</span></button>
-        <button class="tab-button" data-tab="attachments">Anhänge <span class="tab-count">${this.attachments.length}</span></button>
-        <button class="tab-button" data-tab="history">Verlauf <span class="tab-count">${this.history.length}</span></button>
+        <button class="tab-button active" data-tab="details">
+          <span class="tab-icon">${getTabIcon('details')}</span>
+          Details
+        </button>
+        <button class="tab-button" data-tab="comments">
+          <span class="tab-icon">${getTabIcon('notizen')}</span>
+          Kommentare<span class="tab-count">${this.comments.length}</span>
+        </button>
+        <button class="tab-button" data-tab="attachments">
+          <span class="tab-icon">${getTabIcon('dateien')}</span>
+          Anhänge<span class="tab-count">${this.attachments.length}</span>
+        </button>
+        <button class="tab-button" data-tab="history">
+          <span class="tab-icon">${getTabIcon('history')}</span>
+          Verlauf<span class="tab-count">${this.history.length}</span>
+        </button>
       </div>
 
       <div class="tab-content">

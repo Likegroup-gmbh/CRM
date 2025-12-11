@@ -187,7 +187,7 @@
   --info-bg: var(--color-info-light);
 
   /* ===== LAYOUT VARIABLEN ===== */
-  --sidebar-width: 12rem;
+  --sidebar-width: 14rem;
   --header-height: 64px;
   --container-max-width: 1200px;
   --border-radius: var(--radius-md);

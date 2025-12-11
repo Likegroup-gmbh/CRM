@@ -2,6 +2,7 @@
 // Detailansicht für Briefings mit Tabs (Informationen, Notizen, Bewertungen)
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
+import { getTabIcon } from '../../core/TabUtils.js';
 
 export class BriefingDetail {
   constructor() {
@@ -158,11 +159,12 @@ export class BriefingDetail {
       <div class="content-section">
         <div class="tab-navigation">
           <button class="tab-button active" data-tab="info">
+            <span class="tab-icon">${getTabIcon('info')}</span>
             Informationen
           </button>
           <button class="tab-button" data-tab="dokumente">
-            Dokumente
-            <span class="tab-count">${this.briefing.documents?.length || 0}</span>
+            <span class="tab-icon">${getTabIcon('dateien')}</span>
+            Dokumente<span class="tab-count">${this.briefing.documents?.length || 0}</span>
           </button>
         </div>
 

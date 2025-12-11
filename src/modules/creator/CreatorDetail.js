@@ -1,12 +1,16 @@
 // CreatorDetail.js (ES6-Modul)
 // Creator-Detailseite mit allen relevanten Informationen
+// Nutzt einheitliches zwei-Spalten-Layout
 import { renderKampagnenTable } from '../kampagne/KampagneTable.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
+import { PersonDetailBase } from '../admin/PersonDetailBase.js';
+import { renderTabButton } from '../../core/TabUtils.js';
 
-export class CreatorDetail {
+export class CreatorDetail extends PersonDetailBase {
   constructor() {
+    super();
     this.creatorId = null;
     this.creator = null;
     this.notizen = [];
@@ -15,28 +19,25 @@ export class CreatorDetail {
     this.lists = [];
     this.kooperationen = [];
     this.rechnungen = [];
-    this.unternehmen = []; // Neues Feld für Unternehmen
-    this.creatorAdressen = []; // Zusätzliche Adressen
-    this.eventsBound = false; // Flag um doppeltes Binden zu verhindern
+    this.unternehmen = [];
+    this.creatorAdressen = [];
+    this.eventsBound = false;
+    this.activeMainTab = 'info';
   }
 
-  // Initialisiere Creator-Detailseite
   async init(creatorId) {
     console.log('🎯 CREATORDETAIL: Initialisiere Creator-Detailseite für ID:', creatorId);
     
     this.creatorId = creatorId;
     
-    // Prüfen ob dieses Modul noch das aktuelle ist
     if (window.moduleRegistry?.currentModule !== this) {
       console.log('⚠️ CREATORDETAIL: Nicht mehr das aktuelle Modul, breche ab');
       return;
     }
     
     try {
-      // Lade kritische Creator-Daten parallel (optimiert!)
       await this.loadCriticalData();
       
-      // Breadcrumb aktualisieren
       if (window.breadcrumbSystem && this.creator) {
         const creatorName = [this.creator.vorname, this.creator.nachname].filter(Boolean).join(' ') || 'Details';
         window.breadcrumbSystem.updateBreadcrumb([
@@ -45,16 +46,14 @@ export class CreatorDetail {
         ]);
       }
       
-      // Rendere die Seite
+      await this.loadActivitiesData();
       await this.render();
       
-      // Binde Events (nur beim ersten Mal)
       if (!this.eventsBound) {
         this.bindEvents();
         this.eventsBound = true;
       }
       
-      // Event-Listener für automatische Cache-Invalidierung
       this.setupCacheInvalidation();
       
       console.log('✅ CREATORDETAIL: Initialisierung abgeschlossen');
@@ -65,12 +64,10 @@ export class CreatorDetail {
     }
   }
 
-  // Lade kritische Creator-Daten PARALLEL (Performance-Optimiert!)
   async loadCriticalData() {
     console.log('🔄 CREATORDETAIL: Lade kritische Daten parallel...');
     const startTime = performance.now();
     
-    // Alle kritischen Daten PARALLEL laden
     const [
       creatorResult,
       sprachenResult,
@@ -80,35 +77,30 @@ export class CreatorDetail {
       notizenResult,
       ratingsResult
     ] = await parallelLoad([
-      // 1. Creator Basisdaten
       () => window.supabase
         .from('creator')
         .select(`*`)
         .eq('id', this.creatorId)
         .single(),
       
-      // 2. M:N Sprachen
       () => window.supabase
         .from('creator_sprachen')
         .select('sprache_id, sprachen:sprache_id(id, name)')
         .eq('creator_id', this.creatorId)
         .then(r => (r.data || []).map(x => x.sprachen).filter(Boolean)),
       
-      // 3. M:N Branchen
       () => window.supabase
         .from('creator_branchen')
         .select('branche_id, branchen_creator:branche_id(id, name)')
         .eq('creator_id', this.creatorId)
         .then(r => (r.data || []).map(x => x.branchen_creator).filter(Boolean)),
       
-      // 4. M:N Creator-Typen
       () => window.supabase
         .from('creator_creator_type')
         .select('creator_type_id, creator_type:creator_type_id(id, name)')
         .eq('creator_id', this.creatorId)
         .then(r => (r.data || []).map(x => x.creator_type).filter(Boolean)),
       
-      // 5. Zusätzliche Adressen
       () => window.supabase
         .from('creator_adressen')
         .select('*')
@@ -116,19 +108,15 @@ export class CreatorDetail {
         .order('created_at', { ascending: false })
         .then(r => r.data || []),
       
-      // 6. Notizen
       () => window.notizenSystem.loadNotizen('creator', this.creatorId),
       
-      // 7. Ratings
       () => window.bewertungsSystem.loadBewertungen('creator', this.creatorId)
     ]);
     
-    // Error-Handling
     if (creatorResult.error) {
       throw new Error(`Fehler beim Laden der Creator-Daten: ${creatorResult.error.message}`);
     }
     
-    // Daten verarbeiten
     this.creator = creatorResult.data;
     this.creator.sprachen = sprachenResult;
     this.creator.branchen = branchenResult;
@@ -140,8 +128,39 @@ export class CreatorDetail {
     const loadTime = (performance.now() - startTime).toFixed(0);
     console.log(`✅ CREATORDETAIL: Kritische Daten geladen in ${loadTime}ms`);
   }
+
+  async loadActivitiesData() {
+    try {
+      const allActivities = [];
+
+      // Kooperationen-History für diesen Creator
+      const { data: koopHistory } = await window.supabase
+        .from('kooperation_history')
+        .select('id, old_status, new_status, comment, created_at, kooperation:kooperation_id(name)')
+        .in('kooperation_id', (this.kooperationen || []).map(k => k.id).filter(Boolean))
+        .order('created_at', { ascending: false })
+        .limit(15);
+
+      if (koopHistory) {
+        allActivities.push(...koopHistory.map(h => ({
+          ...h,
+          type: 'kooperation',
+          title: 'Kooperation',
+          entity_name: h.kooperation?.name || 'Unbekannt',
+          action: h.old_status && h.new_status ? `Status: ${h.old_status} → ${h.new_status}` : 'Status geändert'
+        })));
+      }
+
+      this.activities = allActivities
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .slice(0, 15);
+
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Activities:', error);
+      this.activities = [];
+    }
+  }
   
-  // Lazy-Load Tab-spezifische Daten
   async loadTabData(tabName) {
     return await tabDataCache.load('creator', this.creatorId, tabName, async () => {
       console.log(`🔄 CREATORDETAIL: Lade Tab-Daten für "${tabName}"`);
@@ -184,7 +203,6 @@ export class CreatorDetail {
     });
   }
   
-  // Lade Kampagnen
   async loadKampagnen() {
     const { data: kampagnen, error } = await window.supabase
       .from('kampagne_creator')
@@ -208,7 +226,6 @@ export class CreatorDetail {
     }
   }
   
-  // Lade Kooperationen
   async loadKooperationen() {
     try {
       const { data: koops } = await window.supabase
@@ -222,7 +239,6 @@ export class CreatorDetail {
         .order('created_at', { ascending: false });
       this.kooperationen = koops || [];
       
-      // Kampagnen aus Kooperationen mit Kampagnen aus kampagne_creator zusammenführen
       await this.mergeKampagnenFromKooperationen();
     } catch (e) {
       console.warn('⚠️ CREATORDETAIL: Kooperationen konnten nicht geladen werden', e);
@@ -230,10 +246,8 @@ export class CreatorDetail {
     }
   }
   
-  // Lade Rechnungen
   async loadRechnungen() {
     try {
-      // Lade Kooperationen falls noch nicht geladen
       if (!this.kooperationen || this.kooperationen.length === 0) {
         await this.loadKooperationen();
       }
@@ -254,7 +268,6 @@ export class CreatorDetail {
     }
   }
   
-  // Lade Listen
   async loadListen() {
     const { data: lists, error } = await window.supabase
       .from('creator_list_member')
@@ -270,10 +283,8 @@ export class CreatorDetail {
     }
   }
   
-  // Lade Unternehmen
   async loadUnternehmen() {
     try {
-      // Lade Kampagnen und Kooperationen falls noch nicht geladen
       if (!this.kampagnen || this.kampagnen.length === 0) {
         await this.loadKampagnen();
       }
@@ -302,7 +313,6 @@ export class CreatorDetail {
     }
   }
   
-  // Helper: Merge Kampagnen aus Kooperationen
   async mergeKampagnenFromKooperationen() {
     try {
       const coopCampaigns = (this.kooperationen || [])
@@ -331,7 +341,6 @@ export class CreatorDetail {
         return true;
       });
 
-      // Enrichment: fehlende Unternehmen/Marke zu Kampagnen nachladen
       const allIds = Array.from(new Set(this.kampagnen
         .map(e => e?.kampagne?.id || e?.kampagne_id)
         .filter(Boolean)));
@@ -360,11 +369,10 @@ export class CreatorDetail {
     }
   }
   
-  // Tab-Update-Methoden
   updateKampagnenTab() {
     const container = document.querySelector('#tab-kampagnen');
     if (container) {
-      container.innerHTML = this.renderKampagnen();
+      container.innerHTML = this.renderKampagnenContent();
       const btn = document.querySelector('.tab-button[data-tab="kampagnen"] .tab-count');
       if (btn) btn.textContent = String(this.kampagnen?.length || 0);
     }
@@ -373,7 +381,7 @@ export class CreatorDetail {
   updateKooperationenTab() {
     const container = document.querySelector('#tab-kooperationen');
     if (container) {
-      container.innerHTML = this.renderKooperationen();
+      container.innerHTML = this.renderKooperationenContent();
       const btn = document.querySelector('.tab-button[data-tab="kooperationen"] .tab-count');
       if (btn) btn.textContent = String(this.kooperationen?.length || 0);
     }
@@ -382,7 +390,7 @@ export class CreatorDetail {
   updateListenTab() {
     const container = document.querySelector('#tab-listen');
     if (container) {
-      container.innerHTML = this.renderListen();
+      container.innerHTML = this.renderListenContent();
       const btn = document.querySelector('.tab-button[data-tab="listen"] .tab-count');
       if (btn) btn.textContent = String(this.lists?.length || 0);
     }
@@ -391,7 +399,7 @@ export class CreatorDetail {
   updateUnternehmenTab() {
     const container = document.querySelector('#tab-unternehmen');
     if (container) {
-      container.innerHTML = this.renderUnternehmen();
+      container.innerHTML = this.renderUnternehmenContent();
       const btn = document.querySelector('.tab-button[data-tab="unternehmen"] .tab-count');
       if (btn) btn.textContent = String(this.unternehmen?.length || 0);
     }
@@ -400,13 +408,12 @@ export class CreatorDetail {
   updateRechnungenTab() {
     const container = document.querySelector('#tab-rechnungen');
     if (container) {
-      container.innerHTML = this.renderRechnungen();
+      container.innerHTML = this.renderRechnungenContent();
       const btn = document.querySelector('.tab-button[data-tab="rechnungen"] .tab-count');
       if (btn) btn.textContent = String(this.rechnungen?.length || 0);
     }
   }
 
-  // Rendere Creator-Detailseite
   async render() {
     if (!this.creator) {
       window.setHeadline('Creator nicht gefunden');
@@ -420,197 +427,253 @@ export class CreatorDetail {
 
     window.setHeadline(`${this.creator.vorname} ${this.creator.nachname}`);
 
-    const html = `
-      <div class="page-header">
-        <div class="page-header-right">
-          <button id="btn-edit-creator" class="primary-btn">Creator bearbeiten</button>
+    // Person-Config für die Sidebar
+    const creatorName = [this.creator.vorname, this.creator.nachname].filter(Boolean).join(' ') || 'Unbekannt';
+    const personConfig = {
+      name: creatorName,
+      email: this.creator.mail || '',
+      subtitle: this.creator.creator_types?.map(t => t.name).join(', ') || 'Creator',
+      avatarUrl: this.creator.profilbild_url,
+      lastActivity: this.creator.updated_at
+    };
+
+    // Quick Actions
+    const quickActions = [];
+    if (this.creator.mail) {
+      quickActions.push({ icon: 'mail', label: 'Mail', href: `mailto:${this.creator.mail}` });
+    }
+    if (this.creator.telefonnummer) {
+      quickActions.push({ icon: 'phone', label: 'Anrufen', href: `tel:${this.creator.telefonnummer}` });
+    }
+    if (this.creator.portfolio_link) {
+      quickActions.push({ icon: 'link', label: 'Portfolio', href: this.creator.portfolio_link });
+    }
+    quickActions.push({ icon: 'edit', label: 'Bearbeiten', action: 'edit-creator' });
+
+    // Stats für die Cards
+    const stats = [
+      { label: 'Kampagnen', value: this.kampagnen?.length || 0, link: '#tab-kampagnen' },
+      { label: 'Kooperationen', value: this.kooperationen?.length || 0, link: '#tab-kooperationen' },
+      { label: 'Listen', value: this.lists?.length || 0, link: '#tab-listen' }
+    ];
+
+    // Info-Items für Sidebar
+    const sidebarInfo = this.renderSidebarInfo();
+
+    // Main Content mit Tabs
+    const mainContent = this.renderMainContent();
+
+    // Zwei-Spalten-Layout rendern
+    const html = this.renderTwoColumnLayout({
+      person: personConfig,
+      stats,
+      quickActions,
+      sidebarInfo,
+      mainContent
+    });
+
+    window.setContentSafely(window.content, html);
+  }
+
+  renderSidebarInfo() {
+    // Social Media Icons als klickbare Links
+    let socialHtml = '';
+    if (this.creator.instagram || this.creator.tiktok) {
+      const instagramUrl = this.creator.instagram 
+        ? (this.creator.instagram.startsWith('http') ? this.creator.instagram : `https://instagram.com/${this.creator.instagram.replace('@', '')}`)
+        : null;
+      const tiktokUrl = this.creator.tiktok 
+        ? (this.creator.tiktok.startsWith('http') ? this.creator.tiktok : `https://tiktok.com/@${this.creator.tiktok.replace('@', '')}`)
+        : null;
+
+      socialHtml = `
+        <div class="profile-social-links">
+          ${instagramUrl ? `
+            <a href="${instagramUrl}" target="_blank" rel="noopener noreferrer" class="social-link social-instagram" title="Instagram: @${this.creator.instagram}">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+              </svg>
+              ${this.creator.instagram_follower ? `<span class="social-follower">${this.formatNumber(this.creator.instagram_follower)}</span>` : ''}
+            </a>
+          ` : ''}
+          ${tiktokUrl ? `
+            <a href="${tiktokUrl}" target="_blank" rel="noopener noreferrer" class="social-link social-tiktok" title="TikTok: @${this.creator.tiktok}">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+              </svg>
+              ${this.creator.tiktok_follower ? `<span class="social-follower">${this.formatNumber(this.creator.tiktok_follower)}</span>` : ''}
+            </a>
+          ` : ''}
         </div>
+      `;
+    }
+
+    // Reguläre Info-Items
+    const items = [
+      { label: 'Stadt', value: this.creator.lieferadresse_stadt || '-' },
+      { label: 'Land', value: this.creator.lieferadresse_land || '-' }
+    ];
+
+    // Sprachen
+    if (this.creator.sprachen && this.creator.sprachen.length > 0) {
+      items.push({ label: 'Sprachen', value: this.creator.sprachen.map(s => s.name), tags: true });
+    }
+
+    // Branchen
+    if (this.creator.branchen && this.creator.branchen.length > 0) {
+      items.push({ label: 'Branchen', value: this.creator.branchen.map(b => b.name), tags: true });
+    }
+
+    // Budget
+    if (this.creator.budget_letzte_buchung) {
+      items.push({ label: 'Letztes Budget', value: this.formatCurrency(this.creator.budget_letzte_buchung) });
+    }
+
+    items.push({ label: 'Erstellt', value: this.formatDate(this.creator.created_at) });
+
+    return socialHtml + this.renderInfoItems(items);
+  }
+
+  renderMainContent() {
+    const tabs = [
+      { tab: 'info', label: 'Informationen', isActive: this.activeMainTab === 'info' },
+      { tab: 'kampagnen', label: 'Kampagnen', count: this.kampagnen?.length || 0, isActive: this.activeMainTab === 'kampagnen' },
+      { tab: 'kooperationen', label: 'Kooperationen', count: this.kooperationen?.length || 0, isActive: this.activeMainTab === 'kooperationen' },
+      { tab: 'listen', label: 'Listen', count: this.lists?.length || 0, isActive: this.activeMainTab === 'listen' },
+      { tab: 'unternehmen', label: 'Unternehmen', count: this.unternehmen?.length || 0, isActive: this.activeMainTab === 'unternehmen' },
+      { tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen?.length || 0, isActive: this.activeMainTab === 'rechnungen' },
+      { tab: 'adresse', label: 'Adresse', isActive: this.activeMainTab === 'adresse' },
+      { tab: 'notizen', label: 'Notizen', count: this.notizen.length, isActive: this.activeMainTab === 'notizen' },
+      { tab: 'ratings', label: 'Bewertungen', count: this.ratings.length, isActive: this.activeMainTab === 'ratings' }
+    ];
+
+    return `
+      <div class="tab-navigation">
+        ${tabs.map(t => renderTabButton(t)).join('')}
       </div>
 
-      <div class="content-section">
-        <!-- Tab Navigation -->
-        <div class="tab-navigation">
-          <button class="tab-button active" data-tab="info">
-            Informationen
-          </button>
-          <button class="tab-button" data-tab="kampagnen">
-            Kampagnen
-            <span class="tab-count">${this.kampagnen?.length || 0}</span>
-          </button>
-          <button class="tab-button" data-tab="kooperationen">
-            Kooperationen
-            <span class="tab-count">${this.kooperationen?.length || 0}</span>
-          </button>
-          <button class="tab-button" data-tab="listen">
-            Listen
-            <span class="tab-count">${this.lists?.length || 0}</span>
-          </button>
-          <button class="tab-button" data-tab="unternehmen">
-            Unternehmen
-            <span class="tab-count">${(this.unternehmen||[]).length || 0}</span>
-          </button>
-          <button class="tab-button" data-tab="rechnungen">
-            Rechnungen
-            <span class="tab-count">${this.rechnungen?.length || 0}</span>
-          </button>
-          <button class="tab-button" data-tab="adresse">
-            Adresse
-          </button>
-          <button class="tab-button" data-tab="notizen">
-            Notizen
-            <span class="tab-count">${this.notizen.length}</span>
-          </button>
-          <button class="tab-button" data-tab="ratings">
-            Bewertungen
-            <span class="tab-count">${this.ratings.length}</span>
-          </button>
+      <div class="tab-content">
+        <div class="tab-pane ${this.activeMainTab === 'info' ? 'active' : ''}" id="tab-info">
+          ${this.renderInfoTab()}
         </div>
 
-        <!-- Tab Content -->
-        <div class="tab-content">
-          <!-- Informationen Tab -->
-          <div class="tab-pane active" id="tab-info">
-            <div class="detail-section">
-              <div class="detail-grid">
-                <div class="detail-card">
-                  <h3>Kontakt</h3>
-                  <div class="detail-item">
-                    <label>E-Mail:</label>
-                    <span>${this.creator.mail || '-'}</span>
-                  </div>
-                  <div class="detail-item">
-                    <label>Telefon:</label>
-                    <span>${this.creator.telefonnummer || '-'}</span>
-                  </div>
-                  <div class="detail-item">
-                    <label>Stadt:</label>
-                    <span>${this.creator.lieferadresse_stadt || '-'}</span>
-                  </div>
-                  <div class="detail-item">
-                    <label>Land:</label>
-                    <span>${this.creator.lieferadresse_land || '-'}</span>
-                  </div>
-                </div>
+        <div class="tab-pane ${this.activeMainTab === 'kampagnen' ? 'active' : ''}" id="tab-kampagnen">
+          ${this.renderKampagnenContent()}
+        </div>
 
-                <div class="detail-card">
-                  <h3>Social Media</h3>
-                  <div class="detail-item">
-                    <label>Instagram:</label>
-                    <span>${this.creator.instagram ? `@${this.creator.instagram}` : '-'}</span>
-                  </div>
-                  <div class="detail-item">
-                    <label>Instagram Follower:</label>
-                    <span>${this.creator.instagram_follower ? this.formatNumber(this.creator.instagram_follower) : '-'}</span>
-                  </div>
-                  <div class="detail-item">
-                    <label>TikTok:</label>
-                    <span>${this.creator.tiktok ? `@${this.creator.tiktok}` : '-'}</span>
-                  </div>
-                  <div class="detail-item">
-                    <label>TikTok Follower:</label>
-                    <span>${this.creator.tiktok_follower ? this.formatNumber(this.creator.tiktok_follower) : '-'}</span>
-                  </div>
-                </div>
+        <div class="tab-pane ${this.activeMainTab === 'kooperationen' ? 'active' : ''}" id="tab-kooperationen">
+          ${this.renderKooperationenContent()}
+        </div>
 
-                <div class="detail-card">
-                  <h3>Profil</h3>
-                  <div class="detail-item">
-                    <label>Typen:</label>
-                    <span>${this.renderTagList(this.creator.creator_types)}</span>
-                  </div>
-                  <div class="detail-item">
-                    <label>Sprachen:</label>
-                    <span>${this.renderTagList(this.creator.sprachen)}</span>
-                  </div>
-                  <div class="detail-item">
-                    <label>Branchen:</label>
-                    <span>${this.renderTagList(this.creator.branchen)}</span>
-                  </div>
-                  <div class="detail-item">
-                    <label>Portfolio:</label>
-                    <span>${this.creator.portfolio_link ? `<a href="${this.creator.portfolio_link}" target="_blank">Link</a>` : '-'}</span>
-                  </div>
-                </div>
+        <div class="tab-pane ${this.activeMainTab === 'listen' ? 'active' : ''}" id="tab-listen">
+          ${this.renderListenContent()}
+        </div>
 
-                <div class="detail-card">
-                  <h3>Finanzen</h3>
-                  <div class="detail-item">
-                    <label>Letztes Budget:</label>
-                    <span>${this.creator.budget_letzte_buchung ? this.formatCurrency(this.creator.budget_letzte_buchung) : '-'}</span>
-                  </div>
-                  <div class="detail-item">
-                    <label>Erstellt:</label>
-                    <span>${this.formatDate(this.creator.created_at)}</span>
-                  </div>
-                  <div class="detail-item">
-                    <label>Aktualisiert:</label>
-                    <span>${this.formatDate(this.creator.updated_at)}</span>
-                  </div>
-                </div>
-              </div>
+        <div class="tab-pane ${this.activeMainTab === 'unternehmen' ? 'active' : ''}" id="tab-unternehmen">
+          ${this.renderUnternehmenContent()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'rechnungen' ? 'active' : ''}" id="tab-rechnungen">
+          ${this.renderRechnungenContent()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'adresse' ? 'active' : ''}" id="tab-adresse">
+          ${this.renderAdresseContent()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'notizen' ? 'active' : ''}" id="tab-notizen">
+          ${window.notizenSystem.renderNotizenContainer(this.notizen, 'creator', this.creatorId)}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'ratings' ? 'active' : ''}" id="tab-ratings">
+          ${window.bewertungsSystem.renderBewertungenContainer(this.ratings, 'creator', this.creatorId)}
+        </div>
+      </div>
+    `;
+  }
+
+  renderInfoTab() {
+    return `
+      <div class="detail-section">
+        <div class="detail-grid">
+          <div class="detail-card">
+            <h3>Kontakt</h3>
+            <div class="detail-item">
+              <label>E-Mail:</label>
+              <span>${this.creator.mail || '-'}</span>
+            </div>
+            <div class="detail-item">
+              <label>Telefon:</label>
+              <span>${this.creator.telefonnummer || '-'}</span>
+            </div>
+            <div class="detail-item">
+              <label>Stadt:</label>
+              <span>${this.creator.lieferadresse_stadt || '-'}</span>
+            </div>
+            <div class="detail-item">
+              <label>Land:</label>
+              <span>${this.creator.lieferadresse_land || '-'}</span>
             </div>
           </div>
 
-          <!-- Kampagnen Tab -->
-          <div class="tab-pane" id="tab-kampagnen">
-            <div class="detail-section">
-              ${this.renderKampagnen()}
+          <div class="detail-card">
+            <h3>Social Media</h3>
+            <div class="detail-item">
+              <label>Instagram:</label>
+              <span>${this.creator.instagram ? `@${this.creator.instagram}` : '-'}</span>
+            </div>
+            <div class="detail-item">
+              <label>Instagram Follower:</label>
+              <span>${this.creator.instagram_follower ? this.formatNumber(this.creator.instagram_follower) : '-'}</span>
+            </div>
+            <div class="detail-item">
+              <label>TikTok:</label>
+              <span>${this.creator.tiktok ? `@${this.creator.tiktok}` : '-'}</span>
+            </div>
+            <div class="detail-item">
+              <label>TikTok Follower:</label>
+              <span>${this.creator.tiktok_follower ? this.formatNumber(this.creator.tiktok_follower) : '-'}</span>
             </div>
           </div>
 
-          <!-- Kooperationen Tab -->
-          <div class="tab-pane" id="tab-kooperationen">
-            <div class="detail-section">
-              ${this.renderKooperationen()}
+          <div class="detail-card">
+            <h3>Profil</h3>
+            <div class="detail-item">
+              <label>Typen:</label>
+              <span>${this.renderTagList(this.creator.creator_types)}</span>
+            </div>
+            <div class="detail-item">
+              <label>Sprachen:</label>
+              <span>${this.renderTagList(this.creator.sprachen)}</span>
+            </div>
+            <div class="detail-item">
+              <label>Branchen:</label>
+              <span>${this.renderTagList(this.creator.branchen)}</span>
+            </div>
+            <div class="detail-item">
+              <label>Portfolio:</label>
+              <span>${this.creator.portfolio_link ? `<a href="${this.creator.portfolio_link}" target="_blank">Link</a>` : '-'}</span>
             </div>
           </div>
 
-          <!-- Listen Tab -->
-          <div class="tab-pane" id="tab-listen">
-            <div class="detail-section">
-              ${this.renderLists()}
+          <div class="detail-card">
+            <h3>Finanzen</h3>
+            <div class="detail-item">
+              <label>Letztes Budget:</label>
+              <span>${this.creator.budget_letzte_buchung ? this.formatCurrency(this.creator.budget_letzte_buchung) : '-'}</span>
             </div>
-          </div>
-
-          <!-- Unternehmen Tab -->
-          <div class="tab-pane" id="tab-unternehmen">
-            <div class="detail-section">
-              ${this.renderUnternehmen()}
+            <div class="detail-item">
+              <label>Erstellt:</label>
+              <span>${this.formatDate(this.creator.created_at)}</span>
             </div>
-          </div>
-          
-          <!-- Rechnungen Tab -->
-          <div class="tab-pane" id="tab-rechnungen">
-            <div class="detail-section">
-              ${this.renderRechnungen()}
-            </div>
-          </div>
-
-          <!-- Adresse Tab -->
-          <div class="tab-pane" id="tab-adresse">
-            <div class="detail-section">
-              ${this.renderAdresse()}
-            </div>
-          </div>
-
-          <!-- Notizen Tab -->
-          <div class="tab-pane" id="tab-notizen">
-            <div class="detail-section">
-              ${this.renderNotizen()}
-            </div>
-          </div>
-
-          <!-- Ratings Tab -->
-          <div class="tab-pane" id="tab-ratings">
-            <div class="detail-section">
-              ${this.renderRatings()}
+            <div class="detail-item">
+              <label>Aktualisiert:</label>
+              <span>${this.formatDate(this.creator.updated_at)}</span>
             </div>
           </div>
         </div>
       </div>
     `;
-
-    window.setContentSafely(window.content, html);
   }
 
   renderTagList(items) {
@@ -629,24 +692,9 @@ export class CreatorDetail {
     return `<div class="tags"><span class="tag">${String(items)}</span></div>`;
   }
 
-  // Rendere Notizen
-  renderNotizen() {
-    return window.notizenSystem.renderNotizenContainer(this.notizen, 'creator', this.creatorId);
-  }
-
-  // Rendere Ratings
-  renderRatings() {
-    return window.bewertungsSystem.renderBewertungenContainer(this.ratings, 'creator', this.creatorId);
-  }
-
-  // Rendere Kampagnen
-  renderKampagnen() {
+  renderKampagnenContent() {
     if (!this.kampagnen || this.kampagnen.length === 0) {
-      return `
-        <div class="empty-state">
-          <p>Noch keine Kampagnen zugeordnet.</p>
-        </div>
-      `;
+      return `<div class="empty-state"><p>Noch keine Kampagnen zugeordnet.</p></div>`;
     }
 
     const flat = this.kampagnen.map(k => {
@@ -668,14 +716,9 @@ export class CreatorDetail {
     return renderKampagnenTable(flat, { showActions: false });
   }
 
-  // Rendere Listen
-  renderLists() {
+  renderListenContent() {
     if (this.lists.length === 0) {
-      return `
-        <div class="empty-state">
-          <p>Noch keiner Liste zugeordnet.</p>
-        </div>
-      `;
+      return `<div class="empty-state"><p>Noch keiner Liste zugeordnet.</p></div>`;
     }
 
     const listsHtml = this.lists.map(list => `
@@ -690,15 +733,10 @@ export class CreatorDetail {
       </div>
     `).join('');
 
-    return `
-      <div class="lists-container">
-        ${listsHtml}
-      </div>
-    `;
+    return `<div class="lists-container">${listsHtml}</div>`;
   }
 
-  // Rendere Kooperationen
-  renderKooperationen() {
+  renderKooperationenContent() {
     if (this.kooperationen.length === 0) {
       return `
         <div class="empty-state">
@@ -721,12 +759,9 @@ export class CreatorDetail {
             ${window.validatorSystem.sanitizeHtml(k.kampagne?.kampagnenname || '-')}
           </a>
         </td>
-        <td>${window.validatorSystem.sanitizeHtml(k.unternehmen?.firmenname || '-')}</td>
         <td><span class="status-badge status-${(k.status || 'unknown').toLowerCase().replace(/\s+/g, '-')}">${k.status || '-'}</span></td>
         <td>${k.videoanzahl || 0}</td>
         <td>${k.einkaufspreis_gesamt ? this.formatCurrency(k.einkaufspreis_gesamt) : '-'}</td>
-        <td>${this.formatDate(k.skript_deadline)}</td>
-        <td>${this.formatDate(k.content_deadline)}</td>
         <td>${this.formatDate(k.created_at)}</td>
       </tr>
     `).join('');
@@ -738,12 +773,9 @@ export class CreatorDetail {
             <tr>
               <th>Name</th>
               <th>Kampagne</th>
-              <th>Unternehmen</th>
               <th>Status</th>
               <th>Videos</th>
               <th>Gesamtkosten</th>
-              <th>Skript Deadline</th>
-              <th>Content Deadline</th>
               <th>Erstellt</th>
             </tr>
           </thead>
@@ -753,27 +785,23 @@ export class CreatorDetail {
     `;
   }
 
-  renderRechnungen() {
+  renderRechnungenContent() {
     if (!this.rechnungen || this.rechnungen.length === 0) {
-      return `
-        <div class="empty-state">
-          <p>Keine Rechnungen vorhanden.</p>
-        </div>
-      `;
+      return `<div class="empty-state"><p>Keine Rechnungen vorhanden.</p></div>`;
     }
-    const fmt = (v) => v ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v) : '-';
-    const fDate = (d) => d ? new Date(d).toLocaleDateString('de-DE') : '-';
+
     const rows = this.rechnungen.map(r => `
       <tr>
         <td><a href="/rechnung/${r.id}" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${window.validatorSystem.sanitizeHtml(r.rechnung_nr || '—')}</a></td>
         <td>${r.status || '-'}</td>
-        <td>${fmt(r.nettobetrag)}</td>
-        <td>${fmt(r.bruttobetrag)}</td>
-        <td>${fDate(r.gestellt_am)}</td>
-        <td>${fDate(r.bezahlt_am)}</td>
+        <td>${this.formatCurrency(r.nettobetrag)}</td>
+        <td>${this.formatCurrency(r.bruttobetrag)}</td>
+        <td>${this.formatDate(r.gestellt_am)}</td>
+        <td>${this.formatDate(r.bezahlt_am)}</td>
         <td>${r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener">PDF</a>` : '-'}</td>
       </tr>
     `).join('');
+
     return `
       <div class="data-table-container">
         <table class="data-table">
@@ -794,7 +822,7 @@ export class CreatorDetail {
     `;
   }
 
-  renderUnternehmen() {
+  renderUnternehmenContent() {
     const items = this.unternehmen || [];
     if (!items.length) {
       return '<p class="empty-state">Keine Unternehmen vorhanden.</p>';
@@ -816,15 +844,14 @@ export class CreatorDetail {
       </div>`;
   }
 
-  renderAdresse() {
+  renderAdresseContent() {
     const c = this.creator || {};
-    const sanitize = (val) => {
+    const sanitizeVal = (val) => {
       if (val === undefined || val === null || val === '') return '-';
       if (val === '-') return '-';
       return window.validatorSystem.sanitizeHtml(String(val));
     };
 
-    // Hauptadresse aus Creator-Tabelle als Tabelle
     const hauptAdresseTable = `
       <div class="data-table-container">
         <table class="data-table">
@@ -844,11 +871,11 @@ export class CreatorDetail {
             <tr>
               <td><span class="badge badge-primary">Hauptadresse</span></td>
               <td>-</td>
-              <td>${sanitize(c.lieferadresse_strasse)}</td>
-              <td>${sanitize(c.lieferadresse_hausnummer)}</td>
-              <td>${sanitize(c.lieferadresse_plz)}</td>
-              <td>${sanitize(c.lieferadresse_stadt)}</td>
-              <td>${sanitize(c.lieferadresse_land)}</td>
+              <td>${sanitizeVal(c.lieferadresse_strasse)}</td>
+              <td>${sanitizeVal(c.lieferadresse_hausnummer)}</td>
+              <td>${sanitizeVal(c.lieferadresse_plz)}</td>
+              <td>${sanitizeVal(c.lieferadresse_stadt)}</td>
+              <td>${sanitizeVal(c.lieferadresse_land)}</td>
               <td>
                 ${actionBuilder.create('creator_hauptadresse', this.creatorId)}
               </td>
@@ -913,21 +940,20 @@ export class CreatorDetail {
     `).join('');
   }
 
-  formatFullAddress(creator) {
-    const parts = [
-      creator?.lieferadresse_strasse,
-      creator?.lieferadresse_hausnummer,
-      creator?.lieferadresse_plz,
-      creator?.lieferadresse_stadt,
-      creator?.lieferadresse_land
-    ].filter(Boolean);
-    if (!parts.length) return '-';
-    return parts.join(', ');
+  formatNumber(num) {
+    if (num >= 1000000) {
+      return (num / 1000000).toFixed(1) + 'M';
+    } else if (num >= 1000) {
+      return (num / 1000).toFixed(1) + 'K';
+    }
+    return num.toString();
   }
 
-  // Binde Events
   bindEvents() {
-    // Tab Navigation
+    // Sidebar Tabs binden (aus Basis-Klasse)
+    this.bindSidebarTabs();
+
+    // Main Tab Navigation
     document.addEventListener('click', (e) => {
       if (e.target.classList.contains('tab-button')) {
         e.preventDefault();
@@ -945,9 +971,9 @@ export class CreatorDetail {
       }
     });
 
-    // Edit Creator Button
+    // Edit Creator Button / Action
     document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-edit-creator') {
+      if (e.target.id === 'btn-edit-creator' || e.target.closest('[data-action="edit-creator"]')) {
         e.preventDefault();
         this.showEditForm();
       }
@@ -967,40 +993,32 @@ export class CreatorDetail {
       if (e.detail.entityType === 'creator' && e.detail.entityId === this.creatorId) {
         console.log('🔄 CREATORDETAIL: Notizen wurden aktualisiert, lade neu...');
         this.notizen = await window.notizenSystem.loadNotizen('creator', this.creatorId);
-        this.renderNotizen();
+        const notizenTab = document.querySelector('#tab-notizen');
+        if (notizenTab) {
+          notizenTab.innerHTML = window.notizenSystem.renderNotizenContainer(this.notizen, 'creator', this.creatorId);
+        }
       }
     });
 
-    // Creator-Adressen Update Event - mit eindeutiger Kennung
+    // Creator-Adressen Update Event
     const adressenUpdateHandler = async (e) => {
       if (e.detail?.entity === 'creator_adressen' && e.detail?.creatorId === this.creatorId) {
         console.log('🔄 CREATORDETAIL: Creator-Adressen aktualisiert, lade Daten neu');
         tabDataCache.invalidate('creator', this.creatorId);
         await this.loadCriticalData();
         
-        // Tab neu rendern
         const adresseTab = document.getElementById('tab-adresse');
-        console.log('🔍 CREATORDETAIL: Tab-Element gefunden?', !!adresseTab);
-        
         if (adresseTab) {
-          adresseTab.innerHTML = `
-            <div class="detail-section">
-              ${this.renderAdresse()}
-            </div>
-          `;
+          adresseTab.innerHTML = this.renderAdresseContent();
           console.log('✅ CREATORDETAIL: Adresse-Tab erfolgreich aktualisiert');
-        } else {
-          console.error('❌ CREATORDETAIL: Tab-Element nicht gefunden!');
         }
       }
     };
     
-    // Entferne alte Listener falls vorhanden
     if (this.adressenUpdateHandler) {
       window.removeEventListener('entityUpdated', this.adressenUpdateHandler);
     }
     
-    // Speichere Referenz und registriere
     this.adressenUpdateHandler = adressenUpdateHandler;
     window.addEventListener('entityUpdated', this.adressenUpdateHandler);
 
@@ -1009,11 +1027,14 @@ export class CreatorDetail {
       if (e.detail.entityType === 'creator' && e.detail.entityId === this.creatorId) {
         console.log('🔄 CREATORDETAIL: Bewertungen wurden aktualisiert, lade neu...');
         this.ratings = await window.bewertungsSystem.loadBewertungen('creator', this.creatorId);
-        this.renderRatings();
+        const ratingsTab = document.querySelector('#tab-ratings');
+        if (ratingsTab) {
+          ratingsTab.innerHTML = window.bewertungsSystem.renderBewertungenContainer(this.ratings, 'creator', this.creatorId);
+        }
       }
     });
 
-    // Soft-Refresh bei Realtime-Updates (nur wenn kein Formular aktiv)
+    // Soft-Refresh bei Realtime-Updates
     window.addEventListener('softRefresh', async (e) => {
       const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
       if (hasActiveForm) {
@@ -1027,15 +1048,14 @@ export class CreatorDetail {
       tabDataCache.invalidate('creator', this.creatorId);
       await this.loadCriticalData();
       this.render();
-      // Events sind bereits gebunden, nicht erneut binden
     });
   }
 
-  // Tab wechseln
   async switchTab(tabName) {
     console.log('🔄 CREATORDETAIL: Wechsle zu Tab:', tabName);
     
-    // UI sofort updaten
+    this.activeMainTab = tabName;
+    
     document.querySelectorAll('.tab-button').forEach(btn => {
       btn.classList.remove('active');
     });
@@ -1044,7 +1064,6 @@ export class CreatorDetail {
       pane.classList.remove('active');
     });
     
-    // Gewählten Tab aktivieren
     const activeButton = document.querySelector(`[data-tab="${tabName}"]`);
     const activePane = document.getElementById(`tab-${tabName}`);
     
@@ -1052,36 +1071,21 @@ export class CreatorDetail {
       activeButton.classList.add('active');
       activePane.classList.add('active');
       
-      // Lazy load Tab-Daten (außer für bereits geladene Tabs)
+      // Lazy load Tab-Daten
       if (!['info', 'notizen', 'ratings', 'adresse'].includes(tabName)) {
         await this.loadTabData(tabName);
       }
     }
   }
 
-  // Zeige Add Notiz Modal
-  showAddNotizModal() {
-    // TODO: Implementiere Modal für neue Notiz
-    console.log('📝 CREATORDETAIL: Zeige Add Notiz Modal');
-  }
-
-  // Zeige Add Rating Modal
-  showAddRatingModal() {
-    // TODO: Implementiere Modal für neue Bewertung
-    console.log('⭐ CREATORDETAIL: Zeige Add Rating Modal');
-  }
-
-  // Show Edit Form (für Routing)
   showEditForm() {
     console.log('🎯 CREATORDETAIL: Zeige Creator-Bearbeitungsformular für ID:', this.creatorId);
     window.setHeadline('Creator bearbeiten');
     
-    // Creator-Daten für Edit-Mode vorbereiten
     const editData = {
       ...this.creator,
       _isEditMode: true,
       _entityId: this.creatorId,
-      // Multi-Select IDs extrahieren
       sprachen_ids: this.creator.sprachen ? this.creator.sprachen.map(s => s.id) : [],
       branche_ids: this.creator.branchen ? this.creator.branchen.map(b => b.id) : [],
       creator_type_ids: this.creator.creator_types ? this.creator.creator_types.map(t => t.id) : []
@@ -1093,7 +1097,6 @@ export class CreatorDetail {
       creator_type_ids: editData.creator_type_ids
     });
     
-    // Formular mit Creator-Daten rendern
     const formHtml = window.formSystem.renderFormOnly('creator', editData);
     window.setContentSafely(window.content, `
       <div class="form-page">
@@ -1101,10 +1104,8 @@ export class CreatorDetail {
       </div>
     `);
 
-    // Formular-Events binden
     window.formSystem.bindFormEvents('creator', editData);
     
-    // Custom Submit Handler für Bearbeitungsformular
     const form = document.getElementById('creator-form');
     if (form) {
       form.onsubmit = async (e) => {
@@ -1114,25 +1115,21 @@ export class CreatorDetail {
     }
   }
 
-  // Handle Edit Form Submit
   async handleEditFormSubmit() {
     try {
       const form = document.getElementById('creator-form');
       const formData = new FormData(form);
       const submitData = {};
 
-      // Tag-basierte Multi-Selects aus Hidden-Selects sammeln
       const tagBasedSelects = form.querySelectorAll('select[data-tag-based="true"]');
       tagBasedSelects.forEach(select => {
         const fieldName = select.name;
         
-        // Suche das versteckte Select mit den tatsächlichen Werten
         let hiddenSelect = form.querySelector(`select[name="${fieldName}[]"][style*="display: none"]`);
         if (!hiddenSelect) {
           hiddenSelect = form.querySelector(`select[name="${fieldName}"][style*="display: none"]`);
         }
         
-        // Alternative: Suche nach Tag-Container und sammle Werte aus Tags
         if (!hiddenSelect) {
           const tagContainer = form.querySelector(`select[name="${fieldName}"]`)?.closest('.form-field')?.querySelector('.tag-based-select');
           if (tagContainer) {
@@ -1157,17 +1154,14 @@ export class CreatorDetail {
         }
       });
 
-      // FormData zu Objekt konvertieren (aber Tag-basierte Felder nicht überschreiben)
       for (const [key, value] of formData.entries()) {
         if (key.includes('[]')) {
-          // Multi-Select behandeln
           const cleanKey = key.replace('[]', '');
           if (!submitData[cleanKey]) {
             submitData[cleanKey] = [];
           }
           submitData[cleanKey].push(value);
         } else {
-          // Nur setzen wenn nicht bereits als Array von Tag-basierten Feldern gesetzt
           if (!submitData.hasOwnProperty(key) || !Array.isArray(submitData[key])) {
             submitData[key] = value;
           } else {
@@ -1176,7 +1170,6 @@ export class CreatorDetail {
         }
       }
 
-      // Validierung
       const validation = window.validatorSystem.validateForm(submitData, {
         vorname: { type: 'text', minLength: 2, required: true },
         nachname: { type: 'text', minLength: 2, required: true },
@@ -1190,13 +1183,11 @@ export class CreatorDetail {
         return;
       }
 
-      // Creator aktualisieren
       const result = await window.dataService.updateEntity('creator', this.creatorId, submitData);
 
       if (result.success) {
         this.showSuccessMessage('Creator erfolgreich aktualisiert!');
         
-        // Creator-Daten neu laden und zur Detailseite zurückkehren
         setTimeout(async () => {
           tabDataCache.invalidate('creator', this.creatorId);
           await this.loadCriticalData();
@@ -1213,14 +1204,11 @@ export class CreatorDetail {
     }
   }
 
-  // Show Validation Errors
   showValidationErrors(errors) {
     console.log('❌ Validierungsfehler:', errors);
     
-    // Alle bestehenden Fehlermeldungen entfernen
     document.querySelectorAll('.validation-error').forEach(el => el.remove());
     
-    // Neue Fehlermeldungen anzeigen
     Object.keys(errors).forEach(fieldName => {
       const field = document.querySelector(`[name="${fieldName}"]`);
       if (field) {
@@ -1237,7 +1225,6 @@ export class CreatorDetail {
     });
   }
 
-  // Show Success Message
   showSuccessMessage(message) {
     const successDiv = document.createElement('div');
     successDiv.className = 'alert alert-success';
@@ -1257,7 +1244,6 @@ export class CreatorDetail {
     }
   }
 
-  // Show Error Message
   showErrorMessage(message) {
     const errorDiv = document.createElement('div');
     errorDiv.className = 'alert alert-danger';
@@ -1277,42 +1263,17 @@ export class CreatorDetail {
     }
   }
 
-  // Hilfsfunktionen
-  formatNumber(num) {
-    if (num >= 1000000) {
-      return (num / 1000000).toFixed(1) + 'M';
-    } else if (num >= 1000) {
-      return (num / 1000).toFixed(1) + 'K';
-    }
-    return num.toString();
-  }
-
-  formatCurrency(amount) {
-    return new Intl.NumberFormat('de-DE', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(amount);
-  }
-
-  formatDate(dateString) {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('de-DE');
-  }
-
-  // Setup automatische Cache-Invalidierung bei Entity-Updates
   setupCacheInvalidation() {
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail.entity === 'creator' && e.detail.id === this.creatorId) {
         console.log('🔄 CREATORDETAIL: Entity updated - invalidiere Cache');
         tabDataCache.invalidate('creator', this.creatorId);
         
-        // Optional: Reload kritische Daten bei Updates
         if (e.detail.action === 'updated') {
           this.loadCriticalData().then(() => {
-            // Aktualisiere nur die Info-Sektion ohne vollständiges Neu-Rendering
             const infoTab = document.querySelector('#tab-info');
             if (infoTab && infoTab.classList.contains('active')) {
-              infoTab.innerHTML = this.renderInfo();
+              infoTab.innerHTML = this.renderInfoTab();
             }
           });
         }
@@ -1320,17 +1281,14 @@ export class CreatorDetail {
     });
   }
 
-  // Cleanup
   destroy() {
     console.log('🗑️ CREATORDETAIL: Destroy aufgerufen - räume auf');
     
-    // Invalidiere Tab-Cache für diesen Creator
     tabDataCache.invalidate('creator', this.creatorId);
     
-    // Content zurücksetzen
     window.setContentSafely('');
     console.log('✅ CREATORDETAIL: Destroy abgeschlossen');
   }
 }
 
-export const creatorDetail = new CreatorDetail(); 
+export const creatorDetail = new CreatorDetail();

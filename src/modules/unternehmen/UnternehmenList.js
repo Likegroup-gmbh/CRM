@@ -57,19 +57,134 @@ export class UnternehmenList {
       // Lade gefilterte Unternehmen mit Pagination
       const currentFilters = filterSystem.getFilters('unternehmen');
       const { currentPage, itemsPerPage } = this.pagination.getState();
+      const page = currentPage;
+      const limit = itemsPerPage;
       
       console.log('🔍 Lade Unternehmen mit Filter und Pagination:', {
         filters: currentFilters,
-        page: currentPage,
-        limit: itemsPerPage
+        page,
+        limit
       });
       
-      const result = await window.dataService.loadEntitiesWithPagination(
-        'unternehmen',
-        currentFilters,
-        currentPage,
-        itemsPerPage
-      );
+      const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+      
+      // Für Nicht-Admins: Nur zugewiesene Unternehmen laden
+      let allowedUnternehmenIds = null;
+      if (!isAdmin) {
+        try {
+          const { data: mitarbeiterUnternehmen, error } = await window.supabase
+            .from('mitarbeiter_unternehmen')
+            .select('unternehmen_id')
+            .eq('mitarbeiter_id', window.currentUser?.id);
+          
+          if (error) {
+            console.error('❌ UNTERNEHMENLISTE: Fehler beim Laden der Zuordnungen:', error);
+          }
+          
+          allowedUnternehmenIds = (mitarbeiterUnternehmen || [])
+            .map(r => r.unternehmen_id)
+            .filter(Boolean);
+          
+          console.log('🔍 UNTERNEHMENLISTE: Zugeordnete Unternehmen für Nicht-Admin:', allowedUnternehmenIds.length);
+          
+          // Wenn keine Unternehmen zugeordnet sind, zeige leeres Ergebnis
+          if (allowedUnternehmenIds.length === 0) {
+            this.pagination.updateTotal(0);
+            this.pagination.render();
+            this.updateTable([]);
+            return;
+          }
+        } catch (error) {
+          console.error('❌ UNTERNEHMENLISTE: Exception beim Laden der Zuordnungen:', error);
+        }
+      }
+      
+      // Berechne Range für Supabase
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+      
+      // Eigene Query anstatt dataService, um Mitarbeiter-Filter anzuwenden
+      let query = window.supabase
+        .from('unternehmen')
+        .select(`
+          *,
+          unternehmen_branchen (
+            branche_id,
+            branchen (
+              id,
+              name
+            )
+          )
+        `, { count: 'exact' })
+        .order('created_at', { ascending: false });
+      
+      // Nicht-Admin Filterung
+      if (!isAdmin && allowedUnternehmenIds && allowedUnternehmenIds.length > 0) {
+        query = query.in('id', allowedUnternehmenIds);
+      }
+      
+      // Branche-Filter
+      if (currentFilters.branche_id) {
+        const { data: links } = await window.supabase
+          .from('unternehmen_branchen')
+          .select('unternehmen_id')
+          .eq('branche_id', currentFilters.branche_id);
+        
+        const brancheUnternehmenIds = (links || []).map(r => r.unternehmen_id).filter(Boolean);
+        
+        if (brancheUnternehmenIds.length === 0) {
+          this.pagination.updateTotal(0);
+          this.pagination.render();
+          this.updateTable([]);
+          return;
+        }
+        
+        query = query.in('id', brancheUnternehmenIds);
+      }
+      
+      // Weitere Filter anwenden
+      if (currentFilters.firmenname) {
+        query = query.ilike('firmenname', `%${currentFilters.firmenname}%`);
+      }
+      if (currentFilters.status) {
+        query = query.eq('status', currentFilters.status);
+      }
+      if (currentFilters.rechnungsadresse_stadt) {
+        query = query.ilike('rechnungsadresse_stadt', `%${currentFilters.rechnungsadresse_stadt}%`);
+      }
+      if (currentFilters.rechnungsadresse_land) {
+        query = query.ilike('rechnungsadresse_land', `%${currentFilters.rechnungsadresse_land}%`);
+      }
+      
+      // Pagination anwenden
+      query = query.range(from, to);
+      
+      const { data, error, count } = await query;
+      
+      if (error) {
+        console.error('❌ Fehler beim Laden der Unternehmen:', error);
+        throw error;
+      }
+      
+      // Branchen-Daten transformieren
+      const transformedData = (data || []).map(unternehmen => {
+        if (unternehmen.unternehmen_branchen) {
+          unternehmen.branchen = unternehmen.unternehmen_branchen
+            .map(ub => ub.branchen)
+            .filter(Boolean);
+          delete unternehmen.unternehmen_branchen;
+        } else {
+          unternehmen.branchen = [];
+        }
+        return unternehmen;
+      });
+      
+      const result = {
+        data: transformedData,
+        total: count || 0,
+        page,
+        limit
+      };
       
       console.log('📊 Unternehmen geladen:', result);
       

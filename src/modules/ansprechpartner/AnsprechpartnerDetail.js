@@ -9,6 +9,7 @@ import { ansprechpartnerCreate } from './AnsprechpartnerCreate.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
+import { renderTabButton } from '../../core/TabUtils.js';
 
 export class AnsprechpartnerDetail {
   constructor() {
@@ -143,30 +144,12 @@ export class AnsprechpartnerDetail {
       <div class="content-section">
         <!-- Tab-Navigation -->
         <div class="tab-navigation">
-          <button class="tab-button active" data-tab="informationen">
-            Informationen
-            <span class="tab-count">1</span>
-          </button>
-          <button class="tab-button" data-tab="unternehmen">
-            Zugeordnete Unternehmen
-            <span class="tab-count">${this.ansprechpartner.ansprechpartner_unternehmen ? this.ansprechpartner.ansprechpartner_unternehmen.length : 0}</span>
-          </button>
-          <button class="tab-button" data-tab="marken">
-            Zugeordnete Marken
-            <span class="tab-count">${this.ansprechpartner.ansprechpartner_marke ? this.ansprechpartner.ansprechpartner_marke.length : 0}</span>
-          </button>
-          <button class="tab-button" data-tab="kampagnen">
-            Zugeordnete Kampagnen
-            <span class="tab-count">${this.ansprechpartner.ansprechpartner_kampagne ? this.ansprechpartner.ansprechpartner_kampagne.length : 0}</span>
-          </button>
-          <button class="tab-button" data-tab="notizen">
-            Notizen
-            <span class="tab-count">${this.notizen ? this.notizen.length : 0}</span>
-          </button>
-          <button class="tab-button" data-tab="bewertungen">
-            Bewertungen
-            <span class="tab-count">${this.ratings ? this.ratings.length : 0}</span>
-          </button>
+          ${renderTabButton({ tab: 'informationen', label: 'Informationen', isActive: true })}
+          ${renderTabButton({ tab: 'unternehmen', label: 'Unternehmen', count: this.ansprechpartner.ansprechpartner_unternehmen ? this.ansprechpartner.ansprechpartner_unternehmen.length : 0 })}
+          ${renderTabButton({ tab: 'marken', label: 'Marken', count: this.ansprechpartner.ansprechpartner_marke ? this.ansprechpartner.ansprechpartner_marke.length : 0 })}
+          ${renderTabButton({ tab: 'kampagnen', label: 'Kampagnen', count: this.ansprechpartner.ansprechpartner_kampagne ? this.ansprechpartner.ansprechpartner_kampagne.length : 0 })}
+          ${renderTabButton({ tab: 'notizen', label: 'Notizen', count: this.notizen ? this.notizen.length : 0 })}
+          ${renderTabButton({ tab: 'bewertungen', label: 'Bewertungen', count: this.ratings ? this.ratings.length : 0 })}
         </div>
 
         <!-- Tab-Content -->

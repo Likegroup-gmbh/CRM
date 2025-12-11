@@ -1,11 +1,16 @@
 // KundenDetail.js (ES6-Modul)
 // Admin: Kunden-Details und Zuordnungen verwalten
+// Nutzt einheitliches zwei-Spalten-Layout
+import { PersonDetailBase } from './PersonDetailBase.js';
+import { renderTabButton } from '../../core/TabUtils.js';
 
-export class KundenDetail {
+export class KundenDetail extends PersonDetailBase {
   constructor() {
+    super();
     this.userId = null;
     this.user = null;
     this.assignments = { unternehmen: [], marken: [], kampagnen: [], kooperationen: [] };
+    this.activeMainTab = 'stammdaten';
   }
 
   async init(id) {
@@ -21,6 +26,7 @@ export class KundenDetail {
       ]);
     }
     
+    await this.loadActivities();
     await this.render();
     this.bind();
   }
@@ -91,6 +97,205 @@ export class KundenDetail {
     } catch (e) {
       console.error('❌ Fehler beim Laden Kunden-Details:', e);
     }
+  }
+
+  async loadActivities() {
+    try {
+      const allActivities = [];
+
+      // Kooperation Status-Änderungen für die Kampagnen dieses Kunden
+      const kampagnenIds = this.assignments.kampagnen.map(k => k.id).filter(Boolean);
+      
+      if (kampagnenIds.length > 0) {
+        const { data: koopHistory } = await window.supabase
+          .from('kooperation_history')
+          .select('id, old_status, new_status, comment, created_at, kooperation:kooperation_id(name, kampagne:kampagne_id(kampagnenname))')
+          .in('kooperation_id', this.assignments.kooperationen.map(k => k.id))
+          .order('created_at', { ascending: false })
+          .limit(15);
+
+        if (koopHistory) {
+          allActivities.push(...koopHistory.map(h => ({
+            ...h,
+            type: 'kooperation',
+            title: 'Kooperation',
+            entity_name: h.kooperation?.name || 'Unbekannt',
+            action: h.old_status && h.new_status ? `Status: ${h.old_status} → ${h.new_status}` : 'Status geändert'
+          })));
+        }
+      }
+
+      this.activities = allActivities
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .slice(0, 15);
+
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Activities:', error);
+      this.activities = [];
+    }
+  }
+
+  async render() {
+    // Person-Config für die Sidebar
+    const personConfig = {
+      name: this.user?.name || 'Unbekannt',
+      email: this.user?.email || '',
+      subtitle: 'Kunde',
+      avatarUrl: this.user?.profile_image_url,
+      lastActivity: this.user?.updated_at
+    };
+
+    // Quick Actions
+    const quickActions = [];
+    if (this.user?.email) {
+      quickActions.push({ icon: 'mail', label: 'Mail', href: `mailto:${this.user.email}` });
+    }
+    if (this.user?.telefon) {
+      quickActions.push({ icon: 'phone', label: 'Anrufen', href: `tel:${this.user.telefon}` });
+    }
+    quickActions.push({ icon: 'more', label: 'Mehr', action: 'more-actions' });
+
+    // Stats für die Cards
+    const stats = [
+      { label: 'Unternehmen', value: this.assignments.unternehmen.length, link: '#tab-unternehmen' },
+      { label: 'Marken', value: this.assignments.marken.length, link: '#tab-marken' },
+      { label: 'Kampagnen', value: this.assignments.kampagnen.length, link: '#tab-kampagnen' }
+    ];
+
+    // Info-Items für Sidebar
+    const sidebarInfo = this.renderInfoItems([
+      { label: 'Rolle', value: this.user?.rolle || '-', badge: true, badgeType: 'secondary' },
+      { label: 'Unterrolle', value: this.user?.unterrolle || '-' },
+      { label: 'Freigeschaltet', value: this.user?.freigeschaltet ? 'Ja' : 'Nein', badge: true, badgeType: this.user?.freigeschaltet ? 'success' : 'warning' },
+      { label: 'Erstellt', value: this.formatDate(this.user?.created_at) }
+    ]);
+
+    // Main Content mit Tabs
+    const mainContent = this.renderMainContent();
+
+    // Zwei-Spalten-Layout rendern
+    const html = this.renderTwoColumnLayout({
+      person: personConfig,
+      stats,
+      quickActions,
+      sidebarInfo,
+      mainContent
+    });
+
+    window.setContentSafely(window.content, html);
+  }
+
+  renderMainContent() {
+    const tabs = [
+      { tab: 'stammdaten', label: 'Stammdaten', isActive: this.activeMainTab === 'stammdaten' },
+      { tab: 'unternehmen', label: 'Unternehmen', count: this.assignments.unternehmen.length, isActive: this.activeMainTab === 'unternehmen' },
+      { tab: 'marken', label: 'Marken', count: this.assignments.marken.length, isActive: this.activeMainTab === 'marken' },
+      { tab: 'kampagnen', label: 'Kampagnen', count: this.assignments.kampagnen.length, isActive: this.activeMainTab === 'kampagnen' },
+      { tab: 'kooperationen', label: 'Kooperationen', count: this.assignments.kooperationen.length, isActive: this.activeMainTab === 'kooperationen' }
+    ];
+
+    return `
+      <div class="tab-navigation">
+        ${tabs.map(t => renderTabButton(t)).join('')}
+      </div>
+
+      <div class="tab-content">
+        <div class="tab-pane ${this.activeMainTab === 'stammdaten' ? 'active' : ''}" id="tab-stammdaten">
+          ${this.renderStammdatenTab()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'unternehmen' ? 'active' : ''}" id="tab-unternehmen">
+          <div class="detail-section">
+            <div class="section-header">
+              <h2>Unternehmen</h2>
+              <button class="primary-btn" id="btn-add-unternehmen">Unternehmen hinzufügen</button>
+            </div>
+            ${this.renderList(this.assignments.unternehmen, 'unternehmen')}
+          </div>
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'marken' ? 'active' : ''}" id="tab-marken">
+          <div class="detail-section">
+            <div class="section-header">
+              <h2>Marken</h2>
+              <button class="primary-btn" id="btn-add-marke">Marke hinzufügen</button>
+            </div>
+            ${this.renderList(this.assignments.marken, 'marke')}
+          </div>
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'kampagnen' ? 'active' : ''}" id="tab-kampagnen">
+          <div class="detail-section">
+            <h2>Kampagnen</h2>
+            <p class="form-help" style="margin-bottom: 1rem;">Alle Kampagnen der zugeordneten Unternehmen und Marken</p>
+            ${this.renderKampagnenTable()}
+          </div>
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'kooperationen' ? 'active' : ''}" id="tab-kooperationen">
+          <div class="detail-section">
+            <h2>Kooperationen</h2>
+            <p class="form-help" style="margin-bottom: 1rem;">Alle Kooperationen der zugeordneten Kampagnen</p>
+            ${this.renderKooperationenTable()}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderStammdatenTab() {
+    return `
+      <div class="detail-section">
+        <h2>Benutzer-Status</h2>
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th style="width:120px; text-align:right;">Aktiv</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div>
+                    <strong>Benutzer freigeschaltet</strong>
+                    <div class="form-help" style="margin-top: 4px;">
+                      ${this.user?.freigeschaltet ? 'Dieser Benutzer ist freigeschaltet.' : 'Dieser Benutzer ist gesperrt oder wartet auf Freischaltung.'}
+                    </div>
+                  </div>
+                </td>
+                <td style="text-align:right;">
+                  <label class="toggle-label" style="justify-content:flex-end;">
+                    <span class="toggle-switch">
+                      <input type="checkbox" id="freigeschaltet-toggle" ${this.user?.freigeschaltet ? 'checked' : ''}>
+                      <span class="toggle-slider"></span>
+                    </span>
+                  </label>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h2>Rolle</h2>
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
+              <tr><th>Rolle</th><th>Unterrolle</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>${window.validatorSystem.sanitizeHtml(this.user?.rolle || '-')}</td>
+                <td>${window.validatorSystem.sanitizeHtml(this.user?.unterrolle || '-')}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
   }
 
   renderList(items, type) {
@@ -194,8 +399,8 @@ export class KundenDetail {
             ${this.assignments.kooperationen.map(k => {
               const kampagneName = k.kampagne?.kampagnenname || '—';
               const creatorName = k.creator ? `${k.creator.vorname} ${k.creator.nachname}` : '—';
-              const gesamtkosten = k.gesamtkosten != null 
-                ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(k.gesamtkosten)
+              const gesamtkosten = k.einkaufspreis_gesamt != null 
+                ? this.formatCurrency(k.einkaufspreis_gesamt)
                 : '—';
               return `
                 <tr>
@@ -217,7 +422,6 @@ export class KundenDetail {
     `;
   }
 
-  // Actions für Zuordnungen erstellen
   createZuordnungActions(entityId, entityType, entityName) {
     const typeLabel = entityType === 'unternehmen' ? 'Unternehmen' : 'Marke';
     return `
@@ -242,116 +446,6 @@ export class KundenDetail {
     `;
   }
 
-  async render() {
-    const html = `
-      <div class="kunden-detail">
-      <div class="content-section">
-        <div class="tab-navigation">
-          <button class="tab-button active" data-tab="stammdaten">Stammdaten</button>
-          <button class="tab-button" data-tab="unternehmen">Unternehmen <span class="tab-count">${this.assignments.unternehmen.length}</span></button>
-          <button class="tab-button" data-tab="marken">Marken <span class="tab-count">${this.assignments.marken.length}</span></button>
-          <button class="tab-button" data-tab="kampagnen">Kampagnen <span class="tab-count">${this.assignments.kampagnen.length}</span></button>
-          <button class="tab-button" data-tab="kooperationen">Kooperationen <span class="tab-count">${this.assignments.kooperationen.length}</span></button>
-        </div>
-
-        <div class="tab-content">
-          <div class="tab-pane active" id="tab-stammdaten">
-            <div class="detail-section">
-              <h2>Benutzer-Status</h2>
-              <div class="data-table-container">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>Status</th>
-                      <th style="width:120px; text-align:right;">Aktiv</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>
-                        <div>
-                          <strong>Benutzer freigeschaltet</strong>
-                          <div class="form-help" style="margin-top: 4px;">
-                            ${this.user?.freigeschaltet ? 'Dieser Benutzer ist freigeschaltet.' : 'Dieser Benutzer ist gesperrt oder wartet auf Freischaltung.'}
-                          </div>
-                        </div>
-                      </td>
-                      <td style="text-align:right;">
-                        <label class="toggle-label" style="justify-content:flex-end;">
-                          <span class="toggle-switch">
-                            <input type="checkbox" id="freigeschaltet-toggle" ${this.user?.freigeschaltet ? 'checked' : ''}>
-                            <span class="toggle-slider"></span>
-                          </span>
-                        </label>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div class="detail-section">
-              <h2>Rolle</h2>
-              <div class="data-table-container">
-                <table class="data-table">
-                  <thead>
-                    <tr><th>Rolle</th><th>Unterrolle</th></tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>${window.validatorSystem.sanitizeHtml(this.user?.rolle || '-')}</td>
-                      <td>${window.validatorSystem.sanitizeHtml(this.user?.unterrolle || '-')}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <div class="tab-pane" id="tab-unternehmen">
-            <div class="detail-section">
-              <div class="section-header">
-                <h2>Unternehmen</h2>
-                <button class="primary-btn" id="btn-add-unternehmen">Unternehmen hinzufügen</button>
-              </div>
-              ${this.renderList(this.assignments.unternehmen, 'unternehmen')}
-            </div>
-          </div>
-
-          <div class="tab-pane" id="tab-marken">
-            <div class="detail-section">
-              <div class="section-header">
-                <h2>Marken</h2>
-                <button class="primary-btn" id="btn-add-marke">Marke hinzufügen</button>
-              </div>
-              ${this.renderList(this.assignments.marken, 'marke')}
-            </div>
-          </div>
-
-          <div class="tab-pane" id="tab-kampagnen">
-            <div class="detail-section">
-              <h2>Kampagnen</h2>
-              <p class="form-help" style="margin-bottom: 1rem;">Alle Kampagnen der zugeordneten Unternehmen und Marken</p>
-              ${this.renderKampagnenTable()}
-            </div>
-          </div>
-
-          <div class="tab-pane" id="tab-kooperationen">
-            <div class="detail-section">
-              <h2>Kooperationen</h2>
-              <p class="form-help" style="margin-bottom: 1rem;">Alle Kooperationen der zugeordneten Kampagnen</p>
-              ${this.renderKooperationenTable()}
-            </div>
-          </div>
-        </div>
-      </div>
-      </div>
-    `;
-
-    window.setContentSafely(window.content, html);
-  }
-
-  // Zeige Modal zum Entfernen der Zuordnung
   async showRemoveZuordnungModal(entityId, entityType, entityName) {
     const typeLabel = entityType === 'unternehmen' ? 'Unternehmen' : 'Marke';
     
@@ -373,7 +467,6 @@ export class KundenDetail {
         await this.removeZuordnung(entityId, entityType, entityName);
       }
     } else {
-      // Fallback: Normaler Confirm-Dialog
       const confirmed = confirm(message);
       if (confirmed) {
         await this.removeZuordnung(entityId, entityType, entityName);
@@ -381,7 +474,6 @@ export class KundenDetail {
     }
   }
 
-  // Entferne Zuordnung (Unternehmen oder Marke)
   async removeZuordnung(entityId, type, entityName = '') {
     const kundeId = this.userId;
     const typeLabel = type === 'unternehmen' ? 'Unternehmen' : 'Marke';
@@ -414,10 +506,8 @@ export class KundenDetail {
 
       console.log('✅ KUNDEN-DETAIL: Zuordnung erfolgreich gelöscht');
       
-      // Erfolg
       window.NotificationSystem?.show('success', `${typeLabel}-Zuordnung erfolgreich entfernt!`);
       
-      // Liste neu laden und UI aktualisieren
       await this.load();
       await this.render();
       this.bind();
@@ -429,6 +519,9 @@ export class KundenDetail {
   }
 
   bind() {
+    // Sidebar Tabs binden (aus Basis-Klasse)
+    this.bindSidebarTabs();
+
     // Cleanup alte Event-Listener
     if (this.clickHandler) {
       document.removeEventListener('click', this.clickHandler);
@@ -437,7 +530,6 @@ export class KundenDetail {
       document.removeEventListener('change', this.changeHandler);
     }
 
-    // Event-Handler als Instanz-Properties speichern
     this.clickHandler = async (e) => {
       if (e.target && e.target.id === 'btn-back-kunden') {
         e.preventDefault();
@@ -487,13 +579,18 @@ export class KundenDetail {
         return;
       }
 
+      // Main Tab Navigation
       const tabBtn = e.target.closest('.tab-button');
       if (tabBtn) {
         e.preventDefault();
+        const tab = tabBtn.dataset.tab;
+        if (!tab) return;
+        
+        this.activeMainTab = tab;
         document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
         tabBtn.classList.add('active');
         document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-        const pane = document.getElementById(`tab-${tabBtn.dataset.tab}`);
+        const pane = document.getElementById(`tab-${tab}`);
         if (pane) pane.classList.add('active');
       }
     };
@@ -529,9 +626,7 @@ export class KundenDetail {
     document.addEventListener('change', this.changeHandler);
   }
 
-  // Modal für Unternehmen-Zuordnung mit Auto-Suggestion
   async showUnternehmenZuordnungModal() {
-    // Entferne existierende Modals
     document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
 
     const modal = document.createElement('div');
@@ -552,19 +647,9 @@ export class KundenDetail {
         </div>
         <div class="modal-footer">
           <button id="cancel-zuordnung" class="mdc-btn mdc-btn--cancel">
-            <span class="mdc-btn__icon" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
-              </svg>
-            </span>
             <span class="mdc-btn__label">Abbrechen</span>
           </button>
           <button id="save-zuordnung" class="mdc-btn mdc-btn--create" disabled>
-            <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
-              </svg>
-            </span>
             <span class="mdc-btn__label">Zuordnen</span>
           </button>
         </div>
@@ -580,7 +665,6 @@ export class KundenDetail {
     let selectedUnternehmen = null;
     let searchTimeout;
 
-    // Auto-Suggestion für Unternehmen
     input.addEventListener('input', (e) => {
       clearTimeout(searchTimeout);
       searchTimeout = setTimeout(async () => {
@@ -620,7 +704,6 @@ export class KundenDetail {
       }, 300);
     });
 
-    // Dropdown-Auswahl
     dropdown.addEventListener('click', (e) => {
       const item = e.target.closest('.dropdown-item[data-id]');
       if (!item) return;
@@ -642,7 +725,6 @@ export class KundenDetail {
       saveBtn.disabled = false;
     });
 
-    // Auswahl entfernen
     selectedContainer.addEventListener('click', (e) => {
       if (e.target.classList.contains('selected-item-remove')) {
         selectedUnternehmen = null;
@@ -651,7 +733,6 @@ export class KundenDetail {
       }
     });
 
-    // Speichern
     saveBtn.addEventListener('click', async () => {
       if (!selectedUnternehmen) return;
 
@@ -664,7 +745,6 @@ export class KundenDetail {
           });
 
         if (error) {
-          // Prüfe ob es ein Duplicate-Key-Fehler ist
           if (error.code === '23505') {
             window.NotificationSystem?.show('warning', 'Unternehmen ist bereits zugeordnet');
             modal.remove();
@@ -676,7 +756,6 @@ export class KundenDetail {
         window.NotificationSystem?.show('success', 'Unternehmen erfolgreich zugeordnet');
         modal.remove();
         
-        // Daten neu laden und Seite aktualisieren
         await this.load();
         await this.render();
         this.bind();
@@ -686,7 +765,6 @@ export class KundenDetail {
       }
     });
 
-    // Modal schließen
     const closeModal = () => modal.remove();
     modal.querySelector('#close-modal').onclick = closeModal;
     modal.querySelector('#cancel-zuordnung').onclick = closeModal;
@@ -694,13 +772,10 @@ export class KundenDetail {
       if (e.target === modal) closeModal();
     });
 
-    // Focus auf Input
     setTimeout(() => input.focus(), 100);
   }
 
-  // Modal für Marken-Zuordnung mit Auto-Suggestion
   async showMarkeZuordnungModal() {
-    // Entferne existierende Modals
     document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
 
     const modal = document.createElement('div');
@@ -721,19 +796,9 @@ export class KundenDetail {
         </div>
         <div class="modal-footer">
           <button id="cancel-zuordnung" class="mdc-btn mdc-btn--cancel">
-            <span class="mdc-btn__icon" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
-              </svg>
-            </span>
             <span class="mdc-btn__label">Abbrechen</span>
           </button>
           <button id="save-zuordnung" class="mdc-btn mdc-btn--create" disabled>
-            <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
-              </svg>
-            </span>
             <span class="mdc-btn__label">Zuordnen</span>
           </button>
         </div>
@@ -749,7 +814,6 @@ export class KundenDetail {
     let selectedMarke = null;
     let searchTimeout;
 
-    // Auto-Suggestion für Marken
     input.addEventListener('input', (e) => {
       clearTimeout(searchTimeout);
       searchTimeout = setTimeout(async () => {
@@ -789,7 +853,6 @@ export class KundenDetail {
       }, 300);
     });
 
-    // Dropdown-Auswahl
     dropdown.addEventListener('click', (e) => {
       const item = e.target.closest('.dropdown-item[data-id]');
       if (!item) return;
@@ -811,7 +874,6 @@ export class KundenDetail {
       saveBtn.disabled = false;
     });
 
-    // Auswahl entfernen
     selectedContainer.addEventListener('click', (e) => {
       if (e.target.classList.contains('selected-item-remove')) {
         selectedMarke = null;
@@ -820,7 +882,6 @@ export class KundenDetail {
       }
     });
 
-    // Speichern
     saveBtn.addEventListener('click', async () => {
       if (!selectedMarke) return;
 
@@ -833,7 +894,6 @@ export class KundenDetail {
           });
 
         if (error) {
-          // Prüfe ob es ein Duplicate-Key-Fehler ist
           if (error.code === '23505') {
             window.NotificationSystem?.show('warning', 'Marke ist bereits zugeordnet');
             modal.remove();
@@ -845,7 +905,6 @@ export class KundenDetail {
         window.NotificationSystem?.show('success', 'Marke erfolgreich zugeordnet');
         modal.remove();
         
-        // Daten neu laden und Seite aktualisieren
         await this.load();
         await this.render();
         this.bind();
@@ -855,7 +914,6 @@ export class KundenDetail {
       }
     });
 
-    // Modal schließen
     const closeModal = () => modal.remove();
     modal.querySelector('#close-modal').onclick = closeModal;
     modal.querySelector('#cancel-zuordnung').onclick = closeModal;
@@ -863,12 +921,10 @@ export class KundenDetail {
       if (e.target === modal) closeModal();
     });
 
-    // Focus auf Input
     setTimeout(() => input.focus(), 100);
   }
 
   destroy() {
-    // Cleanup Event-Listener
     if (this.clickHandler) {
       document.removeEventListener('click', this.clickHandler);
     }
@@ -876,7 +932,6 @@ export class KundenDetail {
       document.removeEventListener('change', this.changeHandler);
     }
     
-    // Entferne existierende Modals
     document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
     
     window.setContentSafely('');

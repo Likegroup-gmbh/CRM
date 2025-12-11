@@ -1,15 +1,20 @@
 // MitarbeiterDetail.js (ES6-Modul)
 // Admin: Mitarbeiter-Details und Rechte bearbeiten
+// Nutzt einheitliches zwei-Spalten-Layout
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
+import { PersonDetailBase } from './PersonDetailBase.js';
+import { renderTabButton } from '../../core/TabUtils.js';
 
-export class MitarbeiterDetail {
+export class MitarbeiterDetail extends PersonDetailBase {
   constructor() {
+    super();
     this.userId = null;
     this.user = null;
     this.assignments = { kampagnen: [], kooperationen: [], briefings: [] };
     this.zugeordnet = { unternehmen: [], marken: [] };
     this.budget = { invoicesByKoop: {}, totals: { netto: 0, zusatz: 0, gesamt: 0, invoice_netto: 0, invoice_brutto: 0 } };
     this.statusOptions = [];
+    this.activeMainTab = 'rechte';
   }
 
   async init(id) {
@@ -25,6 +30,7 @@ export class MitarbeiterDetail {
       ]);
     }
     
+    await this.loadActivities();
     await this.render();
     this.bind();
   }
@@ -70,7 +76,6 @@ export class MitarbeiterDetail {
       
       if (unternehmenIds.length > 0) {
         try {
-          // Alle Marken dieser Unternehmen finden
           const { data: unternehmenMarken } = await window.supabase
             .from('marke')
             .select('id')
@@ -79,7 +84,6 @@ export class MitarbeiterDetail {
           const markenIds = (unternehmenMarken || []).map(m => m.id).filter(Boolean);
           
           if (markenIds.length > 0) {
-            // Alle Kampagnen dieser Marken laden
             const { data: kampagnen } = await window.supabase
               .from('kampagne')
               .select('id, kampagnenname')
@@ -104,8 +108,6 @@ export class MitarbeiterDetail {
       
       // Kooperationen: Direkt zugewiesen + über Kampagnen des Unternehmens
       const directKoops = koops || [];
-      
-      // Kooperationen über Kampagnen laden (die wir durch Unternehmen haben)
       const allKampagnenIds = Array.from(allKampagnenMap.keys());
       let unternehmenKoops = [];
       
@@ -168,6 +170,262 @@ export class MitarbeiterDetail {
     }
   }
 
+  async loadActivities() {
+    try {
+      // Lade relevante History-Einträge für diesen Mitarbeiter
+      const allActivities = [];
+
+      // Kampagne Status-Änderungen
+      const { data: kampagneHistory } = await window.supabase
+        .from('kampagne_history')
+        .select('id, old_status, new_status, comment, created_at, kampagne:kampagne_id(kampagnenname)')
+        .eq('changed_by', this.userId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (kampagneHistory) {
+        allActivities.push(...kampagneHistory.map(h => ({
+          ...h,
+          type: 'kampagne',
+          title: 'Kampagne',
+          entity_name: h.kampagne?.kampagnenname || 'Unbekannt',
+          action: h.old_status && h.new_status ? `Status: ${h.old_status} → ${h.new_status}` : 'Status geändert'
+        })));
+      }
+
+      // Kooperation Status-Änderungen
+      const { data: koopHistory } = await window.supabase
+        .from('kooperation_history')
+        .select('id, old_status, new_status, comment, created_at, kooperation:kooperation_id(name)')
+        .eq('changed_by', this.userId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (koopHistory) {
+        allActivities.push(...koopHistory.map(h => ({
+          ...h,
+          type: 'kooperation',
+          title: 'Kooperation',
+          entity_name: h.kooperation?.name || 'Unbekannt',
+          action: h.old_status && h.new_status ? `Status: ${h.old_status} → ${h.new_status}` : 'Status geändert'
+        })));
+      }
+
+      this.activities = allActivities
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .slice(0, 15);
+
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Activities:', error);
+      this.activities = [];
+    }
+  }
+
+  async render() {
+    // Person-Config für die Sidebar
+    const personConfig = {
+      name: this.user?.name || 'Unbekannt',
+      email: this.user?.email || '',
+      subtitle: this.user?.mitarbeiter_klasse_name || 'Mitarbeiter',
+      avatarUrl: this.user?.profile_image_url,
+      lastActivity: this.user?.updated_at
+    };
+
+    // Quick Actions
+    const quickActions = [];
+    if (this.user?.email) {
+      quickActions.push({ icon: 'mail', label: 'Mail', href: `mailto:${this.user.email}` });
+    }
+    if (this.user?.telefon) {
+      quickActions.push({ icon: 'phone', label: 'Anrufen', href: `tel:${this.user.telefon}` });
+    }
+    quickActions.push({ icon: 'more', label: 'Mehr', action: 'more-actions' });
+
+    // Stats für die Cards
+    const stats = [
+      { label: 'Unternehmen', value: this.zugeordnet.unternehmen.length, link: '#tab-unternehmen' },
+      { label: 'Kampagnen', value: this.assignments.kampagnen.length, link: '#tab-kampagnen' },
+      { label: 'Kooperationen', value: this.assignments.kooperationen.length, link: '#tab-koops' }
+    ];
+
+    // Info-Items für Sidebar
+    const sidebarInfo = this.renderInfoItems([
+      { label: 'Rolle', value: this.user?.rolle || '-', badge: true, badgeType: this.user?.rolle === 'admin' ? 'primary' : 'secondary' },
+      { label: 'Unterrolle', value: this.user?.unterrolle || '-' },
+      { label: 'Klasse', value: this.user?.mitarbeiter_klasse_name || 'Nicht zugewiesen' },
+      { label: 'Freigeschaltet', value: this.user?.freigeschaltet ? 'Ja' : 'Nein', badge: true, badgeType: this.user?.freigeschaltet ? 'success' : 'warning' },
+      { label: 'Erstellt', value: this.formatDate(this.user?.created_at) }
+    ]);
+
+    // Main Content mit Tabs
+    const mainContent = this.renderMainContent();
+
+    // Zwei-Spalten-Layout rendern
+    const html = this.renderTwoColumnLayout({
+      person: personConfig,
+      stats,
+      quickActions,
+      sidebarInfo,
+      mainContent
+    });
+
+    window.setContentSafely(window.content, html);
+  }
+
+  renderMainContent() {
+    const tabs = [
+      { tab: 'rechte', label: 'Rechte', isActive: this.activeMainTab === 'rechte' },
+      { tab: 'unternehmen', label: 'Unternehmen', count: this.zugeordnet.unternehmen.length, isActive: this.activeMainTab === 'unternehmen' },
+      { tab: 'kampagnen', label: 'Kampagnen', count: this.assignments.kampagnen.length, isActive: this.activeMainTab === 'kampagnen' },
+      { tab: 'kooperationen', label: 'Kooperationen', count: this.assignments.kooperationen.length, isActive: this.activeMainTab === 'koops' },
+      { tab: 'cashflow', label: 'Budget', isActive: this.activeMainTab === 'budget' },
+      { tab: 'briefings', label: 'Briefings', count: this.assignments.briefings.length, isActive: this.activeMainTab === 'briefings' }
+    ];
+
+    return `
+      <div class="tab-navigation">
+        ${tabs.map(t => renderTabButton({ ...t, tab: t.tab === 'kooperationen' ? 'koops' : (t.tab === 'cashflow' ? 'budget' : t.tab) })).join('')}
+      </div>
+
+      <div class="tab-content">
+        <div class="tab-pane ${this.activeMainTab === 'rechte' ? 'active' : ''}" id="tab-rechte">
+          ${this.renderRechteTab()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'unternehmen' ? 'active' : ''}" id="tab-unternehmen">
+          <div class="detail-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <div>
+                <h2>Zugeordnete Unternehmen</h2>
+                <p class="form-help" style="margin-top: 8px;">Wenn Sie einem Mitarbeiter ein Unternehmen zuordnen, hat er automatisch Zugriff auf alle Marken, Kampagnen und Kooperationen dieses Unternehmens.</p>
+              </div>
+              <button class="primary-btn" id="btn-add-unternehmen">+ Unternehmen zuordnen</button>
+            </div>
+            ${this.renderUnternehmenTable()}
+          </div>
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'kampagnen' ? 'active' : ''}" id="tab-kampagnen">
+          <div class="detail-section">
+            <h2>Zugewiesene Kampagnen</h2>
+            ${this.renderKampagnenTable()}
+          </div>
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'koops' ? 'active' : ''}" id="tab-koops">
+          <div class="detail-section">
+            <h2>Zugewiesene Kooperationen</h2>
+            ${this.renderKooperationenTable()}
+          </div>
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'budget' ? 'active' : ''}" id="tab-budget">
+          <div class="detail-section">
+            <h2>Mitarbeiter Budget</h2>
+            ${this.renderBudget()}
+          </div>
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'briefings' ? 'active' : ''}" id="tab-briefings">
+          <div class="detail-section">
+            <h2>Zugewiesene Briefings</h2>
+            ${this.renderBriefingsTable()}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderRechteTab() {
+    return `
+      <div class="detail-section">
+        <h2>Benutzer-Status</h2>
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th style="width:120px; text-align:right;">Aktiv</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div>
+                    <strong>Benutzer freigeschaltet</strong>
+                    <div class="form-help" style="margin-top: 4px;">
+                      ${this.user?.freigeschaltet ? 
+                        'Dieser Benutzer ist freigeschaltet und kann sich anmelden. Sie können Rechte vergeben.' : 
+                        'Dieser Benutzer wartet auf Freischaltung. Schalten Sie ihn frei, bevor Sie Rechte vergeben.'}
+                    </div>
+                  </div>
+                </td>
+                <td style="text-align:right;">
+                  <label class="toggle-label" style="justify-content:flex-end;">
+                    <span class="toggle-switch">
+                      <input type="checkbox" id="freigeschaltet-toggle" ${this.user?.freigeschaltet ? 'checked' : ''}>
+                      <span class="toggle-slider"></span>
+                    </span>
+                  </label>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      <div class="detail-section">
+        <h2>Mitarbeiter-Rolle</h2>
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Rolle / Klasse</th>
+                <th style="width: 200px; text-align: right;">Aktionen</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div>
+                    <strong>${this.user?.mitarbeiter_klasse_name || 'Keine Rolle zugewiesen'}</strong>
+                    <div class="form-help" style="margin-top: 4px;">
+                      Definiert die Hauptaufgaben und Zuständigkeiten des Mitarbeiters
+                    </div>
+                  </div>
+                </td>
+                <td style="text-align: right;">
+                  <button class="secondary-btn" id="btn-change-rolle">Rolle ändern</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      <div class="detail-section">
+        <h2>Rechte</h2>
+        ${this.user?.freigeschaltet ? 
+          `<div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Recht</th>
+                  <th style="width:120px; text-align:right;">Lesen</th>
+                  <th style="width:120px; text-align:right;">Bearbeiten</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${this.generatePermissionsTable()}
+              </tbody>
+            </table>
+          </div>` 
+          : '<p class="text-muted"><em>Rechte können erst nach der Freischaltung des Benutzers vergeben werden.</em></p>'
+        }
+      </div>
+    `;
+  }
+
   renderAssignmentsList(items, render) {
     if (!items || items.length === 0) return '<div class="empty-state"><p>Keine Einträge</p></div>';
     return `
@@ -176,7 +434,6 @@ export class MitarbeiterDetail {
       </ul>`;
   }
 
-  // Tabellen-Renderer
   renderKampagnenTable() {
     const rows = (this.assignments.kampagnen || []).map(k => `
       <tr>
@@ -319,7 +576,6 @@ export class MitarbeiterDetail {
         return;
       }
       
-      // Lokalen Status aktualisieren
       this.user.zugriffsrechte = updated;
       console.log('✅ Rechte automatisch gespeichert');
       
@@ -329,167 +585,6 @@ export class MitarbeiterDetail {
     }
   }
 
-  async render() {
-    const perms = this.user?.zugriffsrechte || {};
-    const getToggle = (key, label) => `
-      <label class="form-toggle">
-        <input type="checkbox" class="perm-toggle" data-key="${key}" ${perms?.[key]?.can_view === false ? '' : (perms?.[key] === true || perms?.[key]?.can_view === true ? 'checked' : '')}>
-        <span>${label}</span>
-      </label>`;
-
-    const html = `
-      <div class="content-section">
-        <div class="tab-navigation">
-          <button class="tab-button active" data-tab="rechte">Rechte</button>
-          <button class="tab-button" data-tab="unternehmen">Unternehmen <span class="tab-count">${this.zugeordnet.unternehmen.length}</span></button>
-          <button class="tab-button" data-tab="kampagnen">Kampagnen <span class="tab-count">${this.assignments.kampagnen.length}</span></button>
-          <button class="tab-button" data-tab="koops">Kooperationen <span class="tab-count">${this.assignments.kooperationen.length}</span></button>
-          <button class="tab-button" data-tab="budget">Mitarbeiter Budget</button>
-          <button class="tab-button" data-tab="briefings">Briefings <span class="tab-count">${this.assignments.briefings.length}</span></button>
-        </div>
-
-        <div class="tab-content">
-          <div class="tab-pane active" id="tab-rechte">
-            <div class="detail-section">
-              <h2>Benutzer-Status</h2>
-              <div class="data-table-container">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>Status</th>
-                      <th style="width:120px; text-align:right;">Aktiv</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>
-                        <div>
-                          <strong>Benutzer freigeschaltet</strong>
-                          <div class="form-help" style="margin-top: 4px;">
-                            ${this.user?.freigeschaltet ? 
-                              'Dieser Benutzer ist freigeschaltet und kann sich anmelden. Sie können Rechte vergeben.' : 
-                              'Dieser Benutzer wartet auf Freischaltung. Schalten Sie ihn frei, bevor Sie Rechte vergeben.'}
-                          </div>
-                        </div>
-                      </td>
-                      <td style="text-align:right;">
-                        <label class="toggle-label" style="justify-content:flex-end;">
-                          <span class="toggle-switch">
-                            <input type="checkbox" id="freigeschaltet-toggle" ${this.user?.freigeschaltet ? 'checked' : ''}>
-                            <span class="toggle-slider"></span>
-                          </span>
-                        </label>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            
-            <div class="detail-section">
-              <h2>Mitarbeiter-Rolle</h2>
-              <div class="data-table-container">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>Rolle / Klasse</th>
-                      <th style="width: 200px; text-align: right;">Aktionen</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>
-                        <div>
-                          <strong>${this.user?.mitarbeiter_klasse_name || 'Keine Rolle zugewiesen'}</strong>
-                          <div class="form-help" style="margin-top: 4px;">
-                            Definiert die Hauptaufgaben und Zuständigkeiten des Mitarbeiters
-                          </div>
-                        </div>
-                      </td>
-                      <td style="text-align: right;">
-                        <button class="secondary-btn" id="btn-change-rolle">Rolle ändern</button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            
-            <div class="detail-section">
-              <h2>Rechte</h2>
-              ${this.user?.freigeschaltet ? 
-                `<div class="data-table-container">
-                  <table class="data-table">
-                    <thead>
-                      <tr>
-                        <th>Recht</th>
-                        <th style="width:120px; text-align:right;">Lesen</th>
-                        <th style="width:120px; text-align:right;">Bearbeiten</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      ${this.generatePermissionsTable()}
-                    </tbody>
-                  </table>
-                </div>` 
-                : '<p class="text-muted"><em>Rechte können erst nach der Freischaltung des Benutzers vergeben werden.</em></p>'
-              }
-            </div>
-          </div>
-
-          <div class="tab-pane" id="tab-unternehmen">
-            <div class="detail-section">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <div>
-                  <h2>Zugeordnete Unternehmen</h2>
-                  <p class="form-help" style="margin-top: 8px;">Wenn Sie einem Mitarbeiter ein Unternehmen zuordnen, hat er automatisch Zugriff auf alle Marken, Kampagnen und Kooperationen dieses Unternehmens.</p>
-                </div>
-                <button class="primary-btn" id="btn-add-unternehmen">+ Unternehmen zuordnen</button>
-              </div>
-              ${this.renderUnternehmenTable()}
-            </div>
-          </div>
-
-          <div class="tab-pane" id="tab-kampagnen">
-            <div class="detail-section">
-              <h2>Zugewiesene Kampagnen</h2>
-              ${this.renderKampagnenTable()}
-            </div>
-          </div>
-
-          <div class="tab-pane" id="tab-koops">
-            <div class="detail-section">
-              <h2>Zugewiesene Kooperationen</h2>
-              ${this.renderKooperationenTable()}
-            </div>
-          </div>
-
-          <div class="tab-pane" id="tab-budget">
-            <div class="detail-section">
-              <h2>Mitarbeiter Budget</h2>
-              ${this.renderBudget()}
-            </div>
-          </div>
-
-          <div class="tab-pane" id="tab-briefings">
-            <div class="detail-section">
-              <h2>Zugewiesene Briefings</h2>
-              ${this.renderBriefingsTable()}
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-
-    window.setContentSafely(window.content, html);
-  }
-
-  formatCurrency(value) {
-    const num = Number(value || 0);
-    return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(num);
-  }
-
-  // Render Unternehmen Tabelle
   renderUnternehmenTable() {
     if (!this.zugeordnet.unternehmen || this.zugeordnet.unternehmen.length === 0) {
       return '<div class="empty-state"><p>Keine Unternehmen zugeordnet</p></div>';
@@ -529,7 +624,6 @@ export class MitarbeiterDetail {
       </div>`;
   }
 
-  // Render Marken Liste
   renderMarkenListe() {
     if (!this.zugeordnet.marken || this.zugeordnet.marken.length === 0) {
       return '<div class="empty-state"><p>Keine Marken zugeordnet</p></div>';
@@ -585,14 +679,14 @@ export class MitarbeiterDetail {
 
     const totals = this.budget.totals || { netto: 0, zusatz: 0, gesamt: 0, invoice_netto: 0, invoice_brutto: 0 };
     const summary = `
-      <div class="summary-cards grid-3">
-        <div class="detail-card"><h3>Summe Netto (Koops)</h3><div class="detail-value">${this.formatCurrency(totals.netto)}</div></div>
-        <div class="detail-card"><h3>Summe Zusatzkosten</h3><div class="detail-value">${this.formatCurrency(totals.zusatz)}</div></div>
-        <div class="detail-card"><h3>Summe Gesamtkosten</h3><div class="detail-value">${this.formatCurrency(totals.gesamt)}</div></div>
+      <div class="stats-cards-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="stat-card"><div class="stat-content"><div class="stat-value">${this.formatCurrency(totals.netto)}</div><div class="stat-label">Summe Netto (Koops)</div></div></div>
+        <div class="stat-card"><div class="stat-content"><div class="stat-value">${this.formatCurrency(totals.zusatz)}</div><div class="stat-label">Summe Zusatzkosten</div></div></div>
+        <div class="stat-card"><div class="stat-content"><div class="stat-value">${this.formatCurrency(totals.gesamt)}</div><div class="stat-label">Summe Gesamtkosten</div></div></div>
       </div>
-      <div class="summary-cards grid-2" style="margin-top:12px;">
-        <div class="detail-card"><h3>Summe Rechnungen Netto</h3><div class="detail-value">${this.formatCurrency(totals.invoice_netto)}</div></div>
-        <div class="detail-card"><h3>Summe Rechnungen Brutto</h3><div class="detail-value">${this.formatCurrency(totals.invoice_brutto)}</div></div>
+      <div class="stats-cards-grid" style="grid-template-columns: repeat(2, 1fr); margin-top:12px;">
+        <div class="stat-card"><div class="stat-content"><div class="stat-value">${this.formatCurrency(totals.invoice_netto)}</div><div class="stat-label">Summe Rechnungen Netto</div></div></div>
+        <div class="stat-card"><div class="stat-content"><div class="stat-value">${this.formatCurrency(totals.invoice_brutto)}</div><div class="stat-label">Summe Rechnungen Brutto</div></div></div>
       </div>
     `;
 
@@ -620,12 +714,18 @@ export class MitarbeiterDetail {
   }
 
   bind() {
-    // Tab-Navigation
+    // Sidebar Tabs binden (aus Basis-Klasse)
+    this.bindSidebarTabs();
+
+    // Main Tab-Navigation
     document.addEventListener('click', (e) => {
       const btn = e.target.closest('.tab-button');
       if (!btn) return;
       e.preventDefault();
       const tab = btn.dataset.tab;
+      if (!tab) return;
+      
+      this.activeMainTab = tab;
       document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
@@ -646,16 +746,13 @@ export class MitarbeiterDetail {
     document.addEventListener('change', async (e) => {
       if (e.target && e.target.id === 'freigeschaltet-toggle') {
         const isFreigeschaltet = e.target.checked;
-        const rechteSection = document.querySelector('#tab-rechte .detail-section:nth-child(2)');
+        const rechteSection = document.querySelector('#tab-rechte .detail-section:nth-child(3)');
         const statusHelp = document.querySelector('#tab-rechte .form-help');
         
-        // Auto-Save Freigeschaltet Status
         try {
-          // Bei Freischaltung auch rolle und unterrolle anpassen
           const updateData = { freigeschaltet: isFreigeschaltet };
           
           if (isFreigeschaltet) {
-            // Wenn freigeschaltet: rolle von "pending" auf "mitarbeiter" und unterrolle auf "can_view"
             if (self.user.rolle === 'pending') {
               updateData.rolle = 'mitarbeiter';
             }
@@ -663,10 +760,9 @@ export class MitarbeiterDetail {
               updateData.unterrolle = 'can_view';
             }
           } else {
-            // Wenn gesperrt: zurück auf pending status
             updateData.rolle = 'pending';
             updateData.unterrolle = 'awaiting_approval';
-            updateData.zugriffsrechte = null; // Rechte entfernen
+            updateData.zugriffsrechte = null;
           }
           
           const { error } = await window.supabase
@@ -676,19 +772,16 @@ export class MitarbeiterDetail {
             
           if (error) {
             console.error('❌ Auto-Save Freigeschaltet fehlgeschlagen', error);
-            // Toggle zurücksetzen bei Fehler
             e.target.checked = !isFreigeschaltet;
             alert('Fehler beim Speichern des Freischaltungs-Status');
             return;
           }
           
-          // Lokalen Status aktualisieren
           self.user.freigeschaltet = isFreigeschaltet;
           if (updateData.rolle) self.user.rolle = updateData.rolle;
           if (updateData.unterrolle) self.user.unterrolle = updateData.unterrolle;
           if (updateData.zugriffsrechte !== undefined) self.user.zugriffsrechte = updateData.zugriffsrechte;
           
-          // Notification senden (entity null da 'benutzer' nicht im CHECK constraint)
           if (window.notificationSystem && self.userId) {
             await window.notificationSystem.pushNotification(self.userId, {
               type: 'system',
@@ -704,7 +797,6 @@ export class MitarbeiterDetail {
           
           console.log(`✅ Benutzer ${isFreigeschaltet ? 'freigeschaltet' : 'gesperrt'}`);
           
-          // Seite neu rendern um aktualisierte Rolle/Unterrolle anzuzeigen
           setTimeout(() => {
             self.render().then(() => self.bind());
           }, 100);
@@ -716,7 +808,6 @@ export class MitarbeiterDetail {
           return;
         }
         
-        // UI aktualisieren
         if (rechteSection) {
           if (isFreigeschaltet) {
             rechteSection.style.display = 'block';
@@ -745,7 +836,6 @@ export class MitarbeiterDetail {
           }
         }
         
-        // Status-Hilfetext aktualisieren
         if (statusHelp) {
           statusHelp.textContent = isFreigeschaltet ? 
             'Dieser Benutzer ist freigeschaltet und kann sich anmelden. Sie können Rechte vergeben.' : 
@@ -753,7 +843,6 @@ export class MitarbeiterDetail {
         }
       }
       
-      // Auto-Save für Rechte-Toggles
       if (e.target && (e.target.classList.contains('perm-toggle') || e.target.classList.contains('perm-edit-toggle'))) {
         await self.autoSavePermissions();
       }
@@ -765,77 +854,8 @@ export class MitarbeiterDetail {
         window.navigateTo('/mitarbeiter');
         return;
       }
-      if (e.target && e.target.id === 'btn-save-perms') {
-        e.preventDefault();
-        
-        // Freigeschaltet-Status
-        const freigeschaltetToggle = document.getElementById('freigeschaltet-toggle');
-        const freigeschaltet = freigeschaltetToggle ? freigeschaltetToggle.checked : this.user?.freigeschaltet;
-        
-        // Rechte nur verarbeiten wenn Benutzer freigeschaltet ist
-        let updated = {};
-        if (freigeschaltet) {
-          const viewToggles = document.querySelectorAll('.perm-toggle');
-          const editToggles = document.querySelectorAll('.perm-edit-toggle');
-          viewToggles.forEach(t => {
-            const key = t.dataset.key;
-            if (!updated[key]) updated[key] = {};
-            updated[key].can_view = !!t.checked;
-          });
-          editToggles.forEach(t => {
-            const key = t.dataset.key;
-            if (!updated[key]) updated[key] = {};
-            updated[key].can_edit = !!t.checked;
-          });
-        }
-        
-        try {
-          const updateData = { 
-            freigeschaltet: freigeschaltet,
-            zugriffsrechte: updated 
-          };
-          
-          const { error } = await window.supabase
-            .from('benutzer')
-            .update(updateData)
-            .eq('id', this.userId);
-            
-          if (error) throw error;
-          
-          // Update local user data
-          this.user.freigeschaltet = freigeschaltet;
-          this.user.zugriffsrechte = updated;
-          
-          // Notification an den betroffenen User (entity null da nicht im CHECK constraint)
-          try {
-            const changes = Object.entries(updated).map(([k,v]) => `${k}: ${(v?.can_view?'R':'-')}/${(v?.can_edit?'E':'-')}`).join(', ');
-            await window.notificationSystem?.pushNotification(this.userId, {
-              type: 'update',
-              entity: null,
-              entityId: null,
-              title: freigeschaltet ? 'Account freigeschaltet' : 'Account gesperrt',
-              message: freigeschaltet ? 
-                `Ihr Account wurde freigeschaltet. ${changes ? 'Rechte: ' + changes : ''}` :
-                'Ihr Account wurde gesperrt.'
-            });
-            window.dispatchEvent(new Event('notificationsRefresh'));
-          } catch (_) {}
-          
-          alert(freigeschaltet ? 'Benutzer freigeschaltet und Rechte gespeichert' : 'Benutzer gesperrt');
-          
-          // Re-render to show/hide permissions section
-          await this.render();
-          this.bind();
-          
-        } catch (err) {
-          console.error('❌ Speichern fehlgeschlagen', err);
-          alert('Fehler beim Speichern');
-        }
-      }
     });
 
-    // Entfernen-Logik läuft zentral im ActionsDropdown (unassign-kampagne)
-    
     // Event-Handler für Unternehmen zuordnen
     document.addEventListener('click', (e) => {
       if (e.target.closest('#btn-add-unternehmen')) {
@@ -873,14 +893,9 @@ export class MitarbeiterDetail {
     });
   }
 
-  // Bearbeitungsformular anzeigen (für Admin-Bearbeitung)
   showEditForm() {
     console.log('🎯 MITARBEITERDETAIL: Zeige Bearbeitungsformular');
     window.setHeadline('Mitarbeiter bearbeiten');
-    
-    // Für Mitarbeiter verwenden wir ein spezielles Admin-Formular
-    // Da es sehr spezifisch ist, nutzen wir das bestehende Inline-Editing
-    // oder zeigen eine Nachricht, dass die Bearbeitung über die Detail-Ansicht erfolgt
     
     window.content.innerHTML = `
       <div class="content-section">
@@ -892,9 +907,7 @@ export class MitarbeiterDetail {
     `;
   }
 
-  // Modal für Rollen-Änderung
   async showChangeRolleModal() {
-    // Entferne existierende Modals
     document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
 
     const modal = document.createElement('div');
@@ -916,19 +929,9 @@ export class MitarbeiterDetail {
         </div>
         <div class="modal-footer">
           <button id="cancel-rolle" class="mdc-btn mdc-btn--cancel">
-            <span class="mdc-btn__icon" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
-              </svg>
-            </span>
             <span class="mdc-btn__label">Abbrechen</span>
           </button>
           <button id="save-rolle" class="mdc-btn mdc-btn--create" disabled>
-            <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
-              </svg>
-            </span>
             <span class="mdc-btn__label">Speichern</span>
           </button>
         </div>
@@ -945,7 +948,6 @@ export class MitarbeiterDetail {
     let searchTimeout;
     let allRollen = [];
 
-    // Alle Mitarbeiter-Klassen laden
     try {
       const { data, error } = await window.supabase
         .from('mitarbeiter_klasse')
@@ -962,19 +964,16 @@ export class MitarbeiterDetail {
       return;
     }
 
-    // Auto-Suggestion für Rollen
     input.addEventListener('input', (e) => {
       clearTimeout(searchTimeout);
       searchTimeout = setTimeout(() => {
         const query = e.target.value.trim().toLowerCase();
         
         if (query.length === 0) {
-          // Zeige alle Rollen wenn leer
           displayRollen(allRollen);
         } else if (query.length < 2) {
           dropdown.style.display = 'none';
         } else {
-          // Filtere lokale Rollen
           const filtered = allRollen.filter(r => 
             r.name.toLowerCase().includes(query) || 
             (r.description && r.description.toLowerCase().includes(query))
@@ -984,7 +983,6 @@ export class MitarbeiterDetail {
       }, 150);
     });
 
-    // Zeige initial alle Rollen
     input.addEventListener('focus', () => {
       if (input.value.trim().length === 0) {
         displayRollen(allRollen);
@@ -1006,7 +1004,6 @@ export class MitarbeiterDetail {
       }
     }
 
-    // Dropdown-Auswahl
     dropdown.addEventListener('click', (e) => {
       const item = e.target.closest('.dropdown-item[data-id]');
       if (!item) return;
@@ -1028,7 +1025,6 @@ export class MitarbeiterDetail {
       saveBtn.disabled = false;
     });
 
-    // Entfernen der Auswahl
     selectedContainer.addEventListener('click', (e) => {
       if (e.target.closest('.selected-item-remove')) {
         selectedRolle = null;
@@ -1037,7 +1033,6 @@ export class MitarbeiterDetail {
       }
     });
 
-    // Speichern
     saveBtn.addEventListener('click', async () => {
       if (!selectedRolle) return;
 
@@ -1052,7 +1047,6 @@ export class MitarbeiterDetail {
         window.NotificationSystem?.show('success', `Rolle erfolgreich auf "${selectedRolle.name}" geändert`);
         modal.remove();
         
-        // Daten neu laden und Seite aktualisieren
         await this.load();
         await this.render();
         this.bind();
@@ -1062,7 +1056,6 @@ export class MitarbeiterDetail {
       }
     });
 
-    // Modal schließen
     const closeModal = () => modal.remove();
     modal.querySelector('#close-modal').onclick = closeModal;
     modal.querySelector('#cancel-rolle').onclick = closeModal;
@@ -1070,13 +1063,10 @@ export class MitarbeiterDetail {
       if (e.target === modal) closeModal();
     });
 
-    // Focus auf Input
     setTimeout(() => input.focus(), 100);
   }
 
-  // Event-Handler für Unternehmen-Zuordnungen
   async showAddUnternehmenModal() {
-    // Entferne existierende Modals
     document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
 
     const modal = document.createElement('div');
@@ -1097,19 +1087,9 @@ export class MitarbeiterDetail {
         </div>
         <div class="modal-footer">
           <button id="cancel-zuordnung" class="mdc-btn mdc-btn--cancel">
-            <span class="mdc-btn__icon" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
-              </svg>
-            </span>
             <span class="mdc-btn__label">Abbrechen</span>
           </button>
           <button id="save-zuordnung" class="mdc-btn mdc-btn--create" disabled>
-            <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
-              </svg>
-            </span>
             <span class="mdc-btn__label">Zuordnen</span>
           </button>
         </div>
@@ -1125,7 +1105,6 @@ export class MitarbeiterDetail {
     let selectedUnternehmen = null;
     let searchTimeout;
 
-    // Auto-Suggestion für Unternehmen
     input.addEventListener('input', (e) => {
       clearTimeout(searchTimeout);
       searchTimeout = setTimeout(async () => {
@@ -1165,7 +1144,6 @@ export class MitarbeiterDetail {
       }, 300);
     });
 
-    // Dropdown-Auswahl
     dropdown.addEventListener('click', (e) => {
       const item = e.target.closest('.dropdown-item[data-id]');
       if (!item) return;
@@ -1187,7 +1165,6 @@ export class MitarbeiterDetail {
       saveBtn.disabled = false;
     });
 
-    // Auswahl entfernen
     selectedContainer.addEventListener('click', (e) => {
       if (e.target.classList.contains('tag-remove')) {
         selectedUnternehmen = null;
@@ -1196,7 +1173,6 @@ export class MitarbeiterDetail {
       }
     });
 
-    // Speichern
     saveBtn.addEventListener('click', async () => {
       if (!selectedUnternehmen) return;
 
@@ -1209,7 +1185,6 @@ export class MitarbeiterDetail {
           });
 
         if (error) {
-          // Prüfe ob es ein Duplicate-Key-Fehler ist
           if (error.code === '23505') {
             window.NotificationSystem?.show('warning', 'Unternehmen ist bereits zugeordnet');
             modal.remove();
@@ -1221,7 +1196,6 @@ export class MitarbeiterDetail {
         window.NotificationSystem?.show('success', 'Unternehmen erfolgreich zugeordnet');
         modal.remove();
         
-        // Daten neu laden und Seite aktualisieren
         await this.load();
         await this.render();
         this.bind();
@@ -1231,7 +1205,6 @@ export class MitarbeiterDetail {
       }
     });
 
-    // Modal schließen
     const closeModal = () => modal.remove();
     modal.querySelector('#close-modal').onclick = closeModal;
     modal.querySelector('#cancel-zuordnung').onclick = closeModal;
@@ -1239,11 +1212,9 @@ export class MitarbeiterDetail {
       if (e.target === modal) closeModal();
     });
 
-    // Focus auf Input
     setTimeout(() => input.focus(), 100);
   }
 
-  // Unternehmen-Zuordnung entfernen
   async removeUnternehmen(unternehmenId, unternehmenName) {
     try {
       const { error } = await window.supabase
@@ -1256,7 +1227,6 @@ export class MitarbeiterDetail {
 
       window.NotificationSystem?.show('success', `Unternehmen "${unternehmenName}" erfolgreich entfernt`);
       
-      // Daten neu laden und Seite aktualisieren
       await this.load();
       await this.render();
       this.bind();
@@ -1272,5 +1242,3 @@ export class MitarbeiterDetail {
 }
 
 export const mitarbeiterDetail = new MitarbeiterDetail();
-
-

@@ -5,6 +5,7 @@ import { kooperationVersandManager } from './VersandManager.js';
 import { TaskKanbanBoard } from '../tasks/TaskKanbanBoard.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
+import { renderTabButton, getTabIcon } from '../../core/TabUtils.js';
 
 export class KooperationDetail {
   constructor() {
@@ -334,29 +335,16 @@ export class KooperationDetail {
 
       <div class="content-section">
         <div class="tab-navigation">
-          <button class="tab-button active" data-tab="info">
-            Informationen
-          </button>
-          <button class="tab-button" data-tab="videos">
-            Videos <span class="tab-count">${this.videos?.length || 0}</span>
-          </button>
-          <button class="tab-button" data-tab="rechnungen">
-            Rechnungen <span class="tab-count">${this.rechnungen?.length || 0}</span>
-          </button>
-          <button class="tab-button" data-tab="versand">
-            Versand <span class="tab-count">${this.versandDaten?.length || 0}</span>
-          </button>
-          <button class="tab-button" data-tab="notizen">
-            Notizen <span class="tab-count">${this.notizen.length}</span>
-          </button>
-          <button class="tab-button" data-tab="ratings">
-            Bewertungen <span class="tab-count">${this.ratings.length}</span>
-          </button>
-          <button class="tab-button" data-tab="history">
-            History <span class="tab-count">${this.historyCount || 0}</span>
-          </button>
+          ${renderTabButton({ tab: 'info', label: 'Informationen', isActive: true })}
+          ${renderTabButton({ tab: 'videos', label: 'Videos', count: this.videos?.length || 0 })}
+          ${renderTabButton({ tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen?.length || 0 })}
+          ${renderTabButton({ tab: 'versand', label: 'Versand', count: this.versandDaten?.length || 0 })}
+          ${renderTabButton({ tab: 'notizen', label: 'Notizen', count: this.notizen.length })}
+          ${renderTabButton({ tab: 'ratings', label: 'Bewertungen', count: this.ratings.length })}
+          ${renderTabButton({ tab: 'history', label: 'History', count: this.historyCount || 0 })}
           <button class="tab-button" data-tab="tasks">
-            Aufgaben <span class="tab-count" id="tasks-count">...</span>
+            <span class="tab-icon">${getTabIcon('tasks')}</span>
+            Aufgaben<span class="tab-count" id="tasks-count">...</span>
           </button>
         </div>
 

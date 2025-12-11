@@ -112,7 +112,7 @@
 
 
 .logo-image {
-  max-width: 5.5rem;
+  max-width: 4.5rem;
   margin-bottom: var(--space-lg);
   
 }
@@ -127,7 +127,7 @@
 .nav-sections {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: var(--space-xxs);
 }
 
 .nav-section {
@@ -137,14 +137,39 @@
 }
 
 .nav-section-title {
-  font-size: var(--text-xxs);
+  display: flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  font-size: var(--text-sm);
   font-weight: 400;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  
+  color: var(--gray-400);
   margin: 0;
   padding: var(--space-xs) 0 var(--space-xs) var(--space-md);
+  cursor: pointer;
+  user-select: none;
+}
 
+
+.nav-section-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  transition: transform 0.2s ease;
+}
+
+.nav-section-chevron svg {
+  width: 12px;
+  height: 12px;
+}
+
+.nav-section.collapsed .nav-section-chevron {
+  transform: rotate(-90deg);
+}
+
+.nav-section.collapsed .nav-list {
+  display: none;
 }
 
 .nav-item {
@@ -188,12 +213,11 @@
 
 .nav-label {
   font-size: var(--text-sm);
-  font-weight: 300;
+  font-weight: 400;
   color: var(--gray-500);
 }
 .nav-label:hover {
-  font-size: var(--text-sm);
-  font-weight: 300;
+
   color: var(--gray-900);
 }
 

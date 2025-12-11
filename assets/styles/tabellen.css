@@ -1,5 +1,18 @@
 /* Tabellen Module Styles */
 
+/* === TABLE LINKS (klickbare Namen in Listen) === */
+.table-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--gray-300);
+  text-underline-offset: 2px;
+  transition: text-decoration-color 0.15s ease;
+}
+
+.table-link:hover {
+  text-decoration-color: var(--gray-500);
+}
+
 /* === KOOPERATION-VIDEO-TABELLE === */
 .kooperation-video-grid {
   border-collapse: separate;
@@ -1494,7 +1507,7 @@ td.col-produkt .stacked-video-input,
 /* Standard-Spalten: Natürliche Breite, kein Abschneiden */
 .data-table th,
 .data-table td {
-  padding: var(--space-sm) var(--space-md);
+  padding: var(--space-xxs) var(--space-xs);
   white-space: normal; /* Mehrzeilig erlaubt */
   overflow: visible; /* Kein Abschneiden */
   word-wrap: break-word; /* Lange Wörter umbrechen */

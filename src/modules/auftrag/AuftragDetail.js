@@ -4,6 +4,7 @@
 import { AuftragsDetailsManager, auftragsDetailsManager } from './logic/AuftragsDetailsManager.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
+import { getTabIcon } from '../../core/TabUtils.js';
 
 export class AuftragDetail {
   constructor() {
@@ -447,6 +448,7 @@ export class AuftragDetail {
         <!-- Tab-Navigation (nur Auftragsdetails) -->
         <div class="tab-navigation">
           <button class="tab-button active" data-tab="auftragsdetails">
+            <span class="tab-icon">${getTabIcon('auftragsdetails')}</span>
             Auftragsdetails
           </button>
         </div>

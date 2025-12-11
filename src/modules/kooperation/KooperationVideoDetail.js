@@ -1,4 +1,6 @@
 // Kooperation Video Detail – lädt Video, Kommentare (Runde 1/2), Assets und erlaubt Statuswechsel + Kommentare
+import { getTabIcon } from '../../core/TabUtils.js';
+
 export const kooperationVideoDetail = {
   videoId: null,
   video: null,
@@ -311,9 +313,11 @@ export const kooperationVideoDetail = {
       <!-- Tab-Navigation -->
       <div class="tab-navigation">
         <button class="tab-button active" data-tab="info">
+          <span class="tab-icon">${getTabIcon('info')}</span>
           Informationen
         </button>
         <button class="tab-button" data-tab="videos">
+          <span class="tab-icon">${getTabIcon('videos')}</span>
           Videos & Feedback
         </button>
       </div>

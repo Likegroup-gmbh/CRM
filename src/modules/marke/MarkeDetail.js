@@ -6,6 +6,7 @@ import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
+import { renderTabButton } from '../../core/TabUtils.js';
 
 export class MarkeDetail {
   constructor() {
@@ -19,6 +20,7 @@ export class MarkeDetail {
     this.kooperationen = [];
     this.ansprechpartner = [];
     this.rechnungen = [];
+    this.strategien = [];
   }
 
   // Initialisiere Marken-Detailseite
@@ -214,6 +216,16 @@ export class MarkeDetail {
             }
             this.updateRechnungenTab();
             return this.rechnungen;
+          
+          case 'strategien':
+            const { data: strategien } = await window.supabase
+              .from('strategie')
+              .select('id, name, beschreibung, teilbereich, created_at, updated_at')
+              .eq('marke_id', this.markeId)
+              .order('created_at', { ascending: false });
+            this.strategien = strategien || [];
+            this.updateStrategienTab();
+            return strategien;
         }
       } catch (error) {
         console.error(`❌ Fehler beim Laden von Tab ${tabName}:`, error);
@@ -263,6 +275,14 @@ export class MarkeDetail {
     }
   }
   
+  updateStrategienTab() {
+    const container = document.querySelector('#strategien .data-table-container');
+    if (container) {
+      const parent = container.parentElement;
+      parent.innerHTML = this.renderStrategien();
+    }
+  }
+  
   // Setup Cache-Invalidierung bei Updates
   setupCacheInvalidation() {
     window.addEventListener('entityUpdated', (e) => {
@@ -294,34 +314,14 @@ export class MarkeDetail {
       <div class="content-section">
         <!-- Tab-Navigation -->
         <div class="tab-navigation">
-          <button class="tab-button active" data-tab="informationen">
-            Informationen
-            <span class="tab-count">1</span>
-          </button>
-          <button class="tab-button" data-tab="ansprechpartner">
-            Ansprechpartner
-            <span class="tab-count">${this.ansprechpartner.length}</span>
-          </button>
-          <button class="tab-button" data-tab="auftraege">
-            Aufträge
-            <span class="tab-count">${this.auftraege.length}</span>
-          </button>
-          <button class="tab-button" data-tab="briefings">
-            Briefings
-            <span class="tab-count">${this.briefings.length}</span>
-          </button>
-          <button class="tab-button" data-tab="kampagnen">
-            Kampagnen
-            <span class="tab-count">${this.kampagnen.length}</span>
-          </button>
-          <button class="tab-button" data-tab="kooperationen">
-            Kooperationen
-            <span class="tab-count">${this.kooperationen.length}</span>
-          </button>
-          <button class="tab-button" data-tab="rechnungen">
-            Rechnungen
-            <span class="tab-count">${this.rechnungen.length}</span>
-          </button>
+          ${renderTabButton({ tab: 'informationen', label: 'Informationen', isActive: true })}
+          ${renderTabButton({ tab: 'ansprechpartner', label: 'Ansprechpartner', count: this.ansprechpartner.length })}
+          ${renderTabButton({ tab: 'auftraege', label: 'Aufträge', count: this.auftraege.length })}
+          ${renderTabButton({ tab: 'briefings', label: 'Briefings', count: this.briefings.length })}
+          ${renderTabButton({ tab: 'kampagnen', label: 'Kampagnen', count: this.kampagnen.length })}
+          ${renderTabButton({ tab: 'kooperationen', label: 'Kooperationen', count: this.kooperationen.length })}
+          ${renderTabButton({ tab: 'strategien', label: 'Strategien', count: this.strategien.length })}
+          ${renderTabButton({ tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen.length })}
         </div>
 
         <!-- Tab-Content -->
@@ -354,6 +354,11 @@ export class MarkeDetail {
           <!-- Kooperationen Tab -->
           <div class="tab-pane" id="kooperationen">
             ${this.renderKooperationen()}
+          </div>
+
+          <!-- Strategien Tab -->
+          <div class="tab-pane" id="strategien">
+            ${this.renderStrategien()}
           </div>
 
           <!-- Rechnungen Tab -->
@@ -764,6 +769,58 @@ export class MarkeDetail {
               <th>Kampagne</th>
               <th>Videos</th>
               <th>Gesamtkosten</th>
+              <th>Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  // Rendere Strategien
+  renderStrategien() {
+    if (!this.strategien || this.strategien.length === 0) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">💡</div>
+          <h3>Keine Strategien vorhanden</h3>
+          <p>Es wurden noch keine Strategien für diese Marke erstellt.</p>
+        </div>
+      `;
+    }
+
+    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
+
+    const rows = this.strategien.map(strategie => `
+      <tr>
+        <td>
+          <a href="#" class="table-link" data-table="strategie" data-id="${strategie.id}">
+            ${strategie.name || 'Unbenannte Strategie'}
+          </a>
+        </td>
+        <td>${strategie.teilbereich || '-'}</td>
+        <td>${strategie.beschreibung ? (strategie.beschreibung.length > 100 ? strategie.beschreibung.substring(0, 100) + '...' : strategie.beschreibung) : '-'}</td>
+        <td>${formatDate(strategie.created_at)}</td>
+        <td>${formatDate(strategie.updated_at)}</td>
+        <td>
+          ${actionBuilder.create('strategie', strategie.id)}
+        </td>
+      </tr>
+    `).join('');
+
+    return `
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Teilbereich</th>
+              <th>Beschreibung</th>
+              <th>Erstellt am</th>
+              <th>Aktualisiert am</th>
               <th>Aktion</th>
             </tr>
           </thead>

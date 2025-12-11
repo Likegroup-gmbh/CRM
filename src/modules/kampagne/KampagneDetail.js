@@ -4,6 +4,7 @@ import { renderCreatorTable } from '../creator/CreatorTable.js';
 import { KampagneKooperationenVideoTable } from './KampagneKooperationenVideoTable.js';
 import { VideoCreateDrawer } from './VideoCreateDrawer.js';
 import { VideoTableColumnVisibilityDrawer } from './VideoTableColumnVisibilityDrawer.js';
+import { getTabIcon } from '../../core/TabUtils.js';
 
 export class KampagneDetail {
   constructor() {
@@ -826,43 +827,45 @@ export class KampagneDetail {
         <div class="tab-navigation">
           ${window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? `
           <button class="tab-button active" data-tab="koops-videos">
-            Kooperationen & Videos
-            <span class="tab-count">${this.kooperationen.length}</span>
+            <span class="tab-icon">${getTabIcon('kooperationen')}</span>
+            Kooperationen & Videos<span class="tab-count">${this.kooperationen.length}</span>
           </button>` : `
           <button class="tab-button active" data-tab="info">
+            <span class="tab-icon">${getTabIcon('info')}</span>
             Informationen
           </button>`}
           <button class="tab-button" data-tab="strategien">
-            Strategien
-            <span class="tab-count">${this.strategien.length}</span>
+            <span class="tab-icon">${getTabIcon('strategie')}</span>
+            Strategien<span class="tab-count">${this.strategien.length}</span>
           </button>
           <button class="tab-button" data-tab="briefings">
-            Briefings
-            <span class="tab-count">${this.briefings.length}</span>
+            <span class="tab-icon">${getTabIcon('briefings')}</span>
+            Briefings<span class="tab-count">${this.briefings.length}</span>
           </button>
           ${window.currentUser?.rolle !== 'kunde' && window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? `
           <button class="tab-button" data-tab="info">
+            <span class="tab-icon">${getTabIcon('info')}</span>
             Informationen
           </button>` : ''}
           ${window.currentUser?.rolle !== 'kunde' && window.canViewTable && window.canViewTable('kampagne','rechnungen') !== false ? `
           <button class="tab-button" data-tab="rechnungen">
-            Rechnungen
-            <span class="tab-count">${this.rechnungen?.length || 0}</span>
+            <span class="tab-icon">${getTabIcon('rechnungen')}</span>
+            Rechnungen<span class="tab-count">${this.rechnungen?.length || 0}</span>
           </button>` : ''}
           ${window.currentUser?.rolle !== 'kunde' && window.canViewTable && window.canViewTable('kampagne','notizen') !== false ? `
           <button class="tab-button" data-tab="notizen">
-            Notizen
-            <span class="tab-count">${this.notizen.length}</span>
+            <span class="tab-icon">${getTabIcon('notizen')}</span>
+            Notizen<span class="tab-count">${this.notizen.length}</span>
           </button>` : ''}
           ${window.canViewTable && window.canViewTable('kampagne','history') !== false ? `
           <button class="tab-button" data-tab="history">
-            History
-            <span class="tab-count">${this.historyCount + this.koopHistoryCount}</span>
+            <span class="tab-icon">${getTabIcon('history')}</span>
+            History<span class="tab-count">${this.historyCount + this.koopHistoryCount}</span>
           </button>` : ''}
           ${window.currentUser?.rolle !== 'kunde' ? `
           <button class="tab-button" data-tab="mitarbeiter">
-            Mitarbeiter
-            <span class="tab-count">${this.kampagneData?.mitarbeiter?.length || 0}</span>
+            <span class="tab-icon">${getTabIcon('ansprechpartner')}</span>
+            Mitarbeiter<span class="tab-count">${this.kampagneData?.mitarbeiter?.length || 0}</span>
           </button>` : ''}
         </div>
 
