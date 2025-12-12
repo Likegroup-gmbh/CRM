@@ -397,9 +397,52 @@ async function scrapeInstagram(page, url) {
 }
 
 /**
- * Profilbild als Screenshot speichern
+ * DEBUG: Fullpage Screenshot speichern (ohne Crop)
  */
 async function captureProfileImage(page, platform, supabase, supabaseUrl, username) {
+  console.log('📸 DEBUG: Erstelle FULLPAGE Screenshot...');
+  
+  try {
+    // Desktop Viewport für bessere Sicht
+    await page.setViewport({ width: 1280, height: 900 });
+    await new Promise(r => setTimeout(r, 1000));
+    
+    // FULLPAGE Screenshot - KEIN CROP!
+    const screenshotBuffer = await page.screenshot({
+      type: 'jpeg',
+      quality: 85,
+      fullPage: false  // Nur sichtbarer Bereich, nicht die ganze Seite
+    });
+    
+    console.log('📸 Screenshot erstellt, uploade...');
+    
+    const fileName = `debug-fullpage-${platform}-${Date.now()}.jpg`;
+    const { error: uploadError } = await supabase.storage
+      .from('creator-profile-images')
+      .upload(`profiles/${fileName}`, screenshotBuffer, {
+        contentType: 'image/jpeg',
+        cacheControl: '3600'
+      });
+    
+    if (uploadError) {
+      console.log('❌ Upload Error:', uploadError);
+      throw uploadError;
+    }
+    
+    const imageUrl = `${supabaseUrl}/storage/v1/object/public/creator-profile-images/profiles/${fileName}`;
+    console.log('✅ Screenshot URL:', imageUrl);
+    
+    return imageUrl;
+  } catch (e) {
+    console.error('Screenshot-Fehler:', e.message);
+    return null;
+  }
+}
+
+/**
+ * ORIGINAL: Profilbild als Screenshot speichern (temporär deaktiviert)
+ */
+async function captureProfileImage_ORIGINAL(page, platform, supabase, supabaseUrl, username) {
   console.log('📸 Erstelle Profil-Screenshot...');
   
   try {
@@ -594,13 +637,12 @@ exports.handler = async (event, context) => {
       creatorData = await scrapeInstagram(page, url);
     }
 
-    // Profilbild als Screenshot speichern (falls keine URL verfügbar oder temporäre URL)
-    // Instagram URLs sind oft temporär, daher immer Screenshot machen
-    if (!creatorData.profile_image_url || platform === 'instagram') {
-      const screenshotUrl = await captureProfileImage(page, platform, supabase, supabaseUrl, creatorData.creator_handle);
-      if (screenshotUrl) {
-        creatorData.profile_image_url = screenshotUrl;
-      }
+    // DEBUG: IMMER Fullpage Screenshot machen um zu sehen was passiert
+    console.log('📸 DEBUG: Mache IMMER Screenshot...');
+    const screenshotUrl = await captureProfileImage(page, platform, supabase, supabaseUrl, creatorData.creator_handle);
+    if (screenshotUrl) {
+      creatorData.profile_image_url = screenshotUrl;
+      creatorData.debug_screenshot = screenshotUrl;
     }
 
     // Link zur Original-URL setzen
