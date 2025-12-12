@@ -173,32 +173,68 @@ async function scrapeTikTok(page, url) {
 async function scrapeInstagram(page, url) {
   console.log('📷 Instagram: Navigiere zu', url);
   
-  // Wichtig: networkidle0 für vollständiges Laden
-  await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
-  await new Promise(r => setTimeout(r, randomDelay(4000, 6000)));
+  // Wichtig: networkidle2 statt networkidle0 (toleranter)
+  await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+  await new Promise(r => setTimeout(r, randomDelay(3000, 4000)));
+  
+  // DEBUG: Aktuelle URL und Title loggen
+  const currentUrl = page.url();
+  const pageTitle = await page.title();
+  console.log('🔍 DEBUG - Aktuelle URL:', currentUrl);
+  console.log('🔍 DEBUG - Page Title:', pageTitle);
+  
+  // Prüfen ob wir auf Login-Seite gelandet sind
+  if (currentUrl.includes('/accounts/') || currentUrl.includes('/login')) {
+    console.log('⚠️ WARNUNG: Wurde auf Login-Seite umgeleitet!');
+    console.log('🔄 Versuche erneut mit anderem User-Agent...');
+    
+    // Neuer User-Agent und Retry
+    await page.setUserAgent('Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.144 Mobile Safari/537.36');
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 25000 });
+    await new Promise(r => setTimeout(r, 3000));
+    
+    const retryUrl = page.url();
+    console.log('🔍 DEBUG - URL nach Retry:', retryUrl);
+  }
+  
+  // DEBUG: HTML-Snippet loggen
+  const htmlSnippet = await page.evaluate(() => {
+    return document.body?.innerHTML?.substring(0, 500) || 'NO BODY';
+  });
+  console.log('🔍 DEBUG - HTML Snippet:', htmlSnippet.substring(0, 300));
   
   // Login-Popup/Cookie-Banner schließen
   try {
-    await page.evaluate(() => {
+    const popupResult = await page.evaluate(() => {
       // Login-Popup schließen (X Button oder "Nicht jetzt")
       const closeButtons = document.querySelectorAll('button[type="button"], [role="button"]');
       for (const btn of closeButtons) {
         const text = btn.textContent || '';
         const ariaLabel = btn.getAttribute('aria-label') || '';
         if (text.includes('Nicht jetzt') || text.includes('Not Now') || 
+            text.includes('Ablehnen') || text.includes('Decline') ||
             ariaLabel.includes('Close') || ariaLabel.includes('Schließen')) {
           btn.click();
-          return;
+          return 'clicked: ' + text.substring(0, 30);
         }
       }
       // SVG close button
       const svgClose = document.querySelector('svg[aria-label="Schließen"], svg[aria-label="Close"]');
-      if (svgClose) svgClose.closest('button')?.click();
+      if (svgClose) {
+        svgClose.closest('button')?.click();
+        return 'clicked svg close';
+      }
+      return 'no popup found';
     });
+    console.log('🔍 DEBUG - Popup Result:', popupResult);
     await new Promise(r => setTimeout(r, 1500));
   } catch (e) {
     console.log('Popup schließen:', e.message);
   }
+  
+  // ESC drücken um Dialoge zu schließen
+  await page.keyboard.press('Escape');
+  await new Promise(r => setTimeout(r, 500));
   
   // Dialoge entfernen
   await page.evaluate(() => {
@@ -207,13 +243,25 @@ async function scrapeInstagram(page, url) {
   
   await new Promise(r => setTimeout(r, 1000));
   
-  // Profil-Daten extrahieren - basierend auf Browser-Analyse
+  // Profil-Daten extrahieren - mit Debug-Ausgaben
   const data = await page.evaluate(() => {
+    const debug = {
+      url: window.location.href,
+      pathname: window.location.pathname,
+      title: document.title,
+      hasHeader: !!document.querySelector('header'),
+      listItemCount: document.querySelectorAll('li').length,
+      imgCount: document.querySelectorAll('img').length
+    };
+    
     // Username aus URL (zuverlässigste Methode)
     const pathMatch = window.location.pathname.match(/^\/([^\/]+)/);
     let handle = pathMatch ? pathMatch[1] : null;
     if (handle && !handle.startsWith('@')) handle = '@' + handle;
     const username = handle?.replace('@', '') || '';
+    
+    debug.extractedHandle = handle;
+    debug.extractedUsername = username;
     
     // Name aus Page Title extrahieren
     // Format: "Roxana | Babyschlafberaterin (@sleepymonkeycoaching) • Instagram-Fotos"
@@ -227,14 +275,19 @@ async function scrapeInstagram(page, url) {
       const metaTitle = document.querySelector('meta[property="og:title"]');
       if (metaTitle) {
         const content = metaTitle.getAttribute('content') || '';
+        debug.ogTitle = content;
         const nameMatch = content.match(/^(.+?)\s*\(@/);
         if (nameMatch) name = nameMatch[1].trim();
       }
     }
     
+    debug.extractedName = name;
+    
     // Follower aus Accessibility-Liste (sehr zuverlässig)
     let followerText = null;
     const listItems = document.querySelectorAll('li');
+    debug.listItemTexts = Array.from(listItems).slice(0, 5).map(li => li.textContent?.substring(0, 50));
+    
     for (const li of listItems) {
       const text = li.textContent || '';
       if (text.includes('Follower') || text.includes('follower')) {
@@ -252,6 +305,7 @@ async function scrapeInstagram(page, url) {
     const header = document.querySelector('header');
     if (header) {
       const spans = header.querySelectorAll('span');
+      debug.headerSpanCount = spans.length;
       let longestBio = '';
       
       for (const span of spans) {
@@ -281,6 +335,7 @@ async function scrapeInstagram(page, url) {
       const metaDesc = document.querySelector('meta[name="description"]');
       if (metaDesc) {
         const content = metaDesc.getAttribute('content') || '';
+        debug.metaDescription = content.substring(0, 100);
         // Format: "123 Followers, 45 Following, 67 Posts - Bio text here"
         const bioMatch = content.match(/Posts?\s*[-–]\s*(.+?)(?:$|See Instagram)/i);
         if (bioMatch) {
@@ -292,10 +347,15 @@ async function scrapeInstagram(page, url) {
     // Profilbild - basierend auf alt-Text
     let profileImageUrl = null;
     
+    // Alle img alt-Texte für Debug sammeln
+    const allImgs = document.querySelectorAll('img');
+    debug.imgAlts = Array.from(allImgs).slice(0, 10).map(img => img.alt?.substring(0, 30));
+    
     // Strategie 1: img mit "Profilbild" im alt-Text (DE)
     const profileImg = document.querySelector('img[alt*="Profilbild"], img[alt*="profile picture"]');
     if (profileImg && profileImg.src) {
       profileImageUrl = profileImg.src;
+      debug.profileImgStrategy = 'alt contains Profilbild';
     }
     
     // Strategie 2: img mit Username im alt-Text
@@ -303,6 +363,7 @@ async function scrapeInstagram(page, url) {
       const imgWithUsername = document.querySelector(`img[alt*="${username}"]`);
       if (imgWithUsername && imgWithUsername.src) {
         profileImageUrl = imgWithUsername.src;
+        debug.profileImgStrategy = 'alt contains username';
       }
     }
     
@@ -311,13 +372,15 @@ async function scrapeInstagram(page, url) {
       const headerImg = header.querySelector('img');
       if (headerImg && headerImg.src) {
         profileImageUrl = headerImg.src;
+        debug.profileImgStrategy = 'first header img';
       }
     }
     
-    console.log('Instagram Debug:', { name, handle, bio, followerText, hasProfileImg: !!profileImageUrl });
-    
-    return { name, handle, bio, followerText, profileImageUrl };
+    return { name, handle, bio, followerText, profileImageUrl, debug };
   });
+  
+  // Debug-Infos loggen
+  console.log('🔍 DEBUG - Extraktions-Details:', JSON.stringify(data.debug, null, 2));
   
   console.log('📷 Instagram Rohdaten:', JSON.stringify(data));
   
