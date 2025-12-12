@@ -207,97 +207,107 @@ async function scrapeInstagram(page, url) {
   
   await new Promise(r => setTimeout(r, 1000));
   
-  // Profil-Daten extrahieren - robustere Selektoren
+  // Profil-Daten extrahieren - basierend auf Browser-Analyse
   const data = await page.evaluate(() => {
     // Username aus URL (zuverlässigste Methode)
     const pathMatch = window.location.pathname.match(/^\/([^\/]+)/);
     let handle = pathMatch ? pathMatch[1] : null;
     if (handle && !handle.startsWith('@')) handle = '@' + handle;
-    
-    // Name - suche nach dem ersten <span> im Header-Bereich mit dem Display-Namen
-    let name = null;
-    // Methode 1: Meta-Tag
-    const metaTitle = document.querySelector('meta[property="og:title"]');
-    if (metaTitle) {
-      const content = metaTitle.getAttribute('content') || '';
-      // Format: "Name (@handle) • Instagram photos and videos"
-      const nameMatch = content.match(/^([^(@]+)/);
-      if (nameMatch) name = nameMatch[1].trim();
-    }
-    // Methode 2: Title-Tag
-    if (!name) {
-      const titleMatch = document.title.match(/^([^(@]+)/);
-      if (titleMatch) name = titleMatch[1].trim();
-    }
-    
-    // Bio - aus Meta-Description
-    let bio = null;
-    const metaDesc = document.querySelector('meta[property="og:description"], meta[name="description"]');
-    if (metaDesc) {
-      const content = metaDesc.getAttribute('content') || '';
-      // Format: "123 Followers, 45 Following, 67 Posts - See Instagram photos..."
-      // Oder: "Bio text here. 123 Followers..."
-      const bioMatch = content.match(/Posts[^-]*-\s*(.+?)(?:\s*$|See Instagram)/i);
-      if (bioMatch) {
-        bio = bioMatch[1].trim();
-      } else {
-        // Fallback: Alles nach dem letzten " - "
-        const parts = content.split(' - ');
-        if (parts.length > 1) {
-          bio = parts[parts.length - 1].replace(/See Instagram.*$/i, '').trim();
-        }
-      }
-    }
-    
-    // Follower aus Meta-Description
-    let followerText = null;
-    if (metaDesc) {
-      const content = metaDesc.getAttribute('content') || '';
-      const followerMatch = content.match(/([\d,.]+[KkMmBb]?)\s*Follower/i);
-      if (followerMatch) followerText = followerMatch[1];
-    }
-    
-    // Profilbild - mehrere Strategien
-    let profileImageUrl = null;
-    
-    // Strategie 1: img mit alt-Text der den Username enthält
     const username = handle?.replace('@', '') || '';
-    if (username) {
-      const imgWithAlt = document.querySelector(`img[alt*="${username}"]`);
-      if (imgWithAlt && imgWithAlt.src) {
-        profileImageUrl = imgWithAlt.src;
+    
+    // Name aus Page Title extrahieren
+    // Format: "Roxana | Babyschlafberaterin (@sleepymonkeycoaching) • Instagram-Fotos"
+    let name = null;
+    const titleMatch = document.title.match(/^(.+?)\s*\(@/);
+    if (titleMatch) {
+      name = titleMatch[1].trim();
+    }
+    // Fallback: Meta-Tag
+    if (!name) {
+      const metaTitle = document.querySelector('meta[property="og:title"]');
+      if (metaTitle) {
+        const content = metaTitle.getAttribute('content') || '';
+        const nameMatch = content.match(/^(.+?)\s*\(@/);
+        if (nameMatch) name = nameMatch[1].trim();
       }
     }
     
-    // Strategie 2: Erstes großes rundes Bild (Profilbilder sind meist > 100px)
-    if (!profileImageUrl) {
-      const allImages = document.querySelectorAll('img');
-      for (const img of allImages) {
-        const style = window.getComputedStyle(img);
-        const width = parseInt(style.width) || img.width;
-        const height = parseInt(style.height) || img.height;
-        const isRound = style.borderRadius === '50%' || img.closest('[style*="border-radius: 50%"]');
-        
-        if (width >= 77 && height >= 77 && img.src && !img.src.includes('static')) {
-          profileImageUrl = img.src;
+    // Follower aus Accessibility-Liste (sehr zuverlässig)
+    let followerText = null;
+    const listItems = document.querySelectorAll('li');
+    for (const li of listItems) {
+      const text = li.textContent || '';
+      if (text.includes('Follower') || text.includes('follower')) {
+        // Extrahiere die Zahl: "1.625 Follower" -> "1.625"
+        const match = text.match(/([\d.,]+)\s*Follower/i);
+        if (match) {
+          followerText = match[1].replace(/\./g, '').replace(/,/g, '.');
           break;
         }
       }
     }
     
-    // Strategie 3: Canvas-Element (Instagram rendert manchmal als Canvas)
-    if (!profileImageUrl) {
-      const canvas = document.querySelector('canvas');
-      if (canvas) {
-        try {
-          profileImageUrl = canvas.toDataURL('image/jpeg');
-        } catch (e) {
-          // CORS-Error ignorieren
+    // Bio - mehrere Strategien
+    let bio = null;
+    
+    // Strategie 1: Suche nach span-Elementen im Header-Bereich
+    const header = document.querySelector('header');
+    if (header) {
+      const spans = header.querySelectorAll('span');
+      for (const span of spans) {
+        const text = span.textContent?.trim() || '';
+        // Bio ist typischerweise länger und enthält keine Stats-Wörter
+        if (text.length > 20 && 
+            !text.includes('Follower') && 
+            !text.includes('Beiträge') && 
+            !text.includes('Posts') &&
+            !text.includes('Gefolgt') &&
+            !text.includes('Following')) {
+          bio = text;
+          break;
         }
       }
     }
     
-    console.log('Instagram Debug:', { name, handle, bio, followerText, profileImageUrl: !!profileImageUrl });
+    // Strategie 2: Meta-Description
+    if (!bio) {
+      const metaDesc = document.querySelector('meta[name="description"]');
+      if (metaDesc) {
+        const content = metaDesc.getAttribute('content') || '';
+        // Format: "123 Followers, 45 Following, 67 Posts - Bio text here"
+        const bioMatch = content.match(/Posts?\s*[-–]\s*(.+?)(?:$|See Instagram)/i);
+        if (bioMatch) {
+          bio = bioMatch[1].trim();
+        }
+      }
+    }
+    
+    // Profilbild - basierend auf alt-Text
+    let profileImageUrl = null;
+    
+    // Strategie 1: img mit "Profilbild" im alt-Text (DE)
+    const profileImg = document.querySelector('img[alt*="Profilbild"], img[alt*="profile picture"]');
+    if (profileImg && profileImg.src) {
+      profileImageUrl = profileImg.src;
+    }
+    
+    // Strategie 2: img mit Username im alt-Text
+    if (!profileImageUrl && username) {
+      const imgWithUsername = document.querySelector(`img[alt*="${username}"]`);
+      if (imgWithUsername && imgWithUsername.src) {
+        profileImageUrl = imgWithUsername.src;
+      }
+    }
+    
+    // Strategie 3: Erstes großes Bild im Header
+    if (!profileImageUrl && header) {
+      const headerImg = header.querySelector('img');
+      if (headerImg && headerImg.src) {
+        profileImageUrl = headerImg.src;
+      }
+    }
+    
+    console.log('Instagram Debug:', { name, handle, bio, followerText, hasProfileImg: !!profileImageUrl });
     
     return { name, handle, bio, followerText, profileImageUrl };
   });
@@ -333,34 +343,25 @@ async function captureProfileImage(page, platform, supabase, supabaseUrl, userna
       // TikTok Selektoren
       element = await page.$('[class*="ImgAvatar"], [data-e2e="user-avatar"], [class*="UserAvatar"]');
     } else {
-      // Instagram - mehrere Strategien
+      // Instagram - basierend auf Browser-Analyse
       const cleanUsername = username?.replace('@', '') || '';
       
-      // Strategie 1: Bild mit Username im alt-Text
-      if (cleanUsername) {
+      // Strategie 1: img mit "Profilbild" im alt-Text (DE/EN)
+      element = await page.$('img[alt*="Profilbild"], img[alt*="profile picture"]');
+      
+      // Strategie 2: Bild mit Username im alt-Text
+      if (!element && cleanUsername) {
         element = await page.$(`img[alt*="${cleanUsername}"]`);
       }
       
-      // Strategie 2: Großes rundes Bild finden
+      // Strategie 3: Erstes Bild im Header
       if (!element) {
-        element = await page.evaluateHandle(() => {
-          const images = document.querySelectorAll('img');
-          for (const img of images) {
-            const rect = img.getBoundingClientRect();
-            if (rect.width >= 77 && rect.height >= 77 && img.src && !img.src.includes('static')) {
-              return img;
-            }
-          }
-          return null;
-        });
-        // Check if handle is valid
-        const isNull = await element.evaluate(el => el === null);
-        if (isNull) element = null;
+        element = await page.$('header img');
       }
       
-      // Strategie 3: Header-Bereich img
+      // Strategie 4: Button mit Profilbild-Link
       if (!element) {
-        element = await page.$('header img, [role="img"]');
+        element = await page.$('header button img, header [role="button"] img');
       }
     }
     
@@ -557,4 +558,5 @@ exports.handler = async (event, context) => {
     if (browser) await browser.close();
   }
 };
+
 
