@@ -325,3 +325,4 @@ export class PersonDetailBase {
 // Singleton-Export für einfache Nutzung
 export const personDetailBase = new PersonDetailBase();
 
+

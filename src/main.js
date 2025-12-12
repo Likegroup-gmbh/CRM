@@ -71,6 +71,8 @@ import { taskListPage } from './modules/tasks/TaskListPage.js';
 import { tabellenModule } from './modules/tabellen/TabellenModule.js';
 import { strategieList } from './modules/strategie/StrategieList.js';
 import { strategieDetail } from './modules/strategie/StrategieDetail.js';
+import { creatorAuswahlList } from './modules/creator-auswahl/CreatorAuswahlList.js';
+import { creatorAuswahlDetail } from './modules/creator-auswahl/CreatorAuswahlDetail.js';
 // Zentrales Bestätigungs-Modal (side-effect Import, hängt window.confirmationModal an)
 import './core/ConfirmationModal.js';
 // Duplicate Checker für Creator, Marke, Unternehmen
@@ -279,6 +281,13 @@ class ModuleRegistry {
       console.log(`🎯 Strategie-Details erkannt, verwende Modul: ${moduleKey}`);
     }
     
+    // Spezielle Behandlung für Creator-Auswahl-Details (aber nicht für 'new')
+    if (id && segment === 'creator-auswahl' && id !== 'new') {
+      moduleKey = 'creator-auswahl-detail';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Creator-Auswahl-Details erkannt, verwende Modul: ${moduleKey}`);
+    }
+    
     // Spezielle Behandlung für Ansprechpartner-Details und -Erstellung
     if (id && segment === 'ansprechpartner') {
       moduleKey = 'ansprechpartner-detail';
@@ -398,6 +407,8 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('tabellen', tabellenModule);
   moduleRegistry.register('strategie', strategieList);
   moduleRegistry.register('strategie-detail', strategieDetail);
+  moduleRegistry.register('creator-auswahl', creatorAuswahlList);
+  moduleRegistry.register('creator-auswahl-detail', creatorAuswahlDetail);
   
   // Profile-Modul initialisieren und registrieren (V2 - neue Version mit zweispaltigem Layout)
   const profileDetailV2 = new ProfileDetailV2();
