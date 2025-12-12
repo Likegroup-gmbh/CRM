@@ -247,29 +247,36 @@ async function scrapeInstagram(page, url) {
       }
     }
     
-    // Bio - mehrere Strategien
+    // Bio - den längsten Span im Header finden (der keine Stats enthält)
     let bio = null;
-    
-    // Strategie 1: Suche nach span-Elementen im Header-Bereich
     const header = document.querySelector('header');
     if (header) {
       const spans = header.querySelectorAll('span');
+      let longestBio = '';
+      
       for (const span of spans) {
         const text = span.textContent?.trim() || '';
-        // Bio ist typischerweise länger und enthält keine Stats-Wörter
-        if (text.length > 20 && 
+        // Bio ist typischerweise der längste Text ohne Stats-Wörter
+        // und enthält nicht "... mehr" am Ende (das ist der gekürzte Text)
+        if (text.length > 30 && 
             !text.includes('Follower') && 
             !text.includes('Beiträge') && 
             !text.includes('Posts') &&
             !text.includes('Gefolgt') &&
-            !text.includes('Following')) {
-          bio = text;
-          break;
+            !text.includes('Following') &&
+            !text.endsWith('mehr') &&
+            text.length > longestBio.length) {
+          longestBio = text;
         }
+      }
+      
+      if (longestBio) {
+        // "... mehr" am Ende entfernen falls vorhanden
+        bio = longestBio.replace(/\.{3}\s*mehr$/, '').trim();
       }
     }
     
-    // Strategie 2: Meta-Description
+    // Fallback: Meta-Description
     if (!bio) {
       const metaDesc = document.querySelector('meta[name="description"]');
       if (metaDesc) {
