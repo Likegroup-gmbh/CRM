@@ -173,69 +173,131 @@ async function scrapeTikTok(page, url) {
 async function scrapeInstagram(page, url) {
   console.log('📷 Instagram: Navigiere zu', url);
   
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 25000 });
-  await new Promise(r => setTimeout(r, randomDelay(3000, 5000)));
+  // Wichtig: networkidle0 für vollständiges Laden
+  await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
+  await new Promise(r => setTimeout(r, randomDelay(4000, 6000)));
   
-  // "Weiter im Web" klicken
+  // Login-Popup/Cookie-Banner schließen
   try {
     await page.evaluate(() => {
-      const links = document.querySelectorAll('a[role="link"], button');
-      for (const link of links) {
-        const text = link.textContent || '';
-        if (text.includes('Weiter im Web') || text.includes('Continue on web') || text.includes('View on web')) {
-          link.click();
+      // Login-Popup schließen (X Button oder "Nicht jetzt")
+      const closeButtons = document.querySelectorAll('button[type="button"], [role="button"]');
+      for (const btn of closeButtons) {
+        const text = btn.textContent || '';
+        const ariaLabel = btn.getAttribute('aria-label') || '';
+        if (text.includes('Nicht jetzt') || text.includes('Not Now') || 
+            ariaLabel.includes('Close') || ariaLabel.includes('Schließen')) {
+          btn.click();
           return;
         }
       }
+      // SVG close button
+      const svgClose = document.querySelector('svg[aria-label="Schließen"], svg[aria-label="Close"]');
+      if (svgClose) svgClose.closest('button')?.click();
     });
-    await new Promise(r => setTimeout(r, 2000));
+    await new Promise(r => setTimeout(r, 1500));
   } catch (e) {
-    console.log('Weiter im Web:', e.message);
+    console.log('Popup schließen:', e.message);
   }
   
-  // Header und Overlays entfernen
+  // Dialoge entfernen
   await page.evaluate(() => {
-    document.querySelectorAll('[role="dialog"], [class*="overlay"]').forEach(el => el.remove());
-    document.querySelectorAll('header, nav').forEach(el => el.remove());
+    document.querySelectorAll('[role="dialog"], [role="presentation"]').forEach(el => el.remove());
   });
   
   await new Promise(r => setTimeout(r, 1000));
   
-  // Profil-Daten extrahieren
+  // Profil-Daten extrahieren - robustere Selektoren
   const data = await page.evaluate(() => {
-    // Name (Display Name)
-    const nameEl = document.querySelector('header section span[class*="x1lliihq"], header h2, [class*="_aa_c"] span');
-    const name = nameEl?.textContent?.trim() || null;
-    
-    // Handle (Username)
-    const handleEl = document.querySelector('header h2, [class*="x1lliihq"][dir="auto"]');
-    let handle = handleEl?.textContent?.trim() || null;
-    
-    // Fallback: aus URL extrahieren
-    if (!handle) {
-      const pathMatch = window.location.pathname.match(/^\/([^\/]+)/);
-      handle = pathMatch ? pathMatch[1] : null;
-    }
+    // Username aus URL (zuverlässigste Methode)
+    const pathMatch = window.location.pathname.match(/^\/([^\/]+)/);
+    let handle = pathMatch ? pathMatch[1] : null;
     if (handle && !handle.startsWith('@')) handle = '@' + handle;
     
-    // Bio
-    const bioEl = document.querySelector('header section > div > span, [class*="_aa_c"] span:not([class*="x1lliihq"])');
-    const bio = bioEl?.textContent?.trim() || null;
+    // Name - suche nach dem ersten <span> im Header-Bereich mit dem Display-Namen
+    let name = null;
+    // Methode 1: Meta-Tag
+    const metaTitle = document.querySelector('meta[property="og:title"]');
+    if (metaTitle) {
+      const content = metaTitle.getAttribute('content') || '';
+      // Format: "Name (@handle) • Instagram photos and videos"
+      const nameMatch = content.match(/^([^(@]+)/);
+      if (nameMatch) name = nameMatch[1].trim();
+    }
+    // Methode 2: Title-Tag
+    if (!name) {
+      const titleMatch = document.title.match(/^([^(@]+)/);
+      if (titleMatch) name = titleMatch[1].trim();
+    }
     
-    // Follower - suche nach "Follower" Text
-    let followerText = null;
-    const statEls = document.querySelectorAll('header section ul li, [class*="_aa_c"] a span');
-    statEls.forEach(el => {
-      const text = el.textContent || '';
-      if (text.toLowerCase().includes('follower')) {
-        const match = text.match(/([\d,.]+[kmb]?)/i);
-        if (match) followerText = match[1];
+    // Bio - aus Meta-Description
+    let bio = null;
+    const metaDesc = document.querySelector('meta[property="og:description"], meta[name="description"]');
+    if (metaDesc) {
+      const content = metaDesc.getAttribute('content') || '';
+      // Format: "123 Followers, 45 Following, 67 Posts - See Instagram photos..."
+      // Oder: "Bio text here. 123 Followers..."
+      const bioMatch = content.match(/Posts[^-]*-\s*(.+?)(?:\s*$|See Instagram)/i);
+      if (bioMatch) {
+        bio = bioMatch[1].trim();
+      } else {
+        // Fallback: Alles nach dem letzten " - "
+        const parts = content.split(' - ');
+        if (parts.length > 1) {
+          bio = parts[parts.length - 1].replace(/See Instagram.*$/i, '').trim();
+        }
       }
-    });
+    }
     
-    // Profilbild
-    const avatarEl = document.querySelector('header img[alt*="Profilbild"], header img[alt*="profile picture"], header section img');
-    const profileImageUrl = avatarEl?.src || null;
+    // Follower aus Meta-Description
+    let followerText = null;
+    if (metaDesc) {
+      const content = metaDesc.getAttribute('content') || '';
+      const followerMatch = content.match(/([\d,.]+[KkMmBb]?)\s*Follower/i);
+      if (followerMatch) followerText = followerMatch[1];
+    }
+    
+    // Profilbild - mehrere Strategien
+    let profileImageUrl = null;
+    
+    // Strategie 1: img mit alt-Text der den Username enthält
+    const username = handle?.replace('@', '') || '';
+    if (username) {
+      const imgWithAlt = document.querySelector(`img[alt*="${username}"]`);
+      if (imgWithAlt && imgWithAlt.src) {
+        profileImageUrl = imgWithAlt.src;
+      }
+    }
+    
+    // Strategie 2: Erstes großes rundes Bild (Profilbilder sind meist > 100px)
+    if (!profileImageUrl) {
+      const allImages = document.querySelectorAll('img');
+      for (const img of allImages) {
+        const style = window.getComputedStyle(img);
+        const width = parseInt(style.width) || img.width;
+        const height = parseInt(style.height) || img.height;
+        const isRound = style.borderRadius === '50%' || img.closest('[style*="border-radius: 50%"]');
+        
+        if (width >= 77 && height >= 77 && img.src && !img.src.includes('static')) {
+          profileImageUrl = img.src;
+          break;
+        }
+      }
+    }
+    
+    // Strategie 3: Canvas-Element (Instagram rendert manchmal als Canvas)
+    if (!profileImageUrl) {
+      const canvas = document.querySelector('canvas');
+      if (canvas) {
+        try {
+          profileImageUrl = canvas.toDataURL('image/jpeg');
+        } catch (e) {
+          // CORS-Error ignorieren
+        }
+      }
+    }
+    
+    console.log('Instagram Debug:', { name, handle, bio, followerText, profileImageUrl: !!profileImageUrl });
     
     return { name, handle, bio, followerText, profileImageUrl };
   });
@@ -257,7 +319,7 @@ async function scrapeInstagram(page, url) {
 /**
  * Profilbild als Screenshot speichern
  */
-async function captureProfileImage(page, platform, supabase, supabaseUrl) {
+async function captureProfileImage(page, platform, supabase, supabaseUrl, username) {
   console.log('📸 Erstelle Profil-Screenshot...');
   
   try {
@@ -265,22 +327,50 @@ async function captureProfileImage(page, platform, supabase, supabaseUrl) {
     await page.setViewport({ width: 430, height: 932 });
     await new Promise(r => setTimeout(r, 500));
     
-    // Profilbild-Element finden
-    let selector;
+    let element = null;
+    
     if (platform === 'tiktok') {
-      selector = '[class*="ImgAvatar"], [data-e2e="user-avatar"], [class*="UserAvatar"]';
+      // TikTok Selektoren
+      element = await page.$('[class*="ImgAvatar"], [data-e2e="user-avatar"], [class*="UserAvatar"]');
     } else {
-      selector = 'header img[alt*="Profilbild"], header img[alt*="profile picture"], header section img';
+      // Instagram - mehrere Strategien
+      const cleanUsername = username?.replace('@', '') || '';
+      
+      // Strategie 1: Bild mit Username im alt-Text
+      if (cleanUsername) {
+        element = await page.$(`img[alt*="${cleanUsername}"]`);
+      }
+      
+      // Strategie 2: Großes rundes Bild finden
+      if (!element) {
+        element = await page.evaluateHandle(() => {
+          const images = document.querySelectorAll('img');
+          for (const img of images) {
+            const rect = img.getBoundingClientRect();
+            if (rect.width >= 77 && rect.height >= 77 && img.src && !img.src.includes('static')) {
+              return img;
+            }
+          }
+          return null;
+        });
+        // Check if handle is valid
+        const isNull = await element.evaluate(el => el === null);
+        if (isNull) element = null;
+      }
+      
+      // Strategie 3: Header-Bereich img
+      if (!element) {
+        element = await page.$('header img, [role="img"]');
+      }
     }
     
-    const element = await page.$(selector);
     if (!element) {
       console.log('⚠️ Profilbild-Element nicht gefunden, mache Header-Screenshot');
-      // Fallback: Screenshot vom oberen Bereich
+      // Fallback: Screenshot vom oberen Bereich (Profilbereich)
       const screenshotBuffer = await page.screenshot({
         type: 'jpeg',
-        quality: 85,
-        clip: { x: 0, y: 0, width: 430, height: 300 }
+        quality: 90,
+        clip: { x: 0, y: 50, width: 430, height: 350 }
       });
       
       const fileName = `profile-${platform}-${Date.now()}.jpg`;
@@ -295,8 +385,36 @@ async function captureProfileImage(page, platform, supabase, supabaseUrl) {
       return `${supabaseUrl}/storage/v1/object/public/creator-profile-images/profiles/${fileName}`;
     }
     
-    // Element-Screenshot
-    const screenshotBuffer = await element.screenshot({ type: 'jpeg', quality: 85 });
+    // Element-Screenshot mit Padding
+    const box = await element.boundingBox();
+    if (box) {
+      // Etwas größerer Bereich um das Profilbild
+      const padding = 5;
+      const screenshotBuffer = await page.screenshot({
+        type: 'jpeg',
+        quality: 90,
+        clip: {
+          x: Math.max(0, box.x - padding),
+          y: Math.max(0, box.y - padding),
+          width: box.width + (padding * 2),
+          height: box.height + (padding * 2)
+        }
+      });
+      
+      const fileName = `profile-${platform}-${Date.now()}.jpg`;
+      const { error: uploadError } = await supabase.storage
+        .from('creator-profile-images')
+        .upload(`profiles/${fileName}`, screenshotBuffer, {
+          contentType: 'image/jpeg',
+          cacheControl: '3600'
+        });
+      
+      if (uploadError) throw uploadError;
+      return `${supabaseUrl}/storage/v1/object/public/creator-profile-images/profiles/${fileName}`;
+    }
+    
+    // Fallback: Element-Screenshot
+    const screenshotBuffer = await element.screenshot({ type: 'jpeg', quality: 90 });
     
     const fileName = `profile-${platform}-${Date.now()}.jpg`;
     const { error: uploadError } = await supabase.storage
@@ -405,9 +523,13 @@ exports.handler = async (event, context) => {
       creatorData = await scrapeInstagram(page, url);
     }
 
-    // Profilbild als Screenshot speichern (falls keine URL verfügbar)
-    if (!creatorData.profile_image_url) {
-      creatorData.profile_image_url = await captureProfileImage(page, platform, supabase, supabaseUrl);
+    // Profilbild als Screenshot speichern (falls keine URL verfügbar oder temporäre URL)
+    // Instagram URLs sind oft temporär, daher immer Screenshot machen
+    if (!creatorData.profile_image_url || platform === 'instagram') {
+      const screenshotUrl = await captureProfileImage(page, platform, supabase, supabaseUrl, creatorData.creator_handle);
+      if (screenshotUrl) {
+        creatorData.profile_image_url = screenshotUrl;
+      }
     }
 
     // Link zur Original-URL setzen
