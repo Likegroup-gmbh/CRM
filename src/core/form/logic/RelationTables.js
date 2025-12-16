@@ -125,11 +125,62 @@ export class RelationTables {
         }
 
         console.log(`✅ ${valuesToInsert.length} Verknüpfungen in ${relationTable} erstellt`);
+        
+        // Spezialbehandlung: Bei auftrag_mitarbeiter auch mitarbeiter_unternehmen synchronisieren
+        // Wenn ein Lead-Mitarbeiter einem Auftrag zugewiesen wird, soll das Unternehmen
+        // des Auftrags automatisch dem Mitarbeiter zugeordnet werden
+        if (relationTable === 'auftrag_mitarbeiter') {
+          await this.syncMitarbeiterUnternehmen(entityId, valuesToInsert);
+        }
       }
       
       console.log(`✅ Verknüpfungstabelle ${relationTable} aktualisiert für ${entityId}`);
     } catch (error) {
       console.error(`❌ Fehler beim Verarbeiten der Verknüpfungstabelle ${field.relationTable}:`, error);
+    }
+  }
+
+  // Synchronisiert mitarbeiter_unternehmen wenn Lead-Mitarbeiter einem Auftrag zugewiesen werden
+  async syncMitarbeiterUnternehmen(auftragId, mitarbeiterIds) {
+    try {
+      // Auftrag laden um unternehmen_id zu erhalten
+      const { data: auftrag, error: auftragError } = await window.supabase
+        .from('auftrag')
+        .select('unternehmen_id')
+        .eq('id', auftragId)
+        .single();
+      
+      if (auftragError) {
+        console.error('❌ Fehler beim Laden des Auftrags für Mitarbeiter-Sync:', auftragError);
+        return;
+      }
+      
+      if (!auftrag?.unternehmen_id) {
+        console.log('ℹ️ Auftrag hat kein Unternehmen zugeordnet, überspringe Mitarbeiter-Sync');
+        return;
+      }
+      
+      // Für jeden Mitarbeiter die Unternehmen-Zuordnung erstellen (falls nicht vorhanden)
+      for (const mitarbeiterId of mitarbeiterIds) {
+        const { error: upsertError } = await window.supabase
+          .from('mitarbeiter_unternehmen')
+          .upsert({
+            mitarbeiter_id: mitarbeiterId,
+            unternehmen_id: auftrag.unternehmen_id
+          }, { 
+            onConflict: 'mitarbeiter_id,unternehmen_id',
+            ignoreDuplicates: true 
+          });
+        
+        if (upsertError && upsertError.code !== '23505') {
+          // 23505 = unique violation (bereits vorhanden) - das ist OK
+          console.error(`❌ Fehler beim Sync mitarbeiter_unternehmen für ${mitarbeiterId}:`, upsertError);
+        }
+      }
+      
+      console.log(`✅ Mitarbeiter-Unternehmen-Zuordnung synchronisiert für Auftrag ${auftragId}`);
+    } catch (error) {
+      console.error('❌ Fehler beim Synchronisieren von mitarbeiter_unternehmen:', error);
     }
   }
 

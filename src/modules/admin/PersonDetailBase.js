@@ -43,6 +43,8 @@ export class PersonDetailBase {
 
   /**
    * Rendert die komplette Sidebar
+   * @param {Object} person - Personen-Daten
+   * @param {boolean} person.avatarOnly - Wenn true, wird nur das Avatar/Logo angezeigt (ohne Name/Subtitle/Email im Header)
    */
   renderSidebar(person, quickActions, sidebarInfo) {
     const name = person.name || 'Unbekannt';
@@ -50,6 +52,7 @@ export class PersonDetailBase {
     const subtitle = person.subtitle || '';
     const initials = this.getInitials(name);
     const avatarUrl = person.avatarUrl || person.profile_image_url || null;
+    const avatarOnly = person.avatarOnly || false;
 
     return `
       <div class="profile-sidebar-card">
@@ -69,18 +72,11 @@ export class PersonDetailBase {
               </div>
             ` : ''}
           </div>
-          <h2 class="profile-name">${this.sanitize(name)}</h2>
-          ${subtitle ? `<p class="profile-subtitle" style="font-size: 0.875rem; color: var(--text-secondary); margin: 0 0 var(--space-xs) 0;">${this.sanitize(subtitle)}</p>` : ''}
-          ${email ? `<p class="profile-email">${this.sanitize(email)}</p>` : ''}
+          ${!avatarOnly ? `<span class="profile-name text-md">${this.sanitize(name)}</span>` : ''}
+          ${!avatarOnly && subtitle ? `<p class="profile-subtitle" style="font-size: 0.875rem; color: var(--text-secondary); margin: 0 0 var(--space-xs) 0;">${this.sanitize(subtitle)}</p>` : ''}
+          ${!avatarOnly && email ? `<p class="profile-email">${this.sanitize(email)}</p>` : ''}
           
           ${quickActions && quickActions.length > 0 ? this.renderQuickActions(quickActions) : ''}
-          
-          ${person.lastActivity ? `
-            <div class="profile-last-activity">
-              <span class="label">Letzte Aktivität</span>
-              <span class="value">${this.formatDateTime(person.lastActivity)}</span>
-            </div>
-          ` : ''}
         </div>
 
         <!-- Sidebar Tabs -->
@@ -324,5 +320,7 @@ export class PersonDetailBase {
 
 // Singleton-Export für einfache Nutzung
 export const personDetailBase = new PersonDetailBase();
+
+
 
 

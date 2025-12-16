@@ -13,6 +13,14 @@
   text-decoration-color: var(--gray-500);
 }
 
+.table-link.email-link {
+  color: #557ce9;
+  text-decoration-color: rgba(129, 157, 239, 0.4);
+}
+.table-link.email-link:hover {
+  text-decoration-color: #819def;
+}
+
 /* === KOOPERATION-VIDEO-TABELLE === */
 .kooperation-video-grid {
   border-collapse: separate;
@@ -510,12 +518,6 @@ td.col-produkt .stacked-video-input,
   padding: var(--space-lg);
 }
 
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--space-lg);
-}
 
 .page-header h1 {
   font-size: var(--text-2xl);
@@ -1299,6 +1301,8 @@ td.col-produkt .stacked-video-input,
   gap: var(--space-md);
   flex-wrap: wrap;
   margin-top: var(--space-md);
+  padding-left: 12px;
+  padding-right: 12px;
 }
 
 .pagination-info {
@@ -1495,6 +1499,9 @@ td.col-produkt .stacked-video-input,
 .data-table td:first-child {
   width: 50px;
   text-align: center;
+  border-left: none; /* Kein Doppelborder mit main-content */
+  border-right: none; /* Checkbox gehört zur Name-Spalte */
+  padding-left: var(--space-md); /* Auf gleicher Höhe wie Filter */
 }
 
 /* Actions-Spalte (Letzte Spalte mit ...) */
@@ -1502,16 +1509,10 @@ td.col-produkt .stacked-video-input,
 .data-table td:last-child {
   width: 50px;
   text-align: center;
+  border-right: none; /* Kein Doppelborder mit main-content */
 }
 
 /* Standard-Spalten: Natürliche Breite, kein Abschneiden */
-.data-table th,
-.data-table td {
-  padding: var(--space-xxs) var(--space-xs);
-  white-space: normal; /* Mehrzeilig erlaubt */
-  overflow: visible; /* Kein Abschneiden */
-  word-wrap: break-word; /* Lange Wörter umbrechen */
-}
 
 /* Für sehr lange Texte: Max-Width mit Tooltip-Option */
 .data-table td {
@@ -1538,6 +1539,7 @@ td.col-produkt .stacked-video-input,
   overflow-y: visible; /* Nutzt globalen Scroll */
   position: relative;
   width: 100%;
+
 }
 
 /* === READ-ONLY / DISABLED FELDER FÜR KUNDEN === */

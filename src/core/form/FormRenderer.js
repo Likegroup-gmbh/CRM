@@ -412,7 +412,11 @@ export class FormRenderer {
           setTimeout(() => {
             const root = document.getElementById(containerId);
             if (root) {
-              const uploader = new UploaderField({ multiple: !!field.multiple, accept: field.accept || '*/*' });
+              const uploader = new UploaderField({ 
+                multiple: !!field.multiple, 
+                accept: field.accept || '*/*',
+                maxFileSize: field.maxFileSize || null
+              });
               uploader.mount(root.querySelector('.uploader'));
             }
           }, 0);

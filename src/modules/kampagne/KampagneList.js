@@ -412,16 +412,8 @@ export class KampagneList {
   // Rendere Kampagnen-Liste
   async render() {
     const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
-    
-    // Filter-Dropdown über dem Tabellen-Header (nur in List-View)
-    let filterHtml = '';
-    if (this.currentView === 'list') {
-      filterHtml = `<div class="filter-bar">
-        <div class="filter-left">
-          <div id="filter-dropdown-container"></div>
-        </div>
-      </div>`;
-    }
+    const isKunde = window.currentUser?.rolle === 'kunde';
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
     
     // Haupt-HTML
     let html = `
@@ -443,6 +435,22 @@ export class KampagneList {
           </div>
         </div>
       </div>
+
+      ${!isKunde ? `
+      <div class="table-filter-wrapper">
+        <div class="filter-bar">
+          <div class="filter-left">
+            <div id="filter-dropdown-container"></div>
+          </div>
+        </div>
+        <div class="table-actions">
+          ${this.currentView === 'list' && isAdmin ? '<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>' : ''}
+          ${this.currentView === 'list' && isAdmin ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
+          ${this.currentView === 'list' && isAdmin ? '<span id="selected-count" style="display:none;">0 ausgewählt</span>' : ''}
+          ${this.currentView === 'list' && isAdmin ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
+          ${canEdit ? '<button id="btn-kampagne-new" class="primary-btn">Neue Kampagne anlegen</button>' : ''}
+        </div>
+      </div>` : ''}
 
       <div class="content-section">
         <div id="kampagnen-content-container">
@@ -468,24 +476,8 @@ export class KampagneList {
   renderTableWrapper() {
     const isKunde = window.currentUser?.rolle === 'kunde';
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-    const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
     
     return `
-      ${!isKunde ? `
-      <div class="table-filter-wrapper">
-        <div class="filter-bar">
-          <div class="filter-left">
-            <div id="filter-dropdown-container"></div>
-          </div>
-        </div>
-        <div class="table-actions">
-          ${isAdmin ? '<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>' : ''}
-          ${isAdmin ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
-          ${isAdmin ? '<span id="selected-count" style="display:none;">0 ausgewählt</span>' : ''}
-          ${isAdmin ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
-          ${canEdit ? '<button id="btn-kampagne-new" class="primary-btn">Neue Kampagne anlegen</button>' : ''}
-        </div>
-      </div>` : ''}
       <div class="data-table-container">
         <table class="data-table">
           <thead>

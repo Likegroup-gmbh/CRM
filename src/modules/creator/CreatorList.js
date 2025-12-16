@@ -489,8 +489,8 @@ export class CreatorList {
         <td>${this.renderBrancheTags(creator.branchen)}</td>
         <td>${creator.instagram_follower ? new Intl.NumberFormat('de-DE').format(creator.instagram_follower) : '-'}</td>
         <td>${creator.tiktok_follower ? new Intl.NumberFormat('de-DE').format(creator.tiktok_follower) : '-'}</td>
-        <td>${creator.lieferadresse_stadt || '-'}</td>
-        <td>${creator.lieferadresse_land || '-'}</td>
+        <td>${this.renderLocationTag(creator.lieferadresse_stadt, 'stadt')}</td>
+        <td>${this.renderLocationTag(creator.lieferadresse_land, 'land')}</td>
         <td>
           ${actionBuilder.create('creator', creator.id)}
         </td>
@@ -548,6 +548,13 @@ export class CreatorList {
       return label ? `<div class="tags tags-compact"><span class="tag tag--type">${label}</span></div>` : '-';
     }
     return `<div class="tags tags-compact"><span class="tag tag--type">${String(typen)}</span></div>`;
+  }
+
+  // Render Location Tags (Stadt/Land)
+  renderLocationTag(value, type) {
+    if (!value || value.trim() === '') return '-';
+    const sanitized = window.validatorSystem?.sanitizeHtml(value) || value;
+    return `<div class="tags tags-compact"><span class="tag tag--${type}">${sanitized}</span></div>`;
   }
 
   // Cleanup

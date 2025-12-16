@@ -222,7 +222,11 @@ export class StrategieList {
 
       return `
         <tr class="table-row-clickable" data-strategie-id="${strategie.id}">
-          <td><strong>${strategie.name || 'Ohne Namen'}</strong></td>
+          <td>
+            <a href="#" class="table-link" data-table="strategie" data-id="${strategie.id}">
+              ${window.validatorSystem.sanitizeHtml(strategie.name || 'Ohne Namen')}
+            </a>
+          </td>
           <td>${unternehmenBubble}</td>
           <td>${markeBubble}</td>
           <td>${kampagneName}</td>
@@ -387,11 +391,6 @@ export class StrategieList {
         <div class="form-field">
           <label class="form-label">Name *</label>
           <input type="text" id="strategie-name" name="name" required class="form-input" placeholder="z.B. Q1 2025 Content Ideen">
-        </div>
-
-        <div class="form-field">
-          <label class="form-label">Beschreibung</label>
-          <textarea id="strategie-beschreibung" name="beschreibung" class="form-input" rows="3" placeholder="Optional"></textarea>
         </div>
 
         <div class="form-field tag-based-select">
@@ -901,11 +900,6 @@ export class StrategieList {
           <input type="text" id="edit-strategie-name" name="name" required class="form-input" value="${strategie.name || ''}" placeholder="z.B. Q1 2025 Content Ideen">
         </div>
 
-        <div class="form-field">
-          <label class="form-label">Beschreibung</label>
-          <textarea id="edit-strategie-beschreibung" name="beschreibung" class="form-input" rows="3" placeholder="Optional">${strategie.beschreibung || ''}</textarea>
-        </div>
-
         <div class="form-field tag-based-select">
           <label class="form-label">Unternehmen</label>
           <input type="text" id="edit-as-unternehmen" class="form-input auto-suggest-input" placeholder="Unternehmen suchen..." autocomplete="off">
@@ -1266,7 +1260,6 @@ export class StrategieList {
         
         const data = {
           name: formData.get('name'),
-          beschreibung: formData.get('beschreibung') || null,
           unternehmen_id: unternehmenTag?.dataset.id || null,
           marke_id: markeTag?.dataset.id || null,
           kampagne_id: kampagneTag?.dataset.id || null,
@@ -1334,7 +1327,6 @@ export class StrategieList {
       
       const data = {
         name: formData.get('name'),
-        beschreibung: formData.get('beschreibung') || null,
         unternehmen_id: unternehmenTag?.dataset.id || null,
         marke_id: markeTag?.dataset.id || null,
         kampagne_id: kampagneTag?.dataset.id || null,

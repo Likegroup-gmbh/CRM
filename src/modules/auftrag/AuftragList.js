@@ -849,6 +849,143 @@ export class AuftragList {
 
     window.content.innerHTML = html;
     window.formSystem.bindFormEvents('auftrag', null);
+    
+    // Custom Submit Handler für Seiten-Formular
+    const form = document.getElementById('auftrag-form');
+    if (form) {
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        await this.handleFormSubmit();
+      };
+    }
+  }
+
+  // Handle Form Submit für Seiten-Formular
+  async handleFormSubmit() {
+    try {
+      const form = document.getElementById('auftrag-form');
+      const formData = new FormData(form);
+      const submitData = {};
+
+      // Tag-basierte Multi-Selects aus Hidden-Selects sammeln
+      const processedFields = new Set();
+      const tagBasedSelects = form.querySelectorAll('select[data-tag-based="true"]');
+      tagBasedSelects.forEach(select => {
+        const fieldName = select.name;
+        const selectId = select.id;
+        
+        if (processedFields.has(fieldName)) {
+          return;
+        }
+        processedFields.add(fieldName);
+        
+        let hiddenSelect = document.getElementById(`${selectId}_hidden`);
+        
+        if (!hiddenSelect) {
+          hiddenSelect = form.querySelector(`select[name="${fieldName}[]"]`);
+        }
+        
+        if (!hiddenSelect) {
+          const tagContainer = select.closest('.form-field')?.querySelector('.tag-based-select');
+          if (tagContainer) {
+            hiddenSelect = tagContainer.querySelector('select[multiple]');
+          }
+        }
+        
+        if (!hiddenSelect) {
+          const tagContainer = select.closest('.form-field')?.querySelector('.tag-based-select');
+          if (tagContainer) {
+            const tags = tagContainer.querySelectorAll('.tag[data-value]');
+            const tagValues = [...new Set(Array.from(tags).map(tag => tag.dataset.value).filter(Boolean))];
+            if (tagValues.length > 0) {
+              submitData[fieldName] = tagValues;
+              return;
+            }
+          }
+        }
+        
+        if (hiddenSelect) {
+          const values = [...new Set(Array.from(hiddenSelect.selectedOptions).map(opt => opt.value).filter(Boolean))];
+          if (values.length > 0) {
+            submitData[fieldName] = values;
+          }
+        }
+      });
+
+      // FormData zu Objekt konvertieren
+      for (const [key, value] of formData.entries()) {
+        if (key.includes('[]')) {
+          const cleanKey = key.replace('[]', '');
+          if (!submitData.hasOwnProperty(cleanKey)) {
+            submitData[cleanKey] = [];
+          }
+          if (!submitData[cleanKey].includes(value)) {
+            submitData[cleanKey].push(value);
+          }
+        } else {
+          if (!submitData.hasOwnProperty(key) || !Array.isArray(submitData[key])) {
+            submitData[key] = value;
+          }
+        }
+      }
+
+      // Deduplizierung
+      for (const key of Object.keys(submitData)) {
+        if (Array.isArray(submitData[key])) {
+          submitData[key] = [...new Set(submitData[key])];
+        }
+      }
+
+      console.log('📝 Auftrag Submit-Daten:', submitData);
+
+      // Validierung
+      const validationResult = window.validatorSystem.validateForm(submitData, {
+        auftragsname: { type: 'text', minLength: 2, required: true }
+      });
+      
+      if (!validationResult.isValid) {
+        window.NotificationSystem?.show('error', 'Bitte füllen Sie alle Pflichtfelder aus');
+        return;
+      }
+
+      // Erstelle Auftrag
+      console.log('🚀 Erstelle Auftrag mit Daten:', JSON.stringify(submitData, null, 2));
+      const result = await window.dataService.createEntity('auftrag', submitData);
+      console.log('📦 DataService Ergebnis:', result);
+      
+      if (result.success) {
+        // Nach Erstellung: Many-to-Many Beziehungen über RelationTables verarbeiten
+        try {
+          const auftragId = result.id;
+          console.log('🎯 Auftrag erstellt mit ID:', auftragId);
+          
+          // RelationTables für Multi-Select-Felder verarbeiten
+          await window.formSystem.relationTables.handleRelationTables('auftrag', auftragId, submitData, form);
+          
+        } catch (e) {
+          console.warn('⚠️ Many-to-Many Zuordnungen konnten nicht gespeichert werden', e);
+        }
+
+        // Toast-Erfolgsmeldung
+        window.NotificationSystem?.show('success', 'Auftrag erfolgreich angelegt');
+        
+        // Event auslösen für Listen-Update
+        window.dispatchEvent(new CustomEvent('entityUpdated', {
+          detail: { entity: 'auftrag', action: 'created', id: result.id }
+        }));
+        
+        // Zurück zur Liste
+        setTimeout(() => {
+          window.navigateTo('/auftrag');
+        }, 1500);
+      } else {
+        window.NotificationSystem?.show('error', `Fehler beim Erstellen: ${result.error}`);
+      }
+
+    } catch (error) {
+      console.error('❌ Fehler beim Erstellen des Auftrags:', error);
+      window.NotificationSystem?.show('error', 'Ein unerwarteter Fehler ist aufgetreten');
+    }
   }
 }
 

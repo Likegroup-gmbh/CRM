@@ -40,12 +40,16 @@ export class KooperationDetail {
       // Lade kritische Kooperations-Daten parallel (optimiert!)
       await this.loadCriticalData();
       
-      // Breadcrumb aktualisieren
+      // Breadcrumb aktualisieren mit Edit-Button
       if (window.breadcrumbSystem && this.kooperation) {
+        const canEdit = window.currentUser?.permissions?.kooperation?.can_edit || false;
         window.breadcrumbSystem.updateBreadcrumb([
           { label: 'Kooperation', url: '/kooperation', clickable: true },
           { label: this.kooperation.name || 'Details', url: `/kooperation/${this.kooperationId}`, clickable: false }
-        ]);
+        ], {
+          id: 'btn-edit-kooperation',
+          canEdit: canEdit
+        });
       }
       
       // Rendere die Seite
@@ -320,19 +324,12 @@ export class KooperationDetail {
       return;
     }
 
-    const canEdit = window.currentUser?.permissions?.kooperation?.can_edit || false;
     const title = this.kooperation.name || 'Kooperation';
     if (window.setHeadline) {
       window.setHeadline(`Kooperation: ${window.validatorSystem?.sanitizeHtml?.(title) || title}`);
     }
 
     const html = `
-      <div class="page-header">
-        <div class="page-header-right">
-          ${canEdit ? '<button id="btn-edit-kooperation" class="primary-btn">Bearbeiten</button>' : ''}
-        </div>
-      </div>
-
       <div class="content-section">
         <div class="tab-navigation">
           ${renderTabButton({ tab: 'info', label: 'Informationen', isActive: true })}

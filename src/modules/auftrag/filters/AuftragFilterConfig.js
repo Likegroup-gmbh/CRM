@@ -55,34 +55,26 @@ export const AUFTRAG_FILTERS = [
     priority: 4
   }),
 
-  // Auftragstyp Filter
-  createFilterConfig('text', {
-    id: 'auftragtype',
-    label: 'Auftragstyp',
-    placeholder: 'Nach Auftragstyp suchen...',
-    priority: 5
-  }),
-
   // Art der Kampagne Filter (als select statt multiSelect)
   createFilterConfig('select', {
     id: 'art_der_kampagne',
     label: 'Art der Kampagne',
     options: COMMON_FILTER_OPTIONS.campaignTypes,
-    priority: 6
+    priority: 5
   }),
 
   // Rechnung gestellt
   createFilterConfig('boolean', {
     id: 'rechnung_gestellt',
     label: 'Rechnung gestellt',
-    priority: 7
+    priority: 6
   }),
 
   // Überwiesen
   createFilterConfig('boolean', {
     id: 'ueberwiesen',
     label: 'Überwiesen',
-    priority: 8
+    priority: 7
   })
 ];
 

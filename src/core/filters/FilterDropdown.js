@@ -238,7 +238,7 @@ export class FilterDropdown {
 
     if (chips.length > 0) {
       chips.push(`
-        <button class="filter-reset-all" data-entity-type="${entityType}">
+        <button class="secondary-btn filter-reset-all" data-entity-type="${entityType}">
           Alle zurücksetzen
         </button>
       `);
@@ -277,7 +277,7 @@ export class FilterDropdown {
 
     if (chips.length > 0) {
       chips.push(`
-        <button class="filter-reset-all" data-entity-type="${entityType}">
+        <button class="secondary-btn filter-reset-all" data-entity-type="${entityType}">
           Alle zurücksetzen
         </button>
       `);

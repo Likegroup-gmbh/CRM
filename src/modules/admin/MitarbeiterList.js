@@ -128,7 +128,7 @@ export class MitarbeiterList {
         <tr data-id="${u.id}">
           <td>${u.id ? `<a href="#" class="table-link" data-table="mitarbeiter" data-id="${u.id}">${window.validatorSystem.sanitizeHtml(u.name || '—')}</a>` : window.validatorSystem.sanitizeHtml(u.name || '—')}</td>
           <td>${window.validatorSystem.sanitizeHtml(u.rolle || '—')}</td>
-          <td>${window.validatorSystem.sanitizeHtml(u.email || '—')}</td>
+          <td>${u.email ? `<a href="mailto:${u.email}" class="table-link email-link">${window.validatorSystem.sanitizeHtml(u.email)}</a>` : '—'}</td>
           <td>${window.validatorSystem.sanitizeHtml(u.unterrolle || '—')}</td>
           <td>${u.mitarbeiter_klasse?.name ? `<div class="tags tags-compact"><span class="tag">${window.validatorSystem.sanitizeHtml(u.mitarbeiter_klasse.name)}</span></div>` : '—'}</td>
           <td>${freigeschaltetIcon}</td>

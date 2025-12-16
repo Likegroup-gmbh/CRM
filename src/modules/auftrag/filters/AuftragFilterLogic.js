@@ -45,14 +45,6 @@ export class AuftragFilterLogic {
           };
           break;
 
-        case 'auftragtype':
-          // Text-Suche
-          processedFilters[key] = {
-            type: 'text_search',
-            value: value
-          };
-          break;
-
         case 'rechnung_gestellt':
         case 'ueberwiesen':
           // Boolean Filter

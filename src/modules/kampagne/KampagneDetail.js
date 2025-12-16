@@ -84,12 +84,16 @@ export class KampagneDetail {
         return;
       }
       
-      // Breadcrumb aktualisieren
+      // Breadcrumb aktualisieren mit Edit-Button
       if (window.breadcrumbSystem && this.kampagneData) {
+        const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
         window.breadcrumbSystem.updateBreadcrumb([
           { label: 'Kampagne', url: '/kampagne', clickable: true },
           { label: this.kampagneData.kampagnenname || 'Details', url: `/kampagne/${this.kampagneId}`, clickable: false }
-        ]);
+        ], {
+          id: 'btn-edit-kampagne',
+          canEdit: canEdit
+        });
       }
       
       // Rendere die Seite
@@ -810,14 +814,16 @@ export class KampagneDetail {
       return String(array);
     };
 
+    const showPageHeader = canCreateKooperation || canCreateVideo;
     const html = `
+      ${showPageHeader ? `
       <div class="page-header">
         <div class="page-header-right">
-          ${canCreateKooperation ? `<button id="btn-new-kooperation" class="primary-btn" ">Kooperation anlegen</button>` : ''}
-          ${canCreateVideo ? `<button id="btn-new-video" class="primary-btn" ">Video anlegen</button>` : ''}
-          ${canEdit ? `<button id="btn-edit-kampagne" class="primary-btn" ">Bearbeiten</button>` : ''}
+          ${canCreateKooperation ? `<button id="btn-new-kooperation" class="primary-btn">Kooperation anlegen</button>` : ''}
+          ${canCreateVideo ? `<button id="btn-new-video" class="primary-btn">Video anlegen</button>` : ''}
         </div>
       </div>
+      ` : ''}
 
       <div class="content-section">
         <!-- Budget-Kacheln -->

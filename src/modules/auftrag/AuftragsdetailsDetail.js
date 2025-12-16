@@ -40,12 +40,16 @@ export class AuftragsdetailsDetail {
       this.detailsId = detailsId;
       await this.loadDetailsData();
       
-      // Breadcrumb aktualisieren
+      // Breadcrumb aktualisieren mit Edit-Button
       if (window.breadcrumbSystem && this.auftrag) {
+        const canEdit = window.currentUser?.permissions?.auftrag?.can_edit !== false;
         window.breadcrumbSystem.updateBreadcrumb([
           { label: 'Auftragsdetails', url: '/auftragsdetails', clickable: true },
           { label: this.auftrag.auftragsname || 'Details', url: `/auftragsdetails/${this.detailsId}`, clickable: false }
-        ]);
+        ], {
+          id: 'btn-edit-details',
+          canEdit: canEdit
+        });
       }
       
       this.render();
@@ -242,15 +246,6 @@ export class AuftragsdetailsDetail {
     window.setHeadline(`${this.auftrag?.auftragsname || 'Auftragsdetails'} - Details`);
     
     const html = `
-      <div class="page-header">
-        <div class="page-header-right">
-          <button id="btn-edit-details" class="secondary-btn">
-            <i class="icon-edit"></i>
-            Bearbeiten
-          </button>
-        </div>
-      </div>
-
       <div class="content-section">
         ${this.renderInformationen()}
       </div>
@@ -302,8 +297,119 @@ export class AuftragsdetailsDetail {
           </div>
         </div>
 
-        <!-- Creator & Videos Übersicht -->
-        ${this.renderCreatorVideosTable()}
+        <!-- Kategorien-Übersicht Tabelle -->
+        ${this.renderKategorienTable()}
+
+        <!-- Kooperationen & Videos -->
+        <div style="margin-top: 32px;">
+          <h3>Kooperationen & Videos</h3>
+          ${this.renderCreatorVideosTable()}
+        </div>
+      </div>
+    `;
+  }
+
+  // Rendere Kategorien-Übersichtstabelle (UGC, Influencer, Vor Ort, etc.)
+  renderKategorienTable() {
+    const details = this.details;
+    if (!details) return '';
+
+    const num = (v) => v || v === 0 ? new Intl.NumberFormat('de-DE').format(v) : '-';
+
+    // Daten für die Tabelle vorbereiten
+    const sections = [
+      {
+        title: 'UGC (User Generated Content)',
+        prefix: 'ugc',
+        color: '#28a745'
+      },
+      {
+        title: 'Influencer',
+        prefix: 'influencer', 
+        color: '#6f42c1'
+      },
+      {
+        title: 'Vor Ort Dreh',
+        prefix: 'vor_ort',
+        color: '#fd7e14'
+      },
+      {
+        title: 'Vor Ort Dreh Mitarbeiter',
+        prefix: 'vor_ort_mitarbeiter',
+        color: '#20c997'
+      }
+    ];
+
+    const tableRows = sections.map(section => {
+      const videoAnzahl = details[`${section.prefix}_video_anzahl`];
+      const bilderAnzahl = details[`${section.prefix}_bilder_anzahl`];
+      const creatorAnzahl = details[`${section.prefix}_creator_anzahl`];
+      const videographenAnzahl = details[`${section.prefix}_videographen_anzahl`];
+      const budgetInfo = details[`${section.prefix}_budget_info`];
+
+      // Zeige nur Zeilen mit Daten
+      if (!videoAnzahl && !bilderAnzahl && !creatorAnzahl && !videographenAnzahl && !budgetInfo) {
+        return '';
+      }
+
+      return `
+        <tr>
+          <td>
+            <div class="section-indicator" style="background: ${section.color}"></div>
+            ${section.title}
+          </td>
+          <td class="text-center">${num(videoAnzahl)}</td>
+          <td class="text-center">${num(bilderAnzahl)}</td>
+          <td class="text-center">${num(creatorAnzahl)}</td>
+          <td class="text-center">${num(videographenAnzahl)}</td>
+          <td class="budget-cell">${budgetInfo ? `<div class="budget-info-large">${window.validatorSystem.sanitizeHtml(budgetInfo)}</div>` : '-'}</td>
+        </tr>
+      `;
+    }).filter(row => row).join('');
+
+    if (!tableRows) {
+      return `
+        <div class="data-table-container" style="margin-top: var(--space-lg);">
+          <table class="data-table auftragsdetails-table">
+            <thead>
+              <tr>
+                <th>Kategorie</th>
+                <th class="text-center">Videos</th>
+                <th class="text-center">Bilder</th>
+                <th class="text-center">Creator</th>
+                <th class="text-center">Videographen</th>
+                <th>Budget & Informationen</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td colspan="6" class="no-data">
+                  Keine Produktionsdetails vorhanden
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="data-table-container" style="margin-top: var(--space-lg);">
+        <table class="data-table auftragsdetails-table">
+          <thead>
+            <tr>
+              <th>Kategorie</th>
+              <th class="text-center">Videos</th>
+              <th class="text-center">Bilder</th>
+              <th class="text-center">Creator</th>
+              <th class="text-center">Videographen</th>
+              <th>Budget & Informationen</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRows}
+          </tbody>
+        </table>
       </div>
     `;
   }

@@ -10,7 +10,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
     super();
     this.userId = null;
     this.user = null;
-    this.assignments = { kampagnen: [], kooperationen: [], briefings: [] };
+    this.assignments = { kampagnen: [], kooperationen: [], briefings: [], auftragsdetails: [] };
     this.zugeordnet = { unternehmen: [], marken: [] };
     this.budget = { invoicesByKoop: {}, totals: { netto: 0, zusatz: 0, gesamt: 0, invoice_netto: 0, invoice_brutto: 0 } };
     this.statusOptions = [];
@@ -165,6 +165,39 @@ export class MitarbeiterDetail extends PersonDetailBase {
         totals.gesamt += Number(k.einkaufspreis_gesamt != null ? k.einkaufspreis_gesamt : (Number(k.einkaufspreis_netto || 0) + Number(k.einkaufspreis_zusatzkosten || 0)));
       });
       this.budget = { invoicesByKoop, totals };
+
+      // Auftragsdetails laden (über zugeordnete Unternehmen)
+      if (unternehmenIds.length > 0) {
+        try {
+          // Aufträge der zugeordneten Unternehmen laden
+          const { data: auftraege } = await window.supabase
+            .from('auftrag')
+            .select('id')
+            .in('unternehmen_id', unternehmenIds);
+          
+          const auftragIds = (auftraege || []).map(a => a.id).filter(Boolean);
+          
+          if (auftragIds.length > 0) {
+            const { data: auftragsdetails } = await window.supabase
+              .from('auftrag_details')
+              .select(`
+                *,
+                auftrag:auftrag_id (
+                  id,
+                  auftragsname,
+                  status
+                )
+              `)
+              .in('auftrag_id', auftragIds)
+              .order('created_at', { ascending: false });
+            
+            this.assignments.auftragsdetails = auftragsdetails || [];
+          }
+        } catch (e) {
+          console.error('❌ Fehler beim Laden von Auftragsdetails:', e);
+          this.assignments.auftragsdetails = [];
+        }
+      }
     } catch (e) {
       console.error('❌ Fehler beim Laden Mitarbeiter-Details:', e);
     }
@@ -227,8 +260,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
       name: this.user?.name || 'Unbekannt',
       email: this.user?.email || '',
       subtitle: this.user?.mitarbeiter_klasse_name || 'Mitarbeiter',
-      avatarUrl: this.user?.profile_image_url,
-      lastActivity: this.user?.updated_at
+      avatarUrl: this.user?.profile_image_url
     };
 
     // Quick Actions
@@ -239,14 +271,6 @@ export class MitarbeiterDetail extends PersonDetailBase {
     if (this.user?.telefon) {
       quickActions.push({ icon: 'phone', label: 'Anrufen', href: `tel:${this.user.telefon}` });
     }
-    quickActions.push({ icon: 'more', label: 'Mehr', action: 'more-actions' });
-
-    // Stats für die Cards
-    const stats = [
-      { label: 'Unternehmen', value: this.zugeordnet.unternehmen.length, link: '#tab-unternehmen' },
-      { label: 'Kampagnen', value: this.assignments.kampagnen.length, link: '#tab-kampagnen' },
-      { label: 'Kooperationen', value: this.assignments.kooperationen.length, link: '#tab-koops' }
-    ];
 
     // Info-Items für Sidebar
     const sidebarInfo = this.renderInfoItems([
@@ -263,7 +287,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
     // Zwei-Spalten-Layout rendern
     const html = this.renderTwoColumnLayout({
       person: personConfig,
-      stats,
+      stats: [],
       quickActions,
       sidebarInfo,
       mainContent
@@ -279,7 +303,8 @@ export class MitarbeiterDetail extends PersonDetailBase {
       { tab: 'kampagnen', label: 'Kampagnen', count: this.assignments.kampagnen.length, isActive: this.activeMainTab === 'kampagnen' },
       { tab: 'kooperationen', label: 'Kooperationen', count: this.assignments.kooperationen.length, isActive: this.activeMainTab === 'koops' },
       { tab: 'cashflow', label: 'Budget', isActive: this.activeMainTab === 'budget' },
-      { tab: 'briefings', label: 'Briefings', count: this.assignments.briefings.length, isActive: this.activeMainTab === 'briefings' }
+      { tab: 'briefings', label: 'Briefings', count: this.assignments.briefings.length, isActive: this.activeMainTab === 'briefings' },
+      { tab: 'auftragsdetails', label: 'Auftragsdetails', count: this.assignments.auftragsdetails.length, isActive: this.activeMainTab === 'auftragsdetails' }
     ];
 
     return `
@@ -296,8 +321,6 @@ export class MitarbeiterDetail extends PersonDetailBase {
           <div class="detail-section">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
               <div>
-                <h2>Zugeordnete Unternehmen</h2>
-                <p class="form-help" style="margin-top: 8px;">Wenn Sie einem Mitarbeiter ein Unternehmen zuordnen, hat er automatisch Zugriff auf alle Marken, Kampagnen und Kooperationen dieses Unternehmens.</p>
               </div>
               <button class="primary-btn" id="btn-add-unternehmen">+ Unternehmen zuordnen</button>
             </div>
@@ -307,29 +330,31 @@ export class MitarbeiterDetail extends PersonDetailBase {
 
         <div class="tab-pane ${this.activeMainTab === 'kampagnen' ? 'active' : ''}" id="tab-kampagnen">
           <div class="detail-section">
-            <h2>Zugewiesene Kampagnen</h2>
             ${this.renderKampagnenTable()}
           </div>
         </div>
 
         <div class="tab-pane ${this.activeMainTab === 'koops' ? 'active' : ''}" id="tab-koops">
           <div class="detail-section">
-            <h2>Zugewiesene Kooperationen</h2>
             ${this.renderKooperationenTable()}
           </div>
         </div>
 
         <div class="tab-pane ${this.activeMainTab === 'budget' ? 'active' : ''}" id="tab-budget">
           <div class="detail-section">
-            <h2>Mitarbeiter Budget</h2>
             ${this.renderBudget()}
           </div>
         </div>
 
         <div class="tab-pane ${this.activeMainTab === 'briefings' ? 'active' : ''}" id="tab-briefings">
           <div class="detail-section">
-            <h2>Zugewiesene Briefings</h2>
             ${this.renderBriefingsTable()}
+          </div>
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'auftragsdetails' ? 'active' : ''}" id="tab-auftragsdetails">
+          <div class="detail-section">
+            ${this.renderAuftragsdetailsTable()}
           </div>
         </div>
       </div>
@@ -339,7 +364,6 @@ export class MitarbeiterDetail extends PersonDetailBase {
   renderRechteTab() {
     return `
       <div class="detail-section">
-        <h2>Benutzer-Status</h2>
         <div class="data-table-container">
           <table class="data-table">
             <thead>
@@ -375,7 +399,6 @@ export class MitarbeiterDetail extends PersonDetailBase {
       </div>
       
       <div class="detail-section">
-        <h2>Mitarbeiter-Rolle</h2>
         <div class="data-table-container">
           <table class="data-table">
             <thead>
@@ -404,13 +427,12 @@ export class MitarbeiterDetail extends PersonDetailBase {
       </div>
       
       <div class="detail-section">
-        <h2>Rechte</h2>
         ${this.user?.freigeschaltet ? 
           `<div class="data-table-container">
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>Recht</th>
+                  <th style="text-align:left;">Recht</th>
                   <th style="width:120px; text-align:right;">Lesen</th>
                   <th style="width:120px; text-align:right;">Bearbeiten</th>
                 </tr>
@@ -518,11 +540,63 @@ export class MitarbeiterDetail extends PersonDetailBase {
     `;
   }
 
+  renderAuftragsdetailsTable() {
+    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
+    
+    const rows = (this.assignments.auftragsdetails || []).map(detail => `
+      <tr>
+        <td>
+          <a href="/auftragsdetails/${detail.id}" onclick="event.preventDefault(); window.navigateTo('/auftragsdetails/${detail.id}')">
+            ${window.validatorSystem.sanitizeHtml(detail.auftrag?.auftragsname || 'Unbekannter Auftrag')}
+          </a>
+        </td>
+        <td><span class="status-badge status-${(detail.auftrag?.status||'').toLowerCase().replace(/\s+/g,'-')}">${detail.auftrag?.status || '-'}</span></td>
+        <td>${window.validatorSystem.sanitizeHtml(detail.kategorie || '-')}</td>
+        <td>${window.validatorSystem.sanitizeHtml(detail.beschreibung || '-')}</td>
+        <td>${formatDate(detail.created_at)}</td>
+      </tr>
+    `).join('');
+    
+    if (!rows) return '<div class="empty-state"><p>Keine Auftragsdetails vorhanden</p></div>';
+    
+    return `
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Auftrag</th>
+              <th>Status</th>
+              <th>Kategorie</th>
+              <th>Beschreibung</th>
+              <th>Erstellt am</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
   generatePermissionsTable() {
     const perms = this.user?.zugriffsrechte || {};
-    return [['creator','Creator'],['creator-lists','Creator Listen'],['unternehmen','Unternehmen'],['marke','Marken'],['auftrag','Aufträge'],['kampagne','Kampagnen'],['kooperation','Kooperationen'],['rechnung','Rechnungen'],['briefing','Briefings'],['ansprechpartner','Ansprechpartner'],['strategie','Strategie'],['tasks','Aufgaben']].map(([key,label]) => `
+    // Reihenfolge entspricht der Navigation
+    return [
+      ['unternehmen','Unternehmen'],
+      ['marke','Marken'],
+      ['ansprechpartner','Ansprechpartner'],
+      ['auftrag','Aufträge'],
+      ['auftragsdetails','Auftragsdetails'],
+      ['kampagne','Kampagnen'],
+      ['briefing','Briefings'],
+      ['strategie','Strategie'],
+      ['kooperation','Kooperationen'],
+      ['rechnung','Rechnungen'],
+      ['tasks','Aufgaben'],
+      ['creator','Creator'],
+      ['creator-lists','Creator Listen']
+    ].map(([key,label]) => `
       <tr>
-        <td>${label}</td>
+        <td style="text-align:left;">${label}</td>
         <td style="text-align:right;">
           <label class="toggle-label" style="justify-content:flex-end;">
             <span class="toggle-switch">
@@ -812,12 +886,11 @@ export class MitarbeiterDetail extends PersonDetailBase {
           if (isFreigeschaltet) {
             rechteSection.style.display = 'block';
             rechteSection.innerHTML = `
-              <h2>Rechte</h2>
               <div class="data-table-container">
                 <table class="data-table">
                   <thead>
                     <tr>
-                      <th>Recht</th>
+                      <th style="text-align:left;">Recht</th>
                       <th style="width:120px; text-align:right;">Lesen</th>
                       <th style="width:120px; text-align:right;">Bearbeiten</th>
                     </tr>
@@ -830,7 +903,6 @@ export class MitarbeiterDetail extends PersonDetailBase {
             `;
           } else {
             rechteSection.innerHTML = `
-              <h2>Rechte</h2>
               <p class="text-muted"><em>Rechte können erst nach der Freischaltung des Benutzers vergeben werden.</em></p>
             `;
           }

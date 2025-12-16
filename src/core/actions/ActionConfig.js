@@ -86,8 +86,6 @@ export const ActionConfigs = {
     actions: [
       { id: 'view', icon: 'view', label: 'Profil ansehen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
-      { id: 'notiz', icon: 'notiz', label: 'Notiz hinzufügen', roles: ['admin', 'mitarbeiter'] },
-      { id: 'rating', icon: 'favorite', label: 'Bewerten', roles: ['admin', 'mitarbeiter'] },
       { id: 'add_to_list', icon: 'add-to-list', label: 'Zur Liste hinzufügen', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }

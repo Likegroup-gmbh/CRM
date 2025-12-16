@@ -118,6 +118,12 @@ export class AuftragsdetailsCreate {
                 <input type="number" id="ugc_video_anzahl" name="ugc_video_anzahl" min="0" placeholder="z.B. 10">
               </div>
               <div class="form-field form-field--half">
+                <label for="ugc_bilder_anzahl">Anzahl Bilder</label>
+                <input type="number" id="ugc_bilder_anzahl" name="ugc_bilder_anzahl" min="0" placeholder="z.B. 5">
+              </div>
+            </div>
+            <div class="form-two-col">
+              <div class="form-field form-field--half">
                 <label for="ugc_creator_anzahl">Anzahl Creator</label>
                 <input type="number" id="ugc_creator_anzahl" name="ugc_creator_anzahl" min="0" placeholder="z.B. 5">
               </div>

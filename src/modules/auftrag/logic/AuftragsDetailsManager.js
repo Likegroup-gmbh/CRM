@@ -228,27 +228,31 @@ export class AuftragsDetailsManager {
 
 
           ${this.renderSection('UGC', details, 'ugc', {
-            video_anzahl: { label: 'Gesamt Anzahl Videos', type: 'number' },
-            creator_anzahl: { label: 'Gesamt Anzahl Creator', type: 'number' },
+            video_anzahl: { label: 'Anzahl Videos', type: 'number' },
+            bilder_anzahl: { label: 'Anzahl Bilder', type: 'number' },
+            creator_anzahl: { label: 'Anzahl Creator', type: 'number' },
             budget_info: { label: 'Budget & Informationen', type: 'textarea' }
           })}
 
           ${this.renderSection('Influencer', details, 'influencer', {
-            video_anzahl: { label: 'Gesamt Anzahl Videos', type: 'number' },
-            creator_anzahl: { label: 'Gesamt Anzahl Creator', type: 'number' },
+            video_anzahl: { label: 'Anzahl Videos', type: 'number' },
+            bilder_anzahl: { label: 'Anzahl Bilder', type: 'number' },
+            creator_anzahl: { label: 'Anzahl Creator', type: 'number' },
             budget_info: { label: 'Budget & Informationen', type: 'textarea' }
           })}
 
           ${this.renderSection('Vor Ort Dreh', details, 'vor_ort', {
-            video_anzahl: { label: 'Gesamt Anzahl Videos', type: 'number' },
-            creator_anzahl: { label: 'Gesamt Anzahl Creator', type: 'number' },
-            videographen_anzahl: { label: 'Gesamt Anzahl Videographen', type: 'number' },
+            video_anzahl: { label: 'Anzahl Videos', type: 'number' },
+            bilder_anzahl: { label: 'Anzahl Bilder', type: 'number' },
+            creator_anzahl: { label: 'Anzahl Creator', type: 'number' },
+            videographen_anzahl: { label: 'Anzahl Videographen', type: 'number' },
             budget_info: { label: 'Budget & Informationen', type: 'textarea' }
           })}
 
           ${this.renderSection('Vor Ort Dreh Mitarbeiter', details, 'vor_ort_mitarbeiter', {
-            video_anzahl: { label: 'Gesamt Anzahl Videos', type: 'number' },
-            videographen_anzahl: { label: 'Gesamt Anzahl Videographen', type: 'number' },
+            video_anzahl: { label: 'Anzahl Videos', type: 'number' },
+            bilder_anzahl: { label: 'Anzahl Bilder', type: 'number' },
+            videographen_anzahl: { label: 'Anzahl Videographen', type: 'number' },
             budget_info: { label: 'Budget & Informationen', type: 'textarea' }
           })}
 
@@ -299,9 +303,9 @@ export class AuftragsDetailsManager {
       const value = details?.[name] ?? '';
       if (config.type === 'textarea') {
         return `
-          <div class="form-field">
+          <div class="form-field form-field--full">
             <label for="${name}">${config.label}</label>
-            <textarea name="${name}" rows="3">${value || ''}</textarea>
+            <textarea name="${name}" rows="6" class="budget-textarea">${value || ''}</textarea>
           </div>
         `;
       }

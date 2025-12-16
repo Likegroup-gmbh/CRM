@@ -1,12 +1,16 @@
 // UnternehmenDetail.js (ES6-Modul)
 // Unternehmen-Detailseite mit Tabs für Informationen, Notizen, Bewertungen, Marken und Aufträge
+// Nutzt einheitliches zwei-Spalten-Layout
+
 import { renderCreatorTable } from '../creator/CreatorTable.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { renderTabButton } from '../../core/TabUtils.js';
+import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 
-export class UnternehmenDetail {
+export class UnternehmenDetail extends PersonDetailBase {
   constructor() {
+    super();
     this.unternehmenId = null;
     this.unternehmen = null;
     this.notizen = [];
@@ -21,6 +25,7 @@ export class UnternehmenDetail {
     this.creators = [];
     this.rechnungen = [];
     this._creatorMap = {};
+    this.activeMainTab = 'informationen';
   }
 
   // Initialisiere Unternehmen-Detailseite
@@ -31,20 +36,36 @@ export class UnternehmenDetail {
       this.unternehmenId = unternehmenId;
       await this.loadUnternehmenData();
       
-      // Breadcrumb aktualisieren
+      // Breadcrumb aktualisieren mit Edit-Button
       if (window.breadcrumbSystem && this.unternehmen) {
+        const canEdit = window.currentUser?.permissions?.unternehmen?.can_edit !== false;
         window.breadcrumbSystem.updateBreadcrumb([
           { label: 'Unternehmen', url: '/unternehmen', clickable: true },
           { label: this.unternehmen.firmenname || 'Details', url: `/unternehmen/${this.unternehmenId}`, clickable: false }
-        ]);
+        ], {
+          id: 'btn-edit-unternehmen',
+          canEdit: canEdit
+        });
       }
       
+      await this.loadActivities();
       this.render();
       this.bindEvents();
       console.log('✅ UNTERNEHMENDETAIL: Initialisierung abgeschlossen');
     } catch (error) {
       console.error('❌ UNTERNEHMENDETAIL: Fehler bei der Initialisierung:', error);
       window.ErrorHandler.handle(error, 'UnternehmenDetail.init');
+    }
+  }
+
+  // Lade Aktivitäten für Timeline
+  async loadActivities() {
+    try {
+      // Für Unternehmen gibt es keine History-Tabelle, daher leere Aktivitäten
+      this.activities = [];
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Activities:', error);
+      this.activities = [];
     }
   }
 
@@ -303,151 +324,145 @@ export class UnternehmenDetail {
   // Rendere Unternehmen-Detailseite
   render() {
     window.setHeadline(`${this.unternehmen?.firmenname || 'Unternehmen'} - Details`);
-    
-    const html = `
-      <div class="page-header">
-        <div class="page-header-right">
-          <button id="btn-edit-unternehmen" class="secondary-btn">
-            <i class="icon-edit"></i>
-            Unternehmen bearbeiten
-          </button>
-        </div>
-      </div>
 
-      <div class="content-section">
-        <!-- Tab-Navigation -->
-        <div class="tab-navigation">
-          ${renderTabButton({ tab: 'informationen', label: 'Informationen', isActive: true })}
-          ${renderTabButton({ tab: 'marken', label: 'Marken', count: this.marken.length })}
-          ${renderTabButton({ tab: 'ansprechpartner', label: 'Ansprechpartner', count: this.ansprechpartner.length })}
-          ${renderTabButton({ tab: 'auftraege', label: 'Aufträge', count: this.auftraege.length })}
-          ${renderTabButton({ tab: 'auftragsdetails', label: 'Auftragsdetails', count: this.auftragsdetails.length })}
-          ${renderTabButton({ tab: 'briefings', label: 'Briefings', count: this.briefings.length })}
-          ${renderTabButton({ tab: 'kampagnen', label: 'Kampagnen', count: this.kampagnen.length })}
-          ${renderTabButton({ tab: 'kooperationen', label: 'Kooperationen', count: this.kooperationen.length })}
-          ${renderTabButton({ tab: 'creators', label: 'Creator', count: this.creators.length })}
-          ${renderTabButton({ tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen.length })}
-        </div>
+    // Person-Config für die Sidebar (Unternehmen als "Person" behandeln, nur Logo im Header)
+    const personConfig = {
+      name: this.unternehmen?.firmenname || 'Unbekannt',
+      email: '',
+      subtitle: this.unternehmen?.branchen_names?.join(', ') || 'Unternehmen',
+      avatarUrl: this.unternehmen?.logo_url,
+      avatarOnly: true
+    };
 
-        <!-- Tab-Content -->
-        <div class="tab-content">
-          <!-- Informationen Tab -->
-          <div class="tab-pane active" id="informationen">
-            ${this.renderInformationen()}
-          </div>
+    // Quick Actions
+    const quickActions = [];
+    // Keine Standard-Quick-Actions für Unternehmen
 
-          <!-- Marken Tab -->
-          <div class="tab-pane" id="marken">
-            ${this.renderMarken()}
-          </div>
+    // Info-Items für Sidebar
+    const sidebarInfo = this.renderInfoItems([
+      { label: 'Branchen', value: this.unternehmen?.branchen_names?.join(', ') || '-' },
+      { label: 'Rechnungsadresse', value: this.getAdresseDisplay() },
+      { label: 'Erstellt', value: this.formatDate(this.unternehmen?.created_at) },
+      { label: 'Aktualisiert', value: this.formatDate(this.unternehmen?.updated_at) }
+    ]);
 
-          <!-- Ansprechpartner Tab -->
-          <div class="tab-pane" id="ansprechpartner">
-            ${this.renderAnsprechpartner()}
-          </div>
+    // Main Content mit Tabs
+    const mainContent = this.renderMainContent();
 
-          <!-- Aufträge Tab -->
-          <div class="tab-pane" id="auftraege">
-            ${this.renderAuftraege()}
-          </div>
-
-          <!-- Auftragsdetails Tab -->
-          <div class="tab-pane" id="auftragsdetails">
-            ${this.renderAuftragsdetails()}
-          </div>
-
-          <!-- Briefings Tab -->
-          <div class="tab-pane" id="briefings">
-            ${this.renderBriefings()}
-          </div>
-
-          <!-- Kampagnen Tab -->
-          <div class="tab-pane" id="kampagnen">
-            ${this.renderKampagnen()}
-          </div>
-
-          <!-- Kooperationen Tab -->
-          <div class="tab-pane" id="kooperationen">
-            ${this.renderKooperationen()}
-          </div>
-
-          <!-- Creator Tab -->
-          <div class="tab-pane" id="creators">
-            ${this.renderCreators()}
-          </div>
-          
-          <!-- Rechnungen Tab -->
-          <div class="tab-pane" id="rechnungen">
-            ${this.renderRechnungen()}
-          </div>
-        </div>
-      </div>
-    `;
+    // Zwei-Spalten-Layout rendern
+    const html = this.renderTwoColumnLayout({
+      person: personConfig,
+      stats: [],
+      quickActions,
+      sidebarInfo,
+      mainContent
+    });
 
     window.setContentSafely(window.content, html);
   }
 
-  // Rendere Informationen
-  renderInformationen() {
-    // Logo-Anzeige
-    const logoHtml = this.unternehmen?.logo_url ? `
-      <div class="form-logo-display">
-        <img src="${this.unternehmen.logo_url}" alt="${this.unternehmen.firmenname} Logo" class="form-logo-image" />
-      </div>
-    ` : '';
-    
+  getAdresseDisplay() {
+    const parts = [
+      [this.unternehmen?.rechnungsadresse_strasse, this.unternehmen?.rechnungsadresse_hausnummer].filter(Boolean).join(' '),
+      [this.unternehmen?.rechnungsadresse_plz, this.unternehmen?.rechnungsadresse_stadt].filter(Boolean).join(' '),
+      this.unternehmen?.rechnungsadresse_land
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : '-';
+  }
+
+  renderMainContent() {
+    const tabs = [
+      { tab: 'informationen', label: 'Informationen', isActive: this.activeMainTab === 'informationen' },
+      { tab: 'marken', label: 'Marken', count: this.marken.length, isActive: this.activeMainTab === 'marken' },
+      { tab: 'ansprechpartner', label: 'Ansprechpartner', count: this.ansprechpartner.length, isActive: this.activeMainTab === 'ansprechpartner' },
+      { tab: 'auftraege', label: 'Aufträge', count: this.auftraege.length, isActive: this.activeMainTab === 'auftraege' },
+      { tab: 'auftragsdetails', label: 'Auftragsdetails', count: this.auftragsdetails.length, isActive: this.activeMainTab === 'auftragsdetails' },
+      { tab: 'briefings', label: 'Briefings', count: this.briefings.length, isActive: this.activeMainTab === 'briefings' },
+      { tab: 'kampagnen', label: 'Kampagnen', count: this.kampagnen.length, isActive: this.activeMainTab === 'kampagnen' },
+      { tab: 'kooperationen', label: 'Kooperationen', count: this.kooperationen.length, isActive: this.activeMainTab === 'kooperationen' },
+      { tab: 'creators', label: 'Creator', count: this.creators.length, isActive: this.activeMainTab === 'creators' },
+      { tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen.length, isActive: this.activeMainTab === 'rechnungen' }
+    ];
+
     return `
-      <div class="detail-section">
-        ${logoHtml}
-        <div class="detail-grid">
-          <div class="detail-card">
-            <h3>Unternehmen-Informationen</h3>
-            <div class="detail-item">
-              <label>Firmenname:</label>
-              <span>${this.unternehmen?.firmenname || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Branche:</label>
-              <span>${this.unternehmen?.branchen_names?.join(', ') || this.unternehmen?.branche || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Rechnungsadresse:</label>
-              <span>
-                ${[
-                  [this.unternehmen?.rechnungsadresse_strasse, this.unternehmen?.rechnungsadresse_hausnummer].filter(Boolean).join(' '),
-                  [this.unternehmen?.rechnungsadresse_plz, this.unternehmen?.rechnungsadresse_stadt].filter(Boolean).join(' '),
-                  this.unternehmen?.rechnungsadresse_land
-                ].filter(Boolean).join(', ') || '-'}
-              </span>
-            </div>
-            <div class="detail-item">
-              <label>Erstellt am:</label>
-              <span>${this.unternehmen?.created_at ? new Date(this.unternehmen.created_at).toLocaleDateString('de-DE') : '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Zuletzt aktualisiert:</label>
-              <span>${this.unternehmen?.updated_at ? new Date(this.unternehmen.updated_at).toLocaleDateString('de-DE') : '-'}</span>
-            </div>
-          </div>
+      <div class="tab-navigation">
+        ${tabs.map(t => renderTabButton(t)).join('')}
+      </div>
+
+      <div class="tab-content">
+        <div class="tab-pane ${this.activeMainTab === 'informationen' ? 'active' : ''}" id="tab-informationen">
+          ${this.renderInformationen()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'marken' ? 'active' : ''}" id="tab-marken">
+          ${this.renderMarken()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'ansprechpartner' ? 'active' : ''}" id="tab-ansprechpartner">
+          ${this.renderAnsprechpartner()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'auftraege' ? 'active' : ''}" id="tab-auftraege">
+          ${this.renderAuftraege()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'auftragsdetails' ? 'active' : ''}" id="tab-auftragsdetails">
+          ${this.renderAuftragsdetails()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'briefings' ? 'active' : ''}" id="tab-briefings">
+          ${this.renderBriefings()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'kampagnen' ? 'active' : ''}" id="tab-kampagnen">
+          ${this.renderKampagnen()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'kooperationen' ? 'active' : ''}" id="tab-kooperationen">
+          ${this.renderKooperationen()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'creators' ? 'active' : ''}" id="tab-creators">
+          ${this.renderCreators()}
+        </div>
+        
+        <div class="tab-pane ${this.activeMainTab === 'rechnungen' ? 'active' : ''}" id="tab-rechnungen">
+          ${this.renderRechnungen()}
         </div>
       </div>
     `;
   }
 
-  // Rendere Notizen
-  renderNotizen() {
-    if (window.notizenSystem) {
-      return window.notizenSystem.renderNotizenContainer(this.notizen, 'unternehmen', this.unternehmenId);
-    }
-    return '<p>Notizen-System nicht verfügbar</p>';
-  }
-
-  // Rendere Bewertungen
-  renderRatings() {
-    if (window.bewertungsSystem) {
-      return window.bewertungsSystem.renderBewertungenContainer(this.ratings, 'unternehmen', this.unternehmenId);
-    }
-    return '<p>Bewertungs-System nicht verfügbar</p>';
+  // Rendere Informationen
+  renderInformationen() {
+    return `
+      <div class="detail-section">
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Information</th>
+                <th style="text-align: right;">Wert</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Firmenname</strong></td>
+                <td style="text-align: right;">${this.sanitize(this.unternehmen?.firmenname) || '-'}</td>
+              </tr>
+              <tr>
+                <td><strong>Branchen</strong></td>
+                <td style="text-align: right;">${this.unternehmen?.branchen_names?.map(b => `<span class="tag tag--branche">${this.sanitize(b)}</span>`).join(' ') || '-'}</td>
+              </tr>
+              <tr>
+                <td><strong>Rechnungsadresse</strong></td>
+                <td style="text-align: right;">${this.sanitize(this.getAdresseDisplay())}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
   }
 
   // Rendere Marken
@@ -466,12 +481,12 @@ export class UnternehmenDetail {
       <tr>
         <td>
           <a href="#" class="table-link" data-table="marke" data-id="${marke.id}">
-            ${marke.markenname || 'Unbekannte Marke'}
+            ${this.sanitize(marke.markenname) || 'Unbekannte Marke'}
           </a>
         </td>
-        <td>${marke.webseite ? `<a href="${marke.webseite}" target="_blank" rel="noopener">${marke.webseite}</a>` : '-'}</td>
-        <td>${marke.branche || '-'}</td>
-        <td>${marke.created_at ? new Date(marke.created_at).toLocaleDateString('de-DE') : '-'}</td>
+        <td>${marke.webseite ? `<a href="${marke.webseite}" target="_blank" rel="noopener">${this.sanitize(marke.webseite)}</a>` : '-'}</td>
+        <td>${this.sanitize(marke.branche) || '-'}</td>
+        <td>${this.formatDate(marke.created_at)}</td>
       </tr>
     `).join('');
 
@@ -504,21 +519,18 @@ export class UnternehmenDetail {
       `;
     }
 
-    const formatCurrency = (value) => value ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value) : '-';
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
-
     const rows = this.auftraege.map(auftrag => `
       <tr>
         <td>
           <a href="#" class="table-link" data-table="auftrag" data-id="${auftrag.id}">
-            ${auftrag.auftragsname || 'Unbekannter Auftrag'}
+            ${this.sanitize(auftrag.auftragsname) || 'Unbekannter Auftrag'}
           </a>
         </td>
         <td><span class="status-badge status-${auftrag.status?.toLowerCase() || 'unknown'}">${auftrag.status || 'Unbekannt'}</span></td>
-        <td>${auftrag.auftragtype || '-'}</td>
-        <td>${auftrag.marke?.markenname || '-'}</td>
-        <td>${formatCurrency(auftrag.gesamt_budget)}</td>
-        <td>${formatDate(auftrag.created_at)}</td>
+        <td>${this.sanitize(auftrag.auftragtype) || '-'}</td>
+        <td>${this.sanitize(auftrag.marke?.markenname) || '-'}</td>
+        <td>${this.formatCurrency(auftrag.gesamt_budget)}</td>
+        <td>${this.formatDate(auftrag.created_at)}</td>
         <td>
           ${actionBuilder.create('auftrag', auftrag.id)}
         </td>
@@ -559,19 +571,17 @@ export class UnternehmenDetail {
       `;
     }
 
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
-
     const rows = this.auftragsdetails.map(detail => `
       <tr>
         <td>
           <a href="#" class="table-link" data-table="auftragsdetails" data-id="${detail.id}">
-            ${detail.auftrag?.auftragsname || 'Unbekannter Auftrag'}
+            ${this.sanitize(detail.auftrag?.auftragsname) || 'Unbekannter Auftrag'}
           </a>
         </td>
         <td><span class="status-badge status-${detail.auftrag?.status?.toLowerCase() || 'unknown'}">${detail.auftrag?.status || '-'}</span></td>
-        <td>${detail.kategorie || '-'}</td>
-        <td>${detail.beschreibung || '-'}</td>
-        <td>${formatDate(detail.created_at)}</td>
+        <td>${this.sanitize(detail.kategorie) || '-'}</td>
+        <td>${this.sanitize(detail.beschreibung) || '-'}</td>
+        <td>${this.formatDate(detail.created_at)}</td>
         <td>
           ${actionBuilder.create('auftragsdetails', detail.id)}
         </td>
@@ -611,18 +621,16 @@ export class UnternehmenDetail {
       `;
     }
 
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
-
     const rows = this.briefings.map(briefing => `
       <tr>
         <td>
           <a href="#" class="table-link" data-table="briefing" data-id="${briefing.id}">
-            ${briefing.product_service_offer || 'Unbekanntes Briefing'}
+            ${this.sanitize(briefing.product_service_offer) || 'Unbekanntes Briefing'}
           </a>
         </td>
         <td><span class="status-badge status-${briefing.status?.toLowerCase() || 'unknown'}">${briefing.status || '-'}</span></td>
-        <td>${formatDate(briefing.deadline)}</td>
-        <td>${formatDate(briefing.created_at)}</td>
+        <td>${this.formatDate(briefing.deadline)}</td>
+        <td>${this.formatDate(briefing.created_at)}</td>
         <td>
           ${actionBuilder.create('briefing', briefing.id)}
         </td>
@@ -661,19 +669,17 @@ export class UnternehmenDetail {
       `;
     }
 
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
-
     const rows = this.kampagnen.map(k => `
       <tr>
         <td>
           <a href="#" class="table-link" data-table="kampagne" data-id="${k.id}">
-            ${k.kampagnenname || 'Unbekannte Kampagne'}
+            ${this.sanitize(k.kampagnenname) || 'Unbekannte Kampagne'}
           </a>
         </td>
         <td><span class="status-badge status-${k.status?.toLowerCase() || 'unknown'}">${k.status || '-'}</span></td>
-        <td>${k.marke?.markenname || '-'}</td>
-        <td>${formatDate(k.start)}</td>
-        <td>${formatDate(k.deadline)}</td>
+        <td>${this.sanitize(k.marke?.markenname) || '-'}</td>
+        <td>${this.formatDate(k.start)}</td>
+        <td>${this.formatDate(k.deadline)}</td>
         <td>${k.creatoranzahl || 0}</td>
         <td>${k.videoanzahl || 0}</td>
         <td>
@@ -717,20 +723,18 @@ export class UnternehmenDetail {
       `;
     }
 
-    const formatCurrency = (value) => value ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value) : '-';
-
     const rows = this.kooperationen.map(k => `
       <tr>
         <td>
           <a href="#" class="table-link" data-table="kooperation" data-id="${k.id}">
-            ${k.name || 'Kooperation'}
+            ${this.sanitize(k.name) || 'Kooperation'}
           </a>
         </td>
         <td><span class="status-badge status-${k.status?.toLowerCase() || 'unknown'}">${k.status || '-'}</span></td>
-        <td>${k.creator ? `${k.creator.vorname || ''} ${k.creator.nachname || ''}`.trim() || '-' : '-'}</td>
-        <td>${k.kampagne?.kampagnenname || '-'}</td>
+        <td>${k.creator ? `${this.sanitize(k.creator.vorname || '')} ${this.sanitize(k.creator.nachname || '')}`.trim() || '-' : '-'}</td>
+        <td>${this.sanitize(k.kampagne?.kampagnenname) || '-'}</td>
         <td>${k.videoanzahl || 0}</td>
-        <td>${formatCurrency(k.einkaufspreis_gesamt)}</td>
+        <td>${this.formatCurrency(k.einkaufspreis_gesamt)}</td>
         <td>
           ${actionBuilder.create('kooperation', k.id)}
         </td>
@@ -777,9 +781,7 @@ export class UnternehmenDetail {
 
   // Rendere Ansprechpartner (moderne Tabellen-Darstellung wie bei Marken)
   renderAnsprechpartner() {
-    const hasAnsprechpartner = this.ansprechpartner && this.ansprechpartner.length > 0;
-    
-    if (!hasAnsprechpartner) {
+    if (!this.ansprechpartner || this.ansprechpartner.length === 0) {
       return `
         <div class="empty-state">
           <div class="empty-icon">👥</div>
@@ -793,11 +795,11 @@ export class UnternehmenDetail {
       <tr>
         <td>
           <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
-            ${ap.vorname} ${ap.nachname}
+            ${this.sanitize(ap.vorname)} ${this.sanitize(ap.nachname)}
           </a>
         </td>
-        <td>${ap.position?.name || '-'}</td>
-        <td>${ap.email ? `<a href="mailto:${ap.email}">${ap.email}</a>` : '-'}</td>
+        <td>${this.sanitize(ap.position?.name) || '-'}</td>
+        <td>${ap.email ? `<a href="mailto:${ap.email}">${this.sanitize(ap.email)}</a>` : '-'}</td>
         <td>${PhoneDisplay.render(
           ap.telefonnummer_land?.iso_code,
           ap.telefonnummer_land?.vorwahl,
@@ -808,8 +810,7 @@ export class UnternehmenDetail {
           ap.telefonnummer_office_land?.vorwahl,
           ap.telefonnummer_office
         )}</td>
-        <td>${ap.unternehmen?.firmenname || '-'}</td>
-        <td>${ap.stadt || '-'}</td>
+        <td>${this.sanitize(ap.stadt) || '-'}</td>
         <td>
           ${actionBuilder.create('ansprechpartner_unternehmen', ap.id)}
         </td>
@@ -826,7 +827,6 @@ export class UnternehmenDetail {
               <th>Email</th>
               <th>Telefon (Privat)</th>
               <th>Telefon (Büro)</th>
-              <th>Unternehmen</th>
               <th>Stadt</th>
               <th>Aktion</th>
             </tr>
@@ -848,20 +848,20 @@ export class UnternehmenDetail {
         </div>
       `;
     }
-    const fmt = (v) => v ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v) : '-';
-    const fDate = (d) => d ? new Date(d).toLocaleDateString('de-DE') : '-';
+
     const rows = this.rechnungen.map(r => `
       <tr>
-        <td><a href="/rechnung/${r.id}" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${window.validatorSystem.sanitizeHtml(r.rechnung_nr || '—')}</a></td>
+        <td><a href="/rechnung/${r.id}" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${this.sanitize(r.rechnung_nr || '—')}</a></td>
         <td><span class="status-badge status-${(r.status||'unknown').toLowerCase()}">${r.status || '-'}</span></td>
-        <td>${fmt(r.nettobetrag)}</td>
-        <td>${fmt(r.bruttobetrag)}</td>
-        <td>${fDate(r.gestellt_am)}</td>
-        <td>${fDate(r.zahlungsziel)}</td>
-        <td>${fDate(r.bezahlt_am)}</td>
+        <td>${this.formatCurrency(r.nettobetrag)}</td>
+        <td>${this.formatCurrency(r.bruttobetrag)}</td>
+        <td>${this.formatDate(r.gestellt_am)}</td>
+        <td>${this.formatDate(r.zahlungsziel)}</td>
+        <td>${this.formatDate(r.bezahlt_am)}</td>
         <td>${r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener">PDF</a>` : '-'}</td>
       </tr>
     `).join('');
+
     return `
       <div class="data-table-container">
         <table class="data-table">
@@ -885,13 +885,23 @@ export class UnternehmenDetail {
 
   // Binde Events
   bindEvents() {
-    // Tab-Navigation
+    // Sidebar Tabs binden (aus Basis-Klasse)
+    this.bindSidebarTabs();
+
+    // Main Tab-Navigation
     document.addEventListener('click', (e) => {
-      const tabButton = e.target.closest('.tab-button');
-      if (tabButton && tabButton.dataset?.tab) {
-        e.preventDefault();
-        this.switchTab(tabButton.dataset.tab);
-      }
+      const btn = e.target.closest('.tab-button');
+      if (!btn) return;
+      e.preventDefault();
+      const tab = btn.dataset.tab;
+      if (!tab) return;
+      
+      this.activeMainTab = tab;
+      document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      const pane = document.getElementById(`tab-${tab}`);
+      if (pane) pane.classList.add('active');
     });
 
     // Unternehmen bearbeiten Button
@@ -908,6 +918,16 @@ export class UnternehmenDetail {
         if (window.actionsDropdown) {
           window.actionsDropdown.openAddAnsprechpartnerToUnternehmenModal(unternehmenId);
         }
+      }
+    });
+
+    // Navigation zu verknüpften Entitäten
+    document.addEventListener('click', (e) => {
+      if (e.target.classList.contains('table-link')) {
+        e.preventDefault();
+        const table = e.target.dataset.table;
+        const id = e.target.dataset.id;
+        window.navigateTo(`/${table}/${id}`);
       }
     });
 
@@ -931,7 +951,6 @@ export class UnternehmenDetail {
 
     // Soft-Refresh bei Realtime-Updates (nur wenn kein Formular aktiv)
     window.addEventListener('softRefresh', async (e) => {
-      // Prüfe ob ein Formular aktiv ist (Edit-Form oder Create-Drawer)
       const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
       
       if (hasActiveForm) {
@@ -939,7 +958,6 @@ export class UnternehmenDetail {
         return;
       }
       
-      // Nur wenn auf Unternehmen-Detail-Seite
       if (!this.unternehmenId || !location.pathname.includes('/unternehmen/')) {
         return;
       }
@@ -972,28 +990,6 @@ export class UnternehmenDetail {
     } catch (error) {
       console.error('❌ Fehler beim Entfernen des Ansprechpartners:', error);
       alert('Fehler beim Entfernen: ' + (error.message || 'Unbekannter Fehler'));
-    }
-  }
-
-  // Tab wechseln
-  switchTab(tabName) {
-    // Alle Tab-Buttons deaktivieren
-    document.querySelectorAll('.tab-button').forEach(button => {
-      button.classList.remove('active');
-    });
-
-    const activeButton = document.querySelector(`[data-tab="${tabName}"]`);
-    if (activeButton) {
-      activeButton.classList.add('active');
-    }
-
-    document.querySelectorAll('.tab-pane').forEach(pane => {
-      pane.classList.remove('active');
-    });
-
-    const activePane = document.getElementById(tabName);
-    if (activePane) {
-      activePane.classList.add('active');
     }
   }
 
@@ -1228,7 +1224,7 @@ export class UnternehmenDetail {
       alert('Fehler beim Aktualisieren: ' + error.message);
       const submitBtn = form.querySelector('button[type="submit"]');
       if (submitBtn) {
-        submitBtn.innerHTML = originalText;
+        submitBtn.innerHTML = 'Speichern';
         submitBtn.disabled = false;
       }
     }

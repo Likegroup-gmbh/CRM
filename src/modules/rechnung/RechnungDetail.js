@@ -14,12 +14,16 @@ export class RechnungDetail {
     }
     await this.load();
     
-    // Breadcrumb aktualisieren
+    // Breadcrumb aktualisieren mit Edit-Button
     if (window.breadcrumbSystem && this.data) {
+      const canEdit = window.currentUser?.permissions?.rechnung?.can_edit !== false;
       window.breadcrumbSystem.updateBreadcrumb([
         { label: 'Rechnung', url: '/rechnung', clickable: true },
         { label: this.data.rechnung_nr || 'Details', url: `/rechnung/${this.id}`, clickable: false }
-      ]);
+      ], {
+        id: 'btn-edit-rechnung',
+        canEdit: canEdit
+      });
     }
     
     this.render();
@@ -70,12 +74,6 @@ export class RechnungDetail {
     const formatDate = (v) => v ? new Intl.DateTimeFormat('de-DE').format(new Date(v)) : '-';
 
     const html = `
-      <div class="page-header">
-        <div class="page-header-right">
-          <button id="btn-edit-rechnung" class="secondary-btn">Bearbeiten</button>
-        </div>
-      </div>
-
       <div class="content-section">
         <div class="detail-grid">
           <div class="detail-card">

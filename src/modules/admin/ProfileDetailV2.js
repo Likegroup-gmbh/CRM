@@ -421,13 +421,6 @@ export class ProfileDetailV2 extends PersonDetailBase {
       { icon: 'edit', label: 'Bearbeiten', action: 'edit-profile' }
     ];
 
-    // Stats für die Cards
-    const stats = [
-      { label: 'Unternehmen', value: this.unternehmen.length, link: '#main-unternehmen' },
-      { label: 'Kampagnen', value: this.kampagnen.length, link: '#main-kampagnen' },
-      { label: 'Kooperationen', value: this.kooperationen.length, link: '#main-kooperationen' }
-    ];
-
     // Info-Items für Sidebar
     const sidebarInfo = this.renderProfileInfo();
 
@@ -437,7 +430,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     // Zwei-Spalten-Layout rendern
     const html = this.renderTwoColumnLayout({
       person: personConfig,
-      stats,
+      stats: [],
       quickActions,
       sidebarInfo,
       mainContent

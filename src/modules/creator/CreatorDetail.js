@@ -40,10 +40,14 @@ export class CreatorDetail extends PersonDetailBase {
       
       if (window.breadcrumbSystem && this.creator) {
         const creatorName = [this.creator.vorname, this.creator.nachname].filter(Boolean).join(' ') || 'Details';
+        const canEdit = window.currentUser?.permissions?.creator?.can_edit !== false;
         window.breadcrumbSystem.updateBreadcrumb([
           { label: 'Creator', url: '/creator', clickable: true },
           { label: creatorName, url: `/creator/${this.creatorId}`, clickable: false }
-        ]);
+        ], {
+          id: 'btn-edit-creator',
+          canEdit: canEdit
+        });
       }
       
       await this.loadActivitiesData();
@@ -427,35 +431,19 @@ export class CreatorDetail extends PersonDetailBase {
 
     window.setHeadline(`${this.creator.vorname} ${this.creator.nachname}`);
 
-    // Person-Config für die Sidebar
+    // Person-Config für die Sidebar - nur Profilbild im Header
     const creatorName = [this.creator.vorname, this.creator.nachname].filter(Boolean).join(' ') || 'Unbekannt';
     const personConfig = {
       name: creatorName,
       email: this.creator.mail || '',
       subtitle: this.creator.creator_types?.map(t => t.name).join(', ') || 'Creator',
       avatarUrl: this.creator.profilbild_url,
-      lastActivity: this.creator.updated_at
+      lastActivity: this.creator.updated_at,
+      avatarOnly: true
     };
 
-    // Quick Actions
+    // Quick Actions entfernt - nur Profilbild im Header
     const quickActions = [];
-    if (this.creator.mail) {
-      quickActions.push({ icon: 'mail', label: 'Mail', href: `mailto:${this.creator.mail}` });
-    }
-    if (this.creator.telefonnummer) {
-      quickActions.push({ icon: 'phone', label: 'Anrufen', href: `tel:${this.creator.telefonnummer}` });
-    }
-    if (this.creator.portfolio_link) {
-      quickActions.push({ icon: 'link', label: 'Portfolio', href: this.creator.portfolio_link });
-    }
-    quickActions.push({ icon: 'edit', label: 'Bearbeiten', action: 'edit-creator' });
-
-    // Stats für die Cards
-    const stats = [
-      { label: 'Kampagnen', value: this.kampagnen?.length || 0, link: '#tab-kampagnen' },
-      { label: 'Kooperationen', value: this.kooperationen?.length || 0, link: '#tab-kooperationen' },
-      { label: 'Listen', value: this.lists?.length || 0, link: '#tab-listen' }
-    ];
 
     // Info-Items für Sidebar
     const sidebarInfo = this.renderSidebarInfo();
@@ -466,7 +454,7 @@ export class CreatorDetail extends PersonDetailBase {
     // Zwei-Spalten-Layout rendern
     const html = this.renderTwoColumnLayout({
       person: personConfig,
-      stats,
+      stats: [],
       quickActions,
       sidebarInfo,
       mainContent

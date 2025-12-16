@@ -141,8 +141,7 @@ export class KundenDetail extends PersonDetailBase {
       name: this.user?.name || 'Unbekannt',
       email: this.user?.email || '',
       subtitle: 'Kunde',
-      avatarUrl: this.user?.profile_image_url,
-      lastActivity: this.user?.updated_at
+      avatarUrl: this.user?.profile_image_url
     };
 
     // Quick Actions
@@ -153,14 +152,6 @@ export class KundenDetail extends PersonDetailBase {
     if (this.user?.telefon) {
       quickActions.push({ icon: 'phone', label: 'Anrufen', href: `tel:${this.user.telefon}` });
     }
-    quickActions.push({ icon: 'more', label: 'Mehr', action: 'more-actions' });
-
-    // Stats für die Cards
-    const stats = [
-      { label: 'Unternehmen', value: this.assignments.unternehmen.length, link: '#tab-unternehmen' },
-      { label: 'Marken', value: this.assignments.marken.length, link: '#tab-marken' },
-      { label: 'Kampagnen', value: this.assignments.kampagnen.length, link: '#tab-kampagnen' }
-    ];
 
     // Info-Items für Sidebar
     const sidebarInfo = this.renderInfoItems([
@@ -176,7 +167,7 @@ export class KundenDetail extends PersonDetailBase {
     // Zwei-Spalten-Layout rendern
     const html = this.renderTwoColumnLayout({
       person: personConfig,
-      stats,
+      stats: [],
       quickActions,
       sidebarInfo,
       mainContent
@@ -207,7 +198,6 @@ export class KundenDetail extends PersonDetailBase {
         <div class="tab-pane ${this.activeMainTab === 'unternehmen' ? 'active' : ''}" id="tab-unternehmen">
           <div class="detail-section">
             <div class="section-header">
-              <h2>Unternehmen</h2>
               <button class="primary-btn" id="btn-add-unternehmen">Unternehmen hinzufügen</button>
             </div>
             ${this.renderList(this.assignments.unternehmen, 'unternehmen')}
@@ -217,7 +207,6 @@ export class KundenDetail extends PersonDetailBase {
         <div class="tab-pane ${this.activeMainTab === 'marken' ? 'active' : ''}" id="tab-marken">
           <div class="detail-section">
             <div class="section-header">
-              <h2>Marken</h2>
               <button class="primary-btn" id="btn-add-marke">Marke hinzufügen</button>
             </div>
             ${this.renderList(this.assignments.marken, 'marke')}
@@ -226,16 +215,12 @@ export class KundenDetail extends PersonDetailBase {
 
         <div class="tab-pane ${this.activeMainTab === 'kampagnen' ? 'active' : ''}" id="tab-kampagnen">
           <div class="detail-section">
-            <h2>Kampagnen</h2>
-            <p class="form-help" style="margin-bottom: 1rem;">Alle Kampagnen der zugeordneten Unternehmen und Marken</p>
             ${this.renderKampagnenTable()}
           </div>
         </div>
 
         <div class="tab-pane ${this.activeMainTab === 'kooperationen' ? 'active' : ''}" id="tab-kooperationen">
           <div class="detail-section">
-            <h2>Kooperationen</h2>
-            <p class="form-help" style="margin-bottom: 1rem;">Alle Kooperationen der zugeordneten Kampagnen</p>
             ${this.renderKooperationenTable()}
           </div>
         </div>
@@ -246,7 +231,6 @@ export class KundenDetail extends PersonDetailBase {
   renderStammdatenTab() {
     return `
       <div class="detail-section">
-        <h2>Benutzer-Status</h2>
         <div class="data-table-container">
           <table class="data-table">
             <thead>
@@ -280,7 +264,6 @@ export class KundenDetail extends PersonDetailBase {
       </div>
 
       <div class="detail-section">
-        <h2>Rolle</h2>
         <div class="data-table-container">
           <table class="data-table">
             <thead>

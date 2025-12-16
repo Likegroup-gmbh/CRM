@@ -1,5 +1,6 @@
 // MarkeDetail.js (ES6-Modul)
 // Marken-Detailseite mit Tabs für Informationen, Notizen, Bewertungen, Kampagnen und Aufträge
+// Nutzt einheitliches zwei-Spalten-Layout
 
 import { TableHelper } from '../../core/TableHelper.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
@@ -7,9 +8,11 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { renderTabButton } from '../../core/TabUtils.js';
+import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 
-export class MarkeDetail {
+export class MarkeDetail extends PersonDetailBase {
   constructor() {
+    super();
     this.markeId = null;
     this.marke = null;
     this.notizen = [];
@@ -21,6 +24,7 @@ export class MarkeDetail {
     this.ansprechpartner = [];
     this.rechnungen = [];
     this.strategien = [];
+    this.activeMainTab = 'informationen';
   }
 
   // Initialisiere Marken-Detailseite
@@ -31,14 +35,19 @@ export class MarkeDetail {
       this.markeId = markeId;
       await this.loadCriticalData();
       
-      // Breadcrumb aktualisieren
+      // Breadcrumb aktualisieren mit Edit-Button
       if (window.breadcrumbSystem && this.marke) {
+        const canEdit = window.currentUser?.permissions?.marke?.can_edit !== false;
         window.breadcrumbSystem.updateBreadcrumb([
           { label: 'Marke', url: '/marke', clickable: true },
           { label: this.marke.markenname || 'Details', url: `/marke/${this.markeId}`, clickable: false }
-        ]);
+        ], {
+          id: 'btn-edit-marke',
+          canEdit: canEdit
+        });
       }
       
+      await this.loadActivities();
       this.render();
       this.bindEvents();
       this.setupCacheInvalidation();
@@ -68,7 +77,7 @@ export class MarkeDetail {
           .from('marke')
           .select(`
             *,
-            unternehmen:unternehmen_id(firmenname),
+            unternehmen:unternehmen_id(id, firmenname),
             branche:branche_id(name)
           `)
           .eq('id', this.markeId)
@@ -138,6 +147,17 @@ export class MarkeDetail {
     } catch (error) {
       console.error('❌ MARKENDETAIL: Fehler beim Laden der kritischen Daten:', error);
       throw error;
+    }
+  }
+
+  // Lade Aktivitäten für Timeline
+  async loadActivities() {
+    try {
+      // Für Marken gibt es keine History-Tabelle, daher leere Aktivitäten
+      this.activities = [];
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Activities:', error);
+      this.activities = [];
     }
   }
   
@@ -236,7 +256,7 @@ export class MarkeDetail {
   
   // Tab-Update-Methoden
   updateKampagnenTab() {
-    const container = document.querySelector('#kampagnen .data-table-container');
+    const container = document.querySelector('#tab-kampagnen .data-table-container');
     if (container) {
       const parent = container.parentElement;
       parent.innerHTML = this.renderKampagnen();
@@ -244,7 +264,7 @@ export class MarkeDetail {
   }
   
   updateAuftraegeTab() {
-    const container = document.querySelector('#auftraege .data-table-container');
+    const container = document.querySelector('#tab-auftraege .data-table-container');
     if (container) {
       const parent = container.parentElement;
       parent.innerHTML = this.renderAuftraege();
@@ -252,7 +272,7 @@ export class MarkeDetail {
   }
   
   updateBriefingsTab() {
-    const container = document.querySelector('#briefings .data-table-container');
+    const container = document.querySelector('#tab-briefings .data-table-container');
     if (container) {
       const parent = container.parentElement;
       parent.innerHTML = this.renderBriefings();
@@ -260,7 +280,7 @@ export class MarkeDetail {
   }
   
   updateKooperationenTab() {
-    const container = document.querySelector('#kooperationen .data-table-container');
+    const container = document.querySelector('#tab-kooperationen .data-table-container');
     if (container) {
       const parent = container.parentElement;
       parent.innerHTML = this.renderKooperationen();
@@ -268,7 +288,7 @@ export class MarkeDetail {
   }
   
   updateRechnungenTab() {
-    const container = document.querySelector('#rechnungen .data-table-container');
+    const container = document.querySelector('#tab-rechnungen .data-table-container');
     if (container) {
       const parent = container.parentElement;
       parent.innerHTML = this.renderRechnungen();
@@ -276,7 +296,7 @@ export class MarkeDetail {
   }
   
   updateStrategienTab() {
-    const container = document.querySelector('#strategien .data-table-container');
+    const container = document.querySelector('#tab-strategien .data-table-container');
     if (container) {
       const parent = container.parentElement;
       parent.innerHTML = this.renderStrategien();
@@ -300,153 +320,154 @@ export class MarkeDetail {
   // Rendere Marken-Detailseite
   render() {
     window.setHeadline(`${this.marke?.markenname || 'Marke'} - Details`);
-    
-    const html = `
-      <div class="page-header">
-        <div class="page-header-right">
-          <button id="btn-edit-marke" class="secondary-btn">
-            <i class="icon-edit"></i>
-            Marke bearbeiten
-          </button>
-        </div>
-      </div>
 
-      <div class="content-section">
-        <!-- Tab-Navigation -->
-        <div class="tab-navigation">
-          ${renderTabButton({ tab: 'informationen', label: 'Informationen', isActive: true })}
-          ${renderTabButton({ tab: 'ansprechpartner', label: 'Ansprechpartner', count: this.ansprechpartner.length })}
-          ${renderTabButton({ tab: 'auftraege', label: 'Aufträge', count: this.auftraege.length })}
-          ${renderTabButton({ tab: 'briefings', label: 'Briefings', count: this.briefings.length })}
-          ${renderTabButton({ tab: 'kampagnen', label: 'Kampagnen', count: this.kampagnen.length })}
-          ${renderTabButton({ tab: 'kooperationen', label: 'Kooperationen', count: this.kooperationen.length })}
-          ${renderTabButton({ tab: 'strategien', label: 'Strategien', count: this.strategien.length })}
-          ${renderTabButton({ tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen.length })}
-        </div>
+    // Person-Config für die Sidebar (Marke als "Person" behandeln, nur Logo im Header)
+    const personConfig = {
+      name: this.marke?.markenname || 'Unbekannt',
+      email: '',
+      subtitle: this.marke?.unternehmen?.firmenname || 'Marke',
+      avatarUrl: this.marke?.logo_url,
+      avatarOnly: true
+    };
 
-        <!-- Tab-Content -->
-        <div class="tab-content">
-          <!-- Informationen Tab -->
-          <div class="tab-pane active" id="informationen">
-            ${this.renderInformationen()}
-          </div>
+    // Quick Actions (keine im Header für Marken)
+    const quickActions = [];
 
-          <!-- Ansprechpartner Tab -->
-          <div class="tab-pane" id="ansprechpartner">
-            ${this.renderAnsprechpartner()}
-          </div>
+    // Info-Items für Sidebar
+    const sidebarInfo = this.renderInfoItems([
+      { label: 'Unternehmen', value: this.marke?.unternehmen?.firmenname || '-' },
+      { label: 'Branchen', value: this.getBranchenDisplay() },
+      { label: 'Webseite', value: this.marke?.webseite ? 'Vorhanden' : '-' },
+      { label: 'Erstellt', value: this.formatDate(this.marke?.created_at) },
+      { label: 'Aktualisiert', value: this.formatDate(this.marke?.updated_at) }
+    ]);
 
-          <!-- Aufträge Tab -->
-          <div class="tab-pane" id="auftraege">
-            ${this.renderAuftraege()}
-          </div>
+    // Main Content mit Tabs
+    const mainContent = this.renderMainContent();
 
-          <!-- Briefings Tab -->
-          <div class="tab-pane" id="briefings">
-            ${this.renderBriefings()}
-          </div>
-
-          <!-- Kampagnen Tab -->
-          <div class="tab-pane" id="kampagnen">
-            ${this.renderKampagnen()}
-          </div>
-
-          <!-- Kooperationen Tab -->
-          <div class="tab-pane" id="kooperationen">
-            ${this.renderKooperationen()}
-          </div>
-
-          <!-- Strategien Tab -->
-          <div class="tab-pane" id="strategien">
-            ${this.renderStrategien()}
-          </div>
-
-          <!-- Rechnungen Tab -->
-          <div class="tab-pane" id="rechnungen">
-            ${this.renderRechnungen()}
-          </div>
-        </div>
-      </div>
-    `;
+    // Zwei-Spalten-Layout rendern
+    const html = this.renderTwoColumnLayout({
+      person: personConfig,
+      stats: [],
+      quickActions,
+      sidebarInfo,
+      mainContent
+    });
 
     window.setContentSafely(window.content, html);
   }
 
-  // Rendere Informationen
-  renderInformationen() {
-    // Logo-Anzeige
-    const logoHtml = this.marke?.logo_url ? `
-      <div class="form-logo-display">
-        <img src="${this.marke.logo_url}" alt="${this.marke.markenname} Logo" class="form-logo-image" />
-      </div>
-    ` : '';
-    
+  getBranchenDisplay() {
+    if (!this.marke?.branchen || this.marke.branchen.length === 0) return '-';
+    return this.marke.branchen.filter(b => b && b.name).map(b => b.name).join(', ');
+  }
+
+  renderMainContent() {
+    const tabs = [
+      { tab: 'informationen', label: 'Informationen', isActive: this.activeMainTab === 'informationen' },
+      { tab: 'ansprechpartner', label: 'Ansprechpartner', count: this.ansprechpartner.length, isActive: this.activeMainTab === 'ansprechpartner' },
+      { tab: 'auftraege', label: 'Aufträge', count: this.auftraege.length, isActive: this.activeMainTab === 'auftraege' },
+      { tab: 'briefings', label: 'Briefings', count: this.briefings.length, isActive: this.activeMainTab === 'briefings' },
+      { tab: 'kampagnen', label: 'Kampagnen', count: this.kampagnen.length, isActive: this.activeMainTab === 'kampagnen' },
+      { tab: 'kooperationen', label: 'Kooperationen', count: this.kooperationen.length, isActive: this.activeMainTab === 'kooperationen' },
+      { tab: 'strategien', label: 'Strategien', count: this.strategien.length, isActive: this.activeMainTab === 'strategien' },
+      { tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen.length, isActive: this.activeMainTab === 'rechnungen' }
+    ];
+
     return `
-      <div class="detail-section">
-        ${logoHtml}
-        <div class="detail-grid">
-          <div class="detail-card">
-            <div class="detail-item">
-              <label>Markenname:</label>
-              <span>${this.marke?.markenname || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Unternehmen:</label>
-              <span>${this.marke?.unternehmen?.firmenname || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Webseite:</label>
-              <span>
-                ${this.marke?.webseite ? `<a href="${this.marke.webseite}" target="_blank">${this.marke.webseite}</a>` : '-'}
-              </span>
-            </div>
-            <div class="detail-item">
-              <label>Branchen:</label>
-              <span>${this.renderBranchen()}</span>
-            </div>
-            <div class="detail-item">
-              <label>Erstellt am:</label>
-              <span>${this.marke?.created_at ? new Date(this.marke.created_at).toLocaleDateString('de-DE') : '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Zuletzt aktualisiert:</label>
-              <span>${this.marke?.updated_at ? new Date(this.marke.updated_at).toLocaleDateString('de-DE') : '-'}</span>
-            </div>
-          </div>
+      <div class="tab-navigation">
+        ${tabs.map(t => renderTabButton(t)).join('')}
+      </div>
+
+      <div class="tab-content">
+        <div class="tab-pane ${this.activeMainTab === 'informationen' ? 'active' : ''}" id="tab-informationen">
+          ${this.renderInformationen()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'ansprechpartner' ? 'active' : ''}" id="tab-ansprechpartner">
+          ${this.renderAnsprechpartner()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'auftraege' ? 'active' : ''}" id="tab-auftraege">
+          ${this.renderAuftraege()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'briefings' ? 'active' : ''}" id="tab-briefings">
+          ${this.renderBriefings()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'kampagnen' ? 'active' : ''}" id="tab-kampagnen">
+          ${this.renderKampagnen()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'kooperationen' ? 'active' : ''}" id="tab-kooperationen">
+          ${this.renderKooperationen()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'strategien' ? 'active' : ''}" id="tab-strategien">
+          ${this.renderStrategien()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'rechnungen' ? 'active' : ''}" id="tab-rechnungen">
+          ${this.renderRechnungen()}
         </div>
       </div>
     `;
   }
 
-  // Rendere Branchen
-  renderBranchen() {
+  // Rendere Informationen
+  renderInformationen() {
+    return `
+      <div class="detail-section">
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Information</th>
+                <th style="text-align: right;">Wert</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Markenname</strong></td>
+                <td style="text-align: right;">${this.sanitize(this.marke?.markenname) || '-'}</td>
+              </tr>
+              <tr>
+                <td><strong>Unternehmen</strong></td>
+                <td style="text-align: right;">
+                  ${this.marke?.unternehmen?.id 
+                    ? `<a href="/unternehmen/${this.marke.unternehmen.id}" onclick="event.preventDefault(); window.navigateTo('/unternehmen/${this.marke.unternehmen.id}')">${this.sanitize(this.marke.unternehmen.firmenname)}</a>`
+                    : '-'}
+                </td>
+              </tr>
+              <tr>
+                <td><strong>Webseite</strong></td>
+                <td style="text-align: right;">
+                  ${this.marke?.webseite 
+                    ? `<a href="${this.marke.webseite}" target="_blank" rel="noopener">${this.sanitize(this.marke.webseite)}</a>` 
+                    : '-'}
+                </td>
+              </tr>
+              <tr>
+                <td><strong>Branchen</strong></td>
+                <td style="text-align: right;">${this.renderBranchenTags()}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  // Rendere Branchen als Tags
+  renderBranchenTags() {
     if (!this.marke?.branchen || this.marke.branchen.length === 0) {
       return '-';
     }
-
-    // Branchen als Tags mit vorhandenen CSS-Klassen
-    const branchenTags = this.marke.branchen
-      .filter(branche => branche && branche.name) // Nur gültige Branchen
-      .map(branche => `<span class="tag tag--branche">${branche.name}</span>`)
-      .join('');
-
-    return `<div class="tags">${branchenTags}</div>`;
-  }
-
-  // Rendere Notizen
-  renderNotizen() {
-    if (window.notizenSystem) {
-      return window.notizenSystem.renderNotizenContainer(this.notizen, 'marke', this.markeId);
-    }
-    return '<p>Notizen-System nicht verfügbar</p>';
-  }
-
-  // Rendere Bewertungen
-  renderRatings() {
-    if (window.bewertungsSystem) {
-      return window.bewertungsSystem.renderBewertungenContainer(this.ratings, 'marke', this.markeId);
-    }
-    return '<p>Bewertungs-System nicht verfügbar</p>';
+    return this.marke.branchen
+      .filter(branche => branche && branche.name)
+      .map(branche => `<span class="tag tag--branche">${this.sanitize(branche.name)}</span>`)
+      .join(' ');
   }
 
   // Rendere Kampagnen
@@ -461,19 +482,16 @@ export class MarkeDetail {
       `;
     }
 
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
-
     const rows = this.kampagnen.map(kampagne => `
       <tr>
         <td>
           <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
-            ${kampagne.kampagnenname || 'Unbekannte Kampagne'}
+            ${this.sanitize(kampagne.kampagnenname) || 'Unbekannte Kampagne'}
           </a>
         </td>
         <td><span class="status-badge status-${kampagne.status?.toLowerCase() || 'unknown'}">${kampagne.status || 'Unbekannt'}</span></td>
-        <td>${this.marke?.markenname || '-'}</td>
-        <td>${formatDate(kampagne.start)}</td>
-        <td>${formatDate(kampagne.deadline)}</td>
+        <td>${this.formatDate(kampagne.start)}</td>
+        <td>${this.formatDate(kampagne.deadline)}</td>
         <td>${kampagne.creatoranzahl || 0}</td>
         <td>${kampagne.videoanzahl || 0}</td>
         <td>
@@ -489,7 +507,6 @@ export class MarkeDetail {
             <tr>
               <th>Kampagnenname</th>
               <th>Status</th>
-              <th>Marke</th>
               <th>Start</th>
               <th>Deadline</th>
               <th>Creator</th>
@@ -517,21 +534,17 @@ export class MarkeDetail {
       `;
     }
 
-    const formatCurrency = (value) => value ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value) : '-';
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
-
     const rows = this.auftraege.map(auftrag => `
       <tr>
         <td>
           <a href="#" class="table-link" data-table="auftrag" data-id="${auftrag.id}">
-            ${auftrag.auftragsname || 'Unbekannter Auftrag'}
+            ${this.sanitize(auftrag.auftragsname) || 'Unbekannter Auftrag'}
           </a>
         </td>
         <td><span class="status-badge status-${auftrag.status?.toLowerCase() || 'unknown'}">${auftrag.status || 'Unbekannt'}</span></td>
         <td>${auftrag.auftragtype || '-'}</td>
-        <td>${this.marke?.markenname || '-'}</td>
-        <td>${formatCurrency(auftrag.gesamt_budget)}</td>
-        <td>${formatDate(auftrag.created_at)}</td>
+        <td>${this.formatCurrency(auftrag.gesamt_budget)}</td>
+        <td>${this.formatDate(auftrag.created_at)}</td>
         <td>
           ${actionBuilder.create('auftrag', auftrag.id)}
         </td>
@@ -546,7 +559,6 @@ export class MarkeDetail {
               <th>Auftragsname</th>
               <th>Status</th>
               <th>Typ</th>
-              <th>Marke</th>
               <th>Budget</th>
               <th>Erstellt am</th>
               <th>Aktion</th>
@@ -562,29 +574,25 @@ export class MarkeDetail {
 
   // Rendere Ansprechpartner
   renderAnsprechpartner() {
-    const hasAnsprechpartner = this.ansprechpartner && this.ansprechpartner.length > 0;
-    
-    const emptyState = !hasAnsprechpartner ? `
-      <div class="empty-state">
-        <div class="empty-icon">👥</div>
-        <h3>Keine Ansprechpartner vorhanden</h3>
-        <p>Es wurden noch keine Ansprechpartner für diese Marke zugeordnet.</p>
-      </div>
-    ` : '';
-
-    if (!hasAnsprechpartner) {
-      return emptyState;
+    if (!this.ansprechpartner || this.ansprechpartner.length === 0) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">👥</div>
+          <h3>Keine Ansprechpartner vorhanden</h3>
+          <p>Es wurden noch keine Ansprechpartner für diese Marke zugeordnet.</p>
+        </div>
+      `;
     }
 
     const rows = this.ansprechpartner.map(ap => `
       <tr>
         <td>
           <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
-            ${ap.vorname} ${ap.nachname}
+            ${this.sanitize(ap.vorname)} ${this.sanitize(ap.nachname)}
           </a>
         </td>
-        <td>${ap.position?.name || '-'}</td>
-        <td>${ap.email ? `<a href="mailto:${ap.email}">${ap.email}</a>` : '-'}</td>
+        <td>${this.sanitize(ap.position?.name) || '-'}</td>
+        <td>${ap.email ? `<a href="mailto:${ap.email}">${this.sanitize(ap.email)}</a>` : '-'}</td>
         <td>${PhoneDisplay.render(
           ap.telefonnummer_land?.iso_code,
           ap.telefonnummer_land?.vorwahl,
@@ -595,8 +603,7 @@ export class MarkeDetail {
           ap.telefonnummer_office_land?.vorwahl,
           ap.telefonnummer_office
         )}</td>
-        <td>${ap.unternehmen?.firmenname || '-'}</td>
-        <td>${ap.stadt || '-'}</td>
+        <td>${this.sanitize(ap.stadt) || '-'}</td>
       </tr>
     `).join('');
 
@@ -610,7 +617,6 @@ export class MarkeDetail {
               <th>Email</th>
               <th>Telefon (Privat)</th>
               <th>Telefon (Büro)</th>
-              <th>Unternehmen</th>
               <th>Stadt</th>
             </tr>
           </thead>
@@ -629,19 +635,19 @@ export class MarkeDetail {
         </div>
       `;
     }
-    const fmt = (v) => v ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v) : '-';
-    const fDate = (d) => d ? new Date(d).toLocaleDateString('de-DE') : '-';
+
     const rows = this.rechnungen.map(r => `
       <tr>
-        <td><a href="/rechnung/${r.id}" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${window.validatorSystem.sanitizeHtml(r.rechnung_nr || '—')}</a></td>
+        <td><a href="/rechnung/${r.id}" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${this.sanitize(r.rechnung_nr || '—')}</a></td>
         <td>${r.status || '-'}</td>
-        <td>${fmt(r.nettobetrag)}</td>
-        <td>${fmt(r.bruttobetrag)}</td>
-        <td>${fDate(r.gestellt_am)}</td>
+        <td>${this.formatCurrency(r.nettobetrag)}</td>
+        <td>${this.formatCurrency(r.bruttobetrag)}</td>
+        <td>${this.formatDate(r.gestellt_am)}</td>
         <td>${r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener">PDF</a>` : '-'}</td>
       </tr>
     `).join('');
-    const tableHtml = `
+
+    return `
       <div class="data-table-container">
         <table class="data-table" id="marke-rechnungen-table">
           <thead>
@@ -658,22 +664,6 @@ export class MarkeDetail {
         </table>
       </div>
     `;
-    
-    // Tabelle nach dem Rendern optimieren
-    setTimeout(() => {
-      TableHelper.autoOptimizeTable('#marke-rechnungen-table', {
-        columnConfig: {
-          0: { cssClass: 'id-col' }, // Rechnungs-Nr
-          1: { cssClass: 'status-col' }, // Status
-          2: { cssClass: 'number-col' }, // Netto
-          3: { cssClass: 'number-col' }, // Brutto
-          4: { cssClass: 'date-col' }, // Gestellt
-          5: { cssClass: 'contact-col' } // Beleg
-        }
-      });
-    }, 100);
-    
-    return tableHtml;
   }
 
   // Rendere Briefings
@@ -688,18 +678,16 @@ export class MarkeDetail {
       `;
     }
 
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
-
     const rows = this.briefings.map(briefing => `
       <tr>
         <td>
           <a href="#" class="table-link" data-table="briefing" data-id="${briefing.id}">
-            ${briefing.product_service_offer || 'Unbekanntes Briefing'}
+            ${this.sanitize(briefing.product_service_offer) || 'Unbekanntes Briefing'}
           </a>
         </td>
         <td><span class="status-badge status-${briefing.status?.toLowerCase() || 'unknown'}">${briefing.status || '-'}</span></td>
-        <td>${formatDate(briefing.deadline)}</td>
-        <td>${formatDate(briefing.created_at)}</td>
+        <td>${this.formatDate(briefing.deadline)}</td>
+        <td>${this.formatDate(briefing.created_at)}</td>
         <td>
           ${actionBuilder.create('briefing', briefing.id)}
         </td>
@@ -738,20 +726,18 @@ export class MarkeDetail {
       `;
     }
 
-    const formatCurrency = (value) => value ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value) : '-';
-
     const rows = this.kooperationen.map(k => `
       <tr>
         <td>
           <a href="#" class="table-link" data-table="kooperation" data-id="${k.id}">
-            ${k.name || 'Kooperation'}
+            ${this.sanitize(k.name) || 'Kooperation'}
           </a>
         </td>
         <td><span class="status-badge status-${k.status?.toLowerCase() || 'unknown'}">${k.status || '-'}</span></td>
-        <td>${k.creator ? `${k.creator.vorname || ''} ${k.creator.nachname || ''}`.trim() || '-' : '-'}</td>
-        <td>${k.kampagne?.kampagnenname || '-'}</td>
+        <td>${k.creator ? `${this.sanitize(k.creator.vorname || '')} ${this.sanitize(k.creator.nachname || '')}`.trim() || '-' : '-'}</td>
+        <td>${this.sanitize(k.kampagne?.kampagnenname) || '-'}</td>
         <td>${k.videoanzahl || 0}</td>
-        <td>${formatCurrency(k.einkaufspreis_gesamt)}</td>
+        <td>${this.formatCurrency(k.einkaufspreis_gesamt)}</td>
         <td>
           ${actionBuilder.create('kooperation', k.id)}
         </td>
@@ -792,19 +778,17 @@ export class MarkeDetail {
       `;
     }
 
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
-
     const rows = this.strategien.map(strategie => `
       <tr>
         <td>
           <a href="#" class="table-link" data-table="strategie" data-id="${strategie.id}">
-            ${strategie.name || 'Unbenannte Strategie'}
+            ${this.sanitize(strategie.name) || 'Unbenannte Strategie'}
           </a>
         </td>
-        <td>${strategie.teilbereich || '-'}</td>
-        <td>${strategie.beschreibung ? (strategie.beschreibung.length > 100 ? strategie.beschreibung.substring(0, 100) + '...' : strategie.beschreibung) : '-'}</td>
-        <td>${formatDate(strategie.created_at)}</td>
-        <td>${formatDate(strategie.updated_at)}</td>
+        <td>${this.sanitize(strategie.teilbereich) || '-'}</td>
+        <td>${strategie.beschreibung ? (strategie.beschreibung.length > 100 ? this.sanitize(strategie.beschreibung.substring(0, 100)) + '...' : this.sanitize(strategie.beschreibung)) : '-'}</td>
+        <td>${this.formatDate(strategie.created_at)}</td>
+        <td>${this.formatDate(strategie.updated_at)}</td>
         <td>
           ${actionBuilder.create('strategie', strategie.id)}
         </td>
@@ -834,11 +818,29 @@ export class MarkeDetail {
 
   // Binde Events
   bindEvents() {
-    // Tab-Navigation
-    document.addEventListener('click', (e) => {
-      if (e.target.classList.contains('tab-button')) {
-        const tabName = e.target.dataset.tab;
-        this.switchTab(tabName);
+    // Sidebar Tabs binden (aus Basis-Klasse)
+    this.bindSidebarTabs();
+
+    // Main Tab-Navigation mit Lazy Loading
+    document.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.tab-button');
+      if (!btn) return;
+      e.preventDefault();
+      const tab = btn.dataset.tab;
+      if (!tab) return;
+      
+      this.activeMainTab = tab;
+      document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      const pane = document.getElementById(`tab-${tab}`);
+      if (pane) {
+        pane.classList.add('active');
+        
+        // Lazy load Tab-Daten (nur wenn nötig)
+        if (!['informationen', 'ansprechpartner'].includes(tab)) {
+          await this.loadTabData(tab);
+        }
       }
     });
 
@@ -859,26 +861,21 @@ export class MarkeDetail {
       }
     });
 
-    // Notizen und Bewertungen Events
-    document.addEventListener('notizenUpdated', () => {
-      this.loadMarkeData().then(() => {
-        this.render();
-        this.bindEvents();
-      });
-    });
-
-    document.addEventListener('bewertungenUpdated', () => {
-      this.loadMarkeData().then(() => {
-        this.render();
-        this.bindEvents();
-      });
+    // Navigation zu verknüpften Entitäten
+    document.addEventListener('click', (e) => {
+      if (e.target.classList.contains('table-link')) {
+        e.preventDefault();
+        const table = e.target.dataset.table;
+        const id = e.target.dataset.id;
+        window.navigateTo(`/${table}/${id}`);
+      }
     });
 
     // Entity Updates (für Ansprechpartner)
     document.addEventListener('entityUpdated', (e) => {
       if (e.detail?.entity === 'ansprechpartner' && e.detail?.markeId === this.markeId) {
         console.log('🔄 MARKEDETAIL: Ansprechpartner wurde aktualisiert, lade Daten neu');
-        this.loadMarkeData().then(() => {
+        this.loadCriticalData().then(() => {
           this.render();
           this.bindEvents();
         });
@@ -887,7 +884,6 @@ export class MarkeDetail {
 
     // Soft-Refresh bei Realtime-Updates (nur wenn kein Formular aktiv)
     window.addEventListener('softRefresh', async (e) => {
-      // Prüfe ob ein Formular aktiv ist (Edit-Form oder Create-Drawer)
       const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
       
       if (hasActiveForm) {
@@ -895,41 +891,15 @@ export class MarkeDetail {
         return;
       }
       
-      // Nur wenn auf Marke-Detail-Seite
       if (!this.markeId || !location.pathname.includes('/marke/')) {
         return;
       }
       
       console.log('🔄 MARKEDETAIL: Soft-Refresh - lade Daten neu');
-      await this.loadMarkeData();
+      await this.loadCriticalData();
       this.render();
       this.bindEvents();
     });
-  }
-
-  // Tab wechseln mit Lazy Loading
-  async switchTab(tabName) {
-    // UI sofort updaten
-    document.querySelectorAll('.tab-button').forEach(btn => {
-      btn.classList.remove('active');
-    });
-
-    document.querySelectorAll('.tab-pane').forEach(pane => {
-      pane.classList.remove('active');
-    });
-
-    const selectedButton = document.querySelector(`[data-tab="${tabName}"]`);
-    const selectedPane = document.getElementById(tabName);
-
-    if (selectedButton) selectedButton.classList.add('active');
-    if (selectedPane) {
-      selectedPane.classList.add('active');
-      
-      // Lazy load Tab-Daten (nur wenn nötig)
-      if (!['informationen', 'ansprechpartner'].includes(tabName)) {
-        await this.loadTabData(tabName);
-      }
-    }
   }
 
   // Bearbeitungsformular anzeigen
@@ -1288,4 +1258,4 @@ export class MarkeDetail {
   }
 }
 
-export const markeDetail = new MarkeDetail(); 
+export const markeDetail = new MarkeDetail();

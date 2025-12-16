@@ -275,12 +275,6 @@ export const FILTER_CONFIGS = {
       ]
     },
     {
-      id: 'auftragtype',
-      label: 'Auftragstyp',
-      type: 'text',
-      placeholder: 'Nach Auftragstyp suchen...'
-    },
-    {
       id: 'art_der_kampagne',
       label: 'Art der Kampagne',
       type: 'select',

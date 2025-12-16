@@ -10,6 +10,10 @@ export class CreatorAuswahlDetail {
     this.items = [];
     this.isKunde = false;
     this.draggedItem = null;
+    // Drag-to-Scroll State
+    this.isDragging = false;
+    this.startX = 0;
+    this.scrollLeft = 0;
   }
 
   /**
@@ -93,32 +97,28 @@ export class CreatorAuswahlDetail {
       `;
     }
 
-    const colCount = this.isKunde ? 16 : 17;
-
     return `
-      <div class="table-container" style="overflow-x: auto;">
-        <table class="data-table creator-auswahl-table">
+      <div class="table-container creator-pool-table-container">
+        <table class="data-table strategie-items-table creator-pool-table">
           <thead>
             <tr>
-              ${!this.isKunde ? '<th class="col-drag"></th>' : ''}
-              <th>UGC/IGC</th>
-              <th>Bild</th>
-              <th>Name</th>
-              <th>Likes</th>
-              <th>Beschreibung</th>
-              <th>E-Mail</th>
-              <th>Creator</th>
-              <th>Link</th>
-              <th>Rückmeldung</th>
-              <th>Wohnort</th>
-              <th>Gebucht</th>
-              <th>Referenz</th>
-              <th>Feedback CJ</th>
-              <th>Feedback Kunde</th>
-              <th>Prio 1</th>
-              <th>Prio 2</th>
-              <th>Auswahl</th>
-              ${!this.isKunde ? '<th class="col-actions">Aktionen</th>' : ''}
+              ${!this.isKunde ? '<th class="col-drag col-sticky-1 cp-col-drag"></th>' : ''}
+              <th class="${this.isKunde ? 'col-sticky-1' : 'col-sticky-2'} cp-col-name">Name</th>
+              <th class="${this.isKunde ? 'col-sticky-2' : 'col-sticky-3'} cp-col-typ">Creator Art</th>
+              <th class="cp-col-link">Link IG</th>
+              <th class="cp-col-follower">Follower IG</th>
+              <th class="cp-col-link">Link TikTok</th>
+              <th class="cp-col-follower">Follower TikTok</th>
+              <th class="cp-col-check">Rückmeldung</th>
+              <th class="cp-col-kategorie">Kategorie</th>
+              <th class="cp-col-location">Location</th>
+              <th class="cp-col-notiz">Notiz</th>
+              <th class="cp-col-prio">Prio 1</th>
+              <th class="cp-col-prio">Prio 2</th>
+              <th class="cp-col-nicht">Nicht umsetzen</th>
+              <th class="cp-col-pricing">Pricing</th>
+              <th class="cp-col-feedback">Feedback Kunde</th>
+              ${!this.isKunde ? '<th class="col-actions cp-col-actions">Aktionen</th>' : ''}
             </tr>
           </thead>
           <tbody id="items-table-body">
@@ -136,70 +136,68 @@ export class CreatorAuswahlDetail {
     const externalLinkIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>`;
     const isLinkedToCRM = !!item.creator_id;
 
+    const formatFollower = (count) => {
+      if (!count) return '';
+      if (count >= 1000000) return (count / 1000000).toFixed(1) + 'M';
+      if (count >= 1000) return (count / 1000).toFixed(1) + 'K';
+      return count.toLocaleString('de-DE');
+    };
+
     return `
-      <tr class="item-row ${!this.isKunde ? 'draggable' : ''} ${isLinkedToCRM ? 'item-linked' : ''}" data-item-id="${item.id}" draggable="${!this.isKunde}">
+      <tr class="item-row ${!this.isKunde ? 'draggable' : ''} ${isLinkedToCRM ? 'item-linked' : ''} ${item.nicht_umsetzen ? 'item-nicht-umsetzen' : ''}" data-item-id="${item.id}" draggable="${!this.isKunde}">
         ${!this.isKunde ? `
-          <td class="col-drag drag-handle">
+          <td class="col-drag drag-handle col-sticky-1">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="drag-icon" style="width: 16px; height: 16px;">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
             </svg>
           </td>
         ` : ''}
-        <td>
-          <select 
-            class="form-input form-input--compact" 
-            data-field="typ" 
-            data-item-id="${item.id}"
-            ${this.isKunde ? 'disabled' : ''}
-            style="width: 80px;"
-          >
-            <option value="">-</option>
-            <option value="UGC" ${item.typ === 'UGC' ? 'selected' : ''}>UGC</option>
-            <option value="IGC" ${item.typ === 'IGC' ? 'selected' : ''}>IGC</option>
-          </select>
+        <td class="cell-textarea ${this.isKunde ? 'col-sticky-1' : 'col-sticky-2'}">
+          ${!this.isKunde ? `
+            <textarea class="strategie-textarea" data-field="name" data-item-id="${item.id}" placeholder="Name...">${item.name || ''}</textarea>
+          ` : `<div class="cell-text-readonly">${item.name || '-'}</div>`}
         </td>
-        <td>
-          ${item.profile_image_url ? `
-            <img src="${item.profile_image_url}" alt="${item.name || 'Profil'}" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; cursor: pointer;" onclick="window.open('${item.profile_image_url}', '_blank')">
-          ` : `
-            <div style="width: 50px; height: 50px; background: var(--gray-200); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor" style="width: 24px; height: 24px; color: var(--text-muted);">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-              </svg>
+        <td class="cell-textarea ${this.isKunde ? 'col-sticky-2' : 'col-sticky-3'}">
+          ${!this.isKunde ? `
+            <select 
+              class="strategie-textarea" 
+              data-field="typ" 
+              data-item-id="${item.id}"
+              style="border: none; background: transparent; cursor: pointer;"
+            >
+              <option value="">-</option>
+              <option value="IGC" ${item.typ === 'IGC' ? 'selected' : ''}>IGC</option>
+              <option value="UGC" ${item.typ === 'UGC' ? 'selected' : ''}>UGC</option>
+              <option value="Influencer" ${item.typ === 'Influencer' ? 'selected' : ''}>Influencer</option>
+              <option value="Videograf" ${item.typ === 'Videograf' ? 'selected' : ''}>Videograf</option>
+            </select>
+          ` : `<div class="cell-text-readonly">${item.typ || '-'}</div>`}
+        </td>
+        <td class="cell-textarea" style="text-align: center;">
+          ${!this.isKunde ? `
+            <div class="link-cell-wrapper">
+              ${item.link_instagram ? `<a href="${item.link_instagram}" target="_blank" class="link-icon-btn" title="${item.link_instagram}">${externalLinkIcon}</a>` : ''}
+              <textarea class="strategie-textarea link-input" data-field="link_instagram" data-item-id="${item.id}" placeholder="Link...">${item.link_instagram || ''}</textarea>
             </div>
-          `}
-        </td>
-        <td>
-          ${!this.isKunde ? `
-            <input type="text" class="form-input form-input--compact" value="${item.name || ''}" data-field="name" data-item-id="${item.id}" placeholder="Name" style="min-width: 100px;">
-          ` : `<span>${item.name || '-'}</span>`}
-        </td>
-        <td>
-          ${!this.isKunde ? `
-            <input type="number" class="form-input form-input--compact" value="${item.likes || ''}" data-field="likes" data-item-id="${item.id}" placeholder="0" style="width: 70px;">
-          ` : `<span>${item.likes ? item.likes.toLocaleString('de-DE') : '-'}</span>`}
+          ` : item.link_instagram ? `<a href="${item.link_instagram}" target="_blank" class="link-icon-btn" title="${item.link_instagram}">${externalLinkIcon}</a>` : `<div class="cell-text-readonly">-</div>`}
         </td>
         <td class="cell-textarea">
           ${!this.isKunde ? `
-            <textarea class="form-input form-input--compact" data-field="beschreibung" data-item-id="${item.id}" placeholder="Bio..." rows="2" style="min-width: 150px;">${item.beschreibung || ''}</textarea>
-          ` : `<span class="cell-text-readonly">${item.beschreibung || '-'}</span>`}
+            <textarea class="strategie-textarea" data-field="follower_instagram" data-item-id="${item.id}" placeholder="0">${item.follower_instagram || ''}</textarea>
+          ` : `<div class="cell-text-readonly">${formatFollower(item.follower_instagram) || '-'}</div>`}
         </td>
-        <td>
+        <td class="cell-textarea" style="text-align: center;">
           ${!this.isKunde ? `
-            <input type="email" class="form-input form-input--compact" value="${item.email || ''}" data-field="email" data-item-id="${item.id}" placeholder="E-Mail" style="min-width: 120px;">
-          ` : `<span>${item.email || '-'}</span>`}
+            <div class="link-cell-wrapper">
+              ${item.link_tiktok ? `<a href="${item.link_tiktok}" target="_blank" class="link-icon-btn" title="${item.link_tiktok}">${externalLinkIcon}</a>` : ''}
+              <textarea class="strategie-textarea link-input" data-field="link_tiktok" data-item-id="${item.id}" placeholder="Link...">${item.link_tiktok || ''}</textarea>
+            </div>
+          ` : item.link_tiktok ? `<a href="${item.link_tiktok}" target="_blank" class="link-icon-btn" title="${item.link_tiktok}">${externalLinkIcon}</a>` : `<div class="cell-text-readonly">-</div>`}
         </td>
-        <td>
+        <td class="cell-textarea">
           ${!this.isKunde ? `
-            <input type="text" class="form-input form-input--compact" value="${item.creator_handle || ''}" data-field="creator_handle" data-item-id="${item.id}" placeholder="@handle" style="min-width: 100px;">
-          ` : `<span>${item.creator_handle || '-'}</span>`}
-        </td>
-        <td style="text-align: center;">
-          ${item.link ? `
-            <a href="${item.link}" target="_blank" rel="noopener noreferrer" style="color: var(--color-primary); display: inline-flex;" title="${item.link}">
-              ${externalLinkIcon}
-            </a>
-          ` : '-'}
+            <textarea class="strategie-textarea" data-field="follower_tiktok" data-item-id="${item.id}" placeholder="0">${item.follower_tiktok || ''}</textarea>
+          ` : `<div class="cell-text-readonly">${formatFollower(item.follower_tiktok) || '-'}</div>`}
         </td>
         <td style="text-align: center;">
           <input 
@@ -207,45 +205,24 @@ export class CreatorAuswahlDetail {
             ${item.rueckmeldung_creator ? 'checked' : ''} 
             data-field="rueckmeldung_creator"
             data-item-id="${item.id}"
-            style="width: 18px; height: 18px; cursor: ${this.isKunde ? 'default' : 'pointer'};"
+            style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'default' : 'pointer'};"
             ${this.isKunde ? 'disabled' : ''}
           >
         </td>
-        <td>
+        <td class="cell-textarea">
           ${!this.isKunde ? `
-            <input type="text" class="form-input form-input--compact" value="${item.wohnort || ''}" data-field="wohnort" data-item-id="${item.id}" placeholder="Wohnort" style="min-width: 80px;">
-          ` : `<span>${item.wohnort || '-'}</span>`}
-        </td>
-        <td style="text-align: center;">
-          <input 
-            type="checkbox" 
-            ${item.gebucht ? 'checked' : ''} 
-            data-field="gebucht"
-            data-item-id="${item.id}"
-            style="width: 18px; height: 18px; cursor: ${this.isKunde ? 'default' : 'pointer'};"
-            ${this.isKunde ? 'disabled' : ''}
-          >
-        </td>
-        <td>
-          ${!this.isKunde ? `
-            <input type="url" class="form-input form-input--compact" value="${item.referenz || ''}" data-field="referenz" data-item-id="${item.id}" placeholder="Link" style="min-width: 100px;">
-          ` : item.referenz ? `<a href="${item.referenz}" target="_blank" style="color: var(--color-primary);">${externalLinkIcon}</a>` : '-'}
+            <textarea class="strategie-textarea" data-field="kategorie" data-item-id="${item.id}" placeholder="Kategorie...">${item.kategorie || ''}</textarea>
+          ` : `<div class="cell-text-readonly">${item.kategorie || '-'}</div>`}
         </td>
         <td class="cell-textarea">
           ${!this.isKunde ? `
-            <textarea class="form-input form-input--compact" data-field="feedback_cj" data-item-id="${item.id}" placeholder="CJ Feedback..." rows="2" style="min-width: 100px;">${item.feedback_cj || ''}</textarea>
-          ` : `<span class="cell-text-readonly">${item.feedback_cj || '-'}</span>`}
+            <textarea class="strategie-textarea" data-field="wohnort" data-item-id="${item.id}" placeholder="Location...">${item.wohnort || ''}</textarea>
+          ` : `<div class="cell-text-readonly">${item.wohnort || '-'}</div>`}
         </td>
         <td class="cell-textarea">
-          <textarea 
-            class="form-input form-input--compact ${this.isKunde ? '' : 'readonly-textarea'}" 
-            data-field="feedback_kunde" 
-            data-item-id="${item.id}" 
-            placeholder="${this.isKunde ? 'Ihr Feedback...' : 'Kunden-Feedback...'}" 
-            rows="2" 
-            style="min-width: 100px;"
-            ${this.isKunde ? '' : 'readonly'}
-          >${item.feedback_kunde || ''}</textarea>
+          ${!this.isKunde ? `
+            <textarea class="strategie-textarea" data-field="notiz" data-item-id="${item.id}" placeholder="Notiz...">${item.notiz || ''}</textarea>
+          ` : `<div class="cell-text-readonly">${item.notiz || '-'}</div>`}
         </td>
         <td style="text-align: center;">
           <input 
@@ -253,8 +230,7 @@ export class CreatorAuswahlDetail {
             ${item.prio_1 ? 'checked' : ''} 
             data-field="prio_1"
             data-item-id="${item.id}"
-            style="width: 18px; height: 18px; cursor: pointer;"
-            ${!this.isKunde ? 'disabled' : ''}
+            style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'pointer' : 'default'}; ${!this.isKunde ? 'pointer-events: none;' : ''}"
           >
         </td>
         <td style="text-align: center;">
@@ -263,19 +239,31 @@ export class CreatorAuswahlDetail {
             ${item.prio_2 ? 'checked' : ''} 
             data-field="prio_2"
             data-item-id="${item.id}"
-            style="width: 18px; height: 18px; cursor: pointer;"
-            ${!this.isKunde ? 'disabled' : ''}
+            style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'pointer' : 'default'}; ${!this.isKunde ? 'pointer-events: none;' : ''}"
           >
         </td>
         <td style="text-align: center;">
           <input 
             type="checkbox" 
-            ${item.ausgewaehlt ? 'checked' : ''} 
-            data-field="ausgewaehlt"
+            ${item.nicht_umsetzen ? 'checked' : ''} 
+            data-field="nicht_umsetzen"
             data-item-id="${item.id}"
-            style="width: 18px; height: 18px; cursor: pointer;"
-            ${!this.isKunde ? 'disabled' : ''}
+            style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'pointer' : 'default'}; ${!this.isKunde ? 'pointer-events: none;' : ''}"
           >
+        </td>
+        <td class="cell-textarea">
+          ${!this.isKunde ? `
+            <textarea class="strategie-textarea" data-field="pricing" data-item-id="${item.id}" placeholder="Preis...">${item.pricing || ''}</textarea>
+          ` : `<div class="cell-text-readonly">${item.pricing || '-'}</div>`}
+        </td>
+        <td class="cell-textarea">
+          <textarea 
+            class="strategie-textarea ${this.isKunde ? '' : 'readonly-textarea'}" 
+            data-field="feedback_kunde" 
+            data-item-id="${item.id}" 
+            placeholder="${this.isKunde ? 'Ihr Feedback...' : 'Kunden-Feedback...'}"
+            ${this.isKunde ? '' : 'readonly'}
+          >${item.feedback_kunde || ''}</textarea>
         </td>
         ${!this.isKunde ? `
           <td class="col-actions">
@@ -328,6 +316,10 @@ export class CreatorAuswahlDetail {
 
       this.bindDragAndDropEvents();
     }
+
+    // Floating Scrollbar und Drag-to-Scroll initialisieren
+    this.initFloatingScrollbar();
+    this.bindDragToScroll();
 
     // Feld-Updates (Input/Textarea/Select)
     document.querySelectorAll('input[data-field], textarea[data-field], select[data-field]').forEach(el => {
@@ -456,10 +448,12 @@ export class CreatorAuswahlDetail {
 
     if (element.type === 'checkbox') {
       value = element.checked;
-    } else if (element.type === 'number') {
-      value = element.value ? parseInt(element.value, 10) : null;
+    } else if (field === 'follower_instagram' || field === 'follower_tiktok') {
+      // Zahlenfelder parsen
+      const numValue = element.value?.trim();
+      value = numValue ? parseInt(numValue.replace(/[^\d]/g, ''), 10) : null;
     } else {
-      value = element.value || null;
+      value = element.value?.trim() || null;
     }
 
     try {
@@ -495,7 +489,7 @@ export class CreatorAuswahlDetail {
     header.innerHTML = `
       <div>
         <span class="drawer-title">Creator hinzufügen</span>
-        <p class="drawer-subtitle">TikTok oder Instagram Profil-URL eingeben</p>
+        <p class="drawer-subtitle">Creator manuell zur Auswahlliste hinzufügen</p>
       </div>
       <div>
         <button class="drawer-close-btn" type="button" aria-label="Schließen">&times;</button>
@@ -507,27 +501,70 @@ export class CreatorAuswahlDetail {
     body.innerHTML = `
       <form id="add-creator-form">
         <div class="form-field">
-          <label class="form-label">Profil-URL *</label>
-          <input type="url" id="creator-url" name="url" required class="form-input" placeholder="https://tiktok.com/@username oder https://instagram.com/username">
-          <small style="color: var(--text-secondary); font-size: var(--text-xs); margin-top: var(--space-xs); display: block;">
-            TikTok oder Instagram Profil-URL eingeben. Die Daten werden automatisch gescraped.
-          </small>
-        </div>
-
-        <div class="form-field">
-          <label class="form-label">Creator-Typ</label>
-          <select id="creator-typ" name="typ" class="form-input">
-            <option value="">Nicht festgelegt</option>
-            <option value="UGC">UGC (User Generated Content)</option>
-            <option value="IGC">IGC (Influencer Generated Content)</option>
+          <label class="form-label">Creator Art *</label>
+          <select id="creator-typ" name="typ" class="form-input" required>
+            <option value="">Bitte wählen...</option>
+            <option value="IGC">IGC</option>
+            <option value="UGC">UGC</option>
+            <option value="Influencer">Influencer</option>
+            <option value="Videograf">Videograf</option>
           </select>
         </div>
 
-        <div id="scrape-status" style="display: none; padding: var(--space-md); background: var(--gray-100); border-radius: var(--radius-md); margin-top: var(--space-md);">
-          <div style="display: flex; align-items: center; gap: var(--space-sm);">
-            <div class="spinner" style="width: 20px; height: 20px; border: 2px solid var(--gray-300); border-top-color: var(--color-primary); border-radius: 50%; animation: spin 1s linear infinite;"></div>
-            <span>Lade Creator-Daten...</span>
+        <div class="form-field">
+          <label class="form-label">Name *</label>
+          <input type="text" id="creator-name" name="name" required class="form-input" placeholder="Name des Creators">
+        </div>
+
+        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
+          <div class="form-field">
+            <label class="form-label">Link Instagram</label>
+            <input type="url" name="link_instagram" class="form-input" placeholder="https://instagram.com/...">
           </div>
+          <div class="form-field">
+            <label class="form-label">Follower IG</label>
+            <input type="number" name="follower_instagram" class="form-input" placeholder="z.B. 10000">
+          </div>
+        </div>
+
+        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
+          <div class="form-field">
+            <label class="form-label">Link TikTok</label>
+            <input type="url" name="link_tiktok" class="form-input" placeholder="https://tiktok.com/@...">
+          </div>
+          <div class="form-field">
+            <label class="form-label">Follower TikTok</label>
+            <input type="number" name="follower_tiktok" class="form-input" placeholder="z.B. 50000">
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Rückmeldung</label>
+          <select name="rueckmeldung_creator" class="form-input">
+            <option value="false">Nein</option>
+            <option value="true">Ja</option>
+          </select>
+        </div>
+
+        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
+          <div class="form-field">
+            <label class="form-label">Kategorie</label>
+            <input type="text" name="kategorie" class="form-input" placeholder="z.B. Food, Fashion, Tech">
+          </div>
+          <div class="form-field">
+            <label class="form-label">Location</label>
+            <input type="text" name="wohnort" class="form-input" placeholder="z.B. Berlin">
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Notiz</label>
+          <textarea name="notiz" class="form-input" rows="2" placeholder="Interne Notizen..."></textarea>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Pricing</label>
+          <input type="text" name="pricing" class="form-input" placeholder="z.B. 500€ pro Video">
         </div>
 
         <div class="drawer-footer">
@@ -535,16 +572,10 @@ export class CreatorAuswahlDetail {
             <span class="mdc-btn__label">Abbrechen</span>
           </button>
           <button type="submit" class="mdc-btn mdc-btn--create" id="submit-btn">
-            <span class="mdc-btn__label">Creator scrapen & hinzufügen</span>
+            <span class="mdc-btn__label">Creator hinzufügen</span>
           </button>
         </div>
       </form>
-
-      <style>
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      </style>
     `;
 
     panel.appendChild(header);
@@ -580,33 +611,36 @@ export class CreatorAuswahlDetail {
   }
 
   /**
-   * Creator hinzufügen (mit Scraping)
+   * Creator manuell hinzufügen
    */
   async handleAddCreatorSubmit(formData) {
-    const url = formData.get('url')?.trim();
-    const typ = formData.get('typ') || null;
+    const typ = formData.get('typ')?.trim();
+    const name = formData.get('name')?.trim();
 
-    if (!url) {
-      window.toastSystem?.show('Bitte URL eingeben', 'error');
+    if (!typ || !name) {
+      window.toastSystem?.show('Bitte Creator Art und Name ausfüllen', 'error');
       return;
     }
 
-    const statusEl = document.getElementById('scrape-status');
     const submitBtn = document.getElementById('submit-btn');
     
     try {
-      // Status anzeigen
-      statusEl.style.display = 'block';
       submitBtn.disabled = true;
 
-      // Scraping durchführen
-      const scrapedData = await creatorAuswahlService.scrapeCreator(url);
-
-      // Item erstellen
+      // Item-Daten aus Formular zusammenstellen
       const itemData = {
         creator_auswahl_id: this.listeId,
         typ,
-        ...scrapedData,
+        name,
+        link_instagram: formData.get('link_instagram')?.trim() || null,
+        follower_instagram: formData.get('follower_instagram') ? parseInt(formData.get('follower_instagram'), 10) : null,
+        link_tiktok: formData.get('link_tiktok')?.trim() || null,
+        follower_tiktok: formData.get('follower_tiktok') ? parseInt(formData.get('follower_tiktok'), 10) : null,
+        rueckmeldung_creator: formData.get('rueckmeldung_creator') === 'true',
+        kategorie: formData.get('kategorie')?.trim() || null,
+        wohnort: formData.get('wohnort')?.trim() || null,
+        notiz: formData.get('notiz')?.trim() || null,
+        pricing: formData.get('pricing')?.trim() || null,
         sortierung: this.items.length
       };
 
@@ -619,9 +653,7 @@ export class CreatorAuswahlDetail {
 
     } catch (error) {
       console.error('Fehler beim Hinzufügen:', error);
-      window.toastSystem?.show(error.message || 'Fehler beim Scrapen des Creators', 'error');
-      
-      statusEl.style.display = 'none';
+      window.toastSystem?.show(error.message || 'Fehler beim Hinzufügen des Creators', 'error');
       submitBtn.disabled = false;
     }
   }
@@ -704,10 +736,180 @@ export class CreatorAuswahlDetail {
     setTimeout(() => this.removeDrawer(), 300);
   }
 
+  /**
+   * Floating Scrollbar initialisieren
+   */
+  initFloatingScrollbar() {
+    // Entferne vorhandene Floating Scrollbar
+    const existingScrollbar = document.getElementById('floating-scrollbar-creator-auswahl');
+    if (existingScrollbar) {
+      existingScrollbar.remove();
+    }
+
+    const tableWrapper = document.querySelector('.table-container');
+    if (!tableWrapper) return;
+
+    // Erstelle Floating Scrollbar
+    const floatingScrollbar = document.createElement('div');
+    floatingScrollbar.id = 'floating-scrollbar-creator-auswahl';
+    floatingScrollbar.className = 'floating-scrollbar-kampagne';
+
+    const scrollbarInner = document.createElement('div');
+    scrollbarInner.className = 'floating-scrollbar-inner';
+    floatingScrollbar.appendChild(scrollbarInner);
+
+    document.body.appendChild(floatingScrollbar);
+
+    // Update Scrollbar-Größe und Position
+    const updateScrollbarSize = () => {
+      const table = tableWrapper.querySelector('table');
+      if (table) {
+        scrollbarInner.style.width = table.scrollWidth + 'px';
+      }
+      const wrapperRect = tableWrapper.getBoundingClientRect();
+      floatingScrollbar.style.left = wrapperRect.left + 'px';
+      floatingScrollbar.style.width = wrapperRect.width + 'px';
+    };
+
+    updateScrollbarSize();
+
+    // Synchronisiere Scrolling
+    const handleFloatingScroll = () => {
+      if (this._isScrollingFromTable) return;
+      this._isScrollingFromFloating = true;
+      tableWrapper.scrollLeft = floatingScrollbar.scrollLeft;
+      requestAnimationFrame(() => { this._isScrollingFromFloating = false; });
+    };
+
+    floatingScrollbar.addEventListener('scroll', handleFloatingScroll);
+
+    const handleTableScroll = () => {
+      if (this._isScrollingFromFloating) return;
+      this._isScrollingFromTable = true;
+      floatingScrollbar.scrollLeft = tableWrapper.scrollLeft;
+      requestAnimationFrame(() => { this._isScrollingFromTable = false; });
+    };
+
+    tableWrapper.addEventListener('scroll', handleTableScroll);
+
+    // Zeige/Verstecke Floating-Scrollbar
+    const toggleFloatingScrollbar = () => {
+      const wrapperRect = tableWrapper.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const isTableVisible = wrapperRect.top < viewportHeight && wrapperRect.bottom > 0;
+      const needsScroll = tableWrapper.scrollWidth > tableWrapper.clientWidth;
+
+      if (isTableVisible && needsScroll && wrapperRect.bottom > viewportHeight) {
+        floatingScrollbar.classList.add('visible');
+        updateScrollbarSize();
+      } else {
+        floatingScrollbar.classList.remove('visible');
+      }
+    };
+
+    toggleFloatingScrollbar();
+    window.addEventListener('scroll', toggleFloatingScrollbar);
+    window.addEventListener('resize', () => {
+      updateScrollbarSize();
+      toggleFloatingScrollbar();
+    });
+
+    // Cleanup-Funktion speichern
+    this.cleanupFloatingScrollbar = () => {
+      floatingScrollbar.classList.remove('visible');
+      window.removeEventListener('scroll', toggleFloatingScrollbar);
+      floatingScrollbar.removeEventListener('scroll', handleFloatingScroll);
+      tableWrapper.removeEventListener('scroll', handleTableScroll);
+      if (floatingScrollbar.parentNode) {
+        floatingScrollbar.parentNode.removeChild(floatingScrollbar);
+      }
+    };
+  }
+
+  /**
+   * Drag-to-Scroll für horizontales Scrollen
+   */
+  bindDragToScroll() {
+    const container = document.querySelector('.table-container');
+    if (!container) return;
+
+    // Entferne alte Event-Listener
+    if (this._dragMouseDown) {
+      container.removeEventListener('mousedown', this._dragMouseDown);
+      document.removeEventListener('mousemove', this._dragMouseMove);
+      document.removeEventListener('mouseup', this._dragMouseUp);
+    }
+
+    this._dragMouseDown = (e) => {
+      // Ignoriere wenn auf editierbare Elemente geklickt wird
+      if (
+        e.target.tagName === 'TEXTAREA' ||
+        e.target.tagName === 'SELECT' ||
+        e.target.tagName === 'INPUT' ||
+        e.target.tagName === 'BUTTON' ||
+        e.target.tagName === 'A' ||
+        e.target.closest('a') ||
+        e.target.closest('.actions-dropdown-container') ||
+        e.target.closest('.drag-handle')
+      ) {
+        return;
+      }
+
+      this.isDragging = true;
+      this.startX = e.pageX - container.offsetLeft;
+      this.scrollLeft = container.scrollLeft;
+
+      container.style.cursor = 'grabbing';
+      container.style.userSelect = 'none';
+
+      e.preventDefault();
+    };
+
+    this._dragMouseMove = (e) => {
+      if (!this.isDragging) return;
+
+      e.preventDefault();
+
+      const x = e.pageX - container.offsetLeft;
+      const walk = (x - this.startX) * 1.5;
+      container.scrollLeft = this.scrollLeft - walk;
+    };
+
+    this._dragMouseUp = () => {
+      if (this.isDragging) {
+        this.isDragging = false;
+        container.style.cursor = 'grab';
+        container.style.userSelect = '';
+      }
+    };
+
+    container.addEventListener('mousedown', this._dragMouseDown);
+    document.addEventListener('mousemove', this._dragMouseMove);
+    document.addEventListener('mouseup', this._dragMouseUp);
+
+    // Setze initialen Cursor und Klasse
+    container.classList.add('drag-scroll-enabled');
+    container.style.cursor = 'grab';
+  }
+
   destroy() {
     this._boundEventListeners.forEach(cleanup => cleanup());
     this._boundEventListeners.clear();
     this.removeDrawer();
+    
+    // Cleanup Floating Scrollbar
+    if (this.cleanupFloatingScrollbar) {
+      this.cleanupFloatingScrollbar();
+      this.cleanupFloatingScrollbar = null;
+    }
+    
+    // Cleanup Drag-to-Scroll
+    const container = document.querySelector('.table-container');
+    if (container && this._dragMouseDown) {
+      container.removeEventListener('mousedown', this._dragMouseDown);
+      document.removeEventListener('mousemove', this._dragMouseMove);
+      document.removeEventListener('mouseup', this._dragMouseUp);
+    }
   }
 }
 

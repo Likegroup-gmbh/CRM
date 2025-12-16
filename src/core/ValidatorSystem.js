@@ -60,7 +60,12 @@ export class ValidatorSystem {
     }
     
     try {
-      new URL(url);
+      // URL-Felder haben visuellen https:// Prefix - füge diesen zur Validierung hinzu
+      let urlToValidate = url.trim();
+      if (!urlToValidate.match(/^https?:\/\//i)) {
+        urlToValidate = 'https://' + urlToValidate;
+      }
+      new URL(urlToValidate);
       return true;
     } catch {
       return false;

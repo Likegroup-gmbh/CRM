@@ -22,12 +22,16 @@ export class BriefingDetail {
     try {
       await this.loadCriticalData();
       
-      // Breadcrumb aktualisieren
+      // Breadcrumb aktualisieren mit Edit-Button
       if (window.breadcrumbSystem && this.briefing) {
+        const canEdit = window.currentUser?.permissions?.briefing?.can_edit || false;
         window.breadcrumbSystem.updateBreadcrumb([
           { label: 'Briefing', url: '/briefing', clickable: true },
           { label: this.briefing.product_service_offer || 'Details', url: `/briefing/${this.briefingId}`, clickable: false }
-        ]);
+        ], {
+          id: 'btn-edit-briefing',
+          canEdit: canEdit
+        });
       }
       
       await this.render();
@@ -141,7 +145,6 @@ export class BriefingDetail {
     const title = this.briefing.product_service_offer || 'Briefing';
     window.setHeadline(`Briefing: ${window.validatorSystem?.sanitizeHtml?.(title) || title}`);
 
-    const canEdit = window.currentUser?.permissions?.briefing?.can_edit || false;
     const isAdmin = window.currentUser?.rolle === 'admin';
     const canDelete = isAdmin; // Nur Admins dürfen löschen
 
@@ -149,12 +152,13 @@ export class BriefingDetail {
     const escape = (s) => window.validatorSystem?.sanitizeHtml?.(s || '-') || (s || '-');
 
     const html = `
+      ${canDelete ? `
       <div class="page-header">
         <div class="page-header-right">
-          ${canDelete ? `<button id="btn-delete-briefing" class="danger-btn">Löschen</button>` : ''}
-          ${canEdit ? `<button id="btn-edit-briefing" class="primary-btn">Bearbeiten</button>` : ''}
+          <button id="btn-delete-briefing" class="danger-btn">Löschen</button>
         </div>
       </div>
+      ` : ''}
 
       <div class="content-section">
         <div class="tab-navigation">

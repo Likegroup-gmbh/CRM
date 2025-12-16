@@ -34,12 +34,16 @@ export class AuftragDetail {
       this.auftragId = auftragId;
       await this.loadCriticalData();
       
-      // Breadcrumb aktualisieren
+      // Breadcrumb aktualisieren mit Edit-Button
       if (window.breadcrumbSystem && this.auftrag) {
+        const canEdit = window.currentUser?.permissions?.auftrag?.can_edit !== false;
         window.breadcrumbSystem.updateBreadcrumb([
           { label: 'Auftrag', url: '/auftrag', clickable: true },
           { label: this.auftrag.auftragsname || 'Details', url: `/auftrag/${this.auftragId}`, clickable: false }
-        ]);
+        ], {
+          id: 'btn-edit-auftrag',
+          canEdit: canEdit
+        });
       }
       
       this.render();
@@ -435,15 +439,6 @@ export class AuftragDetail {
     window.setHeadline(`${this.auftrag?.auftragsname || 'Auftrag'} - Details`);
     
     const html = `
-      <div class="page-header">
-        <div class="page-header-right">
-          <button id="btn-edit-auftrag" class="secondary-btn">
-            <i class="icon-edit"></i>
-            Auftrag bearbeiten
-          </button>
-        </div>
-      </div>
-
       <div class="content-section">
         <!-- Tab-Navigation (nur Auftragsdetails) -->
         <div class="tab-navigation">
@@ -564,12 +559,13 @@ export class AuftragDetail {
 
     const tableRows = sections.map(section => {
       const videoAnzahl = details[`${section.prefix}_video_anzahl`];
+      const bilderAnzahl = details[`${section.prefix}_bilder_anzahl`];
       const creatorAnzahl = details[`${section.prefix}_creator_anzahl`];
       const videographenAnzahl = details[`${section.prefix}_videographen_anzahl`];
       const budgetInfo = details[`${section.prefix}_budget_info`];
 
       // Zeige nur Zeilen mit Daten
-      if (!videoAnzahl && !creatorAnzahl && !videographenAnzahl && !budgetInfo) {
+      if (!videoAnzahl && !bilderAnzahl && !creatorAnzahl && !videographenAnzahl && !budgetInfo) {
         return '';
       }
 
@@ -580,9 +576,10 @@ export class AuftragDetail {
             ${section.title}
           </td>
           <td class="text-center">${num(videoAnzahl)}</td>
+          <td class="text-center">${num(bilderAnzahl)}</td>
           <td class="text-center">${num(creatorAnzahl)}</td>
           <td class="text-center">${num(videographenAnzahl)}</td>
-          <td class="budget-cell">${budgetInfo ? `<div class="budget-info">${window.validatorSystem.sanitizeHtml(budgetInfo)}</div>` : '-'}</td>
+          <td class="budget-cell">${budgetInfo ? `<div class="budget-info-large">${window.validatorSystem.sanitizeHtml(budgetInfo)}</div>` : '-'}</td>
         </tr>
       `;
     }).filter(row => row).join('');
@@ -630,6 +627,7 @@ export class AuftragDetail {
               <tr>
                 <th>Kategorie</th>
                 <th class="text-center">Videos</th>
+                <th class="text-center">Bilder</th>
                 <th class="text-center">Creator</th>
                 <th class="text-center">Videographen</th>
                 <th>Budget & Informationen</th>
@@ -638,7 +636,7 @@ export class AuftragDetail {
             <tbody>
               ${tableRows || `
                 <tr>
-                  <td colspan="5" class="no-data">
+                  <td colspan="6" class="no-data">
                     Keine Produktionsdetails vorhanden
                   </td>
                 </tr>

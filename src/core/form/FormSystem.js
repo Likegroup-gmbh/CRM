@@ -1106,7 +1106,12 @@ export class FormSystem {
             break;
           case 'url':
             try {
-              new URL(value);
+              // URL-Felder haben visuellen https:// Prefix - füge diesen zur Validierung hinzu
+              let urlToValidate = value.trim();
+              if (!urlToValidate.match(/^https?:\/\//i)) {
+                urlToValidate = 'https://' + urlToValidate;
+              }
+              new URL(urlToValidate);
             } catch {
               errors.push(`${field.label} muss eine gültige URL sein.`);
             }

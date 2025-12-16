@@ -240,7 +240,7 @@
   color: var(--text-inverse);
   padding: var(--space-xs);
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-xl);
   font-size: var(--text-sm);
   font-weight: 500;
   cursor: pointer;
@@ -255,10 +255,10 @@
 }
 
 .secondary-btn {
-  border: 1px solid var(--gray-300);
+  border: 1px solid var(--gray-200);
   padding: var(--space-xs);
   background-color: var(--bg-primary);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-xl);
   font-size: var(--text-sm);
   font-weight: 500;
   cursor: pointer;
@@ -288,7 +288,7 @@
   color: var(--text-inverse);
   padding: var(--space-xs);
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-xl);
 }
 
 .btn-sm {
@@ -602,14 +602,19 @@
     gap: var(--space-md);
   }
 
+.form-page {
+  padding: var(--space-md);
+}
+
   /* ===== Table ===== */
   .table-filter-wrapper {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: var(--space-md);
+
     gap: var(--space-md);
-   
+    padding: 8px 12px 8px 12px;
+    
   }
 
   .table-actions {
@@ -621,7 +626,7 @@
   .data-table {
     width: 100%;
     border-collapse: collapse;
-  
+    
   }
 
   td {
@@ -632,6 +637,9 @@
     border-collapse: collapse;
     font-size: var(--text-sm)
   }
+  /* Kein Doppelborder: erste/letzte Zelle ohne links/rechts Border */
+  td:first-child { border-left: none; border-right: none; padding-left: var(--space-md); }
+  td:last-child { border-right: none; }
   td  a {
     text-decoration: none;
     color: var(--text-primary);
@@ -642,9 +650,12 @@
     color: var(--gray-500);
     font-weight: 400;
     font-size: var(--text-xs);
-    border: 1px solid var(--gray-200);
+    
     text-align: left;
   }
+  /* Kein Doppelborder: erste/letzte Zelle ohne links/rechts Border */
+  th:first-child { border-left: none; border-right: none; padding-left: var(--space-md); }
+  th:last-child { border-right: none; }
   tr {
     margin: none;
     padding: none;
@@ -1159,8 +1170,14 @@
   position: relative;
   display: flex;
   gap: var(--space-xs);
-  border-bottom: 1px solid var(--gray-200);
-  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--gray-100);
+  border-left: none;
+  border-top: none;
+  border-right: none; 
+  width: 100%;
+  padding: var(--space-xxs) 0;
+  padding-left: 12px;
+  padding-right: 12px;
   scrollbar-width: none;
   -ms-overflow-style: none;
   background: var(--color-white);
@@ -1174,17 +1191,20 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: var(--space-xs);
-  padding: var(--space-xs) var(--space-sm);
+  gap: 4px;
+  padding: 0 6px;
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   color: var(--text-secondary);
-  font-weight: 500;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 400;
   font-size: var(--text-sm);
+  height: 32px;
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
+  border-image: none;
 }
 
 .tab-button:hover {
@@ -1194,22 +1214,14 @@
 
 .tab-button.active {
   color: var(--text-primary);
-  background: var(--gray-100);
-  border-color: var(--gray-200);
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-style: solid;
+  border-width: 1px;
 }
 
 /* Active Tab Indicator Line */
-.tab-button.active::after {
-  content: '';
-  position: absolute;
-  bottom: calc(-1 * var(--space-xs) - 1px);
-  left: 50%;
-  transform: translateX(-50%);
-  width: calc(100% - var(--space-md));
-  height: 2px;
-  background: var(--text-primary);
-  border-radius: 2px;
-}
+
 
 /* Tab Icon */
 .tab-button .tab-icon {
@@ -1232,6 +1244,8 @@
   background: var(--bg-primary);
   min-height: 400px;
   overflow-x: hidden; /* Verhindert horizontales Scrollen des Tab-Contents */
+
+  width: 100%;
   
 }
 
@@ -1244,6 +1258,21 @@
   padding-top: var(--space-sm);
 }
 
+#informationen {
+  margin-left: 12px;
+  margin-right: 12px;
+}
+
+#tab-info {
+  border-style: none;
+  border-width: 0px;
+  border-color: rgba(0, 0, 0, 0);
+  border-image: none;
+  background-color: unset;
+  background: unset;
+  width: 100%;
+}
+
 /* Spezifischer Fix für koops-videos Tab - erlaubt Scrollen für breite Tabellen */
 #tab-koops-videos.active {
   display: block !important;
@@ -1254,6 +1283,7 @@
 #tab-koops-videos .detail-section {
   overflow-x: auto !important; /* Erlaubt horizontales Scrollen für breite Tabellen */
 }
+
 
 /* Overflow-Kontrolle für Kampagne-Detail mit Grid-Tabelle */
 .main-content.kampagne-detail-grid-active {
@@ -2063,6 +2093,8 @@
   flex: 1;
   min-height: 0;
   padding-bottom: var(--space-sm);
+  padding-left: 12px;
+  padding-right: 12px;
   justify-content: left;
 }
 
@@ -2983,6 +3015,7 @@
 
 .auftragsdetails-summary {
   margin-bottom: 2rem;
+  padding: 12px 12px 0 12px;
 }
 
 .summary-cards {
@@ -3038,7 +3071,8 @@
 }
 
 .budget-cell {
-  max-width: 300px;
+  min-width: 280px;
+  max-width: 400px;
 }
 
 .budget-info {
@@ -3048,6 +3082,28 @@
   font-size: 0.9rem;
   color: #6c757d;
   border-left: 3px solid #007bff;
+}
+
+/* Größere Budget-Info Anzeige für Auftragsdetails */
+.budget-info-large {
+  background: var(--gray-50);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--gray-700);
+  border-left: 4px solid var(--color-primary);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 60px;
+}
+
+/* Budget Textarea im Drawer größer */
+.budget-textarea {
+  min-height: 120px;
+  resize: vertical;
+  font-size: var(--text-sm);
+  line-height: 1.6;
 }
 
 .text-center {
@@ -3678,7 +3734,7 @@
   display: inline-flex;
   align-items: center;
   padding: var(--space-xxxs) var(--space-xs);
-  border-radius: 9999px;
+  border-radius: var(--radius-xl);
   background: var(--gray-50);
   color: var(--gray-800);
   font-size: var(--text-xs);
@@ -3694,7 +3750,9 @@
 .tag--type,
 .tag--lang,
 .tag--branche,
-.tag--ansprechpartner {
+.tag--ansprechpartner,
+.tag--stadt,
+.tag--land {
   color: var(--gray-800);
   border-color: var(--gray-300);
   transition: all 0.2s ease;
@@ -3945,7 +4003,7 @@ margin-bottom: var(--space-xl);
 
 .data-table th,
 .data-table td {
-  padding: var(--space-xxs) var(--space-xxs);
+  padding: var(--space-xxs) var(--space-xs);
   text-align: left;
   vertical-align: middle;
   white-space: normal; /* Erlaubt Zeilenumbruch */
@@ -3992,7 +4050,7 @@ margin-bottom: var(--space-xl);
 
 /* Optimized Column Width System */
 
-/* Checkbox-Spalte - minimal und fest */
+/* Checkbox-Spalte - minimal und fest, gehört zur Name-Spalte */
 .data-table th:has(input[type="checkbox"]),
 .data-table td:has(input[type="checkbox"]),
 .data-table th.checkbox-col,
@@ -4002,7 +4060,8 @@ margin-bottom: var(--space-xl);
   max-width: 35px;
   text-align: center;
   white-space: nowrap;
-  padding: var(--space-xxs) var(--space-xs);
+  padding: var(--space-sm) var(--space-xs) var(--space-sm) var(--space-md);
+  border-right: none !important; /* Checkbox gehört zur Name-Spalte */
 }
 
 /* ID/Nummer Spalten - kompakt */
@@ -4085,12 +4144,27 @@ margin-bottom: var(--space-xl);
   max-width: 160px;
 }
 
+/* Kein Doppelborder: erste Zelle ohne linken Border (main-content hat Border) */
+.data-table th:first-child,
+.data-table td:first-child {
+  border-left: none;
+  padding-left: var(--space-md);
+}
+
+/* Checkbox-Spalte ohne rechten Border, damit sie mit Name-Spalte zusammengehört */
+/* NUR für Tabellen MIT Checkbox! */
+.data-table th:first-child:has(input[type="checkbox"]),
+.data-table td:first-child:has(input[type="checkbox"]) {
+  border-right: none;
+}
+
 /* Allow dropdowns in the actions column to overflow the cell (otherwise clipped) */
 .data-table th:last-child,
 .data-table td:last-child {
   overflow: visible;
   width: 80px;
   text-align: right;
+  border-right: none;
 }
 .data-table td:last-child .actions-dropdown-container { float: right; }
 
@@ -4107,7 +4181,7 @@ margin-bottom: var(--space-xl);
   max-width: 100%;
   border-radius: var(--radius-md);
   background: transparent; /* Transparenter Hintergrund */
-  
+
 }
 
 /* Responsive Table Improvements */
@@ -4128,10 +4202,7 @@ margin-bottom: var(--space-xl);
     font-size: var(--text-xs);
   }
   
-  .data-table th,
-  .data-table td {
-    padding: var(--space-xxxs) var(--space-xs);
-  }
+
   
   .data-table th.name-col,
   .data-table td.name-col {
@@ -4237,12 +4308,12 @@ margin-bottom: var(--space-xl);
   display: inline-flex;
   align-items: center;
   gap: var(--space-xs);
-  padding: var(--space-xs);
+  padding: var(--space-xs) var(--space-xs);
   background: white;
-  border: 1px solid var(--gray-300);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
   cursor: pointer;
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--gray-700);
   transition: all 0.2s ease;
@@ -4530,12 +4601,13 @@ margin-bottom: var(--space-xl);
 .filter-chip {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-xs);
+  gap: var(--space-xxxs);
   padding: var(--space-xs);
-  border: 1px solid var(--gray-300);
-  border-radius: var(--radius-md);
-  font-size: var(--text-xs);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  font-size: var(--text-sm);
   color: var(--color-primary-dark);
+  background: var(--gray-50);
 }
 
 .filter-chip-label {
@@ -4564,26 +4636,7 @@ margin-bottom: var(--space-xl);
   color: var(--color-danger);
 }
 
-.filter-reset-all {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-  padding: var(--space-xs) var(--space-sm);
-  background: white;
-  border: 1px solid var(--gray-300);
-  border-radius: var(--radius-md);
-  font-size: var(--text-xs);
-  font-weight: 500;
-  color: var(--gray-700);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.filter-reset-all:hover {
-  background: var(--gray-50);
-  border-color: var(--color-danger);
-  color: var(--color-danger);
-}
+/* .filter-reset-all verwendet jetzt secondary-btn Styles */
 
 /* Responsive Filter Dropdown */
 @media (max-width: 768px) {
@@ -4641,6 +4694,8 @@ margin-bottom: var(--space-xl);
 .uploader-name { font-weight: 500; }
 .uploader-size { color: var(--gray-500); font-size: var(--text-sm); }
 .uploader-remove { background: transparent; color: var(--danger-600); border: 1px solid var(--danger-200); border-radius: var(--radius-md); padding: var(--space-xxs) var(--space-xs); cursor: pointer; font-size: var(--text-sm); }
+.uploader-drop.has-error { border-color: var(--orange-800); background: var(--orange-50); }
+.uploader-error { color: var(--orange-600); font-size: var(--text-sm); margin-top: 6px; display: none; }
 
 .actions-toggle {
   background: none;
@@ -6262,27 +6317,31 @@ margin-bottom: var(--space-xl);
 
 .profile-sidebar-card {
   background: var(--color-white);
-  border-right: 1px solid var(--gray-200);
+  border-right-width: 0px;
+  border-right-color: rgba(0, 0, 0, 0);
+  border-right-style: none;
+  border-image: none;
   height: 100%;
   overflow: hidden;
 }
 
 /* Avatar Section */
 .profile-avatar-section {
-  padding: var(--space-lg);
+  display: flex;
+  justify-content: center;
+  align-items: center;
   text-align: center;
-  background: linear-gradient(135deg, var(--gray-50) 0%, var(--color-white) 100%);
-  border-bottom: 1px solid var(--gray-200);
+  width: 100%;
+  border-right: 1px solid var(--gray-200);
 }
 
 .profile-avatar-large {
-  width: 120px;
-  height: 120px;
+  width: 100%;
+  height: 100%;
   margin: 0 auto var(--space-md);
-  border-radius: 50%;
+  
   overflow: hidden;
-  border: 4px solid var(--color-white);
-  box-shadow: var(--shadow-md);
+ 
   position: relative;
 }
 
@@ -6329,15 +6388,19 @@ margin-bottom: var(--space-xl);
   justify-content: center;
   background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-hover) 100%);
   color: var(--color-white);
-  font-size: 2.5rem;
+  font-size: 22px;
   font-weight: 600;
 }
 
 .profile-name {
-  font-size: 1.25rem;
-  font-weight: 600;
+  font-size: 1 rem;
+  font-weight: 500;
   color: var(--text-primary);
   margin: 0 0 var(--space-xs) 0;
+}
+
+span.profile-name {
+  width: fit-content;
 }
 
 .profile-email {
@@ -6411,7 +6474,8 @@ margin-bottom: var(--space-xl);
 /* Sidebar Tabs */
 .profile-info-tabs {
   display: flex;
-  border-bottom: 1px solid var(--gray-200);
+  
+  border: 1px solid var(--gray-200);
 }
 
 .profile-sidebar-tab {
@@ -6442,6 +6506,7 @@ margin-bottom: var(--space-xl);
 .profile-sidebar-content {
   position: relative;
   height: 100%;
+  border-right: 1px solid var(--gray-200);
 }
 
 .profile-sidebar-pane {
@@ -6485,9 +6550,25 @@ margin-bottom: var(--space-xl);
 /* Main Content */
 .profile-main-content {
   background: var(--color-white);
- 
+  display: flex;
+  flex-direction: column;
   border-radius: var(--radius-md);
   overflow: hidden;
+  padding-left: 0px;
+  padding-right: 0px;
+  padding-top: 0px;
+  padding-bottom: 0px;
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+/* Tab Navigation innerhalb von Profile Main Content - auf gleicher Höhe wie Sidebar Tabs */
+.profile-main-content .tab-navigation {
+  margin-top: 116px; /* Entspricht ungefähr der Höhe der profile-avatar-section */
+  flex-shrink: 0;
+  border-left: none;
+  border-top: 1px solid var(--gray-200);
+  padding: 5px 12px 5px 12px;
 }
 
 .profile-main-header {
@@ -6644,9 +6725,15 @@ margin-bottom: var(--space-xl);
 
 /* Profile Main Content */
 .profile-main-content {
-  padding: var(--space-lg);
+  padding: 0;
+  padding-left: 0;
+  padding-right: 0;
+  padding-top: 0;
+  padding-bottom: 0;
   overflow-y: auto;
   height: 100%;
+  justify-content: flex-start;
+  align-items: flex-start;
 }
 
 /* Profile Subtitle */
@@ -7326,13 +7413,11 @@ margin-bottom: var(--space-xl);
 .strategie-items-table .cell-textarea {
   padding: 0 !important;
   vertical-align: top;
-  height: 80px;
 }
 
 .strategie-textarea {
   width: 100%;
-  height: 100%;
-  min-height: 80px;
+  min-height: 60px;
   padding: var(--space-sm);
   border: none;
   border-radius: 0;
@@ -7342,6 +7427,9 @@ margin-bottom: var(--space-xl);
   line-height: 1.4;
   resize: none;
   transition: background-color 0.15s ease;
+  overflow: hidden;
+  /* Auto-resize mit dem Inhalt */
+  field-sizing: content;
 }
 
 .strategie-textarea:focus {
@@ -7369,7 +7457,7 @@ margin-bottom: var(--space-xl);
   padding: var(--space-sm);
   font-size: var(--text-sm);
   color: var(--text-secondary);
-  min-height: 80px;
+  min-height: 60px;
 }
 
 .strategie-items-table .col-prio {
@@ -7386,6 +7474,8 @@ margin-bottom: var(--space-xl);
 .add-item-section {
   margin-bottom: var(--space-xl);
   gap: var(--space-xs);
+  padding-left: 12px;
+  padding-right: 12px;
 }
 
 /* Strategie Add Item Felder */
@@ -8077,6 +8167,8 @@ margin-bottom: var(--space-xl);
   justify-content: flex-end;
   align-items: center;
   padding: var(--space-md) 0;
+  padding-left: 12px;
+  padding-right: 12px;
   margin-bottom: var(--space-md);
 }
 
@@ -8454,5 +8546,298 @@ margin-bottom: var(--space-xl);
   object-fit: cover;
   border: 3px solid var(--gray-200);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* === STRATEGIE TABLE ERWEITERUNGEN === */
+
+/* Drag-to-Scroll Support für Tabellen */
+.table-container.drag-scroll-enabled {
+  overflow-x: auto;
+  overflow-y: visible;
+  cursor: grab;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.table-container.drag-scroll-enabled::-webkit-scrollbar {
+  display: none;
+}
+
+/* Item-Zeilen-Zustände */
+.strategie-items-table .item-nicht-umsetzen {
+  opacity: 0.5;
+  background: var(--gray-100);
+}
+
+.strategie-items-table .item-linked {
+  background: var(--green-50);
+}
+
+/* === CREATOR POOL TABLE - STICKY COLUMNS === */
+.creator-pool-table-container {
+  position: relative;
+}
+
+.creator-pool-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* Alle Zellen - normale Borders */
+.creator-pool-table th,
+.creator-pool-table td {
+  border: 1px solid var(--gray-200);
+}
+
+/* Erste Spalte (Drag) - Sticky */
+.creator-pool-table th.col-sticky-1,
+.creator-pool-table td.col-sticky-1 {
+  position: sticky !important;
+  left: 0 !important;
+  z-index: 20;
+  background: white;
+  min-width: 32px;
+  width: 32px;
+  padding: 0 var(--space-xs) !important;
+  border-right: none !important;
+  /* Borders als Box-Shadow für permanente Sichtbarkeit */
+  box-shadow: 
+    inset 0 1px 0 0 var(--gray-200),     /* top */
+    inset 0 -1px 0 0 var(--gray-200),    /* bottom */
+    inset 1px 0 0 0 var(--gray-200);     /* left */
+}
+
+/* Zweite Spalte (Name) - Sticky */
+.creator-pool-table th.col-sticky-2,
+.creator-pool-table td.col-sticky-2 {
+  position: sticky !important;
+  left: 32px !important;
+  z-index: 20;
+  background: white;
+  min-width: 140px;
+  border-left: none !important;
+  border-right: none !important;
+  /* Borders als Box-Shadow */
+  box-shadow: 
+    inset 0 1px 0 0 var(--gray-200),     /* top */
+    inset 0 -1px 0 0 var(--gray-200),    /* bottom */
+    inset 1px 0 0 0 var(--gray-200);     /* left - Border zwischen Spalte 1 und 2 */
+}
+
+/* Dritte Spalte (Creator Art) - Sticky mit rechtem Border */
+.creator-pool-table th.col-sticky-3,
+.creator-pool-table td.col-sticky-3 {
+  position: sticky !important;
+  left: 172px !important; /* 32px + 140px */
+  z-index: 20;
+  background: white;
+  min-width: 100px;
+  border-left: none !important;
+  /* Borders als Box-Shadow */
+  box-shadow: 
+    inset 0 1px 0 0 var(--gray-200),        /* top */
+    inset -2px 0 0 0 var(--gray-300),       /* right - dickerer Border */
+    inset 0 -1px 0 0 var(--gray-200),       /* bottom */
+    inset 1px 0 0 0 var(--gray-200);        /* left - Border zwischen Spalte 2 und 3 */
+}
+
+/* Header der fixierten Spalten höherer z-index */
+.creator-pool-table thead th.col-sticky-1,
+.creator-pool-table thead th.col-sticky-2,
+.creator-pool-table thead th.col-sticky-3 {
+  z-index: 25;
+  background: var(--gray-50);
+}
+
+/* Schatten rechts von der dritten Spalte */
+.creator-pool-table th.col-sticky-3::after,
+.creator-pool-table td.col-sticky-3::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: -10px;
+  bottom: 0;
+  width: 10px;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.1), transparent);
+}
+
+/* Hover-Zustand für sticky Spalten */
+.creator-pool-table tbody tr:hover td.col-sticky-1,
+.creator-pool-table tbody tr:hover td.col-sticky-2,
+.creator-pool-table tbody tr:hover td.col-sticky-3 {
+  background: var(--gray-50);
+}
+
+/* Item-Nicht-Umsetzen für sticky Spalten */
+.creator-pool-table .item-nicht-umsetzen td.col-sticky-1,
+.creator-pool-table .item-nicht-umsetzen td.col-sticky-2,
+.creator-pool-table .item-nicht-umsetzen td.col-sticky-3 {
+  background: var(--gray-100);
+}
+
+/* Item-Linked für sticky Spalten */
+.creator-pool-table .item-linked td.col-sticky-1,
+.creator-pool-table .item-linked td.col-sticky-2,
+.creator-pool-table .item-linked td.col-sticky-3 {
+  background: var(--green-50);
+}
+
+/* === CREATOR POOL TABLE - FESTE SPALTENBREITEN === */
+.creator-pool-table th,
+.creator-pool-table td {
+  white-space: nowrap;
+}
+
+.creator-pool-table .cp-col-drag {
+  width: 32px;
+  min-width: 32px;
+}
+
+.creator-pool-table .cp-col-name {
+  width: 140px;
+  min-width: 140px;
+}
+
+.creator-pool-table .cp-col-typ {
+  width: 100px;
+  min-width: 100px;
+}
+
+.creator-pool-table .cp-col-link {
+  width: 60px;
+  min-width:60px;
+}
+
+.creator-pool-table .cp-col-follower {
+  width: 220px;
+  min-width:220px;
+  height: auto;
+}
+
+.creator-pool-table .cp-col-check {
+  width: 95px;
+  min-width: 95px;
+  text-align: center;
+}
+
+.creator-pool-table .cp-col-kategorie {
+  width: 100px;
+  min-width: 100px;
+}
+
+.creator-pool-table .cp-col-location {
+  width: 100px;
+  min-width: 100px;
+}
+
+.creator-pool-table .cp-col-notiz {
+  width: 260px;
+  min-width: 260px;
+}
+
+.creator-pool-table .cp-col-prio {
+  width: 60px;
+  min-width: 60px;
+  text-align: center;
+}
+
+.creator-pool-table .cp-col-nicht {
+  width: 120px;
+  min-width: 120px;
+  text-align: center;
+}
+
+.creator-pool-table .cp-col-pricing {
+  width: 100px;
+  min-width: 100px;
+}
+
+.creator-pool-table .cp-col-feedback {
+  width: 260px;
+  min-width: 260px;
+}
+
+.creator-pool-table .cp-col-actions {
+  width: 70px;
+  min-width: 70px;
+}
+
+/* Link-Zellen mit Icon */
+.creator-pool-table .link-cell-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+}
+
+.creator-pool-table .link-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary);
+  padding: var(--space-sm);
+  border-radius: var(--radius-sm);
+  transition: background-color 0.15s ease;
+  z-index: 2;
+}
+
+.creator-pool-table .link-icon-btn:hover {
+  background: var(--blue-50);
+}
+
+.creator-pool-table .link-icon-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Link-Input: versteckt hinter dem Icon, erscheint bei Focus */
+.creator-pool-table .link-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  z-index: 1;
+  cursor: pointer;
+}
+
+.creator-pool-table .link-input:focus {
+  opacity: 1;
+  z-index: 3;
+  background: white;
+  cursor: text;
+}
+
+/* Wenn kein Link vorhanden, Input sofort anzeigen */
+.creator-pool-table .link-cell-wrapper:not(:has(.link-icon-btn)) .link-input {
+  position: relative;
+  opacity: 1;
+  cursor: text;
+}
+
+/* ========================================
+   CHECKBOX-SPALTE BORDER FIX (HÖCHSTE PRIORITÄT)
+   Checkbox gehört visuell zur Name-Spalte
+   NUR für Tabellen MIT Checkbox in der ersten Spalte!
+   ======================================== */
+/* Checkbox-Zelle: kein rechter Border */
+td:has(input[type="checkbox"]),
+th:has(input[type="checkbox"]) {
+  border-right: none !important;
+}
+
+/* Zweite Spalte (Name): kein linker Border - NUR wenn Tabelle Checkbox hat */
+table:has(th:first-child input[type="checkbox"]) td:nth-child(2),
+table:has(th:first-child input[type="checkbox"]) th:nth-child(2),
+table:has(td:first-child input[type="checkbox"]) td:nth-child(2),
+.data-table:has(th:first-child input[type="checkbox"]) td:nth-child(2),
+.data-table:has(th:first-child input[type="checkbox"]) th:nth-child(2) {
+  border-left: none !important;
 }
 

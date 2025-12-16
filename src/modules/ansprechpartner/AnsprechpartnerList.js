@@ -86,8 +86,7 @@ export class AnsprechpartnerList {
           <thead>
             <tr>
               ${isAdmin ? `<th><input type="checkbox" id="select-all-ansprechpartner"></th>` : ''}
-              <th>Vorname</th>
-              <th>Nachname</th>
+              <th>Name</th>
               <th>Position</th>
               <th>Unternehmen</th>
               <th>Marken</th>
@@ -293,7 +292,7 @@ export class AnsprechpartnerList {
     if (!ansprechpartner || ansprechpartner.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="${isAdmin ? '12' : '11'}" class="no-data">Keine Ansprechpartner gefunden</td>
+          <td colspan="${isAdmin ? '11' : '10'}" class="no-data">Keine Ansprechpartner gefunden</td>
         </tr>
       `;
       
@@ -309,10 +308,9 @@ export class AnsprechpartnerList {
         ${isAdmin ? `<td><input type="checkbox" class="ansprechpartner-check" data-id="${ap.id}"></td>` : ''}
         <td>
           <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
-            ${window.validatorSystem.sanitizeHtml(ap.vorname || '-')}
+            ${window.validatorSystem.sanitizeHtml(ap.vorname || '')} ${window.validatorSystem.sanitizeHtml(ap.nachname || '')}
           </a>
         </td>
-        <td>${window.validatorSystem.sanitizeHtml(ap.nachname || '-')}</td>
         <td>
           ${ap.positionen?.name ? `<div class="tag-list"><span class="tag tag--position">${window.validatorSystem.sanitizeHtml(ap.positionen.name)}</span></div>` : '-'}
         </td>
@@ -330,7 +328,7 @@ export class AnsprechpartnerList {
               })))
             : '-'}
         </td>
-        <td>${ap.email ? `<a href="mailto:${ap.email}">${ap.email}</a>` : '-'}</td>
+        <td>${ap.email ? `<a href="mailto:${ap.email}" class="table-link email-link">${ap.email}</a>` : '-'}</td>
         <td>${PhoneDisplay.render(
           ap.telefonnummer_land?.iso_code,
           ap.telefonnummer_land?.vorwahl,
@@ -431,7 +429,7 @@ export class AnsprechpartnerList {
       if (tbody) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="12" class="error">Fehler beim Laden der Ansprechpartner</td>
+            <td colspan="11" class="error">Fehler beim Laden der Ansprechpartner</td>
           </tr>
         `;
       }
