@@ -98,6 +98,18 @@
 
       if (error) throw error;
 
+      // E-Mail in benutzer-Tabelle speichern (falls Record bereits vom Trigger erstellt wurde)
+      if (data?.user?.id) {
+        const { error: updateError } = await supabase
+          .from('benutzer')
+          .update({ email: email })
+          .eq('auth_user_id', data.user.id);
+        
+        if (updateError) {
+          console.warn('⚠️ E-Mail Update fehlgeschlagen (wird später vom Admin korrigiert):', updateError);
+        }
+      }
+
       // Weiterleitung zur bestehenden OTP-Bestätigungsseite
       window.location.href = `/src/auth/verify-email.html?email=${encodeURIComponent(email)}&redirect_to=/kunden`;
     } catch (err) {

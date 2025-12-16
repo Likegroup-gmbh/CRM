@@ -585,7 +585,7 @@ export class CreatorDetail extends PersonDetailBase {
       <div class="detail-section">
         <div class="detail-grid">
           <div class="detail-card">
-            <h3>Kontakt</h3>
+            <h3 class="section-title">Kontakt</h3>
             <div class="detail-item">
               <label>E-Mail:</label>
               <span>${this.creator.mail || '-'}</span>
@@ -605,7 +605,7 @@ export class CreatorDetail extends PersonDetailBase {
           </div>
 
           <div class="detail-card">
-            <h3>Social Media</h3>
+            <h3 class="section-title">Social Media</h3>
             <div class="detail-item">
               <label>Instagram:</label>
               <span>${this.creator.instagram ? `@${this.creator.instagram}` : '-'}</span>
@@ -625,7 +625,7 @@ export class CreatorDetail extends PersonDetailBase {
           </div>
 
           <div class="detail-card">
-            <h3>Profil</h3>
+            <h3 class="section-title">Profil</h3>
             <div class="detail-item">
               <label>Typen:</label>
               <span>${this.renderTagList(this.creator.creator_types)}</span>
@@ -645,7 +645,7 @@ export class CreatorDetail extends PersonDetailBase {
           </div>
 
           <div class="detail-card">
-            <h3>Finanzen</h3>
+            <h3 class="section-title">Finanzen</h3>
             <div class="detail-item">
               <label>Letztes Budget:</label>
               <span>${this.creator.budget_letzte_buchung ? this.formatCurrency(this.creator.budget_letzte_buchung) : '-'}</span>

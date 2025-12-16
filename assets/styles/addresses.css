@@ -214,10 +214,7 @@
 }
 
 
-.form-row {
-  display: flex;
-  gap: 1rem;
-}
+
 
 
 .form-field input,
@@ -225,7 +222,7 @@
 .form-field select {
   padding: var(--space-xs);
   border: 1px solid #d1d5db;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-xl);
   font-size: var(--text-sm);
   transition: border-color 0.2s;
   

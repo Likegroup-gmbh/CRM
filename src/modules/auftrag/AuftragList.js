@@ -630,7 +630,7 @@ export class AuftragList {
     const rowsHtml = auftraege.map(auftrag => {
       // Hilfsfunktionen für Formatierung
       const formatCurrency = (value) => {
-        return value ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value) : '-';
+        return value ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value) : '-';
       };
       
       const formatDate = (date) => {
@@ -639,6 +639,28 @@ export class AuftragList {
       
       const formatArray = (array) => {
         return array && Array.isArray(array) ? array.join(', ') : '-';
+      };
+      
+      // Kampagne-Art Tags mit 2-Buchstaben-Abkürzungen
+      const formatKampagneArtTags = (arten) => {
+        if (!arten || !Array.isArray(arten) || arten.length === 0) return '-';
+        
+        const abbreviations = {
+          'UGC Kampagne': 'UK',
+          'Influencer Kampagne': 'IK',
+          'Hybrid Kampagne': 'HK',
+          'UGC': 'UG',
+          'IGC': 'IG',
+          'Influencer': 'IN',
+          'Content Creation': 'CC'
+        };
+        
+        const tags = arten.map(art => {
+          const abbr = abbreviations[art] || art.substring(0, 2).toUpperCase();
+          return `<span class="tag tag--kampagne-art" title="${art}">${abbr}</span>`;
+        }).join('');
+        
+        return `<div class="tags tags-compact">${tags}</div>`;
       };
       
       const formatBoolean = (value) => {
@@ -743,7 +765,7 @@ export class AuftragList {
           <td>${auftrag.po || '-'}</td>
           <td>${auftrag.re_nr || '-'}</td>
           <td>${formatDate(auftrag.re_faelligkeit)}</td>
-          <td>${formatArray(auftrag.art_der_kampagne)}</td>
+          <td>${formatKampagneArtTags(auftrag.art_der_kampagne)}</td>
           <td>${formatDate(auftrag.start)}</td>
           <td>${formatDate(auftrag.ende)}</td>
           <td>${formatCurrency(auftrag.nettobetrag)}</td>

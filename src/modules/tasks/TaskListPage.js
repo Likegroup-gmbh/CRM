@@ -29,6 +29,13 @@ export const taskListPage = {
     
     window.setHeadline('Aufgaben');
     
+    // Breadcrumb aktualisieren
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Aufgaben', url: '/tasks', clickable: false }
+      ]);
+    }
+    
     // Berechtigungsprüfung
     const canView = window.currentUser?.rolle === 'admin' || window.currentUser?.permissions?.tasks?.can_view;
     if (!canView) {

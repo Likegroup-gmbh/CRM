@@ -516,7 +516,7 @@ export class CreatorAuswahlDetail {
           <input type="text" id="creator-name" name="name" required class="form-input" placeholder="Name des Creators">
         </div>
 
-        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
+        <div class="form-row">
           <div class="form-field">
             <label class="form-label">Link Instagram</label>
             <input type="url" name="link_instagram" class="form-input" placeholder="https://instagram.com/...">
@@ -527,7 +527,7 @@ export class CreatorAuswahlDetail {
           </div>
         </div>
 
-        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
+        <div class="form-row">
           <div class="form-field">
             <label class="form-label">Link TikTok</label>
             <input type="url" name="link_tiktok" class="form-input" placeholder="https://tiktok.com/@...">
@@ -538,15 +538,7 @@ export class CreatorAuswahlDetail {
           </div>
         </div>
 
-        <div class="form-field">
-          <label class="form-label">Rückmeldung</label>
-          <select name="rueckmeldung_creator" class="form-input">
-            <option value="false">Nein</option>
-            <option value="true">Ja</option>
-          </select>
-        </div>
-
-        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
+        <div class="form-row">
           <div class="form-field">
             <label class="form-label">Kategorie</label>
             <input type="text" name="kategorie" class="form-input" placeholder="z.B. Food, Fashion, Tech">

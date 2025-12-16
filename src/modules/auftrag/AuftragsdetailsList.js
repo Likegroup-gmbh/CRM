@@ -131,7 +131,7 @@ export class AuftragsdetailsList {
                 <th>Kategorie</th>
                 <th>Beschreibung</th>
                 <th>Erstellt am</th>
-                <th></th>
+                <th>Aktionen</th>
               </tr>
             </thead>
             <tbody id="auftragsdetails-table-body">

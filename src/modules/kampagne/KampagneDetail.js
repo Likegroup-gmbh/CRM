@@ -883,7 +883,7 @@ export class KampagneDetail {
               <div class="detail-grid">
                 <!-- Hauptinformationen -->
                 <div class="detail-card">
-                  <h3>Kampagnen-Informationen</h3>
+                  <h3 class="section-title">Kampagnen-Informationen</h3>
                   <div class="detail-grid-2">
                     <div class="detail-item">
                       <label>Kampagnenname:</label>
@@ -928,7 +928,7 @@ export class KampagneDetail {
 
                 <!-- Ziele und Budget -->
                 <div class="detail-card">
-                  <h3>Ziele & Budget</h3>
+                  <h3 class="section-title">Ziele & Budget</h3>
                   <div class="detail-item">
                     <label>Ziele:</label>
                     <span>${window.validatorSystem.sanitizeHtml(this.kampagneData.ziele || '-')}</span>
@@ -941,7 +941,7 @@ export class KampagneDetail {
 
                 <!-- Unternehmen -->
                 <div class="detail-card">
-                  <h3>Unternehmen</h3>
+                  <h3 class="section-title">Unternehmen</h3>
                   <div class="detail-item">
                     <label>Firmenname:</label>
                     <span>${window.validatorSystem.sanitizeHtml(this.kampagneData.unternehmen?.firmenname || 'Unbekannt')}</span>
@@ -958,7 +958,7 @@ export class KampagneDetail {
 
                 <!-- Marke -->
                 <div class="detail-card">
-                  <h3>Marke</h3>
+                  <h3 class="section-title">Marke</h3>
                   <div class="detail-item">
                     <label>Markenname:</label>
                     <span>${window.validatorSystem.sanitizeHtml(this.kampagneData.marke?.markenname || 'Unbekannt')}</span>
@@ -971,7 +971,7 @@ export class KampagneDetail {
 
                 <!-- Auftrag -->
                 <div class="detail-card">
-                  <h3>Auftrag</h3>
+                  <h3 class="section-title">Auftrag</h3>
                   <div class="detail-item">
                     <label>Auftragsname:</label>
                     <span>${window.validatorSystem.sanitizeHtml(this.kampagneData.auftrag?.auftragsname || 'Unbekannt')}</span>
@@ -994,14 +994,7 @@ export class KampagneDetail {
 
                 <!-- Ansprechpartner -->
                 <div class="detail-card">
-                  <h3>Ansprechpartner
-                    <button class="btn-add-ansprechpartner-kampagne btn btn-sm btn-primary" style="margin-left: 10px;">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4" style="margin-right: 5px;">
-                        <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" />
-                      </svg>
-                      Hinzufügen
-                    </button>
-                  </h3>
+                  <h3 class="section-title">Ansprechpartner</h3>
                   <div class="detail-item">
                     ${this.renderAnsprechpartner()}
                   </div>
@@ -2176,15 +2169,8 @@ export class KampagneDetail {
     return `<div class="tags">${ansprechpartnerTags}</div>`;
   }
 
-  // Event-Handler für Ansprechpartner hinzufügen Button
+  // Event-Handler für Ansprechpartner-Aktualisierung
   bindAnsprechpartnerEvents() {
-    const addButton = document.querySelector('.btn-add-ansprechpartner-kampagne');
-    if (addButton) {
-      addButton.addEventListener('click', () => {
-        window.actionsDropdown.openAddAnsprechpartnerToKampagneModal(this.kampagneId);
-      });
-    }
-
     // Event-Listener für automatische Aktualisierung
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail.entity === 'ansprechpartner' && e.detail.action === 'added' && e.detail.kampagneId === this.kampagneId) {

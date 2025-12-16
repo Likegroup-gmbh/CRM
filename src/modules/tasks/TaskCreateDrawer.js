@@ -641,24 +641,23 @@ export class TaskCreateDrawer {
     const kampagneSelect = document.getElementById('kampagne_id');
     const hasKampagne = kampagneSelect?.value;
 
-    // HTML für Mitarbeiter-Dropdown (immer anzeigen)
+    // HTML für Mitarbeiter Auto-Suggestion (immer anzeigen)
     const mitarbeiterHtml = `
       <div class="form-field">
-        <label for="task_assigned_to_mitarbeiter" class="drawer-form-label">
+        <label for="task_mitarbeiter_search" class="drawer-form-label">
           Zuweisen an Mitarbeiter
         </label>
-        <select 
-          id="task_assigned_to_mitarbeiter" 
-          name="assigned_to_user_id" 
-          class="form-input drawer-form-select"
-          ${!hasKampagne ? 'disabled' : ''}>
-          ${!hasKampagne 
-            ? '<option value="">Bitte wähle zuerst eine Kampagne</option>'
-            : this.mitarbeiter.length > 0
-              ? '<option value="">Nicht zugewiesen</option>' + this.mitarbeiter.map(user => `<option value="${user.id}">${safe(user.name)}</option>`).join('')
-              : '<option value="">Keine Mitarbeiter verfügbar</option>'
-          }
-        </select>
+        <div class="auto-suggest-container" style="position: relative;">
+          <input 
+            type="text" 
+            id="task_mitarbeiter_search" 
+            class="form-input auto-suggest-input" 
+            placeholder="${!hasKampagne ? 'Bitte wähle zuerst eine Kampagne' : 'Mitarbeiter suchen...'}"
+            autocomplete="off"
+            ${!hasKampagne ? 'disabled' : ''} />
+          <input type="hidden" name="assigned_to_user_id" id="task_assigned_to_mitarbeiter" value="" />
+          <div id="task_mitarbeiter_dropdown" class="auto-suggest-dropdown"></div>
+        </div>
       </div>
     `;
 
@@ -689,6 +688,115 @@ export class TaskCreateDrawer {
 
     // Aktualisiere den Container
     assignmentContainer.innerHTML = mitarbeiterHtml + kundenHtml;
+
+    // Bind Auto-Suggestion wenn Kampagne ausgewählt
+    if (hasKampagne) {
+      this.bindMitarbeiterAutoSuggest();
+    }
+  }
+
+  bindMitarbeiterAutoSuggest() {
+    const searchInput = document.getElementById('task_mitarbeiter_search');
+    const dropdown = document.getElementById('task_mitarbeiter_dropdown');
+    const hiddenInput = document.getElementById('task_assigned_to_mitarbeiter');
+    
+    if (!searchInput || !dropdown || !hiddenInput) return;
+
+    const safe = (str) => window.validatorSystem?.sanitizeHtml?.(str) ?? str;
+    let selectedIndex = -1;
+
+    const showDropdown = (items) => {
+      if (items.length === 0) {
+        dropdown.innerHTML = '<div class="auto-suggest-item auto-suggest-empty">Keine Mitarbeiter gefunden</div>';
+      } else {
+        dropdown.innerHTML = items.map((user, idx) => `
+          <div class="auto-suggest-item ${idx === selectedIndex ? 'selected' : ''}" data-id="${user.id}" data-name="${safe(user.name)}">
+            <span class="auto-suggest-name">${safe(user.name)}</span>
+            ${user.rolle ? `<span class="auto-suggest-meta">${safe(user.rolle)}</span>` : ''}
+          </div>
+        `).join('');
+      }
+      dropdown.style.display = 'block';
+    };
+
+    const hideDropdown = () => {
+      dropdown.style.display = 'none';
+      selectedIndex = -1;
+    };
+
+    const selectItem = (id, name) => {
+      hiddenInput.value = id;
+      searchInput.value = name;
+      hideDropdown();
+    };
+
+    const clearSelection = () => {
+      hiddenInput.value = '';
+      searchInput.value = '';
+    };
+
+    // Event: Input
+    searchInput.addEventListener('input', () => {
+      const query = searchInput.value.toLowerCase().trim();
+      
+      if (!query) {
+        // Zeige alle Mitarbeiter wenn Input leer
+        showDropdown(this.mitarbeiter);
+        hiddenInput.value = '';
+        return;
+      }
+
+      const filtered = this.mitarbeiter.filter(user => 
+        user.name?.toLowerCase().includes(query) ||
+        user.rolle?.toLowerCase().includes(query)
+      );
+      showDropdown(filtered);
+    });
+
+    // Event: Focus - zeige alle Optionen
+    searchInput.addEventListener('focus', () => {
+      showDropdown(this.mitarbeiter);
+    });
+
+    // Event: Klick auf Item
+    dropdown.addEventListener('click', (e) => {
+      const item = e.target.closest('.auto-suggest-item');
+      if (item && !item.classList.contains('auto-suggest-empty')) {
+        selectItem(item.dataset.id, item.dataset.name);
+      }
+    });
+
+    // Event: Keyboard Navigation
+    searchInput.addEventListener('keydown', (e) => {
+      const items = dropdown.querySelectorAll('.auto-suggest-item:not(.auto-suggest-empty)');
+      
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+        items.forEach((item, idx) => item.classList.toggle('selected', idx === selectedIndex));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedIndex = Math.max(selectedIndex - 1, 0);
+        items.forEach((item, idx) => item.classList.toggle('selected', idx === selectedIndex));
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (selectedIndex >= 0 && items[selectedIndex]) {
+          const item = items[selectedIndex];
+          selectItem(item.dataset.id, item.dataset.name);
+        }
+      } else if (e.key === 'Escape') {
+        hideDropdown();
+      } else if (e.key === 'Backspace' && !searchInput.value) {
+        clearSelection();
+      }
+    });
+
+    // Event: Klick außerhalb schließt Dropdown
+    document.addEventListener('click', (e) => {
+      if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+        hideDropdown();
+      }
+    });
   }
 
   async handleSubmit(formData) {

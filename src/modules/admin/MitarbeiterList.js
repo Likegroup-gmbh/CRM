@@ -52,13 +52,14 @@ export class MitarbeiterList {
       }
 
       if (window.supabase) {
-        // Lade Mitarbeiterdaten direkt ohne RPC (da freigeschaltet Spalte eventuell noch nicht existiert)
+        // Lade Mitarbeiterdaten direkt (inkl. E-Mail aus benutzer-Tabelle)
         // Filter: Rolle != 'kunde' (Kunden haben eigene Seite)
         const { data, error } = await window.supabase
           .from('benutzer')
           .select(`
             id,
             name,
+            email,
             rolle,
             unterrolle,
             freigeschaltet,
@@ -69,8 +70,8 @@ export class MitarbeiterList {
           .order('name');
 
         if (error) {
-          console.warn('⚠️ Fehler beim Laden der Mitarbeiter-Liste (eventuell fehlt freigeschaltet Spalte)', error);
-          // Fallback ohne freigeschaltet Spalte
+          console.warn('⚠️ Fehler beim Laden der Mitarbeiter-Liste', error);
+          // Fallback ohne email/freigeschaltet Spalte
           const { data: fallback, error: fallbackError } = await window.supabase
             .from('benutzer')
             .select('id, name, rolle, unterrolle, auth_user_id, mitarbeiter_klasse:mitarbeiter_klasse_id(id, name)')
@@ -85,26 +86,11 @@ export class MitarbeiterList {
 
           this.rows = (fallback || []).map(r => ({
             ...r,
+            email: '—',
             freigeschaltet: r.rolle === 'admin' // Default: Admins sind freigeschaltet
           }));
         } else {
           this.rows = data || [];
-        }
-
-        // Lade E-Mail-Adressen aus auth.users für alle Mitarbeiter
-        if (this.rows.length > 0) {
-          const authUserIds = this.rows.map(r => r.auth_user_id).filter(Boolean);
-          if (authUserIds.length > 0) {
-            const { data: authUsers } = await window.supabase.auth.admin.listUsers();
-            const emailMap = {};
-            authUsers?.users?.forEach(u => {
-              emailMap[u.id] = u.email;
-            });
-            this.rows = this.rows.map(r => ({
-              ...r,
-              email: emailMap[r.auth_user_id] || '—'
-            }));
-          }
         }
       } else {
         this.rows = await window.dataService.loadEntities('benutzer');

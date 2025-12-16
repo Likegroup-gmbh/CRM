@@ -420,7 +420,7 @@ export class KooperationDetail {
 
     const creatorHtml = this.creator ? `
       <div class="detail-card">
-        <h3>Creator</h3>
+        <h3 class="section-title">Creator</h3>
         <div class="detail-grid-2">
           <div class="detail-item"><label>Name</label><span>${this.creator.vorname} ${this.creator.nachname}</span></div>
           <div class="detail-item"><label>E-Mail</label><span>${this.creator.mail || '-'}</span></div>
@@ -433,11 +433,11 @@ export class KooperationDetail {
           <button onclick="window.navigateTo('/creator/${this.creator.id}')" class="secondary-btn">Creator Details anzeigen</button>
         </div>
       </div>
-    ` : '<div class="detail-card"><h3>Creator</h3><p>Keine Creator-Daten</p></div>';
+    ` : '<div class="detail-card"><h3 class="section-title">Creator</h3><p>Keine Creator-Daten</p></div>';
 
     const kampagneHtml = this.kampagne ? `
       <div class="detail-card">
-        <h3>Kampagne</h3>
+        <h3 class="section-title">Kampagne</h3>
         <div class="detail-grid-2">
           <div class="detail-item"><label>Name</label><span>${this.kampagne.kampagnenname}</span></div>
           <div class="detail-item"><label>Status</label><span class="status-badge status-${this.kampagne.status?.toLowerCase() || 'unknown'}">${this.kampagne.status || '-'}</span></div>
@@ -448,14 +448,14 @@ export class KooperationDetail {
           <button onclick="window.navigateTo('/kampagne/${this.kampagne.id}')" class="secondary-btn">Kampagne Details anzeigen</button>
         </div>
       </div>
-    ` : '<div class="detail-card"><h3>Kampagne</h3><p>Keine Kampagnen-Daten</p></div>';
+    ` : '<div class="detail-card"><h3 class="section-title">Kampagne</h3><p>Keine Kampagnen-Daten</p></div>';
 
     return `
       <div class="detail-section">
         <h2>Kooperations-Informationen</h2>
         <div class="detail-grid">
           <div class="detail-card">
-            <h3>Allgemein</h3>
+            <h3 class="section-title">Allgemein</h3>
             <div class="detail-grid-2">
               <div class="detail-item"><label>Status</label><span class="status-badge status-${this.kooperation.status?.toLowerCase() || 'unknown'}">${this.kooperation.status || '-'}</span></div>
               <div class="detail-item"><label>Einkaufspreis</label><span>${formatCurrency(this.kooperation.einkaufspreis_gesamt)}</span></div>

@@ -477,35 +477,35 @@ export class AuftragDetail {
       <div class="detail-section">
         <div class="detail-grid">
           <div class="detail-card">
-            <h3>Einnahmen (Auftrag)</h3>
+            <h3 class="section-title">Einnahmen (Auftrag)</h3>
             <div class="detail-item"><label>Netto:</label><span>${fmt(a.nettobetrag)}</span></div>
             <div class="detail-item"><label>USt (%):</label><span>${num(ustProzent)}</span></div>
             <div class="detail-item"><label>USt Betrag:</label><span>${fmt(ustBetrag)}</span></div>
             <div class="detail-item"><label>Brutto Gesamtbudget:</label><span>${fmt(a.bruttobetrag)}</span></div>
           </div>
           <div class="detail-card">
-            <h3>Planwerte</h3>
+            <h3 class="section-title">Planwerte</h3>
             <div class="detail-item"><label>Geplanter Deckungsbeitrag (%):</label><span>${num(dbProzent)}</span></div>
             <div class="detail-item"><label>Geplanter Deckungsbeitrag (Betrag):</label><span>${fmt(dbBetrag)}</span></div>
             <div class="detail-item"><label>KSK (5% von Netto):</label><span>${fmt(a.ksk_betrag)}</span></div>
             <div class="detail-item"><label>Creator Budget:</label><span>${fmt(a.creator_budget)}</span></div>
           </div>
           <div class="detail-card">
-            <h3>Preisaufbau (Netto)</h3>
+            <h3 class="section-title">Preisaufbau (Netto)</h3>
             <div class="detail-item"><label>Influencer:</label><span>${num(a.influencer)} × ${fmt(a.influencer_preis)}</span></div>
             <div class="detail-item"><label>UGC:</label><span>${num(a.ugc)} × ${fmt(a.ugc_preis)}</span></div>
             <div class="detail-item"><label>Vor Ort Produktion:</label><span>${num(a.vor_ort_produktion)} × ${fmt(a.vor_ort_preis)}</span></div>
             <div class="detail-item"><label>Summe Positionen (Netto):</label><span>${fmt(itemsNetto)}</span></div>
           </div>
           <div class="detail-card">
-            <h3>Rechnungen</h3>
+            <h3 class="section-title">Rechnungen</h3>
             <div class="detail-item"><label>Anzahl:</label><span>${num(this.rechnungSummary.count)}</span></div>
             <div class="detail-item"><label>Summe Netto:</label><span>${fmt(this.rechnungSummary.sumNetto)}</span></div>
             <div class="detail-item"><label>Summe Brutto:</label><span>${fmt(this.rechnungSummary.sumBrutto)}</span></div>
             <div class="detail-item"><label>Bezahlt / Offen:</label><span>${num(this.rechnungSummary.paidCount)} / ${num(this.rechnungSummary.openCount)}</span></div>
           </div>
           <div class="detail-card">
-            <h3>Ausgaben (Kooperationen)</h3>
+            <h3 class="section-title">Ausgaben (Kooperationen)</h3>
             <div class="detail-item"><label>Anzahl Kooperationen:</label><span>${num(this.koopSummary.count)}</span></div>
             <div class="detail-item"><label>Summe Nettokosten:</label><span>${fmt(this.koopSummary.sumNetto)}</span></div>
             <div class="detail-item"><label>Summe Gesamtkosten:</label><span>${fmt(this.koopSummary.sumGesamt)}</span></div>
@@ -660,7 +660,7 @@ export class AuftragDetail {
       <div class="detail-section">
         <div class="detail-grid">
           <div class="detail-card">
-            <h3>Auftrags-Informationen</h3>
+            <h3 class="section-title">Auftrags-Informationen</h3>
             <div class="detail-item">
               <label>Auftragsname:</label>
               <span>${this.auftrag?.auftragsname || '-'}</span>

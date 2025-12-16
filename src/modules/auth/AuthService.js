@@ -347,7 +347,7 @@ export class AuthService {
       }
 
       if (data.user) {
-        await this.createBenutzerRecord(data.user.id, name, klasseId);
+        await this.createBenutzerRecord(data.user.id, name, email, klasseId);
       }
 
       this.clearAttempts(email);
@@ -369,7 +369,7 @@ export class AuthService {
   }
 
   // Benutzer-Record erstellen (wird vom Trigger automatisch erstellt, prüfen ob vorhanden)
-  async createBenutzerRecord(authUserId, name, klasseId = null) {
+  async createBenutzerRecord(authUserId, name, email = null, klasseId = null) {
     try {
       if (this._offlineMode) {
         console.warn('⚠️ Offline-Modus - überspringe Benutzer-Erstellung');
@@ -381,56 +381,78 @@ export class AuthService {
         return;
       }
 
-      // Prüfe ob Record bereits vom Trigger erstellt wurde
+      // Prüfe ob Record bereits existiert
       const { data: existingUser, error: checkError } = await window.supabase
         .from('benutzer')
-        .select('id')
+        .select('id, email')
         .eq('auth_user_id', authUserId)
         .maybeSingle();
 
       if (checkError) {
-        console.error('Error checking benutzer record:', checkError);
-        return;
+        console.warn('⚠️ Fehler beim Prüfen des Benutzer-Records, versuche Fallback:', checkError.message);
+        // Nicht abbrechen - versuche den Fallback!
       }
 
       if (existingUser) {
-        console.log('✅ Benutzer-Record bereits vom Trigger erstellt');
+        console.log('✅ Benutzer-Record bereits vorhanden');
         
-        // Update Mitarbeiter-Klasse falls angegeben
-        if (klasseId) {
+        // Update E-Mail und Mitarbeiter-Klasse falls angegeben und noch nicht gesetzt
+        const updateData = {};
+        if (email && !existingUser.email) updateData.email = email;
+        if (klasseId) updateData.mitarbeiter_klasse_id = klasseId;
+        
+        if (Object.keys(updateData).length > 0) {
           const { error: updateError } = await window.supabase
             .from('benutzer')
-            .update({ mitarbeiter_klasse_id: klasseId })
+            .update(updateData)
             .eq('auth_user_id', authUserId);
             
           if (updateError) {
-            console.error('Error updating mitarbeiter_klasse_id:', updateError);
+            console.error('❌ Fehler beim Update des Benutzer-Records:', updateError.message);
+          } else {
+            console.log('✅ Benutzer-Record aktualisiert (E-Mail/Klasse)');
           }
         }
         return;
       }
 
-      // Fallback: Erstelle Record falls Trigger fehlgeschlagen ist
-      console.warn('⚠️ Trigger hat keinen Record erstellt - Fallback');
+      // Fallback: Erstelle Record
+      console.log('📝 Erstelle neuen Benutzer-Record...');
       const { error } = await window.supabase
         .from('benutzer')
         .insert({
           auth_user_id: authUserId,
           name: name,
-          rolle: 'pending', // Neue Rolle ohne Rechte - muss vom Admin freigeschaltet werden
+          email: email,
+          rolle: 'pending',
           unterrolle: 'awaiting_approval',
           mitarbeiter_klasse_id: klasseId,
-          zugriffsrechte: null, // Explizit keine Rechte
-          freigeschaltet: false // Muss vom Admin freigeschaltet werden
+          zugriffsrechte: null,
+          freigeschaltet: false
         });
 
       if (error) {
-        console.error('Error creating user record:', error);
+        // Falls Insert fehlschlägt wegen Unique Constraint, versuche Update
+        if (error.code === '23505') {
+          console.warn('⚠️ Record existiert bereits (Race Condition), versuche Update...');
+          const { error: retryError } = await window.supabase
+            .from('benutzer')
+            .update({ email: email, name: name })
+            .eq('auth_user_id', authUserId);
+          
+          if (retryError) {
+            console.error('❌ Auch Retry-Update fehlgeschlagen:', retryError.message);
+          } else {
+            console.log('✅ Benutzer-Record via Retry-Update aktualisiert');
+          }
+        } else {
+          console.error('❌ Fehler beim Erstellen des Benutzer-Records:', error.message);
+        }
       } else {
-        console.log('✅ Benutzer-Record erstellt (Fallback)');
+        console.log('✅ Benutzer-Record erstellt');
       }
     } catch (error) {
-      console.error('Error creating user record:', error);
+      console.error('❌ Unerwarteter Fehler beim Erstellen des Benutzer-Records:', error);
     }
   }
 

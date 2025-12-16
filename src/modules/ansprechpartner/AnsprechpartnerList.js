@@ -9,6 +9,43 @@ import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
 
+// Sprach-Mapping für Abkürzungen
+const SPRACH_KUERZEL = {
+  'Deutsch': 'DE',
+  'Englisch': 'EN',
+  'Französisch': 'FR',
+  'Spanisch': 'ES',
+  'Italienisch': 'IT',
+  'Portugiesisch': 'PT',
+  'Niederländisch': 'NL',
+  'Polnisch': 'PL',
+  'Russisch': 'RU',
+  'Chinesisch': 'ZH',
+  'Japanisch': 'JA',
+  'Koreanisch': 'KO',
+  'Arabisch': 'AR',
+  'Türkisch': 'TR',
+  'Griechisch': 'EL',
+  'Schwedisch': 'SV',
+  'Dänisch': 'DA',
+  'Norwegisch': 'NO',
+  'Finnisch': 'FI',
+  'Tschechisch': 'CS',
+  'Ungarisch': 'HU',
+  'Rumänisch': 'RO',
+  'Ukrainisch': 'UK',
+  'Hindi': 'HI',
+  'Hebräisch': 'HE',
+  'Vietnamesisch': 'VI',
+  'Thailändisch': 'TH',
+  'Indonesisch': 'ID'
+};
+
+function getSprachKuerzel(name) {
+  if (!name) return '-';
+  return SPRACH_KUERZEL[name] || name.substring(0, 2).toUpperCase();
+}
+
 export class AnsprechpartnerList {
   constructor() {
     this.selectedAnsprechpartner = new Set();
@@ -342,8 +379,8 @@ export class AnsprechpartnerList {
         <td>${ap.stadt || '-'}</td>
         <td>
           ${(ap.sprachen && ap.sprachen.length > 0)
-            ? `<div class="tag-list">${ap.sprachen.map(s => `<span class="tag tag--sprache">${window.validatorSystem.sanitizeHtml(s.name)}</span>`).join('')}</div>`
-            : (ap.sprache?.name ? `<span class="tag tag--sprache">${window.validatorSystem.sanitizeHtml(ap.sprache.name)}</span>` : '-')}
+            ? `<div class="tag-list">${ap.sprachen.map(s => `<span class="tag tag--sprache" title="${window.validatorSystem.sanitizeHtml(s.name)}">${getSprachKuerzel(s.name)}</span>`).join('')}</div>`
+            : (ap.sprache?.name ? `<span class="tag tag--sprache" title="${window.validatorSystem.sanitizeHtml(ap.sprache.name)}">${getSprachKuerzel(ap.sprache.name)}</span>` : '-')}
         </td>
         <td>
           ${actionBuilder.create('ansprechpartner', ap.id)}
