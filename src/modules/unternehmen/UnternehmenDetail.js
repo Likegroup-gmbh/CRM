@@ -931,42 +931,49 @@ export class UnternehmenDetail extends PersonDetailBase {
       }
     });
 
-    // Entity Updates (für Ansprechpartner)
-    document.addEventListener('entityUpdated', (e) => {
-      if (e.detail?.entity === 'ansprechpartner' && e.detail?.unternehmenId === this.unternehmenId) {
-        console.log('🔄 UNTERNEHMENDETAIL: Ansprechpartner wurde aktualisiert, lade Daten neu');
-        this.loadUnternehmenData().then(() => {
-          this.render();
-          this.bindEvents();
-        });
-      }
-      if (e.detail?.entity === 'unternehmen' && e.detail?.id === this.unternehmenId) {
-        console.log('🔄 UNTERNEHMENDETAIL: Unternehmen wurde aktualisiert, lade Daten neu');
-        this.loadUnternehmenData().then(() => {
-          this.render();
-          this.bindEvents();
-        });
-      }
-    });
+    // Entity Updates (für Ansprechpartner) - nur einmal registrieren
+    if (!this._entityUpdatedBound) {
+      this._entityUpdatedHandler = (e) => {
+        if (e.detail?.entity === 'ansprechpartner' && e.detail?.unternehmenId === this.unternehmenId) {
+          console.log('🔄 UNTERNEHMENDETAIL: Ansprechpartner wurde aktualisiert, lade Daten neu');
+          this.loadUnternehmenData().then(() => {
+            this.render();
+          });
+        }
+        if (e.detail?.entity === 'unternehmen' && e.detail?.id === this.unternehmenId) {
+          console.log('🔄 UNTERNEHMENDETAIL: Unternehmen wurde aktualisiert, lade Daten neu');
+          this.loadUnternehmenData().then(() => {
+            this.render();
+          });
+        }
+      };
+      document.addEventListener('entityUpdated', this._entityUpdatedHandler);
+      this._entityUpdatedBound = true;
+    }
 
     // Soft-Refresh bei Realtime-Updates (nur wenn kein Formular aktiv)
-    window.addEventListener('softRefresh', async (e) => {
-      const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
-      
-      if (hasActiveForm) {
-        console.log('⏸️ UNTERNEHMENDETAIL: Formular aktiv - Soft-Refresh übersprungen');
-        return;
-      }
-      
-      if (!this.unternehmenId || !location.pathname.includes('/unternehmen/')) {
-        return;
-      }
-      
-      console.log('🔄 UNTERNEHMENDETAIL: Soft-Refresh - lade Daten neu');
-      await this.loadUnternehmenData();
-      this.render();
-      this.bindEvents();
-    });
+    // Nur einmal registrieren um Render-Loops zu vermeiden
+    if (!this._softRefreshBound) {
+      this._softRefreshHandler = async (e) => {
+        const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
+        
+        if (hasActiveForm) {
+          console.log('⏸️ UNTERNEHMENDETAIL: Formular aktiv - Soft-Refresh übersprungen');
+          return;
+        }
+        
+        if (!this.unternehmenId || !location.pathname.includes('/unternehmen/')) {
+          return;
+        }
+        
+        console.log('🔄 UNTERNEHMENDETAIL: Soft-Refresh - lade Daten neu');
+        await this.loadUnternehmenData();
+        this.render();
+        // NICHT bindEvents() erneut aufrufen - führt zu Endlosschleife
+      };
+      window.addEventListener('softRefresh', this._softRefreshHandler);
+      this._softRefreshBound = true;
+    }
   }
 
   // Ansprechpartner entfernen
@@ -1342,6 +1349,16 @@ export class UnternehmenDetail extends PersonDetailBase {
   // Cleanup
   destroy() {
     console.log('UnternehmenDetail: Cleaning up...');
+    
+    // Event-Listener entfernen
+    if (this._softRefreshHandler) {
+      window.removeEventListener('softRefresh', this._softRefreshHandler);
+      this._softRefreshBound = false;
+    }
+    if (this._entityUpdatedHandler) {
+      document.removeEventListener('entityUpdated', this._entityUpdatedHandler);
+      this._entityUpdatedBound = false;
+    }
   }
 }
 

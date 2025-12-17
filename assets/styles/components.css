@@ -8734,6 +8734,24 @@ span.profile-name {
 
 /* === STRATEGIE TABLE ERWEITERUNGEN === */
 
+/* Strategien-Liste: Spaltenbreiten */
+table:has(#strategien-table-body) {
+  table-layout: fixed;
+}
+
+table:has(#strategien-table-body) th:nth-child(1),
+table:has(#strategien-table-body) td:nth-child(1) {
+  width: 35%;
+  font-weight: 600;
+}
+
+table:has(#strategien-table-body) th:nth-child(2),
+table:has(#strategien-table-body) td:nth-child(2),
+table:has(#strategien-table-body) th:nth-child(3),
+table:has(#strategien-table-body) td:nth-child(3) {
+  width: 80px;
+}
+
 /* Drag-to-Scroll Support für Tabellen */
 .table-container.drag-scroll-enabled {
   overflow-x: auto;

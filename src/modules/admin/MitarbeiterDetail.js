@@ -258,19 +258,12 @@ export class MitarbeiterDetail extends PersonDetailBase {
     // Person-Config für die Sidebar
     const personConfig = {
       name: this.user?.name || 'Unbekannt',
-      email: this.user?.email || '',
-      subtitle: this.user?.mitarbeiter_klasse_name || 'Mitarbeiter',
-      avatarUrl: this.user?.profile_image_url
+      avatarUrl: this.user?.profile_image_url,
+      avatarOnly: true  // Nur Avatar anzeigen, kein Name/Email/Subtitle im Header
     };
 
-    // Quick Actions
+    // Quick Actions (leer - werden nicht angezeigt)
     const quickActions = [];
-    if (this.user?.email) {
-      quickActions.push({ icon: 'mail', label: 'Mail', href: `mailto:${this.user.email}` });
-    }
-    if (this.user?.telefon) {
-      quickActions.push({ icon: 'phone', label: 'Anrufen', href: `tel:${this.user.telefon}` });
-    }
 
     // Info-Items für Sidebar
     const sidebarInfo = this.renderInfoItems([
