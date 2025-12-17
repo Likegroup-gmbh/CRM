@@ -906,7 +906,7 @@ export class UnternehmenDetail extends PersonDetailBase {
 
     // Unternehmen bearbeiten Button
     document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-edit-unternehmen') {
+      if (e.target.closest('#btn-edit-unternehmen')) {
         this.showEditForm();
       }
     });

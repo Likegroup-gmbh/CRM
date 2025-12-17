@@ -731,7 +731,7 @@ export class KooperationDetail {
 
     // Bearbeiten Button
     document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-edit-kooperation') {
+      if (e.target.closest('#btn-edit-kooperation')) {
         e.preventDefault();
         this.showEditForm();
       }

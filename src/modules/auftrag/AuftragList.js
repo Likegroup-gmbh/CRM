@@ -1,5 +1,6 @@
 // AuftragList.js (ES6-Modul)
 // Auftrags-Liste mit Filter, Verwaltung und Pagination
+// Performance-optimierte Version
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
@@ -10,6 +11,31 @@ import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { AuftragFilterLogic } from './filters/AuftragFilterLogic.js';
 import { AuftragCashFlowCalendar } from './AuftragCashFlowCalendar.js';
 
+// Statische Formatter (einmalig definiert, nicht bei jedem Render)
+const currencyFormatter = new Intl.NumberFormat('de-DE', { 
+  style: 'currency', currency: 'EUR',
+  minimumFractionDigits: 0, maximumFractionDigits: 0
+});
+
+const numberFormatter = new Intl.NumberFormat('de-DE', {
+  minimumFractionDigits: 0, maximumFractionDigits: 0
+});
+
+// Kampagne-Art Abkürzungen (statisch)
+const KAMPAGNE_ART_ABBR = {
+  'UGC Kampagne': 'UK',
+  'Influencer Kampagne': 'IK',
+  'Hybrid Kampagne': 'HK',
+  'UGC': 'UG',
+  'IGC': 'IG',
+  'Influencer': 'IN',
+  'Content Creation': 'CC'
+};
+
+// SVG Icons (statisch, einmalig definiert)
+const CHECK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: var(--icon-xs); height: var(--icon-xs); display: inline-block; vertical-align: middle;"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>`;
+const CROSS_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: var(--icon-xs); height: var(--icon-xs); display: inline-block; vertical-align: middle;"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>`;
+
 export class AuftragList {
   constructor() {
     this.selectedAuftraege = new Set();
@@ -18,14 +44,132 @@ export class AuftragList {
     this.pagination = new PaginationSystem();
     this.currentView = 'list'; // 'list' oder 'calendar'
     this.cashFlowCalendar = null;
-    this._auftragNewBound = false; // Flag für einmaliges Binden
-    this._globalEventsBound = false; // Flag für globale Events (Performance)
+    this._auftragNewBound = false;
+    this._globalEventsBound = false;
+    this._isAdmin = null; // Gecachter Admin-Status
+    
+    // Finanzdaten
+    this.monthlyRevenue = { total: 0, auftraege: [] };
+    this.monthlyExpenses = { total: 0, rechnungen: [] };
+    this.financialsHidden = localStorage.getItem('auftrag-financials-hidden') === 'true';
+    
+    // Farben für Umsatz-Balken
+    this.revenueColors = [
+      '#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444',
+      '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#6366f1'
+    ];
+    
+    // Farben für Ausgaben-Balken
+    this.expenseColors = [
+      '#ef4444', '#f97316', '#f59e0b', '#dc2626', '#ea580c',
+      '#d97706', '#b91c1c', '#c2410c', '#b45309', '#991b1b'
+    ];
+  }
+
+  // Gecachte Admin-Prüfung
+  get isAdmin() {
+    if (this._isAdmin === null) {
+      this._isAdmin = window.currentUser?.rolle === 'admin' || 
+                      window.currentUser?.rolle?.toLowerCase() === 'admin';
+    }
+    return this._isAdmin;
+  }
+
+  // Admin-Cache invalidieren (z.B. bei User-Wechsel)
+  invalidateAdminCache() {
+    this._isAdmin = null;
+  }
+
+  // Formatierungs-Hilfsmethoden (einmalig definiert)
+  formatCurrency(value) {
+    return value ? currencyFormatter.format(value) : '-';
+  }
+
+  formatNumber(value) {
+    return numberFormatter.format(value);
+  }
+
+  formatDate(date) {
+    return date ? new Date(date).toLocaleDateString('de-DE') : '-';
+  }
+
+  formatBoolean(value) {
+    return value ? CHECK_ICON : CROSS_ICON;
+  }
+
+  formatKampagneArtTags(arten) {
+    if (!arten || !Array.isArray(arten) || arten.length === 0) return '-';
+    
+    const tags = arten.map(art => {
+      const abbr = KAMPAGNE_ART_ABBR[art] || art.substring(0, 2).toUpperCase();
+      return `<span class="tag tag--kampagne-art" title="${art}">${abbr}</span>`;
+    }).join('');
+    
+    return `<div class="tags tags-compact">${tags}</div>`;
+  }
+
+  formatAnsprechpartner(person) {
+    if (!person) return '-';
+    const fullName = [person.vorname, person.nachname].filter(Boolean).join(' ');
+    if (!fullName) return '-';
+    
+    return avatarBubbles.renderBubbles([{
+      name: fullName,
+      type: 'person',
+      id: person.id,
+      entityType: 'ansprechpartner',
+      profile_image_url: person.profile_image_url || null
+    }]);
+  }
+
+  formatUnternehmenTag(unternehmen) {
+    if (!unternehmen?.firmenname) return '-';
+    
+    return avatarBubbles.renderBubbles([{
+      name: unternehmen.firmenname,
+      type: 'org',
+      id: unternehmen.id,
+      entityType: 'unternehmen',
+      logo_url: unternehmen.logo_url || null
+    }]);
+  }
+
+  formatMarkeTag(marke) {
+    if (!marke?.markenname) return '-';
+    
+    return avatarBubbles.renderBubbles([{
+      name: marke.markenname,
+      type: 'org',
+      id: marke.id,
+      entityType: 'marke',
+      logo_url: marke.logo_url || null
+    }]);
+  }
+
+  formatMitarbeiterTags(entries) {
+    if (!entries || entries.length === 0) return '-';
+    
+    const items = entries
+      .map(item => {
+        const name = item?.mitarbeiter?.name || item?.name;
+        const id = item?.mitarbeiter?.id || item?.id;
+        const profileImageUrl = item?.mitarbeiter?.profile_image_url || item?.profile_image_url;
+        if (!name) return null;
+        return {
+          name,
+          type: 'person',
+          id,
+          entityType: 'mitarbeiter',
+          profile_image_url: profileImageUrl || null
+        };
+      })
+      .filter(Boolean);
+    
+    return items.length > 0 ? avatarBubbles.renderBubbles(items) : '-';
   }
 
   // Initialisiere Auftrags-Liste
   async init() {
-    console.log('📋 AUFTRAGLIST: Initialisiere Auftrags-Liste');
-    
     // Breadcrumb für Listen-Seite
     if (window.breadcrumbSystem) {
       window.breadcrumbSystem.updateBreadcrumb([
@@ -46,7 +190,6 @@ export class AuftragList {
       
       await this.loadAndRender();
       this.bindEvents();
-      console.log('✅ AUFTRAGLIST: Initialisierung abgeschlossen');
     } catch (error) {
       console.error('❌ AUFTRAGLIST: Fehler bei der Initialisierung:', error);
       window.ErrorHandler.handle(error, 'AuftragList.init');
@@ -55,72 +198,149 @@ export class AuftragList {
 
   // Lade und rendere Aufträge
   async loadAndRender() {
-    console.log('🔄 AUFTRAGLIST: Lade und rendere Aufträge');
-    
     try {
+      // Finanzdaten für Admins laden
+      if (this.isAdmin) {
+        await Promise.all([
+          this.loadMonthlyRevenue(),
+          this.loadMonthlyExpenses()
+        ]);
+      }
+      
       // Seite rendern
       await this.render();
-      console.log('✅ AUFTRAGLIST: Content gesetzt');
       
-      // Event-Listener neu binden (wichtig nach jedem Render!)
+      // Event-Listener neu binden
       this.bindEvents();
       
       // Nur in List-View: Filter initialisieren und Daten laden
       if (this.currentView === 'list') {
-      // Filter-Bar initialisieren
-      await this.initializeFilterBar();
-      
-      // Aufträge mit Beziehungen und Pagination laden
-      console.log('🔍 AUFTRAGLIST: Lade Aufträge mit Beziehungen und Pagination');
-      const filters = filterSystem.getFilters('auftrag');
-      const { data: auftraege, count } = await this.loadAuftraegeWithPagination(
-        filters,
-        this.pagination.currentPage,
-        this.pagination.itemsPerPage
-      );
-      
-      console.log('📊 AUFTRAGLIST: Aufträge mit Beziehungen geladen:', auftraege?.length, auftraege);
-      
-      // Pagination Total aktualisieren
-      this.pagination.updateTotal(count);
-      
-      this.updateTable(auftraege);
-      
-      // Pagination rendern
-      this.pagination.render();
-      
-      console.log('✅ AUFTRAGLIST: Tabelle aktualisiert');
+        await this.initializeFilterBar();
+        
+        const filters = filterSystem.getFilters('auftrag');
+        const { data: auftraege, count } = await this.loadAuftraegeWithPagination(
+          filters,
+          this.pagination.currentPage,
+          this.pagination.itemsPerPage
+        );
+        
+        this.pagination.updateTotal(count);
+        this.updateTable(auftraege);
+        this.pagination.render();
       }
       
     } catch (error) {
       console.error('❌ AUFTRAGLIST: Fehler beim Laden und Rendern:', error);
-      if (window.ErrorHandler && window.ErrorHandler.handle) {
+      if (window.ErrorHandler?.handle) {
         window.ErrorHandler.handle(error, 'AuftragList.loadAndRender');
       }
     }
   }
 
+  // Lade Monatsumsatz
+  async loadMonthlyRevenue() {
+    try {
+      if (!window.supabase) {
+        this.monthlyRevenue = { total: 0, auftraege: [] };
+        return;
+      }
+
+      const now = new Date();
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+      
+      const firstDayStr = firstDayOfMonth.toISOString().split('T')[0];
+      const lastDayStr = lastDayOfMonth.toISOString().split('T')[0];
+
+      const { data: auftraege, error } = await window.supabase
+        .from('auftrag')
+        .select(`
+          id, auftragsname, nettobetrag, ueberwiesen_am,
+          unternehmen:unternehmen_id(firmenname),
+          marke:marke_id(markenname)
+        `)
+        .not('ueberwiesen_am', 'is', null)
+        .gte('ueberwiesen_am', firstDayStr)
+        .lte('ueberwiesen_am', lastDayStr)
+        .order('nettobetrag', { ascending: false });
+
+      if (error) {
+        this.monthlyRevenue = { total: 0, auftraege: [] };
+        return;
+      }
+
+      const total = (auftraege || []).reduce((sum, a) => sum + (parseFloat(a.nettobetrag) || 0), 0);
+      this.monthlyRevenue = {
+        total,
+        auftraege: auftraege || [],
+        month: now.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
+      };
+    } catch (error) {
+      console.error('❌ Fehler beim Laden des Monatsumsatzes:', error);
+      this.monthlyRevenue = { total: 0, auftraege: [] };
+    }
+  }
+
+  // Lade Monatsausgaben
+  async loadMonthlyExpenses() {
+    try {
+      if (!window.supabase) {
+        this.monthlyExpenses = { total: 0, rechnungen: [] };
+        return;
+      }
+
+      const now = new Date();
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+      
+      const firstDayStr = firstDayOfMonth.toISOString().split('T')[0];
+      const lastDayStr = lastDayOfMonth.toISOString().split('T')[0];
+
+      const { data: rechnungen, error } = await window.supabase
+        .from('rechnung')
+        .select(`
+          id, rechnung_nr, nettobetrag, bruttobetrag, bezahlt_am,
+          creator:creator_id(vorname, nachname),
+          kooperation:kooperation_id(name)
+        `)
+        .not('bezahlt_am', 'is', null)
+        .gte('bezahlt_am', firstDayStr)
+        .lte('bezahlt_am', lastDayStr)
+        .order('nettobetrag', { ascending: false });
+
+      if (error) {
+        this.monthlyExpenses = { total: 0, rechnungen: [] };
+        return;
+      }
+
+      const total = (rechnungen || []).reduce((sum, r) => sum + (parseFloat(r.nettobetrag) || 0), 0);
+      this.monthlyExpenses = {
+        total,
+        rechnungen: rechnungen || [],
+        month: now.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
+      };
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Monatsausgaben:', error);
+      this.monthlyExpenses = { total: 0, rechnungen: [] };
+    }
+  }
+
   // Handler für Seiten-Wechsel
   handlePageChange(page) {
-    console.log(`📄 AUFTRAGLIST: Wechsle zu Seite ${page}`);
     this.loadAndRender();
   }
 
   // Handler für Items-Per-Page-Wechsel
   handleItemsPerPageChange(limit, page) {
-    console.log(`📄 AUFTRAGLIST: Items pro Seite geändert auf ${limit}, Seite ${page}`);
     this.loadAndRender();
   }
 
   // Rendere Auftrags-Liste
   async render() {
     window.setHeadline('Aufträge');
-
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
     
     // Filter-Bar nur in List-View anzeigen
     let filterHtml = '';
-    let tableActionsHtml = '';
     
     if (this.currentView === 'list') {
       filterHtml = `
@@ -129,17 +349,22 @@ export class AuftragList {
             <div id="filter-dropdown-container"></div>
           </div>
           <div class="table-actions">
-            ${isAdmin ? '<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>' : ''}
-            ${isAdmin ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
+            ${this.isAdmin ? '<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>' : ''}
+            ${this.isAdmin ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
             <span id="selected-count" style="display:none;">0 ausgewählt</span>
-            ${isAdmin ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
+            ${this.isAdmin ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
             <button id="btn-auftrag-new" class="primary-btn">Neuen Auftrag anlegen</button>
           </div>
         </div>
       `;
     }
     
+    // Finanzkacheln nur für Admins
+    const financialsHtml = this.isAdmin ? this.renderFinancialsSection() : '';
+    
     const html = `
+      ${financialsHtml}
+
       <div class="page-header">
         <div class="page-header-right">
           <div class="view-toggle">
@@ -163,7 +388,7 @@ export class AuftragList {
 
       <!-- Content Container für beide Views -->
       <div id="auftrag-content-container">
-        ${this.currentView === 'list' ? this.renderListView(isAdmin) : '<div id="calendar-container"></div>'}
+        ${this.currentView === 'list' ? this.renderListView() : '<div id="calendar-container"></div>'}
       </div>
     `;
 
@@ -175,15 +400,194 @@ export class AuftragList {
     }
   }
 
+  // Render Finanzkacheln mit Toggle
+  renderFinancialsSection() {
+    const eyeOpenIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>`;
+    const eyeClosedIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" /></svg>`;
+
+    return `
+      <div class="auftrag-financials-section">
+        <div class="auftrag-financials-header">
+          <button id="btn-toggle-financials" class="icon-btn" title="${this.financialsHidden ? 'Zahlen anzeigen' : 'Zahlen verbergen'}">
+            ${this.financialsHidden ? eyeClosedIcon : eyeOpenIcon}
+          </button>
+        </div>
+        <div class="auftrag-financials-cards">
+          ${this.renderRevenueCard()}
+          ${this.renderExpensesCard()}
+        </div>
+      </div>
+    `;
+  }
+
+  // Render Umsatz-Kachel
+  renderRevenueCard() {
+    const revenue = this.monthlyRevenue;
+    const total = revenue.total || 0;
+    const auftraege = revenue.auftraege || [];
+    const month = revenue.month || new Date().toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+    const hiddenValue = '• • •';
+    
+    let barsHtml = '';
+    let legendHtml = '';
+    
+    if (auftraege.length > 0 && total > 0) {
+      auftraege.forEach((auftrag, index) => {
+        const betrag = parseFloat(auftrag.nettobetrag) || 0;
+        const percentage = (betrag / total) * 100;
+        const color = this.revenueColors[index % this.revenueColors.length];
+        const name = auftrag.auftragsname || auftrag.marke?.markenname || auftrag.unternehmen?.firmenname || 'Auftrag';
+        
+        if (percentage > 0.5) {
+          barsHtml += `<div class="revenue-bar" style="width: ${percentage}%; background-color: ${color};" title="${this.financialsHidden ? '' : name + ': ' + this.formatCurrency(betrag)}"></div>`;
+        }
+        
+        if (index < 5) {
+          legendHtml += `
+            <div class="revenue-legend-item">
+              <span class="revenue-legend-color" style="background-color: ${color};"></span>
+              <span class="revenue-legend-value">${this.financialsHidden ? hiddenValue : this.formatCurrency(betrag)}</span>
+              <span class="revenue-legend-name">${name.length > 20 ? name.substring(0, 20) + '...' : name}</span>
+            </div>
+          `;
+        }
+      });
+      
+      if (auftraege.length > 5) {
+        const weitereAnzahl = auftraege.length - 5;
+        const weitereBetrag = auftraege.slice(5).reduce((sum, a) => sum + (parseFloat(a.nettobetrag) || 0), 0);
+        legendHtml += `
+          <div class="revenue-legend-item revenue-legend-item--more">
+            <span class="revenue-legend-color" style="background-color: var(--gray-400);"></span>
+            <span class="revenue-legend-value">${this.financialsHidden ? hiddenValue : this.formatCurrency(weitereBetrag)}</span>
+            <span class="revenue-legend-name">+${weitereAnzahl} weitere</span>
+          </div>
+        `;
+      }
+    } else {
+      barsHtml = '<div class="revenue-bar revenue-bar--empty"></div>';
+      legendHtml = '<div class="revenue-legend-empty">Keine Umsätze in diesem Monat</div>';
+    }
+
+    return `
+      <div class="stats-card stats-card--revenue">
+        <div class="revenue-content">
+          <span class="revenue-title">Umsatz ${month}</span>
+          <div class="revenue-total">
+            <span class="revenue-currency">€</span>
+            <span class="revenue-amount">${this.financialsHidden ? hiddenValue : this.formatNumber(total)}</span>
+          </div>
+          <div class="revenue-bars">
+            ${barsHtml}
+          </div>
+          <div class="revenue-legend">
+            ${legendHtml}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Render Ausgaben-Kachel
+  renderExpensesCard() {
+    const expenses = this.monthlyExpenses;
+    const total = expenses.total || 0;
+    const rechnungen = expenses.rechnungen || [];
+    const month = expenses.month || new Date().toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+    const hiddenValue = '• • •';
+    
+    let barsHtml = '';
+    let legendHtml = '';
+    
+    if (rechnungen.length > 0 && total > 0) {
+      rechnungen.forEach((rechnung, index) => {
+        const betrag = parseFloat(rechnung.nettobetrag) || 0;
+        const percentage = (betrag / total) * 100;
+        const color = this.expenseColors[index % this.expenseColors.length];
+        const creatorName = rechnung.creator ? `${rechnung.creator.vorname || ''} ${rechnung.creator.nachname || ''}`.trim() : null;
+        const name = creatorName || rechnung.kooperation?.name || rechnung.rechnung_nr || 'Rechnung';
+        
+        if (percentage > 0.5) {
+          barsHtml += `<div class="expense-bar" style="width: ${percentage}%; background-color: ${color};" title="${this.financialsHidden ? '' : name + ': ' + this.formatCurrency(betrag)}"></div>`;
+        }
+        
+        if (index < 5) {
+          legendHtml += `
+            <div class="expense-legend-item">
+              <span class="expense-legend-color" style="background-color: ${color};"></span>
+              <span class="expense-legend-value">${this.financialsHidden ? hiddenValue : this.formatCurrency(betrag)}</span>
+              <span class="expense-legend-name">${name.length > 20 ? name.substring(0, 20) + '...' : name}</span>
+            </div>
+          `;
+        }
+      });
+      
+      if (rechnungen.length > 5) {
+        const weitereAnzahl = rechnungen.length - 5;
+        const weitereBetrag = rechnungen.slice(5).reduce((sum, r) => sum + (parseFloat(r.nettobetrag) || 0), 0);
+        legendHtml += `
+          <div class="expense-legend-item expense-legend-item--more">
+            <span class="expense-legend-color" style="background-color: var(--gray-400);"></span>
+            <span class="expense-legend-value">${this.financialsHidden ? hiddenValue : this.formatCurrency(weitereBetrag)}</span>
+            <span class="expense-legend-name">+${weitereAnzahl} weitere</span>
+          </div>
+        `;
+      }
+    } else {
+      barsHtml = '<div class="expense-bar expense-bar--empty"></div>';
+      legendHtml = '<div class="expense-legend-empty">Keine Ausgaben in diesem Monat</div>';
+    }
+
+    return `
+      <div class="stats-card stats-card--expenses">
+        <div class="expense-content">
+          <span class="expense-title">Ausgaben ${month}</span>
+          <div class="expense-total">
+            <span class="expense-currency">€</span>
+            <span class="expense-amount">${this.financialsHidden ? hiddenValue : this.formatNumber(total)}</span>
+          </div>
+          <div class="expense-bars">
+            ${barsHtml}
+          </div>
+          <div class="expense-legend">
+            ${legendHtml}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Toggle Finanzen anzeigen/verbergen
+  toggleFinancials() {
+    this.financialsHidden = !this.financialsHidden;
+    localStorage.setItem('auftrag-financials-hidden', this.financialsHidden.toString());
+    
+    // Nur die Finanzkacheln neu rendern
+    const financialsSection = document.querySelector('.auftrag-financials-section');
+    if (financialsSection) {
+      financialsSection.outerHTML = this.renderFinancialsSection();
+      // Toggle-Button Event neu binden
+      this.bindFinancialsToggle();
+    }
+  }
+
+  // Bind Toggle Event
+  bindFinancialsToggle() {
+    const toggleBtn = document.getElementById('btn-toggle-financials');
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => this.toggleFinancials());
+    }
+  }
+
   // Rendere List-View HTML
-  renderListView(isAdmin) {
+  renderListView() {
     return `
       <!-- Daten-Tabelle -->
-      <div class="table-container">
-          <table class="data-table">
+      <div class="table-container drag-scroll-enabled" id="auftrag-table-container">
+          <table class="data-table auftrag-table">
             <thead>
               <tr>
-                ${isAdmin ? `<th>
+                ${this.isAdmin ? `<th>
                   <input type="checkbox" id="select-all-auftraege">
                 </th>` : ''}
                 <th>Auftragsname</th>
@@ -191,8 +595,8 @@ export class AuftragList {
                 <th>Marke</th>
                 <th>PO</th>
                 <th>RE. Nr</th>
-                <th>RE-Fälligkeit</th>
-                <th>Art der Kampagne</th>
+                <th class="col-re-faelligkeit">RE-Fälligkeit</th>
+                <th class="col-art-kampagne">Art der Kampagne</th>
                 <th>Start</th>
                 <th>Ende</th>
                 <th>Netto</th>
@@ -200,10 +604,10 @@ export class AuftragList {
                 <th>Brutto</th>
                 <th>Ansprechpartner</th>
                 <th>Mitarbeiter</th>
-                <th>Rechnung gestellt</th>
-                <th>Überwiesen</th>
-                <th>Status</th>
-                <th></th>
+                <th class="col-rechnung-gestellt">Rechnung gestellt</th>
+                <th class="col-ueberwiesen">Überwiesen</th>
+                <th class="col-status">Status</th>
+                <th>Aktionen</th>
               </tr>
             </thead>
             <tbody id="auftraege-table-body">
@@ -212,10 +616,10 @@ export class AuftragList {
               </tr>
             </tbody>
           </table>
-          
-          <!-- Pagination -->
-          <div class="pagination-container" id="pagination-auftrag"></div>
       </div>
+      
+      <!-- Pagination (außerhalb des scrollbaren Containers) -->
+      <div class="pagination-container" id="pagination-auftrag"></div>
     `;
   }
 
@@ -223,7 +627,6 @@ export class AuftragList {
   async loadAuftraegeWithPagination(filters = {}, page = 1, limit = 10) {
     try {
       if (!window.supabase) {
-        console.warn('⚠️ Supabase nicht verfügbar - verwende Mock-Daten');
         const mockData = await window.dataService.loadEntities('auftrag');
         return { data: mockData, count: mockData.length };
       }
@@ -232,7 +635,7 @@ export class AuftragList {
       const from = (page - 1) * limit;
       const to = from + limit - 1;
 
-      // Query mit nur benötigten Feldern aufbauen (Performance-Optimierung)
+      // Query mit nur benötigten Feldern aufbauen
       let query = window.supabase
         .from('auftrag')
         .select(`
@@ -270,7 +673,7 @@ export class AuftragList {
       const { data, error, count } = await query;
 
       if (error) {
-        console.error('❌ Fehler beim Laden der Aufträge mit Beziehungen:', error);
+        console.error('❌ Fehler beim Laden der Aufträge:', error);
         throw error;
       }
 
@@ -287,70 +690,16 @@ export class AuftragList {
           markenname: auftrag.marke.markenname,
           logo_url: auftrag.marke.logo_url
         } : null,
-        // Art der Kampagne aus Junction-Table extrahieren
         art_der_kampagne: (auftrag.kampagne_arten || [])
           .map(ka => ka.art?.name)
           .filter(Boolean)
       }));
 
-      console.log('✅ Aufträge mit Beziehungen und Pagination geladen:', formattedData);
       return { data: formattedData, count: count || 0 };
 
     } catch (error) {
-      console.error('❌ Fehler beim Laden der Aufträge mit Beziehungen:', error);
+      console.error('❌ Fehler beim Laden der Aufträge:', error);
       throw error;
-    }
-  }
-
-  // DEPRECATED: Alte Methode ohne Pagination
-  async loadAuftraegeWithRelations() {
-    try {
-      if (!window.supabase) {
-        console.warn('⚠️ Supabase nicht verfügbar - verwende Mock-Daten');
-        return await window.dataService.loadEntities('auftrag');
-      }
-
-      const { data, error } = await window.supabase
-        .from('auftrag')
-        .select(`
-          *,
-          unternehmen:unternehmen_id(id, firmenname, logo_url),
-          marke:marke_id(id, markenname, logo_url),
-          ansprechpartner:ansprechpartner_id(id, vorname, nachname, email, profile_image_url),
-          cutter:auftrag_cutter(mitarbeiter:mitarbeiter_id(id, name)),
-          copywriter:auftrag_copywriter(mitarbeiter:mitarbeiter_id(id, name)),
-          mitarbeiter:auftrag_mitarbeiter(mitarbeiter:mitarbeiter_id(id, name))
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('❌ Fehler beim Laden der Aufträge mit Beziehungen:', error);
-        throw error;
-      }
-
-      // Daten für Kompatibilität formatieren
-      const formattedData = data.map(auftrag => ({
-        ...auftrag,
-        unternehmen: auftrag.unternehmen ? { 
-          id: auftrag.unternehmen.id,
-          firmenname: auftrag.unternehmen.firmenname,
-          logo_url: auftrag.unternehmen.logo_url
-        } : null,
-        marke: auftrag.marke ? { 
-          id: auftrag.marke.id,
-          markenname: auftrag.marke.markenname,
-          logo_url: auftrag.marke.logo_url
-        } : null
-      }));
-
-      console.log('✅ Aufträge mit Beziehungen geladen:', formattedData);
-      console.log('🔍 Debug - Erster Auftrag:', formattedData[0]);
-      return formattedData;
-
-    } catch (error) {
-      console.error('❌ Fehler beim Laden der Aufträge mit Beziehungen:', error);
-      // Fallback zu normalem Laden
-      return await window.dataService.loadEntities('auftrag');
     }
   }
 
@@ -358,7 +707,6 @@ export class AuftragList {
   async initializeFilterBar() {
     const filterContainer = document.getElementById('filter-dropdown-container');
     if (filterContainer) {
-      // Nutze das neue Filter-Dropdown System
       await filterDropdown.init('auftrag', filterContainer, {
         onFilterApply: (filters) => this.onFiltersApplied(filters),
         onFilterReset: () => this.onFiltersReset()
@@ -368,50 +716,112 @@ export class AuftragList {
 
   // Filter angewendet
   onFiltersApplied(filters) {
-    console.log('🔍 AUFTRAGLIST: Filter angewendet:', filters);
     filterSystem.applyFilters('auftrag', filters);
-    
-    // Pagination auf Seite 1 zurücksetzen bei Filter-Änderung
     this.pagination.reset();
-    
     this.loadAndRender();
   }
 
   // Filter zurückgesetzt
   onFiltersReset() {
-    console.log('🔄 AUFTRAGLIST: Filter zurückgesetzt');
     filterSystem.resetFilters('auftrag');
-    
-    // Pagination auf Seite 1 zurücksetzen
     this.pagination.reset();
-    
     this.loadAndRender();
   }
 
   // Binde Events
   bindEvents() {
-    // View-Toggle Events (diese müssen bei jedem Render gebunden werden wegen DOM-Ersetzung)
-    this.bindViewToggleEvents();
+    // Finanzen Toggle Event
+    this.bindFinancialsToggle();
 
-    // Globale delegierte Events nur EINMAL binden (Performance-Optimierung)
+    // Drag-to-Scroll für Tabelle initialisieren (nur in List-View)
+    if (this.currentView === 'list') {
+      this.initDragToScroll();
+    }
+
+    // Globale delegierte Events nur EINMAL binden
     if (!this._globalEventsBound) {
       this.bindGlobalDelegatedEvents();
       this._globalEventsBound = true;
     }
   }
 
-  // View-Toggle Events separat - werden bei jedem Render neu gebunden (DOM wird ersetzt)
-  bindViewToggleEvents() {
-    const listBtn = document.getElementById('btn-view-list');
-    const calendarBtn = document.getElementById('btn-view-calendar');
-
-    if (listBtn) {
-      // Entferne alte Listener falls vorhanden
-      const newListBtn = listBtn.cloneNode(true);
-      listBtn.parentNode.replaceChild(newListBtn, listBtn);
+  // Drag-to-Scroll für horizontales Scrollen der Tabelle
+  initDragToScroll() {
+    const container = document.getElementById('auftrag-table-container');
+    if (!container) return;
+    
+    // Cleanup vorherige Handler falls vorhanden
+    if (this._dragToScrollCleanup) {
+      this._dragToScrollCleanup();
+    }
+    
+    let isDragging = false;
+    let startX = 0;
+    let scrollLeft = 0;
+    
+    const handleMouseDown = (e) => {
+      // Ignoriere wenn auf interaktive Elemente geklickt wird
+      if (
+        e.target.tagName === 'INPUT' || 
+        e.target.tagName === 'TEXTAREA' || 
+        e.target.tagName === 'SELECT' ||
+        e.target.tagName === 'BUTTON' ||
+        e.target.tagName === 'A' ||
+        e.target.closest('a') ||
+        e.target.closest('button') ||
+        e.target.closest('.actions-dropdown')
+      ) {
+        return;
+      }
       
-      newListBtn.addEventListener('click', async () => {
-        console.log('🔄 AUFTRAGLIST: Wechsel zu List-View');
+      isDragging = true;
+      startX = e.pageX - container.offsetLeft;
+      scrollLeft = container.scrollLeft;
+      container.style.cursor = 'grabbing';
+      container.style.userSelect = 'none';
+      e.preventDefault();
+    };
+    
+    const handleMouseMove = (e) => {
+      if (!isDragging) return;
+      e.preventDefault();
+      
+      const x = e.pageX - container.offsetLeft;
+      const walk = (x - startX) * 1.5;
+      container.scrollLeft = scrollLeft - walk;
+    };
+    
+    const handleMouseUp = () => {
+      if (isDragging) {
+        isDragging = false;
+        container.style.cursor = 'grab';
+        container.style.userSelect = '';
+      }
+    };
+    
+    container.addEventListener('mousedown', handleMouseDown);
+    container.addEventListener('mousemove', handleMouseMove);
+    container.addEventListener('mouseup', handleMouseUp);
+    container.addEventListener('mouseleave', handleMouseUp);
+    
+    // Cleanup-Handler speichern
+    this._dragToScrollCleanup = () => {
+      container.removeEventListener('mousedown', handleMouseDown);
+      container.removeEventListener('mousemove', handleMouseMove);
+      container.removeEventListener('mouseup', handleMouseUp);
+      container.removeEventListener('mouseleave', handleMouseUp);
+      container.style.cursor = '';
+      container.style.userSelect = '';
+    };
+  }
+
+  // Globale delegierte Events - nur EINMAL gebunden (Performance)
+  bindGlobalDelegatedEvents() {
+    // Ein einziger Click-Handler für alle delegierten Click-Events
+    this._globalClickHandler = (e) => {
+      // View-Toggle Buttons (Event-Delegation statt cloneNode)
+      if (e.target.id === 'btn-view-list' || e.target.closest('#btn-view-list')) {
+        e.preventDefault();
         if (this.currentView === 'list') return;
         
         if (this.cashFlowCalendar) {
@@ -420,28 +830,19 @@ export class AuftragList {
         }
         
         this.currentView = 'list';
-        await this.loadAndRender();
-      });
-    }
+        this.loadAndRender();
+        return;
+      }
 
-    if (calendarBtn) {
-      const newCalendarBtn = calendarBtn.cloneNode(true);
-      calendarBtn.parentNode.replaceChild(newCalendarBtn, calendarBtn);
-      
-      newCalendarBtn.addEventListener('click', async () => {
-        console.log('🔄 AUFTRAGLIST: Wechsel zu Calendar-View');
+      if (e.target.id === 'btn-view-calendar' || e.target.closest('#btn-view-calendar')) {
+        e.preventDefault();
         if (this.currentView === 'calendar') return;
         
         this.currentView = 'calendar';
-        await this.loadAndRender();
-      });
-    }
-  }
+        this.loadAndRender();
+        return;
+      }
 
-  // Globale delegierte Events - nur EINMAL gebunden (Performance)
-  bindGlobalDelegatedEvents() {
-    // Ein einziger Click-Handler für alle delegierten Click-Events
-    this._globalClickHandler = (e) => {
       // Neuen Auftrag anlegen Button
       if (e.target.id === 'btn-auftrag-new' || e.target.id === 'btn-auftrag-new-filter') {
         e.preventDefault();
@@ -485,7 +886,6 @@ export class AuftragList {
       if (e.target.classList.contains('table-link') && e.target.dataset.table === 'auftrag') {
         e.preventDefault();
         const auftragId = e.target.dataset.id;
-        console.log('🎯 AUFTRAGLIST: Navigiere zu Auftrag Details:', auftragId);
         window.navigateTo(`/auftrag/${auftragId}`);
         return;
       }
@@ -548,8 +948,6 @@ export class AuftragList {
     document.addEventListener('click', this._globalClickHandler);
     document.addEventListener('change', this._globalChangeHandler);
     window.addEventListener('entityUpdated', this._entityUpdatedHandler);
-    
-    console.log('✅ AUFTRAGLIST: Globale Event-Listener gebunden (einmalig)');
   }
 
   // Prüfe ob aktive Filter vorhanden
@@ -584,16 +982,13 @@ export class AuftragList {
     }
   }
 
-  // Update Tabelle mit Fade-Animation
-  async updateTable(auftraege) {
+  // Update Tabelle (CSS-only Animation, kein setTimeout-Blocking)
+  updateTable(auftraege) {
     const tbody = document.querySelector('.data-table tbody');
     if (!tbody) return;
 
-    // Fade-out Animation starten (behält alte Daten während Fade-out)
-    tbody.classList.add('table-fade-out');
-    
-    // Warte auf Animation (200ms)
-    await new Promise(resolve => setTimeout(resolve, 200));
+    // CSS-Klasse für Fade-Animation (CSS handled die Transition)
+    tbody.classList.add('table-updating');
 
     if (!auftraege || auftraege.length === 0) {
       tbody.innerHTML = `
@@ -620,184 +1015,57 @@ export class AuftragList {
         });
       }
       
-      // Fade-in Animation
-      tbody.classList.remove('table-fade-out');
-      tbody.classList.add('table-fade-in');
-      setTimeout(() => tbody.classList.remove('table-fade-in'), 200);
+      // Animation beenden
+      requestAnimationFrame(() => {
+        tbody.classList.remove('table-updating');
+      });
       return;
     }
 
-    const rowsHtml = auftraege.map(auftrag => {
-      // Hilfsfunktionen für Formatierung
-      const formatCurrency = (value) => {
-        return value ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value) : '-';
-      };
-      
-      const formatDate = (date) => {
-        return date ? new Date(date).toLocaleDateString('de-DE') : '-';
-      };
-      
-      const formatArray = (array) => {
-        return array && Array.isArray(array) ? array.join(', ') : '-';
-      };
-      
-      // Kampagne-Art Tags mit 2-Buchstaben-Abkürzungen
-      const formatKampagneArtTags = (arten) => {
-        if (!arten || !Array.isArray(arten) || arten.length === 0) return '-';
-        
-        const abbreviations = {
-          'UGC Kampagne': 'UK',
-          'Influencer Kampagne': 'IK',
-          'Hybrid Kampagne': 'HK',
-          'UGC': 'UG',
-          'IGC': 'IG',
-          'Influencer': 'IN',
-          'Content Creation': 'CC'
-        };
-        
-        const tags = arten.map(art => {
-          const abbr = abbreviations[art] || art.substring(0, 2).toUpperCase();
-          return `<span class="tag tag--kampagne-art" title="${art}">${abbr}</span>`;
-        }).join('');
-        
-        return `<div class="tags tags-compact">${tags}</div>`;
-      };
-      
-      const formatBoolean = (value) => {
-        if (value) {
-          return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: var(--icon-xs); height: var(--icon-xs); display: inline-block; vertical-align: middle;">
-  <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-</svg>`;
-        } else {
-          return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: var(--icon-xs); height: var(--icon-xs); display: inline-block; vertical-align: middle;">
-  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-</svg>`;
-        }
-      };
-      
-      const formatAssignee = (assigneeId) => {
-        return assigneeId ? '👤' : '-';
-      };
-
-      const formatAnsprechpartner = (person) => {
-        if (!person) return '-';
-        const fullName = [person.vorname, person.nachname].filter(Boolean).join(' ');
-        if (!fullName) return '-';
-        
-        const items = [{
-          name: fullName,
-          type: 'person',
-          id: person.id,
-          entityType: 'ansprechpartner',
-          profile_image_url: person.profile_image_url || null
-        }];
-        return avatarBubbles.renderBubbles(items);
-      };
-
-      const formatUnternehmenTag = (unternehmen) => {
-        if (!unternehmen) return '-';
-        const name = unternehmen.firmenname;
-        if (!name) return '-';
-        
-        const items = [{
-          name: name,
-          type: 'org',
-          id: unternehmen.id,
-          entityType: 'unternehmen',
-          logo_url: unternehmen.logo_url || null
-        }];
-        return avatarBubbles.renderBubbles(items);
-      };
-
-      const formatMarkeTag = (marke) => {
-        if (!marke) return '-';
-        const name = marke.markenname;
-        if (!name) return '-';
-        
-        const items = [{
-          name: name,
-          type: 'org',
-          id: marke.id,
-          entityType: 'marke',
-          logo_url: marke.logo_url || null
-        }];
-        return avatarBubbles.renderBubbles(items);
-      };
-
-      const formatMitarbeiterTags = (entries) => {
-        if (!entries || entries.length === 0) return '-';
-        
-        console.log('🔍 formatMitarbeiterTags entries:', JSON.stringify(entries, null, 2));
-        
-        const items = entries
-          .map(item => {
-            const name = item?.mitarbeiter?.name || item?.name;
-            const id = item?.mitarbeiter?.id || item?.id;
-            const profileImageUrl = item?.mitarbeiter?.profile_image_url || item?.profile_image_url;
-            console.log(`  → Mitarbeiter: ${name}, profile_image_url: ${profileImageUrl}`);
-            if (!name) return null;
-            return {
-              name: name,
-              type: 'person',
-              id: id,
-              entityType: 'mitarbeiter',
-              profile_image_url: profileImageUrl || null
-            };
-          })
-          .filter(Boolean);
-        
-        console.log('🔍 formatMitarbeiterTags items für Bubbles:', items);
-        return items.length > 0 ? avatarBubbles.renderBubbles(items) : '-';
-      };
-
-      const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-
-      return `
-        <tr data-id="${auftrag.id}">
-          ${isAdmin ? `<td><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
-          <td>
-            <a href="#" class="table-link" data-table="auftrag" data-id="${auftrag.id}">
-              ${window.validatorSystem.sanitizeHtml(auftrag.auftragsname || 'Unbekannt')}
-            </a>
-          </td>
-          <td>${formatUnternehmenTag(auftrag.unternehmen)}</td>
-          <td>${formatMarkeTag(auftrag.marke)}</td>
-          <td>${auftrag.po || '-'}</td>
-          <td>${auftrag.re_nr || '-'}</td>
-          <td>${formatDate(auftrag.re_faelligkeit)}</td>
-          <td>${formatKampagneArtTags(auftrag.art_der_kampagne)}</td>
-          <td>${formatDate(auftrag.start)}</td>
-          <td>${formatDate(auftrag.ende)}</td>
-          <td>${formatCurrency(auftrag.nettobetrag)}</td>
-          <td>${formatCurrency(auftrag.ust_betrag)}</td>
-          <td>${formatCurrency(auftrag.bruttobetrag)}</td>
-          <td>${formatAnsprechpartner(auftrag.ansprechpartner)}</td>
-          <td>${formatMitarbeiterTags(auftrag.mitarbeiter)}</td>
-          <td>${formatBoolean(auftrag.rechnung_gestellt)}</td>
-          <td>${formatBoolean(auftrag.ueberwiesen)}</td>
-          <td>
-            <span class="status-badge status-${auftrag.status?.toLowerCase() || 'unknown'}">
-              ${auftrag.status || '-'}
-            </span>
-          </td>
-          <td>
-            ${actionBuilder.create('auftrag', auftrag.id)}
-          </td>
-        </tr>
-      `;
-    }).join('');
+    const rowsHtml = auftraege.map(auftrag => `
+      <tr data-id="${auftrag.id}">
+        ${this.isAdmin ? `<td><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
+        <td>
+          <a href="#" class="table-link" data-table="auftrag" data-id="${auftrag.id}">
+            ${window.validatorSystem.sanitizeHtml(auftrag.auftragsname || 'Unbekannt')}
+          </a>
+        </td>
+        <td>${this.formatUnternehmenTag(auftrag.unternehmen)}</td>
+        <td>${this.formatMarkeTag(auftrag.marke)}</td>
+        <td>${auftrag.po || '-'}</td>
+        <td>${auftrag.re_nr || '-'}</td>
+        <td>${this.formatDate(auftrag.re_faelligkeit)}</td>
+        <td>${this.formatKampagneArtTags(auftrag.art_der_kampagne)}</td>
+        <td>${this.formatDate(auftrag.start)}</td>
+        <td>${this.formatDate(auftrag.ende)}</td>
+        <td>${this.formatCurrency(auftrag.nettobetrag)}</td>
+        <td>${this.formatCurrency(auftrag.ust_betrag)}</td>
+        <td>${this.formatCurrency(auftrag.bruttobetrag)}</td>
+        <td>${this.formatAnsprechpartner(auftrag.ansprechpartner)}</td>
+        <td>${this.formatMitarbeiterTags(auftrag.mitarbeiter)}</td>
+        <td>${this.formatBoolean(auftrag.rechnung_gestellt)}</td>
+        <td>${this.formatBoolean(auftrag.ueberwiesen)}</td>
+        <td>
+          <span class="status-badge status-${(auftrag.status?.toLowerCase() || 'unknown').replace(/\s+/g, '-')}">
+            ${auftrag.status || '-'}
+          </span>
+        </td>
+        <td>
+          ${actionBuilder.create('auftrag', auftrag.id)}
+        </td>
+      </tr>
+    `).join('');
 
     tbody.innerHTML = rowsHtml;
     
-    // Fade-in Animation
-    tbody.classList.remove('table-fade-out');
-    tbody.classList.add('table-fade-in');
-    setTimeout(() => tbody.classList.remove('table-fade-in'), 200);
+    // Animation beenden mit requestAnimationFrame für smooth transition
+    requestAnimationFrame(() => {
+      tbody.classList.remove('table-updating');
+    });
   }
 
   // Initialisiere Cash Flow Calendar
   async initCashFlowCalendar() {
-    console.log('📅 AUFTRAGLIST: Initialisiere Cash Flow Calendar');
     const container = document.getElementById('calendar-container');
     if (!container) {
       console.error('❌ Calendar-Container nicht gefunden');
@@ -810,8 +1078,6 @@ export class AuftragList {
 
   // Cleanup
   destroy() {
-    console.log('AuftragList: Cleaning up...');
-
     // Pagination cleanup
     if (this.pagination) {
       this.pagination.destroy();
@@ -839,19 +1105,17 @@ export class AuftragList {
     // Flags zurücksetzen
     this._globalEventsBound = false;
     this._auftragNewBound = false;
+    this._isAdmin = null;
 
     // Legacy Filter-Handler entfernen
     if (this.boundFilterResetHandler) {
       document.removeEventListener('click', this.boundFilterResetHandler);
       this.boundFilterResetHandler = null;
     }
-    
-    console.log('✅ AUFTRAGLIST: Cleanup abgeschlossen');
   }
 
   // Show Create Form (für Routing)
   showCreateForm() {
-    console.log('🎯 Zeige Auftrag-Erstellungsformular');
     window.setHeadline('Neuen Auftrag anlegen');
     
     // Breadcrumb aktualisieren
@@ -958,8 +1222,6 @@ export class AuftragList {
         }
       }
 
-      console.log('📝 Auftrag Submit-Daten:', submitData);
-
       // Validierung
       const validationResult = window.validatorSystem.validateForm(submitData, {
         auftragsname: { type: 'text', minLength: 2, required: true }
@@ -971,19 +1233,13 @@ export class AuftragList {
       }
 
       // Erstelle Auftrag
-      console.log('🚀 Erstelle Auftrag mit Daten:', JSON.stringify(submitData, null, 2));
       const result = await window.dataService.createEntity('auftrag', submitData);
-      console.log('📦 DataService Ergebnis:', result);
       
       if (result.success) {
         // Nach Erstellung: Many-to-Many Beziehungen über RelationTables verarbeiten
         try {
           const auftragId = result.id;
-          console.log('🎯 Auftrag erstellt mit ID:', auftragId);
-          
-          // RelationTables für Multi-Select-Felder verarbeiten
           await window.formSystem.relationTables.handleRelationTables('auftrag', auftragId, submitData, form);
-          
         } catch (e) {
           console.warn('⚠️ Many-to-Many Zuordnungen konnten nicht gespeichert werden', e);
         }

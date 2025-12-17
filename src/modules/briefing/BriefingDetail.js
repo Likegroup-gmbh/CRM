@@ -338,7 +338,7 @@ export class BriefingDetail {
     });
 
     document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-edit-briefing') {
+      if (e.target.closest('#btn-edit-briefing')) {
         e.preventDefault();
         window.navigateTo(`/briefing/${this.briefingId}/edit`);
       }

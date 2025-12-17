@@ -266,7 +266,7 @@ export class RechnungDetail {
 
   bindEvents() {
     document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-edit-rechnung') {
+      if (e.target.closest('#btn-edit-rechnung')) {
         this.showEditForm();
       }
     });

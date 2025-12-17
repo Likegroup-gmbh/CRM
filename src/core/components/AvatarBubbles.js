@@ -57,11 +57,6 @@ export class AvatarBubbles {
         const hasImage = imageUrl && typeof imageUrl === 'string' && imageUrl.trim().length > 0;
         const imageClass = hasImage ? 'avatar-bubble--with-logo' : '';
         
-        // Debug-Logging
-        if (hasImage) {
-          console.log('🎨 Avatar Bubble:', item.name, '| type:', item.type, '| hasImage:', hasImage, '| imageUrl:', imageUrl);
-        }
-        
         // Sanitize name für title attribute
         const safeName = window.validatorSystem?.sanitizeHtml?.(item.name) || item.name;
         
@@ -98,8 +93,6 @@ export class AvatarBubbles {
 
       const entityType = bubble.dataset.entity;
       const id = bubble.dataset.id;
-
-      console.log('Avatar bubble clicked:', { entityType, id }); // Debug
 
       if (entityType && id && window.navigateTo) {
         e.preventDefault();

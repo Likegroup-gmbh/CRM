@@ -201,13 +201,16 @@ export class AuftragCashFlowCalendar {
     
     const html = `
       <div class="cash-flow-calendar">
-        <!-- Jahr-Auswahl und Filter -->
+        <!-- Filter, Jahr-Auswahl und Export -->
         <div class="cash-flow-header">
-          <select id="cash-flow-year-select" class="form-select">
-            ${yearOptions.join('')}
-          </select>
           <div class="filter-bar">
             <div id="filter-dropdown-container-cashflow"></div>
+          </div>
+          <div class="table-actions">
+            <select id="cash-flow-year-select" class="form-select">
+              ${yearOptions.join('')}
+            </select>
+            ${tableExport.renderExportButton('cashflow')}
           </div>
         </div>
 
@@ -229,12 +232,6 @@ export class AuftragCashFlowCalendar {
               ${this.renderFooter()}
             </tfoot>
           </table>
-        </div>
-        
-        <!-- Export-Button -->
-        <div class="table-footer">
-          <div></div>
-          ${tableExport.renderExportButton('cashflow')}
         </div>
       </div>
     `;

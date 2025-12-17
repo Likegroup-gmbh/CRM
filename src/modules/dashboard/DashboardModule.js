@@ -81,14 +81,7 @@ export class DashboardModule {
         this.loadUpcomingDeadlines()
       ];
       
-      // Monatsumsatz und Ausgaben nur für Admins laden
-      if (window.currentUser?.rolle === 'admin') {
-        console.log('✅ DASHBOARD: Admin erkannt - lade Umsatz und Ausgaben');
-        loadPromises.push(this.loadMonthlyRevenue());
-        loadPromises.push(this.loadMonthlyExpenses());
-      } else {
-        console.log('⚠️ DASHBOARD: Kein Admin - überspringe Umsatz/Ausgaben');
-      }
+      // Umsatz und Ausgaben sind jetzt auf der Aufträge-Seite
       
       await Promise.all(loadPromises);
       console.log('✅ DASHBOARD: Daten geladen:', this.data);
@@ -577,8 +570,6 @@ export class DashboardModule {
         ${!isPending ? `
         <!-- KPI Cards -->
         <div class="dashboard-stats">
-          ${window.currentUser?.rolle === 'admin' ? this.renderAdminRevenueCard() : ''}
-          ${window.currentUser?.rolle === 'admin' ? this.renderAdminExpensesCard() : ''}
           ${this.renderStatsCards()}
         </div>
 

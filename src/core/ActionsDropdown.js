@@ -349,6 +349,33 @@ export class ActionsDropdown {
     this.closeAllDropdowns();
 
     if (!isOpen) {
+      // Prüfe ob wir in einer Auftrags-Tabelle sind (braucht fixed positioning wegen overflow)
+      const isInAuftragTable = toggleButton.closest('.auftrag-table');
+      
+      if (isInAuftragTable) {
+        // Fixed positioning berechnen
+        const buttonRect = toggleButton.getBoundingClientRect();
+        const dropdownHeight = 300; // Geschätzte Höhe
+        const viewportHeight = window.innerHeight;
+        
+        // Prüfe ob genug Platz nach oben ist
+        const spaceAbove = buttonRect.top;
+        const spaceBelow = viewportHeight - buttonRect.bottom;
+        
+        dropdown.style.position = 'fixed';
+        dropdown.style.right = (window.innerWidth - buttonRect.right) + 'px';
+        
+        if (spaceAbove > spaceBelow && spaceAbove > dropdownHeight) {
+          // Nach oben öffnen
+          dropdown.style.top = 'auto';
+          dropdown.style.bottom = (viewportHeight - buttonRect.top + 4) + 'px';
+        } else {
+          // Nach unten öffnen
+          dropdown.style.top = (buttonRect.bottom + 4) + 'px';
+          dropdown.style.bottom = 'auto';
+        }
+      }
+      
       dropdown.classList.add('show');
       toggleButton.setAttribute('aria-expanded', 'true');
     }

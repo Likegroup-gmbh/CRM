@@ -846,7 +846,7 @@ export class MarkeDetail extends PersonDetailBase {
 
     // Marke bearbeiten Button
     document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-edit-marke') {
+      if (e.target.closest('#btn-edit-marke')) {
         this.showEditForm();
       }
     });

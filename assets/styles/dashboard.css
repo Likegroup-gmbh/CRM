@@ -93,17 +93,7 @@
   margin-bottom: var(--space-xl);
 }
 
-.stats-card {
-  background: var(--bg-primary);
-  border: var(--border-xs) solid var(--border-primary);
-  border-radius: var(--radius-lg);
-  padding: var(--space-lg);
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  transition: all 0.2s ease;
-  position: relative;
-}
+
 
 .stats-icon {
   width: var(--space-lg);
@@ -283,7 +273,7 @@
 
 .revenue-bars {
   display: flex;
-  height: var(--space-sm);
+  height: var(--space-xs);
   border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--gray-200);
@@ -383,7 +373,7 @@
 
 .expense-bars {
   display: flex;
-  height: var(--space-sm);
+  height: var(--space-xs);
   border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--gray-200);
@@ -546,6 +536,55 @@
   border-top: var(--border-xs) solid var(--border-primary);
   color: var(--text-secondary);
   font-size: var(--text-sm);
+}
+
+/* ===== AUFTRAG FINANCIALS SECTION ===== */
+.auftrag-financials-section {
+ 
+}
+
+.auftrag-financials-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-sm);
+}
+
+.auftrag-financials-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-xs);
+  padding: 0 var(--space-xs) 0 var(--space-xs);
+}
+
+@media (max-width: 900px) {
+  .auftrag-financials-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Icon Button für Toggle */
+.icon-btn {
+  background: var(--bg-primary);
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: var(--space-xs);
+  cursor: pointer;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.icon-btn:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-color: var(--gray-300);
+}
+
+.icon-btn svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
 /* ===== UTILITY CLASSES ===== */

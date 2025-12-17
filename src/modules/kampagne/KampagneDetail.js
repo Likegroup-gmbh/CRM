@@ -1587,7 +1587,7 @@ export class KampagneDetail {
 
     // Bearbeiten Button
     document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-edit-kampagne' || e.target.id === 'btn-edit-kampagne-bottom') {
+      if (e.target.closest('#btn-edit-kampagne') || e.target.closest('#btn-edit-kampagne-bottom')) {
         e.preventDefault();
         window.navigateTo(`/kampagne/${this.kampagneId}/edit`);
       }

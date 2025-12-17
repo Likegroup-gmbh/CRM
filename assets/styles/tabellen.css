@@ -1475,6 +1475,16 @@ td.col-produkt .stacked-video-input,
   animation: fadeIn 200ms ease-in forwards;
 }
 
+/* Performance-optimierte Animation ohne JS-setTimeout */
+.data-table tbody {
+  opacity: 1;
+  transition: opacity 150ms ease-out;
+}
+
+.data-table tbody.table-updating {
+  opacity: 0.5;
+}
+
 /* Verhindert Layout-Shift während Animation */
 .data-table {
   table-layout: auto; /* Dynamische Breiten für lesbare Inhalte */
@@ -1533,13 +1543,22 @@ td.col-produkt .stacked-video-input,
   white-space: nowrap;
 }
 
-/* Table Container: KEIN overflow-x scroll */
+/* Table Container: Nutzt globalen Scroll */
 .table-container {
-  overflow-x: visible; /* Kein horizontaler Scroll */
-  overflow-y: visible; /* Nutzt globalen Scroll */
+  overflow-x: visible;
+  overflow-y: visible;
+  max-height: unset;
+  height: unset;
   position: relative;
   width: 100%;
+}
 
+/* Auftrag-Tabelle: NUR horizontales Scrollen erlauben */
+#auftrag-table-container {
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  max-height: unset !important;
+  height: unset !important;
 }
 
 /* === READ-ONLY / DISABLED FELDER FÜR KUNDEN === */

@@ -815,7 +815,7 @@ export class AuftragDetail {
 
     // Auftrag bearbeiten Button
     document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-edit-auftrag') {
+      if (e.target.closest('#btn-edit-auftrag')) {
         this.showEditForm();
       }
     });
