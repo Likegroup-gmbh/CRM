@@ -137,21 +137,28 @@ export class MarkeList {
         userId: window.currentUser?.id
       });
       
+      // Neue Logik: Marken-Zuordnung als Zusatzfilter
+      // - Nur Unternehmen zugeordnet → Sieht ALLE Marken des Unternehmens
+      // - Unternehmen + bestimmte Marken → Sieht NUR die zugewiesenen Marken
       if (!isAdmin) {
         try {
-          // 1. Direkt zugeordnete Marken
+          // 1. Direkt zugeordnete Marken MIT Unternehmen-Info
           const { data: assignedMarken, error } = await window.supabase
             .from('marke_mitarbeiter')
-            .select('marke_id')
+            .select('marke_id, marke:marke_id(unternehmen_id)')
             .eq('mitarbeiter_id', window.currentUser?.id);
             
           if (error) {
             console.error('❌ MARKELIST: Fehler beim Laden der Zuordnungen:', error);
           }
           
-          const directMarkeIds = (assignedMarken || []).map(r => r.marke_id).filter(Boolean);
+          // Zugeordnete Marken mit ihren Unternehmen
+          const markenMitUnternehmen = (assignedMarken || []).map(r => ({
+            marke_id: r.marke_id,
+            unternehmen_id: r.marke?.unternehmen_id
+          })).filter(r => r.marke_id);
           
-          // 2. Marken über zugeordnete Unternehmen
+          // 2. Zugeordnete Unternehmen
           const { data: mitarbeiterUnternehmen } = await window.supabase
             .from('mitarbeiter_unternehmen')
             .select('unternehmen_id')
@@ -161,23 +168,42 @@ export class MarkeList {
             .map(r => r.unternehmen_id)
             .filter(Boolean);
           
-          let unternehmenMarkeIds = [];
-          if (unternehmenIds.length > 0) {
-            const { data: unternehmenMarken } = await window.supabase
-              .from('marke')
-              .select('id')
-              .in('unternehmen_id', unternehmenIds);
+          // Erstelle Map: Unternehmen-ID → zugeordnete Marken-IDs
+          const unternehmenMarkenMap = new Map();
+          markenMitUnternehmen.forEach(r => {
+            if (r.unternehmen_id) {
+              if (!unternehmenMarkenMap.has(r.unternehmen_id)) {
+                unternehmenMarkenMap.set(r.unternehmen_id, []);
+              }
+              unternehmenMarkenMap.get(r.unternehmen_id).push(r.marke_id);
+            }
+          });
+          
+          // Für jedes Unternehmen die erlaubten Marken ermitteln
+          for (const unternehmenId of unternehmenIds) {
+            const explicitMarkenIds = unternehmenMarkenMap.get(unternehmenId);
             
-            unternehmenMarkeIds = (unternehmenMarken || []).map(m => m.id).filter(Boolean);
+            if (explicitMarkenIds && explicitMarkenIds.length > 0) {
+              // User hat explizite Marken-Zuordnung → Nur diese Marken erlauben
+              allowedMarkeIds.push(...explicitMarkenIds);
+            } else {
+              // Keine Marken-Zuordnung → ALLE Marken des Unternehmens erlauben
+              const { data: alleMarken } = await window.supabase
+                .from('marke')
+                .select('id')
+                .eq('unternehmen_id', unternehmenId);
+              
+              allowedMarkeIds.push(...(alleMarken || []).map(m => m.id));
+            }
           }
           
-          // Alle zusammenführen und Duplikate entfernen
-          allowedMarkeIds = [...new Set([...directMarkeIds, ...unternehmenMarkeIds])];
+          // Duplikate entfernen
+          allowedMarkeIds = [...new Set(allowedMarkeIds)];
           
           console.log('🔍 MARKELIST: Zugeordnete Marken für Nicht-Admin:', {
-            direkteMarken: directMarkeIds.length,
-            unternehmenMarken: unternehmenMarkeIds.length,
-            gesamt: allowedMarkeIds.length
+            zugeordneteUnternehmen: unternehmenIds.length,
+            markenMitExpliziterZuordnung: unternehmenMarkenMap.size,
+            erlaubteMarken: allowedMarkeIds.length
           });
         } catch (error) {
           console.error('❌ MARKELIST: Exception beim Laden der Zuordnungen:', error);
@@ -196,7 +222,7 @@ export class MarkeList {
           unternehmen:unternehmen_id(id, firmenname, logo_url),
           branchen:marke_branchen(branche:branche_id(id, name)),
           ansprechpartner:ansprechpartner_marke(ansprechpartner:ansprechpartner_id(id, vorname, nachname, email, profile_image_url)),
-          mitarbeiter:marke_mitarbeiter!fk_marke_mitarbeiter_marke_id(mitarbeiter:mitarbeiter_id(id, name))
+          mitarbeiter:marke_mitarbeiter!fk_marke_mitarbeiter_marke_id(mitarbeiter:mitarbeiter_id(id, name, profile_image_url))
         `, { count: 'exact' })
         .order('created_at', { ascending: false });
 
@@ -337,7 +363,7 @@ export class MarkeList {
               <th>Branche</th>
               <th>Webseite</th>
               <th>Ansprechpartner</th>
-              <th>Zuständigkeit</th>
+              <th>Mitarbeiter</th>
               <th>Aktionen</th>
             </tr>
           </thead>
@@ -633,7 +659,7 @@ export class MarkeList {
     return avatarBubbles.renderBubbles(items);
   }
 
-  // Render Zuständigkeit
+  // Render Zuständigkeit (Mitarbeiter)
   renderZustaendigkeit(zustaendigkeit, mitarbeiter) {
     // Neue mitarbeiter-Zuordnungen haben Vorrang
     if (mitarbeiter && mitarbeiter.length > 0) {
@@ -643,7 +669,8 @@ export class MarkeList {
           name: m.name,
           type: 'person',
           id: m.id,
-          entityType: 'mitarbeiter'
+          entityType: 'mitarbeiter',
+          profile_image_url: m.profile_image_url || null
         }));
       
       return avatarBubbles.renderBubbles(items);

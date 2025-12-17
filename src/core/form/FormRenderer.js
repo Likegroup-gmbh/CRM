@@ -86,6 +86,9 @@ export class FormRenderer {
       // Überspringe bereits verarbeitete Felder (z.B. Datum-Felder die mit Toggle gerendert wurden)
       if (processedFields.has(field.name)) continue;
       
+      // Felder mit editOnly nur im Edit-Modus anzeigen
+      if (field.editOnly && !data?._isEditMode) continue;
+      
       // Spezielle Behandlung für Phone-Felder: Land-ID mit übergeben
       let value = data ? data[field.name] : '';
       if (field.type === 'phone' && data) {
@@ -322,9 +325,11 @@ export class FormRenderer {
         const selectedValues = Array.isArray(value) ? value : (value ? value.split(',') : []);
         
         // Abhängigkeits-Attribute für bedingte Sichtbarkeit (verwende CSS-Klasse statt inline-Style)
+        // WICHTIG: Felder mit prefillFromUnternehmen sollen IMMER sichtbar sein (Waterfall-Logik)
         const multiDependsOn = field.dependsOn ? `data-depends-on="${field.dependsOn}"` : '';
         const multiShowWhen = field.showWhen ? `data-show-when="${field.showWhen}"` : '';
-        const multiHiddenClass = field.dependsOn ? 'form-field--hidden' : '';
+        const multiPrefillAttr = field.prefillFromUnternehmen ? `data-prefill-from-unternehmen="true"` : '';
+        const multiHiddenClass = (field.dependsOn && !field.prefillFromUnternehmen && !field.showAlways) ? 'form-field--hidden' : '';
         
         let multiOptions = '';
         if (!field.dynamic) {
@@ -339,7 +344,7 @@ export class FormRenderer {
           const editModeData = selectedValues.length > 0 ? `data-existing-values='${JSON.stringify(selectedValues)}'` : '';
           
           return `
-            <div class="form-field ${multiHiddenClass}" ${multiDependsOn} ${multiShowWhen}>
+            <div class="form-field ${multiHiddenClass}" ${multiDependsOn} ${multiShowWhen} ${multiPrefillAttr}>
               <label for="${fieldId}">${field.label} ${requiredMark}</label>
               <select id="${fieldId}" name="${field.name}" ${required} multiple data-searchable="true" data-tag-based="${field.tagBased || 'false'}" data-placeholder="${field.placeholder || 'Bitte wählen...'}" ${editModeData}>
                 ${multiOptions}
@@ -349,7 +354,7 @@ export class FormRenderer {
         }
         
         return `
-          <div class="form-field ${multiHiddenClass}" ${multiDependsOn} ${multiShowWhen}>
+          <div class="form-field ${multiHiddenClass}" ${multiDependsOn} ${multiShowWhen} ${multiPrefillAttr}>
             <label for="${fieldId}">${field.label} ${requiredMark}</label>
             <select id="${fieldId}" name="${field.name}" ${required} multiple>
               ${multiOptions}

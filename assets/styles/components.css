@@ -3886,6 +3886,19 @@ h3.section-title,
   text-decoration: none;
 }
 
+/* Strategie-Tags */
+.tag--strategie {
+  color: var(--info-color, #0ea5e9);
+  border-color: var(--info-color, #0ea5e9);
+  background-color: rgba(14, 165, 233, 0.08);
+  text-decoration: none;
+}
+
+.tag--strategie:hover {
+  background-color: rgba(14, 165, 233, 0.15);
+  text-decoration: none;
+}
+
 /* ===== AVATAR BUBBLES ===== */
 /* Überlappende Avatar-Bubbles mit Initialen für Verknüpfungen */
 
@@ -4811,7 +4824,7 @@ padding:0 var(--space-md) 0 var(--space-md);
  }
 .uploader-drop.is-dragover { border-color: var(--primary-500); background: #f0f7ff; }
 .uploader-instructions { display: flex; align-items: center; gap: var(--gap-8); color: var(--gray-600); font-size: var(--text-sm); }
-.uploader-btn { background: var(--primary-600); color: white; border: none; border-radius: var(--radius-md); padding: 6px 10px; cursor: pointer; }
+.uploader-btn { background: var(--gray-900); color: white; border: none; border-radius: var(--radius-md); padding: 6px 10px; cursor: pointer; }
 .uploader-list { margin-top: 10px; display: flex; flex-direction: column; gap: var(--gap-8); }
 .uploader-empty { color: var(--gray-500); font-size: var(--text-sm); }
 .uploader-item { 
@@ -6469,7 +6482,7 @@ padding:0 var(--space-md) 0 var(--space-md);
 /* Main Layout */
 .profile-detail-layout {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 280px 1fr;
   
   width: 100%;
   height: 100%;

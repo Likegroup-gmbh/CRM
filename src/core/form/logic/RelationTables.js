@@ -36,14 +36,14 @@ export class RelationTables {
       
       // Korrekte Entity-Feld-Namen für verschiedene Verknüpfungstabellen
       let entityField;
-      if (field.name === 'mitarbeiter_ids') {
-        entityField = relationTable === 'auftrag_mitarbeiter' ? 'auftrag_id' : 'kampagne_id';
-      } else if (field.name === 'cutter_ids' && relationTable === 'auftrag_cutter') {
-        entityField = 'auftrag_id';
-      } else if (field.name === 'copywriter_ids' && relationTable === 'auftrag_copywriter') {
-        entityField = 'auftrag_id';
-      } else if (field.name === 'mitarbeiter_ids' && relationTable === 'auftrag_mitarbeiter') {
-        entityField = 'auftrag_id';
+      
+      // Unternehmen-Mitarbeiter mit Rollen
+      if (relationTable === 'mitarbeiter_unternehmen') {
+        entityField = 'unternehmen_id';
+      } else if (relationTable === 'marke_mitarbeiter') {
+        entityField = 'marke_id';
+      } else if (field.name === 'mitarbeiter_ids' && relationTable === 'kampagne_mitarbeiter') {
+        entityField = 'kampagne_id';
       } else if (field.name === 'plattform_ids') {
         entityField = 'kampagne_id';
       } else if (field.name === 'format_ids') {
@@ -60,15 +60,29 @@ export class RelationTables {
         entityField = `${field.name.replace('_ids', '_id')}`;
       }
       
-      // Bestehende Verknüpfungen löschen (Supabase)
-      const { error: deleteError } = await window.supabase
-        .from(relationTable)
-        .delete()
-        .eq(entityField, entityId);
-      
-      if (deleteError) {
-        console.error(`❌ Fehler beim Löschen bestehender Verknüpfungen:`, deleteError);
-        throw deleteError;
+      // Für mitarbeiter_unternehmen nur die Einträge mit der entsprechenden Rolle löschen
+      if (relationTable === 'mitarbeiter_unternehmen' && field.roleValue) {
+        const { error: deleteError } = await window.supabase
+          .from(relationTable)
+          .delete()
+          .eq(entityField, entityId)
+          .eq('role', field.roleValue);
+        
+        if (deleteError) {
+          console.error(`❌ Fehler beim Löschen bestehender Verknüpfungen mit Rolle ${field.roleValue}:`, deleteError);
+          throw deleteError;
+        }
+      } else {
+        // Bestehende Verknüpfungen löschen (Supabase)
+        const { error: deleteError } = await window.supabase
+          .from(relationTable)
+          .delete()
+          .eq(entityField, entityId);
+        
+        if (deleteError) {
+          console.error(`❌ Fehler beim Löschen bestehender Verknüpfungen:`, deleteError);
+          throw deleteError;
+        }
       }
       
       // Neue Verknüpfungen hinzufügen
@@ -90,18 +104,24 @@ export class RelationTables {
           foreignField = 'sprache_id';
         } else if (field.name === 'marke_ids') {
           foreignField = 'marke_id';
-        } else if (field.name === 'mitarbeiter_ids' && relationTable === 'auftrag_mitarbeiter') {
+        } else if (relationTable === 'mitarbeiter_unternehmen') {
           foreignField = 'mitarbeiter_id';
-        } else if (field.name === 'cutter_ids' && relationTable === 'auftrag_cutter') {
-          foreignField = 'mitarbeiter_id';
-        } else if (field.name === 'copywriter_ids' && relationTable === 'auftrag_copywriter') {
+        } else if (relationTable === 'marke_mitarbeiter') {
           foreignField = 'mitarbeiter_id';
         }
 
-        const insertData = valuesToInsert.map(value => ({
-          [entityField]: entityId,
-          [foreignField]: value
-        }));
+        // Insert-Daten erstellen, mit role wenn vorhanden
+        const insertData = valuesToInsert.map(value => {
+          const row = {
+            [entityField]: entityId,
+            [foreignField]: value
+          };
+          // Role hinzufügen für mitarbeiter_unternehmen
+          if (relationTable === 'mitarbeiter_unternehmen' && field.roleValue) {
+            row.role = field.roleValue;
+          }
+          return row;
+        });
 
         try {
           const { error: insertError } = await window.supabase

@@ -45,8 +45,14 @@ export class UploaderField {
 
   bind() {
     const drop = this.dropEl;
-    const btn = this.root.querySelector('.uploader-btn');
-    btn.addEventListener('click', () => this.input.click());
+    
+    // Ganze Zone klickbar machen (nicht nur den Button)
+    drop.addEventListener('click', (e) => {
+      // Nicht triggern wenn "Entfernen"-Button geklickt wurde
+      if (e.target.closest('.uploader-remove')) return;
+      this.input.click();
+    });
+    
     this.input.addEventListener('change', (e) => this.handleFiles(e.target.files));
 
     ;['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, (e) => {

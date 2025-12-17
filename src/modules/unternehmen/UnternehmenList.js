@@ -248,6 +248,7 @@ export class UnternehmenList {
               <th>Name</th>
               <th>Branche</th>
               <th>Ansprechpartner</th>
+              <th>Mitarbeiter</th>
               <th>Stadt</th>
               <th>Land</th>
               <th>Aktionen</th>
@@ -255,7 +256,7 @@ export class UnternehmenList {
           </thead>
           <tbody>
             <tr>
-              <td colspan="${isAdmin ? '7' : '6'}" class="no-data">Lade Unternehmen...</td>
+              <td colspan="${isAdmin ? '8' : '7'}" class="no-data">Lade Unternehmen...</td>
             </tr>
           </tbody>
         </table>
@@ -481,9 +482,12 @@ export class UnternehmenList {
       return;
     }
 
-    // Kontakte für alle Unternehmen in einem Rutsch laden und mappen
+    // Kontakte und Mitarbeiter für alle Unternehmen in einem Rutsch laden und mappen
     const unternehmenIds = unternehmen.map(u => u.id).filter(Boolean);
-    const apMap = await this.loadAnsprechpartnerMap(unternehmenIds);
+    const [apMap, mitarbeiterMap] = await Promise.all([
+      this.loadAnsprechpartnerMap(unternehmenIds),
+      this.loadMitarbeiterMap(unternehmenIds)
+    ]);
 
     const rowsHtml = unternehmen.map(unternehmen => `
       <tr data-id="${unternehmen.id}">
@@ -495,6 +499,7 @@ export class UnternehmenList {
         </td>
         <td>${this.renderBrancheTags(unternehmen.branchen)}</td>
         <td>${this.renderAnsprechpartnerList(apMap.get(unternehmen.id))}</td>
+        <td>${this.renderMitarbeiterList(mitarbeiterMap.get(unternehmen.id))}</td>
         <td>${window.validatorSystem.sanitizeHtml(unternehmen.rechnungsadresse_stadt || '')}</td>
         <td>${window.validatorSystem.sanitizeHtml(unternehmen.rechnungsadresse_land || '')}</td>
         <td>
@@ -592,6 +597,88 @@ export class UnternehmenList {
       console.warn('⚠️ loadAnsprechpartnerMap Fehler:', e);
     }
     return map;
+  }
+
+  // Mitarbeiter in einem Rutsch laden und als Map zurückgeben (über Junction Table)
+  async loadMitarbeiterMap(unternehmenIds) {
+    const map = new Map();
+    try {
+      if (!window.supabase || !Array.isArray(unternehmenIds) || unternehmenIds.length === 0) {
+        return map;
+      }
+      
+      const { data, error } = await window.supabase
+        .from('mitarbeiter_unternehmen')
+        .select(`
+          unternehmen_id,
+          role,
+          benutzer:mitarbeiter_id (
+            id,
+            name,
+            profile_image_url
+          )
+        `)
+        .in('unternehmen_id', unternehmenIds);
+        
+      if (error) {
+        console.warn('⚠️ Konnte Mitarbeiter nicht laden:', error);
+        return map;
+      }
+      
+      (data || []).forEach(item => {
+        if (!item.benutzer) return; // Skip invalid entries
+        
+        const unternehmenId = item.unternehmen_id;
+        const mitarbeiter = {
+          ...item.benutzer,
+          role: item.role || 'mitarbeiter'
+        };
+        
+        const list = map.get(unternehmenId) || [];
+        list.push(mitarbeiter);
+        map.set(unternehmenId, list);
+      });
+      
+      console.log('✅ UNTERNEHMENLISTE: Mitarbeiter-Map geladen:', map.size, 'Unternehmen');
+      
+    } catch (e) {
+      console.warn('⚠️ loadMitarbeiterMap Fehler:', e);
+    }
+    return map;
+  }
+
+  // Mitarbeiter-Liste rendern (Avatar-Bubbles mit Rollen-Indikator)
+  renderMitarbeiterList(list) {
+    if (!list || list.length === 0) return '-';
+    
+    // Rollen-Mapping für CSS-Klassen und Tooltips
+    const roleLabels = {
+      'management': 'Management',
+      'lead_mitarbeiter': 'Lead',
+      'mitarbeiter': 'Mitarbeiter'
+    };
+    
+    // Mitarbeiter als klickbare Avatar-Bubbles (sortiert nach Rolle)
+    const sortOrder = ['management', 'lead_mitarbeiter', 'mitarbeiter'];
+    const sortedList = [...list].sort((a, b) => {
+      const aIndex = sortOrder.indexOf(a.role || 'mitarbeiter');
+      const bIndex = sortOrder.indexOf(b.role || 'mitarbeiter');
+      return aIndex - bIndex;
+    });
+    
+    const items = sortedList
+      .filter(m => m && m.name)
+      .map(m => ({
+        name: m.name,
+        type: 'person',
+        id: m.id,
+        entityType: 'mitarbeiter',
+        profile_image_url: m.profile_image_url || null,
+        role: m.role || 'mitarbeiter',
+        roleLabel: roleLabels[m.role] || 'Mitarbeiter'
+      }));
+    
+    return avatarBubbles.renderBubbles(items);
   }
 
   // Ansprechpartner-Liste rendern (klickbare Avatar-Bubbles)
@@ -896,6 +983,14 @@ export class UnternehmenList {
             // Nicht fatal - Hauptentität wurde bereits erstellt
           }
 
+          // Mitarbeiter-Zuordnungen mit Rollen speichern
+          try {
+            await this.saveMitarbeiterRoles(result.id, submitData);
+            console.log('✅ Mitarbeiter-Rollen gespeichert');
+          } catch (mitarbeiterErr) {
+            console.error('❌ Mitarbeiter-Rollen-Speicherung fehlgeschlagen:', mitarbeiterErr);
+          }
+          
           // Logo-Upload (falls vorhanden)
           try {
             console.log('🔵 START: Logo-Upload für Unternehmen', result.id);
@@ -1086,6 +1181,83 @@ export class UnternehmenList {
       
       // Liste neu laden um konsistenten Zustand herzustellen
       await this.loadAndRender();
+    }
+  }
+  
+  // Mitarbeiter-Zuordnungen mit Rollen speichern
+  async saveMitarbeiterRoles(unternehmenId, data) {
+    try {
+      if (!unternehmenId || !window.supabase) return;
+      
+      console.log('🔄 UNTERNEHMENLISTE: Speichere Mitarbeiter-Rollen für Unternehmen:', unternehmenId);
+      
+      // Rollen-Mapping
+      const roleFields = {
+        'management_ids': 'management',
+        'lead_mitarbeiter_ids': 'lead_mitarbeiter',
+        'mitarbeiter_ids': 'mitarbeiter'
+      };
+      
+      // Alle INSERT-Daten sammeln
+      const allInsertData = [];
+      
+      for (const [fieldName, roleValue] of Object.entries(roleFields)) {
+        // Prüfe ob das Feld in den Daten vorhanden ist
+        const fieldData = data[fieldName] || data[`${fieldName}[]`];
+        
+        // Extrahiere IDs als Array und entferne Duplikate
+        let mitarbeiterIds = [];
+        if (Array.isArray(fieldData)) {
+          mitarbeiterIds = [...new Set(fieldData.filter(Boolean))];
+        } else if (typeof fieldData === 'string' && fieldData) {
+          mitarbeiterIds = [fieldData];
+        }
+        
+        console.log(`📋 ${fieldName} (${roleValue}): ${mitarbeiterIds.length} Mitarbeiter`, mitarbeiterIds);
+        
+        // Sammle INSERT-Daten
+        for (const mitarbeiterId of mitarbeiterIds) {
+          allInsertData.push({
+            unternehmen_id: unternehmenId,
+            mitarbeiter_id: mitarbeiterId,
+            role: roleValue
+          });
+        }
+      }
+      
+      // Alle Einträge in einem Batch einfügen
+      if (allInsertData.length > 0) {
+        console.log(`📤 Füge ${allInsertData.length} Mitarbeiter-Zuordnungen ein:`, allInsertData);
+        
+        const { error: insertError } = await window.supabase
+          .from('mitarbeiter_unternehmen')
+          .insert(allInsertData);
+        
+        if (insertError) {
+          console.error('❌ Fehler beim Batch-Insert:', insertError);
+          
+          // Fallback: Einzeln einfügen mit upsert
+          console.log('🔄 Versuche Einzelinserts mit upsert...');
+          for (const row of allInsertData) {
+            const { error: upsertError } = await window.supabase
+              .from('mitarbeiter_unternehmen')
+              .upsert(row, { onConflict: 'mitarbeiter_id,unternehmen_id,role' });
+            
+            if (upsertError) {
+              console.error(`❌ Upsert-Fehler für ${row.mitarbeiter_id}/${row.role}:`, upsertError);
+            }
+          }
+        } else {
+          console.log(`✅ ${allInsertData.length} Mitarbeiter-Zuordnungen gespeichert`);
+        }
+      } else {
+        console.log('ℹ️ Keine Mitarbeiter zum Speichern');
+      }
+      
+      console.log('✅ UNTERNEHMENLISTE: Mitarbeiter-Rollen gespeichert');
+    } catch (error) {
+      console.error('❌ UNTERNEHMENLISTE: Fehler beim Speichern der Mitarbeiter-Rollen:', error);
+      // Nicht werfen - Unternehmen wurde bereits erstellt
     }
   }
 

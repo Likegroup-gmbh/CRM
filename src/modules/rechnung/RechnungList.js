@@ -84,10 +84,13 @@ export class RechnungList {
 
       const currentFilters = filterSystem.getFilters('rechnung');
       // Sichtbarkeit: Nicht-Admins nur Rechnungen aus ihren Kampagnen/Koops/Marken
+      // Neue Logik: Marken-Zuordnung als Zusatzfilter
+      // - Nur Unternehmen zugeordnet → Sieht ALLES vom Unternehmen
+      // - Unternehmen + bestimmte Marken → Sieht NUR Inhalte der zugewiesenen Marken
       const isAdmin = window.currentUser?.rolle === 'admin';
       let allowedKampagneIds = [];
       let allowedKoopIds = [];
-      let unternehmenIds = []; // WICHTIG: Außerhalb des try-catch deklarieren!
+      let allowedUnternehmenIds = []; // Für Rechnungen direkt auf Unternehmen
       if (!isAdmin && window.supabase) {
         try {
           // 1. Direkt zugeordnete Kampagnen
@@ -97,40 +100,78 @@ export class RechnungList {
             .eq('mitarbeiter_id', window.currentUser?.id);
           const directKampagnenIds = (assignedKampagnen || []).map(r => r.kampagne_id).filter(Boolean);
           
-          // 2. Kampagnen über zugeordnete Marken
+          // 2. Zugeordnete Marken MIT Unternehmen-Info
           const { data: assignedMarken } = await window.supabase
             .from('marke_mitarbeiter')
-            .select('marke_id')
+            .select('marke_id, marke:marke_id(unternehmen_id)')
             .eq('mitarbeiter_id', window.currentUser?.id);
-          const markenIds = (assignedMarken || []).map(r => r.marke_id).filter(Boolean);
           
-          let markenKampagnenIds = [];
-          if (markenIds.length > 0) {
-            const { data: markenKampagnen } = await window.supabase
-              .from('kampagne')
-              .select('id')
-              .in('marke_id', markenIds);
-            markenKampagnenIds = (markenKampagnen || []).map(k => k.id).filter(Boolean);
-          }
+          // Zugeordnete Marken mit ihren Unternehmen
+          const markenMitUnternehmen = (assignedMarken || []).map(r => ({
+            marke_id: r.marke_id,
+            unternehmen_id: r.marke?.unternehmen_id
+          })).filter(r => r.marke_id);
           
-          // 3. Kampagnen über zugeordnete Unternehmen
-          const { data: assignedUnternehmen } = await window.supabase
+          // 3. Zugeordnete Unternehmen
+          const { data: mitarbeiterUnternehmen } = await window.supabase
             .from('mitarbeiter_unternehmen')
             .select('unternehmen_id')
             .eq('mitarbeiter_id', window.currentUser?.id);
-          unternehmenIds = (assignedUnternehmen || []).map(r => r.unternehmen_id).filter(Boolean);
           
-          let unternehmenKampagnenIds = [];
-          if (unternehmenIds.length > 0) {
-            const { data: unternehmenKampagnen } = await window.supabase
-              .from('kampagne')
-              .select('id')
-              .in('unternehmen_id', unternehmenIds);
-            unternehmenKampagnenIds = (unternehmenKampagnen || []).map(k => k.id).filter(Boolean);
+          const unternehmenIds = (mitarbeiterUnternehmen || [])
+            .map(r => r.unternehmen_id)
+            .filter(Boolean);
+          
+          // Für Rechnungen: Alle zugewiesenen Unternehmen erlauben
+          allowedUnternehmenIds = [...unternehmenIds];
+          
+          // Erstelle Map: Unternehmen-ID → zugeordnete Marken-IDs
+          const unternehmenMarkenMap = new Map();
+          markenMitUnternehmen.forEach(r => {
+            if (r.unternehmen_id) {
+              if (!unternehmenMarkenMap.has(r.unternehmen_id)) {
+                unternehmenMarkenMap.set(r.unternehmen_id, []);
+              }
+              unternehmenMarkenMap.get(r.unternehmen_id).push(r.marke_id);
+            }
+          });
+          
+          // Für jedes Unternehmen die erlaubten Marken ermitteln
+          let allowedMarkenIds = [];
+          
+          for (const unternehmenId of unternehmenIds) {
+            const explicitMarkenIds = unternehmenMarkenMap.get(unternehmenId);
+            
+            if (explicitMarkenIds && explicitMarkenIds.length > 0) {
+              // User hat explizite Marken-Zuordnung → Nur diese Marken erlauben
+              allowedMarkenIds.push(...explicitMarkenIds);
+            } else {
+              // Keine Marken-Zuordnung → ALLE Marken des Unternehmens erlauben
+              const { data: alleMarken } = await window.supabase
+                .from('marke')
+                .select('id')
+                .eq('unternehmen_id', unternehmenId);
+              
+              allowedMarkenIds.push(...(alleMarken || []).map(m => m.id));
+            }
           }
           
-          // Kombiniere alle drei Listen und entferne Duplikate
-          allowedKampagneIds = [...new Set([...directKampagnenIds, ...markenKampagnenIds, ...unternehmenKampagnenIds])];
+          // Duplikate entfernen
+          allowedMarkenIds = [...new Set(allowedMarkenIds)];
+          
+          // Kampagnen für erlaubte Marken laden
+          let markenKampagnenIds = [];
+          if (allowedMarkenIds.length > 0) {
+            const { data: kampagnen } = await window.supabase
+              .from('kampagne')
+              .select('id')
+              .in('marke_id', allowedMarkenIds);
+            
+            markenKampagnenIds = (kampagnen || []).map(k => k.id).filter(Boolean);
+          }
+          
+          // Kombiniere alle Listen und entferne Duplikate
+          allowedKampagneIds = [...new Set([...directKampagnenIds, ...markenKampagnenIds])];
           
           // Kooperationen aus erlaubten Kampagnen laden
           if (allowedKampagneIds.length > 0) {
@@ -143,10 +184,11 @@ export class RechnungList {
           
           console.log(`🔍 RECHNUNGLIST: Mitarbeiter ${window.currentUser?.id} hat Zugriff auf:`, {
             direkteKampagnen: directKampagnenIds.length,
+            erlaubteMarken: allowedMarkenIds.length,
             markenKampagnen: markenKampagnenIds.length,
-            unternehmenKampagnen: unternehmenKampagnenIds.length,
             gesamtKampagnen: allowedKampagneIds.length,
-            kooperationen: allowedKoopIds.length
+            kooperationen: allowedKoopIds.length,
+            unternehmen: allowedUnternehmenIds.length
           });
         } catch (error) {
           console.error('❌ Fehler beim Laden der Zuordnungen:', error);
@@ -156,13 +198,13 @@ export class RechnungList {
       let rechnungen;
       // Für Mitarbeiter: Filtere nach zugewiesenen Kampagnen/Kooperationen/Unternehmen
       // Für Kunden: RLS-Policies filtern automatisch
-      if (!isAdmin && window.currentUser?.rolle !== 'kunde' && (allowedKampagneIds.length || allowedKoopIds.length || unternehmenIds.length)) {
+      if (!isAdmin && window.currentUser?.rolle !== 'kunde' && (allowedKampagneIds.length || allowedKoopIds.length || allowedUnternehmenIds.length)) {
         const baseFilters = { ...currentFilters };
         rechnungen = await window.dataService.loadEntities('rechnung', baseFilters);
         rechnungen = (rechnungen || []).filter(r => {
           return (r.kampagne_id && allowedKampagneIds.includes(r.kampagne_id)) || 
                  (r.kooperation_id && allowedKoopIds.includes(r.kooperation_id)) ||
-                 (r.unternehmen_id && unternehmenIds.includes(r.unternehmen_id));
+                 (r.unternehmen_id && allowedUnternehmenIds.includes(r.unternehmen_id));
         });
       } else {
         rechnungen = await window.dataService.loadEntities('rechnung', currentFilters);

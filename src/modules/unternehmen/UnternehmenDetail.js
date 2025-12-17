@@ -24,6 +24,8 @@ export class UnternehmenDetail extends PersonDetailBase {
     this.kooperationen = [];
     this.creators = [];
     this.rechnungen = [];
+    this.strategien = [];
+    this.creatorAuswahlen = [];
     this._creatorMap = {};
     this.activeMainTab = 'informationen';
   }
@@ -215,6 +217,34 @@ export class UnternehmenDetail extends PersonDetailBase {
         this.rechnungen = [];
       }
 
+      // Strategien laden (direkt über unternehmen_id)
+      try {
+        const { data: strategien } = await window.supabase
+          .from('strategie')
+          .select('id, name, teilbereich, created_at')
+          .eq('unternehmen_id', this.unternehmenId)
+          .order('created_at', { ascending: false });
+        this.strategien = strategien || [];
+        console.log('✅ UNTERNEHMENDETAIL: Strategien geladen:', this.strategien.length);
+      } catch (e) {
+        console.warn('⚠️ Strategien konnten nicht geladen werden', e);
+        this.strategien = [];
+      }
+
+      // Creator-Auswahlen laden (direkt über unternehmen_id)
+      try {
+        const { data: creatorAuswahlen } = await window.supabase
+          .from('creator_auswahl')
+          .select('id, name, created_at')
+          .eq('unternehmen_id', this.unternehmenId)
+          .order('created_at', { ascending: false });
+        this.creatorAuswahlen = creatorAuswahlen || [];
+        console.log('✅ UNTERNEHMENDETAIL: Creator-Auswahlen geladen:', this.creatorAuswahlen.length);
+      } catch (e) {
+        console.warn('⚠️ Creator-Auswahlen konnten nicht geladen werden', e);
+        this.creatorAuswahlen = [];
+      }
+
       // Kooperationen und Creator laden (basierend auf Kampagnen)
       try {
         const kampagneIds = (this.kampagnen || []).map(k => k.id).filter(Boolean);
@@ -377,8 +407,10 @@ export class UnternehmenDetail extends PersonDetailBase {
       { tab: 'ansprechpartner', label: 'Ansprechpartner', count: this.ansprechpartner.length, isActive: this.activeMainTab === 'ansprechpartner' },
       { tab: 'auftraege', label: 'Aufträge', count: this.auftraege.length, isActive: this.activeMainTab === 'auftraege' },
       { tab: 'auftragsdetails', label: 'Auftragsdetails', count: this.auftragsdetails.length, isActive: this.activeMainTab === 'auftragsdetails' },
-      { tab: 'briefings', label: 'Briefings', count: this.briefings.length, isActive: this.activeMainTab === 'briefings' },
       { tab: 'kampagnen', label: 'Kampagnen', count: this.kampagnen.length, isActive: this.activeMainTab === 'kampagnen' },
+      { tab: 'briefings', label: 'Briefings', count: this.briefings.length, isActive: this.activeMainTab === 'briefings' },
+      { tab: 'strategien', label: 'Strategien', count: this.strategien.length, isActive: this.activeMainTab === 'strategien' },
+      { tab: 'creatorauswahl', label: 'Creator-Auswahl', count: this.creatorAuswahlen.length, isActive: this.activeMainTab === 'creatorauswahl' },
       { tab: 'kooperationen', label: 'Kooperationen', count: this.kooperationen.length, isActive: this.activeMainTab === 'kooperationen' },
       { tab: 'creators', label: 'Creator', count: this.creators.length, isActive: this.activeMainTab === 'creators' },
       { tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen.length, isActive: this.activeMainTab === 'rechnungen' }
@@ -410,12 +442,20 @@ export class UnternehmenDetail extends PersonDetailBase {
           ${this.renderAuftragsdetails()}
         </div>
 
+        <div class="tab-pane ${this.activeMainTab === 'kampagnen' ? 'active' : ''}" id="tab-kampagnen">
+          ${this.renderKampagnen()}
+        </div>
+
         <div class="tab-pane ${this.activeMainTab === 'briefings' ? 'active' : ''}" id="tab-briefings">
           ${this.renderBriefings()}
         </div>
 
-        <div class="tab-pane ${this.activeMainTab === 'kampagnen' ? 'active' : ''}" id="tab-kampagnen">
-          ${this.renderKampagnen()}
+        <div class="tab-pane ${this.activeMainTab === 'strategien' ? 'active' : ''}" id="tab-strategien">
+          ${this.renderStrategien()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'creatorauswahl' ? 'active' : ''}" id="tab-creatorauswahl">
+          ${this.renderCreatorAuswahl()}
         </div>
 
         <div class="tab-pane ${this.activeMainTab === 'kooperationen' ? 'active' : ''}" id="tab-kooperationen">
@@ -700,6 +740,96 @@ export class UnternehmenDetail extends PersonDetailBase {
               <th>Deadline</th>
               <th>Creator</th>
               <th>Videos</th>
+              <th>Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  // Rendere Strategien
+  renderStrategien() {
+    if (!this.strategien || this.strategien.length === 0) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">💡</div>
+          <h3>Keine Strategien vorhanden</h3>
+          <p>Es wurden noch keine Strategien für dieses Unternehmen erstellt.</p>
+        </div>
+      `;
+    }
+
+    const rows = this.strategien.map(s => `
+      <tr>
+        <td>
+          <a href="#" class="table-link" data-table="strategie" data-id="${s.id}">
+            ${this.sanitize(s.name) || 'Unbekannte Strategie'}
+          </a>
+        </td>
+        <td>${this.sanitize(s.teilbereich) || '-'}</td>
+        <td>${this.formatDate(s.created_at)}</td>
+        <td>
+          ${actionBuilder.create('strategie', s.id)}
+        </td>
+      </tr>
+    `).join('');
+
+    return `
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Teilbereich</th>
+              <th>Erstellt am</th>
+              <th>Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  // Rendere Creator-Auswahl
+  renderCreatorAuswahl() {
+    if (!this.creatorAuswahlen || this.creatorAuswahlen.length === 0) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">👥</div>
+          <h3>Keine Creator-Auswahlen vorhanden</h3>
+          <p>Es wurden noch keine Creator-Auswahlen für dieses Unternehmen erstellt.</p>
+        </div>
+      `;
+    }
+
+    const rows = this.creatorAuswahlen.map(ca => `
+      <tr>
+        <td>
+          <a href="#" class="table-link" data-table="creator-auswahl" data-id="${ca.id}">
+            ${this.sanitize(ca.name) || 'Unbekannte Creator-Auswahl'}
+          </a>
+        </td>
+        <td>${this.formatDate(ca.created_at)}</td>
+        <td>
+          ${actionBuilder.create('creator_auswahl', ca.id)}
+        </td>
+      </tr>
+    `).join('');
+
+    return `
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Erstellt am</th>
               <th>Aktion</th>
             </tr>
           </thead>
@@ -1181,6 +1311,37 @@ export class UnternehmenDetail extends PersonDetailBase {
         }
       });
       
+      // Mitarbeiter-Felder explizit sammeln (falls nicht über tagBasedSelects gefunden)
+      const mitarbeiterFields = ['management_ids', 'lead_mitarbeiter_ids', 'mitarbeiter_ids'];
+      for (const fieldName of mitarbeiterFields) {
+        if (!allFormData[fieldName]) {
+          // Suche nach verstecktem Select
+          const hiddenSelect = form.querySelector(`select[name="${fieldName}"][style*="display: none"]`);
+          if (hiddenSelect) {
+            const selectedValues = Array.from(hiddenSelect.selectedOptions).map(option => option.value).filter(val => val !== '');
+            if (selectedValues.length > 0) {
+              allFormData[fieldName] = selectedValues;
+              console.log(`✅ Manuell gesammelt: ${fieldName} =`, selectedValues);
+            }
+          }
+          
+          // Falls nicht gefunden, suche nach allen Selects mit diesem Namen
+          if (!allFormData[fieldName]) {
+            const allSelects = form.querySelectorAll(`select[name="${fieldName}"]`);
+            for (const sel of allSelects) {
+              if (sel.multiple || sel.hasAttribute('multiple')) {
+                const selectedValues = Array.from(sel.selectedOptions).map(option => option.value).filter(val => val !== '');
+                if (selectedValues.length > 0) {
+                  allFormData[fieldName] = selectedValues;
+                  console.log(`✅ Aus Multi-Select gesammelt: ${fieldName} =`, selectedValues);
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+      
       // Standard FormData sammeln
       for (let [key, value] of formData.entries()) {
         if (!allFormData.hasOwnProperty(key)) {
@@ -1202,6 +1363,14 @@ export class UnternehmenDetail extends PersonDetailBase {
       for (let [key, value] of Object.entries(allFormData)) {
         data[key] = Array.isArray(value) ? value : value.trim();
       }
+      
+      // Debug: Zeige alle gesammelten Daten
+      console.log('📋 UNTERNEHMENDETAIL: Alle gesammelten Formular-Daten:', data);
+      console.log('📋 UNTERNEHMENDETAIL: Mitarbeiter-Felder:', {
+        management_ids: data.management_ids,
+        lead_mitarbeiter_ids: data.lead_mitarbeiter_ids,
+        mitarbeiter_ids: data.mitarbeiter_ids
+      });
 
       // Unternehmen aktualisieren
       const result = await window.dataService.updateEntity('unternehmen', this.unternehmenId, data);
@@ -1212,6 +1381,9 @@ export class UnternehmenDetail extends PersonDetailBase {
 
       // HINWEIS: Branchen werden automatisch durch DataService.handleManyToManyRelations() verwaltet
       // Daher NICHT manuell saveUnternehmenBranchen() aufrufen - das führt zu Race Conditions!
+      
+      // Mitarbeiter-Zuordnungen mit Rollen speichern
+      await this.saveMitarbeiterRoles(this.unternehmenId, data);
       
       // Logo-Upload (falls vorhanden) - nach Branchen, damit Fehler nicht Branchen blockieren
       try {
@@ -1305,6 +1477,94 @@ export class UnternehmenDetail extends PersonDetailBase {
       console.error('❌ Fehler beim Logo-Upload:', error);
       alert(`⚠️ Logo konnte nicht hochgeladen werden: ${error.message}`);
       throw error; // Re-throw damit handleEditFormSubmit den Fehler sieht
+    }
+  }
+  
+  // Mitarbeiter-Zuordnungen mit Rollen speichern
+  async saveMitarbeiterRoles(unternehmenId, data) {
+    try {
+      if (!unternehmenId || !window.supabase) return;
+      
+      console.log('🔄 UNTERNEHMENDETAIL: Speichere Mitarbeiter-Rollen für Unternehmen:', unternehmenId);
+      
+      // Rollen-Mapping
+      const roleFields = {
+        'management_ids': 'management',
+        'lead_mitarbeiter_ids': 'lead_mitarbeiter',
+        'mitarbeiter_ids': 'mitarbeiter'
+      };
+      
+      // Alle INSERT-Daten sammeln
+      const allInsertData = [];
+      
+      for (const [fieldName, roleValue] of Object.entries(roleFields)) {
+        // Prüfe ob das Feld in den Daten vorhanden ist
+        const fieldData = data[fieldName] || data[`${fieldName}[]`];
+        
+        // Extrahiere IDs als Array und entferne Duplikate
+        let mitarbeiterIds = [];
+        if (Array.isArray(fieldData)) {
+          mitarbeiterIds = [...new Set(fieldData.filter(Boolean))];
+        } else if (typeof fieldData === 'string' && fieldData) {
+          mitarbeiterIds = [fieldData];
+        }
+        
+        console.log(`📋 ${fieldName} (${roleValue}): ${mitarbeiterIds.length} Mitarbeiter`, mitarbeiterIds);
+        
+        // Sammle INSERT-Daten
+        for (const mitarbeiterId of mitarbeiterIds) {
+          allInsertData.push({
+            unternehmen_id: unternehmenId,
+            mitarbeiter_id: mitarbeiterId,
+            role: roleValue
+          });
+        }
+      }
+      
+      // ERST alle bestehenden Einträge für dieses Unternehmen löschen
+      console.log('🗑️ Lösche alle bestehenden Mitarbeiter-Zuordnungen für Unternehmen:', unternehmenId);
+      const { error: deleteError } = await window.supabase
+        .from('mitarbeiter_unternehmen')
+        .delete()
+        .eq('unternehmen_id', unternehmenId);
+      
+      if (deleteError) {
+        console.error('❌ Fehler beim Löschen:', deleteError);
+      }
+      
+      // DANN alle neuen Einträge in einem Batch einfügen
+      if (allInsertData.length > 0) {
+        console.log(`📤 Füge ${allInsertData.length} Mitarbeiter-Zuordnungen ein:`, allInsertData);
+        
+        const { error: insertError } = await window.supabase
+          .from('mitarbeiter_unternehmen')
+          .insert(allInsertData);
+        
+        if (insertError) {
+          console.error('❌ Fehler beim Batch-Insert:', insertError);
+          
+          // Fallback: Einzeln einfügen mit upsert
+          console.log('🔄 Versuche Einzelinserts mit upsert...');
+          for (const row of allInsertData) {
+            const { error: upsertError } = await window.supabase
+              .from('mitarbeiter_unternehmen')
+              .upsert(row, { onConflict: 'mitarbeiter_id,unternehmen_id,role' });
+            
+            if (upsertError) {
+              console.error(`❌ Upsert-Fehler für ${row.mitarbeiter_id}/${row.role}:`, upsertError);
+            }
+          }
+        } else {
+          console.log(`✅ ${allInsertData.length} Mitarbeiter-Zuordnungen gespeichert`);
+        }
+      } else {
+        console.log('ℹ️ Keine Mitarbeiter zum Speichern');
+      }
+      
+      console.log('✅ UNTERNEHMENDETAIL: Mitarbeiter-Rollen gespeichert');
+    } catch (error) {
+      console.error('❌ UNTERNEHMENDETAIL: Fehler beim Speichern der Mitarbeiter-Rollen:', error);
+      // Nicht werfen - Unternehmen wurde bereits aktualisiert
     }
   }
   

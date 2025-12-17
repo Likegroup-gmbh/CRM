@@ -59,7 +59,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
         window.supabase.from('kampagne_status').select('id, name, sort_order').order('sort_order', { ascending: true }).order('name', { ascending: true }),
         window.supabase
           .from('mitarbeiter_unternehmen')
-          .select('unternehmen:unternehmen_id(id, firmenname)')
+          .select('unternehmen:unternehmen_id(id, firmenname), role')
           .eq('mitarbeiter_id', this.userId),
         window.supabase
           .from('marke_mitarbeiter')
@@ -136,7 +136,10 @@ export class MitarbeiterDetail extends PersonDetailBase {
       this.assignments.briefings = briefs || [];
       this.statusOptions = statusRows || [];
       this.zugeordnet = {
-        unternehmen: (unternehmenRel || []).map(r => r.unternehmen).filter(Boolean),
+        unternehmen: (unternehmenRel || []).map(r => ({
+          ...r.unternehmen,
+          role: r.role || 'mitarbeiter'
+        })).filter(u => u && u.id),
         marken: (markenRel || []).map(r => r.marke).filter(Boolean)
       };
 
@@ -657,19 +660,24 @@ export class MitarbeiterDetail extends PersonDetailBase {
       return '<div class="empty-state"><p>Keine Unternehmen zugeordnet</p></div>';
     }
     
+    const roleLabels = {
+      'management': 'Management',
+      'lead_mitarbeiter': 'Lead Mitarbeiter',
+      'mitarbeiter': 'Mitarbeiter'
+    };
+    
     return `
       <div class="data-table-container">
         <table class="data-table">
           <thead>
             <tr>
               <th>Firmenname</th>
-              <th>Erstellt</th>
-              <th style="width: 150px; text-align: center;">Aktionen</th>
+              <th style="width: 180px;">Rolle</th>
+              <th style="width: 120px; text-align: center;">Aktionen</th>
             </tr>
           </thead>
           <tbody>
             ${this.zugeordnet.unternehmen.map(u => {
-              const createdDate = u.created_at ? new Date(u.created_at).toLocaleDateString('de-DE') : '—';
               return `
               <tr data-id="${u.id}">
                 <td>
@@ -677,7 +685,13 @@ export class MitarbeiterDetail extends PersonDetailBase {
                     ${window.validatorSystem.sanitizeHtml(u.firmenname || u.id)}
                   </a>
                 </td>
-                <td>${createdDate}</td>
+                <td>
+                  <select class="form-select role-select" data-unternehmen-id="${u.id}" style="padding: 6px 10px; font-size: 13px;">
+                    <option value="management" ${u.role === 'management' ? 'selected' : ''}>Management</option>
+                    <option value="lead_mitarbeiter" ${u.role === 'lead_mitarbeiter' ? 'selected' : ''}>Lead Mitarbeiter</option>
+                    <option value="mitarbeiter" ${u.role === 'mitarbeiter' ? 'selected' : ''}>Mitarbeiter</option>
+                  </select>
+                </td>
                 <td style="text-align: center;">
                   <button class="secondary-btn btn-remove-unternehmen" data-id="${u.id}" data-name="${window.validatorSystem.sanitizeHtml(u.firmenname)}">
                     Entfernen
@@ -929,6 +943,16 @@ export class MitarbeiterDetail extends PersonDetailBase {
       }
     });
     
+    // Event-Handler für Rolle ändern
+    document.addEventListener('change', async (e) => {
+      const roleSelect = e.target.closest('.role-select');
+      if (roleSelect) {
+        const unternehmenId = roleSelect.dataset.unternehmenId;
+        const newRole = roleSelect.value;
+        await this.updateUnternehmenRole(unternehmenId, newRole);
+      }
+    });
+    
     // Event-Handler für Unternehmen entfernen
     document.addEventListener('click', async (e) => {
       const removeBtn = e.target.closest('.btn-remove-unternehmen');
@@ -1149,6 +1173,15 @@ export class MitarbeiterDetail extends PersonDetailBase {
             <div id="unternehmen-dropdown" class="auto-suggest-dropdown" style="display: none;"></div>
           </div>
           <div id="selected-unternehmen" class="selected-items" style="margin-top: 10px;"></div>
+          
+          <div class="form-group" style="margin-top: 16px;">
+            <label class="form-label">Rolle</label>
+            <select id="role-select" class="form-select">
+              <option value="mitarbeiter">Mitarbeiter</option>
+              <option value="lead_mitarbeiter">Lead Mitarbeiter</option>
+              <option value="management">Management</option>
+            </select>
+          </div>
         </div>
         <div class="modal-footer">
           <button id="cancel-zuordnung" class="mdc-btn mdc-btn--cancel">
@@ -1241,12 +1274,15 @@ export class MitarbeiterDetail extends PersonDetailBase {
     saveBtn.addEventListener('click', async () => {
       if (!selectedUnternehmen) return;
 
+      const selectedRole = modal.querySelector('#role-select').value;
+      
       try {
         const { error } = await window.supabase
           .from('mitarbeiter_unternehmen')
           .insert({ 
             mitarbeiter_id: this.userId, 
-            unternehmen_id: selectedUnternehmen.id 
+            unternehmen_id: selectedUnternehmen.id,
+            role: selectedRole
           });
 
         if (error) {
@@ -1278,6 +1314,34 @@ export class MitarbeiterDetail extends PersonDetailBase {
     });
 
     setTimeout(() => input.focus(), 100);
+  }
+
+  async updateUnternehmenRole(unternehmenId, newRole) {
+    try {
+      const { error } = await window.supabase
+        .from('mitarbeiter_unternehmen')
+        .update({ role: newRole })
+        .eq('mitarbeiter_id', this.userId)
+        .eq('unternehmen_id', unternehmenId);
+
+      if (error) throw error;
+
+      const roleLabels = {
+        'management': 'Management',
+        'lead_mitarbeiter': 'Lead Mitarbeiter',
+        'mitarbeiter': 'Mitarbeiter'
+      };
+      
+      window.NotificationSystem?.show('success', `Rolle auf "${roleLabels[newRole]}" geändert`);
+      
+      // Lokale Daten aktualisieren
+      const u = this.zugeordnet.unternehmen.find(u => u.id === unternehmenId);
+      if (u) u.role = newRole;
+      
+    } catch (err) {
+      console.error('❌ Rolle ändern fehlgeschlagen', err);
+      window.NotificationSystem?.show('error', 'Rolle ändern fehlgeschlagen: ' + err.message);
+    }
   }
 
   async removeUnternehmen(unternehmenId, unternehmenName) {

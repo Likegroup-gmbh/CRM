@@ -596,6 +596,58 @@ export class UnternehmenCreate {
         }
       });
       
+      // Mitarbeiter-Felder explizit sammeln (falls nicht über tagBasedSelects gefunden)
+      const mitarbeiterFields = ['management_ids', 'lead_mitarbeiter_ids', 'mitarbeiter_ids'];
+      console.log('🔍 UNTERNEHMENCREATE: Suche Mitarbeiter-Felder...');
+      
+      for (const fieldName of mitarbeiterFields) {
+        console.log(`🔍 Suche ${fieldName}...`);
+        
+        // Debug: Zeige alle Selects mit diesem Namen
+        const debugSelects = form.querySelectorAll(`select[name="${fieldName}"]`);
+        console.log(`   Gefundene Selects für ${fieldName}:`, debugSelects.length);
+        debugSelects.forEach((sel, idx) => {
+          console.log(`   Select ${idx}: multiple=${sel.multiple}, selectedOptions=${sel.selectedOptions.length}, style.display=${sel.style.display}`);
+        });
+        
+        if (!allFormData[fieldName]) {
+          // Methode 1: Suche nach verstecktem Select (style enthält "display: none")
+          let hiddenSelect = form.querySelector(`select[name="${fieldName}"][style*="display: none"]`);
+          
+          // Methode 2: Suche nach Select mit multiple Attribut
+          if (!hiddenSelect) {
+            const multiSelects = form.querySelectorAll(`select[name="${fieldName}"][multiple]`);
+            if (multiSelects.length > 0) {
+              hiddenSelect = multiSelects[0];
+              console.log(`   Gefunden via [multiple] Attribut`);
+            }
+          }
+          
+          // Methode 3: Wenn es mehrere Selects gibt, nimm das zweite (versteckte)
+          if (!hiddenSelect) {
+            const allSelects = form.querySelectorAll(`select[name="${fieldName}"]`);
+            if (allSelects.length > 1) {
+              hiddenSelect = allSelects[1];
+              console.log(`   Gefunden via zweites Select`);
+            } else if (allSelects.length === 1 && allSelects[0].multiple) {
+              hiddenSelect = allSelects[0];
+              console.log(`   Gefunden via einziges Multi-Select`);
+            }
+          }
+          
+          if (hiddenSelect) {
+            const selectedValues = Array.from(hiddenSelect.selectedOptions).map(option => option.value).filter(val => val !== '');
+            console.log(`   ${fieldName}: ${selectedValues.length} ausgewählte Werte`, selectedValues);
+            if (selectedValues.length > 0) {
+              allFormData[fieldName] = selectedValues;
+              console.log(`✅ Gesammelt: ${fieldName} =`, selectedValues);
+            }
+          } else {
+            console.log(`   ⚠️ Kein Select für ${fieldName} gefunden`);
+          }
+        }
+      }
+      
       // Standard FormData-Einträge sammeln (inkl. Array-basierte Multi-Selects)
       for (let [key, value] of formData.entries()) {
         if (!allFormData.hasOwnProperty(key)) {
@@ -634,6 +686,11 @@ export class UnternehmenCreate {
 
       console.log('📋 UNTERNEHMENCREATE: Formular-Daten gesammelt:', data);
       console.log('🧪 UNTERNEHMENCREATE: Übergabe an DataService mit branche_id:', data.branche_id);
+      console.log('👥 UNTERNEHMENCREATE: Mitarbeiter-Daten:', {
+        management_ids: data.management_ids,
+        lead_mitarbeiter_ids: data.lead_mitarbeiter_ids,
+        mitarbeiter_ids: data.mitarbeiter_ids
+      });
 
       // Unternehmen über DataService erstellen (konsistent mit anderen Modulen)
       const result = await window.dataService.createEntity('unternehmen', data);
@@ -660,6 +717,9 @@ export class UnternehmenCreate {
       }
 
       await this.saveUnternehmenBranchen(result.id, data.branche_id, form);
+      
+      // Mitarbeiter-Zuordnungen mit Rollen speichern
+      await this.saveMitarbeiterRoles(result.id, data);
 
       // Event auslösen für Listen-Update
       window.dispatchEvent(new CustomEvent('entityCreated', {
@@ -817,6 +877,83 @@ export class UnternehmenCreate {
     } catch (error) {
       console.error('❌ Fehler beim Logo-Upload:', error);
       alert(`⚠️ Logo konnte nicht hochgeladen werden: ${error.message}`);
+      // Nicht werfen - Unternehmen wurde bereits erstellt
+    }
+  }
+  
+  // Mitarbeiter-Zuordnungen mit Rollen speichern
+  async saveMitarbeiterRoles(unternehmenId, data) {
+    try {
+      if (!unternehmenId || !window.supabase) return;
+      
+      console.log('🔄 UNTERNEHMENCREATE: Speichere Mitarbeiter-Rollen für Unternehmen:', unternehmenId);
+      
+      // Rollen-Mapping
+      const roleFields = {
+        'management_ids': 'management',
+        'lead_mitarbeiter_ids': 'lead_mitarbeiter',
+        'mitarbeiter_ids': 'mitarbeiter'
+      };
+      
+      // Alle INSERT-Daten sammeln
+      const allInsertData = [];
+      
+      for (const [fieldName, roleValue] of Object.entries(roleFields)) {
+        // Prüfe ob das Feld in den Daten vorhanden ist
+        const fieldData = data[fieldName] || data[`${fieldName}[]`];
+        
+        // Extrahiere IDs als Array und entferne Duplikate
+        let mitarbeiterIds = [];
+        if (Array.isArray(fieldData)) {
+          mitarbeiterIds = [...new Set(fieldData.filter(Boolean))];
+        } else if (typeof fieldData === 'string' && fieldData) {
+          mitarbeiterIds = [fieldData];
+        }
+        
+        console.log(`📋 ${fieldName} (${roleValue}): ${mitarbeiterIds.length} Mitarbeiter`, mitarbeiterIds);
+        
+        // Sammle INSERT-Daten
+        for (const mitarbeiterId of mitarbeiterIds) {
+          allInsertData.push({
+            unternehmen_id: unternehmenId,
+            mitarbeiter_id: mitarbeiterId,
+            role: roleValue
+          });
+        }
+      }
+      
+      // Alle Einträge in einem Batch einfügen
+      if (allInsertData.length > 0) {
+        console.log(`📤 Füge ${allInsertData.length} Mitarbeiter-Zuordnungen ein:`, allInsertData);
+        
+        const { error: insertError } = await window.supabase
+          .from('mitarbeiter_unternehmen')
+          .insert(allInsertData);
+        
+        if (insertError) {
+          console.error('❌ Fehler beim Batch-Insert:', insertError);
+          
+          // Fallback: Einzeln einfügen mit upsert
+          console.log('🔄 Versuche Einzelinserts mit upsert...');
+          for (const row of allInsertData) {
+            const { error: upsertError } = await window.supabase
+              .from('mitarbeiter_unternehmen')
+              .upsert(row, { onConflict: 'mitarbeiter_id,unternehmen_id,role' });
+            
+            if (upsertError) {
+              console.error(`❌ Upsert-Fehler für ${row.mitarbeiter_id}/${row.role}:`, upsertError);
+            }
+          }
+        } else {
+          console.log(`✅ ${allInsertData.length} Mitarbeiter-Zuordnungen gespeichert`);
+        }
+      } else {
+        console.log('ℹ️ Keine Mitarbeiter zum Speichern');
+      }
+      
+      console.log('✅ UNTERNEHMENCREATE: Mitarbeiter-Rollen gespeichert');
+    } catch (error) {
+      console.error('❌ UNTERNEHMENCREATE: Fehler beim Speichern der Mitarbeiter-Rollen:', error);
       // Nicht werfen - Unternehmen wurde bereits erstellt
     }
   }

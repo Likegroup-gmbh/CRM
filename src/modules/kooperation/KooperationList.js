@@ -99,6 +99,9 @@ export class KooperationList {
       }
 
       // Sichtbarkeit: Nicht-Admins nur eigene (assignee_id) ODER solche aus zugewiesenen Kampagnen/Marken/Unternehmen
+      // Neue Logik: Marken-Zuordnung als Zusatzfilter
+      // - Nur Unternehmen zugeordnet → Sieht ALLES vom Unternehmen
+      // - Unternehmen + bestimmte Marken → Sieht NUR Inhalte der zugewiesenen Marken
       const isAdmin = window.currentUser?.rolle === 'admin';
       let allowedKampagneIds = [];
       if (!isAdmin) {
@@ -110,23 +113,19 @@ export class KooperationList {
             .eq('mitarbeiter_id', window.currentUser?.id);
           const directKampagnenIds = (assignedKampagnen || []).map(r => r.kampagne_id).filter(Boolean);
           
-          // 2. Kampagnen über zugeordnete Marken
+          // 2. Zugeordnete Marken MIT Unternehmen-Info
           const { data: assignedMarken } = await window.supabase
             .from('marke_mitarbeiter')
-            .select('marke_id')
+            .select('marke_id, marke:marke_id(unternehmen_id)')
             .eq('mitarbeiter_id', window.currentUser?.id);
-          const markenIds = (assignedMarken || []).map(r => r.marke_id).filter(Boolean);
           
-          let markenKampagnenIds = [];
-          if (markenIds.length > 0) {
-            const { data: markenKampagnen } = await window.supabase
-              .from('kampagne')
-              .select('id')
-              .in('marke_id', markenIds);
-            markenKampagnenIds = (markenKampagnen || []).map(k => k.id).filter(Boolean);
-          }
+          // Zugeordnete Marken mit ihren Unternehmen
+          const markenMitUnternehmen = (assignedMarken || []).map(r => ({
+            marke_id: r.marke_id,
+            unternehmen_id: r.marke?.unternehmen_id
+          })).filter(r => r.marke_id);
           
-          // 3. NEU: Kampagnen über zugeordnete Unternehmen
+          // 3. Zugeordnete Unternehmen
           const { data: mitarbeiterUnternehmen } = await window.supabase
             .from('mitarbeiter_unternehmen')
             .select('unternehmen_id')
@@ -136,38 +135,61 @@ export class KooperationList {
             .map(r => r.unternehmen_id)
             .filter(Boolean);
           
-          let unternehmenKampagnenIds = [];
-          if (unternehmenIds.length > 0) {
-            // Alle Marken dieser Unternehmen finden
-            const { data: unternehmenMarken } = await window.supabase
-              .from('marke')
-              .select('id')
-              .in('unternehmen_id', unternehmenIds);
-            
-            const unternehmenMarkenIds = (unternehmenMarken || []).map(m => m.id).filter(Boolean);
-            
-            if (unternehmenMarkenIds.length > 0) {
-              // Alle Kampagnen dieser Marken laden
-              const { data: kampagnen } = await window.supabase
-                .from('kampagne')
-                .select('id')
-                .in('marke_id', unternehmenMarkenIds);
-              
-              unternehmenKampagnenIds = (kampagnen || []).map(k => k.id).filter(Boolean);
+          // Erstelle Map: Unternehmen-ID → zugeordnete Marken-IDs
+          const unternehmenMarkenMap = new Map();
+          markenMitUnternehmen.forEach(r => {
+            if (r.unternehmen_id) {
+              if (!unternehmenMarkenMap.has(r.unternehmen_id)) {
+                unternehmenMarkenMap.set(r.unternehmen_id, []);
+              }
+              unternehmenMarkenMap.get(r.unternehmen_id).push(r.marke_id);
             }
+          });
+          
+          // Für jedes Unternehmen die erlaubten Marken ermitteln
+          let allowedMarkenIds = [];
+          
+          for (const unternehmenId of unternehmenIds) {
+            const explicitMarkenIds = unternehmenMarkenMap.get(unternehmenId);
+            
+            if (explicitMarkenIds && explicitMarkenIds.length > 0) {
+              // User hat explizite Marken-Zuordnung → Nur diese Marken erlauben
+              allowedMarkenIds.push(...explicitMarkenIds);
+            } else {
+              // Keine Marken-Zuordnung → ALLE Marken des Unternehmens erlauben
+              const { data: alleMarken } = await window.supabase
+                .from('marke')
+                .select('id')
+                .eq('unternehmen_id', unternehmenId);
+              
+              allowedMarkenIds.push(...(alleMarken || []).map(m => m.id));
+            }
+          }
+          
+          // Duplikate entfernen
+          allowedMarkenIds = [...new Set(allowedMarkenIds)];
+          
+          // Kampagnen für erlaubte Marken laden
+          let markenKampagnenIds = [];
+          if (allowedMarkenIds.length > 0) {
+            const { data: kampagnen } = await window.supabase
+              .from('kampagne')
+              .select('id')
+              .in('marke_id', allowedMarkenIds);
+            
+            markenKampagnenIds = (kampagnen || []).map(k => k.id).filter(Boolean);
           }
           
           // Alle zusammenführen und Duplikate entfernen
           allowedKampagneIds = [...new Set([
             ...directKampagnenIds,
-            ...markenKampagnenIds,
-            ...unternehmenKampagnenIds
+            ...markenKampagnenIds
           ])];
           
           console.log(`🔍 KOOPERATIONLIST: Mitarbeiter ${window.currentUser?.id} hat Zugriff auf:`, {
             direkteKampagnen: directKampagnenIds.length,
+            erlaubteMarken: allowedMarkenIds.length,
             markenKampagnen: markenKampagnenIds.length,
-            unternehmenKampagnen: unternehmenKampagnenIds.length,
             gesamt: allowedKampagneIds.length
           });
         } catch (error) {

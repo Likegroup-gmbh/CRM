@@ -162,9 +162,14 @@ export class DependentFields {
                 }, 100); // 100ms Debounce
               }
             } else {
-              fieldContainer.classList.add('form-field--hidden');
+              // WICHTIG: Felder mit prefillFromUnternehmen NICHT verstecken (Waterfall-Logik)
+              // Diese bleiben immer sichtbar, nur die Daten werden aktualisiert
+              const isPrefillField = fieldContainer.dataset.prefillFromUnternehmen === 'true';
+              if (!isPrefillField) {
+                fieldContainer.classList.add('form-field--hidden');
+              }
             }
-            console.log(`🔍 Feld ${field.dataset.dependsOn} ${shouldShow ? 'angezeigt' : 'versteckt'}`);
+            console.log(`🔍 Feld ${field.dataset.dependsOn} ${shouldShow ? 'angezeigt' : (fieldContainer.dataset.prefillFromUnternehmen ? 'sichtbar (prefill)' : 'versteckt')}`);
             
             // Auto-Generierung für Kampagnenname
             if (shouldShow && field.dataset.autoGenerate === 'true') {
@@ -227,8 +232,11 @@ export class DependentFields {
       const element = form.querySelector(`[name="${field.name}"]`);
       if (element) {
         fieldCache.set(field.name, element);
+      } else if (field.dependsOn) {
+        console.warn(`⚠️ FIELDCACHE: Element für abhängiges Feld ${field.name} nicht gefunden`);
       }
     });
+    console.log('📦 FIELDCACHE: Gecachte Felder:', Array.from(fieldCache.keys()));
     
     // Debounce Timers (Performance Optimierung #3)
     const debounceTimers = new Map();
@@ -237,6 +245,9 @@ export class DependentFields {
     const handler = async (e) => {
       const changedField = e.target;
       const fieldName = changedField.name;
+      
+      console.log(`🔔 FORM-CHANGE-EVENT: Feld "${fieldName}" geändert, Wert:`, this.getFieldValue(changedField));
+      console.log(`   → In DependencyMap? ${dependencyMap.has(fieldName)}, Keys:`, Array.from(dependencyMap.keys()));
       
       // dependsOn-Logik: Felder die versteckt/angezeigt werden
       if (dependencyMap.has(fieldName)) {
@@ -253,8 +264,19 @@ export class DependentFields {
           console.log(`🔄 DELEGATION: ${fieldName} → "${parentValue}", ${dependentFields.length} abhängige Felder`);
           
           for (const fieldConfig of dependentFields) {
-            const dependentField = fieldCache.get(fieldConfig.name);
-            if (!dependentField) continue;
+            let dependentField = fieldCache.get(fieldConfig.name);
+            if (!dependentField) {
+              console.warn(`⚠️ DELEGATION: Feld ${fieldConfig.name} nicht im Cache gefunden - versuche erneut zu finden`);
+              // Fallback: Versuche das Feld direkt zu finden
+              dependentField = form.querySelector(`[name="${fieldConfig.name}"]`);
+              if (dependentField) {
+                console.log(`✅ DELEGATION: Feld ${fieldConfig.name} per Fallback gefunden`);
+                fieldCache.set(fieldConfig.name, dependentField);
+              } else {
+                console.error(`❌ DELEGATION: Feld ${fieldConfig.name} existiert nicht im DOM`);
+                continue;
+              }
+            }
             
             if (!parentValue) {
               await this.clearDependentField(dependentField, fieldConfig);
@@ -808,6 +830,60 @@ export class DependentFields {
         } catch (e) {
           console.error('❌ Unerwarteter Fehler beim Laden der Briefings:', e);
         }
+      }
+
+      // Erweiterte Waterfall-Logik: Mitarbeiter bei Marke vom Unternehmen vorausfüllen
+      // Behandelt management_ids, lead_mitarbeiter_ids, mitarbeiter_ids mit Rollen-Filterung
+      if (fieldConfig.dependsOn === 'unternehmen_id' && fieldConfig.prefillFromUnternehmen && fieldConfig.prefillRole) {
+        const targetRole = fieldConfig.prefillRole;
+        console.log(`🔄 DEPENDENTFIELDS: Lade ${fieldConfig.name} (Rolle: ${targetRole}) vom Unternehmen:`, parentValue);
+        
+        // Lade Mitarbeiter-Zuordnungen für dieses Unternehmen mit der spezifischen Rolle
+        const { data: mitarbeiterRel, error } = await window.supabase
+          .from('mitarbeiter_unternehmen')
+          .select('mitarbeiter_id, role, benutzer:mitarbeiter_id(id, name)')
+          .eq('unternehmen_id', parentValue)
+          .eq('role', targetRole);
+        
+        if (error) {
+          console.error(`❌ Fehler beim Laden der ${targetRole}-Mitarbeiter für Unternehmen:`, error);
+          return;
+        }
+        
+        // Mitarbeiter-IDs mit dieser Rolle extrahieren
+        const roleMitarbeiterIds = (mitarbeiterRel || [])
+          .map(rel => rel.mitarbeiter_id)
+          .filter(Boolean);
+        
+        console.log(`✅ ${roleMitarbeiterIds.length} ${targetRole}-Mitarbeiter vom Unternehmen gefunden`);
+        
+        // Alle Benutzer laden (nicht nur Kunden)
+        const { data: allMitarbeiter } = await window.supabase
+          .from('benutzer')
+          .select('id, name')
+          .neq('rolle', 'kunde')
+          .order('name');
+        
+        // Optionen erstellen, mit vorausgewählt für Mitarbeiter mit passender Rolle
+        const options = (allMitarbeiter || []).map(m => ({
+          value: m.id,
+          label: m.name,
+          selected: roleMitarbeiterIds.includes(m.id)
+        }));
+        
+        console.log(`✅ ${options.filter(o => o.selected).length} Mitarbeiter für ${fieldConfig.name} vorausgewählt`);
+        
+        // Feld aktivieren und Optionen setzen
+        field.disabled = false;
+        
+        if (fieldConfig.tagBased && window.formSystem?.optionsManager) {
+          window.formSystem.optionsManager.createTagBasedSelect(field, options, fieldConfig);
+          console.log(`✅ ${fieldConfig.name} Tags für Marke vorausgefüllt`);
+        } else {
+          this.updateDependentFieldOptions(field, fieldConfig, options);
+        }
+        
+        return;
       }
 
       if (fieldConfig.name === 'ansprechpartner_id' && fieldConfig.dependsOn === 'unternehmen_id') {

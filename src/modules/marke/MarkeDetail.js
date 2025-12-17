@@ -1053,6 +1053,37 @@ export class MarkeDetail extends PersonDetailBase {
           console.log('🏷️ MARKEDETAIL: Alle ausgewählten Branchen gesammelt:', selectedValues);
         }
       }
+      
+      // Mitarbeiter-Felder explizit sammeln (Management, Lead, Mitarbeiter)
+      const mitarbeiterFields = ['management_ids', 'lead_mitarbeiter_ids', 'mitarbeiter_ids'];
+      for (const fieldName of mitarbeiterFields) {
+        if (!allFormData[fieldName]) {
+          // Suche nach verstecktem Select
+          const hiddenSelect = form.querySelector(`select[name="${fieldName}"][style*="display: none"]`);
+          if (hiddenSelect) {
+            const selectedValues = Array.from(hiddenSelect.selectedOptions).map(option => option.value).filter(val => val !== '');
+            if (selectedValues.length > 0) {
+              allFormData[fieldName] = selectedValues;
+              console.log(`✅ MARKEDETAIL: ${fieldName} gesammelt:`, selectedValues);
+            }
+          }
+          
+          // Falls nicht gefunden, suche nach allen Selects mit diesem Namen
+          if (!allFormData[fieldName]) {
+            const allSelects = form.querySelectorAll(`select[name="${fieldName}"]`);
+            for (const sel of allSelects) {
+              if (sel.multiple || sel.hasAttribute('multiple')) {
+                const selectedValues = Array.from(sel.selectedOptions).map(option => option.value).filter(val => val !== '');
+                if (selectedValues.length > 0) {
+                  allFormData[fieldName] = selectedValues;
+                  console.log(`✅ MARKEDETAIL: ${fieldName} aus Multi-Select gesammelt:`, selectedValues);
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
 
       console.log('📤 MARKEDETAIL: Submit-Daten für Update:', allFormData);
 
@@ -1081,6 +1112,9 @@ export class MarkeDetail extends PersonDetailBase {
             alert('Logo konnte nicht hochgeladen werden: ' + logoErr.message);
           }
         }
+        
+        // Mitarbeiter-Zuordnungen speichern
+        await this.saveMitarbeiterToMarke(this.markeId, allFormData);
 
         window.toastSystem.success('Marke erfolgreich aktualisiert!');
         
@@ -1095,6 +1129,94 @@ export class MarkeDetail extends PersonDetailBase {
     } catch (error) {
       console.error('❌ Formular-Submit Fehler:', error);
       this.showErrorMessage(error.message);
+    }
+  }
+  
+  // Mitarbeiter-Zuordnungen mit Rollen speichern
+  async saveMitarbeiterToMarke(markeId, data) {
+    try {
+      if (!markeId || !window.supabase) return;
+      
+      console.log('🔄 MARKEDETAIL: Speichere Mitarbeiter-Rollen für Marke:', markeId);
+      
+      // Rollen-Mapping
+      const roleFields = {
+        'management_ids': 'management',
+        'lead_mitarbeiter_ids': 'lead_mitarbeiter',
+        'mitarbeiter_ids': 'mitarbeiter'
+      };
+      
+      // Alle INSERT-Daten sammeln
+      const allInsertData = [];
+      
+      for (const [fieldName, roleValue] of Object.entries(roleFields)) {
+        // Prüfe ob das Feld in den Daten vorhanden ist
+        const fieldData = data[fieldName] || data[`${fieldName}[]`];
+        
+        // Extrahiere IDs als Array und entferne Duplikate
+        let mitarbeiterIds = [];
+        if (Array.isArray(fieldData)) {
+          mitarbeiterIds = [...new Set(fieldData.filter(Boolean))];
+        } else if (typeof fieldData === 'string' && fieldData) {
+          mitarbeiterIds = [fieldData];
+        }
+        
+        console.log(`📋 ${fieldName} (${roleValue}): ${mitarbeiterIds.length} Mitarbeiter`, mitarbeiterIds);
+        
+        // Sammle INSERT-Daten
+        for (const mitarbeiterId of mitarbeiterIds) {
+          allInsertData.push({
+            marke_id: markeId,
+            mitarbeiter_id: mitarbeiterId,
+            role: roleValue
+          });
+        }
+      }
+      
+      // ERST alle bestehenden Einträge für diese Marke löschen
+      console.log('🗑️ Lösche alle bestehenden Mitarbeiter-Zuordnungen für Marke:', markeId);
+      const { error: deleteError } = await window.supabase
+        .from('marke_mitarbeiter')
+        .delete()
+        .eq('marke_id', markeId);
+      
+      if (deleteError) {
+        console.error('❌ Fehler beim Löschen:', deleteError);
+      }
+      
+      // DANN alle neuen Einträge in einem Batch einfügen
+      if (allInsertData.length > 0) {
+        console.log(`📤 Füge ${allInsertData.length} Mitarbeiter-Zuordnungen ein:`, allInsertData);
+        
+        const { error: insertError } = await window.supabase
+          .from('marke_mitarbeiter')
+          .insert(allInsertData);
+        
+        if (insertError) {
+          console.error('❌ Fehler beim Batch-Insert:', insertError);
+          
+          // Fallback: Einzeln einfügen mit upsert
+          console.log('🔄 Versuche Einzelinserts mit upsert...');
+          for (const row of allInsertData) {
+            const { error: upsertError } = await window.supabase
+              .from('marke_mitarbeiter')
+              .upsert(row, { onConflict: 'marke_id,mitarbeiter_id,role' });
+            
+            if (upsertError) {
+              console.error(`❌ Upsert-Fehler für ${row.mitarbeiter_id}/${row.role}:`, upsertError);
+            }
+          }
+        } else {
+          console.log(`✅ ${allInsertData.length} Mitarbeiter-Zuordnungen gespeichert`);
+        }
+      } else {
+        console.log('ℹ️ Keine Mitarbeiter zum Speichern');
+      }
+      
+      console.log('✅ MARKEDETAIL: Mitarbeiter-Rollen gespeichert');
+    } catch (error) {
+      console.error('❌ MARKEDETAIL: Fehler beim Speichern der Mitarbeiter-Rollen:', error);
+      // Nicht werfen - Marke wurde bereits aktualisiert
     }
   }
 

@@ -83,13 +83,13 @@ export class PermissionSystem {
         tasks: { can_view: true, can_edit: false, can_delete: false },
         strategie: { can_view: true, can_edit: true, can_delete: false }
       },
-      // Kunden: read-only Einsicht in relevante Module
+      // Kunden: read-only Einsicht in relevante Module (RLS filtert auf eigene Daten)
       kunde: {
         creator: { can_view: false, can_edit: false, can_delete: false },
         'creator-lists': { can_view: false, can_edit: false, can_delete: false },
         unternehmen: { can_view: false, can_edit: false, can_delete: false },
         marke: { can_view: false, can_edit: false, can_delete: false },
-        auftrag: { can_view: false, can_edit: false, can_delete: false },
+        auftrag: { can_view: true, can_edit: false, can_delete: false }, // Kunden können IHRE Aufträge sehen (RLS-gefiltert)
         kampagne: { can_view: true, can_edit: false, can_delete: false },
         kooperation: { can_view: true, can_edit: false, can_delete: false },
         briefing: { can_view: true, can_edit: false, can_delete: false },
@@ -105,7 +105,7 @@ export class PermissionSystem {
         'creator-lists': { can_view: false, can_edit: false, can_delete: false },
         unternehmen: { can_view: false, can_edit: false, can_delete: false },
         marke: { can_view: false, can_edit: false, can_delete: false },
-        auftrag: { can_view: false, can_edit: false, can_delete: false },
+        auftrag: { can_view: true, can_edit: false, can_delete: false }, // Kunden können IHRE Aufträge sehen (RLS-gefiltert)
         kampagne: { can_view: true, can_edit: false, can_delete: false },
         kooperation: { can_view: true, can_edit: false, can_delete: false },
         briefing: { can_view: true, can_edit: false, can_delete: false },
@@ -140,7 +140,7 @@ export class PermissionSystem {
       'creator-lists': { can_view: false, can_edit: false, can_delete: false },
       unternehmen: { can_view: false, can_edit: false, can_delete: false },
       marke: { can_view: false, can_edit: false, can_delete: false },
-      auftrag: { can_view: false, can_edit: false, can_delete: false },
+      auftrag: { can_view: true, can_edit: false, can_delete: false }, // Kunden können IHRE Aufträge sehen (RLS-gefiltert)
       kampagne: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Kampagnen NUR sehen
       kooperation: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Kooperationen NUR sehen
       briefing: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Briefings NUR sehen

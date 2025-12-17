@@ -603,7 +603,6 @@ export class AuftragList {
                 <th>UST</th>
                 <th>Brutto</th>
                 <th>Ansprechpartner</th>
-                <th>Mitarbeiter</th>
                 <th class="col-rechnung-gestellt">Rechnung gestellt</th>
                 <th class="col-ueberwiesen">Überwiesen</th>
                 <th class="col-status">Status</th>
@@ -656,9 +655,6 @@ export class AuftragList {
           unternehmen:unternehmen_id(id, firmenname, logo_url),
           marke:marke_id(id, markenname, logo_url),
           ansprechpartner:ansprechpartner_id(id, vorname, nachname, email, profile_image_url),
-          cutter:auftrag_cutter(mitarbeiter:mitarbeiter_id(id, name, profile_image_url)),
-          copywriter:auftrag_copywriter(mitarbeiter:mitarbeiter_id(id, name, profile_image_url)),
-          mitarbeiter:auftrag_mitarbeiter(mitarbeiter:mitarbeiter_id(id, name, profile_image_url)),
           kampagne_arten:auftrag_kampagne_art(art:kampagne_art_id(id, name))
         `, { count: 'exact' });
 
@@ -1042,7 +1038,6 @@ export class AuftragList {
         <td>${this.formatCurrency(auftrag.ust_betrag)}</td>
         <td>${this.formatCurrency(auftrag.bruttobetrag)}</td>
         <td>${this.formatAnsprechpartner(auftrag.ansprechpartner)}</td>
-        <td>${this.formatMitarbeiterTags(auftrag.mitarbeiter)}</td>
         <td>${this.formatBoolean(auftrag.rechnung_gestellt)}</td>
         <td>${this.formatBoolean(auftrag.ueberwiesen)}</td>
         <td>

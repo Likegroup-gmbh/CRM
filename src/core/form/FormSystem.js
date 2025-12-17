@@ -1013,8 +1013,8 @@ export class FormSystem {
             }
           }
           
-          // Event auslösen
-          selectElement.dispatchEvent(new Event('change'));
+          // Event auslösen (mit bubbles für DependentFields)
+          selectElement.dispatchEvent(new Event('change', { bubbles: true }));
         }
         
         // Dropdown schließen

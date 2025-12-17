@@ -231,28 +231,34 @@ export class DynamicDataLoader {
   // Feldoptionen laden
   async loadFieldOptions(entity, field, form) {
     try {
+      console.log(`📋 LOADFIELDOPTIONS: Starte Laden für ${field.name} (entity: ${entity}, table: ${field.table}, dependsOn: ${field.dependsOn}, prefillFromUnternehmen: ${field.prefillFromUnternehmen})`);
+      
       // Sicherheitsprüfung für DataService
       if (!this.dataService) {
         console.error('❌ DataService ist nicht verfügbar in DynamicDataLoader');
         this.dataService = window.dataService; // Fallback
       }
       
-      // Prüfe ob das Feld abhängig ist - im Kampagne/Ansprechpartner/Auftrag/Kooperation Edit-Mode trotzdem laden
-      // AUSNAHME: Ziel-Felder werden IMMER geladen (auch wenn abhängig), da sie statische Lookup-Tabellen sind
+      // Prüfe ob das Feld abhängig ist - im Edit-Mode trotzdem laden
+      // AUSNAHME: Ziel-Felder und Felder mit prefillFromUnternehmen werden IMMER geladen
       const alwaysLoadFields = ['paid_ziele_ids', 'organic_ziele_ids'];
-      if (field.dependsOn && !alwaysLoadFields.includes(field.name)) {
+      const shouldAlwaysLoad = alwaysLoadFields.includes(field.name) || field.prefillFromUnternehmen;
+      
+      if (field.dependsOn && !shouldAlwaysLoad) {
         const isKampagneEditMode = form.dataset.entityType === 'kampagne' && form.dataset.isEditMode === 'true';
         const isAnsprechpartnerEditMode = form.dataset.entityType === 'ansprechpartner' && form.dataset.isEditMode === 'true';
         const isAuftragEditMode = form.dataset.entityType === 'auftrag' && form.dataset.isEditMode === 'true';
         const isKooperationEditMode = form.dataset.entityType === 'kooperation' && form.dataset.isEditMode === 'true';
-        if (!isKampagneEditMode && !isAnsprechpartnerEditMode && !isAuftragEditMode && !isKooperationEditMode) {
+        const isUnternehmenEditMode = form.dataset.entityType === 'unternehmen' && form.dataset.isEditMode === 'true';
+        const isMarkeEditMode = form.dataset.entityType === 'marke' && form.dataset.isEditMode === 'true';
+        if (!isKampagneEditMode && !isAnsprechpartnerEditMode && !isAuftragEditMode && !isKooperationEditMode && !isUnternehmenEditMode && !isMarkeEditMode) {
           console.log(`⏭️ Überspringe automatisches Laden für abhängiges Feld: ${field.name} (abhängig von ${field.dependsOn})`);
           return;
         } else {
           console.log(`🎯 Edit-Mode (${form.dataset.entityType}): Lade abhängiges Feld trotzdem: ${field.name}`);
         }
-      } else if (alwaysLoadFields.includes(field.name)) {
-        console.log(`🎯 Lade Ziel-Feld ${field.name} immer (statische Lookup-Tabelle)`);
+      } else if (shouldAlwaysLoad) {
+        console.log(`🎯 Lade Feld ${field.name} immer (${field.prefillFromUnternehmen ? 'prefillFromUnternehmen' : 'statische Lookup-Tabelle'})`);
       }
       
       let options = [];
@@ -1130,7 +1136,13 @@ export class DynamicDataLoader {
         const entityId = form.dataset.entityId;
         // Korrekte Entity-Feld-Namen für verschiedene Verknüpfungstabellen
         let entityField;
-        if (field.name === 'mitarbeiter_ids') {
+        
+        // Unternehmen-spezifische Mitarbeiter-Zuordnungen (mit roleValue)
+        if (form.dataset.entityType === 'unternehmen' && field.relationTable === 'mitarbeiter_unternehmen') {
+          entityField = 'unternehmen_id';
+        } else if (form.dataset.entityType === 'marke' && field.relationTable === 'marke_mitarbeiter') {
+          entityField = 'marke_id';
+        } else if (field.name === 'mitarbeiter_ids') {
           entityField = 'kampagne_id';
         } else if (field.name === 'plattform_ids') {
           entityField = 'kampagne_id';
@@ -1144,18 +1156,30 @@ export class DynamicDataLoader {
           entityField = field.name.replace('_ids', '_id');
         }
         
-        const { data: existingLinks, error: existingError } = await window.supabase
+        // Query erstellen
+        let query = window.supabase
           .from(field.relationTable)
           .select(field.relationField)
           .eq(entityField, entityId);
+        
+        // Wenn roleValue definiert ist (z.B. für management_ids, lead_mitarbeiter_ids, mitarbeiter_ids bei Unternehmen)
+        if (field.roleValue) {
+          query = query.eq('role', field.roleValue);
+          console.log(`🔍 DYNAMICDATALOADER: Lade ${field.name} mit role=${field.roleValue} für ${form.dataset.entityType}:`, entityId);
+        }
+        
+        const { data: existingLinks, error: existingError } = await query;
 
-        if (!existingError && existingLinks.length > 0) {
+        if (!existingError && existingLinks && existingLinks.length > 0) {
           const selectedIds = existingLinks.map(link => link[field.relationField]);
+          console.log(`✅ DYNAMICDATALOADER: Bestehende ${field.name} geladen:`, selectedIds);
           options.forEach(option => {
             if (selectedIds.includes(option.value)) {
               option.selected = true;
             }
           });
+        } else if (existingError) {
+          console.warn(`⚠️ DYNAMICDATALOADER: Fehler beim Laden von ${field.name}:`, existingError);
         }
       }
       
@@ -1724,6 +1748,75 @@ export class DynamicDataLoader {
   getFormConfig(entity) {
     // Diese Methode wird von außen überschrieben
     return null;
+  }
+
+  // Marke: Mitarbeiter vom Unternehmen vorausfüllen
+  async prefillMitarbeiterFromUnternehmen(form, unternehmenId) {
+    if (!unternehmenId) return;
+    
+    console.log('🔄 DYNAMICDATALOADER: Lade Mitarbeiter vom Unternehmen für Marke:', unternehmenId);
+    
+    try {
+      // Alle Mitarbeiter des Unternehmens laden (alle Rollen)
+      const { data: mitarbeiterRel, error } = await window.supabase
+        .from('mitarbeiter_unternehmen')
+        .select('mitarbeiter_id, role, benutzer:mitarbeiter_id(id, name)')
+        .eq('unternehmen_id', unternehmenId);
+      
+      if (error) {
+        console.error('❌ Fehler beim Laden der Unternehmen-Mitarbeiter:', error);
+        return;
+      }
+      
+      if (!mitarbeiterRel || mitarbeiterRel.length === 0) {
+        console.log('ℹ️ Keine Mitarbeiter für Unternehmen gefunden');
+        return;
+      }
+      
+      // Mitarbeiter-IDs extrahieren
+      const mitarbeiterIds = mitarbeiterRel
+        .map(rel => rel.mitarbeiter_id)
+        .filter(Boolean);
+      
+      console.log(`✅ ${mitarbeiterIds.length} Mitarbeiter vom Unternehmen geladen`);
+      
+      // Mitarbeiter-Feld finden und vorausfüllen
+      const mitarbeiterSelect = form.querySelector('[name="mitarbeiter_ids"]');
+      if (!mitarbeiterSelect) {
+        console.warn('⚠️ mitarbeiter_ids Feld nicht gefunden');
+        return;
+      }
+      
+      // Optionen als selected markieren
+      const tagContainer = mitarbeiterSelect.closest('.form-group')?.querySelector('.tag-input-container');
+      
+      if (tagContainer && window.formSystem?.optionsManager?.createTagBasedSelect) {
+        // Lade die vollständigen Optionen
+        const { data: allMitarbeiter } = await window.supabase
+          .from('benutzer')
+          .select('id, name')
+          .neq('rolle', 'kunde')
+          .order('name');
+        
+        const options = (allMitarbeiter || []).map(m => ({
+          value: m.id,
+          label: m.name,
+          selected: mitarbeiterIds.includes(m.id)
+        }));
+        
+        // Tag-System neu initialisieren mit vorausgewählten Mitarbeitern
+        window.formSystem.optionsManager.createTagBasedSelect(mitarbeiterSelect, options, {
+          name: 'mitarbeiter_ids',
+          tagBased: true,
+          placeholder: 'Mitarbeiter suchen...'
+        });
+        
+        console.log('✅ Mitarbeiter-Feld vorausgefüllt mit', mitarbeiterIds.length, 'Mitarbeitern');
+      }
+      
+    } catch (error) {
+      console.error('❌ Fehler beim Vorausfüllen der Mitarbeiter:', error);
+    }
   }
 
   // Verbesserte Auftrag Edit-Mode Behandlung

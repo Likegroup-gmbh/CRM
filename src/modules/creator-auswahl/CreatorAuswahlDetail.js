@@ -113,11 +113,11 @@ export class CreatorAuswahlDetail {
               <th class="cp-col-kategorie">Kategorie</th>
               <th class="cp-col-location">Location</th>
               <th class="cp-col-notiz">Notiz</th>
+              <th class="cp-col-feedback">Feedback Kunde</th>
               <th class="cp-col-prio">Prio 1</th>
               <th class="cp-col-prio">Prio 2</th>
               <th class="cp-col-nicht">Nicht umsetzen</th>
               <th class="cp-col-pricing">Pricing</th>
-              <th class="cp-col-feedback">Feedback Kunde</th>
               ${!this.isKunde ? '<th class="col-actions cp-col-actions">Aktionen</th>' : ''}
             </tr>
           </thead>
@@ -224,6 +224,15 @@ export class CreatorAuswahlDetail {
             <textarea class="strategie-textarea" data-field="notiz" data-item-id="${item.id}" placeholder="Notiz...">${item.notiz || ''}</textarea>
           ` : `<div class="cell-text-readonly">${item.notiz || '-'}</div>`}
         </td>
+        <td class="cell-textarea">
+          <textarea 
+            class="strategie-textarea ${this.isKunde ? '' : 'readonly-textarea'}" 
+            data-field="feedback_kunde" 
+            data-item-id="${item.id}" 
+            placeholder="${this.isKunde ? 'Ihr Feedback...' : 'Kunden-Feedback...'}"
+            ${this.isKunde ? '' : 'readonly'}
+          >${item.feedback_kunde || ''}</textarea>
+        </td>
         <td style="text-align: center;">
           <input 
             type="checkbox" 
@@ -255,15 +264,6 @@ export class CreatorAuswahlDetail {
           ${!this.isKunde ? `
             <textarea class="strategie-textarea" data-field="pricing" data-item-id="${item.id}" placeholder="Preis...">${item.pricing || ''}</textarea>
           ` : `<div class="cell-text-readonly">${item.pricing || '-'}</div>`}
-        </td>
-        <td class="cell-textarea">
-          <textarea 
-            class="strategie-textarea ${this.isKunde ? '' : 'readonly-textarea'}" 
-            data-field="feedback_kunde" 
-            data-item-id="${item.id}" 
-            placeholder="${this.isKunde ? 'Ihr Feedback...' : 'Kunden-Feedback...'}"
-            ${this.isKunde ? '' : 'readonly'}
-          >${item.feedback_kunde || ''}</textarea>
         </td>
         ${!this.isKunde ? `
           <td class="col-actions">
