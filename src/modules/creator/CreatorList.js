@@ -1,5 +1,5 @@
 // CreatorList.js (ES6-Modul)
-// Creator-Liste mit neuem Filtersystem
+// Creator-Liste mit neuem Filtersystem - Performance-optimiert
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
@@ -7,12 +7,20 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
+import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 
 export class CreatorList {
   constructor() {
     this.selectedCreator = new Set();
     this._boundEventListeners = new Set();
     this.pagination = new PaginationSystem();
+    // Performance: Shell nur einmal rendern
+    this._shellRendered = false;
+    // Performance: Request-Guard + Debounce
+    this._loadingInProgress = false;
+    this._loadDebounceTimer = null;
+    // Performance: NumberFormat einmal erstellen
+    this._numberFormatter = new Intl.NumberFormat('de-DE');
   }
 
   // Initialisiere Creator-Liste
@@ -36,41 +44,55 @@ export class CreatorList {
       return;
     }
 
-    // Pagination initialisieren
+    // Shell einmal rendern (Struktur)
+    await this.renderShell();
+    
+    // Pagination initialisieren (nach Shell-Render!)
     this.pagination.init('pagination-container-creator', {
       onPageChange: (page) => this.handlePageChange(page)
     });
 
-    // Binde Events sofort
+    // Binde Events einmal
     this.bindEvents();
     
-    await this.loadAndRender();
+    // Daten laden (ohne Shell neu zu rendern)
+    await this.loadData();
   }
 
   // Handler für Seiten-Wechsel
   handlePageChange(page) {
     console.log(`📄 CREATORLIST: Wechsle zu Seite ${page}`);
     this.pagination.currentPage = page;
-    this.loadAndRender();
+    this.loadDataDebounced();
   }
 
-  // Lade und rendere Creator-Liste
-  async loadAndRender() {
+  // Debounced Load für Filter/Pagination
+  loadDataDebounced(delay = 50) {
+    if (this._loadDebounceTimer) {
+      clearTimeout(this._loadDebounceTimer);
+    }
+    this._loadDebounceTimer = setTimeout(() => {
+      this.loadData();
+    }, delay);
+  }
+
+  // Lade Daten (ohne Shell neu zu rendern)
+  async loadData() {
+    // Guard: Verhindere parallele Requests
+    if (this._loadingInProgress) {
+      console.log('⏳ CREATORLIST: Request bereits aktiv, überspringe');
+      return;
+    }
+    
+    this._loadingInProgress = true;
     const startTime = performance.now();
     
+    // Schlanker Loading-Status (nur tbody)
+    this.showTableLoading();
+    
     try {
-      // Rendere die Seite-Struktur
-      await this.render();
-      
-      // Lade gefilterte Creator mit Pagination
       const currentFilters = filterSystem.getFilters('creator');
       const { currentPage, itemsPerPage } = this.pagination.getState();
-      
-      console.log('🔍 Lade Creator mit Filter und Pagination:', {
-        filters: currentFilters,
-        page: currentPage,
-        limit: itemsPerPage
-      });
       
       const result = await window.dataService.loadEntitiesWithPagination(
         'creator',
@@ -79,49 +101,60 @@ export class CreatorList {
         itemsPerPage
       );
       
-      console.log('📊 Creator geladen:', result);
-      
       // Pagination Total aktualisieren
       this.pagination.updateTotal(result.total);
       this.pagination.render();
       
-      // Aktualisiere nur die Tabelle mit gefilterten Daten
-      this.updateTable(result.data);
+      // Tabelle aktualisieren (mit Fade-Animation)
+      await this.updateTable(result.data);
       
       const loadTime = (performance.now() - startTime).toFixed(0);
-      console.log(`✅ CREATORLIST: Creator geladen in ${loadTime}ms`);
+      console.log(`✅ CREATORLIST: ${result.data?.length || 0} Creator geladen in ${loadTime}ms`);
       
     } catch (error) {
-      window.ErrorHandler.handle(error, 'CreatorList.loadAndRender');
+      window.ErrorHandler.handle(error, 'CreatorList.loadData');
+    } finally {
+      this._loadingInProgress = false;
     }
   }
 
-  // Rendere Creator-Liste
-  async render() {
+  // Schlanker Loading-Status (nur tbody)
+  showTableLoading() {
+    const tbody = document.querySelector('.data-table tbody');
+    if (tbody) {
+      const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+      tbody.innerHTML = `<tr><td colspan="${isAdmin ? '10' : '9'}" class="no-data">Lade Creator...</td></tr>`;
+    }
+  }
+
+  // Legacy-Wrapper für Kompatibilität
+  async loadAndRender() {
+    if (!this._shellRendered) {
+      await this.renderShell();
+    }
+    await this.loadData();
+  }
+
+  // Rendere Shell nur einmal (Struktur ohne Daten)
+  async renderShell() {
+    // Guard: Shell nur einmal rendern
+    if (this._shellRendered) return;
+    
     const canEdit = window.currentUser?.permissions?.creator?.can_edit || false;
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
     
-    // Aktive Filter als Tags
-    let tags = '';
-    const currentFilters = filterSystem.getFilters('creator');
-    
-    // Filter-Tags rendern (vereinfacht)
-    Object.entries(currentFilters).forEach(([key, value]) => {
-      if (value && value !== '') {
-        tags += `<span class="filter-tag" data-key="${key}">${key}: ${value} <b class="tag-x" data-key="${key}">×</b></span>`;
-      }
-    });
+    // Speichere isAdmin für spätere Verwendung
+    this._isAdmin = isAdmin;
     
     // Filter-Dropdown über dem Tabellen-Header
-    let filterHtml = `<div class="filter-bar">
+    const filterHtml = `<div class="filter-bar">
       <div class="filter-left">
         <div id="filter-dropdown-container"></div>
       </div>
     </div>`;
     
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-    
-    // Haupt-HTML
-    let html = `
+    // Haupt-HTML (Shell)
+    const html = `
       <div class="table-filter-wrapper">
         ${filterHtml}
         <div class="table-actions">
@@ -162,9 +195,15 @@ export class CreatorList {
     `;
 
     window.setContentSafely(window.content, html);
+    this._shellRendered = true;
     
     // Initialisiere Filterbar mit neuem System
     await this.initializeFilterBar();
+  }
+
+  // Legacy render() für Kompatibilität
+  async render() {
+    await this.renderShell();
   }
 
   // Initialisiere Filter-Dropdown
@@ -183,14 +222,17 @@ export class CreatorList {
   onFiltersApplied(filters) {
     console.log('Filter angewendet:', filters);
     filterSystem.applyFilters('creator', filters);
-    this.loadAndRender();
+    // Reset auf Seite 1 bei Filter-Änderung
+    this.pagination.currentPage = 1;
+    this.loadDataDebounced(100); // Leichtes Debounce für schnelle Filter-Eingaben
   }
 
   // Filter zurückgesetzt
   onFiltersReset() {
     console.log('Filter zurückgesetzt');
     filterSystem.resetFilters('creator');
-    this.loadAndRender();
+    this.pagination.currentPage = 1;
+    this.loadDataDebounced(50);
   }
 
   // Binde Events
@@ -252,7 +294,7 @@ export class CreatorList {
     // Entity Updated Event
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail.entity === 'creator') {
-        this.loadAndRender();
+        this.loadDataDebounced(100);
       }
     });
 
@@ -269,7 +311,8 @@ export class CreatorList {
         const currentFilters = filterSystem.getFilters('creator');
         delete currentFilters[key];
         filterSystem.applyFilters('creator', currentFilters);
-        this.loadAndRender();
+        this.pagination.currentPage = 1;
+        this.loadDataDebounced(50);
       }
     });
 
@@ -439,7 +482,7 @@ export class CreatorList {
         // Nur neu laden wenn Liste leer ist
         const tbody = document.querySelector('.data-table tbody');
         if (tbody && tbody.children.length === 0) {
-          await this.loadAndRender();
+          await this.loadData();
         }
         
         window.dispatchEvent(new CustomEvent('entityUpdated', {
@@ -459,102 +502,78 @@ export class CreatorList {
       alert(`❌ Fehler beim Löschen: ${error.message}`);
       
       // Liste neu laden um konsistenten Zustand herzustellen
-      await this.loadAndRender();
+      await this.loadData();
     }
   }
 
-  // Update Tabelle
+  // Update Tabelle (optimiert: verwendet gecachte Werte + zentralen AnimationHelper)
   async updateTable(creators) {
     const tbody = document.querySelector('.data-table tbody');
     if (!tbody) return;
 
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    const isAdmin = this._isAdmin;
+    const fmt = this._numberFormatter;
 
-    if (!creators || creators.length === 0) {
-      const { renderEmptyState } = await import('../../core/FilterUI.js');
-      renderEmptyState(tbody);
-      return;
-    }
+    await TableAnimationHelper.animatedUpdate(tbody, () => {
+      if (!creators || creators.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="${isAdmin ? '10' : '9'}" class="no-data empty-state">Keine Creator gefunden</td></tr>`;
+        return;
+      }
 
-    const rowsHtml = creators.map(creator => `
-      <tr data-id="${creator.id}">
-        ${isAdmin ? `<td><input type="checkbox" class="creator-check" data-id="${creator.id}"></td>` : ''}
-        <td>
-          <a href="#" class="table-link" data-table="creator" data-id="${creator.id}">
-            ${window.CreatorUtils.sanitizeHtml(`${creator.vorname} ${creator.nachname}`)}
-          </a>
-        </td>
-        <td>${this.renderCreatorTypeTags(creator.creator_types)}</td>
-        <td>${this.renderSprachenTags(creator.sprachen)}</td>
-        <td>${this.renderBrancheTags(creator.branchen)}</td>
-        <td>${creator.instagram_follower ? new Intl.NumberFormat('de-DE').format(creator.instagram_follower) : '-'}</td>
-        <td>${creator.tiktok_follower ? new Intl.NumberFormat('de-DE').format(creator.tiktok_follower) : '-'}</td>
-        <td>${this.renderLocationTag(creator.lieferadresse_stadt, 'stadt')}</td>
-        <td>${this.renderLocationTag(creator.lieferadresse_land, 'land')}</td>
-        <td>
-          ${actionBuilder.create('creator', creator.id)}
-        </td>
-      </tr>
-    `).join('');
-
-    tbody.innerHTML = rowsHtml;
+      tbody.innerHTML = creators.map(creator => `
+        <tr data-id="${creator.id}">
+          ${isAdmin ? `<td><input type="checkbox" class="creator-check" data-id="${creator.id}"></td>` : ''}
+          <td>
+            <a href="#" class="table-link" data-table="creator" data-id="${creator.id}">
+              ${window.CreatorUtils.sanitizeHtml(`${creator.vorname} ${creator.nachname}`)}
+            </a>
+          </td>
+          <td>${this.renderCreatorTypeTags(creator.creator_types)}</td>
+          <td>${this.renderSprachenTags(creator.sprachen)}</td>
+          <td>${this.renderBrancheTags(creator.branchen)}</td>
+          <td>${creator.instagram_follower ? fmt.format(creator.instagram_follower) : '-'}</td>
+          <td>${creator.tiktok_follower ? fmt.format(creator.tiktok_follower) : '-'}</td>
+          <td>${this.renderLocationTag(creator.lieferadresse_stadt, 'stadt')}</td>
+          <td>${this.renderLocationTag(creator.lieferadresse_land, 'land')}</td>
+          <td>
+            ${actionBuilder.create('creator', creator.id)}
+          </td>
+        </tr>
+      `).join('');
+    });
   }
 
-  // Render Sprachen Tags (neue JOIN-Struktur)
+  // Generische Tag-Render-Methode (optimiert)
+  _renderTags(items, tagClass) {
+    if (!items || items.length === 0) return '-';
+    const arr = Array.isArray(items) ? items : [items];
+    const tags = arr.map(item => {
+      const label = typeof item === 'object' ? (item.name || item.label || item) : item;
+      return `<span class="tag ${tagClass}">${String(label).trim()}</span>`;
+    }).join('');
+    return `<div class="tags tags-compact">${tags}</div>`;
+  }
+
+  // Render Sprachen Tags
   renderSprachenTags(sprachen) {
-    if (!sprachen || sprachen.length === 0) return '-';
-    if (Array.isArray(sprachen)) {
-      const inner = sprachen.map(s => {
-        const label = typeof s === 'object' ? (s.name || s.label || s) : s;
-        return `<span class="tag tag--lang">${String(label).trim()}</span>`;
-      }).join('');
-      return `<div class="tags tags-compact">${inner}</div>`;
-    }
-    if (typeof sprachen === 'object') {
-      const label = sprachen.name || sprachen.label;
-      return label ? `<div class="tags tags-compact"><span class="tag tag--lang">${label}</span></div>` : '-';
-    }
-    return `<div class="tags tags-compact"><span class="tag tag--lang">${String(sprachen)}</span></div>`;
+    return this._renderTags(sprachen, 'tag--lang');
   }
 
-  // Render Branche Tags (neue JOIN-Struktur)
+  // Render Branche Tags
   renderBrancheTags(branchen) {
-    if (!branchen || branchen.length === 0) return '-';
-    if (Array.isArray(branchen)) {
-      const inner = branchen.map(b => {
-        const label = typeof b === 'object' ? (b.name || b.label || b) : b;
-        return `<span class="tag tag--branche">${String(label).trim()}</span>`;
-      }).join('');
-      return `<div class="tags tags-compact">${inner}</div>`;
-    }
-    if (typeof branchen === 'object') {
-      const label = branchen.name || branchen.label;
-      return label ? `<div class="tags tags-compact"><span class="tag tag--branche">${label}</span></div>` : '-';
-    }
-    return `<div class="tags tags-compact"><span class="tag tag--branche">${String(branchen)}</span></div>`;
+    return this._renderTags(branchen, 'tag--branche');
   }
 
+  // Render Creator Type Tags
   renderCreatorTypeTags(typen) {
-    if (!typen || typen.length === 0) return '-';
-    if (Array.isArray(typen)) {
-      const inner = typen.map(t => {
-        const label = typeof t === 'object' ? (t.name || t.label || t) : t;
-        return `<span class="tag tag--type">${String(label).trim()}</span>`;
-      }).join('');
-      return `<div class="tags tags-compact">${inner}</div>`;
-    }
-    if (typeof typen === 'object') {
-      const label = typen.name || typen.label;
-      return label ? `<div class="tags tags-compact"><span class="tag tag--type">${label}</span></div>` : '-';
-    }
-    return `<div class="tags tags-compact"><span class="tag tag--type">${String(typen)}</span></div>`;
+    return this._renderTags(typen, 'tag--type');
   }
 
   // Render Location Tags (Stadt/Land)
   renderLocationTag(value, type) {
-    if (!value || value.trim() === '') return '-';
+    if (!value || (typeof value === 'string' && !value.trim())) return '-';
     const sanitized = window.validatorSystem?.sanitizeHtml(value) || value;
-    return `<div class="tags tags-compact"><span class="tag tag--${type}">${sanitized}</span></div>`;
+    return `<span class="tag tag--${type}">${sanitized}</span>`;
   }
 
   // Cleanup
@@ -570,6 +589,15 @@ export class CreatorList {
       document.removeEventListener('click', this.boundFilterResetHandler);
       this.boundFilterResetHandler = null;
     }
+    
+    // Debounce-Timer aufräumen
+    if (this._loadDebounceTimer) {
+      clearTimeout(this._loadDebounceTimer);
+      this._loadDebounceTimer = null;
+    }
+    
+    // Shell-Flag zurücksetzen (für Wiederverwenden der Instanz)
+    this._shellRendered = false;
   }
 
   // Show Create Form (für Routing)

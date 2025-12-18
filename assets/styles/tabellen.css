@@ -1328,11 +1328,11 @@ td.col-produkt .stacked-video-input,
   align-items: center;
   justify-content: center;
   gap: var(--space-xs);
-  min-width: 36px;
-  height: 36px;
-  padding: 0 var(--space-sm);
-  border: 1px solid var(--gray-300);
-  border-radius: var(--radius-md);
+  
+  height: 32px;
+  padding: var(--space-xs);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
   background: white;
   color: var(--text-primary);
   font-size: var(--text-sm);
@@ -1481,10 +1481,6 @@ td.col-produkt .stacked-video-input,
   transition: opacity 150ms ease-out;
 }
 
-.data-table tbody.table-updating {
-  opacity: 0.5;
-}
-
 /* Verhindert Layout-Shift während Animation */
 .data-table {
   table-layout: auto; /* Dynamische Breiten für lesbare Inhalte */
@@ -1533,6 +1529,76 @@ td.col-produkt .stacked-video-input,
 .data-table th:nth-child(2),
 .data-table td:nth-child(2) {
   min-width: 150px;
+}
+
+/* === CREATOR-AUSWAHL: LISTE (SPALTENBREITEN) === */
+.data-table--creator-auswahl-list {
+  table-layout: fixed;
+}
+
+.data-table--creator-auswahl-list th.ca-col-name,
+.data-table--creator-auswahl-list td.ca-col-name {
+  width: 15em;
+  min-width: 15em;
+  max-width: 15em;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.data-table--creator-auswahl-list th.ca-col-unternehmen,
+.data-table--creator-auswahl-list td.ca-col-unternehmen,
+.data-table--creator-auswahl-list th.ca-col-marke,
+.data-table--creator-auswahl-list td.ca-col-marke {
+  width: 11.25em;
+  min-width: 11.25em;
+  max-width: 11.25em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Creator-Auswahl: Aktionen-Spalte großzügiger */
+.data-table--creator-auswahl-list th.col-actions,
+.data-table--creator-auswahl-list td.col-actions {
+  width: 120px;
+  min-width: 120px;
+  max-width: 140px;
+}
+
+/* === CREATOR-AUSWAHL: DETAIL (SPALTENBREITEN) === */
+.creator-pool-table th.cp-col-name,
+.creator-pool-table td.cp-col-name {
+  width: 15em;
+  min-width: 15em;
+}
+
+/* === TABLE STATES (loading / empty / error) === */
+.table-state-cell {
+  text-align: center;
+  padding: var(--space-lg);
+  color: var(--text-secondary);
+}
+
+.table-state-cell--error {
+  color: var(--color-error);
+}
+
+/* === PLATFORM ICONS (Instagram / TikTok) === */
+.platform-icon {
+  width: 1.05em;
+  height: 1.05em;
+  display: inline-block;
+  vertical-align: -0.18em;
+}
+
+.platform-icon path {
+  fill: currentColor;
+}
+
+.creator-pool-table thead th .platform-icon {
+  margin-left: 0.35em;
 }
 
 /* Icon/Boolean-Spalten (✅/❌) kompakt */

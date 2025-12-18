@@ -802,6 +802,14 @@ export class TaskCreateDrawer {
   async handleSubmit(formData) {
     console.log('🚀 TaskCreateDrawer: handleSubmit');
     
+    const submitBtn = document.querySelector(`#${this.drawerId} button[type="submit"]`);
+    
+    // Loading State
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.classList.add('is-loading');
+    }
+    
     try {
       const title = formData.get('title')?.trim();
       if (!title) {
@@ -877,6 +885,12 @@ export class TaskCreateDrawer {
     } catch (error) {
       console.error('❌ Fehler beim Erstellen der Task:', error);
       window.notificationSystem?.error?.('Fehler beim Erstellen der Aufgabe: ' + error.message);
+    } finally {
+      // Loading State zurücksetzen
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('is-loading');
+      }
     }
   }
 

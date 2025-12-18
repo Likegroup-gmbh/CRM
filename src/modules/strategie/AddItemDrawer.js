@@ -137,11 +137,18 @@ export class AddItemDrawer {
 
         <div class="form-field form-field--btn">
           <label>&nbsp;</label>
-          <button type="submit" class="primary-btn">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Zur Queue hinzufügen
+          <button type="submit" class="mdc-btn mdc-btn--create" id="btn-add-to-queue">
+            <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+            </span>
+            <span class="mdc-btn__spinner" aria-hidden="true">
+              <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
+                <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Zur Queue hinzufügen</span>
           </button>
         </div>
       </form>

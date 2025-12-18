@@ -6,6 +6,7 @@ import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
+import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 
 export class UnternehmenList {
   constructor() {
@@ -464,57 +465,39 @@ export class UnternehmenList {
 
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
 
-    // Fade-out Animation starten (behält alte Daten während Fade-out)
-    tbody.classList.add('table-fade-out');
-    
-    // Warte auf Animation (200ms)
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await TableAnimationHelper.animatedUpdate(tbody, async () => {
+      if (!unternehmen || unternehmen.length === 0) {
+        const { renderEmptyState } = await import('../../core/FilterUI.js');
+        renderEmptyState(tbody);
+        return;
+      }
 
-    if (!unternehmen || unternehmen.length === 0) {
-      // Einheitlicher Empty-State
-      const { renderEmptyState } = await import('../../core/FilterUI.js');
-      renderEmptyState(tbody);
-      
-      // Fade-in Animation
-      tbody.classList.remove('table-fade-out');
-      tbody.classList.add('table-fade-in');
-      setTimeout(() => tbody.classList.remove('table-fade-in'), 200);
-      return;
-    }
+      // Kontakte und Mitarbeiter für alle Unternehmen in einem Rutsch laden
+      const unternehmenIds = unternehmen.map(u => u.id).filter(Boolean);
+      const [apMap, mitarbeiterMap] = await Promise.all([
+        this.loadAnsprechpartnerMap(unternehmenIds),
+        this.loadMitarbeiterMap(unternehmenIds)
+      ]);
 
-    // Kontakte und Mitarbeiter für alle Unternehmen in einem Rutsch laden und mappen
-    const unternehmenIds = unternehmen.map(u => u.id).filter(Boolean);
-    const [apMap, mitarbeiterMap] = await Promise.all([
-      this.loadAnsprechpartnerMap(unternehmenIds),
-      this.loadMitarbeiterMap(unternehmenIds)
-    ]);
-
-    const rowsHtml = unternehmen.map(unternehmen => `
-      <tr data-id="${unternehmen.id}">
-        ${isAdmin ? `<td><input type="checkbox" class="unternehmen-check" data-id="${unternehmen.id}"></td>` : ''}
-        <td>
-          <a href="#" class="table-link" data-table="unternehmen" data-id="${unternehmen.id}">
-            ${window.validatorSystem.sanitizeHtml(unternehmen.firmenname || '')}
-          </a>
-        </td>
-        <td>${this.renderBrancheTags(unternehmen.branchen)}</td>
-        <td>${this.renderAnsprechpartnerList(apMap.get(unternehmen.id))}</td>
-        <td>${this.renderMitarbeiterList(mitarbeiterMap.get(unternehmen.id))}</td>
-        <td>${window.validatorSystem.sanitizeHtml(unternehmen.rechnungsadresse_stadt || '')}</td>
-        <td>${window.validatorSystem.sanitizeHtml(unternehmen.rechnungsadresse_land || '')}</td>
-        <td>
-          ${actionBuilder.create('unternehmen', unternehmen.id)}
-        </td>
-      </tr>
-    `).join('');
-
-    // Content austauschen während Fade-out aktiv ist
-    tbody.innerHTML = rowsHtml;
-    
-    // Fade-in Animation
-    tbody.classList.remove('table-fade-out');
-    tbody.classList.add('table-fade-in');
-    setTimeout(() => tbody.classList.remove('table-fade-in'), 200);
+      tbody.innerHTML = unternehmen.map(u => `
+        <tr data-id="${u.id}">
+          ${isAdmin ? `<td><input type="checkbox" class="unternehmen-check" data-id="${u.id}"></td>` : ''}
+          <td>
+            <a href="#" class="table-link" data-table="unternehmen" data-id="${u.id}">
+              ${window.validatorSystem.sanitizeHtml(u.firmenname || '')}
+            </a>
+          </td>
+          <td>${this.renderBrancheTags(u.branchen)}</td>
+          <td>${this.renderAnsprechpartnerList(apMap.get(u.id))}</td>
+          <td>${this.renderMitarbeiterList(mitarbeiterMap.get(u.id))}</td>
+          <td>${window.validatorSystem.sanitizeHtml(u.rechnungsadresse_stadt || '')}</td>
+          <td>${window.validatorSystem.sanitizeHtml(u.rechnungsadresse_land || '')}</td>
+          <td>
+            ${actionBuilder.create('unternehmen', u.id)}
+          </td>
+        </tr>
+      `).join('');
+    });
   }
 
   // Render Branche Tags (kompatibel mit String oder Array/Objekten)

@@ -197,6 +197,16 @@ export class AddToVideoDrawer {
                 <span class="mdc-btn__label">Abbrechen</span>
               </button>
               <button type="button" id="btn-link-existing" class="mdc-btn mdc-btn--create" disabled>
+                <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                    <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+                  </svg>
+                </span>
+                <span class="mdc-btn__spinner" aria-hidden="true">
+                  <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
+                    <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
+                  </svg>
+                </span>
                 <span class="mdc-btn__label">Verknüpfen</span>
               </button>
             </div>
@@ -257,6 +267,16 @@ export class AddToVideoDrawer {
                   <span class="mdc-btn__label">Abbrechen</span>
                 </button>
                 <button type="submit" id="btn-create-video" class="mdc-btn mdc-btn--create">
+                  <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                      <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+                    </svg>
+                  </span>
+                  <span class="mdc-btn__spinner" aria-hidden="true">
+                    <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
+                      <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
+                    </svg>
+                  </span>
                   <span class="mdc-btn__label">Video anlegen & verknüpfen</span>
                 </button>
               </div>
@@ -559,12 +579,11 @@ export class AddToVideoDrawer {
     if (!this.selectedVideoId || !this.item?.id) return;
 
     const btn = document.getElementById('btn-link-existing');
-    const originalText = btn?.innerHTML;
 
     try {
       if (btn) {
         btn.disabled = true;
-        btn.innerHTML = 'Verknüpfe...';
+        btn.classList.add('is-loading');
       }
 
       // Video mit Item verknüpfen
@@ -590,7 +609,7 @@ export class AddToVideoDrawer {
       
       if (btn) {
         btn.disabled = false;
-        btn.innerHTML = originalText;
+        btn.classList.remove('is-loading');
       }
     }
   }
@@ -611,12 +630,11 @@ export class AddToVideoDrawer {
     }
 
     const btn = document.getElementById('btn-create-video');
-    const originalText = btn?.innerHTML;
 
     try {
       if (btn) {
         btn.disabled = true;
-        btn.innerHTML = 'Erstelle...';
+        btn.classList.add('is-loading');
       }
 
       // Nächste Position ermitteln
@@ -670,7 +688,7 @@ export class AddToVideoDrawer {
       
       if (btn) {
         btn.disabled = false;
-        btn.innerHTML = originalText;
+        btn.classList.remove('is-loading');
       }
     }
   }

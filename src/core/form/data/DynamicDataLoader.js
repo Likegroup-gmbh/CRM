@@ -37,6 +37,11 @@ export class DynamicDataLoader {
       await Promise.all(loadPromises);
       console.log(`✅ Alle ${loadPromises.length} Felder geladen`);
       
+      // KOOPERATION PREFILL: Nach dem Laden aller Felder die Prefill-Logik anwenden
+      if (entity === 'kooperation' && form.dataset.prefillFromKampagne === 'true') {
+        await this.handleKooperationPrefill(form);
+      }
+      
     } catch (error) {
       console.error('❌ Fehler beim Laden der dynamischen Formulardaten:', error);
     }
@@ -1874,6 +1879,143 @@ export class DynamicDataLoader {
       
     } catch (error) {
       console.error('❌ DYNAMICDATALOADER: Fehler beim Laden der verbesserten Auftrag-Felder:', error);
+    }
+  }
+
+  // Kooperation Prefill: Felder aus Kampagne-Kontext vorausfüllen und sperren
+  async handleKooperationPrefill(form) {
+    try {
+      const prefillData = form.dataset.prefillData ? JSON.parse(form.dataset.prefillData) : {};
+      console.log('🎯 KOOPERATION PREFILL: Starte Vorausfüllung mit Daten:', prefillData);
+      
+      const {
+        unternehmen_id,
+        marke_id,
+        kampagne_id,
+        _unternehmenName,
+        _markeName,
+        _kampagneName,
+        _hasMarke
+      } = prefillData;
+      
+      // 1. UNTERNEHMEN: Vorausfüllen und sperren
+      if (unternehmen_id) {
+        await this.prefillAndLockField(form, 'unternehmen_id', unternehmen_id, _unternehmenName || 'Unternehmen');
+      }
+      
+      // 2. MARKE: Vorausfüllen und sperren ODER deaktivieren mit Hinweis
+      if (_hasMarke && marke_id) {
+        await this.prefillAndLockField(form, 'marke_id', marke_id, _markeName || 'Marke');
+      } else {
+        // Keine Marke vorhanden - Feld deaktivieren mit Hinweis
+        this.disableFieldWithMessage(form, 'marke_id', 'Keine Marke hinterlegt');
+      }
+      
+      // 3. KAMPAGNE: Vorausfüllen und sperren
+      if (kampagne_id) {
+        await this.prefillAndLockField(form, 'kampagne_id', kampagne_id, _kampagneName || 'Kampagne');
+      }
+      
+      console.log('✅ KOOPERATION PREFILL: Vorausfüllung abgeschlossen');
+      
+    } catch (error) {
+      console.error('❌ KOOPERATION PREFILL: Fehler bei Vorausfüllung:', error);
+    }
+  }
+
+  // Feld vorausfüllen und sperren
+  async prefillAndLockField(form, fieldName, value, displayLabel) {
+    console.log(`🔒 PREFILL: Sperre ${fieldName} mit Wert:`, value, displayLabel);
+    
+    // Hidden Select-Element finden und Wert setzen
+    const selectElement = form.querySelector(`select[name="${fieldName}"]`);
+    if (selectElement) {
+      selectElement.value = value;
+      selectElement.disabled = true;
+      
+      // Falls Option nicht existiert, hinzufügen
+      if (!selectElement.querySelector(`option[value="${value}"]`)) {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = displayLabel;
+        option.selected = true;
+        selectElement.appendChild(option);
+      } else {
+        // Bestehende Option auswählen
+        const existingOption = selectElement.querySelector(`option[value="${value}"]`);
+        if (existingOption) {
+          existingOption.selected = true;
+        }
+      }
+    }
+    
+    // Searchable Select Container finden und aktualisieren
+    const container = form.querySelector(`.searchable-select-container[data-field="${fieldName}"]`);
+    if (container) {
+      const input = container.querySelector('.searchable-select-input');
+      if (input) {
+        input.value = displayLabel;
+        input.disabled = true;
+        input.readOnly = true;
+      }
+      
+      // Container als gesperrt markieren
+      container.classList.add('prefilled-locked');
+    }
+    
+    // Form-Group visuell als gesperrt markieren
+    const formGroup = selectElement?.closest('.form-group');
+    if (formGroup) {
+      formGroup.classList.add('form-field--prefilled');
+      
+      // Label als "aus Kampagne übernommen" markieren
+      const label = formGroup.querySelector('label');
+      if (label && !label.querySelector('.prefill-badge')) {
+        const badge = document.createElement('span');
+        badge.className = 'prefill-badge';
+        badge.textContent = ' (aus Kampagne)';
+        label.appendChild(badge);
+      }
+    }
+  }
+
+  // Feld deaktivieren mit Hinweistext
+  disableFieldWithMessage(form, fieldName, message) {
+    console.log(`⚠️ PREFILL: Deaktiviere ${fieldName} mit Nachricht:`, message);
+    
+    // Hidden Select-Element finden und deaktivieren
+    const selectElement = form.querySelector(`select[name="${fieldName}"]`);
+    if (selectElement) {
+      selectElement.innerHTML = `<option value="">${message}</option>`;
+      selectElement.value = '';
+      selectElement.disabled = true;
+    }
+    
+    // Searchable Select Container finden und aktualisieren
+    const container = form.querySelector(`.searchable-select-container[data-field="${fieldName}"]`);
+    if (container) {
+      const input = container.querySelector('.searchable-select-input');
+      if (input) {
+        input.value = '';
+        input.placeholder = message;
+        input.disabled = true;
+        input.readOnly = true;
+      }
+      
+      // Container als "keine Marke" markieren
+      container.classList.add('prefilled-no-marke');
+      
+      // Dropdown leeren
+      const dropdown = container.querySelector('.searchable-select-dropdown');
+      if (dropdown) {
+        dropdown.innerHTML = `<div class="dropdown-item no-results">${message}</div>`;
+      }
+    }
+    
+    // Form-Group visuell als deaktiviert markieren
+    const formGroup = selectElement?.closest('.form-group');
+    if (formGroup) {
+      formGroup.classList.add('form-field--no-marke');
     }
   }
 } 

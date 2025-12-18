@@ -8,6 +8,7 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { MarkeFilterLogic } from './filters/MarkeFilterLogic.js';
+import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 
 export class MarkeList {
   constructor() {
@@ -562,49 +563,32 @@ export class MarkeList {
 
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
 
-    // Fade-out Animation starten (behält alte Daten während Fade-out)
-    tbody.classList.add('table-fade-out');
-    
-    // Warte auf Animation (200ms)
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await TableAnimationHelper.animatedUpdate(tbody, async () => {
+      if (!marken || marken.length === 0) {
+        const { renderEmptyState } = await import('../../core/FilterUI.js');
+        renderEmptyState(tbody);
+        return;
+      }
 
-    if (!marken || marken.length === 0) {
-      const { renderEmptyState } = await import('../../core/FilterUI.js');
-      renderEmptyState(tbody);
-      
-      // Fade-in Animation
-      tbody.classList.remove('table-fade-out');
-      tbody.classList.add('table-fade-in');
-      setTimeout(() => tbody.classList.remove('table-fade-in'), 200);
-      return;
-    }
-
-    const rowsHtml = marken.map(marke => `
-      <tr data-id="${marke.id}">
-        ${isAdmin ? `<td><input type="checkbox" class="marke-check" data-id="${marke.id}"></td>` : ''}
-        <td>
-          <a href="#" class="table-link" data-table="marke" data-id="${marke.id}">
-            ${window.validatorSystem.sanitizeHtml(marke.markenname || '')}
-          </a>
-        </td>
-        <td>${this.renderUnternehmen(marke.unternehmen)}</td>
-        <td>${this.renderBranchen(marke.branchen)}</td>
-        <td>${marke.webseite ? `<a href="${marke.webseite}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${marke.webseite}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>` : '-'}</td>
-        <td>${this.renderAnsprechpartner(marke.ansprechpartner)}</td>
-        <td>${this.renderZustaendigkeit(marke.zustaendigkeit, marke.mitarbeiter)}</td>
-        <td>
-          ${actionBuilder.create('marke', marke.id)}
-        </td>
-      </tr>
-    `).join('');
-
-    // Content austauschen während Fade-out aktiv ist
-    tbody.innerHTML = rowsHtml;
-    
-    // Fade-in Animation
-    tbody.classList.remove('table-fade-out');
-    tbody.classList.add('table-fade-in');
-    setTimeout(() => tbody.classList.remove('table-fade-in'), 200);
+      tbody.innerHTML = marken.map(marke => `
+        <tr data-id="${marke.id}">
+          ${isAdmin ? `<td><input type="checkbox" class="marke-check" data-id="${marke.id}"></td>` : ''}
+          <td>
+            <a href="#" class="table-link" data-table="marke" data-id="${marke.id}">
+              ${window.validatorSystem.sanitizeHtml(marke.markenname || '')}
+            </a>
+          </td>
+          <td>${this.renderUnternehmen(marke.unternehmen)}</td>
+          <td>${this.renderBranchen(marke.branchen)}</td>
+          <td>${marke.webseite ? `<a href="${marke.webseite}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${marke.webseite}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>` : '-'}</td>
+          <td>${this.renderAnsprechpartner(marke.ansprechpartner)}</td>
+          <td>${this.renderZustaendigkeit(marke.zustaendigkeit, marke.mitarbeiter)}</td>
+          <td>
+            ${actionBuilder.create('marke', marke.id)}
+          </td>
+        </tr>
+      `).join('');
+    });
   }
 
   // Rendere Branchen

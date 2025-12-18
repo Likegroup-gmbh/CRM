@@ -589,7 +589,8 @@ export class MitarbeiterDetail extends PersonDetailBase {
       ['rechnung','Rechnungen'],
       ['tasks','Aufgaben'],
       ['creator','Creator'],
-      ['creator-lists','Creator Listen']
+      ['creator-lists','Creator Listen'],
+      ['feedback','Feedback']
     ].map(([key,label]) => `
       <tr>
         <td style="text-align:left;">${label}</td>

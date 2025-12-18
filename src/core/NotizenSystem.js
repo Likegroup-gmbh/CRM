@@ -273,10 +273,15 @@ export class NotizenSystem {
                   </span>
                   <span class="mdc-btn__label">Abbrechen</span>
                 </button>
-                <button type="submit" class="mdc-btn mdc-btn--create">
+                <button type="submit" class="mdc-btn mdc-btn--create" id="btn-save-notiz">
                   <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
                       <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+                    </svg>
+                  </span>
+                  <span class="mdc-btn__spinner" aria-hidden="true">
+                    <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
+                      <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
                     </svg>
                   </span>
                   <span class="mdc-btn__label">Notiz speichern</span>
@@ -354,6 +359,14 @@ export class NotizenSystem {
 
   // Handle Notiz Submit
   async handleNotizSubmit(entityType, entityId) {
+    const saveBtn = document.getElementById('btn-save-notiz');
+    
+    // Loading State
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.classList.add('is-loading');
+    }
+    
     try {
       const form = document.getElementById('add-notiz-form');
       const formData = new FormData(form);
@@ -381,6 +394,12 @@ export class NotizenSystem {
     } catch (error) {
       console.error('❌ NOTIZENSYSTEM: Fehler beim Erstellen der Notiz:', error);
       this.showErrorMessage(error.message);
+    } finally {
+      // Loading State zurücksetzen
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.classList.remove('is-loading');
+      }
     }
   }
 

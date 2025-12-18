@@ -5,6 +5,7 @@ import { modularFilterSystem as filterSystem } from '../../core/filters/ModularF
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
+import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 
 export class BriefingList {
   constructor() {
@@ -63,7 +64,7 @@ export class BriefingList {
       console.log('🔍 Lade Briefings mit Filter:', currentFilters);
       const briefings = await this.loadBriefingsWithRelations(currentFilters);
       console.log('📊 Briefings geladen:', briefings?.length || 0);
-      this.updateTable(briefings);
+      await this.updateTable(briefings);
     } catch (error) {
       window.ErrorHandler.handle(error, 'BriefingList.loadAndRender');
     }
@@ -602,37 +603,35 @@ export class BriefingList {
 
     const isKunde = window.currentUser?.rolle === 'kunde';
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-
-    if (!items || items.length === 0) {
-      const { renderEmptyState } = await import('../../core/FilterUI.js');
-      renderEmptyState(tbody);
-      return;
-    }
-
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
     const escapeHtml = (s) => window.validatorSystem.sanitizeHtml(s || '—');
 
-    const rowsHtml = items.map(b => `
-      <tr data-id="${b.id}">
-        ${!isKunde && isAdmin ? `<td><input type="checkbox" class="briefing-check" data-id="${b.id}"></td>` : ''}
-        <td>
-          <a href="#" class="table-link" data-table="briefing" data-id="${b.id}">
-            ${escapeHtml((b.product_service_offer || '').toString().slice(0, 80))}
-          </a>
-        </td>
-        <td>${this.renderUnternehmen(b)}</td>
-        <td>${this.renderMarke(b)}</td>
-        <td>
-          ${b.kampagne?.id ? `<span class="tag tag--type">${escapeHtml(b.kampagne.kampagnenname)}</span>` : '-'}
-        </td>
-        <td>${this.renderAssignee(b.assignee)}</td>
-        <td>
-          ${actionBuilder.create('briefing', b.id)}
-        </td>
-      </tr>
-    `).join('');
+    await TableAnimationHelper.animatedUpdate(tbody, async () => {
+      if (!items || items.length === 0) {
+        const { renderEmptyState } = await import('../../core/FilterUI.js');
+        renderEmptyState(tbody);
+        return;
+      }
 
-    tbody.innerHTML = rowsHtml;
+      tbody.innerHTML = items.map(b => `
+        <tr data-id="${b.id}">
+          ${!isKunde && isAdmin ? `<td><input type="checkbox" class="briefing-check" data-id="${b.id}"></td>` : ''}
+          <td>
+            <a href="#" class="table-link" data-table="briefing" data-id="${b.id}">
+              ${escapeHtml((b.product_service_offer || '').toString().slice(0, 80))}
+            </a>
+          </td>
+          <td>${this.renderUnternehmen(b)}</td>
+          <td>${this.renderMarke(b)}</td>
+          <td>
+            ${b.kampagne?.id ? `<span class="tag tag--type">${escapeHtml(b.kampagne.kampagnenname)}</span>` : '-'}
+          </td>
+          <td>${this.renderAssignee(b.assignee)}</td>
+          <td>
+            ${actionBuilder.create('briefing', b.id)}
+          </td>
+        </tr>
+      `).join('');
+    });
   }
 
   // Optionales Formular (Platzhalter, bis echtes Formular existiert)

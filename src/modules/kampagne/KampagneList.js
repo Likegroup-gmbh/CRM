@@ -9,6 +9,7 @@ import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { KampagneKanbanBoard } from './KampagneKanbanBoard.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { KampagneFilterLogic } from './filters/KampagneFilterLogic.js';
+import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 
 // Kampagnen-Cache mit TTL
 const kampagnenCache = {
@@ -138,7 +139,7 @@ export class KampagneList {
         console.log('📊 Kampagnen geladen:', filteredKampagnen?.length || 0);
         
         // Aktualisiere nur die Tabelle mit gefilterten Daten
-        this.updateTable(filteredKampagnen);
+        await this.updateTable(filteredKampagnen);
       }
       // Für Kanban-View: Kanban Board lädt seine eigenen Daten
       
@@ -802,23 +803,17 @@ export class KampagneList {
     if (!tbody) return;
 
     const isKunde = window.currentUser?.rolle === 'kunde';
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
 
-    if (!kampagnen || kampagnen.length === 0) {
-      const { renderEmptyState } = await import('../../core/FilterUI.js');
-      renderEmptyState(tbody);
-      return;
-    }
+    await TableAnimationHelper.animatedUpdate(tbody, async () => {
+      if (!kampagnen || kampagnen.length === 0) {
+        const { renderEmptyState } = await import('../../core/FilterUI.js');
+        renderEmptyState(tbody);
+        return;
+      }
 
-    const rowsHtml = kampagnen.map(kampagne => {
-      // Hilfsfunktionen für Formatierung
-      const formatDate = (date) => {
-        return date ? new Date(date).toLocaleDateString('de-DE') : '-';
-      };
-
-      const formatArray = (array) => array && Array.isArray(array) && array.length ? array.join(', ') : '-';
-      const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-
-      return `
+      tbody.innerHTML = kampagnen.map(kampagne => `
         <tr data-id="${kampagne.id}">
           ${!isKunde && isAdmin ? `<td><input type="checkbox" class="kampagne-check" data-id="${kampagne.id}"></td>` : ''}
           <td>
@@ -843,10 +838,8 @@ export class KampagneList {
             })}
           </td>
         </tr>
-      `;
-    }).join('');
-
-    tbody.innerHTML = rowsHtml;
+      `).join('');
+    });
   }
 
   // Cleanup

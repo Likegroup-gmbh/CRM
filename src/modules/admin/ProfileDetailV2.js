@@ -412,14 +412,13 @@ export class ProfileDetailV2 extends PersonDetailBase {
       email: this.user?.email || '',
       subtitle: this.user?.mitarbeiter_klasse?.name || this.user?.rolle || 'Benutzer',
       avatarUrl: this.user?.profile_image_url,
+      avatarOnly: true,
       avatarClickable: true,
       lastActivity: this.user?.updated_at
     };
 
     // Quick Actions
-    const quickActions = [
-      { icon: 'edit', label: 'Bearbeiten', action: 'edit-profile' }
-    ];
+    const quickActions = [];
 
     // Info-Items für Sidebar
     const sidebarInfo = this.renderProfileInfo();

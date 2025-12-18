@@ -4,6 +4,7 @@
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { AvatarBubbles } from '../../core/components/AvatarBubbles.js';
+import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 
 export class CreatorAuswahlList {
   constructor() {
@@ -75,7 +76,7 @@ export class CreatorAuswahlList {
       this.pagination.updateTotal(this.listen.length);
       this.pagination.render();
       
-      this.updateTable(paginatedData);
+      await this.updateTable(paginatedData);
       this.bindEvents();
       
     } catch (error) {
@@ -86,7 +87,7 @@ export class CreatorAuswahlList {
       if (tbody) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="5" style="text-align: center; padding: var(--space-lg); color: var(--color-error);">
+            <td colspan="5" class="table-state-cell table-state-cell--error">
               Fehler beim Laden der Listen
             </td>
           </tr>
@@ -118,20 +119,20 @@ export class CreatorAuswahlList {
           </div>
         </div>
 
-        <div class="table-container">
-          <table class="data-table">
+        <div class="table-container table-container--creator-auswahl-list">
+          <table class="data-table data-table--creator-auswahl-list">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Unternehmen</th>
-                <th>Marke</th>
+                <th class="ca-col-name">Name</th>
+                <th class="ca-col-unternehmen">Unternehmen</th>
+                <th class="ca-col-marke">Marke</th>
                 <th>Kampagne</th>
                 <th class="col-actions">Aktionen</th>
               </tr>
             </thead>
             <tbody id="creator-auswahl-table-body">
               <tr>
-                <td colspan="5" style="text-align: center; padding: var(--space-lg); color: var(--text-secondary);">
+                <td colspan="5" class="table-state-cell">
                   Lade Creator-Auswahl-Listen...
                 </td>
               </tr>
@@ -149,82 +150,86 @@ export class CreatorAuswahlList {
   /**
    * Aktualisiere die Tabelle
    */
-  updateTable(listen) {
+  async updateTable(listen) {
     const tbody = document.getElementById('creator-auswahl-table-body');
+    if (!tbody) return;
+    
     const rolle = window.currentUser?.rolle?.toLowerCase();
     const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
-    
-    if (!listen || listen.length === 0) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="5" style="text-align: center; padding: var(--space-lg); color: var(--text-secondary);">
-            Keine Creator-Auswahl-Listen gefunden
-          </td>
-        </tr>
-      `;
-      return;
-    }
 
-    tbody.innerHTML = listen.map(liste => {
-      const unternehmenBubble = liste.unternehmen 
-        ? AvatarBubbles.renderBubbles([{
-            name: liste.unternehmen.firmenname,
-            type: 'org',
-            id: liste.unternehmen.id,
-            entityType: 'unternehmen',
-            logo_url: liste.unternehmen.logo_url
-          }])
-        : '-';
+    await TableAnimationHelper.animatedUpdate(tbody, () => {
+      if (!listen || listen.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" class="table-state-cell">
+              Keine Creator-Auswahl-Listen gefunden
+            </td>
+          </tr>
+        `;
+        return;
+      }
 
-      const markeBubble = liste.marke 
-        ? AvatarBubbles.renderBubbles([{
-            name: liste.marke.markenname,
-            type: 'org',
-            id: liste.marke.id,
-            entityType: 'marke',
-            logo_url: liste.marke.logo_url
-          }])
-        : '-';
+      tbody.innerHTML = listen.map(liste => {
+        const unternehmenBubble = liste.unternehmen 
+          ? AvatarBubbles.renderBubbles([{
+              name: liste.unternehmen.firmenname,
+              type: 'org',
+              id: liste.unternehmen.id,
+              entityType: 'unternehmen',
+              logo_url: liste.unternehmen.logo_url
+            }])
+          : '-';
 
-      const kampagneName = liste.kampagne?.kampagnenname || '-';
+        const markeBubble = liste.marke 
+          ? AvatarBubbles.renderBubbles([{
+              name: liste.marke.markenname,
+              type: 'org',
+              id: liste.marke.id,
+              entityType: 'marke',
+              logo_url: liste.marke.logo_url
+            }])
+          : '-';
 
-      return `
-        <tr class="table-row-clickable" data-liste-id="${liste.id}">
-          <td><strong>${liste.name || 'Ohne Namen'}</strong></td>
-          <td>${unternehmenBubble}</td>
-          <td>${markeBubble}</td>
-          <td>${kampagneName}</td>
-          <td class="col-actions">
-            <div class="actions-dropdown-container" data-entity-type="creator-auswahl">
-              <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                </svg>
-              </button>
-              <div class="actions-dropdown">
-                <a href="#" class="action-item" data-action="view-liste" data-id="${liste.id}">
-                  ${window.ActionsDropdown?.getHeroIcon('view') || ''}
-                  Details anzeigen
-                </a>
-                ${!isKunde ? `
-                  <a href="#" class="action-item" data-action="edit-liste" data-id="${liste.id}">
-                    ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
-                    Bearbeiten
+        const kampagneName = liste.kampagne?.kampagnenname || '-';
+
+        return `
+          <tr class="table-row-clickable" data-liste-id="${liste.id}">
+            <td class="ca-col-name">${liste.name || 'Ohne Namen'}</td>
+            <td class="ca-col-unternehmen">${unternehmenBubble}</td>
+            <td class="ca-col-marke">${markeBubble}</td>
+            <td>${kampagneName}</td>
+            <td class="col-actions">
+              <div class="actions-dropdown-container" data-entity-type="creator-auswahl">
+                <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                  </svg>
+                </button>
+                <div class="actions-dropdown">
+                  <a href="#" class="action-item" data-action="view-liste" data-id="${liste.id}">
+                    ${window.ActionsDropdown?.getHeroIcon('view') || ''}
+                    Details anzeigen
                   </a>
-                  ${rolle === 'admin' ? `
-                    <div class="action-separator"></div>
-                    <a href="#" class="action-item action-danger" data-action="delete-liste" data-id="${liste.id}">
-                      ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
-                      Löschen
+                  ${!isKunde ? `
+                    <a href="#" class="action-item" data-action="edit-liste" data-id="${liste.id}">
+                      ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
+                      Bearbeiten
                     </a>
+                    ${rolle === 'admin' ? `
+                      <div class="action-separator"></div>
+                      <a href="#" class="action-item action-danger" data-action="delete-liste" data-id="${liste.id}">
+                        ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
+                        Löschen
+                      </a>
+                    ` : ''}
                   ` : ''}
-                ` : ''}
+                </div>
               </div>
-            </div>
-          </td>
-        </tr>
-      `;
-    }).join('');
+            </td>
+          </tr>
+        `;
+      }).join('');
+    });
     
     if (window.ActionsDropdown) {
       window.ActionsDropdown.init();

@@ -8,6 +8,7 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
+import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 
 // Sprach-Mapping für Abkürzungen
 const SPRACH_KUERZEL = {
@@ -320,81 +321,64 @@ export class AnsprechpartnerList {
 
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
 
-    // Fade-out Animation starten (behält alte Daten während Fade-out)
-    tbody.classList.add('table-fade-out');
-    
-    // Warte auf Animation (200ms)
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await TableAnimationHelper.animatedUpdate(tbody, () => {
+      if (!ansprechpartner || ansprechpartner.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="${isAdmin ? '11' : '10'}" class="no-data">Keine Ansprechpartner gefunden</td>
+          </tr>
+        `;
+        return;
+      }
 
-    if (!ansprechpartner || ansprechpartner.length === 0) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="${isAdmin ? '11' : '10'}" class="no-data">Keine Ansprechpartner gefunden</td>
+      tbody.innerHTML = ansprechpartner.map(ap => `
+        <tr data-id="${ap.id}">
+          ${isAdmin ? `<td><input type="checkbox" class="ansprechpartner-check" data-id="${ap.id}"></td>` : ''}
+          <td>
+            <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
+              ${window.validatorSystem.sanitizeHtml(ap.vorname || '')} ${window.validatorSystem.sanitizeHtml(ap.nachname || '')}
+            </a>
+          </td>
+          <td>
+            ${ap.positionen?.name ? `<div class="tag-list"><span class="tag tag--position">${window.validatorSystem.sanitizeHtml(ap.positionen.name)}</span></div>` : '-'}
+          </td>
+          <td>
+            ${this.renderUnternehmen(ap)}
+          </td>
+          <td>
+            ${(ap.marken && ap.marken.length > 0)
+              ? avatarBubbles.renderBubbles(ap.marken.map(m => ({
+                  name: m.markenname,
+                  type: 'org',
+                  id: m.id,
+                  entityType: 'marke',
+                  logo_url: m.logo_url || null
+                })))
+              : '-'}
+          </td>
+          <td>${ap.email ? `<a href="mailto:${ap.email}" class="table-link email-link">${ap.email}</a>` : '-'}</td>
+          <td>${PhoneDisplay.render(
+            ap.telefonnummer_land?.iso_code,
+            ap.telefonnummer_land?.vorwahl,
+            ap.telefonnummer
+          )}</td>
+          <td>${PhoneDisplay.render(
+            ap.telefonnummer_office_land?.iso_code,
+            ap.telefonnummer_office_land?.vorwahl,
+            ap.telefonnummer_office
+          )}</td>
+          <td>${ap.stadt || '-'}</td>
+          <td>
+            ${(ap.sprachen && ap.sprachen.length > 0)
+              ? `<div class="tag-list">${ap.sprachen.map(s => `<span class="tag tag--sprache" title="${window.validatorSystem.sanitizeHtml(s.name)}">${getSprachKuerzel(s.name)}</span>`).join('')}</div>`
+              : (ap.sprache?.name ? `<span class="tag tag--sprache" title="${window.validatorSystem.sanitizeHtml(ap.sprache.name)}">${getSprachKuerzel(ap.sprache.name)}</span>` : '-')}
+          </td>
+          <td>
+            ${actionBuilder.create('ansprechpartner', ap.id)}
+          </td>
         </tr>
-      `;
-      
-      // Fade-in Animation
-      tbody.classList.remove('table-fade-out');
-      tbody.classList.add('table-fade-in');
-      setTimeout(() => tbody.classList.remove('table-fade-in'), 200);
-      return;
-    }
-
-    const rowsHtml = ansprechpartner.map(ap => `
-      <tr data-id="${ap.id}">
-        ${isAdmin ? `<td><input type="checkbox" class="ansprechpartner-check" data-id="${ap.id}"></td>` : ''}
-        <td>
-          <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
-            ${window.validatorSystem.sanitizeHtml(ap.vorname || '')} ${window.validatorSystem.sanitizeHtml(ap.nachname || '')}
-          </a>
-        </td>
-        <td>
-          ${ap.positionen?.name ? `<div class="tag-list"><span class="tag tag--position">${window.validatorSystem.sanitizeHtml(ap.positionen.name)}</span></div>` : '-'}
-        </td>
-        <td>
-          ${this.renderUnternehmen(ap)}
-        </td>
-        <td>
-          ${(ap.marken && ap.marken.length > 0)
-            ? avatarBubbles.renderBubbles(ap.marken.map(m => ({
-                name: m.markenname,
-                type: 'org',
-                id: m.id,
-                entityType: 'marke',
-                logo_url: m.logo_url || null
-              })))
-            : '-'}
-        </td>
-        <td>${ap.email ? `<a href="mailto:${ap.email}" class="table-link email-link">${ap.email}</a>` : '-'}</td>
-        <td>${PhoneDisplay.render(
-          ap.telefonnummer_land?.iso_code,
-          ap.telefonnummer_land?.vorwahl,
-          ap.telefonnummer
-        )}</td>
-        <td>${PhoneDisplay.render(
-          ap.telefonnummer_office_land?.iso_code,
-          ap.telefonnummer_office_land?.vorwahl,
-          ap.telefonnummer_office
-        )}</td>
-        <td>${ap.stadt || '-'}</td>
-        <td>
-          ${(ap.sprachen && ap.sprachen.length > 0)
-            ? `<div class="tag-list">${ap.sprachen.map(s => `<span class="tag tag--sprache" title="${window.validatorSystem.sanitizeHtml(s.name)}">${getSprachKuerzel(s.name)}</span>`).join('')}</div>`
-            : (ap.sprache?.name ? `<span class="tag tag--sprache" title="${window.validatorSystem.sanitizeHtml(ap.sprache.name)}">${getSprachKuerzel(ap.sprache.name)}</span>` : '-')}
-        </td>
-        <td>
-          ${actionBuilder.create('ansprechpartner', ap.id)}
-        </td>
-      </tr>
-    `).join('');
-
-    // Content austauschen während Fade-out aktiv ist
-    tbody.innerHTML = rowsHtml;
-    
-    // Fade-in Animation
-    tbody.classList.remove('table-fade-out');
-    tbody.classList.add('table-fade-in');
-    setTimeout(() => tbody.classList.remove('table-fade-in'), 200);
+      `).join('');
+    });
   }
 
   // Render Unternehmen (unterstützt sowohl Legacy-Einzelobjekt als auch Many-to-Many Array)

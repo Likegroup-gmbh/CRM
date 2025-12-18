@@ -5,7 +5,6 @@
 import { FormConfig } from '../../core/form/FormConfig.js';
 import { FormRenderer } from '../../core/form/FormRenderer.js';
 import { DynamicDataLoader } from '../../core/form/data/DynamicDataLoader.js';
-import { FormSystem } from '../../core/form/FormSystem.js';
 import { ansprechpartnerCreate } from './AnsprechpartnerCreate.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';

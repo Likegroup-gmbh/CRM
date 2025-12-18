@@ -1206,6 +1206,11 @@ export class ActionsDropdown {
                 <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
               </svg>
             </span>
+            <span class="mdc-btn__spinner" aria-hidden="true">
+              <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
+                <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
+              </svg>
+            </span>
             <span class="mdc-btn__label">Zuordnen</span>
           </button>
         </div>
@@ -1284,6 +1289,11 @@ export class ActionsDropdown {
     modal.querySelector('#assign-staff-cancel').onclick = close;
     modal.querySelector('#assign-staff-confirm').onclick = async () => {
       if (!selectedId) return;
+      
+      const btn = modal.querySelector('#assign-staff-confirm');
+      btn.disabled = true;
+      btn.classList.add('is-loading');
+      
       try {
         // Speichere Zuordnung in Relationstabelle (mit role-Feld)
         const { error: insertError } = await window.supabase
@@ -1322,6 +1332,8 @@ export class ActionsDropdown {
       } catch (err) {
         console.error('❌ Fehler beim Zuordnen', err);
         alert('Zuordnung fehlgeschlagen.');
+        btn.disabled = false;
+        btn.classList.remove('is-loading');
       }
     };
   }
@@ -1391,6 +1403,11 @@ export class ActionsDropdown {
             <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
                 <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__spinner" aria-hidden="true">
+              <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
+                <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
               </svg>
             </span>
             <span class="mdc-btn__label">Hinzufügen</span>
@@ -1518,6 +1535,10 @@ export class ActionsDropdown {
     modal.querySelector('#add-mitarbeiter-confirm').onclick = async () => {
       if (!selectedId) return;
       
+      const btn = modal.querySelector('#add-mitarbeiter-confirm');
+      btn.disabled = true;
+      btn.classList.add('is-loading');
+      
       try {
         // Mitarbeiter zur Marke hinzufügen (Junction Table)
         const { error } = await window.supabase
@@ -1569,6 +1590,8 @@ export class ActionsDropdown {
       } catch (error) {
         console.error('❌ Fehler beim Hinzufügen des Mitarbeiters:', error);
         alert('Fehler beim Hinzufügen: ' + (error.message || 'Unbekannter Fehler'));
+        btn.disabled = false;
+        btn.classList.remove('is-loading');
       }
     };
   }
@@ -1677,6 +1700,11 @@ export class ActionsDropdown {
                 <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
               </svg>
             </span>
+            <span class="mdc-btn__spinner" aria-hidden="true">
+              <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
+                <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
+              </svg>
+            </span>
             <span class="mdc-btn__label">Hinzufügen</span>
           </button>
         </div>
@@ -1749,6 +1777,11 @@ export class ActionsDropdown {
     modal.querySelector('#add-to-campaign-cancel').onclick = close;
     modal.querySelector('#add-to-campaign-confirm').onclick = async () => {
       if (!selectedId) return;
+      
+      const btn = modal.querySelector('#add-to-campaign-confirm');
+      btn.disabled = true;
+      btn.classList.add('is-loading');
+      
       try {
         await window.supabase
           .from('kampagne_creator_sourcing')
@@ -1778,6 +1811,8 @@ export class ActionsDropdown {
       } catch (err) {
         console.error('❌ Fehler beim Hinzufügen zur Kampagne', err);
         alert('Hinzufügen fehlgeschlagen.');
+        btn.disabled = false;
+        btn.classList.remove('is-loading');
       }
     };
   }
@@ -1848,6 +1883,11 @@ export class ActionsDropdown {
             <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
                 <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__spinner" aria-hidden="true">
+              <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
+                <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
               </svg>
             </span>
             <span class="mdc-btn__label">Hinzufügen</span>
@@ -1977,6 +2017,10 @@ export class ActionsDropdown {
     modal.querySelector('#add-ansprechpartner-confirm').onclick = async () => {
       if (!selectedId) return;
       
+      const btn = modal.querySelector('#add-ansprechpartner-confirm');
+      btn.disabled = true;
+      btn.classList.add('is-loading');
+      
       try {
         // Ansprechpartner zur Marke hinzufügen (Junction Table)
         const { error } = await window.supabase
@@ -2006,6 +2050,8 @@ export class ActionsDropdown {
       } catch (error) {
         console.error('❌ Fehler beim Hinzufügen des Ansprechpartners:', error);
         alert('Fehler beim Hinzufügen: ' + (error.message || 'Unbekannter Fehler'));
+        btn.disabled = false;
+        btn.classList.remove('is-loading');
       }
     };
   }
@@ -2076,6 +2122,11 @@ export class ActionsDropdown {
             <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
                 <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__spinner" aria-hidden="true">
+              <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
+                <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
               </svg>
             </span>
             <span class="mdc-btn__label">Hinzufügen</span>
@@ -2211,6 +2262,10 @@ export class ActionsDropdown {
     modal.querySelector('#add-ansprechpartner-unternehmen-confirm').onclick = async () => {
       if (!selectedId) return;
 
+      const btn = modal.querySelector('#add-ansprechpartner-unternehmen-confirm');
+      btn.disabled = true;
+      btn.classList.add('is-loading');
+
       try {
         const { error } = await window.supabase
           .from('ansprechpartner_unternehmen')
@@ -2239,6 +2294,8 @@ export class ActionsDropdown {
       } catch (error) {
         console.error('❌ Fehler beim Hinzufügen des Ansprechpartners:', error);
         alert('Fehler beim Hinzufügen: ' + (error.message || 'Unbekannter Fehler'));
+        btn.disabled = false;
+        btn.classList.remove('is-loading');
       }
     };
   }
@@ -2869,6 +2926,11 @@ export class ActionsDropdown {
                 <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
               </svg>
             </span>
+            <span class="mdc-btn__spinner" aria-hidden="true">
+              <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
+                <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
+              </svg>
+            </span>
             <span class="mdc-btn__label">Hinzufügen</span>
           </button>
         </div>
@@ -2909,6 +2971,11 @@ export class ActionsDropdown {
     modal.querySelector('#add-to-list-cancel').onclick = close;
     modal.querySelector('#add-to-list-confirm').onclick = async () => {
       if (!selectedId) return;
+      
+      const btn = modal.querySelector('#add-to-list-confirm');
+      btn.disabled = true;
+      btn.classList.add('is-loading');
+      
       try {
         await window.supabase
           .from('creator_list_member')
@@ -2919,6 +2986,8 @@ export class ActionsDropdown {
       } catch (err) {
         console.error('❌ Fehler beim Hinzufügen zur Liste', err);
         alert('Hinzufügen fehlgeschlagen.');
+        btn.disabled = false;
+        btn.classList.remove('is-loading');
       }
     };
   }
@@ -3042,6 +3111,11 @@ export class ActionsDropdown {
             <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
                 <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__spinner" aria-hidden="true">
+              <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
+                <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
               </svg>
             </span>
             <span class="mdc-btn__label">Hinzufügen</span>
@@ -3171,6 +3245,10 @@ export class ActionsDropdown {
     modal.querySelector('#add-ansprechpartner-kampagne-confirm').onclick = async () => {
       if (!selectedId) return;
       
+      const btn = modal.querySelector('#add-ansprechpartner-kampagne-confirm');
+      btn.disabled = true;
+      btn.classList.add('is-loading');
+      
       try {
         // Ansprechpartner zur Kampagne hinzufügen (Junction Table)
         const { error } = await window.supabase
@@ -3200,6 +3278,8 @@ export class ActionsDropdown {
       } catch (error) {
         console.error('❌ Fehler beim Hinzufügen des Ansprechpartners:', error);
         alert('Fehler beim Hinzufügen: ' + (error.message || 'Unbekannter Fehler'));
+        btn.disabled = false;
+        btn.classList.remove('is-loading');
       }
     };
   }

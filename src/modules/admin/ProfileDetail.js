@@ -249,7 +249,8 @@ export class ProfileDetail {
       { key: 'kooperation', label: 'Kooperationen' },
       { key: 'briefing', label: 'Briefings' },
       { key: 'rechnung', label: 'Rechnungen' },
-      { key: 'ansprechpartner', label: 'Ansprechpartner' }
+      { key: 'ansprechpartner', label: 'Ansprechpartner' },
+      { key: 'feedback', label: 'Feedback' }
     ];
 
     return `

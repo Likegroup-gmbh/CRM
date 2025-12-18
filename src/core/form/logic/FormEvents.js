@@ -38,6 +38,14 @@ export class FormEvents {
     } else {
       console.log('ℹ️ FORMEVENTS: Kein Edit-Mode erkannt oder keine Daten verfügbar');
     }
+    
+    // KOOPERATION PREFILL: Wenn Formular von Kampagne kommt, Prefill-Daten setzen
+    if (entity === 'kooperation' && data && data._prefillFromKampagne) {
+      console.log('🎯 FORMEVENTS: Kooperation-Prefill erkannt, setze Prefill-Kontext');
+      form.dataset.prefillFromKampagne = 'true';
+      form.dataset.prefillData = JSON.stringify(data);
+      form.dataset.entityType = entity;
+    }
 
     // Submit-Event mit UI-States (activate → waiting → activated)
     form.onsubmit = async (e) => {

@@ -8,7 +8,8 @@ export class NavigationSystem {
       {
         title: 'Dashboard',
         items: [
-          { id: 'dashboard', label: 'Dashboard', icon: 'icon-dashboard', url: '/dashboard' }
+          { id: 'dashboard', label: 'Dashboard', icon: 'icon-dashboard', url: '/dashboard' },
+          { id: 'tasks', label: 'Aufgaben', icon: 'icon-tasks', url: '/tasks' }
         ]
       },
       {
@@ -29,8 +30,7 @@ export class NavigationSystem {
           { id: 'strategie', label: 'Strategien', icon: 'icon-lightbulb', url: '/strategie' },
           { id: 'creator-auswahl', label: 'Creator-Auswahl', icon: 'icon-users', url: '/creator-auswahl' },
           // { id: 'kooperation', label: 'Kooperation', icon: 'icon-handshake', url: '/kooperation' },
-          { id: 'rechnung', label: 'Rechnung', icon: 'icon-currency-euro', url: '/rechnung' },
-          { id: 'tasks', label: 'Aufgaben', icon: 'icon-tasks', url: '/tasks' }
+          { id: 'rechnung', label: 'Rechnung', icon: 'icon-currency-euro', url: '/rechnung' }
         ]
       },
       {
@@ -45,6 +45,12 @@ export class NavigationSystem {
         items: [
           { id: 'mitarbeiter', label: 'Mitarbeiter', icon: 'icon-users', url: '/mitarbeiter' },
           { id: 'kunden-admin', label: 'Kunden', icon: 'icon-user-circle', url: '/admin/kunden' }
+        ]
+      },
+      {
+        title: 'Feedback',
+        items: [
+          { id: 'feedback', label: 'Feedback', icon: 'icon-feedback', url: '/feedback' }
         ]
       }
     ];
@@ -94,8 +100,14 @@ export class NavigationSystem {
         'creator-lists': 'creator',
         mitarbeiter: 'dashboard',
         tasks: 'tasks',
-        tabellen: 'dashboard'
+        tabellen: 'dashboard',
+        feedback: 'feedback'
       };
+      
+      // Feedback explizit für Kunden blockieren
+      if (id === 'feedback' && window.currentUser?.rolle === 'kunde') {
+        return false;
+      }
       const entity = map[id] || id;
       const canViewResult = perms?.[entity]?.can_view || (window.currentUser?.rolle === 'admin');
       
@@ -113,52 +125,76 @@ export class NavigationSystem {
       return canViewResult;
     };
 
-    const sectionsHtml = this.navSections.map(section => {
-      const visibleItems = section.items.filter(it => canView(it.id));
-      if (visibleItems.length === 0) return '';
-      
-      // Dashboard ohne Section-Title, nur als Link
-      if (section.title === 'Dashboard') {
+    // Feedback separat rendern (für Footer)
+    const feedbackSection = this.navSections.find(s => s.title === 'Feedback');
+    const feedbackItems = feedbackSection ? feedbackSection.items.filter(it => canView(it.id)) : [];
+    
+    // Alle anderen Sections (ohne Feedback)
+    const sectionsHtml = this.navSections
+      .filter(section => section.title !== 'Feedback')
+      .map(section => {
+        const visibleItems = section.items.filter(it => canView(it.id));
+        if (visibleItems.length === 0) return '';
+        
+        // Dashboard ohne Section-Title, nur als Link
+        if (section.title === 'Dashboard') {
+          return `
+            <ul class="nav-list nav-list-standalone">
+              ${visibleItems.map(item => `
+                <li class="nav-item">
+                  <a href="${item.url}" class="nav-link" data-route="${item.url}">
+                    <span class="nav-icon">${this.getIcon(item.icon)}</span>
+                    <span class="nav-label">${item.label}</span>
+                  </a>
+                </li>
+              `).join('')}
+            </ul>`;
+        }
+        
         return `
-          <ul class="nav-list nav-list-standalone">
-            ${visibleItems.map(item => `
-              <li class="nav-item">
-                <a href="${item.url}" class="nav-link" data-route="${item.url}">
-                  <span class="nav-icon">${this.getIcon(item.icon)}</span>
-                  <span class="nav-label">${item.label}</span>
-                </a>
-              </li>
-            `).join('')}
-          </ul>`;
-      }
-      
-      return `
-        <div class="nav-section" data-section="${section.title}">
-          <div class="nav-section-title">
-            <span class="nav-section-chevron">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-              </svg>
-            </span>
-            ${section.title}
-          </div>
-          <ul class="nav-list">
-            ${visibleItems.map(item => `
-              <li class="nav-item">
-                <a href="${item.url}" class="nav-link" data-route="${item.url}">
-                  <span class="nav-icon">${this.getIcon(item.icon)}</span>
-                  <span class="nav-label">${item.label}</span>
-                </a>
-              </li>
-            `).join('')}
-          </ul>
-        </div>`;
-    }).join('');
+          <div class="nav-section" data-section="${section.title}">
+            <div class="nav-section-title">
+              <span class="nav-section-chevron">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                </svg>
+              </span>
+              ${section.title}
+            </div>
+            <ul class="nav-list">
+              ${visibleItems.map(item => `
+                <li class="nav-item">
+                  <a href="${item.url}" class="nav-link" data-route="${item.url}">
+                    <span class="nav-icon">${this.getIcon(item.icon)}</span>
+                    <span class="nav-label">${item.label}</span>
+                  </a>
+                </li>
+              `).join('')}
+            </ul>
+          </div>`;
+      }).join('');
+
+    // Feedback Footer HTML
+    const feedbackHtml = feedbackItems.length > 0 ? `
+      <div class="nav-footer">
+        <ul class="nav-list nav-list-standalone">
+          ${feedbackItems.map(item => `
+            <li class="nav-item">
+              <a href="${item.url}" class="nav-link" data-route="${item.url}">
+                <span class="nav-icon">${this.getIcon(item.icon)}</span>
+                <span class="nav-label">${item.label}</span>
+              </a>
+            </li>
+          `).join('')}
+        </ul>
+      </div>
+    ` : '';
 
     const navHtml = `
       <div class="nav-sections">
         ${sectionsHtml}
       </div>
+      ${feedbackHtml}
     `;
 
     navElement.innerHTML = navHtml;
@@ -242,7 +278,8 @@ export class NavigationSystem {
       'icon-currency-euro': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 11.625h4.5m-4.5 2.25h4.5m2.121 1.527c-1.171 1.464-3.07 1.464-4.242 0-1.172-1.465-1.172-3.84 0-5.304 1.171-1.464 3.07-1.464 4.242 0M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>`,
       'icon-list': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 17.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" /></svg>`,
       'icon-tasks': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0 1 18 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3 1.5 1.5 3-3.75" /></svg>`,
-      'icon-table': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 1.5v-1.5m0 0c0-.621.504-1.125 1.125-1.125m0 0h7.5" /></svg>`
+      'icon-table': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 1.5v-1.5m0 0c0-.621.504-1.125 1.125-1.125m0 0h7.5" /></svg>`,
+      'icon-feedback': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 0 1-.825-.242m9.345-8.334a2.126 2.126 0 0 0-.476-.095 48.64 48.64 0 0 0-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0 0 11.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" /></svg>`
     };
 
     return icons[iconName] || `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.482-.22-2.121-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`;

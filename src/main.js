@@ -33,7 +33,6 @@ import { dataService } from './core/DataService.js';
 import { validatorSystem } from './core/ValidatorSystem.js';
 import { creatorUtils } from './modules/creator/CreatorUtils.js';
 import { formSystem } from './core/FormSystem.js';
-import { FormSystem } from './core/form/FormSystem.js';
 import { notizenSystem } from './core/NotizenSystem.js';
 import { bewertungsSystem } from './core/BewertungsSystem.js';
 import { unternehmenDetail } from './modules/unternehmen/UnternehmenDetail.js';
@@ -73,6 +72,7 @@ import { strategieList } from './modules/strategie/StrategieList.js';
 import { strategieDetail } from './modules/strategie/StrategieDetail.js';
 import { creatorAuswahlList } from './modules/creator-auswahl/CreatorAuswahlList.js';
 import { creatorAuswahlDetail } from './modules/creator-auswahl/CreatorAuswahlDetail.js';
+import { feedbackPage } from './modules/feedback/FeedbackPage.js';
 // Zentrales Bestätigungs-Modal (side-effect Import, hängt window.confirmationModal an)
 import './core/ConfirmationModal.js';
 // Duplicate Checker für Creator, Marke, Unternehmen
@@ -409,6 +409,7 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('strategie-detail', strategieDetail);
   moduleRegistry.register('creator-auswahl', creatorAuswahlList);
   moduleRegistry.register('creator-auswahl-detail', creatorAuswahlDetail);
+  moduleRegistry.register('feedback', feedbackPage);
   
   // Profile-Modul initialisieren und registrieren (V2 - neue Version mit zweispaltigem Layout)
   const profileDetailV2 = new ProfileDetailV2();
@@ -455,7 +456,6 @@ window.validatorSystem = validatorSystem;
 window.creatorUtils = creatorUtils;
 window.AvatarBubbles = AvatarBubbles;
 window.formSystem = formSystem;
-window.newFormSystem = new FormSystem();
 window.notizenSystem = notizenSystem;
 window.bewertungsSystem = bewertungsSystem;
 window.ActionsDropdown = actionsDropdown;

@@ -114,10 +114,8 @@ export class KundenList {
     const html = `
       <div class="page-header">
         <div class="page-header-right">
-          <div class="search-inline">
-            <input id="kunden-search" class="form-input" type="text" placeholder="Suche nach Name/Rolle..." />
-          </div>
-          <button class="primary-btn" id="btn-kunde-anlegen" style="margin-left:8px;">Kunde anlegen</button>
+          
+          
         </div>
       </div>
 
@@ -682,6 +680,11 @@ export class KundenList {
                 <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
               </svg>
             </span>
+            <span class="mdc-btn__spinner" aria-hidden="true">
+              <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
+                <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
+              </svg>
+            </span>
             <span class="mdc-btn__label">Zuordnen</span>
           </button>
         </div>
@@ -772,6 +775,10 @@ export class KundenList {
     saveBtn.addEventListener('click', async () => {
       if (!selectedUnternehmen) return;
 
+      // Loading State
+      saveBtn.disabled = true;
+      saveBtn.classList.add('is-loading');
+
       try {
         const { error } = await window.supabase
           .from('kunde_unternehmen')
@@ -792,6 +799,10 @@ export class KundenList {
       } catch (err) {
         console.error('❌ Zuordnung fehlgeschlagen', err);
         window.NotificationSystem?.show('error', 'Zuordnung fehlgeschlagen: ' + err.message);
+        
+        // Loading State zurücksetzen
+        saveBtn.disabled = false;
+        saveBtn.classList.remove('is-loading');
       }
     });
 

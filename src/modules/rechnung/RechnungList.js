@@ -5,6 +5,7 @@ import { modularFilterSystem as filterSystem } from '../../core/filters/ModularF
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 
 export class RechnungList {
   constructor() {
@@ -210,7 +211,7 @@ export class RechnungList {
         rechnungen = await window.dataService.loadEntities('rechnung', currentFilters);
       }
       this.rechnungen = rechnungen; // Speichern für Download-Zugriff
-      this.updateTable(rechnungen);
+      await this.updateTable(rechnungen);
     } catch (error) {
       window.ErrorHandler?.handle?.(error, 'RechnungList.loadAndRender');
     }
@@ -299,36 +300,35 @@ export class RechnungList {
     if (!tbody) return;
 
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-
-    if (!rechnungen || rechnungen.length === 0) {
-      const { renderEmptyState } = await import('../../core/FilterUI.js');
-      renderEmptyState(tbody);
-      return;
-    }
-
     const formatCurrency = (v) => v == null ? '-' : new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v);
     const formatDate = (v) => v ? new Intl.DateTimeFormat('de-DE').format(new Date(v)) : '-';
 
-    const rows = rechnungen.map(r => `
-      <tr data-id="${r.id}">
-        ${isAdmin ? `<td><input type="checkbox" class="rechnung-check" data-id="${r.id}"></td>` : ''}
-        <td>${r.rechnung_nr || '-'}</td>
-        <td>${r.unternehmen?.firmenname || '-'}</td>
-        <td>${r.auftrag?.auftragsname || '-'}</td>
-        <td>${[r.creator?.vorname, r.creator?.nachname].filter(Boolean).join(' ') || '-'}</td>
-        <td>${formatDate(r.gestellt_am)}</td>
-        <td>${formatDate(r.zahlungsziel)}</td>
-        <td>${r.status || '-'}</td>
-        <td>${formatCurrency(r.nettobetrag)}</td>
-        <td>${formatCurrency(r.bruttobetrag)}</td>
-        <td>${r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener noreferrer">PDF</a>` : '-'}</td>
-        <td>
-          ${actionBuilder.create('rechnung', r.id)}
-        </td>
-      </tr>
-    `).join('');
+    await TableAnimationHelper.animatedUpdate(tbody, async () => {
+      if (!rechnungen || rechnungen.length === 0) {
+        const { renderEmptyState } = await import('../../core/FilterUI.js');
+        renderEmptyState(tbody);
+        return;
+      }
 
-    tbody.innerHTML = rows;
+      tbody.innerHTML = rechnungen.map(r => `
+        <tr data-id="${r.id}">
+          ${isAdmin ? `<td><input type="checkbox" class="rechnung-check" data-id="${r.id}"></td>` : ''}
+          <td>${r.rechnung_nr || '-'}</td>
+          <td>${r.unternehmen?.firmenname || '-'}</td>
+          <td>${r.auftrag?.auftragsname || '-'}</td>
+          <td>${[r.creator?.vorname, r.creator?.nachname].filter(Boolean).join(' ') || '-'}</td>
+          <td>${formatDate(r.gestellt_am)}</td>
+          <td>${formatDate(r.zahlungsziel)}</td>
+          <td>${r.status || '-'}</td>
+          <td>${formatCurrency(r.nettobetrag)}</td>
+          <td>${formatCurrency(r.bruttobetrag)}</td>
+          <td>${r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener noreferrer">PDF</a>` : '-'}</td>
+          <td>
+            ${actionBuilder.create('rechnung', r.id)}
+          </td>
+        </tr>
+      `).join('');
+    });
 
     // Checkbox Events
     document.querySelectorAll('.rechnung-check').forEach(cb => {

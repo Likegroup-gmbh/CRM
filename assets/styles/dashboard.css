@@ -57,7 +57,12 @@
 
 /* Feedback Form */
 .feedback-form { margin-top: var(--space-xs); }
-.feedback-form textarea { width: 100%; border: var(--border-xs) solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-xs); }
+.feedback-form textarea { width: 100%; 
+  border: var(--border-xs) solid var(--gray-300); 
+  border-radius: var(--radius-md); 
+  padding: var(--space-xs); 
+  font-size: var(--text-sm); 
+  font-family: 'Inter', sans-serif; }
 
 
 /* Feedback cells in tables */
@@ -85,13 +90,6 @@
   margin: 0 auto;
 }
 
-/* Stats Cards */
-.dashboard-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--space-lg);
-  margin-bottom: var(--space-xl);
-}
 
 
 
@@ -158,14 +156,7 @@
   overflow-x: hidden;
 }
 
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--space-lg);
-  padding-bottom: var(--space-md);
-  border-bottom: var(--border-xs) solid var(--border-primary);
-}
+
 
 .section-header h2 {
   font-size: var(--text-xl);

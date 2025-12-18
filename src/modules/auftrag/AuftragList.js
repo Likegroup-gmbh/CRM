@@ -10,6 +10,7 @@ import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { AuftragFilterLogic } from './filters/AuftragFilterLogic.js';
 import { AuftragCashFlowCalendar } from './AuftragCashFlowCalendar.js';
+import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 
 // Statische Formatter (einmalig definiert, nicht bei jedem Render)
 const currencyFormatter = new Intl.NumberFormat('de-DE', { 
@@ -225,7 +226,7 @@ export class AuftragList {
         );
         
         this.pagination.updateTotal(count);
-        this.updateTable(auftraege);
+        await this.updateTable(auftraege);
         this.pagination.render();
       }
       
@@ -979,83 +980,70 @@ export class AuftragList {
   }
 
   // Update Tabelle (CSS-only Animation, kein setTimeout-Blocking)
-  updateTable(auftraege) {
+  async updateTable(auftraege) {
     const tbody = document.querySelector('.data-table tbody');
     if (!tbody) return;
 
-    // CSS-Klasse für Fade-Animation (CSS handled die Transition)
-    tbody.classList.add('table-updating');
+    await TableAnimationHelper.animatedUpdate(tbody, () => {
+      if (!auftraege || auftraege.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="19" class="no-data">
+              <div style="text-align: center; padding: 40px 20px;">
+                <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📋</div>
+                <h3 style="color: #666; margin-bottom: 8px;">Keine Aufträge vorhanden</h3>
+                <p style="color: #999; margin-bottom: 20px;">Es wurden noch keine Aufträge erstellt.</p>
+                <button id="btn-create-first-auftrag" class="primary-btn">
+                  Ersten Auftrag anlegen
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+        
+        // Event für den "Ersten Auftrag anlegen" Button
+        const createBtn = document.getElementById('btn-create-first-auftrag');
+        if (createBtn) {
+          createBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.navigateTo('/auftrag/new');
+          });
+        }
+        return;
+      }
 
-    if (!auftraege || auftraege.length === 0) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="19" class="no-data">
-            <div style="text-align: center; padding: 40px 20px;">
-              <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📋</div>
-              <h3 style="color: #666; margin-bottom: 8px;">Keine Aufträge vorhanden</h3>
-              <p style="color: #999; margin-bottom: 20px;">Es wurden noch keine Aufträge erstellt.</p>
-              <button id="btn-create-first-auftrag" class="primary-btn">
-                Ersten Auftrag anlegen
-              </button>
-            </div>
+      tbody.innerHTML = auftraege.map(auftrag => `
+        <tr data-id="${auftrag.id}">
+          ${this.isAdmin ? `<td><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
+          <td>
+            <a href="#" class="table-link" data-table="auftrag" data-id="${auftrag.id}">
+              ${window.validatorSystem.sanitizeHtml(auftrag.auftragsname || 'Unbekannt')}
+            </a>
+          </td>
+          <td>${this.formatUnternehmenTag(auftrag.unternehmen)}</td>
+          <td>${this.formatMarkeTag(auftrag.marke)}</td>
+          <td>${auftrag.po || '-'}</td>
+          <td>${auftrag.re_nr || '-'}</td>
+          <td>${this.formatDate(auftrag.re_faelligkeit)}</td>
+          <td>${this.formatKampagneArtTags(auftrag.art_der_kampagne)}</td>
+          <td>${this.formatDate(auftrag.start)}</td>
+          <td>${this.formatDate(auftrag.ende)}</td>
+          <td>${this.formatCurrency(auftrag.nettobetrag)}</td>
+          <td>${this.formatCurrency(auftrag.ust_betrag)}</td>
+          <td>${this.formatCurrency(auftrag.bruttobetrag)}</td>
+          <td>${this.formatAnsprechpartner(auftrag.ansprechpartner)}</td>
+          <td>${this.formatBoolean(auftrag.rechnung_gestellt)}</td>
+          <td>${this.formatBoolean(auftrag.ueberwiesen)}</td>
+          <td>
+            <span class="status-badge status-${(auftrag.status?.toLowerCase() || 'unknown').replace(/\s+/g, '-')}">
+              ${auftrag.status || '-'}
+            </span>
+          </td>
+          <td>
+            ${actionBuilder.create('auftrag', auftrag.id)}
           </td>
         </tr>
-      `;
-      
-      // Event für den "Ersten Auftrag anlegen" Button
-      const createBtn = document.getElementById('btn-create-first-auftrag');
-      if (createBtn) {
-        createBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          window.navigateTo('/auftrag/new');
-        });
-      }
-      
-      // Animation beenden
-      requestAnimationFrame(() => {
-        tbody.classList.remove('table-updating');
-      });
-      return;
-    }
-
-    const rowsHtml = auftraege.map(auftrag => `
-      <tr data-id="${auftrag.id}">
-        ${this.isAdmin ? `<td><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
-        <td>
-          <a href="#" class="table-link" data-table="auftrag" data-id="${auftrag.id}">
-            ${window.validatorSystem.sanitizeHtml(auftrag.auftragsname || 'Unbekannt')}
-          </a>
-        </td>
-        <td>${this.formatUnternehmenTag(auftrag.unternehmen)}</td>
-        <td>${this.formatMarkeTag(auftrag.marke)}</td>
-        <td>${auftrag.po || '-'}</td>
-        <td>${auftrag.re_nr || '-'}</td>
-        <td>${this.formatDate(auftrag.re_faelligkeit)}</td>
-        <td>${this.formatKampagneArtTags(auftrag.art_der_kampagne)}</td>
-        <td>${this.formatDate(auftrag.start)}</td>
-        <td>${this.formatDate(auftrag.ende)}</td>
-        <td>${this.formatCurrency(auftrag.nettobetrag)}</td>
-        <td>${this.formatCurrency(auftrag.ust_betrag)}</td>
-        <td>${this.formatCurrency(auftrag.bruttobetrag)}</td>
-        <td>${this.formatAnsprechpartner(auftrag.ansprechpartner)}</td>
-        <td>${this.formatBoolean(auftrag.rechnung_gestellt)}</td>
-        <td>${this.formatBoolean(auftrag.ueberwiesen)}</td>
-        <td>
-          <span class="status-badge status-${(auftrag.status?.toLowerCase() || 'unknown').replace(/\s+/g, '-')}">
-            ${auftrag.status || '-'}
-          </span>
-        </td>
-        <td>
-          ${actionBuilder.create('auftrag', auftrag.id)}
-        </td>
-      </tr>
-    `).join('');
-
-    tbody.innerHTML = rowsHtml;
-    
-    // Animation beenden mit requestAnimationFrame für smooth transition
-    requestAnimationFrame(() => {
-      tbody.classList.remove('table-updating');
+      `).join('');
     });
   }
 

@@ -589,7 +589,7 @@ export class FormConfig {
       briefing: {
         title: 'Neues Briefing anlegen',
         fields: [
-          { name: 'product_service_offer', label: 'Produkt/Service/Angebot', type: 'text', required: true, validation: { type: 'text', minLength: 2 }, placeholder: 'Kurzbezeichnung des Produkts/Angebots' },
+          { name: 'product_service_offer', label: 'Name des Briefings*', type: 'text', required: true, validation: { type: 'text', minLength: 2 }, placeholder: 'Kurzbezeichnung des Briefings' },
           { name: 'produktseite_url', label: 'Produktseite URL', type: 'url', required: false, validation: { type: 'url' } },
           { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...', table: 'unternehmen', displayField: 'firmenname', valueField: 'id', directQuery: true },
           { name: 'marke_id', label: 'Marke', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Marke suchen und auswählen (optional)...', dependsOn: 'unternehmen_id', table: 'marke', displayField: 'markenname', valueField: 'id' },

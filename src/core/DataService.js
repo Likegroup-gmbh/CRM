@@ -1233,11 +1233,9 @@ export class DataService {
       // Spezielle Projektion für Creator: Arrays direkt an Top-Level anhängen
       if (entityType === 'creator' && data) {
         data.forEach(c => {
-          // ensure arrays exist for rendering
           c.sprachen = c.sprachen || [];
           c.branchen = c.branchen || [];
           c.creator_types = c.creator_types || [];
-          console.log(`📊 CREATOR ${c.vorname} ${c.nachname}: sprachen=${c.sprachen.length}, branchen=${c.branchen.length}, types=${c.creator_types.length}`);
         });
       }
       
@@ -1417,54 +1415,64 @@ export class DataService {
     }
   }
 
-  // Lade Many-to-Many Beziehungen für Entitäten
+  // Lade Many-to-Many Beziehungen für Entitäten (optimiert: parallel)
   async loadManyToManyRelations(entities, entityType, manyToManyConfig) {
     try {
-      for (const [relationName, config] of Object.entries(manyToManyConfig)) {
-        console.log(`🔗 Lade Many-to-Many Beziehung: ${entityType}.${relationName}`);
-        
-        // Sammle alle Entity-IDs
-        const entityIds = entities.map(entity => entity.id).filter(id => id);
-        
-        if (entityIds.length === 0) continue;
-        
-        // Lade Junction-Daten mit JOIN zur Ziel-Tabelle
-        const { data: junctionData, error } = await window.supabase
-          .from(config.junctionTable)
-          .select(`
-            ${config.localKey},
-            ${config.foreignKey},
-            ${config.table}!${config.foreignKey} (
-              id,
-              ${config.displayField}
-            )
-          `)
-          .in(config.localKey, entityIds);
-        
-        if (error) {
-          console.error(`❌ Fehler beim Laden der Many-to-Many Beziehung ${relationName}:`, error);
-          continue;
+      // Sammle alle Entity-IDs einmal
+      const entityIds = entities.map(entity => entity.id).filter(id => id);
+      if (entityIds.length === 0) return;
+      
+      // Bereite alle M:N-Requests vor und führe sie parallel aus
+      const relationEntries = Object.entries(manyToManyConfig);
+      const promises = relationEntries.map(async ([relationName, config]) => {
+        try {
+          // Lade Junction-Daten mit JOIN zur Ziel-Tabelle
+          const { data: junctionData, error } = await window.supabase
+            .from(config.junctionTable)
+            .select(`
+              ${config.localKey},
+              ${config.table}!${config.foreignKey} (
+                id,
+                ${config.displayField}
+              )
+            `)
+            .in(config.localKey, entityIds);
+          
+          if (error) {
+            console.error(`❌ M:N ${relationName}:`, error.message);
+            return { relationName, groupedData: {} };
+          }
+          
+          // Gruppiere Daten nach Entity-ID
+          const groupedData = {};
+          junctionData?.forEach(item => {
+            const entityId = item[config.localKey];
+            if (!groupedData[entityId]) {
+              groupedData[entityId] = [];
+            }
+            if (item[config.table]) {
+              groupedData[entityId].push(item[config.table]);
+            }
+          });
+          
+          return { relationName, groupedData };
+        } catch (err) {
+          console.error(`❌ M:N ${relationName} Exception:`, err);
+          return { relationName, groupedData: {} };
         }
-        
-        // Gruppiere Daten nach Entity-ID
-        const groupedData = {};
-        junctionData?.forEach(item => {
-          const entityId = item[config.localKey];
-          if (!groupedData[entityId]) {
-            groupedData[entityId] = [];
-          }
-          if (item[config.table]) {
-            groupedData[entityId].push(item[config.table]);
-          }
-        });
-        
-        // Füge Beziehungsdaten zu Entitäten hinzu
+      });
+      
+      // Warte auf alle parallelen Requests
+      const results = await Promise.all(promises);
+      
+      // Füge Beziehungsdaten zu Entitäten hinzu
+      results.forEach(({ relationName, groupedData }) => {
         entities.forEach(entity => {
           entity[relationName] = groupedData[entity.id] || [];
         });
-        
-        console.log(`✅ Many-to-Many Beziehung ${relationName} geladen für ${entities.length} Entitäten`);
-      }
+      });
+      
+      console.log(`✅ M:N für ${entityType}: ${relationEntries.length} Beziehungen parallel geladen`);
     } catch (error) {
       console.error(`❌ Fehler beim Laden der Many-to-Many Beziehungen:`, error);
     }
@@ -2011,8 +2019,12 @@ export class DataService {
       // Basisquery mit Select
       let selectClause = '*';
       
+      // Spezielle Select-Klausel für Creator (nur benötigte Felder für Listen-Ansicht)
+      if (entityType === 'creator') {
+        selectClause = 'id,vorname,nachname,instagram_follower,tiktok_follower,lieferadresse_stadt,lieferadresse_land';
+      }
       // Spezielle Select-Klausel für Ansprechpartner mit JOINs
-      if (entityType === 'ansprechpartner') {
+      else if (entityType === 'ansprechpartner') {
         selectClause = `
           *,
           unternehmen:unternehmen_id (
@@ -2134,11 +2146,9 @@ export class DataService {
       // Spezielle Projektion für Creator: Arrays direkt an Top-Level anhängen
       if (entityType === 'creator' && data) {
         data.forEach(c => {
-          // ensure arrays exist for rendering
           c.sprachen = c.sprachen || [];
           c.branchen = c.branchen || [];
           c.creator_types = c.creator_types || [];
-          console.log(`📊 CREATOR ${c.vorname} ${c.nachname}: sprachen=${c.sprachen.length}, branchen=${c.branchen.length}, types=${c.creator_types.length}`);
         });
       }
 

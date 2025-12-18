@@ -97,6 +97,20 @@ export class CreatorAuswahlDetail {
       `;
     }
 
+    const instagramIcon = `
+      <svg class="platform-icon platform-icon--instagram" viewBox="0 0 24 24" aria-label="Instagram" role="img" focusable="false">
+        <path d="M12 7.2a4.8 4.8 0 1 0 0 9.6 4.8 4.8 0 0 0 0-9.6Zm0 7.8a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z"/>
+        <path d="M16.95 6.45a1.05 1.05 0 1 0 0 2.1 1.05 1.05 0 0 0 0-2.1Z"/>
+        <path d="M12 2.8c2.53 0 2.83.01 3.83.06 1 .05 1.68.21 2.28.44.62.24 1.15.56 1.66 1.07.51.51.83 1.04 1.07 1.66.23.6.39 1.28.44 2.28.05 1 .06 1.3.06 3.83s-.01 2.83-.06 3.83c-.05 1-.21 1.68-.44 2.28-.24.62-.56 1.15-1.07 1.66-.51.51-1.04.83-1.66 1.07-.6.23-1.28.39-2.28.44-1 .05-1.3.06-3.83.06s-2.83-.01-3.83-.06c-1-.05-1.68-.21-2.28-.44a4.54 4.54 0 0 1-2.73-2.73c-.23-.6-.39-1.28-.44-2.28C2.81 14.83 2.8 14.53 2.8 12s.01-2.83.06-3.83c.05-1 .21-1.68.44-2.28.24-.62.56-1.15 1.07-1.66.51-.51 1.04-.83 1.66-1.07.6-.23 1.28-.39 2.28-.44 1-.05 1.3-.06 3.83-.06Zm0 1.8c-2.48 0-2.77.01-3.75.06-.9.04-1.39.19-1.71.31-.43.17-.74.37-1.07.7-.33.33-.53.64-.7 1.07-.12.32-.27.81-.31 1.71-.05.98-.06 1.27-.06 3.75s.01 2.77.06 3.75c.04.9.19 1.39.31 1.71.17.43.37.74.7 1.07.33.33.64.53 1.07.7.32.12.81.27 1.71.31.98.05 1.27.06 3.75.06s2.77-.01 3.75-.06c.9-.04 1.39-.19 1.71-.31.43-.17.74-.37 1.07-.7.33-.33.53-.64.7-1.07.12-.32.27-.81.31-1.71.05-.98.06-1.27.06-3.75s-.01-2.77-.06-3.75c-.04-.9-.19-1.39-.31-1.71-.17-.43-.37-.74-.7-1.07-.33-.33-.64-.53-1.07-.7-.32-.12-.81-.27-1.71-.31-.98-.05-1.27-.06-3.75-.06Z"/>
+      </svg>
+    `.trim();
+
+    const tiktokIcon = `
+      <svg class="platform-icon platform-icon--tiktok" viewBox="0 0 24 24" aria-label="TikTok" role="img" focusable="false">
+        <path d="M14.5 3c.4 3.2 2.3 5.1 5.5 5.5v2.3c-1.9 0-3.6-.6-5-1.7v6.4c0 3.1-2.5 5.6-5.6 5.6S3.8 19 3.8 15.9s2.5-5.6 5.6-5.6c.5 0 1 .1 1.5.2v2.6c-.5-.2-1-.4-1.5-.4-1.8 0-3.2 1.4-3.2 3.2s1.4 3.2 3.2 3.2 3.2-1.4 3.2-3.2V3h2.9Z"/>
+      </svg>
+    `.trim();
+
     return `
       <div class="table-container creator-pool-table-container">
         <table class="data-table strategie-items-table creator-pool-table">
@@ -105,10 +119,10 @@ export class CreatorAuswahlDetail {
               ${!this.isKunde ? '<th class="col-drag col-sticky-1 cp-col-drag"></th>' : ''}
               <th class="${this.isKunde ? 'col-sticky-1' : 'col-sticky-2'} cp-col-name">Name</th>
               <th class="${this.isKunde ? 'col-sticky-2' : 'col-sticky-3'} cp-col-typ">Creator Art</th>
-              <th class="cp-col-link">Link IG</th>
-              <th class="cp-col-follower">Follower IG</th>
-              <th class="cp-col-link">Link TikTok</th>
-              <th class="cp-col-follower">Follower TikTok</th>
+              <th class="cp-col-link">Link ${instagramIcon}</th>
+              <th class="cp-col-follower">Follower ${instagramIcon}</th>
+              <th class="cp-col-link">Link ${tiktokIcon}</th>
+              <th class="cp-col-follower">Follower ${tiktokIcon}</th>
               <th class="cp-col-check">Rückmeldung</th>
               <th class="cp-col-kategorie">Kategorie</th>
               <th class="cp-col-location">Location</th>
@@ -152,7 +166,7 @@ export class CreatorAuswahlDetail {
             </svg>
           </td>
         ` : ''}
-        <td class="cell-textarea ${this.isKunde ? 'col-sticky-1' : 'col-sticky-2'}">
+        <td class="cell-textarea cp-col-name ${this.isKunde ? 'col-sticky-1' : 'col-sticky-2'}">
           ${!this.isKunde ? `
             <textarea class="strategie-textarea" data-field="name" data-item-id="${item.id}" placeholder="Name...">${item.name || ''}</textarea>
           ` : `<div class="cell-text-readonly">${item.name || '-'}</div>`}

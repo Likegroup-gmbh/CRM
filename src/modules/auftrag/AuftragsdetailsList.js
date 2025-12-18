@@ -6,6 +6,7 @@ import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
+import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 
 export class AuftragsdetailsList {
   constructor() {
@@ -452,76 +453,57 @@ export class AuftragsdetailsList {
     const tbody = document.querySelector('.data-table tbody');
     if (!tbody) return;
 
-    // Fade-out Animation starten
-    tbody.classList.add('table-fade-out');
-    
-    // Warte auf Animation (200ms)
-    await new Promise(resolve => setTimeout(resolve, 200));
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
 
-    if (!details || details.length === 0) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="6" class="no-data">
-            <div style="text-align: center; padding: 40px 20px;">
-              <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📄</div>
-              <h3 style="color: #666; margin-bottom: 8px;">Keine Auftragsdetails vorhanden</h3>
-              <p style="color: #999; margin-bottom: 20px;">Es wurden noch keine Auftragsdetails erstellt.</p>
-              <button id="btn-create-first-details" class="primary-btn">
-                Erste Auftragsdetails anlegen
-              </button>
-            </div>
-          </td>
-        </tr>
-      `;
-      
-      // Event für den "Erste Auftragsdetails anlegen" Button
-      const createBtn = document.getElementById('btn-create-first-details');
-      if (createBtn) {
-        createBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          window.navigateTo('/auftragsdetails/new');
-        });
+    await TableAnimationHelper.animatedUpdate(tbody, () => {
+      if (!details || details.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" class="no-data">
+              <div style="text-align: center; padding: 40px 20px;">
+                <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📄</div>
+                <h3 style="color: #666; margin-bottom: 8px;">Keine Auftragsdetails vorhanden</h3>
+                <p style="color: #999; margin-bottom: 20px;">Es wurden noch keine Auftragsdetails erstellt.</p>
+                <button id="btn-create-first-details" class="primary-btn">
+                  Erste Auftragsdetails anlegen
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+        
+        const createBtn = document.getElementById('btn-create-first-details');
+        if (createBtn) {
+          createBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.navigateTo('/auftragsdetails/new');
+          });
+        }
+        return;
       }
-      
-      // Fade-in Animation
-      tbody.classList.remove('table-fade-out');
-      tbody.classList.add('table-fade-in');
-      setTimeout(() => tbody.classList.remove('table-fade-in'), 200);
-      return;
-    }
 
-    const formatDate = (date) => {
-      return date ? new Date(date).toLocaleDateString('de-DE') : '-';
-    };
-
-    const rowsHtml = details.map(detail => {
-      const auftrag = detail.auftrag || {};
-      const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-      
-      return `
-        <tr data-id="${detail.id}">
-          ${isAdmin ? `<td><input type="checkbox" class="auftragsdetails-check" data-id="${detail.id}"></td>` : ''}
-          <td>
-            <a href="#" class="table-link" data-table="auftragsdetails" data-id="${detail.id}">
-              ${window.validatorSystem?.sanitizeHtml(auftrag.auftragsname || 'Unbekannter Auftrag') || 'Unbekannter Auftrag'}
-            </a>
-          </td>
-          <td>${detail.kategorie || '-'}</td>
-          <td>${detail.beschreibung ? (detail.beschreibung.length > 100 ? detail.beschreibung.substring(0, 100) + '...' : detail.beschreibung) : '-'}</td>
-          <td>${formatDate(detail.created_at)}</td>
-          <td>
-            ${actionBuilder.create('auftragsdetails', detail.id)}
-          </td>
-        </tr>
-      `;
-    }).join('');
-
-    tbody.innerHTML = rowsHtml;
-    
-    // Fade-in Animation
-    tbody.classList.remove('table-fade-out');
-    tbody.classList.add('table-fade-in');
-    setTimeout(() => tbody.classList.remove('table-fade-in'), 200);
+      tbody.innerHTML = details.map(detail => {
+        const auftrag = detail.auftrag || {};
+        
+        return `
+          <tr data-id="${detail.id}">
+            ${isAdmin ? `<td><input type="checkbox" class="auftragsdetails-check" data-id="${detail.id}"></td>` : ''}
+            <td>
+              <a href="#" class="table-link" data-table="auftragsdetails" data-id="${detail.id}">
+                ${window.validatorSystem?.sanitizeHtml(auftrag.auftragsname || 'Unbekannter Auftrag') || 'Unbekannter Auftrag'}
+              </a>
+            </td>
+            <td>${detail.kategorie || '-'}</td>
+            <td>${detail.beschreibung ? (detail.beschreibung.length > 100 ? detail.beschreibung.substring(0, 100) + '...' : detail.beschreibung) : '-'}</td>
+            <td>${formatDate(detail.created_at)}</td>
+            <td>
+              ${actionBuilder.create('auftragsdetails', detail.id)}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    });
   }
 
   // Cleanup
