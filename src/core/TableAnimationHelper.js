@@ -51,3 +51,5 @@ export const TableAnimationHelper = {
 // Globaler Zugriff für Legacy-Code
 window.TableAnimationHelper = TableAnimationHelper;
 
+
+

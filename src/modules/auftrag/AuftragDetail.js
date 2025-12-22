@@ -2,6 +2,7 @@
 // Auftrags-Detailseite mit Tabs für Informationen, Notizen, Bewertungen und Creator
 
 import { AuftragsDetailsManager, auftragsDetailsManager } from './logic/AuftragsDetailsManager.js';
+import { KAMPAGNENARTEN_MAPPING } from './logic/KampagnenartenMapping.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { getTabIcon } from '../../core/TabUtils.js';
@@ -195,12 +196,28 @@ export class AuftragDetail {
         this.auftragsDetails = null;
       }
       
-      // Art der Kampagne verarbeiten (aus Junction-Table)
+      // Art der Kampagne verarbeiten (aus Junction-Table) und Namen laden
       if (!artDerKampagneResult.error && artDerKampagneResult.data) {
-        this.auftrag.art_der_kampagne = artDerKampagneResult.data.map(item => item.kampagne_art_id).filter(Boolean);
-        console.log('🎨 AUFTRAGDETAIL: art_der_kampagne geladen:', this.auftrag.art_der_kampagne);
+        const kampagneArtIds = artDerKampagneResult.data.map(item => item.kampagne_art_id).filter(Boolean);
+        this.auftrag.art_der_kampagne = kampagneArtIds;
+        
+        // Namen der Kampagnenarten laden
+        if (kampagneArtIds.length > 0) {
+          const { data: kampagneArtTypen } = await window.supabase
+            .from('kampagne_art_typen')
+            .select('id, name')
+            .in('id', kampagneArtIds);
+          
+          this.auftrag.art_der_kampagne_namen = (kampagneArtTypen || []).map(t => t.name);
+          console.log('🎨 AUFTRAGDETAIL: art_der_kampagne_namen geladen:', this.auftrag.art_der_kampagne_namen);
+        } else {
+          this.auftrag.art_der_kampagne_namen = [];
+        }
+        
+        console.log('🎨 AUFTRAGDETAIL: art_der_kampagne IDs geladen:', this.auftrag.art_der_kampagne);
       } else {
         this.auftrag.art_der_kampagne = [];
+        this.auftrag.art_der_kampagne_namen = [];
       }
       
       // Lade Kooperationen und Videos für Budget-Anzeige
@@ -244,6 +261,7 @@ export class AuftragDetail {
           status,
           typ,
           videoanzahl,
+          einkaufspreis_netto,
           einkaufspreis_gesamt,
           kampagne_id,
           creator:creator_id (
@@ -515,6 +533,45 @@ export class AuftragDetail {
     `;
   }
 
+  /**
+   * Sammelt die Kampagnenarten
+   * PRIMÄR: Aus dem Auftrag selbst (art_der_kampagne_namen)
+   * FALLBACK: Aus den geladenen Kampagnen
+   * @returns {string[]} - Array der eindeutigen Kampagnenarten-Namen
+   */
+  collectKampagnenartenFromKampagnen() {
+    const artenSet = new Set();
+    
+    // PRIMÄR: Kampagnenarten direkt vom Auftrag
+    if (this.auftrag?.art_der_kampagne_namen?.length > 0) {
+      this.auftrag.art_der_kampagne_namen.forEach(name => {
+        if (name) artenSet.add(name);
+      });
+      console.log('📋 AUFTRAGDETAIL: Kampagnenarten aus Auftrag verwendet:', Array.from(artenSet));
+      return Array.from(artenSet);
+    }
+    
+    // FALLBACK: Aus den Kampagnen (für Abwärtskompatibilität)
+    (this.kampagnen || []).forEach(kampagne => {
+      // Kampagnenarten können in verschiedenen Formaten kommen
+      const arten = kampagne.kampagne_art_typen || kampagne.art_der_kampagne;
+      if (Array.isArray(arten)) {
+        arten.forEach(art => {
+          if (typeof art === 'string') {
+            artenSet.add(art);
+          } else if (art?.name) {
+            artenSet.add(art.name);
+          }
+        });
+      } else if (arten?.name) {
+        artenSet.add(arten.name);
+      }
+    });
+    
+    console.log('📋 AUFTRAGDETAIL: Kampagnenarten aus Kampagnen verwendet:', Array.from(artenSet));
+    return Array.from(artenSet);
+  }
+
   // Rendere Auftragsdetails-Tab
   renderAuftragsdetails() {
     if (!this.auftragsDetails) {
@@ -533,39 +590,43 @@ export class AuftragDetail {
     const details = this.auftragsDetails;
     const num = (v) => v || v === 0 ? new Intl.NumberFormat('de-DE').format(v) : '-';
 
-    // Daten für die Tabelle vorbereiten
-    const sections = [
-      {
-        title: 'UGC (User Generated Content)',
-        prefix: 'ugc',
-        color: '#28a745'
-      },
-      {
-        title: 'Influencer',
-        prefix: 'influencer', 
-        color: '#6f42c1'
-      },
-      {
-        title: 'Vor Ort Dreh',
-        prefix: 'vor_ort',
-        color: '#fd7e14'
-      },
-      {
-        title: 'Vor Ort Dreh Mitarbeiter',
-        prefix: 'vor_ort_mitarbeiter',
-        color: '#20c997'
-      }
-    ];
+    // Sammle Kampagnenarten aus den Kampagnen
+    const kampagnenarten = this.collectKampagnenartenFromKampagnen();
+    
+    // Daten für die Tabelle dynamisch aus Kampagnenarten generieren
+    const colorPalette = ['#28a745', '#6f42c1', '#fd7e14', '#20c997', '#007bff', '#dc3545'];
+    const sections = kampagnenarten.map((artName, index) => {
+      const config = KAMPAGNENARTEN_MAPPING[artName];
+      if (!config) return null;
+      return {
+        title: config.displayName || artName,
+        prefix: config.prefix,
+        color: colorPalette[index % colorPalette.length],
+        hasCreator: config.hasCreator,
+        hasBilder: config.hasBilder,
+        hasVideographen: config.hasVideographen
+      };
+    }).filter(s => s !== null);
+    
+    // Fallback auf alle Sections wenn keine Kampagnenarten gefunden wurden
+    // (für Abwärtskompatibilität mit bestehenden Daten)
+    if (sections.length === 0) {
+      sections.push(
+        { title: 'UGC', prefix: 'ugc', color: '#28a745', hasCreator: true, hasBilder: true, hasVideographen: false },
+        { title: 'Influencer', prefix: 'influencer', color: '#6f42c1', hasCreator: true, hasBilder: true, hasVideographen: false },
+        { title: 'Vor Ort', prefix: 'vor_ort', color: '#fd7e14', hasCreator: true, hasBilder: true, hasVideographen: true },
+        { title: 'Vor Ort Mitarbeiter', prefix: 'vor_ort_mitarbeiter', color: '#20c997', hasCreator: false, hasBilder: true, hasVideographen: true }
+      );
+    }
 
     const tableRows = sections.map(section => {
       const videoAnzahl = details[`${section.prefix}_video_anzahl`];
       const bilderAnzahl = details[`${section.prefix}_bilder_anzahl`];
       const creatorAnzahl = details[`${section.prefix}_creator_anzahl`];
-      const videographenAnzahl = details[`${section.prefix}_videographen_anzahl`];
       const budgetInfo = details[`${section.prefix}_budget_info`];
 
       // Zeige nur Zeilen mit Daten
-      if (!videoAnzahl && !bilderAnzahl && !creatorAnzahl && !videographenAnzahl && !budgetInfo) {
+      if (!videoAnzahl && !bilderAnzahl && !creatorAnzahl && !budgetInfo) {
         return '';
       }
 
@@ -576,9 +637,8 @@ export class AuftragDetail {
             ${section.title}
           </td>
           <td class="text-center">${num(videoAnzahl)}</td>
-          <td class="text-center">${num(bilderAnzahl)}</td>
-          <td class="text-center">${num(creatorAnzahl)}</td>
-          <td class="text-center">${num(videographenAnzahl)}</td>
+          <td class="text-center">${section.hasBilder ? num(bilderAnzahl) : '-'}</td>
+          <td class="text-center">${section.hasCreator ? num(creatorAnzahl) : '-'}</td>
           <td class="budget-cell">${budgetInfo ? `<div class="budget-info-large">${window.validatorSystem.sanitizeHtml(budgetInfo)}</div>` : '-'}</td>
         </tr>
       `;
@@ -589,24 +649,12 @@ export class AuftragDetail {
         <div class="auftragsdetails-summary">
           <div class="summary-cards">
             <div class="summary-card">
-              <div class="summary-value">${num(this.realVideoCount)} von ${num(details?.gesamt_videos || 0)}</div>
+              <div class="summary-value">${num(this.realVideoCount)}</div>
               <div class="summary-label">Videos erstellt</div>
-              <div class="summary-progress">
-                <div class="summary-progress-fill ${this.getProgressColorClass(this.realVideoCount, details?.gesamt_videos)}" 
-                     style="width: ${details?.gesamt_videos && details.gesamt_videos > 0 ? Math.min(100, Math.round((this.realVideoCount / details.gesamt_videos) * 100)) : 0}%">
-                </div>
-              </div>
-              ${details?.gesamt_videos && details.gesamt_videos > 0 ? `<div class="summary-planned">${Math.round((this.realVideoCount / details.gesamt_videos) * 100)}%</div>` : ''}
             </div>
             <div class="summary-card">
-              <div class="summary-value">${num(this.realCreatorCount)} von ${num(details?.gesamt_creator || 0)}</div>
+              <div class="summary-value">${num(this.realCreatorCount)}</div>
               <div class="summary-label">Creator gebucht</div>
-              <div class="summary-progress">
-                <div class="summary-progress-fill ${this.getProgressColorClass(this.realCreatorCount, details?.gesamt_creator)}" 
-                     style="width: ${details?.gesamt_creator && details.gesamt_creator > 0 ? Math.min(100, Math.round((this.realCreatorCount / details.gesamt_creator) * 100)) : 0}%">
-                </div>
-              </div>
-              ${details?.gesamt_creator && details.gesamt_creator > 0 ? `<div class="summary-planned">${Math.round((this.realCreatorCount / details.gesamt_creator) * 100)}%</div>` : ''}
             </div>
             <div class="summary-card">
               <div class="summary-value">${this.formatBudgetUsage()}</div>
@@ -629,14 +677,13 @@ export class AuftragDetail {
                 <th class="text-center">Videos</th>
                 <th class="text-center">Bilder</th>
                 <th class="text-center">Creator</th>
-                <th class="text-center">Videographen</th>
                 <th>Budget & Informationen</th>
               </tr>
             </thead>
             <tbody>
               ${tableRows || `
                 <tr>
-                  <td colspan="6" class="no-data">
+                  <td colspan="5" class="no-data">
                     Keine Produktionsdetails vorhanden
                   </td>
                 </tr>
@@ -1005,7 +1052,15 @@ export class AuftragDetail {
 
   // Handle Edit Form Submit
   async handleEditFormSubmit() {
+    const submitBtn = document.querySelector('#auftrag-form button[type="submit"]');
+    
     try {
+      // Loading State aktivieren
+      if (submitBtn) {
+        submitBtn.classList.add('is-loading');
+        submitBtn.disabled = true;
+      }
+      
       const form = document.getElementById('auftrag-form');
       const formData = new FormData(form);
       const submitData = {};
@@ -1059,6 +1114,12 @@ export class AuftragDetail {
       const result = await window.dataService.updateEntity('auftrag', this.auftragId, submitData);
 
       if (result.success) {
+        // Success State
+        if (submitBtn) {
+          submitBtn.classList.remove('is-loading');
+          submitBtn.classList.add('is-success');
+        }
+        
         this.showSuccessMessage('Auftrag erfolgreich aktualisiert!');
         
         // Daten neu laden und zur Detailseite zurückkehren
@@ -1074,6 +1135,12 @@ export class AuftragDetail {
     } catch (error) {
       console.error('❌ Formular-Submit Fehler:', error);
       this.showErrorMessage(error.message);
+      
+      // Loading State entfernen bei Fehler
+      if (submitBtn) {
+        submitBtn.classList.remove('is-loading');
+        submitBtn.disabled = false;
+      }
     }
   }
 
@@ -1141,7 +1208,7 @@ export class AuftragDetail {
     }
   }
 
-  // Formatiere Budget-Verbrauch
+  // Formatiere Budget-Verbrauch (Netto-Beträge)
   formatBudgetUsage() {
     // Fallback-Kette: creator_budget -> gesamt_budget -> nettobetrag
     const totalBudget = parseFloat(
@@ -1151,11 +1218,12 @@ export class AuftragDetail {
       0
     );
     
+    // Netto-Beträge aus Kooperationen summieren
     const usedBudget = this.kooperationen.reduce((sum, koop) => {
-      return sum + (parseFloat(koop.einkaufspreis_gesamt) || 0);
+      return sum + (parseFloat(koop.einkaufspreis_netto) || 0);
     }, 0);
     
-    console.log('💰 Budget Debug:', {
+    console.log('💰 Budget Debug (Netto):', {
       creator_budget: this.auftrag?.creator_budget,
       gesamt_budget: this.auftrag?.gesamt_budget,
       nettobetrag: this.auftrag?.nettobetrag,
@@ -1168,7 +1236,7 @@ export class AuftragDetail {
     return `${formatCurrency(usedBudget)} von ${formatCurrency(totalBudget)}`;
   }
 
-  // Berechne Budget-Prozentsatz
+  // Berechne Budget-Prozentsatz (Netto-Beträge)
   getBudgetPercentage() {
     // Fallback-Kette: creator_budget -> gesamt_budget -> nettobetrag
     const totalBudget = parseFloat(
@@ -1178,8 +1246,9 @@ export class AuftragDetail {
       0
     );
     
+    // Netto-Beträge aus Kooperationen summieren
     const usedBudget = this.kooperationen.reduce((sum, koop) => {
-      return sum + (parseFloat(koop.einkaufspreis_gesamt) || 0);
+      return sum + (parseFloat(koop.einkaufspreis_netto) || 0);
     }, 0);
     
     if (totalBudget <= 0) return 0;

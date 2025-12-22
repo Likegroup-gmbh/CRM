@@ -1209,6 +1209,31 @@ export class MarkeDetail extends PersonDetailBase {
         } else {
           console.log(`✅ ${allInsertData.length} Mitarbeiter-Zuordnungen gespeichert`);
         }
+        
+        // AUTO-SYNC: mitarbeiter_unternehmen für das Unternehmen der Marke erstellen
+        const unternehmenId = this.marke?.unternehmen_id || data.unternehmen_id;
+        if (unternehmenId) {
+          console.log('🔄 MARKEDETAIL: Sync mitarbeiter_unternehmen für Unternehmen:', unternehmenId);
+          const uniqueMitarbeiterIds = [...new Set(allInsertData.map(r => r.mitarbeiter_id))];
+          
+          for (const mitarbeiterId of uniqueMitarbeiterIds) {
+            const { error: syncError } = await window.supabase
+              .from('mitarbeiter_unternehmen')
+              .upsert({
+                mitarbeiter_id: mitarbeiterId,
+                unternehmen_id: unternehmenId,
+                role: 'mitarbeiter'
+              }, { 
+                onConflict: 'mitarbeiter_id,unternehmen_id,role',
+                ignoreDuplicates: true 
+              });
+            
+            if (syncError && syncError.code !== '23505') {
+              console.error(`❌ Sync-Fehler für ${mitarbeiterId}:`, syncError);
+            }
+          }
+          console.log(`✅ mitarbeiter_unternehmen synchronisiert für ${uniqueMitarbeiterIds.length} Mitarbeiter`);
+        }
       } else {
         console.log('ℹ️ Keine Mitarbeiter zum Speichern');
       }

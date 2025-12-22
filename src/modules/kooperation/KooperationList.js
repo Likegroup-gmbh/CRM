@@ -717,24 +717,98 @@ export class KooperationList {
   }
 
   // Show Create Form (für Routing)
-  showCreateForm() {
+  async showCreateForm() {
     console.log('🎯 Zeige Kooperations-Erstellungsformular');
     window.setHeadline('Neue Kooperation anlegen');
-    
-    // Breadcrumb aktualisieren
-    if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Kooperation', url: '/kooperation', clickable: true },
-        { label: 'Neue Kooperation', url: '/kooperation/new', clickable: false }
-      ]);
-    }
     
     // Prüfe auf kampagne_id Query-Parameter
     const urlParams = new URLSearchParams(window.location.search);
     const kampagneId = urlParams.get('kampagne_id');
     
-    // Wenn kampagne_id vorhanden, setze als formData
-    const formData = kampagneId ? { kampagne_id: kampagneId } : null;
+    let formData = null;
+    let kampagne = null;
+    
+    // Wenn kampagne_id vorhanden, versuche Prefill
+    if (kampagneId) {
+      // PERFORMANCE: Prüfe zuerst den Cache (gesetzt von KampagneDetail beim Button-Click)
+      const cache = window.kooperationPrefillCache;
+      if (cache && cache.kampagne_id === kampagneId && (Date.now() - cache.timestamp) < 30000) {
+        // Cache ist gültig (max 30 Sekunden alt) - nutze gecachte Daten
+        console.log('⚡ KOOPERATION-PREFILL: Nutze gecachte Kampagne-Daten (SCHNELL!)');
+        kampagne = {
+          id: cache.kampagne_id,
+          kampagnenname: cache.kampagnenname,
+          unternehmen_id: cache.unternehmen_id,
+          marke_id: cache.marke_id,
+          unternehmen: cache.unternehmen,
+          marke: cache.marke
+        };
+        // Cache leeren nach Verwendung
+        delete window.kooperationPrefillCache;
+      } else {
+        // Kein Cache oder abgelaufen - lade aus Supabase
+        console.log('📦 KOOPERATION-PREFILL: Lade Kampagne aus Supabase...', kampagneId);
+        
+        const { data, error } = await window.supabase
+          .from('kampagne')
+          .select(`
+            id, kampagnenname, unternehmen_id, marke_id,
+            unternehmen:unternehmen_id ( id, firmenname ),
+            marke:marke_id ( id, markenname )
+          `)
+          .eq('id', kampagneId)
+          .single();
+        
+        if (!error && data) {
+          kampagne = data;
+          console.log('📋 KOOPERATION-PREFILL: Kampagne aus DB geladen:', kampagne);
+        } else {
+          console.warn('⚠️ KOOPERATION-PREFILL: Kampagne konnte nicht geladen werden:', error);
+        }
+      }
+      
+      // Wenn Kampagne verfügbar, formData erstellen
+      if (kampagne) {
+        // Breadcrumb mit 3 Ebenen: Kampagne > Kampagnenname > Neue Kooperation
+        if (window.breadcrumbSystem) {
+          window.breadcrumbSystem.updateBreadcrumb([
+            { label: 'Kampagne', url: '/kampagne', clickable: true },
+            { label: kampagne.kampagnenname, url: `/kampagne/${kampagneId}`, clickable: true },
+            { label: 'Neue Kooperation', url: '/kooperation/new', clickable: false }
+          ]);
+        }
+        
+        // formData mit allen Prefill-Daten erstellen
+        formData = {
+          kampagne_id: kampagneId,
+          unternehmen_id: kampagne.unternehmen_id,
+          marke_id: kampagne.marke_id || null,
+          _prefillFromKampagne: true,
+          _kampagneName: kampagne.kampagnenname,
+          _unternehmenName: kampagne.unternehmen?.firmenname || '',
+          _markeName: kampagne.marke?.markenname || null,
+          _hasMarke: !!kampagne.marke_id
+        };
+        
+        console.log('📦 KOOPERATION-PREFILL: formData erstellt:', formData);
+      } else {
+        // Fallback: Standard-Breadcrumb
+        if (window.breadcrumbSystem) {
+          window.breadcrumbSystem.updateBreadcrumb([
+            { label: 'Kooperation', url: '/kooperation', clickable: true },
+            { label: 'Neue Kooperation', url: '/kooperation/new', clickable: false }
+          ]);
+        }
+      }
+    } else {
+      // Kein Kampagne-Kontext: Standard-Breadcrumb
+      if (window.breadcrumbSystem) {
+        window.breadcrumbSystem.updateBreadcrumb([
+          { label: 'Kooperation', url: '/kooperation', clickable: true },
+          { label: 'Neue Kooperation', url: '/kooperation/new', clickable: false }
+        ]);
+      }
+    }
     
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('kooperation', formData);
@@ -744,8 +818,8 @@ export class KooperationList {
       </div>
     `;
 
-    // Formular-Events binden
-    window.formSystem.bindFormEvents('kooperation', formData);
+    // Formular-Events binden (inkl. Prefill-Logik)
+    await window.formSystem.bindFormEvents('kooperation', formData);
     
     // Custom Submit Handler für Seiten-Formular
     const form = document.getElementById('kooperation-form');

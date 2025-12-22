@@ -215,7 +215,8 @@ export class FormConfig {
             placeholder: 'Kampagne-Typ auswählen...',
             options: [
               { value: 'paid', label: 'Paid' },
-              { value: 'organic', label: 'Organic' }
+              { value: 'organic', label: 'Organic' },
+              { value: 'influencer_posting', label: 'Influencer Posting' }
             ]
           },
           // Paid-Ziele (nur sichtbar wenn kampagne_typ = 'paid')
@@ -260,6 +261,11 @@ export class FormConfig {
           },
           { name: 'start', label: 'Startdatum', type: 'date', required: false },
           { name: 'deadline', label: 'Deadline', type: 'date', required: false },
+          // Deadline-Felder Gruppe (2x2 Grid)
+          { name: 'deadline_strategie', label: 'Deadline Strategie', type: 'date', required: false, twoCol: true },
+          { name: 'deadline_creator_sourcing', label: 'Deadline Creator Sourcing', type: 'date', required: false, twoCol: true },
+          { name: 'deadline_video_produktion', label: 'Deadline Video Produktion', type: 'date', required: false, twoCol: true },
+          { name: 'deadline_post_produktion', label: 'Deadline Post Produktion', type: 'date', required: false, twoCol: true },
           { 
             name: 'drehort_typ_id', 
             label: 'Drehort', 
@@ -339,8 +345,16 @@ export class FormConfig {
             relationField: 'format_id',
             directQuery: true
           },
-          { name: 'creatoranzahl', label: 'Creator Anzahl', type: 'number', required: false, validation: { type: 'number', min: 1 } },
-          { name: 'videoanzahl', label: 'Video Anzahl', type: 'number', required: false, validation: { type: 'number', min: 1 } }
+          // Dynamische Kampagnenart-Felder (Container wird durch FormEvents befüllt)
+          {
+            name: 'kampagnenart_felder_container',
+            label: '',
+            type: 'custom',
+            customType: 'kampagnenart-felder',
+            required: false,
+            dependsOn: 'art_der_kampagne',
+            showWhen: 'any'
+          }
         ]
       },
       marke: {

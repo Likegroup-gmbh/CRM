@@ -136,22 +136,17 @@ export class KundenDetail extends PersonDetailBase {
   }
 
   async render() {
-    // Person-Config für die Sidebar
+    // Person-Config für die Sidebar (nur Avatar, keine weiteren Infos im Header)
     const personConfig = {
       name: this.user?.name || 'Unbekannt',
       email: this.user?.email || '',
       subtitle: 'Kunde',
-      avatarUrl: this.user?.profile_image_url
+      avatarUrl: this.user?.profile_image_url,
+      avatarOnly: true  // Nur Bild anzeigen, kein Name/Email/Subtitle
     };
 
-    // Quick Actions
+    // Keine Quick Actions
     const quickActions = [];
-    if (this.user?.email) {
-      quickActions.push({ icon: 'mail', label: 'Mail', href: `mailto:${this.user.email}` });
-    }
-    if (this.user?.telefon) {
-      quickActions.push({ icon: 'phone', label: 'Anrufen', href: `tel:${this.user.telefon}` });
-    }
 
     // Info-Items für Sidebar
     const sidebarInfo = this.renderInfoItems([

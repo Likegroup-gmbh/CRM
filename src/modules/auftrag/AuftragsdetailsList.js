@@ -160,6 +160,92 @@ export class AuftragsdetailsList {
         return { data: mockData, count: mockData.length };
       }
 
+      // Sichtbarkeit: Nicht-Admins sehen nur zugewiesene Aufträge
+      const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+      let allowedAuftragIds = null;
+      
+      if (!isAdmin && window.currentUser?.id) {
+        try {
+          // 1. Zugeordnete Marken laden
+          const { data: assignedMarken } = await window.supabase
+            .from('marke_mitarbeiter')
+            .select('marke_id')
+            .eq('mitarbeiter_id', window.currentUser.id);
+          
+          const markenIds = (assignedMarken || []).map(r => r.marke_id).filter(Boolean);
+          
+          // 2. Marken-Daten mit Unternehmen-IDs laden
+          let markenMitUnternehmen = [];
+          if (markenIds.length > 0) {
+            const { data: markenData } = await window.supabase
+              .from('marke')
+              .select('id, unternehmen_id')
+              .in('id', markenIds);
+            markenMitUnternehmen = (markenData || []).map(m => ({
+              marke_id: m.id,
+              unternehmen_id: m.unternehmen_id
+            }));
+          }
+          
+          // 3. Zugeordnete Unternehmen laden
+          const { data: mitarbeiterUnternehmen } = await window.supabase
+            .from('mitarbeiter_unternehmen')
+            .select('unternehmen_id')
+            .eq('mitarbeiter_id', window.currentUser.id);
+          
+          const unternehmenIds = (mitarbeiterUnternehmen || []).map(r => r.unternehmen_id).filter(Boolean);
+          
+          // 4. Erlaubte Marken ermitteln (mit Marke-als-Zwischenfilter Logik)
+          const unternehmenMarkenMap = new Map();
+          markenMitUnternehmen.forEach(r => {
+            if (r.unternehmen_id) {
+              if (!unternehmenMarkenMap.has(r.unternehmen_id)) {
+                unternehmenMarkenMap.set(r.unternehmen_id, []);
+              }
+              unternehmenMarkenMap.get(r.unternehmen_id).push(r.marke_id);
+            }
+          });
+          
+          let allowedMarkenIds = [];
+          for (const unternehmenId of unternehmenIds) {
+            const explicitMarkenIds = unternehmenMarkenMap.get(unternehmenId);
+            if (explicitMarkenIds && explicitMarkenIds.length > 0) {
+              allowedMarkenIds.push(...explicitMarkenIds);
+            } else {
+              const { data: alleMarken } = await window.supabase
+                .from('marke')
+                .select('id')
+                .eq('unternehmen_id', unternehmenId);
+              allowedMarkenIds.push(...(alleMarken || []).map(m => m.id));
+            }
+          }
+          
+          // Direkt zugeordnete Marken hinzufügen
+          allowedMarkenIds.push(...markenIds);
+          allowedMarkenIds = [...new Set(allowedMarkenIds)];
+          
+          // 5. Aufträge für erlaubte Marken laden
+          if (allowedMarkenIds.length > 0) {
+            const { data: auftraege } = await window.supabase
+              .from('auftrag')
+              .select('id')
+              .in('marke_id', allowedMarkenIds);
+            allowedAuftragIds = (auftraege || []).map(a => a.id);
+          } else {
+            allowedAuftragIds = [];
+          }
+          
+          console.log('🔍 AUFTRAGSDETAILS: Erlaubte Aufträge:', allowedAuftragIds?.length || 0);
+        } catch (error) {
+          console.error('❌ AUFTRAGSDETAILS: Fehler beim Laden der Zuordnungen:', error);
+        }
+      }
+      
+      // Wenn keine erlaubten Aufträge, leeres Ergebnis
+      if (!isAdmin && allowedAuftragIds !== null && allowedAuftragIds.length === 0) {
+        return { data: [], count: 0 };
+      }
+
       // Berechne Range für Pagination
       const from = (page - 1) * limit;
       const to = from + limit - 1;
@@ -177,6 +263,11 @@ export class AuftragsdetailsList {
             marke:marke_id(id, markenname, logo_url)
           )
         `, { count: 'exact' });
+      
+      // Filtere nach erlaubten Aufträgen für Nicht-Admins
+      if (!isAdmin && allowedAuftragIds !== null && allowedAuftragIds.length > 0) {
+        query = query.in('auftrag_id', allowedAuftragIds);
+      }
 
       // Filter anwenden (einfache Implementierung - kann erweitert werden)
       if (filters.kategorie) {

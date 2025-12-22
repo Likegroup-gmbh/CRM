@@ -87,6 +87,75 @@
   grid-column: span 1;
 }
 
+/* Number Stepper (+ / - Counter) - nutzt secondary-btn für Buttons */
+.number-stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.number-stepper .stepper-btn {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  justify-content: center;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.number-stepper .stepper-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.number-stepper .stepper-info {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  min-width: 80px;
+}
+
+/* Stepper Row - alle Stepper in einer Reihe */
+.stepper-row {
+  display: flex;
+  gap: var(--space-xxs);
+  flex-wrap: wrap;
+
+}
+
+/* Stepper Field - kompakte Version für Flex-Row */
+.stepper-field {
+  flex: 1;
+  min-width: 140px;
+}
+
+/* Kampagnenart-Felder Container */
+.kampagnenart-felder-container {
+  margin-top: var(--space-md);
+}
+
+.kampagnenart-fields-wrapper h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.kampagnenart-fields.form-section-fieldset {
+  margin-bottom: var(--space-md);
+  padding: var(--space-md) 0 var(--space-md) 0;
+ 
+}
+
+.kampagnenart-fields.form-section-fieldset legend {
+  font-weight: 600;
+  color: var(--color-primary);
+  padding: 0 var(--space-xs);
+}
+
 /* Toggle + Datum Inline-Gruppe */
 .form-inline-group {
   display: flex;
@@ -155,8 +224,7 @@
 .feedback-chip .chip-note { color: var(--gray-600); font-size: var(--text-xs); }
 .feedback-chip.muted .chip-label { background: var(--gray-500); }
 
-/* Feedback Form */
-.feedback-form { margin-top: var(--space-xs); }
+
 .feedback-form textarea { width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-xs); }
 
 
@@ -246,7 +314,7 @@
   cursor: pointer;
   transition: all 0.2s ease;
   display: inline-flex;
-  gap: var(--space-xs);
+  gap: var(--space-xxs);
  
 }
 
@@ -266,7 +334,7 @@
   display: inline-flex;
   align-items: center;
   color: var(--text-primary);
-  gap: var(--space-xs);
+  gap: var(--space-xxs);
 }
 
 .secondary-btn:hover {
@@ -659,7 +727,7 @@
     border-collapse: collapse; 
   }
   thead {
-    background: var(--gray-50);
+    
     margin: none;
     padding: none;
     table-layout: fixed;
@@ -1175,12 +1243,13 @@ h3.section-title,
   position: relative;
   display: flex;
   gap: var(--space-xs);
-  border: 1px solid var(--gray-100);
+  border: 1px solid var(--gray-50);
   border-left: none;
   border-top: none;
   border-right: none; 
   width: 100%;
-  padding: var(--space-xxs) ;
+  padding: var(--space-xs);
+  
  
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -1195,16 +1264,16 @@ h3.section-title,
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 0 6px;
-  background: transparent;
+  padding: var(--space-xxs) var(--space-xxs) var(--space-xxs) var(--space-xxs);
+  background: none;
   border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
+  
+  color: var(--gray-500);
   font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
   font-weight: 400;
-  font-size: var(--text-sm);
-  height: 32px;
+  font-size: 0.8rem;
+  
+  gap: var(--space-xxs);
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
@@ -1213,12 +1282,26 @@ h3.section-title,
 
 .tab-button:hover {
   color: var(--text-primary);
-  background: var(--gray-50);
+  
 }
 
 .tab-button.active {
-  border-bottom: 2px solid var(--color-primary);
-  border-radius: 0;
+  color: var(--gray-900);
+  border-bottom: none;
+  background-color: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--space-xs);
+  
+}
+
+.tab-button.active::after {
+  content: '';
+  position: absolute;
+  bottom: calc(-1.6 * var(--space-xxs));
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: var(--gray-600);
 }
 
 /* Active Tab Indicator Line */
@@ -1823,7 +1906,7 @@ h3.section-title,
 .drawer-body {
   flex: 1;
   overflow-y: auto;
-  padding-top: var(--space-xs);
+  padding: var(--space-md);
   
 }
 
@@ -2536,7 +2619,7 @@ h3.section-title,
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-xs);
-  padding:0 var(--space-md) 0 var(--space-md);
+ 
   margin-top: auto;
 }
 
@@ -2797,10 +2880,12 @@ h3.section-title,
 
 /* Tab Layouts */
 .alert {
-  padding: 1rem;
-  border-radius: var(--radius-4);
+  padding: var(--space-sm);
+  border-radius: var(--radius-lg);
   margin-bottom: 1rem;
-  border: 1px solid;
+  border: 1px solid var(--gray-200);
+  font-size: var(--text-sm);
+  
 }
 
 .alert-success {
@@ -3006,12 +3091,15 @@ h3.section-title,
 
 /* Rechnung gestellt und Überwiesen Spalten */
 .data-table .col-rechnung-gestellt {
-  min-width: 140px;
-  text-align: center;
+  width: 7%;
+  min-width: 100px;
+  text-align: center !important;
 }
 
 .data-table .col-ueberwiesen {
-  text-align: center;
+  width: 5%;
+  min-width: 100px;
+  text-align: center !important;
 }
 
 .data-table .col-status {
@@ -3180,6 +3268,22 @@ h3.section-title,
   vertical-align: middle;
 }
 
+/* Kategorie-Spalte: linksbündig und breiter */
+.data-table.auftragsdetails-table th:first-child,
+.data-table.auftragsdetails-table td:first-child {
+  text-align: left !important;
+  width: 22em;
+  min-width: 22em;
+}
+
+/* Budget & Informationen Spalte: linksbündig und breiter */
+.data-table.auftragsdetails-table th:last-child,
+.data-table.auftragsdetails-table td:last-child {
+  text-align: left !important;
+  width: 40em;
+  min-width: 40em;
+}
+
 .budget-cell {
   min-width: 280px;
   max-width: 400px;
@@ -3189,12 +3293,9 @@ h3.section-title,
 
 /* Größere Budget-Info Anzeige für Auftragsdetails */
 .budget-info-large {
- 
-  padding: var(--space-sm) var(--space-md);
- 
+  padding: var(--space-xs);
   font-size: var(--text-sm);
   color: var(--gray-700);
- 
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
@@ -4114,7 +4215,7 @@ display: flex;
 flex-direction: column;
 gap: var(--space-xxxs);
 margin-bottom: var(--space-lg);
-padding:0 var(--space-md) 0 var(--space-md);
+
 
 }
 
@@ -6738,7 +6839,7 @@ span.profile-name {
   flex-shrink: 0;
   border-left: none;
   border-top: 1px solid var(--gray-200);
-  padding: 5px 12px 5px 12px;
+  
 }
 
 .profile-main-header {
@@ -6893,18 +6994,7 @@ span.profile-name {
   color: var(--accent-primary);
 }
 
-/* Profile Main Content */
-.profile-main-content {
-  padding: 0;
-  padding-left: 0;
-  padding-right: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-  overflow-y: auto;
-  height: 100%;
-  justify-content: flex-start;
-  align-items: flex-start;
-}
+
 
 /* Profile Subtitle */
 .profile-subtitle {
@@ -7389,7 +7479,12 @@ span.profile-name {
 .cash-flow-cell.paid {
   background-color: var(--green-50);
   color: var(--green-900);
- 
+}
+
+.cash-flow-cell.pending {
+  background-color: transparent;
+  color: var(--text-secondary);
+  border: 1px dashed var(--border-secondary);
 }
 
 /* Unternehmen und Marke Zellen */
@@ -7584,7 +7679,8 @@ span.profile-name {
 
 .strategie-textarea {
   width: 100%;
-  min-height: 60px;
+  min-height: 15em;
+  
   padding: var(--space-sm);
   border: none;
   border-radius: 0;
@@ -7628,12 +7724,12 @@ span.profile-name {
 }
 
 .strategie-items-table .col-prio {
-  width: var(--space-xxl);
+  width: 6em;
   text-align: center;
 }
 
 .strategie-items-table .col-nicht-umsetzen {
-  width: calc(var(--space-xxl) * 1.5);
+  width: calc(var(--space-xxl) * 2.5);
   text-align: center;
 }
 
@@ -9149,7 +9245,8 @@ table:has(td:first-child input[type="checkbox"]) td:nth-child(2),
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
-  padding: var(--space-lg);
+  height: 100%;
+  
 }
 
 .feedback-textarea {
@@ -9217,6 +9314,7 @@ table:has(td:first-child input[type="checkbox"]) td:nth-child(2),
   display: flex;
   align-items: center;
   gap: var(--space-xs);
+  font-size: var(--text-sm);
 }
 
 .kanban-column-title svg {

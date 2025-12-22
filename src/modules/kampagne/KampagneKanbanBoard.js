@@ -72,17 +72,28 @@ export class KampagneKanbanBoard {
             .eq('mitarbeiter_id', window.currentUser?.id);
           const directKampagnenIds = (assignedKampagnen || []).map(r => r.kampagne_id).filter(Boolean);
           
-          // 2. Zugeordnete Marken MIT Unternehmen-Info
+          // 2. Zugeordnete Marken (OHNE Join wegen RLS)
           const { data: assignedMarken } = await window.supabase
             .from('marke_mitarbeiter')
-            .select('marke_id, marke:marke_id(unternehmen_id)')
+            .select('marke_id')
             .eq('mitarbeiter_id', window.currentUser?.id);
           
-          // Zugeordnete Marken mit ihren Unternehmen
-          const markenMitUnternehmen = (assignedMarken || []).map(r => ({
-            marke_id: r.marke_id,
-            unternehmen_id: r.marke?.unternehmen_id
-          })).filter(r => r.marke_id);
+          // Marken-IDs extrahieren
+          const markenIds = (assignedMarken || []).map(r => r.marke_id).filter(Boolean);
+          
+          // Zugeordnete Marken mit ihren Unternehmen (separat laden wegen RLS)
+          let markenMitUnternehmen = [];
+          if (markenIds.length > 0) {
+            const { data: markenData } = await window.supabase
+              .from('marke')
+              .select('id, unternehmen_id')
+              .in('id', markenIds);
+            
+            markenMitUnternehmen = (markenData || []).map(m => ({
+              marke_id: m.id,
+              unternehmen_id: m.unternehmen_id
+            }));
+          }
           
           // 3. Zugeordnete Unternehmen
           const { data: mitarbeiterUnternehmen } = await window.supabase
@@ -124,6 +135,10 @@ export class KampagneKanbanBoard {
               allowedMarkenIds.push(...(alleMarken || []).map(m => m.id));
             }
           }
+          
+          // WICHTIG: Direkt zugeordnete Marken hinzufügen (auch ohne separate Unternehmen-Zuordnung)
+          const direktZugeordneteMarkenIds = markenMitUnternehmen.map(r => r.marke_id);
+          allowedMarkenIds.push(...direktZugeordneteMarkenIds);
           
           // Duplikate entfernen
           allowedMarkenIds = [...new Set(allowedMarkenIds)];

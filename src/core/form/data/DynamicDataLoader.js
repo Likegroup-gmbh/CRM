@@ -37,10 +37,7 @@ export class DynamicDataLoader {
       await Promise.all(loadPromises);
       console.log(`✅ Alle ${loadPromises.length} Felder geladen`);
       
-      // KOOPERATION PREFILL: Nach dem Laden aller Felder die Prefill-Logik anwenden
-      if (entity === 'kooperation' && form.dataset.prefillFromKampagne === 'true') {
-        await this.handleKooperationPrefill(form);
-      }
+      // HINWEIS: Kooperation-Prefill wird in FormEvents.js NACH setupDependentFields aufgerufen!
       
     } catch (error) {
       console.error('❌ Fehler beim Laden der dynamischen Formulardaten:', error);
@@ -1504,10 +1501,11 @@ export class DynamicDataLoader {
         searchableContainer.style.opacity = '0.7';
         searchableContainer.style.pointerEvents = 'none';
         
-        // Dropdown verstecken
+        // Dropdown verstecken (nur Klasse entfernen, KEIN Inline-Style!)
         const dropdown = searchableContainer.querySelector('.searchable-select-dropdown');
         if (dropdown) {
-          dropdown.style.display = 'none';
+          dropdown.classList.remove('show');
+          dropdown.style.removeProperty('display');
         }
       }
       
@@ -1885,8 +1883,14 @@ export class DynamicDataLoader {
   // Kooperation Prefill: Felder aus Kampagne-Kontext vorausfüllen und sperren
   async handleKooperationPrefill(form) {
     try {
+      console.log('🎯 KOOPERATION PREFILL: Dataset Check:', {
+        prefillFromKampagne: form.dataset.prefillFromKampagne,
+        hasPrefillData: !!form.dataset.prefillData,
+        rawData: form.dataset.prefillData?.substring(0, 200)
+      });
+      
       const prefillData = form.dataset.prefillData ? JSON.parse(form.dataset.prefillData) : {};
-      console.log('🎯 KOOPERATION PREFILL: Starte Vorausfüllung mit Daten:', prefillData);
+      console.log('🎯 KOOPERATION PREFILL: Parsed prefillData:', prefillData);
       
       const {
         unternehmen_id,
@@ -1897,6 +1901,11 @@ export class DynamicDataLoader {
         _kampagneName,
         _hasMarke
       } = prefillData;
+      
+      console.log('🎯 KOOPERATION PREFILL: Extrahierte Werte:', {
+        unternehmen_id, marke_id, kampagne_id,
+        _unternehmenName, _markeName, _kampagneName, _hasMarke
+      });
       
       // 1. UNTERNEHMEN: Vorausfüllen und sperren
       if (unternehmen_id) {
@@ -1927,36 +1936,59 @@ export class DynamicDataLoader {
   async prefillAndLockField(form, fieldName, value, displayLabel) {
     console.log(`🔒 PREFILL: Sperre ${fieldName} mit Wert:`, value, displayLabel);
     
-    // Hidden Select-Element finden und Wert setzen
+    // Hidden Select-Element finden
     const selectElement = form.querySelector(`select[name="${fieldName}"]`);
+    console.log(`🔒 PREFILL: Select "${fieldName}" gefunden:`, !!selectElement);
+    
     if (selectElement) {
+      // WICHTIG: Erst Option hinzufügen/sicherstellen, DANN Wert setzen
+      let optionElement = selectElement.querySelector(`option[value="${value}"]`);
+      if (!optionElement) {
+        console.log(`🔒 PREFILL: Option für "${value}" nicht gefunden, füge hinzu`);
+        optionElement = document.createElement('option');
+        optionElement.value = value;
+        optionElement.textContent = displayLabel;
+        selectElement.appendChild(optionElement);
+      }
+      
+      // Jetzt erst den Wert setzen
+      optionElement.selected = true;
       selectElement.value = value;
       selectElement.disabled = true;
       
-      // Falls Option nicht existiert, hinzufügen
-      if (!selectElement.querySelector(`option[value="${value}"]`)) {
-        const option = document.createElement('option');
-        option.value = value;
-        option.textContent = displayLabel;
-        option.selected = true;
-        selectElement.appendChild(option);
-      } else {
-        // Bestehende Option auswählen
-        const existingOption = selectElement.querySelector(`option[value="${value}"]`);
-        if (existingOption) {
-          existingOption.selected = true;
-        }
-      }
+      // Markiere als prefilled um DependentFields zu informieren
+      selectElement.dataset.prefilled = 'true';
+      selectElement.dataset.prefilledValue = value;
+      
+      console.log(`🔒 PREFILL: Select "${fieldName}" Wert gesetzt:`, selectElement.value);
     }
     
-    // Searchable Select Container finden und aktualisieren
-    const container = form.querySelector(`.searchable-select-container[data-field="${fieldName}"]`);
+    // Searchable Select Container finden - verschiedene Methoden versuchen
+    const formGroup = selectElement?.closest('.form-group');
+    let container = null;
+    
+    // Methode 1: parentNode.querySelector (wie im FormSystem verwendet)
+    if (selectElement?.parentNode) {
+      container = selectElement.parentNode.querySelector('.searchable-select-container');
+    }
+    // Methode 2: nextElementSibling als Fallback
+    if (!container && selectElement?.nextElementSibling?.classList.contains('searchable-select-container')) {
+      container = selectElement.nextElementSibling;
+    }
+    // Methode 3: Innerhalb der form-group suchen
+    if (!container && formGroup) {
+      container = formGroup.querySelector('.searchable-select-container');
+    }
+    
+    console.log(`🔒 PREFILL: Container für "${fieldName}" gefunden:`, !!container);
+    
     if (container) {
       const input = container.querySelector('.searchable-select-input');
       if (input) {
         input.value = displayLabel;
         input.disabled = true;
         input.readOnly = true;
+        console.log(`🔒 PREFILL: Input für "${fieldName}" auf "${displayLabel}" gesetzt`);
       }
       
       // Container als gesperrt markieren
@@ -1964,7 +1996,6 @@ export class DynamicDataLoader {
     }
     
     // Form-Group visuell als gesperrt markieren
-    const formGroup = selectElement?.closest('.form-group');
     if (formGroup) {
       formGroup.classList.add('form-field--prefilled');
       
@@ -1991,8 +2022,12 @@ export class DynamicDataLoader {
       selectElement.disabled = true;
     }
     
-    // Searchable Select Container finden und aktualisieren
-    const container = form.querySelector(`.searchable-select-container[data-field="${fieldName}"]`);
+    // Searchable Select Container finden
+    let container = null;
+    if (selectElement?.parentNode) {
+      container = selectElement.parentNode.querySelector('.searchable-select-container');
+    }
+    
     if (container) {
       const input = container.querySelector('.searchable-select-input');
       if (input) {
@@ -2000,6 +2035,7 @@ export class DynamicDataLoader {
         input.placeholder = message;
         input.disabled = true;
         input.readOnly = true;
+        console.log(`⚠️ PREFILL: Input für "${fieldName}" deaktiviert mit Nachricht`);
       }
       
       // Container als "keine Marke" markieren

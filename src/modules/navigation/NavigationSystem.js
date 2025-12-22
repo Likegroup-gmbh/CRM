@@ -26,9 +26,9 @@ export class NavigationSystem {
         title: 'Projektmanagement',
         items: [
           { id: 'kampagne', label: 'Kampagne', icon: 'icon-campaign', url: '/kampagne' },
-          { id: 'briefing', label: 'Briefing', icon: 'icon-document', url: '/briefing' },
           { id: 'strategie', label: 'Strategien', icon: 'icon-lightbulb', url: '/strategie' },
-          { id: 'creator-auswahl', label: 'Creator-Auswahl', icon: 'icon-users', url: '/creator-auswahl' },
+          { id: 'creator-auswahl', label: 'Creator Sourcing', icon: 'icon-users', url: '/creator-auswahl' },
+          { id: 'briefing', label: 'Briefing', icon: 'icon-document', url: '/briefing' },
           // { id: 'kooperation', label: 'Kooperation', icon: 'icon-handshake', url: '/kooperation' },
           { id: 'rechnung', label: 'Rechnung', icon: 'icon-currency-euro', url: '/rechnung' }
         ]

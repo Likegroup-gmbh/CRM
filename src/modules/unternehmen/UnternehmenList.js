@@ -249,6 +249,8 @@ export class UnternehmenList {
               <th>Name</th>
               <th>Branche</th>
               <th>Ansprechpartner</th>
+              <th>Management</th>
+              <th>Lead</th>
               <th>Mitarbeiter</th>
               <th>Stadt</th>
               <th>Land</th>
@@ -257,7 +259,7 @@ export class UnternehmenList {
           </thead>
           <tbody>
             <tr>
-              <td colspan="${isAdmin ? '8' : '7'}" class="no-data">Lade Unternehmen...</td>
+              <td colspan="${isAdmin ? '10' : '9'}" class="no-data">Lade Unternehmen...</td>
             </tr>
           </tbody>
         </table>
@@ -479,7 +481,13 @@ export class UnternehmenList {
         this.loadMitarbeiterMap(unternehmenIds)
       ]);
 
-      tbody.innerHTML = unternehmen.map(u => `
+      tbody.innerHTML = unternehmen.map(u => {
+        const allMitarbeiter = mitarbeiterMap.get(u.id) || [];
+        const management = allMitarbeiter.filter(m => m.role === 'management');
+        const leads = allMitarbeiter.filter(m => m.role === 'lead_mitarbeiter');
+        const mitarbeiter = allMitarbeiter.filter(m => m.role === 'mitarbeiter');
+        
+        return `
         <tr data-id="${u.id}">
           ${isAdmin ? `<td><input type="checkbox" class="unternehmen-check" data-id="${u.id}"></td>` : ''}
           <td>
@@ -489,14 +497,16 @@ export class UnternehmenList {
           </td>
           <td>${this.renderBrancheTags(u.branchen)}</td>
           <td>${this.renderAnsprechpartnerList(apMap.get(u.id))}</td>
-          <td>${this.renderMitarbeiterList(mitarbeiterMap.get(u.id))}</td>
+          <td>${this.renderMitarbeiterByRole(management)}</td>
+          <td>${this.renderMitarbeiterByRole(leads)}</td>
+          <td>${this.renderMitarbeiterByRole(mitarbeiter)}</td>
           <td>${window.validatorSystem.sanitizeHtml(u.rechnungsadresse_stadt || '')}</td>
           <td>${window.validatorSystem.sanitizeHtml(u.rechnungsadresse_land || '')}</td>
           <td>
             ${actionBuilder.create('unternehmen', u.id)}
           </td>
         </tr>
-      `).join('');
+      `}).join('');
     });
   }
 
@@ -630,7 +640,24 @@ export class UnternehmenList {
     return map;
   }
 
-  // Mitarbeiter-Liste rendern (Avatar-Bubbles mit Rollen-Indikator)
+  // Mitarbeiter nach Rolle rendern (für separate Spalten)
+  renderMitarbeiterByRole(list) {
+    if (!list || list.length === 0) return '-';
+    
+    const items = list
+      .filter(m => m && m.name)
+      .map(m => ({
+        name: m.name,
+        type: 'person',
+        id: m.id,
+        entityType: 'mitarbeiter',
+        profile_image_url: m.profile_image_url || null
+      }));
+    
+    return avatarBubbles.renderBubbles(items);
+  }
+
+  // Mitarbeiter-Liste rendern (Avatar-Bubbles mit Rollen-Indikator) - Legacy
   renderMitarbeiterList(list) {
     if (!list || list.length === 0) return '-';
     

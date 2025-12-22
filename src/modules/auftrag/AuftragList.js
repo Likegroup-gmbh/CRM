@@ -597,7 +597,6 @@ export class AuftragList {
                 <th>PO</th>
                 <th>RE. Nr</th>
                 <th class="col-re-faelligkeit">RE-Fälligkeit</th>
-                <th class="col-art-kampagne">Art der Kampagne</th>
                 <th>Start</th>
                 <th>Ende</th>
                 <th>Netto</th>
@@ -1025,15 +1024,14 @@ export class AuftragList {
           <td>${auftrag.po || '-'}</td>
           <td>${auftrag.re_nr || '-'}</td>
           <td>${this.formatDate(auftrag.re_faelligkeit)}</td>
-          <td>${this.formatKampagneArtTags(auftrag.art_der_kampagne)}</td>
           <td>${this.formatDate(auftrag.start)}</td>
           <td>${this.formatDate(auftrag.ende)}</td>
           <td>${this.formatCurrency(auftrag.nettobetrag)}</td>
           <td>${this.formatCurrency(auftrag.ust_betrag)}</td>
           <td>${this.formatCurrency(auftrag.bruttobetrag)}</td>
           <td>${this.formatAnsprechpartner(auftrag.ansprechpartner)}</td>
-          <td>${this.formatBoolean(auftrag.rechnung_gestellt)}</td>
-          <td>${this.formatBoolean(auftrag.ueberwiesen)}</td>
+          <td class="col-rechnung-gestellt">${this.formatBoolean(auftrag.rechnung_gestellt)}</td>
+          <td class="col-ueberwiesen">${this.formatBoolean(auftrag.ueberwiesen)}</td>
           <td>
             <span class="status-badge status-${(auftrag.status?.toLowerCase() || 'unknown').replace(/\s+/g, '-')}">
               ${auftrag.status || '-'}
@@ -1131,8 +1129,19 @@ export class AuftragList {
 
   // Handle Form Submit für Seiten-Formular
   async handleFormSubmit() {
+    const form = document.getElementById('auftrag-form');
+    const btn = form?.querySelector('.mdc-btn.mdc-btn--create');
+    
+    // Guard: Mehrfachklick verhindern
+    if (btn?.dataset.locked === 'true') return;
+    if (btn) {
+      btn.dataset.locked = 'true';
+      btn.classList.add('is-loading');
+      const labelEl = btn.querySelector('.mdc-btn__label');
+      if (labelEl) labelEl.textContent = 'Wird angelegt…';
+    }
+    
     try {
-      const form = document.getElementById('auftrag-form');
       const formData = new FormData(form);
       const submitData = {};
 
@@ -1219,6 +1228,14 @@ export class AuftragList {
       const result = await window.dataService.createEntity('auftrag', submitData);
       
       if (result.success) {
+        // Success UI
+        if (btn) {
+          btn.classList.remove('is-loading');
+          btn.classList.add('is-success');
+          const labelEl = btn.querySelector('.mdc-btn__label');
+          if (labelEl) labelEl.textContent = 'Auftrag angelegt';
+        }
+        
         // Nach Erstellung: Many-to-Many Beziehungen über RelationTables verarbeiten
         try {
           const auftragId = result.id;
@@ -1240,11 +1257,25 @@ export class AuftragList {
           window.navigateTo('/auftrag');
         }, 1500);
       } else {
+        // Error UI
+        if (btn) {
+          btn.classList.remove('is-loading');
+          btn.dataset.locked = 'false';
+          const labelEl = btn.querySelector('.mdc-btn__label');
+          if (labelEl) labelEl.textContent = 'Erstellen';
+        }
         window.NotificationSystem?.show('error', `Fehler beim Erstellen: ${result.error}`);
       }
 
     } catch (error) {
       console.error('❌ Fehler beim Erstellen des Auftrags:', error);
+      // Reset Button bei Fehler
+      if (btn) {
+        btn.classList.remove('is-loading');
+        btn.dataset.locked = 'false';
+        const labelEl = btn.querySelector('.mdc-btn__label');
+        if (labelEl) labelEl.textContent = 'Erstellen';
+      }
       window.NotificationSystem?.show('error', 'Ein unerwarteter Fehler ist aufgetreten');
     }
   }

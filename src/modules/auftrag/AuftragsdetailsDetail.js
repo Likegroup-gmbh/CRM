@@ -164,6 +164,7 @@ export class AuftragsdetailsDetail {
           name,
           status,
           videoanzahl,
+          einkaufspreis_netto,
           einkaufspreis_gesamt,
           content_art,
           kampagne_id,
@@ -211,17 +212,17 @@ export class AuftragsdetailsDetail {
 
   // Berechne Budget-Zusammenfassung
   calculateBudgetSummary() {
-    // Gesamt-Budget aus Auftrag - mehrere Fallbacks
+    // Gesamt-Budget aus Auftrag - mehrere Fallbacks (Netto)
     this.budgetSummary.totalBudget = parseFloat(
       this.auftrag?.creator_budget || 
       this.auftrag?.gesamt_budget || 
-      this.auftrag?.bruttobetrag || 
+      this.auftrag?.nettobetrag || 
       0
     );
     
-    // Verbrauchtes Budget = Summe aller einkaufspreis_gesamt
+    // Verbrauchtes Budget = Summe aller einkaufspreis_netto
     this.budgetSummary.usedBudget = this.kooperationen.reduce((sum, koop) => {
-      return sum + (parseFloat(koop.einkaufspreis_gesamt) || 0);
+      return sum + (parseFloat(koop.einkaufspreis_netto) || 0);
     }, 0);
     
     // Gesamtanzahl Videos = Summe aller videoanzahl aus Kooperationen
@@ -268,26 +269,16 @@ export class AuftragsdetailsDetail {
         <div class="auftragsdetails-summary">
           <div class="summary-cards">
             <div class="summary-card">
-              <div class="summary-value">${num(this.budgetSummary.totalVideos)} von ${num(this.details?.gesamt_videos || 0)}</div>
-              <div class="summary-label">Aktuell gebuchte Videos</div>
-              <div class="summary-progress">
-                <div class="summary-progress-fill ${this.getProgressColorClass(this.budgetSummary.totalVideos, this.details?.gesamt_videos)}" 
-                     style="width: ${this.getProgressPercentage(this.budgetSummary.totalVideos, this.details?.gesamt_videos)}%">
-                </div>
-              </div>
+              <div class="summary-value">${num(this.budgetSummary.totalVideos)}</div>
+              <div class="summary-label">Gebuchte Videos</div>
             </div>
             <div class="summary-card">
-              <div class="summary-value">${num(this.budgetSummary.totalCreators)} von ${num(this.details?.gesamt_creator || 0)}</div>
-              <div class="summary-label">Aktuell gebuchte Creator</div>
-              <div class="summary-progress">
-                <div class="summary-progress-fill ${this.getProgressColorClass(this.budgetSummary.totalCreators, this.details?.gesamt_creator)}" 
-                     style="width: ${this.getProgressPercentage(this.budgetSummary.totalCreators, this.details?.gesamt_creator)}%">
-                </div>
-              </div>
+              <div class="summary-value">${num(this.budgetSummary.totalCreators)}</div>
+              <div class="summary-label">Gebuchte Creator</div>
             </div>
             <div class="summary-card">
               <div class="summary-value">${formatCurrency(this.budgetSummary.usedBudget)} von ${formatCurrency(this.budgetSummary.totalBudget)}</div>
-              <div class="summary-label">Budget verbraucht</div>
+              <div class="summary-label">Budget verbraucht (Netto)</div>
               <div class="summary-progress">
                 <div class="summary-progress-fill ${this.getBudgetProgressColorClass()}" 
                      style="width: ${this.getBudgetProgressPercentage()}%">
@@ -321,22 +312,32 @@ export class AuftragsdetailsDetail {
       {
         title: 'UGC (User Generated Content)',
         prefix: 'ugc',
-        color: '#28a745'
+        color: '#28a745',
+        hasVideographen: false
+      },
+      {
+        title: 'IGC (Influencer Generated Content)',
+        prefix: 'igc',
+        color: '#17a2b8',
+        hasVideographen: false
       },
       {
         title: 'Influencer',
         prefix: 'influencer', 
-        color: '#6f42c1'
+        color: '#6f42c1',
+        hasVideographen: false
       },
       {
         title: 'Vor Ort Dreh',
         prefix: 'vor_ort',
-        color: '#fd7e14'
+        color: '#fd7e14',
+        hasVideographen: true
       },
       {
         title: 'Vor Ort Dreh Mitarbeiter',
         prefix: 'vor_ort_mitarbeiter',
-        color: '#20c997'
+        color: '#20c997',
+        hasVideographen: true
       }
     ];
 
@@ -344,7 +345,7 @@ export class AuftragsdetailsDetail {
       const videoAnzahl = details[`${section.prefix}_video_anzahl`];
       const bilderAnzahl = details[`${section.prefix}_bilder_anzahl`];
       const creatorAnzahl = details[`${section.prefix}_creator_anzahl`];
-      const videographenAnzahl = details[`${section.prefix}_videographen_anzahl`];
+      const videographenAnzahl = section.hasVideographen ? details[`${section.prefix}_videographen_anzahl`] : null;
       const budgetInfo = details[`${section.prefix}_budget_info`];
 
       // Zeige nur Zeilen mit Daten
@@ -361,7 +362,7 @@ export class AuftragsdetailsDetail {
           <td class="text-center">${num(videoAnzahl)}</td>
           <td class="text-center">${num(bilderAnzahl)}</td>
           <td class="text-center">${num(creatorAnzahl)}</td>
-          <td class="text-center">${num(videographenAnzahl)}</td>
+          <td class="text-center">${section.hasVideographen ? num(videographenAnzahl) : '-'}</td>
           <td class="budget-cell">${budgetInfo ? `<div class="budget-info-large">${window.validatorSystem.sanitizeHtml(budgetInfo)}</div>` : '-'}</td>
         </tr>
       `;

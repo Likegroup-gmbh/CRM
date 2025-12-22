@@ -111,6 +111,22 @@ export class FormEvents {
 
     // Abhängige Felder einrichten
     this.formSystem.dependentFields.setupDependentFields(form);
+    
+    // KOOPERATION PREFILL: NACH allem anderen die Felder vorausfüllen!
+    if (entity === 'kooperation' && form.dataset.prefillFromKampagne === 'true') {
+      console.log('🎯 FORMEVENTS: Starte Kooperation-Prefill NACH DependentFields...');
+      
+      // DEBUG: Prüfe ob Methode existiert
+      console.log('🔍 DEBUG: dataLoader vorhanden?', !!this.formSystem.dataLoader);
+      console.log('🔍 DEBUG: handleKooperationPrefill Typ:', typeof this.formSystem.dataLoader?.handleKooperationPrefill);
+      
+      try {
+        await this.formSystem.dataLoader.handleKooperationPrefill(form);
+        console.log('✅ FORMEVENTS: handleKooperationPrefill abgeschlossen');
+      } catch (error) {
+        console.error('❌ FORMEVENTS: Fehler in handleKooperationPrefill:', error);
+      }
+    }
 
     // Adressen-Felder einrichten
     this.setupAddressesFields(form);
@@ -168,210 +184,151 @@ export class FormEvents {
     }
   }
 
-  // Kampagne-spezifische Events
+  // Kampagne-spezifische Events - Dynamische Felder basierend auf Kampagnenarten des Auftrags
   setupKampagneEvents(form) {
+    console.log('🎯 FORMEVENTS: setupKampagneEvents gestartet');
+    
+    // Container für dynamische Kampagnenart-Felder finden oder erstellen
+    let fieldsContainer = form.querySelector('#kampagnenart-felder-container');
+    
+    // Wenn kein Container existiert, nach dem kampagnenart_felder_container Feld suchen
+    if (!fieldsContainer) {
+      const customField = form.querySelector('.kampagnenart-felder-container');
+      if (customField) {
+        fieldsContainer = customField;
+      }
+    }
+    
+    // Fallback: Am Ende des Formulars einfügen (vor den Buttons)
+    if (!fieldsContainer) {
+      const actionsDiv = form.querySelector('.form-actions, .drawer-actions');
+      fieldsContainer = document.createElement('div');
+      fieldsContainer.id = 'kampagnenart-felder-container';
+      fieldsContainer.className = 'kampagnenart-felder-container';
+      if (actionsDiv) {
+        actionsDiv.parentNode.insertBefore(fieldsContainer, actionsDiv);
+      } else {
+        form.appendChild(fieldsContainer);
+      }
+    }
+    
+    // Auftrag-Select finden (das ist der Trigger für die dynamischen Felder!)
     const auftragSelect = form.querySelector('select[name="auftrag_id"]');
-    const videoInput = form.querySelector('input[name="videoanzahl"]');
-    const creatorInput = form.querySelector('input[name="creatoranzahl"]');
-    if (!auftragSelect || !videoInput || !window.supabase) return;
-
-    // Stepper-UI für Videos und Creator
-    const attachStepper = () => {
-      // Video-Stepper
-      if (videoInput.dataset.stepperAttached !== 'true') {
-        console.log('🎯 FORMEVENTS: Erstelle Video-Stepper');
-        this.createStepperUI(videoInput, 'Video', 'Videos');
-        videoInput.dataset.stepperAttached = 'true';
-      }
-      
-      // Creator-Stepper
-      if (creatorInput && creatorInput.dataset.stepperAttached !== 'true') {
-        console.log('🎯 FORMEVENTS: Erstelle Creator-Stepper');
-        this.createStepperUI(creatorInput, 'Creator', 'Creator');
-        creatorInput.dataset.stepperAttached = 'true';
-      }
-    };
-
-    attachStepper();
-
-    const refreshStepperUI = () => {
-      // Video-Stepper aktualisieren
-      this.updateStepperUI(videoInput, 'Video', 'Videos', form);
-      
-      // Creator-Stepper aktualisieren (falls vorhanden)
-      if (creatorInput) {
-        this.updateStepperUI(creatorInput, 'Creator', 'Creator', form);
-      }
-    };
-
-    const clampValue = (value, min, max) => {
-      const n = parseInt(value, 10);
-      if (isNaN(n)) return '';
-      if (max === 0) return '';
-      return String(Math.max(min, Math.min(n, max)));
-    };
-
-    const updateVideoLimits = async () => {
-      const auftragId = auftragSelect.value;
-      if (!auftragId) {
-        videoInput.disabled = true;
-        videoInput.removeAttribute('max');
-        videoInput.removeAttribute('min');
-        videoInput.value = '';
-        refreshStepperUI();
-        return;
-      }
-
+    if (!auftragSelect) {
+      console.log('⚠️ FORMEVENTS: auftrag_id Select nicht gefunden');
+      return;
+    }
+    
+    // Kampagnenarten-Mapping laden und Events binden
+    const initDynamicFields = async () => {
       try {
-        // Gesamtanzahl Videos aus Auftrag und Auftragsdetails laden
-        const { data: auftrag, error: aErr } = await window.supabase
-          .from('auftrag')
-          .select('id, gesamtanzahl_videos')
-          .eq('id', auftragId)
-          .single();
-        if (aErr) {
-          console.error('❌ Fehler beim Laden des Auftrags (gesamtanzahl_videos):', aErr);
-          return;
-        }
+        const { KAMPAGNENARTEN_MAPPING, generateFieldsHtml } = await import('../../../modules/auftrag/logic/KampagnenartenMapping.js');
         
-        // Auftragsdetails für erweiterte Informationen laden
-        const { data: auftragsDetails, error: detailsErr } = await window.supabase
-          .from('auftrag_details')
-          .select('gesamt_videos, gesamt_creator')
-          .eq('auftrag_id', auftragId)
-          .maybeSingle();
-        
-        // Verwende Auftragsdetails falls verfügbar, sonst Fallback auf Auftrag
-        const totalVideos = parseInt(auftragsDetails?.gesamt_videos || auftrag?.gesamtanzahl_videos, 10) || 0;
-
-        // Bereits verplante Videos und Creator über alle Kampagnen dieses Auftrags
-        let kampQuery = window.supabase
-          .from('kampagne')
-          .select('id, videoanzahl, creatoranzahl')
-          .eq('auftrag_id', auftragId);
-        const currentId = form.dataset.entityId || null;
-        if (currentId) kampQuery = kampQuery.neq('id', currentId);
-        const { data: kampagnen, error: kErr } = await kampQuery;
-        if (kErr) {
-          console.error('❌ Fehler beim Laden der Kampagnen (videoanzahl, creatoranzahl):', kErr);
-          return;
-        }
-        const usedVideos = (kampagnen || []).reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
-        const usedCreators = (kampagnen || []).reduce((sum, k) => sum + (parseInt(k.creatoranzahl, 10) || 0), 0);
-        const remainingVideos = Math.max(0, totalVideos - usedVideos);
-        
-        // Creator-Limits berechnen
-        const totalCreators = parseInt(auftragsDetails?.gesamt_creator, 10) || 0;
-        const remainingCreators = Math.max(0, totalCreators - usedCreators);
-
-        // Video-Eingabefeld konfigurieren
-        videoInput.disabled = remainingVideos === 0;
-        videoInput.min = remainingVideos > 0 ? '1' : '0';
-        videoInput.max = String(remainingVideos);
-        videoInput.step = '1';
-
-        // Video-Wert einklammern/Default
-        if (videoInput.value) {
-          videoInput.value = clampValue(videoInput.value, remainingVideos > 0 ? 1 : 0, remainingVideos);
-        } else if (remainingVideos > 0) {
-          videoInput.value = '1';
-        }
-        
-        // Creator-Eingabefeld konfigurieren (falls vorhanden)
-        if (creatorInput) {
-          if (totalCreators > 0) {
-            creatorInput.disabled = remainingCreators === 0;
-            creatorInput.min = remainingCreators > 0 ? '1' : '0';
-            creatorInput.max = String(remainingCreators);
-            creatorInput.step = '1';
+        // Funktion zum Laden der Kampagnenarten eines Auftrags
+        const loadKampagnenartenForAuftrag = async (auftragId) => {
+          if (!auftragId || !window.supabase) return [];
+          
+          try {
+            // Lade Kampagnenarten aus der auftrag_kampagne_art Junction-Tabelle
+            const { data: auftragArten, error } = await window.supabase
+              .from('auftrag_kampagne_art')
+              .select(`
+                kampagne_art_typen:kampagne_art_id(id, name)
+              `)
+              .eq('auftrag_id', auftragId);
             
-            // Creator-Wert einklammern/Default
-            if (creatorInput.value) {
-              creatorInput.value = clampValue(creatorInput.value, remainingCreators > 0 ? 1 : 0, remainingCreators);
-            } else if (remainingCreators > 0) {
-              creatorInput.value = '1';
+            if (error) {
+              console.error('❌ FORMEVENTS: Fehler beim Laden der Auftrag-Kampagnenarten:', error);
+              return [];
             }
             
-            // Hilfetext anzeigen
-            this.showAvailabilityInfo(creatorInput, remainingCreators, totalCreators, usedCreators, 'Creator');
-          } else {
-            // Keine Auftragsdetails - Creator-Anzahl frei wählbar
-            creatorInput.disabled = false;
-            creatorInput.removeAttribute('max');
-            creatorInput.removeAttribute('min');
-            this.hideAvailabilityInfo(creatorInput);
+            const artenNamen = (auftragArten || [])
+              .map(item => item.kampagne_art_typen?.name)
+              .filter(Boolean);
+            
+            console.log('📋 FORMEVENTS: Kampagnenarten des Auftrags:', artenNamen);
+            return artenNamen;
+          } catch (error) {
+            console.error('❌ FORMEVENTS: Fehler:', error);
+            return [];
           }
+        };
+        
+        // Funktion zum Rendern der dynamischen Felder
+        const renderDynamicFields = async () => {
+          const selectedAuftragId = auftragSelect.value;
+          console.log('🔄 FORMEVENTS: Auftrag geändert:', selectedAuftragId);
+          
+          // Aktuelle Werte aus bestehenden Feldern sammeln (für Erhaltung bei Re-Render)
+          const existingValues = {};
+          fieldsContainer.querySelectorAll('input, textarea').forEach(input => {
+            if (input.name && input.value) {
+              existingValues[input.name] = input.value;
+            }
+          });
+          
+          // Container leeren
+          fieldsContainer.innerHTML = '';
+          
+          if (!selectedAuftragId) {
+            fieldsContainer.innerHTML = '<p class="form-hint" style="padding: 1rem; color: var(--text-secondary); font-style: italic;">Bitte wählen Sie einen Auftrag aus, um die Produktionsdetails anzuzeigen.</p>';
+            return;
+          }
+          
+          // Loading-Anzeige
+          fieldsContainer.innerHTML = '<p class="form-hint" style="padding: 1rem; color: var(--text-secondary);"><span class="loading-spinner" style="display: inline-block; width: 16px; height: 16px; border: 2px solid #ddd; border-top-color: var(--color-primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px;"></span>Lade Produktionsdetails...</p>';
+          
+          // Kampagnenarten des Auftrags laden
+          const artenNamen = await loadKampagnenartenForAuftrag(selectedAuftragId);
+          
+          if (artenNamen.length === 0) {
+            fieldsContainer.innerHTML = '<p class="form-hint" style="padding: 1rem; color: var(--color-warning); background: rgba(255,193,7,0.1); border-radius: 8px;">Für diesen Auftrag wurden noch keine Kampagnenarten hinterlegt. Bitte zuerst im Auftrag die "Art der Kampagne" auswählen.</p>';
+            return;
+          }
+          
+          // Für jede Kampagnenart des Auftrags Felder generieren
+          let fieldsHtml = '<div class="kampagnenart-fields-wrapper" style="margin-top: 1rem;">';
+          fieldsHtml += '<h4 style="margin-bottom: 1rem; color: var(--text-primary); font-weight: 600;">Produktionsdetails</h4>';
+          
+          artenNamen.forEach(artName => {
+            if (KAMPAGNENARTEN_MAPPING[artName]) {
+              fieldsHtml += generateFieldsHtml(artName, existingValues, false);
+            } else {
+              console.log(`⚠️ FORMEVENTS: Unbekannte Kampagnenart: "${artName}"`);
+            }
+          });
+          
+          fieldsHtml += '</div>';
+          fieldsContainer.innerHTML = fieldsHtml;
+          
+          // Stepper-Button Events binden
+          this.bindStepperEvents(fieldsContainer);
+          
+          // CSS für Spinner Animation hinzufügen (falls nicht vorhanden)
+          if (!document.getElementById('kampagnenart-spinner-style')) {
+            const style = document.createElement('style');
+            style.id = 'kampagnenart-spinner-style';
+            style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+            document.head.appendChild(style);
+          }
+        };
+        
+        // Event-Listener auf Auftrag-Select
+        auftragSelect.addEventListener('change', renderDynamicFields);
+        
+        // Initial rendern (falls bereits ein Auftrag ausgewählt ist, z.B. im Edit-Mode)
+        if (auftragSelect.value) {
+          setTimeout(renderDynamicFields, 200);
+        } else {
+          fieldsContainer.innerHTML = '<p class="form-hint" style="padding: 1rem; color: var(--text-secondary); font-style: italic;">Bitte wählen Sie einen Auftrag aus, um die Produktionsdetails anzuzeigen.</p>';
         }
         
-        // Hilfetext für Videos anzeigen
-        this.showAvailabilityInfo(videoInput, remainingVideos, totalVideos, usedVideos, 'Videos');
-        
-        refreshStepperUI();
-      } catch (err) {
-        console.error('❌ Fehler beim Aktualisieren der Kampagnen-Video-Limits:', err);
+      } catch (error) {
+        console.error('❌ FORMEVENTS: Fehler beim Initialisieren der dynamischen Felder:', error);
       }
     };
-
-    auftragSelect.addEventListener('change', updateVideoLimits);
-    videoInput.addEventListener('change', () => {
-      const max = parseInt(videoInput.max || '0', 10) || 0;
-      if (max > 0) videoInput.value = clampValue(videoInput.value, 1, max);
-      refreshStepperUI();
-    });
-
-    // Submit-Guard: Hard-Limit prüfen - nutzt gleiche Logik wie updateVideoLimits
-    form.addEventListener('submit', async (e) => {
-      const auftragId = auftragSelect.value;
-      if (!auftragId) return;
-      try {
-        // Gleiche Logik wie in updateVideoLimits verwenden
-        const { data: auftrag } = await window.supabase
-          .from('auftrag')
-          .select('id, gesamtanzahl_videos')
-          .eq('id', auftragId)
-          .single();
-        
-        // Auftragsdetails für erweiterte Informationen laden
-        const { data: auftragsDetails } = await window.supabase
-          .from('auftrag_details')
-          .select('gesamt_videos, gesamt_creator')
-          .eq('auftrag_id', auftragId)
-          .maybeSingle();
-        
-        // Verwende Auftragsdetails falls verfügbar, sonst Fallback auf Auftrag
-        const totalVideos = parseInt(auftragsDetails?.gesamt_videos || auftrag?.gesamtanzahl_videos, 10) || 0;
-        
-        let kampQuery = window.supabase
-          .from('kampagne')
-          .select('videoanzahl')
-          .eq('auftrag_id', auftragId);
-        const currentId = form.dataset.entityId || null;
-        if (currentId) kampQuery = kampQuery.neq('id', currentId);
-        const { data: kampagnen } = await kampQuery;
-        const usedVideos = (kampagnen || []).reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
-        const remaining = Math.max(0, totalVideos - usedVideos);
-        const desired = parseInt(videoInput.value || '0', 10) || 0;
-        
-        console.log('🔍 Submit-Guard Validierung:', { 
-          totalVideos, 
-          usedVideos, 
-          remaining, 
-          desired, 
-          auftragsDetails: !!auftragsDetails,
-          source: auftragsDetails ? 'auftrag_details' : 'auftrag'
-        });
-        
-        if (desired > remaining) {
-          e.preventDefault();
-          videoInput.value = clampValue(videoInput.value, remaining > 0 ? 1 : 0, remaining);
-          alert(`Die gewählte Video Anzahl (${desired}) überschreitet die verfügbaren Videos (${remaining} von ${totalVideos} verfügbar).`);
-          refreshStepperUI();
-        }
-      } catch (_) { /* ignore */ }
-    });
-
-    // Initial ausführen
-    updateVideoLimits();
+    
+    initDynamicFields();
   }
 
   // Rechnung-spezifische Events: Kooperation → fülle Unternehmen/Auftrag/Videoanzahl/Beträge
@@ -1159,6 +1116,72 @@ export class FormEvents {
 
     // Initial update
     updateInfo();
+  }
+
+  // Stepper-Events für dynamisch generierte Felder binden
+  bindStepperEvents(container) {
+    if (!container) return;
+    
+    // Alle Stepper-Buttons im Container finden
+    const stepperButtons = container.querySelectorAll('.stepper-btn');
+    
+    stepperButtons.forEach(btn => {
+      // Vermeide Doppelbindung
+      if (btn.dataset.eventsBound) return;
+      btn.dataset.eventsBound = 'true';
+      
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const targetId = btn.dataset.target;
+        const input = container.querySelector(`#${targetId}`);
+        if (!input) return;
+        
+        const currentValue = parseInt(input.value || '0', 10) || 0;
+        const min = parseInt(input.min || '0', 10) || 0;
+        const max = parseInt(input.max || '999', 10) || 999;
+        
+        let newValue = currentValue;
+        
+        if (btn.classList.contains('stepper-minus')) {
+          newValue = Math.max(min, currentValue - 1);
+        } else if (btn.classList.contains('stepper-plus')) {
+          newValue = Math.min(max, currentValue + 1);
+        }
+        
+        input.value = newValue;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        
+        // Info-Text aktualisieren
+        const stepperContainer = btn.closest('.number-stepper');
+        const infoSpan = stepperContainer?.querySelector('.stepper-info');
+        if (infoSpan) {
+          const singular = input.dataset.singular || '';
+          const plural = input.dataset.plural || '';
+          const label = newValue === 1 ? singular : plural;
+          infoSpan.textContent = `${newValue} ${label}`;
+        }
+        
+        // Minus-Button deaktivieren wenn bei min
+        const minusBtn = stepperContainer?.querySelector('.stepper-minus');
+        const plusBtn = stepperContainer?.querySelector('.stepper-plus');
+        if (minusBtn) minusBtn.disabled = newValue <= min;
+        if (plusBtn) plusBtn.disabled = newValue >= max;
+      });
+    });
+    
+    // Initial alle Minus-Buttons prüfen (bei 0 deaktivieren)
+    container.querySelectorAll('.number-stepper').forEach(stepper => {
+      const input = stepper.querySelector('input[type="hidden"]');
+      const minusBtn = stepper.querySelector('.stepper-minus');
+      if (input && minusBtn) {
+        const val = parseInt(input.value || '0', 10) || 0;
+        const min = parseInt(input.min || '0', 10) || 0;
+        minusBtn.disabled = val <= min;
+      }
+    });
+    
+    console.log(`✅ FORMEVENTS: Stepper-Events gebunden für ${stepperButtons.length} Buttons`);
   }
 
   // Stepper-UI aktualisieren

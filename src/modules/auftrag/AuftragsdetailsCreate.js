@@ -1,10 +1,13 @@
 // AuftragsdetailsCreate.js (ES6-Modul)
-// Auftragsdetails-Erstellungsseite
+// Auftragsdetails-Erstellungsseite - Dynamisch basierend auf Kampagnenarten
+
+import { KAMPAGNENARTEN_MAPPING, generateBudgetOnlyFieldsHtml } from './logic/KampagnenartenMapping.js';
 
 export class AuftragsdetailsCreate {
   constructor() {
     this.formData = {};
     this.auftraege = []; // Aufträge-Liste für Event-Listener
+    this.currentKampagnenarten = []; // Aktuelle Kampagnenarten des ausgewählten Auftrags
   }
 
   // Initialisiere Auftragsdetails-Erstellung
@@ -76,7 +79,7 @@ export class AuftragsdetailsCreate {
     console.log('📊 Alle Aufträge:', alleAuftraege?.length || 0);
     console.log('✅ Verfügbare Aufträge ohne Details:', auftraege?.length || 0);
 
-    // Formular HTML - Einheitlich mit FormSystem-Stil
+    // Formular HTML - Basis-Struktur mit dynamischem Container
     const formHtml = `
       <div class="form-page">
         <form id="auftragsdetails-form" data-entity="auftragsdetails">
@@ -109,108 +112,12 @@ export class AuftragsdetailsCreate {
             </div>
           </div>
 
-          <!-- UGC Content -->
-          <fieldset class="form-section-fieldset">
-            <legend>UGC (User Generated Content)</legend>
-            <div class="form-two-col">
-              <div class="form-field form-field--half">
-                <label for="ugc_video_anzahl">Anzahl Videos</label>
-                <input type="number" id="ugc_video_anzahl" name="ugc_video_anzahl" min="0" placeholder="z.B. 10">
-              </div>
-              <div class="form-field form-field--half">
-                <label for="ugc_bilder_anzahl">Anzahl Bilder</label>
-                <input type="number" id="ugc_bilder_anzahl" name="ugc_bilder_anzahl" min="0" placeholder="z.B. 5">
-              </div>
+          <!-- Dynamischer Container für Budget-Felder pro Kampagnenart -->
+          <div id="kampagnenart-sections-container">
+            <div class="alert alert-info">
+              <p>Bitte wählen Sie einen Auftrag aus, um die Budget-Felder anzuzeigen.</p>
             </div>
-            <div class="form-two-col">
-              <div class="form-field form-field--half">
-                <label for="ugc_creator_anzahl">Anzahl Creator</label>
-                <input type="number" id="ugc_creator_anzahl" name="ugc_creator_anzahl" min="0" placeholder="z.B. 5">
-              </div>
-            </div>
-            <div class="form-field form-field-full">
-              <label for="ugc_budget_info">Budget-Info</label>
-              <textarea id="ugc_budget_info" name="ugc_budget_info" rows="3" placeholder="Budget-Details für UGC..."></textarea>
-            </div>
-          </fieldset>
-
-          <!-- Influencer Content -->
-          <fieldset class="form-section-fieldset">
-            <legend>Influencer Marketing</legend>
-            <div class="form-two-col">
-              <div class="form-field form-field--half">
-                <label for="influencer_video_anzahl">Anzahl Videos</label>
-                <input type="number" id="influencer_video_anzahl" name="influencer_video_anzahl" min="0" placeholder="z.B. 8">
-              </div>
-              <div class="form-field form-field--half">
-                <label for="influencer_creator_anzahl">Anzahl Creator</label>
-                <input type="number" id="influencer_creator_anzahl" name="influencer_creator_anzahl" min="0" placeholder="z.B. 4">
-              </div>
-            </div>
-            <div class="form-field form-field-full">
-              <label for="influencer_budget_info">Budget-Info</label>
-              <textarea id="influencer_budget_info" name="influencer_budget_info" rows="3" placeholder="Budget-Details für Influencer..."></textarea>
-            </div>
-          </fieldset>
-
-          <!-- Vor Ort -->
-          <fieldset class="form-section-fieldset">
-            <legend>Vor Ort (External)</legend>
-            <div class="form-two-col">
-              <div class="form-field form-field--half">
-                <label for="vor_ort_video_anzahl">Anzahl Videos</label>
-                <input type="number" id="vor_ort_video_anzahl" name="vor_ort_video_anzahl" min="0" placeholder="z.B. 6">
-              </div>
-              <div class="form-field form-field--half">
-                <label for="vor_ort_creator_anzahl">Anzahl Creator</label>
-                <input type="number" id="vor_ort_creator_anzahl" name="vor_ort_creator_anzahl" min="0" placeholder="z.B. 3">
-              </div>
-            </div>
-            <div class="form-field">
-              <label for="vor_ort_videographen_anzahl">Anzahl Videographen</label>
-              <input type="number" id="vor_ort_videographen_anzahl" name="vor_ort_videographen_anzahl" min="0" placeholder="z.B. 2">
-            </div>
-            <div class="form-field form-field-full">
-              <label for="vor_ort_budget_info">Budget-Info</label>
-              <textarea id="vor_ort_budget_info" name="vor_ort_budget_info" rows="3" placeholder="Budget-Details für Vor-Ort..."></textarea>
-            </div>
-          </fieldset>
-
-          <!-- Vor Ort Mitarbeiter -->
-          <fieldset class="form-section-fieldset">
-            <legend>Vor Ort (Mitarbeiter)</legend>
-            <div class="form-two-col">
-              <div class="form-field form-field--half">
-                <label for="vor_ort_mitarbeiter_video_anzahl">Anzahl Videos</label>
-                <input type="number" id="vor_ort_mitarbeiter_video_anzahl" name="vor_ort_mitarbeiter_video_anzahl" min="0" placeholder="z.B. 4">
-              </div>
-              <div class="form-field form-field--half">
-                <label for="vor_ort_mitarbeiter_videographen_anzahl">Anzahl Videographen</label>
-                <input type="number" id="vor_ort_mitarbeiter_videographen_anzahl" name="vor_ort_mitarbeiter_videographen_anzahl" min="0" placeholder="z.B. 2">
-              </div>
-            </div>
-            <div class="form-field form-field-full">
-              <label for="vor_ort_mitarbeiter_budget_info">Budget-Info</label>
-              <textarea id="vor_ort_mitarbeiter_budget_info" name="vor_ort_mitarbeiter_budget_info" rows="3" placeholder="Budget-Details für Mitarbeiter Vor-Ort..."></textarea>
-            </div>
-          </fieldset>
-
-          <!-- Gesamt -->
-          <fieldset class="form-section-fieldset">
-            <legend>Gesamt (automatisch berechnet)</legend>
-            <div class="form-two-col">
-              <div class="form-field form-field--half">
-                <label for="gesamt_videos">Gesamt Videos</label>
-                <input type="number" id="gesamt_videos" name="gesamt_videos" min="0" placeholder="Automatisch berechnet" readonly>
-                <small style="color: var(--text-secondary);">Wird automatisch berechnet</small>
-              </div>
-              <div class="form-field form-field--half">
-                <label for="gesamt_creator">Gesamt Creator</label>
-                <input type="number" id="gesamt_creator" name="gesamt_creator" min="0" placeholder="Automatisch berechnet" readonly>
-                <small style="color: var(--text-secondary);">Wird automatisch berechnet</small>
-              </div>
-            </div>
-          </fieldset>
+          </div>
 
           <!-- Submit Buttons -->
           <div class="form-actions">
@@ -246,73 +153,170 @@ export class AuftragsdetailsCreate {
     this.bindFormEvents();
   }
 
+  /**
+   * Lädt die Kampagnenarten für einen Auftrag
+   * PRIMÄR: Aus der auftrag_kampagne_art Junction-Tabelle (direkt am Auftrag hinterlegt)
+   * FALLBACK: Aus den zugehörigen Kampagnen
+   * @param {string} auftragId - ID des Auftrags
+   * @returns {Promise<string[]>} - Array der eindeutigen Kampagnenarten-Namen
+   */
+  async loadKampagnenartenForAuftrag(auftragId) {
+    if (!window.supabase || !auftragId) return [];
+    
+    try {
+      const artenSet = new Set();
+      
+      // PRIMÄR: Lade Kampagnenarten direkt vom Auftrag (über auftrag_kampagne_art Junction)
+      const { data: auftragArten, error: auftragError } = await window.supabase
+        .from('auftrag_kampagne_art')
+        .select(`
+          kampagne_art_typen:kampagne_art_id(id, name)
+        `)
+        .eq('auftrag_id', auftragId);
+      
+      if (auftragError) {
+        console.warn('⚠️ Fehler beim Laden der Auftrag-Kampagnenarten:', auftragError);
+      } else {
+        (auftragArten || []).forEach(item => {
+          if (item.kampagne_art_typen?.name) {
+            artenSet.add(item.kampagne_art_typen.name);
+          }
+        });
+      }
+      
+      // Falls vom Auftrag Kampagnenarten gefunden wurden, diese verwenden
+      if (artenSet.size > 0) {
+        console.log('📋 Kampagnenarten aus Auftrag geladen:', Array.from(artenSet));
+        return Array.from(artenSet);
+      }
+      
+      // FALLBACK: Lade aus den Kampagnen (für Abwärtskompatibilität)
+      console.log('ℹ️ Keine Kampagnenarten im Auftrag, prüfe Kampagnen...');
+      const { data: kampagnen, error: kampError } = await window.supabase
+        .from('kampagne')
+        .select(`
+          id,
+          kampagne_art_typen:art_der_kampagne(id, name)
+        `)
+        .eq('auftrag_id', auftragId);
+      
+      if (kampError) {
+        console.error('❌ Fehler beim Laden der Kampagnen:', kampError);
+        return [];
+      }
+      
+      (kampagnen || []).forEach(kampagne => {
+        const arten = kampagne.kampagne_art_typen;
+        if (Array.isArray(arten)) {
+          arten.forEach(art => {
+            if (art?.name) artenSet.add(art.name);
+          });
+        } else if (arten?.name) {
+          artenSet.add(arten.name);
+        }
+      });
+      
+      console.log('📋 Kampagnenarten aus Kampagnen geladen:', Array.from(artenSet));
+      return Array.from(artenSet);
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Kampagnenarten:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Rendert die dynamischen Sections basierend auf Kampagnenarten
+   * NUR Budget-Felder - Anzahl wird über Kampagnen gepflegt
+   * @param {string[]} kampagnenarten - Array von Kampagnenarten-Namen
+   * @param {object} existingValues - Bestehende Werte (optional)
+   */
+  renderDynamicSections(kampagnenarten, existingValues = {}) {
+    const container = document.getElementById('kampagnenart-sections-container');
+    if (!container) return;
+    
+    if (kampagnenarten.length === 0) {
+      container.innerHTML = `
+        <div class="alert alert-warning">
+          <p>Für diesen Auftrag wurden noch keine Kampagnenarten hinterlegt.</p>
+          <p>Bitte wählen Sie einen Auftrag mit Kampagnenarten oder fügen Sie erst Kampagnenarten zum Auftrag hinzu.</p>
+        </div>
+      `;
+      return;
+    }
+    
+    // Generiere Sections für jede Kampagnenart - NUR Budget
+    let sectionsHtml = `
+      <div class="alert alert-info" style="margin-bottom: var(--space-md);">
+        <p><strong>Hinweis:</strong> Die Anzahl der Videos, Creator und Bilder wird beim Erstellen der Kampagnen festgelegt und automatisch hierher übertragen.</p>
+      </div>
+    `;
+    kampagnenarten.forEach(artName => {
+      const config = KAMPAGNENARTEN_MAPPING[artName];
+      if (config) {
+        sectionsHtml += generateBudgetOnlyFieldsHtml(artName, existingValues);
+      } else {
+        console.warn(`⚠️ Unbekannte Kampagnenart: "${artName}"`);
+      }
+    });
+    
+    container.innerHTML = sectionsHtml;
+  }
+
   // Events binden
   bindFormEvents() {
     const form = document.getElementById('auftragsdetails-form');
     if (!form) return;
 
-    // Auto-Berechnung bei Änderung
-    const videoFields = [
-      'ugc_video_anzahl',
-      'influencer_video_anzahl',
-      'vor_ort_video_anzahl',
-      'vor_ort_mitarbeiter_video_anzahl'
-    ];
-
-    const creatorFields = [
-      'ugc_creator_anzahl',
-      'influencer_creator_anzahl',
-      'vor_ort_creator_anzahl'
-    ];
-
-    const updateTotals = () => {
-      let totalVideos = 0;
-      let totalCreator = 0;
-
-      videoFields.forEach(fieldId => {
-        const value = parseInt(document.getElementById(fieldId)?.value || 0);
-        totalVideos += value;
-      });
-
-      creatorFields.forEach(fieldId => {
-        const value = parseInt(document.getElementById(fieldId)?.value || 0);
-        totalCreator += value;
-      });
-
-      document.getElementById('gesamt_videos').value = totalVideos || '';
-      document.getElementById('gesamt_creator').value = totalCreator || '';
-    };
-
-    // Listener für alle Felder
-    [...videoFields, ...creatorFields].forEach(fieldId => {
-      const field = document.getElementById(fieldId);
-      if (field) {
-        field.addEventListener('input', updateTotals);
-      }
-    });
-
-    // Auftrag-Auswahl Listener: Kampagnenanzahl aus Auftrag übernehmen
+    // Auftrag-Auswahl Listener: Kampagnenarten laden und Sections rendern
     const auftragSelect = document.getElementById('auftrag_id');
     if (auftragSelect) {
-      auftragSelect.addEventListener('change', (e) => {
+      auftragSelect.addEventListener('change', async (e) => {
         const auftragId = e.target.value;
         const kampagnenField = document.getElementById('kampagnenanzahl');
         
-        if (!auftragId || !kampagnenField) return;
+        if (!auftragId) {
+          // Kein Auftrag ausgewählt - Reset
+          if (kampagnenField) {
+            kampagnenField.value = '';
+            kampagnenField.style.backgroundColor = '';
+          }
+          this.renderDynamicSections([]);
+          return;
+        }
         
-        // Finde den ausgewählten Auftrag und hole kampagnenanzahl
+        // Kampagnenanzahl vom Auftrag übernehmen
         const selectedAuftrag = this.auftraege.find(a => a.id === auftragId);
-        if (selectedAuftrag?.kampagnenanzahl) {
+        if (selectedAuftrag?.kampagnenanzahl && kampagnenField) {
           kampagnenField.value = selectedAuftrag.kampagnenanzahl;
-          kampagnenField.setAttribute('readonly', true);
           kampagnenField.style.backgroundColor = '#f5f5f5';
           console.log(`✅ Kampagnenanzahl ${selectedAuftrag.kampagnenanzahl} vom Auftrag übernommen`);
-        } else {
+        } else if (kampagnenField) {
           kampagnenField.value = '';
-          kampagnenField.removeAttribute('readonly');
           kampagnenField.style.backgroundColor = '';
-          console.log('⚠️ Keine Kampagnenanzahl im Auftrag vorhanden');
         }
+        
+        // Lade Kampagnenarten für diesen Auftrag
+        console.log('🔄 Lade Kampagnenarten für Auftrag:', auftragId);
+        const kampagnenarten = await this.loadKampagnenartenForAuftrag(auftragId);
+        this.currentKampagnenarten = kampagnenarten;
+        
+        // Lade bestehende auftrag_details Werte (falls vorhanden)
+        let existingValues = {};
+        try {
+          const { data } = await window.supabase
+            .from('auftrag_details')
+            .select('*')
+            .eq('auftrag_id', auftragId)
+            .maybeSingle();
+          if (data) {
+            existingValues = data;
+          }
+        } catch (e) {
+          console.warn('⚠️ Keine bestehenden auftrag_details gefunden');
+        }
+        
+        // Rendere Sections
+        this.renderDynamicSections(kampagnenarten, existingValues);
       });
     }
 
@@ -335,15 +339,12 @@ export class AuftragsdetailsCreate {
       const formData = new FormData(form);
       const data = {};
 
+      // Sammle alle Felder
       for (let [key, value] of formData.entries()) {
         // Leere Werte als null speichern
         if (value === '' || value === null) {
           data[key] = null;
-        } else if (['kampagnenanzahl', 'ugc_video_anzahl', 'ugc_creator_anzahl', 
-                    'influencer_video_anzahl', 'influencer_creator_anzahl',
-                    'vor_ort_video_anzahl', 'vor_ort_creator_anzahl', 'vor_ort_videographen_anzahl',
-                    'vor_ort_mitarbeiter_video_anzahl', 'vor_ort_mitarbeiter_videographen_anzahl',
-                    'gesamt_videos', 'gesamt_creator'].includes(key)) {
+        } else if (key.endsWith('_anzahl') || key === 'gesamt_videos' || key === 'gesamt_creator' || key === 'kampagnenanzahl') {
           // Zahlen konvertieren
           data[key] = value ? parseInt(value) : null;
         } else {
@@ -363,16 +364,36 @@ export class AuftragsdetailsCreate {
         return;
       }
 
-      // Erstelle Auftragsdetails
-      const { data: created, error } = await window.supabase
+      // Prüfe ob bereits Details existieren
+      const { data: existing, error: checkError } = await window.supabase
         .from('auftrag_details')
-        .insert([data])
-        .select()
-        .single();
+        .select('id')
+        .eq('auftrag_id', data.auftrag_id)
+        .maybeSingle();
 
-      if (error) throw error;
-
-      console.log('✅ Auftragsdetails erfolgreich erstellt:', created);
+      let result;
+      if (existing?.id) {
+        // Update
+        const { data: updated, error } = await window.supabase
+          .from('auftrag_details')
+          .update(data)
+          .eq('id', existing.id)
+          .select()
+          .single();
+        if (error) throw error;
+        result = updated;
+        console.log('✅ Auftragsdetails erfolgreich aktualisiert:', result);
+      } else {
+        // Insert
+        const { data: created, error } = await window.supabase
+          .from('auftrag_details')
+          .insert([data])
+          .select()
+          .single();
+        if (error) throw error;
+        result = created;
+        console.log('✅ Auftragsdetails erfolgreich erstellt:', result);
+      }
       
       // Success-State für Button
       if (submitBtn) {
@@ -381,11 +402,11 @@ export class AuftragsdetailsCreate {
       }
       
       // Erfolgs-Benachrichtigung anzeigen
-      window.showNotification?.('Auftragsdetails erfolgreich erstellt', 'success');
+      window.showNotification?.('Auftragsdetails erfolgreich gespeichert', 'success');
       
       // Event auslösen für Listen-Update
       window.dispatchEvent(new CustomEvent('entityUpdated', { 
-        detail: { entity: 'auftrag_details', id: created.id, action: 'created' } 
+        detail: { entity: 'auftrag_details', id: result.id, action: existing ? 'updated' : 'created' } 
       }));
       
       // Kurz warten damit Success-State sichtbar ist, dann navigieren
@@ -396,7 +417,7 @@ export class AuftragsdetailsCreate {
     } catch (error) {
       console.error('Fehler beim Erstellen:', error);
       window.ErrorHandler?.handle(error, 'AuftragsdetailsCreate.handleFormSubmit');
-      window.showNotification?.(`Fehler beim Erstellen: ${error.message}`, 'error') || alert(`❌ Fehler beim Erstellen der Auftragsdetails: ${error.message}`);
+      window.showNotification?.(`Fehler beim Speichern: ${error.message}`, 'error') || alert(`❌ Fehler beim Speichern der Auftragsdetails: ${error.message}`);
 
       const submitBtn = document.querySelector('#auftragsdetails-form button[type="submit"]');
       if (submitBtn) {

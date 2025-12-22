@@ -55,8 +55,7 @@
 .feedback-chip .chip-note { color: var(--gray-600); font-size: var(--text-xs); }
 .feedback-chip.muted .chip-label { background: var(--gray-500); }
 
-/* Feedback Form */
-.feedback-form { margin-top: var(--space-xs); }
+
 .feedback-form textarea { width: 100%; 
   border: var(--border-xs) solid var(--gray-300); 
   border-radius: var(--radius-md); 
@@ -538,6 +537,7 @@
   display: flex;
   justify-content: flex-end;
   margin-bottom: var(--space-sm);
+  padding: var(--space-xs) var(--space-xs) 0 var(--space-xs);
 }
 
 .auftrag-financials-cards {

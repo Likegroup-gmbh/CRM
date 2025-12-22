@@ -1558,6 +1558,21 @@ export class KampagneDetail {
       btnNewKooperation.addEventListener('click', (e) => {
         e.preventDefault();
         console.log('🎯 Kooperation anlegen Button geklickt, kampagneId:', this.kampagneId);
+        
+        // PERFORMANCE: Kampagne-Daten für Prefill cachen (vermeidet erneuten Supabase-Call)
+        if (this.kampagneData) {
+          window.kooperationPrefillCache = {
+            kampagne_id: this.kampagneId,
+            kampagnenname: this.kampagneData.kampagnenname,
+            unternehmen_id: this.kampagneData.unternehmen_id,
+            marke_id: this.kampagneData.marke_id || null,
+            unternehmen: this.kampagneData.unternehmen,
+            marke: this.kampagneData.marke,
+            timestamp: Date.now()
+          };
+          console.log('📦 PREFILL-CACHE: Kampagne-Daten gecacht für schnelles Prefill', window.kooperationPrefillCache);
+        }
+        
         window.navigateTo(`/kooperation/new?kampagne_id=${this.kampagneId}`);
       });
     }

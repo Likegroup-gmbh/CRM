@@ -37,7 +37,6 @@ export const ActionConfigs = {
       { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
       { id: 'notiz', icon: 'notiz', label: 'Notiz hinzufügen', roles: ['admin', 'mitarbeiter'] },
-      { id: 'assign-staff', icon: 'add-ansprechpartner', label: 'Mitarbeiter zuordnen', roles: ['admin'] },
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
     ],

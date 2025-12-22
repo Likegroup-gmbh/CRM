@@ -80,33 +80,70 @@ export class StrategieService {
         .eq('mitarbeiter_id', userId);
       (directKampagnen || []).forEach(k => kampagneIds.add(k.kampagne_id));
       
-      // 2. Kampagnen über Unternehmen-Zuordnung (mitarbeiter_unternehmen)
-      const { data: userUnternehmen } = await window.supabase
-        .from('mitarbeiter_unternehmen')
-        .select('unternehmen_id')
-        .eq('mitarbeiter_id', userId);
-      const unternehmenIds = (userUnternehmen || []).map(u => u.unternehmen_id);
-      
-      if (unternehmenIds.length > 0) {
-        const { data: unternehmensKampagnen } = await window.supabase
-          .from('kampagne')
-          .select('id')
-          .in('unternehmen_id', unternehmenIds);
-        (unternehmensKampagnen || []).forEach(k => kampagneIds.add(k.id));
-      }
-      
-      // 3. Kampagnen über Marken-Zuordnung (marke_mitarbeiter)
+      // 2. Zugeordnete Marken laden
       const { data: userMarken } = await window.supabase
         .from('marke_mitarbeiter')
         .select('marke_id')
         .eq('mitarbeiter_id', userId);
-      const markeIds = (userMarken || []).map(m => m.marke_id);
+      const markenIds = (userMarken || []).map(m => m.marke_id).filter(Boolean);
       
-      if (markeIds.length > 0) {
+      // 3. Marken-Daten mit Unternehmen-IDs laden
+      let markenMitUnternehmen = [];
+      if (markenIds.length > 0) {
+        const { data: markenData } = await window.supabase
+          .from('marke')
+          .select('id, unternehmen_id')
+          .in('id', markenIds);
+        markenMitUnternehmen = (markenData || []).map(m => ({
+          marke_id: m.id,
+          unternehmen_id: m.unternehmen_id
+        }));
+      }
+      
+      // 4. Zugeordnete Unternehmen laden
+      const { data: userUnternehmen } = await window.supabase
+        .from('mitarbeiter_unternehmen')
+        .select('unternehmen_id')
+        .eq('mitarbeiter_id', userId);
+      const unternehmenIds = (userUnternehmen || []).map(u => u.unternehmen_id).filter(Boolean);
+      
+      // 5. Erlaubte Marken ermitteln (mit Marke-als-Zwischenfilter Logik)
+      const unternehmenMarkenMap = new Map();
+      markenMitUnternehmen.forEach(r => {
+        if (r.unternehmen_id) {
+          if (!unternehmenMarkenMap.has(r.unternehmen_id)) {
+            unternehmenMarkenMap.set(r.unternehmen_id, []);
+          }
+          unternehmenMarkenMap.get(r.unternehmen_id).push(r.marke_id);
+        }
+      });
+      
+      let allowedMarkenIds = [];
+      for (const unternehmenId of unternehmenIds) {
+        const explicitMarkenIds = unternehmenMarkenMap.get(unternehmenId);
+        if (explicitMarkenIds && explicitMarkenIds.length > 0) {
+          // Mitarbeiter hat explizite Marken-Zuordnung → nur diese Marken
+          allowedMarkenIds.push(...explicitMarkenIds);
+        } else {
+          // Keine Marken-Zuordnung → alle Marken des Unternehmens
+          const { data: alleMarken } = await window.supabase
+            .from('marke')
+            .select('id')
+            .eq('unternehmen_id', unternehmenId);
+          allowedMarkenIds.push(...(alleMarken || []).map(m => m.id));
+        }
+      }
+      
+      // Direkt zugeordnete Marken hinzufügen
+      allowedMarkenIds.push(...markenIds);
+      allowedMarkenIds = [...new Set(allowedMarkenIds)];
+      
+      // 6. Kampagnen für erlaubte Marken laden
+      if (allowedMarkenIds.length > 0) {
         const { data: markenKampagnen } = await window.supabase
           .from('kampagne')
           .select('id')
-          .in('marke_id', markeIds);
+          .in('marke_id', allowedMarkenIds);
         (markenKampagnen || []).forEach(k => kampagneIds.add(k.id));
       }
       

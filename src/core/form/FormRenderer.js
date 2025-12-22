@@ -432,6 +432,10 @@ export class FormRenderer {
             </div>
           `;
         }
+        // Container für dynamische Kampagnenart-Felder (wird von FormEvents befüllt)
+        if (field.customType === 'kampagnenart-felder') {
+          return `<div id="kampagnenart-felder-container" class="kampagnenart-felder-container"></div>`;
+        }
         return `<div class="form-field">Unbekannter Feldtyp: ${field.customType}</div>`;
 
       default:

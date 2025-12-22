@@ -431,6 +431,12 @@ export class DependentFields {
 
   // Abhängiges Feld leeren
   clearDependentField(field, fieldConfig) {
+    // PREFILL CHECK: Überspringe prefilled Felder
+    if (field.dataset.prefilled === 'true') {
+      console.log(`🔒 PREFILL: Überspringe Leeren von prefilled Feld: ${fieldConfig.name}`);
+      return;
+    }
+    
     console.log(`🧹 Leere abhängiges Feld: ${fieldConfig.name}`);
     
     // Spezielle Behandlung für Tag-basierte Multi-Selects
@@ -454,10 +460,11 @@ export class DependentFields {
           tagsContainer.style.display = 'none';
         }
         
-        // Dropdown verstecken
+        // Dropdown verstecken (nur Klasse entfernen, KEIN Inline-Style!)
         const dropdown = container.querySelector('.searchable-select-dropdown');
         if (dropdown) {
-          dropdown.style.display = 'none';
+          dropdown.classList.remove('show');
+          dropdown.style.removeProperty('display'); // Inline-Style entfernen falls vorhanden
         }
         
         // Verstecktes Select leeren
@@ -836,7 +843,9 @@ export class DependentFields {
       // Behandelt management_ids, lead_mitarbeiter_ids, mitarbeiter_ids mit Rollen-Filterung
       if (fieldConfig.dependsOn === 'unternehmen_id' && fieldConfig.prefillFromUnternehmen && fieldConfig.prefillRole) {
         const targetRole = fieldConfig.prefillRole;
-        console.log(`🔄 DEPENDENTFIELDS: Lade ${fieldConfig.name} (Rolle: ${targetRole}) vom Unternehmen:`, parentValue);
+        console.log(`🔄 DEPENDENTFIELDS PREFILL: Starte Prefill für ${fieldConfig.name} (Rolle: ${targetRole}) vom Unternehmen:`, parentValue);
+        console.log(`🔄 DEPENDENTFIELDS PREFILL: Field Element:`, field);
+        console.log(`🔄 DEPENDENTFIELDS PREFILL: FieldConfig:`, fieldConfig);
         
         // Lade Mitarbeiter-Zuordnungen für dieses Unternehmen mit der spezifischen Rolle
         const { data: mitarbeiterRel, error } = await window.supabase
@@ -871,15 +880,18 @@ export class DependentFields {
           selected: roleMitarbeiterIds.includes(m.id)
         }));
         
-        console.log(`✅ ${options.filter(o => o.selected).length} Mitarbeiter für ${fieldConfig.name} vorausgewählt`);
+        console.log(`✅ DEPENDENTFIELDS PREFILL: ${options.filter(o => o.selected).length} von ${options.length} Mitarbeitern für ${fieldConfig.name} vorausgewählt`);
+        console.log(`✅ DEPENDENTFIELDS PREFILL: Vorausgewählte Optionen:`, options.filter(o => o.selected).map(o => o.label));
         
         // Feld aktivieren und Optionen setzen
         field.disabled = false;
         
         if (fieldConfig.tagBased && window.formSystem?.optionsManager) {
+          console.log(`🏷️ DEPENDENTFIELDS PREFILL: Erstelle Tag-basiertes Select für ${fieldConfig.name}`);
           window.formSystem.optionsManager.createTagBasedSelect(field, options, fieldConfig);
-          console.log(`✅ ${fieldConfig.name} Tags für Marke vorausgefüllt`);
+          console.log(`✅ DEPENDENTFIELDS PREFILL: ${fieldConfig.name} Tags erfolgreich erstellt`);
         } else {
+          console.log(`📋 DEPENDENTFIELDS PREFILL: Aktualisiere Standard-Select für ${fieldConfig.name}`);
           this.updateDependentFieldOptions(field, fieldConfig, options);
         }
         

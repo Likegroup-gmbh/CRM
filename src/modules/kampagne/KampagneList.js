@@ -242,7 +242,11 @@ export class KampagneList {
       // Daten für Kompatibilität formatieren
       const formattedData = data.map(k => {
         const arr = Array.isArray(k.art_der_kampagne) ? k.art_der_kampagne : [];
-        const artDisplay = arr.map(v => (this.kampagneArtMap.get(v) || v));
+        // Kürze Kampagnenart-Namen (entferne "-Kampagne" und " Kampagne")
+        const artDisplay = arr.map(v => {
+          const fullName = this.kampagneArtMap.get(v) || v;
+          return fullName.replace(/[-\s]Kampagne[n]?$/i, '');
+        });
         return {
           ...k,
           art_der_kampagne_display: artDisplay,
@@ -339,10 +343,10 @@ export class KampagneList {
           .select('kampagne_id')
           .eq('mitarbeiter_id', userId),
         
-        // 2. Kampagnen über zugeordnete Marken (mit Unternehmen-Info)
+        // 2. Kampagnen über zugeordnete Marken (OHNE Join wegen RLS)
         () => window.supabase
           .from('marke_mitarbeiter')
-          .select('marke_id, marke:marke_id(unternehmen_id)')
+          .select('marke_id')
           .eq('mitarbeiter_id', userId),
         
         // 3. Zugeordnete Unternehmen
@@ -358,11 +362,22 @@ export class KampagneList {
       // Zugeordnete Unternehmen-IDs
       const unternehmenIds = (unternehmenResult.data || []).map(r => r.unternehmen_id).filter(Boolean);
       
-      // Zugeordnete Marken mit ihren Unternehmen
-      const markenMitUnternehmen = (markenResult.data || []).map(r => ({
-        marke_id: r.marke_id,
-        unternehmen_id: r.marke?.unternehmen_id
-      })).filter(r => r.marke_id);
+      // Marken-IDs aus marke_mitarbeiter (ohne Join)
+      const markenIds = (markenResult.data || []).map(r => r.marke_id).filter(Boolean);
+      
+      // Zugeordnete Marken mit ihren Unternehmen (separat laden wegen RLS)
+      let markenMitUnternehmen = [];
+      if (markenIds.length > 0) {
+        const { data: markenData } = await window.supabase
+          .from('marke')
+          .select('id, unternehmen_id')
+          .in('id', markenIds);
+        
+        markenMitUnternehmen = (markenData || []).map(m => ({
+          marke_id: m.id,
+          unternehmen_id: m.unternehmen_id
+        }));
+      }
       
       // Erstelle Map: Unternehmen-ID → zugeordnete Marken-IDs (für diesen User)
       const unternehmenMarkenMap = new Map();
@@ -401,6 +416,12 @@ export class KampagneList {
           console.log(`🔓 Unternehmen ${unternehmenId}: Alle Marken erlaubt:`, alleMarkenIds.length);
         }
       }
+      
+      // WICHTIG: Direkt zugeordnete Marken hinzufügen (auch ohne separate Unternehmen-Zuordnung)
+      // Falls mitarbeiter_unternehmen Sync nicht existiert
+      const direktZugeordneteMarkenIds = markenMitUnternehmen.map(r => r.marke_id);
+      allowedMarkenIds.push(...direktZugeordneteMarkenIds);
+      console.log(`📍 Direkt zugeordnete Marken hinzugefügt:`, direktZugeordneteMarkenIds);
       
       // Duplikate entfernen
       allowedMarkenIds = [...new Set(allowedMarkenIds)];
@@ -927,8 +948,19 @@ export class KampagneList {
 
   // Handle Form Submit für Seiten-Formular
   async handleFormSubmit() {
+    const form = document.getElementById('kampagne-form');
+    const btn = form?.querySelector('.mdc-btn.mdc-btn--create');
+    
+    // Guard: Mehrfachklick verhindern
+    if (btn?.dataset.locked === 'true') return;
+    if (btn) {
+      btn.dataset.locked = 'true';
+      btn.classList.add('is-loading');
+      const labelEl = btn.querySelector('.mdc-btn__label');
+      if (labelEl) labelEl.textContent = 'Wird angelegt…';
+    }
+    
     try {
-      const form = document.getElementById('kampagne-form');
       const formData = new FormData(form);
       const submitData = {};
 
@@ -1018,6 +1050,23 @@ export class KampagneList {
         submitData.kampagnenname = kampagnennameInput.value;
       }
 
+      // Dynamische Kampagnenart-Felder aus dem Stepper-Container sammeln
+      const kampagnenartContainer = form.querySelector('#kampagnenart-felder-container');
+      if (kampagnenartContainer) {
+        const stepperInputs = kampagnenartContainer.querySelectorAll('input[type="hidden"]');
+        stepperInputs.forEach(input => {
+          if (input.name && input.value !== undefined) {
+            const value = parseInt(input.value, 10) || 0;
+            submitData[input.name] = value;
+            console.log(`📊 Stepper-Feld gesammelt: ${input.name} = ${value}`);
+          }
+        });
+        console.log('📊 Alle Stepper-Felder gesammelt:', 
+          Array.from(stepperInputs).map(i => `${i.name}=${i.value}`).join(', '));
+      } else {
+        console.log('⚠️ Kampagnenart-Container nicht gefunden');
+      }
+
       // GLOBALE DEDUPLIZIERUNG: Entferne Duplikate aus allen Array-Feldern
       for (const key of Object.keys(submitData)) {
         if (Array.isArray(submitData[key])) {
@@ -1045,6 +1094,14 @@ export class KampagneList {
       console.log('📦 DataService Ergebnis:', result);
       
       if (result.success) {
+        // Success UI
+        if (btn) {
+          btn.classList.remove('is-loading');
+          btn.classList.add('is-success');
+          const labelEl = btn.querySelector('.mdc-btn__label');
+          if (labelEl) labelEl.textContent = 'Kampagne angelegt';
+        }
+        
         // Nach Erstellung: Many-to-Many Beziehungen speichern
         try {
           const kampagneId = result.id;
@@ -1148,6 +1205,10 @@ export class KampagneList {
               console.log('✅ Formate Zuordnungen gespeichert:', formateRows.length);
             }
           }
+          
+          // Kampagnenart-Daten zu auftrag_details übertragen
+          await this.transferKampagneDataToAuftragsdetails(submitData, kampagneId);
+          
         } catch (e) {
           console.warn('⚠️ Many-to-Many Zuordnungen konnten nicht gespeichert werden', e);
         }
@@ -1164,11 +1225,25 @@ export class KampagneList {
           window.navigateTo('/kampagne');
         }, 1500);
       } else {
+        // Error UI
+        if (btn) {
+          btn.classList.remove('is-loading');
+          btn.dataset.locked = 'false';
+          const labelEl = btn.querySelector('.mdc-btn__label');
+          if (labelEl) labelEl.textContent = 'Erstellen';
+        }
         this.showErrorMessage(`Fehler beim Erstellen: ${result.error}`);
       }
 
     } catch (error) {
       console.error('❌ Fehler beim Erstellen der Kampagne:', error);
+      // Reset Button bei Fehler
+      if (btn) {
+        btn.classList.remove('is-loading');
+        btn.dataset.locked = 'false';
+        const labelEl = btn.querySelector('.mdc-btn__label');
+        if (labelEl) labelEl.textContent = 'Erstellen';
+      }
       this.showErrorMessage('Ein unerwarteter Fehler ist aufgetreten.');
     }
   }
@@ -1223,6 +1298,179 @@ export class KampagneList {
       setTimeout(() => {
         alertDiv.remove();
       }, 5000);
+    }
+  }
+
+  /**
+   * Überträgt Kampagnenart-spezifische Daten zu auftrag_details
+   * @param {object} submitData - Die Formulardaten der Kampagne
+   * @param {string} kampagneId - ID der erstellten/aktualisierten Kampagne
+   */
+  async transferKampagneDataToAuftragsdetails(submitData, kampagneId) {
+    try {
+      const auftragId = submitData.auftrag_id;
+      if (!auftragId) {
+        console.log('ℹ️ Keine auftrag_id - Auftragsdetails-Transfer übersprungen');
+        return;
+      }
+      
+      console.log('🔄 Starte Transfer Kampagnendaten → Auftragsdetails');
+      
+      // Importiere das Mapping
+      const { KAMPAGNENARTEN_MAPPING } = await import('../auftrag/logic/KampagnenartenMapping.js');
+      
+      // Sammle alle Kampagnenart-spezifischen Felder aus submitData
+      const auftragsDetailsUpdate = {};
+      let gesamtVideos = 0;
+      let gesamtCreator = 0;
+      
+      // Durchlaufe alle bekannten Kampagnenarten und sammle deren Felder
+      for (const [artName, config] of Object.entries(KAMPAGNENARTEN_MAPPING)) {
+        const { prefix, hasCreator, hasBilder, hasVideographen } = config;
+        
+        // Video-Anzahl
+        const videoKey = `${prefix}_video_anzahl`;
+        if (submitData[videoKey] !== undefined && submitData[videoKey] !== '') {
+          const videoAnzahl = parseInt(submitData[videoKey], 10) || 0;
+          auftragsDetailsUpdate[videoKey] = videoAnzahl;
+          gesamtVideos += videoAnzahl;
+        }
+        
+        // Creator-Anzahl
+        if (hasCreator) {
+          const creatorKey = `${prefix}_creator_anzahl`;
+          if (submitData[creatorKey] !== undefined && submitData[creatorKey] !== '') {
+            const creatorAnzahl = parseInt(submitData[creatorKey], 10) || 0;
+            auftragsDetailsUpdate[creatorKey] = creatorAnzahl;
+            gesamtCreator += creatorAnzahl;
+          }
+        }
+        
+        // Bilder-Anzahl
+        if (hasBilder) {
+          const bilderKey = `${prefix}_bilder_anzahl`;
+          if (submitData[bilderKey] !== undefined && submitData[bilderKey] !== '') {
+            auftragsDetailsUpdate[bilderKey] = parseInt(submitData[bilderKey], 10) || 0;
+          }
+        }
+        
+        // Videographen-Anzahl
+        if (hasVideographen) {
+          const videographenKey = `${prefix}_videographen_anzahl`;
+          if (submitData[videographenKey] !== undefined && submitData[videographenKey] !== '') {
+            auftragsDetailsUpdate[videographenKey] = parseInt(submitData[videographenKey], 10) || 0;
+          }
+        }
+      }
+      
+      // Wenn keine Felder zu übertragen sind, abbrechen
+      if (Object.keys(auftragsDetailsUpdate).length === 0) {
+        console.log('ℹ️ Keine Kampagnenart-Felder zu übertragen');
+        return;
+      }
+      
+      // Gesamtsummen hinzufügen
+      auftragsDetailsUpdate.gesamt_videos = gesamtVideos;
+      auftragsDetailsUpdate.gesamt_creator = gesamtCreator;
+      
+      console.log('📊 Auftragsdetails-Update Daten:', auftragsDetailsUpdate);
+      
+      // Prüfe ob auftrag_details für diesen Auftrag existiert
+      const { data: existingDetails, error: checkError } = await window.supabase
+        .from('auftrag_details')
+        .select('id')
+        .eq('auftrag_id', auftragId)
+        .maybeSingle();
+      
+      if (checkError) {
+        console.error('❌ Fehler beim Prüfen der Auftragsdetails:', checkError);
+        return;
+      }
+      
+      if (existingDetails) {
+        // Update bestehende Auftragsdetails
+        // Bei Update: Lade alle Kampagnen des Auftrags und summiere deren Werte
+        const { data: alleKampagnen, error: kampError } = await window.supabase
+          .from('kampagne')
+          .select('*')
+          .eq('auftrag_id', auftragId);
+        
+        if (kampError) {
+          console.error('❌ Fehler beim Laden aller Kampagnen:', kampError);
+          return;
+        }
+        
+        // Sammle Summen aller Kampagnen für jedes Feld
+        const aggregatedData = {};
+        let totalVideos = 0;
+        let totalCreator = 0;
+        
+        for (const kamp of (alleKampagnen || [])) {
+          for (const [artName, config] of Object.entries(KAMPAGNENARTEN_MAPPING)) {
+            const { prefix, hasCreator, hasBilder, hasVideographen } = config;
+            
+            // Video-Anzahl
+            const videoKey = `${prefix}_video_anzahl`;
+            const videoVal = parseInt(kamp[videoKey], 10) || 0;
+            aggregatedData[videoKey] = (aggregatedData[videoKey] || 0) + videoVal;
+            totalVideos += videoVal;
+            
+            // Creator-Anzahl
+            if (hasCreator) {
+              const creatorKey = `${prefix}_creator_anzahl`;
+              const creatorVal = parseInt(kamp[creatorKey], 10) || 0;
+              aggregatedData[creatorKey] = (aggregatedData[creatorKey] || 0) + creatorVal;
+              totalCreator += creatorVal;
+            }
+            
+            // Bilder-Anzahl
+            if (hasBilder) {
+              const bilderKey = `${prefix}_bilder_anzahl`;
+              aggregatedData[bilderKey] = (aggregatedData[bilderKey] || 0) + (parseInt(kamp[bilderKey], 10) || 0);
+            }
+            
+            // Videographen-Anzahl
+            if (hasVideographen) {
+              const videographenKey = `${prefix}_videographen_anzahl`;
+              aggregatedData[videographenKey] = (aggregatedData[videographenKey] || 0) + (parseInt(kamp[videographenKey], 10) || 0);
+            }
+          }
+        }
+        
+        // Gesamtsummen
+        aggregatedData.gesamt_videos = totalVideos;
+        aggregatedData.gesamt_creator = totalCreator;
+        
+        const { error: updateError } = await window.supabase
+          .from('auftrag_details')
+          .update(aggregatedData)
+          .eq('id', existingDetails.id);
+        
+        if (updateError) {
+          console.error('❌ Fehler beim Update der Auftragsdetails:', updateError);
+        } else {
+          console.log('✅ Auftragsdetails aktualisiert (aggregiert):', aggregatedData);
+        }
+      } else {
+        // Erstelle neue Auftragsdetails
+        const newDetails = {
+          auftrag_id: auftragId,
+          ...auftragsDetailsUpdate
+        };
+        
+        const { error: insertError } = await window.supabase
+          .from('auftrag_details')
+          .insert(newDetails);
+        
+        if (insertError) {
+          console.error('❌ Fehler beim Erstellen der Auftragsdetails:', insertError);
+        } else {
+          console.log('✅ Auftragsdetails erstellt:', newDetails);
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ Fehler beim Transfer der Kampagnendaten zu Auftragsdetails:', error);
     }
   }
 
@@ -1403,15 +1651,23 @@ export class KampagneList {
     return avatarBubbles.renderBubbles(items);
   }
 
-  // Render Art der Kampagne als Tags
+  // Render Art der Kampagne als Tags (abgekürzt)
   renderArtTags(artArray) {
     if (!artArray || artArray.length === 0) {
       return '-';
     }
 
+    // Abkürzungen für Kampagnenarten
+    const shortenArt = (art) => {
+      if (!art) return art;
+      // Entferne " Kampagne" suffix und kürze
+      return art.replace(/ Kampagne$/i, '');
+    };
+
     const arr = Array.isArray(artArray) ? artArray : [artArray];
     const inner = arr.map(art => {
-      return `<span class="tag tag--type">${window.validatorSystem?.sanitizeHtml(art) || art}</span>`;
+      const shortArt = shortenArt(art);
+      return `<span class="tag tag--type">${window.validatorSystem?.sanitizeHtml(shortArt) || shortArt}</span>`;
     }).join('');
     return `<div class="tags tags-compact">${inner}</div>`;
   }

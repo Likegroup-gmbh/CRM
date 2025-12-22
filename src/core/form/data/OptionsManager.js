@@ -83,6 +83,119 @@ export class OptionsManager {
     console.log('🔧 Searchable Select erstellen für:', field.name);
   }
 
+  // Tag-basierte Dropdown-Items aktualisieren (für Multi-Select mit Tags)
+  updateTagBasedDropdownItems(dropdown, options, selectElement, tagsContainer, field, filterText = '') {
+    dropdown.innerHTML = '';
+    
+    // Bereits ausgewählte Werte sammeln
+    const selectedValues = new Set(
+      Array.from(tagsContainer.querySelectorAll('.tag'))
+        .map(tag => tag.dataset?.value)
+        .filter(Boolean)
+    );
+    
+    // Nur nicht-ausgewählte Optionen anzeigen und nach Filtertext filtern
+    const availableOptions = options.filter(opt => 
+      !selectedValues.has(opt.value) && 
+      opt.label.toLowerCase().includes(filterText.toLowerCase())
+    );
+    
+    if (availableOptions.length === 0) {
+      const noResults = document.createElement('div');
+      noResults.textContent = 'Keine weiteren Optionen';
+      noResults.className = 'searchable-select-empty';
+      dropdown.appendChild(noResults);
+      return;
+    }
+    
+    availableOptions.forEach(option => {
+      const item = document.createElement('div');
+      item.className = 'searchable-select-item';
+      item.dataset.value = option.value;
+      
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'branch-name';
+      nameSpan.textContent = option.label;
+      item.appendChild(nameSpan);
+      
+      // Hover-Effekte
+      item.addEventListener('mouseenter', () => item.classList.add('hover'));
+      item.addEventListener('mouseleave', () => item.classList.remove('hover'));
+      
+      // Klick-Handler: Tag erstellen
+      item.addEventListener('click', () => {
+        // Tag erstellen
+        const tag = document.createElement('div');
+        tag.className = 'tag';
+        tag.dataset.value = option.value;
+        
+        const tagText = document.createElement('span');
+        tagText.textContent = option.label;
+        
+        const removeBtn = document.createElement('span');
+        removeBtn.textContent = '×';
+        removeBtn.className = 'tag-remove';
+        
+        // Remove-Handler
+        removeBtn.addEventListener('click', () => {
+          tag.remove();
+          // Aus verstecktem Select entfernen
+          const hiddenSelect = document.getElementById(selectElement.id + '_hidden');
+          if (hiddenSelect) {
+            const optToRemove = Array.from(hiddenSelect.options).find(o => o.value === option.value);
+            if (optToRemove) hiddenSelect.removeChild(optToRemove);
+          }
+          // Dropdown aktualisieren (Option wieder verfügbar machen)
+          this.updateTagBasedDropdownItems(dropdown, options, selectElement, tagsContainer, field);
+          // Placeholder wenn leer
+          if (tagsContainer.querySelectorAll('.tag').length === 0) {
+            tagsContainer.style.display = 'none';
+          }
+        });
+        
+        tag.appendChild(tagText);
+        tag.appendChild(removeBtn);
+        tagsContainer.appendChild(tag);
+        tagsContainer.style.display = 'flex';
+        
+        // Zum versteckten Select hinzufügen
+        let hiddenSelect = document.getElementById(selectElement.id + '_hidden');
+        if (!hiddenSelect) {
+          const form = selectElement.closest('form');
+          if (form) {
+            hiddenSelect = document.createElement('select');
+            hiddenSelect.name = selectElement.name + '[]';
+            hiddenSelect.id = selectElement.id + '_hidden';
+            hiddenSelect.multiple = true;
+            hiddenSelect.style.display = 'none';
+            form.appendChild(hiddenSelect);
+          }
+        }
+        if (hiddenSelect) {
+          const hiddenOpt = document.createElement('option');
+          hiddenOpt.value = option.value;
+          hiddenOpt.selected = true;
+          hiddenOpt.textContent = option.label;
+          hiddenSelect.appendChild(hiddenOpt);
+        }
+        
+        // Input leeren
+        const input = dropdown.parentNode?.querySelector('.searchable-select-input');
+        if (input) input.value = '';
+        
+        // Dropdown aktualisieren (Option entfernen)
+        this.updateTagBasedDropdownItems(dropdown, options, selectElement, tagsContainer, field);
+        
+        // Dropdown schließen
+        dropdown.classList.remove('show');
+        
+        console.log(`✅ Tag hinzugefügt: ${option.label}`);
+      });
+      
+      dropdown.appendChild(item);
+    });
+  }
+
   // Dropdown-Items aktualisieren
   updateDropdownItems(dropdown, options, filterText) {
     dropdown.innerHTML = '';
@@ -164,9 +277,14 @@ export class OptionsManager {
           selectElement.appendChild(optionElement);
         });
         
-        // 3. Dropdown sofort aktualisieren (nicht warten bis zum nächsten Öffnen!)
+        // 3. Dropdown für Tag-basierte Selects aktualisieren (mit korrekten Handlern!)
         const dropdown = existingContainer.querySelector('.searchable-select-dropdown');
-        if (dropdown) {
+        const tagsContainer = existingContainer.querySelector('.tags-container');
+        if (dropdown && tagsContainer) {
+          // Für Tag-basierte Selects: Spezielle Update-Logik mit Tag-Erstellung
+          this.updateTagBasedDropdownItems(dropdown, options, selectElement, tagsContainer, field);
+          console.log(`✅ Tag-basiertes Dropdown aktualisiert für ${field.name}`);
+        } else if (dropdown) {
           this.updateDropdownItems(dropdown, options, '');
           console.log(`✅ Dropdown sofort aktualisiert für ${field.name}`);
         }
@@ -200,7 +318,112 @@ export class OptionsManager {
           console.log(`✅ ${tagsToRemove.length} ungültige Tag(s) entfernt`);
         }
         
-        // 5. Input wieder aktivieren falls deaktiviert (auch bei 0 Optionen!)
+        // 5. NEU: Tags für vorausgewählte Optionen erstellen (Prefill bei Waterfall)
+        const preselectedOptions = options.filter(opt => opt.selected);
+        if (preselectedOptions.length > 0) {
+          console.log(`🏷️ ${preselectedOptions.length} vorausgewählte Optionen für ${field.name} gefunden - erstelle Tags`);
+          
+          const tagsContainer = existingContainer.querySelector('.tags-container');
+          // WICHTIG: hiddenSelect über ID finden, da es im Formular liegt, nicht im Container
+          let hiddenSelect = document.getElementById(selectElement.id + '_hidden');
+          
+          // Falls hiddenSelect nicht existiert, erstelle es
+          if (!hiddenSelect) {
+            const form = selectElement.closest('form');
+            if (form) {
+              hiddenSelect = document.createElement('select');
+              hiddenSelect.name = selectElement.name + '[]';
+              hiddenSelect.id = selectElement.id + '_hidden';
+              hiddenSelect.multiple = true;
+              hiddenSelect.style.display = 'none';
+              form.appendChild(hiddenSelect);
+              console.log(`🆕 Verstecktes Select für ${field.name} erstellt`);
+            }
+          }
+          
+          if (tagsContainer && hiddenSelect) {
+            // Bestehende Tag-Werte sammeln
+            const existingTagValues = new Set(
+              Array.from(tagsContainer.querySelectorAll('.tag'))
+                .map(tag => tag.dataset?.value)
+                .filter(Boolean)
+            );
+            
+            // Placeholder entfernen falls vorhanden
+            const placeholder = tagsContainer.querySelector('.tags-placeholder');
+            if (placeholder) placeholder.remove();
+            
+            // Tags für neue vorausgewählte Optionen erstellen
+            preselectedOptions.forEach(option => {
+              if (!existingTagValues.has(option.value)) {
+                // Tag erstellen
+                const tag = document.createElement('div');
+                tag.className = 'tag';
+                tag.dataset.value = option.value;
+                
+                const tagText = document.createElement('span');
+                tagText.textContent = option.label;
+                
+                const removeBtn = document.createElement('span');
+                removeBtn.textContent = '×';
+                removeBtn.className = 'tag-remove';
+                
+                // Remove-Handler
+                removeBtn.addEventListener('click', () => {
+                  tag.remove();
+                  // Aus verstecktem Select entfernen
+                  const optToRemove = Array.from(hiddenSelect.options).find(o => o.value === option.value);
+                  if (optToRemove) hiddenSelect.removeChild(optToRemove);
+                  // Aus Original-Select entfernen
+                  const origOpt = Array.from(selectElement.options).find(o => o.value === option.value);
+                  if (origOpt) selectElement.removeChild(origOpt);
+                  // Event auslösen
+                  hiddenSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                  // Placeholder wenn leer
+                  if (tagsContainer.querySelectorAll('.tag').length === 0) {
+                    const ph = document.createElement('span');
+                    ph.className = 'tags-placeholder';
+                    ph.textContent = 'Keine Auswahl';
+                    ph.style.cssText = 'color: #6b7280; font-style: italic; font-size: 14px;';
+                    tagsContainer.appendChild(ph);
+                  }
+                });
+                
+                tag.appendChild(tagText);
+                tag.appendChild(removeBtn);
+                tagsContainer.appendChild(tag);
+                
+                // Zum versteckten Select hinzufügen
+                const hiddenOpt = document.createElement('option');
+                hiddenOpt.value = option.value;
+                hiddenOpt.selected = true;
+                hiddenOpt.textContent = option.label;
+                hiddenSelect.appendChild(hiddenOpt);
+                
+                // Auch zum Original-Select hinzufügen (für Fallback)
+                const origOpt = document.createElement('option');
+                origOpt.value = option.value;
+                origOpt.selected = true;
+                origOpt.textContent = option.label;
+                selectElement.appendChild(origOpt);
+                
+                console.log(`✅ Tag erstellt für: ${option.label}`);
+              }
+            });
+            
+            // WICHTIG: tagsContainer sichtbar machen!
+            tagsContainer.style.display = 'flex';
+            
+            // Change-Event auslösen für korrekte Form-Submission
+            hiddenSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            console.log(`✅ ${field.name}: ${tagsContainer.querySelectorAll('.tag').length} Tags erstellt und Container sichtbar gemacht`);
+          } else {
+            console.warn(`⚠️ ${field.name}: tagsContainer oder hiddenSelect nicht gefunden!`, { tagsContainer: !!tagsContainer, hiddenSelect: !!hiddenSelect });
+          }
+        }
+        
+        // 6. Input wieder aktivieren falls deaktiviert (auch bei 0 Optionen!)
         existingInput.disabled = options.length === 0;
         if (options.length === 0 && field.filterBy) {
           const filterByLabel = field.filterBy.replace('_id', '').replace(/_/g, ' ');
@@ -449,9 +672,16 @@ export class OptionsManager {
         return;
       }
       
+      // WICHTIG: Auch Tags aus dem DOM berücksichtigen (für Tags die via Update-Zweig erstellt wurden)
+      const tagValuesInDOM = new Set(
+        Array.from(tagsContainer.querySelectorAll('.tag'))
+          .map(tag => tag.dataset?.value)
+          .filter(Boolean)
+      );
+      
       base.forEach(option => {
-        // Prüfe ob bereits ausgewählt
-        if (selectedValues.has(option.value)) {
+        // Prüfe ob bereits ausgewählt (entweder im Set ODER als Tag im DOM)
+        if (selectedValues.has(option.value) || tagValuesInDOM.has(option.value)) {
           return;
         }
         
@@ -506,6 +736,8 @@ export class OptionsManager {
     
     // Input-Events
     input.addEventListener('focus', () => {
+      // WICHTIG: Inline-Style entfernen falls vorhanden (Sicherheitsnetz)
+      dropdown.style.removeProperty('display');
       dropdown.classList.add('show');
       createDropdownItems();
     });
@@ -513,8 +745,16 @@ export class OptionsManager {
     input.addEventListener('input', (e) => {
       const searchTerm = e.target.value.toLowerCase();
       const list = getOptions();
+      // Auch Tags aus dem DOM berücksichtigen (für Tags die via Update-Zweig erstellt wurden)
+      const tagValuesInDOM = new Set(
+        Array.from(tagsContainer.querySelectorAll('.tag'))
+          .map(tag => tag.dataset?.value)
+          .filter(Boolean)
+      );
       const filtered = list.filter(option => 
-        option.label.toLowerCase().includes(searchTerm) && !selectedValues.has(option.value)
+        option.label.toLowerCase().includes(searchTerm) && 
+        !selectedValues.has(option.value) &&
+        !tagValuesInDOM.has(option.value)
       );
       createDropdownItems(filtered);
     });

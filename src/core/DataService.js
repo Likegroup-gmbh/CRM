@@ -163,13 +163,31 @@ export class DataService {
           kampagne_typ: 'string',
           start: 'date',
           deadline: 'date',
+          deadline_strategie: 'date',
+          deadline_creator_sourcing: 'date',
+          deadline_video_produktion: 'date',
+          deadline_post_produktion: 'date',
           kampagnen_nummer: 'number',
           drehort_typ_id: 'uuid',
           drehort_beschreibung: 'string',
           status_id: 'uuid',
           creatoranzahl: 'number',
           videoanzahl: 'number',
-          budget_info: 'string'
+          budget_info: 'string',
+          // Dynamische Kampagnenart-Felder
+          ugc_video_anzahl: 'number',
+          ugc_creator_anzahl: 'number',
+          ugc_bilder_anzahl: 'number',
+          influencer_video_anzahl: 'number',
+          influencer_creator_anzahl: 'number',
+          influencer_bilder_anzahl: 'number',
+          vor_ort_video_anzahl: 'number',
+          vor_ort_creator_anzahl: 'number',
+          vor_ort_bilder_anzahl: 'number',
+          vor_ort_videographen_anzahl: 'number',
+          igc_video_anzahl: 'number',
+          igc_creator_anzahl: 'number',
+          igc_bilder_anzahl: 'number'
         },
         relations: {
           unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' },
@@ -504,19 +522,33 @@ export class DataService {
         fields: {
           auftrag_id: 'uuid',
           kampagnenanzahl: 'number',
+          // UGC
           ugc_video_anzahl: 'number',
           ugc_creator_anzahl: 'number',
+          ugc_bilder_anzahl: 'number',
           ugc_budget_info: 'text',
+          // Influencer
           influencer_video_anzahl: 'number',
           influencer_creator_anzahl: 'number',
+          influencer_bilder_anzahl: 'number',
           influencer_budget_info: 'text',
+          // Vor Ort
           vor_ort_video_anzahl: 'number',
           vor_ort_creator_anzahl: 'number',
+          vor_ort_bilder_anzahl: 'number',
           vor_ort_videographen_anzahl: 'number',
           vor_ort_budget_info: 'text',
+          // Vor Ort Mitarbeiter
           vor_ort_mitarbeiter_video_anzahl: 'number',
+          vor_ort_mitarbeiter_bilder_anzahl: 'number',
           vor_ort_mitarbeiter_videographen_anzahl: 'number',
           vor_ort_mitarbeiter_budget_info: 'text',
+          // IGC
+          igc_video_anzahl: 'number',
+          igc_creator_anzahl: 'number',
+          igc_bilder_anzahl: 'number',
+          igc_budget_info: 'text',
+          // Gesamt
           gesamt_videos: 'number',
           gesamt_creator: 'number'
         },
@@ -534,19 +566,32 @@ export class DataService {
         fields: {
           auftrag_id: 'uuid',
           kampagnenanzahl: 'number',
+          // UGC
           ugc_video_anzahl: 'number',
           ugc_creator_anzahl: 'number',
+          ugc_bilder_anzahl: 'number',
           ugc_budget_info: 'text',
+          // Influencer
           influencer_video_anzahl: 'number',
           influencer_creator_anzahl: 'number',
+          influencer_bilder_anzahl: 'number',
           influencer_budget_info: 'text',
+          // Vor Ort
           vor_ort_video_anzahl: 'number',
           vor_ort_creator_anzahl: 'number',
+          vor_ort_bilder_anzahl: 'number',
           vor_ort_videographen_anzahl: 'number',
           vor_ort_budget_info: 'text',
+          // Vor Ort Mitarbeiter
           vor_ort_mitarbeiter_video_anzahl: 'number',
+          vor_ort_mitarbeiter_bilder_anzahl: 'number',
           vor_ort_mitarbeiter_videographen_anzahl: 'number',
           vor_ort_mitarbeiter_budget_info: 'text',
+          // IGC
+          igc_video_anzahl: 'number',
+          igc_creator_anzahl: 'number',
+          igc_bilder_anzahl: 'number',
+          igc_budget_info: 'text',
           gesamt_videos: 'number',
           gesamt_creator: 'number'
         },
@@ -982,6 +1027,12 @@ export class DataService {
                   )
                 `)
                 .order('created_at', { ascending: false });
+
+              // Spezial: Filter nach erlaubten Ansprechpartner-IDs (Mitarbeiter-Sichtbarkeit)
+              if (filters && filters._allowedIds && Array.isArray(filters._allowedIds)) {
+                query = query.in('id', filters._allowedIds);
+                delete filters._allowedIds;
+              }
 
               // Spezial: Filter nach Sprache über Junction-Tabelle (sprachen M:N)
               if (filters && filters.sprache_id) {
@@ -2072,6 +2123,12 @@ export class DataService {
       }
       
       let query = window.supabase.from(entityConfig.table).select(selectClause, { count: 'exact' });
+
+      // Spezielle Behandlung für _allowedIds Filter (Mitarbeiter-Sichtbarkeit)
+      if (filters._allowedIds && Array.isArray(filters._allowedIds)) {
+        query = query.in('id', filters._allowedIds);
+        delete filters._allowedIds;
+      }
 
       // Spezielle Behandlung für Many-to-Many Filter (z.B. branche_id für Unternehmen)
       if (filters.branche_id && (entityType === 'unternehmen' || entityType === 'marke')) {

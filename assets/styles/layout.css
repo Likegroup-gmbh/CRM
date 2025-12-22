@@ -255,7 +255,7 @@
   flex-direction: column;
   background-color: var(--bg-primary);
   border: 1px solid var(--gray-200);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-md);
   margin: var(--space-sm) var(--space-sm) var(--space-sm) var(--sidebar-width);
   overflow: hidden;
   /* Feste Höhe damit Flexbox funktioniert */

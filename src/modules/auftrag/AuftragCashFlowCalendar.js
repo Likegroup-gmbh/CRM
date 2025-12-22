@@ -135,57 +135,60 @@ export class AuftragCashFlowCalendar {
   assignToMonths(auftrag, months) {
     const rechnungDatum = auftrag.rechnung_gestellt_am ? new Date(auftrag.rechnung_gestellt_am) : null;
     const ueberweisenDatum = auftrag.ueberwiesen_am ? new Date(auftrag.ueberwiesen_am) : null;
+    const reFaelligkeitDatum = auftrag.re_faelligkeit ? new Date(auftrag.re_faelligkeit) : null;
     const betrag = parseFloat(auftrag.nettobetrag) || 0;
-    const istUeberwiesen = !!ueberweisenDatum;
     
-    // LOGIK: Wenn überwiesen → nur grün anzeigen (kein orange für Rechnung gestellt)
-    //        Wenn nur Rechnung gestellt → orange anzeigen
+    // LOGIK (Priorität von oben nach unten):
+    // 1. Wenn ueberwiesen_am existiert → NUR grün anzeigen (im Überweisungsmonat)
+    // 2. Wenn rechnung_gestellt_am existiert (aber nicht überwiesen) → NUR orange anzeigen
+    // 3. Wenn nur re_faelligkeit existiert (nichts anderes) → weiß anzeigen
     
-    if (istUeberwiesen && ueberweisenDatum.getFullYear() === this.currentYear) {
-      // Auftrag ist überwiesen → NUR im Überweisungsmonat als GRÜN anzeigen
-      const monthIndex = ueberweisenDatum.getMonth();
-      
-      const existingEntry = months[monthIndex].auftraege.find(a => a.id === auftrag.id);
-      
-      if (!existingEntry) {
-        months[monthIndex].auftraege.push({
-          id: auftrag.id,
-          auftragsname: auftrag.auftragsname,
-          betrag: betrag,
-          status: 'paid',
-          datum: ueberweisenDatum
-        });
-        months[monthIndex].total += betrag;
-      }
-      
-      // Setze Status auf paid (überschreibt ggf. invoiced von anderen Aufträgen)
-      months[monthIndex].status = 'paid';
-      
-    } else if (rechnungDatum && rechnungDatum.getFullYear() === this.currentYear) {
-      // Auftrag ist NICHT überwiesen, aber Rechnung gestellt → ORANGE anzeigen
-      const monthIndex = rechnungDatum.getMonth();
-      
-      const existingEntry = months[monthIndex].auftraege.find(a => a.id === auftrag.id);
-      
-      if (!existingEntry) {
-        months[monthIndex].auftraege.push({
-          id: auftrag.id,
-          auftragsname: auftrag.auftragsname,
-          betrag: betrag,
-          status: 'invoiced',
-          datum: rechnungDatum
-        });
-        months[monthIndex].total += betrag;
-        
-        // Setze Status auf invoiced wenn noch nicht paid (von anderem Auftrag)
-        if (!months[monthIndex].status || months[monthIndex].status === 'invoiced') {
-          months[monthIndex].status = 'invoiced';
-        }
-      }
+    // Bestimme welches Datum und welchen Status wir verwenden
+    let anzeigeStatus = null;
+    let anzeigeDatum = null;
+    
+    if (ueberweisenDatum) {
+      // Höchste Priorität: Überwiesen
+      anzeigeStatus = 'paid';
+      anzeigeDatum = ueberweisenDatum;
+    } else if (rechnungDatum) {
+      // Mittlere Priorität: Rechnung gestellt
+      anzeigeStatus = 'invoiced';
+      anzeigeDatum = rechnungDatum;
+    } else if (reFaelligkeitDatum) {
+      // Niedrigste Priorität: Nur RE-Fälligkeit
+      anzeigeStatus = 'pending';
+      anzeigeDatum = reFaelligkeitDatum;
     }
     
-    // Wenn kein Datum vorhanden ist, wird der Auftrag nicht in einem Monat angezeigt
-    // Er erscheint aber in der Gruppenliste (wird bei groupData() hinzugefügt)
+    // Nur anzeigen wenn ein Datum existiert und es im aktuellen Jahr liegt
+    if (!anzeigeDatum || anzeigeDatum.getFullYear() !== this.currentYear) {
+      return;
+    }
+    
+    const monthIndex = anzeigeDatum.getMonth();
+    const existingEntry = months[monthIndex].auftraege.find(a => a.id === auftrag.id);
+    
+    if (!existingEntry) {
+      months[monthIndex].auftraege.push({
+        id: auftrag.id,
+        auftragsname: auftrag.auftragsname,
+        betrag: betrag,
+        status: anzeigeStatus,
+        datum: anzeigeDatum
+      });
+      months[monthIndex].total += betrag;
+    }
+    
+    // Setze Zellen-Status (höchster Status gewinnt)
+    // paid > invoiced > pending
+    const statusPriority = { 'paid': 3, 'invoiced': 2, 'pending': 1 };
+    const currentPriority = statusPriority[months[monthIndex].status] || 0;
+    const newPriority = statusPriority[anzeigeStatus] || 0;
+    
+    if (newPriority > currentPriority) {
+      months[monthIndex].status = anzeigeStatus;
+    }
   }
 
   // Rendere Kalender
@@ -292,7 +295,16 @@ export class AuftragCashFlowCalendar {
       return '<td class="cash-flow-cell empty-cell"></td>';
     }
     
-    const statusClass = month.status === 'paid' ? 'paid' : 'invoiced';
+    // Status-Klasse: paid (grün), invoiced (orange), pending (weiß/keine Farbe)
+    let statusClass = '';
+    if (month.status === 'paid') {
+      statusClass = 'paid';
+    } else if (month.status === 'invoiced') {
+      statusClass = 'invoiced';
+    } else if (month.status === 'pending') {
+      statusClass = 'pending';
+    }
+    
     const tooltip = this.generateTooltip(month.auftraege);
     const auftragCount = month.auftraege.length;
     

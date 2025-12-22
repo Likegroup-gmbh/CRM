@@ -422,15 +422,147 @@ export class AnsprechpartnerList {
       const currentFilters = filterSystem.getFilters('ansprechpartner');
       const { currentPage, itemsPerPage } = this.pagination.getState();
       
+      const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+      
+      // Für Nicht-Admins: Nur Ansprechpartner aus zugewiesenen Unternehmen/Marken laden
+      let allowedAnsprechpartnerIds = null;
+      if (!isAdmin && window.supabase) {
+        try {
+          // 1. Zugeordnete Marken (OHNE Join wegen RLS)
+          const { data: assignedMarken } = await window.supabase
+            .from('marke_mitarbeiter')
+            .select('marke_id')
+            .eq('mitarbeiter_id', window.currentUser?.id);
+          
+          // Marken-IDs extrahieren
+          const markenIds = (assignedMarken || []).map(r => r.marke_id).filter(Boolean);
+          
+          // Zugeordnete Marken mit ihren Unternehmen (separat laden wegen RLS)
+          let markenMitUnternehmen = [];
+          if (markenIds.length > 0) {
+            const { data: markenData } = await window.supabase
+              .from('marke')
+              .select('id, unternehmen_id')
+              .in('id', markenIds);
+            
+            markenMitUnternehmen = (markenData || []).map(m => ({
+              marke_id: m.id,
+              unternehmen_id: m.unternehmen_id
+            }));
+          }
+          
+          // 2. Zugeordnete Unternehmen
+          const { data: mitarbeiterUnternehmen } = await window.supabase
+            .from('mitarbeiter_unternehmen')
+            .select('unternehmen_id')
+            .eq('mitarbeiter_id', window.currentUser?.id);
+          
+          const unternehmenIds = (mitarbeiterUnternehmen || [])
+            .map(r => r.unternehmen_id)
+            .filter(Boolean);
+          
+          // Erstelle Map: Unternehmen-ID → zugeordnete Marken-IDs
+          const unternehmenMarkenMap = new Map();
+          markenMitUnternehmen.forEach(r => {
+            if (r.unternehmen_id) {
+              if (!unternehmenMarkenMap.has(r.unternehmen_id)) {
+                unternehmenMarkenMap.set(r.unternehmen_id, []);
+              }
+              unternehmenMarkenMap.get(r.unternehmen_id).push(r.marke_id);
+            }
+          });
+          
+          // Sammle erlaubte Ansprechpartner-IDs
+          const erlaubteAnsprechpartnerIds = new Set();
+          
+          // Für jedes zugeordnete Unternehmen
+          for (const unternehmenId of unternehmenIds) {
+            const zugeordneteMarken = unternehmenMarkenMap.get(unternehmenId);
+            
+            // IMMER: Ansprechpartner des Unternehmens laden (für alle Mitarbeiter des Unternehmens sichtbar)
+            const { data: unternehmenAnsprechpartner } = await window.supabase
+              .from('ansprechpartner_unternehmen')
+              .select('ansprechpartner_id')
+              .eq('unternehmen_id', unternehmenId);
+            
+            (unternehmenAnsprechpartner || []).forEach(r => {
+              if (r.ansprechpartner_id) erlaubteAnsprechpartnerIds.add(r.ansprechpartner_id);
+            });
+            
+            if (zugeordneteMarken && zugeordneteMarken.length > 0) {
+              // Mitarbeiter hat spezifische Marken-Zuordnung → zusätzlich Ansprechpartner dieser Marken
+              const { data: markenAnsprechpartner } = await window.supabase
+                .from('ansprechpartner_marke')
+                .select('ansprechpartner_id')
+                .in('marke_id', zugeordneteMarken);
+              
+              (markenAnsprechpartner || []).forEach(r => {
+                if (r.ansprechpartner_id) erlaubteAnsprechpartnerIds.add(r.ansprechpartner_id);
+              });
+            }
+          }
+          
+          // Zusätzlich: Direkt zugeordnete Marken (ohne separate Unternehmen-Zuordnung)
+          // → Hier AUCH Ansprechpartner des übergeordneten Unternehmens der Marke einbeziehen
+          const direkteMarken = markenMitUnternehmen.filter(r => !unternehmenIds.includes(r.unternehmen_id));
+          
+          if (direkteMarken.length > 0) {
+            const direkteMarkenIds = direkteMarken.map(r => r.marke_id);
+            const direkteUnternehmenIds = [...new Set(direkteMarken.map(r => r.unternehmen_id).filter(Boolean))];
+            
+            // 1. Ansprechpartner direkt der Marke zugeordnet
+            const { data: direkteMarkenAnsprechpartner } = await window.supabase
+              .from('ansprechpartner_marke')
+              .select('ansprechpartner_id')
+              .in('marke_id', direkteMarkenIds);
+            
+            (direkteMarkenAnsprechpartner || []).forEach(r => {
+              if (r.ansprechpartner_id) erlaubteAnsprechpartnerIds.add(r.ansprechpartner_id);
+            });
+            
+            // 2. Ansprechpartner des übergeordneten Unternehmens der Marke
+            if (direkteUnternehmenIds.length > 0) {
+              const { data: unternehmenAnsprechpartner } = await window.supabase
+                .from('ansprechpartner_unternehmen')
+                .select('ansprechpartner_id')
+                .in('unternehmen_id', direkteUnternehmenIds);
+              
+              (unternehmenAnsprechpartner || []).forEach(r => {
+                if (r.ansprechpartner_id) erlaubteAnsprechpartnerIds.add(r.ansprechpartner_id);
+              });
+            }
+          }
+          
+          allowedAnsprechpartnerIds = [...erlaubteAnsprechpartnerIds];
+          console.log('🔍 ANSPRECHPARTNERLIST: Erlaubte Ansprechpartner für Nicht-Admin:', allowedAnsprechpartnerIds.length);
+          
+          // Wenn keine Ansprechpartner zugeordnet sind, zeige leeres Ergebnis
+          if (allowedAnsprechpartnerIds.length === 0) {
+            this.pagination.updateTotal(0);
+            this.pagination.render();
+            await this.updateTable([]);
+            return;
+          }
+        } catch (error) {
+          console.error('❌ ANSPRECHPARTNERLIST: Fehler beim Laden der Zuordnungen:', error);
+        }
+      }
+      
+      // Filter für erlaubte Ansprechpartner-IDs hinzufügen
+      const filtersToApply = { ...currentFilters };
+      if (allowedAnsprechpartnerIds) {
+        filtersToApply._allowedIds = allowedAnsprechpartnerIds;
+      }
+      
       console.log('🔍 Lade Ansprechpartner mit Filter und Pagination:', {
-        filters: currentFilters,
+        filters: filtersToApply,
         page: currentPage,
         limit: itemsPerPage
       });
       
       const result = await window.dataService.loadEntitiesWithPagination(
         'ansprechpartner',
-        currentFilters,
+        filtersToApply,
         currentPage,
         itemsPerPage
       );

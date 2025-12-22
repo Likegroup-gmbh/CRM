@@ -54,8 +54,8 @@ export class MarkeCreate {
       // Duplikat-Validierung auf Markenname
       this.setupDuplicateValidation(form);
       
-      // WATERFALL: Unternehmen-Change-Listener für Mitarbeiter-Prefill
-      this.setupUnternehmenMitarbeiterWaterfall(form);
+      // HINWEIS: Mitarbeiter-Prefill wird automatisch durch DependentFields.js gehandhabt
+      // Die Felder haben prefillFromUnternehmen: true und prefillRole in der FormConfig
     }
   }
 
@@ -504,6 +504,31 @@ export class MarkeCreate {
         } else {
           console.log(`✅ ${allInsertData.length} Mitarbeiter-Zuordnungen gespeichert`);
         }
+        
+        // AUTO-SYNC: mitarbeiter_unternehmen für das Unternehmen der Marke erstellen
+        const unternehmenId = data.unternehmen_id;
+        if (unternehmenId) {
+          console.log('🔄 MARKECREATE: Sync mitarbeiter_unternehmen für Unternehmen:', unternehmenId);
+          const uniqueMitarbeiterIds = [...new Set(allInsertData.map(r => r.mitarbeiter_id))];
+          
+          for (const mitarbeiterId of uniqueMitarbeiterIds) {
+            const { error: syncError } = await window.supabase
+              .from('mitarbeiter_unternehmen')
+              .upsert({
+                mitarbeiter_id: mitarbeiterId,
+                unternehmen_id: unternehmenId,
+                role: 'mitarbeiter'
+              }, { 
+                onConflict: 'mitarbeiter_id,unternehmen_id,role',
+                ignoreDuplicates: true 
+              });
+            
+            if (syncError && syncError.code !== '23505') {
+              console.error(`❌ Sync-Fehler für ${mitarbeiterId}:`, syncError);
+            }
+          }
+          console.log(`✅ mitarbeiter_unternehmen synchronisiert für ${uniqueMitarbeiterIds.length} Mitarbeiter`);
+        }
       } else {
         console.log('ℹ️ Keine Mitarbeiter zum Speichern');
       }
@@ -699,137 +724,6 @@ export class MarkeCreate {
     }
   }
 
-  // WATERFALL: Setup für Mitarbeiter-Prefill bei Unternehmen-Auswahl
-  setupUnternehmenMitarbeiterWaterfall(form) {
-    const unternehmenSelect = form.querySelector('[name="unternehmen_id"]');
-    if (!unternehmenSelect) {
-      console.warn('⚠️ MARKECREATE: unternehmen_id Feld nicht gefunden');
-      return;
-    }
-    
-    console.log('🔧 MARKECREATE: Setup Waterfall für Mitarbeiter-Felder');
-    
-    // Direkt auf Change-Events des versteckten Select hören
-    unternehmenSelect.addEventListener('change', async (e) => {
-      const unternehmenId = e.target.value;
-      console.log(`🔄 MARKECREATE: Unternehmen geändert → ${unternehmenId}`);
-      
-      if (!unternehmenId) {
-        // Felder leeren wenn kein Unternehmen ausgewählt
-        this.clearMitarbeiterFields(form);
-        return;
-      }
-      
-      // Mitarbeiter-Daten vom Unternehmen laden und in die Felder eintragen
-      await this.loadMitarbeiterFromUnternehmen(form, unternehmenId);
-    });
-  }
-  
-  // Mitarbeiter-Felder leeren
-  clearMitarbeiterFields(form) {
-    const fieldNames = ['management_ids', 'lead_mitarbeiter_ids', 'mitarbeiter_ids'];
-    
-    for (const fieldName of fieldNames) {
-      const field = form.querySelector(`[name="${fieldName}"]`);
-      if (field && window.formSystem?.optionsManager) {
-        window.formSystem.optionsManager.createTagBasedSelect(field, [], {
-          name: fieldName,
-          placeholder: field.dataset.placeholder || 'Mitarbeiter suchen...',
-          tagBased: true
-        });
-      }
-    }
-    console.log('🧹 MARKECREATE: Mitarbeiter-Felder geleert');
-  }
-  
-  // Mitarbeiter vom Unternehmen laden und in Felder eintragen
-  async loadMitarbeiterFromUnternehmen(form, unternehmenId) {
-    console.log('📥 MARKECREATE: Lade Mitarbeiter vom Unternehmen:', unternehmenId);
-    
-    try {
-      // Alle Mitarbeiter-Zuordnungen für dieses Unternehmen laden
-      const { data: mitarbeiterRel, error: relError } = await window.supabase
-        .from('mitarbeiter_unternehmen')
-        .select('mitarbeiter_id, role, benutzer:mitarbeiter_id(id, name)')
-        .eq('unternehmen_id', unternehmenId);
-      
-      if (relError) {
-        console.error('❌ Fehler beim Laden der Mitarbeiter-Zuordnungen:', relError);
-        return;
-      }
-      
-      // Alle verfügbaren Mitarbeiter laden (nicht Kunden)
-      const { data: allMitarbeiter, error: maError } = await window.supabase
-        .from('benutzer')
-        .select('id, name')
-        .neq('rolle', 'kunde')
-        .order('name');
-      
-      if (maError) {
-        console.error('❌ Fehler beim Laden aller Mitarbeiter:', maError);
-        return;
-      }
-      
-      // Mitarbeiter nach Rolle gruppieren
-      const mitarbeiterByRole = {
-        management: [],
-        lead_mitarbeiter: [],
-        mitarbeiter: []
-      };
-      
-      (mitarbeiterRel || []).forEach(rel => {
-        if (rel.role && mitarbeiterByRole[rel.role]) {
-          mitarbeiterByRole[rel.role].push(rel.mitarbeiter_id);
-        }
-      });
-      
-      console.log('📊 MARKECREATE: Mitarbeiter nach Rolle:', {
-        management: mitarbeiterByRole.management.length,
-        lead_mitarbeiter: mitarbeiterByRole.lead_mitarbeiter.length,
-        mitarbeiter: mitarbeiterByRole.mitarbeiter.length
-      });
-      
-      // Für jede Rolle die Optionen erstellen und in das Feld eintragen
-      const roleFieldMapping = {
-        management: 'management_ids',
-        lead_mitarbeiter: 'lead_mitarbeiter_ids',
-        mitarbeiter: 'mitarbeiter_ids'
-      };
-      
-      for (const [role, fieldName] of Object.entries(roleFieldMapping)) {
-        const field = form.querySelector(`[name="${fieldName}"]`);
-        if (!field) {
-          console.warn(`⚠️ MARKECREATE: Feld ${fieldName} nicht gefunden`);
-          continue;
-        }
-        
-        // Optionen erstellen mit vorausgewählten Mitarbeitern
-        const options = (allMitarbeiter || []).map(m => ({
-          value: m.id,
-          label: m.name,
-          selected: mitarbeiterByRole[role].includes(m.id)
-        }));
-        
-        console.log(`✅ MARKECREATE: Feld ${fieldName} - ${options.filter(o => o.selected).length} vorausgewählt`);
-        
-        // Tag-basiertes Select aktualisieren
-        if (window.formSystem?.optionsManager) {
-          const fieldConfig = {
-            name: fieldName,
-            placeholder: field.dataset.placeholder || 'Mitarbeiter suchen...',
-            tagBased: true
-          };
-          window.formSystem.optionsManager.createTagBasedSelect(field, options, fieldConfig);
-        }
-      }
-      
-      console.log('✅ MARKECREATE: Alle Mitarbeiter-Felder vorausgefüllt');
-      
-    } catch (error) {
-      console.error('❌ MARKECREATE: Fehler beim Laden der Mitarbeiter:', error);
-    }
-  }
-  
   // Destroy
   destroy() {
     console.log('🎯 MARKECREATE: Destroy');

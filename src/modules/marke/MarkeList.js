@@ -143,21 +143,36 @@ export class MarkeList {
       // - Unternehmen + bestimmte Marken → Sieht NUR die zugewiesenen Marken
       if (!isAdmin) {
         try {
-          // 1. Direkt zugeordnete Marken MIT Unternehmen-Info
+          // 1. Direkt zugeordnete Marken laden (OHNE Join wegen RLS-Problemen)
           const { data: assignedMarken, error } = await window.supabase
             .from('marke_mitarbeiter')
-            .select('marke_id, marke:marke_id(unternehmen_id)')
+            .select('marke_id')
             .eq('mitarbeiter_id', window.currentUser?.id);
             
           if (error) {
-            console.error('❌ MARKELIST: Fehler beim Laden der Zuordnungen:', error);
+            console.error('❌ MARKELIST: Fehler beim Laden der marke_mitarbeiter:', error);
           }
           
-          // Zugeordnete Marken mit ihren Unternehmen
-          const markenMitUnternehmen = (assignedMarken || []).map(r => ({
-            marke_id: r.marke_id,
-            unternehmen_id: r.marke?.unternehmen_id
-          })).filter(r => r.marke_id);
+          // Marken-IDs extrahieren
+          const markenIds = (assignedMarken || []).map(r => r.marke_id).filter(Boolean);
+          console.log('🔍 MARKELIST DEBUG: markenIds aus marke_mitarbeiter:', markenIds);
+          
+          // 2. Falls Marken gefunden, deren Unternehmen-IDs separat laden
+          let markenMitUnternehmen = [];
+          if (markenIds.length > 0) {
+            const { data: markenData } = await window.supabase
+              .from('marke')
+              .select('id, unternehmen_id')
+              .in('id', markenIds);
+            
+            markenMitUnternehmen = (markenData || []).map(m => ({
+              marke_id: m.id,
+              unternehmen_id: m.unternehmen_id
+            }));
+          }
+          
+          console.log('🔍 MARKELIST DEBUG: assignedMarken (marke_mitarbeiter):', assignedMarken);
+          console.log('🔍 MARKELIST DEBUG: markenMitUnternehmen:', markenMitUnternehmen);
           
           // 2. Zugeordnete Unternehmen
           const { data: mitarbeiterUnternehmen } = await window.supabase
@@ -165,9 +180,13 @@ export class MarkeList {
             .select('unternehmen_id')
             .eq('mitarbeiter_id', window.currentUser?.id);
           
+          console.log('🔍 MARKELIST DEBUG: mitarbeiterUnternehmen:', mitarbeiterUnternehmen);
+          
           const unternehmenIds = (mitarbeiterUnternehmen || [])
             .map(r => r.unternehmen_id)
             .filter(Boolean);
+          
+          console.log('🔍 MARKELIST DEBUG: unternehmenIds:', unternehmenIds);
           
           // Erstelle Map: Unternehmen-ID → zugeordnete Marken-IDs
           const unternehmenMarkenMap = new Map();
@@ -180,23 +199,35 @@ export class MarkeList {
             }
           });
           
+          console.log('🔍 MARKELIST DEBUG: unternehmenMarkenMap:', Object.fromEntries(unternehmenMarkenMap));
+          
           // Für jedes Unternehmen die erlaubten Marken ermitteln
           for (const unternehmenId of unternehmenIds) {
             const explicitMarkenIds = unternehmenMarkenMap.get(unternehmenId);
             
+            console.log(`🔍 MARKELIST DEBUG: Prüfe Unternehmen ${unternehmenId}, explicitMarkenIds:`, explicitMarkenIds);
+            
             if (explicitMarkenIds && explicitMarkenIds.length > 0) {
               // User hat explizite Marken-Zuordnung → Nur diese Marken erlauben
+              console.log(`✅ MARKELIST: Explizite Marken für Unternehmen, füge hinzu:`, explicitMarkenIds);
               allowedMarkeIds.push(...explicitMarkenIds);
             } else {
               // Keine Marken-Zuordnung → ALLE Marken des Unternehmens erlauben
+              console.log(`⚠️ MARKELIST: KEINE explizite Marken-Zuordnung für Unternehmen ${unternehmenId}, lade ALLE Marken`);
               const { data: alleMarken } = await window.supabase
                 .from('marke')
                 .select('id')
                 .eq('unternehmen_id', unternehmenId);
               
+              console.log(`⚠️ MARKELIST: Lade alle ${(alleMarken || []).length} Marken für dieses Unternehmen`);
               allowedMarkeIds.push(...(alleMarken || []).map(m => m.id));
             }
           }
+          
+          // WICHTIG: Direkt zugeordnete Marken hinzufügen (auch ohne separate Unternehmen-Zuordnung)
+          // Dies ist notwendig für Mitarbeiter, die nur einer Marke zugeordnet sind
+          const direktZugeordneteMarkenIds = markenMitUnternehmen.map(r => r.marke_id);
+          allowedMarkeIds.push(...direktZugeordneteMarkenIds);
           
           // Duplikate entfernen
           allowedMarkeIds = [...new Set(allowedMarkeIds)];
@@ -204,6 +235,7 @@ export class MarkeList {
           console.log('🔍 MARKELIST: Zugeordnete Marken für Nicht-Admin:', {
             zugeordneteUnternehmen: unternehmenIds.length,
             markenMitExpliziterZuordnung: unternehmenMarkenMap.size,
+            direktZugeordneteMarken: direktZugeordneteMarkenIds.length,
             erlaubteMarken: allowedMarkeIds.length
           });
         } catch (error) {
@@ -580,7 +612,7 @@ export class MarkeList {
           </td>
           <td>${this.renderUnternehmen(marke.unternehmen)}</td>
           <td>${this.renderBranchen(marke.branchen)}</td>
-          <td>${marke.webseite ? `<a href="${marke.webseite}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${marke.webseite}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>` : '-'}</td>
+          <td>${marke.webseite ? `<a href="${marke.webseite}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${marke.webseite}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>` : '-'}</td>
           <td>${this.renderAnsprechpartner(marke.ansprechpartner)}</td>
           <td>${this.renderZustaendigkeit(marke.zustaendigkeit, marke.mitarbeiter)}</td>
           <td>
