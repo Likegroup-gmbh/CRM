@@ -7,6 +7,7 @@ import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { KampagneKanbanBoard } from './KampagneKanbanBoard.js';
+import { KampagneCalendarView } from './KampagneCalendarView.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { KampagneFilterLogic } from './filters/KampagneFilterLogic.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
@@ -55,8 +56,9 @@ export class KampagneList {
     this._boundEventListeners = new Set();
     this.statusOptions = [];
     this.kampagneArtMap = new Map();
-    this.currentView = 'kanban'; // 'list' oder 'kanban' - Standard: kanban
+    this.currentView = 'kanban'; // 'list', 'kanban' oder 'calendar' - Standard: kanban
     this.kanbanBoard = null;
+    this.calendarView = null;
     
     // AbortController und Mount-Status für Race Condition Prevention
     this._abortController = null;
@@ -486,6 +488,12 @@ export class KampagneList {
               </svg>
               Kanban
             </button>
+            <button id="btn-view-calendar" class="secondary-btn ${this.currentView === 'calendar' ? 'active' : ''}">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+              </svg>
+              Kalender
+            </button>
           </div>
         </div>
       </div>
@@ -508,7 +516,9 @@ export class KampagneList {
 
       <div class="content-section">
         <div id="kampagnen-content-container">
-          ${this.currentView === 'kanban' ? '<div id="kanban-container"></div>' : this.renderTableWrapper()}
+          ${this.currentView === 'kanban' ? '<div id="kanban-container"></div>' : 
+            this.currentView === 'calendar' ? '<div id="calendar-container"></div>' : 
+            this.renderTableWrapper()}
         </div>
       </div>
     `;
@@ -521,6 +531,11 @@ export class KampagneList {
     // Kanban Board initialisieren wenn View = kanban
     if (this.currentView === 'kanban') {
       await this.initKanbanBoard();
+    }
+    
+    // Calendar View initialisieren wenn View = calendar
+    if (this.currentView === 'calendar') {
+      await this.initCalendarView();
     }
     
     // Binde Events nach dem Rendern
@@ -545,6 +560,10 @@ export class KampagneList {
               <th>Art der Kampagne</th>
               <th>Status</th>
               <th>Start</th>
+              <th>Strategie</th>
+              <th>Sourcing</th>
+              <th>Video</th>
+              <th>Post</th>
               <th>Deadline</th>
               <th>Creator Anzahl</th>
               <th>Video Anzahl</th>
@@ -555,7 +574,7 @@ export class KampagneList {
           </thead>
           <tbody id="kampagnen-table-body">
             <tr>
-              <td colspan="${isKunde ? '12' : '13'}" class="loading">Lade Kampagnen...</td>
+              <td colspan="${isKunde ? '16' : '17'}" class="loading">Lade Kampagnen...</td>
             </tr>
           </tbody>
         </table>
@@ -575,6 +594,20 @@ export class KampagneList {
     // Neue Board-Instanz
     this.kanbanBoard = new KampagneKanbanBoard();
     await this.kanbanBoard.init(container);
+  }
+
+  async initCalendarView() {
+    const container = document.getElementById('calendar-container');
+    if (!container) return;
+
+    // Cleanup old calendar
+    if (this.calendarView) {
+      this.calendarView.destroy();
+    }
+
+    // Neue Calendar-Instanz
+    this.calendarView = new KampagneCalendarView();
+    await this.calendarView.init(container);
   }
 
   // Initialisiere Filter-Dropdown
@@ -607,12 +640,17 @@ export class KampagneList {
   updateViewClass() {
     const mainContent = document.querySelector('.main-content');
     if (mainContent) {
+      // Reset alle View-Klassen
+      mainContent.classList.remove('kanban-view-active', 'calendar-view-active');
+      
       if (this.currentView === 'kanban') {
         mainContent.classList.add('kanban-view-active');
         console.log('✅ Kanban-View CSS-Klasse gesetzt');
+      } else if (this.currentView === 'calendar') {
+        mainContent.classList.add('calendar-view-active');
+        console.log('✅ Calendar-View CSS-Klasse gesetzt');
       } else {
-        mainContent.classList.remove('kanban-view-active');
-        console.log('✅ Kanban-View CSS-Klasse entfernt');
+        console.log('✅ View CSS-Klassen entfernt');
       }
     }
   }
@@ -622,6 +660,7 @@ export class KampagneList {
     // View-Toggle Events
     const listBtn = document.getElementById('btn-view-list');
     const kanbanBtn = document.getElementById('btn-view-kanban');
+    const calendarBtn = document.getElementById('btn-view-calendar');
 
     if (listBtn) {
       listBtn.addEventListener('click', async () => {
@@ -632,6 +671,12 @@ export class KampagneList {
         if (this.kanbanBoard) {
           this.kanbanBoard.destroy();
           this.kanbanBoard = null;
+        }
+        
+        // Cleanup Calendar View
+        if (this.calendarView) {
+          this.calendarView.destroy();
+          this.calendarView = null;
         }
         
         this.currentView = 'list';
@@ -648,12 +693,38 @@ export class KampagneList {
         console.log('🔄 Wechsel zu Kanban-View');
         if (this.currentView === 'kanban') return; // Bereits in Kanban-View
         
+        // Cleanup Calendar View
+        if (this.calendarView) {
+          this.calendarView.destroy();
+          this.calendarView = null;
+        }
+        
         this.currentView = 'kanban';
         
         // Setze Kanban-View CSS-Klasse
         this.updateViewClass();
         
         await this.render(); // Re-render (initKanbanBoard wird in render() aufgerufen)
+      });
+    }
+
+    if (calendarBtn) {
+      calendarBtn.addEventListener('click', async () => {
+        console.log('🔄 Wechsel zu Calendar-View');
+        if (this.currentView === 'calendar') return; // Bereits in Calendar-View
+        
+        // Cleanup Kanban Board
+        if (this.kanbanBoard) {
+          this.kanbanBoard.destroy();
+          this.kanbanBoard = null;
+        }
+        
+        this.currentView = 'calendar';
+        
+        // Update CSS-Klassen
+        this.updateViewClass();
+        
+        await this.render(); // Re-render (initCalendarView wird in render() aufgerufen)
       });
     }
 
@@ -770,6 +841,8 @@ export class KampagneList {
       if (e.detail.entity === 'kampagne') {
         if (this.currentView === 'kanban' && this.kanbanBoard) {
           this.kanbanBoard.refresh();
+        } else if (this.currentView === 'calendar' && this.calendarView) {
+          this.calendarView.refresh();
         } else {
           this.loadAndRender();
         }
@@ -780,6 +853,8 @@ export class KampagneList {
     window.addEventListener('kampagneUpdated', (e) => {
       if (this.currentView === 'kanban' && this.kanbanBoard) {
         this.kanbanBoard.refresh();
+      } else if (this.currentView === 'calendar' && this.calendarView) {
+        this.calendarView.refresh();
       } else {
         this.loadAndRender();
       }
@@ -847,6 +922,10 @@ export class KampagneList {
           <td>${this.renderArtTags(kampagne.art_der_kampagne_display || kampagne.art_der_kampagne)}</td>
           <td>${this.renderStatusBadge(kampagne.status_name)}</td>
           <td>${formatDate(kampagne.start)}</td>
+          <td>${formatDate(kampagne.deadline_strategie)}</td>
+          <td>${formatDate(kampagne.deadline_creator_sourcing)}</td>
+          <td>${formatDate(kampagne.deadline_video_produktion)}</td>
+          <td>${formatDate(kampagne.deadline_post_produktion)}</td>
           <td>${formatDate(kampagne.deadline)}</td>
           <td>${kampagne.creatoranzahl || 0}</td>
           <td>${kampagne.videoanzahl || 0}</td>
@@ -893,11 +972,17 @@ export class KampagneList {
       this.kanbanBoard = null;
     }
     
-    // Entferne CSS-Klasse von main-content
+    // Calendar View cleanup
+    if (this.calendarView) {
+      this.calendarView.destroy();
+      this.calendarView = null;
+    }
+    
+    // Entferne CSS-Klassen von main-content
     const mainContent = document.querySelector('.main-content');
     if (mainContent) {
-      mainContent.classList.remove('kanban-view-active');
-      console.log('✅ KampagneList: CSS-Klasse "kanban-view-active" entfernt');
+      mainContent.classList.remove('kanban-view-active', 'calendar-view-active');
+      console.log('✅ KampagneList: View CSS-Klassen entfernt');
     }
     
     // Sicherheits-Cleanup: Entferne alle Kanban-Floating-Scrollbars

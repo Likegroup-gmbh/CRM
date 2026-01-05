@@ -4,7 +4,6 @@
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
-import { AuftragsDetailsManager, auftragsDetailsManager } from './logic/AuftragsDetailsManager.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
@@ -92,6 +91,12 @@ export class AuftragList {
 
   formatDate(date) {
     return date ? new Date(date).toLocaleDateString('de-DE') : '-';
+  }
+
+  formatZahlungsziel(tage) {
+    if (tage === null || tage === undefined) return '-';
+    if (tage === 0) return 'Sofort';
+    return `${tage} Tage`;
   }
 
   formatBoolean(value) {
@@ -597,6 +602,7 @@ export class AuftragList {
                 <th>PO</th>
                 <th>RE. Nr</th>
                 <th class="col-re-faelligkeit">RE-Fälligkeit</th>
+                <th>Zahlungsziel</th>
                 <th>Start</th>
                 <th>Ende</th>
                 <th>Netto</th>
@@ -611,7 +617,7 @@ export class AuftragList {
             </thead>
             <tbody id="auftraege-table-body">
               <tr>
-                <td colspan="19" class="loading">Lade Aufträge...</td>
+                <td colspan="20" class="loading">Lade Aufträge...</td>
               </tr>
             </tbody>
           </table>
@@ -644,6 +650,7 @@ export class AuftragList {
           po,
           re_nr,
           re_faelligkeit,
+          zahlungsziel_tage,
           start,
           ende,
           nettobetrag,
@@ -987,7 +994,7 @@ export class AuftragList {
       if (!auftraege || auftraege.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="19" class="no-data">
+            <td colspan="20" class="no-data">
               <div style="text-align: center; padding: 40px 20px;">
                 <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📋</div>
                 <h3 style="color: #666; margin-bottom: 8px;">Keine Aufträge vorhanden</h3>
@@ -1024,6 +1031,7 @@ export class AuftragList {
           <td>${auftrag.po || '-'}</td>
           <td>${auftrag.re_nr || '-'}</td>
           <td>${this.formatDate(auftrag.re_faelligkeit)}</td>
+          <td>${this.formatZahlungsziel(auftrag.zahlungsziel_tage)}</td>
           <td>${this.formatDate(auftrag.start)}</td>
           <td>${this.formatDate(auftrag.ende)}</td>
           <td>${this.formatCurrency(auftrag.nettobetrag)}</td>

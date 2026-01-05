@@ -1,5 +1,5 @@
 // TaskDetailDrawer.js - Drawer für Task-Details mit Tabs
-// Basiert auf VersandManager.js & AuftragsDetailsManager.js Pattern
+// Basiert auf VersandManager.js Pattern
 import { getTabIcon } from '../../core/TabUtils.js';
 
 export class TaskDetailDrawer {

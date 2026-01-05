@@ -477,6 +477,13 @@ export class FormSystem {
     const searchableSelects = form.querySelectorAll('select[data-searchable="true"]');
     
     searchableSelects.forEach(select => {
+      // WICHTIG: Phone-Fields überspringen - diese werden bereits in loadPhoneFieldCountries 
+      // mit korrektem Default (Deutschland) und Prefix-Logik initialisiert
+      if (select.dataset.phoneField === 'true') {
+        console.log(`⏭️ Überspringe Phone-Field ${select.name} - bereits initialisiert`);
+        return;
+      }
+      
       // Placeholder aus Dataset übernehmen, Tag-Based bereits hier respektieren
       this.createSearchableSelect(select, [], {
         placeholder: select.dataset.placeholder || 'Bitte wählen...',
@@ -598,14 +605,15 @@ export class FormSystem {
     // Bestehende Auswahl setzen (für Edit-Modus)
     const selectedOption = options.find(option => option.selected);
     if (selectedOption) {
-      // Für Phone-Fields: Nur Ländername (ohne Vorwahl)
+      // Für Phone-Fields: Flagge + Vorwahl + Ländername anzeigen
       if (isPhoneField && selectedOption.isoCode) {
-        const countryName = selectedOption.label.replace(/^\+\d+\s*/, '').trim();
         const flagEmoji = this.isoToFlagEmoji(selectedOption.isoCode);
-        input.value = `${flagEmoji} ${countryName}`;
-        
-        // ENTFERNT: Vorwahl wird NICHT mehr ins Input-Feld geschrieben
-        // Die Vorwahl wird im readonly .phone-prefix Span angezeigt (siehe DynamicDataLoader.js)
+        // Vorwahl aus den Options holen (z.B. "+49")
+        const vorwahl = selectedOption.vorwahl || '';
+        // Ländername ohne Vorwahl (falls die Vorwahl im Label enthalten ist)
+        const countryName = selectedOption.label.replace(/^\+\d+\s*/, '').trim();
+        // Format: 🇩🇪 +49 Deutschland
+        input.value = `${flagEmoji} ${vorwahl} ${countryName}`.trim();
       } else {
         input.value = selectedOption.label;
       }
@@ -741,16 +749,15 @@ export class FormSystem {
         // Input aktualisieren (das sichtbare Text-Feld)
         const input = dropdown.parentNode.querySelector('.searchable-select-input');
         
-        // Für Phone-Fields: Nur Ländername (ohne Emoji, ohne Vorwahl)
+        // Für Phone-Fields: Flagge + Vorwahl + Ländername anzeigen
         if (isPhoneField && option.isoCode) {
-          // Extrahiere nur den Ländernamen (Label ohne Vorwahl)
-          const countryName = option.label.replace(/^\+\d+\s*/, '').trim();
           const flagEmoji = this.isoToFlagEmoji(option.isoCode);
-          input.value = `${flagEmoji} ${countryName}`;
-          
-          // ENTFERNT: Vorwahl wird NICHT mehr ins Telefonnummer-Input geschrieben
-          // Die Vorwahl wird im readonly .phone-prefix Span angezeigt (siehe DynamicDataLoader.js)
-          // Das CRITICAL FIX im neuen FormSystem.js entfernt Vorwahlen beim Submit als Failsafe
+          // Vorwahl aus den Options holen (z.B. "+49")
+          const vorwahl = option.vorwahl || '';
+          // Ländername ohne Vorwahl (falls die Vorwahl im Label enthalten ist)
+          const countryName = option.label.replace(/^\+\d+\s*/, '').trim();
+          // Format: 🇩🇪 +49 Deutschland
+          input.value = `${flagEmoji} ${vorwahl} ${countryName}`.trim();
         } else {
           input.value = option.label;
         }

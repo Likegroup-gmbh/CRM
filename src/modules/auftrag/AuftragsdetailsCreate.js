@@ -8,6 +8,8 @@ export class AuftragsdetailsCreate {
     this.formData = {};
     this.auftraege = []; // Aufträge-Liste für Event-Listener
     this.currentKampagnenarten = []; // Aktuelle Kampagnenarten des ausgewählten Auftrags
+    this.allKampagnenartTypen = []; // Alle verfügbaren Kampagnenart-Typen
+    this.currentAuftragId = null; // Aktuell ausgewählter Auftrag
   }
 
   // Initialisiere Auftragsdetails-Erstellung
@@ -79,6 +81,9 @@ export class AuftragsdetailsCreate {
     console.log('📊 Alle Aufträge:', alleAuftraege?.length || 0);
     console.log('✅ Verfügbare Aufträge ohne Details:', auftraege?.length || 0);
 
+    // Lade alle verfügbaren Kampagnenart-Typen für das Multiselect
+    this.allKampagnenartTypen = await this.loadAllKampagnenartTypen();
+
     // Formular HTML - Basis-Struktur mit dynamischem Container
     const formHtml = `
       <div class="form-page">
@@ -100,7 +105,7 @@ export class AuftragsdetailsCreate {
                 `).join('')}
               </select>
               ${auftraege.length === 0 
-                ? '<small style="color: var(--color-error);">Alle Aufträge haben bereits Auftragsdetails. Bitte erstellen Sie zuerst einen neuen Auftrag.</small>'
+                ? '<small class="form-hint" style="color: var(--color-error);">Alle Aufträge haben bereits Auftragsdetails. Bitte erstellen Sie zuerst einen neuen Auftrag.</small>'
                 : ''
               }
             </div>
@@ -108,14 +113,35 @@ export class AuftragsdetailsCreate {
             <div class="form-field form-field--half">
               <label for="kampagnenanzahl">Anzahl Kampagnen</label>
               <input type="number" id="kampagnenanzahl" name="kampagnenanzahl" min="0" placeholder="Wird aus Auftrag übernommen..." readonly>
-              <small style="color: var(--text-secondary);">Wird automatisch aus dem Auftrag übernommen</small>
+              <small class="form-hint">Wird automatisch aus dem Auftrag übernommen</small>
+            </div>
+          </div>
+
+          <!-- Kampagnenart-Auswahl Section -->
+          <div id="kampagnenart-selection-section" class="details-section" style="display: none;">
+            <h3>Art der Kampagne</h3>
+            <p class="form-hint">Wählen Sie die Kampagnenarten für diesen Auftrag aus und klicken Sie auf "Aktivieren".</p>
+            <div class="form-field">
+              <select id="kampagnenart-select" 
+                      name="art_der_kampagne" 
+                      multiple 
+                      data-searchable="true" 
+                      data-tag-based="true" 
+                      data-placeholder="Kampagnenart suchen und auswählen...">
+                ${this.allKampagnenartTypen.map(typ => `<option value="${typ.id}">${typ.name}</option>`).join('')}
+              </select>
+            </div>
+            <div class="kampagnenart-activate-actions">
+              <button type="button" id="activate-kampagnenarten-btn" class="primary-btn">
+                Aktivieren
+              </button>
             </div>
           </div>
 
           <!-- Dynamischer Container für Budget-Felder pro Kampagnenart -->
           <div id="kampagnenart-sections-container">
             <div class="alert alert-info">
-              <p>Bitte wählen Sie einen Auftrag aus, um die Budget-Felder anzuzeigen.</p>
+              <p>Bitte wählen Sie einen Auftrag aus, um die Kampagnenart-Auswahl anzuzeigen.</p>
             </div>
           </div>
 
@@ -129,7 +155,7 @@ export class AuftragsdetailsCreate {
               </span>
               <span class="mdc-btn__label">Abbrechen</span>
             </button>
-            <button type="submit" class="mdc-btn mdc-btn--create" data-variant="@create-prd.mdc" data-entity-label="Auftragsdetails" data-mode="create">
+            <button type="submit" class="mdc-btn mdc-btn--create" id="submit-btn" data-variant="@create-prd.mdc" data-entity-label="Auftragsdetails" data-mode="create" disabled>
               <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
                   <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
@@ -151,6 +177,202 @@ export class AuftragsdetailsCreate {
     
     // Events binden
     this.bindFormEvents();
+  }
+
+  /**
+   * Lädt alle verfügbaren Kampagnenart-Typen aus der Datenbank
+   * @returns {Promise<Array<{id: string, name: string}>>}
+   */
+  async loadAllKampagnenartTypen() {
+    if (!window.supabase) return [];
+    
+    try {
+      const { data, error } = await window.supabase
+        .from('kampagne_art_typen')
+        .select('id, name')
+        .order('sort_order, name');
+      
+      if (error) {
+        console.error('❌ Fehler beim Laden der Kampagnenart-Typen:', error);
+        return [];
+      }
+      
+      return data || [];
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Kampagnenart-Typen:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Initialisiert das TagBased-Multiselect für die Kampagnenart-Auswahl
+   * @param {Array<string>} selectedArten - Bereits ausgewählte Kampagnenarten (Namen)
+   */
+  async initKampagnenartSelect(selectedArten = []) {
+    const selectElement = document.getElementById('kampagnenart-select');
+    if (!selectElement) return;
+
+    // Konvertiere zu Options-Format für createTagBasedSelect
+    const options = this.allKampagnenartTypen.map(typ => ({
+      value: typ.id,
+      label: typ.name,
+      selected: selectedArten.includes(typ.name)
+    }));
+
+    // Nutze das bestehende FormSystem für TagBased-Multiselect falls verfügbar
+    if (window.formSystem?.optionsManager?.createTagBasedSelect) {
+      const field = {
+        name: 'art_der_kampagne',
+        tagBased: true,
+        placeholder: 'Kampagnenart suchen und auswählen...'
+      };
+      
+      window.formSystem.optionsManager.createTagBasedSelect(selectElement, options, field);
+      console.log('✅ TagBased-Multiselect für Kampagnenarten initialisiert');
+    } else {
+      console.warn('⚠️ FormSystem nicht verfügbar, nutze Fallback-Multiselect');
+    }
+  }
+
+  /**
+   * Aktiviert die ausgewählten Kampagnenarten:
+   * - Speichert in auftrag_kampagne_art Junction-Tabelle
+   * - Rendert die dynamischen Budget-Sections
+   */
+  async activateKampagnenarten() {
+    if (!this.currentAuftragId) {
+      window.notificationSystem?.show('Bitte wählen Sie zuerst einen Auftrag aus.', 'warning');
+      return;
+    }
+
+    console.log('🎯 Aktiviere Kampagnenarten für Auftrag:', this.currentAuftragId);
+    
+    try {
+      // Sammle die ausgewählten Werte
+      const selectedIds = this.getSelectedKampagnenartIds();
+      
+      if (selectedIds.length === 0) {
+        window.notificationSystem?.show('Bitte wählen Sie mindestens eine Kampagnenart aus.', 'warning');
+        return;
+      }
+
+      // Speichere in der Junction-Tabelle
+      await this.saveKampagnenartenToJunction(this.currentAuftragId, selectedIds);
+
+      // Lade die Kampagnenarten-Namen neu
+      const kampagnenarten = await this.loadKampagnenartenForAuftrag(this.currentAuftragId);
+      this.currentKampagnenarten = kampagnenarten;
+
+      // Lade bestehende auftrag_details Werte (falls vorhanden)
+      let existingValues = {};
+      try {
+        const { data } = await window.supabase
+          .from('auftrag_details')
+          .select('*')
+          .eq('auftrag_id', this.currentAuftragId)
+          .maybeSingle();
+        if (data) {
+          existingValues = data;
+        }
+      } catch (e) {
+        console.warn('⚠️ Keine bestehenden auftrag_details gefunden');
+      }
+
+      // Rendere die dynamischen Sections
+      this.renderDynamicSections(kampagnenarten, existingValues);
+
+      // Aktiviere den Erstellen-Button
+      const submitBtn = document.getElementById('submit-btn');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+      }
+
+      window.notificationSystem?.show(`${kampagnenarten.length} Kampagnenart(en) aktiviert.`, 'success');
+      console.log('✅ Kampagnenarten aktiviert:', kampagnenarten);
+
+    } catch (error) {
+      console.error('❌ Fehler beim Aktivieren der Kampagnenarten:', error);
+      window.notificationSystem?.show('Fehler beim Aktivieren der Kampagnenarten.', 'error');
+    }
+  }
+
+  /**
+   * Holt die ausgewählten Kampagnenart-IDs aus dem Multiselect
+   * @returns {string[]} - Array der ausgewählten IDs
+   */
+  getSelectedKampagnenartIds() {
+    const selectedIds = [];
+    
+    // Versuche zuerst das versteckte Select zu finden (TagBased-Multiselect)
+    const hiddenSelect = document.getElementById('kampagnenart-select_hidden');
+    if (hiddenSelect) {
+      Array.from(hiddenSelect.selectedOptions).forEach(option => {
+        if (option.value) selectedIds.push(option.value);
+      });
+    }
+    
+    // Fallback: Normales Select
+    if (selectedIds.length === 0) {
+      const selectElement = document.getElementById('kampagnenart-select');
+      if (selectElement) {
+        Array.from(selectElement.selectedOptions).forEach(option => {
+          if (option.value) selectedIds.push(option.value);
+        });
+      }
+    }
+    
+    // Fallback: Aus Tags lesen
+    if (selectedIds.length === 0) {
+      const tags = document.querySelectorAll('#kampagnenart-selection-section .tag');
+      tags.forEach(tag => {
+        const value = tag.dataset?.value;
+        if (value) selectedIds.push(value);
+      });
+    }
+    
+    console.log('📋 Ausgewählte Kampagnenart-IDs:', selectedIds);
+    return selectedIds;
+  }
+
+  /**
+   * Speichert die Kampagnenarten in die auftrag_kampagne_art Junction-Tabelle
+   * @param {string} auftragId - ID des Auftrags
+   * @param {string[]} kampagneArtIds - Array der Kampagnenart-IDs
+   */
+  async saveKampagnenartenToJunction(auftragId, kampagneArtIds) {
+    if (!window.supabase) return;
+
+    console.log('💾 Speichere Kampagnenarten in Junction:', { auftragId, kampagneArtIds });
+
+    // Lösche bestehende Einträge
+    const { error: deleteError } = await window.supabase
+      .from('auftrag_kampagne_art')
+      .delete()
+      .eq('auftrag_id', auftragId);
+
+    if (deleteError) {
+      console.error('❌ Fehler beim Löschen alter Kampagnenarten:', deleteError);
+      throw deleteError;
+    }
+
+    // Füge neue Einträge hinzu
+    if (kampagneArtIds.length > 0) {
+      const insertData = kampagneArtIds.map(kampagneArtId => ({
+        auftrag_id: auftragId,
+        kampagne_art_id: kampagneArtId
+      }));
+
+      const { error: insertError } = await window.supabase
+        .from('auftrag_kampagne_art')
+        .insert(insertData);
+
+      if (insertError) {
+        console.error('❌ Fehler beim Speichern der Kampagnenarten:', insertError);
+        throw insertError;
+      }
+    }
+
+    console.log('✅ Kampagnenarten in Junction gespeichert');
   }
 
   /**
@@ -236,20 +458,15 @@ export class AuftragsdetailsCreate {
     
     if (kampagnenarten.length === 0) {
       container.innerHTML = `
-        <div class="alert alert-warning">
-          <p>Für diesen Auftrag wurden noch keine Kampagnenarten hinterlegt.</p>
-          <p>Bitte wählen Sie einen Auftrag mit Kampagnenarten oder fügen Sie erst Kampagnenarten zum Auftrag hinzu.</p>
+        <div class="alert alert-info">
+          <p>Wählen Sie oben die Kampagnenarten aus und klicken Sie auf "Aktivieren", um die Budget-Felder anzuzeigen.</p>
         </div>
       `;
       return;
     }
     
     // Generiere Sections für jede Kampagnenart - NUR Budget
-    let sectionsHtml = `
-      <div class="alert alert-info" style="margin-bottom: var(--space-md);">
-        <p><strong>Hinweis:</strong> Die Anzahl der Videos, Creator und Bilder wird beim Erstellen der Kampagnen festgelegt und automatisch hierher übertragen.</p>
-      </div>
-    `;
+    let sectionsHtml = '';
     kampagnenarten.forEach(artName => {
       const config = KAMPAGNENARTEN_MAPPING[artName];
       if (config) {
@@ -267,22 +484,40 @@ export class AuftragsdetailsCreate {
     const form = document.getElementById('auftragsdetails-form');
     if (!form) return;
 
-    // Auftrag-Auswahl Listener: Kampagnenarten laden und Sections rendern
+    // Auftrag-Auswahl Listener: Kampagnenart-Selection Section anzeigen
     const auftragSelect = document.getElementById('auftrag_id');
     if (auftragSelect) {
       auftragSelect.addEventListener('change', async (e) => {
         const auftragId = e.target.value;
         const kampagnenField = document.getElementById('kampagnenanzahl');
+        const selectionSection = document.getElementById('kampagnenart-selection-section');
+        const container = document.getElementById('kampagnenart-sections-container');
+        const submitBtn = document.getElementById('submit-btn');
         
         if (!auftragId) {
           // Kein Auftrag ausgewählt - Reset
+          this.currentAuftragId = null;
           if (kampagnenField) {
             kampagnenField.value = '';
             kampagnenField.style.backgroundColor = '';
           }
-          this.renderDynamicSections([]);
+          if (selectionSection) {
+            selectionSection.style.display = 'none';
+          }
+          if (container) {
+            container.innerHTML = `
+              <div class="alert alert-info">
+                <p>Bitte wählen Sie einen Auftrag aus, um die Kampagnenart-Auswahl anzuzeigen.</p>
+              </div>
+            `;
+          }
+          if (submitBtn) {
+            submitBtn.disabled = true;
+          }
           return;
         }
+        
+        this.currentAuftragId = auftragId;
         
         // Kampagnenanzahl vom Auftrag übernehmen
         const selectedAuftrag = this.auftraege.find(a => a.id === auftragId);
@@ -295,28 +530,67 @@ export class AuftragsdetailsCreate {
           kampagnenField.style.backgroundColor = '';
         }
         
-        // Lade Kampagnenarten für diesen Auftrag
+        // Lade bereits vorhandene Kampagnenarten für diesen Auftrag
         console.log('🔄 Lade Kampagnenarten für Auftrag:', auftragId);
         const kampagnenarten = await this.loadKampagnenartenForAuftrag(auftragId);
         this.currentKampagnenarten = kampagnenarten;
         
-        // Lade bestehende auftrag_details Werte (falls vorhanden)
-        let existingValues = {};
-        try {
-          const { data } = await window.supabase
-            .from('auftrag_details')
-            .select('*')
-            .eq('auftrag_id', auftragId)
-            .maybeSingle();
-          if (data) {
-            existingValues = data;
-          }
-        } catch (e) {
-          console.warn('⚠️ Keine bestehenden auftrag_details gefunden');
+        // Zeige Kampagnenart-Selection Section
+        if (selectionSection) {
+          selectionSection.style.display = 'block';
         }
         
-        // Rendere Sections
-        this.renderDynamicSections(kampagnenarten, existingValues);
+        // Initialisiere das TagBased-Multiselect
+        await this.initKampagnenartSelect(kampagnenarten);
+        
+        // Wenn bereits Kampagnenarten vorhanden sind, zeige die Budget-Sections
+        if (kampagnenarten.length > 0) {
+          // Lade bestehende auftrag_details Werte (falls vorhanden)
+          let existingValues = {};
+          try {
+            const { data } = await window.supabase
+              .from('auftrag_details')
+              .select('*')
+              .eq('auftrag_id', auftragId)
+              .maybeSingle();
+            if (data) {
+              existingValues = data;
+            }
+          } catch (e) {
+            console.warn('⚠️ Keine bestehenden auftrag_details gefunden');
+          }
+          
+          this.renderDynamicSections(kampagnenarten, existingValues);
+          
+          // Aktiviere den Erstellen-Button
+          if (submitBtn) {
+            submitBtn.disabled = false;
+          }
+        } else {
+          // Zeige Hinweis, dass Kampagnenarten gewählt werden müssen
+          if (container) {
+            container.innerHTML = `
+              <div class="alert alert-info">
+                <p>Wählen Sie oben die Kampagnenarten aus und klicken Sie auf "Aktivieren", um die Budget-Felder anzuzeigen.</p>
+              </div>
+            `;
+          }
+        }
+      });
+    }
+
+    // Aktivieren-Button Event
+    const activateBtn = document.getElementById('activate-kampagnenarten-btn');
+    if (activateBtn) {
+      activateBtn.addEventListener('click', async () => {
+        activateBtn.disabled = true;
+        activateBtn.textContent = 'Aktiviere...';
+        try {
+          await this.activateKampagnenarten();
+        } finally {
+          activateBtn.disabled = false;
+          activateBtn.textContent = 'Aktivieren';
+        }
       });
     }
 
@@ -339,8 +613,13 @@ export class AuftragsdetailsCreate {
       const formData = new FormData(form);
       const data = {};
 
-      // Sammle alle Felder
+      // Sammle alle Felder (außer art_der_kampagne - wird über Junction-Tabelle gespeichert)
       for (let [key, value] of formData.entries()) {
+        // Skip art_der_kampagne - wird bereits über auftrag_kampagne_art gespeichert
+        if (key === 'art_der_kampagne' || key === 'art_der_kampagne[]') {
+          continue;
+        }
+        
         // Leere Werte als null speichern
         if (value === '' || value === null) {
           data[key] = null;

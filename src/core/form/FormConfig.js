@@ -190,7 +190,6 @@ export class FormConfig {
           { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...', table: 'unternehmen', displayField: 'firmenname', valueField: 'id' },
           { name: 'marke_id', label: 'Marke', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Marke suchen und auswählen...', dependsOn: 'unternehmen_id', table: 'marke', displayField: 'markenname', valueField: 'id' },
           { name: 'auftrag_id', label: 'Auftrag', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Auftrag suchen und auswählen...', dependsOn: 'unternehmen_id', table: 'auftrag', displayField: 'auftragsname', valueField: 'id', filterByMarke: true },
-          { name: 'ziele', label: 'Ziele', type: 'textarea', required: false },
           { 
             name: 'art_der_kampagne', 
             label: 'Art der Kampagne', 
@@ -437,14 +436,29 @@ export class FormConfig {
       auftrag: {
         title: 'Neuen Auftrag anlegen',
         fields: [
-          { name: 'art_der_kampagne', label: 'Art der Kampagne', type: 'multiselect', required: false, options: [], dynamic: true, searchable: true, tagBased: true, table: 'kampagne_art_typen', displayField: 'name', valueField: 'id', relationTable: 'auftrag_kampagne_art', relationField: 'kampagne_art_id' },
           { name: 'auftragsname', label: 'Auftragsname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
           { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...' },
           { name: 'marke_id', label: 'Marke', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Marke suchen und auswählen...', dependsOn: 'unternehmen_id', table: 'marke', displayField: 'markenname', valueField: 'id' },
           { name: 'status', label: 'Status', type: 'select', required: false, options: ['Beauftragt', 'In Produktion', 'Abgeschlossen', 'Storniert'] },
           { name: 'ansprechpartner_id', label: 'Ansprechpartner', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Ansprechpartner auswählen...', table: 'ansprechpartner', displayField: 'vorname,nachname,email', valueField: 'id', dependsOn: 'unternehmen_id' },
-          { name: 'po', label: 'PO', type: 'text', required: false, placeholder: 'Purchase Order Nummer...' },
+          { name: 'notiz', label: 'Beschreibung / Notiz', type: 'textarea', required: false, placeholder: 'Auftragsbeschreibung eingeben...' },
+          { name: 'angebotsnummer', label: 'Angebotsnummer', type: 'text', required: false, readonly: true, placeholder: 'Wird automatisch generiert...' },
           { name: 're_nr', label: 'RE. Nr', type: 'text', required: false, placeholder: 'Rechnungsnummer...' },
+          { name: 'po', label: 'PO', type: 'text', required: false, placeholder: 'Purchase Order Nummer...' },
+          { 
+            name: 'zahlungsziel_tage', 
+            label: 'Zahlungsziel', 
+            type: 'select', 
+            required: false, 
+            placeholder: 'Zahlungsziel auswählen...',
+            options: [
+              { value: '0', label: 'Sofort' },
+              { value: '14', label: '14 Tage' },
+              { value: '30', label: '30 Tage' },
+              { value: '45', label: '45 Tage' },
+              { value: '60', label: '60 Tage' }
+            ]
+          },
           { name: 're_faelligkeit', label: 'RE-Fälligkeit', type: 'date', required: false },
           { name: 'rechnung_gestellt', label: 'Rechnung gestellt', type: 'toggle', required: false },
           { name: 'rechnung_gestellt_am', label: 'Rechnung gestellt am', type: 'date', required: false, placeholder: 'Datum wann Rechnung gestellt wurde', dependsOn: 'rechnung_gestellt' },
@@ -559,6 +573,7 @@ export class FormConfig {
             nameCountry: 'telefonnummer_land_id',
             label: 'Telefonnummer (mobil)', 
             type: 'phone', 
+            phoneType: 'mobile',
             required: false,
             defaultCountry: 'Deutschland',
             table: 'eu_laender',
@@ -571,6 +586,7 @@ export class FormConfig {
             nameCountry: 'telefonnummer_office_land_id',
             label: 'Telefonnummer (Büro)', 
             type: 'phone', 
+            phoneType: 'landline',
             required: false,
             defaultCountry: 'Deutschland',
             table: 'eu_laender',
@@ -622,6 +638,7 @@ export class FormConfig {
         title: 'Neue Rechnung anlegen',
         fields: [
           { name: 'rechnung_nr', label: 'Rechnungs-Nr', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
+          { name: 'po_nummer', label: 'Interne PO-Nummer', type: 'text', required: false, readonly: true, editOnly: true, placeholder: 'Wird automatisch vergeben' },
           { name: 'kooperation_id', label: 'Kooperation', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Kooperation wählen...', table: 'kooperationen', displayField: 'name', valueField: 'id' },
           { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen wird automatisch gesetzt', readonly: true, table: 'unternehmen', displayField: 'firmenname', valueField: 'id' },
           { name: 'auftrag_id', label: 'Auftrag', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Auftrag wird automatisch gesetzt', readonly: true, table: 'auftrag', displayField: 'auftragsname', valueField: 'id' },

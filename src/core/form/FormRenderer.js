@@ -215,8 +215,10 @@ export class FormRenderer {
         const min = field.validation?.min !== undefined ? `min="${field.validation.min}"` : '';
         const max = field.validation?.max !== undefined ? `max="${field.validation.max}"` : '';
         const step = field.validation?.step !== undefined ? `step="${field.validation.step}"` : 'step="0.01"';
-        const defaultValue = field.defaultValue !== undefined && (value === '' || value === undefined || value === null)
-          ? `value="${field.defaultValue}"` : `value="${value}"`;
+        // Fix: null und undefined als leeres Feld behandeln, nicht als String "null"
+        const numericValue = (value === null || value === undefined || value === '') ? '' : value;
+        const defaultValue = field.defaultValue !== undefined && numericValue === ''
+          ? `value="${field.defaultValue}"` : `value="${numericValue}"`;
         
         return `
           <div class="form-field">

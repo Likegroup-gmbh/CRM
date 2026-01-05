@@ -1,5 +1,8 @@
 import staticDataCache from '../../cache/StaticDataCache.js';
 
+// VERSION MARKER: v2024-01-05-phone-fix-v3 (prefix debug)
+console.log('🚀🚀🚀 DynamicDataLoader LOADED - Phone Fix v3 (prefix debug) 🚀🚀🚀');
+
 export class DynamicDataLoader {
   constructor() {
     this.dataService = window.dataService;
@@ -124,26 +127,37 @@ export class DynamicDataLoader {
         }
 
         // Konvertiere Options zu dem Format, das createSearchableSelect erwartet
+        // WICHTIG: selected-Property muss gesetzt sein, damit createSearchableSelect den Default erkennt!
         const options = Array.from(select.options).slice(1).map(option => ({
           value: option.value,
           label: option.textContent,
           isoCode: option.dataset.isoCode,
-          vorwahl: option.dataset.vorwahl
+          vorwahl: option.dataset.vorwahl,
+          selected: option.selected || option.value === select.value
         }));
+        
+        console.log(`📱 PHONE-FIELD: Optionen erstellt mit selected:`, options.filter(o => o.selected).map(o => o.label));
 
         // Initialisiere Searchable Select
         if (this.createSearchableSelect) {
+          console.log(`📱 PHONE-FIELD: Initialisiere Searchable Select für ${select.name} mit ${options.length} Optionen`);
+          console.log(`📱 PHONE-FIELD: select.value vor createSearchableSelect: "${select.value}"`);
+          
           this.createSearchableSelect(select, options, {
             placeholder: select.dataset.placeholder || 'Land wählen...',
             type: 'phone'
           });
 
+          console.log(`📱 PHONE-FIELD: select.value nach createSearchableSelect: "${select.value}"`);
+
           // Setze initialen Wert im Input-Feld UND Flagge
           if (select.value) {
             const selectedOption = options.find(opt => opt.value === select.value);
+            console.log(`📱 PHONE-FIELD: selectedOption gefunden: `, selectedOption);
             if (selectedOption) {
               // Suche den Container, der von createSearchableSelect erstellt wurde
               const container = select.nextElementSibling;
+              console.log(`📱 PHONE-FIELD: container gefunden: `, container?.className);
               if (container && container.classList.contains('searchable-select-container')) {
                 const input = container.querySelector('input');
                 if (input) {
@@ -159,25 +173,49 @@ export class DynamicDataLoader {
                   console.log(`🚩 Initial Flagge gesetzt: fi-${selectedOption.isoCode.toLowerCase()}`);
                 }
                 
-                // FEATURE: Setze Vorwahl im readonly Span
-                const phoneWrapper = container.parentElement.querySelector('.phone-input-wrapper');
+                // FEATURE: Setze Prefix basierend auf phoneType (mobile vs landline)
+                const phoneType = select.dataset.phoneType || 'mobile';
+                console.log(`📱 PHONE-FIELD: phoneType=${phoneType}, container.parentElement=`, container.parentElement?.className);
+                
+                // Suche phone-input-wrapper im Eltern-Container (.phone-number-field)
+                const phoneNumberField = container.closest('.phone-number-field');
+                console.log(`📱 PHONE-FIELD: phoneNumberField gefunden:`, phoneNumberField?.className);
+                
+                const phoneWrapper = phoneNumberField?.querySelector('.phone-input-wrapper');
+                console.log(`📱 PHONE-FIELD: phoneWrapper gefunden:`, phoneWrapper?.className);
+                
                 if (phoneWrapper && selectedOption.vorwahl) {
                   const prefixSpan = phoneWrapper.querySelector('.phone-prefix');
                   const phoneInput = phoneWrapper.querySelector('.phone-number-input');
                   
+                  console.log(`📱 PHONE-FIELD: prefixSpan gefunden:`, !!prefixSpan, 'phoneInput gefunden:', !!phoneInput);
+                  
                   if (prefixSpan && phoneInput) {
-                    // Zeige Vorwahl im Span
-                    prefixSpan.textContent = selectedOption.vorwahl;
+                    // Ermittle korrekten Prefix basierend auf phoneType und Land
+                    const prefix = this.getPhonePrefix(phoneType, selectedOption.isoCode, selectedOption.vorwahl);
+                    console.log(`📱 PHONE-FIELD: Setze Prefix "${prefix}" für ${select.name}`);
+                    
+                    // Zeige Prefix im Span
+                    prefixSpan.textContent = prefix;
                     prefixSpan.style.display = 'inline-block';
                     
-                    // Entferne Vorwahl aus Input falls vorhanden
+                    // Entferne alte Vorwahl aus Input falls vorhanden
                     if (phoneInput.value.startsWith(selectedOption.vorwahl)) {
                       phoneInput.value = phoneInput.value.substring(selectedOption.vorwahl.length).trim();
                     }
+                    // Auch "0" entfernen falls vorhanden (bei Wechsel von Festnetz)
+                    if (phoneInput.value.startsWith('0')) {
+                      phoneInput.value = phoneInput.value.substring(1).trim();
+                    }
                     
                     phoneInput.dataset.vorwahl = selectedOption.vorwahl;
-                    console.log(`📱 Initiale Vorwahl im Span gesetzt: ${selectedOption.vorwahl}`);
+                    phoneInput.dataset.phoneType = phoneType;
+                    console.log(`📱 ✅ Initiale Vorwahl im Span gesetzt: ${prefix} (phoneType: ${phoneType})`);
+                  } else {
+                    console.log(`📱 ❌ prefixSpan oder phoneInput nicht gefunden!`);
                   }
+                } else {
+                  console.log(`📱 ❌ phoneWrapper nicht gefunden oder keine Vorwahl!`, { phoneWrapper: !!phoneWrapper, vorwahl: selectedOption.vorwahl });
                 }
               }
             }
@@ -199,25 +237,33 @@ export class DynamicDataLoader {
                   console.log(`🚩 Flagge geändert zu: fi-${selectedOption.isoCode.toLowerCase()}`);
                 }
                 
-                // FEATURE: Vorwahl im readonly Span setzen
+                // FEATURE: Prefix basierend auf phoneType und neuem Land setzen
+                const phoneType = select.dataset.phoneType || 'mobile';
                 const phoneWrapper = container.parentElement.querySelector('.phone-input-wrapper');
                 if (phoneWrapper && selectedOption.vorwahl) {
                   const prefixSpan = phoneWrapper.querySelector('.phone-prefix');
                   const phoneInput = phoneWrapper.querySelector('.phone-number-input');
                   
                   if (prefixSpan && phoneInput) {
-                    // Zeige Vorwahl im Span (nicht editierbar!)
-                    prefixSpan.textContent = selectedOption.vorwahl;
+                    // Ermittle korrekten Prefix basierend auf phoneType und Land
+                    const prefix = this.getPhonePrefix(phoneType, selectedOption.isoCode, selectedOption.vorwahl);
+                    
+                    // Zeige Prefix im Span (nicht editierbar!)
+                    prefixSpan.textContent = prefix;
                     prefixSpan.style.display = 'inline-block';
                     
-                    // Entferne alte Vorwahl aus Input falls vorhanden
+                    // Entferne alte Vorwahl/Prefix aus Input falls vorhanden
                     const oldVorwahl = phoneInput.dataset.vorwahl;
                     if (oldVorwahl && phoneInput.value.startsWith(oldVorwahl)) {
                       phoneInput.value = phoneInput.value.substring(oldVorwahl.length).trim();
                     }
+                    // Auch "0" entfernen falls vorhanden (bei Wechsel von DE Festnetz)
+                    if (phoneInput.value.startsWith('0')) {
+                      phoneInput.value = phoneInput.value.substring(1).trim();
+                    }
                     
                     phoneInput.dataset.vorwahl = selectedOption.vorwahl;
-                    console.log(`📱 Vorwahl im Span gesetzt: ${selectedOption.vorwahl} (nicht editierbar)`);
+                    console.log(`📱 Prefix im Span gesetzt: ${prefix} (phoneType: ${phoneType}, Land: ${selectedOption.isoCode})`);
                   }
                 }
               }
@@ -230,9 +276,45 @@ export class DynamicDataLoader {
     }
   }
 
+  /**
+   * Ermittelt den korrekten Telefon-Prefix basierend auf phoneType und Land
+   * @param {string} phoneType - 'mobile' oder 'landline'
+   * @param {string} isoCode - ISO-Code des Landes (z.B. 'de', 'es')
+   * @param {string} vorwahl - Internationale Vorwahl (z.B. '+49', '+34')
+   * @returns {string} Der anzuzeigende Prefix
+   */
+  getPhonePrefix(phoneType, isoCode, vorwahl) {
+    // Bei Mobil: Immer internationale Vorwahl
+    if (phoneType === 'mobile') {
+      return vorwahl;
+    }
+    
+    // Bei Festnetz (landline):
+    // - Deutschland: Nationale "0" für Ortsvorwahl
+    // - Andere Länder: Internationale Vorwahl
+    if (phoneType === 'landline') {
+      if (isoCode?.toLowerCase() === 'de') {
+        return '0';
+      }
+      return vorwahl;
+    }
+    
+    // Fallback: Internationale Vorwahl
+    return vorwahl;
+  }
+
   // Feldoptionen laden
   async loadFieldOptions(entity, field, form) {
     try {
+      // DEBUG: Zeige field.type für Debugging
+      console.log(`🔍 LOADFIELDOPTIONS DEBUG: field.name=${field.name}, field.type=${field.type}`);
+      
+      // WICHTIG: Phone-Fields überspringen - diese werden von loadPhoneFieldCountries behandelt
+      if (field.type === 'phone') {
+        console.log(`⏭️ Überspringe Phone-Field ${field.name} in loadFieldOptions - wird von loadPhoneFieldCountries behandelt`);
+        return;
+      }
+      
       console.log(`📋 LOADFIELDOPTIONS: Starte Laden für ${field.name} (entity: ${entity}, table: ${field.table}, dependsOn: ${field.dependsOn}, prefillFromUnternehmen: ${field.prefillFromUnternehmen})`);
       
       // Sicherheitsprüfung für DataService
@@ -253,7 +335,8 @@ export class DynamicDataLoader {
         const isKooperationEditMode = form.dataset.entityType === 'kooperation' && form.dataset.isEditMode === 'true';
         const isUnternehmenEditMode = form.dataset.entityType === 'unternehmen' && form.dataset.isEditMode === 'true';
         const isMarkeEditMode = form.dataset.entityType === 'marke' && form.dataset.isEditMode === 'true';
-        if (!isKampagneEditMode && !isAnsprechpartnerEditMode && !isAuftragEditMode && !isKooperationEditMode && !isUnternehmenEditMode && !isMarkeEditMode) {
+        const isRechnungEditMode = form.dataset.entityType === 'rechnung' && form.dataset.isEditMode === 'true';
+        if (!isKampagneEditMode && !isAnsprechpartnerEditMode && !isAuftragEditMode && !isKooperationEditMode && !isUnternehmenEditMode && !isMarkeEditMode && !isRechnungEditMode) {
           console.log(`⏭️ Überspringe automatisches Laden für abhängiges Feld: ${field.name} (abhängig von ${field.dependsOn})`);
           return;
         } else {
@@ -267,9 +350,54 @@ export class DynamicDataLoader {
 
       // Spezialfall: Rechnung -> Kooperationen ohne bestehende Rechnung
       if (entity === 'rechnung' && field.name === 'kooperation_id') {
-        console.log('🔧 Lade Kooperationen ohne bestehende Rechnung für Rechnungsformular');
-        options = await this.loadKooperationenOhneRechnung();
-        console.log(`✅ kooperation_id Optionen (ohne Rechnung):`, options.length);
+        const isEditMode = form.dataset.isEditMode === 'true';
+        
+        if (isEditMode && form.dataset.editModeData) {
+          // Edit-Mode: Aktuelle Kooperation MUSS in der Liste sein
+          console.log('🔧 Edit-Mode: Lade Kooperationen inkl. aktuelle Kooperation');
+          const editData = JSON.parse(form.dataset.editModeData);
+          const currentKoopId = editData.kooperation_id;
+          
+          // Lade Kooperationen ohne Rechnung
+          options = await this.loadKooperationenOhneRechnung();
+          
+          // Prüfe ob aktuelle Kooperation bereits in der Liste ist
+          const hasCurrentKoop = options.some(o => o.value === currentKoopId);
+          
+          if (!hasCurrentKoop && currentKoopId) {
+            // Lade aktuelle Kooperation separat und füge sie hinzu
+            console.log('🔧 Aktuelle Kooperation nicht in Liste, lade separat:', currentKoopId);
+            const { data: currentKoop } = await window.supabase
+              .from('kooperationen')
+              .select('id, name, kampagne_id, kampagne:kampagne_id(kampagnenname)')
+              .eq('id', currentKoopId)
+              .single();
+            
+            if (currentKoop) {
+              const label = currentKoop.name 
+                ? `${currentKoop.name} — ${currentKoop.kampagne?.kampagnenname || 'Kampagne'}`
+                : (currentKoop.kampagne?.kampagnenname || currentKoop.id);
+              
+              // Am Anfang der Liste einfügen und als selected markieren
+              options.unshift({
+                value: currentKoop.id,
+                label: label,
+                selected: true
+              });
+              console.log('✅ Aktuelle Kooperation hinzugefügt:', label);
+            }
+          } else if (hasCurrentKoop) {
+            // Markiere als selected
+            options.forEach(o => {
+              if (o.value === currentKoopId) o.selected = true;
+            });
+          }
+        } else {
+          // Create-Mode: Nur Kooperationen ohne Rechnung
+          console.log('🔧 Create-Mode: Lade Kooperationen ohne bestehende Rechnung');
+          options = await this.loadKooperationenOhneRechnung();
+        }
+        console.log(`✅ kooperation_id Optionen:`, options.length);
       }
       // Für Felder mit statischen Optionen (z.B. kampagne_typ)
       else if (field.options && Array.isArray(field.options) && !field.dynamic) {
@@ -531,6 +659,11 @@ export class DynamicDataLoader {
         await this.loadAuftragDependentFieldsImproved(field, form, options);
       }
 
+      // Spezielle Behandlung für Rechnung Edit-Modus: Abhängige Felder laden
+      if (form.dataset.entityType === 'rechnung' && form.dataset.isEditMode === 'true') {
+        await this.loadRechnungDependentFieldsImproved(field, form, options);
+      }
+
       // Select-Element aktualisieren
       const selectElement = form.querySelector(`[name="${field.name}"]`);
       if (selectElement) {
@@ -768,8 +901,8 @@ export class DynamicDataLoader {
           hasEditModeData: !!form.dataset.editModeData
         });
         
-        // WICHTIG: Kampagne, Auftrag & Kooperation Edit-Mode Behandlung ZUERST - auch für nicht-abhängige Felder!
-        if ((form.dataset.entityType === 'kampagne' || form.dataset.entityType === 'auftrag' || form.dataset.entityType === 'kooperation') && form.dataset.editModeData) {
+        // WICHTIG: Kampagne, Auftrag, Kooperation & Rechnung Edit-Mode Behandlung ZUERST - auch für nicht-abhängige Felder!
+        if ((form.dataset.entityType === 'kampagne' || form.dataset.entityType === 'auftrag' || form.dataset.entityType === 'kooperation' || form.dataset.entityType === 'rechnung') && form.dataset.editModeData) {
           try {
             const editData = JSON.parse(form.dataset.editModeData);
             
@@ -891,6 +1024,61 @@ export class DynamicDataLoader {
                 }
               });
               console.log(`✅ DYNAMICDATALOADER: Kooperation ${field.name} vorausgewählt:`, editData.skript_autor);
+            }
+            
+            // Rechnung-spezifische Single-Select Felder
+            if (field.name === 'kooperation_id' && editData.kooperation_id) {
+              options.forEach(option => {
+                if (option.value === editData.kooperation_id) {
+                  option.selected = true;
+                }
+              });
+              console.log(`✅ DYNAMICDATALOADER: Rechnung ${field.name} vorausgewählt:`, editData.kooperation_id);
+            }
+            
+            if (field.name === 'unternehmen_id' && editData.unternehmen_id) {
+              options.forEach(option => {
+                if (option.value === editData.unternehmen_id) {
+                  option.selected = true;
+                }
+              });
+              console.log(`✅ DYNAMICDATALOADER: Rechnung ${field.name} vorausgewählt:`, editData.unternehmen_id);
+            }
+            
+            if (field.name === 'auftrag_id' && editData.auftrag_id) {
+              options.forEach(option => {
+                if (option.value === editData.auftrag_id) {
+                  option.selected = true;
+                }
+              });
+              console.log(`✅ DYNAMICDATALOADER: Rechnung ${field.name} vorausgewählt:`, editData.auftrag_id);
+            }
+            
+            if (field.name === 'kampagne_id' && editData.kampagne_id) {
+              options.forEach(option => {
+                if (option.value === editData.kampagne_id) {
+                  option.selected = true;
+                }
+              });
+              console.log(`✅ DYNAMICDATALOADER: Rechnung ${field.name} vorausgewählt:`, editData.kampagne_id);
+            }
+            
+            if (field.name === 'creator_id' && editData.creator_id) {
+              options.forEach(option => {
+                if (option.value === editData.creator_id) {
+                  option.selected = true;
+                }
+              });
+              console.log(`✅ DYNAMICDATALOADER: Rechnung ${field.name} vorausgewählt:`, editData.creator_id);
+            }
+            
+            if (field.name === 'status' && editData.status) {
+              options.forEach(option => {
+                if (option.value === editData.status) {
+                  option.selected = true;
+                }
+              });
+              console.log(`✅ DYNAMICDATALOADER: Rechnung ${field.name} vorausgewählt:`, editData.status);
             }
             
             // Multi-Select Felder für Kampagne & Auftrag
@@ -1200,6 +1388,11 @@ export class DynamicDataLoader {
       // Spezielle Behandlung für Auftrag Edit-Modus: Abhängige Felder laden
       if (form.dataset.entityType === 'auftrag' && form.dataset.isEditMode === 'true') {
         await this.loadAuftragDependentFieldsImproved(field, form, options);
+      }
+
+      // Spezielle Behandlung für Rechnung Edit-Modus: Abhängige Felder laden
+      if (form.dataset.entityType === 'rechnung' && form.dataset.isEditMode === 'true') {
+        await this.loadRechnungDependentFieldsImproved(field, form, options);
       }
 
       // Spezialbehandlung für phone-type Felder: Deutschland als Standard
@@ -1877,6 +2070,112 @@ export class DynamicDataLoader {
       
     } catch (error) {
       console.error('❌ DYNAMICDATALOADER: Fehler beim Laden der verbesserten Auftrag-Felder:', error);
+    }
+  }
+
+  // Rechnung Edit-Mode: Abhängige Felder korrekt laden und vorausfüllen
+  async loadRechnungDependentFieldsImproved(field, form, options) {
+    try {
+      const editModeData = form.dataset.editModeData ? JSON.parse(form.dataset.editModeData) : {};
+      
+      // Kooperation-Feld: Bestehenden Wert als selected markieren
+      if (field.name === 'kooperation_id' && editModeData.kooperation_id) {
+        console.log('📦 RECHNUNG EDIT: Markiere Kooperation als selected:', editModeData.kooperation_id);
+        let found = false;
+        options.forEach(option => {
+          if (option.value === editModeData.kooperation_id) {
+            option.selected = true;
+            found = true;
+            console.log('✅ RECHNUNG EDIT: Kooperation gefunden und markiert:', option.label);
+          }
+        });
+        if (!found) {
+          console.warn('⚠️ RECHNUNG EDIT: Kooperation nicht in Optionen gefunden:', editModeData.kooperation_id);
+        }
+      }
+      
+      // Unternehmen-Feld: Bestehenden Wert als selected markieren
+      if (field.name === 'unternehmen_id' && editModeData.unternehmen_id) {
+        console.log('🏢 RECHNUNG EDIT: Markiere Unternehmen als selected:', editModeData.unternehmen_id);
+        let found = false;
+        options.forEach(option => {
+          if (option.value === editModeData.unternehmen_id) {
+            option.selected = true;
+            found = true;
+            console.log('✅ RECHNUNG EDIT: Unternehmen gefunden und markiert:', option.label);
+          }
+        });
+        if (!found) {
+          console.warn('⚠️ RECHNUNG EDIT: Unternehmen nicht in Optionen gefunden:', editModeData.unternehmen_id);
+        }
+      }
+      
+      // Auftrag-Feld: Bestehenden Wert als selected markieren
+      if (field.name === 'auftrag_id' && editModeData.auftrag_id) {
+        console.log('📋 RECHNUNG EDIT: Markiere Auftrag als selected:', editModeData.auftrag_id);
+        let found = false;
+        options.forEach(option => {
+          if (option.value === editModeData.auftrag_id) {
+            option.selected = true;
+            found = true;
+            console.log('✅ RECHNUNG EDIT: Auftrag gefunden und markiert:', option.label);
+          }
+        });
+        if (!found) {
+          console.warn('⚠️ RECHNUNG EDIT: Auftrag nicht in Optionen gefunden:', editModeData.auftrag_id);
+        }
+      }
+      
+      // Kampagne-Feld: Bestehenden Wert als selected markieren
+      if (field.name === 'kampagne_id' && editModeData.kampagne_id) {
+        console.log('🎯 RECHNUNG EDIT: Markiere Kampagne als selected:', editModeData.kampagne_id);
+        let found = false;
+        options.forEach(option => {
+          if (option.value === editModeData.kampagne_id) {
+            option.selected = true;
+            found = true;
+            console.log('✅ RECHNUNG EDIT: Kampagne gefunden und markiert:', option.label);
+          }
+        });
+        if (!found) {
+          console.warn('⚠️ RECHNUNG EDIT: Kampagne nicht in Optionen gefunden:', editModeData.kampagne_id);
+        }
+      }
+      
+      // Creator-Feld: Bestehenden Wert als selected markieren
+      if (field.name === 'creator_id' && editModeData.creator_id) {
+        console.log('👤 RECHNUNG EDIT: Markiere Creator als selected:', editModeData.creator_id);
+        let found = false;
+        options.forEach(option => {
+          if (option.value === editModeData.creator_id) {
+            option.selected = true;
+            found = true;
+            console.log('✅ RECHNUNG EDIT: Creator gefunden und markiert:', option.label);
+          }
+        });
+        if (!found) {
+          console.warn('⚠️ RECHNUNG EDIT: Creator nicht in Optionen gefunden:', editModeData.creator_id);
+        }
+      }
+      
+      // Status-Feld: Bestehenden Wert als selected markieren
+      if (field.name === 'status' && editModeData.status) {
+        console.log('📊 RECHNUNG EDIT: Markiere Status als selected:', editModeData.status);
+        let found = false;
+        options.forEach(option => {
+          if (option.value === editModeData.status) {
+            option.selected = true;
+            found = true;
+            console.log('✅ RECHNUNG EDIT: Status gefunden und markiert:', option.label);
+          }
+        });
+        if (!found) {
+          console.warn('⚠️ RECHNUNG EDIT: Status nicht in Optionen gefunden:', editModeData.status);
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ RECHNUNG EDIT: Fehler beim Laden der abhängigen Felder:', error);
     }
   }
 

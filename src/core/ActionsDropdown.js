@@ -724,16 +724,9 @@ export class ActionsDropdown {
         break;
       
       case 'edit':
-        // Spezialfall für Auftragsdetails: Nur Drawer öffnen, nicht zur Edit-Seite navigieren
+        // Spezialfall für Auftragsdetails: Zur Create/Edit-Seite navigieren
         if (entityType === 'auftragsdetails') {
-          if (window.auftragsDetailsManager) {
-            // Extrahiere die auftrag_id aus den Details
-            // Die entityId ist hier die auftragsdetails-ID, wir brauchen aber die auftrag_id
-            // Wir öffnen den Drawer mit der auftragsdetails-ID
-            window.auftragsDetailsManager.openForEdit(entityId);
-          } else {
-            console.warn('AuftragsDetailsManager nicht verfügbar');
-          }
+          window.navigateTo('/auftragsdetails/new');
           return;
         }
         window.navigateTo(`/${entityType}/${entityId}/edit`);
@@ -996,23 +989,8 @@ export class ActionsDropdown {
       case 'details':
       case 'auftrag-details':
         console.log('🎯 ACTIONSDROPDOWN: Details-Action wird verarbeitet');
-        console.log('🎯 window.auftragDetail:', !!window.auftragDetail);
-        console.log('🎯 window.auftragsDetailsManager:', !!window.auftragsDetailsManager);
-        console.log('🎯 window.formSystem:', !!window.formSystem);
-        
-        if (window.auftragDetail) {
-          console.log('🎯 Verwende auftragDetail.showDetailsForm');
-          window.auftragDetail.showDetailsForm(entityId);
-        } else if (window.auftragsDetailsManager) {
-          console.log('🎯 Verwende auftragsDetailsManager.open');
-          window.auftragsDetailsManager.open(entityId);
-        } else if (window.formSystem) {
-          console.log('🎯 Verwende formSystem.openModalForm');
-          window.formSystem.openModalForm('auftrag_details', { auftrag_id: entityId });
-        } else {
-          console.log('🎯 Keine verfügbaren Systeme gefunden');
-          alert('Auftragsdetails-Formular nicht verfügbar.');
-        }
+        // Navigiere zur Auftragsdetails-Erstellungsseite
+        window.navigateTo('/auftragsdetails/new');
         break;
 
       default:

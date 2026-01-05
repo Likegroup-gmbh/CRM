@@ -158,7 +158,6 @@ export class DataService {
           unternehmen_id: 'uuid',
           marke_id: 'uuid',
           auftrag_id: 'uuid',
-          ziele: 'string',
           art_der_kampagne: 'array',
           kampagne_typ: 'string',
           start: 'date',
@@ -463,6 +462,7 @@ export class DataService {
           status: 'string',
           ansprechpartner_id: 'uuid',
           po: 'string',
+          zahlungsziel_tage: 'number',
           re_nr: 'string',
           re_faelligkeit: 'date',
           kampagnenanzahl: 'number',
@@ -1780,8 +1780,8 @@ export class DataService {
             supabaseData[field] = value || null;
         }
       } else {
-        // Ausnahme: Meta-Felder wie created_by_id immer übernehmen
-        if (field === 'created_by_id' || field === 'updated_by_id') {
+        // Ausnahme: Meta-Felder und automatisch generierte Felder immer übernehmen
+        if (field === 'created_by_id' || field === 'updated_by_id' || field === 'po_nummer') {
           supabaseData[field] = value || null;
           console.log(`✅ Meta-Feld ${field} übernommen: ${value}`);
         } else {

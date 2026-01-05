@@ -11,6 +11,13 @@ export class RechnungList {
   constructor() {
     this.selectedRechnungen = new Set();
     this.rechnungen = []; // Speichert geladene Rechnungen für Download-Zugriff
+    // Statische Status-Optionen für Rechnungen
+    this.statusOptions = [
+      { id: 'Offen', name: 'Offen' },
+      { id: 'Rückfrage', name: 'Rückfrage' },
+      { id: 'Bezahlt', name: 'Bezahlt' },
+      { id: 'An Qonto gesendet', name: 'An Qonto gesendet' }
+    ];
   }
 
   async init() {
@@ -32,7 +39,14 @@ export class RechnungList {
     // Reload Liste bei Änderungen (z. B. Status geändert, gelöscht)
     window.addEventListener('entityUpdated', (e) => {
       if (e?.detail?.entity === 'rechnung') {
-        this.loadAndRender();
+        const { action, id, field, value } = e.detail;
+        // Bei Status-Update nur einzelne Zeile aktualisieren
+        if (action === 'updated' && field === 'status' && id) {
+          this.updateSingleRow(id, value);
+        } else {
+          // Bei anderen Aktionen (delete, bulk, etc.) komplett neu laden
+          this.loadAndRender();
+        }
       }
     });
     document.addEventListener('click', (e) => {
@@ -74,6 +88,61 @@ export class RechnungList {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  }
+
+  /**
+   * Aktualisiert eine einzelne Zeile im DOM statt die gesamte Liste neu zu laden
+   * @param {string} id - Die Rechnungs-ID
+   * @param {string} newStatus - Der neue Status
+   */
+  updateSingleRow(id, newStatus) {
+    // 1. Zeile im DOM finden
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    if (!row) {
+      console.warn('⚠️ Zeile nicht gefunden, lade Liste neu');
+      this.loadAndRender();
+      return;
+    }
+
+    // 2. Lokales Rechnungs-Array aktualisieren
+    const rechnung = this.rechnungen.find(r => r.id === id);
+    if (rechnung) {
+      rechnung.status = newStatus;
+    }
+
+    // 3. Status-Text in der Zeile aktualisieren (Spalte 9 = Index 8, oder 9 bei Admin mit Checkbox)
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    const statusCellIndex = isAdmin ? 9 : 8; // Bei Admin gibt es eine zusätzliche Checkbox-Spalte
+    const statusCell = row.cells[statusCellIndex];
+    if (statusCell) {
+      statusCell.textContent = newStatus || '-';
+    }
+
+    // 4. Row-Class für farbliche Hervorhebung aktualisieren
+    row.classList.remove('rechnung-row-paid', 'rechnung-row-overdue');
+    
+    if (newStatus === 'Bezahlt') {
+      row.classList.add('rechnung-row-paid');
+    } else if (rechnung?.zahlungsziel) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const zahlungsziel = new Date(rechnung.zahlungsziel);
+      zahlungsziel.setHours(0, 0, 0, 0);
+      if (zahlungsziel < today) {
+        row.classList.add('rechnung-row-overdue');
+      }
+    }
+
+    // 5. Actions-Dropdown aktualisieren (currentStatus für Checkmark)
+    const actionsCell = row.cells[row.cells.length - 1];
+    if (actionsCell && rechnung) {
+      actionsCell.innerHTML = actionBuilder.create('rechnung', id, window.currentUser, {
+        statusOptions: this.statusOptions,
+        currentStatus: { id: newStatus, name: newStatus }
+      });
+    }
+
+    console.log(`✅ Zeile ${id} inline aktualisiert: Status → ${newStatus}`);
   }
 
   async loadAndRender() {
@@ -246,6 +315,8 @@ export class RechnungList {
             <tr>
               ${isAdmin ? `<th><input type="checkbox" id="select-all-rechnungen"></th>` : ''}
               <th>Rechnungs-Nr</th>
+              <th>PO-Nummer</th>
+              <th>Erstellt am</th>
               <th>Unternehmen</th>
               <th>Auftrag</th>
               <th>Creator</th>
@@ -260,7 +331,7 @@ export class RechnungList {
           </thead>
           <tbody id="rechnungen-table-body">
             <tr>
-              <td colspan="${isAdmin ? '12' : '11'}" class="loading">Lade Rechnungen...</td>
+              <td colspan="${isAdmin ? '14' : '13'}" class="loading">Lade Rechnungen...</td>
             </tr>
           </tbody>
         </table>
@@ -310,10 +381,25 @@ export class RechnungList {
         return;
       }
 
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const getRowClass = (rechnung) => {
+        if (rechnung.status === 'Bezahlt') return 'rechnung-row-paid';
+        if (rechnung.zahlungsziel) {
+          const zahlungsziel = new Date(rechnung.zahlungsziel);
+          zahlungsziel.setHours(0, 0, 0, 0);
+          if (zahlungsziel < today) return 'rechnung-row-overdue';
+        }
+        return '';
+      };
+
       tbody.innerHTML = rechnungen.map(r => `
-        <tr data-id="${r.id}">
+        <tr data-id="${r.id}" class="${getRowClass(r)}">
           ${isAdmin ? `<td><input type="checkbox" class="rechnung-check" data-id="${r.id}"></td>` : ''}
           <td>${r.rechnung_nr || '-'}</td>
+          <td>${r.po_nummer || '-'}</td>
+          <td>${formatDate(r.created_at)}</td>
           <td>${r.unternehmen?.firmenname || '-'}</td>
           <td>${r.auftrag?.auftragsname || '-'}</td>
           <td>${[r.creator?.vorname, r.creator?.nachname].filter(Boolean).join(' ') || '-'}</td>
@@ -324,7 +410,10 @@ export class RechnungList {
           <td>${formatCurrency(r.bruttobetrag)}</td>
           <td>${r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener noreferrer">PDF</a>` : '-'}</td>
           <td>
-            ${actionBuilder.create('rechnung', r.id)}
+            ${actionBuilder.create('rechnung', r.id, window.currentUser, { 
+              statusOptions: this.statusOptions, 
+              currentStatus: { id: r.status, name: r.status } 
+            })}
           </td>
         </tr>
       `).join('');

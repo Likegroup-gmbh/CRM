@@ -188,6 +188,16 @@ export const ActionConfigs = {
   // Rechnung Actions  
   rechnung: {
     actions: [
+      { 
+        id: 'status', 
+        type: 'submenu', 
+        icon: 'invoice',
+        label: 'Status ändern',
+        staticOptions: true,
+        handler: 'setField',
+        updateFields: ['status'],
+        roles: ['admin', 'mitarbeiter']
+      },
       { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
       { id: 'download', icon: 'download', label: 'Rechnung herunterladen', roles: ['admin', 'mitarbeiter'] },

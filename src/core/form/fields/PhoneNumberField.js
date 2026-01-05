@@ -30,6 +30,10 @@ export class PhoneNumberField extends BaseField {
     const countryFieldName = this.field.nameCountry || `${this.field.name}_land_id`;
     const countryFieldId = `field-${countryFieldName}`;
     const phoneFieldId = `field-${this.field.name}`;
+    
+    // phoneType: 'mobile' (international +49) oder 'landline' (national 0 für DE)
+    const phoneType = this.field.phoneType || 'mobile';
+    const placeholder = phoneType === 'landline' ? '30 123 456' : '176 123 4567';
 
     return `
       <div class="form-field phone-number-field-container" ${dependsOn} ${showWhen} ${initialStyle}>
@@ -45,6 +49,7 @@ export class PhoneNumberField extends BaseField {
             data-display-field="name_de"
             data-value-field="id"
             data-phone-field="true"
+            data-phone-type="${phoneType}"
             ${required}>
             <option value="">Land wählen...</option>
           </select>
@@ -55,7 +60,7 @@ export class PhoneNumberField extends BaseField {
               id="${phoneFieldId}" 
               name="${this.field.name}" 
               class="phone-number-input"
-              placeholder="123 456 7890"
+              placeholder="${placeholder}"
               value="${this.sanitizeHtml(this.phoneNumber)}"
               autocomplete="off"
               ${required}>

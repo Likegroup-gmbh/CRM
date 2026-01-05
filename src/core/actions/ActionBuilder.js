@@ -138,14 +138,14 @@ export class ActionBuilder {
       statusOptions: options?.statusOptions
     });
     
-    if (action.dynamicOptions && options && options.statusOptions && options.statusOptions.length > 0) {
+    if ((action.dynamicOptions || action.staticOptions) && options && options.statusOptions && options.statusOptions.length > 0) {
       submenuItems = this.buildSubmenuItems(
         options.statusOptions,
         entityId,
         action,
         options.currentStatus
       );
-    } else if (action.dynamicOptions) {
+    } else if (action.dynamicOptions || action.staticOptions) {
       console.warn('⚠️ Status-Submenü hat keine Options:', {
         entityType,
         entityId,

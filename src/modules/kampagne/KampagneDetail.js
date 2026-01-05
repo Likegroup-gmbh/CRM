@@ -926,13 +926,9 @@ export class KampagneDetail {
                   </div>
                 </div>
 
-                <!-- Ziele und Budget -->
+                <!-- Budget -->
                 <div class="detail-card">
-                  <h3 class="section-title">Ziele & Budget</h3>
-                  <div class="detail-item">
-                    <label>Ziele:</label>
-                    <span>${window.validatorSystem.sanitizeHtml(this.kampagneData.ziele || '-')}</span>
-                  </div>
+                  <h3 class="section-title">Budget</h3>
                   <div class="detail-item">
                     <label>Budget Info:</label>
                     <span>${window.validatorSystem.sanitizeHtml(this.kampagneData.budget_info || '-')}</span>

@@ -1,4 +1,4 @@
-// FeedbackCreateDrawer.js - Drawer für Feedback-Erstellung
+// FeedbackCreateDrawer.js - Drawer für Feedback-Erstellung und -Bearbeitung
 // Slide-in Drawer mit Kategorie, Priorität und Beschreibung
 
 // Icons
@@ -10,11 +10,13 @@ export class FeedbackCreateDrawer {
   constructor() {
     this.drawerId = 'feedback-create-drawer';
     this.preselectedCategory = null;
+    this.feedbackToEdit = null; // Feedback-Objekt für Edit-Modus
   }
 
-  async open(preselectedCategory = null) {
-    console.log('🆕 FeedbackCreateDrawer: open()', { preselectedCategory });
+  async open(preselectedCategory = null, feedbackToEdit = null) {
+    console.log('🆕 FeedbackCreateDrawer: open()', { preselectedCategory, feedbackToEdit });
     this.preselectedCategory = preselectedCategory;
+    this.feedbackToEdit = feedbackToEdit;
     
     try {
       this.createDrawer();
@@ -26,8 +28,16 @@ export class FeedbackCreateDrawer {
     }
   }
 
+  get isEditMode() {
+    return !!this.feedbackToEdit;
+  }
+
   createDrawer() {
-    this.removeDrawer();
+    // Nur DOM-Elemente entfernen, nicht den State resetten
+    const existingPanel = document.getElementById(this.drawerId);
+    const existingOverlay = document.getElementById(`${this.drawerId}-overlay`);
+    if (existingPanel) existingPanel.remove();
+    if (existingOverlay) existingOverlay.remove();
 
     // Overlay
     const overlay = document.createElement('div');
@@ -47,11 +57,11 @@ export class FeedbackCreateDrawer {
     const headerLeft = document.createElement('div');
     const title = document.createElement('span');
     title.className = 'drawer-title';
-    title.textContent = 'Neues Feedback';
+    title.textContent = this.isEditMode ? 'Feedback bearbeiten' : 'Neues Feedback';
     
     const subtitle = document.createElement('p');
     subtitle.className = 'drawer-subtitle';
-    subtitle.textContent = 'Bug melden oder Feature vorschlagen';
+    subtitle.textContent = this.isEditMode ? 'Änderungen am Feedback vornehmen' : 'Bug melden oder Feature vorschlagen';
     
     headerLeft.appendChild(title);
     headerLeft.appendChild(subtitle);
@@ -100,6 +110,11 @@ export class FeedbackCreateDrawer {
     const body = document.getElementById(`${this.drawerId}-body`);
     if (!body) return;
 
+    // Werte aus feedbackToEdit oder Defaults
+    const category = this.feedbackToEdit?.category || this.preselectedCategory;
+    const priority = this.feedbackToEdit?.priority || 'medium';
+    const description = this.feedbackToEdit?.description || '';
+
     body.innerHTML = `
       <form id="feedback-form" class="drawer-form feedback-form">
         
@@ -108,15 +123,15 @@ export class FeedbackCreateDrawer {
           <label class="form-label" for="feedback-category">Kategorie *</label>
           <div class="category-select-wrapper">
             <div class="category-options">
-              <label class="category-option ${this.preselectedCategory === 'bug' ? 'selected' : ''}">
-                <input type="radio" name="category" value="bug" ${this.preselectedCategory === 'bug' ? 'checked' : ''} required>
+              <label class="category-option ${category === 'bug' ? 'selected' : ''}">
+                <input type="radio" name="category" value="bug" ${category === 'bug' ? 'checked' : ''} required>
                 <span class="category-option-content">
                   ${ICON_BUG}
                   <span>Bug melden</span>
                 </span>
               </label>
-              <label class="category-option ${this.preselectedCategory === 'feature' ? 'selected' : ''}">
-                <input type="radio" name="category" value="feature" ${this.preselectedCategory === 'feature' ? 'checked' : ''}>
+              <label class="category-option ${category === 'feature' ? 'selected' : ''}">
+                <input type="radio" name="category" value="feature" ${category === 'feature' ? 'checked' : ''}>
                 <span class="category-option-content">
                   ${ICON_FEATURE}
                   <span>Feature Wunsch</span>
@@ -130,9 +145,9 @@ export class FeedbackCreateDrawer {
         <div class="form-group">
           <label class="form-label" for="feedback-priority">Priorität *</label>
           <select id="feedback-priority" name="priority" class="form-select" required>
-            <option value="medium" selected>Mittel</option>
-            <option value="low">Niedrig</option>
-            <option value="high">Hoch</option>
+            <option value="medium" ${priority === 'medium' ? 'selected' : ''}>Mittel</option>
+            <option value="low" ${priority === 'low' ? 'selected' : ''}>Niedrig</option>
+            <option value="high" ${priority === 'high' ? 'selected' : ''}>Hoch</option>
           </select>
         </div>
 
@@ -146,7 +161,7 @@ export class FeedbackCreateDrawer {
             rows="8" 
             placeholder="Beschreibe das Problem oder deinen Wunsch möglichst genau..."
             required
-          ></textarea>
+          >${description}</textarea>
           <small class="form-hint">
             Bei Bugs: Welche Schritte führen zum Problem? Was hast du erwartet?
           </small>
@@ -173,7 +188,7 @@ export class FeedbackCreateDrawer {
                 <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
               </svg>
             </span>
-            <span class="mdc-btn__label">Feedback senden</span>
+            <span class="mdc-btn__label">${this.isEditMode ? 'Änderungen speichern' : 'Feedback senden'}</span>
           </button>
         </div>
       </form>
@@ -218,18 +233,41 @@ export class FeedbackCreateDrawer {
         return;
       }
 
-      // Feedback in DB speichern
-      const { data, error } = await window.supabase
-        .from('feedback')
-        .insert({
-          category,
-          priority,
-          description,
-          status: 'open',
-          created_by: window.currentUser?.id
-        })
-        .select()
-        .single();
+      let data, error;
+
+      if (this.isEditMode) {
+        // UPDATE
+        const result = await window.supabase
+          .from('feedback')
+          .update({
+            category,
+            priority,
+            description,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', this.feedbackToEdit.id)
+          .select()
+          .single();
+        
+        data = result.data;
+        error = result.error;
+      } else {
+        // INSERT
+        const result = await window.supabase
+          .from('feedback')
+          .insert({
+            category,
+            priority,
+            description,
+            status: 'open',
+            created_by: window.currentUser?.id
+          })
+          .select()
+          .single();
+        
+        data = result.data;
+        error = result.error;
+      }
 
       if (error) {
         console.error('❌ Fehler beim Speichern:', error);
@@ -238,9 +276,12 @@ export class FeedbackCreateDrawer {
       }
 
       console.log('✅ Feedback gespeichert:', data);
-      window.toastSystem?.show('Feedback erfolgreich gesendet!', 'success');
+      window.toastSystem?.show(
+        this.isEditMode ? 'Feedback aktualisiert!' : 'Feedback erfolgreich gesendet!', 
+        'success'
+      );
 
-      // Event für Refresh
+      // Event für Refresh (gleicher Event für Create und Update)
       window.dispatchEvent(new CustomEvent('feedbackCreated', { detail: data }));
 
       // Drawer schließen
@@ -266,9 +307,15 @@ export class FeedbackCreateDrawer {
       panel.classList.remove('show');
       setTimeout(() => {
         this.removeDrawer();
+        // Reset state nur beim Schließen
+        this.feedbackToEdit = null;
+        this.preselectedCategory = null;
       }, 300);
     } else {
       this.removeDrawer();
+      // Reset state
+      this.feedbackToEdit = null;
+      this.preselectedCategory = null;
     }
   }
 
@@ -280,4 +327,3 @@ export class FeedbackCreateDrawer {
     if (overlay) overlay.remove();
   }
 }
-

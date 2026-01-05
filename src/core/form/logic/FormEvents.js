@@ -3,10 +3,88 @@ export class FormEvents {
     this.formSystem = formSystem;
   }
 
+  /**
+   * Normalisiert deutsche Zahlenformate in Standard-Dezimalzahlen
+   * "13.000" → 13000
+   * "13.000,50" → 13000.50
+   * "13,50" → 13.50
+   * "13000" → 13000
+   * @param {string} value - Eingabewert
+   * @returns {number|null} - Normalisierte Zahl oder null bei ungültiger Eingabe
+   */
+  parseGermanNumber(value) {
+    if (!value || typeof value !== 'string') return null;
+    
+    // Leerzeichen entfernen
+    let cleaned = value.trim();
+    if (!cleaned) return null;
+    
+    // Prüfe ob deutsches Format (Punkt als Tausender, Komma als Dezimal)
+    // Pattern: Hat Punkte gefolgt von genau 3 Ziffern (Tausendertrenner)
+    const hasThousandSeparator = /\d{1,3}(\.\d{3})+/.test(cleaned);
+    const hasGermanDecimal = /,\d{1,2}$/.test(cleaned);
+    
+    if (hasThousandSeparator || hasGermanDecimal) {
+      // Deutsches Format: Punkte entfernen, Komma zu Punkt
+      cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+    }
+    
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? null : num;
+  }
+
+  /**
+   * Bindet German Number Handler an alle number-Inputs im Formular
+   * Ermöglicht Eingabe von "13.000" oder "13000" mit gleichem Ergebnis
+   */
+  bindGermanNumberInputs(form) {
+    if (!form) return;
+    
+    const numberInputs = form.querySelectorAll('input[type="number"]');
+    
+    numberInputs.forEach(input => {
+      // Vermeide Doppelbindung
+      if (input.dataset.germanNumberBound) return;
+      input.dataset.germanNumberBound = 'true';
+      
+      // Speichere originalen type
+      const originalType = input.type;
+      
+      // Bei Focus: Temporär auf text umschalten für freie Eingabe
+      input.addEventListener('focus', () => {
+        input.type = 'text';
+        input.dataset.originalValue = input.value;
+      });
+      
+      // Bei Blur: Normalisiere und zurück zu number
+      input.addEventListener('blur', () => {
+        const rawValue = input.value;
+        const parsed = this.parseGermanNumber(rawValue);
+        
+        if (parsed !== null) {
+          input.value = parsed;
+        } else if (rawValue === '') {
+          input.value = '';
+        }
+        // Zurück zu number type
+        input.type = originalType;
+        
+        // Trigger change event für Auto-Calculation
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    });
+    
+    console.log(`✅ German Number Handler an ${numberInputs.length} Felder gebunden`);
+  }
+
   // Formular-Events binden
   async bindFormEvents(entity, data) {
     const form = document.getElementById(`${entity}-form`);
     if (!form) return;
+    
+    // German Number Inputs binden (13.000 = 13000)
+    this.bindGermanNumberInputs(form);
 
     // Entity-Attribut für abhängige Felder setzen
     form.dataset.entity = entity;

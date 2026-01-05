@@ -37,7 +37,6 @@ export class AuftragFilterLogic {
           break;
 
         case 'status':
-        case 'art_der_kampagne':
           // Exakte Übereinstimmung für Select-Felder
           processedFilters[key] = {
             type: 'equals',

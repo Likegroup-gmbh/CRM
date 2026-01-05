@@ -612,14 +612,10 @@ export class AuftragsdetailsDetail {
 
   // Bearbeitungsformular anzeigen
   showEditForm() {
-    console.log('🎯 AUFTRAGSDETAILSDETAIL: Öffne Bearbeitungsformular via Drawer');
+    console.log('🎯 AUFTRAGSDETAILSDETAIL: Öffne Bearbeitungsformular');
     
-    // Verwende den bestehenden AuftragsDetailsManager
-    if (window.auftragsDetailsManager) {
-      window.auftragsDetailsManager.open(this.auftrag.id);
-    } else {
-      window.notificationSystem?.show('Bearbeitungsformular nicht verfügbar', 'error');
-    }
+    // Navigiere zur Auftragsdetails-Seite (Create/Edit verwenden die gleiche Seite)
+    window.navigateTo('/auftragsdetails/new');
   }
 
   // Cleanup

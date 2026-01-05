@@ -1,7 +1,6 @@
 // AuftragDetail.js (ES6-Modul)
 // Auftrags-Detailseite mit Tabs für Informationen, Notizen, Bewertungen und Creator
 
-import { AuftragsDetailsManager, auftragsDetailsManager } from './logic/AuftragsDetailsManager.js';
 import { KAMPAGNENARTEN_MAPPING } from './logic/KampagnenartenMapping.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
@@ -580,7 +579,7 @@ export class AuftragDetail {
           <div class="empty-icon">📋</div>
           <h3>Keine Auftragsdetails vorhanden</h3>
           <p>Es wurden noch keine detaillierten Produktionsinformationen für diesen Auftrag hinterlegt.</p>
-          <button onclick="window.auftragsDetailsManager?.open('${this.auftragId}')" class="primary-btn">
+          <button onclick="window.navigateTo('/auftragsdetails/new')" class="primary-btn">
             Auftragsdetails anlegen
           </button>
         </div>
@@ -1391,7 +1390,8 @@ export class AuftragDetail {
   }
 
   showDetailsForm(auftragId) {
-    auftragsDetailsManager.open(auftragId);
+    // Navigiere zur Auftragsdetails-Erstellungsseite
+    window.navigateTo('/auftragsdetails/new');
   }
 }
 

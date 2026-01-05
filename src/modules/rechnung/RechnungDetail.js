@@ -34,9 +34,12 @@ export class RechnungDetail {
     const { data, error } = await window.supabase
       .from('rechnung')
       .select(`*,
-        unternehmen:unternehmen_id(id, firmenname),
-        auftrag:auftrag_id(id, auftragsname),
-        created_by:created_by_id(id, name)
+        unternehmen:unternehmen!rechnung_unternehmen_id_fkey(id, firmenname),
+        auftrag:auftrag!rechnung_auftrag_id_fkey(id, auftragsname),
+        kampagne:kampagne!rechnung_kampagne_id_fkey(id, kampagnenname),
+        kooperation:kooperationen!rechnung_kooperation_id_fkey(id, name),
+        creator:creator!rechnung_creator_id_fkey(id, vorname, nachname),
+        created_by:benutzer!fk_rechnung_created_by(id, name)
       `)
       .eq('id', this.id)
       .single();
@@ -79,6 +82,7 @@ export class RechnungDetail {
           <div class="detail-card">
             <h3>Allgemein</h3>
             <div class="detail-item"><label>Rechnungs-Nr</label><span>${this.data?.rechnung_nr || '-'}</span></div>
+            <div class="detail-item"><label>Interne PO-Nummer</label><span>${this.data?.po_nummer || '-'}</span></div>
             <div class="detail-item"><label>Unternehmen</label><span>${this.data?.unternehmen?.firmenname || '-'}</span></div>
             <div class="detail-item"><label>Auftrag</label><span>${this.data?.auftrag?.auftragsname || '-'}</span></div>
             <div class="detail-item"><label>Status</label><span>${this.data?.status || '-'}</span></div>
@@ -86,8 +90,9 @@ export class RechnungDetail {
             <div class="detail-item"><label>Gestellt am</label><span>${formatDate(this.data?.gestellt_am)}</span></div>
             <div class="detail-item"><label>Zahlungsziel</label><span>${formatDate(this.data?.zahlungsziel)}</span></div>
             <div class="detail-item"><label>Bezahlt am</label><span>${formatDate(this.data?.bezahlt_am)}</span></div>
-            <div class="detail-item"><label>Nettobetrag</label><span>${formatCurrency(this.data?.betrag_netto)}</span></div>
-            <div class="detail-item"><label>Bruttobetrag</label><span>${formatCurrency(this.data?.betrag_brutto)}</span></div>
+            <div class="detail-item"><label>Nettobetrag</label><span>${formatCurrency(this.data?.nettobetrag)}</span></div>
+            <div class="detail-item"><label>Zusatzkosten</label><span>${formatCurrency(this.data?.zusatzkosten)}</span></div>
+            <div class="detail-item"><label>Bruttobetrag</label><span>${formatCurrency(this.data?.bruttobetrag)}</span></div>
             <div class="detail-item"><label>PDF</label><span>${this.data?.pdf_url ? `<a href="${this.data.pdf_url}" target="_blank" rel="noopener noreferrer">Öffnen</a>` : '-'}</span></div>
           </div>
 
@@ -219,6 +224,11 @@ export class RechnungDetail {
       // Ersteller automatisch setzen
       submitData.created_by_id = window.currentUser?.id || null;
 
+      // PO-Nummer automatisch generieren (Format: PO-JJJJ-NNNN)
+      const poNummer = await this.generatePoNummer();
+      submitData.po_nummer = poNummer;
+      console.log('📋 Generierte PO-Nummer:', poNummer);
+
       const result = await window.dataService.createEntity('rechnung', submitData);
       if (result.success) {
         // Multi-Upload Belege via UploaderField (Multi) in separatem Bucket 'rechnung-belege'
@@ -264,6 +274,49 @@ export class RechnungDetail {
     }
   }
 
+  // Generiert eine fortlaufende PO-Nummer im Format PO-JJJJ-NNNN
+  async generatePoNummer() {
+    const currentYear = new Date().getFullYear();
+    const prefix = `PO-${currentYear}-`;
+    
+    try {
+      // Höchste PO-Nummer des aktuellen Jahres ermitteln
+      const { data: rechnungen, error } = await window.supabase
+        .from('rechnung')
+        .select('po_nummer')
+        .like('po_nummer', `${prefix}%`)
+        .order('po_nummer', { ascending: false })
+        .limit(1);
+      
+      if (error) {
+        console.error('❌ Fehler beim Laden der PO-Nummern:', error);
+        // Fallback: Timestamp-basierte Nummer
+        return `${prefix}${Date.now().toString().slice(-4)}`;
+      }
+      
+      let nextNumber = 1;
+      
+      if (rechnungen && rechnungen.length > 0 && rechnungen[0].po_nummer) {
+        // Extrahiere die Nummer aus dem Format PO-JJJJ-NNNN
+        const lastPoNummer = rechnungen[0].po_nummer;
+        const match = lastPoNummer.match(/PO-\d{4}-(\d+)/);
+        if (match) {
+          nextNumber = parseInt(match[1], 10) + 1;
+        }
+      }
+      
+      // Format: PO-JJJJ-NNNN (4-stellig mit führenden Nullen)
+      const poNummer = `${prefix}${nextNumber.toString().padStart(4, '0')}`;
+      console.log(`✅ Neue PO-Nummer generiert: ${poNummer}`);
+      
+      return poNummer;
+    } catch (e) {
+      console.error('❌ Fehler bei PO-Nummer Generierung:', e);
+      // Fallback: Timestamp-basierte Nummer
+      return `${prefix}${Date.now().toString().slice(-4)}`;
+    }
+  }
+
   bindEvents() {
     document.addEventListener('click', (e) => {
       if (e.target.closest('#btn-edit-rechnung')) {
@@ -273,7 +326,14 @@ export class RechnungDetail {
   }
 
   showEditForm() {
-    const formHtml = window.formSystem.renderFormOnly('rechnung', this.data);
+    // Edit-Mode Flags setzen für FormSystem
+    const editData = {
+      ...this.data,
+      _isEditMode: true,
+      _entityId: this.id
+    };
+    
+    const formHtml = window.formSystem.renderFormOnly('rechnung', editData);
     window.content.innerHTML = `
       <div class="page-header">
         <div class="page-header-right">
@@ -289,7 +349,7 @@ export class RechnungDetail {
       </div>
       <div class="form-page">${formHtml}</div>
     `;
-    window.formSystem.bindFormEvents('rechnung', this.data);
+    window.formSystem.bindFormEvents('rechnung', editData);
   }
 }
 
