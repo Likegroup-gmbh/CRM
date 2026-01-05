@@ -173,7 +173,15 @@ export class KampagnePreviewDrawer {
         </div>
 
         <!-- Actions -->
-        <div class="preview-actions">
+        <div class="drawer-footer">
+          <button class="mdc-btn mdc-btn--cancel" id="btn-close-drawer">
+            <span class="mdc-btn__icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Schließen</span>
+          </button>
           <button class="mdc-btn mdc-btn--primary" id="btn-view-details">
             <span class="mdc-btn__icon">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
@@ -181,9 +189,6 @@ export class KampagnePreviewDrawer {
               </svg>
             </span>
             <span class="mdc-btn__label">Details anzeigen</span>
-          </button>
-          <button class="mdc-btn mdc-btn--cancel" id="btn-close-drawer">
-            <span class="mdc-btn__label">Schließen</span>
           </button>
         </div>
       </div>

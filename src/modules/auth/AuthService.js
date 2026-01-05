@@ -483,6 +483,78 @@ export class AuthService {
     }
   }
 
+  // Passwort-Reset anfordern
+  async requestPasswordReset(email) {
+    try {
+      // Rate Limiting prüfen
+      if (this.checkRateLimit(email)) {
+        throw new Error('Zu viele Anfragen. Bitte warten Sie 15 Minuten.');
+      }
+
+      // Offline-Modus erlaubt keinen Reset
+      if (this._offlineMode) {
+        throw new Error('Passwort-Reset ist im Offline-Modus nicht verfügbar.');
+      }
+
+      if (!window.supabase) {
+        throw new Error('Supabase nicht verfügbar');
+      }
+
+      // Redirect URL für Reset-Seite
+      const baseUrl = window.location.origin;
+      const redirectTo = `${baseUrl}/src/auth/reset-password.html`;
+
+      const { data, error } = await window.supabase.auth.resetPasswordForEmail(email, {
+        redirectTo
+      });
+
+      // Immer Erfolg melden (Sicherheit: keine Account-Enumeration)
+      // Auch wenn E-Mail nicht existiert, zeigen wir die gleiche Meldung
+      if (error) {
+        // Nur bei echten Fehlern (nicht "user not found") werfen
+        if (!error.message.includes('not found') && !error.message.includes('User not found')) {
+          this.recordFailedAttempt(email);
+          throw error;
+        }
+        console.log('ℹ️ Password reset requested for unknown email (silent fail for security)');
+      }
+
+      console.log('✅ Passwort-Reset E-Mail angefordert');
+      return { success: true, error: null };
+    } catch (error) {
+      console.error('Password Reset Error:', error);
+      return { success: false, error };
+    }
+  }
+
+  // Passwort aktualisieren (für Reset-Seite)
+  async updatePassword(newPassword) {
+    try {
+      // Passwort-Stärke validieren
+      if (!this.validatePasswordStrength(newPassword)) {
+        throw new Error('Passwort muss mindestens 4 Zeichen haben.');
+      }
+
+      if (!window.supabase) {
+        throw new Error('Supabase nicht verfügbar');
+      }
+
+      const { data, error } = await window.supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      console.log('✅ Passwort erfolgreich aktualisiert');
+      return { success: true, error: null };
+    } catch (error) {
+      console.error('Update Password Error:', error);
+      return { success: false, error };
+    }
+  }
+
   // Passwort-Stärke validieren (Entwicklung: nur 4 Zeichen)
   validatePasswordStrength(password) {
     return password.length >= 4;

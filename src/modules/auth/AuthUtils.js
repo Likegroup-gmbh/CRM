@@ -46,6 +46,7 @@ export class AuthUtils {
                     </svg>
                   </button>
                 </div>
+                <a href="javascript:void(0)" onclick="window.authUtils.showForgotPassword()" class="forgot-password-link">Passwort vergessen?</a>
               </div>
               <div class="form-box">
                 <button type="submit" class="btn primary-btn" style="width: 100%;">Anmelden</button>
@@ -238,17 +239,17 @@ export class AuthUtils {
       <div class="login-split-container">
         <div class="login-left">
           <div class="login-box">
-            <div class="success-icon" style="text-align: center; margin-bottom: 2rem;">
-              <svg style="width: 80px; height: 80px; color: #10b981; margin: 0 auto;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="login-box-icon success">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
               </svg>
             </div>
-            <h2 style="text-align: center; color: #10b981;">Registrierung erfolgreich!</h2>
-            <p style="text-align: center; margin: 1.5rem 0; color: #6b7280;">
+            <h2 class="success">Registrierung erfolgreich!</h2>
+            <p class="login-box-message">
               Wir haben einen 6-stelligen Bestätigungscode an<br>
-              <strong style="color: #4f46e5;">${email}</strong> gesendet.
+              <strong>${email}</strong> gesendet.
             </p>
-            <p style="text-align: center; margin-bottom: 2rem; color: #6b7280; font-size: 0.875rem;">
+            <p class="login-box-hint">
               Sie werden in <span id="countdown">3</span> Sekunden zur Bestätigungsseite weitergeleitet...
             </p>
             <div class="form-box text-center">
@@ -256,7 +257,7 @@ export class AuthUtils {
                 Jetzt bestätigen
               </button>
             </div>
-            <div class="form-box text-center" style="margin-top: 1rem;">
+            <div class="form-box text-center mt-md">
               <button type="button" class="btn secondary-btn" onclick="window.authUtils.showLogin()">
                 Zurück zum Login
               </button>
@@ -283,6 +284,124 @@ export class AuthUtils {
         window.location.href = redirectUrl;
       }
     }, 1000);
+  }
+
+  // Passwort vergessen anzeigen
+  showForgotPassword() {
+    window.loginRoot.innerHTML = this.createForgotPasswordFormHtml();
+    this.bindForgotPasswordEvents();
+  }
+
+  // Passwort vergessen Formular HTML erstellen
+  createForgotPasswordFormHtml() {
+    return `
+      <div class="login-split-container">
+        <div class="login-left">
+          <div class="login-box">
+            <div class="login-logo-wrapper">
+              <img src="/assets/background/Logo-Icon-gray.svg" alt="Logo" class="login-logo">
+            </div>
+            <h2>Passwort vergessen?</h2>
+            <p class="login-box-description">
+              Geben Sie Ihre E-Mail-Adresse ein und wir senden Ihnen einen Link zum Zurücksetzen Ihres Passworts.
+            </p>
+            <form id="forgotPasswordForm" class="login-form">
+              <div class="form-box">
+                <label for="forgotEmail" class="label">E-Mail</label>
+                <input type="email" id="forgotEmail" class="input" placeholder="ihre@email.com" required>
+              </div>
+              <div class="form-box">
+                <button type="submit" class="btn primary-btn" style="width: 100%;">Link senden</button>
+              </div>
+              <div class="login-divider">
+                <span>oder</span>
+              </div>
+              <div class="register-links-row">
+                <a href="javascript:void(0)" onclick="window.authUtils.showLogin()" class="register-link-btn">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                  </svg>
+                  Zurück zum Login
+                </a>
+              </div>
+              <div class="login-version">Version 1.0</div>
+              <div id="forgotPasswordError" class="text-error" style="display: none;"></div>
+            </form>
+          </div>
+        </div>
+        <div class="login-right"></div>
+      </div>
+    `;
+  }
+
+  // Passwort vergessen Events binden
+  bindForgotPasswordEvents() {
+    const forgotPasswordForm = document.getElementById('forgotPasswordForm');
+    if (forgotPasswordForm) {
+      forgotPasswordForm.onsubmit = (e) => this.handleForgotPasswordSubmit(e);
+    }
+  }
+
+  // Passwort vergessen Submit behandeln
+  async handleForgotPasswordSubmit(e) {
+    e.preventDefault();
+    
+    const email = document.getElementById('forgotEmail').value;
+    const errorDiv = document.getElementById('forgotPasswordError');
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+
+    try {
+      errorDiv.style.display = 'none';
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Wird gesendet...';
+      
+      const { success, error } = await authService.requestPasswordReset(email);
+      
+      if (error) {
+        throw error;
+      }
+
+      // Erfolg anzeigen (unabhängig davon ob E-Mail existiert - Sicherheit)
+      this.showForgotPasswordSuccess(email);
+    } catch (error) {
+      console.error('Password reset request failed:', error);
+      errorDiv.textContent = error.message || 'Anfrage fehlgeschlagen. Bitte versuchen Sie es später erneut.';
+      errorDiv.style.display = 'block';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Link senden';
+    }
+  }
+
+  // Passwort vergessen Erfolg anzeigen
+  showForgotPasswordSuccess(email) {
+    const successHtml = `
+      <div class="login-split-container">
+        <div class="login-left">
+          <div class="login-box">
+            <div class="login-box-icon success">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+              </svg>
+            </div>
+            <h2 class="success">E-Mail gesendet!</h2>
+            <p class="login-box-message">
+              Falls ein Account mit <strong>${email}</strong> existiert, haben wir einen Link zum Zurücksetzen des Passworts gesendet.
+            </p>
+            <p class="login-box-hint">
+              Bitte überprüfen Sie auch Ihren Spam-Ordner.
+            </p>
+            <div class="form-box text-center">
+              <button type="button" class="btn primary-btn" onclick="window.authUtils.showLogin()" style="width: 100%;">
+                Zurück zum Login
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="login-right"></div>
+      </div>
+    `;
+    
+    window.loginRoot.innerHTML = successHtml;
   }
 
   // Registrierungs-Daten validieren

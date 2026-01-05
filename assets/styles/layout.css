@@ -773,6 +773,53 @@
   font-weight: 500;
 }
 
+.login-box-description {
+  text-align: center;
+  margin-bottom: var(--space-lg);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.login-box-icon {
+  text-align: center;
+  margin-bottom: var(--space-lg);
+}
+
+.login-box-icon svg {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.login-box h2.success,
+.login-box h2.error {
+  color: #fff;
+}
+
+.login-box-message {
+  text-align: center;
+  margin: var(--space-lg) 0;
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.5;
+}
+
+.login-box-message strong {
+  color: #fff;
+}
+
+.login-box-hint {
+  text-align: center;
+  margin-bottom: var(--space-lg);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: var(--text-sm);
+}
+
+.login-box .form-box.mt-md {
+  margin-top: var(--space-md);
+}
+
 .login-box .label {
   color: rgba(255, 255, 255, 0.9);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
@@ -885,6 +932,22 @@
 
 .login-box .password-toggle:hover {
   color: #fff;
+}
+
+/* Forgot Password Link */
+.forgot-password-link {
+  display: block;
+  text-align: right;
+  margin-top: var(--space-xs);
+  font-size: var(--text-sm);
+  color: rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.forgot-password-link:hover {
+  color: #fff;
+  text-decoration: underline;
 }
 
 /* Auth Buttons Row - Horizontal Layout */

@@ -9,7 +9,8 @@ export default defineConfig({
         main: 'index.html',
         kundenRegister: 'src/auth/kunden-register.html',
         verifyEmail: 'src/auth/verify-email.html',
-        confirmEmail: 'src/auth/confirm-email.html'
+        confirmEmail: 'src/auth/confirm-email.html',
+        resetPassword: 'src/auth/reset-password.html'
       },
       output: {
         manualChunks: {

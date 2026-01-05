@@ -523,6 +523,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.warn('⚠️ Supabase nicht verfügbar - verwende Offline-Modus');
   }
 
+  // Password Recovery Flow abfangen - BEVOR Auth-Check
+  // Wenn ein Recovery-Token in der URL ist, zur Reset-Seite weiterleiten
+  const hashParams = new URLSearchParams(window.location.hash.substring(1));
+  const urlParams = new URLSearchParams(window.location.search);
+  const isRecoveryFlow = hashParams.get('type') === 'recovery' || 
+                         urlParams.get('type') === 'recovery' ||
+                         window.location.hash.includes('type=recovery');
+  
+  if (isRecoveryFlow) {
+    console.log('🔑 Password Recovery Flow erkannt - leite zur Reset-Seite weiter');
+    // Token im Hash beibehalten für die Reset-Seite
+    window.location.href = '/src/auth/reset-password.html' + window.location.hash;
+    return; // Stoppe weitere Ausführung
+  }
+
   // Auth-Check durchführen
   const isAuthenticated = await authService.checkAuth();
   

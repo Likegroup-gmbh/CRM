@@ -15,7 +15,13 @@
 [functions."screenshot"]
   timeout = 60
 
-# SPA-Fallback
+# Auth-Seiten direkt ausliefern (NICHT auf index.html umleiten)
+[[redirects]]
+  from = "/src/auth/*"
+  to = "/src/auth/:splat"
+  status = 200
+
+# SPA-Fallback für alle anderen Routen
 [[redirects]]
   from = "/*"
   to = "/index.html"

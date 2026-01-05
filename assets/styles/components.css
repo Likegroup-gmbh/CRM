@@ -10424,12 +10424,12 @@ table:has(td:first-child input[type="checkbox"]) td:nth-child(2),
 .preview-stats {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-md);
+
 }
 
 .preview-stat {
-  background: var(--bg-secondary);
-  border-radius: var(--border-radius-md);
+  border: 1px solid var(--gray-100);
+  border-radius: var(--radius-md);
   padding: var(--space-md);
   text-align: center;
 }
@@ -10453,17 +10453,16 @@ table:has(td:first-child input[type="checkbox"]) td:nth-child(2),
 
 .preview-section-title {
   font-size: var(--font-size-sm);
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+
   margin: 0 0 var(--space-sm) 0;
 }
 
 .preview-deadlines {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+ 
 }
 
 .preview-deadline {
@@ -10471,14 +10470,11 @@ table:has(td:first-child input[type="checkbox"]) td:nth-child(2),
   align-items: center;
   gap: var(--space-sm);
   padding: var(--space-xs) var(--space-sm);
-  background: var(--bg-secondary);
-  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--gray-100);
+  
 }
 
-.preview-deadline--highlighted {
-  background: var(--primary-50);
-  border: 1px solid var(--primary-200);
-}
+
 
 .preview-deadline--today {
   background: var(--warning-50);
@@ -10507,12 +10503,12 @@ table:has(td:first-child input[type="checkbox"]) td:nth-child(2),
 
 .preview-deadline-label {
   flex: 1;
-  font-size: var(--font-size-sm);
+  font-size: var(--text-sm);
   color: var(--text-secondary);
 }
 
 .preview-deadline-value {
-  font-size: var(--font-size-sm);
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--text-primary);
 }

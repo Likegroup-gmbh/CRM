@@ -11,7 +11,8 @@ export const SUPABASE_CONFIG = {
         success: '/', // Weiterleitung nach erfolgreicher Bestätigung
         login: '/login', // Weiterleitung zum Login
         register: '/register', // Weiterleitung zur Registrierung bei Fehlern
-        dashboard: '/' // Weiterleitung zum Dashboard
+        dashboard: '/', // Weiterleitung zum Dashboard
+        resetPassword: '/src/auth/reset-password.html' // Weiterleitung zur Passwort-Reset-Seite
     }
 }
 
