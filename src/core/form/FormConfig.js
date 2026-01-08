@@ -89,6 +89,39 @@ export class FormConfig {
             valueField: 'id',
             customField: true
           },
+          // Persönliche Infos
+          { 
+            name: 'geschlecht', 
+            label: 'Geschlecht', 
+            type: 'select', 
+            required: false,
+            options: [
+              { value: 'männlich', label: 'Männlich' },
+              { value: 'weiblich', label: 'Weiblich' },
+              { value: 'divers', label: 'Divers' }
+            ]
+          },
+          { name: 'alter_jahre', label: 'Alter', type: 'number', required: false },
+          // Haustier Toggle + Beschreibung
+          { name: 'hat_haustier', label: 'Hat Haustier', type: 'toggle', required: false },
+          { 
+            name: 'haustier_beschreibung', 
+            label: 'Haustier Beschreibung', 
+            type: 'textarea', 
+            required: false,
+            dependsOn: 'hat_haustier',
+            showWhen: 'true'
+          },
+          // Instrument Toggle + Beschreibung
+          { name: 'spielt_instrument', label: 'Spielt Instrument', type: 'toggle', required: false },
+          { 
+            name: 'instrument_beschreibung', 
+            label: 'Instrument Beschreibung', 
+            type: 'textarea', 
+            required: false,
+            dependsOn: 'spielt_instrument',
+            showWhen: 'true'
+          },
           { name: 'telefonnummer', label: 'Telefonnummer', type: 'tel', required: false, validation: { type: 'phone' } },
           { name: 'mail', label: 'Email', type: 'email', required: false, validation: { type: 'email' } },
           { name: 'portfolio_link', label: 'Portfolio Link', type: 'url', required: false, validation: { type: 'url' } },

@@ -170,16 +170,20 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       { label: 'Erstellt', value: this.formatDate(this.ansprechpartner?.created_at) }
     ]);
 
-    // Main Content mit Tabs
+    // Tab-Navigation (oben über volle Breite)
+    const tabNavigation = this.renderTabNavigation();
+
+    // Main Content (nur Tab-Content, ohne Navigation)
     const mainContent = this.renderMainContent();
 
-    // Zwei-Spalten-Layout rendern
+    // Layout mit Tabs oben rendern
     const html = this.renderTwoColumnLayout({
       person: personConfig,
       stats: [],
       quickActions,
       sidebarInfo,
-      mainContent
+      mainContent,
+      tabNavigation
     });
 
     window.setContentSafely(window.content, html);
@@ -192,7 +196,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     return this.ansprechpartner?.sprache?.name || this.ansprechpartner?.sprache || '-';
   }
 
-  renderMainContent() {
+  renderTabNavigation() {
     const tabs = [
       { tab: 'informationen', label: 'Informationen', isActive: this.activeMainTab === 'informationen' },
       { tab: 'unternehmen', label: 'Unternehmen', count: this.ansprechpartner?.ansprechpartner_unternehmen?.length || 0, isActive: this.activeMainTab === 'unternehmen' },
@@ -202,11 +206,11 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       { tab: 'bewertungen', label: 'Bewertungen', count: this.ratings?.length || 0, isActive: this.activeMainTab === 'bewertungen' }
     ];
 
-    return `
-      <div class="tab-navigation">
-        ${tabs.map(t => renderTabButton(t)).join('')}
-      </div>
+    return tabs.map(t => renderTabButton(t)).join('');
+  }
 
+  renderMainContent() {
+    return `
       <div class="tab-content">
         <div class="tab-pane ${this.activeMainTab === 'informationen' ? 'active' : ''}" id="tab-informationen">
           ${this.renderInformationen()}

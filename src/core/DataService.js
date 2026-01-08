@@ -1773,6 +1773,7 @@ export class DataService {
             supabaseData[field] = value ? new Date(value).toISOString() : null;
             break;
           case 'boolean':
+          case 'toggle':
             // Toggle-Felder behandeln
             supabaseData[field] = value === 'on' || value === true || value === 'true' ? true : false;
             break;

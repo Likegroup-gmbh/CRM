@@ -376,16 +376,20 @@ export class UnternehmenDetail extends PersonDetailBase {
       { label: 'Aktualisiert', value: this.formatDate(this.unternehmen?.updated_at) }
     ]);
 
-    // Main Content mit Tabs
+    // Tab-Navigation (oben über volle Breite)
+    const tabNavigation = this.renderTabNavigation();
+
+    // Main Content (nur Tab-Content, ohne Navigation)
     const mainContent = this.renderMainContent();
 
-    // Zwei-Spalten-Layout rendern
+    // Layout mit Tabs oben rendern
     const html = this.renderTwoColumnLayout({
       person: personConfig,
       stats: [],
       quickActions,
       sidebarInfo,
-      mainContent
+      mainContent,
+      tabNavigation
     });
 
     window.setContentSafely(window.content, html);
@@ -400,7 +404,7 @@ export class UnternehmenDetail extends PersonDetailBase {
     return parts.length > 0 ? parts.join(', ') : '-';
   }
 
-  renderMainContent() {
+  renderTabNavigation() {
     const tabs = [
       { tab: 'informationen', label: 'Informationen', isActive: this.activeMainTab === 'informationen' },
       { tab: 'marken', label: 'Marken', count: this.marken.length, isActive: this.activeMainTab === 'marken' },
@@ -416,11 +420,11 @@ export class UnternehmenDetail extends PersonDetailBase {
       { tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen.length, isActive: this.activeMainTab === 'rechnungen' }
     ];
 
-    return `
-      <div class="tab-navigation">
-        ${tabs.map(t => renderTabButton(t)).join('')}
-      </div>
+    return tabs.map(t => renderTabButton(t)).join('');
+  }
 
+  renderMainContent() {
+    return `
       <div class="tab-content">
         <div class="tab-pane ${this.activeMainTab === 'informationen' ? 'active' : ''}" id="tab-informationen">
           ${this.renderInformationen()}

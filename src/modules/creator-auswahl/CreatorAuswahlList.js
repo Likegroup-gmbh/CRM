@@ -472,12 +472,17 @@ export class CreatorAuswahlList {
       });
     };
 
-    // Unternehmen
+    // Unternehmen - gefiltert nach Mitarbeiter-Zuordnungen
     bindAutoSuggest(
       'as-unternehmen', 
       'asdd-unternehmen',
       async (q) => {
+        const allowedIds = await window.getAllowedUnternehmenIds?.();
         let query = window.supabase.from('unternehmen').select('id, firmenname').order('firmenname').limit(20);
+        if (allowedIds !== null) {
+          if (allowedIds.length === 0) return [];
+          query = query.in('id', allowedIds);
+        }
         if (q) query = query.ilike('firmenname', `%${q}%`);
         const { data } = await query;
         return data || [];
@@ -493,12 +498,17 @@ export class CreatorAuswahlList {
       (r) => `<div class="dropdown-item" data-id="${r.id}" data-label="${r.firmenname}">${r.firmenname}</div>`
     );
 
-    // Marke
+    // Marke - gefiltert nach Mitarbeiter-Zuordnungen
     bindAutoSuggest(
       'as-marke',
       'asdd-marke',
       async (q) => {
+        const allowedMarkenIds = await window.getAllowedMarkenIds?.();
         let query = window.supabase.from('marke').select('id, markenname').order('markenname').limit(20);
+        if (allowedMarkenIds !== null) {
+          if (allowedMarkenIds.length === 0) return [];
+          query = query.in('id', allowedMarkenIds);
+        }
         if (q) query = query.ilike('markenname', `%${q}%`);
         if (selectedUnternehmenId) query = query.eq('unternehmen_id', selectedUnternehmenId);
         const { data } = await query;
@@ -747,9 +757,15 @@ export class CreatorAuswahlList {
       });
     };
 
+    // Unternehmen - gefiltert nach Mitarbeiter-Zuordnungen
     bindAutoSuggest('edit-as-unternehmen', 'edit-asdd-unternehmen',
       async (q) => {
+        const allowedIds = await window.getAllowedUnternehmenIds?.();
         let query = window.supabase.from('unternehmen').select('id, firmenname').order('firmenname').limit(20);
+        if (allowedIds !== null) {
+          if (allowedIds.length === 0) return [];
+          query = query.in('id', allowedIds);
+        }
         if (q) query = query.ilike('firmenname', `%${q}%`);
         const { data } = await query;
         return data || [];
@@ -761,9 +777,15 @@ export class CreatorAuswahlList {
       (r) => `<div class="dropdown-item" data-id="${r.id}" data-label="${r.firmenname}">${r.firmenname}</div>`
     );
 
+    // Marke - gefiltert nach Mitarbeiter-Zuordnungen
     bindAutoSuggest('edit-as-marke', 'edit-asdd-marke',
       async (q) => {
+        const allowedMarkenIds = await window.getAllowedMarkenIds?.();
         let query = window.supabase.from('marke').select('id, markenname').order('markenname').limit(20);
+        if (allowedMarkenIds !== null) {
+          if (allowedMarkenIds.length === 0) return [];
+          query = query.in('id', allowedMarkenIds);
+        }
         if (q) query = query.ilike('markenname', `%${q}%`);
         if (selectedUnternehmenId) query = query.eq('unternehmen_id', selectedUnternehmenId);
         const { data } = await query;

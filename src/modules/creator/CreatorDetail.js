@@ -448,15 +448,19 @@ export class CreatorDetail extends PersonDetailBase {
     // Info-Items für Sidebar
     const sidebarInfo = this.renderSidebarInfo();
 
-    // Main Content mit Tabs
+    // Tab-Navigation (oben über volle Breite)
+    const tabNavigation = this.renderTabNavigation();
+
+    // Main Content (nur Tab-Content, ohne Navigation)
     const mainContent = this.renderMainContent();
 
-    // Zwei-Spalten-Layout rendern
+    // Layout mit Tabs oben rendern
     const html = this.renderTwoColumnLayout({
       person: personConfig,
       stats: [],
       quickActions,
       sidebarInfo,
+      tabNavigation,
       mainContent
     });
 
@@ -522,8 +526,8 @@ export class CreatorDetail extends PersonDetailBase {
     return socialHtml + this.renderInfoItems(items);
   }
 
-  renderMainContent() {
-    const tabs = [
+  getTabsConfig() {
+    return [
       { tab: 'info', label: 'Informationen', isActive: this.activeMainTab === 'info' },
       { tab: 'kampagnen', label: 'Kampagnen', count: this.kampagnen?.length || 0, isActive: this.activeMainTab === 'kampagnen' },
       { tab: 'kooperationen', label: 'Kooperationen', count: this.kooperationen?.length || 0, isActive: this.activeMainTab === 'kooperationen' },
@@ -534,12 +538,15 @@ export class CreatorDetail extends PersonDetailBase {
       { tab: 'notizen', label: 'Notizen', count: this.notizen.length, isActive: this.activeMainTab === 'notizen' },
       { tab: 'ratings', label: 'Bewertungen', count: this.ratings.length, isActive: this.activeMainTab === 'ratings' }
     ];
+  }
 
+  renderTabNavigation() {
+    const tabs = this.getTabsConfig();
+    return tabs.map(t => renderTabButton(t)).join('');
+  }
+
+  renderMainContent() {
     return `
-      <div class="tab-navigation">
-        ${tabs.map(t => renderTabButton(t)).join('')}
-      </div>
-
       <div class="tab-content">
         <div class="tab-pane ${this.activeMainTab === 'info' ? 'active' : ''}" id="tab-info">
           ${this.renderInfoTab()}
@@ -642,6 +649,26 @@ export class CreatorDetail extends PersonDetailBase {
               <label>Portfolio:</label>
               <span>${this.creator.portfolio_link ? `<a href="${this.creator.portfolio_link}" target="_blank">Link</a>` : '-'}</span>
             </div>
+            <div class="detail-item">
+              <label>Geschlecht:</label>
+              <span>${this.creator.geschlecht || '-'}</span>
+            </div>
+            <div class="detail-item">
+              <label>Alter:</label>
+              <span>${this.creator.alter_jahre ? `${this.creator.alter_jahre} Jahre` : '-'}</span>
+            </div>
+            ${this.creator.hat_haustier ? `
+            <div class="detail-item">
+              <label>Haustier:</label>
+              <span>${this.creator.haustier_beschreibung || 'Ja'}</span>
+            </div>
+            ` : ''}
+            ${this.creator.spielt_instrument ? `
+            <div class="detail-item">
+              <label>Instrument:</label>
+              <span>${this.creator.instrument_beschreibung || 'Ja'}</span>
+            </div>
+            ` : ''}
           </div>
 
           <div class="detail-card">

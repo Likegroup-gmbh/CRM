@@ -423,16 +423,20 @@ export class ProfileDetailV2 extends PersonDetailBase {
     // Info-Items für Sidebar
     const sidebarInfo = this.renderProfileInfo();
 
-    // Main Content
+    // Tab-Navigation (oben über volle Breite)
+    const tabNavigation = this.renderProfileTabNavigation(isKunde);
+
+    // Main Content (nur Tab-Content, ohne Navigation)
     const mainContent = this.renderProfileMainContent(isKunde);
 
-    // Zwei-Spalten-Layout rendern
+    // Layout mit Tabs oben rendern
     const html = this.renderTwoColumnLayout({
       person: personConfig,
       stats: [],
       quickActions,
       sidebarInfo,
-      mainContent
+      mainContent,
+      tabNavigation
     });
 
     container.innerHTML = html;
@@ -464,7 +468,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     return this.renderInfoItems(items);
   }
 
-  renderProfileMainContent(isKunde) {
+  renderProfileTabNavigation(isKunde) {
     const renderMainTab = (tab, label, count) => `
       <button class="tab-button ${this.activeMainTab === tab ? 'active' : ''}" data-main-tab="${tab}">
         <span class="tab-icon">${getTabIcon(tab)}</span>
@@ -473,15 +477,17 @@ export class ProfileDetailV2 extends PersonDetailBase {
     `;
 
     return `
-      <div class="tab-navigation">
-        ${renderMainTab('unternehmen', 'Unternehmen', this.unternehmen.length)}
-        ${renderMainTab('marken', 'Marken', this.marken.length)}
-        ${!isKunde ? renderMainTab('auftraege', 'Aufträge', this.auftraege.length) : ''}
-        ${renderMainTab('kampagnen', 'Kampagnen', this.kampagnen.length)}
-        ${renderMainTab('kooperationen', 'Kooperationen', this.kooperationen.length)}
-        ${renderMainTab('videos', 'Videos', this.videos.length)}
-      </div>
+      ${renderMainTab('unternehmen', 'Unternehmen', this.unternehmen.length)}
+      ${renderMainTab('marken', 'Marken', this.marken.length)}
+      ${!isKunde ? renderMainTab('auftraege', 'Aufträge', this.auftraege.length) : ''}
+      ${renderMainTab('kampagnen', 'Kampagnen', this.kampagnen.length)}
+      ${renderMainTab('kooperationen', 'Kooperationen', this.kooperationen.length)}
+      ${renderMainTab('videos', 'Videos', this.videos.length)}
+    `;
+  }
 
+  renderProfileMainContent(isKunde) {
+    return `
       <div class="tab-content">
         <div class="tab-pane ${this.activeMainTab === 'unternehmen' ? 'active' : ''}" id="main-unternehmen">
           ${this.renderUnternehmenTab()}

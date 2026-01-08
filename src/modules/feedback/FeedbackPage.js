@@ -49,15 +49,9 @@ export const feedbackPage = {
       ]);
     }
     
-    // Kunden blockieren
-    if (window.currentUser?.rolle === 'kunde') {
-      this.renderBlocked();
-      return;
-    }
-    
-    // Berechtigungsprüfung für Mitarbeiter (Admin hat immer Zugriff)
+    // Berechtigungsprüfung (nutzt berechnete Permissions statt rohe zugriffsrechte)
     if (window.currentUser?.rolle !== 'admin') {
-      const canView = window.currentUser?.zugriffsrechte?.feedback?.can_view;
+      const canView = window.currentUser?.permissions?.feedback?.can_view;
       if (!canView) {
         this.renderBlocked();
         return;

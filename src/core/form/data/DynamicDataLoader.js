@@ -431,13 +431,50 @@ export class DynamicDataLoader {
         // Fallback für spezielle Felder ohne table-Konfiguration
         switch (field.name) {
         case 'unternehmen_id':
-          // Kontext-spezifisch laden
+          // Kontext-spezifisch laden mit Mitarbeiter-Filterung
           if (!window.supabase) {
             const unternehmen = await this.dataService.loadEntities('unternehmen');
             options = unternehmen.map(u => ({ value: u.id, label: u.firmenname || 'Unbekanntes Unternehmen' }));
             break;
           }
           try {
+            // Erlaubte Unternehmen-IDs für den aktuellen User holen (null = alle erlaubt)
+            const allowedIds = await window.getAllowedUnternehmenIds?.();
+            
+            // Helper-Funktion für gefilterte Queries
+            const buildFilteredQuery = async (baseIds = null) => {
+              let query = window.supabase
+                .from('unternehmen')
+                .select('id, firmenname')
+                .order('firmenname');
+              
+              // Wenn baseIds vorhanden (z.B. nur Unternehmen mit Kampagnen)
+              if (baseIds && baseIds.length > 0) {
+                // Zusätzlich mit erlaubten IDs filtern (Schnittmenge)
+                if (allowedIds !== null && allowedIds.length > 0) {
+                  const intersection = baseIds.filter(id => allowedIds.includes(id));
+                  if (intersection.length === 0) return [];
+                  query = query.in('id', intersection);
+                } else if (allowedIds !== null && allowedIds.length === 0) {
+                  // Mitarbeiter ohne Zuordnungen
+                  return [];
+                } else {
+                  query = query.in('id', baseIds);
+                }
+              } else if (allowedIds !== null) {
+                // Nur erlaubte IDs (kein baseIds-Filter)
+                if (allowedIds.length === 0) return [];
+                query = query.in('id', allowedIds);
+              }
+              
+              const { data, error } = await query;
+              if (error) {
+                console.error('❌ Fehler beim Laden der Unternehmen:', error);
+                return [];
+              }
+              return (data || []).map(u => ({ value: u.id, label: u.firmenname || 'Unbekanntes Unternehmen' }));
+            };
+            
             if (entity === 'kooperation') {
               // Nur Unternehmen mit vorhandenen Kampagnen (für Kooperation)
               const { data: kampUnternehmen, error: kampUError } = await window.supabase
@@ -449,16 +486,7 @@ export class DynamicDataLoader {
                 break;
               }
               const uniqIds = Array.from(new Set((kampUnternehmen || []).map(row => row.unternehmen_id).filter(Boolean)));
-              const { data: unternehmen2, error: uErr } = await window.supabase
-                .from('unternehmen')
-                .select('id, firmenname')
-                .in('id', uniqIds)
-                .order('firmenname');
-              if (uErr) {
-                console.error('❌ Fehler beim Laden der Unternehmen:', uErr);
-                break;
-              }
-              options = (unternehmen2 || []).map(u => ({ value: u.id, label: u.firmenname || 'Unbekanntes Unternehmen' }));
+              options = await buildFilteredQuery(uniqIds);
             } else if (entity === 'kampagne') {
               // Für neue Kampagne: Nur Unternehmen mit mindestens einem Auftrag
               const { data: auftragUnternehmen, error: aErr } = await window.supabase
@@ -470,38 +498,10 @@ export class DynamicDataLoader {
                 break;
               }
               const uniqIds = Array.from(new Set((auftragUnternehmen || []).map(row => row.unternehmen_id).filter(Boolean)));
-              const { data: unternehmen2, error: uErr } = await window.supabase
-                .from('unternehmen')
-                .select('id, firmenname')
-                .in('id', uniqIds)
-                .order('firmenname');
-              if (uErr) {
-                console.error('❌ Fehler beim Laden der Unternehmen:', uErr);
-                break;
-              }
-              options = (unternehmen2 || []).map(u => ({ value: u.id, label: u.firmenname || 'Unbekanntes Unternehmen' }));
-            } else if (entity === 'marke') {
-              // Für Marke: Alle Unternehmen anzeigen
-              const { data: unternehmenAll, error: allErr } = await window.supabase
-                .from('unternehmen')
-                .select('id, firmenname')
-                .order('firmenname');
-              if (allErr) {
-                console.error('❌ Fehler beim Laden aller Unternehmen:', allErr);
-                break;
-              }
-              options = (unternehmenAll || []).map(u => ({ value: u.id, label: u.firmenname || 'Unbekanntes Unternehmen' }));
+              options = await buildFilteredQuery(uniqIds);
             } else {
-              // Default: Alle Unternehmen
-              const { data: unternehmenAll, error: allErr } = await window.supabase
-                .from('unternehmen')
-                .select('id, firmenname')
-                .order('firmenname');
-              if (allErr) {
-                console.error('❌ Fehler beim Laden aller Unternehmen:', allErr);
-                break;
-              }
-              options = (unternehmenAll || []).map(u => ({ value: u.id, label: u.firmenname || 'Unbekanntes Unternehmen' }));
+              // Default und Marke: Alle erlaubten Unternehmen
+              options = await buildFilteredQuery();
             }
           } catch (e) {
             console.error('❌ Fehler beim Laden der Unternehmen (kontext-spezifisch):', e);
@@ -829,7 +829,80 @@ export class DynamicDataLoader {
         // PERFORMANCE: Lade aus Cache
         data = await this.cache.get(field.table, '*', 'sort_order');
         console.log(`📦 ${field.table} aus Cache geladen (${data.length} Einträge)`);
-      } else {
+      } 
+      // Spezielle Filterung für marke-Tabelle basierend auf Mitarbeiter-Zuordnungen
+      else if (field.table === 'marke') {
+        const allowedMarkenIds = await window.getAllowedMarkenIds?.();
+        
+        let query = window.supabase
+          .from('marke')
+          .select('*')
+          .order(field.displayField || 'markenname', { ascending: true });
+        
+        // Wenn Mitarbeiter nur bestimmte Marken sehen darf
+        if (allowedMarkenIds !== null) {
+          if (allowedMarkenIds.length === 0) {
+            console.log(`🔐 ${field.name}: Keine Marken-Zuordnungen für Mitarbeiter`);
+            data = [];
+          } else {
+            query = query.in('id', allowedMarkenIds);
+            const result = await query;
+            if (result.error) {
+              console.error(`❌ Fehler beim Laden der Marken:`, result.error);
+              data = [];
+            } else {
+              data = result.data || [];
+              console.log(`🔐 ${field.name}: ${data.length} erlaubte Marken geladen`);
+            }
+          }
+        } else {
+          // Admin: Alle Marken laden
+          const result = await query;
+          if (result.error) {
+            console.error(`❌ Fehler beim Laden der Marken:`, result.error);
+            data = [];
+          } else {
+            data = result.data || [];
+          }
+        }
+      }
+      // Spezielle Filterung für unternehmen-Tabelle (falls über table konfiguriert)
+      else if (field.table === 'unternehmen') {
+        const allowedUnternehmenIds = await window.getAllowedUnternehmenIds?.();
+        
+        let query = window.supabase
+          .from('unternehmen')
+          .select('*')
+          .order(field.displayField || 'firmenname', { ascending: true });
+        
+        // Wenn Mitarbeiter nur bestimmte Unternehmen sehen darf
+        if (allowedUnternehmenIds !== null) {
+          if (allowedUnternehmenIds.length === 0) {
+            console.log(`🔐 ${field.name}: Keine Unternehmen-Zuordnungen für Mitarbeiter`);
+            data = [];
+          } else {
+            query = query.in('id', allowedUnternehmenIds);
+            const result = await query;
+            if (result.error) {
+              console.error(`❌ Fehler beim Laden der Unternehmen:`, result.error);
+              data = [];
+            } else {
+              data = result.data || [];
+              console.log(`🔐 ${field.name}: ${data.length} erlaubte Unternehmen geladen`);
+            }
+          }
+        } else {
+          // Admin: Alle Unternehmen laden
+          const result = await query;
+          if (result.error) {
+            console.error(`❌ Fehler beim Laden der Unternehmen:`, result.error);
+            data = [];
+          } else {
+            data = result.data || [];
+          }
+        }
+      }
+      else {
         // Dynamische Daten: Normal von DB laden
         let query = window.supabase
           .from(field.table)

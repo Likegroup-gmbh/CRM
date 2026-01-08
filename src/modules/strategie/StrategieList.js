@@ -284,11 +284,23 @@ export class StrategieList {
       this._boundEventListeners.add(() => createBtn.removeEventListener('click', handler));
     }
 
-    // Zeilen-Klick (Detail öffnen)
+    // Tabellen-Links (Name klicken -> Detail öffnen)
+    document.querySelectorAll('.table-link[data-table="strategie"]').forEach(link => {
+      const handler = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = link.dataset.id;
+        window.navigateTo(`/strategie/${id}`);
+      };
+      link.addEventListener('click', handler);
+      this._boundEventListeners.add(() => link.removeEventListener('click', handler));
+    });
+
+    // Zeilen-Klick (Detail öffnen) - außer auf Links/Buttons/Dropdowns
     const rows = document.querySelectorAll('.table-row-clickable');
     rows.forEach(row => {
       const handler = (e) => {
-        // Ignoriere Klicks auf Actions-Dropdown
+        // Ignoriere Klicks auf Actions-Dropdown, Buttons und Links (diese haben eigene Handler)
         if (e.target.closest('.actions-dropdown-container')) return;
         if (e.target.closest('button')) return;
         if (e.target.closest('a')) return;
@@ -624,16 +636,26 @@ export class StrategieList {
       });
     };
 
-    // Unternehmen (single)
+    // Unternehmen (single) - gefiltert nach Mitarbeiter-Zuordnungen
     bindAutoSuggest(
       'as-unternehmen', 
       'asdd-unternehmen',
       async (q) => {
+        // Erlaubte Unternehmen für den aktuellen User holen
+        const allowedIds = await window.getAllowedUnternehmenIds?.();
+        
         let query = window.supabase
           .from('unternehmen')
           .select('id, firmenname')
           .order('firmenname', { ascending: true })
           .limit(20);
+        
+        // Mitarbeiter-Filter anwenden (null = alle erlaubt für Admin)
+        if (allowedIds !== null) {
+          if (allowedIds.length === 0) return [];
+          query = query.in('id', allowedIds);
+        }
+        
         if (q && q.length > 0) query = query.ilike('firmenname', `%${q}%`);
         const { data } = await query;
         return data || [];
@@ -652,16 +674,26 @@ export class StrategieList {
       (r) => `<div class="dropdown-item" data-id="${r.id}" data-label="${window.validatorSystem.sanitizeHtml(r.firmenname)}">${window.validatorSystem.sanitizeHtml(r.firmenname)}</div>`
     );
 
-    // Marke (single, gefiltert nach Unternehmen)
+    // Marke (single, gefiltert nach Unternehmen und Mitarbeiter-Zuordnungen)
     bindAutoSuggest(
       'as-marke',
       'asdd-marke',
       async (q) => {
+        // Erlaubte Marken für den aktuellen User holen
+        const allowedMarkenIds = await window.getAllowedMarkenIds?.();
+        
         let query = window.supabase
           .from('marke')
           .select('id, markenname, unternehmen:unternehmen_id(firmenname)')
           .order('markenname', { ascending: true })
           .limit(20);
+        
+        // Mitarbeiter-Filter anwenden (null = alle erlaubt für Admin)
+        if (allowedMarkenIds !== null) {
+          if (allowedMarkenIds.length === 0) return [];
+          query = query.in('id', allowedMarkenIds);
+        }
+        
         if (q && q.length > 0) query = query.ilike('markenname', `%${q}%`);
         if (selectedUnternehmenId) query = query.eq('unternehmen_id', selectedUnternehmenId);
         const { data } = await query;
@@ -1097,16 +1129,26 @@ export class StrategieList {
       });
     };
 
-    // Unternehmen (single)
+    // Unternehmen (single) - gefiltert nach Mitarbeiter-Zuordnungen
     bindAutoSuggest(
       'edit-as-unternehmen', 
       'edit-asdd-unternehmen',
       async (q) => {
+        // Erlaubte Unternehmen für den aktuellen User holen
+        const allowedIds = await window.getAllowedUnternehmenIds?.();
+        
         let query = window.supabase
           .from('unternehmen')
           .select('id, firmenname')
           .order('firmenname', { ascending: true })
           .limit(20);
+        
+        // Mitarbeiter-Filter anwenden (null = alle erlaubt für Admin)
+        if (allowedIds !== null) {
+          if (allowedIds.length === 0) return [];
+          query = query.in('id', allowedIds);
+        }
+        
         if (q && q.length > 0) query = query.ilike('firmenname', `%${q}%`);
         const { data } = await query;
         return data || [];
@@ -1125,16 +1167,26 @@ export class StrategieList {
       (r) => `<div class="dropdown-item" data-id="${r.id}" data-label="${window.validatorSystem.sanitizeHtml(r.firmenname)}">${window.validatorSystem.sanitizeHtml(r.firmenname)}</div>`
     );
 
-    // Marke (single, gefiltert nach Unternehmen)
+    // Marke (single, gefiltert nach Unternehmen und Mitarbeiter-Zuordnungen)
     bindAutoSuggest(
       'edit-as-marke',
       'edit-asdd-marke',
       async (q) => {
+        // Erlaubte Marken für den aktuellen User holen
+        const allowedMarkenIds = await window.getAllowedMarkenIds?.();
+        
         let query = window.supabase
           .from('marke')
           .select('id, markenname, unternehmen:unternehmen_id(firmenname)')
           .order('markenname', { ascending: true })
           .limit(20);
+        
+        // Mitarbeiter-Filter anwenden (null = alle erlaubt für Admin)
+        if (allowedMarkenIds !== null) {
+          if (allowedMarkenIds.length === 0) return [];
+          query = query.in('id', allowedMarkenIds);
+        }
+        
         if (q && q.length > 0) query = query.ilike('markenname', `%${q}%`);
         if (selectedUnternehmenId) query = query.eq('unternehmen_id', selectedUnternehmenId);
         const { data } = await query;

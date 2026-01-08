@@ -66,22 +66,28 @@ export class PermissionSystem {
         ansprechpartner: { can_view: true, can_edit: true, can_delete: true },
         dashboard: { can_view: true, can_edit: true, can_delete: true },
         tasks: { can_view: true, can_edit: true, can_delete: true },
-        strategie: { can_view: true, can_edit: true, can_delete: true }
+        strategie: { can_view: true, can_edit: true, can_delete: true },
+        feedback: { can_view: true, can_edit: true, can_delete: true },
+        mitarbeiter: { can_view: true, can_edit: true, can_delete: true },
+        'kunden-admin': { can_view: true, can_edit: true, can_delete: true }
       },
       mitarbeiter: {
         creator: { can_view: true, can_edit: false, can_delete: false },
         'creator-lists': { can_view: true, can_edit: false, can_delete: false },
         unternehmen: { can_view: true, can_edit: false, can_delete: false },
         marke: { can_view: true, can_edit: false, can_delete: false },
-        auftrag: { can_view: true, can_edit: false, can_delete: false },
+        auftrag: { can_view: false, can_edit: false, can_delete: false }, // Aufträge für Mitarbeiter ausgeblendet
         kampagne: { can_view: true, can_edit: false, can_delete: false },
         kooperation: { can_view: true, can_edit: false, can_delete: false },
         briefing: { can_view: true, can_edit: false, can_delete: false },
-        rechnung: { can_view: false, can_edit: false, can_delete: false },
+        rechnung: { can_view: true, can_edit: false, can_delete: false },
         ansprechpartner: { can_view: true, can_edit: false, can_delete: false },
-        dashboard: { can_view: false, can_edit: false, can_delete: false },
+        dashboard: { can_view: true, can_edit: false, can_delete: false },
         tasks: { can_view: true, can_edit: false, can_delete: false },
-        strategie: { can_view: true, can_edit: true, can_delete: false }
+        strategie: { can_view: true, can_edit: true, can_delete: false },
+        feedback: { can_view: true, can_edit: true, can_delete: false },
+        mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
+        'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
       },
       // Kunden: read-only Einsicht in relevante Module (RLS filtert auf eigene Daten)
       kunde: {
@@ -97,7 +103,10 @@ export class PermissionSystem {
         ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
         dashboard: { can_view: true, can_edit: false, can_delete: false },
         tasks: { can_view: true, can_edit: true, can_delete: false },
-        strategie: { can_view: true, can_edit: true, can_delete: false }
+        strategie: { can_view: true, can_edit: true, can_delete: false },
+        feedback: { can_view: true, can_edit: true, can_delete: false },
+        mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
+        'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
       },
       // Kunde-Editor: perspektivisch eingeschränkt bearbeitbar; v1 wie kunde
       'kunde_editor': {
@@ -113,7 +122,10 @@ export class PermissionSystem {
         ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
         dashboard: { can_view: true, can_edit: false, can_delete: false },
         tasks: { can_view: true, can_edit: true, can_delete: false },
-        strategie: { can_view: true, can_edit: true, can_delete: false }
+        strategie: { can_view: true, can_edit: true, can_delete: false },
+        feedback: { can_view: true, can_edit: true, can_delete: false },
+        mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
+        'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
       }
     };
 
@@ -131,7 +143,10 @@ export class PermissionSystem {
       rechnung: { can_view: false, can_edit: false, can_delete: false },
       ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
       dashboard: { can_view: true, can_edit: false, can_delete: false },
-      strategie: { can_view: false, can_edit: false, can_delete: false }
+      strategie: { can_view: false, can_edit: false, can_delete: false },
+      feedback: { can_view: true, can_edit: false, can_delete: false },
+      mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
+      'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
     };
 
     // Kunden-Berechtigungen (NUR LESEN - RLS filtert die Daten)
@@ -148,7 +163,10 @@ export class PermissionSystem {
       ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
       dashboard: { can_view: true, can_edit: false, can_delete: false },
       tasks: { can_view: true, can_edit: true, can_delete: false }, // Kunden können Tasks sehen und bearbeiten
-      strategie: { can_view: true, can_edit: true, can_delete: false } // Kunden können Strategien sehen und Items bearbeiten
+      strategie: { can_view: true, can_edit: true, can_delete: false }, // Kunden können Strategien sehen und Items bearbeiten
+      feedback: { can_view: true, can_edit: true, can_delete: false },
+      mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
+      'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
     };
 
     // Pending-User: Nur Dashboard, keine anderen Rechte
@@ -165,7 +183,10 @@ export class PermissionSystem {
       ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
       dashboard: { can_view: true, can_edit: false, can_delete: false },
       tasks: { can_view: false, can_edit: false, can_delete: false },
-      strategie: { can_view: false, can_edit: false, can_delete: false }
+      strategie: { can_view: false, can_edit: false, can_delete: false },
+      feedback: { can_view: false, can_edit: false, can_delete: false },
+      mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
+      'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
     };
 
     // Pending-User: Warten auf Admin-Freischaltung
@@ -200,7 +221,10 @@ export class PermissionSystem {
         ansprechpartner: { can_view: true, can_edit: true, can_delete: false },
         dashboard: { can_view: true, can_edit: false, can_delete: false },
         tasks: { can_view: true, can_edit: true, can_delete: false },
-        strategie: { can_view: true, can_edit: true, can_delete: false }
+        strategie: { can_view: true, can_edit: true, can_delete: false },
+        feedback: { can_view: true, can_edit: true, can_delete: false },
+        mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
+        'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
       };
     }
 
@@ -280,6 +304,9 @@ export class PermissionSystem {
 
     // Fallback: berechnete rollenbasierte Rechte
     const perms = this.calculatedPermissions?.[pageId];
+    // Wenn pageId nicht in calculatedPermissions existiert, undefined zurückgeben
+    // damit das Entity-Mapping in der Navigation greifen kann
+    if (perms === undefined) return undefined;
     return !!perms?.can_view;
   }
 
@@ -373,6 +400,134 @@ export class PermissionSystem {
       console.log('✅ Berechtigungen in window.currentUser aktualisiert:', this.calculatedPermissions);
     }
   }
+
+  /**
+   * Holt alle Unternehmen-IDs, auf die der aktuelle User Zugriff hat
+   * @returns {Promise<string[]|null>} Array von IDs oder null (= alle erlaubt für Admin)
+   */
+  async getAllowedUnternehmenIds() {
+    const rolle = window.currentUser?.rolle?.toLowerCase();
+    const userId = window.currentUser?.id;
+    
+    // Admin hat uneingeschränkten Zugriff
+    if (rolle === 'admin') return null;
+    
+    // Kunde hat auch uneingeschränkten Zugriff (RLS filtert auf DB-Ebene)
+    if (rolle === 'kunde' || rolle === 'kunde_editor') return null;
+    
+    if (!userId) {
+      console.warn('⚠️ getAllowedUnternehmenIds: Kein User-ID gefunden');
+      return [];
+    }
+    
+    try {
+      // 1. Direkt über mitarbeiter_unternehmen zugeordnete Unternehmen
+      const { data: direkteZuordnung, error: err1 } = await window.supabase
+        .from('mitarbeiter_unternehmen')
+        .select('unternehmen_id')
+        .eq('mitarbeiter_id', userId);
+      
+      if (err1) {
+        console.error('❌ Fehler beim Laden direkter Unternehmen-Zuordnungen:', err1);
+      }
+      
+      // 2. Indirekt über marke_mitarbeiter -> marke.unternehmen_id
+      const { data: markenZuordnung, error: err2 } = await window.supabase
+        .from('marke_mitarbeiter')
+        .select('marke:marke_id(unternehmen_id)')
+        .eq('mitarbeiter_id', userId);
+      
+      if (err2) {
+        console.error('❌ Fehler beim Laden Marken-basierter Unternehmen-Zuordnungen:', err2);
+      }
+      
+      // Zusammenführen und Duplikate entfernen
+      const alleIds = [
+        ...(direkteZuordnung || []).map(r => r.unternehmen_id),
+        ...(markenZuordnung || []).map(r => r.marke?.unternehmen_id).filter(Boolean)
+      ];
+      const uniqueIds = [...new Set(alleIds)];
+      
+      console.log(`🔐 getAllowedUnternehmenIds: ${uniqueIds.length} Unternehmen für User ${userId}`);
+      return uniqueIds;
+      
+    } catch (error) {
+      console.error('❌ getAllowedUnternehmenIds Fehler:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Holt alle Marken-IDs, auf die der aktuelle User Zugriff hat
+   * @returns {Promise<string[]|null>} Array von IDs oder null (= alle erlaubt für Admin)
+   */
+  async getAllowedMarkenIds() {
+    const rolle = window.currentUser?.rolle?.toLowerCase();
+    const userId = window.currentUser?.id;
+    
+    // Admin hat uneingeschränkten Zugriff
+    if (rolle === 'admin') return null;
+    
+    // Kunde hat auch uneingeschränkten Zugriff (RLS filtert auf DB-Ebene)
+    if (rolle === 'kunde' || rolle === 'kunde_editor') return null;
+    
+    if (!userId) {
+      console.warn('⚠️ getAllowedMarkenIds: Kein User-ID gefunden');
+      return [];
+    }
+    
+    try {
+      // 1. Direkt über marke_mitarbeiter zugeordnete Marken
+      const { data: direkteMarken, error: err1 } = await window.supabase
+        .from('marke_mitarbeiter')
+        .select('marke_id')
+        .eq('mitarbeiter_id', userId);
+      
+      if (err1) {
+        console.error('❌ Fehler beim Laden direkter Marken-Zuordnungen:', err1);
+      }
+      
+      // 2. Indirekt über mitarbeiter_unternehmen -> alle Marken des Unternehmens
+      const { data: unternehmenZuordnung, error: err2 } = await window.supabase
+        .from('mitarbeiter_unternehmen')
+        .select('unternehmen_id')
+        .eq('mitarbeiter_id', userId);
+      
+      if (err2) {
+        console.error('❌ Fehler beim Laden Unternehmen-Zuordnungen:', err2);
+      }
+      
+      // Marken der zugeordneten Unternehmen laden
+      const unternehmenIds = (unternehmenZuordnung || []).map(r => r.unternehmen_id).filter(Boolean);
+      let markenVonUnternehmen = [];
+      
+      if (unternehmenIds.length > 0) {
+        const { data: markenData, error: err3 } = await window.supabase
+          .from('marke')
+          .select('id')
+          .in('unternehmen_id', unternehmenIds);
+        
+        if (err3) {
+          console.error('❌ Fehler beim Laden Marken der Unternehmen:', err3);
+        }
+        markenVonUnternehmen = (markenData || []).map(m => m.id);
+      }
+      
+      // Zusammenführen und Duplikate entfernen
+      const alleIds = [
+        ...(direkteMarken || []).map(r => r.marke_id),
+        ...markenVonUnternehmen
+      ];
+      const uniqueIds = [...new Set(alleIds)];
+      
+      console.log(`🔐 getAllowedMarkenIds: ${uniqueIds.length} Marken für User ${userId}`);
+      return uniqueIds;
+      
+    } catch (error) {
+      console.error('❌ getAllowedMarkenIds Fehler:', error);
+      return [];
+    }
+  }
 }
 
 // Exportiere Instanz
@@ -400,4 +555,8 @@ if (typeof window !== 'undefined') {
   window.canViewPage = (pageId) => permissionSystem.canViewPage(pageId);
   window.canViewTable = (pageId, tableId) => permissionSystem.canViewTable(pageId, tableId);
   window.getDataFilters = (pageId, tableId) => permissionSystem.getDataFilters(pageId, tableId);
+  
+  // Globale Helper für erlaubte Unternehmen/Marken
+  window.getAllowedUnternehmenIds = () => permissionSystem.getAllowedUnternehmenIds();
+  window.getAllowedMarkenIds = () => permissionSystem.getAllowedMarkenIds();
 }

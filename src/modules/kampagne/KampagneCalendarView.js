@@ -477,18 +477,38 @@ export class KampagneCalendarView {
     if (day.isToday) classes.push('calendar-month-day--today');
     if (!day.isCurrentMonth) classes.push('calendar-month-day--other');
 
+    // Layout: max 3 links, max 2 rechts, bei >5 Events: "+X"
+    const leftEvents = day.events.slice(0, 3);
+    const rightEvents = day.events.slice(3, 5);
+    const moreCount = day.events.length > 5 ? day.events.length - 5 : 0;
+    const hasRightColumn = day.events.length > 3;
+
+    const renderEvent = (event) => `
+      <div class="calendar-month-event" 
+           data-kampagne-id="${event.kampagne.id}"
+           data-deadline-type="${event.deadlineType}">
+        <span class="calendar-month-event-name">${safe(event.kampagne.kampagnenname)}</span>
+        <span class="calendar-month-event-type">${event.deadlineLabel}</span>
+      </div>
+    `;
+
     return `
       <div class="${classes.join(' ')}">
         <div class="calendar-month-day-num">${dayNum}</div>
-        <div class="calendar-month-day-events">
-          ${day.events.slice(0, 3).map(event => `
-            <div class="calendar-month-event" 
-                 data-kampagne-id="${event.kampagne.id}"
-                 data-deadline-type="${event.deadlineType}">
-              ${safe(event.kampagne.kampagnenname)}
+        <div class="calendar-month-day-events ${hasRightColumn ? 'calendar-month-day-events--split' : ''}">
+          <div class="calendar-month-day-col">
+            ${leftEvents.map(renderEvent).join('')}
+          </div>
+          ${hasRightColumn ? `
+            <div class="calendar-month-day-col">
+              ${rightEvents.map(renderEvent).join('')}
+              ${moreCount > 0 ? `
+                <div class="calendar-month-more" data-day-events='${JSON.stringify(day.events.map(e => ({ id: e.kampagne.id, name: e.kampagne.kampagnenname, type: e.deadlineType, label: e.deadlineLabel })))}'>
+                  +${moreCount}
+                </div>
+              ` : ''}
             </div>
-          `).join('')}
-          ${day.events.length > 3 ? `<div class="calendar-month-more">+${day.events.length - 3}</div>` : ''}
+          ` : ''}
         </div>
       </div>
     `;
@@ -567,6 +587,59 @@ export class KampagneCalendarView {
       event.addEventListener('click', () => {
         const kampagneId = event.dataset.kampagneId;
         const deadlineType = event.dataset.deadlineType;
+        this.openPreviewDrawer(kampagneId, deadlineType);
+      });
+    });
+
+    // Klick auf "+X" mehr Events
+    this.container.querySelectorAll('.calendar-month-more').forEach(moreBtn => {
+      moreBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const eventsData = JSON.parse(moreBtn.dataset.dayEvents || '[]');
+        this.openDayEventsDrawer(eventsData);
+      });
+    });
+  }
+
+  openDayEventsDrawer(events) {
+    const safe = (str) => window.validatorSystem?.sanitizeHtml?.(str) ?? str;
+    
+    // Existierenden Drawer entfernen
+    document.querySelector('.day-events-drawer-overlay')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'day-events-drawer-overlay';
+    overlay.innerHTML = `
+      <div class="day-events-drawer">
+        <div class="day-events-drawer-header">
+          <h3>Alle Events an diesem Tag</h3>
+          <button class="day-events-drawer-close">&times;</button>
+        </div>
+        <div class="day-events-drawer-content">
+          ${events.map(ev => `
+            <div class="day-events-drawer-item" data-kampagne-id="${ev.id}" data-deadline-type="${ev.type}">
+              <span class="day-events-drawer-item-name">${safe(ev.name)}</span>
+              <span class="day-events-drawer-item-type">${ev.label}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    // Close-Handler
+    overlay.querySelector('.day-events-drawer-close').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+
+    // Klick auf einzelne Items öffnet Preview
+    overlay.querySelectorAll('.day-events-drawer-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const kampagneId = item.dataset.kampagneId;
+        const deadlineType = item.dataset.deadlineType;
+        overlay.remove();
         this.openPreviewDrawer(kampagneId, deadlineType);
       });
     });

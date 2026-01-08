@@ -342,15 +342,19 @@ export class MarkeDetail extends PersonDetailBase {
       { label: 'Aktualisiert', value: this.formatDate(this.marke?.updated_at) }
     ]);
 
-    // Main Content mit Tabs
+    // Tab-Navigation (oben über volle Breite)
+    const tabNavigation = this.renderTabNavigation();
+
+    // Main Content (nur Tab-Content)
     const mainContent = this.renderMainContent();
 
-    // Zwei-Spalten-Layout rendern
+    // Layout mit Tabs oben rendern
     const html = this.renderTwoColumnLayout({
       person: personConfig,
       stats: [],
       quickActions,
       sidebarInfo,
+      tabNavigation,
       mainContent
     });
 
@@ -362,8 +366,8 @@ export class MarkeDetail extends PersonDetailBase {
     return this.marke.branchen.filter(b => b && b.name).map(b => b.name).join(', ');
   }
 
-  renderMainContent() {
-    const tabs = [
+  getTabsConfig() {
+    return [
       { tab: 'informationen', label: 'Informationen', isActive: this.activeMainTab === 'informationen' },
       { tab: 'ansprechpartner', label: 'Ansprechpartner', count: this.ansprechpartner.length, isActive: this.activeMainTab === 'ansprechpartner' },
       { tab: 'auftraege', label: 'Aufträge', count: this.auftraege.length, isActive: this.activeMainTab === 'auftraege' },
@@ -373,12 +377,15 @@ export class MarkeDetail extends PersonDetailBase {
       { tab: 'strategien', label: 'Strategien', count: this.strategien.length, isActive: this.activeMainTab === 'strategien' },
       { tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen.length, isActive: this.activeMainTab === 'rechnungen' }
     ];
+  }
 
+  renderTabNavigation() {
+    const tabs = this.getTabsConfig();
+    return tabs.map(t => renderTabButton(t)).join('');
+  }
+
+  renderMainContent() {
     return `
-      <div class="tab-navigation">
-        ${tabs.map(t => renderTabButton(t)).join('')}
-      </div>
-
       <div class="tab-content">
         <div class="tab-pane ${this.activeMainTab === 'informationen' ? 'active' : ''}" id="tab-informationen">
           ${this.renderInformationen()}

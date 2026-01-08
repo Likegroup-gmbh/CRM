@@ -156,35 +156,42 @@ export class KundenDetail extends PersonDetailBase {
       { label: 'Erstellt', value: this.formatDate(this.user?.created_at) }
     ]);
 
-    // Main Content mit Tabs
+    // Tab-Navigation (oben über volle Breite)
+    const tabNavigation = this.renderTabNavigation();
+
+    // Main Content (nur Tab-Content)
     const mainContent = this.renderMainContent();
 
-    // Zwei-Spalten-Layout rendern
+    // Layout mit Tabs oben rendern
     const html = this.renderTwoColumnLayout({
       person: personConfig,
       stats: [],
       quickActions,
       sidebarInfo,
+      tabNavigation,
       mainContent
     });
 
     window.setContentSafely(window.content, html);
   }
 
-  renderMainContent() {
-    const tabs = [
+  getTabsConfig() {
+    return [
       { tab: 'stammdaten', label: 'Stammdaten', isActive: this.activeMainTab === 'stammdaten' },
       { tab: 'unternehmen', label: 'Unternehmen', count: this.assignments.unternehmen.length, isActive: this.activeMainTab === 'unternehmen' },
       { tab: 'marken', label: 'Marken', count: this.assignments.marken.length, isActive: this.activeMainTab === 'marken' },
       { tab: 'kampagnen', label: 'Kampagnen', count: this.assignments.kampagnen.length, isActive: this.activeMainTab === 'kampagnen' },
       { tab: 'kooperationen', label: 'Kooperationen', count: this.assignments.kooperationen.length, isActive: this.activeMainTab === 'kooperationen' }
     ];
+  }
 
+  renderTabNavigation() {
+    const tabs = this.getTabsConfig();
+    return tabs.map(t => renderTabButton(t)).join('');
+  }
+
+  renderMainContent() {
     return `
-      <div class="tab-navigation">
-        ${tabs.map(t => renderTabButton(t)).join('')}
-      </div>
-
       <div class="tab-content">
         <div class="tab-pane ${this.activeMainTab === 'stammdaten' ? 'active' : ''}" id="tab-stammdaten">
           ${this.renderStammdatenTab()}

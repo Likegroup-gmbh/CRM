@@ -99,7 +99,7 @@ export class NavigationSystem {
         auftragsdetails: 'auftrag',
         ansprechpartner: 'ansprechpartner',
         kampagne: 'kampagne',
-        strategie: 'kampagne',
+        strategie: 'strategie',
         briefing: 'briefing',
         kooperation: 'kooperation',
         rechnung: 'rechnung',
@@ -108,16 +108,13 @@ export class NavigationSystem {
         creator: 'creator',
         'creator-lists': 'creator',
         'creator-auswahl': 'creator',
-        mitarbeiter: 'dashboard',
+        mitarbeiter: 'mitarbeiter',
+        'kunden-admin': 'kunden-admin',
         tasks: 'tasks',
         tabellen: 'dashboard',
         feedback: 'feedback'
       };
       
-      // Feedback explizit für Kunden blockieren
-      if (id === 'feedback' && window.currentUser?.rolle === 'kunde') {
-        return false;
-      }
       const entity = map[id] || id;
       const canViewResult = perms?.[entity]?.can_view || (window.currentUser?.rolle === 'admin');
       

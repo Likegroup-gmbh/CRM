@@ -353,6 +353,15 @@ export class FormSystem {
       }
     });
 
+    // Checkboxen/Toggles explizit erfassen (unchecked Checkboxen sind nicht im FormData)
+    const checkboxes = form.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+      const name = checkbox.name;
+      if (name) {
+        submitData[name] = checkbox.checked ? 'on' : false;
+      }
+    });
+
     return submitData;
   }
 

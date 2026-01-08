@@ -13,29 +13,40 @@ export class PersonDetailBase {
   // ============================================
 
   /**
-   * Rendert das komplette zwei-Spalten-Layout
+   * Rendert das komplette Layout mit Tab-Navigation oben und zwei-Spalten darunter
    * @param {Object} config - Konfiguration für das Layout
    * @param {Object} config.person - Personen-Daten (name, email, avatar, etc.)
    * @param {Array} config.stats - Stats für die Cards oben
    * @param {Array} config.quickActions - Quick-Action Buttons
    * @param {Object} config.sidebarInfo - Info-Tab Inhalt
-   * @param {string} config.mainContent - HTML für den Hauptbereich
+   * @param {string} config.tabNavigation - HTML für die Tab-Navigation (volle Breite oben)
+   * @param {string} config.mainContent - HTML für den Hauptbereich (Tab-Content)
    * @returns {string} HTML
    */
   renderTwoColumnLayout(config) {
-    const { person, stats, quickActions, sidebarInfo, mainContent } = config;
+    const { person, stats, quickActions, sidebarInfo, tabNavigation, mainContent } = config;
 
     return `
-      <div class="profile-detail-layout">
-        <!-- Linke Spalte: Sidebar -->
-        <div class="profile-sidebar">
-          ${this.renderSidebar(person, quickActions, sidebarInfo)}
-        </div>
+      <div class="profile-page-wrapper">
+        <!-- Tab-Navigation oben über volle Breite -->
+        ${tabNavigation ? `
+          <div class="profile-tabs-header">
+            ${tabNavigation}
+          </div>
+        ` : ''}
 
-        <!-- Rechte Spalte: Haupt-Content -->
-        <div class="profile-main-content">
-          ${stats && stats.length > 0 ? this.renderStatsCards(stats) : ''}
-          ${mainContent}
+        <!-- Zwei-Spalten-Layout darunter -->
+        <div class="profile-detail-layout">
+          <!-- Linke Spalte: Sidebar -->
+          <div class="profile-sidebar">
+            ${this.renderSidebar(person, quickActions, sidebarInfo)}
+          </div>
+
+          <!-- Rechte Spalte: Haupt-Content -->
+          <div class="profile-main-content">
+            ${stats && stats.length > 0 ? this.renderStatsCards(stats) : ''}
+            ${mainContent}
+          </div>
         </div>
       </div>
     `;

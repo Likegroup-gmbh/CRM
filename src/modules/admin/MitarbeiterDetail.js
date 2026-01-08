@@ -277,23 +277,27 @@ export class MitarbeiterDetail extends PersonDetailBase {
       { label: 'Erstellt', value: this.formatDate(this.user?.created_at) }
     ]);
 
-    // Main Content mit Tabs
+    // Tab-Navigation (oben über volle Breite)
+    const tabNavigation = this.renderTabNavigation();
+
+    // Main Content (nur Tab-Content)
     const mainContent = this.renderMainContent();
 
-    // Zwei-Spalten-Layout rendern
+    // Layout mit Tabs oben rendern
     const html = this.renderTwoColumnLayout({
       person: personConfig,
       stats: [],
       quickActions,
       sidebarInfo,
+      tabNavigation,
       mainContent
     });
 
     window.setContentSafely(window.content, html);
   }
 
-  renderMainContent() {
-    const tabs = [
+  getTabsConfig() {
+    return [
       { tab: 'rechte', label: 'Rechte', isActive: this.activeMainTab === 'rechte' },
       { tab: 'unternehmen', label: 'Unternehmen', count: this.zugeordnet.unternehmen.length, isActive: this.activeMainTab === 'unternehmen' },
       { tab: 'kampagnen', label: 'Kampagnen', count: this.assignments.kampagnen.length, isActive: this.activeMainTab === 'kampagnen' },
@@ -302,12 +306,15 @@ export class MitarbeiterDetail extends PersonDetailBase {
       { tab: 'briefings', label: 'Briefings', count: this.assignments.briefings.length, isActive: this.activeMainTab === 'briefings' },
       { tab: 'auftragsdetails', label: 'Auftragsdetails', count: this.assignments.auftragsdetails.length, isActive: this.activeMainTab === 'auftragsdetails' }
     ];
+  }
 
+  renderTabNavigation() {
+    const tabs = this.getTabsConfig();
+    return tabs.map(t => renderTabButton({ ...t, tab: t.tab === 'kooperationen' ? 'koops' : (t.tab === 'cashflow' ? 'budget' : t.tab) })).join('');
+  }
+
+  renderMainContent() {
     return `
-      <div class="tab-navigation">
-        ${tabs.map(t => renderTabButton({ ...t, tab: t.tab === 'kooperationen' ? 'koops' : (t.tab === 'cashflow' ? 'budget' : t.tab) })).join('')}
-      </div>
-
       <div class="tab-content">
         <div class="tab-pane ${this.activeMainTab === 'rechte' ? 'active' : ''}" id="tab-rechte">
           ${this.renderRechteTab()}
