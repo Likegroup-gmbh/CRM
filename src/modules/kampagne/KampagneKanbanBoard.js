@@ -342,7 +342,7 @@ export class KampagneKanbanBoard {
   renderKampagneCard(kampagne) {
     const safe = (str) => window.validatorSystem?.sanitizeHtml?.(str) ?? str;
     
-    const dueDateBadge = this.getDueDateBadge(kampagne.deadline);
+    const dueDateBadge = this.getDueDateBadge(kampagne.deadline_post_produktion);
     
     // Organisation Bubble (Marke oder Unternehmen)
     const orgBubble = this.renderOrganisationBubble(kampagne);

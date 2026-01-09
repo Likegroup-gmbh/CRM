@@ -559,7 +559,6 @@ export class KampagneList {
               <th>Sourcing</th>
               <th>Video</th>
               <th>Post</th>
-              <th>Deadline</th>
               <th>Creator Anzahl</th>
               <th>Video Anzahl</th>
               <th>Ansprechpartner</th>
@@ -921,7 +920,6 @@ export class KampagneList {
           <td>${formatDate(kampagne.deadline_creator_sourcing)}</td>
           <td>${formatDate(kampagne.deadline_video_produktion)}</td>
           <td>${formatDate(kampagne.deadline_post_produktion)}</td>
-          <td>${formatDate(kampagne.deadline)}</td>
           <td>${kampagne.creatoranzahl || 0}</td>
           <td>${kampagne.videoanzahl || 0}</td>
           <td>${this.renderAnsprechpartner(kampagne.ansprechpartner)}</td>

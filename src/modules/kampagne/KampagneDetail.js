@@ -908,10 +908,6 @@ export class KampagneDetail {
                       <span>${formatDate(this.kampagneData.start)}</span>
                     </div>
                     <div class="detail-item">
-                      <label>Deadline:</label>
-                      <span>${formatDate(this.kampagneData.deadline)}</span>
-                    </div>
-                    <div class="detail-item">
                       <label>Drehort:</label>
                       <span>${window.validatorSystem.sanitizeHtml(this.kampagneData.drehort || '-')}</span>
                     </div>

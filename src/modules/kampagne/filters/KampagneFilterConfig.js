@@ -78,10 +78,10 @@ export const KAMPAGNE_FILTERS = [
     priority: 7
   }),
 
-  // Deadline Filter
+  // Deadline Post Produktion Filter
   createFilterConfig('dateRange', {
-    id: 'deadline',
-    label: 'Deadline',
+    id: 'deadline_post_produktion',
+    label: 'Deadline Post Produktion',
     priority: 8
   }),
 
@@ -151,7 +151,7 @@ export const KAMPAGNE_FILTER_GROUPS = [
   {
     id: 'timing',
     label: 'Zeitplanung',
-    filters: ['start', 'deadline', 'duration_days'],
+    filters: ['start', 'deadline_post_produktion', 'duration_days'],
     expanded: false
   },
   {
@@ -173,7 +173,7 @@ export const KAMPAGNE_FILTER_PRESETS = [
     filters: {
       status_id: 'active',
       start: { to: new Date().toISOString().split('T')[0] },
-      deadline: { from: new Date().toISOString().split('T')[0] }
+      deadline_post_produktion: { from: new Date().toISOString().split('T')[0] }
     }
   },
   {
@@ -217,7 +217,7 @@ export const KAMPAGNE_FILTER_PRESETS = [
     description: 'In diesem Monat abgeschlossene Kampagnen',
     filters: {
       is_completed: true,
-      deadline: {
+      deadline_post_produktion: {
         from: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
         to: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0]
       }
@@ -233,8 +233,8 @@ export const KAMPAGNE_SORT_OPTIONS = [
   { value: 'kampagnenname', label: 'Name (Z-A)', direction: 'desc' },
   { value: 'start', label: 'Startdatum (neu zuerst)', direction: 'desc' },
   { value: 'start', label: 'Startdatum (alt zuerst)', direction: 'asc' },
-  { value: 'deadline', label: 'Deadline (nah zuerst)', direction: 'asc' },
-  { value: 'deadline', label: 'Deadline (fern zuerst)', direction: 'desc' },
+  { value: 'deadline_post_produktion', label: 'Deadline Post Produktion (nah zuerst)', direction: 'asc' },
+  { value: 'deadline_post_produktion', label: 'Deadline Post Produktion (fern zuerst)', direction: 'desc' },
   { value: 'budget', label: 'Budget (hoch zuerst)', direction: 'desc' },
   { value: 'budget', label: 'Budget (niedrig zuerst)', direction: 'asc' }
 ];

@@ -19,8 +19,7 @@ export class KampagneCalendarView {
       deadline_strategie: { label: 'Strategie', color: 'var(--color-warning)' },
       deadline_creator_sourcing: { label: 'Creator Sourcing', color: 'var(--color-primary)' },
       deadline_video_produktion: { label: 'Video Produktion', color: 'var(--color-success)' },
-      deadline_post_produktion: { label: 'Post Produktion', color: 'var(--color-secondary)' },
-      deadline: { label: 'Finale Deadline', color: 'var(--color-danger)' }
+      deadline_post_produktion: { label: 'Post Produktion', color: 'var(--color-secondary)' }
     };
   }
 
@@ -97,7 +96,6 @@ export class KampagneCalendarView {
           id,
           kampagnenname,
           start,
-          deadline,
           deadline_strategie,
           deadline_creator_sourcing,
           deadline_video_produktion,

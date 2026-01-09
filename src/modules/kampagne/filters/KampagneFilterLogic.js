@@ -58,7 +58,7 @@ export class KampagneFilterLogic {
           break;
 
         case 'start':
-        case 'deadline':
+        case 'deadline_post_produktion':
           // Datum-Range Filter
           if (typeof value === 'object') {
             processedFilters[key] = {
@@ -187,19 +187,19 @@ export class KampagneFilterLogic {
       }
     }
 
-    if (filters.deadline && typeof filters.deadline === 'object') {
-      if (!BASE_VALIDATORS.dateRange(filters.deadline)) {
-        errors.push('Deadline: Von-Datum darf nicht nach Bis-Datum liegen');
+    if (filters.deadline_post_produktion && typeof filters.deadline_post_produktion === 'object') {
+      if (!BASE_VALIDATORS.dateRange(filters.deadline_post_produktion)) {
+        errors.push('Deadline Post Produktion: Von-Datum darf nicht nach Bis-Datum liegen');
       }
     }
 
-    // Logik-Validierung: Start vor Deadline
-    if (filters.start && filters.deadline) {
+    // Logik-Validierung: Start vor Deadline Post Produktion
+    if (filters.start && filters.deadline_post_produktion) {
       const startDate = typeof filters.start === 'object' ? filters.start.from : filters.start;
-      const deadlineDate = typeof filters.deadline === 'object' ? filters.deadline.to : filters.deadline;
+      const deadlineDate = typeof filters.deadline_post_produktion === 'object' ? filters.deadline_post_produktion.to : filters.deadline_post_produktion;
       
       if (startDate && deadlineDate && new Date(startDate) > new Date(deadlineDate)) {
-        errors.push('Startdatum darf nicht nach der Deadline liegen');
+        errors.push('Startdatum darf nicht nach der Deadline Post Produktion liegen');
       }
     }
 
@@ -260,8 +260,8 @@ export class KampagneFilterLogic {
 
         case 'virtual_overdue':
           if (filter.value) {
-            // Kampagnen mit Deadline in der Vergangenheit
-            query = query.lt('deadline', new Date().toISOString().split('T')[0]);
+            // Kampagnen mit Deadline Post Produktion in der Vergangenheit
+            query = query.lt('deadline_post_produktion', new Date().toISOString().split('T')[0]);
           }
           break;
 
@@ -309,9 +309,9 @@ export class KampagneFilterLogic {
         return true;
 
       case 'virtual_duration':
-        if (!kampagne.start || !kampagne.deadline) return false;
+        if (!kampagne.start || !kampagne.deadline_post_produktion) return false;
         const start = new Date(kampagne.start);
-        const end = new Date(kampagne.deadline);
+        const end = new Date(kampagne.deadline_post_produktion);
         const durationDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
         if (filter.min !== null && durationDays < filter.min) return false;
         if (filter.max !== null && durationDays > filter.max) return false;
@@ -336,16 +336,16 @@ export class KampagneFilterLogic {
   static isKampagneCompleted(kampagne) {
     // Kampagne ist abgeschlossen wenn:
     // 1. Status ist "abgeschlossen" ODER
-    // 2. Deadline ist in der Vergangenheit UND alle Kooperationen sind abgeschlossen
+    // 2. Deadline Post Produktion ist in der Vergangenheit UND alle Kooperationen sind abgeschlossen
     
     if (kampagne.status?.name === 'Abgeschlossen') {
       return true;
     }
 
-    if (!kampagne.deadline) return false;
+    if (!kampagne.deadline_post_produktion) return false;
     
     const now = new Date();
-    const deadline = new Date(kampagne.deadline);
+    const deadline = new Date(kampagne.deadline_post_produktion);
     
     if (deadline > now) return false;
 
@@ -363,12 +363,12 @@ export class KampagneFilterLogic {
    * Prüfe ob Kampagne überfällig ist
    */
   static isKampagneOverdue(kampagne) {
-    if (!kampagne.deadline) return false;
+    if (!kampagne.deadline_post_produktion) return false;
     
     const now = new Date();
-    const deadline = new Date(kampagne.deadline);
+    const deadline = new Date(kampagne.deadline_post_produktion);
     
-    // Überfällig wenn Deadline in der Vergangenheit und nicht abgeschlossen
+    // Überfällig wenn Deadline Post Produktion in der Vergangenheit und nicht abgeschlossen
     return deadline < now && !this.isKampagneCompleted(kampagne);
   }
 
