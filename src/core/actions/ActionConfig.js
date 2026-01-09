@@ -235,6 +235,18 @@ export const ActionConfigs = {
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
     ]
+  },
+
+  // Verträge Actions
+  vertraege: {
+    actions: [
+      { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['admin', 'mitarbeiter'] },
+      { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
+      { id: 'download', icon: 'download', label: 'PDF herunterladen', roles: ['admin', 'mitarbeiter'] },
+      { id: 'separator' },
+      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
+    ],
+    kundenActions: ['view', 'download']
   }
 };
 

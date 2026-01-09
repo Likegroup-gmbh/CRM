@@ -158,8 +158,8 @@ export const FILTER_CONFIGS = {
       type: 'date'
     },
     {
-      id: 'deadline',
-      label: 'Deadline',
+      id: 'deadline_post_produktion',
+      label: 'Deadline Post Produktion',
       type: 'date'
     }
   ],

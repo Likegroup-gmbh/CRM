@@ -68,6 +68,7 @@ export class DataService {
           telefonnummer_office_land_id: 'uuid',
           linkedin: 'string',
           stadt: 'string',
+          land: 'string',
           geburtsdatum: 'date',
           sprache_id: 'uuid',
           notiz: 'string'
@@ -161,7 +162,6 @@ export class DataService {
           art_der_kampagne: 'array',
           kampagne_typ: 'string',
           start: 'date',
-          deadline: 'date',
           deadline_strategie: 'date',
           deadline_creator_sourcing: 'date',
           deadline_video_produktion: 'date',
@@ -212,7 +212,7 @@ export class DataService {
             displayField: 'name,profile_image_url'
           }
         },
-        filters: ['kampagnenname', 'unternehmen_id', 'marke_id', 'status_id', 'art_der_kampagne', 'start', 'deadline'],
+        filters: ['kampagnenname', 'unternehmen_id', 'marke_id', 'status_id', 'art_der_kampagne', 'start', 'deadline_post_produktion'],
         sortBy: 'created_at',
         sortOrder: 'desc'
       },
@@ -461,6 +461,8 @@ export class DataService {
           marke_id: 'uuid',
           status: 'string',
           ansprechpartner_id: 'uuid',
+          auftragtype: 'string',
+          notiz: 'string',
           po: 'string',
           zahlungsziel_tage: 'number',
           re_nr: 'string',

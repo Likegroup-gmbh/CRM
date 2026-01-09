@@ -112,16 +112,6 @@ export class FormConfig {
             dependsOn: 'hat_haustier',
             showWhen: 'true'
           },
-          // Instrument Toggle + Beschreibung
-          { name: 'spielt_instrument', label: 'Spielt Instrument', type: 'toggle', required: false },
-          { 
-            name: 'instrument_beschreibung', 
-            label: 'Instrument Beschreibung', 
-            type: 'textarea', 
-            required: false,
-            dependsOn: 'spielt_instrument',
-            showWhen: 'true'
-          },
           { name: 'telefonnummer', label: 'Telefonnummer', type: 'tel', required: false, validation: { type: 'phone' } },
           { name: 'mail', label: 'Email', type: 'email', required: false, validation: { type: 'email' } },
           { name: 'portfolio_link', label: 'Portfolio Link', type: 'url', required: false, validation: { type: 'url' } },
@@ -292,7 +282,6 @@ export class FormConfig {
             showWhen: 'organic'
           },
           { name: 'start', label: 'Startdatum', type: 'date', required: false },
-          { name: 'deadline', label: 'Deadline', type: 'date', required: false },
           // Deadline-Felder Gruppe (2x2 Grid)
           { name: 'deadline_strategie', label: 'Deadline Strategie', type: 'date', required: false, twoCol: true },
           { name: 'deadline_creator_sourcing', label: 'Deadline Creator Sourcing', type: 'date', required: false, twoCol: true },
@@ -474,6 +463,14 @@ export class FormConfig {
           { name: 'marke_id', label: 'Marke', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Marke suchen und auswählen...', dependsOn: 'unternehmen_id', table: 'marke', displayField: 'markenname', valueField: 'id' },
           { name: 'status', label: 'Status', type: 'select', required: false, options: ['Beauftragt', 'In Produktion', 'Abgeschlossen', 'Storniert'] },
           { name: 'ansprechpartner_id', label: 'Ansprechpartner', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Ansprechpartner auswählen...', table: 'ansprechpartner', displayField: 'vorname,nachname,email', valueField: 'id', dependsOn: 'unternehmen_id' },
+          { 
+            name: 'auftragtype', 
+            label: 'Art des Auftrages', 
+            type: 'select', 
+            required: false, 
+            placeholder: 'Auftragsart auswählen...',
+            options: ['Pilotprojekt', 'Follow Up', 'Jahreskooperation', 'Bestandskunde, Projektbasiert']
+          },
           { name: 'notiz', label: 'Beschreibung / Notiz', type: 'textarea', required: false, placeholder: 'Auftragsbeschreibung eingeben...' },
           { name: 'angebotsnummer', label: 'Angebotsnummer', type: 'text', required: false, readonly: true, placeholder: 'Wird automatisch generiert...' },
           { name: 're_nr', label: 'RE. Nr', type: 'text', required: false, placeholder: 'Rechnungsnummer...' },
@@ -629,6 +626,7 @@ export class FormConfig {
           },
           { name: 'linkedin', label: 'LinkedIn Profil', type: 'url', required: false, validation: { type: 'url' } },
           { name: 'stadt', label: 'Stadt', type: 'text', required: false },
+          { name: 'land', label: 'Land', type: 'text', required: false },
           { name: 'geburtsdatum', label: 'Geburtsdatum', type: 'date', required: false },
           { 
             name: 'sprachen_ids', 

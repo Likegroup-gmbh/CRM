@@ -72,6 +72,10 @@ import { strategieDetail } from './modules/strategie/StrategieDetail.js';
 import { creatorAuswahlList } from './modules/creator-auswahl/CreatorAuswahlList.js';
 import { creatorAuswahlDetail } from './modules/creator-auswahl/CreatorAuswahlDetail.js';
 import { feedbackPage } from './modules/feedback/FeedbackPage.js';
+import { educationPage } from './modules/education/EducationPage.js';
+import { videoList } from './modules/video/VideoList.js';
+import { vertraegeList } from './modules/vertrag/VertraegeList.js';
+import { vertraegeCreate } from './modules/vertrag/VertraegeCreate.js';
 // Zentrales Bestätigungs-Modal (side-effect Import, hängt window.confirmationModal an)
 import './core/ConfirmationModal.js';
 // Duplicate Checker für Creator, Marke, Unternehmen
@@ -294,6 +298,19 @@ class ModuleRegistry {
       console.log(`🎯 Ansprechpartner-Details/Erstellung erkannt, verwende Modul: ${moduleKey}`);
     }
     
+    // Spezielle Behandlung für Verträge-Erstellung
+    if (segment === 'vertraege' && id === 'new') {
+      moduleKey = 'vertraege-create';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Vertraege-Erstellung erkannt, verwende Modul: ${moduleKey}`);
+    }
+    // Spezielle Behandlung für Verträge-Bearbeitung (Draft weiterbearbeiten)
+    if (segment === 'vertraege' && id && action === 'edit') {
+      moduleKey = 'vertraege-create';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Vertraege-Bearbeitung erkannt, verwende Modul: ${moduleKey} mit ID: ${id}`);
+    }
+
     if (module) {
       console.log(`✅ Modul gefunden: ${moduleKey}`, module);
       this.currentModule = module;
@@ -301,6 +318,10 @@ class ModuleRegistry {
       // Spezielle Routen behandeln
       const effectiveId = id ? id.split('?')[0] : id;
       if (effectiveId === 'new') {
+        // Für Verträge-Erstellung eigenes Modul verwenden
+        if (segment === 'vertraege') {
+          return module.init?.();
+        }
         // Für Rechnungen Erstellungs-Route direkt auf Detail-Modul routen
         if (segment === 'rechnung') {
           moduleKey = 'rechnung-detail';
@@ -317,6 +338,10 @@ class ModuleRegistry {
       } else if (effectiveId) {
         if (isEditMode) {
           console.log(`✏️ Zeige Edit-Formular für: ${segment}/${id}`);
+          // Für Verträge: init(draftId) aufrufen
+          if (segment === 'vertraege' && module && module.init) {
+            return module.init(effectiveId);
+          }
           // Für Edit-Modus: Lade Detail-Modul und zeige Edit-Formular
           if (module && module.init) {
             module.init(effectiveId).then(() => {
@@ -409,6 +434,10 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('creator-auswahl', creatorAuswahlList);
   moduleRegistry.register('creator-auswahl-detail', creatorAuswahlDetail);
   moduleRegistry.register('feedback', feedbackPage);
+  moduleRegistry.register('education', educationPage);
+  moduleRegistry.register('videos', videoList);
+  moduleRegistry.register('vertraege', vertraegeList);
+  moduleRegistry.register('vertraege-create', vertraegeCreate);
   
   // Profile-Modul initialisieren und registrieren (V2 - neue Version mit zweispaltigem Layout)
   const profileDetailV2 = new ProfileDetailV2();
@@ -641,6 +670,16 @@ window.setupHeaderUI = () => {
       // Kein Bild vorhanden - zeige Initialen
       if (profileImg) profileImg.style.display = 'none';
       if (profileInitials) profileInitials.style.display = 'flex';
+    }
+
+    // Education Button setup
+    const educationBtn = document.querySelector('.education-btn');
+    if (educationBtn && !educationBtn.dataset.bound) {
+      educationBtn.dataset.bound = 'true';
+      educationBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        moduleRegistry.navigateTo('/education');
+      });
     }
 
     // Profile dropdown setup

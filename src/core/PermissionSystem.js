@@ -59,6 +59,7 @@ export class PermissionSystem {
         unternehmen: { can_view: true, can_edit: true, can_delete: true },
         marke: { can_view: true, can_edit: true, can_delete: true },
         auftrag: { can_view: true, can_edit: true, can_delete: true },
+        auftragsdetails: { can_view: true, can_edit: true, can_delete: true },
         kampagne: { can_view: true, can_edit: true, can_delete: true },
         kooperation: { can_view: true, can_edit: true, can_delete: true },
         briefing: { can_view: true, can_edit: true, can_delete: true },
@@ -77,6 +78,7 @@ export class PermissionSystem {
         unternehmen: { can_view: true, can_edit: false, can_delete: false },
         marke: { can_view: true, can_edit: false, can_delete: false },
         auftrag: { can_view: false, can_edit: false, can_delete: false }, // Aufträge für Mitarbeiter ausgeblendet
+        auftragsdetails: { can_view: true, can_edit: false, can_delete: false }, // Auftragsdetails für Mitarbeiter sichtbar
         kampagne: { can_view: true, can_edit: false, can_delete: false },
         kooperation: { can_view: true, can_edit: false, can_delete: false },
         briefing: { can_view: true, can_edit: false, can_delete: false },
@@ -96,6 +98,7 @@ export class PermissionSystem {
         unternehmen: { can_view: false, can_edit: false, can_delete: false },
         marke: { can_view: false, can_edit: false, can_delete: false },
         auftrag: { can_view: true, can_edit: false, can_delete: false }, // Kunden können IHRE Aufträge sehen (RLS-gefiltert)
+        auftragsdetails: { can_view: true, can_edit: false, can_delete: false }, // Kunden können IHRE Auftragsdetails sehen
         kampagne: { can_view: true, can_edit: false, can_delete: false },
         kooperation: { can_view: true, can_edit: false, can_delete: false },
         briefing: { can_view: true, can_edit: false, can_delete: false },
@@ -115,6 +118,7 @@ export class PermissionSystem {
         unternehmen: { can_view: false, can_edit: false, can_delete: false },
         marke: { can_view: false, can_edit: false, can_delete: false },
         auftrag: { can_view: true, can_edit: false, can_delete: false }, // Kunden können IHRE Aufträge sehen (RLS-gefiltert)
+        auftragsdetails: { can_view: true, can_edit: false, can_delete: false }, // Kunden können IHRE Auftragsdetails sehen
         kampagne: { can_view: true, can_edit: false, can_delete: false },
         kooperation: { can_view: true, can_edit: false, can_delete: false },
         briefing: { can_view: true, can_edit: false, can_delete: false },
@@ -136,6 +140,7 @@ export class PermissionSystem {
       unternehmen: { can_view: false, can_edit: false, can_delete: false },
       marke: { can_view: false, can_edit: false, can_delete: false },
       auftrag: { can_view: false, can_edit: false, can_delete: false },
+      auftragsdetails: { can_view: false, can_edit: false, can_delete: false },
       kampagne: { can_view: false, can_edit: false, can_delete: false },
       kooperation: { can_view: false, can_edit: false, can_delete: false },
       briefing: { can_view: false, can_edit: false, can_delete: false },
@@ -156,6 +161,7 @@ export class PermissionSystem {
       unternehmen: { can_view: false, can_edit: false, can_delete: false },
       marke: { can_view: false, can_edit: false, can_delete: false },
       auftrag: { can_view: true, can_edit: false, can_delete: false }, // Kunden können IHRE Aufträge sehen (RLS-gefiltert)
+      auftragsdetails: { can_view: true, can_edit: false, can_delete: false }, // Kunden können IHRE Auftragsdetails sehen
       kampagne: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Kampagnen NUR sehen
       kooperation: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Kooperationen NUR sehen
       briefing: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Briefings NUR sehen
@@ -176,6 +182,7 @@ export class PermissionSystem {
       unternehmen: { can_view: false, can_edit: false, can_delete: false },
       marke: { can_view: false, can_edit: false, can_delete: false },
       auftrag: { can_view: false, can_edit: false, can_delete: false },
+      auftragsdetails: { can_view: false, can_edit: false, can_delete: false },
       kampagne: { can_view: false, can_edit: false, can_delete: false },
       kooperation: { can_view: false, can_edit: false, can_delete: false },
       briefing: { can_view: false, can_edit: false, can_delete: false },
@@ -214,6 +221,7 @@ export class PermissionSystem {
         unternehmen: { can_view: true, can_edit: true, can_delete: false },
         marke: { can_view: true, can_edit: true, can_delete: false },
         auftrag: { can_view: true, can_edit: true, can_delete: false },
+        auftragsdetails: { can_view: true, can_edit: true, can_delete: false },
         kampagne: { can_view: true, can_edit: true, can_delete: false },
         kooperation: { can_view: true, can_edit: true, can_delete: false },
         briefing: { can_view: true, can_edit: true, can_delete: false },
