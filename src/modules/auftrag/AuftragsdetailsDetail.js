@@ -74,6 +74,7 @@ export class AuftragsdetailsDetail {
           auftrag:auftrag_id (
             id,
             auftragsname,
+            auftragtype,
             kampagnenanzahl,
             status,
             start,
@@ -263,11 +264,17 @@ export class AuftragsdetailsDetail {
       return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v);
     };
 
+    const auftragtype = this.auftrag?.auftragtype || '-';
+
     return `
       <div class="detail-section">
         <!-- Budget-Kacheln -->
         <div class="auftragsdetails-summary">
           <div class="summary-cards">
+            <div class="summary-card">
+              <div class="summary-value">${window.validatorSystem?.sanitizeHtml(auftragtype) || auftragtype}</div>
+              <div class="summary-label">Art des Auftrages</div>
+            </div>
             <div class="summary-card">
               <div class="summary-value">${num(this.budgetSummary.totalVideos)}</div>
               <div class="summary-label">Gebuchte Videos</div>
@@ -359,11 +366,11 @@ export class AuftragsdetailsDetail {
             <div class="section-indicator" style="background: ${section.color}"></div>
             ${section.title}
           </td>
+          <td class="budget-cell">${budgetInfo ? `<div class="budget-info-large">${window.validatorSystem.sanitizeHtml(budgetInfo)}</div>` : '-'}</td>
           <td class="text-center">${num(videoAnzahl)}</td>
           <td class="text-center">${num(bilderAnzahl)}</td>
           <td class="text-center">${num(creatorAnzahl)}</td>
           <td class="text-center">${section.hasVideographen ? num(videographenAnzahl) : '-'}</td>
-          <td class="budget-cell">${budgetInfo ? `<div class="budget-info-large">${window.validatorSystem.sanitizeHtml(budgetInfo)}</div>` : '-'}</td>
         </tr>
       `;
     }).filter(row => row).join('');
@@ -375,11 +382,11 @@ export class AuftragsdetailsDetail {
             <thead>
               <tr>
                 <th>Kategorie</th>
+                <th>Budget & Informationen</th>
                 <th class="text-center">Videos</th>
                 <th class="text-center">Bilder</th>
                 <th class="text-center">Creator</th>
                 <th class="text-center">Videographen</th>
-                <th>Budget & Informationen</th>
               </tr>
             </thead>
             <tbody>
@@ -400,11 +407,11 @@ export class AuftragsdetailsDetail {
           <thead>
             <tr>
               <th>Kategorie</th>
+              <th>Budget & Informationen</th>
               <th class="text-center">Videos</th>
               <th class="text-center">Bilder</th>
               <th class="text-center">Creator</th>
               <th class="text-center">Videographen</th>
-              <th>Budget & Informationen</th>
             </tr>
           </thead>
           <tbody>

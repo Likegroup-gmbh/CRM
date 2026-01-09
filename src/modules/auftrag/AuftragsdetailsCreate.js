@@ -6,10 +6,13 @@ import { KAMPAGNENARTEN_MAPPING, generateBudgetOnlyFieldsHtml } from './logic/Ka
 export class AuftragsdetailsCreate {
   constructor() {
     this.formData = {};
+    this.unternehmen = []; // Gefilterte Unternehmen für Mitarbeiter
     this.auftraege = []; // Aufträge-Liste für Event-Listener
     this.currentKampagnenarten = []; // Aktuelle Kampagnenarten des ausgewählten Auftrags
     this.allKampagnenartTypen = []; // Alle verfügbaren Kampagnenart-Typen
+    this.currentUnternehmenId = null; // Aktuell ausgewähltes Unternehmen
     this.currentAuftragId = null; // Aktuell ausgewählter Auftrag
+    this.auftragIdsWithDetails = []; // Aufträge die bereits Details haben
   }
 
   // Initialisiere Auftragsdetails-Erstellung
@@ -57,29 +60,15 @@ export class AuftragsdetailsCreate {
     }
 
     // IDs der Aufträge, die bereits Details haben
-    const auftragIdsWithDetails = existingDetails.map(d => d.auftrag_id);
-    console.log('📋 Aufträge mit Details:', auftragIdsWithDetails);
+    this.auftragIdsWithDetails = existingDetails.map(d => d.auftrag_id);
+    console.log('📋 Aufträge mit Details:', this.auftragIdsWithDetails);
 
-    // Schritt 2: Lade alle Aufträge
-    const { data: alleAuftraege, error: auftraegeError } = await window.supabase
-      .from('auftrag')
-      .select('id, auftragsname, kampagnenanzahl, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname)')
-      .order('created_at', { ascending: false });
-
-    if (auftraegeError) {
-      console.error('Fehler beim Laden der Aufträge:', auftraegeError);
-      window.showNotification('Fehler beim Laden der Aufträge', 'error');
-      return;
-    }
-
-    // Schritt 3: Filtere client-seitig - nur Aufträge OHNE Details
-    const auftraege = alleAuftraege.filter(auftrag => !auftragIdsWithDetails.includes(auftrag.id));
+    // Schritt 2: Lade Unternehmen (gefiltert nach Mitarbeiter-Zuordnung)
+    this.unternehmen = await this.loadUnternehmen();
+    console.log('🏢 Verfügbare Unternehmen:', this.unternehmen.length);
     
-    // Aufträge in Instanz-Variable speichern für Event-Listener
-    this.auftraege = auftraege;
-
-    console.log('📊 Alle Aufträge:', alleAuftraege?.length || 0);
-    console.log('✅ Verfügbare Aufträge ohne Details:', auftraege?.length || 0);
+    // Aufträge werden erst nach Unternehmen-Auswahl geladen (Kaskade)
+    this.auftraege = [];
 
     // Lade alle verfügbaren Kampagnenart-Typen für das Multiselect
     this.allKampagnenartTypen = await this.loadAllKampagnenartTypen();
@@ -89,32 +78,41 @@ export class AuftragsdetailsCreate {
       <div class="form-page">
         <form id="auftragsdetails-form" data-entity="auftragsdetails">
           
-          <!-- Auftrag Auswahl -->
+          <!-- Unternehmen & Auftrag Auswahl (Kaskade) -->
           <div class="form-two-col">
             <div class="form-field form-field--half">
-              <label for="auftrag_id">Auftrag auswählen <span class="required">*</span></label>
-              <select id="auftrag_id" name="auftrag_id" required ${auftraege.length === 0 ? 'disabled' : ''}>
-                ${auftraege.length === 0 
-                  ? '<option value="">Keine Aufträge verfügbar (alle haben bereits Details)</option>'
+              <label for="unternehmen_id">Unternehmen auswählen <span class="required">*</span></label>
+              <select id="unternehmen_id" name="unternehmen_id" required data-searchable="true" data-placeholder="Unternehmen suchen...">
+                ${this.unternehmen.length === 0 
+                  ? '<option value="">Keine Unternehmen zugeordnet</option>'
                   : '<option value="">Bitte wählen...</option>'
                 }
-                ${auftraege.map(a => `
-                  <option value="${a.id}">
-                    ${a.auftragsname} ${a.unternehmen ? `(${a.unternehmen.firmenname})` : ''}
-                  </option>
+                ${this.unternehmen.map(u => `
+                  <option value="${u.id}">${u.firmenname}</option>
                 `).join('')}
               </select>
-              ${auftraege.length === 0 
-                ? '<small class="form-hint" style="color: var(--color-error);">Alle Aufträge haben bereits Auftragsdetails. Bitte erstellen Sie zuerst einen neuen Auftrag.</small>'
-                : ''
+              ${this.unternehmen.length === 0 
+                ? '<small class="form-hint" style="color: var(--color-error);">Sie haben keine Unternehmen zugeordnet.</small>'
+                : '<small class="form-hint">Wählen Sie zuerst ein Unternehmen, um die verfügbaren Aufträge zu sehen.</small>'
               }
             </div>
 
+            <div class="form-field form-field--half">
+              <label for="auftrag_id">Auftrag auswählen <span class="required">*</span></label>
+              <select id="auftrag_id" name="auftrag_id" required disabled data-searchable="true" data-placeholder="Erst Unternehmen wählen...">
+                <option value="">Erst Unternehmen wählen...</option>
+              </select>
+              <small class="form-hint" id="auftrag-hint">Aufträge werden nach Unternehmen-Auswahl geladen.</small>
+            </div>
+          </div>
+
+          <div class="form-two-col">
             <div class="form-field form-field--half">
               <label for="kampagnenanzahl">Anzahl Kampagnen</label>
               <input type="number" id="kampagnenanzahl" name="kampagnenanzahl" min="0" placeholder="Wird aus Auftrag übernommen..." readonly>
               <small class="form-hint">Wird automatisch aus dem Auftrag übernommen</small>
             </div>
+            <div class="form-field form-field--half"></div>
           </div>
 
           <!-- Kampagnenart-Auswahl Section -->
@@ -177,6 +175,9 @@ export class AuftragsdetailsCreate {
     
     // Events binden
     this.bindFormEvents();
+    
+    // Autosuggestion für Unternehmen und Auftrag initialisieren
+    this.initSearchableSelects();
   }
 
   /**
@@ -201,6 +202,154 @@ export class AuftragsdetailsCreate {
     } catch (error) {
       console.error('❌ Fehler beim Laden der Kampagnenart-Typen:', error);
       return [];
+    }
+  }
+
+  /**
+   * Lädt Unternehmen gefiltert nach Mitarbeiter-Zuordnung
+   * @returns {Promise<Array<{id: string, firmenname: string}>>}
+   */
+  async loadUnternehmen() {
+    if (!window.supabase) return [];
+    
+    try {
+      // Hole erlaubte Unternehmen-IDs vom PermissionSystem
+      const allowedIds = await window.getAllowedUnternehmenIds?.();
+      console.log('🔐 Erlaubte Unternehmen-IDs:', allowedIds);
+      
+      let query = window.supabase
+        .from('unternehmen')
+        .select('id, firmenname')
+        .order('firmenname', { ascending: true });
+      
+      // Für Nicht-Admins: Filter nach erlaubten IDs
+      if (allowedIds !== null) {
+        if (allowedIds.length === 0) {
+          console.log('🔐 Keine Unternehmen zugeordnet');
+          return [];
+        }
+        query = query.in('id', allowedIds);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) {
+        console.error('❌ Fehler beim Laden der Unternehmen:', error);
+        return [];
+      }
+      
+      return data || [];
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Unternehmen:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Lädt Aufträge für ein bestimmtes Unternehmen (ohne bereits vorhandene Details)
+   * @param {string} unternehmenId - ID des Unternehmens
+   * @returns {Promise<Array>}
+   */
+  async loadAuftraegeForUnternehmen(unternehmenId) {
+    if (!window.supabase || !unternehmenId) return [];
+    
+    try {
+      const { data, error } = await window.supabase
+        .from('auftrag')
+        .select('id, auftragsname, kampagnenanzahl, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname)')
+        .eq('unternehmen_id', unternehmenId)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('❌ Fehler beim Laden der Aufträge:', error);
+        return [];
+      }
+      
+      // Filtere Aufträge die bereits Details haben
+      const filtered = (data || []).filter(a => !this.auftragIdsWithDetails.includes(a.id));
+      console.log(`📋 Aufträge für Unternehmen ${unternehmenId}: ${filtered.length} verfügbar`);
+      
+      return filtered;
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Aufträge:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Initialisiert die Searchable Selects für Unternehmen und Auftrag
+   */
+  initSearchableSelects() {
+    // Unternehmen-Select
+    const unternehmenSelect = document.getElementById('unternehmen_id');
+    if (unternehmenSelect && window.formSystem?.createSearchableSelect) {
+      const options = this.unternehmen.map(u => ({
+        value: u.id,
+        label: u.firmenname
+      }));
+      window.formSystem.createSearchableSelect(unternehmenSelect, options, {
+        name: 'unternehmen_id',
+        placeholder: 'Unternehmen suchen...'
+      });
+      console.log('✅ Searchable Select für Unternehmen initialisiert');
+    }
+    
+    // Auftrag-Select (initial leer, wird nach Unternehmen-Auswahl befüllt)
+    const auftragSelect = document.getElementById('auftrag_id');
+    if (auftragSelect && window.formSystem?.createSearchableSelect) {
+      window.formSystem.createSearchableSelect(auftragSelect, [], {
+        name: 'auftrag_id',
+        placeholder: 'Erst Unternehmen wählen...'
+      });
+      console.log('✅ Searchable Select für Auftrag initialisiert (leer)');
+    }
+  }
+
+  /**
+   * Aktualisiert das Auftrag-Dropdown mit neuen Optionen
+   * @param {Array} auftraege - Liste der Aufträge
+   */
+  updateAuftragSelect(auftraege) {
+    const auftragSelect = document.getElementById('auftrag_id');
+    if (!auftragSelect) return;
+    
+    // Optionen für das Select erstellen
+    const options = auftraege.map(a => ({
+      value: a.id,
+      label: `${a.auftragsname}${a.marke?.markenname ? ` (${a.marke.markenname})` : ''}`
+    }));
+    
+    // Bestehenden Container finden und aktualisieren
+    const container = auftragSelect.nextElementSibling;
+    if (container && container.classList.contains('searchable-select-container')) {
+      // Container entfernen und neu erstellen
+      container.remove();
+    }
+    
+    // Select-Optionen aktualisieren
+    auftragSelect.innerHTML = auftraege.length === 0
+      ? '<option value="">Keine Aufträge verfügbar</option>'
+      : '<option value="">Bitte wählen...</option>' + 
+        options.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+    
+    // Neues Searchable Select erstellen
+    if (window.formSystem?.createSearchableSelect) {
+      window.formSystem.createSearchableSelect(auftragSelect, options, {
+        name: 'auftrag_id',
+        placeholder: auftraege.length === 0 ? 'Keine Aufträge verfügbar' : 'Auftrag suchen...'
+      });
+    }
+    
+    // Select aktivieren/deaktivieren
+    auftragSelect.disabled = auftraege.length === 0;
+    
+    // Hint aktualisieren
+    const hint = document.getElementById('auftrag-hint');
+    if (hint) {
+      hint.textContent = auftraege.length === 0 
+        ? 'Keine Aufträge ohne Details für dieses Unternehmen verfügbar.'
+        : `${auftraege.length} Auftrag/Aufträge verfügbar.`;
+      hint.style.color = auftraege.length === 0 ? 'var(--color-warning)' : '';
     }
   }
 
@@ -484,100 +633,11 @@ export class AuftragsdetailsCreate {
     const form = document.getElementById('auftragsdetails-form');
     if (!form) return;
 
-    // Auftrag-Auswahl Listener: Kampagnenart-Selection Section anzeigen
-    const auftragSelect = document.getElementById('auftrag_id');
-    if (auftragSelect) {
-      auftragSelect.addEventListener('change', async (e) => {
-        const auftragId = e.target.value;
-        const kampagnenField = document.getElementById('kampagnenanzahl');
-        const selectionSection = document.getElementById('kampagnenart-selection-section');
-        const container = document.getElementById('kampagnenart-sections-container');
-        const submitBtn = document.getElementById('submit-btn');
-        
-        if (!auftragId) {
-          // Kein Auftrag ausgewählt - Reset
-          this.currentAuftragId = null;
-          if (kampagnenField) {
-            kampagnenField.value = '';
-            kampagnenField.style.backgroundColor = '';
-          }
-          if (selectionSection) {
-            selectionSection.style.display = 'none';
-          }
-          if (container) {
-            container.innerHTML = `
-              <div class="alert alert-info">
-                <p>Bitte wählen Sie einen Auftrag aus, um die Kampagnenart-Auswahl anzuzeigen.</p>
-              </div>
-            `;
-          }
-          if (submitBtn) {
-            submitBtn.disabled = true;
-          }
-          return;
-        }
-        
-        this.currentAuftragId = auftragId;
-        
-        // Kampagnenanzahl vom Auftrag übernehmen
-        const selectedAuftrag = this.auftraege.find(a => a.id === auftragId);
-        if (selectedAuftrag?.kampagnenanzahl && kampagnenField) {
-          kampagnenField.value = selectedAuftrag.kampagnenanzahl;
-          kampagnenField.style.backgroundColor = '#f5f5f5';
-          console.log(`✅ Kampagnenanzahl ${selectedAuftrag.kampagnenanzahl} vom Auftrag übernommen`);
-        } else if (kampagnenField) {
-          kampagnenField.value = '';
-          kampagnenField.style.backgroundColor = '';
-        }
-        
-        // Lade bereits vorhandene Kampagnenarten für diesen Auftrag
-        console.log('🔄 Lade Kampagnenarten für Auftrag:', auftragId);
-        const kampagnenarten = await this.loadKampagnenartenForAuftrag(auftragId);
-        this.currentKampagnenarten = kampagnenarten;
-        
-        // Zeige Kampagnenart-Selection Section
-        if (selectionSection) {
-          selectionSection.style.display = 'block';
-        }
-        
-        // Initialisiere das TagBased-Multiselect
-        await this.initKampagnenartSelect(kampagnenarten);
-        
-        // Wenn bereits Kampagnenarten vorhanden sind, zeige die Budget-Sections
-        if (kampagnenarten.length > 0) {
-          // Lade bestehende auftrag_details Werte (falls vorhanden)
-          let existingValues = {};
-          try {
-            const { data } = await window.supabase
-              .from('auftrag_details')
-              .select('*')
-              .eq('auftrag_id', auftragId)
-              .maybeSingle();
-            if (data) {
-              existingValues = data;
-            }
-          } catch (e) {
-            console.warn('⚠️ Keine bestehenden auftrag_details gefunden');
-          }
-          
-          this.renderDynamicSections(kampagnenarten, existingValues);
-          
-          // Aktiviere den Erstellen-Button
-          if (submitBtn) {
-            submitBtn.disabled = false;
-          }
-        } else {
-          // Zeige Hinweis, dass Kampagnenarten gewählt werden müssen
-          if (container) {
-            container.innerHTML = `
-              <div class="alert alert-info">
-                <p>Wählen Sie oben die Kampagnenarten aus und klicken Sie auf "Aktivieren", um die Budget-Felder anzuzeigen.</p>
-              </div>
-            `;
-          }
-        }
-      });
-    }
+    // KASKADE: Unternehmen-Auswahl Listener
+    this.bindUnternehmenChangeListener();
+
+    // KASKADE: Auftrag-Auswahl Listener (Kampagnenart-Selection Section anzeigen)
+    this.bindAuftragChangeListener();
 
     // Aktivieren-Button Event
     const activateBtn = document.getElementById('activate-kampagnenarten-btn');
@@ -598,6 +658,211 @@ export class AuftragsdetailsCreate {
     form.addEventListener('submit', (e) => this.handleFormSubmit(e));
   }
 
+  /**
+   * Event-Listener für Unternehmen-Auswahl (Kaskade Schritt 1)
+   */
+  bindUnternehmenChangeListener() {
+    const unternehmenSelect = document.getElementById('unternehmen_id');
+    if (!unternehmenSelect) return;
+
+    // Event-Handler der auch bei Searchable Select funktioniert
+    const handleUnternehmenChange = async (unternehmenId) => {
+      console.log('🏢 Unternehmen geändert:', unternehmenId);
+      
+      const auftragSelect = document.getElementById('auftrag_id');
+      const selectionSection = document.getElementById('kampagnenart-selection-section');
+      const container = document.getElementById('kampagnenart-sections-container');
+      const submitBtn = document.getElementById('submit-btn');
+      const kampagnenField = document.getElementById('kampagnenanzahl');
+      
+      if (!unternehmenId) {
+        // Reset bei keiner Auswahl
+        this.currentUnternehmenId = null;
+        this.currentAuftragId = null;
+        this.auftraege = [];
+        
+        this.updateAuftragSelect([]);
+        if (auftragSelect) auftragSelect.disabled = true;
+        if (selectionSection) selectionSection.style.display = 'none';
+        if (container) {
+          container.innerHTML = `
+            <div class="alert alert-info">
+              <p>Bitte wählen Sie ein Unternehmen und dann einen Auftrag aus.</p>
+            </div>
+          `;
+        }
+        if (submitBtn) submitBtn.disabled = true;
+        if (kampagnenField) {
+          kampagnenField.value = '';
+          kampagnenField.style.backgroundColor = '';
+        }
+        return;
+      }
+      
+      this.currentUnternehmenId = unternehmenId;
+      this.currentAuftragId = null;
+      
+      // Lade Aufträge für dieses Unternehmen
+      this.auftraege = await this.loadAuftraegeForUnternehmen(unternehmenId);
+      
+      // Update Auftrag-Dropdown
+      this.updateAuftragSelect(this.auftraege);
+      
+      // Reset restliche Felder
+      if (selectionSection) selectionSection.style.display = 'none';
+      if (container) {
+        container.innerHTML = `
+          <div class="alert alert-info">
+            <p>Bitte wählen Sie einen Auftrag aus, um die Kampagnenart-Auswahl anzuzeigen.</p>
+          </div>
+        `;
+      }
+      if (submitBtn) submitBtn.disabled = true;
+      if (kampagnenField) {
+        kampagnenField.value = '';
+        kampagnenField.style.backgroundColor = '';
+      }
+    };
+    
+    // Event auf Original-Select (für Searchable Select)
+    unternehmenSelect.addEventListener('change', (e) => {
+      handleUnternehmenChange(e.target.value);
+    });
+    
+    // Auch auf Hidden Input hören (falls FormSystem diesen verwendet)
+    const hiddenInput = document.getElementById('unternehmen_id_value');
+    if (hiddenInput) {
+      // MutationObserver für Hidden Input Value-Änderungen
+      const observer = new MutationObserver(() => {
+        handleUnternehmenChange(hiddenInput.value);
+      });
+      observer.observe(hiddenInput, { attributes: true, attributeFilter: ['value'] });
+      
+      // Zusätzlich: Input-Event
+      hiddenInput.addEventListener('input', (e) => {
+        handleUnternehmenChange(e.target.value);
+      });
+    }
+  }
+
+  /**
+   * Event-Listener für Auftrag-Auswahl (Kaskade Schritt 2)
+   */
+  bindAuftragChangeListener() {
+    const auftragSelect = document.getElementById('auftrag_id');
+    if (!auftragSelect) return;
+
+    const handleAuftragChange = async (auftragId) => {
+      console.log('📋 Auftrag geändert:', auftragId);
+      
+      const kampagnenField = document.getElementById('kampagnenanzahl');
+      const selectionSection = document.getElementById('kampagnenart-selection-section');
+      const container = document.getElementById('kampagnenart-sections-container');
+      const submitBtn = document.getElementById('submit-btn');
+      
+      if (!auftragId) {
+        // Kein Auftrag ausgewählt - Reset
+        this.currentAuftragId = null;
+        if (kampagnenField) {
+          kampagnenField.value = '';
+          kampagnenField.style.backgroundColor = '';
+        }
+        if (selectionSection) {
+          selectionSection.style.display = 'none';
+        }
+        if (container) {
+          container.innerHTML = `
+            <div class="alert alert-info">
+              <p>Bitte wählen Sie einen Auftrag aus, um die Kampagnenart-Auswahl anzuzeigen.</p>
+            </div>
+          `;
+        }
+        if (submitBtn) {
+          submitBtn.disabled = true;
+        }
+        return;
+      }
+      
+      this.currentAuftragId = auftragId;
+      
+      // Kampagnenanzahl vom Auftrag übernehmen
+      const selectedAuftrag = this.auftraege.find(a => a.id === auftragId);
+      if (selectedAuftrag?.kampagnenanzahl && kampagnenField) {
+        kampagnenField.value = selectedAuftrag.kampagnenanzahl;
+        kampagnenField.style.backgroundColor = '#f5f5f5';
+        console.log(`✅ Kampagnenanzahl ${selectedAuftrag.kampagnenanzahl} vom Auftrag übernommen`);
+      } else if (kampagnenField) {
+        kampagnenField.value = '';
+        kampagnenField.style.backgroundColor = '';
+      }
+      
+      // Lade bereits vorhandene Kampagnenarten für diesen Auftrag
+      console.log('🔄 Lade Kampagnenarten für Auftrag:', auftragId);
+      const kampagnenarten = await this.loadKampagnenartenForAuftrag(auftragId);
+      this.currentKampagnenarten = kampagnenarten;
+      
+      // Zeige Kampagnenart-Selection Section
+      if (selectionSection) {
+        selectionSection.style.display = 'block';
+      }
+      
+      // Initialisiere das TagBased-Multiselect
+      await this.initKampagnenartSelect(kampagnenarten);
+      
+      // Wenn bereits Kampagnenarten vorhanden sind, zeige die Budget-Sections
+      if (kampagnenarten.length > 0) {
+        // Lade bestehende auftrag_details Werte (falls vorhanden)
+        let existingValues = {};
+        try {
+          const { data } = await window.supabase
+            .from('auftrag_details')
+            .select('*')
+            .eq('auftrag_id', auftragId)
+            .maybeSingle();
+          if (data) {
+            existingValues = data;
+          }
+        } catch (e) {
+          console.warn('⚠️ Keine bestehenden auftrag_details gefunden');
+        }
+        
+        this.renderDynamicSections(kampagnenarten, existingValues);
+        
+        // Aktiviere den Erstellen-Button
+        if (submitBtn) {
+          submitBtn.disabled = false;
+        }
+      } else {
+        // Zeige Hinweis, dass Kampagnenarten gewählt werden müssen
+        if (container) {
+          container.innerHTML = `
+            <div class="alert alert-info">
+              <p>Wählen Sie oben die Kampagnenarten aus und klicken Sie auf "Aktivieren", um die Budget-Felder anzuzeigen.</p>
+            </div>
+          `;
+        }
+      }
+    };
+    
+    // Event auf Original-Select
+    auftragSelect.addEventListener('change', (e) => {
+      handleAuftragChange(e.target.value);
+    });
+    
+    // Auch auf Hidden Input hören
+    const hiddenInput = document.getElementById('auftrag_id_value');
+    if (hiddenInput) {
+      const observer = new MutationObserver(() => {
+        handleAuftragChange(hiddenInput.value);
+      });
+      observer.observe(hiddenInput, { attributes: true, attributeFilter: ['value'] });
+      
+      hiddenInput.addEventListener('input', (e) => {
+        handleAuftragChange(e.target.value);
+      });
+    }
+  }
+
   // Handle Form Submit
   async handleFormSubmit(e) {
     e.preventDefault();
@@ -613,10 +878,15 @@ export class AuftragsdetailsCreate {
       const formData = new FormData(form);
       const data = {};
 
-      // Sammle alle Felder (außer art_der_kampagne - wird über Junction-Tabelle gespeichert)
+      // Sammle alle Felder (außer art_der_kampagne und unternehmen_id)
       for (let [key, value] of formData.entries()) {
         // Skip art_der_kampagne - wird bereits über auftrag_kampagne_art gespeichert
         if (key === 'art_der_kampagne' || key === 'art_der_kampagne[]') {
+          continue;
+        }
+        
+        // Skip unternehmen_id - wird nur für die Filterung verwendet
+        if (key === 'unternehmen_id') {
           continue;
         }
         

@@ -22,6 +22,7 @@ export class CreatorDetail extends PersonDetailBase {
     this.unternehmen = [];
     this.creatorAdressen = [];
     this.eventsBound = false;
+    this._cacheInvalidationBound = false;
     this.activeMainTab = 'info';
   }
 
@@ -663,12 +664,6 @@ export class CreatorDetail extends PersonDetailBase {
               <span>${this.creator.haustier_beschreibung || 'Ja'}</span>
             </div>
             ` : ''}
-            ${this.creator.spielt_instrument ? `
-            <div class="detail-item">
-              <label>Instrument:</label>
-              <span>${this.creator.instrument_beschreibung || 'Ja'}</span>
-            </div>
-            ` : ''}
           </div>
 
           <div class="detail-card">
@@ -986,9 +981,9 @@ export class CreatorDetail extends PersonDetailBase {
       }
     });
 
-    // Edit Creator Button / Action
+    // Edit Creator Button / Action - korrigierter Selektor für Button-ID
     document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-edit-creator' || e.target.closest('[data-action="edit-creator"]')) {
+      if (e.target.id === 'btn-edit-creator' || e.target.closest('#btn-edit-creator')) {
         e.preventDefault();
         this.showEditForm();
       }
@@ -1279,6 +1274,10 @@ export class CreatorDetail extends PersonDetailBase {
   }
 
   setupCacheInvalidation() {
+    // Nur einmal binden
+    if (this._cacheInvalidationBound) return;
+    this._cacheInvalidationBound = true;
+    
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail.entity === 'creator' && e.detail.id === this.creatorId) {
         console.log('🔄 CREATORDETAIL: Entity updated - invalidiere Cache');
@@ -1300,6 +1299,8 @@ export class CreatorDetail extends PersonDetailBase {
     console.log('🗑️ CREATORDETAIL: Destroy aufgerufen - räume auf');
     
     tabDataCache.invalidate('creator', this.creatorId);
+    this._cacheInvalidationBound = false;
+    this.eventsBound = false;
     
     window.setContentSafely('');
     console.log('✅ CREATORDETAIL: Destroy abgeschlossen');

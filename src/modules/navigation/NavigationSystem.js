@@ -96,7 +96,7 @@ export class NavigationSystem {
         unternehmen: 'unternehmen',
         marke: 'marke',
         auftrag: 'auftrag',
-        auftragsdetails: 'auftrag',
+        auftragsdetails: 'auftragsdetails',
         ansprechpartner: 'ansprechpartner',
         kampagne: 'kampagne',
         strategie: 'strategie',

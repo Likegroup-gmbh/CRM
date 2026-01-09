@@ -635,10 +635,10 @@ export class AuftragDetail {
             <div class="section-indicator" style="background: ${section.color}"></div>
             ${section.title}
           </td>
+          <td class="budget-cell">${budgetInfo ? `<div class="budget-info-large">${window.validatorSystem.sanitizeHtml(budgetInfo)}</div>` : '-'}</td>
           <td class="text-center">${num(videoAnzahl)}</td>
           <td class="text-center">${section.hasBilder ? num(bilderAnzahl) : '-'}</td>
           <td class="text-center">${section.hasCreator ? num(creatorAnzahl) : '-'}</td>
-          <td class="budget-cell">${budgetInfo ? `<div class="budget-info-large">${window.validatorSystem.sanitizeHtml(budgetInfo)}</div>` : '-'}</td>
         </tr>
       `;
     }).filter(row => row).join('');
@@ -673,10 +673,10 @@ export class AuftragDetail {
             <thead>
               <tr>
                 <th>Kategorie</th>
+                <th>Budget & Informationen</th>
                 <th class="text-center">Videos</th>
                 <th class="text-center">Bilder</th>
                 <th class="text-center">Creator</th>
-                <th>Budget & Informationen</th>
               </tr>
             </thead>
             <tbody>

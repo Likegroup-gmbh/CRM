@@ -128,7 +128,7 @@ export class AuftragsdetailsList {
                 ${isAdmin ? `<th>
                   <input type="checkbox" id="select-all-auftragsdetails">
                 </th>` : ''}
-                <th>Auftrag</th>
+                <th class="col-auftrag">Auftrag</th>
                 <th>Kategorie</th>
                 <th>Beschreibung</th>
                 <th>Erstellt am</th>
@@ -580,7 +580,7 @@ export class AuftragsdetailsList {
         return `
           <tr data-id="${detail.id}">
             ${isAdmin ? `<td><input type="checkbox" class="auftragsdetails-check" data-id="${detail.id}"></td>` : ''}
-            <td>
+            <td class="col-auftrag">
               <a href="#" class="table-link" data-table="auftragsdetails" data-id="${detail.id}">
                 ${window.validatorSystem?.sanitizeHtml(auftrag.auftragsname || 'Unbekannter Auftrag') || 'Unbekannter Auftrag'}
               </a>

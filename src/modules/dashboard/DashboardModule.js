@@ -69,7 +69,6 @@ export class DashboardModule {
     await this.render();
     this.setupEventListeners();
     this.setupKampagneEventListeners();
-    this.startAutoRefresh();
   }
 
   async loadDashboardData() {
@@ -1486,13 +1485,6 @@ export class DashboardModule {
   async refresh() {
     await this.loadDashboardData();
     await this.render();
-  }
-
-  startAutoRefresh() {
-    // Refresh alle 5 Minuten
-    this.refreshInterval = setInterval(() => {
-      this.refresh();
-    }, 5 * 60 * 1000);
   }
 
   destroy() {
