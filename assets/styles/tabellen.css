@@ -1,5 +1,16 @@
 /* Tabellen Module Styles */
 
+/* === COMPANY LOGO (Firmenlogo in Listen) === */
+.company-logo {
+  height: var(--space-lg);
+  width: var(--space-lg);
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--gray-100);
+  vertical-align: middle;
+  margin-right: var(--space-sm);
+}
+
 /* === TABLE LINKS (klickbare Namen in Listen) === */
 .table-link {
   color: inherit;
@@ -1531,6 +1542,18 @@ td.col-produkt .stacked-video-input,
   min-width: 150px;
 }
 
+/* Auftragsdetails: Auftrag-Spalte fixierte Breite für konsistente Darstellung */
+.data-table th.col-auftrag,
+.data-table td.col-auftrag {
+  width: 280px;
+  min-width: 280px;
+  max-width: 280px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* === CREATOR-AUSWAHL: LISTE (SPALTENBREITEN) === */
 .data-table--creator-auswahl-list {
   table-layout: fixed;
@@ -1607,6 +1630,13 @@ td.col-produkt .stacked-video-input,
   width: 60px;
   text-align: center;
   white-space: nowrap;
+}
+
+/* Mitarbeiter-Spalten (Management, Lead, Mitarbeiter) kompakter */
+.data-table th.col-mitarbeiter,
+.data-table td.col-mitarbeiter {
+  width: 100px;
+  max-width: 100px;
 }
 
 /* Table Container: Nutzt globalen Scroll */
@@ -1934,3 +1964,45 @@ td.col-produkt .stacked-video-input,
   }
 }
 
+/* ========================================
+   Video Liste - Styles
+   ======================================== */
+
+/* Video Thema Thumbnail */
+.video-list-thumbnail {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--gray-200);
+}
+
+.video-thema-cell {
+  min-width: 80px;
+}
+
+/* Video Status Badges */
+.status-produktion {
+  background-color: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.status-abgeschlossen {
+  background-color: var(--success-bg);
+  color: var(--success-text);
+}
+
+/* Freigabe Status Badges */
+.status-freigabe-ja {
+  background-color: var(--success-bg);
+  color: var(--success-text);
+}
+
+.status-freigabe-nein {
+  background-color: var(--gray-100);
+  color: var(--gray-600);
+}
+
+.video-posting-datum-cell {
+  min-width: 130px;
+}

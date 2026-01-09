@@ -2206,6 +2206,35 @@ h3.section-title,
   }
 }
 
+/* Feedback-Kanban mit 6 Spalten */
+.kanban-board--6-cols {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--space-sm);
+}
+
+.kanban-board--6-cols .kanban-column {
+  min-width: 0;
+}
+
+@media (max-width: 1400px) {
+  .kanban-board--6-cols {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .kanban-board--6-cols {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .kanban-board--6-cols {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Kampagnen-Kanban mit 11 Spalten und horizontalem Scrolling */
 .kampagne-kanban-board {
   flex: none !important;
@@ -2239,7 +2268,15 @@ h3.section-title,
   overflow: hidden;
   background: var(--gray-50);
   border-radius: var(--radius-md);
-  
+}
+
+/* Feedback Kanban - farbige Status-Spalten */
+.kanban-column[data-column="in_progress"] {
+  background: var(--orange-50);
+}
+
+.kanban-column[data-column="closed"] {
+  background: var(--green-50);
 }
 
 @media (max-width: 1200px) {
@@ -4255,7 +4292,7 @@ margin-bottom: var(--space-lg);
 
 .data-table th,
 .data-table td {
-  
+  padding: var(--space-xxs) var(--space-xs);
   text-align: left;
   vertical-align: middle;
   white-space: normal; /* Erlaubt Zeilenumbruch */
@@ -9377,6 +9414,45 @@ table:has(td:first-child input[type="checkbox"]) td:nth-child(2),
   background-color: var(--primary-50);
 }
 
+/* Archive Feedback Button */
+.btn-archive-feedback {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--gray-400);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xxxs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.btn-archive-feedback:hover {
+  color: var(--gray-600);
+  background-color: var(--gray-100);
+}
+
+.btn-archive-feedback.active {
+  color: var(--primary-600);
+}
+
+.btn-archive-feedback.active:hover {
+  color: var(--primary-700);
+  background-color: var(--primary-50);
+}
+
+/* Archived Feedback Cards (Wrapper = Card + Comments) */
+.feedback-card-wrapper--archived {
+  opacity: 0.6;
+  filter: grayscale(100%);
+}
+
+.feedback-card-wrapper--archived:hover {
+  opacity: 0.75;
+  filter: grayscale(80%);
+}
+
 /* Feedback Card Wrapper (Card + Comments) */
 .feedback-card-wrapper {
   display: flex;
@@ -10711,4 +10787,416 @@ table:has(td:first-child input[type="checkbox"]) td:nth-child(2),
   .calendar-sidebar {
     grid-template-columns: 1fr;
   }
+}
+
+/* ======================================
+   MULTISTEP FORMULAR - Vertraege Create
+   ====================================== */
+
+/* Progress Bar */
+.multistep-progress {
+  margin-bottom: var(--space-xl);
+  padding: var(--space-md) 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.progress-steps {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-xl);
+}
+
+.progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  opacity: 0.4;
+  transition: opacity 0.2s ease;
+}
+
+.progress-step.active {
+  opacity: 1;
+}
+
+.progress-step.current .step-number {
+  background: var(--primary-500);
+  color: white;
+  transform: scale(1.1);
+}
+
+.step-number {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--gray-200);
+  color: var(--gray-600);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: var(--text-sm);
+  transition: all 0.2s ease;
+}
+
+.progress-step.active:not(.current) .step-number {
+  background: var(--success-500);
+  color: white;
+}
+
+.step-label {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* Multistep Content */
+.multistep-content {
+  min-height: 400px;
+}
+
+.step-section {
+  animation: fadeIn 0.3s ease;
+}
+
+.step-section h3 {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.step-description {
+  color: var(--text-secondary);
+  margin-bottom: var(--space-lg);
+}
+
+/* Radio Group */
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.radio-option:hover {
+  border-color: var(--primary-300);
+  background: var(--bg-secondary);
+}
+
+.radio-option input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary-500);
+}
+
+.radio-option input[type="radio"]:checked + span {
+  font-weight: 500;
+  color: var(--primary-600);
+}
+
+/* Checkbox Group */
+.checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.checkbox-label:hover {
+  border-color: var(--primary-300);
+  background: var(--bg-secondary);
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary-500);
+}
+
+/* Input with Suffix (€) */
+.input-with-suffix {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.input-with-suffix input {
+  flex: 1;
+  padding-right: 40px;
+}
+
+.input-suffix {
+  position: absolute;
+  right: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* Step Navigation */
+.step-navigation {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+/* Form Actions Layout */
+.form-actions-left {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+/* Submit Options (multiple buttons) */
+.submit-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.submit-options .secondary-btn {
+  font-size: var(--text-xs);
+}
+
+/* Address Preview */
+.address-preview {
+  margin-top: var(--space-xs);
+  padding: var(--space-sm);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  min-height: 48px;
+}
+
+.address-text {
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* Form Grid Layouts */
+.form-two-col {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-md);
+}
+
+.form-three-col {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+}
+
+@media (max-width: 768px) {
+  .form-two-col,
+  .form-three-col {
+    grid-template-columns: 1fr;
+  }
+  
+  .progress-steps {
+    gap: var(--space-md);
+  }
+  
+  .step-label {
+    display: none;
+  }
+}
+
+/* Vertragstyp Selection (Schritt 1) */
+.vertrag-typ-selection {
+  text-align: center;
+  padding: var(--space-xl);
+}
+
+.vertrag-typ-selection h2 {
+  margin-bottom: var(--space-sm);
+}
+
+.vertrag-typ-selection .form-hint {
+  color: var(--text-secondary);
+  margin-bottom: var(--space-lg);
+}
+
+/* Secondary Button */
+.secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.secondary-btn:hover {
+  background: var(--bg-secondary);
+  border-color: var(--gray-400);
+}
+
+/* Fade In Animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ======================================
+   VERTRÄGE STATUS BADGES
+   ====================================== */
+
+.status-draft {
+  background: var(--warning-100, #FEF3C7) !important;
+  color: var(--warning-700, #B45309) !important;
+  border: 1px solid var(--warning-300, #FCD34D) !important;
+}
+
+.status-final {
+  background: var(--success-100, #D1FAE5) !important;
+  color: var(--success-700, #047857) !important;
+  border: 1px solid var(--success-300, #6EE7B7) !important;
+}
+
+/* Vertragstyp Badges */
+.typ-ugc {
+  background: var(--primary-100, #E0E7FF) !important;
+  color: var(--primary-700, #4338CA) !important;
+}
+
+.typ-influencer-kooperation {
+  background: var(--purple-100, #EDE9FE) !important;
+  color: var(--purple-700, #6D28D9) !important;
+}
+
+.typ-videograph {
+  background: var(--cyan-100, #CFFAFE) !important;
+  color: var(--cyan-700, #0E7490) !important;
+}
+
+/* ======================================
+   VERTRÄGE TABLE - Checkboxes & Aktionen
+   ====================================== */
+
+.checkbox-col {
+  width: 40px;
+  text-align: center;
+}
+
+.checkbox-col input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--primary-500);
+}
+
+.actions-col {
+  width: 60px;
+  text-align: center;
+}
+
+
+/* Page Header Left */
+.page-header-left {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+/* Danger Button */
+.danger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--error-500, #EF4444);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.danger-btn:hover {
+  background: var(--error-600, #DC2626);
+}
+
+/* Datei Link */
+.datei-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--primary-600);
+  text-decoration: none;
+  font-size: var(--text-sm);
+}
+
+.datei-link:hover {
+  text-decoration: underline;
+}
+
+/* ======================================
+   DRAFT CHOICE DIALOG
+   ====================================== */
+
+.draft-choice-dialog {
+  max-width: 500px;
+  margin: 4rem auto;
+  padding: var(--space-xl);
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--gray-200);
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+}
+
+.draft-choice-dialog h2 {
+  margin-bottom: var(--space-md);
+  color: var(--text-primary);
+}
+
+.draft-choice-dialog > p {
+  color: var(--text-secondary);
+  margin-bottom: var(--space-md);
+}
+
+.draft-info {
+  background: var(--gray-50);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  text-align: left;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  border: 1px solid var(--gray-200);
+}
+
+.draft-info strong {
+  color: var(--text-primary);
 }

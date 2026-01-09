@@ -452,21 +452,28 @@
 }
 
 .logout-btn {
-  background: none;
-  border: none;
   color: var(--text-secondary);
-  cursor: pointer;
-  padding: var(--space-xs);
-  border-radius: var(--radius-md);
-  transition: all 0.2s ease;
 }
 
 .logout-btn:hover {
-  background-color: var(--bg-secondary);
   color: var(--text-primary);
 }
 
+/* Education Button in Header */
+.education-btn {
+  padding: var(--space-xs) var(--space-sm);
+  gap: var(--space-xs);
+  color: var(--text-secondary);
+  text-decoration: none;
+}
 
+.education-btn:hover {
+  color: var(--text-primary);
+}
+
+.education-btn svg {
+  flex-shrink: 0;
+}
 
 /* Profile initials/avatar */
 .profile-menu { 
