@@ -2,13 +2,9 @@
 // Detail-Seite für einzelne Ansprechpartner
 // Nutzt einheitliches zwei-Spalten-Layout
 
-import { FormConfig } from '../../core/form/FormConfig.js';
-import { FormRenderer } from '../../core/form/FormRenderer.js';
-import { DynamicDataLoader } from '../../core/form/data/DynamicDataLoader.js';
 import { ansprechpartnerCreate } from './AnsprechpartnerCreate.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
-import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 
@@ -17,13 +13,11 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     super();
     this.ansprechpartner = null;
     this.ansprechpartnerId = null;
-    this.formConfig = null;
-    this.formRenderer = null;
-    this.dataLoader = null;
-    this.formSystem = null;
     this.notizen = [];
     this.ratings = [];
     this.activeMainTab = 'informationen';
+    this.eventsBound = false;
+    this._cacheInvalidationBound = false;
   }
 
   // Initialisiere Detail-Seite
@@ -43,6 +37,15 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       if (window.breadcrumbSystem && this.ansprechpartner) {
         const name = [this.ansprechpartner.vorname, this.ansprechpartner.nachname].filter(Boolean).join(' ') || 'Details';
         const canEdit = window.currentUser?.permissions?.ansprechpartner?.can_edit !== false;
+        
+        // Debug: Permission-Check für Edit-Button
+        console.log('🔐 ANSPRECHPARTNERDETAIL: Permission-Check:', {
+          rolle: window.currentUser?.rolle,
+          permissions: window.currentUser?.permissions?.ansprechpartner,
+          canEdit: canEdit,
+          ansprechpartnerId: this.ansprechpartnerId
+        });
+        
         window.breadcrumbSystem.updateBreadcrumb([
           { label: 'Ansprechpartner', url: '/ansprechpartner', clickable: true },
           { label: name, url: `/ansprechpartner/${this.ansprechpartnerId}`, clickable: false }
@@ -54,7 +57,13 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       
       await this.loadActivities();
       await this.render();
-      this.bindEvents();
+      
+      // Events nur einmal binden
+      if (!this.eventsBound) {
+        this.bindEvents();
+        this.eventsBound = true;
+      }
+      
       this.setupCacheInvalidation();
     }
   }
@@ -128,8 +137,11 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     }
   }
   
-  // Setup Cache-Invalidierung bei Updates
+  // Setup Cache-Invalidierung bei Updates - nur einmal binden
   setupCacheInvalidation() {
+    if (this._cacheInvalidationBound) return;
+    this._cacheInvalidationBound = true;
+    
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail?.entity === 'ansprechpartner' && e.detail?.id === this.ansprechpartnerId) {
         console.log('🔄 ANSPRECHPARTNERDETAIL: Entity updated - lade neu');
@@ -165,6 +177,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       { label: 'Position', value: this.ansprechpartner?.position || '-' },
       { label: 'Unternehmen', value: this.ansprechpartner?.unternehmen?.firmenname || '-' },
       { label: 'Stadt', value: this.ansprechpartner?.stadt || '-' },
+      { label: 'Land', value: this.ansprechpartner?.land || '-' },
       { label: 'Sprache', value: this.getSprachenDisplay() },
       { label: 'Geburtsdatum', value: this.ansprechpartner?.geburtsdatum ? this.formatDate(this.ansprechpartner.geburtsdatum) : '-' },
       { label: 'Erstellt', value: this.formatDate(this.ansprechpartner?.created_at) }
@@ -468,11 +481,11 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       }
     });
 
-    // Bearbeiten Button
+    // Bearbeiten Button - direkt showEditForm() aufrufen statt Navigation
     document.addEventListener('click', (e) => {
       if (e.target.id === 'btn-edit' || e.target.closest('#btn-edit')) {
         e.preventDefault();
-        window.navigateTo(`/ansprechpartner/${this.ansprechpartnerId}/edit`);
+        this.showEditForm();
       }
     });
 
@@ -486,41 +499,64 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       }
     });
 
-    // Notizen und Bewertungen Events
-    document.addEventListener('notizenUpdated', () => {
+    // Notizen Events - NUR für diesen Ansprechpartner reagieren!
+    document.addEventListener('notizenUpdated', (e) => {
+      // Ignoriere Events für andere Entitäten
+      if (e.detail?.entityType !== 'ansprechpartner' || e.detail?.entityId !== this.ansprechpartnerId) {
+        return;
+      }
       this.loadCriticalData().then(() => {
         this.render();
-        this.bindEvents();
       });
     });
 
-    document.addEventListener('bewertungenUpdated', () => {
+    // Bewertungen Events - NUR für diesen Ansprechpartner reagieren!
+    document.addEventListener('bewertungenUpdated', (e) => {
+      // Ignoriere Events für andere Entitäten
+      if (e.detail?.entityType !== 'ansprechpartner' || e.detail?.entityId !== this.ansprechpartnerId) {
+        return;
+      }
       this.loadCriticalData().then(() => {
         this.render();
-        this.bindEvents();
       });
     });
 
-    // Soft-Refresh bei Realtime-Updates (nur wenn kein Formular aktiv)
+    // Soft-Refresh bei Realtime-Updates - NUR wenn auf Ansprechpartner-Detail-Seite!
     window.addEventListener('softRefresh', async (e) => {
+      // Prüfe ob wir überhaupt auf einer Ansprechpartner-Detail-Seite sind
+      if (!this.ansprechpartnerId) return;
+      if (!location.pathname.startsWith('/ansprechpartner/')) return;
+      
+      // Prüfe ob Formular aktiv ist
       const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
       if (hasActiveForm) {
         console.log('⏸️ ANSPRECHPARTNERDETAIL: Formular aktiv - Soft-Refresh übersprungen');
         return;
       }
-      if (!this.ansprechpartnerId || !location.pathname.includes('/ansprechpartner/')) {
-        return;
-      }
+      
       console.log('🔄 ANSPRECHPARTNERDETAIL: Soft-Refresh - lade Daten neu');
       await this.loadCriticalData();
       this.render();
-      this.bindEvents();
     });
   }
 
   // Bearbeitungsformular anzeigen
   showEditForm() {
-    console.log('🎯 ANSPRECHPARTNERDETAIL: Zeige Bearbeitungsformular');
+    const canEdit = window.currentUser?.permissions?.ansprechpartner?.can_edit !== false;
+    console.log('🎯 ANSPRECHPARTNERDETAIL: showEditForm() aufgerufen', {
+      canEdit,
+      rolle: window.currentUser?.rolle,
+      permissions: window.currentUser?.permissions?.ansprechpartner,
+      ansprechpartnerId: this.ansprechpartnerId,
+      ansprechpartner: this.ansprechpartner?.vorname + ' ' + this.ansprechpartner?.nachname
+    });
+    
+    if (!canEdit) {
+      console.warn('⛔ ANSPRECHPARTNERDETAIL: Keine Berechtigung zum Bearbeiten!');
+      window.toast?.show('Keine Berechtigung zum Bearbeiten', 'error');
+      return;
+    }
+    
     window.setHeadline('Ansprechpartner bearbeiten');
     
     // Edit-Form Daten vorbereiten (inkl. Flags und M:N Arrays)
@@ -758,6 +794,8 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     console.log('AnsprechpartnerDetail: Cleaning up...');
     this.ansprechpartner = null;
     this.ansprechpartnerId = null;
+    this.eventsBound = false;
+    this._cacheInvalidationBound = false;
   }
 }
 

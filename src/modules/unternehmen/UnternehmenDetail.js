@@ -28,6 +28,7 @@ export class UnternehmenDetail extends PersonDetailBase {
     this.creatorAuswahlen = [];
     this._creatorMap = {};
     this.activeMainTab = 'informationen';
+    this.eventsBound = false;
   }
 
   // Initialisiere Unternehmen-Detailseite
@@ -52,7 +53,13 @@ export class UnternehmenDetail extends PersonDetailBase {
       
       await this.loadActivities();
       this.render();
-      this.bindEvents();
+      
+      // Events nur einmal binden
+      if (!this.eventsBound) {
+        this.bindEvents();
+        this.eventsBound = true;
+      }
+      
       console.log('✅ UNTERNEHMENDETAIL: Initialisierung abgeschlossen');
     } catch (error) {
       console.error('❌ UNTERNEHMENDETAIL: Fehler bei der Initialisierung:', error);
@@ -1623,6 +1630,7 @@ export class UnternehmenDetail extends PersonDetailBase {
       document.removeEventListener('entityUpdated', this._entityUpdatedHandler);
       this._entityUpdatedBound = false;
     }
+    this.eventsBound = false;
   }
 }
 

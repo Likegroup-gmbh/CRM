@@ -249,11 +249,11 @@ export class UnternehmenList {
               <th>Name</th>
               <th>Branche</th>
               <th>Ansprechpartner</th>
-              <th>Management</th>
-              <th>Lead</th>
-              <th>Mitarbeiter</th>
               <th>Stadt</th>
               <th>Land</th>
+              <th class="col-mitarbeiter">Management</th>
+              <th class="col-mitarbeiter">Lead</th>
+              <th class="col-mitarbeiter">Mitarbeiter</th>
               <th>Aktionen</th>
             </tr>
           </thead>
@@ -491,17 +491,18 @@ export class UnternehmenList {
         <tr data-id="${u.id}">
           ${isAdmin ? `<td><input type="checkbox" class="unternehmen-check" data-id="${u.id}"></td>` : ''}
           <td>
+            ${u.logo_url ? `<img src="${u.logo_url}" class="company-logo" width="24" height="24" alt="" />` : ''}
             <a href="#" class="table-link" data-table="unternehmen" data-id="${u.id}">
               ${window.validatorSystem.sanitizeHtml(u.firmenname || '')}
             </a>
           </td>
           <td>${this.renderBrancheTags(u.branchen)}</td>
           <td>${this.renderAnsprechpartnerList(apMap.get(u.id))}</td>
-          <td>${this.renderMitarbeiterByRole(management)}</td>
-          <td>${this.renderMitarbeiterByRole(leads)}</td>
-          <td>${this.renderMitarbeiterByRole(mitarbeiter)}</td>
           <td>${window.validatorSystem.sanitizeHtml(u.rechnungsadresse_stadt || '')}</td>
           <td>${window.validatorSystem.sanitizeHtml(u.rechnungsadresse_land || '')}</td>
+          <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(management)}</td>
+          <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(leads)}</td>
+          <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(mitarbeiter)}</td>
           <td>
             ${actionBuilder.create('unternehmen', u.id)}
           </td>

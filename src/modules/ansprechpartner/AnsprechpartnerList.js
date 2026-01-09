@@ -132,6 +132,7 @@ export class AnsprechpartnerList {
               <th>Telefon Mobil</th>
               <th>Telefon Büro</th>
               <th>Stadt</th>
+              <th>Land</th>
               <th>Sprache</th>
               <th>Aktionen</th>
             </tr>
@@ -325,7 +326,7 @@ export class AnsprechpartnerList {
       if (!ansprechpartner || ansprechpartner.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="${isAdmin ? '11' : '10'}" class="no-data">Keine Ansprechpartner gefunden</td>
+            <td colspan="${isAdmin ? '12' : '11'}" class="no-data">Keine Ansprechpartner gefunden</td>
           </tr>
         `;
         return;
@@ -368,6 +369,7 @@ export class AnsprechpartnerList {
             ap.telefonnummer_office
           )}</td>
           <td>${ap.stadt || '-'}</td>
+          <td>${ap.land || '-'}</td>
           <td>
             ${(ap.sprachen && ap.sprachen.length > 0)
               ? `<div class="tag-list">${ap.sprachen.map(s => `<span class="tag tag--sprache" title="${window.validatorSystem.sanitizeHtml(s.name)}">${getSprachKuerzel(s.name)}</span>`).join('')}</div>`
@@ -582,7 +584,7 @@ export class AnsprechpartnerList {
       if (tbody) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="11" class="error">Fehler beim Laden der Ansprechpartner</td>
+            <td colspan="12" class="error">Fehler beim Laden der Ansprechpartner</td>
           </tr>
         `;
       }
