@@ -127,6 +127,12 @@ export class FormConfig {
         title: 'Neues Unternehmen anlegen',
         fields: [
           { name: 'firmenname', label: 'Firmenname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
+          // Adressfelder direkt unter Firmenname, gruppiert
+          { name: 'rechnungsadresse_strasse', label: 'Straße', type: 'text', required: false, row: 'adresse1', colSize: 'grow' },
+          { name: 'rechnungsadresse_hausnummer', label: 'Nr.', type: 'text', required: false, row: 'adresse1', colSize: 'small' },
+          { name: 'rechnungsadresse_plz', label: 'PLZ', type: 'text', required: false, row: 'adresse2', colSize: 'small' },
+          { name: 'rechnungsadresse_stadt', label: 'Stadt', type: 'text', required: false, row: 'adresse2', colSize: 'grow' },
+          { name: 'rechnungsadresse_land', label: 'Land', type: 'text', required: false, defaultValue: 'Deutschland' },
           { name: 'logo_file', label: 'Logo', type: 'custom', customType: 'uploader', accept: 'image/png,image/jpeg', multiple: false, required: false, maxFileSize: 200 * 1024 },
           { name: 'branche_id', label: 'Branchen', type: 'multiselect', required: false, dynamic: true, searchable: true, tagBased: true, placeholder: 'Branche suchen und hinzufügen...', table: 'branchen', displayField: 'name', valueField: 'id', relationTable: 'unternehmen_branchen', relationField: 'branche_id' },
           // Mitarbeiter-Zuordnungen nach Rolle
@@ -184,11 +190,6 @@ export class FormConfig {
             roleValue: 'mitarbeiter',
             filterNoKunden: true
           },
-          { name: 'rechnungsadresse_strasse', label: 'Straße', type: 'text', required: false },
-          { name: 'rechnungsadresse_hausnummer', label: 'Hausnummer', type: 'text', required: false },
-          { name: 'rechnungsadresse_plz', label: 'PLZ', type: 'text', required: false },
-          { name: 'rechnungsadresse_stadt', label: 'Stadt', type: 'text', required: false },
-          { name: 'rechnungsadresse_land', label: 'Land', type: 'text', required: false },
           { name: 'invoice_email', label: 'Rechnungs-Email', type: 'email', required: false, validation: { type: 'email' } },
           { name: 'status', label: 'Status', type: 'select', required: false, editOnly: true, options: ['Aktiv', 'Inaktiv', 'Prospekt'] },
           { name: 'steuernummer', label: 'Steuernummer', type: 'text', required: false },

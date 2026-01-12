@@ -80,9 +80,12 @@ export class FormRenderer {
     
     const parts = [];
     let inTwoCol = false;
+    let currentRow = null;
     const processedFields = new Set(); // Um bereits verarbeitete Felder zu tracken
     
-    for (const field of fields) {
+    for (let i = 0; i < fields.length; i++) {
+      const field = fields[i];
+      
       // Überspringe bereits verarbeitete Felder (z.B. Datum-Felder die mit Toggle gerendert wurden)
       if (processedFields.has(field.name)) continue;
       
@@ -98,6 +101,12 @@ export class FormRenderer {
           land_id: data[countryFieldName] || ''
         };
       }
+      
+      // Default-Wert setzen falls vorhanden und kein Wert gegeben
+      if (!value && field.defaultValue) {
+        value = field.defaultValue;
+      }
+      
       const isTwoCol = twoColNames.has(field.name);
       
       // Prüfe ob es ein Toggle mit zugehörigem Datum-Feld ist
@@ -117,6 +126,43 @@ export class FormRenderer {
         }
       }
       
+      // ROW-Gruppierung: Felder mit gleichem row-Attribut in einer Zeile
+      if (field.row) {
+        if (currentRow !== field.row) {
+          // Schließe vorherige Row falls offen
+          if (currentRow !== null) {
+            parts.push('</div>');
+          }
+          // Öffne neue Row
+          parts.push(`<div class="form-row-group">`);
+          currentRow = field.row;
+        }
+        
+        // Feld mit colSize-Klasse rendern
+        let html = this.renderField(field, value);
+        const sizeClass = field.colSize === 'small' ? 'form-field--small' : 
+                          field.colSize === 'grow' ? 'form-field--grow' : '';
+        if (sizeClass) {
+          html = html.replace('<div class="form-field"', `<div class="form-field ${sizeClass}"`);
+        }
+        parts.push(html);
+        processedFields.add(field.name);
+        
+        // Prüfe ob nächstes Feld noch zur gleichen Row gehört
+        const nextField = fields[i + 1];
+        if (!nextField || nextField.row !== field.row) {
+          parts.push('</div>');
+          currentRow = null;
+        }
+        continue;
+      }
+      
+      // Schließe offene Row bevor normale Felder gerendert werden
+      if (currentRow !== null) {
+        parts.push('</div>');
+        currentRow = null;
+      }
+      
       if (isTwoCol && !inTwoCol) {
         parts.push('<div class="form-two-col">');
         inTwoCol = true;
@@ -132,6 +178,7 @@ export class FormRenderer {
       parts.push(html);
     }
     if (inTwoCol) parts.push('</div>');
+    if (currentRow !== null) parts.push('</div>');
 
     return `
       <form id="${entity}-form" data-entity="${entity}" data-entity-id="${data?.id || data?._entityId || ''}" data-is-edit-mode="${data?._isEditMode ? 'true' : 'false'}">
