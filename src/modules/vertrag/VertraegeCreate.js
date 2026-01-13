@@ -95,7 +95,8 @@ export class VertraegeCreate {
           skonto: draft.skonto,
           content_deadline: draft.content_deadline,
           korrekturschleifen: draft.korrekturschleifen,
-          abnahmedatum: draft.abnahmedatum
+          abnahmedatum: draft.abnahmedatum,
+          weitere_bestimmungen: draft.weitere_bestimmungen
         };
         this.selectedTyp = draft.typ;
         this.isGenerated = true;
@@ -339,6 +340,12 @@ export class VertraegeCreate {
           <button type="button" id="btn-submit" class="primary-btn">
             ${isEdit ? 'Finalisieren & PDF' : 'Erstellen & PDF'}
           </button>
+          <button type="button" id="btn-submit-and-new" class="secondary-btn" title="Vertrag erstellen und mit gleichen Daten neuen starten">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+            </svg>
+            Erstellen & Neu mit gleichen Daten
+          </button>
         `}
       </div>
     `;
@@ -447,10 +454,10 @@ export class VertraegeCreate {
         </div>
 
         <div class="form-field">
-          <label for="name">Vertragsname <span class="required">*</span></label>
-          <input type="text" id="name" name="name" required 
+          <label for="name">Vertragsname (automatisch generiert)</label>
+          <input type="text" id="name" name="name" readonly 
                  value="${this.formData.name || ''}"
-                 placeholder="z.B. UGC Vertrag - Marke XY - Creator Name">
+                 placeholder="Wird automatisch generiert..." class="readonly-field">
         </div>
       </div>
     `;
@@ -465,6 +472,40 @@ export class VertraegeCreate {
     } else {
       this.filteredKampagnen = [];
     }
+  }
+
+  // Vertragsname automatisch generieren: Typ + Kampagne + Creator
+  generateVertragName() {
+    const typ = this.formData.typ || this.selectedTyp || '';
+    
+    // Kampagne-Name finden
+    let kampagneName = '';
+    if (this.formData.kampagne_id) {
+      const kampagne = this.kampagnen.find(k => k.id === this.formData.kampagne_id);
+      kampagneName = kampagne?.kampagnenname || '';
+    }
+    
+    // Creator-Name finden
+    let creatorName = '';
+    if (this.formData.creator_id) {
+      const creator = this.filteredCreators.find(c => c.id === this.formData.creator_id) 
+                   || this.creators.find(c => c.id === this.formData.creator_id);
+      if (creator) {
+        creatorName = `${creator.vorname} ${creator.nachname}`.trim();
+      }
+    }
+    
+    // Name zusammenbauen
+    const parts = [typ, kampagneName, creatorName].filter(p => p);
+    this.formData.name = parts.join(' - ');
+    
+    // Input-Feld aktualisieren wenn vorhanden
+    const nameInput = document.getElementById('name');
+    if (nameInput) {
+      nameInput.value = this.formData.name;
+    }
+    
+    return this.formData.name;
   }
 
   // Creator nach Kampagne filtern (via kooperationen)
@@ -738,6 +779,13 @@ export class VertraegeCreate {
                    value="${this.formData.abnahmedatum || ''}">
           </div>
         </div>
+
+        <h3>Weitere Bestimmungen</h3>
+        <div class="form-field">
+          <label for="weitere_bestimmungen">Zusätzliche Vereinbarungen (optional)</label>
+          <textarea id="weitere_bestimmungen" name="weitere_bestimmungen" rows="4"
+                    placeholder="z.B. besondere Vereinbarungen, Sonderkonditionen...">${this.formData.weitere_bestimmungen || ''}</textarea>
+        </div>
       </div>
     `;
   }
@@ -872,10 +920,10 @@ export class VertraegeCreate {
         </div>
 
         <div class="form-field">
-          <label for="name">Vertragsname <span class="required">*</span></label>
-          <input type="text" id="name" name="name" required 
+          <label for="name">Vertragsname (automatisch generiert)</label>
+          <input type="text" id="name" name="name" readonly 
                  value="${this.formData.name || ''}"
-                 placeholder="z.B. Influencer Vertrag - Marke XY - Creator Name">
+                 placeholder="Wird automatisch generiert..." class="readonly-field">
         </div>
       </div>
     `;
@@ -1289,6 +1337,13 @@ export class VertraegeCreate {
             </label>
           </div>
         </div>
+
+        <h3 style="margin-top: 2rem;">Weitere Bestimmungen</h3>
+        <div class="form-field">
+          <label for="weitere_bestimmungen">Zusätzliche Vereinbarungen (optional)</label>
+          <textarea id="weitere_bestimmungen" name="weitere_bestimmungen" rows="4"
+                    placeholder="z.B. besondere Vereinbarungen, Sonderkonditionen...">${this.formData.weitere_bestimmungen || ''}</textarea>
+        </div>
       </div>
     `;
   }
@@ -1342,6 +1397,17 @@ export class VertraegeCreate {
         if (this.validateCurrentStep()) {
           this.saveCurrentStepData();
           await this.handleSubmit(null, false);
+        }
+      });
+    }
+
+    // Submit und Neu (gleiche Daten behalten)
+    const submitAndNewBtn = document.getElementById('btn-submit-and-new');
+    if (submitAndNewBtn) {
+      submitAndNewBtn.addEventListener('click', async () => {
+        if (this.validateCurrentStep()) {
+          this.saveCurrentStepData();
+          await this.handleSubmit(null, true); // true = startNewAfter
         }
       });
     }
@@ -1431,7 +1497,8 @@ export class VertraegeCreate {
       zusatzkosten_betrag: this.formData.zusatzkosten ? parseFloat(this.formData.zusatzkosten_betrag) || null : null,
       zahlungsziel: this.formData.zahlungsziel || null,
       skonto: this.formData.skonto || false,
-      korrekturschleifen: parseInt(this.formData.korrekturschleifen) || null
+      korrekturschleifen: parseInt(this.formData.korrekturschleifen) || null,
+      weitere_bestimmungen: this.formData.weitere_bestimmungen || null
     };
 
     if (typ === 'Influencer Kooperation') {
@@ -1689,6 +1756,9 @@ export class VertraegeCreate {
         
         // Creator Searchable Select zurücksetzen
         this.rebuildCreatorSelect(false);
+        
+        // Vertragsname automatisch generieren
+        this.generateVertragName();
       });
     }
   }
@@ -1730,6 +1800,9 @@ export class VertraegeCreate {
         
         await this.updateFilteredCreators();
         this.rebuildCreatorSelect(!!id);
+        
+        // Vertragsname automatisch generieren
+        this.generateVertragName();
       });
     } else {
       // Fallback ohne Searchable Select
@@ -1798,6 +1871,9 @@ export class VertraegeCreate {
         } else if (preview) {
           preview.innerHTML = '';
         }
+        
+        // Vertragsname automatisch generieren
+        this.generateVertragName();
       });
     } else {
       // Fallback ohne Searchable Select
@@ -1853,6 +1929,8 @@ export class VertraegeCreate {
     // Flag zurücksetzen nach kurzer Verzögerung
     setTimeout(() => {
       this._isInitializing = false;
+      // Vertragsname automatisch generieren (nach Initialisierung)
+      this.generateVertragName();
     }, 100);
   }
 
@@ -1885,6 +1963,9 @@ export class VertraegeCreate {
       
       await this.updateFilteredCreators();
       this.rebuildCreatorSelect(!!id);
+      
+      // Vertragsname automatisch generieren
+      this.generateVertragName();
     });
   }
 
@@ -2142,9 +2223,9 @@ export class VertraegeCreate {
       
       if (startNewAfter) {
         // Neuen Vertrag mit gleichen Werten starten
-        this.formData.name = '';
         this.editId = null; // Wichtig: Neue ID für neuen Vertrag
         this.currentStep = 2;
+        // Name wird automatisch neu generiert beim Render
         window.toastSystem?.show('Neuer Vertrag mit gleichen Werten gestartet', 'info');
         this.render();
       } else {
@@ -2655,14 +2736,30 @@ export class VertraegeCreate {
       y += 4;
       doc.text('Eine zusätzliche Unterschrift der LikeGroup GmbH ist nicht erforderlich.', 14, y);
 
-      // Unterschriften
+      // §14 Weitere Bestimmungen (nur wenn ausgefüllt)
+      if (vertrag.weitere_bestimmungen) {
+        y += 14;
+        if (y > 250) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('§14 Weitere Bestimmungen', 14, y);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        y += 8;
+        const weitereLines = doc.splitTextToSize(vertrag.weitere_bestimmungen, 180);
+        doc.text(weitereLines, 14, y);
+        y += weitereLines.length * 5;
+      }
+
+      // Unterschrift (nur Creator erforderlich)
       y += 25;
       doc.setFontSize(10);
       doc.text('Ort, Datum: ___________________________', 14, y);
-      doc.text('Ort, Datum: ___________________________', 110, y);
       y += 15;
-      doc.text('Auftraggeber: _________________________', 14, y);
-      doc.text('Creator: ______________________________', 110, y);
+      doc.text('Creator: ______________________________', 14, y);
 
       // PDF als Blob generieren
       const pdfBlob = doc.output('blob');
@@ -3147,6 +3244,22 @@ export class VertraegeCreate {
       doc.setFontSize(10);
       y += 8;
       y = addWrappedText('Der Vertrag wird mit Unterschrift des Influencers oder seines Vertretungsberechtigten wirksam. Eine Gegenzeichnung der LikeGroup GmbH ist nicht erforderlich.', 14, y, 180);
+
+      // §16 Weitere Bestimmungen (nur wenn ausgefüllt)
+      if (vertrag.weitere_bestimmungen) {
+        y += 10;
+        if (y > 250) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('§16 Weitere Bestimmungen', 14, y);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        y += 8;
+        y = addWrappedText(vertrag.weitere_bestimmungen, 14, y, 180);
+      }
 
       // Unterschriften
       y += 20;

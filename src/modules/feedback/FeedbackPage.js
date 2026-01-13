@@ -43,7 +43,8 @@ export const feedbackPage = {
   isAdmin: false,
   editingCommentId: null, // ID des aktuell bearbeiteten Kommentars
   filters: {
-    priority: null
+    priority: null,
+    date: null
   },
 
   async init() {
@@ -101,6 +102,12 @@ export const feedbackPage = {
 
     if (this.filters.priority) {
       query = query.eq('priority', this.filters.priority);
+    }
+
+    if (this.filters.date) {
+      const startOfDay = `${this.filters.date}T00:00:00`;
+      const endOfDay = `${this.filters.date}T23:59:59.999`;
+      query = query.gte('created_at', startOfDay).lte('created_at', endOfDay);
     }
 
     const { data, error } = await query;
@@ -209,6 +216,7 @@ export const feedbackPage = {
       <div class="page-header">
         <div class="page-header-right">
           <div class="filter-group">
+            <input type="date" id="filter-date" class="form-input filter-select" value="${this.filters.date || ''}">
             <select id="filter-priority" class="form-select filter-select">
               <option value="">Alle Prioritäten</option>
               <option value="high" ${this.filters.priority === 'high' ? 'selected' : ''}>Hoch</option>
@@ -567,6 +575,17 @@ export const feedbackPage = {
     });
 
     // Filter Events
+    const dateFilter = document.getElementById('filter-date');
+    if (dateFilter) {
+      dateFilter.addEventListener('change', async (e) => {
+        this.filters.date = e.target.value || null;
+        await this.loadFeedbacks();
+        await this.loadComments();
+        this.render();
+        this.bindEvents();
+      });
+    }
+
     const priorityFilter = document.getElementById('filter-priority');
     if (priorityFilter) {
       priorityFilter.addEventListener('change', async (e) => {

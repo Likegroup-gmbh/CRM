@@ -4,8 +4,24 @@ export class FormConfig {
       creator: {
         title: 'Neuen Creator anlegen',
         fields: [
-          { name: 'vorname', label: 'Vorname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
-          { name: 'nachname', label: 'Nachname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
+          // Name in einer Zeile
+          { name: 'vorname', label: 'Vorname', type: 'text', required: true, validation: { type: 'text', minLength: 2 }, row: 'name', colSize: 'grow' },
+          { name: 'nachname', label: 'Nachname', type: 'text', required: true, validation: { type: 'text', minLength: 2 }, row: 'name', colSize: 'grow' },
+          // Lieferadresse gruppiert
+          { name: 'lieferadresse_strasse', label: 'Straße', type: 'text', required: false, row: 'lieferadresse1', colSize: 'grow' },
+          { name: 'lieferadresse_hausnummer', label: 'Nr.', type: 'text', required: false, row: 'lieferadresse1', colSize: 'small' },
+          { name: 'lieferadresse_plz', label: 'PLZ', type: 'text', required: false, row: 'lieferadresse2', colSize: 'small' },
+          { name: 'lieferadresse_stadt', label: 'Stadt', type: 'text', required: false, row: 'lieferadresse2', colSize: 'grow' },
+          { name: 'lieferadresse_land', label: 'Land', type: 'text', required: false, defaultValue: 'Deutschland' },
+          // Toggle: Rechnungsadresse abweichend
+          { name: 'rechnungsadresse_abweichend', label: 'Rechnungsadresse abweichend von Lieferadresse', type: 'toggle', required: false },
+          // Rechnungsadresse (nur wenn Toggle aktiv)
+          { name: 'rechnungsadresse_strasse', label: 'Straße (Rechnung)', type: 'text', required: false, row: 'rechnungsadresse1', colSize: 'grow', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true' },
+          { name: 'rechnungsadresse_hausnummer', label: 'Nr.', type: 'text', required: false, row: 'rechnungsadresse1', colSize: 'small', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true' },
+          { name: 'rechnungsadresse_plz', label: 'PLZ', type: 'text', required: false, row: 'rechnungsadresse2', colSize: 'small', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true' },
+          { name: 'rechnungsadresse_stadt', label: 'Stadt', type: 'text', required: false, row: 'rechnungsadresse2', colSize: 'grow', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true' },
+          { name: 'rechnungsadresse_land', label: 'Land (Rechnung)', type: 'text', required: false, defaultValue: 'Deutschland', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true' },
+          // Social Media
           { name: 'instagram', label: 'Instagram', type: 'text', required: false },
           { 
             name: 'instagram_follower', 
@@ -115,11 +131,6 @@ export class FormConfig {
           { name: 'telefonnummer', label: 'Telefonnummer', type: 'tel', required: false, validation: { type: 'phone' } },
           { name: 'mail', label: 'Email', type: 'email', required: false, validation: { type: 'email' } },
           { name: 'portfolio_link', label: 'Portfolio Link', type: 'url', required: false, validation: { type: 'url' } },
-          { name: 'lieferadresse_strasse', label: 'Straße', type: 'text', required: false },
-          { name: 'lieferadresse_hausnummer', label: 'Hausnummer', type: 'text', required: false },
-          { name: 'lieferadresse_plz', label: 'PLZ', type: 'text', required: false },
-          { name: 'lieferadresse_stadt', label: 'Stadt', type: 'text', required: false },
-          { name: 'lieferadresse_land', label: 'Land', type: 'text', required: false },
           { name: 'notiz', label: 'Notizen', type: 'textarea', required: false }
         ]
       },
@@ -285,7 +296,7 @@ export class FormConfig {
           { name: 'start', label: 'Startdatum', type: 'date', required: false },
           // Deadline-Felder Gruppe (2x2 Grid)
           { name: 'deadline_strategie', label: 'Deadline Strategie', type: 'date', required: false, twoCol: true },
-          { name: 'deadline_creator_sourcing', label: 'Deadline Creator Sourcing', type: 'date', required: false, twoCol: true },
+          { name: 'deadline_creator_sourcing', label: 'Deadline Sourcing', type: 'date', required: false, twoCol: true },
           { name: 'deadline_video_produktion', label: 'Deadline Video Produktion', type: 'date', required: false, twoCol: true },
           { name: 'deadline_post_produktion', label: 'Deadline Post Produktion', type: 'date', required: false, twoCol: true },
           { 

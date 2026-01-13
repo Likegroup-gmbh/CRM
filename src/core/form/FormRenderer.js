@@ -133,8 +133,15 @@ export class FormRenderer {
           if (currentRow !== null) {
             parts.push('</div>');
           }
+          // Prüfe ob alle Felder in dieser Row das gleiche dependsOn haben
+          const rowFields = fields.filter(f => f.row === field.row);
+          const allSameDependsOn = rowFields.every(f => f.dependsOn === field.dependsOn && f.dependsOn);
+          const rowDependsOn = allSameDependsOn && field.dependsOn ? `data-depends-on="${field.dependsOn}"` : '';
+          const rowShowWhen = allSameDependsOn && field.showWhen ? `data-show-when="${field.showWhen}"` : '';
+          const rowHiddenClass = allSameDependsOn && field.dependsOn ? 'form-row-group--hidden' : '';
+          
           // Öffne neue Row
-          parts.push(`<div class="form-row-group">`);
+          parts.push(`<div class="form-row-group ${rowHiddenClass}" ${rowDependsOn} ${rowShowWhen}>`);
           currentRow = field.row;
         }
         
@@ -142,8 +149,11 @@ export class FormRenderer {
         let html = this.renderField(field, value);
         const sizeClass = field.colSize === 'small' ? 'form-field--small' : 
                           field.colSize === 'grow' ? 'form-field--grow' : '';
-        if (sizeClass) {
-          html = html.replace('<div class="form-field"', `<div class="form-field ${sizeClass}"`);
+        // Füge auch hidden-Klasse hinzu wenn dependsOn gesetzt ist
+        const hiddenClass = field.dependsOn ? 'form-field--hidden' : '';
+        const classes = [sizeClass, hiddenClass].filter(Boolean).join(' ');
+        if (classes) {
+          html = html.replace('<div class="form-field"', `<div class="form-field ${classes}"`);
         }
         parts.push(html);
         processedFields.add(field.name);

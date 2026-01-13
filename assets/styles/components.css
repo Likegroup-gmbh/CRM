@@ -42,6 +42,17 @@
 .mdc-btn.is-success .mdc-btn__spinner { display: none; }
 .mdc-btn.is-success .mdc-btn__icon--check { display: inline-flex; }
 
+/* State: submit-locked (globaler Doppelklick-Schutz) */
+.mdc-btn.is-submit-locked,
+button.is-submit-locked,
+[data-submit-locked="true"] {
+  pointer-events: none;
+  opacity: 0.7;
+  cursor: wait;
+}
+.mdc-btn.is-submit-locked .mdc-btn__icon--check { display: none; }
+.mdc-btn.is-submit-locked .mdc-btn__spinner { display: inline-flex; }
+
 /* ===== MDC CANCEL BUTTON ===== */
 .mdc-btn--cancel {
   background: var(--bg-primary) !important;
@@ -200,6 +211,10 @@
 
 /* Versteckte Felder (für dependsOn) */
 .form-field--hidden {
+  display: none !important;
+}
+
+.form-row-group--hidden {
   display: none !important;
 }
 
@@ -677,7 +692,9 @@
 
   .filter-group {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-sm);
   }
   .filter-group select{
     font-size: var(--text-xs);
@@ -7849,6 +7866,14 @@ span.profile-name {
   cursor: default;
 }
 
+/* Readonly Input Fields (automatisch generiert) */
+input.readonly-field {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: default;
+  border-style: dashed;
+}
+
 .strategie-textarea.readonly-textarea:focus {
   background: transparent;
   box-shadow: none;
@@ -11201,6 +11226,19 @@ table:has(td:first-child input[type="checkbox"]) td:nth-child(2),
   text-decoration: underline;
 }
 
+.datei-link.datei-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gray-500);
+  transition: color 0.15s;
+}
+
+.datei-link.datei-icon:hover {
+  color: var(--primary);
+  text-decoration: none;
+}
+
 /* ======================================
    DRAFT CHOICE DIALOG
    ====================================== */
@@ -11269,16 +11307,6 @@ table:has(td:first-child input[type="checkbox"]) td:nth-child(2),
   display: none;
 }
 
-.tag {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-  background: var(--primary-100);
-  color: var(--primary-700);
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  font-size: var(--text-sm);
-}
 
 .tag-remove {
   background: none;

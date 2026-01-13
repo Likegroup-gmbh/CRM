@@ -724,11 +724,7 @@ export class ActionsDropdown {
         break;
       
       case 'edit':
-        // Spezialfall für Auftragsdetails: Zur Create/Edit-Seite navigieren
-        if (entityType === 'auftragsdetails') {
-          window.navigateTo('/auftragsdetails/new');
-          return;
-        }
+        // Standard-Route für alle Entitäten inkl. Auftragsdetails
         window.navigateTo(`/${entityType}/${entityId}/edit`);
         break;
       

@@ -23,6 +23,12 @@ export class DataService {
           lieferadresse_plz: 'string',
           lieferadresse_stadt: 'string',
           lieferadresse_land: 'string',
+          rechnungsadresse_abweichend: 'boolean',
+          rechnungsadresse_strasse: 'string',
+          rechnungsadresse_hausnummer: 'string',
+          rechnungsadresse_plz: 'string',
+          rechnungsadresse_stadt: 'string',
+          rechnungsadresse_land: 'string',
           notiz: 'string'
         },
         relations: {},

@@ -246,7 +246,7 @@ export class KampagneDetail {
     `;
   }
 
-  // Creator Sourcing Tabelle (nutzt zentrale CreatorTable)
+  // Sourcing Tabelle (nutzt zentrale CreatorTable)
   renderCreatorSourcing() {
     if (!this.sourcingCreators || this.sourcingCreators.length === 0) {
       return `
@@ -515,7 +515,7 @@ export class KampagneDetail {
         this.kampagneData.strategie_ids = this.kampagneData.strategie.map(s => s.id);
       }
       
-      // Creator Sourcing
+      // Sourcing
       if (creatorSourcingResult.data) {
         this.kampagneData.creator_sourcing = creatorSourcingResult.data.map(item => item.mitarbeiter).filter(Boolean);
         this.kampagneData.creator_sourcing_ids = this.kampagneData.creator_sourcing.map(c => c.id);
@@ -1038,7 +1038,7 @@ export class KampagneDetail {
             </div>
           </div>
 
-          <!-- Creator Sourcing Tab (Kandidatenliste) -->
+          <!-- Sourcing Tab (Kandidatenliste) -->
           <div class="tab-pane" id="tab-sourcing">
             <div class="detail-section">
               ${this.renderCreatorSourcing()}
@@ -1487,7 +1487,7 @@ export class KampagneDetail {
       'cutter': 'Cutter',
       'copywriter': 'Copywriter',
       'strategie': 'Strategie',
-      'creator_sourcing': 'Creator Sourcing'
+      'creator_sourcing': 'Sourcing'
     };
     
     const rows = sorted.map(m => {

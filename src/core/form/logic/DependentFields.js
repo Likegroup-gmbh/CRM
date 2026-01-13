@@ -51,11 +51,31 @@ export class DependentFields {
               !!parentValue;
           }
           
+          // Prüfe ob es ein form-row-group Container ist (für gruppierte Felder)
+          const isRowGroup = field.classList.contains('form-row-group');
+          if (isRowGroup) {
+            if (shouldShow) {
+              field.classList.remove('form-row-group--hidden');
+              field.style.display = '';
+              // Auch alle form-field Kinder einblenden
+              field.querySelectorAll('.form-field').forEach(f => {
+                f.classList.remove('form-field--hidden');
+                f.style.display = '';
+              });
+            } else {
+              field.classList.add('form-row-group--hidden');
+              // Auch alle form-field Kinder ausblenden
+              field.querySelectorAll('.form-field').forEach(f => f.classList.add('form-field--hidden'));
+            }
+            return;
+          }
+          
           const fieldContainer = field.closest('.form-field');
           if (fieldContainer) {
             // Klasse toggeln statt inline-Style (für bessere Flexbox-Kompatibilität)
             if (shouldShow) {
               fieldContainer.classList.remove('form-field--hidden');
+              fieldContainer.style.display = ''; // Inline-Style entfernen
               
               // Tag-basiertes Select reinitialisieren wenn es sichtbar wird
               const selectElement = fieldContainer.querySelector('select[data-tag-based="true"]');

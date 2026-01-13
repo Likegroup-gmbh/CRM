@@ -80,6 +80,8 @@ import { vertraegeCreate } from './modules/vertrag/VertraegeCreate.js';
 import './core/ConfirmationModal.js';
 // Duplicate Checker für Creator, Marke, Unternehmen
 import { DuplicateChecker } from './core/validation/DuplicateChecker.js';
+// SubmitGuard für globalen Doppelklick-Schutz + Navigation
+import { submitGuard } from './core/SubmitGuard.js';
 // main.js - Haupt-Einstiegspunkt für ES6-Module
 
 // Zentrale Modul-Registry (Event-basiert)
@@ -214,6 +216,15 @@ class ModuleRegistry {
       moduleKey = 'auftragsdetails-create';
       module = this.modules.get(moduleKey);
       console.log(`🎯 Auftragsdetails-Erstellung erkannt, verwende Modul: ${moduleKey}`);
+    }
+    // Spezielle Behandlung für Auftragsdetails-Edit (MUSS VOR auftrag kommen!)
+    // Route: /auftragsdetails/:id/edit -> auftragsdetails-create mit Edit-ID
+    else if (id && segment === 'auftragsdetails' && id !== 'new' && action === 'edit') {
+      moduleKey = 'auftragsdetails-create';
+      module = this.modules.get(moduleKey);
+      // Edit-ID für das Modul speichern
+      window._auftragsdetailsEditId = id;
+      console.log(`🎯 Auftragsdetails-Edit erkannt, verwende Modul: ${moduleKey}, ID: ${id}`);
     }
     // Spezielle Behandlung für Auftragsdetails-Details (MUSS VOR auftrag kommen!)
     else if (id && segment === 'auftragsdetails' && id !== 'new') {
@@ -594,6 +605,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // BreadcrumbSystem initialisieren
     breadcrumbSystem.init();
+    
+    // SubmitGuard initialisieren (globaler Doppelklick-Schutz + Navigation)
+    submitGuard.init();
     
     // App anzeigen
     window.appRoot.style.display = '';

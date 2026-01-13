@@ -13,6 +13,11 @@ export class AuftragsdetailsCreate {
     this.currentUnternehmenId = null; // Aktuell ausgewähltes Unternehmen
     this.currentAuftragId = null; // Aktuell ausgewählter Auftrag
     this.auftragIdsWithDetails = []; // Aufträge die bereits Details haben
+    
+    // Edit-Mode Variablen
+    this.isEditMode = false;
+    this.editDetailsId = null;
+    this.existingDetails = null;
   }
 
   // Initialisiere Auftragsdetails-Erstellung
@@ -32,20 +37,110 @@ export class AuftragsdetailsCreate {
       return;
     }
 
+    // Edit-Mode prüfen:
+    // 1. Via Route /auftragsdetails/:id/edit (window._auftragsdetailsEditId)
+    // 2. Via Query-Parameter ?edit=detailsId (Legacy/Fallback)
+    let editId = window._auftragsdetailsEditId || null;
+    
+    // Fallback: Query-Parameter prüfen
+    if (!editId) {
+      const urlParams = new URLSearchParams(window.location.search);
+      editId = urlParams.get('edit');
+    }
+    
+    // window._auftragsdetailsEditId nach Verwendung löschen
+    if (window._auftragsdetailsEditId) {
+      delete window._auftragsdetailsEditId;
+    }
+    
+    if (editId) {
+      console.log('📝 AUFTRAGSDETAILSCREATE: Edit-Mode erkannt für Details-ID:', editId);
+      this.isEditMode = true;
+      this.editDetailsId = editId;
+      
+      // Bestehende Details laden
+      await this.loadExistingDetails(editId);
+    } else {
+      this.isEditMode = false;
+      this.editDetailsId = null;
+      this.existingDetails = null;
+    }
+
     await this.showCreateForm();
+  }
+
+  /**
+   * Lädt bestehende Auftragsdetails für den Edit-Mode
+   * @param {string} detailsId - ID der Auftragsdetails
+   */
+  async loadExistingDetails(detailsId) {
+    console.log('🔄 AUFTRAGSDETAILSCREATE: Lade bestehende Details für ID:', detailsId);
+    
+    try {
+      const { data, error } = await window.supabase
+        .from('auftrag_details')
+        .select(`
+          *,
+          auftrag:auftrag_id (
+            id,
+            auftragsname,
+            kampagnenanzahl,
+            unternehmen_id,
+            unternehmen:unternehmen_id (
+              id,
+              firmenname
+            ),
+            marke:marke_id (
+              id,
+              markenname
+            )
+          )
+        `)
+        .eq('id', detailsId)
+        .single();
+
+      if (error) throw error;
+
+      this.existingDetails = data;
+      console.log('✅ AUFTRAGSDETAILSCREATE: Bestehende Details geladen:', data);
+      
+      // IDs für Vorausfüllung setzen
+      if (data.auftrag) {
+        this.currentUnternehmenId = data.auftrag.unternehmen_id;
+        this.currentAuftragId = data.auftrag_id;
+      }
+      
+    } catch (error) {
+      console.error('❌ AUFTRAGSDETAILSCREATE: Fehler beim Laden der Details:', error);
+      window.notificationSystem?.show('Fehler beim Laden der Auftragsdetails', 'error');
+    }
   }
 
   // Show Create Form
   async showCreateForm() {
-    console.log('🎯 AUFTRAGSDETAILSCREATE: Zeige Auftragsdetails-Erstellungsformular');
-    window.setHeadline('Neue Auftragsdetails anlegen');
+    console.log('🎯 AUFTRAGSDETAILSCREATE: Zeige Auftragsdetails-Formular (Edit-Mode:', this.isEditMode, ')');
     
-    // Breadcrumb aktualisieren
-    if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Auftragsdetails', url: '/auftragsdetails', clickable: true },
-        { label: 'Neue Auftragsdetails', url: '/auftragsdetails/new', clickable: false }
-      ]);
+    // Headline und Breadcrumb basierend auf Mode
+    if (this.isEditMode) {
+      const detailsName = this.existingDetails?.auftrag?.auftragsname || 'Auftragsdetails';
+      window.setHeadline('Auftragsdetails bearbeiten');
+      
+      if (window.breadcrumbSystem) {
+        window.breadcrumbSystem.updateBreadcrumb([
+          { label: 'Auftragsdetails', url: '/auftragsdetails', clickable: true },
+          { label: detailsName, url: `/auftragsdetails/${this.editDetailsId}`, clickable: true },
+          { label: 'Bearbeiten', url: `/auftragsdetails/${this.editDetailsId}/edit`, clickable: false }
+        ]);
+      }
+    } else {
+      window.setHeadline('Neue Auftragsdetails anlegen');
+      
+      if (window.breadcrumbSystem) {
+        window.breadcrumbSystem.updateBreadcrumb([
+          { label: 'Auftragsdetails', url: '/auftragsdetails', clickable: true },
+          { label: 'Neue Auftragsdetails', url: '/auftragsdetails/new', clickable: false }
+        ]);
+      }
     }
     
     // Schritt 1: Lade alle Aufträge, die bereits Details haben
@@ -153,7 +248,7 @@ export class AuftragsdetailsCreate {
               </span>
               <span class="mdc-btn__label">Abbrechen</span>
             </button>
-            <button type="submit" class="mdc-btn mdc-btn--create" id="submit-btn" data-variant="@create-prd.mdc" data-entity-label="Auftragsdetails" data-mode="create" disabled>
+            <button type="submit" class="mdc-btn ${this.isEditMode ? 'mdc-btn--save' : 'mdc-btn--create'}" id="submit-btn" data-variant="@create-prd.mdc" data-entity-label="Auftragsdetails" data-mode="${this.isEditMode ? 'edit' : 'create'}" disabled>
               <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
                   <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
@@ -164,7 +259,7 @@ export class AuftragsdetailsCreate {
                   <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
                 </svg>
               </span>
-              <span class="mdc-btn__label">Erstellen</span>
+              <span class="mdc-btn__label">${this.isEditMode ? 'Speichern' : 'Erstellen'}</span>
             </button>
           </div>
         </form>
@@ -178,6 +273,159 @@ export class AuftragsdetailsCreate {
     
     // Autosuggestion für Unternehmen und Auftrag initialisieren
     this.initSearchableSelects();
+    
+    // Im Edit-Mode: Selects vorausfüllen
+    if (this.isEditMode && this.existingDetails) {
+      await this.prefillFormForEditMode();
+    }
+  }
+
+  /**
+   * Füllt das Formular im Edit-Mode mit bestehenden Daten vor
+   */
+  async prefillFormForEditMode() {
+    console.log('📝 AUFTRAGSDETAILSCREATE: Fülle Formular für Edit-Mode vor');
+    
+    const details = this.existingDetails;
+    const auftrag = details?.auftrag;
+    
+    if (!auftrag) {
+      console.warn('⚠️ AUFTRAGSDETAILSCREATE: Keine Auftragsdaten zum Vorausfüllen');
+      return;
+    }
+    
+    try {
+      // 1. Unternehmen-Select vorausfüllen
+      const unternehmenId = auftrag.unternehmen_id;
+      if (unternehmenId) {
+        console.log('🏢 AUFTRAGSDETAILSCREATE: Setze Unternehmen:', unternehmenId);
+        
+        const unternehmenSelect = document.getElementById('unternehmen_id');
+        const selectedUnternehmen = this.unternehmen.find(u => u.id === unternehmenId);
+        const unternehmenLabel = selectedUnternehmen?.firmenname || 'Unbekannt';
+        
+        // Select und Searchable UI aktualisieren
+        this.fillSearchableSelect(unternehmenSelect, unternehmenId, unternehmenLabel);
+        
+        // 2. Aufträge für dieses Unternehmen laden
+        this.currentUnternehmenId = unternehmenId;
+        this.auftraege = await this.loadAuftraegeForUnternehmen(unternehmenId);
+        
+        // Auftrag-Dropdown aktualisieren
+        this.updateAuftragSelect(this.auftraege);
+        
+        // 3. Auftrag-Select vorausfüllen
+        const auftragId = details.auftrag_id;
+        if (auftragId) {
+          console.log('📋 AUFTRAGSDETAILSCREATE: Setze Auftrag:', auftragId);
+          
+          const auftragSelect = document.getElementById('auftrag_id');
+          const selectedAuftrag = this.auftraege.find(a => a.id === auftragId);
+          const auftragLabel = selectedAuftrag 
+            ? `${selectedAuftrag.auftragsname}${selectedAuftrag.marke?.markenname ? ` (${selectedAuftrag.marke.markenname})` : ''}`
+            : auftrag.auftragsname || 'Unbekannt';
+          
+          // Select und Searchable UI aktualisieren
+          this.fillSearchableSelect(auftragSelect, auftragId, auftragLabel);
+          if (auftragSelect) auftragSelect.disabled = false;
+          
+          this.currentAuftragId = auftragId;
+          
+          // 4. Kampagnenanzahl setzen
+          const kampagnenField = document.getElementById('kampagnenanzahl');
+          if (kampagnenField && auftrag.kampagnenanzahl) {
+            kampagnenField.value = auftrag.kampagnenanzahl;
+            kampagnenField.style.backgroundColor = '#f5f5f5';
+          }
+          
+          // 5. Kampagnenart-Selection Section anzeigen
+          const selectionSection = document.getElementById('kampagnenart-selection-section');
+          if (selectionSection) {
+            selectionSection.style.display = 'block';
+          }
+          
+          // 6. Kampagnenarten laden und Multiselect vorausfüllen
+          const kampagnenarten = await this.loadKampagnenartenForAuftrag(auftragId);
+          this.currentKampagnenarten = kampagnenarten;
+          await this.initKampagnenartSelect(kampagnenarten);
+          
+          // 7. Budget-Sections mit bestehenden Werten rendern
+          if (kampagnenarten.length > 0) {
+            this.renderDynamicSections(kampagnenarten, details);
+            
+            // Submit-Button aktivieren
+            const submitBtn = document.getElementById('submit-btn');
+            if (submitBtn) {
+              submitBtn.disabled = false;
+            }
+          }
+        }
+      }
+      
+      // Hint aktualisieren
+      const hint = document.getElementById('auftrag-hint');
+      if (hint) {
+        hint.textContent = `${this.auftraege.length} Auftrag/Aufträge verfügbar.`;
+        hint.style.color = '';
+      }
+      
+      console.log('✅ AUFTRAGSDETAILSCREATE: Formular vorausgefüllt');
+      
+    } catch (error) {
+      console.error('❌ AUFTRAGSDETAILSCREATE: Fehler beim Vorausfüllen:', error);
+    }
+  }
+
+  /**
+   * Hilfsmethode: Searchable Select mit Wert füllen
+   * @param {HTMLSelectElement} selectEl - Das Select-Element
+   * @param {string} value - Der Wert
+   * @param {string} label - Das anzuzeigende Label
+   */
+  fillSearchableSelect(selectEl, value, label) {
+    if (!selectEl) return;
+    
+    console.log(`🔧 AUFTRAGSDETAILSCREATE: fillSearchableSelect für ${selectEl.id}:`, value, label);
+    
+    // 1. Option zum Select hinzufügen falls nicht vorhanden
+    let optionElement = selectEl.querySelector(`option[value="${value}"]`);
+    if (!optionElement) {
+      optionElement = document.createElement('option');
+      optionElement.value = value;
+      optionElement.textContent = label;
+      selectEl.appendChild(optionElement);
+    }
+    
+    // 2. Wert im Select setzen
+    optionElement.selected = true;
+    selectEl.value = value;
+    
+    // 3. Hidden Input setzen (für FormSystem)
+    const hiddenInput = document.getElementById(`${selectEl.id}_value`);
+    if (hiddenInput) {
+      hiddenInput.value = value;
+      console.log(`🔧 Hidden Input ${selectEl.id}_value gesetzt:`, value);
+    }
+    
+    // 4. Searchable Select Container finden und Input aktualisieren
+    // Methode 1: parentNode
+    let container = selectEl.parentNode?.querySelector('.searchable-select-container');
+    // Methode 2: nextElementSibling
+    if (!container && selectEl.nextElementSibling?.classList?.contains('searchable-select-container')) {
+      container = selectEl.nextElementSibling;
+    }
+    
+    if (container) {
+      const input = container.querySelector('.searchable-select-input');
+      if (input) {
+        input.value = label;
+        console.log(`🔧 Searchable Input für ${selectEl.id} gesetzt:`, label);
+      } else {
+        console.warn(`⚠️ Kein .searchable-select-input gefunden für ${selectEl.id}`);
+      }
+    } else {
+      console.warn(`⚠️ Kein .searchable-select-container gefunden für ${selectEl.id}`);
+    }
   }
 
   /**
@@ -247,6 +495,7 @@ export class AuftragsdetailsCreate {
 
   /**
    * Lädt Aufträge für ein bestimmtes Unternehmen (ohne bereits vorhandene Details)
+   * Im Edit-Mode wird der aktuelle Auftrag NICHT herausgefiltert
    * @param {string} unternehmenId - ID des Unternehmens
    * @returns {Promise<Array>}
    */
@@ -266,8 +515,17 @@ export class AuftragsdetailsCreate {
       }
       
       // Filtere Aufträge die bereits Details haben
-      const filtered = (data || []).filter(a => !this.auftragIdsWithDetails.includes(a.id));
-      console.log(`📋 Aufträge für Unternehmen ${unternehmenId}: ${filtered.length} verfügbar`);
+      // Im Edit-Mode: Den aktuellen Auftrag NICHT herausfiltern!
+      const filtered = (data || []).filter(a => {
+        // Im Edit-Mode: aktuellen Auftrag behalten
+        if (this.isEditMode && a.id === this.currentAuftragId) {
+          return true;
+        }
+        // Sonst: Aufträge mit Details herausfiltern
+        return !this.auftragIdsWithDetails.includes(a.id);
+      });
+      
+      console.log(`📋 Aufträge für Unternehmen ${unternehmenId}: ${filtered.length} verfügbar (Edit-Mode: ${this.isEditMode})`);
       
       return filtered;
     } catch (error) {

@@ -602,15 +602,41 @@ export class CreatorDetail extends PersonDetailBase {
               <label>Telefon:</label>
               <span>${this.creator.telefonnummer || '-'}</span>
             </div>
+          </div>
+
+          <div class="detail-card">
+            <h3 class="section-title">Lieferadresse</h3>
             <div class="detail-item">
-              <label>Stadt:</label>
-              <span>${this.creator.lieferadresse_stadt || '-'}</span>
+              <label>Straße:</label>
+              <span>${this.creator.lieferadresse_strasse ? `${this.creator.lieferadresse_strasse} ${this.creator.lieferadresse_hausnummer || ''}`.trim() : '-'}</span>
+            </div>
+            <div class="detail-item">
+              <label>PLZ / Stadt:</label>
+              <span>${this.creator.lieferadresse_plz || this.creator.lieferadresse_stadt ? `${this.creator.lieferadresse_plz || ''} ${this.creator.lieferadresse_stadt || ''}`.trim() : '-'}</span>
             </div>
             <div class="detail-item">
               <label>Land:</label>
               <span>${this.creator.lieferadresse_land || '-'}</span>
             </div>
           </div>
+
+          ${this.creator.rechnungsadresse_abweichend ? `
+          <div class="detail-card">
+            <h3 class="section-title">Rechnungsadresse</h3>
+            <div class="detail-item">
+              <label>Straße:</label>
+              <span>${this.creator.rechnungsadresse_strasse ? `${this.creator.rechnungsadresse_strasse} ${this.creator.rechnungsadresse_hausnummer || ''}`.trim() : '-'}</span>
+            </div>
+            <div class="detail-item">
+              <label>PLZ / Stadt:</label>
+              <span>${this.creator.rechnungsadresse_plz || this.creator.rechnungsadresse_stadt ? `${this.creator.rechnungsadresse_plz || ''} ${this.creator.rechnungsadresse_stadt || ''}`.trim() : '-'}</span>
+            </div>
+            <div class="detail-item">
+              <label>Land:</label>
+              <span>${this.creator.rechnungsadresse_land || '-'}</span>
+            </div>
+          </div>
+          ` : ''}
 
           <div class="detail-card">
             <h3 class="section-title">Social Media</h3>

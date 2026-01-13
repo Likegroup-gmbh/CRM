@@ -619,10 +619,10 @@ export class AuftragsdetailsDetail {
 
   // Bearbeitungsformular anzeigen
   showEditForm() {
-    console.log('🎯 AUFTRAGSDETAILSDETAIL: Öffne Bearbeitungsformular');
+    console.log('🎯 AUFTRAGSDETAILSDETAIL: Öffne Bearbeitungsformular für Details:', this.detailsId);
     
-    // Navigiere zur Auftragsdetails-Seite (Create/Edit verwenden die gleiche Seite)
-    window.navigateTo('/auftragsdetails/new');
+    // Standard-Route wie bei anderen Entitäten
+    window.navigateTo(`/auftragsdetails/${this.detailsId}/edit`);
   }
 
   // Cleanup
