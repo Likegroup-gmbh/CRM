@@ -29,6 +29,9 @@ class SubmitGuard {
     const form = e.target;
     if (!form || form.tagName !== 'FORM') return;
     
+    // Opt-out für spezielle Formulare (z.B. Drawer-Formulare mit eigener Logik)
+    if (form.dataset.noSubmitGuard === 'true') return;
+    
     const submitBtn = form.querySelector('button[type="submit"], .mdc-btn--create, .mdc-btn--save');
     if (!submitBtn) return;
     
@@ -48,6 +51,10 @@ class SubmitGuard {
   handleButtonClick(e) {
     const btn = e.target.closest('button[type="submit"], .mdc-btn--create, .mdc-btn--save');
     if (!btn) return;
+    
+    // Opt-out: Button oder zugehöriges Form mit data-no-submit-guard
+    const form = btn.closest('form');
+    if (form?.dataset.noSubmitGuard === 'true' || btn.dataset.noSubmitGuard === 'true') return;
     
     // Bereits gesperrt? → Blockieren
     if (this.isLocked(btn)) {

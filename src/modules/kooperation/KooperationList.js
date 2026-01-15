@@ -852,6 +852,24 @@ export class KooperationList {
         }
       }
 
+      // Prefill-Fallback: disabled selects landen nicht in FormData
+      if (form?.dataset?.prefillFromKampagne === 'true' && form.dataset.prefillData) {
+        try {
+          const prefill = JSON.parse(form.dataset.prefillData);
+          if (!submitData.kampagne_id && prefill.kampagne_id) {
+            submitData.kampagne_id = prefill.kampagne_id;
+          }
+          if (!submitData.unternehmen_id && prefill.unternehmen_id) {
+            submitData.unternehmen_id = prefill.unternehmen_id;
+          }
+          if (!submitData.marke_id && prefill._hasMarke && prefill.marke_id) {
+            submitData.marke_id = prefill.marke_id;
+          }
+        } catch (e) {
+          console.warn('⚠️ KOOPERATION: Prefill-Daten konnten nicht gelesen werden', e);
+        }
+      }
+
       console.log('📝 Kooperation Submit-Daten:', submitData);
 
       // Validierung

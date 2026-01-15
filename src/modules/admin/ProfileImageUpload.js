@@ -140,6 +140,7 @@ export class ProfileImageUpload {
     this.uploader = new UploaderField({
       multiple: false,
       accept: 'image/png, image/jpeg, image/jpg',
+      maxFileSize: 200 * 1024, // 200 KB
       onFilesChanged: () => {
         console.log('📁 Dateien geändert:', this.uploader.files);
       }

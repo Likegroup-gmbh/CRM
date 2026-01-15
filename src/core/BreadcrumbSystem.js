@@ -139,6 +139,20 @@ export class BreadcrumbSystem {
         }
       });
     });
+
+    // Edit-Button Event binden (dispatcht Custom Event)
+    if (this.editButton) {
+      const editBtn = this.container.querySelector(`#${this.editButton.id}`);
+      if (editBtn) {
+        editBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          // Custom Event dispatchen, damit Detail-Seiten darauf reagieren können
+          window.dispatchEvent(new CustomEvent('breadcrumbEditClick', {
+            detail: { buttonId: this.editButton.id }
+          }));
+        });
+      }
+    }
   }
 
   // Generiere Breadcrumb basierend auf Route und Daten

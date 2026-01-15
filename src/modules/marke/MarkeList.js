@@ -255,7 +255,7 @@ export class MarkeList {
           unternehmen:unternehmen_id(id, firmenname, logo_url),
           branchen:marke_branchen(branche:branche_id(id, name)),
           ansprechpartner:ansprechpartner_marke(ansprechpartner:ansprechpartner_id(id, vorname, nachname, email, profile_image_url)),
-          mitarbeiter:marke_mitarbeiter!fk_marke_mitarbeiter_marke_id(mitarbeiter:mitarbeiter_id(id, name, profile_image_url))
+          mitarbeiter:marke_mitarbeiter!fk_marke_mitarbeiter_marke_id(role, mitarbeiter:mitarbeiter_id(id, name, profile_image_url))
         `, { count: 'exact' })
         .order('created_at', { ascending: false });
 
@@ -325,7 +325,9 @@ export class MarkeList {
         ...marke,
         branchen: (marke.branchen || []).map(b => b.branche).filter(Boolean),
         ansprechpartner: (marke.ansprechpartner || []).map(a => a.ansprechpartner).filter(Boolean),
-        mitarbeiter: (marke.mitarbeiter || []).map(m => m.mitarbeiter).filter(Boolean)
+        mitarbeiter: (marke.mitarbeiter || [])
+          .map(m => m?.mitarbeiter ? ({ ...m.mitarbeiter, role: m.role || 'mitarbeiter' }) : null)
+          .filter(Boolean)
       }));
 
       console.log('✅ Marken mit Pagination geladen:', {
@@ -380,8 +382,7 @@ export class MarkeList {
         <div class="table-actions">
           ${isAdmin ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
-          <span id="selected-count" style="display:none;">0 ausgewählt</span>
-          <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>` : ''}
+          <span id="selected-count" style="display:none;">0 ausgewählt</span>` : ''}
           ${canEdit ? '<button id="btn-marke-new" class="primary-btn">Neue Marke anlegen</button>' : ''}
         </div>
       </div>
@@ -396,13 +397,15 @@ export class MarkeList {
               <th>Branche</th>
               <th>Webseite</th>
               <th>Ansprechpartner</th>
-              <th>Mitarbeiter</th>
+              <th class="col-mitarbeiter">Management</th>
+              <th class="col-mitarbeiter">Lead</th>
+              <th class="col-mitarbeiter">Mitarbeiter</th>
               <th>Aktionen</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td colspan="${isAdmin ? '8' : '7'}" class="no-data">Lade Marken...</td>
+              <td colspan="${isAdmin ? '10' : '9'}" class="no-data">Lade Marken...</td>
             </tr>
           </tbody>
         </table>
@@ -568,7 +571,6 @@ export class MarkeList {
     const selectedCountElement = document.getElementById('selected-count');
     const selectBtn = document.getElementById('btn-select-all');
     const deselectBtn = document.getElementById('btn-deselect-all');
-    const deleteBtn = document.getElementById('btn-delete-selected');
     
     if (selectedCountElement) {
       selectedCountElement.textContent = `${selectedCount} ausgewählt`;
@@ -581,10 +583,6 @@ export class MarkeList {
     
     if (deselectBtn) {
       deselectBtn.style.display = selectedCount > 0 ? 'inline-block' : 'none';
-    }
-    
-    if (deleteBtn) {
-      deleteBtn.style.display = selectedCount > 0 ? 'inline-block' : 'none';
     }
   }
 
@@ -614,7 +612,9 @@ export class MarkeList {
           <td>${this.renderBranchen(marke.branchen)}</td>
           <td>${marke.webseite ? `<a href="${marke.webseite}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${marke.webseite}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>` : '-'}</td>
           <td>${this.renderAnsprechpartner(marke.ansprechpartner)}</td>
-          <td>${this.renderZustaendigkeit(marke.zustaendigkeit, marke.mitarbeiter)}</td>
+          <td class="col-mitarbeiter">${this.renderMitarbeiterByRole((marke.mitarbeiter || []).filter(m => m.role === 'management'))}</td>
+          <td class="col-mitarbeiter">${this.renderMitarbeiterByRole((marke.mitarbeiter || []).filter(m => m.role === 'lead_mitarbeiter'))}</td>
+          <td class="col-mitarbeiter">${this.renderMitarbeiterByRole((marke.mitarbeiter || []).filter(m => m.role !== 'management' && m.role !== 'lead_mitarbeiter'))}</td>
           <td>
             ${actionBuilder.create('marke', marke.id)}
           </td>
@@ -708,6 +708,23 @@ export class MarkeList {
     return `<span class="text-muted">${zustaendigkeit.mitarbeiter?.name || 'Unbekannt'}</span>`;
   }
 
+  // Mitarbeiter nach Rolle rendern (für separate Spalten)
+  renderMitarbeiterByRole(list) {
+    if (!list || list.length === 0) return '-';
+    
+    const items = list
+      .filter(m => m && m.name)
+      .map(m => ({
+        name: m.name,
+        type: 'person',
+        id: m.id,
+        entityType: 'mitarbeiter',
+        profile_image_url: m.profile_image_url || null
+      }));
+    
+    return avatarBubbles.renderBubbles(items);
+  }
+
   // Cleanup
   destroy() {
     console.log('🗑️ MARKELLIST: Destroy aufgerufen');
@@ -731,93 +748,6 @@ export class MarkeList {
     // Content zurücksetzen
     window.setContentSafely('');
     console.log('✅ MARKELLIST: Destroy abgeschlossen');
-  }
-
-  // Bestätigungsdialog für Bulk-Delete
-  async showDeleteSelectedConfirmation() {
-    const selectedCount = this.selectedMarken.size;
-    console.log(`🔧 MarkeList: showDeleteSelectedConfirmation aufgerufen, selectedCount: ${selectedCount}`, Array.from(this.selectedMarken));
-    
-    if (selectedCount === 0) {
-      alert('Keine Marken ausgewählt.');
-      return;
-    }
-
-    const message = selectedCount === 1 
-      ? 'Möchten Sie die ausgewählte Marke wirklich löschen?' 
-      : `Möchten Sie die ${selectedCount} ausgewählten Marken wirklich löschen?`;
-
-    if (window.confirmationModal) {
-      const res = await window.confirmationModal.open({ title: 'Löschvorgang bestätigen', message, confirmText: 'Endgültig löschen', cancelText: 'Abbrechen', danger: true });
-      if (res?.confirmed) this.deleteSelectedMarken();
-    } else {
-      const confirmed = confirm(`${message}\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`);
-      if (confirmed) this.deleteSelectedMarken();
-    }
-  }
-
-  // Ausgewählte Marken löschen
-  async deleteSelectedMarken() {
-    if (window.currentUser?.rolle !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'admin') return;
-    
-    const selectedIds = Array.from(this.selectedMarken);
-    const totalCount = selectedIds.length;
-    
-    console.log(`🗑️ Lösche ${totalCount} Marken...`);
-    
-    // Optimistisches UI-Update: Zeilen ausblenden
-    selectedIds.forEach(id => {
-      const row = document.querySelector(`tr[data-id="${id}"]`);
-      if (row) row.style.opacity = '0.5';
-    });
-
-    try {
-      // Batch-Delete für bessere Performance
-      const result = await window.dataService.deleteEntities('marke', selectedIds);
-      
-      if (result.success) {
-        // Entferne Zeilen aus DOM
-        selectedIds.forEach(id => {
-          document.querySelector(`tr[data-id="${id}"]`)?.remove();
-        });
-        
-        alert(`✅ ${result.deletedCount} Marken erfolgreich gelöscht.`);
-        
-        this.selectedMarken.clear();
-        this.updateSelection();
-        
-        // Select-All-Checkbox zurücksetzen
-        const selectAllHeader = document.getElementById('select-all-marken');
-        if (selectAllHeader) {
-          selectAllHeader.checked = false;
-          selectAllHeader.indeterminate = false;
-        }
-        
-        // Nur neu laden wenn Liste leer ist
-        const tbody = document.querySelector('.data-table tbody');
-        if (tbody && tbody.children.length === 0) {
-          await this.loadAndRender();
-        }
-        
-        window.dispatchEvent(new CustomEvent('entityUpdated', {
-          detail: { entity: 'marke', action: 'bulk-deleted', count: result.deletedCount }
-        }));
-      } else {
-        throw new Error(result.error || 'Löschen fehlgeschlagen');
-      }
-    } catch (error) {
-      // Bei Fehler: Zeilen wiederherstellen
-      selectedIds.forEach(id => {
-        const row = document.querySelector(`tr[data-id="${id}"]`);
-        if (row) row.style.opacity = '1';
-      });
-      
-      console.error('❌ Fehler beim Löschen:', error);
-      alert(`❌ Fehler beim Löschen: ${error.message}`);
-      
-      // Liste neu laden um konsistenten Zustand herzustellen
-      await this.loadAndRender();
-    }
   }
 
   // Show Create Form (für Routing)

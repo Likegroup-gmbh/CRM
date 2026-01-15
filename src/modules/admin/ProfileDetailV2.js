@@ -2,9 +2,9 @@
 // Moderne Profilseite mit zweispaltigem Layout
 // Nutzt einheitliches PersonDetailBase Pattern
 
-import { profileImageUpload } from './ProfileImageUpload.js';
 import { PersonDetailBase } from './PersonDetailBase.js';
 import { getTabIcon } from '../../core/TabUtils.js';
+import { UploaderField } from '../../core/form/fields/UploaderField.js';
 
 export class ProfileDetailV2 extends PersonDetailBase {
   constructor() {
@@ -29,6 +29,19 @@ export class ProfileDetailV2 extends PersonDetailBase {
     }
 
     await this.loadAllData();
+    
+    // Breadcrumb für Profil aktualisieren: "Profil" → "Username" → [Bearbeiten-Button]
+    if (window.breadcrumbSystem && this.user) {
+      const userName = this.user.name || 'Unbekannt';
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Profil', url: '/profil', clickable: false },
+        { label: userName, url: '/profil', clickable: false }
+      ], {
+        id: 'btn-edit-profile',
+        canEdit: true  // User kann sein eigenes Profil immer bearbeiten
+      });
+    }
+    
     await this.render();
     this.bind();
   }
@@ -406,14 +419,13 @@ export class ProfileDetailV2 extends PersonDetailBase {
 
     const isKunde = this.user?.rolle === 'kunde';
     
-    // Person-Config für die Sidebar
+    // Person-Config für die Sidebar (avatarClickable entfernt - Upload ist jetzt im Edit-Drawer)
     const personConfig = {
       name: this.user?.name || 'Unbekannt',
       email: this.user?.email || '',
       subtitle: this.user?.mitarbeiter_klasse?.name || this.user?.rolle || 'Benutzer',
       avatarUrl: this.user?.profile_image_url,
       avatarOnly: true,
-      avatarClickable: true,
       lastActivity: this.user?.updated_at
     };
 
@@ -727,16 +739,6 @@ export class ProfileDetailV2 extends PersonDetailBase {
     // Sidebar Tabs binden (aus Basis-Klasse)
     this.bindSidebarTabs();
 
-    // Avatar Upload Click
-    const avatarBtn = document.getElementById('profile-avatar-upload');
-    avatarBtn?.addEventListener('click', () => {
-      profileImageUpload.open(this.userId, async () => {
-        await this.loadUserData();
-        await this.render();
-        this.bind();
-      });
-    });
-
     // Main Tabs
     document.querySelectorAll('[data-main-tab]').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -751,17 +753,394 @@ export class ProfileDetailV2 extends PersonDetailBase {
       });
     });
 
-    // Edit Profile Action
+    // Breadcrumb Edit-Button Event Handler - nur einmal registrieren
+    if (!this._breadcrumbEditHandlerBound) {
+      this._breadcrumbEditHandler = (e) => {
+        if (e.detail?.buttonId === 'btn-edit-profile') {
+          this.openEditDrawer();
+        }
+      };
+      window.addEventListener('breadcrumbEditClick', this._breadcrumbEditHandler);
+      this._breadcrumbEditHandlerBound = true;
+    }
+
+    // Edit Profile Action (für andere UI-Elemente)
     document.addEventListener('click', (e) => {
       if (e.target.closest('[data-action="edit-profile"]')) {
         e.preventDefault();
-        // TODO: Profil-Bearbeitung implementieren
-        console.log('Profil bearbeiten geklickt');
+        this.openEditDrawer();
       }
     });
   }
 
+  openEditDrawer() {
+    console.log('🎯 ProfileDetailV2: Öffne Edit-Drawer');
+    
+    // Alte Drawer-Elemente entfernen falls vorhanden
+    document.getElementById('profile-edit-overlay')?.remove();
+    document.getElementById('profile-edit-drawer')?.remove();
+    
+    // Overlay als separates Element erstellen
+    const overlay = document.createElement('div');
+    overlay.className = 'drawer-overlay';
+    overlay.id = 'profile-edit-overlay';
+    
+    // Panel als separates Element erstellen
+    const panel = document.createElement('div');
+    panel.setAttribute('role', 'dialog');
+    panel.className = 'drawer-panel';
+    panel.id = 'profile-edit-drawer';
+    
+    // Header
+    const header = document.createElement('div');
+    header.className = 'drawer-header';
+    header.innerHTML = `
+      <div>
+        <span class="drawer-title">Profil bearbeiten</span>
+        <p class="drawer-subtitle">Persönliche Informationen anpassen</p>
+      </div>
+      <div>
+        <button class="drawer-close-btn" type="button" aria-label="Schließen">&times;</button>
+      </div>
+    `;
+    
+    // Body
+    const body = document.createElement('div');
+    body.className = 'drawer-body';
+    
+    // Profilbild-Vorschau HTML
+    const currentImageHtml = this.user?.profile_image_url 
+      ? `<div class="profile-image-preview">
+           <img src="${this.sanitize(this.user.profile_image_url)}" alt="Aktuelles Profilbild" class="profile-image-current">
+         </div>`
+      : '';
+    
+    body.innerHTML = `
+      <form id="profile-edit-form" data-no-submit-guard="true">
+        <div class="form-field">
+          <label>Profilbild</label>
+          <div class="profile-image-field">
+            ${currentImageHtml}
+            <div class="profile-image-upload-area">
+              <div class="uploader" data-name="profile_image"></div>
+              <small class="form-hint">PNG oder JPG, max. 200 KB</small>
+            </div>
+          </div>
+        </div>
+        
+        <div class="form-field">
+          <label for="profile-name">Name *</label>
+          <input type="text" id="profile-name" class="form-input" value="${this.sanitize(this.user?.name || '')}" placeholder="Vollständiger Name" required>
+        </div>
+        
+        <div class="form-field">
+          <label>E-Mail</label>
+          <div class="form-value-readonly">${this.sanitize(this.user?.email || 'Über Supabase Auth verwaltet')}</div>
+          <small class="form-hint">Die E-Mail wird über die Authentifizierung verwaltet.</small>
+        </div>
+        
+        <div class="form-field">
+          <label>Rolle</label>
+          <div class="form-value-readonly">
+            <span class="badge badge-${this.user?.rolle === 'admin' ? 'primary' : 'secondary'}">${this.sanitize(this.user?.rolle || 'Nicht definiert')}</span>
+          </div>
+          <small class="form-hint">Die Rolle wird vom Administrator verwaltet.</small>
+        </div>
+        
+        <div class="drawer-actions">
+          <button type="button" class="mdc-btn mdc-btn--cancel" data-action="close">
+            <span class="mdc-btn__label">Abbrechen</span>
+          </button>
+          <button type="button" class="mdc-btn mdc-btn--create" id="profile-save-btn">
+            <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__spinner" aria-hidden="true">
+              <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
+                <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Speichern</span>
+          </button>
+        </div>
+      </form>
+    `;
+    
+    panel.appendChild(header);
+    panel.appendChild(body);
+    
+    // Close-Funktion
+    const closeDrawer = () => {
+      panel.classList.remove('show');
+      setTimeout(() => {
+        overlay.remove();
+        panel.remove();
+      }, 300);
+    };
+    
+    // Events binden
+    overlay.addEventListener('click', closeDrawer);
+    header.querySelector('.drawer-close-btn')?.addEventListener('click', closeDrawer);
+    panel.querySelectorAll('[data-action="close"]').forEach(btn => {
+      btn.addEventListener('click', closeDrawer);
+    });
+    
+    // Save Button Click - direkter Ansatz statt Form-Submit
+    const saveBtn = panel.querySelector('#profile-save-btn');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('🎯 ProfileDetailV2: Save Button geklickt');
+        await this.handleProfileSave(closeDrawer);
+      });
+    } else {
+      console.error('❌ ProfileDetailV2: Save Button nicht gefunden!');
+    }
+    
+    // Form Submit als Fallback (für Enter-Taste)
+    const form = panel.querySelector('#profile-edit-form');
+    if (form) {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('🎯 ProfileDetailV2: Form Submit');
+        await this.handleProfileSave(closeDrawer);
+      });
+    }
+    
+    // Beide Elemente zum body hinzufügen
+    document.body.appendChild(overlay);
+    document.body.appendChild(panel);
+    
+    // Uploader initialisieren mit Validierung
+    const uploaderRoot = panel.querySelector('.uploader[data-name="profile_image"]');
+    if (uploaderRoot) {
+      this._profileUploader = new UploaderField({
+        multiple: false,
+        accept: 'image/png, image/jpeg, image/jpg',
+        maxFileSize: 200 * 1024, // 200 KB
+        onFilesChanged: () => {
+          console.log('📁 Profilbild geändert:', this._profileUploader?.files);
+        }
+      });
+      this._profileUploader.mount(uploaderRoot);
+    }
+    
+    // Drawer öffnen (mit kurzer Verzögerung für Animation)
+    requestAnimationFrame(() => {
+      panel.classList.add('show');
+    });
+  }
+
+  async handleProfileSave(closeDrawer) {
+    console.log('🔄 handleProfileSave: Start');
+    
+    const nameInput = document.getElementById('profile-name');
+    const saveBtn = document.getElementById('profile-save-btn');
+    
+    console.log('🔄 handleProfileSave: nameInput=', nameInput, 'value=', nameInput?.value);
+    console.log('🔄 handleProfileSave: saveBtn=', saveBtn);
+    
+    if (!nameInput?.value?.trim()) {
+      window.showToast?.('Bitte gib einen Namen ein.', 'error');
+      console.log('❌ handleProfileSave: Kein Name eingegeben');
+      return;
+    }
+    
+    // Button in Loading-State
+    saveBtn?.classList.add('mdc-btn--loading');
+    if (saveBtn) saveBtn.disabled = true;
+    
+    try {
+      // Prüfe ob ein neues Profilbild ausgewählt wurde
+      const uploaderRoot = document.querySelector('.uploader[data-name="profile_image"]');
+      const hasNewImage = uploaderRoot?.__uploaderInstance?.files?.length > 0;
+      
+      console.log('🔄 handleProfileSave: hasNewImage=', hasNewImage);
+      
+      if (hasNewImage) {
+        const file = uploaderRoot.__uploaderInstance.files[0];
+        console.log('🔄 handleProfileSave: Bild gefunden:', file.name, file.size, file.type);
+        
+        // Validierung
+        const MAX_FILE_SIZE = 200 * 1024; // 200 KB
+        const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
+        
+        if (file.size > MAX_FILE_SIZE) {
+          const sizeKB = (file.size / 1024).toFixed(0);
+          console.log(`❌ handleProfileSave: Bild zu groß! ${sizeKB} KB > 200 KB`);
+          window.showToast?.(`Bild ist zu groß (max. 200 KB). Dein Bild: ${sizeKB} KB`, 'error');
+          if (saveBtn) {
+            saveBtn.classList.remove('mdc-btn--loading');
+            saveBtn.disabled = false;
+          }
+          return;
+        }
+        
+        if (!ALLOWED_TYPES.includes(file.type)) {
+          console.log(`❌ handleProfileSave: Falscher Dateityp! ${file.type}`);
+          window.showToast?.('Nur PNG und JPG Dateien sind erlaubt', 'error');
+          if (saveBtn) {
+            saveBtn.classList.remove('mdc-btn--loading');
+            saveBtn.disabled = false;
+          }
+          return;
+        }
+        
+        // Bild hochladen
+        console.log('🔄 handleProfileSave: Starte Bild-Upload...');
+        await this.uploadProfileImage(file);
+        console.log('✅ handleProfileSave: Bild-Upload fertig');
+      }
+      
+      // Name speichern
+      console.log('🔄 handleProfileSave: Speichere Name:', nameInput.value.trim(), 'für userId:', this.userId);
+      const { error } = await window.supabase
+        .from('benutzer')
+        .update({ name: nameInput.value.trim() })
+        .eq('id', this.userId);
+      
+      if (error) {
+        console.error('❌ handleProfileSave: DB-Fehler:', error);
+        throw error;
+      }
+      
+      console.log('✅ handleProfileSave: Name gespeichert');
+      
+      // User-Daten und currentUser aktualisieren
+      this.user.name = nameInput.value.trim();
+      if (window.currentUser) {
+        window.currentUser.name = nameInput.value.trim();
+      }
+      
+      window.showToast?.('Profil erfolgreich aktualisiert.', 'success');
+      console.log('🔄 handleProfileSave: Schließe Drawer...');
+      closeDrawer();
+      
+      // Daten neu laden und Seite rendern
+      await this.loadUserData();
+      await this.render();
+      this.bind();
+      
+      // Breadcrumb aktualisieren
+      if (window.breadcrumbSystem) {
+        window.breadcrumbSystem.updateBreadcrumb([
+          { label: 'Profil', url: '/profil', clickable: false },
+          { label: this.user.name, url: '/profil', clickable: false }
+        ], {
+          id: 'btn-edit-profile',
+          canEdit: true
+        });
+      }
+      
+      // Header UI aktualisieren (Initialen etc.)
+      window.setupHeaderUI?.();
+      
+    } catch (error) {
+      console.error('❌ handleProfileSave: Fehler beim Speichern:', error);
+      window.showToast?.('Fehler beim Speichern: ' + (error?.message || error), 'error');
+    } finally {
+      console.log('🔄 handleProfileSave: Finally-Block');
+      if (saveBtn) {
+        saveBtn.classList.remove('mdc-btn--loading');
+        saveBtn.disabled = false;
+      }
+    }
+    console.log('✅ handleProfileSave: Fertig');
+  }
+
+  async uploadProfileImage(file) {
+    if (!window.supabase) {
+      throw new Error('Supabase nicht verfügbar');
+    }
+
+    // Hole die auth_user_id für Storage (Policies basieren auf auth.uid())
+    const { data: { user } } = await window.supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Nicht eingeloggt');
+    }
+    const authUserId = user.id;
+
+    const bucket = 'profile-images';
+    const ext = file.name.split('.').pop().toLowerCase();
+    const path = `${authUserId}/profile.${ext}`;
+
+    console.log(`📤 Uploading Profilbild: ${file.name} -> ${path}`);
+
+    // Altes Bild löschen (falls vorhanden)
+    try {
+      const { data: existingFiles } = await window.supabase.storage
+        .from(bucket)
+        .list(authUserId);
+
+      if (existingFiles && existingFiles.length > 0) {
+        const filesToDelete = existingFiles.map(f => `${authUserId}/${f.name}`);
+        await window.supabase.storage
+          .from(bucket)
+          .remove(filesToDelete);
+        console.log('🗑️ Alte Profilbilder gelöscht');
+      }
+    } catch (error) {
+      console.warn('⚠️ Fehler beim Löschen alter Bilder:', error);
+    }
+
+    // Neues Bild hochladen
+    const { data, error: uploadError } = await window.supabase.storage
+      .from(bucket)
+      .upload(path, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
+
+    if (uploadError) {
+      console.error('❌ Upload-Fehler:', uploadError);
+      throw uploadError;
+    }
+
+    console.log('✅ Upload erfolgreich:', data);
+
+    // Public URL generieren
+    const { data: urlData } = window.supabase.storage
+      .from(bucket)
+      .getPublicUrl(path);
+
+    const publicUrl = urlData.publicUrl;
+    console.log('🔗 Public URL:', publicUrl);
+
+    // URL in Datenbank speichern
+    const { error: dbError } = await window.supabase
+      .from('benutzer')
+      .update({
+        profile_image_url: publicUrl,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', this.userId);
+
+    if (dbError) {
+      console.error('❌ DB-Update-Fehler:', dbError);
+      throw dbError;
+    }
+
+    console.log('✅ Profilbild-URL in DB gespeichert');
+
+    // Aktualisiere lokale Daten und currentUser
+    this.user.profile_image_url = publicUrl;
+    if (window.currentUser && window.currentUser.id === this.userId) {
+      window.currentUser.profile_image_url = publicUrl;
+    }
+  }
+
   destroy() {
+    // Event-Listener entfernen
+    if (this._breadcrumbEditHandler) {
+      window.removeEventListener('breadcrumbEditClick', this._breadcrumbEditHandler);
+      this._breadcrumbEditHandler = null;
+      this._breadcrumbEditHandlerBound = false;
+    }
+    
     const container = document.getElementById('dashboard-content');
     if (container) {
       const mainWrapper = container.closest('.profile-page-container');

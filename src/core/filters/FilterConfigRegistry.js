@@ -13,6 +13,7 @@ import AuftragsdetailsFilterConfig from '../../modules/auftrag/filters/Auftragsd
 import AuftragCashFlowFilterConfig from '../../modules/auftrag/filters/AuftragCashFlowFilterConfig.js';
 import KooperationFilterConfig from '../../modules/kooperation/filters/KooperationFilterConfig.js';
 import RechnungFilterConfig from '../../modules/rechnung/filters/RechnungFilterConfig.js';
+import VertragFilterConfig from '../../modules/vertrag/filters/VertragFilterConfig.js';
 
 // Importiere Filter-Logik (optional)
 import CreatorFilterLogic from '../../modules/creator/filters/CreatorFilterLogic.js';
@@ -37,7 +38,8 @@ export const FILTER_CONFIG_REGISTRY = {
   auftrag_cashflow: AuftragCashFlowFilterConfig,
   kooperation: KooperationFilterConfig,
   briefing: BriefingFilterConfig,
-  rechnung: RechnungFilterConfig
+  rechnung: RechnungFilterConfig,
+  vertrag: VertragFilterConfig
 };
 
 /**

@@ -77,7 +77,10 @@ export class DataService {
           land: 'string',
           geburtsdatum: 'date',
           sprache_id: 'uuid',
-          notiz: 'string'
+          notiz: 'string',
+          erlaubt_updates: 'toggle',
+          erlaubt_newsletter: 'toggle',
+          erlaubt_webinare: 'toggle'
         },
         relations: {
           unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' },
@@ -469,6 +472,8 @@ export class DataService {
           ansprechpartner_id: 'uuid',
           auftragtype: 'string',
           notiz: 'string',
+          angebotsnummer: 'string',
+          externe_angebotsnummer: 'string',
           po: 'string',
           zahlungsziel_tage: 'number',
           re_nr: 'string',
@@ -615,6 +620,7 @@ export class DataService {
         displayField: 'rechnung_nr',
         fields: {
           rechnung_nr: 'string',
+          externe_angebotsnummer: 'string',
           kooperation_id: 'uuid',
           kampagne_id: 'uuid',
           creator_id: 'uuid',
@@ -629,6 +635,7 @@ export class DataService {
           bezahlt_am: 'date',
           status: 'string',
           geprueft: 'boolean',
+          skonto: 'boolean',
           pdf_url: 'string',
           pdf_path: 'string',
           created_at: 'date',
@@ -714,6 +721,11 @@ export class DataService {
       // Many-to-Many Beziehungen verarbeiten (z.B. marke_ids für Ansprechpartner)
       await this.handleManyToManyRelations(entityType, result.id, data);
       
+      // Creator-Agentur Beziehung verarbeiten
+      if (entityType === 'creator') {
+        await this.handleCreatorAgentur(result.id, data);
+      }
+      
       return { success: true, id: result.id, data: result };
       
     } catch (error) {
@@ -756,6 +768,11 @@ export class DataService {
       
       // Many-to-Many Beziehungen verarbeiten (z.B. branche_id für Unternehmen)
       await this.handleManyToManyRelations(entityType, id, data);
+      
+      // Creator-Agentur Beziehung verarbeiten
+      if (entityType === 'creator') {
+        await this.handleCreatorAgentur(id, data);
+      }
       
       return { success: true, id: id, data: result };
       
@@ -1474,6 +1491,68 @@ export class DataService {
     }
   }
 
+  // Creator-Agentur Beziehung verarbeiten (1:1 mit ist_aktiv Flag)
+  async handleCreatorAgentur(creatorId, data) {
+    try {
+      // Prüfe ob Agentur-Toggle aktiv ist
+      const agenturVertreten = data.agentur_vertreten === 'on' || 
+                               data.agentur_vertreten === true || 
+                               data.agentur_vertreten === 'true';
+      
+      console.log(`🏢 Creator-Agentur für ${creatorId}: vertreten=${agenturVertreten}`);
+      
+      // Prüfe ob bereits ein Eintrag existiert
+      const { data: existingAgentur, error: selectError } = await window.supabase
+        .from('creator_agentur')
+        .select('id')
+        .eq('creator_id', creatorId)
+        .maybeSingle();
+      
+      if (selectError) {
+        console.error('❌ Fehler beim Prüfen der Creator-Agentur:', selectError);
+        return;
+      }
+      
+      const agenturData = {
+        creator_id: creatorId,
+        ist_aktiv: agenturVertreten,
+        agentur_name: agenturVertreten ? (data.agentur_name || null) : null,
+        agentur_adresse: agenturVertreten ? (data.agentur_adresse || null) : null,
+        agentur_vertretung: agenturVertreten ? (data.agentur_vertretung || null) : null,
+        updated_at: new Date().toISOString()
+      };
+      
+      if (existingAgentur) {
+        // Update existierenden Eintrag
+        const { error: updateError } = await window.supabase
+          .from('creator_agentur')
+          .update(agenturData)
+          .eq('id', existingAgentur.id);
+        
+        if (updateError) {
+          console.error('❌ Fehler beim Aktualisieren der Creator-Agentur:', updateError);
+        } else {
+          console.log(`✅ Creator-Agentur aktualisiert für ${creatorId}`);
+        }
+      } else if (agenturVertreten) {
+        // Nur neuen Eintrag erstellen wenn Toggle aktiv
+        agenturData.created_at = new Date().toISOString();
+        
+        const { error: insertError } = await window.supabase
+          .from('creator_agentur')
+          .insert([agenturData]);
+        
+        if (insertError) {
+          console.error('❌ Fehler beim Erstellen der Creator-Agentur:', insertError);
+        } else {
+          console.log(`✅ Creator-Agentur erstellt für ${creatorId}`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Fehler bei handleCreatorAgentur:', error);
+    }
+  }
+
   // Lade Many-to-Many Beziehungen für Entitäten (optimiert: parallel)
   async loadManyToManyRelations(entities, entityType, manyToManyConfig) {
     try {
@@ -1660,6 +1739,17 @@ export class DataService {
       )) {
         console.log(`🏷️ Verarbeite ${field} für Creator:`, value);
         // Creator Many-to-Many Felder werden über handleManyToManyRelations verwaltet - hier überspringen
+        continue;
+      }
+      
+      // Spezielle Behandlung für Creator-Agentur Felder (werden in separater Tabelle gespeichert)
+      if (entityType === 'creator' && (
+        field === 'agentur_vertreten' ||
+        field === 'agentur_name' ||
+        field === 'agentur_adresse' ||
+        field === 'agentur_vertretung'
+      )) {
+        console.log(`🏢 Überspringe Agentur-Feld ${field} für Haupttabelle (wird in creator_agentur gespeichert)`);
         continue;
       }
       

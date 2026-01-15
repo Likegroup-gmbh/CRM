@@ -64,6 +64,7 @@ export class MitarbeiterList {
             unterrolle,
             freigeschaltet,
             auth_user_id,
+            profile_image_url,
             mitarbeiter_klasse:mitarbeiter_klasse_id(id, name)
           `)
           .neq('rolle', 'kunde')
@@ -74,7 +75,7 @@ export class MitarbeiterList {
           // Fallback ohne email/freigeschaltet Spalte
           const { data: fallback, error: fallbackError } = await window.supabase
             .from('benutzer')
-            .select('id, name, rolle, unterrolle, auth_user_id, mitarbeiter_klasse:mitarbeiter_klasse_id(id, name)')
+            .select('id, name, rolle, unterrolle, auth_user_id, profile_image_url, mitarbeiter_klasse:mitarbeiter_klasse_id(id, name)')
             .neq('rolle', 'kunde')
             .order('name');
 
@@ -109,10 +110,25 @@ export class MitarbeiterList {
 
       // Aktionsmenü für Mitarbeiter-Rollen-Änderung
       const actionsMenu = this.renderActionsMenu(u);
+      const initials = (u.name || '')
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(part => part[0])
+        .join('')
+        .toUpperCase() || '—';
+      const avatar = u.profile_image_url
+        ? `<img src="${u.profile_image_url}" alt="${window.validatorSystem.sanitizeHtml(u.name || '')}" class="table-logo">`
+        : `<div class="table-avatar-placeholder table-avatar-round">${window.validatorSystem.sanitizeHtml(initials)}</div>`;
 
       return `
         <tr data-id="${u.id}">
-          <td>${u.id ? `<a href="#" class="table-link" data-table="mitarbeiter" data-id="${u.id}">${window.validatorSystem.sanitizeHtml(u.name || '—')}</a>` : window.validatorSystem.sanitizeHtml(u.name || '—')}</td>
+          <td class="col-mitarbeiter-name">
+            <div class="table-user-cell">
+              ${avatar}
+              ${u.id ? `<a href="#" class="table-link" data-table="mitarbeiter" data-id="${u.id}">${window.validatorSystem.sanitizeHtml(u.name || '—')}</a>` : window.validatorSystem.sanitizeHtml(u.name || '—')}
+            </div>
+          </td>
           <td>${window.validatorSystem.sanitizeHtml(u.rolle || '—')}</td>
           <td>${u.email ? `<a href="mailto:${u.email}" class="table-link email-link">${window.validatorSystem.sanitizeHtml(u.email)}</a>` : '—'}</td>
           <td>${window.validatorSystem.sanitizeHtml(u.unterrolle || '—')}</td>
@@ -133,7 +149,7 @@ export class MitarbeiterList {
         <table class="data-table">
           <thead>
             <tr>
-              <th>Name</th>
+              <th class="col-mitarbeiter-name">Name</th>
               <th>Rolle</th>
               <th>E-Mail</th>
               <th>Unterrolle</th>

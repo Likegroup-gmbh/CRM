@@ -24,6 +24,7 @@ export class UnternehmenDetail extends PersonDetailBase {
     this.kooperationen = [];
     this.creators = [];
     this.rechnungen = [];
+    this.vertraege = [];
     this.strategien = [];
     this.creatorAuswahlen = [];
     this._creatorMap = {};
@@ -222,6 +223,25 @@ export class UnternehmenDetail extends PersonDetailBase {
       } catch (e) {
         console.warn('⚠️ Rechnungen konnten nicht geladen werden', e);
         this.rechnungen = [];
+      }
+
+      // Verträge laden (direkt über kunde_unternehmen_id)
+      try {
+        const { data: vertraege, error: vErr } = await window.supabase
+          .from('vertraege')
+          .select(`
+            id, name, typ, is_draft, datei_url, datei_path, created_at,
+            kampagne:kampagne_id(id, kampagnenname),
+            creator:creator_id(id, vorname, nachname)
+          `)
+          .eq('kunde_unternehmen_id', this.unternehmenId)
+          .order('created_at', { ascending: false });
+        if (vErr) throw vErr;
+        this.vertraege = vertraege || [];
+        console.log('✅ UNTERNEHMENDETAIL: Verträge geladen:', this.vertraege.length);
+      } catch (e) {
+        console.warn('⚠️ Verträge konnten nicht geladen werden', e);
+        this.vertraege = [];
       }
 
       // Strategien laden (direkt über unternehmen_id)
@@ -424,7 +444,8 @@ export class UnternehmenDetail extends PersonDetailBase {
       { tab: 'creatorauswahl', label: 'Creator-Auswahl', count: this.creatorAuswahlen.length, isActive: this.activeMainTab === 'creatorauswahl' },
       { tab: 'kooperationen', label: 'Kooperationen', count: this.kooperationen.length, isActive: this.activeMainTab === 'kooperationen' },
       { tab: 'creators', label: 'Creator', count: this.creators.length, isActive: this.activeMainTab === 'creators' },
-      { tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen.length, isActive: this.activeMainTab === 'rechnungen' }
+      { tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen.length, isActive: this.activeMainTab === 'rechnungen' },
+      { tab: 'vertraege', label: 'Verträge', count: this.vertraege.length, isActive: this.activeMainTab === 'vertraege' }
     ];
 
     return tabs.map(t => renderTabButton(t)).join('');
@@ -479,6 +500,10 @@ export class UnternehmenDetail extends PersonDetailBase {
         
         <div class="tab-pane ${this.activeMainTab === 'rechnungen' ? 'active' : ''}" id="tab-rechnungen">
           ${this.renderRechnungen()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'vertraege' ? 'active' : ''}" id="tab-vertraege">
+          ${this.renderVertraege()}
         </div>
       </div>
     `;
@@ -1016,6 +1041,58 @@ export class UnternehmenDetail extends PersonDetailBase {
               <th>Fällig</th>
               <th>Bezahlt</th>
               <th>Beleg</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  // Rendere Verträge
+  renderVertraege() {
+    if (!this.vertraege || this.vertraege.length === 0) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">📄</div>
+          <h3>Keine Verträge vorhanden</h3>
+          <p>Für dieses Unternehmen wurden noch keine Verträge erfasst.</p>
+        </div>
+      `;
+    }
+
+    const getStatusLabel = (isDraft) => isDraft ? 'Entwurf' : 'Final';
+    const getStatusClass = (isDraft) => isDraft ? 'draft' : 'aktiv';
+
+    const rows = this.vertraege.map(v => {
+      const creatorName = v.creator ? `${v.creator.vorname || ''} ${v.creator.nachname || ''}`.trim() : '-';
+      const kampagneName = v.kampagne?.kampagnenname || '-';
+      
+      return `
+        <tr>
+          <td><a href="/vertraege/${v.id}" onclick="event.preventDefault(); window.navigateTo('/vertraege/${v.id}')">${this.sanitize(v.name || '—')}</a></td>
+          <td>${this.sanitize(v.typ || '-')}</td>
+          <td><span class="status-badge status-${getStatusClass(v.is_draft)}">${getStatusLabel(v.is_draft)}</span></td>
+          <td>${v.kampagne ? `<a href="/kampagnen/${v.kampagne.id}" onclick="event.preventDefault(); window.navigateTo('/kampagnen/${v.kampagne.id}')">${this.sanitize(kampagneName)}</a>` : '-'}</td>
+          <td>${v.creator ? `<a href="/creator/${v.creator.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${v.creator.id}')">${this.sanitize(creatorName)}</a>` : '-'}</td>
+          <td>${v.datei_url ? `<a href="${v.datei_url}" target="_blank" rel="noopener">PDF</a>` : '-'}</td>
+          <td>${this.formatDate(v.created_at)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div class="data-table-container">
+        <table class="data-table vertraege-detail-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Typ</th>
+              <th>Status</th>
+              <th>Kampagne</th>
+              <th>Creator</th>
+              <th>Datei</th>
+              <th>Erstellt am</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>

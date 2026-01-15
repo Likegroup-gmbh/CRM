@@ -1232,6 +1232,11 @@ export class AuftragList {
         return;
       }
 
+      // PO-Nummer automatisch generieren (Format: PO-JJJJ-NNNN)
+      const poNummer = await this.generatePoNummer();
+      submitData.po = poNummer;
+      console.log('📋 Generierte PO-Nummer:', poNummer);
+
       // Erstelle Auftrag
       const result = await window.dataService.createEntity('auftrag', submitData);
       
@@ -1285,6 +1290,49 @@ export class AuftragList {
         if (labelEl) labelEl.textContent = 'Erstellen';
       }
       window.NotificationSystem?.show('error', 'Ein unerwarteter Fehler ist aufgetreten');
+    }
+  }
+
+  // Generiert eine fortlaufende PO-Nummer im Format PO-JJJJ-NNNN
+  async generatePoNummer() {
+    const currentYear = new Date().getFullYear();
+    const prefix = `PO-${currentYear}-`;
+    
+    try {
+      // Höchste PO-Nummer des aktuellen Jahres ermitteln (aus Aufträgen)
+      const { data: auftraege, error } = await window.supabase
+        .from('auftrag')
+        .select('po')
+        .like('po', `${prefix}%`)
+        .order('po', { ascending: false })
+        .limit(1);
+      
+      if (error) {
+        console.error('❌ Fehler beim Laden der PO-Nummern:', error);
+        // Fallback: Timestamp-basierte Nummer
+        return `${prefix}${Date.now().toString().slice(-4)}`;
+      }
+      
+      let nextNumber = 1;
+      
+      if (auftraege && auftraege.length > 0 && auftraege[0].po) {
+        // Extrahiere die Nummer aus dem Format PO-JJJJ-NNNN
+        const lastPoNummer = auftraege[0].po;
+        const match = lastPoNummer.match(/PO-\d{4}-(\d+)/);
+        if (match) {
+          nextNumber = parseInt(match[1], 10) + 1;
+        }
+      }
+      
+      // Format: PO-JJJJ-NNNN (4-stellig mit führenden Nullen)
+      const poNummer = `${prefix}${nextNumber.toString().padStart(4, '0')}`;
+      console.log(`✅ Neue PO-Nummer generiert: ${poNummer}`);
+      
+      return poNummer;
+    } catch (e) {
+      console.error('❌ Fehler bei PO-Nummer Generierung:', e);
+      // Fallback: Timestamp-basierte Nummer
+      return `${prefix}${Date.now().toString().slice(-4)}`;
     }
   }
 }

@@ -1,26 +1,48 @@
 // VertraegeList.js (ES6-Modul)
-// Verträge-Übersichtsseite mit allen Verträgen
+// Verträge-Übersichtsseite mit Unternehmens-Ordnern
+// Phase 1: Ordner-Ansicht (Unternehmen alphabetisch)
+// Phase 2: Verträge-Liste pro Unternehmen (wie Strategie-Layout)
 
 import { PaginationSystem } from '../../core/PaginationSystem.js';
-import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
+import { filterDropdown } from '../../core/filters/FilterDropdown.js';
+import { modularFilterSystem } from '../../core/filters/ModularFilterSystem.js';
 
 export class VertraegeList {
   constructor() {
     this.vertraege = [];
+    this.unternehmenFolders = [];
     this.selectedVertraege = new Set();
     this.pagination = new PaginationSystem();
+    this._boundEventListeners = new Set();
+    
+    // Ansichtsmodus: 'folders' oder 'vertraege'
+    this.viewMode = 'folders';
+    this.currentUnternehmenId = null;
+    this.currentUnternehmenName = null;
+    
+    // NEU: Haupt-Ansichtsmodus (Liste vs Grid/Ordner)
+    this.listViewMode = 'grid'; // 'grid' (Ordner) oder 'list' (Tabelle)
   }
 
   // Initialisiere Verträge-Liste
-  async init() {
+  async init(unternehmenId = null) {
+    // Prüfe ob ein Unternehmen direkt angesteuert wird
+    if (unternehmenId) {
+      this.viewMode = 'vertraege';
+      this.currentUnternehmenId = unternehmenId;
+      // Unternehmensnamen laden
+      await this.loadUnternehmenName(unternehmenId);
+    } else {
+      this.viewMode = 'folders';
+      this.currentUnternehmenId = null;
+      this.currentUnternehmenName = null;
+    }
+
     window.setHeadline('Verträge');
     
-    // Breadcrumb für Listen-Seite
-    if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Verträge', url: '/vertraege', clickable: false }
-      ]);
-    }
+    // Breadcrumb
+    this.updateBreadcrumb();
     
     // Berechtigungsprüfung
     const canView = window.currentUser?.rolle === 'admin' || 
@@ -35,37 +57,369 @@ export class VertraegeList {
       return;
     }
 
-    // Pagination initialisieren
-    this.pagination.init('pagination-vertraege', {
+    // Pagination initialisieren - Container wird je nach Ansicht gewählt
+    const paginationContainer = this.viewMode === 'vertraege' 
+      ? 'pagination-vertraege' 
+      : 'pagination-vertraege-all';
+    
+    this.pagination.init(paginationContainer, {
       itemsPerPage: 25,
       onPageChange: (page) => this.handlePageChange(page),
       onItemsPerPageChange: () => this.loadAndRender()
     });
 
-    // Events binden
-    this.bindEvents();
-    
     await this.loadAndRender();
+  }
+
+  // Unternehmensnamen laden
+  async loadUnternehmenName(unternehmenId) {
+    try {
+      const { data, error } = await window.supabase
+        .from('unternehmen')
+        .select('firmenname')
+        .eq('id', unternehmenId)
+        .single();
+      
+      if (!error && data) {
+        this.currentUnternehmenName = data.firmenname;
+      }
+    } catch (err) {
+      console.warn('Unternehmensnamen konnte nicht geladen werden:', err);
+    }
+  }
+
+  // Breadcrumb aktualisieren
+  updateBreadcrumb() {
+    if (!window.breadcrumbSystem) return;
+
+    if (this.viewMode === 'folders') {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Verträge', url: '/vertraege', clickable: false }
+      ]);
+    } else {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Verträge', url: '/vertraege', clickable: true },
+        { label: this.currentUnternehmenName || 'Unternehmen', url: `/vertraege?unternehmen=${this.currentUnternehmenId}`, clickable: false }
+      ]);
+    }
   }
 
   // Seitenwechsel Handler
   handlePageChange(page) {
-    this.loadAndRender();
+    this.reloadData();
   }
 
-  // Lade und rendere Verträge-Liste
-  async loadAndRender() {
+  // Nur Daten neu laden (ohne HTML neu zu rendern)
+  async reloadData() {
     try {
-      await this.render();
-      const vertraege = await this.loadVertraege();
-      this.updateTable(vertraege);
+      if (this.viewMode === 'folders') {
+        // Beide Ansichten (Grid/Liste) zeigen Unternehmen
+        await this.loadUnternehmenFolders();
+        if (this.listViewMode === 'grid') {
+          this.updateFoldersView();
+        } else {
+          this.updateUnternehmenListTable();
+        }
+      } else {
+        const vertraege = await this.loadVertraege();
+        this.updateVertraegeTable(vertraege);
+      }
     } catch (error) {
-      window.ErrorHandler?.handle(error, 'VertraegeList.loadAndRender');
-      console.error('❌ Fehler beim Laden der Verträge:', error);
+      window.ErrorHandler?.handle(error, 'VertraegeList.reloadData');
+      console.error('❌ Fehler beim Laden:', error);
     }
   }
 
-  // Lade Verträge aus Datenbank
+  // Lade und rendere (initiales Laden)
+  async loadAndRender() {
+    try {
+      await this.render();
+      
+      // Pagination neu initialisieren mit korrektem Container
+      const paginationContainer = this.viewMode === 'vertraege' 
+        ? 'pagination-vertraege' 
+        : 'pagination-vertraege-all';
+      
+      this.pagination.init(paginationContainer, {
+        itemsPerPage: 25,
+        onPageChange: (page) => this.handlePageChange(page),
+        onItemsPerPageChange: () => this.loadAndRender()
+      });
+      
+      this.bindEvents();
+      
+      if (this.viewMode === 'folders') {
+        // Haupt-Ansicht: Grid (Ordner-Karten) oder Liste (Tabelle) - beides zeigt Unternehmen
+        await this.loadUnternehmenFolders();
+        if (this.listViewMode === 'grid') {
+          this.updateFoldersView();
+        } else {
+          this.updateUnternehmenListTable();
+        }
+      } else {
+        // Unternehmens-Detailansicht
+        await this.initializeFilterBar();
+        const vertraege = await this.loadVertraege();
+        this.updateVertraegeTable(vertraege);
+      }
+    } catch (error) {
+      window.ErrorHandler?.handle(error, 'VertraegeList.loadAndRender');
+      console.error('❌ Fehler beim Laden:', error);
+    }
+  }
+
+  // ============================================
+  // ORDNER-ANSICHT (Unternehmen)
+  // ============================================
+
+  // Lade Unternehmen mit Verträgen
+  async loadUnternehmenFolders() {
+    try {
+      if (!window.supabase) {
+        console.warn('⚠️ Supabase nicht verfügbar');
+        return [];
+      }
+
+      // Alle Verträge mit Unternehmensdaten laden, gruppiert nach Unternehmen
+      const { data, error } = await window.supabase
+        .from('vertraege')
+        .select(`
+          kunde_unternehmen_id,
+          kunde:kunde_unternehmen_id (
+            id,
+            firmenname,
+            logo_url
+          )
+        `)
+        .not('kunde_unternehmen_id', 'is', null);
+
+      if (error) throw error;
+
+      // Gruppieren nach Unternehmen und Anzahl zählen
+      const unternehmenMap = new Map();
+      (data || []).forEach(v => {
+        if (v.kunde?.id) {
+          const existing = unternehmenMap.get(v.kunde.id);
+          if (existing) {
+            existing.count++;
+          } else {
+            unternehmenMap.set(v.kunde.id, {
+              id: v.kunde.id,
+              firmenname: v.kunde.firmenname,
+              logo_url: v.kunde.logo_url,
+              count: 1
+            });
+          }
+        }
+      });
+
+      // In Array umwandeln und alphabetisch sortieren
+      this.unternehmenFolders = Array.from(unternehmenMap.values())
+        .sort((a, b) => (a.firmenname || '').localeCompare(b.firmenname || '', 'de'));
+
+      return this.unternehmenFolders;
+
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Unternehmen:', error);
+      return [];
+    }
+  }
+
+  // Rendere Ordner-Ansicht (mit View-Toggle)
+  renderFoldersView() {
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    const canEdit = isAdmin || window.currentUser?.rolle === 'mitarbeiter';
+
+    return `
+      <div class="list-container">
+        <div class="table-filter-wrapper">
+          <div class="filter-bar">
+            <div class="filter-left">
+              <div class="view-toggle">
+                <button id="btn-view-list" class="secondary-btn ${this.listViewMode === 'list' ? 'active' : ''}">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 1.5v-1.5m0 0c0-.621.504-1.125 1.125-1.125m0 0h7.5" />
+                  </svg>
+                  Liste
+                </button>
+                <button id="btn-view-grid" class="secondary-btn ${this.listViewMode === 'grid' ? 'active' : ''}">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+                  </svg>
+                  Grid
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="table-actions">
+            ${canEdit ? '<button id="btn-vertrag-new" class="primary-btn">Neuen Vertrag anlegen</button>' : ''}
+          </div>
+        </div>
+
+        <div class="table-container">
+          ${this.listViewMode === 'grid' 
+            ? `<div class="folders-grid" id="folders-grid">
+                <div class="loading-placeholder">Lade Unternehmens-Ordner...</div>
+              </div>`
+            : this.renderUnternehmenListTable()
+          }
+        </div>
+      </div>
+    `;
+  }
+
+  // Rendere Tabelle für Unternehmen (Listen-Ansicht)
+  renderUnternehmenListTable() {
+    return `
+      <table class="data-table vertraege-unternehmen-table">
+        <thead>
+          <tr>
+            <th>Unternehmen</th>
+            <th>Verträge</th>
+          </tr>
+        </thead>
+        <tbody id="unternehmen-list-table-body">
+          <tr>
+            <td colspan="2" class="no-data">Lade Unternehmen...</td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+  }
+
+  // Update Ordner-Ansicht
+  updateFoldersView() {
+    const grid = document.getElementById('folders-grid');
+    if (!grid) return;
+
+    if (!this.unternehmenFolders || this.unternehmenFolders.length === 0) {
+      grid.innerHTML = `
+        <div class="empty-state" style="grid-column: 1 / -1; text-align: center; padding: var(--space-xxl);">
+          <div class="empty-icon">📁</div>
+          <h3>Keine Verträge vorhanden</h3>
+          <p>Es wurden noch keine Verträge mit Unternehmen verknüpft.</p>
+        </div>
+      `;
+      return;
+    }
+
+    const escapeHtml = (text) => {
+      if (!text) return '';
+      return window.validatorSystem?.sanitizeHtml(text) || text;
+    };
+
+    grid.innerHTML = this.unternehmenFolders.map(folder => `
+      <div class="folder-card" data-unternehmen-id="${folder.id}" data-unternehmen-name="${escapeHtml(folder.firmenname)}">
+        <div class="folder-icon">
+          ${folder.logo_url 
+            ? `<img src="${escapeHtml(folder.logo_url)}" alt="${escapeHtml(folder.firmenname)}" class="folder-logo">`
+            : `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="folder-svg">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
+              </svg>`
+          }
+        </div>
+        <div class="folder-info">
+          <span class="folder-name">${escapeHtml(folder.firmenname)}</span>
+          <span class="folder-count">${folder.count} ${folder.count === 1 ? 'Vertrag' : 'Verträge'}</span>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // Update Unternehmen-Tabelle (Listen-Ansicht)
+  updateUnternehmenListTable() {
+    const tbody = document.getElementById('unternehmen-list-table-body');
+    if (!tbody) return;
+
+    if (!this.unternehmenFolders || this.unternehmenFolders.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="2" class="no-data">
+            <div class="empty-state">
+              <div class="empty-icon">📁</div>
+              <h3>Keine Verträge vorhanden</h3>
+              <p>Es wurden noch keine Verträge mit Unternehmen verknüpft.</p>
+            </div>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    const escapeHtml = (text) => {
+      if (!text) return '';
+      return window.validatorSystem?.sanitizeHtml(text) || text;
+    };
+
+    tbody.innerHTML = this.unternehmenFolders.map(folder => `
+      <tr class="table-row-clickable unternehmen-row" data-unternehmen-id="${folder.id}" data-unternehmen-name="${escapeHtml(folder.firmenname)}">
+        <td>
+          <div style="display: flex; align-items: center; gap: var(--space-sm);">
+            ${folder.logo_url 
+              ? `<img src="${escapeHtml(folder.logo_url)}" alt="${escapeHtml(folder.firmenname)}" class="table-logo">`
+              : ''
+            }
+            <a href="#" class="table-link unternehmen-link" data-unternehmen-id="${folder.id}" data-unternehmen-name="${escapeHtml(folder.firmenname)}">${escapeHtml(folder.firmenname)}</a>
+          </div>
+        </td>
+        <td>${folder.count}</td>
+      </tr>
+    `).join('');
+
+    // Row-Click Events für Unternehmen-Zeilen
+    this.bindUnternehmenRowEvents();
+  }
+
+  // Bind click events für Unternehmen-Zeilen in Listen-Ansicht
+  bindUnternehmenRowEvents() {
+    const rows = document.querySelectorAll('.unternehmen-row');
+    rows.forEach(row => {
+      const handler = (e) => {
+        // Verhindere Doppel-Navigation bei Link-Klick
+        if (e.target.closest('.unternehmen-link')) {
+          e.preventDefault();
+        }
+        const unternehmenId = row.dataset.unternehmenId;
+        const unternehmenName = row.dataset.unternehmenName;
+        if (unternehmenId) {
+          this.switchToVertraegeView(unternehmenId, unternehmenName);
+        }
+      };
+      row.addEventListener('click', handler);
+      this._boundEventListeners.add(() => row.removeEventListener('click', handler));
+    });
+  }
+
+  // ============================================
+  // VERTRÄGE-ANSICHT (pro Unternehmen)
+  // ============================================
+
+  // Initialisiere Filter-Dropdown
+  async initializeFilterBar() {
+    const filterContainer = document.getElementById('filter-dropdown-container');
+    if (filterContainer) {
+      await filterDropdown.init('vertrag', filterContainer, {
+        onFilterApply: (filters) => this.onFiltersApplied(filters),
+        onFilterReset: () => this.onFiltersReset()
+      });
+    }
+  }
+
+  // Filter angewendet
+  onFiltersApplied(filters) {
+    console.log('🔍 VertraegeList: Filter angewendet:', filters);
+    modularFilterSystem.applyFilters('vertrag', filters);
+    this.reloadData();
+  }
+
+  // Filter zurückgesetzt
+  onFiltersReset() {
+    console.log('🔄 VertraegeList: Filter zurückgesetzt');
+    modularFilterSystem.resetFilters('vertrag');
+    this.reloadData();
+  }
+
+  // Lade Verträge aus Datenbank (für aktuelles Unternehmen)
   async loadVertraege() {
     try {
       if (!window.supabase) {
@@ -77,11 +431,29 @@ export class VertraegeList {
       const from = (currentPage - 1) * itemsPerPage;
       const to = from + itemsPerPage - 1;
 
-      const { count } = await window.supabase
-        .from('vertraege')
-        .select('*', { count: 'exact', head: true });
+      // Filter aus dem Filter-System holen
+      const filters = modularFilterSystem.getFilters('vertrag');
 
-      const { data: vertraege, error } = await window.supabase
+      // Count-Query mit Filtern
+      let countQuery = window.supabase
+        .from('vertraege')
+        .select('*', { count: 'exact', head: true })
+        .eq('kunde_unternehmen_id', this.currentUnternehmenId);
+
+      if (filters.typ) {
+        countQuery = countQuery.eq('typ', filters.typ);
+      }
+      if (filters.kampagne_id) {
+        countQuery = countQuery.eq('kampagne_id', filters.kampagne_id);
+      }
+      if (filters.creator_id) {
+        countQuery = countQuery.eq('creator_id', filters.creator_id);
+      }
+
+      const { count } = await countQuery;
+
+      // Hauptquery mit Filtern
+      let query = window.supabase
         .from('vertraege')
         .select(`
           id,
@@ -91,12 +463,37 @@ export class VertraegeList {
           datei_url,
           datei_path,
           created_at,
+          kunde_unternehmen_id,
+          kampagne_id,
+          creator_id,
+          kunde:kunde_unternehmen_id (
+            id,
+            firmenname
+          ),
+          kampagne:kampagne_id (
+            id,
+            kampagnenname
+          ),
           creator:creator_id (
             id,
             vorname,
             nachname
           )
         `)
+        .eq('kunde_unternehmen_id', this.currentUnternehmenId);
+
+      // Filter anwenden
+      if (filters.typ) {
+        query = query.eq('typ', filters.typ);
+      }
+      if (filters.kampagne_id) {
+        query = query.eq('kampagne_id', filters.kampagne_id);
+      }
+      if (filters.creator_id) {
+        query = query.eq('creator_id', filters.creator_id);
+      }
+
+      const { data: vertraege, error } = await query
         .order('created_at', { ascending: false })
         .range(from, to);
 
@@ -114,62 +511,315 @@ export class VertraegeList {
     }
   }
 
-  // Rendere Seiten-Struktur
-  async render() {
+  // Rendere Verträge-Ansicht (Strategie-ähnlich)
+  renderVertraegeView() {
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
     const canEdit = isAdmin || window.currentUser?.rolle === 'mitarbeiter';
 
-    const html = `
-      <div class="table-filter-wrapper">
-        <div class="table-actions">
-          ${isAdmin ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
-          <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
-          <span id="selected-count" style="display:none;">0 ausgewählt</span>
-          <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>` : ''}
-          ${canEdit ? '<button id="btn-vertrag-new" class="primary-btn">Neuen Vertrag anlegen</button>' : ''}
+    return `
+      <div class="list-container">
+        <div class="table-filter-wrapper">
+          <div class="filter-bar">
+            <div class="filter-left">
+              <button id="btn-back-to-folders" class="secondary-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+                </svg>
+                Zurück
+              </button>
+              <div id="filter-dropdown-container"></div>
+            </div>
+          </div>
+          <div class="table-actions">
+            ${isAdmin ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
+            <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
+            <span id="selected-count" style="display:none;">0 ausgewählt</span>
+            <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>` : ''}
+            ${canEdit ? '<button id="btn-vertrag-new" class="primary-btn">Neuen Vertrag anlegen</button>' : ''}
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                ${isAdmin ? `<th><input type="checkbox" id="select-all-vertraege"></th>` : ''}
+                <th>Name</th>
+                <th>Status</th>
+                <th>Typ</th>
+                <th>Kampagne</th>
+                <th>Creator</th>
+                <th>Datei</th>
+                <th>Erstellt am</th>
+                <th class="col-actions">Aktionen</th>
+              </tr>
+            </thead>
+            <tbody id="vertraege-table-body">
+              <tr>
+                <td colspan="${isAdmin ? '9' : '8'}" class="no-data">Lade Verträge...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="pagination-container" id="pagination-vertraege"></div>
+      </div>
+    `;
+  }
+
+  // Update Verträge-Tabelle
+  updateVertraegeTable(vertraege) {
+    const tbody = document.getElementById('vertraege-table-body');
+    if (!tbody) return;
+
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+
+    if (!vertraege || vertraege.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="${isAdmin ? '9' : '8'}" class="no-data">
+            <div class="empty-state">
+              <div class="empty-icon">📄</div>
+              <h3>Keine Verträge vorhanden</h3>
+              <p>Für dieses Unternehmen wurden noch keine Verträge erstellt.</p>
+            </div>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    const formatDate = (date) => {
+      return date ? new Date(date).toLocaleDateString('de-DE') : '-';
+    };
+
+    const escapeHtml = (text) => {
+      if (!text) return '';
+      return window.validatorSystem?.sanitizeHtml(text) || text;
+    };
+
+    tbody.innerHTML = vertraege.map(vertrag => {
+      const creator = vertrag.creator || {};
+      const kampagne = vertrag.kampagne || {};
+
+      const creatorName = creator.vorname 
+        ? `${escapeHtml(creator.vorname)} ${escapeHtml(creator.nachname || '')}`.trim()
+        : '-';
+
+      const typClass = vertrag.typ ? `typ-${vertrag.typ.toLowerCase().replace(/\s+/g, '-')}` : '';
+
+      const dateiHtml = vertrag.datei_url 
+        ? `<a href="${escapeHtml(vertrag.datei_url)}" target="_blank" class="datei-link datei-icon" title="PDF anzeigen">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+            </svg>
+          </a>`
+        : '<span class="text-muted">—</span>';
+
+      const statusBadge = vertrag.is_draft
+        ? '<span class="status-badge status-draft">Entwurf</span>'
+        : '<span class="status-badge status-final">Finalisiert</span>';
+
+      const actionsHtml = this.renderVertragActions(vertrag, isAdmin);
+
+      return `
+        <tr class="table-row-clickable" data-vertrag-id="${vertrag.id}">
+          ${isAdmin ? `<td><input type="checkbox" class="vertraege-check" data-id="${vertrag.id}"></td>` : ''}
+          <td>
+            <a href="#" class="table-link" data-table="vertrag" data-id="${vertrag.id}">
+              ${escapeHtml(vertrag.name) || '—'}
+            </a>
+          </td>
+          <td>${statusBadge}</td>
+          <td>
+            ${vertrag.typ 
+              ? `<span class="status-badge ${typClass}">${escapeHtml(vertrag.typ)}</span>`
+              : '-'}
+          </td>
+          <td>
+            ${kampagne.id ? `
+              <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
+                ${escapeHtml(kampagne.kampagnenname)}
+              </a>
+            ` : '-'}
+          </td>
+          <td>
+            ${creator.id ? `
+              <a href="#" class="table-link" data-table="creator" data-id="${creator.id}">
+                ${creatorName}
+              </a>
+            ` : '-'}
+          </td>
+          <td>${dateiHtml}</td>
+          <td>${formatDate(vertrag.created_at)}</td>
+          <td class="col-actions">
+            ${actionsHtml}
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    // Actions Dropdown initialisieren
+    if (window.ActionsDropdown) {
+      window.ActionsDropdown.init();
+    }
+  }
+
+  // Rendere Aktionen basierend auf Draft-Status
+  renderVertragActions(vertrag, isAdmin) {
+    const isDraft = vertrag.is_draft;
+    
+    let actions = '';
+    
+    if (isDraft) {
+      actions = `
+        <a href="#" class="action-item" data-action="continue" data-id="${vertrag.id}">
+          ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
+          Weiter bearbeiten
+        </a>
+        <a href="#" class="action-item" data-action="view" data-id="${vertrag.id}">
+          ${window.ActionsDropdown?.getHeroIcon('view') || ''}
+          Details anzeigen
+        </a>
+      `;
+    } else {
+      actions = `
+        <a href="#" class="action-item" data-action="view" data-id="${vertrag.id}">
+          ${window.ActionsDropdown?.getHeroIcon('view') || ''}
+          Details anzeigen
+        </a>
+        <a href="#" class="action-item" data-action="edit" data-id="${vertrag.id}">
+          ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
+          Bearbeiten
+        </a>
+        ${vertrag.datei_url ? `
+          <a href="#" class="action-item" data-action="download" data-id="${vertrag.id}">
+            ${window.ActionsDropdown?.getHeroIcon('download') || ''}
+            PDF herunterladen
+          </a>
+        ` : ''}
+      `;
+    }
+    
+    if (isAdmin) {
+      actions += `
+        <div class="action-separator"></div>
+        <a href="#" class="action-item action-danger" data-action="delete" data-id="${vertrag.id}">
+          ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
+          Löschen
+        </a>
+      `;
+    }
+    
+    return `
+      <div class="actions-dropdown-container" data-entity-type="vertraege">
+        <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+          </svg>
+        </button>
+        <div class="actions-dropdown">
+          ${actions}
         </div>
       </div>
-
-      <div class="table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              ${isAdmin ? `<th><input type="checkbox" id="select-all-vertraege"></th>` : ''}
-              <th>Name</th>
-              <th>Status</th>
-              <th>Typ</th>
-              <th>Creator</th>
-              <th>Datei</th>
-              <th>Erstellt am</th>
-              <th>Aktionen</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colspan="${isAdmin ? '8' : '7'}" class="no-data">Lade Verträge...</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      
-      <div class="pagination-container" id="pagination-vertraege"></div>
     `;
+  }
+
+  // ============================================
+  // RENDER & EVENTS
+  // ============================================
+
+  // Haupt-Render-Methode
+  async render() {
+    const html = this.viewMode === 'folders' 
+      ? this.renderFoldersView() 
+      : this.renderVertraegeView();
 
     window.setContentSafely(window.content, html);
   }
 
-  // Binde Events
+  // Events binden
   bindEvents() {
-    // Neuer Vertrag anlegen Button
-    document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-vertrag-new') {
+    // Cleanup alte Events
+    this._boundEventListeners.forEach(cleanup => cleanup());
+    this._boundEventListeners.clear();
+
+    // View-Toggle Events (Liste vs Grid)
+    const btnViewList = document.getElementById('btn-view-list');
+    const btnViewGrid = document.getElementById('btn-view-grid');
+    
+    if (btnViewList) {
+      const handler = (e) => {
         e.preventDefault();
-        window.navigateTo('/vertraege/new');
-      }
-    });
+        if (this.listViewMode === 'list') return; // Bereits in Listen-Ansicht
+        
+        this.listViewMode = 'list';
+        this.selectedVertraege.clear();
+        this.pagination.currentPage = 1;
+        this.loadAndRender();
+      };
+      btnViewList.addEventListener('click', handler);
+      this._boundEventListeners.add(() => btnViewList.removeEventListener('click', handler));
+    }
+    
+    if (btnViewGrid) {
+      const handler = (e) => {
+        e.preventDefault();
+        if (this.listViewMode === 'grid') return; // Bereits in Grid-Ansicht
+        
+        this.listViewMode = 'grid';
+        this.selectedVertraege.clear();
+        this.loadAndRender();
+      };
+      btnViewGrid.addEventListener('click', handler);
+      this._boundEventListeners.add(() => btnViewGrid.removeEventListener('click', handler));
+    }
+
+    // Neuer Vertrag anlegen Button
+    const newBtn = document.getElementById('btn-vertrag-new');
+    if (newBtn) {
+      const handler = (e) => {
+        e.preventDefault();
+        // Falls in Unternehmens-Ansicht, mit Unternehmen-ID navigieren
+        if (this.currentUnternehmenId) {
+          window.navigateTo(`/vertraege/new?unternehmen=${this.currentUnternehmenId}`);
+        } else {
+          window.navigateTo('/vertraege/new');
+        }
+      };
+      newBtn.addEventListener('click', handler);
+      this._boundEventListeners.add(() => newBtn.removeEventListener('click', handler));
+    }
+
+    // Zurück-Button (nur in Vertragsansicht)
+    const backBtn = document.getElementById('btn-back-to-folders');
+    if (backBtn) {
+      const handler = (e) => {
+        e.preventDefault();
+        this.switchToFoldersView();
+      };
+      backBtn.addEventListener('click', handler);
+      this._boundEventListeners.add(() => backBtn.removeEventListener('click', handler));
+    }
+
+    // Ordner-Klick
+    const foldersGrid = document.getElementById('folders-grid');
+    if (foldersGrid) {
+      const handler = (e) => {
+        const folder = e.target.closest('.folder-card');
+        if (folder) {
+          const unternehmenId = folder.dataset.unternehmenId;
+          const unternehmenName = folder.dataset.unternehmenName;
+          this.switchToVertraegeView(unternehmenId, unternehmenName);
+        }
+      };
+      foldersGrid.addEventListener('click', handler);
+      this._boundEventListeners.add(() => foldersGrid.removeEventListener('click', handler));
+    }
 
     // Vertrag Detail Links
-    document.addEventListener('click', (e) => {
+    document.addEventListener('click', this._vertragLinkHandler = (e) => {
       if (e.target.classList.contains('table-link') && e.target.dataset.table === 'vertrag') {
         e.preventDefault();
         const vertragId = e.target.dataset.id;
@@ -178,7 +828,7 @@ export class VertraegeList {
     });
 
     // Creator Links
-    document.addEventListener('click', (e) => {
+    document.addEventListener('click', this._creatorLinkHandler = (e) => {
       if (e.target.classList.contains('table-link') && e.target.dataset.table === 'creator') {
         e.preventDefault();
         const creatorId = e.target.dataset.id;
@@ -186,9 +836,58 @@ export class VertraegeList {
       }
     });
 
+    // Kampagne Links
+    document.addEventListener('click', this._kampagneLinkHandler = (e) => {
+      if (e.target.classList.contains('table-link') && e.target.dataset.table === 'kampagne') {
+        e.preventDefault();
+        const kampagneId = e.target.dataset.id;
+        window.navigateTo(`/kampagnen/${kampagneId}`);
+      }
+    });
+
+    // Unternehmen Links
+    document.addEventListener('click', this._unternehmenLinkHandler = (e) => {
+      if (e.target.classList.contains('table-link') && e.target.dataset.table === 'unternehmen') {
+        e.preventDefault();
+        const unternehmenId = e.target.dataset.id;
+        window.navigateTo(`/unternehmen/${unternehmenId}`);
+      }
+    });
+
+    // Row-Click (auf Detail navigieren)
+    const rows = document.querySelectorAll('.table-row-clickable');
+    rows.forEach(row => {
+      const handler = (e) => {
+        // Ignoriere Klicks auf Actions, Checkboxes und Links
+        if (e.target.closest('.actions-dropdown-container')) return;
+        if (e.target.closest('input[type="checkbox"]')) return;
+        if (e.target.closest('a')) return;
+        
+        const vertragId = row.dataset.vertragId;
+        if (vertragId) {
+          window.navigateTo(`/vertraege/${vertragId}`);
+        }
+      };
+      row.addEventListener('click', handler);
+      this._boundEventListeners.add(() => row.removeEventListener('click', handler));
+    });
+
+    // Selection Events (nur in Vertragsansicht)
+    if (this.viewMode === 'vertraege') {
+      this.bindSelectionEvents();
+      this.bindActionEvents();
+    }
+  }
+
+  // Selection Events binden
+  bindSelectionEvents() {
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    if (!isAdmin) return;
+
     // Alle auswählen Button
-    document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-select-all') {
+    const selectAllBtn = document.getElementById('btn-select-all');
+    if (selectAllBtn) {
+      const handler = (e) => {
         e.preventDefault();
         const checkboxes = document.querySelectorAll('.vertraege-check');
         checkboxes.forEach(cb => {
@@ -201,28 +900,37 @@ export class VertraegeList {
           selectAllHeader.checked = true;
         }
         this.updateSelection();
-      }
-    });
+      };
+      selectAllBtn.addEventListener('click', handler);
+      this._boundEventListeners.add(() => selectAllBtn.removeEventListener('click', handler));
+    }
 
     // Auswahl aufheben Button
-    document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-deselect-all') {
+    const deselectBtn = document.getElementById('btn-deselect-all');
+    if (deselectBtn) {
+      const handler = (e) => {
         e.preventDefault();
         this.deselectAll();
-      }
-    });
+      };
+      deselectBtn.addEventListener('click', handler);
+      this._boundEventListeners.add(() => deselectBtn.removeEventListener('click', handler));
+    }
 
     // Ausgewählte löschen Button
-    document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-delete-selected') {
+    const deleteSelectedBtn = document.getElementById('btn-delete-selected');
+    if (deleteSelectedBtn) {
+      const handler = (e) => {
         e.preventDefault();
         this.showDeleteSelectedConfirmation();
-      }
-    });
+      };
+      deleteSelectedBtn.addEventListener('click', handler);
+      this._boundEventListeners.add(() => deleteSelectedBtn.removeEventListener('click', handler));
+    }
 
-    // Select-All Checkbox (Tabellen-Header)
-    document.addEventListener('change', (e) => {
-      if (e.target.id === 'select-all-vertraege') {
+    // Select-All Checkbox (Header)
+    const selectAllCheckbox = document.getElementById('select-all-vertraege');
+    if (selectAllCheckbox) {
+      const handler = (e) => {
         const checkboxes = document.querySelectorAll('.vertraege-check');
         const isChecked = e.target.checked;
         
@@ -236,53 +944,89 @@ export class VertraegeList {
         });
         
         this.updateSelection();
-        console.log(`${isChecked ? '✅ Alle Verträge ausgewählt' : '❌ Alle Verträge abgewählt'}: ${this.selectedVertraege.size}`);
-      }
-    });
+      };
+      selectAllCheckbox.addEventListener('change', handler);
+      this._boundEventListeners.add(() => selectAllCheckbox.removeEventListener('change', handler));
+    }
 
-    // Verträge Checkboxes (einzelne Zeilen)
-    document.addEventListener('change', (e) => {
-      if (e.target.classList.contains('vertraege-check')) {
-        if (e.target.checked) {
-          this.selectedVertraege.add(e.target.dataset.id);
+    // Einzelne Checkboxes
+    document.querySelectorAll('.vertraege-check').forEach(cb => {
+      const handler = () => {
+        if (cb.checked) {
+          this.selectedVertraege.add(cb.dataset.id);
         } else {
-          this.selectedVertraege.delete(e.target.dataset.id);
+          this.selectedVertraege.delete(cb.dataset.id);
         }
         this.updateSelection();
         this.updateSelectAllCheckbox();
-      }
-    });
-
-    // Action Events (View, Edit, Continue, Download, Delete)
-    document.addEventListener('click', (e) => {
-      const actionItem = e.target.closest('.action-item');
-      if (!actionItem) return;
-
-      const action = actionItem.dataset.action;
-      const id = actionItem.dataset.id;
-
-      if (!action || !id) return;
-      e.preventDefault();
-
-      switch (action) {
-        case 'view':
-          window.navigateTo(`/vertraege/${id}`);
-          break;
-        case 'edit':
-        case 'continue': // Draft weiter bearbeiten = gleiche Route wie edit
-          window.navigateTo(`/vertraege/${id}/edit`);
-          break;
-        case 'download':
-          this.downloadVertrag(id);
-          break;
-        case 'delete':
-          this.deleteVertrag(id);
-          break;
-      }
+      };
+      cb.addEventListener('change', handler);
+      this._boundEventListeners.add(() => cb.removeEventListener('change', handler));
     });
   }
 
-  // Update Selection UI
+  // Action Events binden
+  bindActionEvents() {
+    document.querySelectorAll('.action-item[data-action]').forEach(item => {
+      const handler = (e) => {
+        e.preventDefault();
+        const action = item.dataset.action;
+        const id = item.dataset.id;
+        
+        switch (action) {
+          case 'view':
+            window.navigateTo(`/vertraege/${id}`);
+            break;
+          case 'edit':
+          case 'continue':
+            window.navigateTo(`/vertraege/${id}/edit`);
+            break;
+          case 'download':
+            this.downloadVertrag(id);
+            break;
+          case 'delete':
+            this.deleteVertrag(id);
+            break;
+        }
+      };
+      item.addEventListener('click', handler);
+      this._boundEventListeners.add(() => item.removeEventListener('click', handler));
+    });
+  }
+
+  // ============================================
+  // VIEW SWITCHING
+  // ============================================
+
+  // Wechsel zu Ordner-Ansicht
+  switchToFoldersView() {
+    this.viewMode = 'folders';
+    this.currentUnternehmenId = null;
+    this.currentUnternehmenName = null;
+    this.selectedVertraege.clear();
+    
+    this.updateBreadcrumb();
+    this.loadAndRender();
+  }
+
+  // Wechsel zu Verträge-Ansicht
+  switchToVertraegeView(unternehmenId, unternehmenName) {
+    this.viewMode = 'vertraege';
+    this.currentUnternehmenId = unternehmenId;
+    this.currentUnternehmenName = unternehmenName;
+    this.selectedVertraege.clear();
+    
+    // Pagination zurücksetzen
+    this.pagination.currentPage = 1;
+    
+    this.updateBreadcrumb();
+    this.loadAndRender();
+  }
+
+  // ============================================
+  // SELECTION HELPERS
+  // ============================================
+
   updateSelection() {
     const selectedCount = this.selectedVertraege.size;
     const selectedCountElement = document.getElementById('selected-count');
@@ -308,7 +1052,6 @@ export class VertraegeList {
     }
   }
 
-  // Update Select-All Checkbox Status
   updateSelectAllCheckbox() {
     const selectAllCheckbox = document.getElementById('select-all-vertraege');
     const individualCheckboxes = document.querySelectorAll('.vertraege-check');
@@ -323,7 +1066,6 @@ export class VertraegeList {
     selectAllCheckbox.indeterminate = someChecked && !allChecked;
   }
 
-  // Alle abwählen
   deselectAll() {
     this.selectedVertraege.clear();
     
@@ -341,172 +1083,10 @@ export class VertraegeList {
     this.updateSelection();
   }
 
-  // Update Tabelle
-  updateTable(vertraege) {
-    const tbody = document.querySelector('.data-table tbody');
-    if (!tbody) return;
+  // ============================================
+  // CRUD OPERATIONS
+  // ============================================
 
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-
-    if (!vertraege || vertraege.length === 0) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="${isAdmin ? '8' : '7'}" class="no-data">
-            <div class="empty-state">
-              <div class="empty-icon">📄</div>
-              <h3>Keine Verträge vorhanden</h3>
-              <p>Es wurden noch keine Verträge erstellt.</p>
-            </div>
-          </td>
-        </tr>
-      `;
-      return;
-    }
-
-    const formatDate = (date) => {
-      return date ? new Date(date).toLocaleDateString('de-DE') : '-';
-    };
-
-    const escapeHtml = (text) => {
-      if (!text) return '';
-      return window.validatorSystem?.sanitizeHtml(text) || text;
-    };
-
-    tbody.innerHTML = vertraege.map(vertrag => {
-      const creator = vertrag.creator || {};
-
-      const creatorName = creator.vorname 
-        ? `${escapeHtml(creator.vorname)} ${escapeHtml(creator.nachname || '')}`.trim()
-        : '-';
-
-      const typClass = vertrag.typ ? `typ-${vertrag.typ.toLowerCase().replace(/\s+/g, '-')}` : '';
-
-      const dateiHtml = vertrag.datei_url 
-        ? `<a href="${escapeHtml(vertrag.datei_url)}" target="_blank" class="datei-link datei-icon" title="PDF anzeigen">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-            </svg>
-          </a>`
-        : '<span class="text-muted">—</span>';
-
-      const statusBadge = vertrag.is_draft
-        ? '<span class="status-badge status-draft">Entwurf</span>'
-        : '<span class="status-badge status-final">Finalisiert</span>';
-
-      // Custom Actions basierend auf Draft-Status
-      const actionsHtml = this.renderVertragActions(vertrag, isAdmin);
-
-      return `
-        <tr data-id="${vertrag.id}">
-          ${isAdmin ? `<td><input type="checkbox" class="vertraege-check" data-id="${vertrag.id}"></td>` : ''}
-          <td>
-            <a href="#" class="table-link" data-table="vertrag" data-id="${vertrag.id}">
-              ${escapeHtml(vertrag.name) || '—'}
-            </a>
-          </td>
-          <td>${statusBadge}</td>
-          <td>
-            ${vertrag.typ 
-              ? `<span class="status-badge ${typClass}">${escapeHtml(vertrag.typ)}</span>`
-              : '-'}
-          </td>
-          <td>
-            ${creator.id ? `
-              <a href="#" class="table-link" data-table="creator" data-id="${creator.id}">
-                ${creatorName}
-              </a>
-            ` : '-'}
-          </td>
-          <td>${dateiHtml}</td>
-          <td>${formatDate(vertrag.created_at)}</td>
-          <td>
-            ${actionsHtml}
-          </td>
-        </tr>
-      `;
-    }).join('');
-  }
-
-  // Rendere Aktionen basierend auf Draft-Status
-  renderVertragActions(vertrag, isAdmin) {
-    const isDraft = vertrag.is_draft;
-    
-    // Basis-Aktionen
-    let actions = '';
-    
-    if (isDraft) {
-      // Draft: Hauptaktion ist "Weiter bearbeiten"
-      actions = `
-        <a href="#" class="action-item" data-action="continue" data-id="${vertrag.id}">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-            <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-          </svg>
-          Weiter bearbeiten
-        </a>
-        <a href="#" class="action-item" data-action="view" data-id="${vertrag.id}">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-          </svg>
-          Details anzeigen
-        </a>
-      `;
-    } else {
-      // Finalisiert: Normale Aktionen
-      actions = `
-        <a href="#" class="action-item" data-action="view" data-id="${vertrag.id}">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-          </svg>
-          Details anzeigen
-        </a>
-        <a href="#" class="action-item" data-action="edit" data-id="${vertrag.id}">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-            <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-          </svg>
-          Bearbeiten
-        </a>
-        ${vertrag.datei_url ? `
-          <a href="#" class="action-item" data-action="download" data-id="${vertrag.id}">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m.75 12 3 3m0 0 3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-            </svg>
-            PDF herunterladen
-          </a>
-        ` : ''}
-      `;
-    }
-    
-    // Separator und Delete nur für Admin
-    if (isAdmin) {
-      actions += `
-        <div class="action-separator"></div>
-        <a href="#" class="action-item action-danger" data-action="delete" data-id="${vertrag.id}">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-          </svg>
-          Löschen
-        </a>
-      `;
-    }
-    
-    return `
-      <div class="actions-dropdown-container" data-entity-type="vertraege">
-        <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-            <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
-          </svg>
-        </button>
-        <div class="actions-dropdown">
-          ${actions}
-        </div>
-      </div>
-    `;
-  }
-
-  // PDF herunterladen
   async downloadVertrag(id) {
     const vertrag = this.vertraege.find(v => v.id === id);
     if (!vertrag?.datei_url) {
@@ -516,9 +1096,16 @@ export class VertraegeList {
     window.open(vertrag.datei_url, '_blank');
   }
 
-  // Einzelnen Vertrag löschen
   async deleteVertrag(id) {
-    if (!confirm('Möchten Sie diesen Vertrag wirklich löschen?')) return;
+    const result = await window.confirmationModal?.open({
+      title: 'Vertrag löschen?',
+      message: 'Möchten Sie diesen Vertrag wirklich löschen?',
+      confirmText: 'Löschen',
+      cancelText: 'Abbrechen',
+      danger: true
+    });
+
+    if (!result?.confirmed) return;
 
     try {
       const vertrag = this.vertraege.find(v => v.id === id);
@@ -544,22 +1131,26 @@ export class VertraegeList {
     }
   }
 
-  // Bestätigungsdialog für Bulk-Delete
   async showDeleteSelectedConfirmation() {
     const selectedCount = this.selectedVertraege.size;
     if (selectedCount === 0) {
-      alert('Keine Verträge ausgewählt.');
+      window.toastSystem?.show('Keine Verträge ausgewählt', 'warning');
       return;
     }
 
-    if (!confirm(`Möchten Sie wirklich ${selectedCount} Vertrag/Verträge löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden.`)) {
-      return;
-    }
+    const result = await window.confirmationModal?.open({
+      title: `${selectedCount} Verträge löschen?`,
+      message: 'Möchten Sie die ausgewählten Verträge wirklich löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden.',
+      confirmText: 'Löschen',
+      cancelText: 'Abbrechen',
+      danger: true
+    });
+
+    if (!result?.confirmed) return;
 
     await this.deleteSelected();
   }
 
-  // Ausgewählte Verträge löschen
   async deleteSelected() {
     if (window.currentUser?.rolle !== 'admin') return;
     
@@ -594,8 +1185,15 @@ export class VertraegeList {
 
   // Cleanup
   destroy() {
+    this._boundEventListeners.forEach(cleanup => cleanup());
+    this._boundEventListeners.clear();
+    
     this.selectedVertraege.clear();
     this.vertraege = [];
+    this.unternehmenFolders = [];
+    this.viewMode = 'folders';
+    this.currentUnternehmenId = null;
+    this.currentUnternehmenName = null;
   }
 }
 

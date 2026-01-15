@@ -225,17 +225,36 @@ export class AuftragsdetailsList {
           allowedMarkenIds = [...new Set(allowedMarkenIds)];
           
           // 5. Aufträge für erlaubte Marken laden
+          let auftragIdsVonMarken = [];
           if (allowedMarkenIds.length > 0) {
-            const { data: auftraege } = await window.supabase
+            const { data: auftraegeVonMarken } = await window.supabase
               .from('auftrag')
               .select('id')
               .in('marke_id', allowedMarkenIds);
-            allowedAuftragIds = (auftraege || []).map(a => a.id);
-          } else {
-            allowedAuftragIds = [];
+            auftragIdsVonMarken = (auftraegeVonMarken || []).map(a => a.id);
           }
           
-          console.log('🔍 AUFTRAGSDETAILS: Erlaubte Aufträge:', allowedAuftragIds?.length || 0);
+          // 6. WICHTIG: Auch Aufträge OHNE marke_id laden, wenn User dem Unternehmen zugeordnet ist
+          let auftragIdsOhneMarke = [];
+          if (unternehmenIds.length > 0) {
+            const { data: auftraegeOhneMarke } = await window.supabase
+              .from('auftrag')
+              .select('id')
+              .in('unternehmen_id', unternehmenIds)
+              .is('marke_id', null);
+            auftragIdsOhneMarke = (auftraegeOhneMarke || []).map(a => a.id);
+          }
+          
+          // 7. Beide Listen kombinieren
+          allowedAuftragIds = [...new Set([...auftragIdsVonMarken, ...auftragIdsOhneMarke])];
+          
+          console.log('🔍 AUFTRAGSDETAILS: Erlaubte Aufträge:', {
+            vonMarken: auftragIdsVonMarken.length,
+            ohneMarke: auftragIdsOhneMarke.length,
+            gesamt: allowedAuftragIds.length,
+            unternehmenIds: unternehmenIds.length,
+            markenIds: allowedMarkenIds.length
+          });
         } catch (error) {
           console.error('❌ AUFTRAGSDETAILS: Fehler beim Laden der Zuordnungen:', error);
         }

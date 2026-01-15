@@ -5,12 +5,14 @@ import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { AvatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
+import { AutoGeneration } from '../../core/form/logic/AutoGeneration.js';
 
 export class CreatorAuswahlList {
   constructor() {
     this._boundEventListeners = new Set();
     this.pagination = new PaginationSystem();
     this.listen = [];
+    this.autoGeneration = new AutoGeneration();
   }
 
   /**
@@ -331,10 +333,7 @@ export class CreatorAuswahlList {
     body.className = 'drawer-body';
     body.innerHTML = `
       <form id="create-liste-form">
-        <div class="form-field">
-          <label class="form-label">Name *</label>
-          <input type="text" id="liste-name" name="name" required class="form-input" placeholder="z.B. Creator-Pool Q1 2025">
-        </div>
+        <input type="hidden" id="liste-name" name="name" value="">
 
         <div class="form-field">
           <label class="form-label">Beschreibung</label>
@@ -535,6 +534,16 @@ export class CreatorAuswahlList {
       (id, label) => {
         selectedKampagneId = id;
         addTag('tags-kampagne', id, label, () => { selectedKampagneId = null; });
+        
+        // Auto-Generierung des Sourcing-Namens
+        const nameInput = document.getElementById('liste-name');
+        if (nameInput && label) {
+          const sourcingName = this.autoGeneration.autoGenerateSourcingName(label);
+          if (sourcingName) {
+            nameInput.value = sourcingName;
+            nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        }
       },
       (r) => `<div class="dropdown-item" data-id="${r.id}" data-label="${r.kampagnenname}">${r.kampagnenname}</div>`
     );
@@ -622,10 +631,7 @@ export class CreatorAuswahlList {
     body.className = 'drawer-body';
     body.innerHTML = `
       <form id="edit-liste-form" data-liste-id="${liste.id}">
-        <div class="form-field">
-          <label class="form-label">Name *</label>
-          <input type="text" name="name" required class="form-input" value="${liste.name || ''}">
-        </div>
+        <input type="hidden" name="name" value="${liste.name || ''}">
 
         <div class="form-field">
           <label class="form-label">Beschreibung</label>
@@ -809,6 +815,16 @@ export class CreatorAuswahlList {
       (id, label) => {
         selectedKampagneId = id;
         addTag('edit-tags-kampagne', id, label, () => { selectedKampagneId = null; });
+        
+        // Auto-Generierung des Sourcing-Namens beim Bearbeiten
+        const nameInput = document.querySelector('#edit-liste-form input[name="name"][type="hidden"]');
+        if (nameInput && label) {
+          const sourcingName = this.autoGeneration.autoGenerateSourcingName(label);
+          if (sourcingName) {
+            nameInput.value = sourcingName;
+            nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        }
       },
       (r) => `<div class="dropdown-item" data-id="${r.id}" data-label="${r.kampagnenname}">${r.kampagnenname}</div>`
     );

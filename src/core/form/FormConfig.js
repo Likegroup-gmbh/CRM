@@ -21,6 +21,11 @@ export class FormConfig {
           { name: 'rechnungsadresse_plz', label: 'PLZ', type: 'text', required: false, row: 'rechnungsadresse2', colSize: 'small', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true' },
           { name: 'rechnungsadresse_stadt', label: 'Stadt', type: 'text', required: false, row: 'rechnungsadresse2', colSize: 'grow', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true' },
           { name: 'rechnungsadresse_land', label: 'Land (Rechnung)', type: 'text', required: false, defaultValue: 'Deutschland', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true' },
+          // Agentur-Vertretung
+          { name: 'agentur_vertreten', label: 'Wird der Creator durch eine Agentur vertreten?', type: 'toggle', required: false },
+          { name: 'agentur_name', label: 'Agenturname', type: 'text', required: false, dependsOn: 'agentur_vertreten', showWhen: 'true', placeholder: 'Name der Agentur' },
+          { name: 'agentur_adresse', label: 'Agenturadresse', type: 'text', required: false, dependsOn: 'agentur_vertreten', showWhen: 'true', placeholder: 'Straße, PLZ Stadt' },
+          { name: 'agentur_vertretung', label: 'Vertreten durch', type: 'text', required: false, dependsOn: 'agentur_vertreten', showWhen: 'true', placeholder: 'Name des Vertreters' },
           // Social Media
           { name: 'instagram', label: 'Instagram', type: 'text', required: false },
           { 
@@ -470,23 +475,33 @@ export class FormConfig {
       auftrag: {
         title: 'Neuen Auftrag anlegen',
         fields: [
-          { name: 'auftragsname', label: 'Auftragsname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
           { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...' },
-          { name: 'marke_id', label: 'Marke', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Marke suchen und auswählen...', dependsOn: 'unternehmen_id', table: 'marke', displayField: 'markenname', valueField: 'id' },
-          { name: 'status', label: 'Status', type: 'select', required: false, options: ['Beauftragt', 'In Produktion', 'Abgeschlossen', 'Storniert'] },
-          { name: 'ansprechpartner_id', label: 'Ansprechpartner', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Ansprechpartner auswählen...', table: 'ansprechpartner', displayField: 'vorname,nachname,email', valueField: 'id', dependsOn: 'unternehmen_id' },
           { 
             name: 'auftragtype', 
             label: 'Art des Auftrages', 
             type: 'select', 
-            required: false, 
+            required: true, 
             placeholder: 'Auftragsart auswählen...',
-            options: ['Pilotprojekt', 'Follow Up', 'Jahreskooperation', 'Bestandskunde, Projektbasiert']
+            options: ['Pilotprojekt', 'Einmalprojekt', 'Folgeprojekt', 'Retainer', 'Jahreskooperation', 'Performance-Modell', 'Rahmenvertrag']
           },
+          { 
+            name: 'auftragsname', 
+            label: 'Auftragsname', 
+            type: 'text', 
+            required: true, 
+            autoGenerate: true,
+            readonly: true,
+            placeholder: 'Wird automatisch generiert...',
+            validation: { type: 'text', minLength: 2 }
+          },
+          { name: 'marke_id', label: 'Marke', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Marke suchen und auswählen...', dependsOn: 'unternehmen_id', table: 'marke', displayField: 'markenname', valueField: 'id' },
+          { name: 'status', label: 'Status', type: 'select', required: false, options: ['Beauftragt', 'In Produktion', 'Abgeschlossen', 'Storniert'] },
+          { name: 'ansprechpartner_id', label: 'Ansprechpartner', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Ansprechpartner auswählen...', table: 'ansprechpartner', displayField: 'vorname,nachname,email', valueField: 'id', dependsOn: 'unternehmen_id' },
           { name: 'notiz', label: 'Beschreibung / Notiz', type: 'textarea', required: false, placeholder: 'Auftragsbeschreibung eingeben...' },
           { name: 'angebotsnummer', label: 'Angebotsnummer', type: 'text', required: false, readonly: true, placeholder: 'Wird automatisch generiert...' },
+          { name: 'externe_angebotsnummer', label: 'Externe Angebotsnummer', type: 'text', required: false, placeholder: 'Angebotsnummer aus Kundenangebot...' },
           { name: 're_nr', label: 'RE. Nr', type: 'text', required: false, placeholder: 'Rechnungsnummer...' },
-          { name: 'po', label: 'PO', type: 'text', required: false, placeholder: 'Purchase Order Nummer...' },
+          { name: 'po', label: 'PO', type: 'text', required: false, readonly: true, placeholder: 'Wird automatisch generiert...' },
           { 
             name: 'zahlungsziel_tage', 
             label: 'Zahlungsziel', 
@@ -656,6 +671,9 @@ export class FormConfig {
             relationField: 'sprache_id',
             customField: true
           },
+          { name: 'erlaubt_updates', label: 'Updates zu unserem Unternehmen', type: 'toggle', required: false },
+          { name: 'erlaubt_newsletter', label: 'Newsletter (1x/Monat)', type: 'toggle', required: false },
+          { name: 'erlaubt_webinare', label: 'Webinar-Einladungen', type: 'toggle', required: false },
           { name: 'notiz', label: 'Notizen', type: 'textarea', required: false, rows: 4 }
         ]
       },
@@ -680,8 +698,8 @@ export class FormConfig {
       rechnung: {
         title: 'Neue Rechnung anlegen',
         fields: [
-          { name: 'rechnung_nr', label: 'Rechnungs-Nr', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
           { name: 'po_nummer', label: 'Interne PO-Nummer', type: 'text', required: false, readonly: true, editOnly: true, placeholder: 'Wird automatisch vergeben' },
+          { name: 'externe_angebotsnummer', label: 'Externe Angebotsnummer', type: 'text', required: false, placeholder: 'Angebotsnummer aus Kundenangebot...' },
           { name: 'kooperation_id', label: 'Kooperation', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Kooperation wählen...', table: 'kooperationen', displayField: 'name', valueField: 'id' },
           { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen wird automatisch gesetzt', readonly: true, table: 'unternehmen', displayField: 'firmenname', valueField: 'id' },
           { name: 'auftrag_id', label: 'Auftrag', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Auftrag wird automatisch gesetzt', readonly: true, table: 'auftrag', displayField: 'auftragsname', valueField: 'id' },
@@ -693,9 +711,19 @@ export class FormConfig {
           { name: 'gestellt_am', label: 'Gestellt am', type: 'date', required: true },
           { name: 'zahlungsziel', label: 'Zahlungsziel', type: 'date', required: true },
           { name: 'bezahlt_am', label: 'Bezahlt am', type: 'date', required: false },
+          // Eingabefelder
           { name: 'nettobetrag', label: 'Betrag (Netto)', type: 'number', required: true, validation: { type: 'number', min: 0 } },
-          { name: 'zusatzkosten', label: 'Zusatzkosten', type: 'number', required: false, validation: { type: 'number', min: 0 } },
-          { name: 'bruttobetrag', label: 'Betrag (Brutto)', type: 'number', required: true, validation: { type: 'number', min: 0 } },
+          { name: 'zusatzkosten', label: 'Zusatzkosten (Netto)', type: 'number', required: false, validation: { type: 'number', min: 0 } },
+          { name: 'ust_prozent', label: 'Umsatzsteuer', type: 'number', required: false, readonly: true, defaultValue: 19, suffix: '%' },
+          { name: 'skonto', label: '3% Skonto berücksichtigen', type: 'toggle', required: false },
+          // Berechnete Ergebnis-Felder (readonly)
+          { name: 'netto_gesamt', label: 'Netto gesamt (vor Skonto)', type: 'number', required: false, readonly: true, validation: { type: 'number', min: 0 } },
+          { name: 'brutto_vor_skonto', label: 'Brutto gesamt (vor Skonto)', type: 'number', required: false, readonly: true, validation: { type: 'number', min: 0 } },
+          { name: 'skonto_betrag', label: 'Skonto (3%)', type: 'number', required: false, readonly: true, validation: { type: 'number', min: 0 } },
+          { name: 'netto_nach_skonto', label: 'Netto nach Skonto', type: 'number', required: false, readonly: true, validation: { type: 'number', min: 0 } },
+          { name: 'ust_betrag', label: 'Umsatzsteuerbetrag', type: 'number', required: false, readonly: true, validation: { type: 'number', min: 0 } },
+          { name: 'bruttobetrag', label: 'Betrag (Brutto)', type: 'number', required: false, readonly: true, validation: { type: 'number', min: 0 } },
+          // Uploads
           { name: 'pdf_file', label: 'Rechnungs-PDF', type: 'custom', customType: 'uploader', accept: 'application/pdf', multiple: false, required: false, maxFileSize: 10 * 1024 * 1024 },
           { name: 'belege_files', label: 'Belege (mehrere Dateien)', type: 'custom', customType: 'uploader', accept: 'application/pdf,image/*', multiple: true, required: false, maxFileSize: 10 * 1024 * 1024 }
         ]

@@ -96,7 +96,17 @@ export class VertraegeCreate {
           content_deadline: draft.content_deadline,
           korrekturschleifen: draft.korrekturschleifen,
           abnahmedatum: draft.abnahmedatum,
-          weitere_bestimmungen: draft.weitere_bestimmungen
+          weitere_bestimmungen: draft.weitere_bestimmungen,
+          // Videograf-spezifische Felder
+          kunde_rechtsform: draft.kunde_rechtsform,
+          influencer_steuer_id: draft.influencer_steuer_id,
+          influencer_land: draft.influencer_land,
+          videograf_produktionsart: draft.videograf_produktionsart,
+          videograf_produktionsplan: draft.videograf_produktionsplan || [],
+          videograf_lieferumfang: draft.videograf_lieferumfang || [],
+          videograf_v1_deadline: draft.videograf_v1_deadline,
+          videograf_finale_werktage: draft.videograf_finale_werktage,
+          videograf_nutzungsart: draft.videograf_nutzungsart || []
         };
         this.selectedTyp = draft.typ;
         this.isGenerated = true;
@@ -196,7 +206,7 @@ export class VertraegeCreate {
           <h2>Vertragstyp auswählen</h2>
           <p class="form-hint">Wählen Sie den Vertragstyp aus und klicken Sie auf "Generieren".</p>
           
-          <div class="form-field" style="max-width: 400px; margin: 2rem auto;">
+          <div class="form-field form-field--centered">
             <label for="vertrag-typ">Vertragstyp</label>
             <select id="vertrag-typ" class="form-select">
               <option value="">Bitte wählen...</option>
@@ -206,7 +216,7 @@ export class VertraegeCreate {
             </select>
           </div>
           
-          <div class="form-actions" style="justify-content: center;">
+          <div class="form-actions form-actions--centered">
             <button type="button" class="mdc-btn mdc-btn--cancel" onclick="window.navigateTo('/vertraege')">
               <span class="mdc-btn__label">Abbrechen</span>
             </button>
@@ -304,7 +314,7 @@ export class VertraegeCreate {
         ${steps.map(step => `
           <div class="progress-step ${this.currentStep >= step.num ? 'active' : ''} ${this.currentStep === step.num ? 'current' : ''}" 
                data-step="${step.num}" 
-               style="cursor: pointer;"
+               class="cursor-pointer"
                title="Zu ${step.label} springen">
             <div class="step-number">${step.num - 1}</div>
             <div class="step-label">${step.label}</div>
@@ -319,7 +329,7 @@ export class VertraegeCreate {
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 3.75H6.912a2.25 2.25 0 0 0-2.15 1.588L2.35 13.177a2.25 2.25 0 0 0-.1.661V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18v-4.162c0-.224-.034-.447-.1-.661L19.24 5.338a2.25 2.25 0 0 0-2.15-1.588H15M2.25 13.5h3.86a2.25 2.25 0 0 1 2.012 1.244l.256.512a2.25 2.25 0 0 0 2.013 1.244h3.218a2.25 2.25 0 0 0 2.013-1.244l.256-.512a2.25 2.25 0 0 1 2.013-1.244h3.859M12 3v8.25m0 0-3-3m3 3 3-3" />
           </svg>
-          Als Entwurf speichern
+          <span class="btn-label">Als Entwurf speichern</span>
         </button>
         ${this.currentStep > 2 ? `
           <button type="button" id="btn-prev" class="secondary-btn">
@@ -388,6 +398,17 @@ export class VertraegeCreate {
       }
     }
     
+    // Videograf-Vertrag
+    if (this.selectedTyp === 'Videograph') {
+      switch (this.currentStep) {
+        case 2: return this.renderVideografStep2(); // Parteien
+        case 3: return this.renderVideografStep3(); // Leistungsumfang & Produktion
+        case 4: return this.renderVideografStep4(); // Output & Korrektur
+        case 5: return this.renderVideografStep5(); // Nutzungsrechte & Vergütung
+        default: return '';
+      }
+    }
+    
     // UGC-Vertrag (Standard)
     switch (this.currentStep) {
       case 2: return this.renderStep2();
@@ -451,6 +472,45 @@ export class VertraegeCreate {
             `).join('')}
           </select>
           <div id="creator-adresse" class="address-preview"></div>
+        </div>
+
+        <h3 class="mt-section">Influencer-Vertretung</h3>
+        
+        <div class="form-field">
+          <label>Wird der Influencer durch eine Agentur vertreten?</label>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input type="radio" name="influencer_agentur_vertreten" value="false" 
+                     ${!this.formData.influencer_agentur_vertreten ? 'checked' : ''}>
+              <span>Nein</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="influencer_agentur_vertreten" value="true" 
+                     ${this.formData.influencer_agentur_vertreten ? 'checked' : ''}>
+              <span>Ja</span>
+            </label>
+          </div>
+        </div>
+
+        <div id="agentur-felder" class="${this.formData.influencer_agentur_vertreten ? '' : 'hidden'}">
+          <div class="form-field">
+            <label for="influencer_agentur_name">Agenturname</label>
+            <input type="text" id="influencer_agentur_name" name="influencer_agentur_name"
+                   value="${this.formData.influencer_agentur_name || ''}"
+                   placeholder="Name der Agentur">
+          </div>
+          <div class="form-field">
+            <label for="influencer_agentur_adresse">Agenturadresse</label>
+            <input type="text" id="influencer_agentur_adresse" name="influencer_agentur_adresse"
+                   value="${this.formData.influencer_agentur_adresse || ''}"
+                   placeholder="Straße, PLZ Stadt">
+          </div>
+          <div class="form-field">
+            <label for="influencer_agentur_vertretung">Vertreten durch</label>
+            <input type="text" id="influencer_agentur_vertretung" name="influencer_agentur_vertretung"
+                   value="${this.formData.influencer_agentur_vertretung || ''}"
+                   placeholder="Name des Vertreters">
+          </div>
         </div>
 
         <div class="form-field">
@@ -694,7 +754,7 @@ export class VertraegeCreate {
               <span>Exklusivität</span>
             </label>
           </div>
-          <div class="form-field" id="exklusivitaet-monate-wrapper" style="${this.formData.exklusivitaet ? '' : 'display: none;'}">
+          <div class="form-field ${this.formData.exklusivitaet ? '' : 'hidden'}" id="exklusivitaet-monate-wrapper">
             <label for="exklusivitaet_monate">Exklusivität Monate</label>
             <input type="number" id="exklusivitaet_monate" name="exklusivitaet_monate" min="1" max="24"
                    value="${this.formData.exklusivitaet_monate || ''}">
@@ -738,7 +798,7 @@ export class VertraegeCreate {
               <span>Zusatzkosten vereinbart</span>
             </label>
           </div>
-          <div class="form-field" id="zusatzkosten-wrapper" style="${this.formData.zusatzkosten ? '' : 'display: none;'}">
+          <div class="form-field ${this.formData.zusatzkosten ? '' : 'hidden'}" id="zusatzkosten-wrapper">
             <label for="zusatzkosten_betrag">Zusatzkosten (netto)</label>
             <div class="input-with-suffix">
               <input type="number" id="zusatzkosten_betrag" name="zusatzkosten_betrag" 
@@ -846,7 +906,7 @@ export class VertraegeCreate {
           <div id="creator-adresse" class="address-preview"></div>
         </div>
 
-        <h3 style="margin-top: 2rem;">Influencer-Vertretung</h3>
+        <h3 class="mt-section">Influencer-Vertretung</h3>
         
         <div class="form-field">
           <label>Wird der Influencer durch eine Agentur vertreten?</label>
@@ -864,7 +924,7 @@ export class VertraegeCreate {
           </div>
         </div>
 
-        <div id="agentur-felder" style="${this.formData.influencer_agentur_vertreten ? '' : 'display: none;'}">
+        <div id="agentur-felder" class="${this.formData.influencer_agentur_vertreten ? '' : 'hidden'}">
           <div class="form-field">
             <label for="influencer_agentur_name">Agenturname</label>
             <input type="text" id="influencer_agentur_name" name="influencer_agentur_name"
@@ -885,20 +945,12 @@ export class VertraegeCreate {
           </div>
         </div>
 
-        <h3 style="margin-top: 2rem;">Influencer-Daten</h3>
+        <h3 class="mt-section">Influencer-Daten</h3>
         
-        <div class="form-two-col">
-          <div class="form-field">
-            <label for="influencer_steuer_id">Steuer-ID / USt-ID</label>
-            <input type="text" id="influencer_steuer_id" name="influencer_steuer_id"
-                   value="${this.formData.influencer_steuer_id || ''}"
-                   placeholder="DE123456789">
-          </div>
-          <div class="form-field">
-            <label for="influencer_land">Land</label>
-            <input type="text" id="influencer_land" name="influencer_land"
-                   value="${this.formData.influencer_land || 'Deutschland'}">
-          </div>
+        <div class="form-field">
+          <label for="influencer_land">Land</label>
+          <input type="text" id="influencer_land" name="influencer_land"
+                 value="${this.formData.influencer_land || 'Deutschland'}">
         </div>
 
         <div class="form-field">
@@ -963,7 +1015,7 @@ export class VertraegeCreate {
           </div>
         </div>
 
-        <div class="form-field" id="plattformen-sonstige-wrapper" style="${(this.formData.plattformen || []).includes('sonstige') ? '' : 'display: none;'}">
+        <div class="form-field ${(this.formData.plattformen || []).includes('sonstige') ? '' : 'hidden'}" id="plattformen-sonstige-wrapper">
           <label for="plattformen_sonstige">Sonstige Plattform</label>
           <input type="text" id="plattformen_sonstige" name="plattformen_sonstige"
                  value="${this.formData.plattformen_sonstige || ''}"
@@ -1010,24 +1062,27 @@ export class VertraegeCreate {
 
         <h4>3.2 Veröffentlichungsplan</h4>
         
-        <div id="veroeffentlichungsplan-videos" class="veroeffentlichungsplan-section">
-          <h5>Videos / Reels</h5>
-          <div id="video-dates-list">
-            ${this.renderVeroeffentlichungsDaten('videos', veroeffentlichungsplan.videos || [])}
+        <div class="form-three-col">
+          <div id="veroeffentlichungsplan-videos" class="veroeffentlichungsplan-section">
+            <h5>Videos / Reels</h5>
+            <div id="video-dates-list">
+              ${this.renderVeroeffentlichungsDaten('videos', veroeffentlichungsplan.videos || [])}
+            </div>
           </div>
-          <button type="button" class="secondary-btn btn-sm" id="btn-add-video-date">
-            + Video-Datum hinzufügen
-          </button>
-        </div>
 
-        <div id="veroeffentlichungsplan-storys" class="veroeffentlichungsplan-section" style="margin-top: 1rem;">
-          <h5>Storys</h5>
-          <div id="story-dates-list">
-            ${this.renderVeroeffentlichungsDaten('storys', veroeffentlichungsplan.storys || [])}
+          <div id="veroeffentlichungsplan-feed-posts" class="veroeffentlichungsplan-section">
+            <h5>Feed-Posts</h5>
+            <div id="feed-post-dates-list">
+              ${this.renderVeroeffentlichungsDaten('feed_posts', veroeffentlichungsplan.feed_posts || [])}
+            </div>
           </div>
-          <button type="button" class="secondary-btn btn-sm" id="btn-add-story-date">
-            + Story-Datum hinzufügen
-          </button>
+
+          <div id="veroeffentlichungsplan-storys" class="veroeffentlichungsplan-section">
+            <h5>Story-Slides</h5>
+            <div id="story-dates-list">
+              ${this.renderVeroeffentlichungsDaten('storys', veroeffentlichungsplan.storys || [])}
+            </div>
+          </div>
         </div>
       </div>
     `;
@@ -1035,19 +1090,21 @@ export class VertraegeCreate {
 
   // Helper: Veröffentlichungsdaten rendern
   renderVeroeffentlichungsDaten(typ, dates) {
+    const labels = {
+      'videos': 'Video',
+      'feed_posts': 'Feed-Post',
+      'storys': 'Story-Slide'
+    };
+    const label = labels[typ] || typ;
+    
     if (!dates || dates.length === 0) {
-      return `<div class="no-dates-hint">Noch keine ${typ === 'videos' ? 'Video-' : 'Story-'}Termine geplant</div>`;
+      return `<div class="no-dates-hint">Noch keine ${label}-Termine geplant</div>`;
     }
     
     return dates.map((date, idx) => `
       <div class="veroeffentlichung-item" data-idx="${idx}">
-        <span class="veroeffentlichung-label">${typ === 'videos' ? 'Video' : 'Story'} ${idx + 1}</span>
+        <span class="veroeffentlichung-label">${label} ${idx + 1}</span>
         <input type="date" name="${typ}_date_${idx}" value="${date}" class="veroeffentlichung-date">
-        <button type="button" class="btn-icon btn-remove-date" data-typ="${typ}" data-idx="${idx}">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-          </svg>
-        </button>
       </div>
     `).join('');
   }
@@ -1152,7 +1209,7 @@ export class VertraegeCreate {
           </div>
         </div>
 
-        <p class="form-hint" style="margin-top: 0.5rem;">Der Content darf technisch angepasst werden. Eine Weitergabe an Dritte ist ausgeschlossen.</p>
+        <p class="form-hint mt-xs">Der Content darf technisch angepasst werden. Eine Weitergabe an Dritte ist ausgeschlossen.</p>
 
         <h4>5.3 Exklusivität</h4>
         <div class="form-two-col">
@@ -1163,7 +1220,7 @@ export class VertraegeCreate {
               <span>Exklusivität vereinbart</span>
             </label>
           </div>
-          <div class="form-field" id="exklusivitaet-monate-wrapper" style="${this.formData.exklusivitaet ? '' : 'display: none;'}">
+          <div class="form-field ${this.formData.exklusivitaet ? '' : 'hidden'}" id="exklusivitaet-monate-wrapper">
             <label for="exklusivitaet_monate">Zeitraum (Monate)</label>
             <input type="number" id="exklusivitaet_monate" name="exklusivitaet_monate" min="1" max="24"
                    value="${this.formData.exklusivitaet_monate || ''}">
@@ -1171,7 +1228,7 @@ export class VertraegeCreate {
         </div>
         <p class="form-hint">Am Veröffentlichungstag darf keine Werbung für konkurrierende Marken erfolgen.</p>
 
-        <h3 style="margin-top: 2rem;">§10 Reichweiten-Garantie</h3>
+        <h3 class="mt-section">§10 Reichweiten-Garantie</h3>
         <div class="form-two-col">
           <div class="form-field">
             <div class="radio-group">
@@ -1187,14 +1244,14 @@ export class VertraegeCreate {
               </label>
             </div>
           </div>
-          <div class="form-field" id="reichweiten-wert-wrapper" style="${this.formData.reichweiten_garantie ? '' : 'display: none;'}">
+          <div class="form-field ${this.formData.reichweiten_garantie ? '' : 'hidden'}" id="reichweiten-wert-wrapper">
             <label for="reichweiten_garantie_wert">Mindestreichweite</label>
             <input type="number" id="reichweiten_garantie_wert" name="reichweiten_garantie_wert" min="0"
                    value="${this.formData.reichweiten_garantie_wert || ''}">
           </div>
         </div>
 
-        <h3 style="margin-top: 2rem;">§11 Mindest-Online-Dauer</h3>
+        <h3 class="mt-section">§11 Mindest-Online-Dauer</h3>
         <div class="form-field">
           <div class="radio-group radio-group-inline">
             <label class="radio-option">
@@ -1269,7 +1326,7 @@ export class VertraegeCreate {
               <span>Zusatzkosten vereinbart</span>
             </label>
           </div>
-          <div class="form-field" id="zusatzkosten-wrapper" style="${this.formData.zusatzkosten ? '' : 'display: none;'}">
+          <div class="form-field ${this.formData.zusatzkosten ? '' : 'hidden'}" id="zusatzkosten-wrapper">
             <label for="zusatzkosten_betrag">Zusatzkosten (netto)</label>
             <div class="input-with-suffix">
               <input type="number" id="zusatzkosten_betrag" name="zusatzkosten_betrag" 
@@ -1298,10 +1355,10 @@ export class VertraegeCreate {
 
         <p class="form-hint">Die Zahlung erfolgt durch den Auftraggeber oder die LikeGroup GmbH im Auftrag des Kunden. Die Rechnungsstellung erfolgt nach Veröffentlichung bzw. Erreichung der Ziele.</p>
 
-        <h3 style="margin-top: 2rem;">§7 Qualitätsanforderungen</h3>
+        <h3 class="mt-section">§7 Qualitätsanforderungen</h3>
         <p class="form-hint">Der Content muss technisch sauber (Ton, Licht, Bild), natürlich und nicht übermäßig werblich, markenkonform, visuell hochwertig, kreativ, lebendig und mit ästhetisch geeignetem Hintergrund umgesetzt sein.</p>
 
-        <h3 style="margin-top: 2rem;">§8 Anpassungen</h3>
+        <h3 class="mt-section">§8 Anpassungen</h3>
         <p class="form-hint">Kostenfreie Anpassungen umfassen u.a.:</p>
         <div class="form-field">
           <div class="checkbox-group checkbox-group-multi">
@@ -1338,7 +1395,398 @@ export class VertraegeCreate {
           </div>
         </div>
 
-        <h3 style="margin-top: 2rem;">Weitere Bestimmungen</h3>
+        <h3 class="mt-section">Weitere Bestimmungen</h3>
+        <div class="form-field">
+          <label for="weitere_bestimmungen">Zusätzliche Vereinbarungen (optional)</label>
+          <textarea id="weitere_bestimmungen" name="weitere_bestimmungen" rows="4"
+                    placeholder="z.B. besondere Vereinbarungen, Sonderkonditionen...">${this.formData.weitere_bestimmungen || ''}</textarea>
+        </div>
+      </div>
+    `;
+  }
+
+  // ============================================
+  // VIDEOGRAF-VERTRAG STEPS
+  // ============================================
+
+  // Videograf Step 2: Vertragsparteien
+  renderVideografStep2() {
+    if (!this._filtersInitialized) {
+      this.updateFilteredKampagnen();
+    }
+    
+    return `
+      <div class="step-section">
+        <h3>Vertragsparteien</h3>
+        <p class="step-description">Vertragstyp: <strong>Videografen- & Fotografen-Produktionsvertrag</strong></p>
+        
+        <!-- Kunde (Unternehmen) -->
+        <div class="form-field">
+          <label for="kunde_unternehmen_id">Kunde (Unternehmen) <span class="required">*</span></label>
+          <select id="kunde_unternehmen_id" name="kunde_unternehmen_id" required data-searchable="true">
+            <option value="">Unternehmen auswählen...</option>
+            ${this.unternehmen.map(u => `
+              <option value="${u.id}" ${this.formData.kunde_unternehmen_id === u.id ? 'selected' : ''}>
+                ${u.firmenname}
+              </option>
+            `).join('')}
+          </select>
+          <div id="kunde-adresse" class="address-preview"></div>
+        </div>
+
+        <div class="form-field">
+          <label for="kunde_rechtsform">Rechtsform <span class="required">*</span></label>
+          <input type="text" id="kunde_rechtsform" name="kunde_rechtsform" 
+                 placeholder="z.B. GmbH, AG, UG..."
+                 value="${this.formData.kunde_rechtsform || ''}" required>
+        </div>
+
+        <!-- Kampagne -->
+        <div class="form-field">
+          <label for="kampagne_id">Kampagne <span class="required">*</span></label>
+          <select id="kampagne_id" name="kampagne_id" required ${!this.formData.kunde_unternehmen_id ? 'disabled' : ''} data-searchable="true">
+            <option value="">${this.formData.kunde_unternehmen_id ? 'Kampagne auswählen...' : 'Bitte zuerst Kunde wählen...'}</option>
+            ${this.filteredKampagnen.map(k => `
+              <option value="${k.id}" ${this.formData.kampagne_id === k.id ? 'selected' : ''}>
+                ${k.kampagnenname}
+              </option>
+            `).join('')}
+          </select>
+        </div>
+
+        <h3 class="mt-section">Auftragnehmer (Videograf / Fotograf)</h3>
+
+        <!-- Auftragnehmer (Creator) -->
+        <div class="form-field">
+          <label for="creator_id">Videograf/Fotograf <span class="required">*</span></label>
+          <select id="creator_id" name="creator_id" required ${!this.formData.kampagne_id ? 'disabled' : ''} data-searchable="true">
+            <option value="">${this.formData.kampagne_id ? 'Auftragnehmer auswählen...' : 'Bitte zuerst Kampagne wählen...'}</option>
+            ${this.filteredCreators.map(c => `
+              <option value="${c.id}" ${this.formData.creator_id === c.id ? 'selected' : ''}>
+                ${c.vorname} ${c.nachname}
+              </option>
+            `).join('')}
+          </select>
+          <div id="creator-adresse" class="address-preview"></div>
+        </div>
+
+        <div class="form-two-col">
+          <div class="form-field">
+            <label for="influencer_steuer_id">Steuer-ID / USt-ID</label>
+            <input type="text" id="influencer_steuer_id" name="influencer_steuer_id" 
+                   placeholder="z.B. DE123456789"
+                   value="${this.formData.influencer_steuer_id || ''}">
+          </div>
+          <div class="form-field">
+            <label for="influencer_land">Land</label>
+            <select id="influencer_land" name="influencer_land">
+              <option value="Deutschland" ${this.formData.influencer_land === 'Deutschland' || !this.formData.influencer_land ? 'selected' : ''}>Deutschland</option>
+              <option value="Österreich" ${this.formData.influencer_land === 'Österreich' ? 'selected' : ''}>Österreich</option>
+              <option value="Schweiz" ${this.formData.influencer_land === 'Schweiz' ? 'selected' : ''}>Schweiz</option>
+              <option value="Andere" ${this.formData.influencer_land === 'Andere' ? 'selected' : ''}>Andere</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Videograf Step 3: Leistungsumfang & Produktion
+  renderVideografStep3() {
+    return `
+      <div class="step-section">
+        <h3>§2 Leistungsumfang</h3>
+        
+        <h4>2.1 Art der Leistung</h4>
+        <div class="form-field">
+          <label>Was wird produziert? <span class="required">*</span></label>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input type="radio" name="content_erstellung_art" value="video" 
+                     ${this.formData.content_erstellung_art === 'video' ? 'checked' : ''} required>
+              <span>Video</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="content_erstellung_art" value="foto" 
+                     ${this.formData.content_erstellung_art === 'foto' ? 'checked' : ''}>
+              <span>Foto</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="content_erstellung_art" value="video_foto" 
+                     ${this.formData.content_erstellung_art === 'video_foto' ? 'checked' : ''}>
+              <span>Video & Foto</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-two-col">
+          <div class="form-field">
+            <label for="anzahl_videos">Anzahl Videos</label>
+            <input type="number" id="anzahl_videos" name="anzahl_videos" min="0" 
+                   value="${this.formData.anzahl_videos || 0}">
+          </div>
+          <div class="form-field">
+            <label for="anzahl_fotos">Anzahl Fotos</label>
+            <input type="number" id="anzahl_fotos" name="anzahl_fotos" min="0" 
+                   value="${this.formData.anzahl_fotos || 0}">
+          </div>
+        </div>
+
+        <h4 class="mt-subsection">2.2 Produktionsart</h4>
+        <div class="form-field">
+          <label>Wie wird produziert? <span class="required">*</span></label>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input type="radio" name="videograf_produktionsart" value="briefing" 
+                     ${this.formData.videograf_produktionsart === 'briefing' ? 'checked' : ''} required>
+              <span>Produktion nach Briefing</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="videograf_produktionsart" value="skript_shotlist" 
+                     ${this.formData.videograf_produktionsart === 'skript_shotlist' ? 'checked' : ''}>
+              <span>Produktion nach Skript / Shotlist</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="videograf_produktionsart" value="eigenstaendig" 
+                     ${this.formData.videograf_produktionsart === 'eigenstaendig' ? 'checked' : ''}>
+              <span>Eigenständige Umsetzung nach Zielvorgabe</span>
+            </label>
+          </div>
+        </div>
+
+        <h4 class="mt-subsection">2.3 Drehtage & Produktionsorte</h4>
+        <p class="form-hint">Fügen Sie für jeden Drehtag das Datum und den Produktionsort hinzu.</p>
+        
+        <div id="videograf-produktionsplan-container">
+          ${this.renderProduktionsplanRows()}
+        </div>
+        
+        <button type="button" class="mdc-btn mdc-btn--secondary mt-xs" id="btn-add-drehtag">
+          
+          Drehtag hinzufügen
+        </button>
+
+        <p class="form-hint mt-sm">Der Auftragnehmer verpflichtet sich, zum vereinbarten Zeitpunkt vollständig einsatzbereit zu erscheinen und die Produktion fachgerecht durchzuführen.</p>
+      </div>
+    `;
+  }
+
+  // Helper: Produktionsplan-Rows rendern
+  renderProduktionsplanRows() {
+    const produktionsplan = this.formData.videograf_produktionsplan || [{ datum: '', ort: '' }];
+    
+    // Falls leer, mindestens eine Row
+    if (produktionsplan.length === 0) {
+      produktionsplan.push({ datum: '', ort: '' });
+    }
+    
+    return produktionsplan.map((item, index) => `
+      <div class="produktionsplan-row" data-index="${index}">
+        <div class="form-field form-field--date">
+          <label for="drehtag_datum_${index}">${index === 0 ? 'Drehtag <span class="required">*</span>' : `Drehtag ${index + 1}`}</label>
+          <input type="date" id="drehtag_datum_${index}" name="drehtag_datum_${index}" 
+                 value="${item.datum || ''}" ${index === 0 ? 'required' : ''}>
+        </div>
+        <div class="form-field form-field--ort">
+          <label for="drehtag_ort_${index}">${index === 0 ? 'Produktionsort <span class="required">*</span>' : 'Produktionsort'}</label>
+          <input type="text" id="drehtag_ort_${index}" name="drehtag_ort_${index}" 
+                 placeholder="z.B. Frankfurt am Main, Studio ABC"
+                 value="${item.ort || ''}" ${index === 0 ? 'required' : ''}>
+        </div>
+        ${index > 0 ? `
+          <button type="button" class="mdc-btn mdc-btn--cancel" data-index="${index}" title="Entfernen">
+            Entfernen
+          </button>
+        ` : ''}
+      </div>
+    `).join('');
+  }
+
+  // Videograf Step 4: Output, Abgabe & Korrektur
+  renderVideografStep4() {
+    const lieferumfang = this.formData.videograf_lieferumfang || [];
+    
+    return `
+      <div class="step-section">
+        <h3>§3 Output, Abgabe & Versionierung</h3>
+        
+        <h4>3.1 Lieferumfang</h4>
+        <div class="form-field">
+          <label>Was wird geliefert?</label>
+          <div class="checkbox-group checkbox-group-multi">
+            <label class="checkbox-label">
+              <input type="checkbox" name="videograf_lieferumfang" value="fertig_geschnitten"
+                     ${lieferumfang.includes('fertig_geschnitten') ? 'checked' : ''}>
+              <span>Fertig geschnittenes Video</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="videograf_lieferumfang" value="farbkorrektur"
+                     ${lieferumfang.includes('farbkorrektur') ? 'checked' : ''}>
+              <span>Farbkorrektur / Grading enthalten</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="videograf_lieferumfang" value="sounddesign"
+                     ${lieferumfang.includes('sounddesign') ? 'checked' : ''}>
+              <span>Sounddesign enthalten</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="videograf_lieferumfang" value="rohmaterial"
+                     ${lieferumfang.includes('rohmaterial') ? 'checked' : ''}>
+              <span>Rohmaterial (alle Clips)</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="videograf_lieferumfang" value="projektdateien"
+                     ${lieferumfang.includes('projektdateien') ? 'checked' : ''}>
+              <span>Projektdateien (z.B. Premiere / Final Cut)</span>
+            </label>
+          </div>
+        </div>
+
+        <h4 class="mt-subsection">3.2 Abgabe der ersten Version (V1)</h4>
+        <div class="form-field">
+          <label for="videograf_v1_deadline">V1 Deadline <span class="required">*</span></label>
+          <input type="date" id="videograf_v1_deadline" name="videograf_v1_deadline" 
+                 value="${this.formData.videograf_v1_deadline || ''}" required>
+          <p class="form-hint">Die erste inhaltliche Version (Preview / V1) ist spätestens bis zu diesem Datum digital zur Verfügung zu stellen.</p>
+        </div>
+
+        <h4 class="mt-subsection">3.3 Korrekturschleifen</h4>
+        <div class="form-field">
+          <label>Anzahl Korrekturschleifen <span class="required">*</span></label>
+          <div class="radio-group radio-group-inline">
+            <label class="radio-option">
+              <input type="radio" name="korrekturschleifen" value="1" 
+                     ${this.formData.korrekturschleifen == 1 ? 'checked' : ''} required>
+              <span>1 Korrekturschleife</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="korrekturschleifen" value="2" 
+                     ${this.formData.korrekturschleifen == 2 ? 'checked' : ''}>
+              <span>2 Korrekturschleifen</span>
+            </label>
+          </div>
+          <p class="form-hint">Eine Korrekturschleife umfasst jeweils eine überarbeitete Version nach Feedback.</p>
+        </div>
+
+        <h4 class="mt-subsection">3.4 Abgabe der finalen Version</h4>
+        <div class="form-field">
+          <label for="videograf_finale_werktage">Werktage nach letzter Korrektur <span class="required">*</span></label>
+          <div class="input-with-suffix">
+            <input type="number" id="videograf_finale_werktage" name="videograf_finale_werktage" 
+                   min="1" max="30" 
+                   value="${this.formData.videograf_finale_werktage || 5}" required>
+            <span class="input-suffix">Werktage</span>
+          </div>
+          <p class="form-hint">Die finale Version ist spätestens X Werktage nach Abschluss der letzten Korrekturschleife bereitzustellen.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  // Videograf Step 5: Nutzungsrechte & Vergütung
+  renderVideografStep5() {
+    const nutzungsart = this.formData.videograf_nutzungsart || [];
+    
+    return `
+      <div class="step-section">
+        <h3>§7 Nutzungsrechte</h3>
+        <p class="form-hint">Der Auftragnehmer überträgt dem Auftraggeber ausschließliche, zeitlich und räumlich unbegrenzte Nutzungsrechte an sämtlichen erstellten Inhalten.</p>
+        
+        <div class="form-field">
+          <label>Nutzungsart <span class="required">*</span></label>
+          <div class="checkbox-group checkbox-group-multi">
+            <label class="checkbox-label">
+              <input type="checkbox" name="videograf_nutzungsart" value="organisch"
+                     ${nutzungsart.includes('organisch') ? 'checked' : ''}>
+              <span>Organische Nutzung</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="videograf_nutzungsart" value="paid_ads"
+                     ${nutzungsart.includes('paid_ads') ? 'checked' : ''}>
+              <span>Paid Ads</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="videograf_nutzungsart" value="alle_medien"
+                     ${nutzungsart.includes('alle_medien') ? 'checked' : ''}>
+              <span>Alle Medien (Social Media, Website, OTV, Print)</span>
+            </label>
+          </div>
+        </div>
+
+        <p class="form-hint">Eine Urheberbenennung ist nicht erforderlich, sofern nicht ausdrücklich vereinbart.</p>
+
+        <h3 class="mt-section">§9 Vergütung</h3>
+        
+        <div class="form-two-col">
+          <div class="form-field">
+            <label for="verguetung_netto">Fixvergütung (netto) <span class="required">*</span></label>
+            <div class="input-with-suffix">
+              <input type="number" id="verguetung_netto" name="verguetung_netto" 
+                     step="0.01" min="0" required
+                     value="${this.formData.verguetung_netto || ''}">
+              <span class="input-suffix">€</span>
+            </div>
+          </div>
+          <div class="form-field">
+            <label for="zahlungsziel">Zahlungsziel</label>
+            <div class="radio-group radio-group-inline">
+              <label class="radio-option">
+                <input type="radio" name="zahlungsziel" value="14_tage" 
+                       ${this.formData.zahlungsziel === '14_tage' ? 'checked' : ''}>
+                <span>14 Tage</span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="zahlungsziel" value="30_tage" 
+                       ${this.formData.zahlungsziel === '30_tage' ? 'checked' : ''}>
+                <span>30 Tage</span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="zahlungsziel" value="45_tage" 
+                       ${this.formData.zahlungsziel === '45_tage' ? 'checked' : ''}>
+                <span>45 Tage</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-two-col">
+          <div class="form-field">
+            <label class="checkbox-label">
+              <input type="checkbox" id="zusatzkosten" name="zusatzkosten" value="true"
+                     ${this.formData.zusatzkosten ? 'checked' : ''}>
+              <span>Zusatzkosten vereinbart (z.B. Reisekosten, Requisiten)</span>
+            </label>
+          </div>
+          <div class="form-field ${this.formData.zusatzkosten ? '' : 'hidden'}" id="zusatzkosten-wrapper">
+            <label for="zusatzkosten_betrag">Zusatzkosten (netto)</label>
+            <div class="input-with-suffix">
+              <input type="number" id="zusatzkosten_betrag" name="zusatzkosten_betrag" 
+                     step="0.01" min="0"
+                     value="${this.formData.zusatzkosten_betrag || ''}">
+              <span class="input-suffix">€</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label>Skonto</label>
+          <div class="radio-group radio-group-inline">
+            <label class="radio-option">
+              <input type="radio" name="skonto" value="true" 
+                     ${this.formData.skonto ? 'checked' : ''}>
+              <span>Ja (3% bei Zahlung innerhalb 7 Tage)</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="skonto" value="false" 
+                     ${!this.formData.skonto ? 'checked' : ''}>
+              <span>Nein</span>
+            </label>
+          </div>
+        </div>
+
+        <p class="form-hint">Die Zahlung erfolgt durch die LikeGroup GmbH im Auftrag des Kunden. Die Rechnungsstellung erfolgt nach finaler Abnahme.</p>
+
+        <h3 class="mt-section">Weitere Bestimmungen</h3>
         <div class="form-field">
           <label for="weitere_bestimmungen">Zusätzliche Vereinbarungen (optional)</label>
           <textarea id="weitere_bestimmungen" name="weitere_bestimmungen" rows="4"
@@ -1425,9 +1873,10 @@ export class VertraegeCreate {
     this.saveCurrentStepData();
     
     const saveDraftBtn = document.getElementById('btn-save-draft');
+    const saveDraftLabel = saveDraftBtn?.querySelector('.btn-label');
     if (saveDraftBtn) {
       saveDraftBtn.disabled = true;
-      saveDraftBtn.textContent = '💾 Speichert...';
+      if (saveDraftLabel) saveDraftLabel.textContent = 'Speichert...';
     }
 
     try {
@@ -1471,7 +1920,7 @@ export class VertraegeCreate {
     } finally {
       if (saveDraftBtn) {
         saveDraftBtn.disabled = false;
-        saveDraftBtn.textContent = '💾 Als Entwurf speichern';
+        if (saveDraftLabel) saveDraftLabel.textContent = 'Als Entwurf speichern';
       }
     }
   }
@@ -1511,7 +1960,6 @@ export class VertraegeCreate {
         influencer_agentur_vertretung: this.formData.influencer_agentur_vertreten ? this.formData.influencer_agentur_vertretung || null : null,
         
         // Influencer-Daten
-        influencer_steuer_id: this.formData.influencer_steuer_id || null,
         influencer_land: this.formData.influencer_land || 'Deutschland',
         influencer_profile: this.formData.influencer_profile || [],
         
@@ -1535,9 +1983,38 @@ export class VertraegeCreate {
         // Anpassungen
         anpassungen: this.formData.anpassungen || []
       });
+    } else if (typ === 'Videograph') {
+      // Videograf-spezifische Felder
+      Object.assign(data, {
+        // Kunde
+        kunde_rechtsform: this.formData.kunde_rechtsform || null,
+        
+        // Auftragnehmer-Daten (nutzt influencer_-Felder für Kompatibilität)
+        influencer_steuer_id: this.formData.influencer_steuer_id || null,
+        influencer_land: this.formData.influencer_land || 'Deutschland',
+        
+        // Leistungsumfang
+        anzahl_videos: parseInt(this.formData.anzahl_videos) || 0,
+        anzahl_fotos: parseInt(this.formData.anzahl_fotos) || 0,
+        content_erstellung_art: this.formData.content_erstellung_art || null,
+        
+        // Videograf-spezifisch
+        videograf_produktionsart: this.formData.videograf_produktionsart || null,
+        videograf_produktionsplan: this.formData.videograf_produktionsplan || [],
+        videograf_lieferumfang: this.formData.videograf_lieferumfang || [],
+        videograf_v1_deadline: this.formData.videograf_v1_deadline || null,
+        videograf_finale_werktage: parseInt(this.formData.videograf_finale_werktage) || 5,
+        videograf_nutzungsart: this.formData.videograf_nutzungsart || []
+      });
     } else {
       // UGC-spezifische Felder
       Object.assign(data, {
+        // Agentur-Vertretung
+        influencer_agentur_vertreten: this.formData.influencer_agentur_vertreten || false,
+        influencer_agentur_name: this.formData.influencer_agentur_vertreten ? this.formData.influencer_agentur_name || null : null,
+        influencer_agentur_adresse: this.formData.influencer_agentur_vertreten ? this.formData.influencer_agentur_adresse || null : null,
+        influencer_agentur_vertretung: this.formData.influencer_agentur_vertreten ? this.formData.influencer_agentur_vertretung || null : null,
+        
         anzahl_videos: parseInt(this.formData.anzahl_videos) || 0,
         anzahl_fotos: parseInt(this.formData.anzahl_fotos) || 0,
         content_erstellung_art: this.formData.content_erstellung_art || null,
@@ -1560,7 +2037,7 @@ export class VertraegeCreate {
     const exklusivitaetWrapper = document.getElementById('exklusivitaet-monate-wrapper');
     if (exklusivitaetCheckbox && exklusivitaetWrapper) {
       exklusivitaetCheckbox.addEventListener('change', (e) => {
-        exklusivitaetWrapper.style.display = e.target.checked ? '' : 'none';
+        exklusivitaetWrapper.classList.toggle('hidden', !e.target.checked);
       });
     }
 
@@ -1569,7 +2046,7 @@ export class VertraegeCreate {
     const zusatzkostenWrapper = document.getElementById('zusatzkosten-wrapper');
     if (zusatzkostenCheckbox && zusatzkostenWrapper) {
       zusatzkostenCheckbox.addEventListener('change', (e) => {
-        zusatzkostenWrapper.style.display = e.target.checked ? '' : 'none';
+        zusatzkostenWrapper.classList.toggle('hidden', !e.target.checked);
       });
     }
 
@@ -1581,7 +2058,7 @@ export class VertraegeCreate {
     if (agenturRadios.length > 0 && agenturFelder) {
       agenturRadios.forEach(radio => {
         radio.addEventListener('change', (e) => {
-          agenturFelder.style.display = e.target.value === 'true' ? '' : 'none';
+          agenturFelder.classList.toggle('hidden', e.target.value !== 'true');
         });
       });
     }
@@ -1593,7 +2070,7 @@ export class VertraegeCreate {
       plattformenCheckboxes.forEach(cb => {
         cb.addEventListener('change', () => {
           const sonstigeChecked = document.querySelector('input[name="plattformen"][value="sonstige"]:checked');
-          sonstigeWrapper.style.display = sonstigeChecked ? '' : 'none';
+          sonstigeWrapper.classList.toggle('hidden', !sonstigeChecked);
         });
       });
     }
@@ -1604,8 +2081,32 @@ export class VertraegeCreate {
     if (reichweitenRadios.length > 0 && reichweitenWrapper) {
       reichweitenRadios.forEach(radio => {
         radio.addEventListener('change', (e) => {
-          reichweitenWrapper.style.display = e.target.value === 'true' ? '' : 'none';
+          reichweitenWrapper.classList.toggle('hidden', e.target.value !== 'true');
         });
+      });
+    }
+
+    // Videos/Reels Anzahl → Veröffentlichungsplan automatisch synchronisieren
+    const anzahlReelsInput = document.getElementById('anzahl_reels');
+    if (anzahlReelsInput) {
+      anzahlReelsInput.addEventListener('blur', () => {
+        this.syncVeroeffentlichungsplanVideos();
+      });
+    }
+
+    // Feed-Posts Anzahl → Veröffentlichungsplan automatisch synchronisieren
+    const anzahlFeedPostsInput = document.getElementById('anzahl_feed_posts');
+    if (anzahlFeedPostsInput) {
+      anzahlFeedPostsInput.addEventListener('blur', () => {
+        this.syncVeroeffentlichungsplanFeedPosts();
+      });
+    }
+
+    // Story-Slides Anzahl → Veröffentlichungsplan automatisch synchronisieren
+    const anzahlStorysInput = document.getElementById('anzahl_storys');
+    if (anzahlStorysInput) {
+      anzahlStorysInput.addEventListener('blur', () => {
+        this.syncVeroeffentlichungsplanStorys();
       });
     }
 
@@ -1657,29 +2158,77 @@ export class VertraegeCreate {
       });
     }
 
-    // Veröffentlichungsplan: Video-Datum hinzufügen
-    const btnAddVideoDate = document.getElementById('btn-add-video-date');
-    if (btnAddVideoDate) {
-      btnAddVideoDate.addEventListener('click', () => {
-        this.addVeroeffentlichungsDatum('videos');
+    // === VIDEOGRAF: DREHTAGE HINZUFÜGEN/ENTFERNEN ===
+    const btnAddDrehtag = document.getElementById('btn-add-drehtag');
+    if (btnAddDrehtag) {
+      btnAddDrehtag.addEventListener('click', () => {
+        this.addDrehtag();
       });
     }
 
-    // Veröffentlichungsplan: Story-Datum hinzufügen
-    const btnAddStoryDate = document.getElementById('btn-add-story-date');
-    if (btnAddStoryDate) {
-      btnAddStoryDate.addEventListener('click', () => {
-        this.addVeroeffentlichungsDatum('storys');
+    // Drehtag entfernen (Event Delegation)
+    const produktionsplanContainer = document.getElementById('videograf-produktionsplan-container');
+    if (produktionsplanContainer) {
+      produktionsplanContainer.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-remove-drehtag')) {
+          const btn = e.target.closest('.btn-remove-drehtag');
+          const idx = parseInt(btn.dataset.index, 10);
+          this.removeDrehtag(idx);
+        }
       });
     }
+  }
 
-    // Datum entfernen
-    document.addEventListener('click', (e) => {
-      if (e.target.closest('.btn-remove-date')) {
-        const btn = e.target.closest('.btn-remove-date');
-        const typ = btn.dataset.typ;
-        const idx = parseInt(btn.dataset.idx, 10);
-        this.removeVeroeffentlichungsDatum(typ, idx);
+  // Drehtag hinzufügen
+  addDrehtag() {
+    const container = document.getElementById('videograf-produktionsplan-container');
+    if (!container) return;
+
+    // Aktuelle Daten aus Formular sammeln
+    this.collectProduktionsplanData();
+
+    // Neuen leeren Eintrag hinzufügen
+    if (!this.formData.videograf_produktionsplan) {
+      this.formData.videograf_produktionsplan = [];
+    }
+    this.formData.videograf_produktionsplan.push({ datum: '', ort: '' });
+
+    // Container neu rendern
+    container.innerHTML = this.renderProduktionsplanRows();
+  }
+
+  // Drehtag entfernen
+  removeDrehtag(idx) {
+    const container = document.getElementById('videograf-produktionsplan-container');
+    if (!container) return;
+
+    // Aktuelle Daten aus Formular sammeln
+    this.collectProduktionsplanData();
+
+    // Eintrag entfernen
+    if (this.formData.videograf_produktionsplan && this.formData.videograf_produktionsplan.length > idx) {
+      this.formData.videograf_produktionsplan.splice(idx, 1);
+    }
+
+    // Container neu rendern
+    container.innerHTML = this.renderProduktionsplanRows();
+  }
+
+  // Produktionsplan-Daten aus Formular sammeln
+  collectProduktionsplanData() {
+    const rows = document.querySelectorAll('.produktionsplan-row');
+    if (rows.length === 0) return;
+
+    this.formData.videograf_produktionsplan = [];
+    rows.forEach((row, index) => {
+      const datumInput = document.getElementById(`drehtag_datum_${index}`);
+      const ortInput = document.getElementById(`drehtag_ort_${index}`);
+      
+      if (datumInput && ortInput) {
+        this.formData.videograf_produktionsplan.push({
+          datum: datumInput.value || '',
+          ort: ortInput.value || ''
+        });
       }
     });
   }
@@ -1714,6 +2263,87 @@ export class VertraegeCreate {
     if (list) {
       list.innerHTML = this.renderVeroeffentlichungsDaten(typ, this.formData.veroeffentlichungsplan[typ]);
     }
+  }
+
+  // Veröffentlichungsplan Videos synchronisieren (bei Blur von anzahl_reels)
+  syncVeroeffentlichungsplanVideos() {
+    const anzahlInput = document.getElementById('anzahl_reels');
+    if (!anzahlInput) return;
+    
+    const anzahl = parseInt(anzahlInput.value) || 0;
+    const list = document.getElementById('video-dates-list');
+    if (!list) return;
+    
+    // Initialisiere veroeffentlichungsplan falls nicht vorhanden
+    if (!this.formData.veroeffentlichungsplan) {
+      this.formData.veroeffentlichungsplan = {};
+    }
+    
+    // Bestehende Daten sammeln (falls vorhanden)
+    const existingDates = this.formData.veroeffentlichungsplan.videos || [];
+    
+    // Neue Array mit exakt N leeren Items erstellen (vorhandene Werte übernehmen)
+    const newDates = [];
+    for (let i = 0; i < anzahl; i++) {
+      newDates.push(existingDates[i] || '');
+    }
+    
+    this.formData.veroeffentlichungsplan.videos = newDates;
+    list.innerHTML = this.renderVeroeffentlichungsDaten('videos', newDates);
+  }
+
+  // Veröffentlichungsplan Feed-Posts synchronisieren (bei Blur von anzahl_feed_posts)
+  syncVeroeffentlichungsplanFeedPosts() {
+    const anzahlInput = document.getElementById('anzahl_feed_posts');
+    if (!anzahlInput) return;
+    
+    const anzahl = parseInt(anzahlInput.value) || 0;
+    const list = document.getElementById('feed-post-dates-list');
+    if (!list) return;
+    
+    // Initialisiere veroeffentlichungsplan falls nicht vorhanden
+    if (!this.formData.veroeffentlichungsplan) {
+      this.formData.veroeffentlichungsplan = {};
+    }
+    
+    // Bestehende Daten sammeln (falls vorhanden)
+    const existingDates = this.formData.veroeffentlichungsplan.feed_posts || [];
+    
+    // Neue Array mit exakt N leeren Items erstellen (vorhandene Werte übernehmen)
+    const newDates = [];
+    for (let i = 0; i < anzahl; i++) {
+      newDates.push(existingDates[i] || '');
+    }
+    
+    this.formData.veroeffentlichungsplan.feed_posts = newDates;
+    list.innerHTML = this.renderVeroeffentlichungsDaten('feed_posts', newDates);
+  }
+
+  // Veröffentlichungsplan Storys synchronisieren (bei Blur von anzahl_storys)
+  syncVeroeffentlichungsplanStorys() {
+    const anzahlInput = document.getElementById('anzahl_storys');
+    if (!anzahlInput) return;
+    
+    const anzahl = parseInt(anzahlInput.value) || 0;
+    const list = document.getElementById('story-dates-list');
+    if (!list) return;
+    
+    // Initialisiere veroeffentlichungsplan falls nicht vorhanden
+    if (!this.formData.veroeffentlichungsplan) {
+      this.formData.veroeffentlichungsplan = {};
+    }
+    
+    // Bestehende Daten sammeln (falls vorhanden)
+    const existingDates = this.formData.veroeffentlichungsplan.storys || [];
+    
+    // Neue Array mit exakt N leeren Items erstellen (vorhandene Werte übernehmen)
+    const newDates = [];
+    for (let i = 0; i < anzahl; i++) {
+      newDates.push(existingDates[i] || '');
+    }
+    
+    this.formData.veroeffentlichungsplan.storys = newDates;
+    list.innerHTML = this.renderVeroeffentlichungsDaten('storys', newDates);
   }
 
   // Adress-Vorschau Events und Kaskaden-Logik
@@ -2086,7 +2716,7 @@ export class VertraegeCreate {
     console.log('📋 FormData Einträge:', Array.from(formData.entries()));
     
     // Array-Felder die speziell behandelt werden müssen
-    const arrayFields = ['medien', 'plattformen', 'anpassungen'];
+    const arrayFields = ['medien', 'plattformen', 'anpassungen', 'videograf_lieferumfang', 'videograf_nutzungsart'];
     
     // Normale Felder
     for (const [key, value] of formData.entries()) {
@@ -2151,6 +2781,23 @@ export class VertraegeCreate {
       } catch {
         this.formData.influencer_profile = [];
       }
+    }
+
+    // Videograf-Produktionsplan: Drehtage & Orte sammeln
+    const produktionsplanRows = form.querySelectorAll('.produktionsplan-row');
+    if (produktionsplanRows.length > 0) {
+      this.formData.videograf_produktionsplan = [];
+      produktionsplanRows.forEach((row, index) => {
+        const datumInput = form.querySelector(`#drehtag_datum_${index}`);
+        const ortInput = form.querySelector(`#drehtag_ort_${index}`);
+        
+        if (datumInput && ortInput) {
+          this.formData.videograf_produktionsplan.push({
+            datum: datumInput.value || '',
+            ort: ortInput.value || ''
+          });
+        }
+      });
     }
     
     // Typ aus selectedTyp sicherstellen (falls nicht im Formular)
@@ -2273,6 +2920,10 @@ export class VertraegeCreate {
     if (vertrag.typ === 'Influencer Kooperation') {
       return this.generateInfluencerPDF(vertrag);
     }
+    
+    if (vertrag.typ === 'Videograph') {
+      return this.generateVideografPDF(vertrag);
+    }
 
     // Standard: UGC-PDF
     try {
@@ -2392,6 +3043,28 @@ export class VertraegeCreate {
       doc.text(`Name: ${creator?.vorname || ''} ${creator?.nachname || ''}`, 105, y, { align: 'center' });
       y += 5;
       doc.text(`Adresse: ${creator?.lieferadresse_strasse || ''} ${creator?.lieferadresse_hausnummer || ''}, ${creator?.lieferadresse_plz || ''} ${creator?.lieferadresse_stadt || ''}, ${creator?.lieferadresse_land || 'Deutschland'}`, 105, y, { align: 'center' });
+
+      // Influencer-Vertretung (zentriert)
+      y += 15;
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Influencer-Vertretung', 105, y, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 6;
+      doc.text('Wird der Influencer durch eine Agentur vertreten?', 105, y, { align: 'center' });
+      y += 6;
+      drawCheckbox(85, y, !vertrag.influencer_agentur_vertreten, 'Nein');
+      drawCheckbox(105, y, vertrag.influencer_agentur_vertreten, 'Ja');
+      
+      if (vertrag.influencer_agentur_vertreten) {
+        y += 8;
+        doc.text(`Agenturname: ${vertrag.influencer_agentur_name || '-'}`, 105, y, { align: 'center' });
+        y += 5;
+        doc.text(`Adresse: ${vertrag.influencer_agentur_adresse || '-'}`, 105, y, { align: 'center' });
+        y += 5;
+        doc.text(`Vertreten durch: ${vertrag.influencer_agentur_vertretung || '-'}`, 105, y, { align: 'center' });
+      }
 
       // ============================================
       // SEITE 2: Vertragsinhalte (linksbündig)
@@ -2764,7 +3437,10 @@ export class VertraegeCreate {
       // PDF als Blob generieren
       const pdfBlob = doc.output('blob');
       const fileName = `Vertrag_${vertrag.name || 'UGC'}_${new Date().toISOString().split('T')[0]}.pdf`;
-      const filePath = `${vertrag.id}/${fileName}`;
+      // Speichere in Unternehmens-Ordner: unternehmen/{unternehmen_id}/{vertrag_id}/{filename}
+      const filePath = vertrag.kunde_unternehmen_id 
+        ? `unternehmen/${vertrag.kunde_unternehmen_id}/${vertrag.id}/${fileName}`
+        : `${vertrag.id}/${fileName}`;
 
       // PDF in Storage hochladen
       const { data: uploadData, error: uploadError } = await window.supabase.storage
@@ -2967,8 +3643,6 @@ export class VertraegeCreate {
       doc.text(`Name: ${creator?.vorname || ''} ${creator?.nachname || ''}`, 105, y, { align: 'center' });
       y += 5;
       doc.text(`Adresse: ${creator?.lieferadresse_strasse || ''} ${creator?.lieferadresse_hausnummer || ''}, ${creator?.lieferadresse_plz || ''} ${creator?.lieferadresse_stadt || ''}`, 105, y, { align: 'center' });
-      y += 5;
-      doc.text(`Steuer-ID / USt-ID: ${vertrag.influencer_steuer_id || '-'}`, 105, y, { align: 'center' });
       y += 5;
       doc.text(`Land: ${vertrag.influencer_land || 'Deutschland'}`, 105, y, { align: 'center' });
       y += 5;
@@ -3270,7 +3944,10 @@ export class VertraegeCreate {
       // PDF speichern
       const pdfBlob = doc.output('blob');
       const fileName = `Vertrag_Influencer_${vertrag.name || 'Kooperation'}_${new Date().toISOString().split('T')[0]}.pdf`;
-      const filePath = `${vertrag.id}/${fileName}`;
+      // Speichere in Unternehmens-Ordner: unternehmen/{unternehmen_id}/{vertrag_id}/{filename}
+      const filePath = vertrag.kunde_unternehmen_id 
+        ? `unternehmen/${vertrag.kunde_unternehmen_id}/${vertrag.id}/${fileName}`
+        : `${vertrag.id}/${fileName}`;
 
       // PDF in Storage hochladen
       const { data: uploadData, error: uploadError } = await window.supabase.storage
@@ -3307,6 +3984,519 @@ export class VertraegeCreate {
 
     } catch (error) {
       console.error('❌ Fehler bei Influencer-PDF-Generierung:', error);
+      window.toastSystem?.show('PDF konnte nicht generiert werden', 'warning');
+    }
+  }
+
+  // ============================================
+  // VIDEOGRAFEN-PRODUKTIONSVERTRAG PDF
+  // ============================================
+  async generateVideografPDF(vertrag) {
+    try {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      // Font auf Helvetica setzen
+      doc.setFont('helvetica');
+
+      // Hole Kunden- und Creator-Daten
+      const kunde = this.unternehmen.find(u => u.id === vertrag.kunde_unternehmen_id);
+      const creator = this.creators.find(c => c.id === vertrag.creator_id);
+
+      // Helper: Produktionsart lesbar machen
+      const produktionsartLabels = {
+        'briefing': 'Produktion nach Briefing',
+        'skript_shotlist': 'Produktion nach Skript / Shotlist',
+        'eigenstaendig': 'Eigenständige Umsetzung nach Zielvorgabe'
+      };
+
+      // Helper: Lieferumfang lesbar machen
+      const lieferumfangLabels = {
+        'fertig_geschnitten': 'Fertig geschnittenes Video',
+        'farbkorrektur': 'Farbkorrektur / Grading enthalten',
+        'sounddesign': 'Sounddesign enthalten',
+        'rohmaterial': 'Rohmaterial (alle Clips)',
+        'projektdateien': 'Projektdateien (z.B. Premiere / Final Cut)'
+      };
+
+      // Helper: Nutzungsart lesbar machen
+      const nutzungsartLabels = {
+        'organisch': 'Organische Nutzung',
+        'paid_ads': 'Paid Ads',
+        'alle_medien': 'Alle Medien (Social Media, Website, OTV, Print)'
+      };
+
+      // Helper: Zahlungsziel lesbar machen
+      const zahlungszielLabels = {
+        '14_tage': '14 Tage',
+        '30_tage': '30 Tage',
+        '45_tage': '45 Tage'
+      };
+
+      // Helper: Checkbox zeichnen (echte Rechtecke mit X)
+      const drawCheckbox = (x, yPos, checked, label) => {
+        // Checkbox-Rechteck zeichnen (3x3mm)
+        doc.rect(x, yPos - 2.5, 3, 3);
+        if (checked) {
+          // X in die Box zeichnen
+          doc.line(x + 0.5, yPos - 2, x + 2.5, yPos);
+          doc.line(x + 0.5, yPos, x + 2.5, yPos - 2);
+        }
+        // Label daneben
+        doc.text(label, x + 5, yPos);
+      };
+
+      // Helper für Textumbruch
+      const addWrappedText = (text, x, y, maxWidth) => {
+        const lines = doc.splitTextToSize(text, maxWidth);
+        lines.forEach(line => {
+          if (y > 280) {
+            doc.addPage();
+            y = 20;
+          }
+          doc.text(line, x, y);
+          y += 5;
+        });
+        return y;
+      };
+
+      // Seitenzahlen Helper
+      const addPageNumber = () => {
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+          doc.setPage(i);
+          doc.setFontSize(8);
+          doc.setTextColor(150);
+          doc.text(`Seite ${i} von ${pageCount}`, 105, 290, { align: 'center' });
+          doc.setTextColor(0);
+        }
+      };
+
+      let y = 20;
+
+      // Titel
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('VIDEOGRAFEN- & FOTOGRAFEN-PRODUKTIONSVERTRAG', 105, y, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+
+      // Agenturdaten
+      y += 15;
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Agenturdaten', 105, y, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+      doc.text('LikeGroup GmbH', 105, y, { align: 'center' });
+      y += 5;
+      doc.text('Jakob-Latscha-Str. 3', 105, y, { align: 'center' });
+      y += 5;
+      doc.text('60314 Frankfurt am Main', 105, y, { align: 'center' });
+      y += 5;
+      doc.text('Deutschland', 105, y, { align: 'center' });
+
+      // Kundendaten
+      y += 12;
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Kundendaten', 105, y, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+      doc.text(`Firmenname: ${kunde?.firmenname || '-'}`, 105, y, { align: 'center' });
+      y += 5;
+      doc.text(`Rechtsform: ${vertrag.kunde_rechtsform || '-'}`, 105, y, { align: 'center' });
+      y += 5;
+      doc.text(`Adresse: ${kunde?.rechnungsadresse_strasse || ''} ${kunde?.rechnungsadresse_hausnummer || ''}, ${kunde?.rechnungsadresse_plz || ''} ${kunde?.rechnungsadresse_stadt || ''}`, 105, y, { align: 'center' });
+
+      // Auftragnehmer
+      y += 12;
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Auftragnehmer (Videograf / Fotograf)', 105, y, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+      doc.text(`Name / Firma: ${creator?.vorname || ''} ${creator?.nachname || ''}`, 105, y, { align: 'center' });
+      y += 5;
+      const creatorAdresse = creator ? `${creator.lieferadresse_strasse || ''} ${creator.lieferadresse_hausnummer || ''}, ${creator.lieferadresse_plz || ''} ${creator.lieferadresse_stadt || ''}` : '-';
+      doc.text(`Adresse: ${creatorAdresse}`, 105, y, { align: 'center' });
+      y += 5;
+      doc.text(`Steuer-ID / USt-ID: ${vertrag.influencer_steuer_id || '-'}`, 105, y, { align: 'center' });
+      y += 5;
+      doc.text(`Land: ${vertrag.influencer_land || 'Deutschland'}`, 105, y, { align: 'center' });
+
+      // ============================================
+      // SEITE 2: Vertragsinhalte (linksbündig)
+      // ============================================
+      doc.addPage();
+      y = 20;
+
+      // §1 Vertragsgegenstand
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('§1 Vertragsgegenstand', 14, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+      y = addWrappedText('Der Auftragnehmer verpflichtet sich zur professionellen Erstellung von Foto- und/oder Videomaterial zu Marketing- und Kommunikationszwecken des Auftraggebers bzw. eines von der LikeGroup GmbH betreuten Kunden. Es handelt sich um einen einmaligen Produktionsauftrag.', 14, y, 180);
+
+      // §2 Leistungsumfang
+      y += 10;
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('§2 Leistungsumfang', 14, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+
+      // 2.1 Art der Leistung
+      doc.setFont('helvetica', 'bold');
+      doc.text('2.1 Art der Leistung', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      // Alle Optionen als Checkboxen anzeigen
+      const contentArtOptions = {
+        'video': 'Video',
+        'foto': 'Foto',
+        'video_foto': 'Video & Foto'
+      };
+      Object.entries(contentArtOptions).forEach(([key, label]) => {
+        drawCheckbox(14, y, vertrag.content_erstellung_art === key, label);
+        y += 6;
+      });
+      y += 2;
+      doc.text(`Anzahl Videos: ${vertrag.anzahl_videos || 0}`, 14, y);
+      y += 5;
+      doc.text(`Anzahl Fotos: ${vertrag.anzahl_fotos || 0}`, 14, y);
+
+      // 2.2 Produktionsart
+      y += 8;
+      doc.setFont('helvetica', 'bold');
+      doc.text('2.2 Produktionsart', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      // Alle Optionen als Checkboxen anzeigen
+      Object.entries(produktionsartLabels).forEach(([key, label]) => {
+        drawCheckbox(14, y, vertrag.videograf_produktionsart === key, label);
+        y += 6;
+      });
+
+      // 2.3 Drehtag & Produktionsort
+      y += 8;
+      doc.setFont('helvetica', 'bold');
+      doc.text('2.3 Drehtage & Produktionsorte', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      
+      const produktionsplan = vertrag.videograf_produktionsplan || [];
+      if (produktionsplan.length > 0) {
+        produktionsplan.forEach((item, idx) => {
+          const datumFormatted = item.datum ? new Date(item.datum).toLocaleDateString('de-DE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '-';
+          doc.text(`• Drehtag ${idx + 1}: ${datumFormatted}`, 14, y);
+          y += 5;
+          doc.text(`  Ort: ${item.ort || '-'}`, 14, y);
+          y += 5;
+          if (y > 250) {
+            doc.addPage();
+            y = 20;
+          }
+        });
+      } else {
+        doc.text('Keine Drehtage angegeben', 14, y);
+        y += 5;
+      }
+      
+      y += 2;
+      y = addWrappedText('Der Auftragnehmer verpflichtet sich, zum vereinbarten Zeitpunkt vollständig einsatzbereit zu erscheinen und die Produktion fachgerecht durchzuführen.', 14, y, 180);
+
+      // §3 Output, Abgabe & Versionierung
+      y += 10;
+      if (y > 240) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('§3 Output, Abgabe & Versionierung', 14, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+
+      // 3.1 Lieferumfang
+      doc.setFont('helvetica', 'bold');
+      doc.text('3.1 Lieferumfang', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      const lieferumfang = vertrag.videograf_lieferumfang || [];
+      // Alle Optionen als Checkboxen anzeigen
+      Object.entries(lieferumfangLabels).forEach(([key, label]) => {
+        drawCheckbox(14, y, lieferumfang.includes(key), label);
+        y += 6;
+      });
+
+      // 3.2 Abgabe V1
+      y += 5;
+      doc.setFont('helvetica', 'bold');
+      doc.text('3.2 Abgabe der ersten Version (V1)', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      const v1Deadline = vertrag.videograf_v1_deadline ? new Date(vertrag.videograf_v1_deadline).toLocaleDateString('de-DE') : '-';
+      y = addWrappedText(`Die erste inhaltliche Version (Preview / V1) ist spätestens bis: ${v1Deadline} digital zur Verfügung zu stellen.`, 14, y, 180);
+
+      // 3.3 Korrekturschleifen
+      y += 5;
+      doc.setFont('helvetica', 'bold');
+      doc.text('3.3 Korrekturschleifen', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      drawCheckbox(14, y, true, `${vertrag.korrekturschleifen || 1} Korrekturschleife(n)`);
+      y += 6;
+      y = addWrappedText('Eine Korrekturschleife umfasst jeweils eine überarbeitete Version nach Feedback.', 14, y, 180);
+
+      // 3.4 Finale Version
+      y += 5;
+      doc.setFont('helvetica', 'bold');
+      doc.text('3.4 Abgabe der finalen Version', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      y = addWrappedText(`Die finale Version ist spätestens ${vertrag.videograf_finale_werktage || 5} Werktage nach Abschluss der letzten Korrekturschleife bereitzustellen.`, 14, y, 180);
+
+      // §4 Qualitätsanforderungen
+      y += 10;
+      if (y > 220) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('§4 Qualitätsanforderungen', 14, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+      y = addWrappedText('Der Auftragnehmer verpflichtet sich zu professioneller handwerklicher Qualität. Insbesondere muss das Material:', 14, y, 180);
+      y += 3;
+      const qualitaetsanforderungen = [
+        '• korrekt belichtet und scharf sein',
+        '• eine saubere Bildkomposition aufweisen',
+        '• ruhig und professionell geführt sein',
+        '• bei Video über klar verständlichen, sauberen Ton verfügen',
+        '• sauber farbkorrigiert bzw. bearbeitet sein',
+        '• markenkonform gemäß Briefing umgesetzt sein'
+      ];
+      qualitaetsanforderungen.forEach(req => {
+        doc.text(req, 14, y);
+        y += 5;
+      });
+      y += 3;
+      y = addWrappedText('Technisch oder inhaltlich nicht verwertbares Material gilt als nicht vertragsgemäß.', 14, y, 180);
+
+      // §5 Nachbesserung & Neuerstellung
+      y += 10;
+      if (y > 200) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('§5 Nachbesserung & Neuerstellung', 14, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+      
+      doc.setFont('helvetica', 'bold');
+      doc.text('5.1 Nachbesserung (Korrekturen)', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      y = addWrappedText('Als Nachbesserungen gelten insbesondere: Schnittanpassungen, Farbkorrekturen, Tonanpassungen, Austausch einzelner Szenen, Bildauswahl bei Fotos, kleinere inhaltliche Anpassungen. Diese sind im Rahmen der vereinbarten Korrekturschleifen kostenfrei vorzunehmen.', 14, y, 180);
+
+      y += 8;
+      doc.setFont('helvetica', 'bold');
+      doc.text('5.2 Neuerstellung (Neudreh)', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      y = addWrappedText('Ein Anspruch auf kostenfreie Neuerstellung (Neudreh) besteht insbesondere bei: erheblichen technischen Mängeln, unbrauchbarem Bild- oder Tonmaterial, grober Abweichung vom Briefing, Missachtung professioneller Standards. Sofern die Mängel nicht durch Nachbesserung behoben werden können, ist der Auftragnehmer verpflichtet, die Leistung neu zu erbringen. Wenn es sich hierbei um ein einmaliges Event gehandelt hat, entfällt die Vergütung.', 14, y, 180);
+
+      // §7 Nutzungsrechte
+      y += 10;
+      if (y > 200) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('§7 Nutzungsrechte', 14, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+      y = addWrappedText('Der Auftragnehmer überträgt dem Auftraggeber ausschließliche, zeitlich und räumlich unbegrenzte Nutzungsrechte an sämtlichen erstellten Inhalten.', 14, y, 180);
+      y += 3;
+      const nutzungsart = vertrag.videograf_nutzungsart || [];
+      // Alle Optionen als Checkboxen anzeigen
+      Object.entries(nutzungsartLabels).forEach(([key, label]) => {
+        drawCheckbox(14, y, nutzungsart.includes(key), label);
+        y += 6;
+      });
+      y += 3;
+      y = addWrappedText('Eine Urheberbenennung ist nicht erforderlich, sofern nicht ausdrücklich vereinbart.', 14, y, 180);
+
+      // §8 Rechte Dritter
+      y += 10;
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('§8 Rechte Dritter', 14, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+      y = addWrappedText('Der Auftragnehmer garantiert, dass sämtliche Inhalte frei von Rechten Dritter sind. Er haftet für alle daraus resultierenden Rechtsverletzungen.', 14, y, 180);
+
+      // §9 Vergütung
+      y += 10;
+      if (y > 200) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('§9 Vergütung', 14, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('9.1 Vergütung', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      const verguetung = vertrag.verguetung_netto ? parseFloat(vertrag.verguetung_netto).toFixed(2) : '0.00';
+      doc.text(`Fixvergütung: ${verguetung} € netto zzgl. gesetzlicher Umsatzsteuer.`, 14, y);
+      y += 6;
+      if (vertrag.zusatzkosten) {
+        drawCheckbox(14, y, true, 'Zusatzkosten vereinbart');
+        y += 6;
+        const zusatzkosten = vertrag.zusatzkosten_betrag ? parseFloat(vertrag.zusatzkosten_betrag).toFixed(2) : '0.00';
+        doc.text(`Zusatzkosten (z.B. Reisekosten, Requisiten): ${zusatzkosten} € netto`, 14, y);
+      } else {
+        drawCheckbox(14, y, true, 'Keine Zusatzkosten');
+      }
+
+      y += 8;
+      doc.setFont('helvetica', 'bold');
+      doc.text('9.2 Zahlungsbedingungen', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      doc.text(`Zahlungsziel: ${zahlungszielLabels[vertrag.zahlungsziel] || '-'}`, 14, y);
+      y += 5;
+      doc.text(`Skonto: ${vertrag.skonto ? 'Ja (3% bei Zahlung innerhalb 7 Tage)' : 'Nein'}`, 14, y);
+      y += 5;
+      y = addWrappedText('Die Zahlung erfolgt durch die LikeGroup GmbH im Auftrag des Kunden. Die Rechnungsstellung erfolgt nach finaler Abnahme.', 14, y, 180);
+
+      // §10 Verschwiegenheit
+      y += 10;
+      if (y > 220) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('§10 Verschwiegenheit', 14, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+      y = addWrappedText('Der Auftragnehmer verpflichtet sich zur vollständigen Verschwiegenheit über Inhalte, Material und Ergebnisse dieses Auftrags. Eine Eigenverwendung oder Veröffentlichung ist nur mit vorheriger schriftlicher Zustimmung zulässig.', 14, y, 180);
+
+      // §11 Rücktritt
+      y += 10;
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('§11 Rücktritt', 14, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+      y = addWrappedText('Erfüllt der Auftragnehmer die vereinbarten Leistungen auch nach Nachbesserung oder Neuerstellung nicht, ist der Auftraggeber berechtigt, vom Vertrag zurückzutreten. Bereits gezahlte Vergütungen können anteilig oder vollständig zurückgefordert werden.', 14, y, 180);
+
+      // §12 Vertragsschluss
+      y += 10;
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('§12 Vertragsschluss', 14, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+      y = addWrappedText('Dieser Vertrag wird mit der Unterschrift des Auftragnehmers wirksam. Eine zusätzliche Unterschrift der LikeGroup GmbH ist nicht erforderlich.', 14, y, 180);
+
+      // §13 Weitere Bestimmungen (nur wenn ausgefüllt)
+      if (vertrag.weitere_bestimmungen) {
+        y += 10;
+        if (y > 250) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('§13 Weitere Bestimmungen', 14, y);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        y += 8;
+        y = addWrappedText(vertrag.weitere_bestimmungen, 14, y, 180);
+      }
+
+      // Unterschrift
+      y += 20;
+      if (y > 260) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.text('Ort, Datum: ___________________________', 14, y);
+      y += 15;
+      doc.text('Auftragnehmer: ___________________________', 14, y);
+
+      // Seitenzahlen hinzufügen
+      addPageNumber();
+
+      // PDF speichern
+      const pdfBlob = doc.output('blob');
+      const fileName = `Vertrag_Videograf_${vertrag.name || 'Produktion'}_${new Date().toISOString().split('T')[0]}.pdf`;
+      // Speichere in Unternehmens-Ordner: unternehmen/{unternehmen_id}/{vertrag_id}/{filename}
+      const filePath = vertrag.kunde_unternehmen_id 
+        ? `unternehmen/${vertrag.kunde_unternehmen_id}/${vertrag.id}/${fileName}`
+        : `${vertrag.id}/${fileName}`;
+
+      // PDF in Storage hochladen
+      const { data: uploadData, error: uploadError } = await window.supabase.storage
+        .from('vertraege')
+        .upload(filePath, pdfBlob, {
+          contentType: 'application/pdf',
+          upsert: true
+        });
+
+      if (uploadError) {
+        console.warn('⚠️ PDF-Upload fehlgeschlagen:', uploadError);
+        doc.save(fileName);
+      } else {
+        const { data: urlData } = await window.supabase.storage
+          .from('vertraege')
+          .createSignedUrl(filePath, 60 * 60 * 24 * 7);
+
+        if (urlData?.signedUrl) {
+          await window.supabase
+            .from('vertraege')
+            .update({
+              datei_url: urlData.signedUrl,
+              datei_path: filePath
+            })
+            .eq('id', vertrag.id);
+
+          console.log('✅ Videograf-PDF hochgeladen und URL gespeichert');
+        }
+
+        doc.save(fileName);
+      }
+
+      console.log('✅ Videograf-PDF generiert');
+
+    } catch (error) {
+      console.error('❌ Fehler bei Videograf-PDF-Generierung:', error);
       window.toastSystem?.show('PDF konnte nicht generiert werden', 'warning');
     }
   }

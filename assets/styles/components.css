@@ -1,3 +1,14 @@
+/* ==========================================================================
+   Utility Classes
+   ========================================================================== */
+
+.hidden {
+  display: none !important;
+}
+
+/* ==========================================================================
+   Button Components
+   ========================================================================== */
 
 .mdc-btn {
   position: relative;
@@ -4370,6 +4381,13 @@ margin-bottom: var(--space-lg);
 .data-table th.col-extra-wide,
 .data-table td.col-extra-wide {
   max-width: var(--panel-xl);
+}
+
+/* Mitarbeiterliste: breitere Namensspalte */
+.data-table th.col-mitarbeiter-name,
+.data-table td.col-mitarbeiter-name {
+  min-width: 240px;
+  max-width: 520px;
 }
 
 .data-table th {
@@ -8986,6 +9004,37 @@ input.readonly-field {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
+/* Profilbild-Feld im Drawer */
+.profile-image-field {
+  display: flex;
+  gap: var(--spacing-lg);
+  align-items: flex-start;
+}
+
+.profile-image-preview {
+  flex-shrink: 0;
+}
+
+.profile-image-current {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--gray-200);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.profile-image-upload-area {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-image-upload-area .form-hint {
+  margin-top: var(--spacing-xs);
+  color: var(--gray-500);
+  font-size: var(--font-size-sm);
+}
+
 /* === STRATEGIE TABLE ERWEITERUNGEN === */
 
 /* Strategien-Liste: Spaltenbreiten */
@@ -10953,14 +11002,14 @@ table:has(td:first-child input[type="checkbox"]) td:nth-child(2),
 /* Radio Group */
 .radio-group {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: var(--space-sm);
 }
 
 .radio-option {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-xs);
   padding: var(--space-sm) var(--space-md);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -11362,7 +11411,7 @@ table:has(td:first-child input[type="checkbox"]) td:nth-child(2),
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  margin-bottom: var(--space-xs);
+  margin-bottom: var(--space-sm);
 }
 
 .veroeffentlichung-label {
@@ -11401,4 +11450,180 @@ table:has(td:first-child input[type="checkbox"]) td:nth-child(2),
   font-size: var(--text-sm);
   font-style: italic;
   padding: var(--space-sm) 0;
+}
+
+/* ===== VERTRAGSGENERATOR UTILITY CLASSES ===== */
+
+/* Spacing */
+.mt-section { margin-top: 2rem; }
+.mt-subsection { margin-top: 1.5rem; }
+.mt-sm { margin-top: 1rem; }
+.mt-xs { margin-top: 0.5rem; }
+
+/* Layout */
+.form-field--centered { max-width: 400px; margin: 2rem auto; }
+.form-actions--centered { justify-content: center; }
+.cursor-pointer { cursor: pointer; }
+
+/* Produktionsplan Row */
+.produktionsplan-row {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  margin-bottom: 0.75rem;
+}
+
+.produktionsplan-row .form-field--date {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.produktionsplan-row .form-field--ort {
+  flex: 2;
+  margin-bottom: 0;
+}
+
+/* Icon-Only Button */
+.mdc-btn--icon-only {
+  min-width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gray-100);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.mdc-btn--icon-only:hover {
+  background: var(--red-50);
+  color: var(--red-600);
+}
+
+.mdc-btn--icon-only .material-icons {
+  font-size: 18px;
+}
+
+/* Button with Icon */
+.mdc-btn .material-icons {
+  font-size: 18px;
+  margin-right: 4px;
+}
+
+/* ===== VERTRÄGE TABELLE IN DETAILSEITEN ===== */
+.vertraege-detail-table th:first-child,
+.vertraege-detail-table td:first-child {
+  text-align: left !important;
+  width: 40em ! important;
+  white-space: normal;
+  word-wrap: break-word;
+}
+
+/* ===== VERTRÄGE ORDNER-ANSICHT ===== */
+.folders-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-lg);
+  padding: var(--space-xs);
+}
+
+.folder-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xl) var(--space-lg);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 160px;
+}
+
+.folder-card:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--color-primary);
+  
+  transform: translateY(-2px);
+}
+
+.folder-icon {
+  width: var(--space-xxl);
+  height: var(--space-xxl);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-sm);
+}
+
+.folder-icon .folder-svg {
+  width: 56px;
+  height: 56px;
+  color: var(--color-primary);
+}
+
+.folder-icon .folder-logo {
+  width: var(--space-xl);
+  height: var(--space-xl);
+  object-fit: contain;
+  border-radius: var(--radius-md);
+}
+
+.folder-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-xxss);
+}
+
+.folder-name {
+  font-weight: 500;
+  font-size: var(--text-md);
+  color: var(--text-primary);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-count {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+/* Loading placeholder in folders */
+.folders-grid .loading-placeholder {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: var(--space-xxl);
+  color: var(--text-secondary);
+}
+
+/* Zurück-Button Styling im Filter-Bar */
+.filter-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+#btn-back-to-folders {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+#btn-back-to-folders svg {
+  flex-shrink: 0;
+}
+
+/* Verträge Unternehmen-Tabelle */
+table.vertraege-unternehmen-table th:last-child,
+table.vertraege-unternehmen-table td:last-child {
+  text-align: right !important;
 }

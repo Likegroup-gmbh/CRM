@@ -19,6 +19,7 @@ export class CreatorDetail extends PersonDetailBase {
     this.lists = [];
     this.kooperationen = [];
     this.rechnungen = [];
+    this.vertraege = [];
     this.unternehmen = [];
     this.creatorAdressen = [];
     this.eventsBound = false;
@@ -80,7 +81,8 @@ export class CreatorDetail extends PersonDetailBase {
       typenResult,
       adressenResult,
       notizenResult,
-      ratingsResult
+      ratingsResult,
+      agenturResult
     ] = await parallelLoad([
       () => window.supabase
         .from('creator')
@@ -115,7 +117,14 @@ export class CreatorDetail extends PersonDetailBase {
       
       () => window.notizenSystem.loadNotizen('creator', this.creatorId),
       
-      () => window.bewertungsSystem.loadBewertungen('creator', this.creatorId)
+      () => window.bewertungsSystem.loadBewertungen('creator', this.creatorId),
+      
+      () => window.supabase
+        .from('creator_agentur')
+        .select('*')
+        .eq('creator_id', this.creatorId)
+        .maybeSingle()
+        .then(r => r.data || null)
     ]);
     
     if (creatorResult.error) {
@@ -129,6 +138,14 @@ export class CreatorDetail extends PersonDetailBase {
     this.creatorAdressen = adressenResult;
     this.notizen = notizenResult || [];
     this.ratings = ratingsResult || [];
+    
+    // Agentur-Daten
+    if (agenturResult && agenturResult.ist_aktiv) {
+      this.creator.agentur_vertreten = true;
+      this.creator.agentur_name = agenturResult.agentur_name;
+      this.creator.agentur_adresse = agenturResult.agentur_adresse;
+      this.creator.agentur_vertretung = agenturResult.agentur_vertretung;
+    }
     
     const loadTime = (performance.now() - startTime).toFixed(0);
     console.log(`✅ CREATORDETAIL: Kritische Daten geladen in ${loadTime}ms`);
@@ -196,6 +213,11 @@ export class CreatorDetail extends PersonDetailBase {
           case 'rechnungen':
             await this.loadRechnungen();
             this.updateRechnungenTab();
+            break;
+            
+          case 'vertraege':
+            await this.loadVertraege();
+            this.updateVertraegeTab();
             break;
         }
         
@@ -270,6 +292,25 @@ export class CreatorDetail extends PersonDetailBase {
       }
     } catch (_) {
       this.rechnungen = [];
+    }
+  }
+
+  async loadVertraege() {
+    try {
+      const { data: vertraege } = await window.supabase
+        .from('vertraege')
+        .select(`
+          id, name, typ, is_draft, datei_url, datei_path, created_at,
+          kampagne:kampagne_id(id, kampagnenname),
+          kunde:kunde_unternehmen_id(id, firmenname)
+        `)
+        .eq('creator_id', this.creatorId)
+        .order('created_at', { ascending: false });
+      this.vertraege = vertraege || [];
+      console.log('✅ CREATORDETAIL: Verträge geladen:', this.vertraege.length);
+    } catch (e) {
+      console.warn('⚠️ CREATORDETAIL: Verträge konnten nicht geladen werden', e);
+      this.vertraege = [];
     }
   }
   
@@ -419,6 +460,15 @@ export class CreatorDetail extends PersonDetailBase {
     }
   }
 
+  updateVertraegeTab() {
+    const container = document.querySelector('#tab-vertraege');
+    if (container) {
+      container.innerHTML = this.renderVertraegeContent();
+      const btn = document.querySelector('.tab-button[data-tab="vertraege"] .tab-count');
+      if (btn) btn.textContent = String(this.vertraege?.length || 0);
+    }
+  }
+
   async render() {
     if (!this.creator) {
       window.setHeadline('Creator nicht gefunden');
@@ -535,6 +585,7 @@ export class CreatorDetail extends PersonDetailBase {
       { tab: 'listen', label: 'Listen', count: this.lists?.length || 0, isActive: this.activeMainTab === 'listen' },
       { tab: 'unternehmen', label: 'Unternehmen', count: this.unternehmen?.length || 0, isActive: this.activeMainTab === 'unternehmen' },
       { tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen?.length || 0, isActive: this.activeMainTab === 'rechnungen' },
+      { tab: 'vertraege', label: 'Verträge', count: this.vertraege?.length || 0, isActive: this.activeMainTab === 'vertraege' },
       { tab: 'adresse', label: 'Adresse', isActive: this.activeMainTab === 'adresse' },
       { tab: 'notizen', label: 'Notizen', count: this.notizen.length, isActive: this.activeMainTab === 'notizen' },
       { tab: 'ratings', label: 'Bewertungen', count: this.ratings.length, isActive: this.activeMainTab === 'ratings' }
@@ -573,6 +624,10 @@ export class CreatorDetail extends PersonDetailBase {
           ${this.renderRechnungenContent()}
         </div>
 
+        <div class="tab-pane ${this.activeMainTab === 'vertraege' ? 'active' : ''}" id="tab-vertraege">
+          ${this.renderVertraegeContent()}
+        </div>
+
         <div class="tab-pane ${this.activeMainTab === 'adresse' ? 'active' : ''}" id="tab-adresse">
           ${this.renderAdresseContent()}
         </div>
@@ -602,6 +657,24 @@ export class CreatorDetail extends PersonDetailBase {
               <label>Telefon:</label>
               <span>${this.creator.telefonnummer || '-'}</span>
             </div>
+            ${this.creator.agentur_vertreten ? `
+            <div class="detail-item" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color, #e5e7eb);">
+              <label>Agentur-Vertretung:</label>
+              <span class="status-badge status-aktiv">Ja</span>
+            </div>
+            <div class="detail-item">
+              <label>Agenturname:</label>
+              <span>${this.creator.agentur_name || '-'}</span>
+            </div>
+            <div class="detail-item">
+              <label>Agenturadresse:</label>
+              <span>${this.creator.agentur_adresse || '-'}</span>
+            </div>
+            <div class="detail-item">
+              <label>Vertreten durch:</label>
+              <span>${this.creator.agentur_vertretung || '-'}</span>
+            </div>
+            ` : ''}
           </div>
 
           <div class="detail-card">
@@ -850,6 +923,57 @@ export class CreatorDetail extends PersonDetailBase {
               <th>Gestellt</th>
               <th>Bezahlt</th>
               <th>Beleg</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  renderVertraegeContent() {
+    if (!this.vertraege || this.vertraege.length === 0) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">📄</div>
+          <h3>Keine Verträge vorhanden</h3>
+          <p>Für diesen Creator wurden noch keine Verträge erfasst.</p>
+        </div>
+      `;
+    }
+
+    const getStatusLabel = (isDraft) => isDraft ? 'Entwurf' : 'Final';
+    const getStatusClass = (isDraft) => isDraft ? 'draft' : 'aktiv';
+
+    const rows = this.vertraege.map(v => {
+      const kampagneName = v.kampagne?.kampagnenname || '-';
+      const unternehmenName = v.kunde?.firmenname || '-';
+      
+      return `
+        <tr>
+          <td><a href="/vertraege/${v.id}" onclick="event.preventDefault(); window.navigateTo('/vertraege/${v.id}')">${window.validatorSystem.sanitizeHtml(v.name || '—')}</a></td>
+          <td>${window.validatorSystem.sanitizeHtml(v.typ || '-')}</td>
+          <td><span class="status-badge status-${getStatusClass(v.is_draft)}">${getStatusLabel(v.is_draft)}</span></td>
+          <td>${v.kampagne ? `<a href="/kampagnen/${v.kampagne.id}" onclick="event.preventDefault(); window.navigateTo('/kampagnen/${v.kampagne.id}')">${window.validatorSystem.sanitizeHtml(kampagneName)}</a>` : '-'}</td>
+          <td>${v.kunde ? `<a href="/unternehmen/${v.kunde.id}" onclick="event.preventDefault(); window.navigateTo('/unternehmen/${v.kunde.id}')">${window.validatorSystem.sanitizeHtml(unternehmenName)}</a>` : '-'}</td>
+          <td>${v.datei_url ? `<a href="${v.datei_url}" target="_blank" rel="noopener">PDF</a>` : '-'}</td>
+          <td>${this.formatDate(v.created_at)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div class="data-table-container">
+        <table class="data-table vertraege-detail-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Typ</th>
+              <th>Status</th>
+              <th>Kampagne</th>
+              <th>Unternehmen</th>
+              <th>Datei</th>
+              <th>Erstellt am</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -1130,7 +1254,9 @@ export class CreatorDetail extends PersonDetailBase {
     console.log('📋 CREATORDETAIL: Edit-Daten vorbereitet:', {
       sprachen_ids: editData.sprachen_ids,
       branche_ids: editData.branche_ids,
-      creator_type_ids: editData.creator_type_ids
+      creator_type_ids: editData.creator_type_ids,
+      agentur_vertreten: editData.agentur_vertreten,
+      agentur_name: editData.agentur_name
     });
     
     const formHtml = window.formSystem.renderFormOnly('creator', editData);

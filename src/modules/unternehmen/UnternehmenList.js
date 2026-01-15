@@ -235,8 +235,7 @@ export class UnternehmenList {
         <div class="table-actions">
           ${isAdmin ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
-          <span id="selected-count" style="display:none;">0 ausgewählt</span>
-          <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>` : ''}
+          <span id="selected-count" style="display:none;">0 ausgewählt</span>` : ''}
           ${canEdit ? '<button id="btn-unternehmen-new" class="primary-btn">Neues Unternehmen anlegen</button>' : ''}
         </div>
       </div>
@@ -440,7 +439,6 @@ export class UnternehmenList {
     const selectedCountElement = document.getElementById('selected-count');
     const selectBtn = document.getElementById('btn-select-all');
     const deselectBtn = document.getElementById('btn-deselect-all');
-    const deleteBtn = document.getElementById('btn-delete-selected');
     
     if (selectedCountElement) {
       selectedCountElement.textContent = `${selectedCount} ausgewählt`;
@@ -453,10 +451,6 @@ export class UnternehmenList {
     
     if (deselectBtn) {
       deselectBtn.style.display = selectedCount > 0 ? 'inline-block' : 'none';
-    }
-    
-    if (deleteBtn) {
-      deleteBtn.style.display = selectedCount > 0 ? 'inline-block' : 'none';
     }
   }
 
@@ -491,7 +485,7 @@ export class UnternehmenList {
         <tr data-id="${u.id}">
           ${isAdmin ? `<td><input type="checkbox" class="unternehmen-check" data-id="${u.id}"></td>` : ''}
           <td>
-            ${u.logo_url ? `<img src="${u.logo_url}" class="company-logo" width="24" height="24" alt="" />` : ''}
+            ${u.logo_url ? `<img src="${u.logo_url}" class="table-logo" width="24" height="24" alt="" />` : ''}
             <a href="#" class="table-link" data-table="unternehmen" data-id="${u.id}">
               ${window.validatorSystem.sanitizeHtml(u.firmenname || '')}
             </a>
@@ -1118,83 +1112,6 @@ export class UnternehmenList {
     console.log('✅ Alle Unternehmen-Auswahlen aufgehoben');
   }
 
-  // Bestätigungsdialog für Bulk-Delete
-  async showDeleteSelectedConfirmation() {
-    const selectedCount = this.selectedUnternehmen.size;
-    if (selectedCount === 0) {
-      alert('Keine Unternehmen ausgewählt.');
-      return;
-    }
-
-    const message = selectedCount === 1 
-      ? 'Möchten Sie das ausgewählte Unternehmen wirklich löschen?' 
-      : `Möchten Sie die ${selectedCount} ausgewählten Unternehmen wirklich löschen?`;
-
-    if (window.confirmationModal) {
-      const res = await window.confirmationModal.open({ title: 'Löschvorgang bestätigen', message, confirmText: 'Endgültig löschen', cancelText: 'Abbrechen', danger: true });
-      if (res?.confirmed) this.deleteSelectedUnternehmen();
-    } else {
-      const confirmed = confirm(`${message}\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`);
-      if (confirmed) this.deleteSelectedUnternehmen();
-    }
-  }
-
-  // Ausgewählte Unternehmen löschen
-  async deleteSelectedUnternehmen() {
-    if (window.currentUser?.rolle !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'admin') return;
-    
-    const selectedIds = Array.from(this.selectedUnternehmen);
-    const totalCount = selectedIds.length;
-    
-    console.log(`🗑️ Lösche ${totalCount} Unternehmen...`);
-    
-    // Optimistisches UI-Update: Zeilen ausblenden
-    selectedIds.forEach(id => {
-      const row = document.querySelector(`tr[data-id="${id}"]`);
-      if (row) row.style.opacity = '0.5';
-    });
-
-    try {
-      // Batch-Delete für bessere Performance
-      const result = await window.dataService.deleteEntities('unternehmen', selectedIds);
-      
-      if (result.success) {
-        // Entferne Zeilen aus DOM
-        selectedIds.forEach(id => {
-          document.querySelector(`tr[data-id="${id}"]`)?.remove();
-        });
-        
-        alert(`✅ ${result.deletedCount} Unternehmen erfolgreich gelöscht.`);
-        
-        this.deselectAll();
-        
-        // Nur neu laden wenn Liste leer ist
-        const tbody = document.querySelector('.data-table tbody');
-        if (tbody && tbody.children.length === 0) {
-          await this.loadAndRender();
-        }
-        
-        window.dispatchEvent(new CustomEvent('entityUpdated', {
-          detail: { entity: 'unternehmen', action: 'bulk-deleted', count: result.deletedCount }
-        }));
-      } else {
-        throw new Error(result.error || 'Löschen fehlgeschlagen');
-      }
-    } catch (error) {
-      // Bei Fehler: Zeilen wiederherstellen
-      selectedIds.forEach(id => {
-        const row = document.querySelector(`tr[data-id="${id}"]`);
-        if (row) row.style.opacity = '1';
-      });
-      
-      console.error('❌ Fehler beim Löschen:', error);
-      alert(`❌ Fehler beim Löschen: ${error.message}`);
-      
-      // Liste neu laden um konsistenten Zustand herzustellen
-      await this.loadAndRender();
-    }
-  }
-  
   // Mitarbeiter-Zuordnungen mit Rollen speichern
   async saveMitarbeiterRoles(unternehmenId, data) {
     try {

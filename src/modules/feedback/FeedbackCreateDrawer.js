@@ -301,6 +301,9 @@ export class FeedbackCreateDrawer {
         error = result.error;
       } else {
         // INSERT
+        // Wenn Kategorie 'additions' ist, setze Status auf 'additions' statt 'open'
+        const status = category === 'additions' ? 'additions' : 'open';
+        
         const result = await window.supabase
           .from('feedback')
           .insert({
@@ -308,7 +311,7 @@ export class FeedbackCreateDrawer {
             priority,
             description,
             area,
-            status: 'open',
+            status,
             created_by: window.currentUser?.id
           })
           .select()

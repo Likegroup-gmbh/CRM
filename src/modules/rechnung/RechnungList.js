@@ -314,7 +314,7 @@ export class RechnungList {
           <thead>
             <tr>
               ${isAdmin ? `<th><input type="checkbox" id="select-all-rechnungen"></th>` : ''}
-              <th>Rechnungs-Nr</th>
+              <th>Rechnungsname</th>
               <th>PO-Nummer</th>
               <th>Erstellt am</th>
               <th>Unternehmen</th>
@@ -324,6 +324,8 @@ export class RechnungList {
               <th>Zahlungsziel</th>
               <th>Status</th>
               <th>Nettobetrag</th>
+              <th>Videos</th>
+              <th>Preis/Video</th>
               <th>Bruttobetrag</th>
               <th>Beleg</th>
               <th>Aktionen</th>
@@ -407,6 +409,8 @@ export class RechnungList {
           <td>${formatDate(r.zahlungsziel)}</td>
           <td>${r.status || '-'}</td>
           <td>${formatCurrency(r.nettobetrag)}</td>
+          <td>${r.videoanzahl || '-'}</td>
+          <td>${r.videoanzahl && r.nettobetrag ? formatCurrency(r.nettobetrag / r.videoanzahl) : '-'}</td>
           <td>${formatCurrency(r.bruttobetrag)}</td>
           <td>${r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener noreferrer">PDF</a>` : '-'}</td>
           <td>

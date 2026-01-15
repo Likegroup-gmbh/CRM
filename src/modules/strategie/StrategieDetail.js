@@ -320,7 +320,7 @@ export class StrategieDetail {
             ${item.prio_1 ? 'checked' : ''} 
             data-field="prio_1"
             data-item-id="${item.id}"
-            style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'pointer' : 'default'}; ${!this.isKunde ? 'pointer-events: none;' : ''}"
+            style="width: 20px; height: 20px; cursor: pointer;"
           >
         </td>
         <td style="text-align: center;">
@@ -329,7 +329,7 @@ export class StrategieDetail {
             ${item.prio_2 ? 'checked' : ''} 
             data-field="prio_2"
             data-item-id="${item.id}"
-            style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'pointer' : 'default'}; ${!this.isKunde ? 'pointer-events: none;' : ''}"
+            style="width: 20px; height: 20px; cursor: pointer;"
           >
         </td>
         <td style="text-align: center;">
@@ -338,7 +338,7 @@ export class StrategieDetail {
             ${item.nicht_umsetzen ? 'checked' : ''} 
             data-field="nicht_umsetzen"
             data-item-id="${item.id}"
-            style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'pointer' : 'default'}; ${!this.isKunde ? 'pointer-events: none;' : ''}"
+            style="width: 20px; height: 20px; cursor: pointer;"
           >
         </td>
         ${!this.isKunde ? `

@@ -50,7 +50,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
           { label: 'Ansprechpartner', url: '/ansprechpartner', clickable: true },
           { label: name, url: `/ansprechpartner/${this.ansprechpartnerId}`, clickable: false }
         ], {
-          id: 'btn-edit',
+          id: 'btn-edit-ansprechpartner',
           canEdit: canEdit
         });
       }
@@ -209,6 +209,14 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     return this.ansprechpartner?.sprache?.name || this.ansprechpartner?.sprache || '-';
   }
 
+  // Rendert Badge für Marketing-Einwilligung
+  renderEinwilligungBadge(erlaubt) {
+    if (erlaubt) {
+      return '<span class="status-badge success">✓ Erlaubt</span>';
+    }
+    return '<span class="status-badge inactive">Nicht erlaubt</span>';
+  }
+
   renderTabNavigation() {
     const tabs = [
       { tab: 'informationen', label: 'Informationen', isActive: this.activeMainTab === 'informationen' },
@@ -288,6 +296,33 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
               <tr>
                 <td><strong>LinkedIn</strong></td>
                 <td style="text-align: right;">${this.ansprechpartner?.linkedin ? `<a href="${this.ansprechpartner.linkedin}" target="_blank" rel="noopener noreferrer">Profil öffnen</a>` : '-'}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Marketing-Einwilligung</th>
+                <th style="text-align: right;">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Updates zu unserem Unternehmen</strong></td>
+                <td style="text-align: right;">${this.renderEinwilligungBadge(this.ansprechpartner?.erlaubt_updates)}</td>
+              </tr>
+              <tr>
+                <td><strong>Newsletter (1x/Monat)</strong></td>
+                <td style="text-align: right;">${this.renderEinwilligungBadge(this.ansprechpartner?.erlaubt_newsletter)}</td>
+              </tr>
+              <tr>
+                <td><strong>Webinar-Einladungen</strong></td>
+                <td style="text-align: right;">${this.renderEinwilligungBadge(this.ansprechpartner?.erlaubt_webinare)}</td>
               </tr>
             </tbody>
           </table>
@@ -481,10 +516,9 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       }
     });
 
-    // Bearbeiten Button - direkt showEditForm() aufrufen statt Navigation
-    document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-edit' || e.target.closest('#btn-edit')) {
-        e.preventDefault();
+    // Bearbeiten Button - reagiert auf Custom Event vom BreadcrumbSystem
+    window.addEventListener('breadcrumbEditClick', (e) => {
+      if (e.detail?.buttonId === 'btn-edit-ansprechpartner') {
         this.showEditForm();
       }
     });

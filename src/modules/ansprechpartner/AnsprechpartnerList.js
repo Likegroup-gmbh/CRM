@@ -228,10 +228,13 @@ export class AnsprechpartnerList {
       }
     });
 
-    // Entity Updated Event
+    // Entity Updated Event - nur reagieren wenn Liste aktiv ist
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail.entity === 'ansprechpartner') {
-        this.loadAndRender();
+        // Nur neu laden wenn wir auf der Listen-Seite sind (nicht Detail-Seite)
+        if (location.pathname === '/ansprechpartner') {
+          this.loadAndRender();
+        }
       }
     });
 

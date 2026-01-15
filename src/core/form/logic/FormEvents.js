@@ -653,6 +653,40 @@ export class FormEvents {
 
     koopSelect.addEventListener('change', onKoopChange);
     
+    // === Live-Berechnung für UST, Skonto und Brutto ===
+    const skontoToggle = form.querySelector('input[name="skonto"]');
+    const nettoGesamtInput = form.querySelector('input[name="netto_gesamt"]');
+    const bruttoVorSkontoInput = form.querySelector('input[name="brutto_vor_skonto"]');
+    const skontoBetragInput = form.querySelector('input[name="skonto_betrag"]');
+    const nettoNachSkontoInput = form.querySelector('input[name="netto_nach_skonto"]');
+    const ustBetragInput = form.querySelector('input[name="ust_betrag"]');
+    
+    const berechneRechnung = () => {
+      const netto = parseFloat(nettoInput?.value) || 0;
+      const zusatz = parseFloat(zusatzInput?.value) || 0;
+      const hatSkonto = skontoToggle?.checked || false;
+      
+      const nettoGesamt = netto + zusatz;
+      const bruttoVorSkonto = nettoGesamt * 1.19;
+      const skontoBetrag = hatSkonto ? nettoGesamt * 0.03 : 0;
+      const nettoNachSkonto = nettoGesamt - skontoBetrag;
+      const ustBetrag = nettoNachSkonto * 0.19;
+      const brutto = nettoNachSkonto + ustBetrag;
+      
+      // Felder aktualisieren
+      if (nettoGesamtInput) nettoGesamtInput.value = nettoGesamt.toFixed(2);
+      if (bruttoVorSkontoInput) bruttoVorSkontoInput.value = bruttoVorSkonto.toFixed(2);
+      if (skontoBetragInput) skontoBetragInput.value = skontoBetrag.toFixed(2);
+      if (nettoNachSkontoInput) nettoNachSkontoInput.value = nettoNachSkonto.toFixed(2);
+      if (ustBetragInput) ustBetragInput.value = ustBetrag.toFixed(2);
+      if (bruttoInput) bruttoInput.value = brutto.toFixed(2);
+    };
+    
+    // Event-Listener für Berechnung
+    if (nettoInput) nettoInput.addEventListener('input', berechneRechnung);
+    if (zusatzInput) zusatzInput.addEventListener('input', berechneRechnung);
+    if (skontoToggle) skontoToggle.addEventListener('change', berechneRechnung);
+    
     // Initial: Wenn keine Kooperation vorausgewählt ist, alle Felder für manuelle Eingabe freischalten
     if (!koopSelect.value) {
       setTimeout(() => onKoopChange(), 100); // Kurz warten bis das Formular vollständig geladen ist
@@ -660,6 +694,9 @@ export class FormEvents {
     
     // Initial bei Formularstart (falls vorausgewählt)
     onKoopChange();
+    
+    // Initiale Berechnung nach kurzer Verzögerung (wenn Werte aus Kooperation geladen wurden)
+    setTimeout(berechneRechnung, 200);
   }
 
   // Kooperation-spezifische Events

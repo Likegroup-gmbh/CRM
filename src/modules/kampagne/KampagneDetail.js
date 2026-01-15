@@ -20,6 +20,7 @@ export class KampagneDetail {
     this.sourcingCreators = [];
     this.favoriten = [];
     this.rechnungen = [];
+    this.vertraege = [];
     this.history = [];
     this.historyCount = 0;
     this.koopHistory = [];
@@ -327,6 +328,55 @@ export class KampagneDetail {
        </div>
      `;
    }
+
+  renderVertraege() {
+    if (!this.vertraege || this.vertraege.length === 0) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">📄</div>
+          <h3>Keine Verträge vorhanden</h3>
+          <p>Für diese Kampagne wurden noch keine Verträge erfasst.</p>
+        </div>
+      `;
+    }
+
+    const fDate = (d) => d ? new Date(d).toLocaleDateString('de-DE') : '-';
+    const getStatusLabel = (isDraft) => isDraft ? 'Entwurf' : 'Final';
+    const getStatusClass = (isDraft) => isDraft ? 'draft' : 'aktiv';
+
+    const rows = this.vertraege.map(v => {
+      const creatorName = v.creator ? `${v.creator.vorname || ''} ${v.creator.nachname || ''}`.trim() : '-';
+      
+      return `
+        <tr>
+          <td><a href="/vertraege/${v.id}" onclick="event.preventDefault(); window.navigateTo('/vertraege/${v.id}')">${window.validatorSystem.sanitizeHtml(v.name || '—')}</a></td>
+          <td>${window.validatorSystem.sanitizeHtml(v.typ || '-')}</td>
+          <td><span class="status-badge status-${getStatusClass(v.is_draft)}">${getStatusLabel(v.is_draft)}</span></td>
+          <td>${v.creator ? `<a href="/creator/${v.creator.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${v.creator.id}')">${window.validatorSystem.sanitizeHtml(creatorName)}</a>` : '-'}</td>
+          <td>${v.datei_url ? `<a href="${v.datei_url}" target="_blank" rel="noopener">PDF</a>` : '-'}</td>
+          <td>${fDate(v.created_at)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div class="data-table-container">
+        <table class="data-table vertraege-detail-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Typ</th>
+              <th>Status</th>
+              <th>Creator</th>
+              <th>Datei</th>
+              <th>Erstellt am</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
 
   // Lade kritische Daten parallel (Performance-optimiert)
   async loadCriticalData() {
@@ -764,6 +814,21 @@ export class KampagneDetail {
             this.updateRechnungenTab();
           }
           break;
+        
+        case 'vertraege':
+          if (!this.vertraege || this.vertraege.length === 0) {
+            const { data } = await window.supabase
+              .from('vertraege')
+              .select(`
+                id, name, typ, is_draft, datei_url, datei_path, created_at,
+                creator:creator_id(id, vorname, nachname)
+              `)
+              .eq('kampagne_id', this.kampagneId)
+              .order('created_at', { ascending: false });
+            this.vertraege = data || [];
+            this.updateVertraegeTab();
+          }
+          break;
           
         case 'history':
           if ((!this.history || this.history.length === 0) && 
@@ -857,6 +922,11 @@ export class KampagneDetail {
           <button class="tab-button" data-tab="rechnungen">
             <span class="tab-icon">${getTabIcon('rechnungen')}</span>
             Rechnungen<span class="tab-count">${this.rechnungen?.length || 0}</span>
+          </button>` : ''}
+          ${window.currentUser?.rolle !== 'kunde' ? `
+          <button class="tab-button" data-tab="vertraege">
+            <span class="tab-icon">${getTabIcon('vertraege')}</span>
+            Verträge<span class="tab-count">${this.vertraege?.length || 0}</span>
           </button>` : ''}
           ${window.currentUser?.rolle !== 'kunde' && window.canViewTable && window.canViewTable('kampagne','notizen') !== false ? `
           <button class="tab-button" data-tab="notizen">
@@ -1059,6 +1129,13 @@ export class KampagneDetail {
             </div>
           </div>
 
+          <!-- Verträge Tab -->
+          <div class="tab-pane" id="tab-vertraege">
+            <div class="detail-section">
+              ${this.renderVertraege()}
+            </div>
+          </div>
+
           <!-- Notizen Tab -->
           <div class="tab-pane" id="tab-notizen">
             <div class="detail-section">
@@ -1168,6 +1245,7 @@ export class KampagneDetail {
               </div>
             </div>
           </div>
+          ${window.currentUser?.rolle === 'admin' ? `
           <div class="summary-card">
             <div class="summary-value">${formatCurrency(usedBudget)} von ${formatCurrency(totalBudget)}</div>
             <div class="summary-label">Budget verbraucht</div>
@@ -1176,7 +1254,7 @@ export class KampagneDetail {
                    style="width: ${getProgressPercentage(usedBudget, totalBudget)}%">
               </div>
             </div>
-          </div>
+          </div>` : ''}
         </div>
       </div>
     `;
@@ -2103,6 +2181,16 @@ export class KampagneDetail {
     }
   }
 
+  updateVertraegeTab() {
+    const container = document.querySelector('#tab-vertraege .detail-section');
+    if (container) {
+      container.innerHTML = this.renderVertraege();
+      // Tab-Count aktualisieren
+      const btn = document.querySelector('.tab-button[data-tab="vertraege"] .tab-count');
+      if (btn) btn.textContent = String(this.vertraege.length);
+    }
+  }
+
   updateHistoryTab() {
     const container = document.querySelector('#tab-history .detail-section');
     if (container) {
@@ -2407,6 +2495,29 @@ export class KampagneDetail {
         }
       }
 
+      // Dynamische Kampagnenart-Felder aus dem Stepper-Container sammeln (sicherstellen bei Edit)
+      const kampagnenartContainer = form.querySelector('#kampagnenart-felder-container');
+      if (kampagnenartContainer) {
+        const stepperInputs = kampagnenartContainer.querySelectorAll('input[type="hidden"]');
+        stepperInputs.forEach(input => {
+          if (input.name && input.value !== undefined) {
+            const value = parseInt(input.value, 10) || 0;
+            submitData[input.name] = value;
+            console.log(`📊 Stepper-Feld gesammelt: ${input.name} = ${value}`);
+          }
+        });
+      } else {
+        console.log('⚠️ KAMPAGNEDETAIL: Kampagnenart-Container nicht gefunden');
+      }
+
+      // Aggregiere Gesamtzahlen für Kampagne (für Anzeige & Listen)
+      const sumBySuffix = (suffix) => Object.entries(submitData).reduce((sum, [key, val]) => {
+        if (!key.endsWith(suffix)) return sum;
+        return sum + (parseInt(val, 10) || 0);
+      }, 0);
+      submitData.videoanzahl = sumBySuffix('_video_anzahl');
+      submitData.creatoranzahl = sumBySuffix('_creator_anzahl');
+
       console.log('📋 KAMPAGNEDETAIL: Submit-Daten gesammelt:', submitData);
 
       // Daten über DataService aktualisieren
@@ -2552,6 +2663,13 @@ export class KampagneDetail {
           console.warn('⚠️ KAMPAGNEDETAIL: Junction Table Updates konnten nicht vollständig durchgeführt werden', e);
         }
         
+        // Kampagnenart-Felder zu Auftragsdetails übertragen (Aggregation)
+        try {
+          await this.transferKampagneDataToAuftragsdetails(submitData, this.kampagneId);
+        } catch (e) {
+          console.warn('⚠️ KAMPAGNEDETAIL: Auftragsdetails-Transfer fehlgeschlagen', e);
+        }
+
         this.showSuccessMessage('Kampagne erfolgreich aktualisiert!');
         
         // Event auslösen für Listen-Update
@@ -2568,6 +2686,179 @@ export class KampagneDetail {
     } catch (error) {
       console.error('❌ Fehler beim Aktualisieren der Kampagne:', error);
       this.showErrorMessage('Ein unerwarteter Fehler ist aufgetreten.');
+    }
+  }
+
+  /**
+   * Überträgt Kampagnenart-spezifische Daten zu auftrag_details
+   * @param {object} submitData - Die Formulardaten der Kampagne
+   * @param {string} kampagneId - ID der Kampagne
+   */
+  async transferKampagneDataToAuftragsdetails(submitData, kampagneId) {
+    try {
+      const auftragId = submitData.auftrag_id || this.kampagneData?.auftrag_id;
+      if (!auftragId) {
+        console.log('ℹ️ Keine auftrag_id - Auftragsdetails-Transfer übersprungen');
+        return;
+      }
+      
+      console.log('🔄 Starte Transfer Kampagnendaten → Auftragsdetails');
+      
+      // Importiere das Mapping
+      const { KAMPAGNENARTEN_MAPPING } = await import('../auftrag/logic/KampagnenartenMapping.js');
+      
+      // Sammle alle Kampagnenart-spezifischen Felder aus submitData
+      const auftragsDetailsUpdate = {};
+      let gesamtVideos = 0;
+      let gesamtCreator = 0;
+      
+      // Durchlaufe alle bekannten Kampagnenarten und sammle deren Felder
+      for (const [artName, config] of Object.entries(KAMPAGNENARTEN_MAPPING)) {
+        const { prefix, hasCreator, hasBilder, hasVideographen } = config;
+        
+        // Video-Anzahl
+        const videoKey = `${prefix}_video_anzahl`;
+        if (submitData[videoKey] !== undefined && submitData[videoKey] !== '') {
+          const videoAnzahl = parseInt(submitData[videoKey], 10) || 0;
+          auftragsDetailsUpdate[videoKey] = videoAnzahl;
+          gesamtVideos += videoAnzahl;
+        }
+        
+        // Creator-Anzahl
+        if (hasCreator) {
+          const creatorKey = `${prefix}_creator_anzahl`;
+          if (submitData[creatorKey] !== undefined && submitData[creatorKey] !== '') {
+            const creatorAnzahl = parseInt(submitData[creatorKey], 10) || 0;
+            auftragsDetailsUpdate[creatorKey] = creatorAnzahl;
+            gesamtCreator += creatorAnzahl;
+          }
+        }
+        
+        // Bilder-Anzahl
+        if (hasBilder) {
+          const bilderKey = `${prefix}_bilder_anzahl`;
+          if (submitData[bilderKey] !== undefined && submitData[bilderKey] !== '') {
+            auftragsDetailsUpdate[bilderKey] = parseInt(submitData[bilderKey], 10) || 0;
+          }
+        }
+        
+        // Videographen-Anzahl
+        if (hasVideographen) {
+          const videographenKey = `${prefix}_videographen_anzahl`;
+          if (submitData[videographenKey] !== undefined && submitData[videographenKey] !== '') {
+            auftragsDetailsUpdate[videographenKey] = parseInt(submitData[videographenKey], 10) || 0;
+          }
+        }
+      }
+      
+      // Wenn keine Felder zu übertragen sind, abbrechen
+      if (Object.keys(auftragsDetailsUpdate).length === 0) {
+        console.log('ℹ️ Keine Kampagnenart-Felder zu übertragen');
+        return;
+      }
+      
+      // Gesamtsummen hinzufügen
+      auftragsDetailsUpdate.gesamt_videos = gesamtVideos;
+      auftragsDetailsUpdate.gesamt_creator = gesamtCreator;
+      
+      console.log('📊 Auftragsdetails-Update Daten:', auftragsDetailsUpdate);
+      
+      // Prüfe ob auftrag_details für diesen Auftrag existiert
+      const { data: existingDetails, error: checkError } = await window.supabase
+        .from('auftrag_details')
+        .select('id')
+        .eq('auftrag_id', auftragId)
+        .maybeSingle();
+      
+      if (checkError) {
+        console.error('❌ Fehler beim Prüfen der Auftragsdetails:', checkError);
+        return;
+      }
+      
+      if (existingDetails) {
+        // Update bestehende Auftragsdetails
+        // Bei Update: Lade alle Kampagnen des Auftrags und summiere deren Werte
+        const { data: alleKampagnen, error: kampError } = await window.supabase
+          .from('kampagne')
+          .select('*')
+          .eq('auftrag_id', auftragId);
+        
+        if (kampError) {
+          console.error('❌ Fehler beim Laden aller Kampagnen:', kampError);
+          return;
+        }
+        
+        // Sammle Summen aller Kampagnen für jedes Feld
+        const aggregatedData = {};
+        let totalVideos = 0;
+        let totalCreator = 0;
+        
+        for (const kamp of (alleKampagnen || [])) {
+          for (const [artName, config] of Object.entries(KAMPAGNENARTEN_MAPPING)) {
+            const { prefix, hasCreator, hasBilder, hasVideographen } = config;
+            
+            // Video-Anzahl
+            const videoKey = `${prefix}_video_anzahl`;
+            const videoVal = parseInt(kamp[videoKey], 10) || 0;
+            aggregatedData[videoKey] = (aggregatedData[videoKey] || 0) + videoVal;
+            totalVideos += videoVal;
+            
+            // Creator-Anzahl
+            if (hasCreator) {
+              const creatorKey = `${prefix}_creator_anzahl`;
+              const creatorVal = parseInt(kamp[creatorKey], 10) || 0;
+              aggregatedData[creatorKey] = (aggregatedData[creatorKey] || 0) + creatorVal;
+              totalCreator += creatorVal;
+            }
+            
+            // Bilder-Anzahl
+            if (hasBilder) {
+              const bilderKey = `${prefix}_bilder_anzahl`;
+              aggregatedData[bilderKey] = (aggregatedData[bilderKey] || 0) + (parseInt(kamp[bilderKey], 10) || 0);
+            }
+            
+            // Videographen-Anzahl
+            if (hasVideographen) {
+              const videographenKey = `${prefix}_videographen_anzahl`;
+              aggregatedData[videographenKey] = (aggregatedData[videographenKey] || 0) + (parseInt(kamp[videographenKey], 10) || 0);
+            }
+          }
+        }
+        
+        // Gesamtsummen
+        aggregatedData.gesamt_videos = totalVideos;
+        aggregatedData.gesamt_creator = totalCreator;
+        
+        const { error: updateError } = await window.supabase
+          .from('auftrag_details')
+          .update(aggregatedData)
+          .eq('id', existingDetails.id);
+        
+        if (updateError) {
+          console.error('❌ Fehler beim Update der Auftragsdetails:', updateError);
+        } else {
+          console.log('✅ Auftragsdetails aktualisiert (aggregiert):', aggregatedData);
+        }
+      } else {
+        // Erstelle neue Auftragsdetails
+        const newDetails = {
+          auftrag_id: auftragId,
+          ...auftragsDetailsUpdate
+        };
+        
+        const { error: insertError } = await window.supabase
+          .from('auftrag_details')
+          .insert(newDetails);
+        
+        if (insertError) {
+          console.error('❌ Fehler beim Erstellen der Auftragsdetails:', insertError);
+        } else {
+          console.log('✅ Auftragsdetails erstellt:', newDetails);
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ Fehler beim Transfer der Kampagnendaten zu Auftragsdetails:', error);
     }
   }
 

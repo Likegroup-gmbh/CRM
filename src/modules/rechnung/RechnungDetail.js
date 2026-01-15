@@ -83,6 +83,7 @@ export class RechnungDetail {
             <h3>Allgemein</h3>
             <div class="detail-item"><label>Rechnungs-Nr</label><span>${this.data?.rechnung_nr || '-'}</span></div>
             <div class="detail-item"><label>Interne PO-Nummer</label><span>${this.data?.po_nummer || '-'}</span></div>
+            <div class="detail-item"><label>Externe Angebotsnummer</label><span>${this.data?.externe_angebotsnummer || '-'}</span></div>
             <div class="detail-item"><label>Unternehmen</label><span>${this.data?.unternehmen?.firmenname || '-'}</span></div>
             <div class="detail-item"><label>Auftrag</label><span>${this.data?.auftrag?.auftragsname || '-'}</span></div>
             <div class="detail-item"><label>Status</label><span>${this.data?.status || '-'}</span></div>
@@ -194,6 +195,12 @@ export class RechnungDetail {
         return;
       }
 
+      // Rechnungs-Name dynamisch generieren aus Kooperationsname
+      const koopLabel = form.querySelector('select[name="kooperation_id"]')?.parentNode
+        .querySelector('.searchable-select-input')?.value || '';
+      submitData.rechnung_nr = koopLabel || `Rechnung-${Date.now()}`;
+      console.log('📋 Generierter Rechnungsname:', submitData.rechnung_nr);
+
       console.log('📋 Submit-Daten vor Übertragung:', submitData);
       console.log('🔍 auftrag_id Wert:', submitData.auftrag_id, typeof submitData.auftrag_id);
 
@@ -224,10 +231,7 @@ export class RechnungDetail {
       // Ersteller automatisch setzen
       submitData.created_by_id = window.currentUser?.id || null;
 
-      // PO-Nummer automatisch generieren (Format: PO-JJJJ-NNNN)
-      const poNummer = await this.generatePoNummer();
-      submitData.po_nummer = poNummer;
-      console.log('📋 Generierte PO-Nummer:', poNummer);
+      // PO-Nummer wird nicht mehr automatisch generiert (jetzt bei Aufträgen)
 
       const result = await window.dataService.createEntity('rechnung', submitData);
       if (result.success) {

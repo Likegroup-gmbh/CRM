@@ -1,7 +1,7 @@
 /* Tabellen Module Styles */
 
-/* === COMPANY LOGO (Firmenlogo in Listen) === */
-.company-logo {
+/* === TABLE LOGO (Firmenlogo in Listen) === */
+.table-logo {
   height: var(--space-lg);
   width: var(--space-lg);
   object-fit: contain;
@@ -1531,10 +1531,6 @@ td.col-produkt .stacked-video-input,
 
 /* Standard-Spalten: Natürliche Breite, kein Abschneiden */
 
-/* Für sehr lange Texte: Max-Width mit Tooltip-Option */
-.data-table td {
-  max-width: 300px; /* Begrenzt extreme Breiten */
-}
 
 /* Wichtige Name-Spalten etwas breiter */
 .data-table th:nth-child(2),
