@@ -110,9 +110,9 @@ export class RechnungList {
       rechnung.status = newStatus;
     }
 
-    // 3. Status-Text in der Zeile aktualisieren (Spalte 9 = Index 8, oder 9 bei Admin mit Checkbox)
+    // 3. Status-Text in der Zeile aktualisieren (Status ist jetzt nach Beleg, vor Aktionen)
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-    const statusCellIndex = isAdmin ? 9 : 8; // Bei Admin gibt es eine zusätzliche Checkbox-Spalte
+    const statusCellIndex = isAdmin ? 12 : 11; // Bei Admin gibt es eine zusätzliche Checkbox-Spalte
     const statusCell = row.cells[statusCellIndex];
     if (statusCell) {
       statusCell.textContent = newStatus || '-';
@@ -313,27 +313,28 @@ export class RechnungList {
         <table class="data-table">
           <thead>
             <tr>
-              ${isAdmin ? `<th><input type="checkbox" id="select-all-rechnungen"></th>` : ''}
-              <th>Rechnungsname</th>
+              ${isAdmin ? `<th class="col-checkbox"><input type="checkbox" id="select-all-rechnungen"></th>` : ''}
+              <th class="col-name">Rechnungsname</th>
               <th>PO-Nummer</th>
               <th>Erstellt am</th>
               <th>Unternehmen</th>
               <th>Auftrag</th>
+              <th>Land</th>
               <th>Creator</th>
               <th>Gestellt am</th>
               <th>Zahlungsziel</th>
-              <th>Status</th>
               <th>Nettobetrag</th>
               <th>Videos</th>
               <th>Preis/Video</th>
               <th>Bruttobetrag</th>
               <th>Beleg</th>
-              <th>Aktionen</th>
+              <th>Status</th>
+              <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody id="rechnungen-table-body">
             <tr>
-              <td colspan="${isAdmin ? '14' : '13'}" class="loading">Lade Rechnungen...</td>
+              <td colspan="${isAdmin ? '15' : '14'}" class="loading">Lade Rechnungen...</td>
             </tr>
           </tbody>
         </table>
@@ -398,22 +399,23 @@ export class RechnungList {
 
       tbody.innerHTML = rechnungen.map(r => `
         <tr data-id="${r.id}" class="${getRowClass(r)}">
-          ${isAdmin ? `<td><input type="checkbox" class="rechnung-check" data-id="${r.id}"></td>` : ''}
-          <td>${r.rechnung_nr || '-'}</td>
+          ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="rechnung-check" data-id="${r.id}"></td>` : ''}
+          <td class="col-name">${r.rechnung_nr || '-'}</td>
           <td>${r.po_nummer || '-'}</td>
           <td>${formatDate(r.created_at)}</td>
           <td>${r.unternehmen?.firmenname || '-'}</td>
           <td>${r.auftrag?.auftragsname || '-'}</td>
+          <td>${r.land || '-'}</td>
           <td>${[r.creator?.vorname, r.creator?.nachname].filter(Boolean).join(' ') || '-'}</td>
           <td>${formatDate(r.gestellt_am)}</td>
           <td>${formatDate(r.zahlungsziel)}</td>
-          <td>${r.status || '-'}</td>
           <td>${formatCurrency(r.nettobetrag)}</td>
           <td>${r.videoanzahl || '-'}</td>
           <td>${r.videoanzahl && r.nettobetrag ? formatCurrency(r.nettobetrag / r.videoanzahl) : '-'}</td>
           <td>${formatCurrency(r.bruttobetrag)}</td>
           <td>${r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener noreferrer">PDF</a>` : '-'}</td>
-          <td>
+          <td>${r.status || '-'}</td>
+          <td class="col-actions">
             ${actionBuilder.create('rechnung', r.id, window.currentUser, { 
               statusOptions: this.statusOptions, 
               currentStatus: { id: r.status, name: r.status } 

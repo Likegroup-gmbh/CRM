@@ -546,10 +546,10 @@ export class KampagneList {
         <table class="data-table">
           <thead>
             <tr>
-              ${!isKunde && isAdmin ? `<th>
+              ${!isKunde && isAdmin ? `<th class="col-checkbox">
                 <input type="checkbox" id="select-all-kampagnen">
               </th>` : ''}
-              <th>Kampagnenname</th>
+              <th class="col-name">Kampagnenname</th>
               <th>Unternehmen</th>
               <th>Marke</th>
               <th>Art der Kampagne</th>
@@ -563,7 +563,7 @@ export class KampagneList {
               <th>Video Anzahl</th>
               <th>Ansprechpartner</th>
               <th>Mitarbeiter</th>
-              <th>Aktionen</th>
+              <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody id="kampagnen-table-body">
@@ -905,8 +905,8 @@ export class KampagneList {
 
       tbody.innerHTML = kampagnen.map(kampagne => `
         <tr data-id="${kampagne.id}">
-          ${!isKunde && isAdmin ? `<td><input type="checkbox" class="kampagne-check" data-id="${kampagne.id}"></td>` : ''}
-          <td>
+          ${!isKunde && isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="kampagne-check" data-id="${kampagne.id}"></td>` : ''}
+          <td class="col-name">
             <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
               ${window.validatorSystem.sanitizeHtml(kampagne.kampagnenname || 'Unbekannt')}
             </a>
@@ -924,7 +924,7 @@ export class KampagneList {
           <td>${kampagne.videoanzahl || 0}</td>
           <td>${this.renderAnsprechpartner(kampagne.ansprechpartner)}</td>
           <td>${this.renderMitarbeiter(kampagne.mitarbeiter)}</td>
-          <td>
+          <td class="col-actions">
             ${actionBuilder.create('kampagne', kampagne.id, window.currentUser, { 
               statusOptions: this.statusOptions, 
               currentStatus: { id: kampagne.status_id, name: kampagne.status_name } 

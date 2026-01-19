@@ -265,6 +265,7 @@ export class AuftragsdetailsDetail {
     };
 
     const auftragtype = this.auftrag?.auftragtype || '-';
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
 
     return `
       <div class="detail-section">
@@ -283,6 +284,7 @@ export class AuftragsdetailsDetail {
               <div class="summary-value">${num(this.budgetSummary.totalCreators)}</div>
               <div class="summary-label">Gebuchte Creator</div>
             </div>
+            ${isAdmin ? `
             <div class="summary-card">
               <div class="summary-value">${formatCurrency(this.budgetSummary.usedBudget)} von ${formatCurrency(this.budgetSummary.totalBudget)}</div>
               <div class="summary-label">Budget verbraucht (Netto)</div>
@@ -292,6 +294,7 @@ export class AuftragsdetailsDetail {
                 </div>
               </div>
             </div>
+            ` : ''}
           </div>
         </div>
 

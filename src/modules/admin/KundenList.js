@@ -99,14 +99,14 @@ export class KundenList {
       const mBadges = mCount ? `<div class="tags tags-compact"><span class="tag">${mCount}</span></div>` : '—';
       return `
         <tr data-id="${u.id}">
-          <td>${u.id ? `<a href="#" class="table-link" data-table="kunden" data-id="${u.id}">${window.validatorSystem.sanitizeHtml(u.name || '—')}</a>` : window.validatorSystem.sanitizeHtml(u.name || '—')}</td>
+          <td class="col-name">${u.id ? `<a href="#" class="table-link" data-table="kunden" data-id="${u.id}">${window.validatorSystem.sanitizeHtml(u.name || '—')}</a>` : window.validatorSystem.sanitizeHtml(u.name || '—')}</td>
           <td>${window.validatorSystem.sanitizeHtml(u.auth_user_id ? 'Registriert' : '—')}</td>
           <td>${window.validatorSystem.sanitizeHtml(u.rolle || '—')}</td>
           <td>${window.validatorSystem.sanitizeHtml(u.unterrolle || '—')}</td>
           <td>${uBadges}</td>
           <td>${mBadges}</td>
           <td>${freigeschaltetIcon}</td>
-          <td>${actionsMenu}</td>
+          <td class="col-actions">${actionsMenu}</td>
         </tr>
       `;
     }).join('');
@@ -123,14 +123,14 @@ export class KundenList {
         <table class="data-table">
           <thead>
             <tr>
-              <th>Name</th>
+              <th class="col-name">Name</th>
               <th>Status</th>
               <th>Rolle</th>
               <th>Unterrolle</th>
               <th>Unternehmen</th>
               <th>Marken</th>
               <th>Freigeschaltet</th>
-              <th>Aktionen</th>
+              <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody>

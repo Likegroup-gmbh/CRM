@@ -172,7 +172,7 @@ export class StrategieList {
           <table class="data-table">
             <thead>
               <tr>
-                <th>Name</th>
+                <th class="col-name">Name</th>
                 <th>Unternehmen</th>
                 <th>Marke</th>
                 <th>Kampagne</th>
@@ -254,7 +254,7 @@ export class StrategieList {
 
         return `
           <tr class="table-row-clickable" data-strategie-id="${strategie.id}">
-            <td>
+            <td class="col-name">
               <a href="#" class="table-link" data-table="strategie" data-id="${strategie.id}">
                 ${window.validatorSystem.sanitizeHtml(strategie.name || 'Ohne Namen')}
               </a>

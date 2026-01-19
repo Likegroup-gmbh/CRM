@@ -32,10 +32,9 @@ export class VideoList {
       ]);
     }
     
-    // Berechtigungsprüfung (Videos sichtbar für alle mit Kooperations-Rechten)
-    const canView = window.currentUser?.rolle === 'admin' || 
-                    window.currentUser?.rolle === 'mitarbeiter' ||
-                    window.currentUser?.rolle === 'kunde';
+    // Berechtigungsprüfung über PermissionSystem
+    const canView = (window.canViewPage && window.canViewPage('videos')) || 
+                    await window.checkUserPermission('videos', 'can_view');
     
     if (!canView) {
       window.content.innerHTML = `
@@ -280,7 +279,7 @@ export class VideoList {
         <table class="data-table">
           <thead>
             <tr>
-              <th>Thema</th>
+              <th class="col-name">Thema</th>
               <th>Kampagne</th>
               <th>Kooperation</th>
               <th>Creator</th>
@@ -427,7 +426,7 @@ export class VideoList {
 
       return `
         <tr data-id="${video.id}">
-          <td class="video-thema-cell">${themaHtml}</td>
+          <td class="col-name video-thema-cell">${themaHtml}</td>
           <td>
             ${kampagne.id ? `
               <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">

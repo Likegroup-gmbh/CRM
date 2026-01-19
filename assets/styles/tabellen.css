@@ -904,14 +904,7 @@ td.col-produkt .stacked-video-input,
   padding: var(--space-xs) var(--space-sm);
 }
 
-.col-name {
-  flex: 1;
-  text-align: center;
-  cursor: pointer;
-  padding: 2px;
-  min-height: 20px;
-  display: inline-block;
-}
+
 
 .col-name.editable-header:hover {
   background: var(--gray-100, #f3f4f6);
@@ -1511,31 +1504,44 @@ td.col-produkt .stacked-video-input,
 /* === SPALTENBREITEN FÜR BESSERE LESBARKEIT === */
 /* table-layout: auto ermöglicht natürliche, lesbare Breiten */
 
-/* Checkbox-Spalten kompakt halten */
+/* === EXPLIZITE SPALTEN-KLASSEN (statt :first-child/:nth-child) === */
+
+/* Erste sichtbare Spalte: kein linker Border (egal ob Checkbox oder Name) */
 .data-table th:first-child,
 .data-table td:first-child {
-  width: 50px;
-  text-align: center;
-  border-left: none; /* Kein Doppelborder mit main-content */
-  border-right: none; /* Checkbox gehört zur Name-Spalte */
-  padding-left: var(--space-md); /* Auf gleicher Höhe wie Filter */
+  border-left: none;
+  padding-left: var(--space-md);
 }
 
-/* Actions-Spalte (Letzte Spalte mit ...) */
+/* Checkbox-Spalte - explizite Klasse */
+.data-table th.col-checkbox,
+.data-table td.col-checkbox {
+  width: 50px;
+  text-align: center;
+}
+
+/* Name-Spalte - explizite Klasse */
+.data-table th.col-name{
+width: 30em;
+  
+}
+.data-table td.col-name {
+  width: 30em;
+ 
+}
+
+/* Actions-Spalte - explizite Klasse */
+.data-table th.col-actions,
+.data-table td.col-actions {
+  width: 80px;
+  text-align: right;
+  border-right: none;
+}
+
+/* Fallback: letzte Spalte ohne rechten Border */
 .data-table th:last-child,
 .data-table td:last-child {
-  width: 50px;
-  text-align: center;
-  border-right: none; /* Kein Doppelborder mit main-content */
-}
-
-/* Standard-Spalten: Natürliche Breite, kein Abschneiden */
-
-
-/* Wichtige Name-Spalten etwas breiter */
-.data-table th:nth-child(2),
-.data-table td:nth-child(2) {
-  min-width: 150px;
+  border-right: none;
 }
 
 /* Auftragsdetails: Auftrag-Spalte fixierte Breite für konsistente Darstellung */

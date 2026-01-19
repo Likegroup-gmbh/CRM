@@ -244,21 +244,22 @@ export class UnternehmenList {
         <table class="data-table">
           <thead>
             <tr>
-              ${isAdmin ? `<th><input type="checkbox" id="select-all-unternehmen"></th>` : ''}
-              <th>Name</th>
-              <th>Branche</th>
-              <th>Ansprechpartner</th>
+              ${isAdmin ? `<th class="col-checkbox"><input type="checkbox" id="select-all-unternehmen"></th>` : ''}
+              <th class="col-name">Name</th>
               <th>Stadt</th>
               <th>Land</th>
+              <th>Webseite</th>
+              <th>Branche</th>
+              <th>Ansprechpartner</th>
               <th class="col-mitarbeiter">Management</th>
               <th class="col-mitarbeiter">Lead</th>
               <th class="col-mitarbeiter">Mitarbeiter</th>
-              <th>Aktionen</th>
+              <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td colspan="${isAdmin ? '10' : '9'}" class="no-data">Lade Unternehmen...</td>
+              <td colspan="${isAdmin ? '11' : '10'}" class="no-data">Lade Unternehmen...</td>
             </tr>
           </tbody>
         </table>
@@ -483,21 +484,22 @@ export class UnternehmenList {
         
         return `
         <tr data-id="${u.id}">
-          ${isAdmin ? `<td><input type="checkbox" class="unternehmen-check" data-id="${u.id}"></td>` : ''}
-          <td>
+          ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="unternehmen-check" data-id="${u.id}"></td>` : ''}
+          <td class="col-name">
             ${u.logo_url ? `<img src="${u.logo_url}" class="table-logo" width="24" height="24" alt="" />` : ''}
             <a href="#" class="table-link" data-table="unternehmen" data-id="${u.id}">
               ${window.validatorSystem.sanitizeHtml(u.firmenname || '')}
             </a>
           </td>
+          <td>${window.validatorSystem.sanitizeHtml(u.rechnungsadresse_stadt || '-')}</td>
+          <td>${window.validatorSystem.sanitizeHtml(u.rechnungsadresse_land || '-')}</td>
+          <td>${u.webseite ? `<a href="${u.webseite}" target="_blank" rel="noopener" class="external-link">${window.validatorSystem.sanitizeHtml(u.webseite.replace(/^https?:\/\//, ''))}</a>` : '-'}</td>
           <td>${this.renderBrancheTags(u.branchen)}</td>
           <td>${this.renderAnsprechpartnerList(apMap.get(u.id))}</td>
-          <td>${window.validatorSystem.sanitizeHtml(u.rechnungsadresse_stadt || '')}</td>
-          <td>${window.validatorSystem.sanitizeHtml(u.rechnungsadresse_land || '')}</td>
           <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(management)}</td>
           <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(leads)}</td>
           <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(mitarbeiter)}</td>
-          <td>
+          <td class="col-actions">
             ${actionBuilder.create('unternehmen', u.id)}
           </td>
         </tr>

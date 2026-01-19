@@ -123,18 +123,17 @@ export class AnsprechpartnerList {
         <table class="data-table" id="ansprechpartner-table">
           <thead>
             <tr>
-              ${isAdmin ? `<th><input type="checkbox" id="select-all-ansprechpartner"></th>` : ''}
-              <th>Name</th>
-              <th>Position</th>
+              ${isAdmin ? `<th class="col-checkbox"><input type="checkbox" id="select-all-ansprechpartner"></th>` : ''}
+              <th class="col-name">Name</th>
               <th>Unternehmen</th>
-              <th>Marken</th>
-              <th>Email</th>
-              <th>Telefon Mobil</th>
-              <th>Telefon Büro</th>
+              <th>Marke</th>
               <th>Stadt</th>
               <th>Land</th>
-              <th>Sprache</th>
-              <th>Aktionen</th>
+              <th>Position</th>
+              <th>Mail</th>
+              <th>Telefon Mobil</th>
+              <th>LinkedIn</th>
+              <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody>
@@ -329,7 +328,7 @@ export class AnsprechpartnerList {
       if (!ansprechpartner || ansprechpartner.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="${isAdmin ? '12' : '11'}" class="no-data">Keine Ansprechpartner gefunden</td>
+            <td colspan="${isAdmin ? '11' : '10'}" class="no-data">Keine Ansprechpartner gefunden</td>
           </tr>
         `;
         return;
@@ -337,14 +336,11 @@ export class AnsprechpartnerList {
 
       tbody.innerHTML = ansprechpartner.map(ap => `
         <tr data-id="${ap.id}">
-          ${isAdmin ? `<td><input type="checkbox" class="ansprechpartner-check" data-id="${ap.id}"></td>` : ''}
-          <td>
+          ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="ansprechpartner-check" data-id="${ap.id}"></td>` : ''}
+          <td class="col-name">
             <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
               ${window.validatorSystem.sanitizeHtml(ap.vorname || '')} ${window.validatorSystem.sanitizeHtml(ap.nachname || '')}
             </a>
-          </td>
-          <td>
-            ${ap.positionen?.name ? `<div class="tag-list"><span class="tag tag--position">${window.validatorSystem.sanitizeHtml(ap.positionen.name)}</span></div>` : '-'}
           </td>
           <td>
             ${this.renderUnternehmen(ap)}
@@ -360,25 +356,19 @@ export class AnsprechpartnerList {
                 })))
               : '-'}
           </td>
+          <td>${ap.stadt || '-'}</td>
+          <td>${ap.land || '-'}</td>
+          <td>
+            ${ap.positionen?.name ? `<div class="tag-list"><span class="tag tag--position">${window.validatorSystem.sanitizeHtml(ap.positionen.name)}</span></div>` : '-'}
+          </td>
           <td>${ap.email ? `<a href="mailto:${ap.email}" class="table-link email-link">${ap.email}</a>` : '-'}</td>
           <td>${PhoneDisplay.render(
             ap.telefonnummer_land?.iso_code,
             ap.telefonnummer_land?.vorwahl,
             ap.telefonnummer
           )}</td>
-          <td>${PhoneDisplay.render(
-            ap.telefonnummer_office_land?.iso_code,
-            ap.telefonnummer_office_land?.vorwahl,
-            ap.telefonnummer_office
-          )}</td>
-          <td>${ap.stadt || '-'}</td>
-          <td>${ap.land || '-'}</td>
-          <td>
-            ${(ap.sprachen && ap.sprachen.length > 0)
-              ? `<div class="tag-list">${ap.sprachen.map(s => `<span class="tag tag--sprache" title="${window.validatorSystem.sanitizeHtml(s.name)}">${getSprachKuerzel(s.name)}</span>`).join('')}</div>`
-              : (ap.sprache?.name ? `<span class="tag tag--sprache" title="${window.validatorSystem.sanitizeHtml(ap.sprache.name)}">${getSprachKuerzel(ap.sprache.name)}</span>` : '-')}
-          </td>
-          <td>
+          <td>${ap.linkedin ? `<a href="${ap.linkedin}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="LinkedIn Profil"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>` : '-'}</td>
+          <td class="col-actions">
             ${actionBuilder.create('ansprechpartner', ap.id)}
           </td>
         </tr>
@@ -587,7 +577,7 @@ export class AnsprechpartnerList {
       if (tbody) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="12" class="error">Fehler beim Laden der Ansprechpartner</td>
+            <td colspan="11" class="error">Fehler beim Laden der Ansprechpartner</td>
           </tr>
         `;
       }

@@ -121,6 +121,7 @@ export class DataService {
         displayField: 'firmenname',
         fields: [
           { name: 'firmenname', type: 'string' },
+          { name: 'internes_kuerzel', type: 'string' },
           { name: 'branche', type: 'string' },
           { name: 'branche_id', type: 'uuid', relationTable: 'unternehmen_branchen', relationField: 'branche_id' },
           { name: 'ansprechpartner', type: 'string' },
@@ -473,8 +474,8 @@ export class DataService {
           auftragtype: 'string',
           notiz: 'string',
           angebotsnummer: 'string',
-          externe_angebotsnummer: 'string',
           po: 'string',
+          externe_po: 'string',
           zahlungsziel_tage: 'number',
           re_nr: 'string',
           re_faelligkeit: 'date',
@@ -636,6 +637,7 @@ export class DataService {
           status: 'string',
           geprueft: 'boolean',
           skonto: 'boolean',
+          land: 'string',
           pdf_url: 'string',
           pdf_path: 'string',
           created_at: 'date',
@@ -648,7 +650,7 @@ export class DataService {
           creator: { table: 'creator', foreignKey: 'creator_id', displayField: 'vorname' },
           kampagne: { table: 'kampagne', foreignKey: 'kampagne_id', displayField: 'kampagnenname' }
         },
-        filters: ['rechnung_nr', 'kooperation_id', 'kampagne_id', 'unternehmen_id', 'auftrag_id', 'status', 'gestellt_am', 'zahlungsziel', 'bezahlt_am', 'nettobetrag'],
+        filters: ['rechnung_nr', 'kooperation_id', 'kampagne_id', 'unternehmen_id', 'auftrag_id', 'status', 'gestellt_am', 'zahlungsziel', 'bezahlt_am', 'nettobetrag', 'land'],
         sortBy: 'created_at',
         sortOrder: 'desc'
       }

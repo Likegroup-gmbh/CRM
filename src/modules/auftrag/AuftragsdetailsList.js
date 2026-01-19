@@ -125,14 +125,14 @@ export class AuftragsdetailsList {
           <table class="data-table">
             <thead>
               <tr>
-                ${isAdmin ? `<th>
+                ${isAdmin ? `<th class="col-checkbox">
                   <input type="checkbox" id="select-all-auftragsdetails">
                 </th>` : ''}
-                <th class="col-auftrag">Auftrag</th>
+                <th class="col-name col-auftrag">Auftrag</th>
                 <th>Kategorie</th>
                 <th>Beschreibung</th>
                 <th>Erstellt am</th>
-                <th>Aktionen</th>
+                <th class="col-actions">Aktionen</th>
               </tr>
             </thead>
             <tbody id="auftragsdetails-table-body">
@@ -598,8 +598,8 @@ export class AuftragsdetailsList {
         
         return `
           <tr data-id="${detail.id}">
-            ${isAdmin ? `<td><input type="checkbox" class="auftragsdetails-check" data-id="${detail.id}"></td>` : ''}
-            <td class="col-auftrag">
+            ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="auftragsdetails-check" data-id="${detail.id}"></td>` : ''}
+            <td class="col-name col-auftrag">
               <a href="#" class="table-link" data-table="auftragsdetails" data-id="${detail.id}">
                 ${window.validatorSystem?.sanitizeHtml(auftrag.auftragsname || 'Unbekannter Auftrag') || 'Unbekannter Auftrag'}
               </a>
@@ -607,7 +607,7 @@ export class AuftragsdetailsList {
             <td>${detail.kategorie || '-'}</td>
             <td>${detail.beschreibung ? (detail.beschreibung.length > 100 ? detail.beschreibung.substring(0, 100) + '...' : detail.beschreibung) : '-'}</td>
             <td>${formatDate(detail.created_at)}</td>
-            <td>
+            <td class="col-actions">
               ${actionBuilder.create('auftragsdetails', detail.id)}
             </td>
           </tr>

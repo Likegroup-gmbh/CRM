@@ -593,10 +593,10 @@ export class AuftragList {
           <table class="data-table auftrag-table">
             <thead>
               <tr>
-                ${this.isAdmin ? `<th>
+                ${this.isAdmin ? `<th class="col-checkbox">
                   <input type="checkbox" id="select-all-auftraege">
                 </th>` : ''}
-                <th>Auftragsname</th>
+                <th class="col-name">Auftragsname</th>
                 <th>Unternehmen</th>
                 <th>Marke</th>
                 <th>PO</th>
@@ -612,7 +612,7 @@ export class AuftragList {
                 <th class="col-rechnung-gestellt">Rechnung gestellt</th>
                 <th class="col-ueberwiesen">Überwiesen</th>
                 <th class="col-status">Status</th>
-                <th>Aktionen</th>
+                <th class="col-actions">Aktionen</th>
               </tr>
             </thead>
             <tbody id="auftraege-table-body">
@@ -1020,8 +1020,8 @@ export class AuftragList {
 
       tbody.innerHTML = auftraege.map(auftrag => `
         <tr data-id="${auftrag.id}">
-          ${this.isAdmin ? `<td><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
-          <td>
+          ${this.isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
+          <td class="col-name">
             <a href="#" class="table-link" data-table="auftrag" data-id="${auftrag.id}">
               ${window.validatorSystem.sanitizeHtml(auftrag.auftragsname || 'Unbekannt')}
             </a>
@@ -1045,7 +1045,7 @@ export class AuftragList {
               ${auftrag.status || '-'}
             </span>
           </td>
-          <td>
+          <td class="col-actions">
             ${actionBuilder.create('auftrag', auftrag.id)}
           </td>
         </tr>
@@ -1228,14 +1228,30 @@ export class AuftragList {
       });
       
       if (!validationResult.isValid) {
-        window.NotificationSystem?.show('error', 'Bitte füllen Sie alle Pflichtfelder aus');
+        window.toastSystem?.show('Bitte füllen Sie alle Pflichtfelder aus', 'error');
+        window.unlockSubmit?.();
         return;
       }
 
-      // PO-Nummer automatisch generieren (Format: PO-JJJJ-NNNN)
-      const poNummer = await this.generatePoNummer();
-      submitData.po = poNummer;
-      console.log('📋 Generierte PO-Nummer:', poNummer);
+      // PO-Nummer automatisch generieren (Format: PO-Kürzel-Jahr-AufträgeKunde-GesamtPO)
+      const poResult = await this.generatePoNummer(submitData.unternehmen_id);
+      if (!poResult.success) {
+        // Fehlermeldung anzeigen und Speichern verhindern
+        if (btn) {
+          btn.classList.remove('is-loading');
+          btn.dataset.locked = 'false';
+          btn.dataset.submitLocked = 'false';
+          btn.classList.remove('is-submit-locked');
+          const labelEl = btn.querySelector('.mdc-btn__label');
+          if (labelEl) labelEl.textContent = 'Erstellen';
+        }
+        // SubmitGuard freigeben
+        window.unlockSubmit?.();
+        window.toastSystem?.show(poResult.error, 'error');
+        return;
+      }
+      submitData.po = poResult.poNummer;
+      console.log('📋 Generierte PO-Nummer:', poResult.poNummer);
 
       // Erstelle Auftrag
       const result = await window.dataService.createEntity('auftrag', submitData);
@@ -1258,7 +1274,7 @@ export class AuftragList {
         }
 
         // Toast-Erfolgsmeldung
-        window.NotificationSystem?.show('success', 'Auftrag erfolgreich angelegt');
+        window.toastSystem?.show('Auftrag erfolgreich angelegt', 'success');
         
         // Event auslösen für Listen-Update
         window.dispatchEvent(new CustomEvent('entityUpdated', {
@@ -1274,10 +1290,13 @@ export class AuftragList {
         if (btn) {
           btn.classList.remove('is-loading');
           btn.dataset.locked = 'false';
+          btn.dataset.submitLocked = 'false';
+          btn.classList.remove('is-submit-locked');
           const labelEl = btn.querySelector('.mdc-btn__label');
           if (labelEl) labelEl.textContent = 'Erstellen';
         }
-        window.NotificationSystem?.show('error', `Fehler beim Erstellen: ${result.error}`);
+        window.unlockSubmit?.();
+        window.toastSystem?.show(`Fehler beim Erstellen: ${result.error}`, 'error');
       }
 
     } catch (error) {
@@ -1286,53 +1305,82 @@ export class AuftragList {
       if (btn) {
         btn.classList.remove('is-loading');
         btn.dataset.locked = 'false';
+        btn.dataset.submitLocked = 'false';
+        btn.classList.remove('is-submit-locked');
         const labelEl = btn.querySelector('.mdc-btn__label');
         if (labelEl) labelEl.textContent = 'Erstellen';
       }
-      window.NotificationSystem?.show('error', 'Ein unerwarteter Fehler ist aufgetreten');
+      window.unlockSubmit?.();
+      window.toastSystem?.show('Ein unerwarteter Fehler ist aufgetreten', 'error');
     }
   }
 
-  // Generiert eine fortlaufende PO-Nummer im Format PO-JJJJ-NNNN
-  async generatePoNummer() {
+  // Generiert eine PO-Nummer im Format: PO-Kürzel-Jahr-AufträgeKunde-GesamtPO
+  // Beispiel: PO-ABC-2025-3-42 (ABC=Kürzel, 2025=Jahr, 3=dritter Auftrag des Kunden, 42=42. PO insgesamt)
+  async generatePoNummer(unternehmenId) {
     const currentYear = new Date().getFullYear();
-    const prefix = `PO-${currentYear}-`;
     
     try {
-      // Höchste PO-Nummer des aktuellen Jahres ermitteln (aus Aufträgen)
-      const { data: auftraege, error } = await window.supabase
+      // 1. Unternehmen mit internem Kürzel laden
+      if (!unternehmenId) {
+        return { success: false, error: 'Bitte wählen Sie ein Unternehmen aus.' };
+      }
+      
+      const { data: unternehmen, error: unternehmenError } = await window.supabase
+        .from('unternehmen')
+        .select('*')
+        .eq('id', unternehmenId)
+        .single();
+      
+      if (unternehmenError || !unternehmen) {
+        console.error('❌ Fehler beim Laden des Unternehmens:', unternehmenError);
+        return { success: false, error: 'Unternehmen konnte nicht geladen werden.' };
+      }
+      
+      // 2. Prüfen ob internes Kürzel vorhanden ist
+      const kuerzel = unternehmen.internes_kuerzel;
+      if (!kuerzel || kuerzel.trim() === '') {
+        return { 
+          success: false, 
+          error: `Das Unternehmen "${unternehmen.firmenname}" hat kein internes Kürzel. Bitte zuerst das Kürzel beim Unternehmen hinterlegen.` 
+        };
+      }
+      
+      // 3. Anzahl der Aufträge dieses Kunden zählen (+1 für den neuen)
+      const { count: kundenAuftraegeCount, error: kundenError } = await window.supabase
         .from('auftrag')
-        .select('po')
-        .like('po', `${prefix}%`)
-        .order('po', { ascending: false })
-        .limit(1);
+        .select('id', { count: 'exact', head: true })
+        .eq('unternehmen_id', unternehmenId);
       
-      if (error) {
-        console.error('❌ Fehler beim Laden der PO-Nummern:', error);
-        // Fallback: Timestamp-basierte Nummer
-        return `${prefix}${Date.now().toString().slice(-4)}`;
+      if (kundenError) {
+        console.error('❌ Fehler beim Zählen der Kunden-Aufträge:', kundenError);
+        return { success: false, error: 'Kundenaufträge konnten nicht gezählt werden.' };
       }
       
-      let nextNumber = 1;
+      const kundenAuftragNummer = (kundenAuftraegeCount || 0) + 1;
       
-      if (auftraege && auftraege.length > 0 && auftraege[0].po) {
-        // Extrahiere die Nummer aus dem Format PO-JJJJ-NNNN
-        const lastPoNummer = auftraege[0].po;
-        const match = lastPoNummer.match(/PO-\d{4}-(\d+)/);
-        if (match) {
-          nextNumber = parseInt(match[1], 10) + 1;
-        }
+      // 4. Gesamtanzahl aller PO-Nummern zählen (+1 für die neue)
+      const { count: gesamtPoCount, error: gesamtError } = await window.supabase
+        .from('auftrag')
+        .select('id', { count: 'exact', head: true })
+        .not('po', 'is', null);
+      
+      if (gesamtError) {
+        console.error('❌ Fehler beim Zählen der Gesamt-PO:', gesamtError);
+        return { success: false, error: 'Gesamt-PO konnte nicht gezählt werden.' };
       }
       
-      // Format: PO-JJJJ-NNNN (4-stellig mit führenden Nullen)
-      const poNummer = `${prefix}${nextNumber.toString().padStart(4, '0')}`;
+      const gesamtPoNummer = (gesamtPoCount || 0) + 1;
+      
+      // 5. PO-Nummer generieren: PO-Kürzel-Jahr-AufträgeKunde-GesamtPO
+      const poNummer = `PO-${kuerzel.trim()}-${currentYear}-${kundenAuftragNummer}-${gesamtPoNummer}`;
       console.log(`✅ Neue PO-Nummer generiert: ${poNummer}`);
       
-      return poNummer;
+      return { success: true, poNummer };
+      
     } catch (e) {
       console.error('❌ Fehler bei PO-Nummer Generierung:', e);
-      // Fallback: Timestamp-basierte Nummer
-      return `${prefix}${Date.now().toString().slice(-4)}`;
+      return { success: false, error: 'Ein unerwarteter Fehler bei der PO-Generierung ist aufgetreten.' };
     }
   }
 }

@@ -310,13 +310,13 @@ export class BriefingList {
         <table class="data-table">
           <thead>
             <tr>
-              ${!isKunde && isAdmin ? `<th><input type="checkbox" id="select-all-briefings"></th>` : ''}
-              <th>Produkt/Angebot</th>
+              ${!isKunde && isAdmin ? `<th class="col-checkbox"><input type="checkbox" id="select-all-briefings"></th>` : ''}
+              <th class="col-name">Produkt/Angebot</th>
               <th>Unternehmen</th>
               <th>Marke</th>
               <th>Kampagne</th>
               <th>Zugewiesen</th>
-              <th>Aktionen</th>
+              <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody id="briefings-table-body">
@@ -614,8 +614,8 @@ export class BriefingList {
 
       tbody.innerHTML = items.map(b => `
         <tr data-id="${b.id}">
-          ${!isKunde && isAdmin ? `<td><input type="checkbox" class="briefing-check" data-id="${b.id}"></td>` : ''}
-          <td>
+          ${!isKunde && isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="briefing-check" data-id="${b.id}"></td>` : ''}
+          <td class="col-name">
             <a href="#" class="table-link" data-table="briefing" data-id="${b.id}">
               ${escapeHtml((b.product_service_offer || '').toString().slice(0, 80))}
             </a>
@@ -626,7 +626,7 @@ export class BriefingList {
             ${b.kampagne?.id ? `<span class="tag tag--type">${escapeHtml(b.kampagne.kampagnenname)}</span>` : '-'}
           </td>
           <td>${this.renderAssignee(b.assignee)}</td>
-          <td>
+          <td class="col-actions">
             ${actionBuilder.create('briefing', b.id)}
           </td>
         </tr>

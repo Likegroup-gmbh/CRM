@@ -733,6 +733,8 @@ export class MarkeDetail extends PersonDetailBase {
       `;
     }
 
+    const isKunde = window.currentUser?.rolle === 'kunde';
+
     const rows = this.kooperationen.map(k => `
       <tr>
         <td>
@@ -744,7 +746,7 @@ export class MarkeDetail extends PersonDetailBase {
         <td>${k.creator ? `${this.sanitize(k.creator.vorname || '')} ${this.sanitize(k.creator.nachname || '')}`.trim() || '-' : '-'}</td>
         <td>${this.sanitize(k.kampagne?.kampagnenname) || '-'}</td>
         <td>${k.videoanzahl || 0}</td>
-        <td>${this.formatCurrency(k.einkaufspreis_gesamt)}</td>
+        ${!isKunde ? `<td>${this.formatCurrency(k.einkaufspreis_gesamt)}</td>` : ''}
         <td>
           ${actionBuilder.create('kooperation', k.id)}
         </td>
@@ -761,7 +763,7 @@ export class MarkeDetail extends PersonDetailBase {
               <th>Creator</th>
               <th>Kampagne</th>
               <th>Videos</th>
-              <th>Gesamtkosten</th>
+              ${!isKunde ? '<th>Gesamtkosten</th>' : ''}
               <th>Aktion</th>
             </tr>
           </thead>

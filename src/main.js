@@ -73,6 +73,7 @@ import { creatorAuswahlList } from './modules/creator-auswahl/CreatorAuswahlList
 import { creatorAuswahlDetail } from './modules/creator-auswahl/CreatorAuswahlDetail.js';
 import { feedbackPage } from './modules/feedback/FeedbackPage.js';
 import { educationPage } from './modules/education/EducationPage.js';
+import { educationArticleDetail } from './modules/education/EducationArticleDetail.js';
 import { videoList } from './modules/video/VideoList.js';
 import { vertraegeList } from './modules/vertrag/VertraegeList.js';
 import { vertraegeCreate } from './modules/vertrag/VertraegeCreate.js';
@@ -302,6 +303,13 @@ class ModuleRegistry {
       console.log(`🎯 Creator-Auswahl-Details erkannt, verwende Modul: ${moduleKey}`);
     }
     
+    // Spezielle Behandlung für Education-Artikel (slug-basiert)
+    if (id && segment === 'education') {
+      moduleKey = 'education-detail';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Education-Artikel erkannt, verwende Modul: ${moduleKey}, slug: ${id}`);
+    }
+    
     // Spezielle Behandlung für Ansprechpartner-Details und -Erstellung
     if (id && segment === 'ansprechpartner') {
       moduleKey = 'ansprechpartner-detail';
@@ -446,6 +454,7 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('creator-auswahl-detail', creatorAuswahlDetail);
   moduleRegistry.register('feedback', feedbackPage);
   moduleRegistry.register('education', educationPage);
+  moduleRegistry.register('education-detail', educationArticleDetail);
   moduleRegistry.register('videos', videoList);
   moduleRegistry.register('vertraege', vertraegeList);
   moduleRegistry.register('vertraege-create', vertraegeCreate);

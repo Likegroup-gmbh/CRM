@@ -63,6 +63,7 @@ export class PermissionSystem {
         kampagne: { can_view: true, can_edit: true, can_delete: true },
         kooperation: { can_view: true, can_edit: true, can_delete: true },
         briefing: { can_view: true, can_edit: true, can_delete: true },
+        videos: { can_view: true, can_edit: true, can_delete: true },
         rechnung: { can_view: true, can_edit: true, can_delete: true },
         ansprechpartner: { can_view: true, can_edit: true, can_delete: true },
         dashboard: { can_view: true, can_edit: true, can_delete: true },
@@ -82,6 +83,7 @@ export class PermissionSystem {
         kampagne: { can_view: true, can_edit: false, can_delete: false },
         kooperation: { can_view: true, can_edit: false, can_delete: false },
         briefing: { can_view: true, can_edit: false, can_delete: false },
+        videos: { can_view: true, can_edit: false, can_delete: false },
         rechnung: { can_view: true, can_edit: false, can_delete: false },
         ansprechpartner: { can_view: true, can_edit: false, can_delete: false },
         dashboard: { can_view: true, can_edit: false, can_delete: false },
@@ -98,16 +100,17 @@ export class PermissionSystem {
         unternehmen: { can_view: false, can_edit: false, can_delete: false },
         marke: { can_view: false, can_edit: false, can_delete: false },
         auftrag: { can_view: true, can_edit: false, can_delete: false }, // Kunden können IHRE Aufträge sehen (RLS-gefiltert)
-        auftragsdetails: { can_view: true, can_edit: false, can_delete: false }, // Kunden können IHRE Auftragsdetails sehen
+        auftragsdetails: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Auftragsdetails NICHT sehen (Einkaufspreise!)
         kampagne: { can_view: true, can_edit: false, can_delete: false },
         kooperation: { can_view: true, can_edit: false, can_delete: false },
         briefing: { can_view: true, can_edit: false, can_delete: false },
+        videos: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Videos NICHT sehen
         rechnung: { can_view: false, can_edit: false, can_delete: false },
         ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
         dashboard: { can_view: true, can_edit: false, can_delete: false },
         tasks: { can_view: true, can_edit: true, can_delete: false },
         strategie: { can_view: true, can_edit: true, can_delete: false },
-        feedback: { can_view: true, can_edit: true, can_delete: false },
+        feedback: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Feedback NICHT sehen
         mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
         'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
       },
@@ -118,16 +121,17 @@ export class PermissionSystem {
         unternehmen: { can_view: false, can_edit: false, can_delete: false },
         marke: { can_view: false, can_edit: false, can_delete: false },
         auftrag: { can_view: true, can_edit: false, can_delete: false }, // Kunden können IHRE Aufträge sehen (RLS-gefiltert)
-        auftragsdetails: { can_view: true, can_edit: false, can_delete: false }, // Kunden können IHRE Auftragsdetails sehen
+        auftragsdetails: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Auftragsdetails NICHT sehen (Einkaufspreise!)
         kampagne: { can_view: true, can_edit: false, can_delete: false },
         kooperation: { can_view: true, can_edit: false, can_delete: false },
         briefing: { can_view: true, can_edit: false, can_delete: false },
+        videos: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Videos NICHT sehen
         rechnung: { can_view: false, can_edit: false, can_delete: false },
         ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
         dashboard: { can_view: true, can_edit: false, can_delete: false },
         tasks: { can_view: true, can_edit: true, can_delete: false },
         strategie: { can_view: true, can_edit: true, can_delete: false },
-        feedback: { can_view: true, can_edit: true, can_delete: false },
+        feedback: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Feedback NICHT sehen
         mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
         'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
       }
@@ -144,6 +148,7 @@ export class PermissionSystem {
       kampagne: { can_view: false, can_edit: false, can_delete: false },
       kooperation: { can_view: false, can_edit: false, can_delete: false },
       briefing: { can_view: false, can_edit: false, can_delete: false },
+      videos: { can_view: false, can_edit: false, can_delete: false },
       tasks: { can_view: false, can_edit: false, can_delete: false },
       rechnung: { can_view: false, can_edit: false, can_delete: false },
       ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
@@ -161,16 +166,17 @@ export class PermissionSystem {
       unternehmen: { can_view: false, can_edit: false, can_delete: false },
       marke: { can_view: false, can_edit: false, can_delete: false },
       auftrag: { can_view: true, can_edit: false, can_delete: false }, // Kunden können IHRE Aufträge sehen (RLS-gefiltert)
-      auftragsdetails: { can_view: true, can_edit: false, can_delete: false }, // Kunden können IHRE Auftragsdetails sehen
+      auftragsdetails: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Auftragsdetails NICHT sehen (Einkaufspreise!)
       kampagne: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Kampagnen NUR sehen
       kooperation: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Kooperationen NUR sehen
       briefing: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Briefings NUR sehen
+      videos: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Videos NICHT sehen
       rechnung: { can_view: false, can_edit: false, can_delete: false }, // Kunden können Rechnungen NICHT sehen
       ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
       dashboard: { can_view: true, can_edit: false, can_delete: false },
       tasks: { can_view: true, can_edit: true, can_delete: false }, // Kunden können Tasks sehen und bearbeiten
       strategie: { can_view: true, can_edit: true, can_delete: false }, // Kunden können Strategien sehen und Items bearbeiten
-      feedback: { can_view: true, can_edit: true, can_delete: false },
+      feedback: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Feedback NICHT sehen
       mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
       'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
     };
@@ -225,6 +231,7 @@ export class PermissionSystem {
         kampagne: { can_view: true, can_edit: true, can_delete: false },
         kooperation: { can_view: true, can_edit: true, can_delete: false },
         briefing: { can_view: true, can_edit: true, can_delete: false },
+        videos: { can_view: true, can_edit: true, can_delete: false },
         rechnung: { can_view: true, can_edit: true, can_delete: false },
         ansprechpartner: { can_view: true, can_edit: true, can_delete: false },
         dashboard: { can_view: true, can_edit: false, can_delete: false },

@@ -462,6 +462,7 @@ export class VertraegeList {
           is_draft,
           datei_url,
           datei_path,
+          unterschriebener_vertrag_url,
           created_at,
           kunde_unternehmen_id,
           kampagne_id,
@@ -543,20 +544,21 @@ export class VertraegeList {
           <table class="data-table">
             <thead>
               <tr>
-                ${isAdmin ? `<th><input type="checkbox" id="select-all-vertraege"></th>` : ''}
-                <th>Name</th>
+                ${isAdmin ? `<th class="col-checkbox"><input type="checkbox" id="select-all-vertraege"></th>` : ''}
+                <th class="col-name">Name</th>
                 <th>Status</th>
                 <th>Typ</th>
                 <th>Kampagne</th>
                 <th>Creator</th>
                 <th>Datei</th>
+                <th>Unterschrieben</th>
                 <th>Erstellt am</th>
                 <th class="col-actions">Aktionen</th>
               </tr>
             </thead>
             <tbody id="vertraege-table-body">
               <tr>
-                <td colspan="${isAdmin ? '9' : '8'}" class="no-data">Lade Verträge...</td>
+                <td colspan="${isAdmin ? '10' : '9'}" class="no-data">Lade Verträge...</td>
               </tr>
             </tbody>
           </table>
@@ -577,7 +579,7 @@ export class VertraegeList {
     if (!vertraege || vertraege.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="${isAdmin ? '9' : '8'}" class="no-data">
+          <td colspan="${isAdmin ? '10' : '9'}" class="no-data">
             <div class="empty-state">
               <div class="empty-icon">📄</div>
               <h3>Keine Verträge vorhanden</h3>
@@ -617,6 +619,23 @@ export class VertraegeList {
           </a>`
         : '<span class="text-muted">—</span>';
 
+      // Unterschriebener Vertrag Icon (wie Datei-Spalte: nur Auge-Icon, Bearbeiten im Aktionsmenü)
+      const canEdit = isAdmin || window.currentUser?.rolle === 'mitarbeiter';
+      const unterschriebenHtml = vertrag.unterschriebener_vertrag_url
+        ? `<a href="${escapeHtml(vertrag.unterschriebener_vertrag_url)}" target="_blank" class="signed-link" title="Unterschriebenen Vertrag öffnen">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+            </svg>
+          </a>`
+        : (canEdit 
+          ? `<button class="btn-add-signed" data-id="${vertrag.id}" title="Link hinzufügen">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+            </button>`
+          : '<span class="text-muted">—</span>');
+
       const statusBadge = vertrag.is_draft
         ? '<span class="status-badge status-draft">Entwurf</span>'
         : '<span class="status-badge status-final">Finalisiert</span>';
@@ -625,8 +644,8 @@ export class VertraegeList {
 
       return `
         <tr class="table-row-clickable" data-vertrag-id="${vertrag.id}">
-          ${isAdmin ? `<td><input type="checkbox" class="vertraege-check" data-id="${vertrag.id}"></td>` : ''}
-          <td>
+          ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="vertraege-check" data-id="${vertrag.id}"></td>` : ''}
+          <td class="col-name">
             <a href="#" class="table-link" data-table="vertrag" data-id="${vertrag.id}">
               ${escapeHtml(vertrag.name) || '—'}
             </a>
@@ -652,6 +671,7 @@ export class VertraegeList {
             ` : '-'}
           </td>
           <td>${dateiHtml}</td>
+          <td class="col-signed">${unterschriebenHtml}</td>
           <td>${formatDate(vertrag.created_at)}</td>
           <td class="col-actions">
             ${actionsHtml}
@@ -664,6 +684,9 @@ export class VertraegeList {
     if (window.ActionsDropdown) {
       window.ActionsDropdown.init();
     }
+
+    // Signed Contract Event Handlers binden
+    this.bindSignedContractEvents();
   }
 
   // Rendere Aktionen basierend auf Draft-Status
@@ -672,6 +695,22 @@ export class VertraegeList {
     
     let actions = '';
     
+    // Icon für unterschriebenen Vertrag (Link-Icon)
+    const signedIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
+    </svg>`;
+
+    // Unterschriebener Vertrag Aktion (hinzufügen oder bearbeiten)
+    const signedAction = vertrag.unterschriebener_vertrag_url
+      ? `<a href="#" class="action-item" data-action="edit-signed" data-id="${vertrag.id}" data-url="${vertrag.unterschriebener_vertrag_url}">
+          ${signedIcon}
+          Unterschriebenen Vertrag bearbeiten
+        </a>`
+      : `<a href="#" class="action-item" data-action="add-signed" data-id="${vertrag.id}">
+          ${signedIcon}
+          Unterschriebenen Vertrag verlinken
+        </a>`;
+
     if (isDraft) {
       actions = `
         <a href="#" class="action-item" data-action="continue" data-id="${vertrag.id}">
@@ -682,6 +721,7 @@ export class VertraegeList {
           ${window.ActionsDropdown?.getHeroIcon('view') || ''}
           Details anzeigen
         </a>
+        ${signedAction}
       `;
     } else {
       actions = `
@@ -699,6 +739,7 @@ export class VertraegeList {
             PDF herunterladen
           </a>
         ` : ''}
+        ${signedAction}
       `;
     }
     
@@ -968,7 +1009,7 @@ export class VertraegeList {
   // Action Events binden
   bindActionEvents() {
     document.querySelectorAll('.action-item[data-action]').forEach(item => {
-      const handler = (e) => {
+      const handler = async (e) => {
         e.preventDefault();
         const action = item.dataset.action;
         const id = item.dataset.id;
@@ -987,6 +1028,23 @@ export class VertraegeList {
           case 'delete':
             this.deleteVertrag(id);
             break;
+          case 'add-signed': {
+            const result = await this.openSignedContractModal(id);
+            if (result.action === 'save') {
+              await this.saveSignedContractUrl(id, result.url);
+            }
+            break;
+          }
+          case 'edit-signed': {
+            const existingUrl = item.dataset.url;
+            const result = await this.openSignedContractModal(id, existingUrl);
+            if (result.action === 'save') {
+              await this.saveSignedContractUrl(id, result.url);
+            } else if (result.action === 'remove') {
+              await this.removeSignedContractUrl(id);
+            }
+            break;
+          }
         }
       };
       item.addEventListener('click', handler);
@@ -1181,6 +1239,196 @@ export class VertraegeList {
       console.error('❌ Fehler beim Löschen:', error);
       window.toastSystem?.show(`Fehler: ${error.message}`, 'error');
     }
+  }
+
+  // ============================================
+  // UNTERSCHRIEBENER VERTRAG MODAL
+  // ============================================
+
+  // Modal zum Hinzufügen/Bearbeiten des Links zum unterschriebenen Vertrag
+  openSignedContractModal(vertragId, existingUrl = '') {
+    return new Promise((resolve) => {
+      const isEdit = !!existingUrl;
+      const modal = document.createElement('div');
+      modal.className = 'modal overlay-modal';
+      modal.innerHTML = `
+        <div class="modal-dialog signed-contract-modal">
+          <div class="modal-header">
+            <h3>${isEdit ? 'Link bearbeiten' : 'Unterschriebenen Vertrag verlinken'}</h3>
+            <button class="modal-close" data-action="close">×</button>
+          </div>
+          <div class="modal-body">
+            <p class="modal-description">
+              Fügen Sie den Link zur unterschriebenen Vertragsversion ein (z.B. Dropbox, Google Drive, OneDrive).
+            </p>
+            <div class="form-group">
+              <label for="signed-url-input">URL zum unterschriebenen Vertrag</label>
+              <input 
+                type="url" 
+                id="signed-url-input" 
+                class="form-input" 
+                placeholder="https://www.dropbox.com/..." 
+                value="${existingUrl}"
+                autocomplete="off"
+              >
+              <span class="input-hint">Der Link sollte mit http:// oder https:// beginnen</span>
+              <span class="input-error" id="url-error" style="display: none;"></span>
+            </div>
+          </div>
+          <div class="modal-footer">
+            ${isEdit ? `<button type="button" class="danger-btn" data-action="remove">Link entfernen</button>` : ''}
+            <button type="button" class="secondary-btn" data-action="cancel">Abbrechen</button>
+            <button type="button" class="primary-btn" data-action="save">Speichern</button>
+          </div>
+        </div>`;
+
+      document.body.appendChild(modal);
+
+      const input = modal.querySelector('#signed-url-input');
+      const errorSpan = modal.querySelector('#url-error');
+      const saveBtn = modal.querySelector('[data-action="save"]');
+
+      // URL Validierung
+      const validateUrl = (url) => {
+        if (!url.trim()) {
+          return { valid: false, message: 'Bitte geben Sie eine URL ein' };
+        }
+        try {
+          const parsed = new URL(url);
+          if (!['http:', 'https:'].includes(parsed.protocol)) {
+            return { valid: false, message: 'URL muss mit http:// oder https:// beginnen' };
+          }
+          return { valid: true };
+        } catch {
+          return { valid: false, message: 'Ungültige URL' };
+        }
+      };
+
+      const showError = (message) => {
+        errorSpan.textContent = message;
+        errorSpan.style.display = 'block';
+        input.classList.add('input-error-border');
+      };
+
+      const hideError = () => {
+        errorSpan.style.display = 'none';
+        input.classList.remove('input-error-border');
+      };
+
+      input.addEventListener('input', hideError);
+
+      const close = (result) => {
+        if (!modal.parentNode) return;
+        modal.remove();
+        resolve(result);
+      };
+
+      // Button Events
+      modal.querySelector('[data-action="close"]').addEventListener('click', () => close({ action: 'cancel' }));
+      modal.querySelector('[data-action="cancel"]').addEventListener('click', () => close({ action: 'cancel' }));
+      
+      saveBtn.addEventListener('click', () => {
+        const url = input.value.trim();
+        const validation = validateUrl(url);
+        if (!validation.valid) {
+          showError(validation.message);
+          return;
+        }
+        close({ action: 'save', url });
+      });
+
+      const removeBtn = modal.querySelector('[data-action="remove"]');
+      if (removeBtn) {
+        removeBtn.addEventListener('click', () => close({ action: 'remove' }));
+      }
+
+      // Klick außerhalb des Dialogs schließt
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) close({ action: 'cancel' });
+      });
+
+      // Escape schließt, Enter speichert
+      const onKey = (ev) => {
+        if (ev.key === 'Escape') {
+          window.removeEventListener('keydown', onKey);
+          close({ action: 'cancel' });
+        } else if (ev.key === 'Enter' && document.activeElement === input) {
+          ev.preventDefault();
+          saveBtn.click();
+        }
+      };
+      window.addEventListener('keydown', onKey);
+
+      // Focus auf Input
+      setTimeout(() => input.focus(), 100);
+    });
+  }
+
+  // Link speichern
+  async saveSignedContractUrl(vertragId, url) {
+    try {
+      const { error } = await window.supabase
+        .from('vertraege')
+        .update({ unterschriebener_vertrag_url: url })
+        .eq('id', vertragId);
+
+      if (error) throw error;
+
+      window.toastSystem?.show('Link gespeichert', 'success');
+      await this.reloadData();
+      this.bindSignedContractEvents();
+
+    } catch (error) {
+      console.error('❌ Fehler beim Speichern:', error);
+      window.toastSystem?.show(`Fehler: ${error.message}`, 'error');
+    }
+  }
+
+  // Link entfernen
+  async removeSignedContractUrl(vertragId) {
+    const result = await window.confirmationModal?.open({
+      title: 'Link entfernen?',
+      message: 'Möchten Sie den Link zum unterschriebenen Vertrag wirklich entfernen?',
+      confirmText: 'Entfernen',
+      cancelText: 'Abbrechen',
+      danger: true
+    });
+
+    if (!result?.confirmed) return;
+
+    try {
+      const { error } = await window.supabase
+        .from('vertraege')
+        .update({ unterschriebener_vertrag_url: null })
+        .eq('id', vertragId);
+
+      if (error) throw error;
+
+      window.toastSystem?.show('Link entfernt', 'success');
+      await this.reloadData();
+      this.bindSignedContractEvents();
+
+    } catch (error) {
+      console.error('❌ Fehler beim Entfernen:', error);
+      window.toastSystem?.show(`Fehler: ${error.message}`, 'error');
+    }
+  }
+
+  // Event Handler für Signed Contract Buttons (nur Add-Button in der Tabelle)
+  bindSignedContractEvents() {
+    document.querySelectorAll('.btn-add-signed').forEach(btn => {
+      const handler = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const vertragId = btn.dataset.id;
+        const result = await this.openSignedContractModal(vertragId);
+        if (result.action === 'save') {
+          await this.saveSignedContractUrl(vertragId, result.url);
+        }
+      };
+      btn.addEventListener('click', handler);
+      this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
+    });
   }
 
   // Cleanup

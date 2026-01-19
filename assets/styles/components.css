@@ -769,7 +769,7 @@ button.is-submit-locked,
     font-size: var(--text-sm)
   }
   /* Kein Doppelborder: erste/letzte Zelle ohne links/rechts Border */
-  td:first-child { border-left: none; border-right: none; padding-left: var(--space-md); }
+  td:first-child { border-left: none; padding-left: var(--space-md); }
   td:last-child { border-right: none; }
   td  a {
     text-decoration: none;
@@ -781,11 +781,11 @@ button.is-submit-locked,
     color: var(--gray-500);
     font-weight: 400;
     font-size: var(--text-xs);
-    
+    vertical-align: middle;
     text-align: left;
   }
   /* Kein Doppelborder: erste/letzte Zelle ohne links/rechts Border */
-  th:first-child { border-left: none; border-right: none; padding-left: var(--space-md); }
+  th:first-child { border-left: none; padding-left: var(--space-md); }
   th:last-child { border-right: none; }
   tr {
     margin: none;
@@ -1588,6 +1588,103 @@ h3.section-title,
   line-height: 1;
   color: #666;
   cursor: pointer;
+}
+
+/* ===========================================
+   SIGNED CONTRACT MODAL & ICONS
+   =========================================== */
+
+/* Modal für unterschriebene Verträge */
+.signed-contract-modal {
+  max-width: 500px;
+  width: 90%;
+}
+
+.signed-contract-modal .modal-description {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.signed-contract-modal .form-group {
+  margin-bottom: 0;
+}
+
+.signed-contract-modal .form-group label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.signed-contract-modal .form-input {
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.signed-contract-modal .form-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.signed-contract-modal .input-hint {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.375rem;
+}
+
+.signed-contract-modal .input-error {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--danger);
+  margin-top: 0.375rem;
+}
+
+.signed-contract-modal .input-error-border {
+  border-color: var(--danger) !important;
+}
+
+/* Signed Contract Icons in Tabelle */
+.col-signed {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.signed-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--success);
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.signed-link:hover {
+  color: var(--success-dark, #16a34a);
+  transform: scale(1.1);
+}
+
+.btn-add-signed {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0.25rem;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.btn-add-signed:hover {
+  background-color: var(--bg-hover);
+  color: var(--primary);
 }
 
 /* Inputs inside modal */
@@ -4352,7 +4449,7 @@ margin-bottom: var(--space-lg);
 
 .data-table th,
 .data-table td {
-  padding: var(--space-xxs) var(--space-xs);
+ 
   text-align: left;
   vertical-align: middle;
   white-space: normal; /* Erlaubt Zeilenumbruch */
@@ -4360,6 +4457,7 @@ margin-bottom: var(--space-lg);
   word-wrap: break-word; /* Bricht lange Wörter um */
   font-weight: 400;
   font-size: var(--text-xsm);
+  height: var(--space-xxl) !important;
   
   /* Keine feste maximale Breite - wird durch spezielle Klassen gesteuert */
 }
@@ -4393,12 +4491,10 @@ margin-bottom: var(--space-lg);
 .data-table th {
   font-weight: 400;
   color: var(--gray-500);
+  
 }
 
-.data-table td {
-  border-bottom: 1px solid var(--gray-100);
-  color: var(--text-secondary);
-}
+
 
 .data-table tbody tr:hover {
   background-color: var(--gray-50);
@@ -4507,19 +4603,27 @@ margin-bottom: var(--space-lg);
   padding-left: var(--space-md);
 }
 
-/* Checkbox-Spalte ohne rechten Border, damit sie mit Name-Spalte zusammengehört */
-/* NUR für Tabellen MIT Checkbox! */
-.data-table th:first-child:has(input[type="checkbox"]),
-.data-table td:first-child:has(input[type="checkbox"]) {
-  border-right: none;
+/* Checkbox-Spalte - explizite Klasse */
+.data-table th.col-checkbox,
+.data-table td.col-checkbox {
+  width: 50px;
+  text-align: center;
 }
 
-/* Allow dropdowns in the actions column to overflow the cell (otherwise clipped) */
-.data-table th:last-child,
-.data-table td:last-child {
+
+
+/* Actions-Spalte - explizite Klasse */
+.data-table th.col-actions,
+.data-table td.col-actions {
   overflow: visible;
   width: 80px;
   text-align: right;
+  border-right: none;
+}
+
+/* Fallback: letzte Spalte ohne rechten Border */
+.data-table th:last-child,
+.data-table td:last-child {
   border-right: none;
 }
 .data-table td:last-child .actions-dropdown-container { float: right; }
@@ -9342,24 +9446,15 @@ table:has(#strategien-table-body) td:nth-child(6) {
 }
 
 /* ========================================
-   CHECKBOX-SPALTE BORDER FIX (HÖCHSTE PRIORITÄT)
+   CHECKBOX-SPALTE BORDER FIX
    Checkbox gehört visuell zur Name-Spalte
-   NUR für Tabellen MIT Checkbox in der ersten Spalte!
    ======================================== */
-/* Checkbox-Zelle: kein rechter Border */
-td:has(input[type="checkbox"]),
-th:has(input[type="checkbox"]) {
+/* Checkbox-Spalte: kein rechter Border (nur wenn Checkbox vorhanden) */
+.data-table th.col-checkbox,
+.data-table td.col-checkbox {
   border-right: none !important;
 }
 
-/* Zweite Spalte (Name): kein linker Border - NUR wenn Tabelle Checkbox hat */
-table:has(th:first-child input[type="checkbox"]) td:nth-child(2),
-table:has(th:first-child input[type="checkbox"]) th:nth-child(2),
-table:has(td:first-child input[type="checkbox"]) td:nth-child(2),
-.data-table:has(th:first-child input[type="checkbox"]) td:nth-child(2),
-.data-table:has(th:first-child input[type="checkbox"]) th:nth-child(2) {
-  border-left: none !important;
-}
 
 /* ===== FEEDBACK KANBAN ===== */
 
@@ -11626,4 +11721,568 @@ table:has(td:first-child input[type="checkbox"]) td:nth-child(2),
 table.vertraege-unternehmen-table th:last-child,
 table.vertraege-unternehmen-table td:last-child {
   text-align: right !important;
+}
+
+/* =====================================================
+   Education / Wissensdatenbank Styles
+   ===================================================== */
+
+/* Education Page Layout */
+.education-page {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Education Header mit Suche */
+.education-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-lg);
+  flex-wrap: wrap;
+  gap: var(--space-md);
+}
+
+.education-search {
+  position: relative;
+  flex: 1;
+  max-width: 400px;
+}
+
+.education-search-input {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md) var(--space-sm) var(--space-xxl);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  background: var(--white);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.education-search-input:focus {
+  outline: none;
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px var(--primary-100);
+}
+
+.education-search .search-icon {
+  position: absolute;
+  left: var(--space-sm);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  color: var(--gray-400);
+  pointer-events: none;
+}
+
+/* Filter-Bereich */
+.education-filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+  padding: var(--space-md);
+  background: var(--gray-50);
+  border-radius: var(--radius-lg);
+}
+
+.education-filter-section {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.education-filter-label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  min-width: 80px;
+}
+
+.education-category-filters,
+.education-tag-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.education-category-btn,
+.education-tag-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-full);
+  background: var(--white);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.education-category-btn:hover,
+.education-tag-btn:hover {
+  border-color: var(--primary-300);
+  color: var(--primary-600);
+}
+
+.education-category-btn.active,
+.education-tag-btn.active {
+  background: var(--primary-500);
+  border-color: var(--primary-500);
+  color: var(--white);
+}
+
+.education-category-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Card Grid */
+.education-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--space-lg);
+}
+
+/* Article Card */
+.education-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.education-card:hover {
+  border-color: var(--primary-300);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.education-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-sm);
+}
+
+.education-card-category {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--text-xs);
+  color: var(--primary-600);
+  font-weight: 500;
+}
+
+.education-card-category svg {
+  width: 14px;
+  height: 14px;
+}
+
+.education-card-date {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.education-card-title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 var(--space-sm) 0;
+  line-height: 1.3;
+}
+
+.education-card-description {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-md) 0;
+  line-height: 1.5;
+  flex: 1;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.education-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+}
+
+.education-card-tag {
+  display: inline-block;
+  padding: 2px var(--space-xs);
+  background: var(--gray-100);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xxs);
+  color: var(--text-secondary);
+}
+
+.education-card-tag--more {
+  background: var(--gray-200);
+}
+
+.education-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--gray-100);
+}
+
+.education-card-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--text-sm);
+  color: var(--primary-600);
+  font-weight: 500;
+}
+
+.education-card:hover .education-card-link {
+  color: var(--primary-700);
+}
+
+.education-card-link svg {
+  transition: transform 0.2s;
+}
+
+.education-card:hover .education-card-link svg {
+  transform: translateX(4px);
+}
+
+/* Empty State */
+.education-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xxxl) var(--space-xl);
+  text-align: center;
+}
+
+.education-empty .empty-icon {
+  width: 64px;
+  height: 64px;
+  color: var(--gray-300);
+  margin-bottom: var(--space-md);
+}
+
+.education-empty h3 {
+  margin: 0 0 var(--space-sm) 0;
+  font-size: var(--text-lg);
+  color: var(--text-primary);
+}
+
+.education-empty p {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/* =====================================================
+   Education Article Detail Styles
+   ===================================================== */
+
+.education-article-page {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.education-article-header {
+  margin-bottom: var(--space-xl);
+  padding-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.education-article-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-sm);
+  font-size: var(--text-sm);
+}
+
+.education-article-category {
+  color: var(--primary-600);
+  font-weight: 500;
+}
+
+.education-article-date,
+.education-article-views {
+  color: var(--text-tertiary);
+}
+
+.education-article-title {
+  font-size: var(--text-xxxl);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 var(--space-md) 0;
+  line-height: 1.2;
+}
+
+.education-article-description {
+  font-size: var(--text-lg);
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-md) 0;
+  line-height: 1.5;
+}
+
+.education-article-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.education-article-tag {
+  display: inline-block;
+  padding: var(--space-xxs) var(--space-sm);
+  background: var(--gray-100);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+/* Article Content Styling */
+.education-article-content {
+  font-size: var(--text-md);
+  line-height: 1.7;
+  color: var(--text-primary);
+}
+
+.education-article-content h1 {
+  font-size: var(--text-xxl);
+  font-weight: 700;
+  margin: var(--space-xl) 0 var(--space-md) 0;
+  color: var(--text-primary);
+}
+
+.education-article-content h2 {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  margin: var(--space-xl) 0 var(--space-md) 0;
+  color: var(--text-primary);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.education-article-content h3 {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  margin: var(--space-lg) 0 var(--space-sm) 0;
+  color: var(--text-primary);
+}
+
+.education-article-content p {
+  margin: 0 0 var(--space-md) 0;
+}
+
+.education-article-content ul,
+.education-article-content ol {
+  margin: 0 0 var(--space-md) 0;
+  padding-left: var(--space-lg);
+}
+
+.education-article-content li {
+  margin-bottom: var(--space-xs);
+}
+
+.education-article-content a {
+  color: var(--primary-600);
+  text-decoration: underline;
+}
+
+.education-article-content a:hover {
+  color: var(--primary-700);
+}
+
+.education-article-content hr {
+  border: none;
+  border-top: 1px solid var(--gray-200);
+  margin: var(--space-xl) 0;
+}
+
+/* Code Blocks */
+.education-article-content .code-block {
+  background: var(--gray-900);
+  color: var(--gray-100);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: var(--text-sm);
+  margin: var(--space-md) 0;
+}
+
+.education-article-content .code-block code {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+
+.education-article-content .inline-code {
+  background: var(--gray-100);
+  padding: 2px var(--space-xs);
+  border-radius: var(--radius-sm);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.9em;
+  color: var(--primary-700);
+}
+
+/* Tables in Articles */
+.education-article-content .education-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-md) 0;
+  font-size: var(--text-sm);
+}
+
+.education-article-content .education-table th,
+.education-article-content .education-table td {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--gray-200);
+  text-align: left;
+}
+
+.education-article-content .education-table th {
+  background: var(--gray-50);
+  font-weight: 600;
+}
+
+.education-article-content .education-table tr:hover {
+  background: var(--gray-50);
+}
+
+/* Article Footer */
+.education-article-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--space-xxl);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--gray-200);
+}
+
+.education-article-author {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.education-article-author span {
+  font-weight: 500;
+}
+
+/* Related Articles */
+.education-related {
+  margin-top: var(--space-xxl);
+  padding-top: var(--space-xl);
+  border-top: 1px solid var(--gray-200);
+}
+
+.education-related-title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 var(--space-lg) 0;
+}
+
+.education-related-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: var(--space-md);
+}
+
+.education-related-card {
+  display: block;
+  padding: var(--space-md);
+  background: var(--gray-50);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.education-related-card:hover {
+  background: var(--gray-100);
+  transform: translateY(-2px);
+}
+
+.education-related-card h4 {
+  margin: 0 0 var(--space-xs) 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.education-related-card p {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Not Found State */
+.education-not-found {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xxxl) var(--space-xl);
+  text-align: center;
+}
+
+.education-not-found .not-found-icon {
+  width: 64px;
+  height: 64px;
+  color: var(--warning-500);
+  margin-bottom: var(--space-md);
+}
+
+.education-not-found h2 {
+  margin: 0 0 var(--space-sm) 0;
+  font-size: var(--text-xl);
+  color: var(--text-primary);
+}
+
+.education-not-found p {
+  margin: 0 0 var(--space-lg) 0;
+  font-size: var(--text-md);
+  color: var(--text-secondary);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .education-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .education-filter-section {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .education-article-title {
+    font-size: var(--text-xxl);
+  }
+
+  .education-article-footer {
+    flex-direction: column;
+    gap: var(--space-md);
+    align-items: flex-start;
+  }
+
+  .education-related-grid {
+    grid-template-columns: 1fr;
+  }
 }

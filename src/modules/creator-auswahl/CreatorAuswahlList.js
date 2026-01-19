@@ -125,7 +125,7 @@ export class CreatorAuswahlList {
           <table class="data-table data-table--creator-auswahl-list">
             <thead>
               <tr>
-                <th class="ca-col-name">Name</th>
+                <th class="col-name ca-col-name">Name</th>
                 <th class="ca-col-unternehmen">Unternehmen</th>
                 <th class="ca-col-marke">Marke</th>
                 <th>Kampagne</th>
@@ -196,7 +196,7 @@ export class CreatorAuswahlList {
 
         return `
           <tr class="table-row-clickable" data-liste-id="${liste.id}">
-            <td class="ca-col-name">${liste.name || 'Ohne Namen'}</td>
+            <td class="col-name ca-col-name">${liste.name || 'Ohne Namen'}</td>
             <td class="ca-col-unternehmen">${unternehmenBubble}</td>
             <td class="ca-col-marke">${markeBubble}</td>
             <td>${kampagneName}</td>

@@ -1286,6 +1286,7 @@ export class AuftragDetail {
     }
 
     const formatCurrency = (value) => value ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value) : '-';
+    const isKunde = window.currentUser?.rolle === 'kunde';
 
     const rows = this.kooperationen.map(koop => {
       const creator = koop.creator || {};
@@ -1355,7 +1356,7 @@ export class AuftragDetail {
           <td class="budget-cell">
             ${budgetInfo !== '-' ? `<div class="budget-info">${window.validatorSystem.sanitizeHtml(budgetInfo)}</div>` : '-'}
           </td>
-          <td class="text-right">${formatCurrency(koop.einkaufspreis_gesamt)}</td>
+          ${!isKunde ? `<td class="text-right">${formatCurrency(koop.einkaufspreis_gesamt)}</td>` : ''}
           <td class="video-stack-cell">${renderVideoTitles(koopVideos)}</td>
           <td class="video-stack-cell text-center">${renderVideoLinks(koopVideos)}</td>
         </tr>
@@ -1371,7 +1372,7 @@ export class AuftragDetail {
               <th class="text-center">Anzahl Videos</th>
               <th>Status</th>
               <th>Budget & Informationen</th>
-              <th class="text-right">Kosten (Einkauf)</th>
+              ${!isKunde ? '<th class="text-right">Kosten (Einkauf)</th>' : ''}
               <th>Video Titel</th>
               <th class="text-center">Video Link</th>
             </tr>

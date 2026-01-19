@@ -526,6 +526,12 @@ export class UnternehmenDetail extends PersonDetailBase {
                 <td><strong>Firmenname</strong></td>
                 <td style="text-align: right;">${this.sanitize(this.unternehmen?.firmenname) || '-'}</td>
               </tr>
+              ${this.unternehmen?.internes_kuerzel ? `
+              <tr>
+                <td><strong>Internes Kürzel</strong></td>
+                <td style="text-align: right;">${this.sanitize(this.unternehmen.internes_kuerzel)}</td>
+              </tr>
+              ` : ''}
               <tr>
                 <td><strong>Branchen</strong></td>
                 <td style="text-align: right;">${this.unternehmen?.branchen_names?.map(b => `<span class="tag tag--branche">${this.sanitize(b)}</span>`).join(' ') || '-'}</td>
@@ -889,6 +895,8 @@ export class UnternehmenDetail extends PersonDetailBase {
       `;
     }
 
+    const isKunde = window.currentUser?.rolle === 'kunde';
+
     const rows = this.kooperationen.map(k => `
       <tr>
         <td>
@@ -900,7 +908,7 @@ export class UnternehmenDetail extends PersonDetailBase {
         <td>${k.creator ? `${this.sanitize(k.creator.vorname || '')} ${this.sanitize(k.creator.nachname || '')}`.trim() || '-' : '-'}</td>
         <td>${this.sanitize(k.kampagne?.kampagnenname) || '-'}</td>
         <td>${k.videoanzahl || 0}</td>
-        <td>${this.formatCurrency(k.einkaufspreis_gesamt)}</td>
+        ${!isKunde ? `<td>${this.formatCurrency(k.einkaufspreis_gesamt)}</td>` : ''}
         <td>
           ${actionBuilder.create('kooperation', k.id)}
         </td>
@@ -917,7 +925,7 @@ export class UnternehmenDetail extends PersonDetailBase {
               <th>Creator</th>
               <th>Kampagne</th>
               <th>Videos</th>
-              <th>Gesamtkosten</th>
+              ${!isKunde ? '<th>Gesamtkosten</th>' : ''}
               <th>Aktion</th>
             </tr>
           </thead>

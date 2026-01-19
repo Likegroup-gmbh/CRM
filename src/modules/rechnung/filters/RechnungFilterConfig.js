@@ -40,6 +40,11 @@ export const RECHNUNG_FILTERS = [
       { value: 'Bezahlt', label: 'Bezahlt' },
       { value: 'Storniert', label: 'Storniert' }
     ]
+  }),
+  createFilterConfig('text', {
+    id: 'land',
+    label: 'Land',
+    placeholder: 'z.B. Deutschland'
   })
 ];
 

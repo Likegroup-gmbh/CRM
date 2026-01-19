@@ -35,7 +35,6 @@ export class NavigationSystem {
           { id: 'strategie', label: 'Strategie', icon: 'icon-lightbulb', url: '/strategie' },
           { id: 'creator-auswahl', label: 'Sourcing', icon: 'icon-users', url: '/creator-auswahl' },
           { id: 'vertraege', label: 'Verträge', icon: 'icon-contract', url: '/vertraege' },
-          { id: 'briefing', label: 'Briefing', icon: 'icon-document', url: '/briefing' },
           { id: 'videos', label: 'Videos', icon: 'icon-video', url: '/videos' },
           { id: 'rechnung', label: 'Rechnung', icon: 'icon-currency-euro', url: '/rechnung' }
         ]
@@ -103,7 +102,7 @@ export class NavigationSystem {
         briefing: 'briefing',
         kooperation: 'kooperation',
         rechnung: 'rechnung',
-        videos: 'briefing', // Videos nutzt vorerst briefing-Berechtigung
+        videos: 'videos', // Eigene Videos-Berechtigung
         vertraege: 'briefing', // Verträge nutzt vorerst briefing-Berechtigung
         creator: 'creator',
         'creator-lists': 'creator',

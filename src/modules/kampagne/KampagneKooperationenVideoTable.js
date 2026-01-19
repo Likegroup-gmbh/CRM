@@ -583,6 +583,11 @@ export class KampagneKooperationenVideoTable {
       return true;
     }
     
+    // Kosten-Spalte für Kunden IMMER ausblenden (Einkaufspreise!)
+    if (columnClass === 'col-kosten') {
+      return false;
+    }
+    
     // Kunden sehen nur nicht-versteckte Spalten
     const isVisible = !this.hiddenColumns.includes(columnClass);
     

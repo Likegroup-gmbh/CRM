@@ -170,8 +170,8 @@ export class CreatorList {
         <table class="data-table">
           <thead>
             <tr>
-              ${isAdmin ? `<th><input type="checkbox" id="select-all-creators"></th>` : ''}
-              <th>Name</th>
+              ${isAdmin ? `<th class="col-checkbox"><input type="checkbox" id="select-all-creators"></th>` : ''}
+              <th class="col-name">Name</th>
               <th>Typen</th>
               <th>Sprachen</th>
               <th>Branchen</th>
@@ -179,7 +179,7 @@ export class CreatorList {
               <th>TikTok</th>
               <th>Stadt</th>
               <th>Land</th>
-              <th>Aktionen</th>
+              <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody>
@@ -522,8 +522,8 @@ export class CreatorList {
 
       tbody.innerHTML = creators.map(creator => `
         <tr data-id="${creator.id}">
-          ${isAdmin ? `<td><input type="checkbox" class="creator-check" data-id="${creator.id}"></td>` : ''}
-          <td>
+          ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="creator-check" data-id="${creator.id}"></td>` : ''}
+          <td class="col-name">
             <a href="#" class="table-link" data-table="creator" data-id="${creator.id}">
               ${window.CreatorUtils.sanitizeHtml(`${creator.vorname} ${creator.nachname}`)}
             </a>
@@ -535,7 +535,7 @@ export class CreatorList {
           <td>${creator.tiktok_follower ? fmt.format(creator.tiktok_follower) : '-'}</td>
           <td>${this.renderLocationTag(creator.lieferadresse_stadt, 'stadt')}</td>
           <td>${this.renderLocationTag(creator.lieferadresse_land, 'land')}</td>
-          <td>
+          <td class="col-actions">
             ${actionBuilder.create('creator', creator.id)}
           </td>
         </tr>

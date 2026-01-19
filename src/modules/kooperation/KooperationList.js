@@ -290,8 +290,8 @@ export class KooperationList {
         <table class="data-table">
           <thead>
             <tr>
-              ${isAdmin ? '<th><input type="checkbox" id="select-all-kooperationen"></th>' : ''}
-              <th>Name</th>
+              ${isAdmin ? '<th class="col-checkbox"><input type="checkbox" id="select-all-kooperationen"></th>' : ''}
+              <th class="col-name">Name</th>
               <th>Kampagne</th>
               <th>Creator</th>
               <th>Videos</th>
@@ -301,7 +301,7 @@ export class KooperationList {
               <th>Erstellt</th>
               <th>Script Deadline</th>
               <th>Content Deadline</th>
-              <th>Aktionen</th>
+              <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody id="kooperationen-table-body">
@@ -514,8 +514,8 @@ export class KooperationList {
 
       return `
         <tr data-id="${kooperation.id}">
-          ${isAdmin ? `<td><input type="checkbox" class="kooperation-check" data-id="${kooperation.id}"></td>` : ''}
-          <td>
+          ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="kooperation-check" data-id="${kooperation.id}"></td>` : ''}
+          <td class="col-name">
             <a href="#" class="table-link" data-table="kooperation" data-id="${kooperation.id}">
               ${window.validatorSystem.sanitizeHtml(kooperation.name || '—')}
             </a>
@@ -535,7 +535,7 @@ export class KooperationList {
           <td>${formatDate(kooperation.created_at)}</td>
           <td>${formatDate(kooperation.skript_deadline)}</td>
           <td>${formatDate(kooperation.content_deadline)}</td>
-          <td>
+          <td class="col-actions">
             ${actionBuilder.create('kooperation', kooperation.id, window.currentUser, { 
               statusOptions: this.statusOptions, 
               currentStatus: { id: kooperation.status_id, name: kooperation.status } 

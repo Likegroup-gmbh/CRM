@@ -143,12 +143,14 @@ export class FormConfig {
         title: 'Neues Unternehmen anlegen',
         fields: [
           { name: 'firmenname', label: 'Firmenname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
+          { name: 'internes_kuerzel', label: 'Internes Kürzel', type: 'text', required: false, placeholder: 'z.B. ABC' },
           // Adressfelder direkt unter Firmenname, gruppiert
           { name: 'rechnungsadresse_strasse', label: 'Straße', type: 'text', required: false, row: 'adresse1', colSize: 'grow' },
           { name: 'rechnungsadresse_hausnummer', label: 'Nr.', type: 'text', required: false, row: 'adresse1', colSize: 'small' },
           { name: 'rechnungsadresse_plz', label: 'PLZ', type: 'text', required: false, row: 'adresse2', colSize: 'small' },
           { name: 'rechnungsadresse_stadt', label: 'Stadt', type: 'text', required: false, row: 'adresse2', colSize: 'grow' },
           { name: 'rechnungsadresse_land', label: 'Land', type: 'text', required: false, defaultValue: 'Deutschland' },
+          { name: 'webseite', label: 'Webseite', type: 'url', required: false, placeholder: 'https://...' },
           { name: 'logo_file', label: 'Logo', type: 'custom', customType: 'uploader', accept: 'image/png,image/jpeg', multiple: false, required: false, maxFileSize: 200 * 1024 },
           { name: 'branche_id', label: 'Branchen', type: 'multiselect', required: false, dynamic: true, searchable: true, tagBased: true, placeholder: 'Branche suchen und hinzufügen...', table: 'branchen', displayField: 'name', valueField: 'id', relationTable: 'unternehmen_branchen', relationField: 'branche_id' },
           // Mitarbeiter-Zuordnungen nach Rolle
@@ -208,7 +210,6 @@ export class FormConfig {
           },
           { name: 'invoice_email', label: 'Rechnungs-Email', type: 'email', required: false, validation: { type: 'email' } },
           { name: 'status', label: 'Status', type: 'select', required: false, editOnly: true, options: ['Aktiv', 'Inaktiv', 'Prospekt'] },
-          { name: 'steuernummer', label: 'Steuernummer', type: 'text', required: false },
           { name: 'ust_id', label: 'USt-IdNr.', type: 'text', required: false, placeholder: 'z.B. DE123456789' }
         ]
       },
@@ -497,11 +498,10 @@ export class FormConfig {
           { name: 'marke_id', label: 'Marke', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Marke suchen und auswählen...', dependsOn: 'unternehmen_id', table: 'marke', displayField: 'markenname', valueField: 'id' },
           { name: 'status', label: 'Status', type: 'select', required: false, options: ['Beauftragt', 'In Produktion', 'Abgeschlossen', 'Storniert'] },
           { name: 'ansprechpartner_id', label: 'Ansprechpartner', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Ansprechpartner auswählen...', table: 'ansprechpartner', displayField: 'vorname,nachname,email', valueField: 'id', dependsOn: 'unternehmen_id' },
-          { name: 'notiz', label: 'Beschreibung / Notiz', type: 'textarea', required: false, placeholder: 'Auftragsbeschreibung eingeben...' },
-          { name: 'angebotsnummer', label: 'Angebotsnummer', type: 'text', required: false, readonly: true, placeholder: 'Wird automatisch generiert...' },
-          { name: 'externe_angebotsnummer', label: 'Externe Angebotsnummer', type: 'text', required: false, placeholder: 'Angebotsnummer aus Kundenangebot...' },
-          { name: 're_nr', label: 'RE. Nr', type: 'text', required: false, placeholder: 'Rechnungsnummer...' },
-          { name: 'po', label: 'PO', type: 'text', required: false, readonly: true, placeholder: 'Wird automatisch generiert...' },
+          { name: 'angebotsnummer', label: 'Angebotsnummer', type: 'text', required: false, placeholder: 'Angebotsnummer eingeben...' },
+          { name: 're_nr', label: 'Rechnungsnummer', type: 'text', required: false, placeholder: 'Rechnungsnummer eingeben...' },
+          { name: 'po', label: 'Interne PO', type: 'text', required: false, readonly: true, placeholder: 'Wird automatisch generiert...' },
+          { name: 'externe_po', label: 'Externe PO', type: 'text', required: false, placeholder: 'Externe PO-Nummer eingeben...' },
           { 
             name: 'zahlungsziel_tage', 
             label: 'Zahlungsziel', 
@@ -723,6 +723,7 @@ export class FormConfig {
           { name: 'netto_nach_skonto', label: 'Netto nach Skonto', type: 'number', required: false, readonly: true, validation: { type: 'number', min: 0 } },
           { name: 'ust_betrag', label: 'Umsatzsteuerbetrag', type: 'number', required: false, readonly: true, validation: { type: 'number', min: 0 } },
           { name: 'bruttobetrag', label: 'Betrag (Brutto)', type: 'number', required: false, readonly: true, validation: { type: 'number', min: 0 } },
+          { name: 'land', label: 'Land', type: 'text', required: false, placeholder: 'z.B. Deutschland' },
           // Uploads
           { name: 'pdf_file', label: 'Rechnungs-PDF', type: 'custom', customType: 'uploader', accept: 'application/pdf', multiple: false, required: false, maxFileSize: 10 * 1024 * 1024 },
           { name: 'belege_files', label: 'Belege (mehrere Dateien)', type: 'custom', customType: 'uploader', accept: 'application/pdf,image/*', multiple: true, required: false, maxFileSize: 10 * 1024 * 1024 }
