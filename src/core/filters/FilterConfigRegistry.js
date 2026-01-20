@@ -6,6 +6,7 @@ import CreatorFilterConfig from '../../modules/creator/filters/CreatorFilterConf
 import AnsprechpartnerFilterConfig from '../../modules/ansprechpartner/filters/AnsprechpartnerFilterConfig.js';
 import UnternehmenFilterConfig from '../../modules/unternehmen/filters/UnternehmenFilterConfig.js';
 import MarkeFilterConfig from '../../modules/marke/filters/MarkeFilterConfig.js';
+import ProduktFilterConfig from '../../modules/produkt/filters/ProduktFilterConfig.js';
 import KampagneFilterConfig from '../../modules/kampagne/filters/KampagneFilterConfig.js';
 import BriefingFilterConfig from '../../modules/briefing/filters/BriefingFilterConfig.js';
 import AuftragFilterConfig from '../../modules/auftrag/filters/AuftragFilterConfig.js';
@@ -32,6 +33,7 @@ export const FILTER_CONFIG_REGISTRY = {
   ansprechpartner: AnsprechpartnerFilterConfig,
   unternehmen: UnternehmenFilterConfig,
   marke: MarkeFilterConfig,
+  produkt: ProduktFilterConfig,
   kampagne: KampagneFilterConfig,
   auftrag: AuftragFilterConfig,
   auftragsdetails: AuftragsdetailsFilterConfig,

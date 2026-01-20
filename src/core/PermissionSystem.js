@@ -58,6 +58,7 @@ export class PermissionSystem {
         'creator-lists': { can_view: true, can_edit: true, can_delete: true },
         unternehmen: { can_view: true, can_edit: true, can_delete: true },
         marke: { can_view: true, can_edit: true, can_delete: true },
+        produkt: { can_view: true, can_edit: true, can_delete: true },
         auftrag: { can_view: true, can_edit: true, can_delete: true },
         auftragsdetails: { can_view: true, can_edit: true, can_delete: true },
         kampagne: { can_view: true, can_edit: true, can_delete: true },
@@ -78,6 +79,7 @@ export class PermissionSystem {
         'creator-lists': { can_view: true, can_edit: false, can_delete: false },
         unternehmen: { can_view: true, can_edit: false, can_delete: false },
         marke: { can_view: true, can_edit: false, can_delete: false },
+        produkt: { can_view: true, can_edit: false, can_delete: false },
         auftrag: { can_view: false, can_edit: false, can_delete: false }, // Aufträge für Mitarbeiter ausgeblendet
         auftragsdetails: { can_view: true, can_edit: false, can_delete: false }, // Auftragsdetails für Mitarbeiter sichtbar
         kampagne: { can_view: true, can_edit: false, can_delete: false },
@@ -99,6 +101,7 @@ export class PermissionSystem {
         'creator-lists': { can_view: false, can_edit: false, can_delete: false },
         unternehmen: { can_view: false, can_edit: false, can_delete: false },
         marke: { can_view: false, can_edit: false, can_delete: false },
+        produkt: { can_view: true, can_edit: false, can_delete: false },
         auftrag: { can_view: true, can_edit: false, can_delete: false }, // Kunden können IHRE Aufträge sehen (RLS-gefiltert)
         auftragsdetails: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Auftragsdetails NICHT sehen (Einkaufspreise!)
         kampagne: { can_view: true, can_edit: false, can_delete: false },
@@ -120,6 +123,7 @@ export class PermissionSystem {
         'creator-lists': { can_view: false, can_edit: false, can_delete: false },
         unternehmen: { can_view: false, can_edit: false, can_delete: false },
         marke: { can_view: false, can_edit: false, can_delete: false },
+        produkt: { can_view: true, can_edit: false, can_delete: false },
         auftrag: { can_view: true, can_edit: false, can_delete: false }, // Kunden können IHRE Aufträge sehen (RLS-gefiltert)
         auftragsdetails: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Auftragsdetails NICHT sehen (Einkaufspreise!)
         kampagne: { can_view: true, can_edit: false, can_delete: false },
@@ -143,6 +147,7 @@ export class PermissionSystem {
       'creator-lists': { can_view: false, can_edit: false, can_delete: false },
       unternehmen: { can_view: false, can_edit: false, can_delete: false },
       marke: { can_view: false, can_edit: false, can_delete: false },
+      produkt: { can_view: false, can_edit: false, can_delete: false },
       auftrag: { can_view: false, can_edit: false, can_delete: false },
       auftragsdetails: { can_view: false, can_edit: false, can_delete: false },
       kampagne: { can_view: false, can_edit: false, can_delete: false },
@@ -165,6 +170,7 @@ export class PermissionSystem {
       'creator-lists': { can_view: false, can_edit: false, can_delete: false },
       unternehmen: { can_view: false, can_edit: false, can_delete: false },
       marke: { can_view: false, can_edit: false, can_delete: false },
+      produkt: { can_view: true, can_edit: false, can_delete: false },
       auftrag: { can_view: true, can_edit: false, can_delete: false }, // Kunden können IHRE Aufträge sehen (RLS-gefiltert)
       auftragsdetails: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Auftragsdetails NICHT sehen (Einkaufspreise!)
       kampagne: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Kampagnen NUR sehen
@@ -187,6 +193,7 @@ export class PermissionSystem {
       'creator-lists': { can_view: false, can_edit: false, can_delete: false },
       unternehmen: { can_view: false, can_edit: false, can_delete: false },
       marke: { can_view: false, can_edit: false, can_delete: false },
+      produkt: { can_view: false, can_edit: false, can_delete: false },
       auftrag: { can_view: false, can_edit: false, can_delete: false },
       auftragsdetails: { can_view: false, can_edit: false, can_delete: false },
       kampagne: { can_view: false, can_edit: false, can_delete: false },
@@ -226,6 +233,7 @@ export class PermissionSystem {
         'creator-lists': { can_view: true, can_edit: true, can_delete: false },
         unternehmen: { can_view: true, can_edit: true, can_delete: false },
         marke: { can_view: true, can_edit: true, can_delete: false },
+        produkt: { can_view: true, can_edit: true, can_delete: false },
         auftrag: { can_view: true, can_edit: true, can_delete: false },
         auftragsdetails: { can_view: true, can_edit: true, can_delete: false },
         kampagne: { can_view: true, can_edit: true, can_delete: false },

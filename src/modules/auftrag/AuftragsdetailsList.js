@@ -129,15 +129,16 @@ export class AuftragsdetailsList {
                   <input type="checkbox" id="select-all-auftragsdetails">
                 </th>` : ''}
                 <th class="col-name col-auftrag">Auftrag</th>
-                <th>Kategorie</th>
-                <th>Beschreibung</th>
+                <th>Unternehmen</th>
+                <th>Marke</th>
+                <th>PO intern</th>
                 <th>Erstellt am</th>
                 <th class="col-actions">Aktionen</th>
               </tr>
             </thead>
             <tbody id="auftragsdetails-table-body">
               <tr>
-                <td colspan="6" class="loading">Lade Auftragsdetails...</td>
+                <td colspan="${isAdmin ? '7' : '6'}" class="loading">Lade Auftragsdetails...</td>
               </tr>
             </tbody>
           </table>
@@ -278,6 +279,7 @@ export class AuftragsdetailsList {
             id,
             auftragsname,
             status,
+            po,
             unternehmen:unternehmen_id(id, firmenname, logo_url),
             marke:marke_id(id, markenname, logo_url)
           )
@@ -570,7 +572,7 @@ export class AuftragsdetailsList {
       if (!details || details.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="6" class="no-data">
+            <td colspan="${isAdmin ? '7' : '6'}" class="no-data">
               <div style="text-align: center; padding: 40px 20px;">
                 <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📄</div>
                 <h3 style="color: #666; margin-bottom: 8px;">Keine Auftragsdetails vorhanden</h3>
@@ -596,6 +598,28 @@ export class AuftragsdetailsList {
       tbody.innerHTML = details.map(detail => {
         const auftrag = detail.auftrag || {};
         
+        // Unternehmen Bubble
+        const unternehmenHtml = auftrag.unternehmen
+          ? avatarBubbles.renderBubbles([{
+              name: auftrag.unternehmen.firmenname,
+              type: 'org',
+              id: auftrag.unternehmen.id,
+              entityType: 'unternehmen',
+              logo_url: auftrag.unternehmen.logo_url || null
+            }])
+          : '-';
+
+        // Marke Bubble
+        const markeHtml = auftrag.marke
+          ? avatarBubbles.renderBubbles([{
+              name: auftrag.marke.markenname,
+              type: 'org',
+              id: auftrag.marke.id,
+              entityType: 'marke',
+              logo_url: auftrag.marke.logo_url || null
+            }])
+          : '-';
+        
         return `
           <tr data-id="${detail.id}">
             ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="auftragsdetails-check" data-id="${detail.id}"></td>` : ''}
@@ -604,8 +628,9 @@ export class AuftragsdetailsList {
                 ${window.validatorSystem?.sanitizeHtml(auftrag.auftragsname || 'Unbekannter Auftrag') || 'Unbekannter Auftrag'}
               </a>
             </td>
-            <td>${detail.kategorie || '-'}</td>
-            <td>${detail.beschreibung ? (detail.beschreibung.length > 100 ? detail.beschreibung.substring(0, 100) + '...' : detail.beschreibung) : '-'}</td>
+            <td>${unternehmenHtml}</td>
+            <td>${markeHtml}</td>
+            <td>${window.validatorSystem?.sanitizeHtml(auftrag.po) || auftrag.po || '-'}</td>
             <td>${formatDate(detail.created_at)}</td>
             <td class="col-actions">
               ${actionBuilder.create('auftragsdetails', detail.id)}

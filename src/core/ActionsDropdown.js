@@ -825,6 +825,19 @@ export class ActionsDropdown {
         this.openAddToListModal(entityId);
         break;
       }
+      case 'add-signed':
+      case 'edit-signed': {
+        // Unterschriebenen Vertrag hinzufügen/bearbeiten - Event an VertraegeList weiterleiten
+        const existingUrl = actionItem?.dataset?.url || '';
+        window.dispatchEvent(new CustomEvent('vertrag-signed-action', { 
+          detail: { 
+            action, 
+            vertragId: entityId, 
+            existingUrl 
+          } 
+        }));
+        break;
+      }
       case 'add_ansprechpartner': {
         this.openAddAnsprechpartnerModal(entityId);
         break;

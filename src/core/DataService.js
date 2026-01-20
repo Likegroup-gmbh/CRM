@@ -462,6 +462,49 @@ export class DataService {
         sortBy: 'created_at',
         sortOrder: 'desc'
       },
+      produkt: {
+        table: 'produkt',
+        displayField: 'name',
+        fields: {
+          name: 'string',
+          marke_id: 'uuid',
+          unternehmen_id: 'uuid',
+          url: 'string',
+          kernbotschaft: 'string',
+          hauptproblem: 'string',
+          kernnutzen: 'string',
+          usp_1: 'string',
+          usp_2: 'string',
+          usp_3: 'string',
+          kauf_conversion_trigger: 'string',
+          zielnutzer_anwendungskontext: 'string',
+          created_at: 'date',
+          updated_at: 'date'
+        },
+        relations: {
+          marke: { table: 'marke', foreignKey: 'marke_id', displayField: 'markenname' },
+          unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' }
+        },
+        manyToMany: {
+          pflicht_elemente: {
+            table: 'pflicht_elemente_typen',
+            junctionTable: 'produkt_pflicht_elemente',
+            localKey: 'produkt_id',
+            foreignKey: 'pflicht_element_id',
+            displayField: 'name'
+          },
+          no_gos: {
+            table: 'no_go_typen',
+            junctionTable: 'produkt_no_gos',
+            localKey: 'produkt_id',
+            foreignKey: 'no_go_id',
+            displayField: 'name'
+          }
+        },
+        filters: ['name', 'marke_id', 'unternehmen_id'],
+        sortBy: 'created_at',
+        sortOrder: 'desc'
+      },
       auftrag: {
         table: 'auftrag',
         displayField: 'auftragsname',

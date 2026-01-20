@@ -613,19 +613,17 @@ export class VertraegeList {
       const dateiHtml = vertrag.datei_url 
         ? `<a href="${escapeHtml(vertrag.datei_url)}" target="_blank" class="datei-link datei-icon" title="PDF anzeigen">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
             </svg>
           </a>`
         : '<span class="text-muted">—</span>';
 
-      // Unterschriebener Vertrag Icon (wie Datei-Spalte: nur Auge-Icon, Bearbeiten im Aktionsmenü)
+      // Unterschriebener Vertrag Icon (externes Link-Icon, Bearbeiten im Aktionsmenü)
       const canEdit = isAdmin || window.currentUser?.rolle === 'mitarbeiter';
       const unterschriebenHtml = vertrag.unterschriebener_vertrag_url
         ? `<a href="${escapeHtml(vertrag.unterschriebener_vertrag_url)}" target="_blank" class="signed-link" title="Unterschriebenen Vertrag öffnen">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
             </svg>
           </a>`
         : (canEdit 
@@ -693,6 +691,17 @@ export class VertraegeList {
   renderVertragActions(vertrag, isAdmin) {
     const isDraft = vertrag.is_draft;
     
+    // HTML-Escape-Funktion für URLs mit Sonderzeichen
+    const escapeAttr = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    };
+    
     let actions = '';
     
     // Icon für unterschriebenen Vertrag (Link-Icon)
@@ -702,7 +711,7 @@ export class VertraegeList {
 
     // Unterschriebener Vertrag Aktion (hinzufügen oder bearbeiten)
     const signedAction = vertrag.unterschriebener_vertrag_url
-      ? `<a href="#" class="action-item" data-action="edit-signed" data-id="${vertrag.id}" data-url="${vertrag.unterschriebener_vertrag_url}">
+      ? `<a href="#" class="action-item" data-action="edit-signed" data-id="${vertrag.id}" data-url="${escapeAttr(vertrag.unterschriebener_vertrag_url)}">
           ${signedIcon}
           Unterschriebenen Vertrag bearbeiten
         </a>`
@@ -918,6 +927,26 @@ export class VertraegeList {
       this.bindSelectionEvents();
       this.bindActionEvents();
     }
+
+    // Event-Listener für Signed-Contract Actions vom ActionsDropdown
+    const signedActionHandler = async (e) => {
+      const { action, vertragId, existingUrl } = e.detail;
+      if (action === 'add-signed') {
+        const result = await this.openSignedContractModal(vertragId);
+        if (result.action === 'save') {
+          await this.saveSignedContractUrl(vertragId, result.url);
+        }
+      } else if (action === 'edit-signed') {
+        const result = await this.openSignedContractModal(vertragId, existingUrl);
+        if (result.action === 'save') {
+          await this.saveSignedContractUrl(vertragId, result.url);
+        } else if (result.action === 'remove') {
+          await this.removeSignedContractUrl(vertragId);
+        }
+      }
+    };
+    window.addEventListener('vertrag-signed-action', signedActionHandler);
+    this._boundEventListeners.add(() => window.removeEventListener('vertrag-signed-action', signedActionHandler));
   }
 
   // Selection Events binden

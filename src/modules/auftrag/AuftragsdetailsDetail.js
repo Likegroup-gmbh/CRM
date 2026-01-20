@@ -83,6 +83,7 @@ export class AuftragsdetailsDetail {
             creator_budget,
             bruttobetrag,
             nettobetrag,
+            po,
             unternehmen:unternehmen_id (
               id,
               firmenname
@@ -283,6 +284,10 @@ export class AuftragsdetailsDetail {
             <div class="summary-card">
               <div class="summary-value">${num(this.budgetSummary.totalCreators)}</div>
               <div class="summary-label">Gebuchte Creator</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-value">${window.validatorSystem?.sanitizeHtml(this.auftrag?.po) || this.auftrag?.po || '-'}</div>
+              <div class="summary-label">PO intern</div>
             </div>
             ${isAdmin ? `
             <div class="summary-card">

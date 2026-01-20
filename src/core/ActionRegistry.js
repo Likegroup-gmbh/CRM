@@ -40,7 +40,9 @@ export class ActionRegistry {
       'edit_creator_adresse', 'delete_creator_adresse',
       'set_standard_adresse', 'set_hauptadresse_standard',
       // Rechnung Download
-      'download'
+      'download',
+      // Verträge: Unterschriebener Vertrag
+      'add-signed', 'edit-signed'
     ];
 
     if (legacyActions.includes(action)) {

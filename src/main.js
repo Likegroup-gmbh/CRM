@@ -25,6 +25,9 @@ import { auftragsdetailsCreate } from './modules/auftrag/AuftragsdetailsCreate.j
 import { markeList } from './modules/marke/MarkeList.js';
 import { markeDetail } from './modules/marke/MarkeDetail.js';
 import { markeCreate } from './modules/marke/MarkeCreate.js';
+import { produktList } from './modules/produkt/ProduktList.js';
+import { produktDetail } from './modules/produkt/ProduktDetail.js';
+import { produktCreate } from './modules/produkt/ProduktCreate.js';
 import { authService } from './modules/auth/AuthService.js';
 import { authUtils } from './modules/auth/AuthUtils.js';
 import { navigationSystem } from './modules/navigation/NavigationSystem.js';
@@ -197,6 +200,13 @@ class ModuleRegistry {
       moduleKey = 'marke-detail';
       module = this.modules.get(moduleKey);
       console.log(`🎯 Marken-Details erkannt, verwende Modul: ${moduleKey}`);
+    }
+    
+    // Spezielle Behandlung für Produkt-Details (aber nicht für 'new')
+    if (id && segment === 'produkt' && id !== 'new') {
+      moduleKey = 'produkt-detail';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Produkt-Details erkannt, verwende Modul: ${moduleKey}`);
     }
     
     // Spezielle Behandlung für Unternehmen-Erstellung
@@ -423,6 +433,9 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('marke', markeList);
   moduleRegistry.register('marke-detail', markeDetail);
   moduleRegistry.register('marke-create', markeCreate);
+  moduleRegistry.register('produkt', produktList);
+  moduleRegistry.register('produkt-detail', produktDetail);
+  moduleRegistry.register('produkt-create', produktCreate);
   moduleRegistry.register('unternehmen-detail', unternehmenDetail);
   moduleRegistry.register('auftrag-detail', auftragDetail);
   moduleRegistry.register('kooperation', kooperationList);
@@ -482,6 +495,9 @@ window.auftragList = auftragList;
 window.markeList = markeList;
 window.markeDetail = markeDetail;
 window.markeCreate = markeCreate;
+window.produktList = produktList;
+window.produktDetail = produktDetail;
+window.produktCreate = produktCreate;
 window.unternehmenDetail = unternehmenDetail;
 window.auftragDetail = auftragDetail;
 window.kooperationList = kooperationList;

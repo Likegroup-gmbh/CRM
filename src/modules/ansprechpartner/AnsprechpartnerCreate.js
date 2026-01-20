@@ -420,52 +420,6 @@ export class AnsprechpartnerCreate {
   destroy() {
     console.log('🎯 ANSPRECHPARTNERCREATE: Destroy');
   }
-
-  renderKampagnen() {
-    if (!this.ansprechpartner.ansprechpartner_kampagne || this.ansprechpartner.ansprechpartner_kampagne.length === 0) {
-      return `
-        <div class="empty-state">
-          <div class="empty-icon">📢</div>
-          <h3>Keine Kampagnen zugeordnet</h3>
-          <p>Diesem Ansprechpartner sind noch keine Kampagnen zugeordnet.</p>
-        </div>
-      `;
-    }
-
-    const rows = this.ansprechpartner.ansprechpartner_kampagne.map(item => {
-      const kampagne = item.kampagne;
-      return `
-        <tr>
-          <td>
-            <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
-              ${kampagne.kampagnenname || 'Unbekannte Kampagne'}
-            </a>
-          </td>
-          <td>${kampagne.unternehmen?.firmenname ? `<a href="#" class="table-link" data-table="unternehmen" data-id="${kampagne.unternehmen.id}">${kampagne.unternehmen.firmenname}</a>` : '-'}</td>
-          <td>${kampagne.start ? new Date(kampagne.start).toLocaleDateString('de-DE') : '-'}</td>
-          <td>${kampagne.deadline ? new Date(kampagne.deadline).toLocaleDateString('de-DE') : '-'}</td>
-          <td>${kampagne.status || '-'}</td>
-        </tr>
-      `;
-    }).join('');
-
-    return `
-      <div class="data-table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Kampagne</th>
-              <th>Unternehmen</th>
-              <th>Start</th>
-              <th>Deadline</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-    `;
-  }
 }
 
 // Exportiere Instanz für globale Nutzung
