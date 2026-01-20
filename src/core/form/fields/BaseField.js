@@ -29,6 +29,10 @@ export class BaseField {
   // HTML-Sanitization
   sanitizeHtml(text) {
     if (!text) return '';
+    // Sicherstellen dass text ein String ist
+    if (typeof text !== 'string') {
+      text = String(text);
+    }
     return text
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')

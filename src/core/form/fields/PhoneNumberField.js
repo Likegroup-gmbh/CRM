@@ -14,8 +14,17 @@ export class PhoneNumberField extends BaseField {
     super(field, value);
     
     // Werte können als Objekt oder einzelne Felder kommen
-    this.phoneNumber = value?.telefonnummer || value || '';
-    this.countryId = value?.land_id || '';
+    // Sicherstellen dass phoneNumber immer ein String ist
+    if (typeof value === 'string') {
+      this.phoneNumber = value;
+      this.countryId = '';
+    } else if (value && typeof value === 'object') {
+      this.phoneNumber = value.telefonnummer || '';
+      this.countryId = value.land_id || '';
+    } else {
+      this.phoneNumber = '';
+      this.countryId = '';
+    }
     this.countries = [];
   }
 

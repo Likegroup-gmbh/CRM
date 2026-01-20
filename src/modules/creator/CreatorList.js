@@ -523,7 +523,8 @@ export class CreatorList {
       tbody.innerHTML = creators.map(creator => `
         <tr data-id="${creator.id}">
           ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="creator-check" data-id="${creator.id}"></td>` : ''}
-          <td class="col-name">
+          <td class="col-name col-name-with-icon">
+            <span class="table-avatar">${(creator.vorname || '?')[0].toUpperCase()}</span>
             <a href="#" class="table-link" data-table="creator" data-id="${creator.id}">
               ${window.CreatorUtils.sanitizeHtml(`${creator.vorname} ${creator.nachname}`)}
             </a>

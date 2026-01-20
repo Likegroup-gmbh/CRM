@@ -603,7 +603,10 @@ export class MarkeList {
       tbody.innerHTML = marken.map(marke => `
         <tr data-id="${marke.id}">
           ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="marke-check" data-id="${marke.id}"></td>` : ''}
-          <td class="col-name">
+          <td class="col-name col-name-with-icon">
+            ${marke.logo_url 
+              ? `<img src="${marke.logo_url}" class="table-logo" width="24" height="24" alt="" />` 
+              : `<span class="table-avatar">${(marke.markenname || '?')[0].toUpperCase()}</span>`}
             <a href="#" class="table-link" data-table="marke" data-id="${marke.id}">
               ${window.validatorSystem.sanitizeHtml(marke.markenname || '')}
             </a>

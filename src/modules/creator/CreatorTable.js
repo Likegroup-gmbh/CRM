@@ -82,7 +82,10 @@ export function renderCreatorTable(creators, options = {}) {
     return `
       <tr data-id="${id || ''}">
         ${showSelection ? `<td><input type=\"checkbox\" class=\"creator-check\" data-id=\"${id}\"></td>` : ''}
-        <td>${id ? `<a href="#" class="table-link" data-table="creator" data-id="${id}">${name}</a>` : name}</td>
+        <td class="col-name-with-icon">
+          <span class="table-avatar">${(c.vorname || '?')[0].toUpperCase()}</span>
+          ${id ? `<a href="#" class="table-link" data-table="creator" data-id="${id}">${name}</a>` : name}
+        </td>
         <td>${typen}</td>
         <td>${sprachen}</td>
         <td>${branchen}</td>

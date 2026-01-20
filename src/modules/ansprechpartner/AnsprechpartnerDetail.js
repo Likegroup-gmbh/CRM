@@ -18,6 +18,8 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     this.activeMainTab = 'informationen';
     this.eventsBound = false;
     this._cacheInvalidationBound = false;
+    this._breadcrumbEditHandler = null;
+    this._breadcrumbEditHandlerBound = false;
   }
 
   // Initialisiere Detail-Seite
@@ -34,26 +36,16 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       await this.loadCriticalData();
       
       // Breadcrumb aktualisieren mit Edit-Button
-      if (window.breadcrumbSystem && this.ansprechpartner) {
-        const name = [this.ansprechpartner.vorname, this.ansprechpartner.nachname].filter(Boolean).join(' ') || 'Details';
-        const canEdit = window.currentUser?.permissions?.ansprechpartner?.can_edit !== false;
-        
-        // Debug: Permission-Check für Edit-Button
-        console.log('🔐 ANSPRECHPARTNERDETAIL: Permission-Check:', {
-          rolle: window.currentUser?.rolle,
-          permissions: window.currentUser?.permissions?.ansprechpartner,
-          canEdit: canEdit,
-          ansprechpartnerId: this.ansprechpartnerId
-        });
-        
-        window.breadcrumbSystem.updateBreadcrumb([
-          { label: 'Ansprechpartner', url: '/ansprechpartner', clickable: true },
-          { label: name, url: `/ansprechpartner/${this.ansprechpartnerId}`, clickable: false }
-        ], {
-          id: 'btn-edit-ansprechpartner',
-          canEdit: canEdit
-        });
-      }
+      this.updateBreadcrumb();
+      
+      // Debug: Permission-Check für Edit-Button
+      const canEdit = window.currentUser?.permissions?.ansprechpartner?.can_edit !== false;
+      console.log('🔐 ANSPRECHPARTNERDETAIL: Permission-Check:', {
+        rolle: window.currentUser?.rolle,
+        permissions: window.currentUser?.permissions?.ansprechpartner,
+        canEdit: canEdit,
+        ansprechpartnerId: this.ansprechpartnerId
+      });
       
       await this.loadActivities();
       await this.render();
@@ -63,6 +55,9 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
         this.bindEvents();
         this.eventsBound = true;
       }
+      
+      // Breadcrumb Edit Handler - nur einmal binden (wie ProfileDetailV2)
+      this.bindBreadcrumbEditHandler();
       
       this.setupCacheInvalidation();
     }
@@ -137,6 +132,29 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     }
   }
   
+  // Breadcrumb aktualisieren (wiederverwendbar)
+  updateBreadcrumb() {
+    console.log('🔄 ANSPRECHPARTNERDETAIL: updateBreadcrumb() aufgerufen', {
+      hasBreadcrumbSystem: !!window.breadcrumbSystem,
+      hasAnsprechpartner: !!this.ansprechpartner
+    });
+    
+    if (window.breadcrumbSystem && this.ansprechpartner) {
+      const name = [this.ansprechpartner.vorname, this.ansprechpartner.nachname].filter(Boolean).join(' ') || 'Details';
+      const canEdit = window.currentUser?.permissions?.ansprechpartner?.can_edit !== false;
+      
+      console.log('🔄 ANSPRECHPARTNERDETAIL: Breadcrumb wird gesetzt', { name, canEdit, id: this.ansprechpartnerId });
+      
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Ansprechpartner', url: '/ansprechpartner', clickable: true },
+        { label: name, url: `/ansprechpartner/${this.ansprechpartnerId}`, clickable: false }
+      ], {
+        id: 'btn-edit-ansprechpartner',
+        canEdit: canEdit
+      });
+    }
+  }
+
   // Setup Cache-Invalidierung bei Updates - nur einmal binden
   setupCacheInvalidation() {
     if (this._cacheInvalidationBound) return;
@@ -145,7 +163,11 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail?.entity === 'ansprechpartner' && e.detail?.id === this.ansprechpartnerId) {
         console.log('🔄 ANSPRECHPARTNERDETAIL: Entity updated - lade neu');
-        this.loadCriticalData().then(() => this.render());
+        this.loadCriticalData().then(() => {
+          this.render();
+          // WICHTIG: Breadcrumb auch nach Update aktualisieren!
+          this.updateBreadcrumb();
+        });
       }
     });
   }
@@ -516,12 +538,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       }
     });
 
-    // Bearbeiten Button - reagiert auf Custom Event vom BreadcrumbSystem
-    window.addEventListener('breadcrumbEditClick', (e) => {
-      if (e.detail?.buttonId === 'btn-edit-ansprechpartner') {
-        this.showEditForm();
-      }
-    });
+    // Bearbeiten Button - wird jetzt über bindBreadcrumbEditHandler() gebunden
 
     // Navigation zu verknüpften Entitäten
     document.addEventListener('click', (e) => {
@@ -572,6 +589,29 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       await this.loadCriticalData();
       this.render();
     });
+  }
+
+  // Breadcrumb Edit Handler binden (wie ProfileDetailV2 - sauberes Cleanup)
+  bindBreadcrumbEditHandler() {
+    // Alten Handler entfernen falls vorhanden
+    if (this._breadcrumbEditHandler) {
+      window.removeEventListener('breadcrumbEditClick', this._breadcrumbEditHandler);
+      console.log('🗑️ ANSPRECHPARTNERDETAIL: Alter Breadcrumb Edit Handler entfernt');
+    }
+    
+    // Neuen Handler erstellen und binden
+    this._breadcrumbEditHandler = (e) => {
+      console.log('📩 ANSPRECHPARTNERDETAIL: breadcrumbEditClick Event empfangen', e.detail);
+      if (e.detail?.buttonId === 'btn-edit-ansprechpartner') {
+        console.log('✅ ANSPRECHPARTNERDETAIL: Button-ID stimmt, rufe showEditForm() auf');
+        this.showEditForm();
+      } else {
+        console.log('⏭️ ANSPRECHPARTNERDETAIL: Button-ID stimmt nicht, ignoriere Event');
+      }
+    };
+    window.addEventListener('breadcrumbEditClick', this._breadcrumbEditHandler);
+    this._breadcrumbEditHandlerBound = true;
+    console.log('✅ ANSPRECHPARTNERDETAIL: Breadcrumb Edit Handler gebunden');
   }
 
   // Bearbeitungsformular anzeigen
@@ -826,6 +866,14 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
   // Cleanup
   destroy() {
     console.log('AnsprechpartnerDetail: Cleaning up...');
+    
+    // Breadcrumb Edit Handler entfernen
+    if (this._breadcrumbEditHandler) {
+      window.removeEventListener('breadcrumbEditClick', this._breadcrumbEditHandler);
+      this._breadcrumbEditHandler = null;
+      this._breadcrumbEditHandlerBound = false;
+    }
+    
     this.ansprechpartner = null;
     this.ansprechpartnerId = null;
     this.eventsBound = false;

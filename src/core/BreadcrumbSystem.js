@@ -143,9 +143,15 @@ export class BreadcrumbSystem {
     // Edit-Button Event binden (dispatcht Custom Event)
     if (this.editButton) {
       const editBtn = this.container.querySelector(`#${this.editButton.id}`);
+      console.log('🔧 BREADCRUMB: Edit-Button Binding', { 
+        editButtonId: this.editButton.id, 
+        editBtnFound: !!editBtn,
+        canEdit: this.editButton.canEdit 
+      });
       if (editBtn) {
         editBtn.addEventListener('click', (e) => {
           e.preventDefault();
+          console.log('🖱️ BREADCRUMB: Edit-Button geklickt, dispatche Event:', this.editButton.id);
           // Custom Event dispatchen, damit Detail-Seiten darauf reagieren können
           window.dispatchEvent(new CustomEvent('breadcrumbEditClick', {
             detail: { buttonId: this.editButton.id }

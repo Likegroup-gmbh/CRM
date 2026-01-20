@@ -337,7 +337,10 @@ export class AnsprechpartnerList {
       tbody.innerHTML = ansprechpartner.map(ap => `
         <tr data-id="${ap.id}">
           ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="ansprechpartner-check" data-id="${ap.id}"></td>` : ''}
-          <td class="col-name">
+          <td class="col-name col-name-with-icon">
+            ${ap.profile_image_url 
+              ? `<img src="${ap.profile_image_url}" class="table-logo" width="24" height="24" alt="" />` 
+              : `<span class="table-avatar">${(ap.vorname || '?')[0].toUpperCase()}</span>`}
             <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
               ${window.validatorSystem.sanitizeHtml(ap.vorname || '')} ${window.validatorSystem.sanitizeHtml(ap.nachname || '')}
             </a>

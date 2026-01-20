@@ -593,7 +593,10 @@ export class MarkeDetail extends PersonDetailBase {
 
     const rows = this.ansprechpartner.map(ap => `
       <tr>
-        <td>
+        <td class="col-name-with-icon">
+          ${ap.profile_image_url 
+            ? `<img src="${ap.profile_image_url}" class="table-logo" width="24" height="24" alt="" />` 
+            : `<span class="table-avatar">${(ap.vorname || '?')[0].toUpperCase()}</span>`}
           <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
             ${this.sanitize(ap.vorname)} ${this.sanitize(ap.nachname)}
           </a>

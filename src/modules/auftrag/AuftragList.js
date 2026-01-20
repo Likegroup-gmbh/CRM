@@ -596,9 +596,9 @@ export class AuftragList {
                 ${this.isAdmin ? `<th class="col-checkbox">
                   <input type="checkbox" id="select-all-auftraege">
                 </th>` : ''}
-                <th class="col-name">Auftragsname</th>
                 <th>Unternehmen</th>
                 <th>Marke</th>
+                <th class="col-name">Auftragsname</th>
                 <th>PO</th>
                 <th>RE. Nr</th>
                 <th class="col-re-faelligkeit">RE-Fälligkeit</th>
@@ -1021,13 +1021,13 @@ export class AuftragList {
       tbody.innerHTML = auftraege.map(auftrag => `
         <tr data-id="${auftrag.id}">
           ${this.isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
+          <td>${this.formatUnternehmenTag(auftrag.unternehmen)}</td>
+          <td>${this.formatMarkeTag(auftrag.marke)}</td>
           <td class="col-name">
             <a href="#" class="table-link" data-table="auftrag" data-id="${auftrag.id}">
               ${window.validatorSystem.sanitizeHtml(auftrag.auftragsname || 'Unbekannt')}
             </a>
           </td>
-          <td>${this.formatUnternehmenTag(auftrag.unternehmen)}</td>
-          <td>${this.formatMarkeTag(auftrag.marke)}</td>
           <td>${auftrag.po || '-'}</td>
           <td>${auftrag.re_nr || '-'}</td>
           <td>${this.formatDate(auftrag.re_faelligkeit)}</td>

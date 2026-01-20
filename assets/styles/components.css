@@ -8560,13 +8560,6 @@ input.readonly-field {
   gap: var(--space-sm);
 }
 
-.table-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-full);
-  object-fit: cover;
-  flex-shrink: 0;
-}
 
 .table-avatar-placeholder {
   width: 32px;

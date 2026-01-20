@@ -75,19 +75,19 @@ export class PermissionSystem {
         'kunden-admin': { can_view: true, can_edit: true, can_delete: true }
       },
       mitarbeiter: {
-        creator: { can_view: true, can_edit: false, can_delete: false },
-        'creator-lists': { can_view: true, can_edit: false, can_delete: false },
+        creator: { can_view: true, can_edit: true, can_delete: false },
+        'creator-lists': { can_view: true, can_edit: true, can_delete: false },
         unternehmen: { can_view: true, can_edit: false, can_delete: false },
         marke: { can_view: true, can_edit: false, can_delete: false },
-        produkt: { can_view: true, can_edit: false, can_delete: false },
+        produkt: { can_view: true, can_edit: true, can_delete: false },
         auftrag: { can_view: false, can_edit: false, can_delete: false }, // Aufträge für Mitarbeiter ausgeblendet
         auftragsdetails: { can_view: true, can_edit: false, can_delete: false }, // Auftragsdetails für Mitarbeiter sichtbar
-        kampagne: { can_view: true, can_edit: false, can_delete: false },
-        kooperation: { can_view: true, can_edit: false, can_delete: false },
-        briefing: { can_view: true, can_edit: false, can_delete: false },
-        videos: { can_view: true, can_edit: false, can_delete: false },
-        rechnung: { can_view: true, can_edit: false, can_delete: false },
-        ansprechpartner: { can_view: true, can_edit: false, can_delete: false },
+        kampagne: { can_view: true, can_edit: true, can_delete: false },
+        kooperation: { can_view: true, can_edit: true, can_delete: false },
+        briefing: { can_view: true, can_edit: true, can_delete: false },
+        videos: { can_view: true, can_edit: true, can_delete: false },
+        rechnung: { can_view: true, can_edit: true, can_delete: false },
+        ansprechpartner: { can_view: true, can_edit: true, can_delete: false },
         dashboard: { can_view: true, can_edit: false, can_delete: false },
         tasks: { can_view: true, can_edit: false, can_delete: false },
         strategie: { can_view: true, can_edit: true, can_delete: false },

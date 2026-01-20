@@ -6,7 +6,6 @@
   width: var(--space-lg);
   object-fit: contain;
   border-radius: var(--radius-md);
-  border: 1px solid var(--gray-100);
   vertical-align: middle;
   margin-right: var(--space-sm);
 }
@@ -1520,6 +1519,12 @@ td.col-produkt .stacked-video-input,
   text-align: center;
 }
 
+/* Spalte direkt nach Checkbox: kein border-left (visuell zusammengehörig) */
+.data-table th.col-checkbox + th,
+.data-table td.col-checkbox + td {
+  border-left: none;
+}
+
 /* Name-Spalte - explizite Klasse */
 .data-table th.col-name{
 width: 30em;
@@ -2007,4 +2012,65 @@ width: 30em;
 
 .video-posting-datum-cell {
   min-width: 130px;
+}
+
+/* ========================================
+   Auftragsdetails Tabellen-Spalten
+   ======================================== */
+.col-ad-unternehmen {
+  min-width: 180px;
+  width: 200px;
+}
+
+.col-ad-marke {
+  min-width: 150px;
+  width: 180px;
+}
+
+.col-ad-auftrag {
+  min-width: 200px;
+  width: 280px;
+}
+
+/* ========================================
+   Table Avatar (Initialen-Fallback für Logos)
+   ======================================== */
+.table-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  border-radius: 4px;
+  background: var(--gray-100);
+  color: var(--gray-900);
+  font-size: 12px;
+  font-weight: 600;
+  margin-right: 8px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.table-avatar--round {
+  border-radius: 50%;
+}
+
+.table-logo--round {
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* TD-Zellen mit Logo/Avatar: Elemente nebeneinander anzeigen */
+.col-name-with-icon {
+  white-space: nowrap;
+}
+
+.col-name-with-icon .table-link {
+  vertical-align: middle;
+}
+
+.col-name-with-icon .table-logo,
+.col-name-with-icon .table-avatar {
+  margin-right: 8px;
 }
