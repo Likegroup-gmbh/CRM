@@ -456,7 +456,6 @@ export class ProfileDetailV2 extends PersonDetailBase {
 
   renderProfileInfo() {
     const rolle = this.user?.rolle || 'Nicht definiert';
-    const unterrolle = this.user?.unterrolle || 'Keine';
     const mitarbeiterKlasse = this.user?.mitarbeiter_klasse?.name || 'Nicht zugewiesen';
     const sprachenText = this.sprachen.length > 0 
       ? this.sprachen.map(s => s.name).join(', ') 
@@ -465,10 +464,6 @@ export class ProfileDetailV2 extends PersonDetailBase {
     const items = [
       { label: 'Rolle', value: rolle, badge: true, badgeType: rolle === 'admin' ? 'primary' : 'secondary' }
     ];
-
-    if (unterrolle !== 'Keine') {
-      items.push({ label: 'Unterrolle', value: unterrolle, badge: true, badgeType: 'outline' });
-    }
 
     if (mitarbeiterKlasse !== 'Nicht zugewiesen') {
       items.push({ label: 'Klasse', value: mitarbeiterKlasse });

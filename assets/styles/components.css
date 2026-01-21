@@ -2078,6 +2078,94 @@ h3.section-title,
   cursor: pointer;
 }
 
+/* Drawer Toggle Container */
+.drawer-toggle-container {
+  padding: 0 var(--space-md) var(--space-md);
+  border-bottom: 1px solid var(--gray-200);
+  flex-shrink: 0;
+}
+
+/* Sourcing Drawer Styles */
+#sourcing-creator-drawer,
+#add-creator-drawer {
+  width: 50%;
+  min-width: 500px;
+  max-width: 800px;
+}
+
+.sourcing-search-section {
+  margin-bottom: var(--space-lg);
+}
+
+.sourcing-selected-info {
+  margin-top: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.tag-selected-creator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  background: var(--gray-100);
+  color: var(--text-primary);
+  border: 1px solid var(--gray-300);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-md);
+  font-weight: 500;
+}
+
+.tag-selected-creator .tag-remove {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+  margin-left: var(--space-xs);
+  font-size: 14px;
+}
+
+.tag-selected-creator .tag-remove:hover {
+  color: var(--color-error);
+}
+
+/* Form Row für Sourcing-Formular */
+.form-row {
+  display: flex;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.form-row > .form-field {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+@media (max-width: 600px) {
+  .form-row {
+    flex-direction: column;
+    gap: var(--space-sm);
+  }
+  
+  #sourcing-creator-drawer {
+    width: 95%;
+    min-width: unset;
+  }
+}
+
+/* Form Grid für Sourcing */
+.form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.form-hint {
+  display: block;
+  margin-top: var(--space-xs);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
 /* Auto-Suggestion Dropdown */
 .auto-suggest-container {
   position: relative;
@@ -7066,7 +7154,6 @@ span.profile-name {
 .profile-sidebar-pane {
   display: none;
   padding: var(--space-md);
-  animation: fadeIn 0.3s ease;
   height: 100%;
 }
 
@@ -7099,6 +7186,17 @@ span.profile-name {
   font-size: 0.875rem;
   color: var(--text-primary);
   font-weight: 400;
+}
+
+.info-mailto-link {
+  color: var(--gray-900);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.info-mailto-link:hover {
+  text-decoration-style: solid;
 }
 
 /* Main Content */
@@ -8528,18 +8626,6 @@ input.readonly-field {
   color: var(--text-muted);
 }
 
-/* ============================================
-   STRATEGIE-ITEM LINKED STATE
-   ============================================ */
-
-.item-row.item-linked {
-  background-color: var(--green-50) !important;
-}
-
-.item-row.item-linked:hover {
-  background-color: var(--green-100) !important;
-}
-
 /* Warning Action Style (für Unlink) */
 .action-item.action-warning {
   color: var(--amber-600);
@@ -9184,10 +9270,6 @@ table:has(#strategien-table-body) td:nth-child(6) {
   background: var(--gray-100);
 }
 
-.strategie-items-table .item-linked {
-  background: var(--green-50);
-}
-
 /* === CREATOR POOL TABLE - STICKY COLUMNS === */
 .creator-pool-table-container {
   position: relative;
@@ -9292,13 +9374,6 @@ table:has(#strategien-table-body) td:nth-child(6) {
 .creator-pool-table .item-nicht-umsetzen td.col-sticky-2,
 .creator-pool-table .item-nicht-umsetzen td.col-sticky-3 {
   background: var(--gray-100);
-}
-
-/* Item-Linked für sticky Spalten */
-.creator-pool-table .item-linked td.col-sticky-1,
-.creator-pool-table .item-linked td.col-sticky-2,
-.creator-pool-table .item-linked td.col-sticky-3 {
-  background: var(--green-50);
 }
 
 /* === CREATOR POOL TABLE - FESTE SPALTENBREITEN === */
@@ -9537,10 +9612,27 @@ table:has(#strategien-table-body) td:nth-child(6) {
 }
 
 /* Feedback Card Actions (Edit + Delete) */
+.feedback-card-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
 .feedback-card-actions {
   display: flex;
   align-items: center;
   gap: var(--space-xs);
+}
+
+/* Feedback Area Badge */
+.feedback-area-badge {
+  padding: 2px 8px;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  background: var(--gray-100);
+  color: var(--gray-600);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
 }
 
 /* Feedback Card Effort Select (Admin) */

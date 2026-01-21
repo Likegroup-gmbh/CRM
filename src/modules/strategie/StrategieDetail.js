@@ -258,7 +258,7 @@ export class StrategieDetail {
     const isLinked = !!item.linked_video;
 
     return `
-      <tr class="item-row ${!this.isKunde ? 'draggable' : ''} ${isIdea ? 'idea-row' : ''} ${isLinked ? 'item-linked' : ''}" data-item-id="${item.id}" draggable="${!this.isKunde}">
+      <tr class="item-row ${!this.isKunde ? 'draggable' : ''} ${isIdea ? 'idea-row' : ''}" data-item-id="${item.id}" draggable="${!this.isKunde}">
         <td class="col-number">
           ${index + 1}
         </td>

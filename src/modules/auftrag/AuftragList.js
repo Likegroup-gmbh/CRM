@@ -1273,6 +1273,14 @@ export class AuftragList {
           console.warn('⚠️ Many-to-Many Zuordnungen konnten nicht gespeichert werden', e);
         }
 
+        // Auftragsbestätigung Upload
+        try {
+          const auftragId = result.id;
+          await this.handleAuftragsbestaetigungUpload(auftragId, form);
+        } catch (e) {
+          console.warn('⚠️ Auftragsbestätigung Upload fehlgeschlagen', e);
+        }
+
         // Toast-Erfolgsmeldung
         window.toastSystem?.show('Auftrag erfolgreich angelegt', 'success');
         
@@ -1359,18 +1367,32 @@ export class AuftragList {
       
       const kundenAuftragNummer = (kundenAuftraegeCount || 0) + 1;
       
-      // 4. Gesamtanzahl aller PO-Nummern zählen (+1 für die neue)
-      const { count: gesamtPoCount, error: gesamtError } = await window.supabase
+      // 4. Höchste GesamtPO-Nummer aus bestehenden PO-Nummern ermitteln
+      const { data: auftraegeMitPo, error: gesamtError } = await window.supabase
         .from('auftrag')
-        .select('id', { count: 'exact', head: true })
+        .select('po')
         .not('po', 'is', null);
       
       if (gesamtError) {
-        console.error('❌ Fehler beim Zählen der Gesamt-PO:', gesamtError);
-        return { success: false, error: 'Gesamt-PO konnte nicht gezählt werden.' };
+        console.error('❌ Fehler beim Laden der PO-Nummern:', gesamtError);
+        return { success: false, error: 'PO-Nummern konnten nicht geladen werden.' };
       }
       
-      const gesamtPoNummer = (gesamtPoCount || 0) + 1;
+      // Höchste GesamtPO-Nummer extrahieren (letzter Teil nach dem letzten "-")
+      let maxGesamtPo = 0;
+      if (auftraegeMitPo && auftraegeMitPo.length > 0) {
+        for (const auftrag of auftraegeMitPo) {
+          if (auftrag.po) {
+            const parts = auftrag.po.split('-');
+            const lastPart = parseInt(parts[parts.length - 1], 10);
+            if (!isNaN(lastPart) && lastPart > maxGesamtPo) {
+              maxGesamtPo = lastPart;
+            }
+          }
+        }
+      }
+      
+      const gesamtPoNummer = maxGesamtPo + 1;
       
       // 5. PO-Nummer generieren: PO-Kürzel-Jahr-AufträgeKunde-GesamtPO
       const poNummer = `PO-${kuerzel.trim()}-${currentYear}-${kundenAuftragNummer}-${gesamtPoNummer}`;
@@ -1382,6 +1404,78 @@ export class AuftragList {
       console.error('❌ Fehler bei PO-Nummer Generierung:', e);
       return { success: false, error: 'Ein unerwarteter Fehler bei der PO-Generierung ist aufgetreten.' };
     }
+  }
+
+  /**
+   * Auftragsbestätigung Upload Handling
+   * @param {string} auftragId - ID des Auftrags
+   * @param {HTMLFormElement} form - Das Formular
+   */
+  async handleAuftragsbestaetigungUpload(auftragId, form) {
+    const uploaderRoot = form.querySelector('.uploader[data-name="auftragsbestaetigung_file"]');
+    
+    if (!uploaderRoot || !uploaderRoot.__uploaderInstance || !uploaderRoot.__uploaderInstance.files.length) {
+      console.log('📁 Keine Auftragsbestätigung zum Hochladen');
+      return;
+    }
+
+    if (!window.supabase) {
+      console.warn('⚠️ Supabase nicht verfügbar');
+      return;
+    }
+
+    const file = uploaderRoot.__uploaderInstance.files[0];
+    const bucket = 'auftragsbestaetigung';
+    
+    // Sicherer Dateiname
+    const sanitizedName = file.name
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .replace(/\.{2,}/g, '_')
+      .substring(0, 200);
+    
+    const path = `${auftragId}/${Date.now()}_${sanitizedName}`;
+
+    console.log(`📤 Uploading Auftragsbestätigung: ${file.name} -> ${path}`);
+
+    // Upload zu Storage
+    const { error: upErr } = await window.supabase.storage
+      .from(bucket)
+      .upload(path, file, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: file.type
+      });
+
+    if (upErr) {
+      console.error('❌ Upload-Fehler:', upErr);
+      throw upErr;
+    }
+
+    // Signierte URL erstellen (7 Tage gültig)
+    const { data: signed, error: signErr } = await window.supabase.storage
+      .from(bucket)
+      .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 Tage
+
+    if (signErr) {
+      console.error('❌ Fehler bei signierter URL:', signErr);
+      throw signErr;
+    }
+
+    // URL in DB speichern
+    const { error: dbErr } = await window.supabase
+      .from('auftrag')
+      .update({
+        auftragsbestaetigung_url: signed.signedUrl,
+        auftragsbestaetigung_path: path
+      })
+      .eq('id', auftragId);
+
+    if (dbErr) {
+      console.error('❌ DB-Fehler beim Speichern der URL:', dbErr);
+      throw dbErr;
+    }
+
+    console.log('✅ Auftragsbestätigung erfolgreich hochgeladen');
   }
 }
 

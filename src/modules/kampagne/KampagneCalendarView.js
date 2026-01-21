@@ -81,7 +81,18 @@ export class KampagneCalendarView {
           markenKampagnenIds = (kampagnen || []).map(k => k.id);
         }
 
-        assignedKampagnenIds = [...new Set([...directKampagnenIds, ...markenKampagnenIds])];
+        // Kampagnen direkt über Unternehmen laden (für Kampagnen ohne Marke)
+        let unternehmenKampagnenIds = [];
+        if (unternehmenIds.length > 0) {
+          const { data: kampagnen } = await window.supabase
+            .from('kampagne')
+            .select('id')
+            .in('unternehmen_id', unternehmenIds);
+          
+          unternehmenKampagnenIds = (kampagnen || []).map(k => k.id);
+        }
+
+        assignedKampagnenIds = [...new Set([...directKampagnenIds, ...markenKampagnenIds, ...unternehmenKampagnenIds])];
 
         if (assignedKampagnenIds.length === 0) {
           this.kampagnen = [];

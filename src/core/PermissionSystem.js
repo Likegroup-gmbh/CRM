@@ -5,7 +5,6 @@ export class PermissionSystem {
   constructor() {
     this.userPermissions = {};
     this.userRole = null;
-    this.userSubRole = null;
     this.calculatedPermissions = {};
     // Page-/Tabellen-Scoped-Overrides aus DB `user_permissions`
     this.pagePermissions = {}; // key: page_id → { can_view, can_edit, can_delete, data_filters }
@@ -17,7 +16,6 @@ export class PermissionSystem {
     console.log('🔐 Setze Benutzer-Berechtigungen:', user);
     
     this.userRole = user.rolle;
-    this.userSubRole = user.unterrolle;
     this.userPermissions = user.zugriffsrechte || {};
     
     // Berechtigungen basierend auf Rolle berechnen
@@ -39,7 +37,6 @@ export class PermissionSystem {
     
     console.log('✅ Berechtigungen gesetzt:', {
       role: this.userRole,
-      subRole: this.userSubRole,
       permissions: this.userPermissions,
       calculatedPermissions: calculatedPermissions
     });
@@ -48,7 +45,6 @@ export class PermissionSystem {
   // Berechtigungen basierend auf Benutzer-Rolle (aus Datenbank)
   getPermissionsByUser(user) {
     const role = user.rolle;
-    const subRole = user.unterrolle;
     
     // Basis-Berechtigungen basierend auf Rolle (case-insensitive)
     const normalizedRole = role?.toLowerCase();
@@ -226,36 +222,6 @@ export class PermissionSystem {
       return basePermissions.admin;
     }
 
-    // Mitarbeiter mit can_edit Unterrolle hat erweiterte Rechte (case-insensitive)
-    if (normalizedRole === 'mitarbeiter' && subRole === 'can_edit') {
-      return {
-        creator: { can_view: true, can_edit: true, can_delete: false },
-        'creator-lists': { can_view: true, can_edit: true, can_delete: false },
-        unternehmen: { can_view: true, can_edit: true, can_delete: false },
-        marke: { can_view: true, can_edit: true, can_delete: false },
-        produkt: { can_view: true, can_edit: true, can_delete: false },
-        auftrag: { can_view: true, can_edit: true, can_delete: false },
-        auftragsdetails: { can_view: true, can_edit: true, can_delete: false },
-        kampagne: { can_view: true, can_edit: true, can_delete: false },
-        kooperation: { can_view: true, can_edit: true, can_delete: false },
-        briefing: { can_view: true, can_edit: true, can_delete: false },
-        videos: { can_view: true, can_edit: true, can_delete: false },
-        rechnung: { can_view: true, can_edit: true, can_delete: false },
-        ansprechpartner: { can_view: true, can_edit: true, can_delete: false },
-        dashboard: { can_view: true, can_edit: false, can_delete: false },
-        tasks: { can_view: true, can_edit: true, can_delete: false },
-        strategie: { can_view: true, can_edit: true, can_delete: false },
-        feedback: { can_view: true, can_edit: true, can_delete: false },
-        mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
-        'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
-      };
-    }
-
-    // Mitarbeiter mit can_view Unterrolle hat nur Leserechte (case-insensitive)
-    if (normalizedRole === 'mitarbeiter' && subRole === 'can_view') {
-      return basePermissions.mitarbeiter;
-    }
-
     // Standard Mitarbeiter-Rechte (case-insensitive)
     if (normalizedRole === 'mitarbeiter') {
       return basePermissions.mitarbeiter;
@@ -391,7 +357,6 @@ export class PermissionSystem {
   getUserPermissions() {
     return {
       role: this.userRole,
-      subRole: this.userSubRole,
       permissions: this.calculatedPermissions
     };
   }
@@ -409,7 +374,6 @@ export class PermissionSystem {
   clearPermissions() {
     this.userPermissions = {};
     this.userRole = null;
-    this.userSubRole = null;
     console.log('🔐 Berechtigungen zurückgesetzt');
   }
 

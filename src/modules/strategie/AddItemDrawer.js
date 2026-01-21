@@ -115,7 +115,7 @@ export class AddItemDrawer {
 
     body.innerHTML = `
       <!-- Input-Bereich (eine Zeile) -->
-      <form id="add-item-form" class="add-item-drawer-form-row">
+      <form id="add-item-form" class="add-item-drawer-form-row" data-no-submit-guard="true">
         <div class="form-field form-field--grow">
           <label for="drawer-video-url">Video-URL</label>
           <input 

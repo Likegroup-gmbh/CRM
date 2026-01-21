@@ -30,13 +30,20 @@ export class UnternehmenDetail extends PersonDetailBase {
     this._creatorMap = {};
     this.activeMainTab = 'informationen';
     this.eventsBound = false;
+    this._isLoading = false;
+    this._lastRenderTime = 0;
+    this._renderDebounceMs = 500; // Mindestens 500ms zwischen Renders
   }
 
   // Initialisiere Unternehmen-Detailseite
   async init(unternehmenId) {
     console.log('🎯 UNTERNEHMENDETAIL: Initialisiere Unternehmen-Detailseite für ID:', unternehmenId);
     
+    // Cleanup alle alten Event-Listener (wichtig bei wiederholter Navigation)
+    this._removeAllEventListeners();
+    
     try {
+      this._isLoading = true;
       this.unternehmenId = unternehmenId;
       await this.loadUnternehmenData();
       
@@ -53,7 +60,7 @@ export class UnternehmenDetail extends PersonDetailBase {
       }
       
       await this.loadActivities();
-      this.render();
+      this.render(true); // force=true für initiales Render
       
       // Events nur einmal binden
       if (!this.eventsBound) {
@@ -61,8 +68,10 @@ export class UnternehmenDetail extends PersonDetailBase {
         this.eventsBound = true;
       }
       
+      this._isLoading = false;
       console.log('✅ UNTERNEHMENDETAIL: Initialisierung abgeschlossen');
     } catch (error) {
+      this._isLoading = false;
       console.error('❌ UNTERNEHMENDETAIL: Fehler bei der Initialisierung:', error);
       window.ErrorHandler.handle(error, 'UnternehmenDetail.init');
     }
@@ -79,298 +88,150 @@ export class UnternehmenDetail extends PersonDetailBase {
     }
   }
 
-  // Lade Unternehmen-Daten
+  // Lade Unternehmen-Daten - optimiert mit parallelen Abfragen
   async loadUnternehmenData() {
-    console.log('🔄 UNTERNEHMENDETAIL: Lade Unternehmen-Daten...');
+    console.log('🔄 UNTERNEHMENDETAIL: Lade Unternehmen-Daten (parallelisiert)...');
+    const startTime = Date.now();
     
     try {
-      // Unternehmen-Basisdaten laden
-      const { data: unternehmen, error } = await window.supabase
-        .from('unternehmen')
-        .select('*')
-        .eq('id', this.unternehmenId)
-        .single();
-
-      if (error) throw error;
-      
-      this.unternehmen = unternehmen;
-      console.log('✅ UNTERNEHMENDETAIL: Unternehmen-Basisdaten geladen:', this.unternehmen);
-
-      // Branchen aus Junction-Table laden
-      try {
-        const { data: branchenData, error: branchenError } = await window.supabase
-          .from('unternehmen_branchen')
-          .select(`
-            branche_id,
-            branchen:branche_id (id, name)
-          `)
-          .eq('unternehmen_id', this.unternehmenId);
-
-        if (!branchenError && branchenData) {
-          // Branchen-IDs als Array für Formular speichern
-          this.unternehmen.branche_id = branchenData.map(b => b.branche_id);
-          this.unternehmen.branchen_names = branchenData.map(b => b.branchen?.name).filter(Boolean);
-          console.log('✅ UNTERNEHMENDETAIL: Branchen geladen:', this.unternehmen.branche_id);
-        }
-      } catch (branchenErr) {
-        console.warn('⚠️ UNTERNEHMENDETAIL: Branchen konnten nicht geladen werden:', branchenErr);
-      }
-
-      // Notizen laden
-      if (window.notizenSystem) {
-        this.notizen = await window.notizenSystem.loadNotizen('unternehmen', this.unternehmenId);
-        console.log('✅ UNTERNEHMENDETAIL: Notizen geladen:', this.notizen.length);
-      }
-
-      // Bewertungen laden
-      if (window.bewertungsSystem) {
-        this.ratings = await window.bewertungsSystem.loadBewertungen('unternehmen', this.unternehmenId);
-        console.log('✅ UNTERNEHMENDETAIL: Ratings geladen:', this.ratings.length);
-      }
-
-      // Marken laden
-      const { data: marken, error: markenError } = await window.supabase
-        .from('marke')
-        .select('*')
-        .eq('unternehmen_id', this.unternehmenId);
-
-      if (!markenError) {
-        this.marken = marken || [];
-        console.log('✅ UNTERNEHMENDETAIL: Marken geladen:', this.marken.length);
-      }
-
-      // Aufträge laden
-      const { data: auftraege, error: auftraegeError } = await window.supabase
-        .from('auftrag')
-        .select('*')
-        .eq('unternehmen_id', this.unternehmenId);
-
-      if (!auftraegeError) {
-        this.auftraege = auftraege || [];
-        console.log('✅ UNTERNEHMENDETAIL: Aufträge geladen:', this.auftraege.length);
-        
-        // Auftragsdetails für diese Aufträge laden
-        const auftragIds = (this.auftraege || []).map(a => a.id).filter(Boolean);
-        if (auftragIds.length > 0) {
-          const { data: auftragsdetails, error: auftragsdetailsError } = await window.supabase
-            .from('auftrag_details')
-            .select(`
-              *,
-              auftrag:auftrag_id (
-                id,
-                auftragsname,
-                status
-              )
-            `)
-            .in('auftrag_id', auftragIds)
-            .order('created_at', { ascending: false });
-          
-          if (!auftragsdetailsError) {
-            this.auftragsdetails = auftragsdetails || [];
-            console.log('✅ UNTERNEHMENDETAIL: Auftragsdetails geladen:', this.auftragsdetails.length);
-          } else {
-            console.warn('⚠️ UNTERNEHMENDETAIL: Auftragsdetails konnten nicht geladen werden:', auftragsdetailsError);
-            this.auftragsdetails = [];
-          }
-        } else {
-          this.auftragsdetails = [];
-        }
-      }
-
-      // Briefings laden (direkt über unternehmen_id)
-      try {
-        const { data: briefings, error: briefingsError } = await window.supabase
-          .from('briefings')
-          .select('id, product_service_offer, status, deadline, unternehmen_id, marke_id, kampagne_id, created_at')
-          .eq('unternehmen_id', this.unternehmenId)
-          .order('created_at', { ascending: false });
-        
-        if (!briefingsError) {
-          this.briefings = briefings || [];
-          console.log('✅ UNTERNEHMENDETAIL: Briefings geladen:', this.briefings.length);
-        } else {
-          console.warn('⚠️ UNTERNEHMENDETAIL: Briefings konnten nicht geladen werden:', briefingsError);
-          this.briefings = [];
-        }
-      } catch (errB) {
-        console.warn('⚠️ Briefings konnten nicht geladen werden', errB);
-        this.briefings = [];
-      }
-
-      // Kampagnen laden
-      try {
-        const { data: kampagnen } = await window.supabase
-          .from('kampagne')
-          .select('id, kampagnenname, status, start, deadline, unternehmen_id')
-          .eq('unternehmen_id', this.unternehmenId)
-          .order('created_at', { ascending: false });
-        this.kampagnen = kampagnen || [];
-        console.log('✅ UNTERNEHMENDETAIL: Kampagnen geladen:', this.kampagnen.length);
-      } catch (errK) {
-        console.warn('⚠️ Kampagnen konnten nicht geladen werden', errK);
-        this.kampagnen = [];
-      }
-
-      // Rechnungen laden (direkt über unternehmen_id)
-      try {
-        const { data: rechnungen, error: reErr } = await window.supabase
-          .from('rechnung')
-          .select('id, rechnung_nr, status, nettobetrag, bruttobetrag, gestellt_am, zahlungsziel, bezahlt_am, pdf_url')
-          .eq('unternehmen_id', this.unternehmenId)
-          .order('gestellt_am', { ascending: false });
-        if (reErr) throw reErr;
-        this.rechnungen = rechnungen || [];
-      } catch (e) {
-        console.warn('⚠️ Rechnungen konnten nicht geladen werden', e);
-        this.rechnungen = [];
-      }
-
-      // Verträge laden (direkt über kunde_unternehmen_id)
-      try {
-        const { data: vertraege, error: vErr } = await window.supabase
-          .from('vertraege')
-          .select(`
-            id, name, typ, is_draft, datei_url, datei_path, created_at,
-            kampagne:kampagne_id(id, kampagnenname),
-            creator:creator_id(id, vorname, nachname)
-          `)
-          .eq('kunde_unternehmen_id', this.unternehmenId)
-          .order('created_at', { ascending: false });
-        if (vErr) throw vErr;
-        this.vertraege = vertraege || [];
-        console.log('✅ UNTERNEHMENDETAIL: Verträge geladen:', this.vertraege.length);
-      } catch (e) {
-        console.warn('⚠️ Verträge konnten nicht geladen werden', e);
-        this.vertraege = [];
-      }
-
-      // Strategien laden (direkt über unternehmen_id)
-      try {
-        const { data: strategien } = await window.supabase
-          .from('strategie')
-          .select('id, name, teilbereich, created_at')
-          .eq('unternehmen_id', this.unternehmenId)
-          .order('created_at', { ascending: false });
-        this.strategien = strategien || [];
-        console.log('✅ UNTERNEHMENDETAIL: Strategien geladen:', this.strategien.length);
-      } catch (e) {
-        console.warn('⚠️ Strategien konnten nicht geladen werden', e);
-        this.strategien = [];
-      }
-
-      // Creator-Auswahlen laden (direkt über unternehmen_id)
-      try {
-        const { data: creatorAuswahlen } = await window.supabase
-          .from('creator_auswahl')
-          .select('id, name, created_at')
-          .eq('unternehmen_id', this.unternehmenId)
-          .order('created_at', { ascending: false });
-        this.creatorAuswahlen = creatorAuswahlen || [];
-        console.log('✅ UNTERNEHMENDETAIL: Creator-Auswahlen geladen:', this.creatorAuswahlen.length);
-      } catch (e) {
-        console.warn('⚠️ Creator-Auswahlen konnten nicht geladen werden', e);
-        this.creatorAuswahlen = [];
-      }
-
-      // Kooperationen und Creator laden (basierend auf Kampagnen)
-      try {
-        const kampagneIds = (this.kampagnen || []).map(k => k.id).filter(Boolean);
-        if (kampagneIds.length > 0) {
-          const { data: koops } = await window.supabase
-            .from('kooperationen')
-            .select('id, name, status, videoanzahl, einkaufspreis_gesamt, kampagne_id, creator_id, created_at')
-            .in('kampagne_id', kampagneIds)
-            .order('created_at', { ascending: false });
-          this.kooperationen = koops || [];
-
-          const creatorIds = Array.from(new Set((this.kooperationen || []).map(k => k.creator_id).filter(Boolean)));
-          if (creatorIds.length > 0) {
-            const { data: creators } = await window.supabase
-              .from('creator')
-              .select('id, vorname, nachname, instagram, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land')
-              .in('id', creatorIds);
-            this.creators = creators || [];
-          } else {
-            this.creators = [];
-          }
-          console.log('✅ UNTERNEHMENDETAIL: Kooperationen geladen:', this.kooperationen.length, 'Creators:', this.creators.length);
-        } else {
-          this.kooperationen = [];
-          this.creators = [];
-        }
-      } catch (errKoop) {
-        console.warn('⚠️ Kooperationen/Creators konnten nicht geladen werden', errKoop);
-        this.kooperationen = [];
-        this.creators = [];
-      }
-
-      // Ansprechpartner laden (über Junction Table - analog zu MarkenDetail)
-      const { data: ansprechpartner, error: ansprechpartnerError } = await window.supabase
-        .from('ansprechpartner_unternehmen')
-        .select(`
+      // ========== BATCH 1: Alle unabhängigen Abfragen parallel ==========
+      const [
+        unternehmenResult,
+        branchenResult,
+        markenResult,
+        auftraegeResult,
+        briefingsResult,
+        kampagnenResult,
+        rechnungenResult,
+        vertraegeResult,
+        strategienResult,
+        creatorAuswahlenResult,
+        ansprechpartnerResult,
+        notizenResult,
+        ratingsResult
+      ] = await Promise.all([
+        // Unternehmen-Basisdaten
+        window.supabase.from('unternehmen').select('*').eq('id', this.unternehmenId).single(),
+        // Branchen
+        window.supabase.from('unternehmen_branchen').select('branche_id, branchen:branche_id (id, name)').eq('unternehmen_id', this.unternehmenId),
+        // Marken
+        window.supabase.from('marke').select('*').eq('unternehmen_id', this.unternehmenId),
+        // Aufträge
+        window.supabase.from('auftrag').select('*').eq('unternehmen_id', this.unternehmenId),
+        // Briefings
+        window.supabase.from('briefings').select('id, product_service_offer, status, deadline, unternehmen_id, marke_id, kampagne_id, created_at').eq('unternehmen_id', this.unternehmenId).order('created_at', { ascending: false }),
+        // Kampagnen
+        window.supabase.from('kampagne').select('id, kampagnenname, status, start, deadline, unternehmen_id').eq('unternehmen_id', this.unternehmenId).order('created_at', { ascending: false }),
+        // Rechnungen
+        window.supabase.from('rechnung').select('id, rechnung_nr, status, nettobetrag, bruttobetrag, gestellt_am, zahlungsziel, bezahlt_am, pdf_url').eq('unternehmen_id', this.unternehmenId).order('gestellt_am', { ascending: false }),
+        // Verträge
+        window.supabase.from('vertraege').select('id, name, typ, is_draft, datei_url, datei_path, created_at, kampagne:kampagne_id(id, kampagnenname), creator:creator_id(id, vorname, nachname)').eq('kunde_unternehmen_id', this.unternehmenId).order('created_at', { ascending: false }),
+        // Strategien
+        window.supabase.from('strategie').select('id, name, teilbereich, created_at').eq('unternehmen_id', this.unternehmenId).order('created_at', { ascending: false }),
+        // Creator-Auswahlen
+        window.supabase.from('creator_auswahl').select('id, name, created_at').eq('unternehmen_id', this.unternehmenId).order('created_at', { ascending: false }),
+        // Ansprechpartner
+        window.supabase.from('ansprechpartner_unternehmen').select(`
           ansprechpartner_id,
           ansprechpartner:ansprechpartner_id (
             *,
             position:position_id(name),
             unternehmen:unternehmen_id(firmenname, logo_url),
-            telefonnummer_land:eu_laender!telefonnummer_land_id (
-              id,
-              name,
-              name_de,
-              iso_code,
-              vorwahl
-            ),
-            telefonnummer_office_land:eu_laender!telefonnummer_office_land_id (
-              id,
-              name,
-              name_de,
-              iso_code,
-              vorwahl
-            )
+            telefonnummer_land:eu_laender!telefonnummer_land_id (id, name, name_de, iso_code, vorwahl),
+            telefonnummer_office_land:eu_laender!telefonnummer_office_land_id (id, name, name_de, iso_code, vorwahl)
           )
-        `)
-        .eq('unternehmen_id', this.unternehmenId);
+        `).eq('unternehmen_id', this.unternehmenId),
+        // Notizen (falls System verfügbar)
+        window.notizenSystem ? window.notizenSystem.loadNotizen('unternehmen', this.unternehmenId) : Promise.resolve([]),
+        // Bewertungen (falls System verfügbar)
+        window.bewertungsSystem ? window.bewertungsSystem.loadBewertungen('unternehmen', this.unternehmenId) : Promise.resolve([])
+      ]);
 
-      if (!ansprechpartnerError) {
-        this.ansprechpartner = (ansprechpartner || [])
-          .filter(item => item.ansprechpartner)
-          .map(item => item.ansprechpartner);
-        console.log('✅ UNTERNEHMENDETAIL: Ansprechpartner geladen:', this.ansprechpartner.length);
+      // Batch 1 Ergebnisse verarbeiten
+      if (unternehmenResult.error) throw unternehmenResult.error;
+      this.unternehmen = unternehmenResult.data;
+
+      // Branchen zuweisen
+      if (!branchenResult.error && branchenResult.data) {
+        this.unternehmen.branche_id = branchenResult.data.map(b => b.branche_id);
+        this.unternehmen.branchen_names = branchenResult.data.map(b => b.branchen?.name).filter(Boolean);
       }
 
-      // Creator zu diesem Unternehmen über Marken/Aufträge/Kooperationen ableiten
-      try {
-        // Sammle Kampagnen-IDs dieses Unternehmens
-        const { data: kampagnen } = await window.supabase
-          .from('kampagne')
-          .select('id')
-          .eq('unternehmen_id', this.unternehmenId);
-        const kampagneIds = (kampagnen || []).map(k => k.id);
+      this.marken = markenResult.data || [];
+      this.auftraege = auftraegeResult.data || [];
+      this.briefings = briefingsResult.data || [];
+      this.kampagnen = kampagnenResult.data || [];
+      this.rechnungen = rechnungenResult.data || [];
+      this.vertraege = vertraegeResult.data || [];
+      this.strategien = strategienResult.data || [];
+      this.creatorAuswahlen = creatorAuswahlenResult.data || [];
+      this.notizen = notizenResult || [];
+      this.ratings = ratingsResult || [];
 
-        let creatorIds = [];
-        if (kampagneIds.length > 0) {
-          const { data: koops } = await window.supabase
-            .from('kooperationen')
-            .select('creator_id')
-            .in('kampagne_id', kampagneIds);
-          creatorIds = Array.from(new Set((koops || []).map(k => k.creator_id).filter(Boolean)));
-        }
-        if (creatorIds.length > 0) {
-          const { data: creators } = await window.supabase
-            .from('creator')
-            .select('id, vorname, nachname, instagram_follower, tiktok_follower, lieferadresse_stadt, lieferadresse_land')
-            .in('id', creatorIds);
-          this.creators = creators || [];
-          this._creatorMap = (creators || []).reduce((acc, c) => { acc[c.id] = c; return acc; }, {});
-        } else {
-          this.creators = [];
-          this._creatorMap = {};
-        }
-      } catch (errCreators) {
-        console.warn('⚠️ Creator für Unternehmen konnten nicht geladen werden', errCreators);
+      // Ansprechpartner verarbeiten
+      if (!ansprechpartnerResult.error) {
+        this.ansprechpartner = (ansprechpartnerResult.data || [])
+          .filter(item => item.ansprechpartner)
+          .map(item => item.ansprechpartner);
+      } else {
+        this.ansprechpartner = [];
+      }
+
+      console.log(`✅ UNTERNEHMENDETAIL: Batch 1 geladen in ${Date.now() - startTime}ms`);
+
+      // ========== BATCH 2: Abhängige Abfragen parallel ==========
+      const auftragIds = this.auftraege.map(a => a.id).filter(Boolean);
+      const kampagneIds = this.kampagnen.map(k => k.id).filter(Boolean);
+
+      const batch2Promises = [];
+
+      // Auftragsdetails (falls Aufträge vorhanden)
+      if (auftragIds.length > 0) {
+        batch2Promises.push(
+          window.supabase.from('auftrag_details')
+            .select('*, auftrag:auftrag_id (id, auftragsname, status)')
+            .in('auftrag_id', auftragIds)
+            .order('created_at', { ascending: false })
+        );
+      } else {
+        batch2Promises.push(Promise.resolve({ data: [] }));
+      }
+
+      // Kooperationen (falls Kampagnen vorhanden)
+      if (kampagneIds.length > 0) {
+        batch2Promises.push(
+          window.supabase.from('kooperationen')
+            .select('id, name, status, videoanzahl, einkaufspreis_gesamt, kampagne_id, creator_id, created_at')
+            .in('kampagne_id', kampagneIds)
+            .order('created_at', { ascending: false })
+        );
+      } else {
+        batch2Promises.push(Promise.resolve({ data: [] }));
+      }
+
+      const [auftragsdetailsResult, kooperationenResult] = await Promise.all(batch2Promises);
+
+      this.auftragsdetails = auftragsdetailsResult.data || [];
+      this.kooperationen = kooperationenResult.data || [];
+
+      console.log(`✅ UNTERNEHMENDETAIL: Batch 2 geladen in ${Date.now() - startTime}ms`);
+
+      // ========== BATCH 3: Creator laden (falls Kooperationen vorhanden) ==========
+      const creatorIds = Array.from(new Set(this.kooperationen.map(k => k.creator_id).filter(Boolean)));
+      
+      if (creatorIds.length > 0) {
+        const { data: creators } = await window.supabase
+          .from('creator')
+          .select('id, vorname, nachname, instagram, instagram_follower, tiktok_follower, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land')
+          .in('id', creatorIds);
+        this.creators = creators || [];
+        this._creatorMap = this.creators.reduce((acc, c) => { acc[c.id] = c; return acc; }, {});
+      } else {
         this.creators = [];
         this._creatorMap = {};
       }
+
+      console.log(`✅ UNTERNEHMENDETAIL: Alle Daten geladen in ${Date.now() - startTime}ms`);
 
     } catch (error) {
       console.error('❌ UNTERNEHMENDETAIL: Fehler beim Laden der Unternehmen-Daten:', error);
@@ -379,7 +240,16 @@ export class UnternehmenDetail extends PersonDetailBase {
   }
 
   // Rendere Unternehmen-Detailseite
-  render() {
+  render(force = false) {
+    
+    // Debounce: Verhindere mehrfaches Rendern innerhalb kurzer Zeit
+    const now = Date.now();
+    if (!force && (now - this._lastRenderTime) < this._renderDebounceMs) {
+      console.log('⏸️ UNTERNEHMENDETAIL: Render übersprungen (Debounce)');
+      return;
+    }
+    this._lastRenderTime = now;
+    
     window.setHeadline(`${this.unternehmen?.firmenname || 'Unternehmen'} - Details`);
 
     // Person-Config für die Sidebar (Unternehmen als "Person" behandeln, nur Logo im Header)
@@ -398,6 +268,8 @@ export class UnternehmenDetail extends PersonDetailBase {
     // Info-Items für Sidebar
     const sidebarInfo = this.renderInfoItems([
       { label: 'Branchen', value: this.unternehmen?.branchen_names?.join(', ') || '-' },
+      { label: 'E-Mail', value: this.unternehmen?.mail, mailto: true },
+      { label: 'Rechnungs-E-Mail', value: this.unternehmen?.invoice_email, mailto: true },
       { label: 'Rechnungsadresse', value: this.getAdresseDisplay() },
       { label: 'Erstellt', value: this.formatDate(this.unternehmen?.created_at) },
       { label: 'Aktualisiert', value: this.formatDate(this.unternehmen?.updated_at) }
@@ -1120,8 +992,8 @@ export class UnternehmenDetail extends PersonDetailBase {
     // Sidebar Tabs binden (aus Basis-Klasse)
     this.bindSidebarTabs();
 
-    // Main Tab-Navigation
-    document.addEventListener('click', (e) => {
+    // Main Tab-Navigation - als benannter Handler speichern
+    this._tabClickHandler = (e) => {
       const btn = e.target.closest('.tab-button');
       if (!btn) return;
       e.preventDefault();
@@ -1134,78 +1006,81 @@ export class UnternehmenDetail extends PersonDetailBase {
       document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
       const pane = document.getElementById(`tab-${tab}`);
       if (pane) pane.classList.add('active');
-    });
+    };
+    document.addEventListener('click', this._tabClickHandler);
 
-    // Unternehmen bearbeiten Button
-    document.addEventListener('click', (e) => {
+    // Unternehmen bearbeiten Button - als benannter Handler speichern
+    this._editClickHandler = (e) => {
       if (e.target.closest('#btn-edit-unternehmen')) {
         this.showEditForm();
       }
-    });
+    };
+    document.addEventListener('click', this._editClickHandler);
 
-    // Ansprechpartner hinzufügen Button
-    document.addEventListener('click', (e) => {
+    // Ansprechpartner hinzufügen Button - als benannter Handler speichern
+    this._ansprechpartnerClickHandler = (e) => {
       if (e.target.id === 'btn-add-ansprechpartner-unternehmen') {
         const unternehmenId = e.target.dataset.unternehmenId || this.unternehmenId;
         if (window.actionsDropdown) {
           window.actionsDropdown.openAddAnsprechpartnerToUnternehmenModal(unternehmenId);
         }
       }
-    });
+    };
+    document.addEventListener('click', this._ansprechpartnerClickHandler);
 
-    // Navigation zu verknüpften Entitäten
-    document.addEventListener('click', (e) => {
+    // Navigation zu verknüpften Entitäten - als benannter Handler speichern
+    this._tableLinkClickHandler = (e) => {
       if (e.target.classList.contains('table-link')) {
         e.preventDefault();
         const table = e.target.dataset.table;
         const id = e.target.dataset.id;
         window.navigateTo(`/${table}/${id}`);
       }
-    });
+    };
+    document.addEventListener('click', this._tableLinkClickHandler);
 
-    // Entity Updates (für Ansprechpartner) - nur einmal registrieren
-    if (!this._entityUpdatedBound) {
-      this._entityUpdatedHandler = (e) => {
-        if (e.detail?.entity === 'ansprechpartner' && e.detail?.unternehmenId === this.unternehmenId) {
-          console.log('🔄 UNTERNEHMENDETAIL: Ansprechpartner wurde aktualisiert, lade Daten neu');
-          this.loadUnternehmenData().then(() => {
-            this.render();
-          });
-        }
-        if (e.detail?.entity === 'unternehmen' && e.detail?.id === this.unternehmenId) {
-          console.log('🔄 UNTERNEHMENDETAIL: Unternehmen wurde aktualisiert, lade Daten neu');
-          this.loadUnternehmenData().then(() => {
-            this.render();
-          });
-        }
-      };
-      document.addEventListener('entityUpdated', this._entityUpdatedHandler);
-      this._entityUpdatedBound = true;
-    }
+    // Entity Updates (für Ansprechpartner)
+    this._entityUpdatedHandler = (e) => {
+      if (e.detail?.entity === 'ansprechpartner' && e.detail?.unternehmenId === this.unternehmenId) {
+        console.log('🔄 UNTERNEHMENDETAIL: Ansprechpartner wurde aktualisiert, lade Daten neu');
+        this.loadUnternehmenData().then(() => {
+          this.render();
+        });
+      }
+      if (e.detail?.entity === 'unternehmen' && e.detail?.id === this.unternehmenId) {
+        console.log('🔄 UNTERNEHMENDETAIL: Unternehmen wurde aktualisiert, lade Daten neu');
+        this.loadUnternehmenData().then(() => {
+          this.render();
+        });
+      }
+    };
+    document.addEventListener('entityUpdated', this._entityUpdatedHandler);
 
     // Soft-Refresh bei Realtime-Updates (nur wenn kein Formular aktiv)
-    // Nur einmal registrieren um Render-Loops zu vermeiden
-    if (!this._softRefreshBound) {
-      this._softRefreshHandler = async (e) => {
-        const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
-        
-        if (hasActiveForm) {
-          console.log('⏸️ UNTERNEHMENDETAIL: Formular aktiv - Soft-Refresh übersprungen');
-          return;
-        }
-        
-        if (!this.unternehmenId || !location.pathname.includes('/unternehmen/')) {
-          return;
-        }
-        
-        console.log('🔄 UNTERNEHMENDETAIL: Soft-Refresh - lade Daten neu');
-        await this.loadUnternehmenData();
-        this.render();
-        // NICHT bindEvents() erneut aufrufen - führt zu Endlosschleife
-      };
-      window.addEventListener('softRefresh', this._softRefreshHandler);
-      this._softRefreshBound = true;
-    }
+    this._softRefreshHandler = async (e) => {
+      // Blockiere wenn gerade geladen wird
+      if (this._isLoading) {
+        console.log('⏸️ UNTERNEHMENDETAIL: Bereits am Laden - Soft-Refresh übersprungen');
+        return;
+      }
+      
+      const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
+      
+      if (hasActiveForm) {
+        console.log('⏸️ UNTERNEHMENDETAIL: Formular aktiv - Soft-Refresh übersprungen');
+        return;
+      }
+      
+      if (!this.unternehmenId || !location.pathname.includes('/unternehmen/')) {
+        return;
+      }
+      
+      console.log('🔄 UNTERNEHMENDETAIL: Soft-Refresh - lade Daten neu');
+      await this.loadUnternehmenData();
+      this.render(); // Debounce schützt bereits
+      // NICHT bindEvents() erneut aufrufen - führt zu Endlosschleife
+    };
+    window.addEventListener('softRefresh', this._softRefreshHandler);
   }
 
   // Ansprechpartner entfernen
@@ -1708,20 +1583,45 @@ export class UnternehmenDetail extends PersonDetailBase {
     }
   }
 
+  // Cleanup - entfernt alle Event-Listener
+  _removeAllEventListeners() {
+    // Click-Handler entfernen
+    if (this._tabClickHandler) {
+      document.removeEventListener('click', this._tabClickHandler);
+      this._tabClickHandler = null;
+    }
+    if (this._editClickHandler) {
+      document.removeEventListener('click', this._editClickHandler);
+      this._editClickHandler = null;
+    }
+    if (this._ansprechpartnerClickHandler) {
+      document.removeEventListener('click', this._ansprechpartnerClickHandler);
+      this._ansprechpartnerClickHandler = null;
+    }
+    if (this._tableLinkClickHandler) {
+      document.removeEventListener('click', this._tableLinkClickHandler);
+      this._tableLinkClickHandler = null;
+    }
+    // Custom Event-Handler entfernen
+    if (this._softRefreshHandler) {
+      window.removeEventListener('softRefresh', this._softRefreshHandler);
+      this._softRefreshHandler = null;
+    }
+    if (this._entityUpdatedHandler) {
+      document.removeEventListener('entityUpdated', this._entityUpdatedHandler);
+      this._entityUpdatedHandler = null;
+    }
+    this._sidebarTabsBound = false;
+    this.eventsBound = false;
+  }
+
   // Cleanup
   destroy() {
     console.log('UnternehmenDetail: Cleaning up...');
     
-    // Event-Listener entfernen
-    if (this._softRefreshHandler) {
-      window.removeEventListener('softRefresh', this._softRefreshHandler);
-      this._softRefreshBound = false;
-    }
-    if (this._entityUpdatedHandler) {
-      document.removeEventListener('entityUpdated', this._entityUpdatedHandler);
-      this._entityUpdatedBound = false;
-    }
-    this.eventsBound = false;
+    this._removeAllEventListeners();
+    this._isLoading = false;
+    this._lastRenderTime = 0;
   }
 }
 

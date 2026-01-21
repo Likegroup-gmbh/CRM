@@ -317,13 +317,23 @@ export class FormSystem {
           submitData[key].push(value);
         }
       } else if (submitData.hasOwnProperty(key)) {
-        // Mehrfachwerte in Array umwandeln
-        if (!Array.isArray(submitData[key])) {
-          submitData[key] = [submitData[key]];
-        }
-        if (value !== '') {
+        // Bei doppelten Einträgen (z.B. searchable select + hidden input):
+        // Bevorzuge nicht-leeren Wert, vermeide unnötige Arrays
+        const existingValue = submitData[key];
+        const existingIsEmpty = existingValue === '' || existingValue === null || existingValue === undefined;
+        const newIsEmpty = value === '' || value === null || value === undefined;
+        
+        if (existingIsEmpty && !newIsEmpty) {
+          // Alter Wert leer, neuer nicht leer -> ersetze
+          submitData[key] = value;
+        } else if (!existingIsEmpty && !newIsEmpty && existingValue !== value) {
+          // Beide nicht leer und unterschiedlich -> Array erstellen (echte Multi-Values)
+          if (!Array.isArray(submitData[key])) {
+            submitData[key] = [submitData[key]];
+          }
           submitData[key].push(value);
         }
+        // Sonst: behalte existierenden Wert (neuer ist leer oder identisch)
       } else {
         submitData[key] = value;
       }
@@ -599,6 +609,9 @@ export class FormSystem {
     hiddenInput.type = 'hidden';
     hiddenInput.name = selectElement.name;
     hiddenInput.id = selectElement.id + '_value';
+    
+    // Original-Select Name wird NICHT entfernt (wird für DependentFields benötigt)
+    // Stattdessen wird in collectSubmitData der Hidden Input bevorzugt
     
     // Initial Wert setzen falls vorhanden
     if (selectElement.value) {

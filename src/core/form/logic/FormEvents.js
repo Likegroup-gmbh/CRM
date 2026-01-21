@@ -201,6 +201,17 @@ export class FormEvents {
       try {
         await this.formSystem.dataLoader.handleKooperationPrefill(form);
         console.log('✅ FORMEVENTS: handleKooperationPrefill abgeschlossen');
+        
+        // FIX: Nach Prefill change-Event auf kampagne_id dispatchen,
+        // damit Video-Limits korrekt aktualisiert werden
+        const kampagneSelect = form.querySelector('select[name="kampagne_id"]');
+        if (kampagneSelect && kampagneSelect.value) {
+          console.log('🔄 FORMEVENTS: Dispatche change-Event für kampagne_id nach Prefill:', kampagneSelect.value);
+          // Kleiner Delay um sicherzustellen dass DOM stabil ist
+          setTimeout(() => {
+            kampagneSelect.dispatchEvent(new Event('change', { bubbles: true }));
+          }, 50);
+        }
       } catch (error) {
         console.error('❌ FORMEVENTS: Fehler in handleKooperationPrefill:', error);
       }
@@ -853,17 +864,31 @@ export class FormEvents {
       }
 
       try {
-        // Gesamtanzahl Videos aus der Kampagne laden
+        // Gesamtanzahl Videos aus der Kampagne laden (alle Video-Typen summieren)
         const { data: kampagne, error: kampagneError } = await window.supabase
           .from('kampagne')
-          .select('videoanzahl')
+          .select('videoanzahl, ugc_video_anzahl, igc_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl')
           .eq('id', kampagneId)
           .single();
         if (kampagneError) {
           console.error('❌ Fehler beim Laden der Kampagne (videoanzahl):', kampagneError);
           return;
         }
-        const totalVideos = kampagne?.videoanzahl || 0;
+        // Nutze videoanzahl falls vorhanden, sonst Summe der einzelnen Typen
+        const totalVideos = kampagne?.videoanzahl || (
+          (parseInt(kampagne?.ugc_video_anzahl, 10) || 0) +
+          (parseInt(kampagne?.igc_video_anzahl, 10) || 0) +
+          (parseInt(kampagne?.influencer_video_anzahl, 10) || 0) +
+          (parseInt(kampagne?.vor_ort_video_anzahl, 10) || 0)
+        );
+        console.log('📊 KOOPERATION: Kampagne Video-Anzahlen:', {
+          videoanzahl: kampagne?.videoanzahl,
+          ugc: kampagne?.ugc_video_anzahl,
+          igc: kampagne?.igc_video_anzahl,
+          influencer: kampagne?.influencer_video_anzahl,
+          vor_ort: kampagne?.vor_ort_video_anzahl,
+          total: totalVideos
+        });
 
         // Bereits verplante Videos in Kooperationen summieren
         const { data: existingKoops, error: koopError } = await window.supabase
@@ -946,10 +971,16 @@ export class FormEvents {
       try {
         const { data: kampagne } = await window.supabase
           .from('kampagne')
-          .select('videoanzahl')
+          .select('videoanzahl, ugc_video_anzahl, igc_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl')
           .eq('id', kampagneId)
           .single();
-        const totalVideos = kampagne?.videoanzahl || 0;
+        // Nutze videoanzahl falls vorhanden, sonst Summe der einzelnen Typen
+        const totalVideos = kampagne?.videoanzahl || (
+          (parseInt(kampagne?.ugc_video_anzahl, 10) || 0) +
+          (parseInt(kampagne?.igc_video_anzahl, 10) || 0) +
+          (parseInt(kampagne?.influencer_video_anzahl, 10) || 0) +
+          (parseInt(kampagne?.vor_ort_video_anzahl, 10) || 0)
+        );
         const { data: existingKoops } = await window.supabase
           .from('kooperationen')
           .select('videoanzahl')
@@ -970,6 +1001,16 @@ export class FormEvents {
 
     // Initial ausführen
     updateVideoLimits();
+    
+    // FIX: Bei prefilled Formularen nochmal mit Delay aufrufen,
+    // um sicherzustellen dass der DOM-Wert korrekt synchronisiert ist
+    if (form.dataset.prefillFromKampagne === 'true') {
+      console.log('🔄 KOOPERATION PREFILL: Warte auf DOM-Synchronisation für Video-Limits...');
+      setTimeout(() => {
+        console.log('🔄 KOOPERATION PREFILL: Aktualisiere Video-Limits nach Prefill, kampagne_id:', kampagneSelect.value);
+        updateVideoLimits();
+      }, 150);
+    }
 
     // Beim Edit: vorhandene Videos vorausfüllen
     (async () => {

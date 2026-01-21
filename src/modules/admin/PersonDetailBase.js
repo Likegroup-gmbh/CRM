@@ -6,6 +6,7 @@ export class PersonDetailBase {
   constructor() {
     this.activeSidebarTab = 'info';
     this.activities = [];
+    this._sidebarTabsBound = false;
   }
 
   // ============================================
@@ -200,13 +201,15 @@ export class PersonDetailBase {
     return `
       <div class="profile-info-section">
         ${items.map(item => {
-          if (item.value === null || item.value === undefined || item.value === '') return '';
+          if (item.value === null || item.value === undefined || item.value === '' || item.value === '-') return '';
           
           let valueHtml = '';
           if (item.badge) {
             valueHtml = `<span class="badge badge-${item.badgeType || 'secondary'}">${this.sanitize(item.value)}</span>`;
           } else if (item.tags && Array.isArray(item.value)) {
             valueHtml = item.value.map(v => `<span class="tag">${this.sanitize(v)}</span>`).join('');
+          } else if (item.mailto && item.value && item.value !== '-') {
+            valueHtml = `<a href="mailto:${this.sanitize(item.value)}" class="info-mailto-link">${this.sanitize(item.value)}</a>`;
           } else {
             valueHtml = this.sanitize(String(item.value));
           }
@@ -230,7 +233,11 @@ export class PersonDetailBase {
    * Bindet die Sidebar-Tab Events
    */
   bindSidebarTabs() {
-    document.querySelectorAll('[data-sidebar-tab]').forEach(btn => {
+    // Vermeide doppelte Event-Listener
+    if (this._sidebarTabsBound) return;
+    
+    const tabButtons = document.querySelectorAll('[data-sidebar-tab]');
+    tabButtons.forEach(btn => {
       btn.addEventListener('click', (e) => {
         const tab = e.currentTarget.dataset.sidebarTab;
         this.activeSidebarTab = tab;
@@ -243,6 +250,8 @@ export class PersonDetailBase {
         document.getElementById(`sidebar-${tab}`)?.classList.add('active');
       });
     });
+    
+    this._sidebarTabsBound = true;
   }
 
   // ============================================

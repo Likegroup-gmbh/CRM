@@ -131,7 +131,6 @@ export class MitarbeiterList {
           </td>
           <td>${window.validatorSystem.sanitizeHtml(u.rolle || '—')}</td>
           <td>${u.email ? `<a href="mailto:${u.email}" class="table-link email-link">${window.validatorSystem.sanitizeHtml(u.email)}</a>` : '—'}</td>
-          <td>${window.validatorSystem.sanitizeHtml(u.unterrolle || '—')}</td>
           <td>${u.mitarbeiter_klasse?.name ? `<div class="tags tags-compact"><span class="tag">${window.validatorSystem.sanitizeHtml(u.mitarbeiter_klasse.name)}</span></div>` : '—'}</td>
           <td>${freigeschaltetIcon}</td>
           <td class="col-actions">${actionsMenu}</td>
@@ -152,14 +151,13 @@ export class MitarbeiterList {
               <th class="col-name col-mitarbeiter-name">Name</th>
               <th>Rolle</th>
               <th>E-Mail</th>
-              <th>Unterrolle</th>
               <th>Kategorie</th>
               <th>Status</th>
               <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody>
-            ${tbody || '<tr><td colspan="7" class="loading">Keine Mitarbeiter gefunden</td></tr>'}
+            ${tbody || '<tr><td colspan="6" class="loading">Keine Mitarbeiter gefunden</td></tr>'}
           </tbody>
         </table>
       </div>

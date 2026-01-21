@@ -151,7 +151,6 @@ export class KundenDetail extends PersonDetailBase {
     // Info-Items für Sidebar
     const sidebarInfo = this.renderInfoItems([
       { label: 'Rolle', value: this.user?.rolle || '-', badge: true, badgeType: 'secondary' },
-      { label: 'Unterrolle', value: this.user?.unterrolle || '-' },
       { label: 'Freigeschaltet', value: this.user?.freigeschaltet ? 'Ja' : 'Nein', badge: true, badgeType: this.user?.freigeschaltet ? 'success' : 'warning' },
       { label: 'Erstellt', value: this.formatDate(this.user?.created_at) }
     ]);
@@ -269,12 +268,11 @@ export class KundenDetail extends PersonDetailBase {
         <div class="data-table-container">
           <table class="data-table">
             <thead>
-              <tr><th>Rolle</th><th>Unterrolle</th></tr>
+              <tr><th>Rolle</th></tr>
             </thead>
             <tbody>
               <tr>
                 <td>${window.validatorSystem.sanitizeHtml(this.user?.rolle || '-')}</td>
-                <td>${window.validatorSystem.sanitizeHtml(this.user?.unterrolle || '-')}</td>
               </tr>
             </tbody>
           </table>
@@ -587,7 +585,6 @@ export class KundenDetail extends PersonDetailBase {
           const updateData = { freigeschaltet: isFreigeschaltet };
           if (!isFreigeschaltet) {
             updateData.rolle = 'pending';
-            updateData.unterrolle = 'awaiting_approval';
             updateData.zugriffsrechte = null;
           }
           const { error } = await window.supabase
@@ -597,7 +594,6 @@ export class KundenDetail extends PersonDetailBase {
           if (error) throw error;
           this.user.freigeschaltet = isFreigeschaltet;
           if (updateData.rolle) this.user.rolle = updateData.rolle;
-          if (updateData.unterrolle) this.user.unterrolle = updateData.unterrolle;
           window.NotificationSystem?.show('success', isFreigeschaltet ? 'Kunde freigeschaltet' : 'Kunde gesperrt');
         } catch (err) {
           console.error('❌ Update fehlgeschlagen', err);

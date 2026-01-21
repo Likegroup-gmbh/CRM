@@ -700,7 +700,7 @@ export class DependentFields {
       if (fieldConfig.name === 'kampagne_id' && fieldConfig.dependsOn === 'marke_id') {
         const { data: kampagnen, error } = await window.supabase
           .from('kampagne')
-          .select('id, kampagnenname, marke_id, videoanzahl')
+          .select('id, kampagnenname, marke_id, videoanzahl, ugc_video_anzahl, igc_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl')
           .eq('marke_id', parentValue)
           .order('kampagnenname');
 
@@ -708,6 +708,16 @@ export class DependentFields {
           console.error('❌ Fehler beim Laden der Kampagnen für Marke:', error);
           return;
         }
+
+        // Hilfsfunktion: Gesamt-Videos einer Kampagne berechnen
+        const getKampagneTotalVideos = (k) => {
+          return k.videoanzahl || (
+            (parseInt(k.ugc_video_anzahl, 10) || 0) +
+            (parseInt(k.igc_video_anzahl, 10) || 0) +
+            (parseInt(k.influencer_video_anzahl, 10) || 0) +
+            (parseInt(k.vor_ort_video_anzahl, 10) || 0)
+          );
+        };
 
         let filtered = kampagnen || [];
         try {
@@ -725,7 +735,7 @@ export class DependentFields {
                 usedMap[key] = (usedMap[key] || 0) + val;
               });
               filtered = filtered.filter(k => {
-                const total = parseInt(k.videoanzahl, 10) || 0;
+                const total = getKampagneTotalVideos(k);
                 const used = usedMap[k.id] || 0;
                 const remaining = Math.max(0, total - used);
                 return remaining > 0; // nur Kampagnen mit freien Videos
@@ -754,7 +764,7 @@ export class DependentFields {
       else if (fieldConfig.name === 'kampagne_id' && fieldConfig.dependsOn === 'unternehmen_id') {
         const { data: kampagnen, error } = await window.supabase
           .from('kampagne')
-          .select('id, kampagnenname, unternehmen_id, videoanzahl')
+          .select('id, kampagnenname, unternehmen_id, videoanzahl, ugc_video_anzahl, igc_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl')
           .eq('unternehmen_id', parentValue)
           .order('kampagnenname');
 
@@ -762,6 +772,16 @@ export class DependentFields {
           console.error('❌ Fehler beim Laden der Kampagnen für Unternehmen:', error);
           return;
         }
+
+        // Hilfsfunktion: Gesamt-Videos einer Kampagne berechnen
+        const getKampagneTotalVideos = (k) => {
+          return k.videoanzahl || (
+            (parseInt(k.ugc_video_anzahl, 10) || 0) +
+            (parseInt(k.igc_video_anzahl, 10) || 0) +
+            (parseInt(k.influencer_video_anzahl, 10) || 0) +
+            (parseInt(k.vor_ort_video_anzahl, 10) || 0)
+          );
+        };
 
         // Edit-Mode: Aktuelle Kampagne-ID merken
         let currentKampagneId = null;
@@ -796,7 +816,7 @@ export class DependentFields {
                   console.log('✅ DEPENDENTFIELDS: Behalte aktuelle Kampagne:', k.kampagnenname);
                   return true;
                 }
-                const total = parseInt(k.videoanzahl, 10) || 0;
+                const total = getKampagneTotalVideos(k);
                 const used = usedMap[k.id] || 0;
                 const remaining = Math.max(0, total - used);
                 return remaining > 0; // nur Kampagnen mit freien Videos

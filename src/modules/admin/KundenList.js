@@ -102,7 +102,6 @@ export class KundenList {
           <td class="col-name">${u.id ? `<a href="#" class="table-link" data-table="kunden" data-id="${u.id}">${window.validatorSystem.sanitizeHtml(u.name || '—')}</a>` : window.validatorSystem.sanitizeHtml(u.name || '—')}</td>
           <td>${window.validatorSystem.sanitizeHtml(u.auth_user_id ? 'Registriert' : '—')}</td>
           <td>${window.validatorSystem.sanitizeHtml(u.rolle || '—')}</td>
-          <td>${window.validatorSystem.sanitizeHtml(u.unterrolle || '—')}</td>
           <td>${uBadges}</td>
           <td>${mBadges}</td>
           <td>${freigeschaltetIcon}</td>
@@ -126,7 +125,6 @@ export class KundenList {
               <th class="col-name">Name</th>
               <th>Status</th>
               <th>Rolle</th>
-              <th>Unterrolle</th>
               <th>Unternehmen</th>
               <th>Marken</th>
               <th>Freigeschaltet</th>
@@ -134,7 +132,7 @@ export class KundenList {
             </tr>
           </thead>
           <tbody>
-            ${tbody || '<tr><td colspan="8" class="loading">Keine Kunden gefunden</td></tr>'}
+            ${tbody || '<tr><td colspan="7" class="loading">Keine Kunden gefunden</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -164,8 +162,7 @@ export class KundenList {
         } else {
           this.filteredRows = (this.rows || []).filter(u => (
             (u.name||'').toLowerCase().includes(q) ||
-            (u.rolle||'').toLowerCase().includes(q) ||
-            (u.unterrolle||'').toLowerCase().includes(q)
+            (u.rolle||'').toLowerCase().includes(q)
           ));
         }
         this.render();

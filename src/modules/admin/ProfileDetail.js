@@ -91,13 +91,6 @@ export class ProfileDetail {
               </div>
               
               <div class="detail-field">
-                <label>Unterrolle</label>
-                <div class="detail-value">
-                  ${this.user.unterrolle ? `<span class="badge badge-outline">${this.user.unterrolle}</span>` : 'Keine'}
-                </div>
-              </div>
-              
-              <div class="detail-field">
                 <label>Mitarbeiter-Klasse</label>
                 <div class="detail-value">
                   ${this.user.mitarbeiter_klasse?.name || 'Nicht zugewiesen'}
@@ -160,13 +153,6 @@ export class ProfileDetail {
           </div>
           
           <div class="detail-field">
-            <label>Unterrolle</label>
-            <div class="detail-value">
-              ${this.user?.unterrolle ? `<span class="badge badge-outline">${this.user.unterrolle}</span>` : 'Keine'}
-            </div>
-          </div>
-          
-          <div class="detail-field">
             <label>Mitarbeiter-Klasse</label>
             <div class="detail-value">
               ${this.user?.mitarbeiter_klasse?.name || 'Nicht zugewiesen'}
@@ -199,11 +185,6 @@ export class ProfileDetail {
           
           <div class="detail-field">
             <label>Rolle</label>
-            <div class="detail-value text-muted">Wird vom Administrator verwaltet</div>
-          </div>
-          
-          <div class="detail-field">
-            <label>Unterrolle</label>
             <div class="detail-value text-muted">Wird vom Administrator verwaltet</div>
           </div>
         </div>

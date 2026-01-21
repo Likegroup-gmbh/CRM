@@ -439,16 +439,30 @@ export class KampagneList {
         markenKampagnenIds = (kampagnen || []).map(k => k.id).filter(Boolean);
       }
       
+      // STUFE 4: Kampagnen direkt über Unternehmen laden (für Kampagnen ohne Marke)
+      let unternehmenKampagnenIds = [];
+      if (unternehmenIds.length > 0) {
+        const { data: kampagnen } = await window.supabase
+          .from('kampagne')
+          .select('id')
+          .in('unternehmen_id', unternehmenIds);
+        
+        unternehmenKampagnenIds = (kampagnen || []).map(k => k.id).filter(Boolean);
+        console.log(`🏢 Kampagnen über Unternehmen gefunden:`, unternehmenKampagnenIds.length);
+      }
+      
       // Alle zusammenführen und Duplikate entfernen
       const allKampagnenIds = [...new Set([
         ...directKampagnenIds,
-        ...markenKampagnenIds
+        ...markenKampagnenIds,
+        ...unternehmenKampagnenIds
       ])];
       
       console.log(`🔍 Permission-Details:`, {
         direkteKampagnen: directKampagnenIds.length,
         erlaubteMarken: allowedMarkenIds.length,
         markenKampagnen: markenKampagnenIds.length,
+        unternehmenKampagnen: unternehmenKampagnenIds.length,
         gesamt: allKampagnenIds.length
       });
       

@@ -240,7 +240,6 @@ export class AuthService {
       id: 'offline-user',
       name: 'Offline Benutzer',
       rolle: 'admin',
-      unterrolle: 'admin',
       auth_user_id: authUserId
     };
     window.currentUser = offlineUser;
@@ -259,7 +258,6 @@ export class AuthService {
           id: 'offline-user',
           name: 'Test Benutzer',
           rolle: 'admin',
-          unterrolle: 'admin',
           auth_user_id: 'offline-auth-id'
         };
         window.currentUser = offlineUser;
@@ -335,7 +333,6 @@ export class AuthService {
         options: {
           data: {
             role: 'mitarbeiter',  // Klare Kennzeichnung als Mitarbeiter
-            subrole: 'pending',
             name: name
           }
         }
@@ -425,7 +422,6 @@ export class AuthService {
           name: name,
           email: email,
           rolle: 'pending',
-          unterrolle: 'awaiting_approval',
           mitarbeiter_klasse_id: klasseId,
           zugriffsrechte: null,
           freigeschaltet: false

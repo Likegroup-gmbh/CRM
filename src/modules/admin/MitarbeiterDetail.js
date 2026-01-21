@@ -271,7 +271,6 @@ export class MitarbeiterDetail extends PersonDetailBase {
     // Info-Items für Sidebar
     const sidebarInfo = this.renderInfoItems([
       { label: 'Rolle', value: this.user?.rolle || '-', badge: true, badgeType: this.user?.rolle === 'admin' ? 'primary' : 'secondary' },
-      { label: 'Unterrolle', value: this.user?.unterrolle || '-' },
       { label: 'Klasse', value: this.user?.mitarbeiter_klasse_name || 'Nicht zugewiesen' },
       { label: 'Freigeschaltet', value: this.user?.freigeschaltet ? 'Ja' : 'Nein', badge: true, badgeType: this.user?.freigeschaltet ? 'success' : 'warning' },
       { label: 'Erstellt', value: this.formatDate(this.user?.created_at) }
@@ -845,12 +844,8 @@ export class MitarbeiterDetail extends PersonDetailBase {
             if (self.user.rolle === 'pending') {
               updateData.rolle = 'mitarbeiter';
             }
-            if (self.user.unterrolle === 'awaiting_approval') {
-              updateData.unterrolle = 'can_view';
-            }
           } else {
             updateData.rolle = 'pending';
-            updateData.unterrolle = 'awaiting_approval';
             updateData.zugriffsrechte = null;
           }
           
@@ -868,7 +863,6 @@ export class MitarbeiterDetail extends PersonDetailBase {
           
           self.user.freigeschaltet = isFreigeschaltet;
           if (updateData.rolle) self.user.rolle = updateData.rolle;
-          if (updateData.unterrolle) self.user.unterrolle = updateData.unterrolle;
           if (updateData.zugriffsrechte !== undefined) self.user.zugriffsrechte = updateData.zugriffsrechte;
           
           if (window.notificationSystem && self.userId) {

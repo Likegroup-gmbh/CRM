@@ -665,6 +665,7 @@ export class AuftragDetail {
               </div>
               ${(this.auftrag?.creator_budget || this.auftrag?.gesamt_budget || this.auftrag?.nettobetrag) ? `<div class="summary-planned">${this.getBudgetPercentage()}%</div>` : ''}
             </div>
+            ${this.renderAuftragsbestaetigungCard()}
           </div>
         </div>
 
@@ -696,6 +697,37 @@ export class AuftragDetail {
           <h3>Kooperationen & Videos</h3>
           ${this.renderKooperationenVideosTable()}
         </div>
+      </div>
+    `;
+  }
+
+  // Rendere Auftragsbestätigung Card
+  renderAuftragsbestaetigungCard() {
+    const hasBestaetigung = this.auftrag?.auftragsbestaetigung_url;
+    
+    if (hasBestaetigung) {
+      return `
+        <div class="summary-card summary-card--document">
+          <div class="summary-icon">📄</div>
+          <div class="summary-label">Auftragsbestätigung</div>
+          <a href="${this.auftrag.auftragsbestaetigung_url}" 
+             target="_blank" 
+             rel="noopener noreferrer" 
+             class="mdc-btn mdc-btn--secondary mdc-btn--sm" 
+             style="margin-top: 8px;">
+            <span class="mdc-btn__label">Öffnen</span>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px; margin-left: 4px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+            </svg>
+          </a>
+        </div>
+      `;
+    }
+    
+    return `
+      <div class="summary-card summary-card--document summary-card--empty">
+        <div class="summary-icon" style="opacity: 0.5;">📄</div>
+        <div class="summary-label" style="color: var(--gray-500);">Keine Auftragsbestätigung</div>
       </div>
     `;
   }
@@ -1113,6 +1145,13 @@ export class AuftragDetail {
       const result = await window.dataService.updateEntity('auftrag', this.auftragId, submitData);
 
       if (result.success) {
+        // Auftragsbestätigung Upload (falls vorhanden)
+        try {
+          await this.handleAuftragsbestaetigungUpload(form);
+        } catch (e) {
+          console.warn('⚠️ Auftragsbestätigung Upload fehlgeschlagen', e);
+        }
+
         // Success State
         if (submitBtn) {
           submitBtn.classList.remove('is-loading');
@@ -1393,6 +1432,89 @@ export class AuftragDetail {
   showDetailsForm(auftragId) {
     // Navigiere zur Auftragsdetails-Erstellungsseite
     window.navigateTo('/auftragsdetails/new');
+  }
+
+  /**
+   * Auftragsbestätigung Upload Handling
+   * @param {HTMLFormElement} form - Das Formular
+   */
+  async handleAuftragsbestaetigungUpload(form) {
+    const uploaderRoot = form.querySelector('.uploader[data-name="auftragsbestaetigung_file"]');
+    
+    if (!uploaderRoot || !uploaderRoot.__uploaderInstance || !uploaderRoot.__uploaderInstance.files.length) {
+      console.log('📁 Keine Auftragsbestätigung zum Hochladen');
+      return;
+    }
+
+    if (!window.supabase) {
+      console.warn('⚠️ Supabase nicht verfügbar');
+      return;
+    }
+
+    const file = uploaderRoot.__uploaderInstance.files[0];
+    const bucket = 'auftragsbestaetigung';
+    
+    // Altes Dokument löschen (falls vorhanden)
+    if (this.auftrag?.auftragsbestaetigung_path) {
+      try {
+        await window.supabase.storage
+          .from(bucket)
+          .remove([this.auftrag.auftragsbestaetigung_path]);
+        console.log('🗑️ Altes Dokument gelöscht');
+      } catch (e) {
+        console.warn('⚠️ Fehler beim Löschen des alten Dokuments:', e);
+      }
+    }
+    
+    // Sicherer Dateiname
+    const sanitizedName = file.name
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .replace(/\.{2,}/g, '_')
+      .substring(0, 200);
+    
+    const path = `${this.auftragId}/${Date.now()}_${sanitizedName}`;
+
+    console.log(`📤 Uploading Auftragsbestätigung: ${file.name} -> ${path}`);
+
+    // Upload zu Storage
+    const { error: upErr } = await window.supabase.storage
+      .from(bucket)
+      .upload(path, file, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: file.type
+      });
+
+    if (upErr) {
+      console.error('❌ Upload-Fehler:', upErr);
+      throw upErr;
+    }
+
+    // Signierte URL erstellen (7 Tage gültig)
+    const { data: signed, error: signErr } = await window.supabase.storage
+      .from(bucket)
+      .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 Tage
+
+    if (signErr) {
+      console.error('❌ Fehler bei signierter URL:', signErr);
+      throw signErr;
+    }
+
+    // URL in DB speichern
+    const { error: dbErr } = await window.supabase
+      .from('auftrag')
+      .update({
+        auftragsbestaetigung_url: signed.signedUrl,
+        auftragsbestaetigung_path: path
+      })
+      .eq('id', this.auftragId);
+
+    if (dbErr) {
+      console.error('❌ DB-Fehler beim Speichern der URL:', dbErr);
+      throw dbErr;
+    }
+
+    console.log('✅ Auftragsbestätigung erfolgreich hochgeladen');
   }
 }
 

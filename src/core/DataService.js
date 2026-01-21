@@ -341,7 +341,6 @@ export class DataService {
           name: 'string',
           email: 'string',
           rolle: 'string',
-          unterrolle: 'string',
           zugriffsrechte: 'json',
           auth_user_id: 'uuid',
           profile_image_url: 'string',
@@ -360,7 +359,6 @@ export class DataService {
           name: 'string',
           email: 'string',
           rolle: 'string',
-          unterrolle: 'string',
           freigeschaltet: 'boolean',
           created_at: 'date',
           updated_at: 'date'
@@ -382,7 +380,7 @@ export class DataService {
             displayField: 'markenname'
           }
         },
-        filters: ['name', 'email', 'rolle', 'unterrolle'],
+        filters: ['name', 'email', 'rolle'],
         sortBy: 'created_at',
         sortOrder: 'desc'
       },

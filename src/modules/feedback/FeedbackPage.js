@@ -44,7 +44,8 @@ export const feedbackPage = {
   editingCommentId: null, // ID des aktuell bearbeiteten Kommentars
   filters: {
     priority: null,
-    date: null
+    date: null,
+    area: null
   },
 
   async init() {
@@ -104,6 +105,10 @@ export const feedbackPage = {
       query = query.eq('priority', this.filters.priority);
     }
 
+    if (this.filters.area) {
+      query = query.eq('area', this.filters.area);
+    }
+
     if (this.filters.date) {
       const startOfDay = `${this.filters.date}T00:00:00`;
       const endOfDay = `${this.filters.date}T23:59:59.999`;
@@ -116,6 +121,13 @@ export const feedbackPage = {
       this.feedbacks = [];
     } else {
       this.feedbacks = data || [];
+      // Debug: Prüfen ob area-Feld für alle Feedbacks geladen wird
+      console.log('🔍 Feedbacks geladen:', this.feedbacks.map(f => ({
+        id: f.id,
+        area: f.area,
+        created_by: f.created_by,
+        isOwn: f.created_by === window.currentUser?.id
+      })));
     }
   },
 
@@ -217,6 +229,26 @@ export const feedbackPage = {
         <div class="page-header-right">
           <div class="filter-group">
             <input type="date" id="filter-date" class="form-input filter-select" value="${this.filters.date || ''}">
+            <select id="filter-area" class="form-select filter-select">
+              <option value="">Alle Bereiche</option>
+              <option value="dashboard" ${this.filters.area === 'dashboard' ? 'selected' : ''}>Dashboard</option>
+              <option value="aufgaben" ${this.filters.area === 'aufgaben' ? 'selected' : ''}>Aufgaben</option>
+              <option value="unternehmen" ${this.filters.area === 'unternehmen' ? 'selected' : ''}>Unternehmen</option>
+              <option value="marken" ${this.filters.area === 'marken' ? 'selected' : ''}>Marken</option>
+              <option value="ansprechpartner" ${this.filters.area === 'ansprechpartner' ? 'selected' : ''}>Ansprechpartner</option>
+              <option value="creator" ${this.filters.area === 'creator' ? 'selected' : ''}>Creator</option>
+              <option value="auftraege" ${this.filters.area === 'auftraege' ? 'selected' : ''}>Aufträge</option>
+              <option value="auftragsdetails" ${this.filters.area === 'auftragsdetails' ? 'selected' : ''}>Auftragsdetails</option>
+              <option value="kampagnen" ${this.filters.area === 'kampagnen' ? 'selected' : ''}>Kampagnen</option>
+              <option value="strategie" ${this.filters.area === 'strategie' ? 'selected' : ''}>Strategie</option>
+              <option value="creator-sourcing" ${this.filters.area === 'creator-sourcing' ? 'selected' : ''}>Sourcing</option>
+              <option value="vertraege" ${this.filters.area === 'vertraege' ? 'selected' : ''}>Verträge</option>
+              <option value="briefing" ${this.filters.area === 'briefing' ? 'selected' : ''}>Briefing</option>
+              <option value="videos" ${this.filters.area === 'videos' ? 'selected' : ''}>Videos</option>
+              <option value="rechnung" ${this.filters.area === 'rechnung' ? 'selected' : ''}>Rechnung</option>
+              <option value="mitarbeiter" ${this.filters.area === 'mitarbeiter' ? 'selected' : ''}>Mitarbeiter</option>
+              <option value="sonstiges" ${this.filters.area === 'sonstiges' ? 'selected' : ''}>Sonstiges</option>
+            </select>
             <select id="filter-priority" class="form-select filter-select">
               <option value="">Alle Prioritäten</option>
               <option value="high" ${this.filters.priority === 'high' ? 'selected' : ''}>Hoch</option>
@@ -313,6 +345,28 @@ export const feedbackPage = {
       high: 'Hoch'
     }[fb.priority] || 'Mittel';
 
+    // Bereich Labels
+    const areaLabels = {
+      dashboard: 'Dashboard',
+      aufgaben: 'Aufgaben',
+      unternehmen: 'Unternehmen',
+      marken: 'Marken',
+      ansprechpartner: 'Ansprechpartner',
+      creator: 'Creator',
+      auftraege: 'Aufträge',
+      auftragsdetails: 'Auftragsdetails',
+      kampagnen: 'Kampagnen',
+      strategie: 'Strategie',
+      'creator-sourcing': 'Sourcing',
+      vertraege: 'Verträge',
+      briefing: 'Briefing',
+      videos: 'Videos',
+      rechnung: 'Rechnung',
+      mitarbeiter: 'Mitarbeiter',
+      sonstiges: 'Sonstiges'
+    };
+    const areaLabel = fb.area ? areaLabels[fb.area] : null;
+
     const formattedDate = new Date(fb.created_at).toLocaleDateString('de-DE', { 
       day: '2-digit', 
       month: '2-digit', 
@@ -348,9 +402,12 @@ export const feedbackPage = {
            data-archived="${isArchived}">
         
         <div class="task-card-header">
-          <div class="task-priority-badge">
-            <span class="task-priority-indicator"></span>
-            <span class="task-priority-text">${priorityLabel}</span>
+          <div class="feedback-card-meta">
+            <div class="task-priority-badge">
+              <span class="task-priority-indicator"></span>
+              <span class="task-priority-text">${priorityLabel}</span>
+            </div>
+            ${areaLabel ? `<span class="feedback-area-badge">${areaLabel}</span>` : ''}
           </div>
           <div class="feedback-card-actions">
             ${this.isAdmin ? `
@@ -579,6 +636,17 @@ export const feedbackPage = {
     if (dateFilter) {
       dateFilter.addEventListener('change', async (e) => {
         this.filters.date = e.target.value || null;
+        await this.loadFeedbacks();
+        await this.loadComments();
+        this.render();
+        this.bindEvents();
+      });
+    }
+
+    const areaFilter = document.getElementById('filter-area');
+    if (areaFilter) {
+      areaFilter.addEventListener('change', async (e) => {
+        this.filters.area = e.target.value || null;
         await this.loadFeedbacks();
         await this.loadComments();
         this.render();

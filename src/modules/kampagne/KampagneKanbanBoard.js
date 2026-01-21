@@ -154,15 +154,28 @@ export class KampagneKanbanBoard {
             markenKampagnenIds = (kampagnen || []).map(k => k.id).filter(Boolean);
           }
           
+          // Kampagnen direkt über Unternehmen laden (für Kampagnen ohne Marke)
+          let unternehmenKampagnenIds = [];
+          if (unternehmenIds.length > 0) {
+            const { data: kampagnen } = await window.supabase
+              .from('kampagne')
+              .select('id')
+              .in('unternehmen_id', unternehmenIds);
+            
+            unternehmenKampagnenIds = (kampagnen || []).map(k => k.id).filter(Boolean);
+          }
+          
           assignedKampagnenIds = [...new Set([
             ...directKampagnenIds,
-            ...markenKampagnenIds
+            ...markenKampagnenIds,
+            ...unternehmenKampagnenIds
           ])];
           
           console.log(`🔍 KAMPAGNEKANBAN: Mitarbeiter ${window.currentUser?.id} hat Zugriff auf:`, {
             direkteKampagnen: directKampagnenIds.length,
             erlaubteMarken: allowedMarkenIds.length,
             markenKampagnen: markenKampagnenIds.length,
+            unternehmenKampagnen: unternehmenKampagnenIds.length,
             gesamt: assignedKampagnenIds.length
           });
           
