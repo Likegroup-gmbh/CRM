@@ -906,19 +906,47 @@ export class DependentFields {
         
         console.log(`✅ ${roleMitarbeiterIds.length} ${targetRole}-Mitarbeiter vom Unternehmen gefunden`);
         
-        // Alle Benutzer laden (nicht nur Kunden)
-        const { data: allMitarbeiter } = await window.supabase
+        // Mitarbeiter laden - mit filterByKlasse wenn vorhanden (PLUS Admins immer)
+        let mitarbeiterQuery = window.supabase
           .from('benutzer')
-          .select('id, name')
-          .neq('rolle', 'kunde')
-          .order('name');
+          .select('id, name, vorname, nachname, rolle')
+          .neq('rolle', 'kunde');
+        
+        // filterByKlasse anwenden wenn vorhanden (Admins werden immer inkludiert)
+        if (fieldConfig.filterByKlasse) {
+          const klasseNames = Array.isArray(fieldConfig.filterByKlasse) 
+            ? fieldConfig.filterByKlasse 
+            : [fieldConfig.filterByKlasse];
+          
+          // Lade die IDs der gewünschten Klassen
+          const { data: klassenData, error: klassenError } = await window.supabase
+            .from('mitarbeiter_klasse')
+            .select('id')
+            .in('name', klasseNames);
+          
+          if (!klassenError && klassenData && klassenData.length > 0) {
+            const klassenIds = klassenData.map(k => k.id);
+            // Admins IMMER anzeigen + Mitarbeiter mit passender Klasse
+            mitarbeiterQuery = mitarbeiterQuery.or(`rolle.eq.admin,mitarbeiter_klasse_id.in.(${klassenIds.join(',')})`);
+            console.log(`🎯 Filtere nach Klassen für ${fieldConfig.name}:`, klasseNames, '(+ Admins)');
+          } else {
+            console.warn(`⚠️ Keine Mitarbeiter-Klassen gefunden für: ${klasseNames.join(', ')} - zeige nur Admins`);
+            mitarbeiterQuery = mitarbeiterQuery.eq('rolle', 'admin');
+          }
+        }
+        
+        const { data: allMitarbeiter } = await mitarbeiterQuery.order('name');
         
         // Optionen erstellen, mit vorausgewählt für Mitarbeiter mit passender Rolle
-        const options = (allMitarbeiter || []).map(m => ({
-          value: m.id,
-          label: m.name,
-          selected: roleMitarbeiterIds.includes(m.id)
-        }));
+        const options = (allMitarbeiter || []).map(m => {
+          // Name: Vorname + Nachname oder Fallback auf name
+          const displayName = (m.vorname && m.nachname) ? `${m.vorname} ${m.nachname}` : m.name;
+          return {
+            value: m.id,
+            label: displayName,
+            selected: roleMitarbeiterIds.includes(m.id)
+          };
+        });
         
         console.log(`✅ DEPENDENTFIELDS PREFILL: ${options.filter(o => o.selected).length} von ${options.length} Mitarbeitern für ${fieldConfig.name} vorausgewählt`);
         console.log(`✅ DEPENDENTFIELDS PREFILL: Vorausgewählte Optionen:`, options.filter(o => o.selected).map(o => o.label));

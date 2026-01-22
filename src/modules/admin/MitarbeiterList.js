@@ -57,14 +57,7 @@ export class MitarbeiterList {
         const { data, error } = await window.supabase
           .from('benutzer')
           .select(`
-            id,
-            name,
-            email,
-            rolle,
-            unterrolle,
-            freigeschaltet,
-            auth_user_id,
-            profile_image_url,
+            *,
             mitarbeiter_klasse:mitarbeiter_klasse_id(id, name)
           `)
           .neq('rolle', 'kunde')
@@ -75,7 +68,7 @@ export class MitarbeiterList {
           // Fallback ohne email/freigeschaltet Spalte
           const { data: fallback, error: fallbackError } = await window.supabase
             .from('benutzer')
-            .select('id, name, rolle, unterrolle, auth_user_id, profile_image_url, mitarbeiter_klasse:mitarbeiter_klasse_id(id, name)')
+            .select('*, mitarbeiter_klasse:mitarbeiter_klasse_id(id, name)')
             .neq('rolle', 'kunde')
             .order('name');
 
@@ -102,41 +95,105 @@ export class MitarbeiterList {
     }
   }
 
+  // Hilfsfunktion: Vollständigen Namen aus Vorname/Nachname oder Fallback auf name
+  getDisplayName(user) {
+    if (user?.vorname && user?.nachname) {
+      return `${user.vorname} ${user.nachname}`;
+    }
+    return user?.name || 'Unbekannt';
+  }
+
+  // Rolle anzeigen: Admin wenn admin, sonst Mitarbeiter-Klasse
+  getRolleDisplay(user) {
+    if (user.rolle === 'admin') {
+      return `<div class="tags tags-compact"><span class="tag">Admin</span></div>`;
+    }
+    if (user.mitarbeiter_klasse?.name) {
+      return `<div class="tags tags-compact"><span class="tag">${window.validatorSystem.sanitizeHtml(user.mitarbeiter_klasse.name)}</span></div>`;
+    }
+    return '—';
+  }
+
+  // Render einzelne Mitarbeiter-Zeile
+  renderMitarbeiterRow(u) {
+    const freigeschaltetIcon = u.freigeschaltet ?
+      '<span class="status-badge success">FREIGESCHALTET</span>' :
+      '<span class="status-badge warning">WARTET</span>';
+
+    const actionsMenu = this.renderActionsMenu(u);
+    
+    const vorname = u.vorname || (u.name ? u.name.split(' ')[0] : '—');
+    const nachname = u.nachname || (u.name && u.name.includes(' ') ? u.name.split(' ').slice(1).join(' ') : '—');
+    
+    const initials = `${vorname[0] || ''}${nachname[0] || ''}`.toUpperCase() || '—';
+    const avatar = u.profile_image_url
+      ? `<img src="${u.profile_image_url}" alt="${window.validatorSystem.sanitizeHtml(vorname + ' ' + nachname)}" class="table-logo">`
+      : `<div class="table-avatar-placeholder table-avatar-round">${window.validatorSystem.sanitizeHtml(initials)}</div>`;
+
+    return `
+      <tr data-id="${u.id}">
+        <td class="col-vorname">
+          <div class="table-user-cell">
+            ${avatar}
+            ${u.id ? `<a href="#" class="table-link" data-table="mitarbeiter" data-id="${u.id}">${window.validatorSystem.sanitizeHtml(vorname)}</a>` : window.validatorSystem.sanitizeHtml(vorname)}
+          </div>
+        </td>
+        <td class="col-nachname">${window.validatorSystem.sanitizeHtml(nachname)}</td>
+        <td>${u.email ? `<a href="mailto:${u.email}" class="table-link email-link">${window.validatorSystem.sanitizeHtml(u.email)}</a>` : '—'}</td>
+        <td>${freigeschaltetIcon}</td>
+        <td class="col-actions">${actionsMenu}</td>
+      </tr>
+    `;
+  }
+
   async render() {
-    const tbody = this.rows.map(u => {
-      const freigeschaltetIcon = u.freigeschaltet ?
-        '<span class="status-badge success">FREIGESCHALTET</span>' :
-        '<span class="status-badge warning">WARTET</span>';
+    // Hierarchie-Reihenfolge definieren
+    const hierarchie = [
+      { key: 'admin', label: 'Admin', filter: u => u.rolle === 'admin' },
+      { key: 'Management', label: 'Management', filter: u => u.rolle !== 'admin' && u.mitarbeiter_klasse?.name === 'Management' },
+      { key: 'Lead', label: 'Lead', filter: u => u.rolle !== 'admin' && u.mitarbeiter_klasse?.name === 'Lead' },
+      { key: 'Projektmanagement', label: 'Projektmanagement', filter: u => u.rolle !== 'admin' && u.mitarbeiter_klasse?.name === 'Projektmanagement' },
+      { key: 'Strategie', label: 'Strategie', filter: u => u.rolle !== 'admin' && u.mitarbeiter_klasse?.name === 'Strategie' },
+      { key: 'Copywriter', label: 'Copywriter', filter: u => u.rolle !== 'admin' && u.mitarbeiter_klasse?.name === 'Copywriter' },
+      { key: 'Cutter', label: 'Cutter', filter: u => u.rolle !== 'admin' && u.mitarbeiter_klasse?.name === 'Cutter' },
+      { key: 'ohne', label: 'Ohne Rolle', filter: u => u.rolle !== 'admin' && !u.mitarbeiter_klasse?.name }
+    ];
 
-      // Aktionsmenü für Mitarbeiter-Rollen-Änderung
-      const actionsMenu = this.renderActionsMenu(u);
-      const initials = (u.name || '')
-        .split(' ')
-        .filter(Boolean)
-        .slice(0, 2)
-        .map(part => part[0])
-        .join('')
-        .toUpperCase() || '—';
-      const avatar = u.profile_image_url
-        ? `<img src="${u.profile_image_url}" alt="${window.validatorSystem.sanitizeHtml(u.name || '')}" class="table-logo">`
-        : `<div class="table-avatar-placeholder table-avatar-round">${window.validatorSystem.sanitizeHtml(initials)}</div>`;
-
-      return `
-        <tr data-id="${u.id}">
-          <td class="col-name col-mitarbeiter-name">
-            <div class="table-user-cell">
-              ${avatar}
-              ${u.id ? `<a href="#" class="table-link" data-table="mitarbeiter" data-id="${u.id}">${window.validatorSystem.sanitizeHtml(u.name || '—')}</a>` : window.validatorSystem.sanitizeHtml(u.name || '—')}
+    // Gruppierte Tabellen-Sektionen erstellen
+    let tbody = '';
+    
+    for (const gruppe of hierarchie) {
+      const mitarbeiter = this.rows.filter(gruppe.filter);
+      
+      if (mitarbeiter.length === 0) continue;
+      
+      // Gruppen-Header
+      tbody += `
+        <tr class="table-group-header">
+          <td colspan="5">
+            <div class="table-group-title">
+              <span class="table-group-label">${gruppe.label}</span>
+              <span class="table-group-count">${mitarbeiter.length}</span>
             </div>
           </td>
-          <td>${window.validatorSystem.sanitizeHtml(u.rolle || '—')}</td>
-          <td>${u.email ? `<a href="mailto:${u.email}" class="table-link email-link">${window.validatorSystem.sanitizeHtml(u.email)}</a>` : '—'}</td>
-          <td>${u.mitarbeiter_klasse?.name ? `<div class="tags tags-compact"><span class="tag">${window.validatorSystem.sanitizeHtml(u.mitarbeiter_klasse.name)}</span></div>` : '—'}</td>
-          <td>${freigeschaltetIcon}</td>
-          <td class="col-actions">${actionsMenu}</td>
         </tr>
       `;
-    }).join('');
+      
+      // Mitarbeiter in dieser Gruppe (sortiert nach Name)
+      mitarbeiter
+        .sort((a, b) => {
+          const nameA = this.getDisplayName(a).toLowerCase();
+          const nameB = this.getDisplayName(b).toLowerCase();
+          return nameA.localeCompare(nameB);
+        })
+        .forEach(u => {
+          tbody += this.renderMitarbeiterRow(u);
+        });
+    }
+
+    if (!tbody) {
+      tbody = '<tr><td colspan="5" class="loading">Keine Mitarbeiter gefunden</td></tr>';
+    }
 
     const html = `
       <div class="page-header">
@@ -145,19 +202,18 @@ export class MitarbeiterList {
       </div>
 
       <div class="data-table-container">
-        <table class="data-table">
+        <table class="data-table data-table--grouped">
           <thead>
             <tr>
-              <th class="col-name col-mitarbeiter-name">Name</th>
-              <th>Rolle</th>
+              <th class="col-vorname">Vorname</th>
+              <th class="col-nachname">Nachname</th>
               <th>E-Mail</th>
-              <th>Kategorie</th>
               <th>Status</th>
               <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody>
-            ${tbody || '<tr><td colspan="6" class="loading">Keine Mitarbeiter gefunden</td></tr>'}
+            ${tbody}
           </tbody>
         </table>
       </div>
@@ -240,40 +296,26 @@ export class MitarbeiterList {
       }
     });
 
-    // Live-Update der Tabellenzelle bei entityUpdated
+    // Live-Update bei entityUpdated
     window.addEventListener('entityUpdated', async (evt) => {
       const { entity, id, field, value } = evt.detail || {};
       if (entity !== 'benutzer') return;
       // Nur reagieren, wenn Klasse oder Freischalt-Status geändert wurde
       if (field !== 'mitarbeiter_klasse_id' && field !== 'freigeschaltet') return;
 
-      const row = document.querySelector(`tr[data-id="${id}"]`);
-      if (!row) return;
-
-      // Aktualisiere Zelle Kategorie
+      // Bei Klassen-Änderung: Neu laden und rendern (weil sich Gruppierung ändert)
       if (field === 'mitarbeiter_klasse_id') {
-        try {
-          // Stelle sicher, dass wir die neueste Liste der Klassen haben
-          if (!Array.isArray(this.mitarbeiterKlassen) || this.mitarbeiterKlassen.length === 0) {
-            await this.load();
-          }
-          const klasse = (this.mitarbeiterKlassen || []).find(k => k.id === value);
-          const katCell = row.children[4];
-          if (katCell) {
-            if (klasse?.name) {
-              katCell.innerHTML = `<div class="tags tags-compact"><span class="tag">${window.validatorSystem.sanitizeHtml(klasse.name)}</span></div>`;
-            } else {
-              katCell.textContent = '—';
-            }
-          }
-        } catch(err) {
-          console.warn('Konnte Kategorie-Zelle nicht live aktualisieren', err);
-        }
+        await this.load();
+        await this.render();
+        return;
       }
 
-      // Aktualisiere Status-Zelle
+      // Status-Update kann inline passieren
       if (field === 'freigeschaltet') {
-        const statusCell = row.children[5];
+        const row = document.querySelector(`tr[data-id="${id}"]`);
+        if (!row) return;
+        // Spalten: Vorname(0), Nachname(1), E-Mail(2), Status(3), Aktionen(4)
+        const statusCell = row.children[3];
         if (statusCell) {
           statusCell.innerHTML = value
             ? '<span class="status-badge success">FREIGESCHALTET</span>'

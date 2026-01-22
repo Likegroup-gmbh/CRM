@@ -569,7 +569,9 @@ export class KampagneList {
               <th>Art der Kampagne</th>
               <th>Status</th>
               <th>Start</th>
+              <th>Briefing</th>
               <th>Strategie</th>
+              <th>Skripte</th>
               <th>Sourcing</th>
               <th>Video</th>
               <th>Post</th>
@@ -582,7 +584,7 @@ export class KampagneList {
           </thead>
           <tbody id="kampagnen-table-body">
             <tr>
-              <td colspan="${isKunde ? '16' : '17'}" class="loading">Lade Kampagnen...</td>
+              <td colspan="${isKunde ? '18' : '19'}" class="loading">Lade Kampagnen...</td>
             </tr>
           </tbody>
         </table>
@@ -930,7 +932,9 @@ export class KampagneList {
           <td>${this.renderArtTags(kampagne.art_der_kampagne_display || kampagne.art_der_kampagne)}</td>
           <td>${this.renderStatusBadge(kampagne.status_name)}</td>
           <td>${formatDate(kampagne.start)}</td>
+          <td>${formatDate(kampagne.deadline_briefing)}</td>
           <td>${formatDate(kampagne.deadline_strategie)}</td>
+          <td>${formatDate(kampagne.deadline_skripte)}</td>
           <td>${formatDate(kampagne.deadline_creator_sourcing)}</td>
           <td>${formatDate(kampagne.deadline_video_produktion)}</td>
           <td>${formatDate(kampagne.deadline_post_produktion)}</td>

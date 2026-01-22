@@ -3,6 +3,7 @@
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
+import { sortDropdown } from '../../core/components/SortDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
@@ -21,6 +22,8 @@ export class CreatorList {
     this._loadDebounceTimer = null;
     // Performance: NumberFormat einmal erstellen
     this._numberFormatter = new Intl.NumberFormat('de-DE');
+    // Sortierung: Standard alphabetisch A-Z (nach Nachname)
+    this.currentSort = { field: 'nachname', ascending: true };
   }
 
   // Initialisiere Creator-Liste
@@ -94,9 +97,16 @@ export class CreatorList {
       const currentFilters = filterSystem.getFilters('creator');
       const { currentPage, itemsPerPage } = this.pagination.getState();
       
+      // Sortierung zu Filtern hinzufügen
+      const filtersWithSort = {
+        ...currentFilters,
+        _sortBy: this.currentSort.field,
+        _sortOrder: this.currentSort.ascending ? 'asc' : 'desc'
+      };
+      
       const result = await window.dataService.loadEntitiesWithPagination(
         'creator',
-        currentFilters,
+        filtersWithSort,
         currentPage,
         itemsPerPage
       );
@@ -149,6 +159,7 @@ export class CreatorList {
     // Filter-Dropdown über dem Tabellen-Header
     const filterHtml = `<div class="filter-bar">
       <div class="filter-left">
+        <div id="sort-dropdown-container"></div>
         <div id="filter-dropdown-container"></div>
       </div>
     </div>`;
@@ -206,8 +217,19 @@ export class CreatorList {
     await this.renderShell();
   }
 
-  // Initialisiere Filter-Dropdown
+  // Initialisiere Filter-Dropdown und Sort-Dropdown
   async initializeFilterBar() {
+    // Sort-Dropdown initialisieren
+    const sortContainer = document.getElementById('sort-dropdown-container');
+    if (sortContainer) {
+      sortDropdown.init('creator', sortContainer, {
+        nameField: 'nachname',
+        defaultSort: 'name_asc',
+        onSortChange: (sortConfig) => this.onSortChange(sortConfig)
+      });
+    }
+    
+    // Filter-Dropdown initialisieren
     const filterContainer = document.getElementById('filter-dropdown-container');
     if (filterContainer) {
       // Nutze das neue Filter-Dropdown System
@@ -216,6 +238,14 @@ export class CreatorList {
         onFilterReset: () => this.onFiltersReset()
       });
     }
+  }
+
+  // Sortierung geändert
+  onSortChange(sortConfig) {
+    console.log('Sortierung geändert:', sortConfig);
+    this.currentSort = sortConfig;
+    this.pagination.currentPage = 1;
+    this.loadDataDebounced(50);
   }
 
   // Filter angewendet

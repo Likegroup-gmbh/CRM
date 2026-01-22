@@ -3,6 +3,7 @@
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
+import { sortDropdown } from '../../core/components/SortDropdown.js';
 import { markeCreate } from './MarkeCreate.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
@@ -15,6 +16,8 @@ export class MarkeList {
     this.selectedMarken = new Set();
     this._boundEventListeners = new Set();
     this.pagination = new PaginationSystem();
+    // Sortierung: Standard alphabetisch A-Z
+    this.currentSort = { field: 'markenname', ascending: true };
   }
 
   // Initialisiere Marken-Liste
@@ -257,7 +260,7 @@ export class MarkeList {
           ansprechpartner:ansprechpartner_marke(ansprechpartner:ansprechpartner_id(id, vorname, nachname, email, profile_image_url)),
           mitarbeiter:marke_mitarbeiter!fk_marke_mitarbeiter_marke_id(role, mitarbeiter:mitarbeiter_id(id, name, profile_image_url))
         `, { count: 'exact' })
-        .order('created_at', { ascending: false });
+        .order(this.currentSort.field, { ascending: this.currentSort.ascending });
 
       // Nicht-Admin Filterung
       if (!isAdmin) {
@@ -368,9 +371,9 @@ export class MarkeList {
     // Filter-UI über dem Tabellen-Header
     let filterHtml = `<div class="filter-bar">
       <div class="filter-left">
+        <div id="sort-dropdown-container"></div>
         <div id="filter-dropdown-container"></div>
       </div>
-      
     </div>`;
     
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
@@ -420,8 +423,19 @@ export class MarkeList {
     await this.initializeFilterBar();
   }
 
-  // Initialisiere Filter-Dropdown
+  // Initialisiere Filter-Dropdown und Sort-Dropdown
   async initializeFilterBar() {
+    // Sort-Dropdown initialisieren
+    const sortContainer = document.getElementById('sort-dropdown-container');
+    if (sortContainer) {
+      sortDropdown.init('marke', sortContainer, {
+        nameField: 'markenname',
+        defaultSort: 'name_asc',
+        onSortChange: (sortConfig) => this.onSortChange(sortConfig)
+      });
+    }
+    
+    // Filter-Dropdown initialisieren
     const filterContainer = document.getElementById('filter-dropdown-container');
     if (filterContainer) {
       // Nutze das neue Filter-Dropdown System
@@ -430,6 +444,15 @@ export class MarkeList {
         onFilterReset: () => this.onFiltersReset()
       });
     }
+  }
+
+  // Sortierung geändert
+  onSortChange(sortConfig) {
+    console.log('Sortierung geändert:', sortConfig);
+    this.currentSort = sortConfig;
+    // Reset pagination auf Seite 1 bei Sortier-Änderung
+    this.pagination.reset();
+    this.loadAndRender();
   }
 
   // Filter angewendet

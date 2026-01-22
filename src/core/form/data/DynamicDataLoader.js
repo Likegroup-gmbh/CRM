@@ -917,6 +917,30 @@ export class DynamicDataLoader {
         if (field.table === 'benutzer') {
           query = query.neq('rolle', 'kunde');
           console.log(`🚫 Filtere Kunden aus für ${field.name}`);
+          
+          // filterByKlasse: Nur Mitarbeiter mit bestimmter Klasse anzeigen (PLUS Admins)
+          if (field.filterByKlasse) {
+            const klasseNames = Array.isArray(field.filterByKlasse) 
+              ? field.filterByKlasse 
+              : [field.filterByKlasse];
+            
+            // Lade die IDs der gewünschten Klassen
+            const { data: klassenData, error: klassenError } = await window.supabase
+              .from('mitarbeiter_klasse')
+              .select('id')
+              .in('name', klasseNames);
+            
+            if (!klassenError && klassenData && klassenData.length > 0) {
+              const klassenIds = klassenData.map(k => k.id);
+              // Admins IMMER anzeigen + Mitarbeiter mit passender Klasse
+              query = query.or(`rolle.eq.admin,mitarbeiter_klasse_id.in.(${klassenIds.join(',')})`);
+              console.log(`🎯 Filtere nach Klassen für ${field.name}:`, klasseNames, '(+ Admins)');
+            } else {
+              console.warn(`⚠️ Keine Mitarbeiter-Klassen gefunden für: ${klasseNames.join(', ')} - zeige nur Admins`);
+              // Fallback: Nur Admins anzeigen
+              query = query.eq('rolle', 'admin');
+            }
+          }
         }
 
         // Filter anwenden, wenn vorhanden

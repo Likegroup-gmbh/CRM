@@ -670,7 +670,7 @@ export class FormSystem {
         input.value = '';
       }
       
-      this.updateDropdownItems(dropdown, options, input.value);
+      this.updateDropdownItems(dropdown, options, input.value, field);
       
       // Für Phone-Fields: Position NACH dem Anzeigen berechnen
       if (isPhoneField) {
@@ -698,7 +698,7 @@ export class FormSystem {
     });
 
     input.addEventListener('input', () => {
-      this.updateDropdownItems(dropdown, options, input.value);
+      this.updateDropdownItems(dropdown, options, input.value, field);
       
       // Custom Validierung für required Felder
       if (input.hasAttribute('data-was-required')) {
@@ -710,12 +710,44 @@ export class FormSystem {
       }
     });
 
+    // Enter-Handler für allowCreate Feature
+    input.addEventListener('keydown', async (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        
+        const cleanFilterText = input.value.replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '').trim();
+        
+        // Prüfe ob exakter Match existiert
+        const exactMatch = options.find(opt => 
+          opt.label.toLowerCase() === cleanFilterText.toLowerCase()
+        );
+        
+        if (exactMatch) {
+          // Existierende Option auswählen
+          selectElement.value = exactMatch.value;
+          input.value = exactMatch.label;
+          if (hiddenInput) {
+            hiddenInput.value = exactMatch.value;
+          }
+          if (input.hasAttribute('data-was-required')) {
+            input.setCustomValidity('');
+          }
+          selectElement.dispatchEvent(new Event('change', { bubbles: true }));
+          dropdown.classList.remove('show');
+          console.log(`✅ Existierende Option per Enter ausgewählt: ${exactMatch.label}`);
+        } else if (field?.allowCreate && cleanFilterText.length > 0) {
+          // Neue Option erstellen
+          await this.handleCreateNewOption(dropdown, options, cleanFilterText, field);
+        }
+      }
+    });
+
     // Dropdown-Items erstellen
-    this.updateDropdownItems(dropdown, options, '');
+    this.updateDropdownItems(dropdown, options, '', field);
   }
 
   // Dropdown-Items aktualisieren
-  updateDropdownItems(dropdown, options, filterText) {
+  updateDropdownItems(dropdown, options, filterText, field = null) {
     dropdown.innerHTML = '';
     
     // Filter ignoriert Flag-Emojis
@@ -728,6 +760,11 @@ export class FormSystem {
     // Prüfe ob es ein Phone-Field ist
     const selectElement = dropdown.parentNode.parentNode.querySelector('select');
     const isPhoneField = selectElement?.dataset?.phoneField === 'true';
+
+    // Prüfe ob exakter Match existiert (case-insensitive)
+    const exactMatch = options.some(opt => 
+      opt.label.toLowerCase() === cleanFilterText.toLowerCase()
+    );
 
     filteredOptions.forEach(option => {
       const item = document.createElement('div');
@@ -803,6 +840,80 @@ export class FormSystem {
 
       dropdown.appendChild(item);
     });
+
+    // "Neu erstellen" Option anzeigen wenn allowCreate und kein exakter Match
+    if (field?.allowCreate && cleanFilterText.length > 0 && !exactMatch) {
+      const createItem = document.createElement('div');
+      createItem.className = 'searchable-select-item create-new';
+      createItem.innerHTML = `<span class="create-new-icon">+</span> Neu erstellen: <strong>${cleanFilterText}</strong>`;
+      
+      createItem.addEventListener('click', async () => {
+        await this.handleCreateNewOption(dropdown, options, cleanFilterText, field);
+      });
+      
+      createItem.addEventListener('mouseenter', () => createItem.classList.add('hover'));
+      createItem.addEventListener('mouseleave', () => createItem.classList.remove('hover'));
+      
+      dropdown.appendChild(createItem);
+    }
+  }
+
+  // Neue Option erstellen und auswählen (für allowCreate Feature)
+  async handleCreateNewOption(dropdown, options, newValue, field) {
+    try {
+      // In DB speichern
+      const newEntry = await this.createLookupEntry(field.table, field.displayField, newValue);
+      
+      // Neue Option erstellen
+      const newOption = {
+        value: newEntry[field.valueField],
+        label: newEntry[field.displayField],
+        selected: false
+      };
+      
+      // Zur Options-Liste hinzufügen
+      options.push(newOption);
+      
+      // Select-Element und Input finden
+      const selectElement = dropdown.parentNode.parentNode.querySelector('select');
+      const input = dropdown.parentNode.querySelector('.searchable-select-input');
+      const hiddenInput = dropdown.parentNode.querySelector('input[type="hidden"]');
+      
+      // Neue Option zum Select hinzufügen
+      const optionElement = document.createElement('option');
+      optionElement.value = newOption.value;
+      optionElement.textContent = newOption.label;
+      selectElement.appendChild(optionElement);
+      
+      // Auswählen
+      selectElement.value = newOption.value;
+      input.value = newOption.label;
+      if (hiddenInput) {
+        hiddenInput.value = newOption.value;
+      }
+      
+      // Custom Validierung für required Felder
+      if (input.hasAttribute('data-was-required')) {
+        input.setCustomValidity('');
+      }
+      
+      // Event auslösen
+      selectElement.dispatchEvent(new Event('change', { bubbles: true }));
+      
+      // Dropdown schließen
+      dropdown.classList.remove('show');
+      
+      // Cache invalidieren (für zukünftige Formular-Öffnungen)
+      if (window.staticDataCache) {
+        window.staticDataCache.invalidate(field.table);
+        console.log(`🗑️ Cache invalidiert für ${field.table}`);
+      }
+      
+      console.log(`✅ Neue Option erstellt und ausgewählt: ${newOption.label} → ${newOption.value}`);
+    } catch (error) {
+      console.error('❌ Fehler beim Erstellen der neuen Option:', error);
+      alert(`Fehler beim Erstellen: ${error.message || 'Unbekannter Fehler'}`);
+    }
   }
 
   // Searchable Select reinitialisieren
@@ -812,6 +923,30 @@ export class FormSystem {
     selectElement.style.display = 'none';
     
     this.createSearchableSelect(selectElement, options, field);
+  }
+
+  // Neuen Lookup-Eintrag in DB erstellen (für allowCreate Feature)
+  async createLookupEntry(table, displayField, value) {
+    console.log(`🆕 Erstelle neuen Eintrag in ${table}: ${value}`);
+    
+    try {
+      const { data, error } = await window.supabase
+        .from(table)
+        .insert({ [displayField]: value })
+        .select()
+        .single();
+      
+      if (error) {
+        console.error(`❌ Fehler beim Erstellen in ${table}:`, error);
+        throw error;
+      }
+      
+      console.log(`✅ Neuer Eintrag erstellt:`, data);
+      return data;
+    } catch (err) {
+      console.error(`❌ createLookupEntry fehlgeschlagen:`, err);
+      throw err;
+    }
   }
 
   // Formular-Validierung

@@ -267,6 +267,7 @@ export function generateFieldsWithBudgetHtml(artName, values = {}, anzahlReadonl
 /**
  * Generiert HTML NUR für Budget-Info (ohne Anzahl-Felder)
  * Für die Auftragsdetails-Erstellung - Anzahl wird über Kampagnen gepflegt
+ * Enthält Einkaufspreis und Verkaufspreis pro Kampagnenart
  * @param {string} artName - Name der Kampagnenart
  * @param {object} values - Werte für die Felder (optional)
  * @returns {string} - HTML String
@@ -280,6 +281,20 @@ export function generateBudgetOnlyFieldsHtml(artName, values = {}) {
   return `
     <fieldset class="kampagnenart-fields form-section-fieldset" data-art="${artName}" data-prefix="${prefix}">
       <legend>${displayName}</legend>
+      <div class="form-two-col">
+        <div class="form-field form-field--half">
+          <label for="${prefix}_einkaufspreis_netto">Einkaufspreis (Netto)</label>
+          <input type="number" id="${prefix}_einkaufspreis_netto" name="${prefix}_einkaufspreis_netto" 
+                 min="0" step="0.01" value="${values[`${prefix}_einkaufspreis_netto`] || ''}" 
+                 placeholder="0,00">
+        </div>
+        <div class="form-field form-field--half">
+          <label for="${prefix}_verkaufspreis_netto">Verkaufspreis (Netto)</label>
+          <input type="number" id="${prefix}_verkaufspreis_netto" name="${prefix}_verkaufspreis_netto" 
+                 min="0" step="0.01" value="${values[`${prefix}_verkaufspreis_netto`] || ''}" 
+                 placeholder="0,00">
+        </div>
+      </div>
       <div class="form-field form-field--full">
         <label for="${prefix}_budget_info">Budget & Informationen</label>
         <textarea id="${prefix}_budget_info" name="${prefix}_budget_info" rows="4" 

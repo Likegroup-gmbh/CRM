@@ -19,13 +19,23 @@ export class CreatorAuswahlList {
    * Initialisiere Liste
    */
   async init() {
-    window.setHeadline('Creator-Auswahl');
+    window.setHeadline('Sourcing');
     
     // Breadcrumb
     if (window.breadcrumbSystem) {
       window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Creator-Auswahl', url: '/creator-auswahl', clickable: false }
+        { label: 'Sourcing', url: '/creator-auswahl', clickable: false }
       ]);
+    }
+    
+    // FAB/Quick-Menu für Kunden in Sourcing verstecken
+    const rolle = window.currentUser?.rolle?.toLowerCase();
+    const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+    if (isKunde) {
+      const quickMenuContainer = document.getElementById('quick-menu-container');
+      if (quickMenuContainer) {
+        quickMenuContainer.style.display = 'none';
+      }
     }
     
     // Berechtigungsprüfung
@@ -128,7 +138,7 @@ export class CreatorAuswahlList {
                 <th class="col-name ca-col-name">Name</th>
                 <th class="ca-col-unternehmen">Unternehmen</th>
                 <th class="ca-col-marke">Marke</th>
-                <th>Kampagne</th>
+                <th class="ca-col-kampagne">Kampagne</th>
                 <th class="col-actions">Aktionen</th>
               </tr>
             </thead>
@@ -199,7 +209,7 @@ export class CreatorAuswahlList {
             <td class="col-name ca-col-name">${liste.name || 'Ohne Namen'}</td>
             <td class="ca-col-unternehmen">${unternehmenBubble}</td>
             <td class="ca-col-marke">${markeBubble}</td>
-            <td>${kampagneName}</td>
+            <td class="ca-col-kampagne">${kampagneName}</td>
             <td class="col-actions">
               <div class="actions-dropdown-container" data-entity-type="creator-auswahl">
                 <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">

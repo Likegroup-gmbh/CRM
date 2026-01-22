@@ -3,6 +3,7 @@
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
+import { sortDropdown } from '../../core/components/SortDropdown.js';
 import { ansprechpartnerCreate } from './AnsprechpartnerCreate.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
@@ -52,6 +53,8 @@ export class AnsprechpartnerList {
     this.selectedAnsprechpartner = new Set();
     this._boundEventListeners = new Set();
     this.pagination = new PaginationSystem();
+    // Sortierung: Standard alphabetisch A-Z (nach Nachname)
+    this.currentSort = { field: 'nachname', ascending: true };
   }
 
   // Initialisiere Ansprechpartner-Liste
@@ -106,9 +109,9 @@ export class AnsprechpartnerList {
       <div class="table-filter-wrapper">
         <div class="filter-bar">
           <div class="filter-left">
+            <div id="sort-dropdown-container"></div>
             <div id="filter-dropdown-container"></div>
           </div>
-          
         </div>
         <div class="table-actions">
           ${isAdmin ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
@@ -151,6 +154,17 @@ export class AnsprechpartnerList {
 
   // Initialisiere Filterbar mit neuem Filtersystem
   async initializeFilterBar() {
+    // Sort-Dropdown initialisieren
+    const sortContainer = document.getElementById('sort-dropdown-container');
+    if (sortContainer) {
+      sortDropdown.init('ansprechpartner', sortContainer, {
+        nameField: 'nachname',
+        defaultSort: 'name_asc',
+        onSortChange: (sortConfig) => this.onSortChange(sortConfig)
+      });
+    }
+    
+    // Filter-Dropdown initialisieren
     const filterContainer = document.getElementById('filter-dropdown-container');
     if (filterContainer) {
       // Nutze das neue Filter-Dropdown System
@@ -159,6 +173,15 @@ export class AnsprechpartnerList {
         onFilterReset: () => this.onFiltersReset()
       });
     }
+  }
+
+  // Sortierung geändert
+  onSortChange(sortConfig) {
+    console.log('Sortierung geändert:', sortConfig);
+    this.currentSort = sortConfig;
+    // Reset pagination auf Seite 1 bei Sortier-Änderung
+    this.pagination.reset();
+    this.loadAndRender();
   }
 
   // Filter angewendet
@@ -546,11 +569,14 @@ export class AnsprechpartnerList {
         }
       }
       
-      // Filter für erlaubte Ansprechpartner-IDs hinzufügen
+      // Filter für erlaubte Ansprechpartner-IDs und Sortierung hinzufügen
       const filtersToApply = { ...currentFilters };
       if (allowedAnsprechpartnerIds) {
         filtersToApply._allowedIds = allowedAnsprechpartnerIds;
       }
+      // Sortierung übergeben
+      filtersToApply._sortBy = this.currentSort.field;
+      filtersToApply._sortOrder = this.currentSort.ascending ? 'asc' : 'desc';
       
       console.log('🔍 Lade Ansprechpartner mit Filter und Pagination:', {
         filters: filtersToApply,

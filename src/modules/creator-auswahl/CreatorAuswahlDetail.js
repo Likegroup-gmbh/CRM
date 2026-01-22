@@ -2,6 +2,7 @@
 // Detail-Ansicht einer Creator-Auswahl-Liste mit Scraping-Funktionalität
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
+import { SourcingDetailColumnVisibilityDrawer } from './SourcingDetailColumnVisibilityDrawer.js';
 
 export class CreatorAuswahlDetail {
   constructor() {
@@ -14,6 +15,9 @@ export class CreatorAuswahlDetail {
     this.isDragging = false;
     this.startX = 0;
     this.scrollLeft = 0;
+    // Spalten-Sichtbarkeit
+    this.hiddenColumns = [];
+    this.columnVisibilityDrawer = null;
   }
 
   /**
@@ -23,6 +27,17 @@ export class CreatorAuswahlDetail {
     this.listeId = listeId;
     const rolle = window.currentUser?.rolle?.toLowerCase();
     this.isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+    
+    // FAB/Quick-Menu für Kunden verstecken
+    if (this.isKunde) {
+      const quickMenuContainer = document.getElementById('quick-menu-container');
+      if (quickMenuContainer) {
+        quickMenuContainer.style.display = 'none';
+      }
+    }
+    
+    // Lade Spalten-Sichtbarkeits-Einstellungen
+    this.loadColumnVisibilitySettings();
 
     try {
       this.liste = await creatorAuswahlService.getListeById(listeId);
@@ -30,9 +45,14 @@ export class CreatorAuswahlDetail {
 
       if (window.breadcrumbSystem) {
         window.breadcrumbSystem.updateBreadcrumb([
-          { label: 'Creator-Auswahl', url: '/creator-auswahl', clickable: true },
+          { label: 'Sourcing', url: '/creator-auswahl', clickable: true },
           { label: this.liste.name, url: `/creator-auswahl/${listeId}`, clickable: false }
         ]);
+      }
+
+      // Bei leerer Liste automatisch eine Zeile vorbereiten (nur für Nicht-Kunden)
+      if (this.items.length === 0 && !this.isKunde) {
+        await this.createInitialEmptyRow();
       }
 
       window.setHeadline('');
@@ -47,6 +67,92 @@ export class CreatorAuswahlDetail {
         </div>
       `;
     }
+  }
+  
+  /**
+   * Lade Spalten-Sichtbarkeits-Einstellungen aus localStorage (pro Liste)
+   */
+  loadColumnVisibilitySettings() {
+    try {
+      const key = `sourcing_detail_hidden_columns_${this.listeId}`;
+      const stored = localStorage.getItem(key);
+      this.hiddenColumns = stored ? JSON.parse(stored) : [];
+    } catch (error) {
+      this.hiddenColumns = [];
+    }
+  }
+
+  /**
+   * Speichere Spalten-Sichtbarkeits-Einstellungen (pro Liste)
+   */
+  saveColumnVisibilitySettings() {
+    try {
+      const key = `sourcing_detail_hidden_columns_${this.listeId}`;
+      localStorage.setItem(key, JSON.stringify(this.hiddenColumns));
+    } catch (error) {
+      console.error('Fehler beim Speichern der Spalten-Sichtbarkeit:', error);
+    }
+  }
+
+  /**
+   * Prüfe ob eine Spalte für Kunden sichtbar ist
+   */
+  isColumnVisibleForCustomer(columnClass) {
+    const userRole = window.currentUser?.rolle?.toLowerCase();
+    
+    // Admin/Mitarbeiter sehen immer alles
+    if (userRole === 'admin' || userRole === 'mitarbeiter') {
+      return true;
+    }
+    
+    // Name und Aktionen sind IMMER sichtbar für alle (essentiell)
+    if (columnClass === 'cp-col-name' || columnClass === 'cp-col-actions' || columnClass === 'cp-col-drag') {
+      return true;
+    }
+    
+    // Kunden sehen nur nicht-versteckte Spalten
+    const isVisible = !this.hiddenColumns.includes(columnClass);
+    return isVisible;
+  }
+
+  /**
+   * Zeige den Spalten-Sichtbarkeits-Drawer
+   */
+  showColumnVisibilityDrawer() {
+    if (!this.columnVisibilityDrawer) {
+      this.columnVisibilityDrawer = new SourcingDetailColumnVisibilityDrawer(
+        this.hiddenColumns,
+        (newHiddenColumns) => {
+          this.hiddenColumns = newHiddenColumns;
+          this.saveColumnVisibilitySettings();
+          this.rerenderTable();
+        }
+      );
+    } else {
+      this.columnVisibilityDrawer.hiddenColumns = this.hiddenColumns;
+    }
+    this.columnVisibilityDrawer.open();
+  }
+
+  /**
+   * Berechne Anzahl sichtbarer Spalten für colspan
+   */
+  getVisibleColumnCount() {
+    const allColumns = [
+      'cp-col-drag', 'cp-col-name', 'cp-col-typ', 'cp-col-link-ig', 'cp-col-follower-ig',
+      'cp-col-link-tt', 'cp-col-follower-tt', 'cp-col-check', 'cp-col-kategorie',
+      'cp-col-location', 'cp-col-notiz', 'cp-col-feedback', 'cp-col-prio1', 'cp-col-prio2',
+      'cp-col-nicht', 'cp-col-pricing', 'cp-col-actions'
+    ];
+    
+    let count = 0;
+    for (const col of allColumns) {
+      // Drag-Spalte nur für Nicht-Kunden, Aktionen-Spalte nur für Nicht-Kunden
+      if (col === 'cp-col-drag' && this.isKunde) continue;
+      if (col === 'cp-col-actions' && this.isKunde) continue;
+      if (this.isColumnVisibleForCustomer(col)) count++;
+    }
+    return count;
   }
 
   /**
@@ -70,6 +176,9 @@ export class CreatorAuswahlDetail {
     return `
       <div class="add-item-section add-item-section--compact">
         <div class="add-item-actions-right">
+          <button type="button" class="secondary-btn" id="btn-sourcing-detail-column-visibility">
+            Sichtbarkeit anpassen
+          </button>
           <button type="button" class="primary-btn" id="btn-open-add-drawer">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -111,6 +220,9 @@ export class CreatorAuswahlDetail {
       </svg>
     `.trim();
 
+    // Berechne sichtbare Spalten für colspan
+    const visibleColCount = this.getVisibleColumnCount();
+
     return `
       <div class="table-container creator-pool-table-container">
         <table class="data-table strategie-items-table creator-pool-table">
@@ -118,26 +230,39 @@ export class CreatorAuswahlDetail {
             <tr>
               ${!this.isKunde ? '<th class="col-drag col-sticky-1 cp-col-drag"></th>' : ''}
               <th class="${this.isKunde ? 'col-sticky-1' : 'col-sticky-2'} cp-col-name">Name</th>
-              <th class="${this.isKunde ? 'col-sticky-2' : 'col-sticky-3'} cp-col-typ">Creator Art</th>
-              <th class="cp-col-link">Link ${instagramIcon}</th>
-              <th class="cp-col-follower">Follower ${instagramIcon}</th>
-              <th class="cp-col-link">Link ${tiktokIcon}</th>
-              <th class="cp-col-follower">Follower ${tiktokIcon}</th>
-              <th class="cp-col-check">Rückmeldung</th>
-              <th class="cp-col-kategorie">Kategorie</th>
-              <th class="cp-col-location">Location</th>
-              <th class="cp-col-notiz">Notiz</th>
-              <th class="cp-col-feedback">Feedback Kunde</th>
-              <th class="cp-col-prio">Prio 1</th>
-              <th class="cp-col-prio">Prio 2</th>
-              <th class="cp-col-nicht">Nicht umsetzen</th>
-              <th class="cp-col-pricing">Pricing</th>
+              <th class="${this.isKunde ? 'col-sticky-2' : 'col-sticky-3'} cp-col-typ" ${!this.isColumnVisibleForCustomer('cp-col-typ') ? 'style="display:none;"' : ''}>Creator Art</th>
+              <th class="cp-col-link-ig" ${!this.isColumnVisibleForCustomer('cp-col-link-ig') ? 'style="display:none;"' : ''}>Link ${instagramIcon}</th>
+              <th class="cp-col-follower-ig" ${!this.isColumnVisibleForCustomer('cp-col-follower-ig') ? 'style="display:none;"' : ''}>Follower ${instagramIcon}</th>
+              <th class="cp-col-link-tt" ${!this.isColumnVisibleForCustomer('cp-col-link-tt') ? 'style="display:none;"' : ''}>Link ${tiktokIcon}</th>
+              <th class="cp-col-follower-tt" ${!this.isColumnVisibleForCustomer('cp-col-follower-tt') ? 'style="display:none;"' : ''}>Follower ${tiktokIcon}</th>
+              <th class="cp-col-check" ${!this.isColumnVisibleForCustomer('cp-col-check') ? 'style="display:none;"' : ''}>Rückmeldung</th>
+              <th class="cp-col-kategorie" ${!this.isColumnVisibleForCustomer('cp-col-kategorie') ? 'style="display:none;"' : ''}>Kategorie</th>
+              <th class="cp-col-location" ${!this.isColumnVisibleForCustomer('cp-col-location') ? 'style="display:none;"' : ''}>Location</th>
+              <th class="cp-col-notiz" ${!this.isColumnVisibleForCustomer('cp-col-notiz') ? 'style="display:none;"' : ''}>Notiz</th>
+              <th class="cp-col-feedback" ${!this.isColumnVisibleForCustomer('cp-col-feedback') ? 'style="display:none;"' : ''}>Feedback Kunde</th>
+              <th class="cp-col-prio1" ${!this.isColumnVisibleForCustomer('cp-col-prio1') ? 'style="display:none;"' : ''}>Prio 1</th>
+              <th class="cp-col-prio2" ${!this.isColumnVisibleForCustomer('cp-col-prio2') ? 'style="display:none;"' : ''}>Prio 2</th>
+              <th class="cp-col-nicht" ${!this.isColumnVisibleForCustomer('cp-col-nicht') ? 'style="display:none;"' : ''}>Nicht umsetzen</th>
+              <th class="cp-col-pricing" ${!this.isColumnVisibleForCustomer('cp-col-pricing') ? 'style="display:none;"' : ''}>Pricing</th>
               ${!this.isKunde ? '<th class="col-actions cp-col-actions">Aktionen</th>' : ''}
             </tr>
           </thead>
           <tbody id="items-table-body">
             ${this.items.map((item, index) => this.renderItemRow(item, index)).join('')}
           </tbody>
+          ${!this.isKunde ? `
+          <tfoot>
+            <tr class="add-row-footer">
+              <td colspan="${visibleColCount}" style="text-align: center; padding: var(--space-sm);">
+                <button type="button" class="add-row-btn" id="btn-add-empty-row" title="Neue Zeile hinzufügen">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px;">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                </button>
+              </td>
+            </tr>
+          </tfoot>
+          ` : ''}
         </table>
       </div>
     `;
@@ -171,7 +296,7 @@ export class CreatorAuswahlDetail {
             <textarea class="strategie-textarea" data-field="name" data-item-id="${item.id}" placeholder="Name...">${item.name || ''}</textarea>
           ` : `<div class="cell-text-readonly">${item.name || '-'}</div>`}
         </td>
-        <td class="cell-textarea ${this.isKunde ? 'col-sticky-2' : 'col-sticky-3'}">
+        <td class="cell-textarea cp-col-typ ${this.isKunde ? 'col-sticky-2' : 'col-sticky-3'}" ${!this.isColumnVisibleForCustomer('cp-col-typ') ? 'style="display:none;"' : ''}>
           ${!this.isKunde ? `
             <select 
               class="strategie-textarea" 
@@ -187,7 +312,7 @@ export class CreatorAuswahlDetail {
             </select>
           ` : `<div class="cell-text-readonly">${item.typ || '-'}</div>`}
         </td>
-        <td class="cell-textarea" style="text-align: center;">
+        <td class="cell-textarea cp-col-link-ig" style="text-align: center;${!this.isColumnVisibleForCustomer('cp-col-link-ig') ? ' display:none;' : ''}">
           ${!this.isKunde ? `
             <div class="link-cell-wrapper">
               ${item.link_instagram ? `<a href="${item.link_instagram}" target="_blank" class="link-icon-btn" title="${item.link_instagram}">${externalLinkIcon}</a>` : ''}
@@ -195,12 +320,12 @@ export class CreatorAuswahlDetail {
             </div>
           ` : item.link_instagram ? `<a href="${item.link_instagram}" target="_blank" class="link-icon-btn" title="${item.link_instagram}">${externalLinkIcon}</a>` : `<div class="cell-text-readonly">-</div>`}
         </td>
-        <td class="cell-textarea">
+        <td class="cell-textarea cp-col-follower-ig" ${!this.isColumnVisibleForCustomer('cp-col-follower-ig') ? 'style="display:none;"' : ''}>
           ${!this.isKunde ? `
             <textarea class="strategie-textarea" data-field="follower_instagram" data-item-id="${item.id}" placeholder="0">${item.follower_instagram || ''}</textarea>
           ` : `<div class="cell-text-readonly">${formatFollower(item.follower_instagram) || '-'}</div>`}
         </td>
-        <td class="cell-textarea" style="text-align: center;">
+        <td class="cell-textarea cp-col-link-tt" style="text-align: center;${!this.isColumnVisibleForCustomer('cp-col-link-tt') ? ' display:none;' : ''}">
           ${!this.isKunde ? `
             <div class="link-cell-wrapper">
               ${item.link_tiktok ? `<a href="${item.link_tiktok}" target="_blank" class="link-icon-btn" title="${item.link_tiktok}">${externalLinkIcon}</a>` : ''}
@@ -208,12 +333,12 @@ export class CreatorAuswahlDetail {
             </div>
           ` : item.link_tiktok ? `<a href="${item.link_tiktok}" target="_blank" class="link-icon-btn" title="${item.link_tiktok}">${externalLinkIcon}</a>` : `<div class="cell-text-readonly">-</div>`}
         </td>
-        <td class="cell-textarea">
+        <td class="cell-textarea cp-col-follower-tt" ${!this.isColumnVisibleForCustomer('cp-col-follower-tt') ? 'style="display:none;"' : ''}>
           ${!this.isKunde ? `
             <textarea class="strategie-textarea" data-field="follower_tiktok" data-item-id="${item.id}" placeholder="0">${item.follower_tiktok || ''}</textarea>
           ` : `<div class="cell-text-readonly">${formatFollower(item.follower_tiktok) || '-'}</div>`}
         </td>
-        <td style="text-align: center;">
+        <td class="cp-col-check" style="text-align: center;${!this.isColumnVisibleForCustomer('cp-col-check') ? ' display:none;' : ''}">
           <input 
             type="checkbox" 
             ${item.rueckmeldung_creator ? 'checked' : ''} 
@@ -223,22 +348,22 @@ export class CreatorAuswahlDetail {
             ${this.isKunde ? 'disabled' : ''}
           >
         </td>
-        <td class="cell-textarea">
+        <td class="cell-textarea cp-col-kategorie" ${!this.isColumnVisibleForCustomer('cp-col-kategorie') ? 'style="display:none;"' : ''}>
           ${!this.isKunde ? `
             <textarea class="strategie-textarea" data-field="kategorie" data-item-id="${item.id}" placeholder="Kategorie...">${item.kategorie || ''}</textarea>
           ` : `<div class="cell-text-readonly">${item.kategorie || '-'}</div>`}
         </td>
-        <td class="cell-textarea">
+        <td class="cell-textarea cp-col-location" ${!this.isColumnVisibleForCustomer('cp-col-location') ? 'style="display:none;"' : ''}>
           ${!this.isKunde ? `
             <textarea class="strategie-textarea" data-field="wohnort" data-item-id="${item.id}" placeholder="Location...">${item.wohnort || ''}</textarea>
           ` : `<div class="cell-text-readonly">${item.wohnort || '-'}</div>`}
         </td>
-        <td class="cell-textarea">
+        <td class="cell-textarea cp-col-notiz" ${!this.isColumnVisibleForCustomer('cp-col-notiz') ? 'style="display:none;"' : ''}>
           ${!this.isKunde ? `
             <textarea class="strategie-textarea" data-field="notiz" data-item-id="${item.id}" placeholder="Notiz...">${item.notiz || ''}</textarea>
           ` : `<div class="cell-text-readonly">${item.notiz || '-'}</div>`}
         </td>
-        <td class="cell-textarea">
+        <td class="cell-textarea cp-col-feedback" ${!this.isColumnVisibleForCustomer('cp-col-feedback') ? 'style="display:none;"' : ''}>
           <textarea 
             class="strategie-textarea ${this.isKunde ? '' : 'readonly-textarea'}" 
             data-field="feedback_kunde" 
@@ -247,7 +372,7 @@ export class CreatorAuswahlDetail {
             ${this.isKunde ? '' : 'readonly'}
           >${item.feedback_kunde || ''}</textarea>
         </td>
-        <td style="text-align: center;">
+        <td class="cp-col-prio1" style="text-align: center;${!this.isColumnVisibleForCustomer('cp-col-prio1') ? ' display:none;' : ''}">
           <input 
             type="checkbox" 
             ${item.prio_1 ? 'checked' : ''} 
@@ -256,7 +381,7 @@ export class CreatorAuswahlDetail {
             style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'pointer' : 'default'}; ${!this.isKunde ? 'pointer-events: none;' : ''}"
           >
         </td>
-        <td style="text-align: center;">
+        <td class="cp-col-prio2" style="text-align: center;${!this.isColumnVisibleForCustomer('cp-col-prio2') ? ' display:none;' : ''}">
           <input 
             type="checkbox" 
             ${item.prio_2 ? 'checked' : ''} 
@@ -265,7 +390,7 @@ export class CreatorAuswahlDetail {
             style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'pointer' : 'default'}; ${!this.isKunde ? 'pointer-events: none;' : ''}"
           >
         </td>
-        <td style="text-align: center;">
+        <td class="cp-col-nicht" style="text-align: center;${!this.isColumnVisibleForCustomer('cp-col-nicht') ? ' display:none;' : ''}">
           <input 
             type="checkbox" 
             ${item.nicht_umsetzen ? 'checked' : ''} 
@@ -274,7 +399,7 @@ export class CreatorAuswahlDetail {
             style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'pointer' : 'default'}; ${!this.isKunde ? 'pointer-events: none;' : ''}"
           >
         </td>
-        <td class="cell-textarea">
+        <td class="cell-textarea cp-col-pricing" ${!this.isColumnVisibleForCustomer('cp-col-pricing') ? 'style="display:none;"' : ''}>
           ${!this.isKunde ? `
             <textarea class="strategie-textarea" data-field="pricing" data-item-id="${item.id}" placeholder="Preis...">${item.pricing || ''}</textarea>
           ` : `<div class="cell-text-readonly">${item.pricing || '-'}</div>`}
@@ -319,13 +444,29 @@ export class CreatorAuswahlDetail {
     this._boundEventListeners.forEach(cleanup => cleanup());
     this._boundEventListeners.clear();
 
-    // Add-Button
+    // Add-Button (oben)
     if (!this.isKunde) {
+      // Spalten-Sichtbarkeit Button
+      const visibilityBtn = document.getElementById('btn-sourcing-detail-column-visibility');
+      if (visibilityBtn) {
+        const handler = () => this.showColumnVisibilityDrawer();
+        visibilityBtn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => visibilityBtn.removeEventListener('click', handler));
+      }
+
       const addBtn = document.getElementById('btn-open-add-drawer');
       if (addBtn) {
         const handler = () => this.openAddCreatorDrawer();
         addBtn.addEventListener('click', handler);
         this._boundEventListeners.add(() => addBtn.removeEventListener('click', handler));
+      }
+
+      // Plus-Button am Tabellen-Ende (schnelles Hinzufügen)
+      const addEmptyRowBtn = document.getElementById('btn-add-empty-row');
+      if (addEmptyRowBtn) {
+        const handler = () => this.addEmptyRow();
+        addEmptyRowBtn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => addEmptyRowBtn.removeEventListener('click', handler));
       }
 
       this.bindDragAndDropEvents();
@@ -960,6 +1101,75 @@ export class CreatorAuswahlDetail {
       console.error('Fehler beim Hinzufügen:', error);
       window.toastSystem?.show(error.message || 'Fehler beim Hinzufügen des Creators', 'error');
       submitBtn.disabled = false;
+    }
+  }
+
+  /**
+   * Initiale leere Zeile erstellen (beim ersten Öffnen einer leeren Liste)
+   */
+  async createInitialEmptyRow() {
+    try {
+      const itemData = {
+        creator_auswahl_id: this.listeId,
+        typ: null,
+        name: null,
+        link_instagram: null,
+        follower_instagram: null,
+        link_tiktok: null,
+        follower_tiktok: null,
+        rueckmeldung_creator: false,
+        kategorie: null,
+        wohnort: null,
+        notiz: null,
+        pricing: null,
+        sortierung: 0,
+        creator_id: null
+      };
+
+      const newItem = await creatorAuswahlService.createItem(itemData);
+      this.items.push(newItem);
+    } catch (error) {
+      console.error('Fehler beim Erstellen der initialen Zeile:', error);
+    }
+  }
+
+  /**
+   * Leere Zeile hinzufügen (für schnelles Anlegen)
+   */
+  async addEmptyRow() {
+    try {
+      const itemData = {
+        creator_auswahl_id: this.listeId,
+        typ: null,
+        name: null,
+        link_instagram: null,
+        follower_instagram: null,
+        link_tiktok: null,
+        follower_tiktok: null,
+        rueckmeldung_creator: false,
+        kategorie: null,
+        wohnort: null,
+        notiz: null,
+        pricing: null,
+        sortierung: this.items.length,
+        creator_id: null
+      };
+
+      const newItem = await creatorAuswahlService.createItem(itemData);
+      this.items.push(newItem);
+      this.rerenderTable();
+
+      // Fokus auf das Name-Feld der neuen Zeile setzen
+      setTimeout(() => {
+        const nameField = document.querySelector(`textarea[data-item-id="${newItem.id}"][data-field="name"]`);
+        if (nameField) {
+          nameField.focus();
+        }
+      }, 100);
+
+    } catch (error) {
+      console.error('Fehler beim Hinzufügen einer leeren Zeile:', error);
+      window.toastSystem?.show('Fehler beim Hinzufügen', 'error');
     }
   }
 

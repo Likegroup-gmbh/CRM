@@ -96,7 +96,7 @@ export class AuthService {
 
       const { data, error } = await window.supabase
         .from('benutzer')
-        .select('id, name, rolle, unterrolle, auth_user_id, zugriffsrechte, freigeschaltet, profile_image_url')
+        .select('*')
         .eq('auth_user_id', authUserId)
         .single();
 
@@ -306,7 +306,7 @@ export class AuthService {
   }
 
   // Registrierung
-  async signUp(email, name, password, klasseId = null) {
+  async signUp(email, vorname, nachname, password, klasseId = null) {
     try {
       // Rate Limiting prüfen
       if (this.checkRateLimit(email)) {
@@ -327,13 +327,18 @@ export class AuthService {
         throw new Error('Supabase nicht verfügbar');
       }
 
+      // Kombinierter Name für Abwärtskompatibilität
+      const fullName = `${vorname} ${nachname}`.trim();
+
       const { data, error } = await window.supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             role: 'mitarbeiter',  // Klare Kennzeichnung als Mitarbeiter
-            name: name
+            name: fullName,
+            vorname: vorname,
+            nachname: nachname
           }
         }
       });
@@ -344,7 +349,7 @@ export class AuthService {
       }
 
       if (data.user) {
-        await this.createBenutzerRecord(data.user.id, name, email, klasseId);
+        await this.createBenutzerRecord(data.user.id, vorname, nachname, email, klasseId);
       }
 
       this.clearAttempts(email);
@@ -366,7 +371,7 @@ export class AuthService {
   }
 
   // Benutzer-Record erstellen (wird vom Trigger automatisch erstellt, prüfen ob vorhanden)
-  async createBenutzerRecord(authUserId, name, email = null, klasseId = null) {
+  async createBenutzerRecord(authUserId, vorname, nachname, email = null, klasseId = null) {
     try {
       if (this._offlineMode) {
         console.warn('⚠️ Offline-Modus - überspringe Benutzer-Erstellung');
@@ -377,6 +382,9 @@ export class AuthService {
         console.warn('⚠️ Supabase nicht verfügbar - überspringe Benutzer-Erstellung');
         return;
       }
+
+      // Kombinierter Name für Abwärtskompatibilität
+      const fullName = `${vorname} ${nachname}`.trim();
 
       // Prüfe ob Record bereits existiert
       const { data: existingUser, error: checkError } = await window.supabase
@@ -393,10 +401,13 @@ export class AuthService {
       if (existingUser) {
         console.log('✅ Benutzer-Record bereits vorhanden');
         
-        // Update E-Mail und Mitarbeiter-Klasse falls angegeben und noch nicht gesetzt
+        // Update E-Mail, Name und Mitarbeiter-Klasse falls angegeben und noch nicht gesetzt
         const updateData = {};
         if (email && !existingUser.email) updateData.email = email;
         if (klasseId) updateData.mitarbeiter_klasse_id = klasseId;
+        if (vorname) updateData.vorname = vorname;
+        if (nachname) updateData.nachname = nachname;
+        if (fullName) updateData.name = fullName;
         
         if (Object.keys(updateData).length > 0) {
           const { error: updateError } = await window.supabase
@@ -407,7 +418,7 @@ export class AuthService {
           if (updateError) {
             console.error('❌ Fehler beim Update des Benutzer-Records:', updateError.message);
           } else {
-            console.log('✅ Benutzer-Record aktualisiert (E-Mail/Klasse)');
+            console.log('✅ Benutzer-Record aktualisiert (E-Mail/Name/Klasse)');
           }
         }
         return;
@@ -419,7 +430,9 @@ export class AuthService {
         .from('benutzer')
         .insert({
           auth_user_id: authUserId,
-          name: name,
+          name: fullName,
+          vorname: vorname,
+          nachname: nachname,
           email: email,
           rolle: 'pending',
           mitarbeiter_klasse_id: klasseId,
@@ -433,7 +446,7 @@ export class AuthService {
           console.warn('⚠️ Record existiert bereits (Race Condition), versuche Update...');
           const { error: retryError } = await window.supabase
             .from('benutzer')
-            .update({ email: email, name: name })
+            .update({ email: email, name: fullName, vorname: vorname, nachname: nachname })
             .eq('auth_user_id', authUserId);
           
           if (retryError) {

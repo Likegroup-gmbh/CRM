@@ -172,7 +172,9 @@ export class DataService {
           art_der_kampagne: 'array',
           kampagne_typ: 'string',
           start: 'date',
+          deadline_briefing: 'date',
           deadline_strategie: 'date',
+          deadline_skripte: 'date',
           deadline_creator_sourcing: 'date',
           deadline_video_produktion: 'date',
           deadline_post_produktion: 'date',
@@ -582,17 +584,23 @@ export class DataService {
           ugc_creator_anzahl: 'number',
           ugc_bilder_anzahl: 'number',
           ugc_budget_info: 'text',
+          ugc_einkaufspreis_netto: 'number',
+          ugc_verkaufspreis_netto: 'number',
           // Influencer
           influencer_video_anzahl: 'number',
           influencer_creator_anzahl: 'number',
           influencer_bilder_anzahl: 'number',
           influencer_budget_info: 'text',
+          influencer_einkaufspreis_netto: 'number',
+          influencer_verkaufspreis_netto: 'number',
           // Vor Ort
           vor_ort_video_anzahl: 'number',
           vor_ort_creator_anzahl: 'number',
           vor_ort_bilder_anzahl: 'number',
           vor_ort_videographen_anzahl: 'number',
           vor_ort_budget_info: 'text',
+          vor_ort_einkaufspreis_netto: 'number',
+          vor_ort_verkaufspreis_netto: 'number',
           // Vor Ort Mitarbeiter
           vor_ort_mitarbeiter_video_anzahl: 'number',
           vor_ort_mitarbeiter_bilder_anzahl: 'number',
@@ -603,6 +611,8 @@ export class DataService {
           igc_creator_anzahl: 'number',
           igc_bilder_anzahl: 'number',
           igc_budget_info: 'text',
+          igc_einkaufspreis_netto: 'number',
+          igc_verkaufspreis_netto: 'number',
           // Gesamt
           gesamt_videos: 'number',
           gesamt_creator: 'number'
@@ -626,17 +636,23 @@ export class DataService {
           ugc_creator_anzahl: 'number',
           ugc_bilder_anzahl: 'number',
           ugc_budget_info: 'text',
+          ugc_einkaufspreis_netto: 'number',
+          ugc_verkaufspreis_netto: 'number',
           // Influencer
           influencer_video_anzahl: 'number',
           influencer_creator_anzahl: 'number',
           influencer_bilder_anzahl: 'number',
           influencer_budget_info: 'text',
+          influencer_einkaufspreis_netto: 'number',
+          influencer_verkaufspreis_netto: 'number',
           // Vor Ort
           vor_ort_video_anzahl: 'number',
           vor_ort_creator_anzahl: 'number',
           vor_ort_bilder_anzahl: 'number',
           vor_ort_videographen_anzahl: 'number',
           vor_ort_budget_info: 'text',
+          vor_ort_einkaufspreis_netto: 'number',
+          vor_ort_verkaufspreis_netto: 'number',
           // Vor Ort Mitarbeiter
           vor_ort_mitarbeiter_video_anzahl: 'number',
           vor_ort_mitarbeiter_bilder_anzahl: 'number',
@@ -647,6 +663,8 @@ export class DataService {
           igc_creator_anzahl: 'number',
           igc_bilder_anzahl: 'number',
           igc_budget_info: 'text',
+          igc_einkaufspreis_netto: 'number',
+          igc_verkaufspreis_netto: 'number',
           gesamt_videos: 'number',
           gesamt_creator: 'number'
         },
@@ -2217,14 +2235,10 @@ export class DataService {
         selectClause = 'id,vorname,nachname,instagram_follower,tiktok_follower,lieferadresse_stadt,lieferadresse_land';
       }
       // Spezielle Select-Klausel für Ansprechpartner mit JOINs
+      // Hinweis: unternehmen_id FK wurde entfernt - nur noch Many-to-Many über ansprechpartner_unternehmen
       else if (entityType === 'ansprechpartner') {
         selectClause = `
           *,
-          unternehmen:unternehmen_id (
-            id,
-            firmenname,
-            logo_url
-          ),
           sprache:sprache_id (
             id,
             name
@@ -2306,14 +2320,19 @@ export class DataService {
         }
       }
 
-      // Andere Filter anwenden (ohne branche_id, das wurde schon behandelt)
-      const filtersWithoutBranche = {...filters};
-      delete filtersWithoutBranche.branche_id;
-      query = this.applyFilters(query, filtersWithoutBranche, entityConfig.fields, entityType);
+      // Andere Filter anwenden (ohne branche_id und interne Sort-Parameter)
+      const filtersToApply = {...filters};
+      delete filtersToApply.branche_id;
+      delete filtersToApply._sortBy;
+      delete filtersToApply._sortOrder;
+      delete filtersToApply._allowedIds; // wurde bereits oben behandelt
+      query = this.applyFilters(query, filtersToApply, entityConfig.fields, entityType);
 
-      // Sortierung anwenden
-      if (entityConfig.sortBy) {
-        query = query.order(entityConfig.sortBy, { ascending: entityConfig.sortOrder === 'asc' });
+      // Sortierung anwenden (Filter-Override hat Vorrang)
+      const sortBy = filters._sortBy || entityConfig.sortBy;
+      const sortOrder = filters._sortOrder !== undefined ? filters._sortOrder : entityConfig.sortOrder;
+      if (sortBy) {
+        query = query.order(sortBy, { ascending: sortOrder === 'asc' });
       }
 
       // Range für Pagination
@@ -2364,10 +2383,9 @@ export class DataService {
             ap.marken = [];
           }
 
-          // Unternehmen: Extrahiere aus ansprechpartner_unternehmen Junction-Table UND Legacy unternehmen_id
+          // Unternehmen: Extrahiere aus ansprechpartner_unternehmen Junction-Table (Many-to-Many)
           const unternehmenList = [];
           
-          // Many-to-Many aus Junction-Table
           if (ap.ansprechpartner_unternehmen && Array.isArray(ap.ansprechpartner_unternehmen)) {
             ap.ansprechpartner_unternehmen.forEach(junction => {
               if (junction.unternehmen) {
@@ -2375,11 +2393,6 @@ export class DataService {
               }
             });
             delete ap.ansprechpartner_unternehmen; // Clean up
-          }
-          
-          // Legacy: unternehmen_id (als Einzelobjekt)
-          if (ap.unternehmen && ap.unternehmen.id && !unternehmenList.find(u => u.id === ap.unternehmen.id)) {
-            unternehmenList.push(ap.unternehmen);
           }
           
           ap.unternehmen = unternehmenList;

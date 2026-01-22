@@ -3,6 +3,7 @@
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
+import { sortDropdown } from '../../core/components/SortDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
@@ -13,6 +14,8 @@ export class UnternehmenList {
     this.selectedUnternehmen = new Set();
     this._boundEventListeners = new Set();
     this.pagination = new PaginationSystem();
+    // Sortierung: Standard alphabetisch A-Z
+    this.currentSort = { field: 'firmenname', ascending: true };
   }
 
   // Initialisiere Unternehmen-Liste
@@ -117,7 +120,7 @@ export class UnternehmenList {
             )
           )
         `, { count: 'exact' })
-        .order('created_at', { ascending: false });
+        .order(this.currentSort.field, { ascending: this.currentSort.ascending });
       
       // Nicht-Admin Filterung
       if (!isAdmin && allowedUnternehmenIds && allowedUnternehmenIds.length > 0) {
@@ -222,6 +225,7 @@ export class UnternehmenList {
     // Filter-Dropdown über dem Tabellen-Header
     let filterHtml = `<div class="filter-bar">
       <div class="filter-left">
+        <div id="sort-dropdown-container"></div>
         <div id="filter-dropdown-container"></div>
       </div>
     </div>`;
@@ -274,8 +278,19 @@ export class UnternehmenList {
     await this.initializeFilterBar();
   }
 
-  // Initialisiere Filter-Dropdown
+  // Initialisiere Filter-Dropdown und Sort-Dropdown
   async initializeFilterBar() {
+    // Sort-Dropdown initialisieren
+    const sortContainer = document.getElementById('sort-dropdown-container');
+    if (sortContainer) {
+      sortDropdown.init('unternehmen', sortContainer, {
+        nameField: 'firmenname',
+        defaultSort: 'name_asc',
+        onSortChange: (sortConfig) => this.onSortChange(sortConfig)
+      });
+    }
+    
+    // Filter-Dropdown initialisieren
     const filterContainer = document.getElementById('filter-dropdown-container');
     if (filterContainer) {
       // Nutze das neue Filter-Dropdown System
@@ -284,6 +299,15 @@ export class UnternehmenList {
         onFilterReset: () => this.onFiltersReset()
       });
     }
+  }
+
+  // Sortierung geändert
+  onSortChange(sortConfig) {
+    console.log('Sortierung geändert:', sortConfig);
+    this.currentSort = sortConfig;
+    // Reset pagination auf Seite 1 bei Sortier-Änderung
+    this.pagination.reset();
+    this.loadAndRender();
   }
 
   // Filter angewendet
@@ -493,7 +517,7 @@ export class UnternehmenList {
           </td>
           <td>${window.validatorSystem.sanitizeHtml(u.rechnungsadresse_stadt || '-')}</td>
           <td>${window.validatorSystem.sanitizeHtml(u.rechnungsadresse_land || '-')}</td>
-          <td>${u.webseite ? `<a href="${u.webseite}" target="_blank" rel="noopener" class="external-link">${window.validatorSystem.sanitizeHtml(u.webseite.replace(/^https?:\/\//, ''))}</a>` : '-'}</td>
+          <td>${u.webseite ? `<a href="${u.webseite}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${u.webseite}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>` : '-'}</td>
           <td>${this.renderBrancheTags(u.branchen)}</td>
           <td>${this.renderAnsprechpartnerList(apMap.get(u.id))}</td>
           <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(management)}</td>

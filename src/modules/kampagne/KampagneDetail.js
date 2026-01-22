@@ -992,6 +992,37 @@ export class KampagneDetail {
                   </div>
                 </div>
 
+                <!-- Deadlines -->
+                <div class="detail-card">
+                  <h3 class="section-title">Deadlines</h3>
+                  <div class="detail-grid">
+                    <div class="detail-item">
+                      <label>Briefing:</label>
+                      <span>${formatDate(this.kampagneData.deadline_briefing)}</span>
+                    </div>
+                    <div class="detail-item">
+                      <label>Strategie:</label>
+                      <span>${formatDate(this.kampagneData.deadline_strategie)}</span>
+                    </div>
+                    <div class="detail-item">
+                      <label>Skripte:</label>
+                      <span>${formatDate(this.kampagneData.deadline_skripte)}</span>
+                    </div>
+                    <div class="detail-item">
+                      <label>Sourcing:</label>
+                      <span>${formatDate(this.kampagneData.deadline_creator_sourcing)}</span>
+                    </div>
+                    <div class="detail-item">
+                      <label>Video Produktion:</label>
+                      <span>${formatDate(this.kampagneData.deadline_video_produktion)}</span>
+                    </div>
+                    <div class="detail-item">
+                      <label>Post Produktion:</label>
+                      <span>${formatDate(this.kampagneData.deadline_post_produktion)}</span>
+                    </div>
+                  </div>
+                </div>
+
                 <!-- Budget -->
                 <div class="detail-card">
                   <h3 class="section-title">Budget</h3>

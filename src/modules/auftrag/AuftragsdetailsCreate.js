@@ -455,6 +455,8 @@ export class AuftragsdetailsCreate {
 
   /**
    * Lädt Unternehmen gefiltert nach Mitarbeiter-Zuordnung
+   * NUR Unternehmen mit mindestens einem offenen Auftrag (ohne Details)
+   * Im Edit-Mode: Aktuelles Unternehmen immer einschließen
    * @returns {Promise<Array<{id: string, firmenname: string}>>}
    */
   async loadUnternehmen() {
@@ -465,27 +467,95 @@ export class AuftragsdetailsCreate {
       const allowedIds = await window.getAllowedUnternehmenIds?.();
       console.log('🔐 Erlaubte Unternehmen-IDs:', allowedIds);
       
-      let query = window.supabase
-        .from('unternehmen')
-        .select('id, firmenname')
-        .order('firmenname', { ascending: true });
+      // Im Edit-Mode: Aktuelles Unternehmen merken
+      const editUnternehmenId = this.isEditMode && this.existingDetails?.auftrag?.unternehmen_id 
+        ? this.existingDetails.auftrag.unternehmen_id 
+        : null;
       
-      // Für Nicht-Admins: Filter nach erlaubten IDs
+      // Schritt 1: Alle Auftrags-IDs mit Details laden
+      const { data: detailsData, error: detailsError } = await window.supabase
+        .from('auftrag_details')
+        .select('auftrag_id');
+      
+      if (detailsError) {
+        console.error('❌ Fehler beim Laden der Details:', detailsError);
+        return [];
+      }
+      
+      let auftragIdsWithDetails = (detailsData || []).map(d => d.auftrag_id);
+      
+      // Im Edit-Mode: Den aktuellen Auftrag aus der "mit Details"-Liste entfernen
+      // damit das Unternehmen als "offen" gilt
+      if (this.isEditMode && this.currentAuftragId) {
+        auftragIdsWithDetails = auftragIdsWithDetails.filter(id => id !== this.currentAuftragId);
+      }
+      
+      console.log('📋 Aufträge mit Details:', auftragIdsWithDetails.length);
+      
+      // Schritt 2: Aufträge OHNE Details laden und deren Unternehmen-IDs extrahieren
+      let auftraegeQuery = window.supabase
+        .from('auftrag')
+        .select('unternehmen_id');
+      
+      // Filter: Nur Aufträge OHNE Details
+      if (auftragIdsWithDetails.length > 0) {
+        auftraegeQuery = auftraegeQuery.not('id', 'in', `(${auftragIdsWithDetails.join(',')})`);
+      }
+      
+      const { data: auftraegeData, error: auftraegeError } = await auftraegeQuery;
+      
+      if (auftraegeError) {
+        console.error('❌ Fehler beim Laden der Aufträge:', auftraegeError);
+        return [];
+      }
+      
+      // Unique Unternehmen-IDs mit offenen Aufträgen
+      let unternehmenMitOffenenAuftraegen = [...new Set(
+        (auftraegeData || []).map(a => a.unternehmen_id).filter(Boolean)
+      )];
+      
+      // Im Edit-Mode: Aktuelles Unternehmen immer einschließen
+      if (editUnternehmenId && !unternehmenMitOffenenAuftraegen.includes(editUnternehmenId)) {
+        unternehmenMitOffenenAuftraegen.push(editUnternehmenId);
+        console.log('📝 Edit-Mode: Aktuelles Unternehmen hinzugefügt:', editUnternehmenId);
+      }
+      
+      console.log('🏢 Unternehmen mit offenen Aufträgen:', unternehmenMitOffenenAuftraegen.length);
+      
+      if (unternehmenMitOffenenAuftraegen.length === 0) {
+        console.log('ℹ️ Keine Unternehmen mit offenen Aufträgen gefunden');
+        return [];
+      }
+      
+      // Schritt 3: Unternehmen laden (nur mit offenen Aufträgen)
+      let finalIds = unternehmenMitOffenenAuftraegen;
+      
+      // Für Nicht-Admins: Zusätzlich nach erlaubten IDs filtern (Schnittmenge)
       if (allowedIds !== null) {
         if (allowedIds.length === 0) {
           console.log('🔐 Keine Unternehmen zugeordnet');
           return [];
         }
-        query = query.in('id', allowedIds);
+        // Schnittmenge: Unternehmen mit offenen Aufträgen UND erlaubte Unternehmen
+        finalIds = unternehmenMitOffenenAuftraegen.filter(id => allowedIds.includes(id));
+        if (finalIds.length === 0) {
+          console.log('🔐 Keine erlaubten Unternehmen mit offenen Aufträgen');
+          return [];
+        }
       }
       
-      const { data, error } = await query;
+      const { data, error } = await window.supabase
+        .from('unternehmen')
+        .select('id, firmenname')
+        .in('id', finalIds)
+        .order('firmenname', { ascending: true });
       
       if (error) {
         console.error('❌ Fehler beim Laden der Unternehmen:', error);
         return [];
       }
       
+      console.log('✅ Geladene Unternehmen (mit offenen Aufträgen):', (data || []).length);
       return data || [];
     } catch (error) {
       console.error('❌ Fehler beim Laden der Unternehmen:', error);

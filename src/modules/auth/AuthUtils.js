@@ -141,9 +141,15 @@ export class AuthUtils {
             </div>
             <h2>Registrierung</h2>
             <form id="registerForm" class="register-form">
-              <div class="form-box">
-                <label for="registerName" class="label">Name</label>
-                <input type="text" id="registerName" class="input" placeholder="Ihr Name" required>
+              <div class="form-row" style="display: flex; gap: 12px;">
+                <div class="form-box" style="flex: 1;">
+                  <label for="registerVorname" class="label">Vorname</label>
+                  <input type="text" id="registerVorname" class="input" placeholder="Vorname" required>
+                </div>
+                <div class="form-box" style="flex: 1;">
+                  <label for="registerNachname" class="label">Nachname</label>
+                  <input type="text" id="registerNachname" class="input" placeholder="Nachname" required>
+                </div>
               </div>
               <div class="form-box">
                 <label for="registerEmail" class="label">E-Mail</label>
@@ -197,7 +203,8 @@ export class AuthUtils {
   async handleRegisterSubmit(e) {
     e.preventDefault();
     
-    const name = document.getElementById('registerName').value;
+    const vorname = document.getElementById('registerVorname').value.trim();
+    const nachname = document.getElementById('registerNachname').value.trim();
     const email = document.getElementById('registerEmail').value;
     const password = document.getElementById('registerPassword').value;
     const errorDiv = document.getElementById('registerError');
@@ -205,7 +212,12 @@ export class AuthUtils {
     try {
       errorDiv.style.display = 'none';
       
-      const result = await authService.signUp(email, name, password);
+      // Validierung
+      if (!vorname || !nachname) {
+        throw new Error('Bitte geben Sie Vorname und Nachname ein.');
+      }
+      
+      const result = await authService.signUp(email, vorname, nachname, password);
       
       if (result.error) {
         throw result.error;
@@ -408,7 +420,8 @@ export class AuthUtils {
   validateRegisterData(data) {
     const errors = [];
     
-    if (!data.name) errors.push('Name ist erforderlich');
+    if (!data.vorname) errors.push('Vorname ist erforderlich');
+    if (!data.nachname) errors.push('Nachname ist erforderlich');
     if (!data.email) errors.push('E-Mail ist erforderlich');
     if (!data.password) errors.push('Passwort ist erforderlich');
     

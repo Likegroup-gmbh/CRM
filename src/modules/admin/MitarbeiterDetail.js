@@ -23,7 +23,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
     
     // Breadcrumb aktualisieren
     if (window.breadcrumbSystem && this.user) {
-      const userName = this.user.name || 'Details';
+      const userName = this.getDisplayName();
       window.breadcrumbSystem.updateBreadcrumb([
         { label: 'Mitarbeiter', url: '/mitarbeiter', clickable: true },
         { label: userName, url: `/mitarbeiter/${this.userId}`, clickable: false }
@@ -257,10 +257,18 @@ export class MitarbeiterDetail extends PersonDetailBase {
     }
   }
 
+  // Hilfsfunktion: Vollständigen Namen aus Vorname/Nachname oder Fallback auf name
+  getDisplayName() {
+    if (this.user?.vorname && this.user?.nachname) {
+      return `${this.user.vorname} ${this.user.nachname}`;
+    }
+    return this.user?.name || 'Unbekannt';
+  }
+
   async render() {
     // Person-Config für die Sidebar
     const personConfig = {
-      name: this.user?.name || 'Unbekannt',
+      name: this.getDisplayName(),
       avatarUrl: this.user?.profile_image_url,
       avatarOnly: true  // Nur Avatar anzeigen, kein Name/Email/Subtitle im Header
     };

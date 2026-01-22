@@ -170,7 +170,8 @@ export class FormConfig {
             relationTable: 'mitarbeiter_unternehmen',
             relationField: 'mitarbeiter_id',
             roleValue: 'management',
-            filterNoKunden: true
+            filterNoKunden: true,
+            filterByKlasse: 'Management'
           },
           {
             name: 'lead_mitarbeiter_ids',
@@ -188,7 +189,8 @@ export class FormConfig {
             relationTable: 'mitarbeiter_unternehmen',
             relationField: 'mitarbeiter_id',
             roleValue: 'lead_mitarbeiter',
-            filterNoKunden: true
+            filterNoKunden: true,
+            filterByKlasse: 'Lead'
           },
           {
             name: 'mitarbeiter_ids',
@@ -206,7 +208,8 @@ export class FormConfig {
             relationTable: 'mitarbeiter_unternehmen',
             relationField: 'mitarbeiter_id',
             roleValue: 'mitarbeiter',
-            filterNoKunden: true
+            filterNoKunden: true,
+            filterByKlasse: ['Projektmanagement', 'Strategie', 'Copywriter', 'Cutter']
           },
           { name: 'invoice_email', label: 'Rechnungs-Email', type: 'email', required: false, validation: { type: 'email' } },
           { name: 'status', label: 'Status', type: 'select', required: false, editOnly: true, options: ['Aktiv', 'Inaktiv', 'Prospekt'] },
@@ -300,8 +303,10 @@ export class FormConfig {
             showWhen: 'organic'
           },
           { name: 'start', label: 'Startdatum', type: 'date', required: false },
-          // Deadline-Felder Gruppe (2x2 Grid)
+          // Deadline-Felder Gruppe (3x2 Grid)
+          { name: 'deadline_briefing', label: 'Deadline Briefing', type: 'date', required: false, twoCol: true },
           { name: 'deadline_strategie', label: 'Deadline Strategie', type: 'date', required: false, twoCol: true },
+          { name: 'deadline_skripte', label: 'Deadline Skripte', type: 'date', required: false, twoCol: true },
           { name: 'deadline_creator_sourcing', label: 'Deadline Sourcing', type: 'date', required: false, twoCol: true },
           { name: 'deadline_video_produktion', label: 'Deadline Video Produktion', type: 'date', required: false, twoCol: true },
           { name: 'deadline_post_produktion', label: 'Deadline Post Produktion', type: 'date', required: false, twoCol: true },
@@ -422,6 +427,7 @@ export class FormConfig {
             relationField: 'mitarbeiter_id',
             roleValue: 'management',
             filterNoKunden: true,
+            filterByKlasse: 'Management',
             dependsOn: 'unternehmen_id',
             prefillFromUnternehmen: true,
             prefillRole: 'management',
@@ -444,6 +450,7 @@ export class FormConfig {
             relationField: 'mitarbeiter_id',
             roleValue: 'lead_mitarbeiter',
             filterNoKunden: true,
+            filterByKlasse: 'Lead',
             dependsOn: 'unternehmen_id',
             prefillFromUnternehmen: true,
             prefillRole: 'lead_mitarbeiter',
@@ -466,6 +473,7 @@ export class FormConfig {
             relationField: 'mitarbeiter_id',
             roleValue: 'mitarbeiter',
             filterNoKunden: true,
+            filterByKlasse: ['Projektmanagement', 'Strategie', 'Copywriter', 'Cutter'],
             dependsOn: 'unternehmen_id',
             prefillFromUnternehmen: true,
             prefillRole: 'mitarbeiter',
@@ -619,7 +627,8 @@ export class FormConfig {
             options: [], 
             dynamic: true,
             searchable: true,
-            placeholder: 'Position suchen und auswählen...',
+            allowCreate: true,
+            placeholder: 'Position suchen oder erstellen...',
             table: 'positionen',
             displayField: 'name',
             valueField: 'id',
