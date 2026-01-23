@@ -335,6 +335,29 @@ export class CreatorAuswahlService {
     }
   }
 
+  /**
+   * Sortierung und Kategorie mehrerer Items aktualisieren
+   */
+  async updateItemsSortierungWithKategorie(items) {
+    const promises = items.map((item, index) =>
+      window.supabase
+        .from('creator_auswahl_items')
+        .update({ 
+          sortierung: index,
+          kategorie: item.kategorie 
+        })
+        .eq('id', item.id)
+    );
+
+    const results = await Promise.all(promises);
+    
+    const errors = results.filter(r => r.error);
+    if (errors.length > 0) {
+      console.error('Fehler beim Aktualisieren der Sortierung/Kategorie:', errors);
+      throw new Error('Sortierung konnte nicht aktualisiert werden');
+    }
+  }
+
   // =====================================================
   // SCRAPING
   // =====================================================

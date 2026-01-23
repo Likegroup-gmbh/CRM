@@ -24,7 +24,7 @@ export class CreatorAuswahlList {
     // Breadcrumb
     if (window.breadcrumbSystem) {
       window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Sourcing', url: '/creator-auswahl', clickable: false }
+        { label: 'Sourcing', url: '/sourcing', clickable: false }
       ]);
     }
     
@@ -272,7 +272,7 @@ export class CreatorAuswahlList {
         if (e.target.closest('a')) return;
         
         const id = row.dataset.listeId;
-        window.navigateTo(`/creator-auswahl/${id}`);
+        window.navigateTo(`/sourcing/${id}`);
       };
       row.addEventListener('click', handler);
       this._boundEventListeners.add(() => row.removeEventListener('click', handler));
@@ -283,7 +283,7 @@ export class CreatorAuswahlList {
       const handler = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        window.navigateTo(`/creator-auswahl/${btn.dataset.id}`);
+        window.navigateTo(`/sourcing/${btn.dataset.id}`);
       };
       btn.addEventListener('click', handler);
       this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
@@ -369,6 +369,21 @@ export class CreatorAuswahlList {
           <input type="text" id="as-kampagne" class="form-input auto-suggest-input" placeholder="Kampagne suchen..." autocomplete="off">
           <div id="asdd-kampagne" class="auto-suggest-dropdown"></div>
           <div id="tags-kampagne" class="tags-container"></div>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Teilbereiche</label>
+          <div id="teilbereiche-container">
+            <div class="teilbereich-row" data-index="0">
+              <input type="text" class="form-input teilbereich-input" name="teilbereich[]" placeholder="z.B. Food, Sport, Lifestyle">
+              <button type="button" class="teilbereich-add-btn" title="Weiteren Teilbereich hinzufügen">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px;">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <small style="color: var(--text-secondary); font-size: var(--text-xs);">Optional: Kategorisieren Sie Ihre Creator in mehrere Teilbereiche</small>
         </div>
 
         <div class="drawer-footer">
@@ -560,12 +575,70 @@ export class CreatorAuswahlList {
   }
 
   /**
+   * Setup Events für dynamische Teilbereiche
+   */
+  setupTeilbereicheEvents(containerId = 'teilbereiche-container') {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    let teilbereichIndex = container.querySelectorAll('.teilbereich-row').length;
+
+    // Event Delegation für Add/Remove Buttons
+    container.addEventListener('click', (e) => {
+      const addBtn = e.target.closest('.teilbereich-add-btn');
+      const removeBtn = e.target.closest('.teilbereich-remove-btn');
+
+      if (addBtn) {
+        // Neuen Teilbereich hinzufügen
+        const newRow = document.createElement('div');
+        newRow.className = 'teilbereich-row';
+        newRow.dataset.index = teilbereichIndex++;
+        newRow.innerHTML = `
+          <input type="text" class="form-input teilbereich-input" name="teilbereich[]" placeholder="Weiterer Teilbereich...">
+          <button type="button" class="teilbereich-remove-btn" title="Teilbereich entfernen">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        `;
+        container.appendChild(newRow);
+      }
+
+      if (removeBtn) {
+        // Teilbereich entfernen (aber mindestens einen behalten)
+        const rows = container.querySelectorAll('.teilbereich-row');
+        if (rows.length > 1) {
+          removeBtn.closest('.teilbereich-row').remove();
+        }
+      }
+    });
+  }
+
+  /**
+   * Teilbereiche aus Formular sammeln
+   */
+  collectTeilbereiche(containerId = 'teilbereiche-container') {
+    const container = document.getElementById(containerId);
+    if (!container) return null;
+    
+    const inputs = container.querySelectorAll('.teilbereich-input');
+    const teilbereiche = Array.from(inputs)
+      .map(input => input.value.trim())
+      .filter(val => val.length > 0);
+    
+    return teilbereiche.length > 0 ? teilbereiche.join(', ') : null;
+  }
+
+  /**
    * Binde Events für Erstellen-Drawer
    */
   bindCreateDialogEvents() {
     const drawer = document.getElementById('create-liste-drawer');
     const form = document.getElementById('create-liste-form');
     if (!drawer || !form) return;
+
+    // Teilbereiche Events
+    this.setupTeilbereicheEvents('teilbereiche-container');
 
     drawer.querySelectorAll('[data-action="close-drawer"]').forEach(btn => {
       btn.addEventListener('click', () => this.closeDrawer());
@@ -584,7 +657,8 @@ export class CreatorAuswahlList {
         beschreibung: formData.get('beschreibung') || null,
         unternehmen_id: unternehmenTag?.dataset.id || null,
         marke_id: markeTag?.dataset.id || null,
-        kampagne_id: kampagneTag?.dataset.id || null
+        kampagne_id: kampagneTag?.dataset.id || null,
+        teilbereich: this.collectTeilbereiche('teilbereiche-container')
       };
 
       if (!data.unternehmen_id && !data.marke_id && !data.kampagne_id) {
@@ -596,7 +670,7 @@ export class CreatorAuswahlList {
         const liste = await creatorAuswahlService.createListe(data);
         window.toastSystem?.show('Creator-Auswahl erfolgreich erstellt', 'success');
         this.closeDrawer();
-        window.navigateTo(`/creator-auswahl/${liste.id}`);
+        window.navigateTo(`/sourcing/${liste.id}`);
       } catch (error) {
         console.error('Fehler beim Erstellen:', error);
         window.toastSystem?.show('Fehler beim Erstellen der Creator-Auswahl', 'error');
@@ -669,6 +743,14 @@ export class CreatorAuswahlList {
           <div id="edit-tags-kampagne" class="tags-container"></div>
         </div>
 
+        <div class="form-field">
+          <label class="form-label">Teilbereiche</label>
+          <div id="edit-teilbereiche-container">
+            ${this.renderTeilbereicheInputs(liste.teilbereich)}
+          </div>
+          <small style="color: var(--text-secondary); font-size: var(--text-xs);">Optional: Kategorisieren Sie Ihre Creator in mehrere Teilbereiche</small>
+        </div>
+
         <div class="drawer-footer">
           <button type="button" class="mdc-btn mdc-btn--cancel" data-action="close-drawer">
             <span class="mdc-btn__label">Abbrechen</span>
@@ -695,7 +777,49 @@ export class CreatorAuswahlList {
     });
 
     this.setupEditAutoSuggestion(liste);
+    this.setupTeilbereicheEvents('edit-teilbereiche-container');
     this.bindEditDialogEvents(liste.id);
+  }
+
+  /**
+   * Rendere Teilbereiche-Inputs für Edit
+   */
+  renderTeilbereicheInputs(teilbereichString) {
+    const teilbereiche = teilbereichString 
+      ? teilbereichString.split(',').map(t => t.trim()).filter(t => t) 
+      : [];
+    
+    if (teilbereiche.length === 0) {
+      return `
+        <div class="teilbereich-row" data-index="0">
+          <input type="text" class="form-input teilbereich-input" name="teilbereich[]" placeholder="z.B. Food, Sport, Lifestyle">
+          <button type="button" class="teilbereich-add-btn" title="Weiteren Teilbereich hinzufügen">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+          </button>
+        </div>
+      `;
+    }
+    
+    return teilbereiche.map((tb, idx) => `
+      <div class="teilbereich-row" data-index="${idx}">
+        <input type="text" class="form-input teilbereich-input" name="teilbereich[]" value="${tb}" placeholder="Teilbereich...">
+        ${idx === 0 ? `
+          <button type="button" class="teilbereich-add-btn" title="Weiteren Teilbereich hinzufügen">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+          </button>
+        ` : `
+          <button type="button" class="teilbereich-remove-btn" title="Teilbereich entfernen">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        `}
+      </div>
+    `).join('');
   }
 
   /**
@@ -865,7 +989,8 @@ export class CreatorAuswahlList {
         beschreibung: formData.get('beschreibung') || null,
         unternehmen_id: unternehmenTag?.dataset.id || null,
         marke_id: markeTag?.dataset.id || null,
-        kampagne_id: kampagneTag?.dataset.id || null
+        kampagne_id: kampagneTag?.dataset.id || null,
+        teilbereich: this.collectTeilbereiche('edit-teilbereiche-container')
       };
 
       if (!data.unternehmen_id && !data.marke_id && !data.kampagne_id) {

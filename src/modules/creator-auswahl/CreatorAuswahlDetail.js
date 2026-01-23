@@ -45,8 +45,8 @@ export class CreatorAuswahlDetail {
 
       if (window.breadcrumbSystem) {
         window.breadcrumbSystem.updateBreadcrumb([
-          { label: 'Sourcing', url: '/creator-auswahl', clickable: true },
-          { label: this.liste.name, url: `/creator-auswahl/${listeId}`, clickable: false }
+          { label: 'Sourcing', url: '/sourcing', clickable: true },
+          { label: this.liste.name, url: `/sourcing/${listeId}`, clickable: false }
         ]);
       }
 
@@ -156,6 +156,298 @@ export class CreatorAuswahlDetail {
   }
 
   /**
+   * Hole Teilbereiche/Kategorien aus der Liste
+   */
+  getTeilbereicheFromListe() {
+    if (!this.liste?.teilbereich) return [];
+    return this.liste.teilbereich.split(',').map(tb => tb.trim()).filter(tb => tb);
+  }
+
+  /**
+   * Gruppiere Items nach Kategorie
+   */
+  groupItemsByKategorie(items) {
+    const groups = {};
+    let globalIndex = 0;
+    
+    items.forEach(item => {
+      const kategorie = item.kategorie || 'Ohne Kategorie';
+      if (!groups[kategorie]) {
+        groups[kategorie] = [];
+      }
+      groups[kategorie].push({ ...item, globalIndex: globalIndex++ });
+    });
+    
+    return groups;
+  }
+
+  /**
+   * Rendere Kategorien-Drawer Body
+   */
+  renderKategorienDrawerBody() {
+    const teilbereiche = this.getTeilbereicheFromListe();
+    
+    return `
+      <div class="kategorien-list" id="kategorien-list">
+        ${teilbereiche.length > 0 ? teilbereiche.map(tb => `
+          <div class="kategorie-item" data-kategorie="${tb}">
+            <span class="kategorie-name">${tb}</span>
+            <button type="button" class="kategorie-delete-btn" data-kategorie="${tb}" title="Kategorie löschen">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        `).join('') : '<p style="color: var(--text-secondary); text-align: center;">Noch keine Kategorien definiert</p>'}
+      </div>
+      <div class="kategorien-add-form" style="margin-top: var(--space-md); display: flex; gap: var(--space-sm);">
+        <input type="text" id="new-kategorie-input" class="form-input" placeholder="Neue Kategorie..." style="flex: 1;">
+        <button type="button" id="btn-add-kategorie" class="primary-btn">Hinzufügen</button>
+      </div>
+    `;
+  }
+
+  /**
+   * Kategorie hinzufügen
+   */
+  async handleAddKategorie() {
+    const input = document.getElementById('new-kategorie-input');
+    const newKategorie = input?.value?.trim();
+    
+    if (!newKategorie) {
+      window.toastSystem?.show('Bitte einen Namen eingeben', 'warning');
+      return;
+    }
+    
+    // Prüfen ob Kategorie bereits existiert
+    const existingKategorien = this.getTeilbereicheFromListe();
+    if (existingKategorien.includes(newKategorie)) {
+      window.toastSystem?.show('Diese Kategorie existiert bereits', 'warning');
+      return;
+    }
+
+    try {
+      // Neue Kategorien-Liste erstellen
+      const updatedKategorien = [...existingKategorien, newKategorie];
+      const teilbereichString = updatedKategorien.join(', ');
+      
+      // Liste aktualisieren
+      await creatorAuswahlService.updateListe(this.listeId, { teilbereich: teilbereichString });
+      
+      // Lokalen State aktualisieren
+      this.liste.teilbereich = teilbereichString;
+      
+      // Drawer-Body neu rendern
+      this.rerenderKategorienDrawerBody();
+      
+      // Tabelle neu rendern
+      this.rerenderTable();
+      
+      window.toastSystem?.show('Kategorie hinzugefügt', 'success');
+    } catch (error) {
+      console.error('Fehler beim Hinzufügen der Kategorie:', error);
+      window.toastSystem?.show('Fehler beim Hinzufügen', 'error');
+    }
+  }
+
+  /**
+   * Kategorie löschen
+   */
+  async handleDeleteKategorie(kategorie) {
+    const result = await window.confirmationModal?.open({
+      title: 'Kategorie löschen?',
+      message: `Möchten Sie die Kategorie "${kategorie}" wirklich löschen? Items in dieser Kategorie werden zu "Ohne Kategorie" verschoben.`,
+      confirmText: 'Löschen',
+      cancelText: 'Abbrechen',
+      danger: true
+    });
+
+    if (!result?.confirmed) return;
+    
+    try {
+      // Kategorie aus Liste entfernen
+      const existingKategorien = this.getTeilbereicheFromListe();
+      const updatedKategorien = existingKategorien.filter(k => k !== kategorie);
+      const teilbereichString = updatedKategorien.length > 0 ? updatedKategorien.join(', ') : null;
+      
+      // Liste aktualisieren
+      await creatorAuswahlService.updateListe(this.listeId, { teilbereich: teilbereichString });
+      
+      // Alle Items dieser Kategorie auf null setzen
+      const itemsToUpdate = this.items.filter(item => item.kategorie === kategorie);
+      for (const item of itemsToUpdate) {
+        await creatorAuswahlService.updateItem(item.id, { kategorie: null });
+        item.kategorie = null;
+      }
+      
+      // Lokalen State aktualisieren
+      this.liste.teilbereich = teilbereichString;
+      
+      // Drawer-Body neu rendern
+      this.rerenderKategorienDrawerBody();
+      
+      // Tabelle neu rendern
+      this.rerenderTable();
+      
+      window.toastSystem?.show('Kategorie gelöscht', 'success');
+    } catch (error) {
+      console.error('Fehler beim Löschen der Kategorie:', error);
+      window.toastSystem?.show('Fehler beim Löschen', 'error');
+    }
+  }
+
+  /**
+   * Kategorien-Drawer Body neu rendern
+   */
+  rerenderKategorienDrawerBody() {
+    const drawerBody = document.getElementById('kategorien-drawer-body');
+    if (drawerBody) {
+      drawerBody.innerHTML = this.renderKategorienDrawerBody();
+      this.bindKategorienDrawerEvents();
+    }
+  }
+
+  /**
+   * Events für Kategorien-Drawer
+   */
+  bindKategorienDrawerEvents() {
+    const addBtn = document.getElementById('btn-add-kategorie');
+    const input = document.getElementById('new-kategorie-input');
+    
+    if (addBtn) {
+      addBtn.addEventListener('click', () => this.handleAddKategorie());
+    }
+    
+    if (input) {
+      input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this.handleAddKategorie();
+        }
+      });
+    }
+    
+    document.querySelectorAll('.kategorie-delete-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.handleDeleteKategorie(btn.dataset.kategorie);
+      });
+    });
+  }
+
+  /**
+   * Kategorie-Select für Formulare rendern
+   */
+  renderKategorieSelect(selectedValue = '') {
+    const teilbereiche = this.getTeilbereicheFromListe();
+    
+    if (teilbereiche.length === 0) {
+      // Wenn keine Kategorien definiert sind, zeige ein Textfeld
+      return `<input type="text" name="kategorie" class="form-input" placeholder="z.B. Food, Fashion, Tech">`;
+    }
+    
+    return `
+      <select name="kategorie" class="form-input">
+        <option value="">Ohne Kategorie</option>
+        ${teilbereiche.map(tb => `<option value="${tb}" ${selectedValue === tb ? 'selected' : ''}>${tb}</option>`).join('')}
+      </select>
+    `;
+  }
+
+  /**
+   * Kategorien-Drawer öffnen
+   */
+  openKategorienDrawer() {
+    this.removeKategorienDrawer();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'drawer-overlay';
+    overlay.id = 'kategorien-drawer-overlay';
+
+    const panel = document.createElement('div');
+    panel.setAttribute('role', 'dialog');
+    panel.className = 'drawer-panel';
+    panel.id = 'kategorien-drawer';
+
+    const header = document.createElement('div');
+    header.className = 'drawer-header';
+    header.innerHTML = `
+      <div>
+        <span class="drawer-title">Kategorien verwalten</span>
+        <p class="drawer-subtitle">Kategorien für die Creator-Gruppierung</p>
+      </div>
+      <div>
+        <button class="drawer-close-btn" type="button" aria-label="Schließen">&times;</button>
+      </div>
+    `;
+
+    const body = document.createElement('div');
+    body.className = 'drawer-body';
+    body.id = 'kategorien-drawer-body';
+    body.innerHTML = this.renderKategorienDrawerBody();
+
+    panel.appendChild(header);
+    panel.appendChild(body);
+
+    overlay.addEventListener('click', () => this.closeKategorienDrawer());
+    header.querySelector('.drawer-close-btn').addEventListener('click', () => this.closeKategorienDrawer());
+
+    document.body.appendChild(overlay);
+    document.body.appendChild(panel);
+
+    requestAnimationFrame(() => {
+      overlay.classList.add('active');
+      panel.classList.add('show');
+    });
+
+    this.bindKategorienDrawerEvents();
+  }
+
+  /**
+   * Kategorien-Drawer entfernen
+   */
+  removeKategorienDrawer() {
+    ['kategorien-drawer-overlay', 'kategorien-drawer'].forEach(id => {
+      document.getElementById(id)?.remove();
+    });
+  }
+
+  /**
+   * Kategorien-Drawer schließen
+   */
+  closeKategorienDrawer() {
+    document.getElementById('kategorien-drawer-overlay')?.classList.remove('active');
+    document.getElementById('kategorien-drawer')?.classList.remove('show');
+    setTimeout(() => this.removeKategorienDrawer(), 300);
+  }
+
+  /**
+   * Kategorie eines Items ändern (z.B. per Drag&Drop)
+   */
+  async handleCategoryChange(itemId, newKategorie) {
+    try {
+      // "Ohne Kategorie" auf null setzen
+      const kategorie = newKategorie === 'Ohne Kategorie' ? null : newKategorie;
+      
+      await creatorAuswahlService.updateItem(itemId, { kategorie });
+      
+      // Items lokal aktualisieren
+      const item = this.items.find(i => i.id === itemId);
+      if (item) {
+        item.kategorie = kategorie;
+      }
+      
+      // Tabelle neu rendern
+      this.rerenderTable();
+      
+      window.toastSystem?.show('Kategorie aktualisiert', 'success');
+    } catch (error) {
+      console.error('Fehler beim Ändern der Kategorie:', error);
+      window.toastSystem?.show('Fehler beim Ändern der Kategorie', 'error');
+    }
+  }
+
+  /**
    * Hauptrendering
    */
   async render() {
@@ -178,6 +470,13 @@ export class CreatorAuswahlDetail {
         <div class="add-item-actions-right">
           <button type="button" class="secondary-btn" id="btn-sourcing-detail-column-visibility">
             Sichtbarkeit anpassen
+          </button>
+          <button type="button" class="secondary-btn" id="btn-manage-kategorien" title="Kategorien verwalten">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z" />
+            </svg>
+            Kategorien
           </button>
           <button type="button" class="primary-btn" id="btn-open-add-drawer">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
@@ -248,7 +547,7 @@ export class CreatorAuswahlDetail {
             </tr>
           </thead>
           <tbody id="items-table-body">
-            ${this.items.map((item, index) => this.renderItemRow(item, index)).join('')}
+            ${this.renderGroupedItems()}
           </tbody>
           ${!this.isKunde ? `
           <tfoot>
@@ -266,6 +565,89 @@ export class CreatorAuswahlDetail {
         </table>
       </div>
     `;
+  }
+
+  /**
+   * Gruppierte Items rendern (nach Kategorie)
+   */
+  renderGroupedItems() {
+    const NICHT_UMSETZEN_KATEGORIE = 'Nicht umsetzen';
+    
+    // Alle definierten Kategorien holen (damit auch leere angezeigt werden)
+    const definierteKategorien = this.getTeilbereicheFromListe();
+    const hatDefinierteKategorien = definierteKategorien.length > 0;
+    
+    // Wenn keine Kategorien definiert sind, einfach alle Items rendern
+    if (!hatDefinierteKategorien) {
+      return this.items.map((item, index) => this.renderItemRow(item, index)).join('');
+    }
+    
+    // Items nach Kategorie gruppieren
+    const groupedItems = this.groupItemsByKategorie(this.items);
+    const colCount = this.getVisibleColumnCount();
+    
+    let html = '';
+    let globalIndex = 0;
+    
+    // Definierte Kategorien durchgehen (OHNE "Nicht umsetzen" - kommt ganz unten)
+    const normaleKategorien = definierteKategorien.filter(k => k !== NICHT_UMSETZEN_KATEGORIE);
+    
+    for (const kategorie of normaleKategorien) {
+      const items = groupedItems[kategorie] || [];
+      
+      // Kategorie-Header
+      html += `
+        <tr class="kategorie-header-row" data-kategorie="${kategorie}">
+          <td colspan="${colCount}" class="kategorie-header">
+            <span class="kategorie-label">${kategorie}</span>
+            <span class="kategorie-count">(${items.length})</span>
+          </td>
+        </tr>
+      `;
+      
+      // Items der Kategorie
+      for (const item of items) {
+        html += this.renderItemRow(item, globalIndex++);
+      }
+    }
+    
+    // "Ohne Kategorie" 
+    const ohneKategorie = groupedItems['Ohne Kategorie'] || [];
+    if (ohneKategorie.length > 0 || normaleKategorien.length > 0) {
+      html += `
+        <tr class="kategorie-header-row" data-kategorie="Ohne Kategorie">
+          <td colspan="${colCount}" class="kategorie-header kategorie-header--default">
+            <span class="kategorie-label">Ohne Kategorie</span>
+            <span class="kategorie-count">(${ohneKategorie.length})</span>
+          </td>
+        </tr>
+      `;
+      
+      for (const item of ohneKategorie) {
+        html += this.renderItemRow(item, globalIndex++);
+      }
+    }
+    
+    // "Nicht umsetzen" ganz unten (rot/abgeschwächt)
+    const nichtUmsetzenItems = groupedItems[NICHT_UMSETZEN_KATEGORIE] || [];
+    if (nichtUmsetzenItems.length > 0 || definierteKategorien.includes(NICHT_UMSETZEN_KATEGORIE)) {
+      const nichtUmsetzenIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" /></svg>`;
+      
+      html += `
+        <tr class="kategorie-header-row kategorie-header-row--rejected" data-kategorie="${NICHT_UMSETZEN_KATEGORIE}">
+          <td colspan="${colCount}" class="kategorie-header kategorie-header--rejected">
+            <span class="kategorie-label">${nichtUmsetzenIcon} ${NICHT_UMSETZEN_KATEGORIE}</span>
+            <span class="kategorie-count">(${nichtUmsetzenItems.length})</span>
+          </td>
+        </tr>
+      `;
+      
+      for (const item of nichtUmsetzenItems) {
+        html += this.renderItemRow(item, globalIndex++);
+      }
+    }
+    
+    return html;
   }
 
   /**
@@ -378,7 +760,7 @@ export class CreatorAuswahlDetail {
             ${item.prio_1 ? 'checked' : ''} 
             data-field="prio_1"
             data-item-id="${item.id}"
-            style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'pointer' : 'default'}; ${!this.isKunde ? 'pointer-events: none;' : ''}"
+            style="width: 20px; height: 20px; cursor: pointer;"
           >
         </td>
         <td class="cp-col-prio2" style="text-align: center;${!this.isColumnVisibleForCustomer('cp-col-prio2') ? ' display:none;' : ''}">
@@ -387,7 +769,7 @@ export class CreatorAuswahlDetail {
             ${item.prio_2 ? 'checked' : ''} 
             data-field="prio_2"
             data-item-id="${item.id}"
-            style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'pointer' : 'default'}; ${!this.isKunde ? 'pointer-events: none;' : ''}"
+            style="width: 20px; height: 20px; cursor: pointer;"
           >
         </td>
         <td class="cp-col-nicht" style="text-align: center;${!this.isColumnVisibleForCustomer('cp-col-nicht') ? ' display:none;' : ''}">
@@ -396,7 +778,7 @@ export class CreatorAuswahlDetail {
             ${item.nicht_umsetzen ? 'checked' : ''} 
             data-field="nicht_umsetzen"
             data-item-id="${item.id}"
-            style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'pointer' : 'default'}; ${!this.isKunde ? 'pointer-events: none;' : ''}"
+            style="width: 20px; height: 20px; cursor: pointer;"
           >
         </td>
         <td class="cell-textarea cp-col-pricing" ${!this.isColumnVisibleForCustomer('cp-col-pricing') ? 'style="display:none;"' : ''}>
@@ -452,6 +834,14 @@ export class CreatorAuswahlDetail {
         const handler = () => this.showColumnVisibilityDrawer();
         visibilityBtn.addEventListener('click', handler);
         this._boundEventListeners.add(() => visibilityBtn.removeEventListener('click', handler));
+      }
+
+      // Kategorien-Button
+      const kategorienBtn = document.getElementById('btn-manage-kategorien');
+      if (kategorienBtn) {
+        const handler = () => this.openKategorienDrawer();
+        kategorienBtn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => kategorienBtn.removeEventListener('click', handler));
       }
 
       const addBtn = document.getElementById('btn-open-add-drawer');
@@ -528,12 +918,15 @@ export class CreatorAuswahlDetail {
    */
   bindDragAndDropEvents() {
     const rows = document.querySelectorAll('.item-row.draggable');
+    const kategorieHeaders = document.querySelectorAll('.kategorie-header-row');
     
     rows.forEach(row => {
       const dragstartHandler = (e) => {
         this.draggedItem = row;
+        this.draggedItemId = row.dataset.itemId;
         row.style.opacity = '0.5';
         e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', row.dataset.itemId);
       };
       row.addEventListener('dragstart', dragstartHandler);
       this._boundEventListeners.add(() => row.removeEventListener('dragstart', dragstartHandler));
@@ -541,6 +934,9 @@ export class CreatorAuswahlDetail {
       const dragendHandler = () => {
         row.style.opacity = '1';
         this.draggedItem = null;
+        this.draggedItemId = null;
+        // Entferne alle drag-over Styles
+        document.querySelectorAll('.kategorie-header-row.drag-over').forEach(h => h.classList.remove('drag-over'));
       };
       row.addEventListener('dragend', dragendHandler);
       this._boundEventListeners.add(() => row.removeEventListener('dragend', dragendHandler));
@@ -568,23 +964,72 @@ export class CreatorAuswahlDetail {
       row.addEventListener('drop', dropHandler);
       this._boundEventListeners.add(() => row.removeEventListener('drop', dropHandler));
     });
+
+    // Kategorie-Header als Drop-Targets
+    kategorieHeaders.forEach(header => {
+      const dragoverHandler = (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        header.classList.add('drag-over');
+      };
+      header.addEventListener('dragover', dragoverHandler);
+      this._boundEventListeners.add(() => header.removeEventListener('dragover', dragoverHandler));
+
+      const dragleaveHandler = () => {
+        header.classList.remove('drag-over');
+      };
+      header.addEventListener('dragleave', dragleaveHandler);
+      this._boundEventListeners.add(() => header.removeEventListener('dragleave', dragleaveHandler));
+
+      const dropHandler = async (e) => {
+        e.preventDefault();
+        header.classList.remove('drag-over');
+        
+        const itemId = this.draggedItemId;
+        const newKategorie = header.dataset.kategorie;
+        
+        if (itemId && newKategorie) {
+          await this.handleCategoryChange(itemId, newKategorie);
+        }
+      };
+      header.addEventListener('drop', dropHandler);
+      this._boundEventListeners.add(() => header.removeEventListener('drop', dropHandler));
+    });
   }
 
   /**
-   * Sortierung speichern
+   * Sortierung speichern (mit Kategorie-Berücksichtigung)
    */
   async handleSortUpdate() {
     const tbody = document.getElementById('items-table-body');
     const rows = Array.from(tbody.querySelectorAll('.item-row'));
     
+    // Wenn Kategorien definiert sind, Kategorie aus Position ableiten
+    const hatKategorien = this.getTeilbereicheFromListe().length > 0;
+    
     const updatedItems = rows.map((row, index) => {
       const itemId = row.dataset.itemId;
       const item = this.items.find(i => i.id === itemId);
-      return { ...item, sortierung: index };
+      
+      let kategorie = item.kategorie;
+      
+      if (hatKategorien) {
+        // Finde die Kategorie basierend auf dem vorherigen Kategorie-Header
+        let currentHeader = row.previousElementSibling;
+        while (currentHeader && !currentHeader.classList.contains('kategorie-header-row')) {
+          currentHeader = currentHeader.previousElementSibling;
+        }
+        if (currentHeader) {
+          const headerKategorie = currentHeader.dataset.kategorie;
+          kategorie = headerKategorie === 'Ohne Kategorie' ? null : headerKategorie;
+        }
+      }
+      
+      return { ...item, sortierung: index, kategorie };
     });
 
     try {
-      await creatorAuswahlService.updateItemsSortierung(updatedItems);
+      await creatorAuswahlService.updateItemsSortierungWithKategorie(updatedItems);
       this.items = updatedItems;
       window.toastSystem?.show('Sortierung gespeichert', 'success');
     } catch (error) {
@@ -612,6 +1057,12 @@ export class CreatorAuswahlDetail {
     }
 
     try {
+      // Spezialfall: "Nicht umsetzen" - Creator in separate Kategorie verschieben
+      if (field === 'nicht_umsetzen') {
+        await this.handleNichtUmsetzenChange(itemId, value);
+        return;
+      }
+
       await creatorAuswahlService.updateItem(itemId, { [field]: value });
       
       const item = this.items.find(i => i.id === itemId);
@@ -620,6 +1071,63 @@ export class CreatorAuswahlDetail {
       }
     } catch (error) {
       console.error('Fehler beim Aktualisieren:', error);
+      window.toastSystem?.show('Fehler beim Speichern', 'error');
+    }
+  }
+
+  /**
+   * Spezialbehandlung für "Nicht umsetzen" - verschiebt Creator in eigene Kategorie
+   */
+  async handleNichtUmsetzenChange(itemId, isNichtUmsetzen) {
+    const NICHT_UMSETZEN_KATEGORIE = 'Nicht umsetzen';
+    
+    try {
+      // Wenn "Nicht umsetzen" aktiviert wird
+      if (isNichtUmsetzen) {
+        // Prüfen ob Kategorie "Nicht umsetzen" existiert, sonst erstellen
+        const existingKategorien = this.getTeilbereicheFromListe();
+        if (!existingKategorien.includes(NICHT_UMSETZEN_KATEGORIE)) {
+          // Kategorie hinzufügen
+          const updatedKategorien = [...existingKategorien, NICHT_UMSETZEN_KATEGORIE];
+          const teilbereichString = updatedKategorien.join(', ');
+          await creatorAuswahlService.updateListe(this.listeId, { teilbereich: teilbereichString });
+          this.liste.teilbereich = teilbereichString;
+        }
+        
+        // Item aktualisieren: nicht_umsetzen = true UND in Kategorie "Nicht umsetzen" verschieben
+        await creatorAuswahlService.updateItem(itemId, { 
+          nicht_umsetzen: true, 
+          kategorie: NICHT_UMSETZEN_KATEGORIE 
+        });
+        
+        const item = this.items.find(i => i.id === itemId);
+        if (item) {
+          item.nicht_umsetzen = true;
+          item.kategorie = NICHT_UMSETZEN_KATEGORIE;
+        }
+        
+        window.toastSystem?.show('Creator als "Nicht umsetzen" markiert', 'info');
+      } else {
+        // Wenn "Nicht umsetzen" deaktiviert wird: zurück zu "Ohne Kategorie"
+        await creatorAuswahlService.updateItem(itemId, { 
+          nicht_umsetzen: false, 
+          kategorie: null 
+        });
+        
+        const item = this.items.find(i => i.id === itemId);
+        if (item) {
+          item.nicht_umsetzen = false;
+          item.kategorie = null;
+        }
+        
+        window.toastSystem?.show('Creator wieder aktiv', 'success');
+      }
+      
+      // Tabelle neu rendern, damit Gruppierung aktualisiert wird
+      this.rerenderTable();
+      
+    } catch (error) {
+      console.error('Fehler beim Ändern von "Nicht umsetzen":', error);
       window.toastSystem?.show('Fehler beim Speichern', 'error');
     }
   }
@@ -783,7 +1291,7 @@ export class CreatorAuswahlDetail {
           <div class="form-row">
             <div class="form-field">
               <label class="form-label">Kategorie</label>
-              <input type="text" name="kategorie" class="form-input" placeholder="z.B. Food, Fashion, Tech">
+              ${this.renderKategorieSelect()}
             </div>
             <div class="form-field">
               <label class="form-label">Location</label>

@@ -306,9 +306,9 @@ class ModuleRegistry {
       console.log(`🎯 Strategie-Details erkannt, verwende Modul: ${moduleKey}`);
     }
     
-    // Spezielle Behandlung für Creator-Auswahl-Details (aber nicht für 'new')
-    if (id && segment === 'creator-auswahl' && id !== 'new') {
-      moduleKey = 'creator-auswahl-detail';
+    // Spezielle Behandlung für Sourcing-Details (aber nicht für 'new')
+    if (id && segment === 'sourcing' && id !== 'new') {
+      moduleKey = 'sourcing-detail';
       module = this.modules.get(moduleKey);
       console.log(`🎯 Creator-Auswahl-Details erkannt, verwende Modul: ${moduleKey}`);
     }
@@ -463,8 +463,8 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('tabellen', tabellenModule);
   moduleRegistry.register('strategie', strategieList);
   moduleRegistry.register('strategie-detail', strategieDetail);
-  moduleRegistry.register('creator-auswahl', creatorAuswahlList);
-  moduleRegistry.register('creator-auswahl-detail', creatorAuswahlDetail);
+  moduleRegistry.register('sourcing', creatorAuswahlList);
+  moduleRegistry.register('sourcing-detail', creatorAuswahlDetail);
   moduleRegistry.register('feedback', feedbackPage);
   moduleRegistry.register('education', educationPage);
   moduleRegistry.register('education-detail', educationArticleDetail);

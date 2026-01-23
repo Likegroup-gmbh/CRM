@@ -24,6 +24,9 @@ export class CreatorList {
     this._numberFormatter = new Intl.NumberFormat('de-DE');
     // Sortierung: Standard alphabetisch A-Z (nach Nachname)
     this.currentSort = { field: 'nachname', ascending: true };
+    // Suche
+    this.searchQuery = '';
+    this._searchDebounceTimer = null;
   }
 
   // Initialisiere Creator-Liste
@@ -97,12 +100,17 @@ export class CreatorList {
       const currentFilters = filterSystem.getFilters('creator');
       const { currentPage, itemsPerPage } = this.pagination.getState();
       
-      // Sortierung zu Filtern hinzufügen
+      // Sortierung und Suche zu Filtern hinzufügen
       const filtersWithSort = {
         ...currentFilters,
         _sortBy: this.currentSort.field,
         _sortOrder: this.currentSort.ascending ? 'asc' : 'desc'
       };
+      
+      // Suchbegriff als name-Filter hinzufügen (sucht in vorname UND nachname)
+      if (this.searchQuery && this.searchQuery.length > 0) {
+        filtersWithSort.name = this.searchQuery;
+      }
       
       const result = await window.dataService.loadEntitiesWithPagination(
         'creator',
@@ -159,6 +167,13 @@ export class CreatorList {
     // Filter-Dropdown über dem Tabellen-Header
     const filterHtml = `<div class="filter-bar">
       <div class="filter-left">
+        <div class="creator-search-container">
+          <input type="text" 
+                 id="creator-search-input" 
+                 class="form-input creator-search-input" 
+                 placeholder="Creator suchen..."
+                 value="${this.searchQuery || ''}">
+        </div>
         <div id="sort-dropdown-container"></div>
         <div id="filter-dropdown-container"></div>
       </div>
@@ -265,9 +280,29 @@ export class CreatorList {
     this.loadDataDebounced(50);
   }
 
+  // Suche ausführen (debounced)
+  handleCreatorSearch(query) {
+    // Debounce Timer clearen
+    if (this._searchDebounceTimer) {
+      clearTimeout(this._searchDebounceTimer);
+    }
+    
+    this._searchDebounceTimer = setTimeout(() => {
+      this.searchQuery = query.trim();
+      this.pagination.currentPage = 1;
+      this.loadDataDebounced(50);
+    }, 250);
+  }
+
   // Binde Events
   bindEvents() {
     // Filter-Events werden vom FilterDropdown gehandelt
+
+    // Suchfeld Event
+    const searchInput = document.getElementById('creator-search-input');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => this.handleCreatorSearch(e.target.value));
+    }
 
     // Neuen Creator anlegen Button
     document.addEventListener('click', (e) => {

@@ -729,7 +729,7 @@ export class UnternehmenDetail extends PersonDetailBase {
     const rows = this.creatorAuswahlen.map(ca => `
       <tr>
         <td>
-          <a href="#" class="table-link" data-table="creator-auswahl" data-id="${ca.id}">
+          <a href="#" class="table-link" data-table="sourcing" data-id="${ca.id}">
             ${this.sanitize(ca.name) || 'Unbekannte Creator-Auswahl'}
           </a>
         </td>

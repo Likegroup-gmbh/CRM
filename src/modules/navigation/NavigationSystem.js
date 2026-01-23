@@ -34,7 +34,7 @@ export class NavigationSystem {
         title: 'Content & Strategie',
         items: [
           { id: 'strategie', label: 'Strategie', icon: 'icon-lightbulb', url: '/strategie' },
-          { id: 'creator-auswahl', label: 'Sourcing', icon: 'icon-users', url: '/creator-auswahl' },
+          { id: 'sourcing', label: 'Sourcing', icon: 'icon-users', url: '/sourcing' },
           { id: 'vertraege', label: 'Verträge', icon: 'icon-contract', url: '/vertraege' },
           { id: 'videos', label: 'Videos', icon: 'icon-video', url: '/videos' },
           { id: 'rechnung', label: 'Rechnung', icon: 'icon-currency-euro', url: '/rechnung' }
@@ -108,7 +108,7 @@ export class NavigationSystem {
         vertraege: 'briefing', // Verträge nutzt vorerst briefing-Berechtigung
         creator: 'creator',
         'creator-lists': 'creator',
-        'creator-auswahl': 'creator',
+        'sourcing': 'creator',
         mitarbeiter: 'mitarbeiter',
         'kunden-admin': 'kunden-admin',
         tasks: 'tasks',

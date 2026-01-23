@@ -18,8 +18,8 @@ export const TAB_PERMISSION_MAP = {
   'kooperationen': 'kooperation',
   'rechnungen': 'rechnung',
   'strategien': 'strategie',
-  'creatorauswahl': 'creator-auswahl',
-  'creator-auswahl': 'creator-auswahl',
+  'creatorauswahl': 'sourcing',
+  'sourcing': 'sourcing',
   'creators': 'creator',
   'creator': 'creator',
   'vertraege': 'briefing', // nutzt briefing-Berechtigung (wie Navigation)

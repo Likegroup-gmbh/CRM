@@ -829,6 +829,39 @@ button.is-submit-locked,
     gap: var(--space-xs);
   }
 
+  .filter-right {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-left: auto;
+  }
+
+  .creator-search-container {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+  }
+
+  .creator-search-input {
+    width: 220px;
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    background: var(--white);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .creator-search-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
+  }
+
+  .creator-search-input::placeholder {
+    color: var(--gray-400);
+  }
+
 .form-page {
   padding: var(--space-md);
 }
@@ -1546,7 +1579,7 @@ h3.section-title,
 .tab-content {
   background: var(--bg-primary);
   min-height: 400px;
-  overflow-x: hidden; /* Verhindert horizontales Scrollen des Tab-Contents */
+  overflow-x: clip; /* Verhindert horizontales Scrollen, aber erlaubt sticky headers */
 
   width: 100%;
   
@@ -4741,7 +4774,18 @@ margin-bottom: var(--space-lg);
   
 }
 
-
+/* Sticky Table Headers für alle Listen-Tabellen (Strategie, Sourcing, etc.) */
+.table-container .data-table thead th,
+.data-table-container .data-table thead th,
+.tab-pane .data-table thead th,
+.detail-section .data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg-primary, #fff);
+  /* Schatten für visuelle Trennung beim Scrollen */
+  box-shadow: inset 0 -1px 0 0 var(--gray-200);
+}
 
 .data-table tbody tr:hover {
   background-color: var(--gray-50);
@@ -8413,6 +8457,59 @@ input.readonly-field {
   white-space: nowrap;
 }
 
+/* Kategorie-Header Zeilen in Tabellen (Sourcing, Strategie) */
+.kategorie-header-row {
+  background: var(--gray-100);
+}
+
+.kategorie-header-row td {
+  border: none !important;
+}
+
+.kategorie-header {
+  padding: var(--space-sm) var(--space-md) !important;
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--gray-700);
+  cursor: default;
+}
+
+.kategorie-header--default {
+  background: var(--gray-50);
+  color: var(--gray-500);
+}
+
+.kategorie-header .kategorie-label {
+  margin-right: var(--space-xs);
+}
+
+.kategorie-header .kategorie-count {
+  font-weight: 400;
+  color: var(--gray-500);
+}
+
+/* Kategorie-Header Drag-Over State */
+.kategorie-header-row.drag-over {
+  background: var(--color-primary-light, #e0f2fe);
+}
+
+.kategorie-header-row.drag-over .kategorie-header {
+  background: var(--color-primary-light, #e0f2fe);
+  color: var(--color-primary);
+  border: 2px dashed var(--color-primary);
+}
+
+/* "Nicht umsetzen" Kategorie - rot/abgeschwächt */
+.kategorie-header-row--rejected {
+  background: var(--red-50, #fef2f2);
+}
+
+.kategorie-header--rejected {
+  background: var(--red-100, #fee2e2) !important;
+  color: var(--red-700, #b91c1c) !important;
+  border-top: 2px solid var(--red-300, #fca5a5);
+}
+
 /* Idee-Placeholder (ohne Video-Link) */
 .idea-placeholder {
   width: 100px;
@@ -8953,8 +9050,6 @@ input.readonly-field {
   justify-content: flex-end;
   align-items: center;
   padding: var(--space-xs);
-  
-  
 }
 
 .add-item-actions-right {
@@ -9411,7 +9506,7 @@ table:has(#strategien-table-body) td:nth-child(6) {
 /* Drag-to-Scroll Support für Tabellen */
 .table-container.drag-scroll-enabled {
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: clip; /* clip statt visible, damit sticky headers funktionieren */
   max-height: none;
   height: auto;
   cursor: grab;
@@ -9434,6 +9529,17 @@ table:has(#strategien-table-body) td:nth-child(6) {
   position: relative;
   overflow: visible;
   padding-bottom: var(--space-xl); /* Platz für Actions-Dropdown bei wenigen Einträgen */
+}
+
+/* Override drag-scroll für creator-pool: Scroll geht zum main-wrapper für sticky headers */
+.creator-pool-table-container.drag-scroll-enabled {
+  overflow-x: visible !important;
+  overflow-y: visible !important;
+}
+
+/* main-wrapper muss horizontal scrollen können wenn creator-pool-table drin ist */
+.main-wrapper:has(.creator-pool-table-container) {
+  overflow-x: auto;
 }
 
 .creator-pool-table {
@@ -10035,6 +10141,196 @@ table:has(#strategien-table-body) td:nth-child(6) {
 .feedback-card-wrapper:has(.feedback-comments-section:not(:has(*))) .feedback-card {
   border-radius: var(--radius-md);
 }
+
+/* ============================================
+   Feedback Merge Styles
+   ============================================ */
+
+/* Merge-Zone aktiv - wenn Card über andere gehalten wird */
+.feedback-card.merge-target {
+  outline: 2px solid var(--primary-500);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15);
+  animation: merge-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes merge-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(79, 70, 229, 0.1);
+  }
+}
+
+/* Merge Badge im Card Header */
+.feedback-merge-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--primary-600);
+  background-color: var(--primary-50);
+  border: 1px solid var(--primary-200);
+  border-radius: var(--radius-full);
+}
+
+.feedback-merge-badge svg {
+  width: 12px;
+  height: 12px;
+}
+
+.feedback-merge-badge .merge-count {
+  font-weight: 700;
+}
+
+/* Merged Items Akkordeon Container */
+.feedback-merged-items {
+  background: var(--gray-50);
+  border-top: 1px solid var(--gray-200);
+}
+
+/* Merged Items Toggle Button */
+.feedback-merged-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
+  border: none;
+  background: transparent;
+  color: var(--primary-600);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.feedback-merged-toggle:hover {
+  background: var(--gray-100);
+  color: var(--primary-700);
+}
+
+.feedback-merged-toggle-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+}
+
+.feedback-merged-toggle-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.feedback-merged-toggle.expanded .feedback-merged-toggle-icon {
+  transform: rotate(180deg);
+}
+
+/* Merged Items List */
+.feedback-merged-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm) var(--space-sm);
+}
+
+.feedback-merged-list.hidden {
+  display: none;
+}
+
+/* Einzelne Merged Child Card */
+.feedback-merged-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  padding: var(--space-xs) var(--space-sm);
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--gray-300);
+}
+
+.feedback-merged-card.priority-high {
+  border-left-color: var(--red-500);
+}
+
+.feedback-merged-card.priority-medium {
+  border-left-color: #f59e0b;
+}
+
+.feedback-merged-card.priority-low {
+  border-left-color: var(--green-500);
+}
+
+.feedback-merged-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+}
+
+.feedback-merged-card-date {
+  color: var(--gray-500);
+}
+
+.feedback-merged-card-creator {
+  color: var(--gray-600);
+  font-weight: 500;
+}
+
+.feedback-merged-card-description {
+  font-size: var(--text-sm);
+  color: var(--gray-700);
+  line-height: 1.4;
+  margin: 0;
+  /* Truncate nach 2 Zeilen */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Unmerge Button */
+.btn-unmerge-feedback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--gray-400);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-unmerge-feedback:hover {
+  background: var(--red-50);
+  color: var(--red-500);
+}
+
+.btn-unmerge-feedback svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Card Wrapper mit Merged Items - Rundungen anpassen */
+.feedback-card-wrapper:has(.feedback-merged-items) .feedback-card {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.feedback-card-wrapper:has(.feedback-merged-items):not(:has(.feedback-comments-section:not(:empty))) .feedback-merged-items {
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+/* ============================================
+   End Feedback Merge Styles
+   ============================================ */
 
 .feedback-comments-list {
   display: flex;
@@ -11066,6 +11362,36 @@ table:has(#strategien-table-body) td:nth-child(6) {
   font-size: 10px;
   color: var(--text-secondary);
   margin-top: 2px;
+}
+
+/* Calendar Drag & Drop */
+.calendar-event[draggable="true"],
+.calendar-month-event[draggable="true"] {
+  cursor: grab;
+}
+
+.calendar-event[draggable="true"]:active,
+.calendar-month-event[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.calendar-event.dragging,
+.calendar-month-event.dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Drop-Zone Highlighting */
+.calendar-day-events.drag-over,
+.calendar-month-day.drag-over {
+  background: var(--primary-color-light, rgba(99, 102, 241, 0.1));
+  border: 2px dashed var(--primary-color);
+  border-radius: var(--radius-md);
+}
+
+.calendar-month-day.drag-over {
+  background: var(--primary-color-light, rgba(99, 102, 241, 0.15));
 }
 
 /* ===== KAMPAGNE PREVIEW DRAWER ===== */

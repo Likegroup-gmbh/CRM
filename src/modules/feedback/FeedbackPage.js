@@ -34,12 +34,23 @@ const ICON_UPVOTE = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox
 
 const ICON_DOWNVOTE = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" d="M7.498 15.25H4.372c-1.026 0-1.945-.694-2.054-1.715a12.137 12.137 0 0 1-.068-1.285c0-2.848.992-5.464 2.649-7.521C5.287 4.247 5.886 4 6.504 4h4.016a4.5 4.5 0 0 1 1.423.23l3.114 1.04a4.5 4.5 0 0 0 1.423.23h1.294M7.498 15.25c.618 0 .991.724.725 1.282A7.471 7.471 0 0 0 7.5 19.75 2.25 2.25 0 0 0 9.75 22a.75.75 0 0 0 .75-.75v-.633c0-.573.11-1.14.322-1.672.304-.76.93-1.33 1.653-1.715a9.04 9.04 0 0 0 2.86-2.4c.498-.634 1.226-1.08 2.032-1.08h.384m-10.253 1.5H9.7m8.075-9.75c.01.05.027.1.05.148.593 1.2.925 2.55.925 3.977 0 1.487-.36 2.89-.999 4.125m.023-8.25c-.076-.365.183-.75.575-.75h.908c.889 0 1.713.518 1.972 1.368.339 1.11.521 2.287.521 3.507 0 1.553-.295 3.036-.831 4.398-.306.774-1.086 1.227-1.918 1.227h-1.053c-.472 0-.745-.556-.5-.96a8.95 8.95 0 0 0 .303-.54" /></svg>`;
 
+const ICON_MERGE = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" /></svg>`;
+
+const ICON_UNMERGE = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="12" height="12"><path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25" /></svg>`;
+
+const ICON_CHEVRON_DOWN = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>`;
+
 export const feedbackPage = {
   feedbacks: [],
+  childFeedbacks: {}, // parentId -> children[] - gemergte Child-Feedbacks
   comments: {}, // feedbackId -> comments[]
   votes: {}, // feedbackId -> { upvotes: number, downvotes: number, userVote: 'up'|'down'|null }
   createDrawer: null,
   draggedFeedback: null,
+  draggedElement: null, // DOM-Element der gezogenen Card
+  mergeTarget: null, // ID der Card über der wir hovern
+  mergeTimer: null, // Timer für Merge-Zone Aktivierung
+  mergeZoneActive: false, // Ist die Merge-Zone aktiv?
   isAdmin: false,
   editingCommentId: null, // ID des aktuell bearbeiteten Kommentars
   filters: {
@@ -90,15 +101,18 @@ export const feedbackPage = {
   async loadFeedbacks() {
     if (!window.supabase) {
       this.feedbacks = [];
+      this.childFeedbacks = {};
       return;
     }
 
+    // Nur Parent-Feedbacks laden (parent_id ist null)
     let query = window.supabase
       .from('feedback')
       .select(`
         *,
         creator:created_by(id, name)
       `)
+      .is('parent_id', null)
       .order('created_at', { ascending: false });
 
     if (this.filters.priority) {
@@ -121,7 +135,6 @@ export const feedbackPage = {
       this.feedbacks = [];
     } else {
       this.feedbacks = data || [];
-      // Debug: Prüfen ob area-Feld für alle Feedbacks geladen wird
       console.log('🔍 Feedbacks geladen:', this.feedbacks.map(f => ({
         id: f.id,
         area: f.area,
@@ -129,6 +142,42 @@ export const feedbackPage = {
         isOwn: f.created_by === window.currentUser?.id
       })));
     }
+
+    // Lade alle Child-Feedbacks (die einen parent_id haben)
+    await this.loadChildFeedbacks();
+  },
+
+  async loadChildFeedbacks() {
+    if (!window.supabase) {
+      this.childFeedbacks = {};
+      return;
+    }
+
+    const { data, error } = await window.supabase
+      .from('feedback')
+      .select(`
+        *,
+        creator:created_by(id, name)
+      `)
+      .not('parent_id', 'is', null)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Fehler beim Laden der Child-Feedbacks:', error);
+      this.childFeedbacks = {};
+      return;
+    }
+
+    // Gruppiere nach parent_id
+    this.childFeedbacks = {};
+    (data || []).forEach(child => {
+      if (!this.childFeedbacks[child.parent_id]) {
+        this.childFeedbacks[child.parent_id] = [];
+      }
+      this.childFeedbacks[child.parent_id].push(child);
+    });
+
+    console.log('🔗 Child-Feedbacks geladen:', Object.keys(this.childFeedbacks).length, 'Parents mit Children');
   },
 
   async loadComments() {
@@ -322,12 +371,98 @@ export const feedbackPage = {
     const isArchived = fb.archived === true;
     const wrapperArchivedClass = isArchived ? 'feedback-card-wrapper--archived' : '';
 
+    // Gemergte Child-Items
+    const childItems = this.childFeedbacks[fb.id] || [];
+    const hasMergedItems = childItems.length > 0;
+
     return `
       <div class="feedback-card-wrapper ${wrapperArchivedClass}" data-feedback-id="${fb.id}">
         ${this.renderFeedbackCard(fb, feedbackComments)}
+        ${hasMergedItems ? this.renderMergedItemsSection(fb.id, childItems) : ''}
         ${this.renderCommentsSection(fb.id, feedbackComments, canComment)}
       </div>
     `;
+  },
+
+  renderMergedItemsSection(parentId, children) {
+    const safe = (str) => window.validatorSystem?.sanitizeHtml?.(str) ?? str;
+    const isExpanded = this.isMergedItemsExpanded(parentId);
+
+    const childrenHtml = children.map(child => {
+      const formattedDate = new Date(child.created_at).toLocaleDateString('de-DE', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: 'numeric'
+      });
+
+      const priorityClass = {
+        low: 'priority-low',
+        medium: 'priority-medium',
+        high: 'priority-high'
+      }[child.priority] || 'priority-medium';
+
+      return `
+        <div class="feedback-merged-card ${priorityClass}" data-child-id="${child.id}">
+          <div class="feedback-merged-card-header">
+            <span class="feedback-merged-card-date">${formattedDate}</span>
+            <span class="feedback-merged-card-creator">${safe(child.creator?.name || 'Unbekannt')}</span>
+            ${this.isAdmin ? `
+              <button class="btn-unmerge-feedback" data-child-id="${child.id}" title="Trennen">
+                ${ICON_UNMERGE}
+              </button>
+            ` : ''}
+          </div>
+          <p class="feedback-merged-card-description">${safe(child.description)}</p>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="feedback-merged-items" data-parent-id="${parentId}">
+        <button class="feedback-merged-toggle ${isExpanded ? 'expanded' : ''}" data-parent-id="${parentId}">
+          <span class="feedback-merged-toggle-icon">${ICON_CHEVRON_DOWN}</span>
+          <span class="feedback-merged-toggle-text">${children.length} zusammengeführte${children.length > 1 ? ' Tickets' : 's Ticket'}</span>
+        </button>
+        <div class="feedback-merged-list ${isExpanded ? '' : 'hidden'}">
+          ${childrenHtml}
+        </div>
+      </div>
+    `;
+  },
+
+  // Hilfsfunktionen für Merged-Items Sichtbarkeit (localStorage)
+  isMergedItemsExpanded(parentId) {
+    const userId = window.currentUser?.id;
+    if (!userId) return false;
+    const key = `feedback_merged_expanded_${userId}`;
+    const expandedIds = JSON.parse(localStorage.getItem(key) || '[]');
+    return expandedIds.includes(parentId);
+  },
+
+  toggleMergedItemsVisibility(parentId) {
+    const userId = window.currentUser?.id;
+    if (!userId) return;
+    const key = `feedback_merged_expanded_${userId}`;
+    let expandedIds = JSON.parse(localStorage.getItem(key) || '[]');
+    
+    if (expandedIds.includes(parentId)) {
+      expandedIds = expandedIds.filter(id => id !== parentId);
+    } else {
+      expandedIds.push(parentId);
+    }
+    
+    localStorage.setItem(key, JSON.stringify(expandedIds));
+    
+    // Toggle UI direkt ohne Re-render
+    const section = document.querySelector(`.feedback-merged-items[data-parent-id="${parentId}"]`);
+    if (section) {
+      const toggle = section.querySelector('.feedback-merged-toggle');
+      const list = section.querySelector('.feedback-merged-list');
+      if (toggle && list) {
+        toggle.classList.toggle('expanded');
+        list.classList.toggle('hidden');
+      }
+    }
   },
 
   renderFeedbackCard(fb, feedbackComments = []) {
@@ -393,6 +528,10 @@ export const feedbackPage = {
     const archivedClass = isArchived ? 'feedback-card--archived' : '';
     const canArchive = this.isAdmin && fb.status === 'closed';
 
+    // Merge-Badge: Anzahl der zusammengeführten Children
+    const childCount = (this.childFeedbacks[fb.id] || []).length;
+    const hasMergedItems = childCount > 0;
+
     return `
       <div class="task-card feedback-card ${priorityClass} ${archivedClass}" 
            draggable="${this.isAdmin ? 'true' : 'false'}" 
@@ -408,6 +547,12 @@ export const feedbackPage = {
               <span class="task-priority-text">${priorityLabel}</span>
             </div>
             ${areaLabel ? `<span class="feedback-area-badge">${areaLabel}</span>` : ''}
+            ${hasMergedItems ? `
+              <span class="feedback-merge-badge" title="${childCount} zusammengeführte${childCount > 1 ? ' Tickets' : 's Ticket'}">
+                ${ICON_MERGE}
+                <span class="merge-count">${childCount}</span>
+              </span>
+            ` : ''}
           </div>
           <div class="feedback-card-actions">
             ${this.isAdmin ? `
@@ -763,6 +908,24 @@ export const feedbackPage = {
         const commentId = btn.dataset.commentId;
         const feedbackId = btn.dataset.feedbackId;
         this.startEditComment(commentId, feedbackId);
+      });
+    });
+
+    // Merged Items Toggle Events
+    document.querySelectorAll('.feedback-merged-toggle').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const parentId = btn.dataset.parentId;
+        this.toggleMergedItemsVisibility(parentId);
+      });
+    });
+
+    // Unmerge Events
+    document.querySelectorAll('.btn-unmerge-feedback').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const childId = btn.dataset.childId;
+        await this.unmergeFeedback(childId);
       });
     });
 
@@ -1236,6 +1399,25 @@ export const feedbackPage = {
       });
     }
 
+    // Merged Items Toggle
+    const mergedToggle = wrapper.querySelector('.feedback-merged-toggle');
+    if (mergedToggle) {
+      mergedToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const parentId = mergedToggle.dataset.parentId;
+        this.toggleMergedItemsVisibility(parentId);
+      });
+    }
+
+    // Unmerge Buttons
+    wrapper.querySelectorAll('.btn-unmerge-feedback').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const childId = btn.dataset.childId;
+        await this.unmergeFeedback(childId);
+      });
+    });
+
     // Drag events for card
     const card = wrapper.querySelector('.feedback-card');
     if (card) {
@@ -1313,6 +1495,7 @@ export const feedbackPage = {
       category: card.dataset.category,
       status: card.dataset.status
     };
+    this.draggedElement = card;
 
     card.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
@@ -1324,20 +1507,77 @@ export const feedbackPage = {
       card.classList.remove('dragging');
     }
     this.draggedFeedback = null;
+    this.draggedElement = null;
 
-    // Remove all drag-over states
+    // Merge-State zurücksetzen
+    this.clearMergeTimer();
+    this.mergeZoneActive = false;
+
+    // Remove all drag-over and merge-target states
     document.querySelectorAll('.kanban-column-body').forEach(col => {
       col.classList.remove('drag-over');
     });
+    document.querySelectorAll('.feedback-card').forEach(c => {
+      c.classList.remove('merge-target');
+    });
+  },
+
+  clearMergeTimer() {
+    if (this.mergeTimer) {
+      clearTimeout(this.mergeTimer);
+      this.mergeTimer = null;
+    }
+    this.mergeTarget = null;
   },
 
   onDragOver(e) {
     e.preventDefault();
+    if (!this.draggedFeedback) return;
+
     const column = e.target.closest('.kanban-column-body');
     if (!column) return;
 
     const targetColumn = column.dataset.column;
     
+    // Nur Admins dürfen Drag & Drop
+    if (!this.isAdmin) {
+      e.dataTransfer.dropEffect = 'none';
+      return;
+    }
+
+    // Prüfe ob wir über einer anderen Card sind (für Merge)
+    const targetCard = e.target.closest('.feedback-card');
+    if (targetCard && targetCard !== this.draggedElement) {
+      const targetId = targetCard.dataset.feedbackId;
+      
+      // Wenn wir über einer neuen Card sind, starte Timer
+      if (this.mergeTarget !== targetId) {
+        this.clearMergeTimer();
+        this.mergeTarget = targetId;
+        
+        // Entferne alte merge-target Klassen
+        document.querySelectorAll('.feedback-card.merge-target').forEach(c => {
+          c.classList.remove('merge-target');
+        });
+        
+        // Starte Timer für Merge-Zone (800ms)
+        this.mergeTimer = setTimeout(() => {
+          targetCard.classList.add('merge-target');
+          this.mergeZoneActive = true;
+        }, 800);
+      }
+      
+      e.dataTransfer.dropEffect = 'move';
+      return;
+    }
+
+    // Nicht über einer Card - normale Column-Logik
+    this.clearMergeTimer();
+    this.mergeZoneActive = false;
+    document.querySelectorAll('.feedback-card.merge-target').forEach(c => {
+      c.classList.remove('merge-target');
+    });
+
     // Nur Admins dürfen in Status-Spalten verschieben
     const adminOnlyColumns = ['closed', 'in_progress', 'additions', 'backlog'];
     if (adminOnlyColumns.includes(targetColumn) && !this.isAdmin) {
@@ -1354,19 +1594,48 @@ export const feedbackPage = {
     if (column && !column.contains(e.relatedTarget)) {
       column.classList.remove('drag-over');
     }
+
+    // Wenn wir die Card verlassen, Timer stoppen
+    const card = e.target.closest('.feedback-card');
+    if (card && !card.contains(e.relatedTarget)) {
+      if (card.dataset.feedbackId === this.mergeTarget) {
+        this.clearMergeTimer();
+        card.classList.remove('merge-target');
+        this.mergeZoneActive = false;
+      }
+    }
   },
 
   async onDrop(e) {
     e.preventDefault();
+    if (!this.draggedFeedback) return;
+
+    const feedbackId = this.draggedFeedback.id;
+    const currentCategory = this.draggedFeedback.category;
+    const currentStatus = this.draggedFeedback.status;
+
+    // Prüfe ob wir auf einer Card mit aktiver Merge-Zone droppen
+    const targetCard = e.target.closest('.feedback-card');
+    if (targetCard && targetCard.classList.contains('merge-target') && this.mergeZoneActive) {
+      const targetId = targetCard.dataset.feedbackId;
+      
+      // Cleanup
+      targetCard.classList.remove('merge-target');
+      this.clearMergeTimer();
+      this.mergeZoneActive = false;
+      
+      // Merge ausführen
+      await this.mergeFeedback(feedbackId, targetId);
+      return;
+    }
+
+    // Normale Column-Drop-Logik
     const column = e.target.closest('.kanban-column-body');
-    if (!column || !this.draggedFeedback) return;
+    if (!column) return;
 
     column.classList.remove('drag-over');
 
     const targetColumn = column.dataset.column;
-    const feedbackId = this.draggedFeedback.id;
-    const currentCategory = this.draggedFeedback.category;
-    const currentStatus = this.draggedFeedback.status;
 
     // Nur Admins dürfen in Status-Spalten verschieben
     const adminOnlyColumns = ['closed', 'in_progress', 'additions', 'backlog'];
@@ -1420,6 +1689,58 @@ export const feedbackPage = {
       'open': newCategory === 'bug' ? 'Bugs' : 'Features'
     };
     window.toastSystem?.show(`Feedback nach "${statusLabels[newStatus]}" verschoben`, 'success');
+
+    // Reload
+    await this.loadFeedbacks();
+    await this.loadComments();
+    this.render();
+    this.bindEvents();
+  },
+
+  async mergeFeedback(childId, parentId) {
+    if (!window.supabase) return;
+
+    // Prüfe ob Child bereits ein Parent ist (hat selbst Children)
+    if (this.childFeedbacks[childId] && this.childFeedbacks[childId].length > 0) {
+      window.toastSystem?.show('Diese Card hat selbst zusammengeführte Items und kann nicht zusammengeführt werden', 'warning');
+      return;
+    }
+
+    const { error } = await window.supabase
+      .from('feedback')
+      .update({ parent_id: parentId })
+      .eq('id', childId);
+
+    if (error) {
+      console.error('Fehler beim Zusammenführen:', error);
+      window.toastSystem?.show('Fehler beim Zusammenführen', 'error');
+      return;
+    }
+
+    window.toastSystem?.show('Feedbacks zusammengeführt', 'success');
+
+    // Reload
+    await this.loadFeedbacks();
+    await this.loadComments();
+    this.render();
+    this.bindEvents();
+  },
+
+  async unmergeFeedback(childId) {
+    if (!window.supabase) return;
+
+    const { error } = await window.supabase
+      .from('feedback')
+      .update({ parent_id: null })
+      .eq('id', childId);
+
+    if (error) {
+      console.error('Fehler beim Trennen:', error);
+      window.toastSystem?.show('Fehler beim Trennen', 'error');
+      return;
+    }
+
+    window.toastSystem?.show('Feedback getrennt', 'success');
 
     // Reload
     await this.loadFeedbacks();
