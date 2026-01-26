@@ -660,6 +660,10 @@ export class AuftragsdetailsCreate {
       : '<option value="">Bitte wählen...</option>' + 
         options.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
     
+    // WICHTIG: ZUERST disabled-Status setzen, DANN Searchable Select erstellen
+    // (createSearchableSelect prüft das disabled-Attribut während der Erstellung)
+    auftragSelect.disabled = auftraege.length === 0;
+    
     // Neues Searchable Select erstellen
     if (window.formSystem?.createSearchableSelect) {
       window.formSystem.createSearchableSelect(auftragSelect, options, {
@@ -667,9 +671,6 @@ export class AuftragsdetailsCreate {
         placeholder: auftraege.length === 0 ? 'Keine Aufträge verfügbar' : 'Auftrag suchen...'
       });
     }
-    
-    // Select aktivieren/deaktivieren
-    auftragSelect.disabled = auftraege.length === 0;
     
     // Hint aktualisieren
     const hint = document.getElementById('auftrag-hint');
