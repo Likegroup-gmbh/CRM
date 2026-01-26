@@ -1435,7 +1435,7 @@ export class DataService {
               try {
                 const parsed = JSON.parse(trimmed);
                 if (Array.isArray(parsed)) return parsed;
-              } catch (_) {}
+              } catch (err) { /* JSON-Parse fehlgeschlagen, versuche nächstes Format */ }
             }
             // Komma-separierte Liste
             if (trimmed.includes(',')) {

@@ -1,6 +1,8 @@
 // PaginationSystem.js (ES6-Modul)
 // Wiederverwendbares Pagination-System für alle Tabellen
 
+import { TableAnimationHelper } from './TableAnimationHelper.js';
+
 export class PaginationSystem {
   constructor() {
     this.currentPage = 1;
@@ -12,6 +14,13 @@ export class PaginationSystem {
       onPageChange: null,
       onItemsPerPageChange: null
     };
+    // Dynamisches Resize (für animierte Erweiterung/Reduzierung)
+    this.dynamicResize = {
+      enabled: false,
+      tbodySelector: '.data-table tbody',
+      rowRenderer: null,
+      dataLoader: null
+    };
   }
 
   /**
@@ -21,6 +30,10 @@ export class PaginationSystem {
    * @param {number} options.itemsPerPage - Anzahl Items pro Seite (default: 10)
    * @param {Function} options.onPageChange - Callback bei Seitenwechsel
    * @param {Function} options.onItemsPerPageChange - Callback bei Items-per-page Änderung
+   * @param {boolean} options.dynamicResize - Dynamisches Resize aktivieren
+   * @param {string} options.tbodySelector - CSS-Selector für tbody
+   * @param {Function} options.rowRenderer - Funktion (item) => '<tr>...</tr>'
+   * @param {Function} options.dataLoader - Funktion (offset, limit) => Promise<items[]>
    */
   init(containerId, options = {}) {
     this.containerId = containerId;
@@ -28,9 +41,18 @@ export class PaginationSystem {
     this.callbacks.onPageChange = options.onPageChange || null;
     this.callbacks.onItemsPerPageChange = options.onItemsPerPageChange || null;
     
+    // Dynamisches Resize Optionen
+    this.dynamicResize = {
+      enabled: options.dynamicResize || false,
+      tbodySelector: options.tbodySelector || '.data-table tbody',
+      rowRenderer: options.rowRenderer || null,
+      dataLoader: options.dataLoader || null
+    };
+    
     console.log('📄 PaginationSystem initialisiert:', {
       containerId,
-      itemsPerPage: this.itemsPerPage
+      itemsPerPage: this.itemsPerPage,
+      dynamicResize: this.dynamicResize.enabled
     });
   }
 
@@ -241,28 +263,77 @@ export class PaginationSystem {
    * Ändert die Anzahl der Items pro Seite
    * @param {number} newValue - Neue Anzahl Items pro Seite
    */
-  changeItemsPerPage(newValue) {
+  async changeItemsPerPage(newValue) {
     if (newValue === this.itemsPerPage) return;
 
+    const oldValue = this.itemsPerPage;
+    const delta = newValue - oldValue;
+    
     this.itemsPerPage = newValue;
     this.totalPages = Math.ceil(this.totalCount / this.itemsPerPage);
     
     // Berechne neue Seite basierend auf aktuellem ersten Item
-    const firstItemIndex = (this.currentPage - 1) * this.itemsPerPage;
-    this.currentPage = Math.floor(firstItemIndex / newValue) + 1;
+    const firstItemIndex = (this.currentPage - 1) * oldValue;
+    const newPage = Math.floor(firstItemIndex / newValue) + 1;
     
     // Sicherstellen, dass wir nicht außerhalb der Range sind
-    if (this.currentPage > this.totalPages) {
+    if (newPage > this.totalPages) {
       this.currentPage = this.totalPages || 1;
+    } else {
+      this.currentPage = newPage;
     }
 
     console.log('📊 Items per Page geändert:', {
+      oldValue,
       newValue,
+      delta,
       totalPages: this.totalPages,
       currentPage: this.currentPage
     });
 
-    // Callback aufrufen
+    // Dynamisches Resize wenn aktiviert UND auf Seite 1
+    if (this.dynamicResize.enabled && this.currentPage === 1) {
+      const tbody = document.querySelector(this.dynamicResize.tbodySelector);
+      
+      if (tbody) {
+        try {
+          // Reduzierung: Immer animiert entfernen (braucht keine dataLoader)
+          if (delta < 0) {
+            const rowsToRemove = Math.abs(delta);
+            console.log(`📉 Dynamisches Resize: Entferne ${rowsToRemove} Zeilen...`);
+            await TableAnimationHelper.removeRows(tbody, rowsToRemove);
+            console.log(`✅ ${rowsToRemove} Zeilen animiert entfernt`);
+            
+            // Pagination UI aktualisieren
+            this.render();
+            return;
+          }
+          
+          // Erhöhung: Nur wenn dataLoader UND rowRenderer vorhanden
+          if (delta > 0 && this.dynamicResize.dataLoader && this.dynamicResize.rowRenderer) {
+            console.log(`📈 Dynamisches Resize: Lade ${delta} zusätzliche Einträge...`);
+            const newItems = await this.dynamicResize.dataLoader(oldValue, delta);
+            
+            if (newItems && newItems.length > 0) {
+              const rowsHtml = newItems.map(item => this.dynamicResize.rowRenderer(item)).join('');
+              await TableAnimationHelper.appendRows(tbody, rowsHtml);
+              console.log(`✅ ${newItems.length} Zeilen animiert hinzugefügt`);
+            }
+            
+            // Pagination UI aktualisieren
+            this.render();
+            return;
+          }
+          
+          // Erhöhung ohne dataLoader/rowRenderer → Fallback
+        } catch (error) {
+          console.error('❌ Fehler bei dynamischem Resize:', error);
+          // Bei Fehler: Fallback auf normalen Callback
+        }
+      }
+    }
+
+    // Fallback: Normaler Callback (wenn dynamicResize nicht aktiv oder Fehler)
     if (this.callbacks.onItemsPerPageChange) {
       this.callbacks.onItemsPerPageChange(newValue, this.currentPage);
     }

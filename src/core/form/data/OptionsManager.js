@@ -200,7 +200,7 @@ export class OptionsManager {
   updateDropdownItems(dropdown, options, filterText) {
     dropdown.innerHTML = '';
     // Merke aktualisierte Optionsbasis am Container, damit spätere Suchen/Fokus die neuen Optionen verwenden
-    try { dropdown.parentNode.dataset.options = JSON.stringify(options || []); } catch (_) {}
+    try { dropdown.parentNode.dataset.options = JSON.stringify(options || []); } catch (err) { console.warn('⚠️ Optionen-Dataset setzen fehlgeschlagen:', err?.message); }
     
     const filteredOptions = options.filter(option => 
       option.label.toLowerCase().includes(filterText.toLowerCase())
@@ -266,7 +266,7 @@ export class OptionsManager {
         try { 
           existingContainer.dataset.options = JSON.stringify(options); 
           console.log(`✅ Dataset-Optionen aktualisiert für ${field.name}`);
-        } catch (_) {}
+        } catch (err) { console.warn('⚠️ Dataset-Optionen Update fehlgeschlagen:', err?.message); }
         
         // 2. Original Select aktualisieren
         selectElement.innerHTML = '<option value="">Bitte wählen...</option>';
@@ -542,7 +542,7 @@ export class OptionsManager {
       const tag = document.createElement('div');
       tag.className = 'tag';
       // Wichtig: Wert am Tag speichern, damit abhängige Refreshes ungültige Tags entfernen können
-      try { tag.dataset.value = value; } catch (_) {}
+      try { tag.dataset.value = value; } catch (err) { console.warn('⚠️ Tag-Value setzen fehlgeschlagen:', err?.message); }
 
       const tagText = document.createElement('span');
       tagText.textContent = label;

@@ -62,11 +62,14 @@ export class RechnungDetail {
             .from(bucket)
             .createSignedUrl(row.file_path, 60 * 60);
           if (signed?.signedUrl) openUrl = signed.signedUrl;
-        } catch (_) {}
+        } catch (err) {
+          console.warn('⚠️ Fehler beim Erstellen der Signed URL:', err?.message);
+        }
         processed.push({ ...row, open_url: openUrl });
       }
       this.belege = processed;
-    } catch (_) {
+    } catch (err) {
+      console.warn('⚠️ Fehler beim Laden der Belege:', err?.message);
       this.belege = [];
     }
   }

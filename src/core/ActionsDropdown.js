@@ -1062,7 +1062,7 @@ export class ActionsDropdown {
       document.body.appendChild(panel);
 
       // Close handlers
-      const close = () => { try { overlay.remove(); panel.remove(); } catch(_) {} };
+      const close = () => { try { overlay.remove(); panel.remove(); } catch(err) { console.warn('⚠️ Drawer-Close fehlgeschlagen:', err?.message); } };
       overlay.addEventListener('click', close);
       header.querySelector('#kvq-close')?.addEventListener('click', close);
       document.addEventListener('keydown', function onEsc(e){ if(e.key==='Escape'){ close(); document.removeEventListener('keydown', onEsc);} });
@@ -1218,7 +1218,9 @@ export class ActionsDropdown {
             .select('mitarbeiter_id')
             .eq('kampagne_id', kampagneId);
           assignedIds = (assigned || []).map(r => r.mitarbeiter_id);
-        } catch (_) {}
+        } catch (err) {
+          console.warn('⚠️ Fehler beim Laden zugewiesener Mitarbeiter:', err?.message);
+        }
 
         let query = window.supabase
           .from('benutzer')
@@ -1238,8 +1240,9 @@ export class ActionsDropdown {
     };
 
     const hydrate = (items) => {
+      const s = window.validatorSystem?.sanitizeHtml?.bind(window.validatorSystem) || (x => x);
       dropdown.innerHTML = items.length
-        ? items.map(u => `<div class="dropdown-item" data-id="${u.id}">${u.name}${u.mitarbeiter_klasse?.name ? ` <span class=\"muted\">(${u.mitarbeiter_klasse.name})</span>` : ''}${u.rolle ? ` <span class=\"muted\">[${u.rolle}]</span>` : ''}</div>`).join('')
+        ? items.map(u => `<div class="dropdown-item" data-id="${u.id}">${s(u.name)}${u.mitarbeiter_klasse?.name ? ` <span class=\"muted\">(${s(u.mitarbeiter_klasse.name)})</span>` : ''}${u.rolle ? ` <span class=\"muted\">[${s(u.rolle)}]</span>` : ''}</div>`).join('')
         : '<div class="dropdown-item no-results">Keine Mitarbeiter gefunden</div>';
     };
 
@@ -1311,7 +1314,9 @@ export class ActionsDropdown {
             message: `Du wurdest der Kampagne "${kampName}" zugeordnet.`
           });
           window.dispatchEvent(new Event('notificationsRefresh'));
-        } catch (_) {}
+        } catch (err) {
+          console.warn('⚠️ Fehler beim Erstellen der Benachrichtigung:', err?.message);
+        }
         console.log('✅ Mitarbeiter erfolgreich zugeordnet');
         close();
         window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'kampagne', action: 'staff-assigned', id: kampagneId } }));
@@ -1791,7 +1796,9 @@ export class ActionsDropdown {
             });
           }
           if (mitarbeiterIds.length) window.dispatchEvent(new Event('notificationsRefresh'));
-        } catch (_) {}
+        } catch (err) {
+          console.warn('⚠️ Fehler beim Senden der Sourcing-Benachrichtigungen:', err?.message);
+        }
         close();
         window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'kampagne', action: 'sourcing-added', id: selectedId } }));
         alert('Creator wurde zum Sourcing der Kampagne hinzugefügt.');
@@ -1903,13 +1910,14 @@ export class ActionsDropdown {
         return fullName.includes(f) || email.includes(f) || unternehmen.includes(f);
       });
       
+      const s = window.validatorSystem?.sanitizeHtml?.bind(window.validatorSystem) || (x => x);
       dropdown.innerHTML = items.length
         ? items.map(ap => {
-            const displayName = `${ap.vorname} ${ap.nachname}`;
+            const displayName = `${s(ap.vorname)} ${s(ap.nachname)}`;
             const details = [
-              ap.email,
-              ap.unternehmen?.firmenname,
-              ap.position?.name
+              ap.email ? s(ap.email) : null,
+              ap.unternehmen?.firmenname ? s(ap.unternehmen.firmenname) : null,
+              ap.position?.name ? s(ap.position.name) : null
             ].filter(Boolean).join(' • ');
             
             return `<div class="dropdown-item" data-id="${ap.id}">
@@ -2141,13 +2149,14 @@ export class ActionsDropdown {
         return fullName.includes(f) || email.includes(f) || unternehmen.includes(f);
       });
       
+      const s = window.validatorSystem?.sanitizeHtml?.bind(window.validatorSystem) || (x => x);
       dropdown.innerHTML = items.length
         ? items.map(ap => {
-            const displayName = `${ap.vorname} ${ap.nachname}`;
+            const displayName = `${s(ap.vorname)} ${s(ap.nachname)}`;
             const details = [
-              ap.email,
-              ap.unternehmen?.firmenname,
-              ap.position?.name
+              ap.email ? s(ap.email) : null,
+              ap.unternehmen?.firmenname ? s(ap.unternehmen.firmenname) : null,
+              ap.position?.name ? s(ap.position.name) : null
             ].filter(Boolean).join(' • ');
             
             return `<div class="dropdown-item" data-id="${ap.id}">
@@ -2520,6 +2529,7 @@ export class ActionsDropdown {
     }
 
     // Tabellen-HTML generieren
+    const s = window.validatorSystem?.sanitizeHtml?.bind(window.validatorSystem) || (x => x);
     const tableRows = ansprechpartner.map(ap => `
       <tr>
         <td>
@@ -2527,12 +2537,12 @@ export class ActionsDropdown {
         </td>
         <td>
           <a href="#" onclick="event.preventDefault(); window.navigateTo('/ansprechpartner/${ap.id}')" class="table-link">
-            ${ap.vorname} ${ap.nachname}
+            ${s(ap.vorname)} ${s(ap.nachname)}
           </a>
         </td>
-        <td>${ap.email || '-'}</td>
-        <td>${ap.telefonnummer || '-'}</td>
-        <td>${ap.position?.name || '-'}</td>
+        <td>${s(ap.email || '-')}</td>
+        <td>${s(ap.telefonnummer || '-')}</td>
+        <td>${s(ap.position?.name || '-')}</td>
         <td>
           <button class="btn-remove-single danger-btn" data-id="${ap.id}" title="Einzeln entfernen">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
@@ -2883,7 +2893,9 @@ export class ActionsDropdown {
         .select('id, name, created_at')
         .order('created_at', { ascending: false });
       listen = (data || []).filter(l => !excludedListIds.includes(l.id));
-    } catch (_) {}
+    } catch (err) {
+      console.warn('⚠️ Fehler beim Laden der Creator-Listen:', err?.message);
+    }
 
     const modal = document.createElement('div');
     modal.className = 'modal overlay-modal';
@@ -3131,13 +3143,14 @@ export class ActionsDropdown {
         return fullName.includes(f) || email.includes(f) || unternehmen.includes(f);
       });
       
+      const s = window.validatorSystem?.sanitizeHtml?.bind(window.validatorSystem) || (x => x);
       dropdown.innerHTML = items.length
         ? items.map(ap => {
-            const displayName = `${ap.vorname} ${ap.nachname}`;
+            const displayName = `${s(ap.vorname)} ${s(ap.nachname)}`;
             const details = [
-              ap.email,
-              ap.unternehmen?.firmenname,
-              ap.position?.name
+              ap.email ? s(ap.email) : null,
+              ap.unternehmen?.firmenname ? s(ap.unternehmen.firmenname) : null,
+              ap.position?.name ? s(ap.position.name) : null
             ].filter(Boolean).join(' • ');
             
             return `<div class="dropdown-item" data-id="${ap.id}">

@@ -83,11 +83,24 @@ export class AnsprechpartnerList {
       ]);
     }
     
-    // Pagination initialisieren
+    // Pagination initialisieren mit dynamicResize
     this.pagination.init('pagination-ansprechpartner', {
       itemsPerPage: 10,
       onPageChange: (page) => this.handlePageChange(page),
-      onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page)
+      onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page),
+      dynamicResize: true,
+      tbodySelector: '.data-table tbody',
+      rowRenderer: (ap) => this.renderSingleRow(ap),
+      dataLoader: async (offset, limit) => {
+        const currentFilters = filterSystem.getFilters('ansprechpartner');
+        const result = await window.dataService.loadEntitiesWithPagination(
+          'ansprechpartner',
+          currentFilters,
+          1,
+          offset + limit
+        );
+        return result.data ? result.data.slice(offset) : [];
+      }
     });
     
     this.bindEvents();
@@ -340,6 +353,54 @@ export class AnsprechpartnerList {
     }
   }
 
+  // Rendert eine einzelne Tabellenzeile für einen Ansprechpartner
+  renderSingleRow(ap) {
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    
+    return `
+      <tr data-id="${ap.id}">
+        ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="ansprechpartner-check" data-id="${ap.id}"></td>` : ''}
+        <td class="col-name col-name-with-icon">
+          ${ap.profile_image_url 
+            ? `<img src="${ap.profile_image_url}" class="table-logo" width="24" height="24" alt="" />` 
+            : `<span class="table-avatar">${(ap.vorname || '?')[0].toUpperCase()}</span>`}
+          <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
+            ${window.validatorSystem.sanitizeHtml(ap.vorname || '')} ${window.validatorSystem.sanitizeHtml(ap.nachname || '')}
+          </a>
+        </td>
+        <td>
+          ${this.renderUnternehmen(ap)}
+        </td>
+        <td>
+          ${(ap.marken && ap.marken.length > 0)
+            ? avatarBubbles.renderBubbles(ap.marken.map(m => ({
+                name: m.markenname,
+                type: 'org',
+                id: m.id,
+                entityType: 'marke',
+                logo_url: m.logo_url || null
+              })))
+            : '-'}
+        </td>
+        <td>${ap.stadt || '-'}</td>
+        <td>${ap.land || '-'}</td>
+        <td>
+          ${ap.positionen?.name ? `<div class="tag-list"><span class="tag tag--position">${window.validatorSystem.sanitizeHtml(ap.positionen.name)}</span></div>` : '-'}
+        </td>
+        <td>${ap.email ? `<a href="mailto:${ap.email}" class="table-link email-link">${ap.email}</a>` : '-'}</td>
+        <td>${PhoneDisplay.render(
+          ap.telefonnummer_land?.iso_code,
+          ap.telefonnummer_land?.vorwahl,
+          ap.telefonnummer
+        )}</td>
+        <td>${ap.linkedin ? `<a href="${ap.linkedin}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="LinkedIn Profil"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>` : '-'}</td>
+        <td class="col-actions">
+          ${actionBuilder.create('ansprechpartner', ap.id)}
+        </td>
+      </tr>
+    `;
+  }
+
   // Update Tabelle
   async updateTable(ansprechpartner) {
     const tbody = document.querySelector('.data-table tbody');
@@ -357,48 +418,7 @@ export class AnsprechpartnerList {
         return;
       }
 
-      tbody.innerHTML = ansprechpartner.map(ap => `
-        <tr data-id="${ap.id}">
-          ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="ansprechpartner-check" data-id="${ap.id}"></td>` : ''}
-          <td class="col-name col-name-with-icon">
-            ${ap.profile_image_url 
-              ? `<img src="${ap.profile_image_url}" class="table-logo" width="24" height="24" alt="" />` 
-              : `<span class="table-avatar">${(ap.vorname || '?')[0].toUpperCase()}</span>`}
-            <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
-              ${window.validatorSystem.sanitizeHtml(ap.vorname || '')} ${window.validatorSystem.sanitizeHtml(ap.nachname || '')}
-            </a>
-          </td>
-          <td>
-            ${this.renderUnternehmen(ap)}
-          </td>
-          <td>
-            ${(ap.marken && ap.marken.length > 0)
-              ? avatarBubbles.renderBubbles(ap.marken.map(m => ({
-                  name: m.markenname,
-                  type: 'org',
-                  id: m.id,
-                  entityType: 'marke',
-                  logo_url: m.logo_url || null
-                })))
-              : '-'}
-          </td>
-          <td>${ap.stadt || '-'}</td>
-          <td>${ap.land || '-'}</td>
-          <td>
-            ${ap.positionen?.name ? `<div class="tag-list"><span class="tag tag--position">${window.validatorSystem.sanitizeHtml(ap.positionen.name)}</span></div>` : '-'}
-          </td>
-          <td>${ap.email ? `<a href="mailto:${ap.email}" class="table-link email-link">${ap.email}</a>` : '-'}</td>
-          <td>${PhoneDisplay.render(
-            ap.telefonnummer_land?.iso_code,
-            ap.telefonnummer_land?.vorwahl,
-            ap.telefonnummer
-          )}</td>
-          <td>${ap.linkedin ? `<a href="${ap.linkedin}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="LinkedIn Profil"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>` : '-'}</td>
-          <td class="col-actions">
-            ${actionBuilder.create('ansprechpartner', ap.id)}
-          </td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = ansprechpartner.map(ap => this.renderSingleRow(ap)).join('');
     });
   }
 

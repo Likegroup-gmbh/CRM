@@ -122,7 +122,9 @@ class ModuleRegistry {
         const url = route.startsWith('/') ? route : `/${route}`;
         window.history.pushState({ route: url }, '', url);
       }
-    } catch (_) {}
+    } catch (err) {
+      console.warn('⚠️ History pushState fehlgeschlagen:', err?.message);
+    }
 
     // Kompatibilitäts-Redirects
     try {
@@ -130,7 +132,9 @@ class ModuleRegistry {
         // Mappe auf das einsegmentige Routing der App
         route = route.replace('/admin/kunden', '/kunden-admin');
       }
-    } catch (_) {}
+    } catch (err) {
+      console.warn('⚠️ Route-Mapping fehlgeschlagen:', err?.message);
+    }
 
     const path = route.replace(/^\//, '');
     const pathParts = path.split('/');

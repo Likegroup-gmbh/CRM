@@ -65,7 +65,9 @@ export class VertraegeList {
     this.pagination.init(paginationContainer, {
       itemsPerPage: 25,
       onPageChange: (page) => this.handlePageChange(page),
-      onItemsPerPageChange: () => this.loadAndRender()
+      onItemsPerPageChange: () => this.loadAndRender(),
+      dynamicResize: true,
+      tbodySelector: '.data-table tbody'
     });
 
     await this.loadAndRender();

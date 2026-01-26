@@ -309,14 +309,15 @@ export class UnternehmenCreate {
   // Rendere Branchen-Dropdown
   renderBrancheDropdown(branches) {
     const dropdown = document.getElementById('branche-dropdown');
+    const sanitize = window.validatorSystem?.sanitizeHtml?.bind(window.validatorSystem) || (x => x);
     
     if (branches.length === 0) {
       dropdown.innerHTML = '<div class="dropdown-item no-results">Keine Branchen gefunden</div>';
     } else {
       dropdown.innerHTML = branches.map(branch => `
         <div class="dropdown-item" data-branch-id="${branch.id}">
-          <span class="branch-name">${branch.name}</span>
-          ${branch.beschreibung ? `<span class="branch-description">${branch.beschreibung}</span>` : ''}
+          <span class="branch-name">${sanitize(branch.name)}</span>
+          ${branch.beschreibung ? `<span class="branch-description">${sanitize(branch.beschreibung)}</span>` : ''}
         </div>
       `).join('');
 
@@ -356,6 +357,7 @@ export class UnternehmenCreate {
   // Ausgewählte Branchen rendern
   renderSelectedBranches() {
     const container = document.getElementById('selected-branches');
+    const sanitize = window.validatorSystem?.sanitizeHtml?.bind(window.validatorSystem) || (x => x);
     
     if (this.selectedBranches.length === 0) {
       container.innerHTML = '';
@@ -364,7 +366,7 @@ export class UnternehmenCreate {
 
     container.innerHTML = this.selectedBranches.map(branch => `
       <div class="selected-item" data-branch-id="${branch.id}">
-        <span class="item-name">${branch.name}</span>
+        <span class="item-name">${sanitize(branch.name)}</span>
         <button type="button" class="remove-item" data-branch-id="${branch.id}">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />

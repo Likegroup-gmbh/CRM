@@ -588,7 +588,7 @@ export class DependentFields {
               input.disabled = false;
               input.placeholder = fieldConfig.placeholder || 'Marken suchen und hinzufügen...';
             }
-            try { container.dataset.options = JSON.stringify(options); } catch (_) {}
+            try { container.dataset.options = JSON.stringify(options); } catch (err) { console.warn('⚠️ DependentFields: Optionen-Dataset setzen fehlgeschlagen:', err?.message); }
           }
           await this.updateTagBasedMultiSelectOptions(field, fieldConfig, options);
         } else {

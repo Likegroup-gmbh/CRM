@@ -744,7 +744,9 @@ export class DynamicDataLoader {
             .in('id', kampIds);
           kampagneMap = (kamp || []).reduce((acc, row) => { acc[row.id] = row.kampagnenname; return acc; }, {});
         }
-      } catch (_) {}
+      } catch (err) {
+        console.warn('⚠️ Fehler beim Laden der Kampagnen-Namen für Kooperationen:', err?.message);
+      }
 
       return (koops || []).map(k => ({
         value: k.id,
@@ -1237,7 +1239,7 @@ export class DynamicDataLoader {
                 options.forEach(option => { if (option.value === existingId) option.selected = true; });
                 console.log('✅ DYNAMICDATALOADER: Position vorausgewählt:', existingId);
               }
-            } catch (_) {}
+            } catch (err) { console.warn('⚠️ Position-Vorauswahl fehlgeschlagen:', err?.message); }
           }
           // sprache_id (Single) direkt markieren
           if (field.name === 'sprache_id' && form.dataset.editModeData) {
@@ -1248,7 +1250,7 @@ export class DynamicDataLoader {
                 options.forEach(option => { if (option.value === existingId) option.selected = true; });
                 console.log('✅ DYNAMICDATALOADER: Einzel-Sprache vorausgewählt:', existingId);
               }
-            } catch (_) {}
+            } catch (err) { console.warn('⚠️ Sprache-Vorauswahl fehlgeschlagen:', err?.message); }
           }
         }
         

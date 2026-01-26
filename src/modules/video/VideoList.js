@@ -45,11 +45,13 @@ export class VideoList {
       return;
     }
 
-    // Pagination initialisieren
+    // Pagination initialisieren mit dynamicResize
     this.pagination.init('pagination-videos', {
       itemsPerPage: 25,
       onPageChange: (page) => this.handlePageChange(page),
-      onItemsPerPageChange: () => this.loadAndRender()
+      onItemsPerPageChange: () => this.loadAndRender(),
+      dynamicResize: true,
+      tbodySelector: '.data-table tbody'
     });
 
     // Events binden

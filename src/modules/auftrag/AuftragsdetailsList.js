@@ -27,11 +27,13 @@ export class AuftragsdetailsList {
       ]);
     }
     
-    // Pagination initialisieren
+    // Pagination initialisieren mit dynamicResize für animiertes Entfernen
     this.pagination.init('pagination-auftragsdetails', {
       itemsPerPage: 10,
       onPageChange: (page) => this.handlePageChange(page),
-      onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page)
+      onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page),
+      dynamicResize: true,
+      tbodySelector: '.data-table tbody'
     });
     
     try {

@@ -22,6 +22,8 @@ export class KooperationDetail {
     this.versandDaten = null;
     this.taskKanbanBoard = null;
     this.tasksCount = 0;
+    // Event-Listener Cleanup mit AbortController
+    this._abortController = null;
   }
 
   // Initialisiere Kooperations-Detailseite
@@ -246,8 +248,11 @@ export class KooperationDetail {
             feedback2: byVideo[v.id]?.r2 || []
           }));
         }
-      } catch (_) {}
-    } catch (_) {
+      } catch (err) {
+        console.warn('⚠️ Fehler beim Laden der Video-Kommentare:', err?.message);
+      }
+    } catch (err) {
+      console.warn('⚠️ Fehler beim Laden der Videos:', err?.message);
       this.videos = [];
     }
   }
@@ -418,15 +423,17 @@ export class KooperationDetail {
     const formatCurrency = (value) => value ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value) : '-';
     const formatDate = (date) => (date ? new Date(date).toLocaleDateString('de-DE') : '-');
 
+    const sanitize = window.validatorSystem?.sanitizeHtml?.bind(window.validatorSystem) || (x => x);
+    
     const creatorHtml = this.creator ? `
       <div class="detail-card">
         <h3 class="section-title">Creator</h3>
         <div class="detail-grid-2">
-          <div class="detail-item"><label>Name</label><span>${this.creator.vorname} ${this.creator.nachname}</span></div>
-          <div class="detail-item"><label>E-Mail</label><span>${this.creator.mail || '-'}</span></div>
-          <div class="detail-item"><label>Instagram</label><span>${this.creator.instagram ? `@${this.creator.instagram}` : '-'}</span></div>
+          <div class="detail-item"><label>Name</label><span>${sanitize(this.creator.vorname)} ${sanitize(this.creator.nachname)}</span></div>
+          <div class="detail-item"><label>E-Mail</label><span>${sanitize(this.creator.mail || '-')}</span></div>
+          <div class="detail-item"><label>Instagram</label><span>${this.creator.instagram ? `@${sanitize(this.creator.instagram)}` : '-'}</span></div>
           <div class="detail-item"><label>Instagram Follower</label><span>${this.creator.instagram_follower ? this.formatNumber(this.creator.instagram_follower) : '-'}</span></div>
-          <div class="detail-item"><label>TikTok</label><span>${this.creator.tiktok ? `@${this.creator.tiktok}` : '-'}</span></div>
+          <div class="detail-item"><label>TikTok</label><span>${this.creator.tiktok ? `@${sanitize(this.creator.tiktok)}` : '-'}</span></div>
           <div class="detail-item"><label>TikTok Follower</label><span>${this.creator.tiktok_follower ? this.formatNumber(this.creator.tiktok_follower) : '-'}</span></div>
         </div>
         <div class="detail-actions">
@@ -439,10 +446,10 @@ export class KooperationDetail {
       <div class="detail-card">
         <h3 class="section-title">Kampagne</h3>
         <div class="detail-grid-2">
-          <div class="detail-item"><label>Name</label><span>${this.kampagne.kampagnenname}</span></div>
-          <div class="detail-item"><label>Status</label><span class="status-badge status-${this.kampagne.status?.toLowerCase() || 'unknown'}">${this.kampagne.status || '-'}</span></div>
-          <div class="detail-item"><label>Unternehmen</label><span>${this.kampagne.unternehmen?.firmenname || '-'}</span></div>
-          <div class="detail-item"><label>Marke</label><span>${this.kampagne.marke?.markenname || '-'}</span></div>
+          <div class="detail-item"><label>Name</label><span>${sanitize(this.kampagne.kampagnenname)}</span></div>
+          <div class="detail-item"><label>Status</label><span class="status-badge status-${this.kampagne.status?.toLowerCase() || 'unknown'}">${sanitize(this.kampagne.status || '-')}</span></div>
+          <div class="detail-item"><label>Unternehmen</label><span>${sanitize(this.kampagne.unternehmen?.firmenname || '-')}</span></div>
+          <div class="detail-item"><label>Marke</label><span>${sanitize(this.kampagne.marke?.markenname || '-')}</span></div>
         </div>
         <div class="detail-actions">
           <button onclick="window.navigateTo('/kampagne/${this.kampagne.id}')" class="secondary-btn">Kampagne Details anzeigen</button>
@@ -711,13 +718,20 @@ export class KooperationDetail {
 
   // Binde Events
   bindEvents() {
+    // Cleanup vorheriger Listener
+    if (this._abortController) {
+      this._abortController.abort();
+    }
+    this._abortController = new AbortController();
+    const signal = this._abortController.signal;
+
     // Tabs
     document.addEventListener('click', (e) => {
       if (e.target.classList?.contains('tab-button')) {
         e.preventDefault();
         this.switchTab(e.target.dataset.tab);
       }
-    });
+    }, { signal });
 
     // Video Tabellen-Link → Detailseite
     document.addEventListener('click', (e) => {
@@ -727,7 +741,7 @@ export class KooperationDetail {
         e.preventDefault();
         window.navigateTo(`/video/${link.dataset.id}`);
       }
-    });
+    }, { signal });
 
     // Bearbeiten Button
     document.addEventListener('click', (e) => {
@@ -735,7 +749,7 @@ export class KooperationDetail {
         e.preventDefault();
         this.showEditForm();
       }
-    });
+    }, { signal });
 
     // Notizen aktualisiert
     window.addEventListener('notizenUpdated', async (e) => {
@@ -746,7 +760,7 @@ export class KooperationDetail {
         const btn = document.querySelector('.tab-button[data-tab="notizen"] .tab-count');
         if (btn) btn.textContent = String(this.notizen.length);
       }
-    });
+    }, { signal });
 
     // Versand Updated Event
     window.addEventListener('entityUpdated', (e) => {
@@ -758,7 +772,7 @@ export class KooperationDetail {
           this.bindEvents();
         });
       }
-    });
+    }, { signal });
 
     // Refresh bei Video-Status-Änderung
     window.addEventListener('entityUpdated', async (e) => {
@@ -772,10 +786,12 @@ export class KooperationDetail {
           try {
             const vid = window.location.pathname.split('/').pop();
             if (vid) window.navigateTo(`/video/${vid}`);
-          } catch(_) {}
+          } catch(err) {
+            console.warn('⚠️ Fehler bei Video-Navigation:', err?.message);
+          }
         }
       }
-    });
+    }, { signal });
 
     // Soft-Refresh bei Realtime-Updates (nur wenn kein Formular aktiv)
     window.addEventListener('softRefresh', async (e) => {
@@ -797,7 +813,7 @@ export class KooperationDetail {
       await this.loadCriticalData();
       this.render();
       this.bindEvents();
-    });
+    }, { signal });
 
     // Navigation: Neues Video Formular
     document.addEventListener('click', (e) => {
@@ -805,7 +821,7 @@ export class KooperationDetail {
         e.preventDefault();
         window.navigateTo(`/video/new?kooperation=${this.kooperationId}`);
       }
-    });
+    }, { signal });
 
     // Video Actions: view, edit, delete
     document.addEventListener('click', async (e) => {
@@ -841,13 +857,16 @@ export class KooperationDetail {
           alert('Video konnte nicht gelöscht werden.');
         }
       }
-    });
+    }, { signal });
 
     // (kein Inline-Video-Add – separate Implementierung folgt, falls gewünscht)
   }
   
   // Setup automatische Cache-Invalidierung bei Entity-Updates
   setupCacheInvalidation() {
+    // Verwende den gleichen AbortController falls vorhanden
+    const signal = this._abortController?.signal;
+    
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail.entity === 'kooperation' && e.detail.id === this.kooperationId) {
         console.log('🔄 KOOPERATIONDETAIL: Entity updated - invalidiere Cache');
@@ -864,7 +883,24 @@ export class KooperationDetail {
           });
         }
       }
-    });
+    }, { signal });
+  }
+
+  // Cleanup
+  destroy() {
+    console.log('KooperationDetail: Cleaning up...');
+    
+    // AbortController alle Event-Listener auf einmal entfernen
+    if (this._abortController) {
+      this._abortController.abort();
+      this._abortController = null;
+    }
+    
+    // Kanban Board cleanup
+    if (this.taskKanbanBoard) {
+      this.taskKanbanBoard.destroy?.();
+      this.taskKanbanBoard = null;
+    }
   }
 
   // Zeige Bearbeitungsformular

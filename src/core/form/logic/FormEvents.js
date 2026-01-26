@@ -557,7 +557,9 @@ export class FormEvents {
             .eq('id', koop.unternehmen_id)
             .single();
           unternehmenLabel = u?.firmenname || '';
-        } catch (_) {}
+        } catch (err) {
+          console.warn('⚠️ Fehler beim Laden des Unternehmens für Kooperation:', err?.message);
+        }
       }
       fillSelect(unternehmenField, koop?.unternehmen_id || '', unternehmenLabel);
 
@@ -583,7 +585,9 @@ export class FormEvents {
                 .eq('id', koop.kampagne_id)
                 .single();
               kampName = kamp2?.kampagnenname || '';
-            } catch(_) {}
+            } catch(err) {
+              console.warn('⚠️ Fehler beim Laden der Kampagne für Rechnung:', err?.message);
+            }
             fillSelect(kampagneField, koop.kampagne_id, kampName || `Kampagne ${koop.kampagne_id}`);
           }
           if (auftragsId) {
@@ -1027,7 +1031,9 @@ export class FormEvents {
         // Anzahl synchronisieren und UI updaten
         videoInput.value = String((rows || []).length || '');
         refreshStepperUI();
-      } catch (_) {}
+      } catch (err) {
+        console.warn('⚠️ Fehler beim Laden der Kooperations-Videos:', err?.message);
+      }
     })();
   }
 

@@ -35,15 +35,19 @@ export class SortDropdown {
       onSortChange: options.onSortChange || (() => {})
     };
 
-    // Instance speichern
+    // Prüfe ob bereits eine Instance existiert und behalte currentSort
+    const existingInstance = this.instances.get(entityType);
+    const currentSort = existingInstance?.currentSort || config.defaultSort;
+
+    // Instance speichern (mit beibehaltener Sortierung falls vorhanden)
     this.instances.set(entityType, {
       containerElement,
       config,
-      currentSort: config.defaultSort
+      currentSort: currentSort
     });
 
-    // HTML rendern
-    containerElement.innerHTML = this.renderDropdown(entityType, config.defaultSort);
+    // HTML rendern (mit aktueller Sortierung, nicht default)
+    containerElement.innerHTML = this.renderDropdown(entityType, currentSort);
 
     // Globale Events nur einmal binden
     if (!this.eventsBound) {
@@ -51,7 +55,7 @@ export class SortDropdown {
       this.eventsBound = true;
     }
 
-    console.log(`✅ SORTDROPDOWN: ${entityType} initialisiert mit ${config.defaultSort}`);
+    console.log(`✅ SORTDROPDOWN: ${entityType} initialisiert mit ${currentSort}`);
   }
 
   /**
@@ -100,13 +104,18 @@ export class SortDropdown {
         return;
       }
 
-      // Sort Option geklickt
+      // Sort Option geklickt - prüfe ob innerhalb eines sort-dropdown
       const sortOption = e.target.closest('.sort-option');
       if (sortOption) {
-        e.preventDefault();
-        e.stopPropagation();
-        this.selectOption(sortOption);
-        return;
+        // Stelle sicher, dass wir im richtigen Dropdown sind
+        const parentDropdown = sortOption.closest('.sort-dropdown');
+        if (parentDropdown) {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('🎯 SORTDROPDOWN: Option geklickt:', sortOption.dataset.sort);
+          this.selectOption(sortOption);
+          return;
+        }
       }
 
       // Click außerhalb: Schließe alle Dropdowns
@@ -160,19 +169,33 @@ export class SortDropdown {
     const entityType = dropdown?.dataset.entityType;
     const sortValue = optionElement.dataset.sort;
 
-    if (!entityType || !sortValue) return;
+    console.log(`🔍 SORTDROPDOWN DEBUG: dropdown=${!!dropdown}, entityType=${entityType}, sortValue=${sortValue}`);
+
+    if (!entityType || !sortValue) {
+      console.warn('⚠️ SORTDROPDOWN: entityType oder sortValue fehlt');
+      return;
+    }
 
     const instance = this.instances.get(entityType);
-    if (!instance) return;
+    if (!instance) {
+      console.warn(`⚠️ SORTDROPDOWN: Keine Instance für ${entityType} gefunden`);
+      return;
+    }
 
     // Aktuelle Auswahl aktualisieren
     instance.currentSort = sortValue;
 
-    // UI aktualisieren
+    // UI aktualisieren - Label im Toggle-Button
     const label = dropdown.querySelector('.sort-dropdown-label');
     const option = SortDropdown.SORT_OPTIONS.find(opt => opt.value === sortValue);
+    
+    console.log(`🔍 SORTDROPDOWN DEBUG: label=${!!label}, option=${option?.label}`);
+    
     if (label && option) {
       label.textContent = option.label;
+      console.log(`✅ SORTDROPDOWN: Label aktualisiert auf "${option.label}"`);
+    } else {
+      console.error(`❌ SORTDROPDOWN: Label konnte nicht aktualisiert werden - label=${!!label}, option=${!!option}`);
     }
 
     // Active-State aktualisieren

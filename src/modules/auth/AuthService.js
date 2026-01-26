@@ -7,7 +7,6 @@ export class AuthService {
     this._loginAttempts = new Map();
     this._maxAttempts = 3;
     this._lockoutTime = 900000; // 15 Minuten
-    this._offlineMode = false;
   }
 
   // Auth-Status prüfen
@@ -17,80 +16,36 @@ export class AuthService {
       
       // Prüfe ob Supabase verfügbar ist
       if (!window.supabase || !window.supabase.auth) {
-        console.warn('⚠️ Supabase nicht verfügbar - verwende Offline-Modus');
-        this._offlineMode = true;
-        return this.checkOfflineAuth();
+        console.error('❌ Supabase nicht verfügbar');
+        return false;
       }
 
-      // Teste Supabase-Verbindung
-      try {
-        const { data: { session }, error } = await window.supabase.auth.getSession();
-        
-        if (error && error.message.includes('Invalid API key')) {
-          console.warn('⚠️ Ungültiger Supabase API Key - schalte auf Offline-Modus um');
-          this._offlineMode = true;
-          return this.checkOfflineAuth();
-        }
+      const { data: { session }, error } = await window.supabase.auth.getSession();
+      
+      if (error) {
+        console.error('❌ Auth-Fehler:', error.message);
+        return false;
+      }
 
-        if (session) {
-          console.log('✅ Session gefunden:', session.user.email);
-          await this.loadCurrentUser(session.user.id);
-          return true;
-        } else {
-          console.log('❌ Keine Session gefunden');
-          return false;
-        }
-      } catch (error) {
-        if (error.message && error.message.includes('Invalid API key')) {
-          console.warn('⚠️ Supabase API Key ungültig - Offline-Modus aktiviert');
-          this._offlineMode = true;
-          return this.checkOfflineAuth();
-        }
-        throw error;
+      if (session) {
+        console.log('✅ Session gefunden:', session.user.email);
+        await this.loadCurrentUser(session.user.id);
+        return true;
+      } else {
+        console.log('❌ Keine Session gefunden');
+        return false;
       }
     } catch (error) {
       console.error('❌ Auth check failed:', error);
-      this._offlineMode = true;
-      return this.checkOfflineAuth();
-    }
-  }
-
-  // Offline Auth prüfen (nur in Development)
-  checkOfflineAuth() {
-    // Offline-Modus nur in Development erlauben
-    if (!import.meta.env.DEV) {
-      console.log('🔒 Offline-Modus in Production deaktiviert');
       return false;
     }
-
-    const offlineUser = localStorage.getItem('offline_user');
-    if (offlineUser) {
-      try {
-        const user = JSON.parse(offlineUser);
-        window.currentUser = user;
-        console.log('✅ Offline-Benutzer gefunden:', user.name);
-        return true;
-      } catch (error) {
-        console.error('❌ Offline-Benutzer ungültig:', error);
-        localStorage.removeItem('offline_user');
-        return false;
-      }
-    }
-    return false;
   }
 
   // Aktuellen Benutzer laden
   async loadCurrentUser(authUserId) {
     try {
-      // Wenn Offline-Modus aktiv ist, überspringe Supabase
-      if (this._offlineMode) {
-        console.log('⚠️ Offline-Modus - überspringe Benutzer-Load');
-        return;
-      }
-
       if (!window.supabase) {
-        console.warn('⚠️ Supabase nicht verfügbar - verwende Offline-Modus');
-        this._offlineMode = true;
+        console.error('❌ Supabase nicht verfügbar');
         return;
       }
 
@@ -101,10 +56,7 @@ export class AuthService {
         .single();
 
       if (error) {
-        console.error('Error loading current user:', error);
-        // Fallback zu Offline-Modus
-        this._offlineMode = true;
-        this.setOfflineUser(authUserId);
+        console.error('❌ Fehler beim Laden des Benutzers:', error);
         return;
       }
 
@@ -124,6 +76,7 @@ export class AuthService {
           window.currentUser = data;
           console.log('✅ Benutzer geladen:', data.name, '| Rolle:', data.rolle, '| Freigeschaltet:', isFreigeschaltet);
         }
+        
         // 1) Rollen-/Entity-Rechte (inkl. JSON-Overrides)
         permissionSystem.setUserPermissions(data);
         
@@ -145,6 +98,7 @@ export class AuthService {
         } else {
           console.log('✅ Permissions bereits gecached, überspringe DB-Query');
         }
+        
         // 3) UI/Navigation/Dropdowns nach Rollenwechsel re-initialisieren
         try {
           window.setupHeaderUI?.();
@@ -163,7 +117,7 @@ export class AuthService {
         }
         
         // 4) Realtime-Subscription für Benutzer-Updates (inkl. Rechte-Änderungen)
-        if (!this._userSubscription && !this._offlineMode) {
+        if (!this._userSubscription) {
           this._userSubscription = window.supabase
             .channel(`user-updates-${data.id}`)
             .on('postgres_changes', {
@@ -228,44 +182,13 @@ export class AuthService {
         }
       }
     } catch (error) {
-      console.error('Error loading current user:', error);
-      this._offlineMode = true;
-      this.setOfflineUser(authUserId);
+      console.error('❌ Fehler beim Laden des Benutzers:', error);
     }
-  }
-
-  // Offline-Benutzer setzen
-  setOfflineUser(authUserId) {
-    const offlineUser = {
-      id: 'offline-user',
-      name: 'Offline Benutzer',
-      rolle: 'admin',
-      auth_user_id: authUserId
-    };
-    window.currentUser = offlineUser;
-    localStorage.setItem('offline_user', JSON.stringify(offlineUser));
-    console.log('✅ Offline-Benutzer gesetzt:', offlineUser.name);
-    permissionSystem.setUserPermissions(offlineUser);
   }
 
   // Passwort-basierte Anmeldung
   async signInWithPassword(email, password) {
     try {
-      // Dev-Login nur in Development
-      if (import.meta.env.DEV && email === 'test@example.com' && password === 'test123') {
-        console.log('✅ Dev-Login erfolgreich (Development only)');
-        const offlineUser = {
-          id: 'offline-user',
-          name: 'Test Benutzer',
-          rolle: 'admin',
-          auth_user_id: 'offline-auth-id'
-        };
-        window.currentUser = offlineUser;
-        localStorage.setItem('offline_user', JSON.stringify(offlineUser));
-        this._offlineMode = true;
-        return { user: offlineUser, error: null };
-      }
-
       // Rate Limiting prüfen
       if (this.checkRateLimit(email)) {
         throw new Error('Zu viele Anmeldeversuche. Bitte warten Sie 15 Minuten.');
@@ -276,13 +199,8 @@ export class AuthService {
         throw new Error('Passwort muss mindestens 4 Zeichen haben.');
       }
 
-      // Wenn Offline-Modus aktiv ist, verwende nur Offline-Login
-      if (this._offlineMode) {
-        throw new Error('Offline-Modus aktiv. Verwenden Sie test@example.com / test123');
-      }
-
       if (!window.supabase) {
-        throw new Error('Supabase nicht verfügbar');
+        throw new Error('Verbindung zum Server nicht möglich. Bitte später erneut versuchen.');
       }
 
       const { data, error } = await window.supabase.auth.signInWithPassword({
@@ -318,13 +236,8 @@ export class AuthService {
         throw new Error('Passwort muss mindestens 4 Zeichen haben.');
       }
 
-      // Wenn Offline-Modus aktiv ist, verwende nur Offline-Registrierung
-      if (this._offlineMode) {
-        throw new Error('Offline-Modus aktiv. Registrierung nicht verfügbar.');
-      }
-
       if (!window.supabase) {
-        throw new Error('Supabase nicht verfügbar');
+        throw new Error('Verbindung zum Server nicht möglich. Bitte später erneut versuchen.');
       }
 
       // Kombinierter Name für Abwärtskompatibilität
@@ -373,11 +286,6 @@ export class AuthService {
   // Benutzer-Record erstellen (wird vom Trigger automatisch erstellt, prüfen ob vorhanden)
   async createBenutzerRecord(authUserId, vorname, nachname, email = null, klasseId = null) {
     try {
-      if (this._offlineMode) {
-        console.warn('⚠️ Offline-Modus - überspringe Benutzer-Erstellung');
-        return;
-      }
-
       if (!window.supabase) {
         console.warn('⚠️ Supabase nicht verfügbar - überspringe Benutzer-Erstellung');
         return;
@@ -470,19 +378,16 @@ export class AuthService {
     try {
       // Cleanup Realtime-Subscription
       if (this._userSubscription) {
-        await window.supabase.removeChannel(this._userSubscription);
+        await window.supabase?.removeChannel(this._userSubscription);
         this._userSubscription = null;
         console.log('✅ Realtime-Subscription entfernt');
       }
       
-      if (window.supabase && !this._offlineMode) {
+      if (window.supabase) {
         await window.supabase.auth.signOut();
       }
       
-      // Offline-Daten löschen
-      localStorage.removeItem('offline_user');
       window.currentUser = null;
-      this._offlineMode = false;
       
       console.log('✅ Abmeldung erfolgreich');
       return { error: null };
@@ -500,13 +405,8 @@ export class AuthService {
         throw new Error('Zu viele Anfragen. Bitte warten Sie 15 Minuten.');
       }
 
-      // Offline-Modus erlaubt keinen Reset
-      if (this._offlineMode) {
-        throw new Error('Passwort-Reset ist im Offline-Modus nicht verfügbar.');
-      }
-
       if (!window.supabase) {
-        throw new Error('Supabase nicht verfügbar');
+        throw new Error('Verbindung zum Server nicht möglich. Bitte später erneut versuchen.');
       }
 
       // Redirect URL für Reset-Seite
@@ -545,7 +445,7 @@ export class AuthService {
       }
 
       if (!window.supabase) {
-        throw new Error('Supabase nicht verfügbar');
+        throw new Error('Verbindung zum Server nicht möglich.');
       }
 
       const { data, error } = await window.supabase.auth.updateUser({

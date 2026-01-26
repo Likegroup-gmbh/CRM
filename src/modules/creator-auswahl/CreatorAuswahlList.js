@@ -49,9 +49,17 @@ export class CreatorAuswahlList {
       return;
     }
 
-    // Pagination initialisieren
+    // Pagination initialisieren mit dynamicResize
     this.pagination.init('pagination-container-creator-auswahl', {
-      onPageChange: (page) => this.handlePageChange(page)
+      onPageChange: (page) => this.handlePageChange(page),
+      onItemsPerPageChange: (itemsPerPage, page) => this.handleItemsPerPageChange(itemsPerPage, page),
+      dynamicResize: true,
+      tbodySelector: '#creator-auswahl-table-body',
+      rowRenderer: (liste) => this.renderSingleRow(liste),
+      dataLoader: async (offset, limit) => {
+        // Alle Listen sind bereits gecacht
+        return this.listen ? this.listen.slice(offset, offset + limit) : [];
+      }
     });
 
     await this.loadAndRender();
@@ -66,6 +74,12 @@ export class CreatorAuswahlList {
   }
 
   handlePageChange(page) {
+    this.pagination.currentPage = page;
+    this.loadAndRender();
+  }
+
+  handleItemsPerPageChange(itemsPerPage, page) {
+    console.log(`📊 CREATORAUSWAHLLIST: Einträge pro Seite geändert auf ${itemsPerPage}, Seite ${page}`);
     this.pagination.currentPage = page;
     this.loadAndRender();
   }
@@ -160,14 +174,79 @@ export class CreatorAuswahlList {
   }
 
   /**
+   * Rendert eine einzelne Tabellenzeile
+   */
+  renderSingleRow(liste) {
+    const rolle = window.currentUser?.rolle?.toLowerCase();
+    const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+    const sanitize = window.validatorSystem?.sanitizeHtml?.bind(window.validatorSystem) || (x => x);
+
+    const unternehmenBubble = liste.unternehmen 
+      ? AvatarBubbles.renderBubbles([{
+          name: liste.unternehmen.firmenname,
+          type: 'org',
+          id: liste.unternehmen.id,
+          entityType: 'unternehmen',
+          logo_url: liste.unternehmen.logo_url
+        }])
+      : '-';
+
+    const markeBubble = liste.marke 
+      ? AvatarBubbles.renderBubbles([{
+          name: liste.marke.markenname,
+          type: 'org',
+          id: liste.marke.id,
+          entityType: 'marke',
+          logo_url: liste.marke.logo_url
+        }])
+      : '-';
+
+    const kampagneName = liste.kampagne?.kampagnenname || '-';
+
+    return `
+      <tr class="table-row-clickable" data-liste-id="${liste.id}">
+        <td class="col-name ca-col-name">${sanitize(liste.name || 'Ohne Namen')}</td>
+        <td class="ca-col-unternehmen">${unternehmenBubble}</td>
+        <td class="ca-col-marke">${markeBubble}</td>
+        <td class="ca-col-kampagne">${sanitize(kampagneName)}</td>
+        <td class="col-actions">
+          <div class="actions-dropdown-container" data-entity-type="creator-auswahl">
+            <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+              </svg>
+            </button>
+            <div class="actions-dropdown">
+              <a href="#" class="action-item" data-action="view-liste" data-id="${liste.id}">
+                ${window.ActionsDropdown?.getHeroIcon('view') || ''}
+                Details anzeigen
+              </a>
+              ${!isKunde ? `
+                <a href="#" class="action-item" data-action="edit-liste" data-id="${liste.id}">
+                  ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
+                  Bearbeiten
+                </a>
+                ${rolle === 'admin' ? `
+                  <div class="action-separator"></div>
+                  <a href="#" class="action-item action-danger" data-action="delete-liste" data-id="${liste.id}">
+                    ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
+                    Löschen
+                  </a>
+                ` : ''}
+              ` : ''}
+            </div>
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+
+  /**
    * Aktualisiere die Tabelle
    */
   async updateTable(listen) {
     const tbody = document.getElementById('creator-auswahl-table-body');
     if (!tbody) return;
-    
-    const rolle = window.currentUser?.rolle?.toLowerCase();
-    const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
 
     await TableAnimationHelper.animatedUpdate(tbody, () => {
       if (!listen || listen.length === 0) {
@@ -181,66 +260,7 @@ export class CreatorAuswahlList {
         return;
       }
 
-      tbody.innerHTML = listen.map(liste => {
-        const unternehmenBubble = liste.unternehmen 
-          ? AvatarBubbles.renderBubbles([{
-              name: liste.unternehmen.firmenname,
-              type: 'org',
-              id: liste.unternehmen.id,
-              entityType: 'unternehmen',
-              logo_url: liste.unternehmen.logo_url
-            }])
-          : '-';
-
-        const markeBubble = liste.marke 
-          ? AvatarBubbles.renderBubbles([{
-              name: liste.marke.markenname,
-              type: 'org',
-              id: liste.marke.id,
-              entityType: 'marke',
-              logo_url: liste.marke.logo_url
-            }])
-          : '-';
-
-        const kampagneName = liste.kampagne?.kampagnenname || '-';
-
-        return `
-          <tr class="table-row-clickable" data-liste-id="${liste.id}">
-            <td class="col-name ca-col-name">${liste.name || 'Ohne Namen'}</td>
-            <td class="ca-col-unternehmen">${unternehmenBubble}</td>
-            <td class="ca-col-marke">${markeBubble}</td>
-            <td class="ca-col-kampagne">${kampagneName}</td>
-            <td class="col-actions">
-              <div class="actions-dropdown-container" data-entity-type="creator-auswahl">
-                <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                  </svg>
-                </button>
-                <div class="actions-dropdown">
-                  <a href="#" class="action-item" data-action="view-liste" data-id="${liste.id}">
-                    ${window.ActionsDropdown?.getHeroIcon('view') || ''}
-                    Details anzeigen
-                  </a>
-                  ${!isKunde ? `
-                    <a href="#" class="action-item" data-action="edit-liste" data-id="${liste.id}">
-                      ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
-                      Bearbeiten
-                    </a>
-                    ${rolle === 'admin' ? `
-                      <div class="action-separator"></div>
-                      <a href="#" class="action-item action-danger" data-action="delete-liste" data-id="${liste.id}">
-                        ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
-                        Löschen
-                      </a>
-                    ` : ''}
-                  ` : ''}
-                </div>
-              </div>
-            </td>
-          </tr>
-        `;
-      }).join('');
+      tbody.innerHTML = listen.map(liste => this.renderSingleRow(liste)).join('');
     });
     
     if (window.ActionsDropdown) {
@@ -519,7 +539,7 @@ export class CreatorAuswahlList {
         selectedMarkeId = null;
         selectedKampagneId = null;
       },
-      (r) => `<div class="dropdown-item" data-id="${r.id}" data-label="${r.firmenname}">${r.firmenname}</div>`
+      (r) => { const s = window.validatorSystem?.sanitizeHtml?.bind(window.validatorSystem) || (x => x); return `<div class="dropdown-item" data-id="${r.id}" data-label="${s(r.firmenname)}">${s(r.firmenname)}</div>`; }
     );
 
     // Marke - gefiltert nach Mitarbeiter-Zuordnungen
@@ -542,7 +562,7 @@ export class CreatorAuswahlList {
         selectedMarkeId = id;
         addTag('tags-marke', id, label, () => { selectedMarkeId = null; });
       },
-      (r) => `<div class="dropdown-item" data-id="${r.id}" data-label="${r.markenname}">${r.markenname}</div>`
+      (r) => { const s = window.validatorSystem?.sanitizeHtml?.bind(window.validatorSystem) || (x => x); return `<div class="dropdown-item" data-id="${r.id}" data-label="${s(r.markenname)}">${s(r.markenname)}</div>`; }
     );
 
     // Kampagne
@@ -914,7 +934,7 @@ export class CreatorAuswahlList {
         selectedUnternehmenId = id;
         addTag('edit-tags-unternehmen', id, label, () => { selectedUnternehmenId = null; });
       },
-      (r) => `<div class="dropdown-item" data-id="${r.id}" data-label="${r.firmenname}">${r.firmenname}</div>`
+      (r) => { const s = window.validatorSystem?.sanitizeHtml?.bind(window.validatorSystem) || (x => x); return `<div class="dropdown-item" data-id="${r.id}" data-label="${s(r.firmenname)}">${s(r.firmenname)}</div>`; }
     );
 
     // Marke - gefiltert nach Mitarbeiter-Zuordnungen
@@ -935,7 +955,7 @@ export class CreatorAuswahlList {
         selectedMarkeId = id;
         addTag('edit-tags-marke', id, label, () => { selectedMarkeId = null; });
       },
-      (r) => `<div class="dropdown-item" data-id="${r.id}" data-label="${r.markenname}">${r.markenname}</div>`
+      (r) => { const s = window.validatorSystem?.sanitizeHtml?.bind(window.validatorSystem) || (x => x); return `<div class="dropdown-item" data-id="${r.id}" data-label="${s(r.markenname)}">${s(r.markenname)}</div>`; }
     );
 
     bindAutoSuggest('edit-as-kampagne', 'edit-asdd-kampagne',

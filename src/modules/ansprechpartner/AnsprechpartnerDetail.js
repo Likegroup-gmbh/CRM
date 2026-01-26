@@ -649,19 +649,25 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
         mobil: formData.telefonnummer_land_id,
         buero: formData.telefonnummer_office_land_id
       });
-    } catch (_) {}
+    } catch (err) {
+      console.warn('⚠️ Fehler beim Laden der Telefonnummer-Länder:', err?.message);
+    }
     
     // M:N: marke_ids
     try {
       const marken = (this.ansprechpartner?.ansprechpartner_marke || []).map(m => m?.marke?.id).filter(Boolean);
       if (marken.length > 0) formData.marke_ids = marken;
-    } catch (_) {}
+    } catch (err) {
+      console.warn('⚠️ Fehler beim Laden der Marken-IDs:', err?.message);
+    }
     
     // M:N: sprachen_ids (falls separat gepflegt)
     try {
       const sprachen = (this.ansprechpartner?.sprachen || []).map(s => s?.id).filter(Boolean);
       if (sprachen.length > 0) formData.sprachen_ids = sprachen;
-    } catch (_) {}
+    } catch (err) {
+      console.warn('⚠️ Fehler beim Laden der Sprachen-IDs:', err?.message);
+    }
     
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('ansprechpartner', formData);

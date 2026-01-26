@@ -65,9 +65,18 @@ export class StrategieList {
       return;
     }
 
-    // Pagination initialisieren
+    // Pagination initialisieren mit dynamicResize
     this.pagination.init('pagination-container-strategie', {
-      onPageChange: (page) => this.handlePageChange(page)
+      onPageChange: (page) => this.handlePageChange(page),
+      onItemsPerPageChange: (itemsPerPage, page) => this.handleItemsPerPageChange(itemsPerPage, page),
+      dynamicResize: true,
+      tbodySelector: '#strategien-table-body',
+      rowRenderer: (strategie) => this.renderSingleRow(strategie),
+      dataLoader: async (offset, limit) => {
+        // Lade alle und slice (da strategieService keine Pagination hat)
+        const all = await strategieService.getAllStrategien();
+        return all.slice(offset, offset + limit);
+      }
     });
 
     await this.loadAndRender();
@@ -87,6 +96,15 @@ export class StrategieList {
    * Handler für Seiten-Wechsel
    */
   handlePageChange(page) {
+    this.pagination.currentPage = page;
+    this.loadAndRender();
+  }
+
+  /**
+   * Handler für Einträge pro Seite Änderung
+   */
+  handleItemsPerPageChange(itemsPerPage, page) {
+    console.log(`📊 STRATEGIELIST: Einträge pro Seite geändert auf ${itemsPerPage}, Seite ${page}`);
     this.pagination.currentPage = page;
     this.loadAndRender();
   }
@@ -198,14 +216,93 @@ export class StrategieList {
   }
 
   /**
+   * Rendert eine einzelne Tabellenzeile für eine Strategie
+   */
+  renderSingleRow(strategie) {
+    const rolle = window.currentUser?.rolle?.toLowerCase();
+    const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+
+    const unternehmenBubble = strategie.unternehmen 
+      ? AvatarBubbles.renderBubbles([{
+          name: strategie.unternehmen.firmenname,
+          type: 'org',
+          id: strategie.unternehmen.id,
+          entityType: 'unternehmen',
+          logo_url: strategie.unternehmen.logo_url
+        }])
+      : '-';
+
+    const markeBubble = strategie.marke 
+      ? AvatarBubbles.renderBubbles([{
+          name: strategie.marke.markenname,
+          type: 'org',
+          id: strategie.marke.id,
+          entityType: 'marke',
+          logo_url: strategie.marke.logo_url
+        }])
+      : '-';
+
+    const kampagneName = strategie.kampagne?.kampagnenname || '-';
+
+    const createdByBubble = strategie.created_by_user 
+      ? AvatarBubbles.renderBubbles([{
+          name: strategie.created_by_user.name,
+          type: 'person',
+          id: strategie.created_by_user.id,
+          entityType: 'mitarbeiter',
+          profile_image_url: strategie.created_by_user.profile_image_url
+        }])
+      : '-';
+
+    return `
+      <tr class="table-row-clickable" data-strategie-id="${strategie.id}">
+        <td class="col-name">
+          <a href="#" class="table-link" data-table="strategie" data-id="${strategie.id}">
+            ${window.validatorSystem.sanitizeHtml(strategie.name || 'Ohne Namen')}
+          </a>
+        </td>
+        <td>${unternehmenBubble}</td>
+        <td>${markeBubble}</td>
+        <td>${kampagneName}</td>
+        <td>${createdByBubble}</td>
+        <td class="col-actions">
+          <div class="actions-dropdown-container" data-entity-type="strategie">
+            <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+              </svg>
+            </button>
+            <div class="actions-dropdown">
+              <a href="#" class="action-item" data-action="view-strategie" data-id="${strategie.id}">
+                ${window.ActionsDropdown?.getHeroIcon('view') || ''}
+                Details anzeigen
+              </a>
+              ${!isKunde ? `
+                <a href="#" class="action-item" data-action="edit-strategie" data-id="${strategie.id}">
+                  ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
+                  Bearbeiten
+                </a>
+                ${rolle === 'admin' ? `
+                  <div class="action-separator"></div>
+                  <a href="#" class="action-item action-danger" data-action="delete-strategie" data-id="${strategie.id}">
+                    ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
+                    Löschen
+                  </a>
+                ` : ''}
+              ` : ''}
+            </div>
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+
+  /**
    * Aktualisiere die Tabelle mit Strategien
    */
   async updateTable(strategien) {
     const tbody = document.getElementById('strategien-table-body');
     if (!tbody) return;
-    
-    const rolle = window.currentUser?.rolle?.toLowerCase();
-    const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
 
     await TableAnimationHelper.animatedUpdate(tbody, () => {
       if (!strategien || strategien.length === 0) {
@@ -219,81 +316,7 @@ export class StrategieList {
         return;
       }
 
-      tbody.innerHTML = strategien.map(strategie => {
-        const unternehmenBubble = strategie.unternehmen 
-          ? AvatarBubbles.renderBubbles([{
-              name: strategie.unternehmen.firmenname,
-              type: 'org',
-              id: strategie.unternehmen.id,
-              entityType: 'unternehmen',
-              logo_url: strategie.unternehmen.logo_url
-            }])
-          : '-';
-
-        const markeBubble = strategie.marke 
-          ? AvatarBubbles.renderBubbles([{
-              name: strategie.marke.markenname,
-              type: 'org',
-              id: strategie.marke.id,
-              entityType: 'marke',
-              logo_url: strategie.marke.logo_url
-            }])
-          : '-';
-
-        const kampagneName = strategie.kampagne?.kampagnenname || '-';
-
-        const createdByBubble = strategie.created_by_user 
-          ? AvatarBubbles.renderBubbles([{
-              name: strategie.created_by_user.name,
-              type: 'person',
-              id: strategie.created_by_user.id,
-              entityType: 'mitarbeiter',
-              profile_image_url: strategie.created_by_user.profile_image_url
-            }])
-          : '-';
-
-        return `
-          <tr class="table-row-clickable" data-strategie-id="${strategie.id}">
-            <td class="col-name">
-              <a href="#" class="table-link" data-table="strategie" data-id="${strategie.id}">
-                ${window.validatorSystem.sanitizeHtml(strategie.name || 'Ohne Namen')}
-              </a>
-            </td>
-            <td>${unternehmenBubble}</td>
-            <td>${markeBubble}</td>
-            <td>${kampagneName}</td>
-            <td>${createdByBubble}</td>
-            <td class="col-actions">
-              <div class="actions-dropdown-container" data-entity-type="strategie">
-                <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                  </svg>
-                </button>
-                <div class="actions-dropdown">
-                  <a href="#" class="action-item" data-action="view-strategie" data-id="${strategie.id}">
-                    ${window.ActionsDropdown?.getHeroIcon('view') || ''}
-                    Details anzeigen
-                  </a>
-                  ${!isKunde ? `
-                    <a href="#" class="action-item" data-action="edit-strategie" data-id="${strategie.id}">
-                      ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
-                      Bearbeiten
-                    </a>
-                    ${rolle === 'admin' ? `
-                      <div class="action-separator"></div>
-                      <a href="#" class="action-item action-danger" data-action="delete-strategie" data-id="${strategie.id}">
-                        ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
-                        Löschen
-                      </a>
-                    ` : ''}
-                  ` : ''}
-                </div>
-              </div>
-            </td>
-          </tr>
-        `;
-      }).join('');
+      tbody.innerHTML = strategien.map(strategie => this.renderSingleRow(strategie)).join('');
     });
     
     // Actions Dropdown initialisieren

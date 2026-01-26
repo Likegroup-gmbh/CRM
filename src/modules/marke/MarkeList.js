@@ -55,11 +55,24 @@ export class MarkeList {
       return;
     }
 
-    // Pagination initialisieren
+    // Pagination initialisieren mit dynamicResize
     this.pagination.init('pagination-marke', {
       itemsPerPage: 10,
       onPageChange: (page) => this.handlePageChange(page),
-      onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page)
+      onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page),
+      dynamicResize: true,
+      tbodySelector: '.data-table tbody',
+      rowRenderer: (marke) => this.renderSingleRow(marke),
+      dataLoader: async (offset, limit) => {
+        const currentFilters = filterSystem.getFilters('marke');
+        const result = await window.dataService.loadEntitiesWithPagination(
+          'marke',
+          currentFilters,
+          1,
+          offset + limit
+        );
+        return result.data ? result.data.slice(offset) : [];
+      }
     });
 
     console.log('✅ MARKELLIST: Berechtigung OK, lade Marken...');
@@ -609,12 +622,39 @@ export class MarkeList {
     }
   }
 
+  // Rendert eine einzelne Tabellenzeile für eine Marke
+  renderSingleRow(marke) {
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    
+    return `
+      <tr data-id="${marke.id}">
+        ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="marke-check" data-id="${marke.id}"></td>` : ''}
+        <td class="col-name col-name-with-icon">
+          ${marke.logo_url 
+            ? `<img src="${marke.logo_url}" class="table-logo" width="24" height="24" alt="" />` 
+            : `<span class="table-avatar">${(marke.markenname || '?')[0].toUpperCase()}</span>`}
+          <a href="#" class="table-link" data-table="marke" data-id="${marke.id}">
+            ${window.validatorSystem.sanitizeHtml(marke.markenname || '')}
+          </a>
+        </td>
+        <td>${this.renderUnternehmen(marke.unternehmen)}</td>
+        <td>${this.renderAnsprechpartner(marke.ansprechpartner)}</td>
+        <td>${marke.webseite ? `<a href="${marke.webseite}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${marke.webseite}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>` : '-'}</td>
+        <td>${this.renderBranchen(marke.branchen)}</td>
+        <td class="col-mitarbeiter">${this.renderMitarbeiterByRole((marke.mitarbeiter || []).filter(m => m.role === 'management'))}</td>
+        <td class="col-mitarbeiter">${this.renderMitarbeiterByRole((marke.mitarbeiter || []).filter(m => m.role === 'lead_mitarbeiter'))}</td>
+        <td class="col-mitarbeiter">${this.renderMitarbeiterByRole((marke.mitarbeiter || []).filter(m => m.role !== 'management' && m.role !== 'lead_mitarbeiter'))}</td>
+        <td class="col-actions">
+          ${actionBuilder.create('marke', marke.id)}
+        </td>
+      </tr>
+    `;
+  }
+
   // Update Tabelle
   async updateTable(marken) {
     const tbody = document.querySelector('.data-table tbody');
     if (!tbody) return;
-
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
 
     await TableAnimationHelper.animatedUpdate(tbody, async () => {
       if (!marken || marken.length === 0) {
@@ -623,29 +663,7 @@ export class MarkeList {
         return;
       }
 
-      tbody.innerHTML = marken.map(marke => `
-        <tr data-id="${marke.id}">
-          ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="marke-check" data-id="${marke.id}"></td>` : ''}
-          <td class="col-name col-name-with-icon">
-            ${marke.logo_url 
-              ? `<img src="${marke.logo_url}" class="table-logo" width="24" height="24" alt="" />` 
-              : `<span class="table-avatar">${(marke.markenname || '?')[0].toUpperCase()}</span>`}
-            <a href="#" class="table-link" data-table="marke" data-id="${marke.id}">
-              ${window.validatorSystem.sanitizeHtml(marke.markenname || '')}
-            </a>
-          </td>
-          <td>${this.renderUnternehmen(marke.unternehmen)}</td>
-          <td>${this.renderAnsprechpartner(marke.ansprechpartner)}</td>
-          <td>${marke.webseite ? `<a href="${marke.webseite}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${marke.webseite}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>` : '-'}</td>
-          <td>${this.renderBranchen(marke.branchen)}</td>
-          <td class="col-mitarbeiter">${this.renderMitarbeiterByRole((marke.mitarbeiter || []).filter(m => m.role === 'management'))}</td>
-          <td class="col-mitarbeiter">${this.renderMitarbeiterByRole((marke.mitarbeiter || []).filter(m => m.role === 'lead_mitarbeiter'))}</td>
-          <td class="col-mitarbeiter">${this.renderMitarbeiterByRole((marke.mitarbeiter || []).filter(m => m.role !== 'management' && m.role !== 'lead_mitarbeiter'))}</td>
-          <td class="col-actions">
-            ${actionBuilder.create('marke', marke.id)}
-          </td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = marken.map(marke => this.renderSingleRow(marke)).join('');
     });
   }
 

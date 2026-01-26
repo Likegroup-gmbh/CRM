@@ -52,11 +52,21 @@ export class ProduktList {
       return;
     }
 
-    // Pagination initialisieren
+    // Pagination initialisieren mit dynamicResize
     this.pagination.init('pagination-produkt', {
       itemsPerPage: 10,
       onPageChange: (page) => this.handlePageChange(page),
-      onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page)
+      onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page),
+      dynamicResize: true,
+      tbodySelector: '.data-table tbody',
+      rowRenderer: (produkt) => this.renderSingleRow(produkt),
+      dataLoader: async (offset, limit) => {
+        const currentFilters = filterSystem.getFilters('produkt');
+        const result = await window.dataService.loadEntitiesWithPagination(
+          'produkt', currentFilters, 1, offset + limit
+        );
+        return result.data ? result.data.slice(offset) : [];
+      }
     });
 
     console.log('✅ PRODUKTLIST: Berechtigung OK, lade Produkte...');
@@ -378,12 +388,34 @@ export class ProduktList {
     }
   }
 
+  // Rendert eine einzelne Tabellenzeile für ein Produkt
+  renderSingleRow(produkt) {
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    
+    return `
+      <tr data-id="${produkt.id}">
+        ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="produkt-check" data-id="${produkt.id}"></td>` : ''}
+        <td class="col-name">
+          <a href="#" class="table-link" data-table="produkt" data-id="${produkt.id}">
+            ${window.validatorSystem.sanitizeHtml(produkt.name || '')}
+          </a>
+        </td>
+        <td>${this.renderMarke(produkt.marke)}</td>
+        <td>${this.renderUnternehmen(produkt.unternehmen)}</td>
+        <td class="text-truncate" title="${window.validatorSystem.sanitizeHtml(produkt.kernbotschaft || '')}">
+          ${this.truncateText(produkt.kernbotschaft, 60)}
+        </td>
+        <td class="col-actions">
+          ${actionBuilder.create('produkt', produkt.id)}
+        </td>
+      </tr>
+    `;
+  }
+
   // Update Tabelle
   async updateTable(produkte) {
     const tbody = document.querySelector('.data-table tbody');
     if (!tbody) return;
-
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
 
     await TableAnimationHelper.animatedUpdate(tbody, async () => {
       if (!produkte || produkte.length === 0) {
@@ -392,24 +424,7 @@ export class ProduktList {
         return;
       }
 
-      tbody.innerHTML = produkte.map(produkt => `
-        <tr data-id="${produkt.id}">
-          ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="produkt-check" data-id="${produkt.id}"></td>` : ''}
-          <td class="col-name">
-            <a href="#" class="table-link" data-table="produkt" data-id="${produkt.id}">
-              ${window.validatorSystem.sanitizeHtml(produkt.name || '')}
-            </a>
-          </td>
-          <td>${this.renderMarke(produkt.marke)}</td>
-          <td>${this.renderUnternehmen(produkt.unternehmen)}</td>
-          <td class="text-truncate" title="${window.validatorSystem.sanitizeHtml(produkt.kernbotschaft || '')}">
-            ${this.truncateText(produkt.kernbotschaft, 60)}
-          </td>
-          <td class="col-actions">
-            ${actionBuilder.create('produkt', produkt.id)}
-          </td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = produkte.map(produkt => this.renderSingleRow(produkt)).join('');
     });
   }
 

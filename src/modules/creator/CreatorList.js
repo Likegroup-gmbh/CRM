@@ -27,6 +27,8 @@ export class CreatorList {
     // Suche
     this.searchQuery = '';
     this._searchDebounceTimer = null;
+    // Event-Listener Cleanup mit AbortController
+    this._abortController = null;
   }
 
   // Initialisiere Creator-Liste
@@ -53,9 +55,26 @@ export class CreatorList {
     // Shell einmal rendern (Struktur)
     await this.renderShell();
     
-    // Pagination initialisieren (nach Shell-Render!)
+    // Pagination initialisieren (nach Shell-Render!) mit dynamicResize
     this.pagination.init('pagination-container-creator', {
-      onPageChange: (page) => this.handlePageChange(page)
+      onPageChange: (page) => this.handlePageChange(page),
+      onItemsPerPageChange: (itemsPerPage, page) => this.handleItemsPerPageChange(itemsPerPage, page),
+      // Dynamisches Resize: Zeilen animiert hinzufügen/entfernen statt komplett neu laden
+      dynamicResize: true,
+      tbodySelector: '.data-table tbody',
+      rowRenderer: (creator) => this.renderSingleRow(creator),
+      dataLoader: async (offset, limit) => {
+        // Lade nur die zusätzlichen Einträge
+        const filtersWithSort = this.getCurrentFiltersWithSort();
+        const result = await window.dataService.loadEntitiesWithPagination(
+          'creator',
+          filtersWithSort,
+          1,  // Immer Seite 1
+          offset + limit  // Bis zum neuen Limit laden
+        );
+        // Nur die neuen Einträge zurückgeben (ab offset)
+        return result.data ? result.data.slice(offset) : [];
+      }
     });
 
     // Binde Events einmal
@@ -70,6 +89,30 @@ export class CreatorList {
     console.log(`📄 CREATORLIST: Wechsle zu Seite ${page}`);
     this.pagination.currentPage = page;
     this.loadDataDebounced();
+  }
+
+  // Handler für Einträge pro Seite Änderung
+  handleItemsPerPageChange(itemsPerPage, page) {
+    console.log(`📊 CREATORLIST: Einträge pro Seite geändert auf ${itemsPerPage}, Seite ${page}`);
+    this.pagination.currentPage = page;
+    this.loadDataDebounced();
+  }
+
+  // Gibt aktuelle Filter inkl. Sortierung zurück (für dynamicResize dataLoader)
+  getCurrentFiltersWithSort() {
+    const currentFilters = filterSystem.getFilters('creator');
+    const filtersWithSort = {
+      ...currentFilters,
+      _sortBy: this.currentSort.field,
+      _sortOrder: this.currentSort.ascending ? 'asc' : 'desc'
+    };
+    
+    // Suchbegriff als name-Filter hinzufügen
+    if (this.searchQuery && this.searchQuery.length > 0) {
+      filtersWithSort.name = this.searchQuery;
+    }
+    
+    return filtersWithSort;
   }
 
   // Debounced Load für Filter/Pagination
@@ -296,12 +339,17 @@ export class CreatorList {
 
   // Binde Events
   bindEvents() {
-    // Filter-Events werden vom FilterDropdown gehandelt
+    // Cleanup vorheriger Listener
+    if (this._abortController) {
+      this._abortController.abort();
+    }
+    this._abortController = new AbortController();
+    const signal = this._abortController.signal;
 
     // Suchfeld Event
     const searchInput = document.getElementById('creator-search-input');
     if (searchInput) {
-      searchInput.addEventListener('input', (e) => this.handleCreatorSearch(e.target.value));
+      searchInput.addEventListener('input', (e) => this.handleCreatorSearch(e.target.value), { signal });
     }
 
     // Neuen Creator anlegen Button
@@ -310,7 +358,7 @@ export class CreatorList {
         e.preventDefault();
         window.navigateTo('/creator/new');
       }
-    });
+    }, { signal });
 
     // Creator Detail Links
     document.addEventListener('click', (e) => {
@@ -320,7 +368,7 @@ export class CreatorList {
         console.log('🎯 CREATORLIST: Navigiere zu Creator Details:', creatorId);
         window.navigateTo(`/creator/${creatorId}`);
       }
-    });
+    }, { signal });
 
     // Alle auswählen Button
     document.addEventListener('click', (e) => {
@@ -338,7 +386,7 @@ export class CreatorList {
         }
         this.updateSelection();
       }
-    });
+    }, { signal });
 
     // Auswahl aufheben Button
     document.addEventListener('click', (e) => {
@@ -354,14 +402,14 @@ export class CreatorList {
         }
         this.updateSelection();
       }
-    });
+    }, { signal });
 
     // Entity Updated Event
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail.entity === 'creator') {
         this.loadDataDebounced(100);
       }
-    });
+    }, { signal });
 
     // Filter-Tag X-Buttons
     document.addEventListener('click', (e) => {
@@ -379,9 +427,7 @@ export class CreatorList {
         this.pagination.currentPage = 1;
         this.loadDataDebounced(50);
       }
-    });
-
-
+    }, { signal });
 
     // Select-All Checkbox (Tabellen-Header)
     document.addEventListener('change', (e) => {
@@ -401,7 +447,7 @@ export class CreatorList {
         this.updateSelection();
         console.log(`${isChecked ? '✅ Alle Creator ausgewählt' : '❌ Alle Creator abgewählt'}: ${this.selectedCreator.size}`);
       }
-    });
+    }, { signal });
 
     // Creator Checkboxes (einzelne Zeilen)
     document.addEventListener('change', (e) => {
@@ -414,7 +460,7 @@ export class CreatorList {
         this.updateSelection();
         this.updateSelectAllCheckbox();
       }
-    });
+    }, { signal });
 
     // Bulk-Actions werden jetzt vom BulkActionSystem verwaltet
     // Registriere diese Liste beim BulkActionSystem
@@ -571,13 +617,41 @@ export class CreatorList {
     }
   }
 
+  // Rendert eine einzelne Tabellenzeile für einen Creator
+  // Wird für dynamicResize und updateTable verwendet
+  renderSingleRow(creator) {
+    const isAdmin = this._isAdmin;
+    const fmt = this._numberFormatter;
+    
+    return `
+      <tr data-id="${creator.id}">
+        ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="creator-check" data-id="${creator.id}"></td>` : ''}
+        <td class="col-name col-name-with-icon">
+          <span class="table-avatar">${(creator.vorname || '?')[0].toUpperCase()}</span>
+          <a href="#" class="table-link" data-table="creator" data-id="${creator.id}">
+            ${window.CreatorUtils.sanitizeHtml(`${creator.vorname} ${creator.nachname}`)}
+          </a>
+        </td>
+        <td>${this.renderCreatorTypeTags(creator.creator_types)}</td>
+        <td>${this.renderSprachenTags(creator.sprachen)}</td>
+        <td>${this.renderBrancheTags(creator.branchen)}</td>
+        <td>${creator.instagram_follower ? fmt.format(creator.instagram_follower) : '-'}</td>
+        <td>${creator.tiktok_follower ? fmt.format(creator.tiktok_follower) : '-'}</td>
+        <td>${this.renderLocationTag(creator.lieferadresse_stadt, 'stadt')}</td>
+        <td>${this.renderLocationTag(creator.lieferadresse_land, 'land')}</td>
+        <td class="col-actions">
+          ${actionBuilder.create('creator', creator.id)}
+        </td>
+      </tr>
+    `;
+  }
+
   // Update Tabelle (optimiert: verwendet gecachte Werte + zentralen AnimationHelper)
   async updateTable(creators) {
     const tbody = document.querySelector('.data-table tbody');
     if (!tbody) return;
 
     const isAdmin = this._isAdmin;
-    const fmt = this._numberFormatter;
 
     await TableAnimationHelper.animatedUpdate(tbody, () => {
       if (!creators || creators.length === 0) {
@@ -585,27 +659,7 @@ export class CreatorList {
         return;
       }
 
-      tbody.innerHTML = creators.map(creator => `
-        <tr data-id="${creator.id}">
-          ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="creator-check" data-id="${creator.id}"></td>` : ''}
-          <td class="col-name col-name-with-icon">
-            <span class="table-avatar">${(creator.vorname || '?')[0].toUpperCase()}</span>
-            <a href="#" class="table-link" data-table="creator" data-id="${creator.id}">
-              ${window.CreatorUtils.sanitizeHtml(`${creator.vorname} ${creator.nachname}`)}
-            </a>
-          </td>
-          <td>${this.renderCreatorTypeTags(creator.creator_types)}</td>
-          <td>${this.renderSprachenTags(creator.sprachen)}</td>
-          <td>${this.renderBrancheTags(creator.branchen)}</td>
-          <td>${creator.instagram_follower ? fmt.format(creator.instagram_follower) : '-'}</td>
-          <td>${creator.tiktok_follower ? fmt.format(creator.tiktok_follower) : '-'}</td>
-          <td>${this.renderLocationTag(creator.lieferadresse_stadt, 'stadt')}</td>
-          <td>${this.renderLocationTag(creator.lieferadresse_land, 'land')}</td>
-          <td class="col-actions">
-            ${actionBuilder.create('creator', creator.id)}
-          </td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = creators.map(creator => this.renderSingleRow(creator)).join('');
     });
   }
 
@@ -613,9 +667,10 @@ export class CreatorList {
   _renderTags(items, tagClass) {
     if (!items || items.length === 0) return '-';
     const arr = Array.isArray(items) ? items : [items];
+    const sanitize = window.validatorSystem?.sanitizeHtml?.bind(window.validatorSystem) || (x => x);
     const tags = arr.map(item => {
       const label = typeof item === 'object' ? (item.name || item.label || item) : item;
-      return `<span class="tag ${tagClass}">${String(label).trim()}</span>`;
+      return `<span class="tag ${tagClass}">${sanitize(String(label).trim())}</span>`;
     }).join('');
     return `<div class="tags tags-compact">${tags}</div>`;
   }
@@ -645,6 +700,14 @@ export class CreatorList {
   // Cleanup
   destroy() {
     console.log('CreatorList: Cleaning up...');
+    
+    // AbortController alle Event-Listener auf einmal entfernen
+    if (this._abortController) {
+      this._abortController.abort();
+      this._abortController = null;
+    }
+    
+    // Legacy-Cleanup (falls noch verwendet)
     this._boundEventListeners.forEach(({ element, type, handler }) => {
       element.removeEventListener(type, handler);
     });

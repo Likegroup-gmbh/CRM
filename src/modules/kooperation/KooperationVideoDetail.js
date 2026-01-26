@@ -170,7 +170,9 @@ export const kooperationVideoDetail = {
               .order('position', { ascending: false })
               .limit(1);
             nextPos = ((last && last[0] && parseInt(last[0].position, 10)) || 0) + 1;
-          } catch (_) {}
+          } catch (err) {
+            console.warn('⚠️ Fehler beim Ermitteln der nächsten Video-Position:', err?.message);
+          }
           const { data: insertedVideo, error } = await window.supabase
             .from('kooperation_videos')
             .insert({ ...payload, position: nextPos })

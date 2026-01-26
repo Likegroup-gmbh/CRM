@@ -39,11 +39,18 @@ export class UnternehmenList {
       return;
     }
 
-    // Pagination initialisieren
+    // Pagination initialisieren mit dynamicResize
     this.pagination.init('pagination-unternehmen', {
       itemsPerPage: 10,
       onPageChange: (page) => this.handlePageChange(page),
-      onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page)
+      onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page),
+      dynamicResize: true,
+      tbodySelector: '.data-table tbody',
+      rowRenderer: (u) => this.renderSingleRow(u),
+      dataLoader: async (offset, limit) => {
+        // Lade zusätzliche Unternehmen mit allen Daten
+        return await this.loadAdditionalUnternehmen(offset, limit);
+      }
     });
 
     // Binde Events sofort
@@ -479,12 +486,101 @@ export class UnternehmenList {
     }
   }
 
+  // Lädt zusätzliche Unternehmen für dynamicResize (inkl. Ansprechpartner/Mitarbeiter)
+  async loadAdditionalUnternehmen(offset, limit) {
+    try {
+      const currentFilters = filterSystem.getFilters('unternehmen');
+      
+      // Query aufbauen
+      let query = window.supabase
+        .from('unternehmen')
+        .select(`
+          *,
+          unternehmen_branchen (
+            branche_id,
+            branchen (id, name)
+          )
+        `)
+        .order(this.currentSort.field, { ascending: this.currentSort.ascending })
+        .range(offset, offset + limit - 1);
+      
+      // Filter anwenden
+      if (currentFilters.firmenname) {
+        query = query.ilike('firmenname', `%${currentFilters.firmenname}%`);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      
+      // Branchen transformieren
+      const transformedData = (data || []).map(u => {
+        if (u.unternehmen_branchen) {
+          u.branchen = u.unternehmen_branchen.map(ub => ub.branchen).filter(Boolean);
+          delete u.unternehmen_branchen;
+        } else {
+          u.branchen = [];
+        }
+        return u;
+      });
+      
+      // Ansprechpartner und Mitarbeiter für die neuen Unternehmen laden
+      const ids = transformedData.map(u => u.id).filter(Boolean);
+      if (ids.length > 0) {
+        const [apMap, mitarbeiterMap] = await Promise.all([
+          this.loadAnsprechpartnerMap(ids),
+          this.loadMitarbeiterMap(ids)
+        ]);
+        
+        // Daten an Unternehmen anhängen
+        transformedData.forEach(u => {
+          u._ansprechpartner = apMap.get(u.id) || [];
+          u._mitarbeiter = mitarbeiterMap.get(u.id) || [];
+        });
+      }
+      
+      return transformedData;
+    } catch (error) {
+      console.error('❌ Fehler beim Laden zusätzlicher Unternehmen:', error);
+      return [];
+    }
+  }
+
+  // Rendert eine einzelne Tabellenzeile für ein Unternehmen
+  renderSingleRow(u) {
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    const allMitarbeiter = u._mitarbeiter || [];
+    const management = allMitarbeiter.filter(m => m.role === 'management');
+    const leads = allMitarbeiter.filter(m => m.role === 'lead_mitarbeiter');
+    const mitarbeiter = allMitarbeiter.filter(m => m.role === 'mitarbeiter');
+    
+    return `
+      <tr data-id="${u.id}">
+        ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="unternehmen-check" data-id="${u.id}"></td>` : ''}
+        <td class="col-name">
+          ${u.logo_url ? `<img src="${u.logo_url}" class="table-logo" width="24" height="24" alt="" />` : ''}
+          <a href="#" class="table-link" data-table="unternehmen" data-id="${u.id}">
+            ${window.validatorSystem.sanitizeHtml(u.firmenname || '')}
+          </a>
+        </td>
+        <td>${window.validatorSystem.sanitizeHtml(u.rechnungsadresse_stadt || '-')}</td>
+        <td>${window.validatorSystem.sanitizeHtml(u.rechnungsadresse_land || '-')}</td>
+        <td>${u.webseite ? `<a href="${u.webseite}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${u.webseite}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>` : '-'}</td>
+        <td>${this.renderBrancheTags(u.branchen)}</td>
+        <td>${this.renderAnsprechpartnerList(u._ansprechpartner)}</td>
+        <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(management)}</td>
+        <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(leads)}</td>
+        <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(mitarbeiter)}</td>
+        <td class="col-actions">
+          ${actionBuilder.create('unternehmen', u.id)}
+        </td>
+      </tr>
+    `;
+  }
+
   // Update Tabelle
   async updateTable(unternehmen) {
     const tbody = document.querySelector('.data-table tbody');
     if (!tbody) return;
-
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
 
     await TableAnimationHelper.animatedUpdate(tbody, async () => {
       if (!unternehmen || unternehmen.length === 0) {
@@ -500,34 +596,13 @@ export class UnternehmenList {
         this.loadMitarbeiterMap(unternehmenIds)
       ]);
 
-      tbody.innerHTML = unternehmen.map(u => {
-        const allMitarbeiter = mitarbeiterMap.get(u.id) || [];
-        const management = allMitarbeiter.filter(m => m.role === 'management');
-        const leads = allMitarbeiter.filter(m => m.role === 'lead_mitarbeiter');
-        const mitarbeiter = allMitarbeiter.filter(m => m.role === 'mitarbeiter');
-        
-        return `
-        <tr data-id="${u.id}">
-          ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="unternehmen-check" data-id="${u.id}"></td>` : ''}
-          <td class="col-name">
-            ${u.logo_url ? `<img src="${u.logo_url}" class="table-logo" width="24" height="24" alt="" />` : ''}
-            <a href="#" class="table-link" data-table="unternehmen" data-id="${u.id}">
-              ${window.validatorSystem.sanitizeHtml(u.firmenname || '')}
-            </a>
-          </td>
-          <td>${window.validatorSystem.sanitizeHtml(u.rechnungsadresse_stadt || '-')}</td>
-          <td>${window.validatorSystem.sanitizeHtml(u.rechnungsadresse_land || '-')}</td>
-          <td>${u.webseite ? `<a href="${u.webseite}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${u.webseite}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>` : '-'}</td>
-          <td>${this.renderBrancheTags(u.branchen)}</td>
-          <td>${this.renderAnsprechpartnerList(apMap.get(u.id))}</td>
-          <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(management)}</td>
-          <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(leads)}</td>
-          <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(mitarbeiter)}</td>
-          <td class="col-actions">
-            ${actionBuilder.create('unternehmen', u.id)}
-          </td>
-        </tr>
-      `}).join('');
+      // Daten an Unternehmen anhängen (für renderSingleRow)
+      unternehmen.forEach(u => {
+        u._ansprechpartner = apMap.get(u.id) || [];
+        u._mitarbeiter = mitarbeiterMap.get(u.id) || [];
+      });
+
+      tbody.innerHTML = unternehmen.map(u => this.renderSingleRow(u)).join('');
     });
   }
 
