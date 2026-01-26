@@ -105,7 +105,8 @@ export class AuthService {
           window.navigationSystem?.init?.();
           window.actionsDropdown?.init?.();
           window.bulkActionSystem?.init?.();
-          window.notificationSystem?.init?.();
+          // notificationSystem deaktiviert - FeedbackNotifications übernimmt
+          // window.notificationSystem?.init?.();
           
           // Aktuelle Route neu navigieren, damit Berechtigungen greifen
           const currentRoute = location.pathname;

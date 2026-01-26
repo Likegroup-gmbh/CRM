@@ -939,6 +939,17 @@ export class CreatorList {
 
   // Handle Form Submit für Seiten-Formular
   async handleFormSubmit() {
+    const btn = document.querySelector('.mdc-btn.mdc-btn--create');
+    
+    // Guard gegen Doppelklick
+    if (btn?.dataset.locked === 'true') return;
+    if (btn) {
+      btn.dataset.locked = 'true';
+      btn.classList.add('is-loading');
+      const labelEl = btn.querySelector('.mdc-btn__label');
+      if (labelEl) labelEl.textContent = 'Wird angelegt…';
+    }
+
     try {
       const form = document.getElementById('creator-form');
       const formData = new FormData(form);
@@ -1016,6 +1027,13 @@ export class CreatorList {
       });
       
       if (!validation.isValid) {
+        // Reset bei Validierungsfehler
+        if (btn) {
+          btn.dataset.locked = 'false';
+          btn.classList.remove('is-loading');
+          const labelEl = btn.querySelector('.mdc-btn__label');
+          if (labelEl) labelEl.textContent = 'Anlegen';
+        }
         this.showValidationErrors(validation.errors);
         return;
       }
@@ -1024,22 +1042,37 @@ export class CreatorList {
       const result = await window.dataService.createEntity('creator', submitData);
 
       if (result.success) {
+        // Success UI
+        if (btn) {
+          btn.classList.remove('is-loading');
+          btn.classList.add('is-success');
+          const labelEl = btn.querySelector('.mdc-btn__label');
+          if (labelEl) labelEl.textContent = 'Creator angelegt';
+        }
+        
         this.showSuccessMessage('Creator erfolgreich erstellt!');
         
-        // Event auslösen für Listen-Update statt Navigation
+        // Event auslösen für Listen-Update
         window.dispatchEvent(new CustomEvent('entityUpdated', { 
           detail: { entity: 'creator', id: result.id, action: 'created' } 
         }));
         
-        // Optional: Zurück zur Übersicht navigieren (nur wenn gewünscht)
-        // setTimeout(() => {
-        //   window.navigateTo('/creator');
-        // }, 1500);
+        // Zurück zur Übersicht navigieren
+        setTimeout(() => {
+          window.navigateTo('/creator');
+        }, 800);
       } else {
         throw new Error(result.error || 'Unbekannter Fehler');
       }
 
     } catch (error) {
+      // Reset bei Fehler
+      if (btn) {
+        btn.dataset.locked = 'false';
+        btn.classList.remove('is-loading');
+        const labelEl = btn.querySelector('.mdc-btn__label');
+        if (labelEl) labelEl.textContent = 'Anlegen';
+      }
       console.error('❌ Formular-Submit Fehler:', error);
       this.showErrorMessage(error.message);
     }

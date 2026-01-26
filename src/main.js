@@ -75,6 +75,7 @@ import { strategieDetail } from './modules/strategie/StrategieDetail.js';
 import { creatorAuswahlList } from './modules/creator-auswahl/CreatorAuswahlList.js';
 import { creatorAuswahlDetail } from './modules/creator-auswahl/CreatorAuswahlDetail.js';
 import { feedbackPage } from './modules/feedback/FeedbackPage.js';
+import { feedbackNotifications } from './modules/feedback/FeedbackNotifications.js';
 import { educationPage } from './modules/education/EducationPage.js';
 import { educationArticleDetail } from './modules/education/EducationArticleDetail.js';
 import { videoList } from './modules/video/VideoList.js';
@@ -532,6 +533,7 @@ window.bulkActionSystem = bulkActionSystem;
 window.duplicateChecker = new DuplicateChecker();
 console.log('✅ DuplicateChecker initialisiert');
 window.notificationSystem = notificationSystem;
+window.feedbackNotifications = feedbackNotifications;
 window.ansprechpartnerList = ansprechpartnerList;
 window.ansprechpartnerDetail = ansprechpartnerDetail;
 window.ansprechpartnerCreate = ansprechpartnerCreate;
@@ -624,8 +626,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // BulkActionSystem initialisieren
     bulkActionSystem.init();
-    // NotificationSystem initialisieren
-    notificationSystem.init();
+    // NotificationSystem deaktiviert - FeedbackNotifications übernimmt die Glocke
+    // notificationSystem.init();
+    
+    // FeedbackNotifications initialisieren (Glocke für Feedback-Kommentare)
+    feedbackNotifications.init();
     
     // TaskDetailDrawer initialisieren (global)
     const taskDetailDrawer = new TaskDetailDrawer();

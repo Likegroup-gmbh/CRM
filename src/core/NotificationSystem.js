@@ -31,22 +31,9 @@ export class NotificationSystem {
   }
 
   bindUI() {
-    const bell = document.querySelector('#notificationBell, .notification-bell');
-    const dropdown = document.querySelector('#notificationDropdown, .notification-dropdown');
-    if (!bell || !dropdown) return;
-
-    const toggle = () => {
-      dropdown.classList.toggle('show');
-    };
-    bell.addEventListener('click', (e) => {
-      e.preventDefault();
-      toggle();
-    });
-    document.addEventListener('click', (e) => {
-      if (!dropdown.contains(e.target) && !bell.contains(e.target)) {
-        dropdown.classList.remove('show');
-      }
-    });
+    // Feedback-Notifications übernimmt den Bell-Button, daher hier keine Bindung
+    // Das FeedbackNotifications-Modul kümmert sich um #notificationBell
+    // Diese Methode bleibt leer, um Konflikte zu vermeiden
   }
 
   async refresh(initial = false) {
