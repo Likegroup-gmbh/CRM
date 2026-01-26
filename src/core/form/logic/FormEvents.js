@@ -490,41 +490,33 @@ export class FormEvents {
     const onKoopChange = async () => {
       const koopId = koopSelect.value;
       if (!koopId) {
-        // Wenn keine Kooperation ausgewählt ist, alle abhängigen Felder für manuelle Eingabe freischalten
+        // Wenn keine Kooperation ausgewählt ist, alle abhängigen Felder leeren (bleiben readonly!)
         const fieldsToReset = [
-          { field: auftragField, placeholder: 'Auftrag wählen...' },
-          { field: unternehmenField, placeholder: 'Unternehmen wählen...' },
-          { field: kampagneField, placeholder: 'Kampagne wählen...' },
-          { field: creatorField, placeholder: 'Creator wählen...' }
+          { field: auftragField, placeholder: 'Auftrag wird automatisch gesetzt' },
+          { field: unternehmenField, placeholder: 'Unternehmen wird automatisch gesetzt' },
+          { field: kampagneField, placeholder: 'Kampagne wird automatisch gesetzt' },
+          { field: creatorField, placeholder: 'Creator wird automatisch gesetzt' }
         ];
         
         fieldsToReset.forEach(({ field, placeholder }) => {
           if (field) {
-            field.disabled = false;
-            field.setAttribute('data-readonly', 'false');
-            field.innerHTML = '<option value="">Bitte wählen...</option>';
+            // Felder bleiben readonly/disabled - nur Werte leeren
+            field.innerHTML = '<option value="">—</option>';
+            field.value = '';
             
-            // Searchable Select UI aktualisieren
+            // Searchable Select UI aktualisieren (bleibt disabled)
             const container = field.parentNode.querySelector('.searchable-select-container');
             if (container) {
               const input = container.querySelector('.searchable-select-input');
               if (input) {
-                input.removeAttribute('disabled');
-                input.classList.remove('is-disabled');
                 input.value = '';
                 input.placeholder = placeholder;
-                // Custom Validierung für required Felder
-                if (input.hasAttribute('data-was-required')) {
-                  input.setCustomValidity('Dieses Feld ist erforderlich.');
-                }
               }
             }
             
-            // Trigger reload der dynamischen Optionen wenn table-Konfiguration vorhanden
-            const table = field.getAttribute('data-table');
-            if (table && window.formSystem) {
-              window.formSystem.loadDynamicOptions(field);
-            }
+            // Hidden mirror leeren
+            const hidden = document.getElementById(`${field.id}-hidden`);
+            if (hidden) hidden.value = '';
           }
         });
         
@@ -563,71 +555,55 @@ export class FormEvents {
       }
       fillSelect(unternehmenField, koop?.unternehmen_id || '', unternehmenLabel);
 
-      // Auftrag über Kampagne ableiten
+      // Auftrag und Kampagne über einen optimierten Query laden (statt 3 separate Queries)
       let auftragsId = null;
       let auftragsName = '';
+      let kampName = '';
+
       if (koop?.kampagne_id) {
         try {
-          const { data: kamp } = await window.supabase
+          // Optimierter Query: Kampagne mit Auftrag in einem Query laden
+          const { data: kampagneData, error: kampError } = await window.supabase
             .from('kampagne')
-            .select('auftrag_id')
+            .select('id, kampagnenname, auftrag_id, auftrag:auftrag_id(id, auftragsname)')
             .eq('id', koop.kampagne_id)
             .single();
-          auftragsId = kamp?.auftrag_id || null;
-          // Kampagne ebenfalls setzen
-          if (kampagneField) {
-            // Kampagnenname laden
-            let kampName = '';
-            try {
-              const { data: kamp2 } = await window.supabase
-                .from('kampagne')
-                .select('id, kampagnenname')
-                .eq('id', koop.kampagne_id)
-                .single();
-              kampName = kamp2?.kampagnenname || '';
-            } catch(err) {
-              console.warn('⚠️ Fehler beim Laden der Kampagne für Rechnung:', err?.message);
-            }
-            fillSelect(kampagneField, koop.kampagne_id, kampName || `Kampagne ${koop.kampagne_id}`);
-          }
-          if (auftragsId) {
-            const { data: auftrag } = await window.supabase
-              .from('auftrag')
-              .select('id, auftragsname')
-              .eq('id', auftragsId)
-              .single();
-            auftragsName = auftrag?.auftragsname || '';
+          
+          if (kampError) {
+            console.error('❌ Fehler beim Laden der Kampagne:', kampError);
+          } else if (kampagneData) {
+            console.log('📊 Kampagne geladen:', kampagneData);
+            kampName = kampagneData.kampagnenname || '';
+            auftragsId = kampagneData.auftrag_id || null;
+            auftragsName = kampagneData.auftrag?.auftragsname || '';
           }
         } catch (e) {
-          console.warn('⚠️ Konnte Auftrag über Kampagne nicht laden:', e);
+          console.error('❌ Unerwarteter Fehler beim Laden der Kampagne/Auftrag:', e);
         }
       }
-      fillSelect(auftragField, auftragsId, auftragsName || (auftragsId ? `Auftrag ${auftragsId}` : ''));
-      
-        // Validierung: Stelle sicher, dass auftrag_id gesetzt ist, da es in der DB required ist
-        if (!auftragsId && auftragField) {
-          console.warn('⚠️ Auftrag konnte nicht automatisch gesetzt werden. Feld wird für manuelle Auswahl freigeschaltet.');
-          auftragField.disabled = false;
-          auftragField.setAttribute('data-readonly', 'false');
-          const container = auftragField.parentNode.querySelector('.searchable-select-container');
-          if (container) {
-            const input = container.querySelector('.searchable-select-input');
-            if (input) {
-              input.removeAttribute('disabled');
-              input.classList.remove('is-disabled');
-              input.placeholder = 'Auftrag wählen...';
-              // Custom Validierung für required Felder
-              if (input.hasAttribute('data-was-required')) {
-                input.setCustomValidity('Dieses Feld ist erforderlich.');
-              }
-            }
-          }
-          // Dynamische Optionen laden
-          const table = auftragField.getAttribute('data-table');
-          if (table && window.formSystem) {
-            window.formSystem.loadDynamicOptions(auftragField);
+
+      // Kampagne setzen mit besserem Fallback (keine UUID mehr anzeigen)
+      if (kampagneField) {
+        const kampLabel = kampName || (koop?.kampagne_id ? 'Unbenannte Kampagne' : '');
+        fillSelect(kampagneField, koop?.kampagne_id || '', kampLabel);
+      }
+
+      // Auftrag setzen mit besserem Fallback (keine UUID mehr anzeigen)
+      fillSelect(auftragField, auftragsId, auftragsName || (auftragsId ? 'Unbenannter Auftrag' : ''));
+
+      // Wenn kein Auftrag automatisch gesetzt werden konnte, Warnung anzeigen (Feld bleibt readonly!)
+      if (!auftragsId && auftragField) {
+        console.warn('⚠️ Auftrag konnte nicht automatisch gesetzt werden. Kampagne hat keinen verknüpften Auftrag.');
+        // Feld bleibt readonly - zeige Hinweis im Placeholder
+        const container = auftragField.parentNode.querySelector('.searchable-select-container');
+        if (container) {
+          const input = container.querySelector('.searchable-select-input');
+          if (input) {
+            input.value = '';
+            input.placeholder = 'Kein Auftrag verknüpft - bitte Kampagne prüfen';
           }
         }
+      }
 
       // Creator aus Kooperation laden (falls vorhanden)
       if (creatorField) {

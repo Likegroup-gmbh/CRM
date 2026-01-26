@@ -705,10 +705,19 @@ export class DynamicDataLoader {
     }
   }
 
-  // Kooperationen ohne hinterlegte Rechnung laden
+  // Kooperationen ohne hinterlegte Rechnung laden (mit Mitarbeiter-Filterung)
   async loadKooperationenOhneRechnung() {
     if (!window.supabase) return [];
     try {
+      // 0) Mitarbeiter-Berechtigung prüfen: Welche Unternehmen darf der User sehen?
+      const allowedUnternehmenIds = await window.getAllowedUnternehmenIds?.();
+      const isAdmin = allowedUnternehmenIds === null; // null = Admin, alle erlaubt
+      
+      if (!isAdmin && (!allowedUnternehmenIds || allowedUnternehmenIds.length === 0)) {
+        console.log('🔐 Keine Unternehmen zugeordnet - keine Kooperationen verfügbar');
+        return [];
+      }
+      
       // 1) Alle kooperation_ids, die bereits in rechnung vorkommen
       const { data: rechnungen, error: rErr } = await window.supabase
         .from('rechnung')
@@ -733,22 +742,35 @@ export class DynamicDataLoader {
         console.error('❌ Fehler beim Laden der Kooperationen (ohne Rechnung):', kErr);
         return [];
       }
-      // Optional: Kampagnennamen ergänzen für Label
+      
+      // 3) Kampagnen laden mit unternehmen_id für Filterung und Namen
       let kampagneMap = {};
+      let kampagneUnternehmenMap = {};
       try {
         const kampIds = Array.from(new Set((koops || []).map(k => k.kampagne_id).filter(Boolean)));
         if (kampIds.length > 0) {
           const { data: kamp } = await window.supabase
             .from('kampagne')
-            .select('id, kampagnenname')
+            .select('id, kampagnenname, unternehmen_id')
             .in('id', kampIds);
           kampagneMap = (kamp || []).reduce((acc, row) => { acc[row.id] = row.kampagnenname; return acc; }, {});
+          kampagneUnternehmenMap = (kamp || []).reduce((acc, row) => { acc[row.id] = row.unternehmen_id; return acc; }, {});
         }
       } catch (err) {
         console.warn('⚠️ Fehler beim Laden der Kampagnen-Namen für Kooperationen:', err?.message);
       }
 
-      return (koops || []).map(k => ({
+      // 4) Kooperationen nach Mitarbeiter-Berechtigung filtern (über Kampagne -> Unternehmen)
+      let filteredKoops = koops || [];
+      if (!isAdmin && allowedUnternehmenIds && allowedUnternehmenIds.length > 0) {
+        filteredKoops = filteredKoops.filter(k => {
+          const unternehmenId = kampagneUnternehmenMap[k.kampagne_id];
+          return unternehmenId && allowedUnternehmenIds.includes(unternehmenId);
+        });
+        console.log(`🔐 Kooperationen gefiltert: ${koops.length} → ${filteredKoops.length} (für ${allowedUnternehmenIds.length} Unternehmen)`);
+      }
+
+      return filteredKoops.map(k => ({
         value: k.id,
         label: k.name ? `${k.name} ${k.kampagne_id ? `— ${kampagneMap[k.kampagne_id] || 'Kampagne'}` : ''}` : (kampagneMap[k.kampagne_id] || k.id)
       }));

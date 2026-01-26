@@ -569,6 +569,11 @@ export class FormSystem {
 
     // Prüfe ob es ein Phone-Field ist
     const isPhoneField = selectElement.dataset.phoneField === 'true';
+    
+    // Prüfe ob das Feld readonly ist (data-readonly="true" oder disabled)
+    const isReadonly = selectElement.getAttribute('data-readonly') === 'true' || 
+                       selectElement.disabled || 
+                       field.readonly === true;
 
     // Container erstellen (ohne Inline-Styles)
     const container = document.createElement('div');
@@ -577,7 +582,7 @@ export class FormSystem {
     // Input-Feld erstellen
     const input = document.createElement('input');
     input.type = 'text';
-    input.className = 'searchable-select-input';
+    input.className = 'searchable-select-input' + (isReadonly ? ' is-disabled' : '');
     input.placeholder = field.placeholder || 'Suchen...';
     // Browser-Autocomplete komplett deaktivieren (mehrere Methoden kombiniert)
     input.autocomplete = 'new-password'; // Trick: Browser denken es ist ein Passwort-Feld
@@ -585,10 +590,18 @@ export class FormSystem {
     input.setAttribute('data-lpignore', 'true'); // LastPass ignorieren
     input.setAttribute('readonly', 'readonly'); // Initial readonly
     
-    // Readonly nach kurzer Verzögerung entfernen (verhindert Autocomplete)
-    setTimeout(() => {
-      input.removeAttribute('readonly');
-    }, 100);
+    // Für readonly-Felder: dauerhaft disabled setzen
+    if (isReadonly) {
+      input.setAttribute('disabled', 'true');
+      input.setAttribute('data-is-readonly', 'true');
+    }
+    
+    // Readonly nach kurzer Verzögerung entfernen (verhindert Autocomplete) - NUR wenn nicht readonly
+    if (!isReadonly) {
+      setTimeout(() => {
+        input.removeAttribute('readonly');
+      }, 100);
+    }
 
     // Dropdown erstellen
     const dropdown = document.createElement('div');
@@ -660,8 +673,13 @@ export class FormSystem {
       }
     };
 
-    // Event-Handler
+    // Event-Handler (nur wenn nicht readonly)
     input.addEventListener('focus', () => {
+      // Readonly-Felder: Keine Dropdown-Interaktion erlauben
+      if (isReadonly || input.hasAttribute('data-is-readonly')) {
+        return;
+      }
+      
       // Dropdown erst anzeigen
       dropdown.classList.add('show');
       
@@ -698,6 +716,11 @@ export class FormSystem {
     });
 
     input.addEventListener('input', () => {
+      // Readonly-Felder: Keine Eingabe erlauben
+      if (isReadonly || input.hasAttribute('data-is-readonly')) {
+        return;
+      }
+      
       this.updateDropdownItems(dropdown, options, input.value, field);
       
       // Custom Validierung für required Felder
