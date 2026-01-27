@@ -9,6 +9,7 @@ import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
+import { creatorUtils } from './CreatorUtils.js';
 
 export class CreatorList {
   constructor() {
@@ -635,8 +636,8 @@ export class CreatorList {
         <td>${this.renderCreatorTypeTags(creator.creator_types)}</td>
         <td>${this.renderSprachenTags(creator.sprachen)}</td>
         <td>${this.renderBrancheTags(creator.branchen)}</td>
-        <td>${creator.instagram_follower ? fmt.format(creator.instagram_follower) : '-'}</td>
-        <td>${creator.tiktok_follower ? fmt.format(creator.tiktok_follower) : '-'}</td>
+        <td>${creatorUtils.formatFollowerRange(creator.instagram_follower)}</td>
+        <td>${creatorUtils.formatFollowerRange(creator.tiktok_follower)}</td>
         <td>${this.renderLocationTag(creator.lieferadresse_stadt, 'stadt')}</td>
         <td>${this.renderLocationTag(creator.lieferadresse_land, 'land')}</td>
         <td class="col-actions">

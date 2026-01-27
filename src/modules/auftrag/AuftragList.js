@@ -1370,32 +1370,21 @@ export class AuftragList {
       
       const kundenAuftragNummer = (kundenAuftraegeCount || 0) + 1;
       
-      // 4. Höchste GesamtPO-Nummer aus bestehenden PO-Nummern ermitteln
-      const { data: auftraegeMitPo, error: gesamtError } = await window.supabase
-        .from('auftrag')
-        .select('po')
-        .not('po', 'is', null);
+      // 4. GesamtPO-Nummer ermitteln (Primär: DB-Zähler, Fallback: Regex-basiert)
+      let gesamtPoNummer;
       
-      if (gesamtError) {
-        console.error('❌ Fehler beim Laden der PO-Nummern:', gesamtError);
-        return { success: false, error: 'PO-Nummern konnten nicht geladen werden.' };
+      // Primär: Atomarer DB-Zähler via RPC-Funktion
+      const { data: counterData, error: counterError } = await window.supabase
+        .rpc('increment_po_counter');
+      
+      if (!counterError && counterData) {
+        gesamtPoNummer = counterData;
+        console.log(`✅ PO-Zähler aus DB: ${gesamtPoNummer}`);
+      } else {
+        // Fallback: Regex-basierte Ermittlung aus bestehenden POs
+        console.warn('⚠️ DB-Zähler nicht verfügbar, nutze Fallback:', counterError?.message);
+        gesamtPoNummer = await this.getMaxPoFromExistingData();
       }
-      
-      // Höchste GesamtPO-Nummer extrahieren (letzter Teil nach dem letzten "-")
-      let maxGesamtPo = 0;
-      if (auftraegeMitPo && auftraegeMitPo.length > 0) {
-        for (const auftrag of auftraegeMitPo) {
-          if (auftrag.po) {
-            const parts = auftrag.po.split('-');
-            const lastPart = parseInt(parts[parts.length - 1], 10);
-            if (!isNaN(lastPart) && lastPart > maxGesamtPo) {
-              maxGesamtPo = lastPart;
-            }
-          }
-        }
-      }
-      
-      const gesamtPoNummer = maxGesamtPo + 1;
       
       // 5. PO-Nummer generieren: PO-Kürzel-Jahr-AufträgeKunde-GesamtPO
       const poNummer = `PO-${kuerzel.trim()}-${currentYear}-${kundenAuftragNummer}-${gesamtPoNummer}`;
@@ -1406,6 +1395,52 @@ export class AuftragList {
     } catch (e) {
       console.error('❌ Fehler bei PO-Nummer Generierung:', e);
       return { success: false, error: 'Ein unerwarteter Fehler bei der PO-Generierung ist aufgetreten.' };
+    }
+  }
+
+  /**
+   * Fallback-Methode: Ermittelt die höchste GesamtPO aus bestehenden Daten
+   * Nur korrekt formatierte POs (PO-XXX-JJJJ-N-N) werden berücksichtigt
+   * @returns {Promise<number>} Nächste verfügbare GesamtPO-Nummer
+   */
+  async getMaxPoFromExistingData() {
+    try {
+      const { data: auftraegeMitPo, error } = await window.supabase
+        .from('auftrag')
+        .select('po')
+        .not('po', 'is', null);
+      
+      if (error) {
+        console.error('❌ Fehler beim Laden der PO-Nummern:', error);
+        return 1; // Fallback auf 1
+      }
+      
+      // Regex für korrektes PO-Format: PO-Kürzel-Jahr-AufträgeKunde-GesamtPO
+      // Erlaubt: Buchstaben, Zahlen, Leerzeichen und Sonderzeichen im Kürzel
+      const poRegex = /^PO-.+-\d{4}-\d+-(\d+)$/;
+      let maxGesamtPo = 0;
+      
+      for (const auftrag of auftraegeMitPo || []) {
+        if (auftrag.po) {
+          const match = auftrag.po.match(poRegex);
+          if (match) {
+            const gesamtPo = parseInt(match[1], 10);
+            if (gesamtPo > maxGesamtPo) {
+              maxGesamtPo = gesamtPo;
+            }
+          } else {
+            // Log ungültige PO-Nummern zur Analyse
+            console.warn(`⚠️ Ungültiges PO-Format ignoriert: "${auftrag.po}"`);
+          }
+        }
+      }
+      
+      console.log(`📊 Höchste gültige GesamtPO aus Daten: ${maxGesamtPo}`);
+      return maxGesamtPo + 1;
+      
+    } catch (e) {
+      console.error('❌ Fehler bei Fallback PO-Ermittlung:', e);
+      return 1; // Absoluter Fallback
     }
   }
 

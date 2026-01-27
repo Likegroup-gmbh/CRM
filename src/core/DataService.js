@@ -29,7 +29,11 @@ export class DataService {
           rechnungsadresse_plz: 'string',
           rechnungsadresse_stadt: 'string',
           rechnungsadresse_land: 'string',
-          notiz: 'string'
+          notiz: 'string',
+          geschlecht: 'string',
+          alter_jahre: 'number',
+          hat_haustier: 'boolean',
+          haustier_beschreibung: 'string'
         },
         relations: {},
         manyToMany: {

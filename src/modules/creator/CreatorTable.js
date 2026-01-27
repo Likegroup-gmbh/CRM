@@ -1,5 +1,6 @@
 // CreatorTable.js (ES6-Modul)
 // Wiederverwendbare Tabellen-Ausgabe für Creator
+import { creatorUtils } from './CreatorUtils.js';
 
 export function renderCreatorTable(creators, options = {}) {
   const { showFavoriteAction = false, showFavoritesMenu = false, showSelection = false, kampagneId = null } = options || {};
@@ -16,8 +17,8 @@ export function renderCreatorTable(creators, options = {}) {
     const branchen = Array.isArray(c.branchen) && c.branchen.length
       ? c.branchen.map(b => (typeof b === 'object' ? (b.name || b.label || b) : b)).join(', ')
       : '-';
-    const igFollower = c.instagram_follower != null ? new Intl.NumberFormat('de-DE').format(c.instagram_follower) : '-';
-    const ttFollower = c.tiktok_follower != null ? new Intl.NumberFormat('de-DE').format(c.tiktok_follower) : '-';
+    const igFollower = creatorUtils.formatFollowerRange(c.instagram_follower);
+    const ttFollower = creatorUtils.formatFollowerRange(c.tiktok_follower);
     const stadt = c.lieferadresse_stadt || '-';
     const land = c.lieferadresse_land || '-';
 

@@ -7,6 +7,7 @@ import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { renderTabButton } from '../../core/TabUtils.js';
+import { creatorUtils } from './CreatorUtils.js';
 
 export class CreatorDetail extends PersonDetailBase {
   constructor() {
@@ -719,7 +720,7 @@ export class CreatorDetail extends PersonDetailBase {
             </div>
             <div class="detail-item">
               <label>Instagram Follower:</label>
-              <span>${this.creator.instagram_follower ? this.formatNumber(this.creator.instagram_follower) : '-'}</span>
+              <span>${creatorUtils.formatFollowerRange(this.creator.instagram_follower)}</span>
             </div>
             <div class="detail-item">
               <label>TikTok:</label>
@@ -727,7 +728,7 @@ export class CreatorDetail extends PersonDetailBase {
             </div>
             <div class="detail-item">
               <label>TikTok Follower:</label>
-              <span>${this.creator.tiktok_follower ? this.formatNumber(this.creator.tiktok_follower) : '-'}</span>
+              <span>${creatorUtils.formatFollowerRange(this.creator.tiktok_follower)}</span>
             </div>
           </div>
 
@@ -1242,10 +1243,34 @@ export class CreatorDetail extends PersonDetailBase {
     console.log('🎯 CREATORDETAIL: Zeige Creator-Bearbeitungsformular für ID:', this.creatorId);
     window.setHeadline('Creator bearbeiten');
     
+    // Hilfsfunktion: Integer zu Bereichs-String konvertieren
+    const intToFollowerRange = (value) => {
+      if (!value) return null;
+      const ranges = [
+        { max: 2500, range: '0-2500' },
+        { max: 5000, range: '2500-5000' },
+        { max: 10000, range: '5000-10000' },
+        { max: 25000, range: '10000-25000' },
+        { max: 50000, range: '25000-50000' },
+        { max: 100000, range: '50000-100000' },
+        { max: 250000, range: '100000-250000' },
+        { max: 500000, range: '250000-500000' },
+        { max: 1000000, range: '500000-1000000' },
+        { max: Infinity, range: '1000000+' }
+      ];
+      for (const r of ranges) {
+        if (value <= r.max) return r.range;
+      }
+      return '1000000+';
+    };
+    
     const editData = {
       ...this.creator,
       _isEditMode: true,
       _entityId: this.creatorId,
+      // Follower-Werte zurück in Bereichs-Strings konvertieren
+      instagram_follower: intToFollowerRange(this.creator.instagram_follower),
+      tiktok_follower: intToFollowerRange(this.creator.tiktok_follower),
       sprachen_ids: this.creator.sprachen ? this.creator.sprachen.map(s => s.id) : [],
       branche_ids: this.creator.branchen ? this.creator.branchen.map(b => b.id) : [],
       creator_type_ids: this.creator.creator_types ? this.creator.creator_types.map(t => t.id) : []

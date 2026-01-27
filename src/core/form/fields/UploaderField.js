@@ -18,6 +18,9 @@ export class UploaderField {
 
   // Mount in bestehendes Root-Element (das bereits in den DOM eingefügt wurde)
   mount(root) {
+    // #region agent log
+    console.log('[DEBUG-A] UploaderField mount called', {rootExists:!!root,rootDataName:root?.dataset?.name,timestamp:Date.now()});
+    // #endregion
     if (!root) return;
     this.root = root;
     const id = `uploader-input-${Math.random().toString(36).slice(2)}`;
@@ -39,6 +42,9 @@ export class UploaderField {
     this.bind();
     // Exponiere Instanz am Root
     this.root.__uploaderInstance = this;
+    // #region agent log
+    console.log('[DEBUG-A] UploaderField mount complete', {instanceSet:!!this.root.__uploaderInstance,filesCount:this.files.length,timestamp:Date.now()});
+    // #endregion
     // Initial leere Liste anzeigen
     this.renderList();
   }
@@ -79,6 +85,9 @@ export class UploaderField {
   }
 
   handleFiles(fileList) {
+    // #region agent log
+    console.log('[DEBUG-B] handleFiles called', {fileListLength:fileList?.length,fileListNames:fileList?Array.from(fileList).map(f=>f.name):null,currentFilesCount:this.files.length,timestamp:Date.now()});
+    // #endregion
     // Fehler zurücksetzen bei neuem Upload-Versuch
     this.clearError();
     
@@ -115,6 +124,9 @@ export class UploaderField {
       } else {
         this.files = [...this.files, ...validFiles];
       }
+      // #region agent log
+      console.log('[DEBUG-B] Files set successfully', {filesCount:this.files.length,fileNames:this.files.map(f=>f.name),timestamp:Date.now()});
+      // #endregion
       this.renderList();
       this.onFilesChanged(this.files);
     }

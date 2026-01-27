@@ -912,16 +912,25 @@ export class ProfileDetailV2 extends PersonDetailBase {
     
     // Uploader initialisieren mit Validierung
     const uploaderRoot = panel.querySelector('.uploader[data-name="profile_image"]');
+    // #region agent log
+    console.log('[DEBUG-C] Initializing uploader', {uploaderRootFound:!!uploaderRoot,panelInDOM:document.body.contains(panel),timestamp:Date.now()});
+    // #endregion
     if (uploaderRoot) {
       this._profileUploader = new UploaderField({
         multiple: false,
         accept: 'image/png, image/jpeg, image/jpg',
         maxFileSize: 200 * 1024, // 200 KB
         onFilesChanged: () => {
+          // #region agent log
+          console.log('[DEBUG-B] Files changed callback', {filesCount:this._profileUploader?.files?.length,fileNames:this._profileUploader?.files?.map(f=>f.name),timestamp:Date.now()});
+          // #endregion
           console.log('📁 Profilbild geändert:', this._profileUploader?.files);
         }
       });
       this._profileUploader.mount(uploaderRoot);
+      // #region agent log
+      console.log('[DEBUG-A] Uploader mounted', {instanceOnRoot:!!uploaderRoot.__uploaderInstance,timestamp:Date.now()});
+      // #endregion
     }
     
     // Drawer öffnen (mit kurzer Verzögerung für Animation)
@@ -931,6 +940,9 @@ export class ProfileDetailV2 extends PersonDetailBase {
   }
 
   async handleProfileSave(closeDrawer) {
+    // #region agent log
+    console.log('[DEBUG-D] handleProfileSave called', {timestamp:Date.now()});
+    // #endregion
     console.log('🔄 handleProfileSave: Start');
     
     const nameInput = document.getElementById('profile-name');
@@ -952,6 +964,9 @@ export class ProfileDetailV2 extends PersonDetailBase {
     try {
       // Prüfe ob ein neues Profilbild ausgewählt wurde
       const uploaderRoot = document.querySelector('.uploader[data-name="profile_image"]');
+      // #region agent log
+      console.log('[DEBUG-D] Checking uploaderRoot', {uploaderRootExists:!!uploaderRoot,instanceExists:!!uploaderRoot?.__uploaderInstance,filesLength:uploaderRoot?.__uploaderInstance?.files?.length,fileNames:uploaderRoot?.__uploaderInstance?.files?.map(f=>f.name),timestamp:Date.now()});
+      // #endregion
       const hasNewImage = uploaderRoot?.__uploaderInstance?.files?.length > 0;
       
       console.log('🔄 handleProfileSave: hasNewImage=', hasNewImage);

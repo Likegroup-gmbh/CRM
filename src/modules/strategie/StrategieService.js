@@ -147,6 +147,15 @@ export class StrategieService {
         (markenKampagnen || []).forEach(k => kampagneIds.add(k.id));
       }
       
+      // 7. Kampagnen die DIREKT mit erlaubten Unternehmen verknüpft sind (ohne Marke)
+      if (unternehmenIds.length > 0) {
+        const { data: direkteUnternehmenKampagnen } = await window.supabase
+          .from('kampagne')
+          .select('id')
+          .in('unternehmen_id', unternehmenIds);
+        (direkteUnternehmenKampagnen || []).forEach(k => kampagneIds.add(k.id));
+      }
+      
     } else if (rolle === 'kunde' || rolle === 'kunde_editor') {
       // 1. Kampagnen über Unternehmen-Zuordnung (kunde_unternehmen)
       const { data: userUnternehmen } = await window.supabase

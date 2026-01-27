@@ -26,7 +26,7 @@ export class CreatorUtils {
     return `${firstName} ${lastName}`.trim();
   }
 
-  // Follower-Zahl formatieren
+  // Follower-Zahl formatieren (alte Methode für Kompatibilität)
   formatFollowerCount(count) {
     if (!count || isNaN(count)) {
       return '-';
@@ -39,6 +39,31 @@ export class CreatorUtils {
     } else {
       return count.toString();
     }
+  }
+
+  // Follower-Range formatieren (Integer → "25.000 - 50.000")
+  formatFollowerRange(value) {
+    if (!value || isNaN(value)) {
+      return '-';
+    }
+    
+    const ranges = [
+      { max: 2500, label: '0 - 2.500' },
+      { max: 5000, label: '2.500 - 5.000' },
+      { max: 10000, label: '5.000 - 10.000' },
+      { max: 25000, label: '10.000 - 25.000' },
+      { max: 50000, label: '25.000 - 50.000' },
+      { max: 100000, label: '50.000 - 100.000' },
+      { max: 250000, label: '100.000 - 250.000' },
+      { max: 500000, label: '250.000 - 500.000' },
+      { max: 1000000, label: '500.000 - 1.000.000' },
+      { max: Infinity, label: '+ 1.000.000' }
+    ];
+    
+    for (const r of ranges) {
+      if (value <= r.max) return r.label;
+    }
+    return '+ 1.000.000';
   }
 
   // Budget formatieren
