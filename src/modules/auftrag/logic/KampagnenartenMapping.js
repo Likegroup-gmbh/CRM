@@ -283,10 +283,16 @@ export function generateBudgetOnlyFieldsHtml(artName, values = {}) {
       <legend>${displayName}</legend>
       <div class="form-two-col">
         <div class="form-field form-field--half">
-          <label for="${prefix}_einkaufspreis_netto">Einkaufspreis (Netto)</label>
-          <input type="number" id="${prefix}_einkaufspreis_netto" name="${prefix}_einkaufspreis_netto" 
-                 min="0" step="0.01" value="${values[`${prefix}_einkaufspreis_netto`] || ''}" 
-                 placeholder="0,00">
+          <label>Einkaufspreis (Netto)</label>
+          <div class="price-range-inputs">
+            <input type="number" id="${prefix}_einkaufspreis_netto_von" name="${prefix}_einkaufspreis_netto_von" 
+                   min="0" step="0.01" value="${values[`${prefix}_einkaufspreis_netto_von`] || ''}" 
+                   placeholder="Von">
+            <span class="range-separator">–</span>
+            <input type="number" id="${prefix}_einkaufspreis_netto_bis" name="${prefix}_einkaufspreis_netto_bis" 
+                   min="0" step="0.01" value="${values[`${prefix}_einkaufspreis_netto_bis`] || ''}" 
+                   placeholder="Bis">
+          </div>
         </div>
         <div class="form-field form-field--half">
           <label for="${prefix}_verkaufspreis_netto">Verkaufspreis (Netto)</label>

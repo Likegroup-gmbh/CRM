@@ -13162,3 +13162,23 @@ table.vertraege-unternehmen-table td:last-child {
   font-weight: 500;
   margin-right: var(--space-xs);
 }
+
+/* =====================================================
+   Price Range Inputs (Von-Bis)
+   ===================================================== */
+.price-range-inputs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.price-range-inputs input {
+  flex: 1;
+  min-width: 0;
+}
+
+.range-separator {
+  color: var(--gray-500);
+  font-weight: 500;
+  flex-shrink: 0;
+}
