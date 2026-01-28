@@ -2437,7 +2437,18 @@ export class KampagneDetail {
         plattform_ids: formData.plattform_ids,
         format_ids: formData.format_ids,
         paid_ziele_ids: formData.paid_ziele_ids,
-        organic_ziele_ids: formData.organic_ziele_ids
+        organic_ziele_ids: formData.organic_ziele_ids,
+        // Kampagnenart-spezifische Felder (für dynamische Stepper im Edit-Mode)
+        ugc_video_anzahl: this.kampagneData.ugc_video_anzahl,
+        ugc_creator_anzahl: this.kampagneData.ugc_creator_anzahl,
+        ugc_bilder_anzahl: this.kampagneData.ugc_bilder_anzahl,
+        igc_video_anzahl: this.kampagneData.igc_video_anzahl,
+        igc_creator_anzahl: this.kampagneData.igc_creator_anzahl,
+        influencer_video_anzahl: this.kampagneData.influencer_video_anzahl,
+        influencer_creator_anzahl: this.kampagneData.influencer_creator_anzahl,
+        vor_ort_video_anzahl: this.kampagneData.vor_ort_video_anzahl,
+        vor_ort_creator_anzahl: this.kampagneData.vor_ort_creator_anzahl,
+        vor_ort_videographen_anzahl: this.kampagneData.vor_ort_videographen_anzahl
       };
       
       form.dataset.editModeData = JSON.stringify(editModeData);

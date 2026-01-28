@@ -371,13 +371,35 @@ export class FormEvents {
           const selectedAuftragId = auftragSelect.value;
           console.log('🔄 FORMEVENTS: Auftrag geändert:', selectedAuftragId);
           
+          // Edit-Mode: Bestehende Werte aus form.dataset.editModeData laden
+          let editModeValues = {};
+          if (form.dataset.editModeData) {
+            try {
+              const editData = JSON.parse(form.dataset.editModeData);
+              // Nur Kampagnenart-Felder extrahieren (enden auf _video_anzahl, _creator_anzahl, etc.)
+              const kampagnenartSuffixes = ['_video_anzahl', '_creator_anzahl', '_bilder_anzahl', '_videographen_anzahl'];
+              for (const [key, value] of Object.entries(editData)) {
+                if (kampagnenartSuffixes.some(suffix => key.endsWith(suffix)) && value !== undefined && value !== null) {
+                  editModeValues[key] = value;
+                }
+              }
+              console.log('📋 FORMEVENTS: Edit-Mode-Werte für Kampagnenart-Felder:', editModeValues);
+            } catch (e) {
+              console.warn('⚠️ FORMEVENTS: Fehler beim Parsen von editModeData:', e);
+            }
+          }
+          
           // Aktuelle Werte aus bestehenden Feldern sammeln (für Erhaltung bei Re-Render)
-          const existingValues = {};
+          // DOM-Werte haben Priorität über Edit-Mode-Werte (für Re-Render während Bearbeitung)
+          const domValues = {};
           fieldsContainer.querySelectorAll('input, textarea').forEach(input => {
             if (input.name && input.value) {
-              existingValues[input.name] = input.value;
+              domValues[input.name] = input.value;
             }
           });
+          
+          // Merge: Edit-Mode-Werte als Basis, DOM-Werte überschreiben (falls vorhanden)
+          const existingValues = { ...editModeValues, ...domValues };
           
           // Container leeren
           fieldsContainer.innerHTML = '';
