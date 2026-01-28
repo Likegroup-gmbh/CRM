@@ -81,6 +81,7 @@ import { educationArticleDetail } from './modules/education/EducationArticleDeta
 import { videoList } from './modules/video/VideoList.js';
 import { vertraegeList } from './modules/vertrag/VertraegeList.js';
 import { vertraegeCreate } from './modules/vertrag/VertraegeCreate.js';
+import { kickOffPage } from './modules/marke/KickOffPage.js';
 // Zentrales Bestätigungs-Modal (side-effect Import, hängt window.confirmationModal an)
 import './core/ConfirmationModal.js';
 // Duplicate Checker für Creator, Marke, Unternehmen
@@ -438,6 +439,7 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('marke', markeList);
   moduleRegistry.register('marke-detail', markeDetail);
   moduleRegistry.register('marke-create', markeCreate);
+  moduleRegistry.register('kickoff', kickOffPage);
   moduleRegistry.register('produkt', produktList);
   moduleRegistry.register('produkt-detail', produktDetail);
   moduleRegistry.register('produkt-create', produktCreate);
@@ -727,6 +729,16 @@ window.setupHeaderUI = () => {
       educationBtn.addEventListener('click', (e) => {
         e.preventDefault();
         moduleRegistry.navigateTo('/education');
+      });
+    }
+
+    // Kick-Off Button setup
+    const kickoffBtn = document.getElementById('kickoffBtn');
+    if (kickoffBtn && !kickoffBtn.dataset.bound) {
+      kickoffBtn.dataset.bound = 'true';
+      kickoffBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        moduleRegistry.navigateTo('/kickoff');
       });
     }
 

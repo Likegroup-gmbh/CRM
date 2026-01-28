@@ -271,6 +271,29 @@ export class FormEvents {
       bruttobetragInput.addEventListener('input', calculateDeckungsbeitrag);
       deckungsbeitragProzentInput.addEventListener('input', calculateDeckungsbeitrag);
     }
+
+    // RE-Fälligkeit automatisch berechnen aus Rechnung gestellt am + Zahlungsziel
+    const rechnungGestelltAm = form.querySelector('input[name="rechnung_gestellt_am"]');
+    const zahlungszielTage = form.querySelector('select[name="zahlungsziel_tage"]');
+    const reFaelligkeit = form.querySelector('input[name="re_faelligkeit"]');
+
+    if (rechnungGestelltAm && zahlungszielTage && reFaelligkeit) {
+      const calculateReFaelligkeit = () => {
+        const datum = rechnungGestelltAm.value;
+        const tage = parseInt(zahlungszielTage.value) || 0;
+        if (datum && tage >= 0) {
+          const date = new Date(datum);
+          date.setDate(date.getDate() + tage);
+          reFaelligkeit.value = date.toISOString().split('T')[0];
+        } else if (!datum) {
+          reFaelligkeit.value = '';
+        }
+      };
+      rechnungGestelltAm.addEventListener('change', calculateReFaelligkeit);
+      zahlungszielTage.addEventListener('change', calculateReFaelligkeit);
+      // Initial berechnen falls Werte vorhanden
+      calculateReFaelligkeit();
+    }
   }
 
   // Kampagne-spezifische Events - Dynamische Felder basierend auf Kampagnenarten des Auftrags

@@ -732,6 +732,56 @@ export class DataService {
         filters: ['name', 'created_at'],
         sortBy: 'created_at',
         sortOrder: 'desc'
+      },
+      // Brand Kick-Off Feature
+      markenwert_typen: {
+        table: 'markenwert_typen',
+        displayField: 'name',
+        fields: {
+          name: 'string',
+          created_at: 'date'
+        },
+        relations: {},
+        filters: ['name'],
+        sortBy: 'name',
+        sortOrder: 'asc'
+      },
+      marke_kickoff: {
+        table: 'marke_kickoff',
+        displayField: 'brand_essenz',
+        fields: {
+          marke_id: 'uuid',
+          unternehmen_id: 'uuid',
+          brand_essenz: 'string',
+          mission: 'string',
+          zielgruppe: 'string',
+          zielgruppen_mindset: 'string',
+          marken_usp: 'string',
+          tonalitaet_sprachstil: 'string',
+          content_charakter: 'string',
+          dos_donts: 'string',
+          rechtliche_leitplanken: 'string',
+          created_by: 'uuid',
+          created_at: 'date',
+          updated_at: 'date'
+        },
+        relations: {
+          marke: { table: 'marke', foreignKey: 'marke_id', displayField: 'markenname' },
+          unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' },
+          created_by_user: { table: 'benutzer', foreignKey: 'created_by', displayField: 'name' }
+        },
+        manyToMany: {
+          markenwerte: {
+            table: 'markenwert_typen',
+            junctionTable: 'marke_kickoff_markenwerte',
+            localKey: 'kickoff_id',
+            foreignKey: 'markenwert_id',
+            displayField: 'name'
+          }
+        },
+        filters: ['marke_id', 'unternehmen_id'],
+        sortBy: 'created_at',
+        sortOrder: 'desc'
       }
     };
   }

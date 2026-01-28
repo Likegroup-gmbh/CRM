@@ -153,6 +153,7 @@ export class VertraegeCreate {
         .order('firmenname');
       
       this.unternehmen = unternehmen || [];
+      console.log('📊 VERTRAG: Unternehmen geladen:', this.unternehmen.length);
 
       // Lade Kampagnen mit Unternehmen-ID
       const { data: kampagnen } = await window.supabase
@@ -161,6 +162,10 @@ export class VertraegeCreate {
         .order('kampagnenname');
       
       this.kampagnen = kampagnen || [];
+      console.log('📊 VERTRAG: Kampagnen geladen:', this.kampagnen.length);
+      if (this.kampagnen.length > 0) {
+        console.log('📊 VERTRAG: Beispiel-Kampagne:', this.kampagnen[0]);
+      }
 
       // Lade Creator mit Adressen
       const { data: creators } = await window.supabase
@@ -169,6 +174,7 @@ export class VertraegeCreate {
         .order('nachname');
       
       this.creators = creators || [];
+      console.log('📊 VERTRAG: Creator geladen:', this.creators.length);
 
     } catch (error) {
       console.error('❌ Fehler beim Laden der Stammdaten:', error);
@@ -525,12 +531,31 @@ export class VertraegeCreate {
 
   // Kampagnen nach Kunde filtern
   updateFilteredKampagnen() {
+    console.log('🔍 VERTRAG: updateFilteredKampagnen aufgerufen');
+    console.log('🔍 VERTRAG: kunde_unternehmen_id:', this.formData.kunde_unternehmen_id, '(Typ:', typeof this.formData.kunde_unternehmen_id, ')');
+    console.log('🔍 VERTRAG: Anzahl geladener Kampagnen:', this.kampagnen.length);
+    
+    // Debug: Alle einzigartigen Unternehmen-IDs in Kampagnen anzeigen
+    if (this.kampagnen.length > 0) {
+      const uniqueUnternehmenIds = [...new Set(this.kampagnen.map(k => k.unternehmen_id))];
+      console.log('🔍 VERTRAG: Unternehmen-IDs in Kampagnen:', uniqueUnternehmenIds);
+    }
+    
     if (this.formData.kunde_unternehmen_id) {
+      // String-Vergleich für robuste UUID-Behandlung
+      const kundeId = String(this.formData.kunde_unternehmen_id);
       this.filteredKampagnen = this.kampagnen.filter(
-        k => k.unternehmen_id === this.formData.kunde_unternehmen_id
+        k => String(k.unternehmen_id) === kundeId
       );
+      console.log('🔍 VERTRAG: Gefilterte Kampagnen:', this.filteredKampagnen.length);
+      if (this.filteredKampagnen.length === 0 && this.kampagnen.length > 0) {
+        console.log('⚠️ VERTRAG: Keine Kampagnen für Kunde gefunden!');
+        console.log('⚠️ VERTRAG: Gesuchte Kunde-ID:', kundeId);
+        console.log('⚠️ VERTRAG: Erste 3 Kampagnen:', this.kampagnen.slice(0, 3).map(k => ({name: k.kampagnenname, unternehmen_id: k.unternehmen_id})));
+      }
     } else {
       this.filteredKampagnen = [];
+      console.log('🔍 VERTRAG: Keine kunde_unternehmen_id gesetzt, filteredKampagnen geleert');
     }
   }
 
@@ -2349,14 +2374,22 @@ export class VertraegeCreate {
   // Adress-Vorschau Events und Kaskaden-Logik
   bindAddressPreviewEvents() {
     const kundeSelect = document.getElementById('kunde_unternehmen_id');
+    console.log('🔗 VERTRAG: bindAddressPreviewEvents - kundeSelect gefunden:', !!kundeSelect);
 
     // Kunde ändert sich → Kampagnen filtern und Searchable Select neu erstellen
     if (kundeSelect) {
       kundeSelect.addEventListener('change', async (e) => {
+        console.log('🔄 VERTRAG: Kunde change Event ausgelöst');
+        console.log('🔄 VERTRAG: _isInitializing:', this._isInitializing);
+        
         // Ignoriere Events während der Initialisierung
-        if (this._isInitializing) return;
+        if (this._isInitializing) {
+          console.log('⏭️ VERTRAG: Event ignoriert wegen _isInitializing');
+          return;
+        }
         
         const id = e.target.value;
+        console.log('🔄 VERTRAG: Kunde ausgewählt mit ID:', id);
         this.formData.kunde_unternehmen_id = id;
         
         // Adress-Vorschau
@@ -2395,8 +2428,14 @@ export class VertraegeCreate {
 
   // Kampagne Searchable Select erstellen/aktualisieren
   rebuildKampagneSelect(kundeId) {
+    console.log('🔧 VERTRAG: rebuildKampagneSelect aufgerufen mit kundeId:', kundeId);
+    console.log('🔧 VERTRAG: filteredKampagnen:', this.filteredKampagnen.length, 'Stück');
+    
     const container = document.querySelector('.form-field:has(#kampagne_id), .form-field label[for="kampagne_id"]')?.closest('.form-field');
-    if (!container) return;
+    if (!container) {
+      console.warn('⚠️ VERTRAG: Kampagne-Container nicht gefunden!');
+      return;
+    }
 
     // Altes Searchable Select entfernen
     const oldSearchable = container.querySelector('.searchable-select-container');
@@ -2412,8 +2451,11 @@ export class VertraegeCreate {
       container.appendChild(kampagneSelect);
     }
     kampagneSelect.style.display = '';
+    kampagneSelect.disabled = false; // Wichtig: disabled entfernen!
+    kampagneSelect.removeAttribute('disabled'); // Sicherheitshalber auch das Attribut
 
     const options = this.filteredKampagnen.map(k => ({ value: k.id, label: k.kampagnenname }));
+    console.log('🔧 VERTRAG: Kampagne-Optionen erstellt:', options.length, 'Stück');
     
     if (kundeId && window.formSystem?.createSearchableSelect) {
       window.formSystem.createSearchableSelect(kampagneSelect, options, {
@@ -2421,6 +2463,7 @@ export class VertraegeCreate {
         placeholder: 'Kampagne suchen...',
         value: null
       });
+      console.log('✅ VERTRAG: Searchable Select für Kampagne erstellt');
       
       // Event-Handler für Kampagne-Änderung
       kampagneSelect.addEventListener('change', async (e) => {
@@ -2476,6 +2519,10 @@ export class VertraegeCreate {
         creatorSelect.innerHTML = '<option value="">Keine Creator für diese Kampagne</option>';
         return;
       }
+      
+      // Wichtig: disabled entfernen bevor Searchable Select erstellt wird!
+      creatorSelect.disabled = false;
+      creatorSelect.removeAttribute('disabled');
       
       window.formSystem.createSearchableSelect(creatorSelect, options, {
         name: 'creator_id',

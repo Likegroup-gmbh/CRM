@@ -28,6 +28,8 @@ export class UnternehmenDetail extends PersonDetailBase {
     this.strategien = [];
     this.creatorAuswahlen = [];
     this._creatorMap = {};
+    this.kickoff = null;
+    this.kickoffMarkenwerte = [];
     this.activeMainTab = 'informationen';
     this.eventsBound = false;
     this._isLoading = false;
@@ -106,6 +108,7 @@ export class UnternehmenDetail extends PersonDetailBase {
         vertraegeResult,
         strategienResult,
         creatorAuswahlenResult,
+        kickoffResult,
         ansprechpartnerResult,
         notizenResult,
         ratingsResult
@@ -130,6 +133,8 @@ export class UnternehmenDetail extends PersonDetailBase {
         window.supabase.from('strategie').select('id, name, teilbereich, created_at').eq('unternehmen_id', this.unternehmenId).order('created_at', { ascending: false }),
         // Creator-Auswahlen
         window.supabase.from('creator_auswahl').select('id, name, created_at').eq('unternehmen_id', this.unternehmenId).order('created_at', { ascending: false }),
+        // Kick-Off (für Unternehmen ohne Marke)
+        window.supabase.from('marke_kickoff').select('*').eq('unternehmen_id', this.unternehmenId).is('marke_id', null).maybeSingle(),
         // Ansprechpartner
         window.supabase.from('ansprechpartner_unternehmen').select(`
           ansprechpartner_id,
@@ -165,8 +170,24 @@ export class UnternehmenDetail extends PersonDetailBase {
       this.vertraege = vertraegeResult.data || [];
       this.strategien = strategienResult.data || [];
       this.creatorAuswahlen = creatorAuswahlenResult.data || [];
+      this.kickoff = kickoffResult.data || null;
       this.notizen = notizenResult || [];
       this.ratings = ratingsResult || [];
+
+      // Lade Kick-Off Markenwerte falls Kick-Off vorhanden
+      if (this.kickoff) {
+        try {
+          const { data: markenwerte } = await window.supabase
+            .from('marke_kickoff_markenwerte')
+            .select('markenwert:markenwert_id(id, name)')
+            .eq('kickoff_id', this.kickoff.id);
+          this.kickoffMarkenwerte = markenwerte?.map(m => m.markenwert) || [];
+        } catch (e) {
+          this.kickoffMarkenwerte = [];
+        }
+      } else {
+        this.kickoffMarkenwerte = [];
+      }
 
       // Ansprechpartner verarbeiten
       if (!ansprechpartnerResult.error) {
@@ -304,8 +325,12 @@ export class UnternehmenDetail extends PersonDetailBase {
   }
 
   renderTabNavigation() {
+    // Kick-Off Tab nur anzeigen wenn KEINE Marken vorhanden (Kick-Off auf Unternehmensebene)
+    const showKickOffTab = this.marken.length === 0;
+    
     const tabs = [
       { tab: 'informationen', label: 'Informationen', isActive: this.activeMainTab === 'informationen' },
+      ...(showKickOffTab ? [{ tab: 'kickoff', label: 'Kick-Off', count: this.kickoff ? 1 : 0, isActive: this.activeMainTab === 'kickoff' }] : []),
       { tab: 'marken', label: 'Marken', count: this.marken.length, isActive: this.activeMainTab === 'marken' },
       { tab: 'ansprechpartner', label: 'Ansprechpartner', count: this.ansprechpartner.length, isActive: this.activeMainTab === 'ansprechpartner' },
       { tab: 'auftraege', label: 'Aufträge', count: this.auftraege.length, isActive: this.activeMainTab === 'auftraege' },
@@ -328,6 +353,10 @@ export class UnternehmenDetail extends PersonDetailBase {
       <div class="tab-content">
         <div class="tab-pane ${this.activeMainTab === 'informationen' ? 'active' : ''}" id="tab-informationen">
           ${this.renderInformationen()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'kickoff' ? 'active' : ''}" id="tab-kickoff">
+          ${this.renderKickOff()}
         </div>
 
         <div class="tab-pane ${this.activeMainTab === 'marken' ? 'active' : ''}" id="tab-marken">
@@ -983,6 +1012,96 @@ export class UnternehmenDetail extends PersonDetailBase {
           </thead>
           <tbody>${rows}</tbody>
         </table>
+      </div>
+    `;
+  }
+
+  // Rendere Kick-Off (nur für Unternehmen ohne Marken)
+  renderKickOff() {
+    if (!this.kickoff) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">🚀</div>
+          <h3>Kein Kick-Off vorhanden</h3>
+          <p>Es wurde noch kein Brand Kick-Off für dieses Unternehmen erstellt.</p>
+          <a href="/kickoff" class="btn btn-primary" onclick="event.preventDefault(); window.navigateTo('/kickoff')">
+            Kick-Off erstellen
+          </a>
+        </div>
+      `;
+    }
+
+    const formatValue = (value) => {
+      if (!value) return '<span class="text-muted">-</span>';
+      return this.sanitize(value).replace(/\n/g, '<br>');
+    };
+
+    const markenwerteHtml = this.kickoffMarkenwerte.length > 0
+      ? this.kickoffMarkenwerte.map(mw => `<span class="tag tag--markenwert">${this.sanitize(mw.name)}</span>`).join(' ')
+      : '<span class="text-muted">-</span>';
+
+    return `
+      <div class="detail-section">
+        <div class="data-table-container">
+          <table class="data-table kickoff-table">
+            <thead>
+              <tr>
+                <th style="width: 30%;">Kategorie</th>
+                <th>Inhalt</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>1. Brand-Essenz</strong></td>
+                <td>${formatValue(this.kickoff.brand_essenz)}</td>
+              </tr>
+              <tr>
+                <td><strong>2. Mission / Zweck</strong></td>
+                <td>${formatValue(this.kickoff.mission)}</td>
+              </tr>
+              <tr>
+                <td><strong>3. Markenwerte</strong></td>
+                <td>${markenwerteHtml}</td>
+              </tr>
+              <tr>
+                <td><strong>4. Zielgruppe</strong></td>
+                <td>${formatValue(this.kickoff.zielgruppe)}</td>
+              </tr>
+              <tr>
+                <td><strong>5. Zielgruppen-Mindset</strong></td>
+                <td>${formatValue(this.kickoff.zielgruppen_mindset)}</td>
+              </tr>
+              <tr>
+                <td><strong>6. Marken-USP</strong></td>
+                <td>${formatValue(this.kickoff.marken_usp)}</td>
+              </tr>
+              <tr>
+                <td><strong>7. Tonalität & Sprachstil</strong></td>
+                <td>${formatValue(this.kickoff.tonalitaet_sprachstil)}</td>
+              </tr>
+              <tr>
+                <td><strong>8. Content-Charakter</strong></td>
+                <td>${formatValue(this.kickoff.content_charakter)}</td>
+              </tr>
+              <tr>
+                <td><strong>9. Do's & Don'ts</strong></td>
+                <td>${formatValue(this.kickoff.dos_donts)}</td>
+              </tr>
+              <tr>
+                <td><strong>10. Rechtliche Leitplanken</strong></td>
+                <td>${formatValue(this.kickoff.rechtliche_leitplanken)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="kickoff-meta">
+          <small class="text-muted">
+            Zuletzt aktualisiert: ${this.formatDate(this.kickoff.updated_at)}
+          </small>
+          <a href="/kickoff" class="btn btn-sm btn-secondary" onclick="event.preventDefault(); window.navigateTo('/kickoff')" style="margin-left: 1rem;">
+            Bearbeiten
+          </a>
+        </div>
       </div>
     `;
   }

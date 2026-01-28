@@ -81,7 +81,16 @@ export class FormRenderer {
     const parts = [];
     let inTwoCol = false;
     let currentRow = null;
+    let currentSection = null;
     const processedFields = new Set(); // Um bereits verarbeitete Felder zu tracken
+    
+    // Helper: Section schließen falls offen
+    const closeSection = () => {
+      if (currentSection !== null) {
+        parts.push('</div>');
+        currentSection = null;
+      }
+    };
     
     for (let i = 0; i < fields.length; i++) {
       const field = fields[i];
@@ -91,6 +100,15 @@ export class FormRenderer {
       
       // Felder mit editOnly nur im Edit-Modus anzeigen
       if (field.editOnly && !data?._isEditMode) continue;
+      
+      // SECTION-Gruppierung: Felder mit gleichem section-Attribut in einem Container
+      if (field.section !== currentSection) {
+        closeSection();
+        if (field.section) {
+          parts.push(`<div class="form-section form-section--${field.section}">`);
+          currentSection = field.section;
+        }
+      }
       
       // Spezielle Behandlung für Phone-Felder: Land-ID mit übergeben
       let value = data ? data[field.name] : '';
@@ -189,6 +207,7 @@ export class FormRenderer {
     }
     if (inTwoCol) parts.push('</div>');
     if (currentRow !== null) parts.push('</div>');
+    if (currentSection !== null) parts.push('</div>');
 
     return `
       <form id="${entity}-form" data-entity="${entity}" data-entity-id="${data?.id || data?._entityId || ''}" data-is-edit-mode="${data?._isEditMode ? 'true' : 'false'}">

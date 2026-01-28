@@ -162,7 +162,7 @@ export class RechnungAnpassenDrawer {
         
         <!-- Rechnung gestellt am -->
         <div class="form-field" id="rechnung_gestellt_am_field" style="display: ${rechnungGestellt ? 'flex' : 'none'}">
-          <label for="rechnung_gestellt_am">Rechnung gestellt am</label>
+          <label for="rechnung_gestellt_am">gestellt am</label>
           <input type="date" id="rechnung_gestellt_am" value="${rechnungGestelltAm}">
         </div>
       </div>

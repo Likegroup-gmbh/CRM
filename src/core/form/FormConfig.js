@@ -142,18 +142,19 @@ export class FormConfig {
       unternehmen: {
         title: 'Neues Unternehmen anlegen',
         fields: [
-          { name: 'firmenname', label: 'Firmenname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
-          { name: 'internes_kuerzel', label: 'Internes Kürzel', type: 'text', required: false, placeholder: 'z.B. ABC' },
-          // Adressfelder direkt unter Firmenname, gruppiert
-          { name: 'rechnungsadresse_strasse', label: 'Straße', type: 'text', required: false, row: 'adresse1', colSize: 'grow' },
-          { name: 'rechnungsadresse_hausnummer', label: 'Nr.', type: 'text', required: false, row: 'adresse1', colSize: 'small' },
-          { name: 'rechnungsadresse_plz', label: 'PLZ', type: 'text', required: false, row: 'adresse2', colSize: 'small' },
-          { name: 'rechnungsadresse_stadt', label: 'Stadt', type: 'text', required: false, row: 'adresse2', colSize: 'grow' },
-          { name: 'rechnungsadresse_land', label: 'Land', type: 'text', required: false, defaultValue: 'Deutschland' },
-          { name: 'webseite', label: 'Webseite', type: 'url', required: false, placeholder: 'https://...' },
-          { name: 'logo_file', label: 'Logo', type: 'custom', customType: 'uploader', accept: 'image/png,image/jpeg', multiple: false, required: false, maxFileSize: 200 * 1024 },
-          { name: 'branche_id', label: 'Branchen', type: 'multiselect', required: false, dynamic: true, searchable: true, tagBased: true, placeholder: 'Branche suchen und hinzufügen...', table: 'branchen', displayField: 'name', valueField: 'id', relationTable: 'unternehmen_branchen', relationField: 'branche_id' },
-          // Mitarbeiter-Zuordnungen nach Rolle
+          // Section: Stammdaten - Firmenname, Kürzel, Adresse
+          { name: 'firmenname', label: 'Firmenname', type: 'text', required: true, validation: { type: 'text', minLength: 2 }, section: 'stammdaten' },
+          { name: 'internes_kuerzel', label: 'Internes Kürzel', type: 'text', required: false, placeholder: 'z.B. ABC', section: 'stammdaten' },
+          { name: 'rechnungsadresse_strasse', label: 'Straße', type: 'text', required: false, row: 'adresse1', colSize: 'grow', section: 'stammdaten' },
+          { name: 'rechnungsadresse_hausnummer', label: 'Nr.', type: 'text', required: false, row: 'adresse1', colSize: 'small', section: 'stammdaten' },
+          { name: 'rechnungsadresse_plz', label: 'PLZ', type: 'text', required: false, row: 'adresse2', colSize: 'small', section: 'stammdaten' },
+          { name: 'rechnungsadresse_stadt', label: 'Stadt', type: 'text', required: false, row: 'adresse2', colSize: 'grow', section: 'stammdaten' },
+          { name: 'rechnungsadresse_land', label: 'Land', type: 'text', required: false, defaultValue: 'Deutschland', section: 'stammdaten' },
+          // Section: Online - Webseite, Logo
+          { name: 'webseite', label: 'Webseite', type: 'url', required: false, placeholder: 'https://...', section: 'online' },
+          { name: 'logo_file', label: 'Logo', type: 'custom', customType: 'uploader', accept: 'image/png,image/jpeg', multiple: false, required: false, maxFileSize: 200 * 1024, section: 'online' },
+          // Section: Team - Branchen, Management, Lead-Mitarbeiter, Mitarbeiter
+          { name: 'branche_id', label: 'Branchen', type: 'multiselect', required: false, dynamic: true, searchable: true, tagBased: true, placeholder: 'Branche suchen und hinzufügen...', table: 'branchen', displayField: 'name', valueField: 'id', relationTable: 'unternehmen_branchen', relationField: 'branche_id', section: 'team' },
           {
             name: 'management_ids',
             label: 'Management',
@@ -171,7 +172,8 @@ export class FormConfig {
             relationField: 'mitarbeiter_id',
             roleValue: 'management',
             filterNoKunden: true,
-            filterByKlasse: 'Management'
+            filterByKlasse: 'Management',
+            section: 'team'
           },
           {
             name: 'lead_mitarbeiter_ids',
@@ -190,7 +192,8 @@ export class FormConfig {
             relationField: 'mitarbeiter_id',
             roleValue: 'lead_mitarbeiter',
             filterNoKunden: true,
-            filterByKlasse: 'Lead'
+            filterByKlasse: 'Lead',
+            section: 'team'
           },
           {
             name: 'mitarbeiter_ids',
@@ -209,11 +212,12 @@ export class FormConfig {
             relationField: 'mitarbeiter_id',
             roleValue: 'mitarbeiter',
             filterNoKunden: true,
-            filterByKlasse: ['Projektmanagement', 'Strategie', 'Copywriter', 'Cutter']
+            filterByKlasse: ['Projektmanagement', 'Strategie', 'Copywriter', 'Cutter'],
+            section: 'team'
           },
+          // Sonstige Felder ohne Section
           { name: 'invoice_email', label: 'Rechnungs-Email', type: 'email', required: false, validation: { type: 'email' } },
-          { name: 'status', label: 'Status', type: 'select', required: false, editOnly: true, options: ['Aktiv', 'Inaktiv', 'Prospekt'] },
-          { name: 'ust_id', label: 'USt-IdNr.', type: 'text', required: false, placeholder: 'z.B. DE123456789' }
+          { name: 'status', label: 'Status', type: 'select', required: false, editOnly: true, options: ['Aktiv', 'Inaktiv', 'Prospekt'] }
         ]
       },
       kampagne: {
@@ -404,12 +408,15 @@ export class FormConfig {
       marke: {
         title: 'Neue Marke anlegen',
         fields: [
+          // 1. Markenname
           { name: 'markenname', label: 'Markenname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
-          { name: 'logo_file', label: 'Logo', type: 'custom', customType: 'uploader', accept: 'image/png,image/jpeg', multiple: false, required: false, maxFileSize: 200 * 1024 },
-          { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...', table: 'unternehmen', displayField: 'firmenname', valueField: 'id' },
-          { name: 'webseite', label: 'Webseite', type: 'url', required: false, validation: { type: 'url' } },
+          // 2. Unternehmen in eigener Section
+          { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...', table: 'unternehmen', displayField: 'firmenname', valueField: 'id', section: 'unternehmen' },
+          // 3. Logo und Webseite in Section
+          { name: 'logo_file', label: 'Logo', type: 'custom', customType: 'uploader', accept: 'image/png,image/jpeg', multiple: false, required: false, maxFileSize: 200 * 1024, section: 'online' },
+          { name: 'webseite', label: 'Webseite', type: 'url', required: false, validation: { type: 'url' }, section: 'online' },
+          // 4. Branchen + Mitarbeiter (letzte Inhalte, keine Section nötig)
           { name: 'branche_id', label: 'Branchen', type: 'multiselect', required: false, dynamic: true, searchable: true, tagBased: true, placeholder: 'Branchen suchen und hinzufügen...', table: 'branchen', displayField: 'name', valueField: 'id', relationTable: 'marke_branchen', relationField: 'branche_id' },
-          // Mitarbeiter-Zuordnungen nach Rolle (wie bei Unternehmen)
           {
             name: 'management_ids',
             label: 'Management',
@@ -484,15 +491,7 @@ export class FormConfig {
       auftrag: {
         title: 'Neuen Auftrag anlegen',
         fields: [
-          { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...' },
-          { 
-            name: 'auftragtype', 
-            label: 'Art des Auftrages', 
-            type: 'select', 
-            required: true, 
-            placeholder: 'Auftragsart auswählen...',
-            options: ['Pilotprojekt', 'Einmalprojekt', 'Folgeprojekt', 'Retainer', 'Jahreskooperation', 'Performance-Modell', 'Rahmenvertrag']
-          },
+          // Header-Section: Auftragsname, Unternehmen, Marke, Art des Auftrags
           { 
             name: 'auftragsname', 
             label: 'Auftragsname', 
@@ -501,21 +500,34 @@ export class FormConfig {
             autoGenerate: true,
             readonly: true,
             placeholder: 'Wird automatisch generiert...',
+            section: 'header',
             validation: { type: 'text', minLength: 2 }
           },
-          { name: 'marke_id', label: 'Marke', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Marke suchen und auswählen...', dependsOn: 'unternehmen_id', table: 'marke', displayField: 'markenname', valueField: 'id' },
-          { name: 'status', label: 'Status', type: 'select', required: false, options: ['Beauftragt', 'In Produktion', 'Abgeschlossen', 'Storniert'] },
-          { name: 'ansprechpartner_id', label: 'Ansprechpartner', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Ansprechpartner auswählen...', table: 'ansprechpartner', displayField: 'vorname,nachname,email', valueField: 'id', dependsOn: 'unternehmen_id' },
-          { name: 'angebotsnummer', label: 'Angebotsnummer', type: 'text', required: false, placeholder: 'Angebotsnummer eingeben...' },
-          { name: 're_nr', label: 'Rechnungsnummer', type: 'text', required: false, placeholder: 'Rechnungsnummer eingeben...' },
-          { name: 'po', label: 'Interne PO', type: 'text', required: false, readonly: true, placeholder: 'Wird automatisch generiert...' },
-          { name: 'externe_po', label: 'Externe PO', type: 'text', required: false, placeholder: 'Externe PO-Nummer eingeben...' },
+          { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...', section: 'header' },
+          { name: 'marke_id', label: 'Marke', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Marke suchen und auswählen...', dependsOn: 'unternehmen_id', table: 'marke', displayField: 'markenname', valueField: 'id', section: 'header' },
+          { 
+            name: 'auftragtype', 
+            label: 'Art des Auftrages', 
+            type: 'select', 
+            required: true, 
+            placeholder: 'Auftragsart auswählen...',
+            section: 'header',
+            options: ['Pilotprojekt', 'Einmalprojekt', 'Folgeprojekt', 'Retainer', 'Jahreskooperation', 'Performance-Modell', 'Rahmenvertrag']
+          },
+          // Section Nummern: Angebotsnummer, Rechnungsnummer, PO
+          { name: 'angebotsnummer', label: 'Angebotsnummer', type: 'text', required: false, placeholder: 'Angebotsnummer eingeben...', row: 'nummern', section: 'nummern' },
+          { name: 're_nr', label: 'Rechnungsnummer', type: 'text', required: false, placeholder: 'Rechnungsnummer eingeben...', row: 'nummern', section: 'nummern' },
+          { name: 'po', label: 'Interne PO', type: 'text', required: false, readonly: true, placeholder: 'Wird automatisch generiert...', row: 'po', section: 'nummern' },
+          { name: 'externe_po', label: 'Externe PO', type: 'text', required: false, placeholder: 'Externe PO-Nummer eingeben...', row: 'po', section: 'nummern' },
+          // Section Details: Zahlung, Zeitraum
           { 
             name: 'zahlungsziel_tage', 
             label: 'Zahlungsziel', 
             type: 'select', 
             required: false, 
             placeholder: 'Zahlungsziel auswählen...',
+            row: 'zahlung',
+            section: 'details',
             options: [
               { value: '0', label: 'Sofort' },
               { value: '14', label: '14 Tage' },
@@ -524,18 +536,21 @@ export class FormConfig {
               { value: '60', label: '60 Tage' }
             ]
           },
-          { name: 're_faelligkeit', label: 'RE-Fälligkeit', type: 'date', required: false },
-          { name: 'rechnung_gestellt', label: 'Rechnung gestellt', type: 'toggle', required: false },
-          { name: 'rechnung_gestellt_am', label: 'Rechnung gestellt am', type: 'date', required: false, placeholder: 'Datum wann Rechnung gestellt wurde', dependsOn: 'rechnung_gestellt' },
+          { name: 'rechnung_gestellt', label: 'RE gestellt', type: 'toggle', required: false, row: 'zahlung', section: 'details' },
+          { name: 'rechnung_gestellt_am', label: 'Datum', type: 'date', required: false, placeholder: 'Rechnungsdatum', dependsOn: 'rechnung_gestellt', row: 'zahlung', section: 'details' },
+          { name: 're_faelligkeit', label: 'RE-Fälligkeit', type: 'date', required: false, readonly: true, section: 'details' },
+          { name: 'start', label: 'Startdatum', type: 'date', required: false, row: 'zeitraum', section: 'details' },
+          { name: 'ende', label: 'Enddatum', type: 'date', required: false, row: 'zeitraum', section: 'details' },
+          // Section Kampagne
+          { name: 'kampagnenanzahl', label: 'Kampagnenanzahl', type: 'number', required: false, validation: { type: 'number', min: 1 }, section: 'kampagne' },
+          // Section Finanzen
+          { name: 'nettobetrag', label: 'Nettobetrag', type: 'number', required: false, validation: { type: 'number', min: 0 }, section: 'finanzen' },
+          { name: 'ust_prozent', label: 'USt (%)', type: 'number', required: false, validation: { type: 'number', min: 0, max: 100 }, readonly: true, defaultValue: 19, section: 'finanzen' },
+          { name: 'ust_betrag', label: 'USt Betrag', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['nettobetrag','ust_prozent'], section: 'finanzen' },
+          { name: 'bruttobetrag', label: 'Brutto Gesamtbudget', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['nettobetrag','ust_betrag'], section: 'finanzen' },
+          // Überwiesen + Uploader ohne Section
           { name: 'ueberwiesen', label: 'Überwiesen', type: 'toggle', required: false },
           { name: 'ueberwiesen_am', label: 'Überwiesen am', type: 'date', required: false, placeholder: 'Datum wann Zahlung überwiesen wurde', dependsOn: 'ueberwiesen' },
-          { name: 'kampagnenanzahl', label: 'Kampagnenanzahl', type: 'number', required: false, validation: { type: 'number', min: 1 } },
-          { name: 'start', label: 'Startdatum', type: 'date', required: false },
-          { name: 'ende', label: 'Enddatum', type: 'date', required: false },
-          { name: 'nettobetrag', label: 'Nettobetrag', type: 'number', required: false, validation: { type: 'number', min: 0 } },
-          { name: 'ust_prozent', label: 'USt (%)', type: 'number', required: false, validation: { type: 'number', min: 0, max: 100 }, readonly: true, defaultValue: 19 },
-          { name: 'ust_betrag', label: 'USt Betrag', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['nettobetrag','ust_prozent'] },
-          { name: 'bruttobetrag', label: 'Brutto Gesamtbudget', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['nettobetrag','ust_betrag'] },
           { name: 'auftragsbestaetigung_file', label: 'Auftragsbestätigung', type: 'custom', customType: 'uploader', accept: 'application/pdf,image/*', multiple: false, required: false, maxFileSize: 10 * 1024 * 1024 }
         ]
       },
@@ -585,9 +600,12 @@ export class FormConfig {
       ansprechpartner: {
         title: 'Neuen Ansprechpartner anlegen',
         fields: [
-          { name: 'vorname', label: 'Vorname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
-          { name: 'nachname', label: 'Nachname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
-          { name: 'profile_image_file', label: 'Profilbild', type: 'custom', customType: 'uploader', accept: 'image/png,image/jpeg', multiple: false, required: false, maxFileSize: 500 * 1024 },
+          // Section: Person - Persönliche Daten
+          { name: 'vorname', label: 'Vorname', type: 'text', required: true, validation: { type: 'text', minLength: 2 }, row: 'name', section: 'person' },
+          { name: 'nachname', label: 'Nachname', type: 'text', required: true, validation: { type: 'text', minLength: 2 }, row: 'name', section: 'person' },
+          { name: 'profile_image_file', label: 'Profilbild', type: 'custom', customType: 'uploader', accept: 'image/png,image/jpeg', multiple: false, required: false, maxFileSize: 500 * 1024, section: 'person' },
+          { name: 'geburtsdatum', label: 'Geburtsdatum', type: 'date', required: false, section: 'person' },
+          // Section: Zuordnung - Unternehmen/Marke/Position
           { 
             name: 'unternehmen_id', 
             label: 'Unternehmen', 
@@ -600,7 +618,8 @@ export class FormConfig {
             table: 'unternehmen',
             displayField: 'firmenname',
             valueField: 'id',
-            directQuery: true
+            directQuery: true,
+            section: 'zuordnung'
           },
           { 
             name: 'marke_ids', 
@@ -617,7 +636,8 @@ export class FormConfig {
             displayField: 'markenname',
             valueField: 'id',
             relationTable: 'ansprechpartner_marke',
-            relationField: 'marke_id'
+            relationField: 'marke_id',
+            section: 'zuordnung'
           },
           { 
             name: 'position_id', 
@@ -632,39 +652,9 @@ export class FormConfig {
             table: 'positionen',
             displayField: 'name',
             valueField: 'id',
-            directQuery: true
+            directQuery: true,
+            section: 'zuordnung'
           },
-          { name: 'email', label: 'E-Mail', type: 'email', required: false, validation: { type: 'email' } },
-          { 
-            name: 'telefonnummer',
-            nameCountry: 'telefonnummer_land_id',
-            label: 'Telefonnummer (mobil)', 
-            type: 'phone', 
-            phoneType: 'mobile',
-            required: false,
-            defaultCountry: 'Deutschland',
-            table: 'eu_laender',
-            displayField: 'name_de,vorwahl,iso_code',
-            valueField: 'id',
-            dynamic: true
-          },
-          { 
-            name: 'telefonnummer_office',
-            nameCountry: 'telefonnummer_office_land_id',
-            label: 'Telefonnummer (Büro)', 
-            type: 'phone', 
-            phoneType: 'landline',
-            required: false,
-            defaultCountry: 'Deutschland',
-            table: 'eu_laender',
-            displayField: 'name_de,vorwahl,iso_code',
-            valueField: 'id',
-            dynamic: true
-          },
-          { name: 'linkedin', label: 'LinkedIn Profil', type: 'url', required: false, validation: { type: 'url' } },
-          { name: 'stadt', label: 'Stadt', type: 'text', required: false },
-          { name: 'land', label: 'Land', type: 'text', required: false },
-          { name: 'geburtsdatum', label: 'Geburtsdatum', type: 'date', required: false },
           { 
             name: 'sprachen_ids', 
             label: 'Sprachen', 
@@ -679,8 +669,43 @@ export class FormConfig {
             valueField: 'id',
             relationTable: 'ansprechpartner_sprache',
             relationField: 'sprache_id',
-            customField: true
+            customField: true,
+            section: 'zuordnung'
           },
+          // Section: Kontakt - Kontaktdaten
+          { name: 'email', label: 'E-Mail', type: 'email', required: false, validation: { type: 'email' }, section: 'kontakt' },
+          { 
+            name: 'telefonnummer',
+            nameCountry: 'telefonnummer_land_id',
+            label: 'Telefonnummer (mobil)', 
+            type: 'phone', 
+            phoneType: 'mobile',
+            required: false,
+            defaultCountry: 'Deutschland',
+            table: 'eu_laender',
+            displayField: 'name_de,vorwahl,iso_code',
+            valueField: 'id',
+            dynamic: true,
+            section: 'kontakt'
+          },
+          { 
+            name: 'telefonnummer_office',
+            nameCountry: 'telefonnummer_office_land_id',
+            label: 'Telefonnummer (Büro)', 
+            type: 'phone', 
+            phoneType: 'landline',
+            required: false,
+            defaultCountry: 'Deutschland',
+            table: 'eu_laender',
+            displayField: 'name_de,vorwahl,iso_code',
+            valueField: 'id',
+            dynamic: true,
+            section: 'kontakt'
+          },
+          { name: 'linkedin', label: 'LinkedIn Profil', type: 'url', required: false, validation: { type: 'url' }, section: 'kontakt' },
+          { name: 'stadt', label: 'Stadt', type: 'text', required: false, row: 'ort', colSize: 'grow', section: 'kontakt' },
+          { name: 'land', label: 'Land', type: 'text', required: false, row: 'ort', section: 'kontakt' },
+          // Ohne Section (am Ende) - Einwilligungen, Notizen
           { name: 'erlaubt_updates', label: 'Updates zu unserem Unternehmen', type: 'toggle', required: false },
           { name: 'erlaubt_newsletter', label: 'Newsletter (1x/Monat)', type: 'toggle', required: false },
           { name: 'erlaubt_webinare', label: 'Webinar-Einladungen', type: 'toggle', required: false },

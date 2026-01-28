@@ -24,6 +24,8 @@ export class MarkeDetail extends PersonDetailBase {
     this.ansprechpartner = [];
     this.rechnungen = [];
     this.strategien = [];
+    this.kickoff = null;
+    this.kickoffMarkenwerte = [];
     this.activeMainTab = 'informationen';
   }
 
@@ -246,6 +248,28 @@ export class MarkeDetail extends PersonDetailBase {
             this.strategien = strategien || [];
             this.updateStrategienTab();
             return strategien;
+          
+          case 'kickoff':
+            const { data: kickoff } = await window.supabase
+              .from('marke_kickoff')
+              .select('*')
+              .eq('marke_id', this.markeId)
+              .single();
+            this.kickoff = kickoff || null;
+            
+            // Lade auch die Markenwerte
+            if (kickoff) {
+              const { data: markenwerte } = await window.supabase
+                .from('marke_kickoff_markenwerte')
+                .select('markenwert:markenwert_id(id, name)')
+                .eq('kickoff_id', kickoff.id);
+              this.kickoffMarkenwerte = markenwerte?.map(m => m.markenwert) || [];
+            } else {
+              this.kickoffMarkenwerte = [];
+            }
+            
+            this.updateKickOffTab();
+            return kickoff;
         }
       } catch (error) {
         console.error(`❌ Fehler beim Laden von Tab ${tabName}:`, error);
@@ -300,6 +324,13 @@ export class MarkeDetail extends PersonDetailBase {
     if (container) {
       const parent = container.parentElement;
       parent.innerHTML = this.renderStrategien();
+    }
+  }
+  
+  updateKickOffTab() {
+    const pane = document.querySelector('#tab-kickoff');
+    if (pane) {
+      pane.innerHTML = this.renderKickOff();
     }
   }
   
@@ -369,6 +400,7 @@ export class MarkeDetail extends PersonDetailBase {
   getTabsConfig() {
     return [
       { tab: 'informationen', label: 'Informationen', isActive: this.activeMainTab === 'informationen' },
+      { tab: 'kickoff', label: 'Kick-Off', count: this.kickoff ? 1 : 0, isActive: this.activeMainTab === 'kickoff' },
       { tab: 'ansprechpartner', label: 'Ansprechpartner', count: this.ansprechpartner.length, isActive: this.activeMainTab === 'ansprechpartner' },
       { tab: 'auftraege', label: 'Aufträge', count: this.auftraege.length, isActive: this.activeMainTab === 'auftraege' },
       { tab: 'briefings', label: 'Briefings', count: this.briefings.length, isActive: this.activeMainTab === 'briefings' },
@@ -389,6 +421,10 @@ export class MarkeDetail extends PersonDetailBase {
       <div class="tab-content">
         <div class="tab-pane ${this.activeMainTab === 'informationen' ? 'active' : ''}" id="tab-informationen">
           ${this.renderInformationen()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'kickoff' ? 'active' : ''}" id="tab-kickoff">
+          ${this.renderKickOff()}
         </div>
 
         <div class="tab-pane ${this.activeMainTab === 'ansprechpartner' ? 'active' : ''}" id="tab-ansprechpartner">
@@ -824,6 +860,96 @@ export class MarkeDetail extends PersonDetailBase {
             ${rows}
           </tbody>
         </table>
+      </div>
+    `;
+  }
+
+  // Rendere Kick-Off
+  renderKickOff() {
+    if (!this.kickoff) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">🚀</div>
+          <h3>Kein Kick-Off vorhanden</h3>
+          <p>Es wurde noch kein Brand Kick-Off für diese Marke erstellt.</p>
+          <a href="/kickoff" class="btn btn-primary" onclick="event.preventDefault(); window.navigateTo('/kickoff')">
+            Kick-Off erstellen
+          </a>
+        </div>
+      `;
+    }
+
+    const formatValue = (value) => {
+      if (!value) return '<span class="text-muted">-</span>';
+      return this.sanitize(value).replace(/\n/g, '<br>');
+    };
+
+    const markenwerteHtml = this.kickoffMarkenwerte.length > 0
+      ? this.kickoffMarkenwerte.map(mw => `<span class="tag tag--markenwert">${this.sanitize(mw.name)}</span>`).join(' ')
+      : '<span class="text-muted">-</span>';
+
+    return `
+      <div class="detail-section">
+        <div class="data-table-container">
+          <table class="data-table kickoff-table">
+            <thead>
+              <tr>
+                <th style="width: 30%;">Kategorie</th>
+                <th>Inhalt</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>1. Brand-Essenz</strong></td>
+                <td>${formatValue(this.kickoff.brand_essenz)}</td>
+              </tr>
+              <tr>
+                <td><strong>2. Mission / Zweck</strong></td>
+                <td>${formatValue(this.kickoff.mission)}</td>
+              </tr>
+              <tr>
+                <td><strong>3. Markenwerte</strong></td>
+                <td>${markenwerteHtml}</td>
+              </tr>
+              <tr>
+                <td><strong>4. Zielgruppe</strong></td>
+                <td>${formatValue(this.kickoff.zielgruppe)}</td>
+              </tr>
+              <tr>
+                <td><strong>5. Zielgruppen-Mindset</strong></td>
+                <td>${formatValue(this.kickoff.zielgruppen_mindset)}</td>
+              </tr>
+              <tr>
+                <td><strong>6. Marken-USP</strong></td>
+                <td>${formatValue(this.kickoff.marken_usp)}</td>
+              </tr>
+              <tr>
+                <td><strong>7. Tonalität & Sprachstil</strong></td>
+                <td>${formatValue(this.kickoff.tonalitaet_sprachstil)}</td>
+              </tr>
+              <tr>
+                <td><strong>8. Content-Charakter</strong></td>
+                <td>${formatValue(this.kickoff.content_charakter)}</td>
+              </tr>
+              <tr>
+                <td><strong>9. Do's & Don'ts</strong></td>
+                <td>${formatValue(this.kickoff.dos_donts)}</td>
+              </tr>
+              <tr>
+                <td><strong>10. Rechtliche Leitplanken</strong></td>
+                <td>${formatValue(this.kickoff.rechtliche_leitplanken)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="kickoff-meta">
+          <small class="text-muted">
+            Zuletzt aktualisiert: ${this.formatDate(this.kickoff.updated_at)}
+          </small>
+          <a href="/kickoff" class="btn btn-sm btn-secondary" onclick="event.preventDefault(); window.navigateTo('/kickoff')" style="margin-left: 1rem;">
+            Bearbeiten
+          </a>
+        </div>
       </div>
     `;
   }
