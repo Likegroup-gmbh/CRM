@@ -1,6 +1,8 @@
 // KundenKampagneDetail.js (ES6-Modul)
 // Kunden-Portal: Kampagne-Detail (Kooperationenliste)
 
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+
 export class KundenKampagneDetail {
   constructor() {
     this.kampagneId = null;
@@ -16,7 +18,7 @@ export class KundenKampagneDetail {
     if (window.breadcrumbSystem && this.kampagne) {
       window.breadcrumbSystem.updateBreadcrumb([
         { label: 'Meine Kampagnen', url: '/kunden', clickable: true },
-        { label: this.kampagne.kampagnenname || 'Kampagne', url: `/kunden-kampagne/${this.kampagneId}`, clickable: false }
+        { label: KampagneUtils.getDisplayName(this.kampagne), url: `/kunden-kampagne/${this.kampagneId}`, clickable: false }
       ]);
     }
     
@@ -27,7 +29,7 @@ export class KundenKampagneDetail {
   async load() {
     try {
       const [{ data: kampagne }, { data: koops }] = await Promise.all([
-        window.supabase.from('kampagne').select('id, kampagnenname, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname)').eq('id', this.kampagneId).single(),
+        window.supabase.from('kampagne').select('id, kampagnenname, eigener_name, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname)').eq('id', this.kampagneId).single(),
         window.supabase.from('kooperationen').select('id, name, status').eq('kampagne_id', this.kampagneId).order('created_at', { ascending: false })
       ]);
       this.kampagne = kampagne || null;

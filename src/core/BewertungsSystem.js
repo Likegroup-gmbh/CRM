@@ -1,6 +1,8 @@
 // BewertungsSystem.js (ES6-Modul)
 // Zentrale Bewertungs-Verwaltung für alle Entitäten
 
+import { KampagneUtils } from '../modules/kampagne/KampagneUtils.js';
+
 export class BewertungsSystem {
   constructor() {
     this.currentEntity = null;
@@ -68,6 +70,7 @@ export class BewertungsSystem {
           kampagne:kampagne_id (
             id,
             kampagnenname,
+            eigener_name,
             unternehmen:unternehmen_id (
               id,
               firmenname
@@ -312,7 +315,7 @@ export class BewertungsSystem {
         </div>
         ${bewertung.kampagne ? `
           <div class="bewertung-kampagne">
-            <small>Kampagne: <a href="#" data-kampagne-id="${bewertung.kampagne.id}">${bewertung.kampagne.kampagnenname}</a></small>
+            <small>Kampagne: <a href="#" data-kampagne-id="${bewertung.kampagne.id}">${KampagneUtils.getDisplayName(bewertung.kampagne)}</a></small>
           </div>
         ` : ''}
       </div>
@@ -432,6 +435,7 @@ export class BewertungsSystem {
         .select(`
           id,
           kampagnenname,
+          eigener_name,
           unternehmen:unternehmen_id (
             id,
             firmenname
@@ -449,7 +453,7 @@ export class BewertungsSystem {
           kampagnen.forEach(kampagne => {
             const option = document.createElement('option');
             option.value = kampagne.id;
-            option.textContent = `${kampagne.kampagnenname} (${kampagne.unternehmen?.firmenname || 'Unbekannt'})`;
+            option.textContent = `${KampagneUtils.getDisplayName(kampagne)} (${kampagne.unternehmen?.firmenname || 'Unbekannt'})`;
             select.appendChild(option);
           });
         }

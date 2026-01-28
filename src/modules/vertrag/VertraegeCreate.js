@@ -1,6 +1,8 @@
 // VertraegeCreate.js (ES6-Modul)
 // Multistep-Formular zur Vertragserstellung (mit DB-Draft Support)
 
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+
 export class VertraegeCreate {
   constructor() {
     this.currentStep = 1;
@@ -158,7 +160,7 @@ export class VertraegeCreate {
       // Lade Kampagnen mit Unternehmen-ID
       const { data: kampagnen } = await window.supabase
         .from('kampagne')
-        .select('id, kampagnenname, unternehmen_id')
+        .select('id, kampagnenname, eigener_name, unternehmen_id')
         .order('kampagnenname');
       
       this.kampagnen = kampagnen || [];
@@ -460,7 +462,7 @@ export class VertraegeCreate {
             <option value="">${this.formData.kunde_unternehmen_id ? 'Kampagne auswählen...' : 'Bitte zuerst Kunde wählen...'}</option>
             ${this.filteredKampagnen.map(k => `
               <option value="${k.id}" ${this.formData.kampagne_id === k.id ? 'selected' : ''}>
-                ${k.kampagnenname}
+                ${KampagneUtils.getDisplayName(k)}
               </option>
             `).join('')}
           </select>
@@ -551,7 +553,7 @@ export class VertraegeCreate {
       if (this.filteredKampagnen.length === 0 && this.kampagnen.length > 0) {
         console.log('⚠️ VERTRAG: Keine Kampagnen für Kunde gefunden!');
         console.log('⚠️ VERTRAG: Gesuchte Kunde-ID:', kundeId);
-        console.log('⚠️ VERTRAG: Erste 3 Kampagnen:', this.kampagnen.slice(0, 3).map(k => ({name: k.kampagnenname, unternehmen_id: k.unternehmen_id})));
+        console.log('⚠️ VERTRAG: Erste 3 Kampagnen:', this.kampagnen.slice(0, 3).map(k => ({name: KampagneUtils.getDisplayName(k), unternehmen_id: k.unternehmen_id})));
       }
     } else {
       this.filteredKampagnen = [];
@@ -567,7 +569,7 @@ export class VertraegeCreate {
     let kampagneName = '';
     if (this.formData.kampagne_id) {
       const kampagne = this.kampagnen.find(k => k.id === this.formData.kampagne_id);
-      kampagneName = kampagne?.kampagnenname || '';
+      kampagneName = KampagneUtils.getDisplayName(kampagne);
     }
     
     // Creator-Name finden
@@ -911,7 +913,7 @@ export class VertraegeCreate {
             <option value="">${this.formData.kunde_unternehmen_id ? 'Kampagne auswählen...' : 'Bitte zuerst Kunde wählen...'}</option>
             ${this.filteredKampagnen.map(k => `
               <option value="${k.id}" ${this.formData.kampagne_id === k.id ? 'selected' : ''}>
-                ${k.kampagnenname}
+                ${KampagneUtils.getDisplayName(k)}
               </option>
             `).join('')}
           </select>
@@ -1473,7 +1475,7 @@ export class VertraegeCreate {
             <option value="">${this.formData.kunde_unternehmen_id ? 'Kampagne auswählen...' : 'Bitte zuerst Kunde wählen...'}</option>
             ${this.filteredKampagnen.map(k => `
               <option value="${k.id}" ${this.formData.kampagne_id === k.id ? 'selected' : ''}>
-                ${k.kampagnenname}
+                ${KampagneUtils.getDisplayName(k)}
               </option>
             `).join('')}
           </select>
@@ -2454,7 +2456,7 @@ export class VertraegeCreate {
     kampagneSelect.disabled = false; // Wichtig: disabled entfernen!
     kampagneSelect.removeAttribute('disabled'); // Sicherheitshalber auch das Attribut
 
-    const options = this.filteredKampagnen.map(k => ({ value: k.id, label: k.kampagnenname }));
+    const options = this.filteredKampagnen.map(k => ({ value: k.id, label: KampagneUtils.getDisplayName(k) }));
     console.log('🔧 VERTRAG: Kampagne-Optionen erstellt:', options.length, 'Stück');
     
     if (kundeId && window.formSystem?.createSearchableSelect) {
@@ -2482,7 +2484,7 @@ export class VertraegeCreate {
       kampagneSelect.disabled = !kundeId;
       kampagneSelect.innerHTML = `
         <option value="">${kundeId ? 'Kampagne auswählen...' : 'Bitte zuerst Kunde wählen...'}</option>
-        ${this.filteredKampagnen.map(k => `<option value="${k.id}">${k.kampagnenname}</option>`).join('')}
+        ${this.filteredKampagnen.map(k => `<option value="${k.id}">${KampagneUtils.getDisplayName(k)}</option>`).join('')}
       `;
     }
   }
@@ -2616,7 +2618,7 @@ export class VertraegeCreate {
     const kampagneSelect = document.getElementById('kampagne_id');
     if (!kampagneSelect || !window.formSystem?.createSearchableSelect) return;
 
-    const options = this.filteredKampagnen.map(k => ({ value: k.id, label: k.kampagnenname }));
+    const options = this.filteredKampagnen.map(k => ({ value: k.id, label: KampagneUtils.getDisplayName(k) }));
     const selectedKampagne = this.formData.kampagne_id;
     
     window.formSystem.createSearchableSelect(kampagneSelect, options, {

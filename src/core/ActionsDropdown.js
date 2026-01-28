@@ -4,6 +4,7 @@
 import { actionRegistry } from './ActionRegistry.js';
 import { iconRegistry } from './actions/IconRegistry.js';
 import { actionBuilder } from './actions/ActionBuilder.js';
+import { KampagneUtils } from '../modules/kampagne/KampagneUtils.js';
 
 export class ActionsDropdown {
   constructor() {
@@ -1302,10 +1303,10 @@ export class ActionsDropdown {
         try {
           const { data: kamp } = await window.supabase
             .from('kampagne')
-            .select('id, kampagnenname')
+            .select('id, kampagnenname, eigener_name')
             .eq('id', kampagneId)
             .single();
-          const kampName = kamp?.kampagnenname || kampagneId;
+          const kampName = KampagneUtils.getDisplayName(kamp);
           await window.notificationSystem?.pushNotification(selectedId, {
             type: 'assign',
             entity: 'kampagne',
@@ -1644,7 +1645,7 @@ export class ActionsDropdown {
       let shouldQuery = true;
       let query = window.supabase
         .from('kampagne')
-        .select('id, kampagnenname, status')
+        .select('id, kampagnenname, eigener_name, status')
         .order('created_at', { ascending: false });
       if (Array.isArray(allowedCampaignIds)) {
         if (allowedCampaignIds.length === 0) {
@@ -1709,9 +1710,9 @@ export class ActionsDropdown {
 
     const hydrateDropdown = (filter = '') => {
       const f = filter.toLowerCase();
-      const items = kampagnen.filter(k => (k.kampagnenname || '').toLowerCase().includes(f));
+      const items = kampagnen.filter(k => KampagneUtils.getDisplayName(k).toLowerCase().includes(f));
       dropdown.innerHTML = items.length
-        ? items.map(k => `<div class=\"dropdown-item\" data-id=\"${k.id}\">${k.kampagnenname}</div>`).join('')
+        ? items.map(k => `<div class=\"dropdown-item\" data-id=\"${k.id}\">${KampagneUtils.getDisplayName(k)}</div>`).join('')
         : '<div class=\"dropdown-item no-results\">Keine Kampagne gefunden</div>';
     };
     hydrateDropdown('');
@@ -1731,7 +1732,7 @@ export class ActionsDropdown {
         try {
           let query = window.supabase
             .from('kampagne')
-            .select('id, kampagnenname, status')
+            .select('id, kampagnenname, eigener_name, status')
             .order('created_at', { ascending: false });
           if (term.length > 0) {
             query = query.ilike('kampagnenname', `%${term}%`);
@@ -1782,9 +1783,9 @@ export class ActionsDropdown {
         try {
           const [{ data: staff }, { data: kamp }] = await Promise.all([
             window.supabase.from('kampagne_mitarbeiter').select('mitarbeiter_id').eq('kampagne_id', selectedId),
-            window.supabase.from('kampagne').select('kampagnenname').eq('id', selectedId).single()
+            window.supabase.from('kampagne').select('kampagnenname, eigener_name').eq('id', selectedId).single()
           ]);
-          const kampName = kamp?.kampagnenname || selectedId;
+          const kampName = KampagneUtils.getDisplayName(kamp);
           const mitarbeiterIds = (staff || []).map(r => r.mitarbeiter_id).filter(Boolean);
           for (const uid of mitarbeiterIds) {
             await window.notificationSystem?.pushNotification(uid, {

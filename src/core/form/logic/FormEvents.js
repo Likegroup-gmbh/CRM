@@ -1,3 +1,5 @@
+import { KampagneUtils } from '../../../modules/kampagne/KampagneUtils.js';
+
 export class FormEvents {
   constructor(formSystem) {
     this.formSystem = formSystem;
@@ -610,7 +612,7 @@ export class FormEvents {
           // Optimierter Query: Kampagne mit Auftrag in einem Query laden
           const { data: kampagneData, error: kampError } = await window.supabase
             .from('kampagne')
-            .select('id, kampagnenname, auftrag_id, auftrag:auftrag_id(id, auftragsname)')
+            .select('id, kampagnenname, eigener_name, auftrag_id, auftrag:auftrag_id(id, auftragsname)')
             .eq('id', koop.kampagne_id)
             .single();
           
@@ -618,7 +620,7 @@ export class FormEvents {
             console.error('❌ Fehler beim Laden der Kampagne:', kampError);
           } else if (kampagneData) {
             console.log('📊 Kampagne geladen:', kampagneData);
-            kampName = kampagneData.kampagnenname || '';
+            kampName = KampagneUtils.getDisplayName(kampagneData);
             auftragsId = kampagneData.auftrag_id || null;
             auftragsName = kampagneData.auftrag?.auftragsname || '';
           }

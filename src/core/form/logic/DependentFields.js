@@ -1,3 +1,5 @@
+import { KampagneUtils } from '../../../modules/kampagne/KampagneUtils.js';
+
 export class DependentFields {
   constructor(autoGeneration) {
     this.autoGeneration = autoGeneration;
@@ -700,7 +702,7 @@ export class DependentFields {
       if (fieldConfig.name === 'kampagne_id' && fieldConfig.dependsOn === 'marke_id') {
         const { data: kampagnen, error } = await window.supabase
           .from('kampagne')
-          .select('id, kampagnenname, marke_id, videoanzahl, ugc_video_anzahl, igc_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl')
+          .select('id, kampagnenname, eigener_name, marke_id, videoanzahl, ugc_video_anzahl, igc_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl')
           .eq('marke_id', parentValue)
           .order('kampagnenname');
 
@@ -748,7 +750,7 @@ export class DependentFields {
 
         const options = filtered.map(kampagne => ({
           value: kampagne.id,
-          label: kampagne.kampagnenname
+          label: KampagneUtils.getDisplayName(kampagne)
         }));
         
         console.log(`✅ ${options.length} Kampagnen geladen für Marke ${parentValue}`);
@@ -764,7 +766,7 @@ export class DependentFields {
       else if (fieldConfig.name === 'kampagne_id' && fieldConfig.dependsOn === 'unternehmen_id') {
         const { data: kampagnen, error } = await window.supabase
           .from('kampagne')
-          .select('id, kampagnenname, unternehmen_id, videoanzahl, ugc_video_anzahl, igc_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl')
+          .select('id, kampagnenname, eigener_name, unternehmen_id, videoanzahl, ugc_video_anzahl, igc_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl')
           .eq('unternehmen_id', parentValue)
           .order('kampagnenname');
 
@@ -813,7 +815,7 @@ export class DependentFields {
               filtered = filtered.filter(k => {
                 // Im Edit-Mode: Aktuelle Kampagne IMMER behalten
                 if (currentKampagneId && k.id === currentKampagneId) {
-                  console.log('✅ DEPENDENTFIELDS: Behalte aktuelle Kampagne:', k.kampagnenname);
+                  console.log('✅ DEPENDENTFIELDS: Behalte aktuelle Kampagne:', KampagneUtils.getDisplayName(k));
                   return true;
                 }
                 const total = getKampagneTotalVideos(k);
@@ -827,7 +829,7 @@ export class DependentFields {
           console.warn('⚠️ Konnte belegte Videos nicht überprüfen, zeige alle Kampagnen:', e);
         }
 
-        const options = filtered.map(k => ({ value: k.id, label: k.kampagnenname || 'Unbenannte Kampagne' }));
+        const options = filtered.map(k => ({ value: k.id, label: KampagneUtils.getDisplayName(k) }));
         field.disabled = false;
         this.updateDependentFieldOptions(field, fieldConfig, options);
       }

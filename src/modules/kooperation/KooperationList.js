@@ -6,6 +6,7 @@ import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { KooperationFilterLogic } from './filters/KooperationFilterLogic.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export class KooperationList {
   constructor() {
@@ -208,7 +209,7 @@ export class KooperationList {
         if (kampagneIds.length > 0) {
           const { data: kampagnen } = await window.supabase
             .from('kampagne')
-            .select('id, kampagnenname, status, start, deadline')
+            .select('id, kampagnenname, eigener_name, status, start, deadline')
             .in('id', kampagneIds);
           kampagneMap = (kampagnen || []).reduce((acc, k) => { acc[k.id] = k; return acc; }, {});
         }
@@ -520,7 +521,7 @@ export class KooperationList {
               ${window.validatorSystem.sanitizeHtml(kooperation.name || '—')}
             </a>
           </td>
-          <td>${window.validatorSystem.sanitizeHtml((kooperation.kampagne?.kampagnenname) || (this._kampagneMap?.[kooperation.kampagne_id]?.kampagnenname) || 'Unbekannt')}</td>
+          <td>${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(kooperation.kampagne) !== 'Unbenannte Kampagne' ? KampagneUtils.getDisplayName(kooperation.kampagne) : (this._kampagneMap?.[kooperation.kampagne_id] ? KampagneUtils.getDisplayName(this._kampagneMap[kooperation.kampagne_id]) : 'Unbekannt'))}</td>
           <td>
             ${window.validatorSystem.sanitizeHtml(kooperation.creator ? `${kooperation.creator.vorname} ${kooperation.creator.nachname}` : (this._creatorMap?.[kooperation.creator_id] ? `${this._creatorMap[kooperation.creator_id].vorname} ${this._creatorMap[kooperation.creator_id].nachname}` : 'Unbekannt'))}
           </td>
@@ -738,6 +739,7 @@ export class KooperationList {
         kampagne = {
           id: cache.kampagne_id,
           kampagnenname: cache.kampagnenname,
+          eigener_name: cache.eigener_name,
           unternehmen_id: cache.unternehmen_id,
           marke_id: cache.marke_id,
           unternehmen: cache.unternehmen,
@@ -752,7 +754,7 @@ export class KooperationList {
         const { data, error } = await window.supabase
           .from('kampagne')
           .select(`
-            id, kampagnenname, unternehmen_id, marke_id,
+            id, kampagnenname, eigener_name, unternehmen_id, marke_id,
             unternehmen:unternehmen_id ( id, firmenname ),
             marke:marke_id ( id, markenname )
           `)
@@ -773,7 +775,7 @@ export class KooperationList {
         if (window.breadcrumbSystem) {
           window.breadcrumbSystem.updateBreadcrumb([
             { label: 'Kampagne', url: '/kampagne', clickable: true },
-            { label: kampagne.kampagnenname, url: `/kampagne/${kampagneId}`, clickable: true },
+            { label: KampagneUtils.getDisplayName(kampagne), url: `/kampagne/${kampagneId}`, clickable: true },
             { label: 'Neue Kooperation', url: '/kooperation/new', clickable: false }
           ]);
         }
@@ -784,7 +786,7 @@ export class KooperationList {
           unternehmen_id: kampagne.unternehmen_id,
           marke_id: kampagne.marke_id || null,
           _prefillFromKampagne: true,
-          _kampagneName: kampagne.kampagnenname,
+          _kampagneName: KampagneUtils.getDisplayName(kampagne),
           _unternehmenName: kampagne.unternehmen?.firmenname || '',
           _markeName: kampagne.marke?.markenname || null,
           _hasMarke: !!kampagne.marke_id

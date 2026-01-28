@@ -3,6 +3,7 @@
 // Nutzt einheitliches zwei-Spalten-Layout
 import { PersonDetailBase } from './PersonDetailBase.js';
 import { renderTabButton } from '../../core/TabUtils.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export class KundenDetail extends PersonDetailBase {
   constructor() {
@@ -63,7 +64,7 @@ export class KundenDetail extends PersonDetailBase {
       if (allMarkenIds.length > 0) {
         const { data: kampagnen } = await window.supabase
           .from('kampagne')
-          .select('id, kampagnenname, start, deadline, status, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname)')
+          .select('id, kampagnenname, eigener_name, start, deadline, status, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname)')
           .in('marke_id', allMarkenIds)
           .order('created_at', { ascending: false });
         
@@ -79,7 +80,7 @@ export class KundenDetail extends PersonDetailBase {
       if (kampagnenIds.length > 0) {
         const { data: kooperationen } = await window.supabase
           .from('kooperationen')
-          .select('id, name, status, einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_gesamt, kampagne:kampagne_id(kampagnenname), creator:creator_id(vorname, nachname)')
+          .select('id, name, status, einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_gesamt, kampagne:kampagne_id(kampagnenname, eigener_name), creator:creator_id(vorname, nachname)')
           .in('kampagne_id', kampagnenIds)
           .order('created_at', { ascending: false });
         
@@ -109,7 +110,7 @@ export class KundenDetail extends PersonDetailBase {
       if (kampagnenIds.length > 0) {
         const { data: koopHistory } = await window.supabase
           .from('kooperation_history')
-          .select('id, old_status, new_status, comment, created_at, kooperation:kooperation_id(name, kampagne:kampagne_id(kampagnenname))')
+          .select('id, old_status, new_status, comment, created_at, kooperation:kooperation_id(name, kampagne:kampagne_id(kampagnenname, eigener_name))')
           .in('kooperation_id', this.assignments.kooperationen.map(k => k.id))
           .order('created_at', { ascending: false })
           .limit(15);
@@ -345,7 +346,7 @@ export class KundenDetail extends PersonDetailBase {
                 <tr>
                   <td>
                     <a href="/kampagne/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${k.id}')" class="table-link">
-                      ${window.validatorSystem.sanitizeHtml(k.kampagnenname || k.id)}
+                      ${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(k))}
                     </a>
                   </td>
                   <td>${window.validatorSystem.sanitizeHtml(markeName)}</td>
@@ -380,7 +381,7 @@ export class KundenDetail extends PersonDetailBase {
           </thead>
           <tbody>
             ${this.assignments.kooperationen.map(k => {
-              const kampagneName = k.kampagne?.kampagnenname || '—';
+              const kampagneName = KampagneUtils.getDisplayName(k.kampagne);
               const creatorName = k.creator ? `${k.creator.vorname} ${k.creator.nachname}` : '—';
               const gesamtkosten = k.einkaufspreis_gesamt != null 
                 ? this.formatCurrency(k.einkaufspreis_gesamt)

@@ -8,6 +8,7 @@ import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { creatorUtils } from './CreatorUtils.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export class CreatorDetail extends PersonDetailBase {
   constructor() {
@@ -239,6 +240,7 @@ export class CreatorDetail extends PersonDetailBase {
         kampagne:kampagne_id (
           id,
           kampagnenname,
+          eigener_name,
           status,
           start,
           deadline,
@@ -260,7 +262,7 @@ export class CreatorDetail extends PersonDetailBase {
         .from('kooperationen')
         .select(`
           id, name, status, videoanzahl, einkaufspreis_gesamt,
-          kampagne:kampagne_id ( id, kampagnenname ),
+          kampagne:kampagne_id ( id, kampagnenname, eigener_name ),
           created_at
         `)
         .eq('creator_id', this.creatorId)
@@ -302,7 +304,7 @@ export class CreatorDetail extends PersonDetailBase {
         .from('vertraege')
         .select(`
           id, name, typ, is_draft, datei_url, datei_path, created_at,
-          kampagne:kampagne_id(id, kampagnenname),
+          kampagne:kampagne_id(id, kampagnenname, eigener_name),
           kunde:kunde_unternehmen_id(id, firmenname)
         `)
         .eq('creator_id', this.creatorId)
@@ -368,6 +370,7 @@ export class CreatorDetail extends PersonDetailBase {
           kampagne: {
             id: k.kampagne.id,
             kampagnenname: k.kampagne.kampagnenname,
+            eigener_name: k.kampagne.eigener_name,
             status: k.status || null,
             start: null,
             deadline: null,
@@ -812,6 +815,7 @@ export class CreatorDetail extends PersonDetailBase {
       return {
         id: base.id,
         kampagnenname: base.kampagnenname,
+        eigener_name: base.eigener_name,
         unternehmen: base.unternehmen || null,
         marke: base.marke || null,
         art_der_kampagne: base.art_der_kampagne,
@@ -866,7 +870,7 @@ export class CreatorDetail extends PersonDetailBase {
         </td>
         <td>
           <a href="/kampagne/${k.kampagne?.id || ''}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${k.kampagne?.id || ''}')">
-            ${window.validatorSystem.sanitizeHtml(k.kampagne?.kampagnenname || '-')}
+            ${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(k.kampagne))}
           </a>
         </td>
         <td><span class="status-badge status-${(k.status || 'unknown').toLowerCase().replace(/\s+/g, '-')}">${k.status || '-'}</span></td>
@@ -947,7 +951,7 @@ export class CreatorDetail extends PersonDetailBase {
     const getStatusClass = (isDraft) => isDraft ? 'draft' : 'aktiv';
 
     const rows = this.vertraege.map(v => {
-      const kampagneName = v.kampagne?.kampagnenname || '-';
+      const kampagneName = KampagneUtils.getDisplayName(v.kampagne);
       const unternehmenName = v.kunde?.firmenname || '-';
       
       return `

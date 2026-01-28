@@ -1,6 +1,8 @@
 // TaskCreateDrawer.js - Drawer für Aufgaben-Erstellung
 // Slide-in Drawer mit Kampagnen- und Kooperations-Auswahl
 
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+
 export class TaskCreateDrawer {
   constructor() {
     this.drawerId = 'task-create-drawer';
@@ -248,7 +250,7 @@ export class TaskCreateDrawer {
       // Haupt-Query
       let query = window.supabase
         .from('kampagne')
-        .select('id, kampagnenname')
+        .select('id, kampagnenname, eigener_name')
         .order('kampagnenname');
       
       // Für Nicht-Admins: Filter anwenden
@@ -464,7 +466,7 @@ export class TaskCreateDrawer {
             class="form-input drawer-form-select"
             required>
             <option value="">Kampagne auswählen...</option>
-            ${this.kampagnen.map(k => `<option value="${k.id}">${safe(k.kampagnenname)}</option>`).join('')}
+            ${this.kampagnen.map(k => `<option value="${k.id}">${safe(KampagneUtils.getDisplayName(k))}</option>`).join('')}
           </select>
         </div>
 

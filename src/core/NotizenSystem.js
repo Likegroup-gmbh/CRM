@@ -1,6 +1,8 @@
 // NotizenSystem.js (ES6-Modul)
 // Zentrale Notizen-Verwaltung für alle Entitäten
 
+import { KampagneUtils } from '../modules/kampagne/KampagneUtils.js';
+
 export class NotizenSystem {
   constructor() {
     this.currentEntity = null;
@@ -34,6 +36,7 @@ export class NotizenSystem {
           kampagne:kampagne_id (
             id,
             kampagnenname,
+            eigener_name,
             unternehmen:unternehmen_id (
               id,
               firmenname
@@ -221,7 +224,7 @@ export class NotizenSystem {
         </div>
         ${notiz.kampagne ? `
           <div class="notiz-kampagne">
-            <small>Kampagne: <a href="#" data-kampagne-id="${notiz.kampagne.id}">${notiz.kampagne.kampagnenname}</a></small>
+            <small>Kampagne: <a href="#" data-kampagne-id="${notiz.kampagne.id}">${KampagneUtils.getDisplayName(notiz.kampagne)}</a></small>
           </div>
         ` : ''}
       </div>
@@ -319,6 +322,7 @@ export class NotizenSystem {
         .select(`
           id,
           kampagnenname,
+          eigener_name,
           unternehmen:unternehmen_id (
             id,
             firmenname
@@ -336,7 +340,7 @@ export class NotizenSystem {
           kampagnen.forEach(kampagne => {
             const option = document.createElement('option');
             option.value = kampagne.id;
-            option.textContent = `${kampagne.kampagnenname} (${kampagne.unternehmen?.firmenname || 'Unbekannt'})`;
+            option.textContent = `${KampagneUtils.getDisplayName(kampagne)} (${kampagne.unternehmen?.firmenname || 'Unbekannt'})`;
             select.appendChild(option);
           });
         }

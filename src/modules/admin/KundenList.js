@@ -3,6 +3,7 @@
 
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export class KundenList {
   constructor() {
@@ -524,7 +525,7 @@ export class KundenList {
     bindAutoSuggest('as-kampagne', 'asdd-kampagne', async (q) => {
       let query = window.supabase
         .from('kampagne')
-        .select('id, kampagnenname, marke_id, unternehmen_id')
+        .select('id, kampagnenname, eigener_name, marke_id, unternehmen_id')
         .order('created_at', { ascending: false })
         .limit(20);
       if (q && q.length > 0) query = query.ilike('kampagnenname', `%${q}%`);
@@ -543,7 +544,7 @@ export class KundenList {
         selectedKoops = [];
         document.getElementById('as-kooperation')?.dispatchEvent(new Event('focus'));
       }
-    }, (r) => `<div class="dropdown-item" data-id="${r.id}" data-label="${window.validatorSystem.sanitizeHtml(r.kampagnenname)}">${window.validatorSystem.sanitizeHtml(r.kampagnenname)}</div>`);
+    }, (r) => `<div class="dropdown-item" data-id="${r.id}" data-label="${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(r))}">${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(r))}</div>`);
 
     // Kooperationen (multi)
     bindAutoSuggest('as-kooperation', 'asdd-kooperation', async (q) => {

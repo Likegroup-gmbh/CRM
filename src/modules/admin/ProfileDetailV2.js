@@ -5,6 +5,7 @@
 import { PersonDetailBase } from './PersonDetailBase.js';
 import { getTabIcon } from '../../core/TabUtils.js';
 import { UploaderField } from '../../core/form/fields/UploaderField.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export class ProfileDetailV2 extends PersonDetailBase {
   constructor() {
@@ -138,7 +139,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     if (markenIds.length > 0) {
       const { data: kampagnenViaMarke } = await window.supabase
         .from('kampagne')
-        .select('id, kampagnenname, status, created_at, marke:marke_id(markenname), unternehmen:unternehmen_id(firmenname)')
+        .select('id, kampagnenname, eigener_name, status, created_at, marke:marke_id(markenname), unternehmen:unternehmen_id(firmenname)')
         .in('marke_id', markenIds)
         .order('created_at', { ascending: false })
         .limit(100);
@@ -149,7 +150,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     if (unternehmenIds.length > 0) {
       const { data: kampagnenViaUnternehmen } = await window.supabase
         .from('kampagne')
-        .select('id, kampagnenname, status, created_at, marke:marke_id(markenname), unternehmen:unternehmen_id(firmenname)')
+        .select('id, kampagnenname, eigener_name, status, created_at, marke:marke_id(markenname), unternehmen:unternehmen_id(firmenname)')
         .in('unternehmen_id', unternehmenIds)
         .order('created_at', { ascending: false })
         .limit(100);
@@ -165,7 +166,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     if (kampagnenIds.length > 0) {
       const { data: kooperationen } = await window.supabase
         .from('kooperationen')
-        .select('id, name, status, created_at, kampagne:kampagne_id(kampagnenname)')
+        .select('id, name, status, created_at, kampagne:kampagne_id(kampagnenname, eigener_name)')
         .in('kampagne_id', kampagnenIds)
         .order('created_at', { ascending: false })
         .limit(50);
@@ -242,7 +243,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     if (markenIds.length > 0) {
       const { data: kampagnenViaMarke } = await window.supabase
         .from('kampagne')
-        .select('id, kampagnenname, status, created_at, marke:marke_id(markenname), unternehmen:unternehmen_id(firmenname)')
+        .select('id, kampagnenname, eigener_name, status, created_at, marke:marke_id(markenname), unternehmen:unternehmen_id(firmenname)')
         .in('marke_id', markenIds)
         .order('created_at', { ascending: false })
         .limit(100);
@@ -253,7 +254,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     if (unternehmenIds.length > 0) {
       const { data: kampagnenViaUnternehmen } = await window.supabase
         .from('kampagne')
-        .select('id, kampagnenname, status, created_at, marke:marke_id(markenname), unternehmen:unternehmen_id(firmenname)')
+        .select('id, kampagnenname, eigener_name, status, created_at, marke:marke_id(markenname), unternehmen:unternehmen_id(firmenname)')
         .in('unternehmen_id', unternehmenIds)
         .order('created_at', { ascending: false })
         .limit(100);
@@ -278,7 +279,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     if (kooperationIdsFromTasks.length > 0) {
       const { data: kooperationen } = await window.supabase
         .from('kooperationen')
-        .select('id, name, status, created_at, kampagne:kampagne_id(kampagnenname)')
+        .select('id, name, status, created_at, kampagne:kampagne_id(kampagnenname, eigener_name)')
         .in('id', kooperationIdsFromTasks)
         .order('created_at', { ascending: false });
       
@@ -289,7 +290,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     if (kampagnenIds.length > 0) {
       const { data: kooperationen } = await window.supabase
         .from('kooperationen')
-        .select('id, name, status, created_at, kampagne:kampagne_id(kampagnenname)')
+        .select('id, name, status, created_at, kampagne:kampagne_id(kampagnenname, eigener_name)')
         .in('kampagne_id', kampagnenIds)
         .order('created_at', { ascending: false })
         .limit(50);
@@ -331,7 +332,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
 
       const { data: kampagneHistory } = await window.supabase
         .from('kampagne_history')
-        .select('id, old_status, new_status, comment, created_at, kampagne:kampagne_id(kampagnenname)')
+        .select('id, old_status, new_status, comment, created_at, kampagne:kampagne_id(kampagnenname, eigener_name)')
         .eq('changed_by', this.userId)
         .order('created_at', { ascending: false })
         .limit(20);
@@ -341,7 +342,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
           ...h,
           type: 'kampagne',
           title: 'Kampagne',
-          entity_name: h.kampagne?.kampagnenname || 'Unbekannt',
+          entity_name: KampagneUtils.getDisplayName(h.kampagne),
           action: h.old_status && h.new_status ? `Status: ${h.old_status} → ${h.new_status}` : 'Status geändert'
         })));
       }
@@ -647,7 +648,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
           <tbody>
             ${this.kampagnen.map(k => `
               <tr>
-                <td>${this.sanitize(k.kampagnenname)}</td>
+                <td>${this.sanitize(KampagneUtils.getDisplayName(k))}</td>
                 <td>${k.marke?.markenname ? this.sanitize(k.marke.markenname) : (k.unternehmen?.firmenname ? this.sanitize(k.unternehmen.firmenname) : '-')}</td>
                 <td><span class="badge badge-secondary">${this.sanitize(k.status || 'Unbekannt')}</span></td>
                 <td>${this.formatDate(k.created_at)}</td>
@@ -683,7 +684,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
             ${this.kooperationen.map(k => `
               <tr>
                 <td>${this.sanitize(k.name)}</td>
-                <td>${k.kampagne?.kampagnenname ? this.sanitize(k.kampagne.kampagnenname) : '-'}</td>
+                <td>${this.sanitize(KampagneUtils.getDisplayName(k.kampagne))}</td>
                 <td><span class="badge badge-secondary">${this.sanitize(k.status || 'Unbekannt')}</span></td>
                 <td>${this.formatDate(k.created_at)}</td>
                 <td style="text-align: right;">

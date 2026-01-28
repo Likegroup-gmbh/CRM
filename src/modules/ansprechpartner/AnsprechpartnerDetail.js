@@ -8,6 +8,7 @@ import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { ImageUploadHelper } from '../../core/ImageUploadHelper.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export class AnsprechpartnerDetail extends PersonDetailBase {
   constructor() {
@@ -83,7 +84,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
             *,
             unternehmen:unternehmen_id (id, firmenname),
             ansprechpartner_marke (marke:marke_id (id, markenname)),
-            ansprechpartner_kampagne (kampagne:kampagne_id (id, kampagnenname)),
+            ansprechpartner_kampagne (kampagne:kampagne_id (id, kampagnenname, eigener_name)),
             ansprechpartner_unternehmen (unternehmen:unternehmen_id (id, firmenname, logo_url)),
             telefonnummer_land:eu_laender!telefonnummer_land_id (id, name, name_de, iso_code, vorwahl),
             telefonnummer_office_land:eu_laender!telefonnummer_office_land_id (id, name, name_de, iso_code, vorwahl)
@@ -515,7 +516,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
         <tr>
           <td>
             <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
-              ${kampagne.kampagnenname || 'Unbekannte Kampagne'}
+              ${KampagneUtils.getDisplayName(kampagne)}
             </a>
           </td>
         </tr>

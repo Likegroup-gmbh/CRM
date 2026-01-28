@@ -2,6 +2,7 @@
 // Nutzt native HTML5 Drag & Drop API
 
 import { TaskCreateDrawer } from './TaskCreateDrawer.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export class TaskKanbanBoard {
   constructor(entityType = null, entityId = null) {
@@ -45,6 +46,7 @@ export class TaskKanbanBoard {
         kampagne:kampagne_id(
           id,
           kampagnenname,
+          eigener_name,
           marke:marke_id(
             id,
             markenname,
@@ -349,7 +351,7 @@ export class TaskKanbanBoard {
     
     // Verwende Logo der Marke falls vorhanden, sonst Logo des Unternehmens
     const logoUrl = marke?.logo_url || unternehmen?.logo_url || null;
-    const displayName = kampagne.kampagnenname || 'Kampagne';
+    const displayName = KampagneUtils.getDisplayName(kampagne);
     
     const items = [{
       name: displayName,

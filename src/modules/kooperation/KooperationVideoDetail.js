@@ -1,5 +1,6 @@
 // Kooperation Video Detail – lädt Video, Kommentare (Runde 1/2), Assets und erlaubt Statuswechsel + Kommentare
 import { getTabIcon } from '../../core/TabUtils.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export const kooperationVideoDetail = {
   videoId: null,
@@ -42,7 +43,7 @@ export const kooperationVideoDetail = {
         const uploaded = (existing || []).length;
         const limitReached = videoLimit > 0 && uploaded >= videoLimit;
         const koopName = koopInfo?.name || '-';
-        const kampName = koopInfo?.kampagne?.kampagnenname || '-';
+        const kampName = KampagneUtils.getDisplayName(koopInfo?.kampagne);
         const formHtml = `
           <div class="form-page">
             ${limitReached ? `<div class=\"alert alert-danger\">Videolimit erreicht (${uploaded}/${videoLimit}). Es können keine weiteren Videos angelegt werden.</div>` : ''}
@@ -118,7 +119,7 @@ export const kooperationVideoDetail = {
     try {
       const { data } = await window.supabase
         .from('kooperationen')
-        .select('id, name, kampagne:kampagne_id(id, kampagnenname)')
+        .select('id, name, kampagne:kampagne_id(id, kampagnenname, eigener_name)')
         .eq('id', koopId)
         .single();
       return data || null;
@@ -242,7 +243,7 @@ export const kooperationVideoDetail = {
     try {
       const { data: koop } = await window.supabase
         .from('kooperationen')
-        .select('id, name, kampagne:kampagne_id(id, kampagnenname)')
+        .select('id, name, kampagne:kampagne_id(id, kampagnenname, eigener_name)')
         .eq('id', video.kooperation_id)
         .single();
       this.kooperation = koop || null;
@@ -279,7 +280,7 @@ export const kooperationVideoDetail = {
     const v = this.video || {};
     const title = v.titel || `Video #${v.id}`;
     const koopName = this.kooperation?.name || '-';
-    const kampName = this.kooperation?.kampagne?.kampagnenname || '-';
+    const kampName = KampagneUtils.getDisplayName(this.kooperation?.kampagne);
     const safe = (s) => window.validatorSystem?.sanitizeHtml?.(s) ?? s;
     const fmtDateTime = (d) => (d ? new Date(d).toLocaleString('de-DE') : '-');
 
@@ -438,6 +439,7 @@ export const kooperationVideoDetail = {
             kampagne:kampagne_id(
               id,
               kampagnenname,
+              eigener_name,
               marke:marke_id(
                 id,
                 markenname,
@@ -479,6 +481,7 @@ export const kooperationVideoDetail = {
             kampagne:kampagne_id(
               id,
               kampagnenname,
+              eigener_name,
               kampagne_mitarbeiter!inner(mitarbeiter_id)
             )
           `)
@@ -532,6 +535,7 @@ export const kooperationVideoDetail = {
             kampagne:kampagne_id(
               id,
               kampagnenname,
+              eigener_name,
               marke:marke_id(
                 id,
                 markenname,

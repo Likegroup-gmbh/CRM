@@ -4,6 +4,7 @@
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { PersonDetailBase } from './PersonDetailBase.js';
 import { renderTabButton } from '../../core/TabUtils.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export class MitarbeiterDetail extends PersonDetailBase {
   constructor() {
@@ -52,9 +53,9 @@ export class MitarbeiterDetail extends PersonDetailBase {
       const [{ data: kampRel }, { data: koops }, { data: briefs }, { data: statusRows }, { data: unternehmenRel }, { data: markenRel }] = await Promise.all([
         window.supabase
           .from('kampagne_mitarbeiter')
-          .select('kampagne:kampagne_id(id, kampagnenname)')
+          .select('kampagne:kampagne_id(id, kampagnenname, eigener_name)')
           .eq('mitarbeiter_id', this.userId),
-        window.supabase.from('kooperationen').select('id, name, status, kampagne:kampagne_id(kampagnenname), einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_gesamt').eq('assignee_id', this.userId),
+        window.supabase.from('kooperationen').select('id, name, status, kampagne:kampagne_id(kampagnenname, eigener_name), einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_gesamt').eq('assignee_id', this.userId),
         window.supabase.from('briefings').select('id, product_service_offer, status').eq('assignee_id', this.userId),
         window.supabase.from('kampagne_status').select('id, name, sort_order').order('sort_order', { ascending: true }).order('name', { ascending: true }),
         window.supabase
@@ -86,7 +87,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
           if (markenIds.length > 0) {
             const { data: kampagnen } = await window.supabase
               .from('kampagne')
-              .select('id, kampagnenname')
+              .select('id, kampagnenname, eigener_name')
               .in('marke_id', markenIds);
             
             unternehmenKampagnen = (kampagnen || []).filter(Boolean);
@@ -115,7 +116,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
         try {
           const { data: kampagnenKoops } = await window.supabase
             .from('kooperationen')
-            .select('id, name, status, kampagne:kampagne_id(kampagnenname), einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_gesamt')
+            .select('id, name, status, kampagne:kampagne_id(kampagnenname, eigener_name), einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_gesamt')
             .in('kampagne_id', allKampagnenIds);
           
           unternehmenKoops = kampagnenKoops || [];
@@ -214,7 +215,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
       // Kampagne Status-Änderungen
       const { data: kampagneHistory } = await window.supabase
         .from('kampagne_history')
-        .select('id, old_status, new_status, comment, created_at, kampagne:kampagne_id(kampagnenname)')
+        .select('id, old_status, new_status, comment, created_at, kampagne:kampagne_id(kampagnenname, eigener_name)')
         .eq('changed_by', this.userId)
         .order('created_at', { ascending: false })
         .limit(10);
@@ -224,7 +225,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
           ...h,
           type: 'kampagne',
           title: 'Kampagne',
-          entity_name: h.kampagne?.kampagnenname || 'Unbekannt',
+          entity_name: KampagneUtils.getDisplayName(h.kampagne),
           action: h.old_status && h.new_status ? `Status: ${h.old_status} → ${h.new_status}` : 'Status geändert'
         })));
       }
@@ -469,7 +470,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
   renderKampagnenTable() {
     const rows = (this.assignments.kampagnen || []).map(k => `
       <tr>
-        <td><a href="/kampagne/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${k.id}')">${window.validatorSystem.sanitizeHtml(k.kampagnenname || k.id)}</a></td>
+        <td><a href="/kampagne/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${k.id}')">${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(k))}</a></td>
         <td style="text-align:right;">
           <div class="actions-dropdown-container" data-entity-type="kampagne">
             <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
@@ -517,7 +518,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
     const rows = (this.assignments.kooperationen || []).map(r => `
       <tr>
         <td><a href="/kooperation/${r.id}" onclick="event.preventDefault(); window.navigateTo('/kooperation/${r.id}')">${window.validatorSystem.sanitizeHtml(r.name || r.id)}</a></td>
-        <td>${window.validatorSystem.sanitizeHtml(r.kampagne?.kampagnenname || '-')}</td>
+        <td>${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(r.kampagne))}</td>
         <td><span class="status-badge status-${(r.status||'').toLowerCase().replace(/\s+/g,'-')}">${r.status || '-'}</span></td>
       </tr>
     `).join('');
@@ -764,7 +765,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
       return `
         <tr>
           <td><a href="/kooperation/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kooperation/${k.id}')">${window.validatorSystem.sanitizeHtml(k.name || k.id)}</a></td>
-          <td>${window.validatorSystem.sanitizeHtml(k.kampagne?.kampagnenname || '-')}</td>
+          <td>${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(k.kampagne))}</td>
           <td style="text-align:right;">${this.formatCurrency(netto)}</td>
           <td style="text-align:right;">${this.formatCurrency(zusatz)}</td>
           <td style="text-align:right;">${this.formatCurrency(gesamt)}</td>

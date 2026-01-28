@@ -7,6 +7,7 @@ import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { modularFilterSystem } from '../../core/filters/ModularFilterSystem.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export class VertraegeList {
   constructor() {
@@ -475,7 +476,8 @@ export class VertraegeList {
           ),
           kampagne:kampagne_id (
             id,
-            kampagnenname
+            kampagnenname,
+            eigener_name
           ),
           creator:creator_id (
             id,
@@ -659,7 +661,7 @@ export class VertraegeList {
           <td>
             ${kampagne.id ? `
               <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
-                ${escapeHtml(kampagne.kampagnenname)}
+                ${escapeHtml(KampagneUtils.getDisplayName(kampagne))}
               </a>
             ` : '-'}
           </td>

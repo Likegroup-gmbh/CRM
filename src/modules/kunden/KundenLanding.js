@@ -2,6 +2,7 @@
 // Kunden-Portal Landing: Kampagnenliste und Strategien (read-only)
 
 import { strategieService } from '../strategie/StrategieService.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export class KundenLanding {
   constructor() {
@@ -29,7 +30,7 @@ export class KundenLanding {
       // Kampagnen laden
       const { data: kampagnenData, error: kampagnenError } = await window.supabase
         .from('kampagne')
-        .select('id, kampagnenname, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname), status:status_id(name)')
+        .select('id, kampagnenname, eigener_name, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname), status:status_id(name)')
         .order('created_at', { ascending: false });
       
       if (kampagnenError) throw kampagnenError;
@@ -47,7 +48,7 @@ export class KundenLanding {
   async render() {
     const kampagnenRows = (this.kampagnen || []).map(k => `
       <tr class="table-row-clickable" onclick="window.navigateTo('/kunden-kampagne/${k.id}')">
-        <td><strong>${window.validatorSystem.sanitizeHtml(k.kampagnenname || k.id)}</strong></td>
+        <td><strong>${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(k))}</strong></td>
         <td>${window.validatorSystem.sanitizeHtml(k.unternehmen?.firmenname || '—')}</td>
         <td>${window.validatorSystem.sanitizeHtml(k.marke?.markenname || '—')}</td>
         <td>${window.validatorSystem.sanitizeHtml(k.status?.name || '—')}</td>
@@ -62,7 +63,7 @@ export class KundenLanding {
       } else if (s.unternehmen) {
         verknuepfung = s.unternehmen.firmenname || s.unternehmen.name || '';
       } else if (s.kampagne) {
-        verknuepfung = s.kampagne.kampagnenname || s.kampagne.name || '';
+        verknuepfung = KampagneUtils.getDisplayName(s.kampagne);
       }
 
       const createdAt = new Date(s.created_at).toLocaleDateString('de-DE', {

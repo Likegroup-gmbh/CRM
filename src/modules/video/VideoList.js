@@ -5,6 +5,7 @@ import { modularFilterSystem as filterSystem } from '../../core/filters/ModularF
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { VideoFilterLogic } from './filters/VideoFilterLogic.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export class VideoList {
   constructor() {
@@ -205,7 +206,8 @@ export class VideoList {
             kampagne_id,
             kampagne:kampagne_id (
               id, 
-              kampagnenname
+              kampagnenname,
+              eigener_name
             ),
             creator:creator_id (
               id, 
@@ -432,7 +434,7 @@ export class VideoList {
           <td>
             ${kampagne.id ? `
               <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
-                ${escapeHtml(kampagne.kampagnenname || '—')}
+                ${escapeHtml(KampagneUtils.getDisplayName(kampagne))}
               </a>
             ` : '-'}
           </td>

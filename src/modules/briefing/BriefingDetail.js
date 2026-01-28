@@ -3,6 +3,7 @@
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { getTabIcon } from '../../core/TabUtils.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export class BriefingDetail {
   constructor() {
@@ -64,7 +65,7 @@ export class BriefingDetail {
             *,
             unternehmen:unternehmen_id(id, firmenname, webseite),
             marke:marke_id(id, markenname, webseite),
-            kampagne:kampagne_id(id, kampagnenname),
+            kampagne:kampagne_id(id, kampagnenname, eigener_name),
             assignee:assignee_id(id, name)
           `)
           .eq('id', this.briefingId)
@@ -104,7 +105,7 @@ export class BriefingDetail {
             .from('kooperationen')
             .select(`
               id, name, status,
-              kampagne:kampagne_id ( id, kampagnenname )
+              kampagne:kampagne_id ( id, kampagnenname, eigener_name )
             `)
             .eq('id', this.briefing.kooperation_id)
             .single();
@@ -222,7 +223,7 @@ export class BriefingDetail {
                   </div>
                   <div class="detail-item">
                     <label>Kampagne:</label>
-                    <span>${this.briefing.kampagne?.id ? `<a href="/kampagne/${this.briefing.kampagne.id}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${this.briefing.kampagne.id}')">${escape(this.briefing.kampagne.kampagnenname || 'Kampagne')}</a>` : '-'}</span>
+                    <span>${this.briefing.kampagne?.id ? `<a href="/kampagne/${this.briefing.kampagne.id}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${this.briefing.kampagne.id}')">${escape(KampagneUtils.getDisplayName(this.briefing.kampagne))}</a>` : '-'}</span>
                   </div>
                   <div class="detail-item">
                     <label>Kooperation:</label>

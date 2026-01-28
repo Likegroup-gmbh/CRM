@@ -6,6 +6,7 @@ import { TaskKanbanBoard } from '../tasks/TaskKanbanBoard.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { renderTabButton, getTabIcon } from '../../core/TabUtils.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export class KooperationDetail {
   constructor() {
@@ -99,7 +100,7 @@ export class KooperationDetail {
             lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land
           ),
           kampagne:kampagne_id (
-            id, kampagnenname, status, deadline, start, creatoranzahl, videoanzahl,
+            id, kampagnenname, eigener_name, status, deadline, start, creatoranzahl, videoanzahl,
             unternehmen:unternehmen_id ( id, firmenname ),
             marke:marke_id ( id, markenname )
           ),
@@ -446,7 +447,7 @@ export class KooperationDetail {
       <div class="detail-card">
         <h3 class="section-title">Kampagne</h3>
         <div class="detail-grid-2">
-          <div class="detail-item"><label>Name</label><span>${sanitize(this.kampagne.kampagnenname)}</span></div>
+          <div class="detail-item"><label>Name</label><span>${sanitize(KampagneUtils.getDisplayName(this.kampagne))}</span></div>
           <div class="detail-item"><label>Status</label><span class="status-badge status-${this.kampagne.status?.toLowerCase() || 'unknown'}">${sanitize(this.kampagne.status || '-')}</span></div>
           <div class="detail-item"><label>Unternehmen</label><span>${sanitize(this.kampagne.unternehmen?.firmenname || '-')}</span></div>
           <div class="detail-item"><label>Marke</label><span>${sanitize(this.kampagne.marke?.markenname || '-')}</span></div>

@@ -10,6 +10,7 @@ import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { MarkeService } from './services/MarkeService.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export class MarkeDetail extends PersonDetailBase {
   constructor() {
@@ -317,7 +318,7 @@ export class MarkeDetail extends PersonDetailBase {
                 .select(`
                   id, name, status, videoanzahl, einkaufspreis_gesamt, kampagne_id, creator_id, created_at,
                   creator:creator_id (vorname, nachname),
-                  kampagne:kampagne_id (kampagnenname)
+                  kampagne:kampagne_id (kampagnenname, eigener_name)
                 `)
                 .in('kampagne_id', kampagneIds)
                 .order('created_at', { ascending: false });
@@ -642,7 +643,7 @@ export class MarkeDetail extends PersonDetailBase {
       <tr>
         <td>
           <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
-            ${this.sanitize(kampagne.kampagnenname) || 'Unbekannte Kampagne'}
+            ${this.sanitize(KampagneUtils.getDisplayName(kampagne))}
           </a>
         </td>
         <td><span class="status-badge status-${kampagne.status?.toLowerCase() || 'unknown'}">${kampagne.status || 'Unbekannt'}</span></td>
@@ -896,7 +897,7 @@ export class MarkeDetail extends PersonDetailBase {
         </td>
         <td><span class="status-badge status-${k.status?.toLowerCase() || 'unknown'}">${k.status || '-'}</span></td>
         <td>${k.creator ? `${this.sanitize(k.creator.vorname || '')} ${this.sanitize(k.creator.nachname || '')}`.trim() || '-' : '-'}</td>
-        <td>${this.sanitize(k.kampagne?.kampagnenname) || '-'}</td>
+        <td>${this.sanitize(KampagneUtils.getDisplayName(k.kampagne))}</td>
         <td>${k.videoanzahl || 0}</td>
         ${!isKunde ? `<td>${this.formatCurrency(k.einkaufspreis_gesamt)}</td>` : ''}
         <td>

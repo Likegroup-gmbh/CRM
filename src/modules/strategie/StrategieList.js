@@ -5,6 +5,7 @@ import { strategieService } from './StrategieService.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { AvatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export class StrategieList {
   constructor() {
@@ -242,7 +243,7 @@ export class StrategieList {
         }])
       : '-';
 
-    const kampagneName = strategie.kampagne?.kampagnenname || '-';
+    const kampagneName = KampagneUtils.getDisplayName(strategie.kampagne);
 
     const createdByBubble = strategie.created_by_user 
       ? AvatarBubbles.renderBubbles([{
@@ -790,7 +791,7 @@ export class StrategieList {
         if (selectedMarkeId) {
           let query = window.supabase
             .from('kampagne')
-            .select('id, kampagnenname, marke:marke_id(markenname)')
+            .select('id, kampagnenname, eigener_name, marke:marke_id(markenname)')
             .eq('marke_id', selectedMarkeId)
             .order('kampagnenname', { ascending: true })
             .limit(20);
@@ -804,7 +805,7 @@ export class StrategieList {
           // 1. Kampagnen direkt über unternehmen_id
           let directQuery = window.supabase
             .from('kampagne')
-            .select('id, kampagnenname, marke:marke_id(markenname)')
+            .select('id, kampagnenname, eigener_name, marke:marke_id(markenname)')
             .eq('unternehmen_id', selectedUnternehmenId)
             .order('kampagnenname', { ascending: true })
             .limit(20);
@@ -821,7 +822,7 @@ export class StrategieList {
           if (markenIds.length > 0) {
             markenQuery = window.supabase
               .from('kampagne')
-              .select('id, kampagnenname, marke:marke_id(markenname)')
+              .select('id, kampagnenname, eigener_name, marke:marke_id(markenname)')
               .in('marke_id', markenIds)
               .order('kampagnenname', { ascending: true })
               .limit(20);
@@ -846,7 +847,7 @@ export class StrategieList {
         // Kein Filter: alle Kampagnen
         let query = window.supabase
           .from('kampagne')
-          .select('id, kampagnenname, marke:marke_id(markenname)')
+          .select('id, kampagnenname, eigener_name, marke:marke_id(markenname)')
           .order('kampagnenname', { ascending: true })
           .limit(20);
         if (q && q.length > 0) query = query.ilike('kampagnenname', `%${q}%`);
@@ -863,7 +864,7 @@ export class StrategieList {
       },
       (r) => {
         const subtitle = r.marke ? ` <span style="color: var(--text-muted); font-size: var(--text-xs);">(${window.validatorSystem.sanitizeHtml(r.marke.markenname)})</span>` : '';
-        return `<div class="dropdown-item" data-id="${r.id}" data-label="${window.validatorSystem.sanitizeHtml(r.kampagnenname)}">${window.validatorSystem.sanitizeHtml(r.kampagnenname)}${subtitle}</div>`;
+        return `<div class="dropdown-item" data-id="${r.id}" data-label="${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(r))}">${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(r))}${subtitle}</div>`;
       }
     );
 
@@ -1095,7 +1096,7 @@ export class StrategieList {
     
     // Labels für auto-generierte Namen
     let selectedUnternehmenLabel = strategie.unternehmen?.firmenname || null;
-    let selectedKampagneLabel = strategie.kampagne?.kampagnenname || null;
+    let selectedKampagneLabel = KampagneUtils.getDisplayName(strategie.kampagne) || null;
     
     // Helper: Name-Feld aktualisieren
     const updateNameField = () => {
@@ -1149,7 +1150,7 @@ export class StrategieList {
       });
     }
     if (strategie.kampagne) {
-      addTag('edit-tags-kampagne', strategie.kampagne.id, strategie.kampagne.kampagnenname, () => { 
+      addTag('edit-tags-kampagne', strategie.kampagne.id, KampagneUtils.getDisplayName(strategie.kampagne), () => { 
         selectedKampagneId = null;
         selectedKampagneLabel = null;
         updateNameField();
@@ -1308,7 +1309,7 @@ export class StrategieList {
       async (q) => {
         let query = window.supabase
           .from('kampagne')
-          .select('id, kampagnenname, marke:marke_id(markenname)')
+          .select('id, kampagnenname, eigener_name, marke:marke_id(markenname)')
           .order('kampagnenname', { ascending: true })
           .limit(20);
         if (q && q.length > 0) query = query.ilike('kampagnenname', `%${q}%`);
@@ -1328,7 +1329,7 @@ export class StrategieList {
       },
       (r) => {
         const subtitle = r.marke ? ` <span style="color: var(--text-muted); font-size: var(--text-xs);">(${window.validatorSystem.sanitizeHtml(r.marke.markenname)})</span>` : '';
-        return `<div class="dropdown-item" data-id="${r.id}" data-label="${window.validatorSystem.sanitizeHtml(r.kampagnenname)}">${window.validatorSystem.sanitizeHtml(r.kampagnenname)}${subtitle}</div>`;
+        return `<div class="dropdown-item" data-id="${r.id}" data-label="${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(r))}">${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(r))}${subtitle}</div>`;
       }
     );
   }

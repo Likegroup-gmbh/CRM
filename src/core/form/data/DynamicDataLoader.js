@@ -1,4 +1,5 @@
 import staticDataCache from '../../cache/StaticDataCache.js';
+import { KampagneUtils } from '../../../modules/kampagne/KampagneUtils.js';
 
 // VERSION MARKER: v2024-01-05-phone-fix-v3 (prefix debug)
 console.log('🚀🚀🚀 DynamicDataLoader LOADED - Phone Fix v3 (prefix debug) 🚀🚀🚀');
@@ -369,14 +370,14 @@ export class DynamicDataLoader {
             console.log('🔧 Aktuelle Kooperation nicht in Liste, lade separat:', currentKoopId);
             const { data: currentKoop } = await window.supabase
               .from('kooperationen')
-              .select('id, name, kampagne_id, kampagne:kampagne_id(kampagnenname)')
+              .select('id, name, kampagne_id, kampagne:kampagne_id(kampagnenname, eigener_name)')
               .eq('id', currentKoopId)
               .single();
             
             if (currentKoop) {
               const label = currentKoop.name 
-                ? `${currentKoop.name} — ${currentKoop.kampagne?.kampagnenname || 'Kampagne'}`
-                : (currentKoop.kampagne?.kampagnenname || currentKoop.id);
+                ? `${currentKoop.name} — ${KampagneUtils.getDisplayName(currentKoop.kampagne)}`
+                : (KampagneUtils.getDisplayName(currentKoop.kampagne) !== 'Unbenannte Kampagne' ? KampagneUtils.getDisplayName(currentKoop.kampagne) : currentKoop.id);
               
               // Am Anfang der Liste einfügen und als selected markieren
               options.unshift({
@@ -533,7 +534,7 @@ export class DynamicDataLoader {
           const kampagnen = await this.dataService.loadEntities('kampagne');
           options = kampagnen.map(k => ({
             value: k.id,
-            label: k.kampagnenname || 'Unbekannte Kampagne'
+            label: KampagneUtils.getDisplayName(k)
           }));
           break;
         
@@ -751,9 +752,9 @@ export class DynamicDataLoader {
         if (kampIds.length > 0) {
           const { data: kamp } = await window.supabase
             .from('kampagne')
-            .select('id, kampagnenname, unternehmen_id')
+            .select('id, kampagnenname, eigener_name, unternehmen_id')
             .in('id', kampIds);
-          kampagneMap = (kamp || []).reduce((acc, row) => { acc[row.id] = row.kampagnenname; return acc; }, {});
+          kampagneMap = (kamp || []).reduce((acc, row) => { acc[row.id] = KampagneUtils.getDisplayName(row); return acc; }, {});
           kampagneUnternehmenMap = (kamp || []).reduce((acc, row) => { acc[row.id] = row.unternehmen_id; return acc; }, {});
         }
       } catch (err) {

@@ -8,6 +8,7 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { UnternehmenService } from './services/UnternehmenService.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export class UnternehmenDetail extends PersonDetailBase {
   constructor() {
@@ -125,11 +126,11 @@ export class UnternehmenDetail extends PersonDetailBase {
         // Briefings
         window.supabase.from('briefings').select('id, product_service_offer, status, deadline, unternehmen_id, marke_id, kampagne_id, created_at').eq('unternehmen_id', this.unternehmenId).order('created_at', { ascending: false }),
         // Kampagnen
-        window.supabase.from('kampagne').select('id, kampagnenname, status, start, deadline, unternehmen_id').eq('unternehmen_id', this.unternehmenId).order('created_at', { ascending: false }),
+        window.supabase.from('kampagne').select('id, kampagnenname, eigener_name, status, start, deadline, unternehmen_id').eq('unternehmen_id', this.unternehmenId).order('created_at', { ascending: false }),
         // Rechnungen
         window.supabase.from('rechnung').select('id, rechnung_nr, status, nettobetrag, bruttobetrag, gestellt_am, zahlungsziel, bezahlt_am, pdf_url').eq('unternehmen_id', this.unternehmenId).order('gestellt_am', { ascending: false }),
         // Verträge
-        window.supabase.from('vertraege').select('id, name, typ, is_draft, datei_url, datei_path, created_at, kampagne:kampagne_id(id, kampagnenname), creator:creator_id(id, vorname, nachname)').eq('kunde_unternehmen_id', this.unternehmenId).order('created_at', { ascending: false }),
+        window.supabase.from('vertraege').select('id, name, typ, is_draft, datei_url, datei_path, created_at, kampagne:kampagne_id(id, kampagnenname, eigener_name), creator:creator_id(id, vorname, nachname)').eq('kunde_unternehmen_id', this.unternehmenId).order('created_at', { ascending: false }),
         // Strategien
         window.supabase.from('strategie').select('id, name, teilbereich, created_at').eq('unternehmen_id', this.unternehmenId).order('created_at', { ascending: false }),
         // Creator-Auswahlen
@@ -224,7 +225,7 @@ export class UnternehmenDetail extends PersonDetailBase {
       if (kampagneIds.length > 0) {
         batch2Promises.push(
           window.supabase.from('kooperationen')
-            .select('id, name, status, videoanzahl, einkaufspreis_gesamt, kampagne_id, creator_id, created_at')
+            .select('id, name, status, videoanzahl, einkaufspreis_gesamt, kampagne_id, creator_id, created_at, kampagne:kampagne_id(kampagnenname, eigener_name)')
             .in('kampagne_id', kampagneIds)
             .order('created_at', { ascending: false })
         );
@@ -661,7 +662,7 @@ export class UnternehmenDetail extends PersonDetailBase {
       <tr>
         <td>
           <a href="#" class="table-link" data-table="kampagne" data-id="${k.id}">
-            ${this.sanitize(k.kampagnenname) || 'Unbekannte Kampagne'}
+            ${this.sanitize(KampagneUtils.getDisplayName(k))}
           </a>
         </td>
         <td><span class="status-badge status-${k.status?.toLowerCase() || 'unknown'}">${k.status || '-'}</span></td>
@@ -812,7 +813,7 @@ export class UnternehmenDetail extends PersonDetailBase {
         </td>
         <td><span class="status-badge status-${k.status?.toLowerCase() || 'unknown'}">${k.status || '-'}</span></td>
         <td>${k.creator ? `${this.sanitize(k.creator.vorname || '')} ${this.sanitize(k.creator.nachname || '')}`.trim() || '-' : '-'}</td>
-        <td>${this.sanitize(k.kampagne?.kampagnenname) || '-'}</td>
+        <td>${this.sanitize(KampagneUtils.getDisplayName(k.kampagne))}</td>
         <td>${k.videoanzahl || 0}</td>
         ${!isKunde ? `<td>${this.formatCurrency(k.einkaufspreis_gesamt)}</td>` : ''}
         <td>
@@ -983,7 +984,7 @@ export class UnternehmenDetail extends PersonDetailBase {
 
     const rows = this.vertraege.map(v => {
       const creatorName = v.creator ? `${v.creator.vorname || ''} ${v.creator.nachname || ''}`.trim() : '-';
-      const kampagneName = v.kampagne?.kampagnenname || '-';
+      const kampagneName = KampagneUtils.getDisplayName(v.kampagne);
       
       return `
         <tr>

@@ -6,6 +6,7 @@ import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { AvatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { AutoGeneration } from '../../core/form/logic/AutoGeneration.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export class CreatorAuswahlList {
   constructor() {
@@ -201,7 +202,7 @@ export class CreatorAuswahlList {
         }])
       : '-';
 
-    const kampagneName = liste.kampagne?.kampagnenname || '-';
+    const kampagneName = KampagneUtils.getDisplayName(liste.kampagne);
 
     return `
       <tr class="table-row-clickable" data-liste-id="${liste.id}">
@@ -570,7 +571,7 @@ export class CreatorAuswahlList {
       'as-kampagne',
       'asdd-kampagne',
       async (q) => {
-        let query = window.supabase.from('kampagne').select('id, kampagnenname').order('kampagnenname').limit(20);
+        let query = window.supabase.from('kampagne').select('id, kampagnenname, eigener_name').order('kampagnenname').limit(20);
         if (q) query = query.ilike('kampagnenname', `%${q}%`);
         if (selectedMarkeId) query = query.eq('marke_id', selectedMarkeId);
         const { data } = await query;
@@ -590,7 +591,7 @@ export class CreatorAuswahlList {
           }
         }
       },
-      (r) => `<div class="dropdown-item" data-id="${r.id}" data-label="${r.kampagnenname}">${r.kampagnenname}</div>`
+      (r) => `<div class="dropdown-item" data-id="${r.id}" data-label="${KampagneUtils.getDisplayName(r)}">${KampagneUtils.getDisplayName(r)}</div>`
     );
   }
 
@@ -881,7 +882,7 @@ export class CreatorAuswahlList {
       addTag('edit-tags-marke', liste.marke.id, liste.marke.markenname, () => { selectedMarkeId = null; });
     }
     if (liste.kampagne) {
-      addTag('edit-tags-kampagne', liste.kampagne.id, liste.kampagne.kampagnenname, () => { selectedKampagneId = null; });
+      addTag('edit-tags-kampagne', liste.kampagne.id, KampagneUtils.getDisplayName(liste.kampagne), () => { selectedKampagneId = null; });
     }
 
     const bindAutoSuggest = (inputId, dropdownId, queryFn, onSelect, renderItem) => {
@@ -960,7 +961,7 @@ export class CreatorAuswahlList {
 
     bindAutoSuggest('edit-as-kampagne', 'edit-asdd-kampagne',
       async (q) => {
-        let query = window.supabase.from('kampagne').select('id, kampagnenname').order('kampagnenname').limit(20);
+        let query = window.supabase.from('kampagne').select('id, kampagnenname, eigener_name').order('kampagnenname').limit(20);
         if (q) query = query.ilike('kampagnenname', `%${q}%`);
         if (selectedMarkeId) query = query.eq('marke_id', selectedMarkeId);
         const { data } = await query;
@@ -980,7 +981,7 @@ export class CreatorAuswahlList {
           }
         }
       },
-      (r) => `<div class="dropdown-item" data-id="${r.id}" data-label="${r.kampagnenname}">${r.kampagnenname}</div>`
+      (r) => `<div class="dropdown-item" data-id="${r.id}" data-label="${KampagneUtils.getDisplayName(r)}">${KampagneUtils.getDisplayName(r)}</div>`
     );
   }
 

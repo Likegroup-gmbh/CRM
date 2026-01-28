@@ -2,6 +2,7 @@
 // Hauptdashboard für CRM-Mitarbeiter
 
 import { KampagneKanbanBoard } from '../kampagne/KampagneKanbanBoard.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export class DashboardModule {
   constructor() {
@@ -314,7 +315,7 @@ export class DashboardModule {
       // Queries mit Sichtbarkeits-Filterung
       let kampagnenQuery = window.supabase
         .from('kampagne')
-        .select('id, kampagnenname, deadline, unternehmen:unternehmen_id(firmenname)')
+        .select('id, kampagnenname, eigener_name, deadline, unternehmen:unternehmen_id(firmenname)')
         .lte('deadline', nextWeekStr)
         .gte('deadline', new Date().toISOString().split('T')[0]);
       
@@ -382,7 +383,7 @@ export class DashboardModule {
         ...(kampagnenDeadlines?.map(k => ({
           type: 'kampagne',
           id: k.id,
-          title: k.kampagnenname,
+          title: KampagneUtils.getDisplayName(k),
           subtitle: k.unternehmen?.firmenname,
           deadline: k.deadline,
           priority: this.getDeadlinePriority(k.deadline),
@@ -454,7 +455,7 @@ export class DashboardModule {
       ] = await Promise.all([
         window.supabase
           .from('kampagne')
-          .select('id, kampagnenname, created_at, unternehmen:unternehmen_id(firmenname)')
+          .select('id, kampagnenname, eigener_name, created_at, unternehmen:unternehmen_id(firmenname)')
           .gte('created_at', lastWeekStr)
           .order('created_at', { ascending: false })
           .limit(5),
@@ -477,7 +478,7 @@ export class DashboardModule {
       this.data.recentActivity = [
         ...(recentKampagnen?.map(k => ({
           type: 'kampagne',
-          title: k.kampagnenname,
+          title: KampagneUtils.getDisplayName(k),
           subtitle: k.unternehmen?.firmenname,
           timestamp: k.created_at,
           url: `/kampagne/${k.id}`
@@ -517,7 +518,7 @@ export class DashboardModule {
       // Überfällige Deadlines
       const { data: overdueKampagnen } = await window.supabase
         .from('kampagne')
-        .select('id, kampagnenname, deadline')
+        .select('id, kampagnenname, eigener_name, deadline')
         .lt('deadline', now.toISOString())
         .neq('status_id', 'completed');
 
@@ -525,7 +526,7 @@ export class DashboardModule {
         alerts.push({
           type: 'error',
           title: 'Überfällige Kampagne',
-          message: `${k.kampagnenname} - Deadline überschritten`,
+          message: `${KampagneUtils.getDisplayName(k)} - Deadline überschritten`,
           url: `/kampagne/${k.id}`,
           timestamp: k.deadline
         });
@@ -535,14 +536,14 @@ export class DashboardModule {
       const today = now.toISOString().split('T')[0];
       const { data: todayDeadlines } = await window.supabase
         .from('kampagne')
-        .select('id, kampagnenname, deadline')
+        .select('id, kampagnenname, eigener_name, deadline')
         .eq('deadline', today);
 
       todayDeadlines?.forEach(k => {
         alerts.push({
           type: 'warning',
           title: 'Deadline heute',
-          message: `${k.kampagnenname} - heute fällig`,
+          message: `${KampagneUtils.getDisplayName(k)} - heute fällig`,
           url: `/kampagne/${k.id}`,
           timestamp: k.deadline
         });
@@ -658,17 +659,17 @@ export class DashboardModule {
       const [{ data: kampagnen }, { data: kooperationen }] = await Promise.all([
         window.supabase
           .from('kampagne')
-          .select('id, kampagnenname, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname), status:status_id(name), status_id')
+          .select('id, kampagnenname, eigener_name, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname), status:status_id(name), status_id')
           .order('created_at', { ascending: false }),
         window.supabase
           .from('kooperationen')
-          .select('id, name, kampagne:kampagne_id(kampagnenname), status, creator:creator_id(vorname, nachname)')
+          .select('id, name, kampagne:kampagne_id(kampagnenname, eigener_name), status, creator:creator_id(vorname, nachname)')
           .order('created_at', { ascending: false })
       ]);
       
       const kampagnenRows = (kampagnen || []).map(k => `
         <tr>
-          <td><a href="/kunden-kampagne/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kunden-kampagne/${k.id}')">${window.validatorSystem.sanitizeHtml(k.kampagnenname || k.id)}</a></td>
+          <td><a href="/kunden-kampagne/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kunden-kampagne/${k.id}')">${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(k))}</a></td>
           <td>${window.validatorSystem.sanitizeHtml(k.unternehmen?.firmenname || '—')}</td>
           <td>${window.validatorSystem.sanitizeHtml(k.marke?.markenname || '—')}</td>
           <td><span class="status-badge">${window.validatorSystem.sanitizeHtml(k.status?.name || '—')}</span></td>
@@ -678,7 +679,7 @@ export class DashboardModule {
       const koopRows = (kooperationen || []).map(k => `
         <tr>
           <td><a href="/kunden-kooperation/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kunden-kooperation/${k.id}')">${window.validatorSystem.sanitizeHtml(k.name || k.id)}</a></td>
-          <td>${window.validatorSystem.sanitizeHtml(k.kampagne?.kampagnenname || '—')}</td>
+          <td>${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(k.kampagne))}</td>
           <td>${window.validatorSystem.sanitizeHtml(k.creator ? `${k.creator.vorname || ''} ${k.creator.nachname || ''}`.trim() : '—')}</td>
           <td><span class="status-badge status-${(k.status||'').toLowerCase().replace(/\s+/g,'-')}">${window.validatorSystem.sanitizeHtml(k.status || '—')}</span></td>
         </tr>
@@ -1433,7 +1434,7 @@ export class DashboardModule {
       // Query mit Sichtbarkeits-Filterung
       let kampagnenQuery = window.supabase
         .from('kampagne')
-        .select('id, kampagnenname, unternehmen:unternehmen_id(id, firmenname, logo_url), marke:marke_id(id, markenname, logo_url), status_ref:status_id(id, name)')
+        .select('id, kampagnenname, eigener_name, unternehmen:unternehmen_id(id, firmenname, logo_url), marke:marke_id(id, markenname, logo_url), status_ref:status_id(id, name)')
         .order('created_at', { ascending: false });
       
       // Nicht-Admin Filterung anwenden
@@ -1454,7 +1455,7 @@ export class DashboardModule {
 
       const kampagnenRows = (kampagnen || []).map(k => `
         <tr class="table-row-clickable" onclick="window.navigateTo('/kampagne/${k.id}')">
-          <td>${window.validatorSystem.sanitizeHtml(k.kampagnenname || 'Unbekannt')}</td>
+          <td>${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(k))}</td>
           <td>${window.validatorSystem.sanitizeHtml(k.unternehmen?.firmenname || '—')}</td>
           <td>${window.validatorSystem.sanitizeHtml(k.marke?.markenname || '—')}</td>
           <td><span class="status-badge">${window.validatorSystem.sanitizeHtml(k.status_ref?.name || '—')}</span></td>

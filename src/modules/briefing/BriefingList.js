@@ -6,6 +6,7 @@ import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export class BriefingList {
   constructor() {
@@ -194,7 +195,7 @@ export class BriefingList {
           *,
           unternehmen:unternehmen_id(id, firmenname, logo_url),
           marke:marke_id(id, markenname, logo_url),
-          kampagne:kampagne_id(id, kampagnenname),
+          kampagne:kampagne_id(id, kampagnenname, eigener_name),
           assignee:assignee_id(id, name, profile_image_url)
         `)
         .order('created_at', { ascending: false });
@@ -623,7 +624,7 @@ export class BriefingList {
           <td>${this.renderUnternehmen(b)}</td>
           <td>${this.renderMarke(b)}</td>
           <td>
-            ${b.kampagne?.id ? `<span class="tag tag--type">${escapeHtml(b.kampagne.kampagnenname)}</span>` : '-'}
+            ${b.kampagne?.id ? `<span class="tag tag--type">${escapeHtml(KampagneUtils.getDisplayName(b.kampagne))}</span>` : '-'}
           </td>
           <td>${this.renderAssignee(b.assignee)}</td>
           <td class="col-actions">
