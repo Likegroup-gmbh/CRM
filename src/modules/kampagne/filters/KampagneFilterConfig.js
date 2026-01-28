@@ -11,7 +11,7 @@ import {
  * Kampagne-spezifische Filter-Konfiguration
  */
 export const KAMPAGNE_FILTERS = [
-  // Kampagnenname Filter
+  // Kampagnenname Filter (sucht in eigener_name UND auto-generiertem Namen)
   createFilterConfig('text', {
     id: 'kampagnenname',
     label: 'Kampagnenname',

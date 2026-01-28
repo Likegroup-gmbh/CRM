@@ -7,6 +7,7 @@ import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
+import { ImageUploadHelper } from '../../core/ImageUploadHelper.js';
 
 export class AnsprechpartnerDetail extends PersonDetailBase {
   constructor() {
@@ -239,6 +240,32 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     return '<span class="status-badge inactive">Nicht erlaubt</span>';
   }
 
+  // Sichere Render-Methode für LinkedIn-URLs (XSS-Schutz)
+  renderLinkedInLink(url) {
+    if (!url) return '-';
+    
+    try {
+      const parsed = new URL(url);
+      
+      // Nur http/https URLs erlauben (blockiert javascript:, data:, etc.)
+      if (!['https:', 'http:'].includes(parsed.protocol)) {
+        return '-';
+      }
+      
+      // URL sanitisieren
+      const safeUrl = this.sanitize(url);
+      
+      // LinkedIn-Domain prüfen für besseres Labeling
+      const isLinkedIn = parsed.hostname.includes('linkedin.com');
+      const linkText = isLinkedIn ? 'Profil öffnen' : 'Link öffnen';
+      
+      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${linkText}</a>`;
+    } catch {
+      // Ungültige URL
+      return '-';
+    }
+  }
+
   renderTabNavigation() {
     const tabs = [
       { tab: 'informationen', label: 'Informationen', isActive: this.activeMainTab === 'informationen' },
@@ -317,7 +344,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
               </tr>
               <tr>
                 <td><strong>LinkedIn</strong></td>
-                <td style="text-align: right;">${this.ansprechpartner?.linkedin ? `<a href="${this.ansprechpartner.linkedin}" target="_blank" rel="noopener noreferrer">Profil öffnen</a>` : '-'}</td>
+                <td style="text-align: right;">${this.renderLinkedInLink(this.ansprechpartner?.linkedin)}</td>
               </tr>
             </tbody>
           </table>
@@ -729,111 +756,9 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     }
   }
 
-  // Profilbild-Upload
+  // Profilbild-Upload - delegiert an ImageUploadHelper
   async uploadProfileImage(ansprechpartnerId, form) {
-    try {
-      console.log('📋 uploadProfileImage() aufgerufen für Ansprechpartner:', ansprechpartnerId);
-      
-      const uploaderRoot = form.querySelector('.uploader[data-name="profile_image_file"]');
-      console.log('  → Uploader Root:', uploaderRoot);
-      console.log('  → Uploader Instance:', uploaderRoot?.__uploaderInstance);
-      console.log('  → Files:', uploaderRoot?.__uploaderInstance?.files);
-      
-      if (!uploaderRoot || !uploaderRoot.__uploaderInstance || !uploaderRoot.__uploaderInstance.files.length) {
-        console.log('ℹ️ Kein Profilbild zum Hochladen (kein Uploader/keine Files)');
-        return;
-      }
-
-      if (!window.supabase) {
-        console.warn('⚠️ Supabase nicht verfügbar - Profilbild-Upload übersprungen');
-        return;
-      }
-
-      const files = uploaderRoot.__uploaderInstance.files;
-      const file = files[0]; // Nur ein Bild erlaubt
-      const bucket = 'ansprechpartner-images';
-      
-      // Security: Max 500 KB
-      const MAX_FILE_SIZE = 500 * 1024; // 500 KB
-      const ALLOWED_TYPES = ['image/png', 'image/jpeg'];
-      
-      // Dateigröße prüfen
-      if (file.size > MAX_FILE_SIZE) {
-        console.warn(`⚠️ Profilbild zu groß: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
-        alert(`Profilbild ist zu groß (max. 500 KB)`);
-        return;
-      }
-
-      // Content-Type prüfen
-      if (!ALLOWED_TYPES.includes(file.type)) {
-        console.warn(`⚠️ Nicht erlaubter Dateityp: ${file.name} (${file.type})`);
-        alert(`Nur PNG und JPG Dateien sind erlaubt`);
-        return;
-      }
-
-      // Dateiendung extrahieren
-      const ext = file.name.split('.').pop().toLowerCase();
-      const path = `${ansprechpartnerId}/profile.${ext}`;
-      
-      console.log(`📤 Uploading Profilbild: ${file.name} -> ${path}`);
-      
-      // Altes Bild löschen (falls vorhanden)
-      try {
-        const { data: existingFiles } = await window.supabase.storage
-          .from(bucket)
-          .list(ansprechpartnerId);
-        
-        if (existingFiles && existingFiles.length > 0) {
-          for (const existingFile of existingFiles) {
-            await window.supabase.storage
-              .from(bucket)
-              .remove([`${ansprechpartnerId}/${existingFile.name}`]);
-          }
-        }
-      } catch (deleteErr) {
-        console.warn('⚠️ Fehler beim Löschen alter Profilbilder:', deleteErr);
-      }
-      
-      // Upload zu Storage
-      const { error: upErr } = await window.supabase.storage
-        .from(bucket)
-        .upload(path, file, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: file.type
-        });
-      
-      if (upErr) {
-        console.error(`❌ Profilbild-Upload-Fehler:`, upErr);
-        throw upErr;
-      }
-      
-      // Öffentliche URL erstellen
-      const { data: publicUrlData } = window.supabase.storage
-        .from(bucket)
-        .getPublicUrl(path);
-      
-      const profile_image_url = publicUrlData?.publicUrl || '';
-      
-      // Profilbild-Daten in Datenbank speichern
-      const { error: dbErr } = await window.supabase
-        .from('ansprechpartner')
-        .update({
-          profile_image_url,
-          profile_image_path: path
-        })
-        .eq('id', ansprechpartnerId);
-      
-      if (dbErr) {
-        console.error(`❌ DB-Fehler beim Speichern der Profilbild-URL:`, dbErr);
-        throw dbErr;
-      }
-      
-      console.log(`✅ Profilbild erfolgreich hochgeladen`);
-    } catch (error) {
-      console.error('❌ Fehler beim Profilbild-Upload:', error);
-      alert(`⚠️ Profilbild konnte nicht hochgeladen werden: ${error.message}`);
-    }
+    return ImageUploadHelper.uploadProfileImage(ansprechpartnerId, form);
   }
 
   // Fehler anzeigen

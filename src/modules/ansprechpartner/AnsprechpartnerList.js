@@ -55,6 +55,100 @@ export class AnsprechpartnerList {
     this.pagination = new PaginationSystem();
     // Sortierung: Standard alphabetisch A-Z (nach Nachname)
     this.currentSort = { field: 'nachname', ascending: true };
+    
+    // Gebundene Event-Handler für sauberes Cleanup
+    this._handleDocumentClick = this._onDocumentClick.bind(this);
+    this._handleDocumentChange = this._onDocumentChange.bind(this);
+    this._handleEntityUpdated = this._onEntityUpdated.bind(this);
+    this._eventsBound = false;
+  }
+  
+  // Zentraler Click-Handler für alle Document-Click-Events
+  _onDocumentClick(e) {
+    // Neuen Ansprechpartner anlegen Button
+    if (e.target.id === 'btn-ansprechpartner-new') {
+      e.preventDefault();
+      window.navigateTo('/ansprechpartner/new');
+      return;
+    }
+    
+    // Ansprechpartner Detail Links
+    if (e.target.classList.contains('table-link') && e.target.dataset.table === 'ansprechpartner') {
+      e.preventDefault();
+      const ansprechpartnerId = e.target.dataset.id;
+      window.navigateTo(`/ansprechpartner/${ansprechpartnerId}`);
+      return;
+    }
+    
+    // Alle auswählen Button
+    if (e.target.id === 'btn-select-all') {
+      e.preventDefault();
+      const checkboxes = document.querySelectorAll('.ansprechpartner-check');
+      checkboxes.forEach(cb => {
+        cb.checked = true;
+        if (cb.dataset.id) this.selectedAnsprechpartner.add(cb.dataset.id);
+      });
+      const selectAllHeader = document.getElementById('select-all-ansprechpartner');
+      if (selectAllHeader) {
+        selectAllHeader.indeterminate = false;
+        selectAllHeader.checked = true;
+      }
+      this.updateSelection();
+      return;
+    }
+    
+    // Auswahl aufheben Button
+    if (e.target.id === 'btn-deselect-all') {
+      e.preventDefault();
+      this.deselectAll();
+      return;
+    }
+  }
+  
+  // Zentraler Change-Handler für alle Document-Change-Events
+  _onDocumentChange(e) {
+    // Select-All Checkbox (Tabellen-Header)
+    if (e.target.id === 'select-all-ansprechpartner') {
+      const checkboxes = document.querySelectorAll('.ansprechpartner-check');
+      const isChecked = e.target.checked;
+      
+      checkboxes.forEach(cb => {
+        cb.checked = isChecked;
+        if (isChecked) {
+          this.selectedAnsprechpartner.add(cb.dataset.id);
+        } else {
+          this.selectedAnsprechpartner.delete(cb.dataset.id);
+        }
+      });
+      
+      this.updateSelection();
+      return;
+    }
+    
+    // Ansprechpartner Checkboxes
+    if (e.target.classList.contains('ansprechpartner-check')) {
+      const id = e.target.dataset.id;
+      
+      if (e.target.checked) {
+        this.selectedAnsprechpartner.add(id);
+      } else {
+        this.selectedAnsprechpartner.delete(id);
+      }
+      
+      this.updateSelection();
+      this.updateSelectAllCheckbox();
+      return;
+    }
+  }
+  
+  // Handler für Entity-Updated Events
+  _onEntityUpdated(e) {
+    if (e.detail.entity === 'ansprechpartner') {
+      // Nur neu laden wenn wir auf der Listen-Seite sind (nicht Detail-Seite)
+      if (location.pathname === '/ansprechpartner') {
+        this.loadAndRender();
+      }
+    }
   }
 
   // Initialisiere Ansprechpartner-Liste
@@ -215,103 +309,16 @@ export class AnsprechpartnerList {
     this.loadAndRender();
   }
 
-  // Events binden
+  // Events binden (mit sauberem Cleanup)
   bindEvents() {
-    // Filter-Events werden vom FilterDropdown gehandelt
-
-    // Neuen Ansprechpartner anlegen Button
-    document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-ansprechpartner-new') {
-        e.preventDefault();
-        window.navigateTo('/ansprechpartner/new');
-      }
-    });
-
-    // Ansprechpartner Detail Links
-    document.addEventListener('click', (e) => {
-      if (e.target.classList.contains('table-link') && e.target.dataset.table === 'ansprechpartner') {
-        e.preventDefault();
-        const ansprechpartnerId = e.target.dataset.id;
-        console.log('🎯 ANSPRECHPARTNERLIST: Navigiere zu Ansprechpartner Details:', ansprechpartnerId);
-        window.navigateTo(`/ansprechpartner/${ansprechpartnerId}`);
-      }
-    });
-
-    // Alle auswählen Button
-    document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-select-all') {
-        e.preventDefault();
-        const checkboxes = document.querySelectorAll('.ansprechpartner-check');
-        checkboxes.forEach(cb => {
-          cb.checked = true;
-          if (cb.dataset.id) this.selectedAnsprechpartner.add(cb.dataset.id);
-        });
-        const selectAllHeader = document.getElementById('select-all-ansprechpartner');
-        if (selectAllHeader) {
-          selectAllHeader.indeterminate = false;
-          selectAllHeader.checked = true;
-        }
-        this.updateSelection();
-      }
-    });
-
-    // Auswahl aufheben Button
-    document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-deselect-all') {
-        e.preventDefault();
-        this.deselectAll();
-      }
-    });
-
-    // Entity Updated Event - nur reagieren wenn Liste aktiv ist
-    window.addEventListener('entityUpdated', (e) => {
-      if (e.detail.entity === 'ansprechpartner') {
-        // Nur neu laden wenn wir auf der Listen-Seite sind (nicht Detail-Seite)
-        if (location.pathname === '/ansprechpartner') {
-          this.loadAndRender();
-        }
-      }
-    });
-
-
-
-    // Select-All Checkbox (Tabellen-Header)
-    document.addEventListener('change', (e) => {
-      if (e.target.id === 'select-all-ansprechpartner') {
-        const checkboxes = document.querySelectorAll('.ansprechpartner-check');
-        const isChecked = e.target.checked;
-        
-        checkboxes.forEach(cb => {
-          cb.checked = isChecked;
-          if (isChecked) {
-            this.selectedAnsprechpartner.add(cb.dataset.id);
-          } else {
-            this.selectedAnsprechpartner.delete(cb.dataset.id);
-          }
-        });
-        
-        this.updateSelection();
-        console.log(`${isChecked ? '✅ Alle Ansprechpartner ausgewählt' : '❌ Alle Ansprechpartner abgewählt'}: ${this.selectedAnsprechpartner.size}`);
-      }
-    });
-
-    // Ansprechpartner Checkboxes
-    document.addEventListener('change', (e) => {
-      if (e.target.classList.contains('ansprechpartner-check')) {
-        const id = e.target.dataset.id;
-        console.log(`🔧 AnsprechpartnerList: Checkbox ${id} ${e.target.checked ? 'ausgewählt' : 'abgewählt'}`);
-        
-        if (e.target.checked) {
-          this.selectedAnsprechpartner.add(id);
-        } else {
-          this.selectedAnsprechpartner.delete(id);
-        }
-        
-        console.log(`🔧 AnsprechpartnerList: Aktuelle Auswahl:`, Array.from(this.selectedAnsprechpartner));
-        this.updateSelection();
-        this.updateSelectAllCheckbox();
-      }
-    });
+    // Vermeide doppeltes Binden
+    if (this._eventsBound) return;
+    this._eventsBound = true;
+    
+    // Zentrale Handler registrieren (für sauberes Cleanup)
+    document.addEventListener('click', this._handleDocumentClick);
+    document.addEventListener('change', this._handleDocumentChange);
+    window.addEventListener('entityUpdated', this._handleEntityUpdated);
 
     // Bulk-Actions werden jetzt vom BulkActionSystem verwaltet
     // Registriere diese Liste beim BulkActionSystem
@@ -350,6 +357,28 @@ export class AnsprechpartnerList {
     
     if (deleteBtn) {
       deleteBtn.style.display = selectedCount > 0 ? 'inline-block' : 'none';
+    }
+  }
+
+  // Sichere Render-Methode für LinkedIn-URLs (XSS-Schutz)
+  renderLinkedInLink(url) {
+    if (!url) return '-';
+    
+    try {
+      const parsed = new URL(url);
+      
+      // Nur http/https URLs erlauben (blockiert javascript:, data:, etc.)
+      if (!['https:', 'http:'].includes(parsed.protocol)) {
+        return '-';
+      }
+      
+      // URL sanitisieren
+      const safeUrl = window.validatorSystem?.sanitizeHtml?.(url) ?? url;
+      
+      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="LinkedIn Profil"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>`;
+    } catch {
+      // Ungültige URL
+      return '-';
     }
   }
 
@@ -393,7 +422,7 @@ export class AnsprechpartnerList {
           ap.telefonnummer_land?.vorwahl,
           ap.telefonnummer
         )}</td>
-        <td>${ap.linkedin ? `<a href="${ap.linkedin}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="LinkedIn Profil"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>` : '-'}</td>
+        <td>${this.renderLinkedInLink(ap.linkedin)}</td>
         <td class="col-actions">
           ${actionBuilder.create('ansprechpartner', ap.id)}
         </td>
@@ -466,19 +495,26 @@ export class AnsprechpartnerList {
       const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
       
       // Für Nicht-Admins: Nur Ansprechpartner aus zugewiesenen Unternehmen/Marken laden
+      // OPTIMIERT: Batch-Queries statt N+1 Queries
       let allowedAnsprechpartnerIds = null;
       if (!isAdmin && window.supabase) {
         try {
-          // 1. Zugeordnete Marken (OHNE Join wegen RLS)
-          const { data: assignedMarken } = await window.supabase
-            .from('marke_mitarbeiter')
-            .select('marke_id')
-            .eq('mitarbeiter_id', window.currentUser?.id);
+          // PHASE 1: Initiale Daten PARALLEL laden (3 Queries statt sequentiell)
+          const [assignedMarkenResult, mitarbeiterUnternehmenResult] = await Promise.all([
+            window.supabase
+              .from('marke_mitarbeiter')
+              .select('marke_id')
+              .eq('mitarbeiter_id', window.currentUser?.id),
+            window.supabase
+              .from('mitarbeiter_unternehmen')
+              .select('unternehmen_id')
+              .eq('mitarbeiter_id', window.currentUser?.id)
+          ]);
           
-          // Marken-IDs extrahieren
-          const markenIds = (assignedMarken || []).map(r => r.marke_id).filter(Boolean);
+          const markenIds = (assignedMarkenResult.data || []).map(r => r.marke_id).filter(Boolean);
+          const unternehmenIds = (mitarbeiterUnternehmenResult.data || []).map(r => r.unternehmen_id).filter(Boolean);
           
-          // Zugeordnete Marken mit ihren Unternehmen (separat laden wegen RLS)
+          // PHASE 2: Marken mit Unternehmen-IDs laden (falls Marken vorhanden)
           let markenMitUnternehmen = [];
           if (markenIds.length > 0) {
             const { data: markenData } = await window.supabase
@@ -492,90 +528,56 @@ export class AnsprechpartnerList {
             }));
           }
           
-          // 2. Zugeordnete Unternehmen
-          const { data: mitarbeiterUnternehmen } = await window.supabase
-            .from('mitarbeiter_unternehmen')
-            .select('unternehmen_id')
-            .eq('mitarbeiter_id', window.currentUser?.id);
+          // Sammle alle relevanten IDs für Batch-Queries
+          const alleUnternehmenIds = new Set(unternehmenIds);
+          const alleMarkenIds = new Set(markenIds);
           
-          const unternehmenIds = (mitarbeiterUnternehmen || [])
-            .map(r => r.unternehmen_id)
-            .filter(Boolean);
-          
-          // Erstelle Map: Unternehmen-ID → zugeordnete Marken-IDs
-          const unternehmenMarkenMap = new Map();
+          // Zusätzlich: Unternehmen aus direkt zugeordneten Marken
           markenMitUnternehmen.forEach(r => {
             if (r.unternehmen_id) {
-              if (!unternehmenMarkenMap.has(r.unternehmen_id)) {
-                unternehmenMarkenMap.set(r.unternehmen_id, []);
-              }
-              unternehmenMarkenMap.get(r.unternehmen_id).push(r.marke_id);
+              alleUnternehmenIds.add(r.unternehmen_id);
             }
           });
           
           // Sammle erlaubte Ansprechpartner-IDs
           const erlaubteAnsprechpartnerIds = new Set();
           
-          // Für jedes zugeordnete Unternehmen
-          for (const unternehmenId of unternehmenIds) {
-            const zugeordneteMarken = unternehmenMarkenMap.get(unternehmenId);
-            
-            // IMMER: Ansprechpartner des Unternehmens laden (für alle Mitarbeiter des Unternehmens sichtbar)
-            const { data: unternehmenAnsprechpartner } = await window.supabase
-              .from('ansprechpartner_unternehmen')
-              .select('ansprechpartner_id')
-              .eq('unternehmen_id', unternehmenId);
-            
-            (unternehmenAnsprechpartner || []).forEach(r => {
-              if (r.ansprechpartner_id) erlaubteAnsprechpartnerIds.add(r.ansprechpartner_id);
-            });
-            
-            if (zugeordneteMarken && zugeordneteMarken.length > 0) {
-              // Mitarbeiter hat spezifische Marken-Zuordnung → zusätzlich Ansprechpartner dieser Marken
-              const { data: markenAnsprechpartner } = await window.supabase
-                .from('ansprechpartner_marke')
-                .select('ansprechpartner_id')
-                .in('marke_id', zugeordneteMarken);
-              
-              (markenAnsprechpartner || []).forEach(r => {
-                if (r.ansprechpartner_id) erlaubteAnsprechpartnerIds.add(r.ansprechpartner_id);
-              });
-            }
-          }
+          // PHASE 3: BATCH-Queries für Ansprechpartner (OPTIMIERT - keine Schleifen mehr!)
+          const batchPromises = [];
           
-          // Zusätzlich: Direkt zugeordnete Marken (ohne separate Unternehmen-Zuordnung)
-          // → Hier AUCH Ansprechpartner des übergeordneten Unternehmens der Marke einbeziehen
-          const direkteMarken = markenMitUnternehmen.filter(r => !unternehmenIds.includes(r.unternehmen_id));
-          
-          if (direkteMarken.length > 0) {
-            const direkteMarkenIds = direkteMarken.map(r => r.marke_id);
-            const direkteUnternehmenIds = [...new Set(direkteMarken.map(r => r.unternehmen_id).filter(Boolean))];
-            
-            // 1. Ansprechpartner direkt der Marke zugeordnet
-            const { data: direkteMarkenAnsprechpartner } = await window.supabase
-              .from('ansprechpartner_marke')
-              .select('ansprechpartner_id')
-              .in('marke_id', direkteMarkenIds);
-            
-            (direkteMarkenAnsprechpartner || []).forEach(r => {
-              if (r.ansprechpartner_id) erlaubteAnsprechpartnerIds.add(r.ansprechpartner_id);
-            });
-            
-            // 2. Ansprechpartner des übergeordneten Unternehmens der Marke
-            if (direkteUnternehmenIds.length > 0) {
-              const { data: unternehmenAnsprechpartner } = await window.supabase
+          // Batch-Query 1: Alle Ansprechpartner aller relevanten Unternehmen
+          if (alleUnternehmenIds.size > 0) {
+            batchPromises.push(
+              window.supabase
                 .from('ansprechpartner_unternehmen')
                 .select('ansprechpartner_id')
-                .in('unternehmen_id', direkteUnternehmenIds);
-              
-              (unternehmenAnsprechpartner || []).forEach(r => {
-                if (r.ansprechpartner_id) erlaubteAnsprechpartnerIds.add(r.ansprechpartner_id);
-              });
-            }
+                .in('unternehmen_id', [...alleUnternehmenIds])
+            );
           }
           
+          // Batch-Query 2: Alle Ansprechpartner aller relevanten Marken
+          if (alleMarkenIds.size > 0) {
+            batchPromises.push(
+              window.supabase
+                .from('ansprechpartner_marke')
+                .select('ansprechpartner_id')
+                .in('marke_id', [...alleMarkenIds])
+            );
+          }
+          
+          // Führe Batch-Queries parallel aus
+          const batchResults = await Promise.all(batchPromises);
+          
+          // Ergebnisse verarbeiten
+          batchResults.forEach(result => {
+            (result.data || []).forEach(r => {
+              if (r.ansprechpartner_id) {
+                erlaubteAnsprechpartnerIds.add(r.ansprechpartner_id);
+              }
+            });
+          });
+          
           allowedAnsprechpartnerIds = [...erlaubteAnsprechpartnerIds];
-          console.log('🔍 ANSPRECHPARTNERLIST: Erlaubte Ansprechpartner für Nicht-Admin:', allowedAnsprechpartnerIds.length);
           
           // Wenn keine Ansprechpartner zugeordnet sind, zeige leeres Ergebnis
           if (allowedAnsprechpartnerIds.length === 0) {
@@ -768,7 +770,7 @@ export class AnsprechpartnerList {
     ansprechpartnerCreate.showCreateForm();
   }
 
-  // Cleanup
+  // Cleanup - entfernt alle Event-Listener um Memory Leaks zu verhindern
   destroy() {
     console.log('AnsprechpartnerList: Cleaning up...');
     
@@ -777,10 +779,24 @@ export class AnsprechpartnerList {
       this.pagination.destroy();
     }
     
-    // Event-Listener entfernen
+    // Zentrale Event-Listener entfernen
+    document.removeEventListener('click', this._handleDocumentClick);
+    document.removeEventListener('change', this._handleDocumentChange);
+    window.removeEventListener('entityUpdated', this._handleEntityUpdated);
+    
+    // Legacy Event-Listener entfernen (falls vorhanden)
     if (this.boundFilterResetHandler) {
       document.removeEventListener('click', this.boundFilterResetHandler);
     }
+    
+    // BulkActionSystem deregistrieren
+    if (window.bulkActionSystem) {
+      window.bulkActionSystem.unregisterList?.('ansprechpartner');
+    }
+    
+    // Auswahl zurücksetzen
+    this.selectedAnsprechpartner.clear();
+    this._eventsBound = false;
   }
 }
 

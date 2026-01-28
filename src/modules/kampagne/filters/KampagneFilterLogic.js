@@ -19,10 +19,11 @@ export class KampagneFilterLogic {
 
       switch (key) {
         case 'kampagnenname':
-          // Text-Suche im Kampagnennamen
+          // Text-Suche im Kampagnennamen (eigener_name UND kampagnenname)
           processedFilters[key] = {
-            type: 'text_search',
-            value: value
+            type: 'text_search_dual',
+            value: value,
+            fields: ['kampagnenname', 'eigener_name']
           };
           break;
 
@@ -221,6 +222,12 @@ export class KampagneFilterLogic {
           query = query.ilike(field, `%${filter.value}%`);
           break;
 
+        case 'text_search_dual':
+          // Suche in mehreren Feldern (OR-Verknüpfung)
+          const orConditions = filter.fields.map(f => `${f}.ilike.%${filter.value}%`).join(',');
+          query = query.or(orConditions);
+          break;
+
         case 'array_contains':
           // Für Kampagnen-Art (kann mehrere Werte haben)
           if (Array.isArray(filter.value) && filter.value.length > 0) {
@@ -405,6 +412,14 @@ export class KampagneFilterLogic {
     switch (filter.type) {
       case 'text_search':
         return value && value.toLowerCase().includes(filter.value.toLowerCase());
+
+      case 'text_search_dual':
+        // Suche in mehreren Feldern
+        const searchValue = filter.value.toLowerCase();
+        return filter.fields.some(f => {
+          const fieldValue = item[f];
+          return fieldValue && fieldValue.toLowerCase().includes(searchValue);
+        });
 
       case 'array_contains':
         if (!value) return false;

@@ -1,6 +1,8 @@
 // KampagneTable.js (ES6-Modul)
 // Wiederverwendbare Tabellen-Ausgabe für Kampagnen
 
+import { KampagneUtils } from './KampagneUtils.js';
+
 export function renderKampagnenTable(kampagnen, options = {}) {
   const { showActions = false } = options;
 
@@ -10,7 +12,7 @@ export function renderKampagnenTable(kampagnen, options = {}) {
   const rows = (kampagnen || []).map((k) => {
     // k ist flach (direkt aus kampagne) – Felder ggf. verschachtelt absichern
     const id = k.id;
-    const name = k.kampagnenname || 'Unbekannt';
+    const name = KampagneUtils.getDisplayName(k);
     const unternehmen = k.unternehmen?.firmenname || '-';
     const marke = k.marke?.markenname || '-';
     const artDerKampagne = formatArray(k.art_der_kampagne);

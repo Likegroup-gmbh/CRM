@@ -169,6 +169,7 @@ export class DataService {
         table: 'kampagne',
         displayField: 'kampagnenname',
         fields: {
+          eigener_name: 'string',
           kampagnenname: 'string',
           unternehmen_id: 'uuid',
           marke_id: 'uuid',

@@ -1,6 +1,8 @@
 // KampagnePreviewDrawer.js - Drawer für Kampagne-Schnellansicht
 // Basiert auf TaskDetailDrawer.js Pattern
 
+import { KampagneUtils } from './KampagneUtils.js';
+
 export class KampagnePreviewDrawer {
   constructor() {
     this.drawerId = 'kampagne-preview-drawer';
@@ -69,7 +71,7 @@ export class KampagnePreviewDrawer {
     const subtitle = document.createElement('p');
     subtitle.className = 'drawer-subtitle';
     subtitle.id = `${this.drawerId}-subtitle`;
-    subtitle.textContent = this.kampagne?.kampagnenname || '';
+    subtitle.textContent = KampagneUtils.getDisplayName(this.kampagne);
 
     headerLeft.appendChild(title);
     headerLeft.appendChild(subtitle);

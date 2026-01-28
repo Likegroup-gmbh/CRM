@@ -1,6 +1,8 @@
 // KampagneKanbanBoard.js - Kanban Board für Kampagnen mit Drag & Drop
 // Basiert auf TaskKanbanBoard.js
 
+import { KampagneUtils } from './KampagneUtils.js';
+
 export class KampagneKanbanBoard {
   constructor() {
     console.log('🏗️ KampagneKanbanBoard Constructor');
@@ -369,7 +371,7 @@ export class KampagneKanbanBoard {
         <div class="task-card-body">
           <h4 class="task-title">
             <a href="#/kampagne/${kampagne.id}" class="kampagne-link" data-kampagne-id="${kampagne.id}">
-              ${safe(kampagne.kampagnenname || 'Unbenannte Kampagne')}
+              ${safe(KampagneUtils.getDisplayName(kampagne))}
             </a>
           </h4>
         </div>

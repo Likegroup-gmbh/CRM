@@ -5,6 +5,7 @@ import { KampagneKooperationenVideoTable } from './KampagneKooperationenVideoTab
 import { VideoCreateDrawer } from './VideoCreateDrawer.js';
 import { VideoTableColumnVisibilityDrawer } from './VideoTableColumnVisibilityDrawer.js';
 import { getTabIcon } from '../../core/TabUtils.js';
+import { KampagneUtils } from './KampagneUtils.js';
 
 export class KampagneDetail {
   constructor() {
@@ -90,7 +91,7 @@ export class KampagneDetail {
         const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
         window.breadcrumbSystem.updateBreadcrumb([
           { label: 'Kampagne', url: '/kampagne', clickable: true },
-          { label: this.kampagneData.kampagnenname || 'Details', url: `/kampagne/${this.kampagneId}`, clickable: false }
+          { label: KampagneUtils.getDisplayName(this.kampagneData), url: `/kampagne/${this.kampagneId}`, clickable: false }
         ], {
           id: 'btn-edit-kampagne',
           canEdit: canEdit
@@ -855,7 +856,7 @@ export class KampagneDetail {
     }
 
     // Setze Headline
-    window.setHeadline(`Kampagne: ${this.kampagneData.kampagnenname}`);
+    window.setHeadline(`Kampagne: ${KampagneUtils.getDisplayName(this.kampagneData)}`);
 
     const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
     const canDelete = window.currentUser?.permissions?.kampagne?.can_delete || false;
@@ -957,8 +958,14 @@ export class KampagneDetail {
                   <div class="detail-grid-2">
                     <div class="detail-item">
                       <label>Kampagnenname:</label>
-                      <span>${window.validatorSystem.sanitizeHtml(this.kampagneData.kampagnenname)}</span>
+                      <span>${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(this.kampagneData))}</span>
                     </div>
+                    ${this.kampagneData.eigener_name ? `
+                    <div class="detail-item">
+                      <label>Auto-generiert:</label>
+                      <span class="text-muted">${window.validatorSystem.sanitizeHtml(this.kampagneData.kampagnenname || '-')}</span>
+                    </div>
+                    ` : ''}
                     <div class="detail-item">
                       <label>Status:</label>
                       <span class="status-badge status-${this.kampagneData.status?.toLowerCase() || 'unknown'}">
@@ -1664,7 +1671,7 @@ export class KampagneDetail {
         if (this.kampagneData) {
           window.kooperationPrefillCache = {
             kampagne_id: this.kampagneId,
-            kampagnenname: this.kampagneData.kampagnenname,
+            kampagnenname: KampagneUtils.getDisplayName(this.kampagneData),
             unternehmen_id: this.kampagneData.unternehmen_id,
             marke_id: this.kampagneData.marke_id || null,
             unternehmen: this.kampagneData.unternehmen,

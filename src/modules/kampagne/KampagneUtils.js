@@ -3,6 +3,11 @@
 
 export class KampagneUtils {
   
+  // Hole Anzeigename: eigener_name hat Priorität, sonst kampagnenname
+  static getDisplayName(kampagne) {
+    return kampagne?.eigener_name || kampagne?.kampagnenname || 'Unbenannte Kampagne';
+  }
+
   // Formatiere Kampagnen-Status
   static formatStatus(status) {
     const statusMap = {
@@ -218,7 +223,7 @@ export class KampagneUtils {
   // Erstelle Kampagnen-Export-Daten
   static createExportData(kampagnen) {
     return kampagnen.map(kampagne => ({
-      'Kampagnenname': kampagne.kampagnenname,
+      'Kampagnenname': this.getDisplayName(kampagne),
       'Status': this.formatStatus(kampagne.status),
       'Art der Kampagne': this.formatKampagnenArt(kampagne.art_der_kampagne),
       'Start': this.formatDate(kampagne.start),

@@ -299,10 +299,17 @@ export class PaginationSystem {
         try {
           // Reduzierung: Immer animiert entfernen (braucht keine dataLoader)
           if (delta < 0) {
-            const rowsToRemove = Math.abs(delta);
-            console.log(`📉 Dynamisches Resize: Entferne ${rowsToRemove} Zeilen...`);
-            await TableAnimationHelper.removeRows(tbody, rowsToRemove);
-            console.log(`✅ ${rowsToRemove} Zeilen animiert entfernt`);
+            // Fix: Berechnung basiert auf tatsächlicher Zeilenanzahl, nicht auf delta
+            const currentRowCount = tbody.querySelectorAll('tr:not(.no-data)').length;
+            const targetRowCount = Math.min(newValue, currentRowCount);
+            const rowsToRemove = currentRowCount - targetRowCount;
+            
+            console.log(`📉 Dynamisches Resize: ${currentRowCount} Zeilen → ${targetRowCount} Zeilen (entferne ${rowsToRemove})`);
+            
+            if (rowsToRemove > 0) {
+              await TableAnimationHelper.removeRows(tbody, rowsToRemove);
+              console.log(`✅ ${rowsToRemove} Zeilen animiert entfernt`);
+            }
             
             // Pagination UI aktualisieren
             this.render();

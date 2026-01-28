@@ -11,6 +11,7 @@ import { KampagneCalendarView } from './KampagneCalendarView.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { KampagneFilterLogic } from './filters/KampagneFilterLogic.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
+import { KampagneUtils } from './KampagneUtils.js';
 
 // Kampagnen-Cache mit TTL
 const kampagnenCache = {
@@ -924,7 +925,7 @@ export class KampagneList {
           ${!isKunde && isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="kampagne-check" data-id="${kampagne.id}"></td>` : ''}
           <td class="col-name">
             <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
-              ${window.validatorSystem.sanitizeHtml(kampagne.kampagnenname || 'Unbekannt')}
+              ${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(kampagne))}
             </a>
           </td>
           <td>${this.renderUnternehmen(kampagne.unternehmen)}</td>

@@ -2,6 +2,7 @@
 // Zeigt Wochenkalender + Sidebar mit "Heute/Diese Woche/Dieser Monat" Gruppierung
 
 import { KampagnePreviewDrawer } from './KampagnePreviewDrawer.js';
+import { KampagneUtils } from './KampagneUtils.js';
 
 export class KampagneCalendarView {
   constructor() {
@@ -118,6 +119,7 @@ export class KampagneCalendarView {
         .select(`
           id,
           kampagnenname,
+          eigener_name,
           start,
           deadline_strategie,
           deadline_creator_sourcing,
@@ -433,7 +435,7 @@ export class KampagneCalendarView {
                data-kampagne-id="${event.kampagne.id}"
                data-deadline-type="${event.deadlineType}">
             <div class="sidebar-item-content">
-              <div class="sidebar-item-name">${safe(event.kampagne.kampagnenname)}</div>
+              <div class="sidebar-item-name">${safe(KampagneUtils.getDisplayName(event.kampagne))}</div>
               <div class="sidebar-item-deadline">${event.deadlineLabel}</div>
             </div>
           </div>
@@ -480,7 +482,7 @@ export class KampagneCalendarView {
                  data-current-date="${this.formatDateLocal(event.date)}">
               <div class="calendar-event-header">
                 ${this.renderOrgBubble(event.kampagne)}
-                <div class="calendar-event-name">${safe(event.kampagne.kampagnenname)}</div>
+                <div class="calendar-event-name">${safe(KampagneUtils.getDisplayName(event.kampagne))}</div>
               </div>
               <div class="calendar-event-type">${event.deadlineLabel}</div>
             </div>
@@ -522,7 +524,7 @@ export class KampagneCalendarView {
            data-kampagne-id="${event.kampagne.id}"
            data-deadline-type="${event.deadlineType}"
            data-current-date="${this.formatDateLocal(event.date)}">
-        <span class="calendar-month-event-name">${safe(event.kampagne.kampagnenname)}</span>
+        <span class="calendar-month-event-name">${safe(KampagneUtils.getDisplayName(event.kampagne))}</span>
         <span class="calendar-month-event-type">${event.deadlineLabel}</span>
       </div>
     `;
@@ -538,7 +540,7 @@ export class KampagneCalendarView {
             <div class="calendar-month-day-col">
               ${rightEvents.map(renderEvent).join('')}
               ${moreCount > 0 ? `
-                <div class="calendar-month-more" data-day-events='${JSON.stringify(day.events.map(e => ({ id: e.kampagne.id, name: e.kampagne.kampagnenname, type: e.deadlineType, label: e.deadlineLabel })))}'>
+                <div class="calendar-month-more" data-day-events='${JSON.stringify(day.events.map(e => ({ id: e.kampagne.id, name: KampagneUtils.getDisplayName(e.kampagne), type: e.deadlineType, label: e.deadlineLabel })))}'>
                   +${moreCount}
                 </div>
               ` : ''}
