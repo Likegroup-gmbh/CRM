@@ -4582,6 +4582,19 @@ h3.section-title,
   border-radius: 50%;
 }
 
+/* "+X mehr" Badge für überzählige Avatars */
+.avatar-bubble--more {
+  background-color: var(--gray-200);
+  color: var(--gray-700);
+  font-size: 0.65rem;
+  font-weight: 600;
+  cursor: default;
+}
+
+.avatar-bubble--more:hover {
+  background-color: var(--gray-300);
+}
+
 /* Tooltip für Namen bei Hover */
 .avatar-bubble[title]:hover::after {
   content: attr(title);

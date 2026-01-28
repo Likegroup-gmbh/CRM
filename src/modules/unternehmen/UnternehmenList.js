@@ -8,6 +8,7 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
+import { UnternehmenService } from './services/UnternehmenService.js';
 
 export class UnternehmenList {
   constructor() {
@@ -351,26 +352,25 @@ export class UnternehmenList {
   bindEvents() {
     // Filter-Events werden vom FilterDropdown gehandelt
 
-    // Neues Unternehmen anlegen Button
-    document.addEventListener('click', (e) => {
+    // Konsolidierter Click-Handler für alle Klick-Events
+    this._clickHandler = (e) => {
+      // Neues Unternehmen anlegen Button
       if (e.target.id === 'btn-unternehmen-new' || e.target.id === 'btn-unternehmen-new-filter') {
         e.preventDefault();
         window.navigateTo('/unternehmen/new');
+        return;
       }
-    });
 
-    // Unternehmen Detail Links
-    document.addEventListener('click', (e) => {
+      // Unternehmen Detail Links
       if (e.target.classList.contains('table-link') && e.target.dataset.table === 'unternehmen') {
         e.preventDefault();
         const unternehmenId = e.target.dataset.id;
         console.log('🎯 UNTERNEHMENLIST: Navigiere zu Unternehmen Details:', unternehmenId);
         window.navigateTo(`/unternehmen/${unternehmenId}`);
+        return;
       }
-    });
 
-    // Alle auswählen Button
-    document.addEventListener('click', (e) => {
+      // Alle auswählen Button
       if (e.target.id === 'btn-select-all') {
         e.preventDefault();
         const checkboxes = document.querySelectorAll('.unternehmen-check');
@@ -384,26 +384,17 @@ export class UnternehmenList {
           selectAllHeader.checked = true;
         }
         this.updateSelection();
+        return;
       }
-    });
 
-    // Auswahl aufheben Button
-    document.addEventListener('click', (e) => {
+      // Auswahl aufheben Button
       if (e.target.id === 'btn-deselect-all') {
         e.preventDefault();
         this.deselectAll();
+        return;
       }
-    });
 
-    // Entity Updated Event
-    window.addEventListener('entityUpdated', (e) => {
-      if (e.detail.entity === 'unternehmen') {
-        this.loadAndRender();
-      }
-    });
-
-    // Filter-Tag X-Buttons
-    document.addEventListener('click', (e) => {
+      // Filter-Tag X-Buttons
       if (e.target.classList.contains('tag-x')) {
         e.preventDefault();
         e.stopPropagation();
@@ -416,11 +407,14 @@ export class UnternehmenList {
         delete currentFilters[key];
         filterSystem.applyFilters('unternehmen', currentFilters);
         this.loadAndRender();
+        return;
       }
-    });
+    };
+    document.addEventListener('click', this._clickHandler);
 
-    // Select-All Checkbox (Tabellen-Header)
-    document.addEventListener('change', (e) => {
+    // Konsolidierter Change-Handler für alle Change-Events
+    this._changeHandler = (e) => {
+      // Select-All Checkbox (Tabellen-Header)
       if (e.target.id === 'select-all-unternehmen') {
         const checkboxes = document.querySelectorAll('.unternehmen-check');
         const isChecked = e.target.checked;
@@ -436,11 +430,10 @@ export class UnternehmenList {
         
         this.updateSelection();
         console.log(`${isChecked ? '✅ Alle Unternehmen ausgewählt' : '❌ Alle Unternehmen abgewählt'}: ${this.selectedUnternehmen.size}`);
+        return;
       }
-    });
 
-    // Unternehmen Checkboxes
-    document.addEventListener('change', (e) => {
+      // Unternehmen Checkboxes
       if (e.target.classList.contains('unternehmen-check')) {
         if (e.target.checked) {
           this.selectedUnternehmen.add(e.target.dataset.id);
@@ -449,8 +442,18 @@ export class UnternehmenList {
         }
         this.updateSelection();
         this.updateSelectAllCheckbox();
+        return;
       }
-    });
+    };
+    document.addEventListener('change', this._changeHandler);
+
+    // Entity Updated Event
+    this._entityUpdatedHandler = (e) => {
+      if (e.detail.entity === 'unternehmen') {
+        this.loadAndRender();
+      }
+    };
+    window.addEventListener('entityUpdated', this._entityUpdatedHandler);
 
     // Bulk-Actions werden jetzt vom BulkActionSystem verwaltet
     // Registriere diese Liste beim BulkActionSystem
@@ -564,7 +567,7 @@ export class UnternehmenList {
         </td>
         <td>${window.validatorSystem.sanitizeHtml(u.rechnungsadresse_stadt || '-')}</td>
         <td>${window.validatorSystem.sanitizeHtml(u.rechnungsadresse_land || '-')}</td>
-        <td>${u.webseite ? `<a href="${u.webseite}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${u.webseite}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>` : '-'}</td>
+        <td>${u.webseite ? `<a href="${UnternehmenService.sanitizeUrl(u.webseite)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${window.validatorSystem.sanitizeHtml(u.webseite)}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>` : '-'}</td>
         <td>${this.renderBrancheTags(u.branchen)}</td>
         <td>${this.renderAnsprechpartnerList(u._ansprechpartner)}</td>
         <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(management)}</td>
@@ -814,6 +817,7 @@ export class UnternehmenList {
       this.pagination.destroy();
     }
     
+    // Legacy-Event-Listener entfernen
     this._boundEventListeners.forEach(({ element, type, handler }) => {
       element.removeEventListener(type, handler);
     });
@@ -823,6 +827,20 @@ export class UnternehmenList {
     if (this.boundFilterResetHandler) {
       document.removeEventListener('click', this.boundFilterResetHandler);
       this.boundFilterResetHandler = null;
+    }
+    
+    // Konsolidierte Event-Handler entfernen
+    if (this._clickHandler) {
+      document.removeEventListener('click', this._clickHandler);
+      this._clickHandler = null;
+    }
+    if (this._changeHandler) {
+      document.removeEventListener('change', this._changeHandler);
+      this._changeHandler = null;
+    }
+    if (this._entityUpdatedHandler) {
+      window.removeEventListener('entityUpdated', this._entityUpdatedHandler);
+      this._entityUpdatedHandler = null;
     }
   }
 
@@ -1213,194 +1231,14 @@ export class UnternehmenList {
     console.log('✅ Alle Unternehmen-Auswahlen aufgehoben');
   }
 
-  // Mitarbeiter-Zuordnungen mit Rollen speichern
+  // Mitarbeiter-Zuordnungen mit Rollen speichern - delegiert an UnternehmenService
   async saveMitarbeiterRoles(unternehmenId, data) {
-    try {
-      if (!unternehmenId || !window.supabase) return;
-      
-      console.log('🔄 UNTERNEHMENLISTE: Speichere Mitarbeiter-Rollen für Unternehmen:', unternehmenId);
-      
-      // Rollen-Mapping
-      const roleFields = {
-        'management_ids': 'management',
-        'lead_mitarbeiter_ids': 'lead_mitarbeiter',
-        'mitarbeiter_ids': 'mitarbeiter'
-      };
-      
-      // Alle INSERT-Daten sammeln
-      const allInsertData = [];
-      
-      for (const [fieldName, roleValue] of Object.entries(roleFields)) {
-        // Prüfe ob das Feld in den Daten vorhanden ist
-        const fieldData = data[fieldName] || data[`${fieldName}[]`];
-        
-        // Extrahiere IDs als Array und entferne Duplikate
-        let mitarbeiterIds = [];
-        if (Array.isArray(fieldData)) {
-          mitarbeiterIds = [...new Set(fieldData.filter(Boolean))];
-        } else if (typeof fieldData === 'string' && fieldData) {
-          mitarbeiterIds = [fieldData];
-        }
-        
-        console.log(`📋 ${fieldName} (${roleValue}): ${mitarbeiterIds.length} Mitarbeiter`, mitarbeiterIds);
-        
-        // Sammle INSERT-Daten
-        for (const mitarbeiterId of mitarbeiterIds) {
-          allInsertData.push({
-            unternehmen_id: unternehmenId,
-            mitarbeiter_id: mitarbeiterId,
-            role: roleValue
-          });
-        }
-      }
-      
-      // Alle Einträge in einem Batch einfügen
-      if (allInsertData.length > 0) {
-        console.log(`📤 Füge ${allInsertData.length} Mitarbeiter-Zuordnungen ein:`, allInsertData);
-        
-        const { error: insertError } = await window.supabase
-          .from('mitarbeiter_unternehmen')
-          .insert(allInsertData);
-        
-        if (insertError) {
-          console.error('❌ Fehler beim Batch-Insert:', insertError);
-          
-          // Fallback: Einzeln einfügen mit upsert
-          console.log('🔄 Versuche Einzelinserts mit upsert...');
-          for (const row of allInsertData) {
-            const { error: upsertError } = await window.supabase
-              .from('mitarbeiter_unternehmen')
-              .upsert(row, { onConflict: 'mitarbeiter_id,unternehmen_id,role' });
-            
-            if (upsertError) {
-              console.error(`❌ Upsert-Fehler für ${row.mitarbeiter_id}/${row.role}:`, upsertError);
-            }
-          }
-        } else {
-          console.log(`✅ ${allInsertData.length} Mitarbeiter-Zuordnungen gespeichert`);
-        }
-      } else {
-        console.log('ℹ️ Keine Mitarbeiter zum Speichern');
-      }
-      
-      console.log('✅ UNTERNEHMENLISTE: Mitarbeiter-Rollen gespeichert');
-    } catch (error) {
-      console.error('❌ UNTERNEHMENLISTE: Fehler beim Speichern der Mitarbeiter-Rollen:', error);
-      // Nicht werfen - Unternehmen wurde bereits erstellt
-    }
+    return UnternehmenService.saveMitarbeiterRoles(unternehmenId, data, { deleteExisting: false });
   }
 
-  // Logo-Upload
+  // Logo-Upload - delegiert an UnternehmenService
   async uploadLogo(unternehmenId, form) {
-    try {
-      console.log('📋 uploadLogo() aufgerufen für Unternehmen:', unternehmenId);
-      
-      const uploaderRoot = form.querySelector('.uploader[data-name="logo_file"]');
-      console.log('  → Uploader Root:', uploaderRoot);
-      console.log('  → Uploader Instance:', uploaderRoot?.__uploaderInstance);
-      console.log('  → Files:', uploaderRoot?.__uploaderInstance?.files);
-      
-      if (!uploaderRoot || !uploaderRoot.__uploaderInstance || !uploaderRoot.__uploaderInstance.files.length) {
-        console.log('ℹ️ Kein Logo zum Hochladen (kein Uploader/keine Files)');
-        return;
-      }
-
-      if (!window.supabase) {
-        console.warn('⚠️ Supabase nicht verfügbar - Logo-Upload übersprungen');
-        return;
-      }
-
-      const files = uploaderRoot.__uploaderInstance.files;
-      const file = files[0]; // Nur ein Logo erlaubt
-      const bucket = 'logos';
-      
-      // Security: Max 200 KB
-      const MAX_FILE_SIZE = 200 * 1024; // 200 KB
-      const ALLOWED_TYPES = ['image/png', 'image/jpeg'];
-      
-      // Dateigröße prüfen
-      if (file.size > MAX_FILE_SIZE) {
-        console.warn(`⚠️ Logo zu groß: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
-        alert(`Logo ist zu groß (max. 200 KB)`);
-        return;
-      }
-
-      // Content-Type prüfen
-      if (!ALLOWED_TYPES.includes(file.type)) {
-        console.warn(`⚠️ Nicht erlaubter Dateityp: ${file.name} (${file.type})`);
-        alert(`Nur PNG und JPG Dateien sind erlaubt`);
-        return;
-      }
-
-      // Dateiendung extrahieren
-      const ext = file.name.split('.').pop().toLowerCase();
-      const path = `unternehmen/${unternehmenId}/logo.${ext}`;
-      
-      console.log(`📤 Uploading Logo: ${file.name} -> ${path}`);
-      
-      // Altes Logo löschen (falls vorhanden)
-      try {
-        const { data: existingFiles } = await window.supabase.storage
-          .from(bucket)
-          .list(`unternehmen/${unternehmenId}`);
-        
-        if (existingFiles && existingFiles.length > 0) {
-          for (const existingFile of existingFiles) {
-            await window.supabase.storage
-              .from(bucket)
-              .remove([`unternehmen/${unternehmenId}/${existingFile.name}`]);
-          }
-        }
-      } catch (deleteErr) {
-        console.warn('⚠️ Fehler beim Löschen alter Logos:', deleteErr);
-      }
-      
-      // Upload zu Storage
-      const { error: upErr } = await window.supabase.storage
-        .from(bucket)
-        .upload(path, file, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: file.type
-        });
-      
-      if (upErr) {
-        console.error(`❌ Logo-Upload-Fehler:`, upErr);
-        throw upErr;
-      }
-      
-      // Signierte URL erstellen (7 Tage gültig)
-      const { data: signed, error: signErr } = await window.supabase.storage
-        .from(bucket)
-        .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 Tage
-      
-      if (signErr) {
-        console.error(`❌ Fehler beim Erstellen der signierten URL:`, signErr);
-        throw signErr;
-      }
-      
-      const logo_url = signed?.signedUrl || '';
-      
-      // Logo-Daten in Datenbank speichern
-      const { error: dbErr } = await window.supabase
-        .from('unternehmen')
-        .update({
-          logo_url,
-          logo_path: path
-        })
-        .eq('id', unternehmenId);
-      
-      if (dbErr) {
-        console.error(`❌ DB-Fehler beim Speichern der Logo-URL:`, dbErr);
-        throw dbErr;
-      }
-      
-      console.log(`✅ Logo erfolgreich hochgeladen`);
-    } catch (error) {
-      console.error('❌ Fehler beim Logo-Upload:', error);
-      alert(`⚠️ Logo konnte nicht hochgeladen werden: ${error.message}`);
-      // Nicht werfen - Unternehmen wurde bereits erstellt
-    }
+    return UnternehmenService.uploadLogo(unternehmenId, form);
   }
 }
 

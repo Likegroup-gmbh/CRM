@@ -11,7 +11,7 @@ export class MarkeFilterLogic {
   /**
    * Verarbeite Marke-spezifische Filter
    */
-  static processFilters(filters, rawData = null) {
+  static processFilters(filters) {
     const processedFilters = {};
 
     for (const [key, value] of Object.entries(filters)) {

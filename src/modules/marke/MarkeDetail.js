@@ -9,6 +9,7 @@ import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
+import { MarkeService } from './services/MarkeService.js';
 
 export class MarkeDetail extends PersonDetailBase {
   constructor() {
@@ -27,6 +28,96 @@ export class MarkeDetail extends PersonDetailBase {
     this.kickoff = null;
     this.kickoffMarkenwerte = [];
     this.activeMainTab = 'informationen';
+    
+    // AbortController für Tab-Daten-Laden (verhindert Race Conditions)
+    this._tabAbortControllers = new Map();
+    this._currentLoadingTab = null;
+    
+    // Bound Event Handlers für sauberes Cleanup
+    this._handleDocumentClick = this._handleDocumentClick.bind(this);
+    this._handleEntityUpdated = this._handleEntityUpdated.bind(this);
+    this._handleSoftRefresh = this._handleSoftRefresh.bind(this);
+    this._eventsBound = false;
+  }
+  
+  // Zentraler Click-Handler für document
+  async _handleDocumentClick(e) {
+    // Tab-Button Navigation
+    const btn = e.target.closest('.tab-button');
+    if (btn) {
+      e.preventDefault();
+      const tab = btn.dataset.tab;
+      if (!tab) return;
+      
+      this.activeMainTab = tab;
+      document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      const pane = document.getElementById(`tab-${tab}`);
+      if (pane) {
+        pane.classList.add('active');
+        
+        // Lazy load Tab-Daten (nur wenn nötig)
+        if (!['informationen', 'ansprechpartner'].includes(tab)) {
+          await this.loadTabData(tab);
+        }
+      }
+      return;
+    }
+    
+    // Marke bearbeiten Button
+    if (e.target.closest('#btn-edit-marke')) {
+      this.showEditForm();
+      return;
+    }
+    
+    // Ansprechpartner hinzufügen Button
+    if (e.target.id === 'btn-add-ansprechpartner') {
+      const markeId = e.target.dataset.markeId || this.markeId;
+      if (window.actionsDropdown) {
+        window.actionsDropdown.openAddAnsprechpartnerModal(markeId);
+      }
+      return;
+    }
+    
+    // Navigation zu verknüpften Entitäten
+    if (e.target.classList.contains('table-link')) {
+      e.preventDefault();
+      const table = e.target.dataset.table;
+      const id = e.target.dataset.id;
+      window.navigateTo(`/${table}/${id}`);
+      return;
+    }
+  }
+  
+  // Entity Updated Handler
+  _handleEntityUpdated(e) {
+    if (e.detail?.entity === 'ansprechpartner' && e.detail?.markeId === this.markeId) {
+      console.log('🔄 MARKEDETAIL: Ansprechpartner wurde aktualisiert, lade Daten neu');
+      this.loadCriticalData().then(() => {
+        this.render();
+        this.bindEvents();
+      });
+    }
+  }
+  
+  // Soft-Refresh Handler
+  async _handleSoftRefresh(e) {
+    const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
+    
+    if (hasActiveForm) {
+      console.log('⏸️ MARKEDETAIL: Formular aktiv - Soft-Refresh übersprungen');
+      return;
+    }
+    
+    if (!this.markeId || !location.pathname.includes('/marke/')) {
+      return;
+    }
+    
+    console.log('🔄 MARKEDETAIL: Soft-Refresh - lade Daten neu');
+    await this.loadCriticalData();
+    this.render();
+    this.bindEvents();
   }
 
   // Initialisiere Marken-Detailseite
@@ -163,11 +254,19 @@ export class MarkeDetail extends PersonDetailBase {
     }
   }
   
-  // Lade Tab-Daten lazy
+  // Lade Tab-Daten lazy mit Race-Condition-Schutz
   async loadTabData(tabName) {
+    // Generiere eindeutige Request-ID für diesen Tab-Load
+    const requestId = `${tabName}-${Date.now()}`;
+    this._tabAbortControllers.set(tabName, requestId);
+    this._currentLoadingTab = tabName;
+    
+    console.log(`🔄 Lade Tab: ${tabName} (Request: ${requestId})`);
+    
+    // Hilfsfunktion: Prüft ob dieser Request noch aktuell ist
+    const isStillActive = () => this._tabAbortControllers.get(tabName) === requestId;
+    
     return await tabDataCache.load('marke', this.markeId, tabName, async () => {
-      console.log(`🔄 Lade Tab: ${tabName}`);
-      
       try {
         switch(tabName) {
           case 'kampagnen':
@@ -175,6 +274,11 @@ export class MarkeDetail extends PersonDetailBase {
               .from('kampagne')
               .select('*')
               .eq('marke_id', this.markeId);
+            // Race-Condition-Check: Nur aktualisieren wenn Request noch aktuell
+            if (!isStillActive()) {
+              console.log(`⏭️ Tab ${tabName}: Request veraltet, überspringe Update`);
+              return kampagnen;
+            }
             this.kampagnen = kampagnen || [];
             this.updateKampagnenTab();
             return kampagnen;
@@ -184,6 +288,7 @@ export class MarkeDetail extends PersonDetailBase {
               .from('auftrag')
               .select('*')
               .eq('marke_id', this.markeId);
+            if (!isStillActive()) return auftraege;
             this.auftraege = auftraege || [];
             this.updateAuftraegeTab();
             return auftraege;
@@ -194,6 +299,7 @@ export class MarkeDetail extends PersonDetailBase {
               .select('id, product_service_offer, status, deadline, marke_id, kampagne_id, created_at')
               .eq('marke_id', this.markeId)
               .order('created_at', { ascending: false });
+            if (!isStillActive()) return briefings;
             this.briefings = briefings || [];
             this.updateBriefingsTab();
             return briefings;
@@ -203,6 +309,7 @@ export class MarkeDetail extends PersonDetailBase {
             if (!this.kampagnen || this.kampagnen.length === 0) {
               await this.loadTabData('kampagnen');
             }
+            if (!isStillActive()) return this.kooperationen;
             const kampagneIds = (this.kampagnen || []).map(k => k.id).filter(Boolean);
             if (kampagneIds.length > 0) {
               const { data: kooperationen } = await window.supabase
@@ -214,6 +321,7 @@ export class MarkeDetail extends PersonDetailBase {
                 `)
                 .in('kampagne_id', kampagneIds)
                 .order('created_at', { ascending: false });
+              if (!isStillActive()) return kooperationen;
               this.kooperationen = kooperationen || [];
             } else {
               this.kooperationen = [];
@@ -226,12 +334,14 @@ export class MarkeDetail extends PersonDetailBase {
             if (!this.auftraege || this.auftraege.length === 0) {
               await this.loadTabData('auftraege');
             }
+            if (!isStillActive()) return this.rechnungen;
             const auftragIds = (this.auftraege || []).map(a => a.id).filter(Boolean);
             if (auftragIds.length > 0) {
               const { data: rechnungen } = await window.supabase
                 .from('rechnung')
                 .select('id, rechnung_nr, status, nettobetrag, bruttobetrag, gestellt_am, zahlungsziel, bezahlt_am, pdf_url, auftrag_id')
                 .in('auftrag_id', auftragIds);
+              if (!isStillActive()) return rechnungen;
               this.rechnungen = rechnungen || [];
             } else {
               this.rechnungen = [];
@@ -245,6 +355,7 @@ export class MarkeDetail extends PersonDetailBase {
               .select('id, name, beschreibung, teilbereich, created_at, updated_at')
               .eq('marke_id', this.markeId)
               .order('created_at', { ascending: false });
+            if (!isStillActive()) return strategien;
             this.strategien = strategien || [];
             this.updateStrategienTab();
             return strategien;
@@ -255,6 +366,7 @@ export class MarkeDetail extends PersonDetailBase {
               .select('*')
               .eq('marke_id', this.markeId)
               .single();
+            if (!isStillActive()) return kickoff;
             this.kickoff = kickoff || null;
             
             // Lade auch die Markenwerte
@@ -263,6 +375,7 @@ export class MarkeDetail extends PersonDetailBase {
                 .from('marke_kickoff_markenwerte')
                 .select('markenwert:markenwert_id(id, name)')
                 .eq('kickoff_id', kickoff.id);
+              if (!isStillActive()) return kickoff;
               this.kickoffMarkenwerte = markenwerte?.map(m => m.markenwert) || [];
             } else {
               this.kickoffMarkenwerte = [];
@@ -958,86 +1071,17 @@ export class MarkeDetail extends PersonDetailBase {
   bindEvents() {
     // Sidebar Tabs binden (aus Basis-Klasse)
     this.bindSidebarTabs();
+    
+    // Verhindere doppelte Event-Listener
+    if (this._eventsBound) return;
+    this._eventsBound = true;
 
-    // Main Tab-Navigation mit Lazy Loading
-    document.addEventListener('click', async (e) => {
-      const btn = e.target.closest('.tab-button');
-      if (!btn) return;
-      e.preventDefault();
-      const tab = btn.dataset.tab;
-      if (!tab) return;
-      
-      this.activeMainTab = tab;
-      document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-      const pane = document.getElementById(`tab-${tab}`);
-      if (pane) {
-        pane.classList.add('active');
-        
-        // Lazy load Tab-Daten (nur wenn nötig)
-        if (!['informationen', 'ansprechpartner'].includes(tab)) {
-          await this.loadTabData(tab);
-        }
-      }
-    });
-
-    // Marke bearbeiten Button
-    document.addEventListener('click', (e) => {
-      if (e.target.closest('#btn-edit-marke')) {
-        this.showEditForm();
-      }
-    });
-
-    // Ansprechpartner hinzufügen Button
-    document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-add-ansprechpartner') {
-        const markeId = e.target.dataset.markeId || this.markeId;
-        if (window.actionsDropdown) {
-          window.actionsDropdown.openAddAnsprechpartnerModal(markeId);
-        }
-      }
-    });
-
-    // Navigation zu verknüpften Entitäten
-    document.addEventListener('click', (e) => {
-      if (e.target.classList.contains('table-link')) {
-        e.preventDefault();
-        const table = e.target.dataset.table;
-        const id = e.target.dataset.id;
-        window.navigateTo(`/${table}/${id}`);
-      }
-    });
-
-    // Entity Updates (für Ansprechpartner)
-    document.addEventListener('entityUpdated', (e) => {
-      if (e.detail?.entity === 'ansprechpartner' && e.detail?.markeId === this.markeId) {
-        console.log('🔄 MARKEDETAIL: Ansprechpartner wurde aktualisiert, lade Daten neu');
-        this.loadCriticalData().then(() => {
-          this.render();
-          this.bindEvents();
-        });
-      }
-    });
-
-    // Soft-Refresh bei Realtime-Updates (nur wenn kein Formular aktiv)
-    window.addEventListener('softRefresh', async (e) => {
-      const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
-      
-      if (hasActiveForm) {
-        console.log('⏸️ MARKEDETAIL: Formular aktiv - Soft-Refresh übersprungen');
-        return;
-      }
-      
-      if (!this.markeId || !location.pathname.includes('/marke/')) {
-        return;
-      }
-      
-      console.log('🔄 MARKEDETAIL: Soft-Refresh - lade Daten neu');
-      await this.loadCriticalData();
-      this.render();
-      this.bindEvents();
-    });
+    // Zentrale Event-Handler registrieren (mit Referenz für Cleanup)
+    document.addEventListener('click', this._handleDocumentClick);
+    document.addEventListener('entityUpdated', this._handleEntityUpdated);
+    window.addEventListener('softRefresh', this._handleSoftRefresh);
+    
+    console.log('✅ MARKEDETAIL: Event-Listener registriert');
   }
 
   // Bearbeitungsformular anzeigen
@@ -1239,20 +1283,14 @@ export class MarkeDetail extends PersonDetailBase {
       const result = await window.dataService.updateEntity('marke', this.markeId, allFormData);
 
       if (result.success) {
-        // Logo-Upload (falls vorhanden)
-        try {
-          console.log('🔵 START: Logo-Upload für Marke', this.markeId);
-          await this.uploadLogo(this.markeId, form);
-          console.log('✅ Logo-Upload abgeschlossen');
-        } catch (logoErr) {
-          console.error('❌ Logo-Upload fehlgeschlagen:', logoErr);
-          if (logoErr && logoErr.message && !logoErr.message.includes('Kein Logo')) {
-            alert('Logo konnte nicht hochgeladen werden: ' + logoErr.message);
-          }
-        }
+        // Logo-Upload (falls vorhanden) - über MarkeService
+        console.log('🔵 START: Logo-Upload für Marke', this.markeId);
+        await MarkeService.uploadLogo(this.markeId, form);
+        console.log('✅ Logo-Upload abgeschlossen');
         
-        // Mitarbeiter-Zuordnungen speichern
-        await this.saveMitarbeiterToMarke(this.markeId, allFormData);
+        // Mitarbeiter-Zuordnungen speichern - über MarkeService
+        const unternehmenId = this.marke?.unternehmen_id || allFormData.unternehmen_id;
+        await MarkeService.saveMitarbeiterToMarke(this.markeId, allFormData, unternehmenId, { deleteExisting: true });
 
         window.toastSystem.success('Marke erfolgreich aktualisiert!');
         
@@ -1270,119 +1308,6 @@ export class MarkeDetail extends PersonDetailBase {
     }
   }
   
-  // Mitarbeiter-Zuordnungen mit Rollen speichern
-  async saveMitarbeiterToMarke(markeId, data) {
-    try {
-      if (!markeId || !window.supabase) return;
-      
-      console.log('🔄 MARKEDETAIL: Speichere Mitarbeiter-Rollen für Marke:', markeId);
-      
-      // Rollen-Mapping
-      const roleFields = {
-        'management_ids': 'management',
-        'lead_mitarbeiter_ids': 'lead_mitarbeiter',
-        'mitarbeiter_ids': 'mitarbeiter'
-      };
-      
-      // Alle INSERT-Daten sammeln
-      const allInsertData = [];
-      
-      for (const [fieldName, roleValue] of Object.entries(roleFields)) {
-        // Prüfe ob das Feld in den Daten vorhanden ist
-        const fieldData = data[fieldName] || data[`${fieldName}[]`];
-        
-        // Extrahiere IDs als Array und entferne Duplikate
-        let mitarbeiterIds = [];
-        if (Array.isArray(fieldData)) {
-          mitarbeiterIds = [...new Set(fieldData.filter(Boolean))];
-        } else if (typeof fieldData === 'string' && fieldData) {
-          mitarbeiterIds = [fieldData];
-        }
-        
-        console.log(`📋 ${fieldName} (${roleValue}): ${mitarbeiterIds.length} Mitarbeiter`, mitarbeiterIds);
-        
-        // Sammle INSERT-Daten
-        for (const mitarbeiterId of mitarbeiterIds) {
-          allInsertData.push({
-            marke_id: markeId,
-            mitarbeiter_id: mitarbeiterId,
-            role: roleValue
-          });
-        }
-      }
-      
-      // ERST alle bestehenden Einträge für diese Marke löschen
-      console.log('🗑️ Lösche alle bestehenden Mitarbeiter-Zuordnungen für Marke:', markeId);
-      const { error: deleteError } = await window.supabase
-        .from('marke_mitarbeiter')
-        .delete()
-        .eq('marke_id', markeId);
-      
-      if (deleteError) {
-        console.error('❌ Fehler beim Löschen:', deleteError);
-      }
-      
-      // DANN alle neuen Einträge in einem Batch einfügen
-      if (allInsertData.length > 0) {
-        console.log(`📤 Füge ${allInsertData.length} Mitarbeiter-Zuordnungen ein:`, allInsertData);
-        
-        const { error: insertError } = await window.supabase
-          .from('marke_mitarbeiter')
-          .insert(allInsertData);
-        
-        if (insertError) {
-          console.error('❌ Fehler beim Batch-Insert:', insertError);
-          
-          // Fallback: Einzeln einfügen mit upsert
-          console.log('🔄 Versuche Einzelinserts mit upsert...');
-          for (const row of allInsertData) {
-            const { error: upsertError } = await window.supabase
-              .from('marke_mitarbeiter')
-              .upsert(row, { onConflict: 'marke_id,mitarbeiter_id,role' });
-            
-            if (upsertError) {
-              console.error(`❌ Upsert-Fehler für ${row.mitarbeiter_id}/${row.role}:`, upsertError);
-            }
-          }
-        } else {
-          console.log(`✅ ${allInsertData.length} Mitarbeiter-Zuordnungen gespeichert`);
-        }
-        
-        // AUTO-SYNC: mitarbeiter_unternehmen für das Unternehmen der Marke erstellen
-        const unternehmenId = this.marke?.unternehmen_id || data.unternehmen_id;
-        if (unternehmenId) {
-          console.log('🔄 MARKEDETAIL: Sync mitarbeiter_unternehmen für Unternehmen:', unternehmenId);
-          const uniqueMitarbeiterIds = [...new Set(allInsertData.map(r => r.mitarbeiter_id))];
-          
-          for (const mitarbeiterId of uniqueMitarbeiterIds) {
-            const { error: syncError } = await window.supabase
-              .from('mitarbeiter_unternehmen')
-              .upsert({
-                mitarbeiter_id: mitarbeiterId,
-                unternehmen_id: unternehmenId,
-                role: 'mitarbeiter'
-              }, { 
-                onConflict: 'mitarbeiter_id,unternehmen_id,role',
-                ignoreDuplicates: true 
-              });
-            
-            if (syncError && syncError.code !== '23505') {
-              console.error(`❌ Sync-Fehler für ${mitarbeiterId}:`, syncError);
-            }
-          }
-          console.log(`✅ mitarbeiter_unternehmen synchronisiert für ${uniqueMitarbeiterIds.length} Mitarbeiter`);
-        }
-      } else {
-        console.log('ℹ️ Keine Mitarbeiter zum Speichern');
-      }
-      
-      console.log('✅ MARKEDETAIL: Mitarbeiter-Rollen gespeichert');
-    } catch (error) {
-      console.error('❌ MARKEDETAIL: Fehler beim Speichern der Mitarbeiter-Rollen:', error);
-      // Nicht werfen - Marke wurde bereits aktualisiert
-    }
-  }
-
   // Show Validation Errors
   showValidationErrors(errors) {
     console.log('❌ Validierungsfehler:', errors);
@@ -1427,119 +1352,22 @@ export class MarkeDetail extends PersonDetailBase {
     }
   }
 
-  // Logo-Upload
-  async uploadLogo(markeId, form) {
-    try {
-      console.log('📋 uploadLogo() aufgerufen für Marke:', markeId);
-      
-      const uploaderRoot = form.querySelector('.uploader[data-name="logo_file"]');
-      console.log('  → Uploader Root:', uploaderRoot);
-      console.log('  → Uploader Instance:', uploaderRoot?.__uploaderInstance);
-      console.log('  → Files:', uploaderRoot?.__uploaderInstance?.files);
-      
-      if (!uploaderRoot || !uploaderRoot.__uploaderInstance || !uploaderRoot.__uploaderInstance.files.length) {
-        console.log('ℹ️ Kein Logo zum Hochladen (kein Uploader/keine Files)');
-        return;
-      }
-
-      if (!window.supabase) {
-        console.warn('⚠️ Supabase nicht verfügbar - Logo-Upload übersprungen');
-        return;
-      }
-
-      const files = uploaderRoot.__uploaderInstance.files;
-      const file = files[0]; // Nur ein Logo erlaubt
-      const bucket = 'logos';
-      
-      // Security: Max 200 KB
-      const MAX_FILE_SIZE = 200 * 1024; // 200 KB
-      const ALLOWED_TYPES = ['image/png', 'image/jpeg'];
-      
-      // Dateigröße prüfen
-      if (file.size > MAX_FILE_SIZE) {
-        console.warn(`⚠️ Logo zu groß: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
-        alert(`Logo ist zu groß (max. 200 KB)`);
-        return;
-      }
-
-      // Content-Type prüfen
-      if (!ALLOWED_TYPES.includes(file.type)) {
-        console.warn(`⚠️ Nicht erlaubter Dateityp: ${file.name} (${file.type})`);
-        alert(`Nur PNG und JPG Dateien sind erlaubt`);
-        return;
-      }
-
-      // Dateiendung extrahieren
-      const ext = file.name.split('.').pop().toLowerCase();
-      const path = `marke/${markeId}/logo.${ext}`;
-      
-      console.log(`📤 Uploading Logo: ${file.name} -> ${path}`);
-      
-      // Altes Logo löschen (falls vorhanden)
-      try {
-        const { data: existingFiles } = await window.supabase.storage
-          .from(bucket)
-          .list(`marke/${markeId}`);
-        
-        if (existingFiles && existingFiles.length > 0) {
-          for (const existingFile of existingFiles) {
-            await window.supabase.storage
-              .from(bucket)
-              .remove([`marke/${markeId}/${existingFile.name}`]);
-          }
-        }
-      } catch (deleteErr) {
-        console.warn('⚠️ Fehler beim Löschen alter Logos:', deleteErr);
-      }
-      
-      // Upload zu Storage
-      const { error: upErr } = await window.supabase.storage
-        .from(bucket)
-        .upload(path, file, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: file.type
-        });
-      
-      if (upErr) {
-        console.error(`❌ Logo-Upload-Fehler:`, upErr);
-        throw upErr;
-      }
-      
-      // Öffentliche URL erstellen (permanent verfügbar)
-      const { data: publicUrlData } = window.supabase.storage
-        .from(bucket)
-        .getPublicUrl(path);
-      
-      const logo_url = publicUrlData?.publicUrl || '';
-      
-      // Logo-Daten in Datenbank speichern
-      const { error: dbErr } = await window.supabase
-        .from('marke')
-        .update({
-          logo_url,
-          logo_path: path
-        })
-        .eq('id', markeId);
-      
-      if (dbErr) {
-        console.error(`❌ DB-Fehler beim Speichern der Logo-URL:`, dbErr);
-        throw dbErr;
-      }
-      
-      console.log(`✅ Logo erfolgreich hochgeladen`);
-    } catch (error) {
-      console.error('❌ Fehler beim Logo-Upload:', error);
-      alert(`⚠️ Logo konnte nicht hochgeladen werden: ${error.message}`);
-      // Nicht werfen - Marke wurde bereits erstellt
-    }
-  }
-
   // Cleanup
   destroy() {
-    console.log('🗑️ MARKENDETAIL: Destroy aufgerufen');
+    console.log('🗑️ MARKEDETAIL: Destroy aufgerufen');
+    
+    // Event-Listener entfernen
+    if (this._eventsBound) {
+      document.removeEventListener('click', this._handleDocumentClick);
+      document.removeEventListener('entityUpdated', this._handleEntityUpdated);
+      window.removeEventListener('softRefresh', this._handleSoftRefresh);
+      this._eventsBound = false;
+      console.log('✅ MARKEDETAIL: Event-Listener entfernt');
+    }
+    
     tabDataCache.invalidate('marke', this.markeId);
     window.setContentSafely('');
+    console.log('✅ MARKEDETAIL: Destroy abgeschlossen');
   }
 }
 

@@ -1,6 +1,8 @@
 // UnternehmenCreate.js (ES6-Modul)
 // Unternehmen-Erstellungsseite mit Auto-Suggestion für Branchen
 
+import { UnternehmenService } from './services/UnternehmenService.js';
+
 export class UnternehmenCreate {
   constructor() {
     this.formData = {};
@@ -718,7 +720,8 @@ export class UnternehmenCreate {
         }
       }
 
-      await this.saveUnternehmenBranchen(result.id, data.branche_id, form);
+      // HINWEIS: Branchen werden automatisch durch DataService.handleManyToManyRelations() verwaltet
+      // Daher NICHT manuell saveUnternehmenBranchen() aufrufen - das führt zu Race Conditions!
       
       // Mitarbeiter-Zuordnungen mit Rollen speichern
       await this.saveMitarbeiterRoles(result.id, data);
@@ -751,305 +754,25 @@ export class UnternehmenCreate {
     }
   }
 
-  // Branche-Namen aus IDs laden
+  // Branche-Namen aus IDs laden - delegiert an UnternehmenService
   async getBranchenNamen(branchenIds) {
-    try {
-      const { data: branchen, error } = await window.supabase
-        .from('branchen')
-        .select('id, name')
-        .in('id', branchenIds);
-      
-      if (error) {
-        console.error('❌ Fehler beim Laden der Branche-Namen:', error);
-        return branchenIds; // Fallback: verwende IDs als Namen
-      }
-      
-      // Namen in der gleichen Reihenfolge wie die IDs zurückgeben
-      return branchenIds.map(id => {
-        const branche = branchen.find(b => b.id === id);
-        return branche ? branche.name : id;
-      });
-    } catch (error) {
-      console.error('❌ Fehler beim Laden der Branche-Namen:', error);
-      return branchenIds;
-    }
+    return UnternehmenService.getBranchenNamen(branchenIds);
   }
 
-  // Logo-Upload
+  // Logo-Upload - delegiert an UnternehmenService
   async uploadLogo(unternehmenId, form) {
-    try {
-      console.log('📋 uploadLogo() aufgerufen für Unternehmen:', unternehmenId);
-      
-      const uploaderRoot = form.querySelector('.uploader[data-name="logo_file"]');
-      console.log('  → Uploader Root:', uploaderRoot);
-      console.log('  → Uploader Instance:', uploaderRoot?.__uploaderInstance);
-      console.log('  → Files:', uploaderRoot?.__uploaderInstance?.files);
-      
-      if (!uploaderRoot || !uploaderRoot.__uploaderInstance || !uploaderRoot.__uploaderInstance.files.length) {
-        console.log('ℹ️ Kein Logo zum Hochladen (kein Uploader/keine Files)');
-        return;
-      }
-
-      if (!window.supabase) {
-        console.warn('⚠️ Supabase nicht verfügbar - Logo-Upload übersprungen');
-        return;
-      }
-
-      const files = uploaderRoot.__uploaderInstance.files;
-      const file = files[0]; // Nur ein Logo erlaubt
-      const bucket = 'logos';
-      
-      // Security: Max 200 KB
-      const MAX_FILE_SIZE = 200 * 1024; // 200 KB
-      const ALLOWED_TYPES = ['image/png', 'image/jpeg'];
-      
-      // Dateigröße prüfen
-      if (file.size > MAX_FILE_SIZE) {
-        console.warn(`⚠️ Logo zu groß: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
-        alert(`Logo ist zu groß (max. 200 KB)`);
-        return;
-      }
-
-      // Content-Type prüfen
-      if (!ALLOWED_TYPES.includes(file.type)) {
-        console.warn(`⚠️ Nicht erlaubter Dateityp: ${file.name} (${file.type})`);
-        alert(`Nur PNG und JPG Dateien sind erlaubt`);
-        return;
-      }
-
-      // Dateiendung extrahieren
-      const ext = file.name.split('.').pop().toLowerCase();
-      const path = `unternehmen/${unternehmenId}/logo.${ext}`;
-      
-      console.log(`📤 Uploading Logo: ${file.name} -> ${path}`);
-      
-      // Altes Logo löschen (falls vorhanden)
-      try {
-        const { data: existingFiles } = await window.supabase.storage
-          .from(bucket)
-          .list(`unternehmen/${unternehmenId}`);
-        
-        if (existingFiles && existingFiles.length > 0) {
-          for (const existingFile of existingFiles) {
-            await window.supabase.storage
-              .from(bucket)
-              .remove([`unternehmen/${unternehmenId}/${existingFile.name}`]);
-          }
-        }
-      } catch (deleteErr) {
-        console.warn('⚠️ Fehler beim Löschen alter Logos:', deleteErr);
-      }
-      
-      // Upload zu Storage
-      const { error: upErr } = await window.supabase.storage
-        .from(bucket)
-        .upload(path, file, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: file.type
-        });
-      
-      if (upErr) {
-        console.error(`❌ Logo-Upload-Fehler:`, upErr);
-        throw upErr;
-      }
-      
-      // Öffentliche URL erstellen (permanent verfügbar)
-      const { data: publicUrlData } = window.supabase.storage
-        .from(bucket)
-        .getPublicUrl(path);
-      
-      const logo_url = publicUrlData?.publicUrl || '';
-      
-      // Logo-Daten in Datenbank speichern
-      const { error: dbErr } = await window.supabase
-        .from('unternehmen')
-        .update({
-          logo_url,
-          logo_path: path
-        })
-        .eq('id', unternehmenId);
-      
-      if (dbErr) {
-        console.error(`❌ DB-Fehler beim Speichern der Logo-URL:`, dbErr);
-        throw dbErr;
-      }
-      
-      console.log(`✅ Logo erfolgreich hochgeladen`);
-    } catch (error) {
-      console.error('❌ Fehler beim Logo-Upload:', error);
-      alert(`⚠️ Logo konnte nicht hochgeladen werden: ${error.message}`);
-      // Nicht werfen - Unternehmen wurde bereits erstellt
-    }
+    return UnternehmenService.uploadLogo(unternehmenId, form);
   }
   
-  // Mitarbeiter-Zuordnungen mit Rollen speichern
+  // Mitarbeiter-Zuordnungen mit Rollen speichern - delegiert an UnternehmenService
   async saveMitarbeiterRoles(unternehmenId, data) {
-    try {
-      if (!unternehmenId || !window.supabase) return;
-      
-      console.log('🔄 UNTERNEHMENCREATE: Speichere Mitarbeiter-Rollen für Unternehmen:', unternehmenId);
-      
-      // Rollen-Mapping
-      const roleFields = {
-        'management_ids': 'management',
-        'lead_mitarbeiter_ids': 'lead_mitarbeiter',
-        'mitarbeiter_ids': 'mitarbeiter'
-      };
-      
-      // Alle INSERT-Daten sammeln
-      const allInsertData = [];
-      
-      for (const [fieldName, roleValue] of Object.entries(roleFields)) {
-        // Prüfe ob das Feld in den Daten vorhanden ist
-        const fieldData = data[fieldName] || data[`${fieldName}[]`];
-        
-        // Extrahiere IDs als Array und entferne Duplikate
-        let mitarbeiterIds = [];
-        if (Array.isArray(fieldData)) {
-          mitarbeiterIds = [...new Set(fieldData.filter(Boolean))];
-        } else if (typeof fieldData === 'string' && fieldData) {
-          mitarbeiterIds = [fieldData];
-        }
-        
-        console.log(`📋 ${fieldName} (${roleValue}): ${mitarbeiterIds.length} Mitarbeiter`, mitarbeiterIds);
-        
-        // Sammle INSERT-Daten
-        for (const mitarbeiterId of mitarbeiterIds) {
-          allInsertData.push({
-            unternehmen_id: unternehmenId,
-            mitarbeiter_id: mitarbeiterId,
-            role: roleValue
-          });
-        }
-      }
-      
-      // Alle Einträge in einem Batch einfügen
-      if (allInsertData.length > 0) {
-        console.log(`📤 Füge ${allInsertData.length} Mitarbeiter-Zuordnungen ein:`, allInsertData);
-        
-        const { error: insertError } = await window.supabase
-          .from('mitarbeiter_unternehmen')
-          .insert(allInsertData);
-        
-        if (insertError) {
-          console.error('❌ Fehler beim Batch-Insert:', insertError);
-          
-          // Fallback: Einzeln einfügen mit upsert
-          console.log('🔄 Versuche Einzelinserts mit upsert...');
-          for (const row of allInsertData) {
-            const { error: upsertError } = await window.supabase
-              .from('mitarbeiter_unternehmen')
-              .upsert(row, { onConflict: 'mitarbeiter_id,unternehmen_id,role' });
-            
-            if (upsertError) {
-              console.error(`❌ Upsert-Fehler für ${row.mitarbeiter_id}/${row.role}:`, upsertError);
-            }
-          }
-        } else {
-          console.log(`✅ ${allInsertData.length} Mitarbeiter-Zuordnungen gespeichert`);
-        }
-      } else {
-        console.log('ℹ️ Keine Mitarbeiter zum Speichern');
-      }
-      
-      console.log('✅ UNTERNEHMENCREATE: Mitarbeiter-Rollen gespeichert');
-    } catch (error) {
-      console.error('❌ UNTERNEHMENCREATE: Fehler beim Speichern der Mitarbeiter-Rollen:', error);
-      // Nicht werfen - Unternehmen wurde bereits erstellt
-    }
+    return UnternehmenService.saveMitarbeiterRoles(unternehmenId, data, { deleteExisting: false });
   }
 
-  // Branchen-Verknüpfungen speichern
+  // Branchen-Verknüpfungen speichern - delegiert an UnternehmenService
+  // HINWEIS: Sollte NICHT manuell aufgerufen werden wenn DataService verwendet wird!
   async saveUnternehmenBranchen(unternehmenId, brancheIds = null, form = null) {
-    try {
-      if (!unternehmenId) return;
-
-      let ids = [];
-
-      if (Array.isArray(brancheIds)) {
-        ids = brancheIds.filter(Boolean);
-      } else if (typeof brancheIds === 'string' && brancheIds) {
-        ids = [brancheIds];
-      }
-
-      // Fallback: Hidden Select (FormSystem Tag-basiert)
-      if (ids.length === 0) {
-        const context = form || document;
-        const hiddenSelect = context.querySelector('select[name="branche_id[]"]');
-        if (hiddenSelect) {
-          ids = Array.from(hiddenSelect.selectedOptions).map(option => option.value).filter(Boolean);
-        }
-      }
-
-      // Fallback: manuelle Auswahl über this.selectedBranches
-      if (ids.length === 0 && this.selectedBranches.length > 0) {
-        ids = this.selectedBranches.map(branch => branch.id).filter(Boolean);
-      }
-
-      // ✅ FIX: Duplikate entfernen
-      ids = [...new Set(ids)];
-      
-      console.log(`🔄 Speichere Branchen für Unternehmen ${unternehmenId}:`, ids);
-
-      // Bestehende Zuordnungen löschen
-      const { error: deleteError } = await window.supabase
-        .from('unternehmen_branchen')
-        .delete()
-        .eq('unternehmen_id', unternehmenId);
-
-      if (deleteError) {
-        console.error('❌ Fehler beim Löschen bestehender Branchen-Zuordnungen:', deleteError);
-        throw deleteError;
-      }
-
-      if (ids.length === 0) {
-        // Primäre Branche auf null setzen
-        await window.supabase
-          .from('unternehmen')
-          .update({ branche_id: null, branche: null })
-          .eq('id', unternehmenId);
-        console.log('ℹ️ Keine Branchen ausgewählt – Primärbranche zurückgesetzt');
-        return;
-      }
-
-      const insertData = ids.map(id => ({
-        unternehmen_id: unternehmenId,
-        branche_id: id
-      }));
-
-      const { error: insertError } = await window.supabase
-        .from('unternehmen_branchen')
-        .insert(insertData);
-
-      if (insertError) {
-        console.error('❌ Fehler beim Speichern der Branchen-Zuordnungen:', insertError);
-        throw insertError;
-      }
-
-      // Primäre Branche + Legacy-String aktualisieren
-      const branchNames = await this.getBranchenNamen(ids);
-      const brancheNameString = branchNames.filter(Boolean).join(', ') || null;
-
-      const { error: updateError } = await window.supabase
-        .from('unternehmen')
-        .update({
-          branche_id: ids[0] || null,
-          branche: brancheNameString
-        })
-        .eq('id', unternehmenId);
-
-      if (updateError) {
-        console.error('❌ Fehler beim Aktualisieren der Primärbranche:', updateError);
-      } else {
-        console.log(`✅ Primärbranche aktualisiert (${ids[0]}) und Legacy-String gesetzt: ${brancheNameString}`);
-      }
-
-    } catch (error) {
-      console.error('❌ Fehler beim Speichern der Unternehmen-Branchen:', error);
-      alert('Branchen-Zuordnungen konnten nicht vollständig gespeichert werden.');
-      throw error;
-    }
+    return UnternehmenService.saveUnternehmenBranchen(unternehmenId, brancheIds, form);
   }
 
   // Cleanup

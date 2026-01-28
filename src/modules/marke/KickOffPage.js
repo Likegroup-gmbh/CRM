@@ -9,6 +9,40 @@ export class KickOffPage {
     this.existingKickOff = null;
     this.existingMarkenwerte = [];
     this.allMarkenwerte = [];
+    
+    // Bound Event Handler für Cleanup
+    this._handleDocumentClick = this._handleDocumentClick.bind(this);
+    this._eventsBound = false;
+    this._mutationObserver = null;
+  }
+  
+  // Document Click Handler für Tag-Input Schließen
+  _handleDocumentClick(e) {
+    if (!e.target.closest('.tag-input-wrapper')) {
+      const suggestionsDiv = document.getElementById('markenwert_suggestions');
+      if (suggestionsDiv) {
+        suggestionsDiv.style.display = 'none';
+      }
+    }
+  }
+  
+  // Cleanup
+  destroy() {
+    console.log('🗑️ KICKOFF: Destroy aufgerufen');
+    
+    // Event-Listener entfernen
+    if (this._eventsBound) {
+      document.removeEventListener('click', this._handleDocumentClick);
+      this._eventsBound = false;
+    }
+    
+    // MutationObserver stoppen
+    if (this._mutationObserver) {
+      this._mutationObserver.disconnect();
+      this._mutationObserver = null;
+    }
+    
+    console.log('✅ KICKOFF: Destroy abgeschlossen');
   }
 
   // Initialisiere Seite
@@ -450,7 +484,7 @@ export class KickOffPage {
     const unternehmenSelect = document.getElementById('kickoff_unternehmen');
     if (unternehmenSelect) {
       // Observer für value-Änderungen (da searchable select ein hidden input nutzt)
-      const observer = new MutationObserver(() => {
+      this._mutationObserver = new MutationObserver(() => {
         const newValue = unternehmenSelect.value;
         if (newValue && newValue !== this.selectedUnternehmenId) {
           console.log('🔄 Unternehmen geändert (Observer):', newValue);
@@ -458,7 +492,7 @@ export class KickOffPage {
           this.loadMarken(newValue);
         }
       });
-      observer.observe(unternehmenSelect, { attributes: true, attributeFilter: ['value'] });
+      this._mutationObserver.observe(unternehmenSelect, { attributes: true, attributeFilter: ['value'] });
       
       // Auch auf change hören (für nicht-searchable Fallback)
       unternehmenSelect.addEventListener('change', (e) => {
@@ -540,11 +574,11 @@ export class KickOffPage {
       }
     });
 
-    document.addEventListener('click', (e) => {
-      if (!e.target.closest('.tag-input-wrapper')) {
-        suggestionsDiv.style.display = 'none';
-      }
-    });
+    // Document Click Handler (mit Referenz für Cleanup)
+    if (!this._eventsBound) {
+      document.addEventListener('click', this._handleDocumentClick);
+      this._eventsBound = true;
+    }
 
     suggestionsDiv.addEventListener('click', async (e) => {
       const item = e.target.closest('.suggestion-item');

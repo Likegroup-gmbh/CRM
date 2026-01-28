@@ -10,6 +10,7 @@ import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { MarkeFilterLogic } from './filters/MarkeFilterLogic.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
+import { MarkeService } from './services/MarkeService.js';
 
 export class MarkeList {
   constructor() {
@@ -18,15 +19,124 @@ export class MarkeList {
     this.pagination = new PaginationSystem();
     // Sortierung: Standard alphabetisch A-Z
     this.currentSort = { field: 'markenname', ascending: true };
+    
+    // Bound Event Handlers für sauberes Cleanup
+    this._handleDocumentClick = this._handleDocumentClick.bind(this);
+    this._handleDocumentChange = this._handleDocumentChange.bind(this);
+    this._handleEntityUpdated = this._handleEntityUpdated.bind(this);
+    this._eventsBound = false;
+  }
+  
+  // Zentraler Click-Handler für document
+  _handleDocumentClick(e) {
+    // Neue Marke anlegen Button
+    if (e.target.id === 'btn-marke-new' || e.target.id === 'btn-marke-new-filter') {
+      e.preventDefault();
+      window.navigateTo('/marke/new');
+      return;
+    }
+    
+    // Marken Detail Links
+    if (e.target.classList.contains('table-link') && e.target.dataset.table === 'marke') {
+      e.preventDefault();
+      const markeId = e.target.dataset.id;
+      console.log('🎯 MARKELIST: Navigiere zu Marken Details:', markeId);
+      window.navigateTo(`/marke/${markeId}`);
+      return;
+    }
+    
+    // Alle auswählen Button
+    if (e.target.id === 'btn-select-all') {
+      e.preventDefault();
+      const checkboxes = document.querySelectorAll('.marke-check');
+      checkboxes.forEach(cb => {
+        cb.checked = true;
+        if (cb.dataset.id) this.selectedMarken.add(cb.dataset.id);
+      });
+      const selectAllHeader = document.getElementById('select-all-marken');
+      if (selectAllHeader) {
+        selectAllHeader.indeterminate = false;
+        selectAllHeader.checked = true;
+      }
+      this.updateSelection();
+      return;
+    }
+    
+    // Auswahl aufheben Button
+    if (e.target.id === 'btn-deselect-all') {
+      e.preventDefault();
+      const checkboxes = document.querySelectorAll('.marke-check');
+      checkboxes.forEach(cb => { cb.checked = false; });
+      this.selectedMarken.clear();
+      const selectAllHeader = document.getElementById('select-all-marken');
+      if (selectAllHeader) {
+        selectAllHeader.indeterminate = false;
+        selectAllHeader.checked = false;
+      }
+      this.updateSelection();
+      return;
+    }
+    
+    // Filter-Tag X-Buttons
+    if (e.target.classList.contains('tag-x')) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const tagElement = e.target.closest('.filter-tag');
+      const key = tagElement.dataset.key;
+      
+      // Entferne Filter
+      const currentFilters = filterSystem.getFilters('marke');
+      delete currentFilters[key];
+      filterSystem.applyFilters('marke', currentFilters);
+      this.loadAndRender();
+      return;
+    }
+  }
+  
+  // Zentraler Change-Handler für document
+  _handleDocumentChange(e) {
+    // Select-All Checkbox
+    if (e.target.id === 'select-all-marken') {
+      const checkboxes = document.querySelectorAll('.marke-check');
+      checkboxes.forEach(cb => {
+        cb.checked = e.target.checked;
+        if (e.target.checked) {
+          this.selectedMarken.add(cb.dataset.id);
+        } else {
+          this.selectedMarken.delete(cb.dataset.id);
+        }
+      });
+      this.updateSelection();
+      return;
+    }
+    
+    // Marken Checkboxes
+    if (e.target.classList.contains('marke-check')) {
+      if (e.target.checked) {
+        this.selectedMarken.add(e.target.dataset.id);
+      } else {
+        this.selectedMarken.delete(e.target.dataset.id);
+      }
+      this.updateSelection();
+      return;
+    }
+  }
+  
+  // Entity Updated Handler
+  _handleEntityUpdated(e) {
+    if (e.detail.entity === 'marke') {
+      this.loadAndRender();
+    }
   }
 
   // Initialisiere Marken-Liste
   async init() {
-    console.log('🎯 MARKELLIST: Initialisiere Marken-Liste');
+    console.log('🎯 MARKELIST: Initialisiere Marken-Liste');
     
     // Prüfen ob dieses Modul noch das aktuelle ist
     if (window.moduleRegistry?.currentModule !== this) {
-      console.log('⚠️ MARKELLIST: Nicht mehr das aktuelle Modul, breche ab');
+      console.log('⚠️ MARKELIST: Nicht mehr das aktuelle Modul, breche ab');
       return;
     }
     
@@ -43,10 +153,10 @@ export class MarkeList {
     window.bulkActionSystem?.registerList('marke', this);
     
     const canView = (window.canViewPage && window.canViewPage('marke')) || await window.checkUserPermission('marke', 'can_view');
-    console.log('🔐 MARKELLIST: Berechtigung für marke.can_view:', canView);
+    console.log('🔐 MARKELIST: Berechtigung für marke.can_view:', canView);
     
     if (!canView) {
-      console.log('❌ MARKELLIST: Keine Berechtigung für Marken');
+      console.log('❌ MARKELIST: Keine Berechtigung für Marken');
       window.content.innerHTML = `
         <div class="error-message">
           <p>Sie haben keine Berechtigung, Marken anzuzeigen.</p>
@@ -55,32 +165,22 @@ export class MarkeList {
       return;
     }
 
-    // Pagination initialisieren mit dynamicResize
+    // Pagination initialisieren (ohne dataLoader - Daten kommen von loadMarkenWithPagination)
     this.pagination.init('pagination-marke', {
       itemsPerPage: 10,
       onPageChange: (page) => this.handlePageChange(page),
       onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page),
       dynamicResize: true,
       tbodySelector: '.data-table tbody',
-      rowRenderer: (marke) => this.renderSingleRow(marke),
-      dataLoader: async (offset, limit) => {
-        const currentFilters = filterSystem.getFilters('marke');
-        const result = await window.dataService.loadEntitiesWithPagination(
-          'marke',
-          currentFilters,
-          1,
-          offset + limit
-        );
-        return result.data ? result.data.slice(offset) : [];
-      }
+      rowRenderer: (marke) => this.renderSingleRow(marke)
     });
 
-    console.log('✅ MARKELLIST: Berechtigung OK, lade Marken...');
+    console.log('✅ MARKELIST: Berechtigung OK, lade Marken...');
     // Binde Events sofort
     this.bindEvents();
     
     await this.loadAndRender();
-    console.log('✅ MARKELLIST: Initialisierung abgeschlossen');
+    console.log('✅ MARKELIST: Initialisierung abgeschlossen');
   }
 
   // Lade und rendere Marken-Liste
@@ -143,7 +243,7 @@ export class MarkeList {
         };
       }
 
-      // Sichtbarkeit: Nicht-Admins nur zugeordnete Marken (direkt oder über Unternehmen)
+      // Sichtbarkeit: Nicht-Admins nur zugeordnete Marken (über MarkeService)
       const isAdmin = window.currentUser?.rolle === 'admin';
       let allowedMarkeIds = [];
       
@@ -154,124 +254,24 @@ export class MarkeList {
         userId: window.currentUser?.id
       });
       
-      // Neue Logik: Marken-Zuordnung als Zusatzfilter
-      // - Nur Unternehmen zugeordnet → Sieht ALLE Marken des Unternehmens
-      // - Unternehmen + bestimmte Marken → Sieht NUR die zugewiesenen Marken
+      // Nicht-Admins: Erlaubte Marken über Service ermitteln
       if (!isAdmin) {
-        try {
-          // 1. Direkt zugeordnete Marken laden (OHNE Join wegen RLS-Problemen)
-          const { data: assignedMarken, error } = await window.supabase
-            .from('marke_mitarbeiter')
-            .select('marke_id')
-            .eq('mitarbeiter_id', window.currentUser?.id);
-            
-          if (error) {
-            console.error('❌ MARKELIST: Fehler beim Laden der marke_mitarbeiter:', error);
-          }
-          
-          // Marken-IDs extrahieren
-          const markenIds = (assignedMarken || []).map(r => r.marke_id).filter(Boolean);
-          console.log('🔍 MARKELIST DEBUG: markenIds aus marke_mitarbeiter:', markenIds);
-          
-          // 2. Falls Marken gefunden, deren Unternehmen-IDs separat laden
-          let markenMitUnternehmen = [];
-          if (markenIds.length > 0) {
-            const { data: markenData } = await window.supabase
-              .from('marke')
-              .select('id, unternehmen_id')
-              .in('id', markenIds);
-            
-            markenMitUnternehmen = (markenData || []).map(m => ({
-              marke_id: m.id,
-              unternehmen_id: m.unternehmen_id
-            }));
-          }
-          
-          console.log('🔍 MARKELIST DEBUG: assignedMarken (marke_mitarbeiter):', assignedMarken);
-          console.log('🔍 MARKELIST DEBUG: markenMitUnternehmen:', markenMitUnternehmen);
-          
-          // 2. Zugeordnete Unternehmen
-          const { data: mitarbeiterUnternehmen } = await window.supabase
-            .from('mitarbeiter_unternehmen')
-            .select('unternehmen_id')
-            .eq('mitarbeiter_id', window.currentUser?.id);
-          
-          console.log('🔍 MARKELIST DEBUG: mitarbeiterUnternehmen:', mitarbeiterUnternehmen);
-          
-          const unternehmenIds = (mitarbeiterUnternehmen || [])
-            .map(r => r.unternehmen_id)
-            .filter(Boolean);
-          
-          console.log('🔍 MARKELIST DEBUG: unternehmenIds:', unternehmenIds);
-          
-          // Erstelle Map: Unternehmen-ID → zugeordnete Marken-IDs
-          const unternehmenMarkenMap = new Map();
-          markenMitUnternehmen.forEach(r => {
-            if (r.unternehmen_id) {
-              if (!unternehmenMarkenMap.has(r.unternehmen_id)) {
-                unternehmenMarkenMap.set(r.unternehmen_id, []);
-              }
-              unternehmenMarkenMap.get(r.unternehmen_id).push(r.marke_id);
-            }
-          });
-          
-          console.log('🔍 MARKELIST DEBUG: unternehmenMarkenMap:', Object.fromEntries(unternehmenMarkenMap));
-          
-          // Für jedes Unternehmen die erlaubten Marken ermitteln
-          for (const unternehmenId of unternehmenIds) {
-            const explicitMarkenIds = unternehmenMarkenMap.get(unternehmenId);
-            
-            console.log(`🔍 MARKELIST DEBUG: Prüfe Unternehmen ${unternehmenId}, explicitMarkenIds:`, explicitMarkenIds);
-            
-            if (explicitMarkenIds && explicitMarkenIds.length > 0) {
-              // User hat explizite Marken-Zuordnung → Nur diese Marken erlauben
-              console.log(`✅ MARKELIST: Explizite Marken für Unternehmen, füge hinzu:`, explicitMarkenIds);
-              allowedMarkeIds.push(...explicitMarkenIds);
-            } else {
-              // Keine Marken-Zuordnung → ALLE Marken des Unternehmens erlauben
-              console.log(`⚠️ MARKELIST: KEINE explizite Marken-Zuordnung für Unternehmen ${unternehmenId}, lade ALLE Marken`);
-              const { data: alleMarken } = await window.supabase
-                .from('marke')
-                .select('id')
-                .eq('unternehmen_id', unternehmenId);
-              
-              console.log(`⚠️ MARKELIST: Lade alle ${(alleMarken || []).length} Marken für dieses Unternehmen`);
-              allowedMarkeIds.push(...(alleMarken || []).map(m => m.id));
-            }
-          }
-          
-          // WICHTIG: Direkt zugeordnete Marken hinzufügen (auch ohne separate Unternehmen-Zuordnung)
-          // Dies ist notwendig für Mitarbeiter, die nur einer Marke zugeordnet sind
-          const direktZugeordneteMarkenIds = markenMitUnternehmen.map(r => r.marke_id);
-          allowedMarkeIds.push(...direktZugeordneteMarkenIds);
-          
-          // Duplikate entfernen
-          allowedMarkeIds = [...new Set(allowedMarkeIds)];
-          
-          console.log('🔍 MARKELIST: Zugeordnete Marken für Nicht-Admin:', {
-            zugeordneteUnternehmen: unternehmenIds.length,
-            markenMitExpliziterZuordnung: unternehmenMarkenMap.size,
-            direktZugeordneteMarken: direktZugeordneteMarkenIds.length,
-            erlaubteMarken: allowedMarkeIds.length
-          });
-        } catch (error) {
-          console.error('❌ MARKELIST: Exception beim Laden der Zuordnungen:', error);
-        }
+        allowedMarkeIds = await MarkeService.getAllowedMarkeIdsForUser(window.currentUser?.id);
+        console.log('🔍 MARKELIST: Erlaubte Marken von Service:', allowedMarkeIds.length);
       }
 
       // Berechne Range für Supabase (0-basiert)
       const from = (page - 1) * limit;
       const to = from + limit - 1;
 
-      // Basis-Query mit Embeds und count
+      // Basis-Query mit Embeds und count (Mitarbeiter werden separat geladen für bessere Zuverlässigkeit)
       let query = window.supabase
         .from('marke')
         .select(`
           *,
           unternehmen:unternehmen_id(id, firmenname, logo_url),
           branchen:marke_branchen(branche:branche_id(id, name)),
-          ansprechpartner:ansprechpartner_marke(ansprechpartner:ansprechpartner_id(id, vorname, nachname, email, profile_image_url)),
-          mitarbeiter:marke_mitarbeiter!fk_marke_mitarbeiter_marke_id(role, mitarbeiter:mitarbeiter_id(id, name, profile_image_url))
+          ansprechpartner:ansprechpartner_marke(ansprechpartner:ansprechpartner_id(id, vorname, nachname, email, profile_image_url))
         `, { count: 'exact' })
         .order(this.currentSort.field, { ascending: this.currentSort.ascending });
 
@@ -337,13 +337,11 @@ export class MarkeList {
       }
 
       // Daten transformieren für Kompatibilität mit bestehender UI
+      // (Mitarbeiter werden in updateTable geladen - analog zu UnternehmenList)
       const transformedData = (data || []).map(marke => ({
         ...marke,
         branchen: (marke.branchen || []).map(b => b.branche).filter(Boolean),
-        ansprechpartner: (marke.ansprechpartner || []).map(a => a.ansprechpartner).filter(Boolean),
-        mitarbeiter: (marke.mitarbeiter || [])
-          .map(m => m?.mitarbeiter ? ({ ...m.mitarbeiter, role: m.role || 'mitarbeiter' }) : null)
-          .filter(Boolean)
+        ansprechpartner: (marke.ansprechpartner || []).map(a => a.ansprechpartner).filter(Boolean)
       }));
 
       console.log('✅ Marken mit Pagination geladen:', {
@@ -488,111 +486,16 @@ export class MarkeList {
 
   // Binde Events
   bindEvents() {
-    // Filter-Events werden vom FilterDropdown gehandelt
-
-    // Neue Marke anlegen Button
-    document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-marke-new' || e.target.id === 'btn-marke-new-filter') {
-        e.preventDefault();
-        window.navigateTo('/marke/new');
-      }
-    });
-
-    // Marken Detail Links
-    document.addEventListener('click', (e) => {
-      if (e.target.classList.contains('table-link') && e.target.dataset.table === 'marke') {
-        e.preventDefault();
-        const markeId = e.target.dataset.id;
-        console.log('🎯 MARKELIST: Navigiere zu Marken Details:', markeId);
-        window.navigateTo(`/marke/${markeId}`);
-      }
-    });
-
-    // Alle auswählen Button
-    document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-select-all') {
-        e.preventDefault();
-        const checkboxes = document.querySelectorAll('.marke-check');
-        checkboxes.forEach(cb => {
-          cb.checked = true;
-          if (cb.dataset.id) this.selectedMarken.add(cb.dataset.id);
-        });
-        const selectAllHeader = document.getElementById('select-all-marken');
-        if (selectAllHeader) {
-          selectAllHeader.indeterminate = false;
-          selectAllHeader.checked = true;
-        }
-        this.updateSelection();
-      }
-    });
-
-    // Auswahl aufheben Button
-    document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-deselect-all') {
-        e.preventDefault();
-        const checkboxes = document.querySelectorAll('.marke-check');
-        checkboxes.forEach(cb => { cb.checked = false; });
-        this.selectedMarken.clear();
-        const selectAllHeader = document.getElementById('select-all-marken');
-        if (selectAllHeader) {
-          selectAllHeader.indeterminate = false;
-          selectAllHeader.checked = false;
-        }
-        this.updateSelection();
-      }
-    });
-
-    // Entity Updated Event
-    window.addEventListener('entityUpdated', (e) => {
-      if (e.detail.entity === 'marke') {
-        this.loadAndRender();
-      }
-    });
-
-    // Filter-Tag X-Buttons
-    document.addEventListener('click', (e) => {
-      if (e.target.classList.contains('tag-x')) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const tagElement = e.target.closest('.filter-tag');
-        const key = tagElement.dataset.key;
-        
-        // Entferne Filter
-        const currentFilters = filterSystem.getFilters('marke');
-        delete currentFilters[key];
-        filterSystem.applyFilters('marke', currentFilters);
-        this.loadAndRender();
-      }
-    });
-
-    // Select-All Checkbox
-    document.addEventListener('change', (e) => {
-      if (e.target.id === 'select-all-marken') {
-        const checkboxes = document.querySelectorAll('.marke-check');
-        checkboxes.forEach(cb => {
-          cb.checked = e.target.checked;
-          if (e.target.checked) {
-            this.selectedMarken.add(cb.dataset.id);
-          } else {
-            this.selectedMarken.delete(cb.dataset.id);
-          }
-        });
-        this.updateSelection();
-      }
-    });
-
-    // Marken Checkboxes
-    document.addEventListener('change', (e) => {
-      if (e.target.classList.contains('marke-check')) {
-        if (e.target.checked) {
-          this.selectedMarken.add(e.target.dataset.id);
-        } else {
-          this.selectedMarken.delete(e.target.dataset.id);
-        }
-        this.updateSelection();
-      }
-    });
+    // Verhindere doppelte Event-Listener
+    if (this._eventsBound) return;
+    this._eventsBound = true;
+    
+    // Zentrale Event-Handler registrieren (mit Referenz für Cleanup)
+    document.addEventListener('click', this._handleDocumentClick);
+    document.addEventListener('change', this._handleDocumentChange);
+    window.addEventListener('entityUpdated', this._handleEntityUpdated);
+    
+    console.log('✅ MARKELIST: Event-Listener registriert');
   }
 
   // Prüfe ob aktive Filter vorhanden
@@ -625,6 +528,10 @@ export class MarkeList {
   // Rendert eine einzelne Tabellenzeile für eine Marke
   renderSingleRow(marke) {
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    const allMitarbeiter = marke._mitarbeiter || [];
+    const management = allMitarbeiter.filter(m => m.role === 'management');
+    const leads = allMitarbeiter.filter(m => m.role === 'lead_mitarbeiter');
+    const mitarbeiter = allMitarbeiter.filter(m => m.role !== 'management' && m.role !== 'lead_mitarbeiter');
     
     return `
       <tr data-id="${marke.id}">
@@ -641,9 +548,9 @@ export class MarkeList {
         <td>${this.renderAnsprechpartner(marke.ansprechpartner)}</td>
         <td>${marke.webseite ? `<a href="${marke.webseite}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${marke.webseite}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>` : '-'}</td>
         <td>${this.renderBranchen(marke.branchen)}</td>
-        <td class="col-mitarbeiter">${this.renderMitarbeiterByRole((marke.mitarbeiter || []).filter(m => m.role === 'management'))}</td>
-        <td class="col-mitarbeiter">${this.renderMitarbeiterByRole((marke.mitarbeiter || []).filter(m => m.role === 'lead_mitarbeiter'))}</td>
-        <td class="col-mitarbeiter">${this.renderMitarbeiterByRole((marke.mitarbeiter || []).filter(m => m.role !== 'management' && m.role !== 'lead_mitarbeiter'))}</td>
+        <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(management)}</td>
+        <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(leads)}</td>
+        <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(mitarbeiter)}</td>
         <td class="col-actions">
           ${actionBuilder.create('marke', marke.id)}
         </td>
@@ -662,6 +569,15 @@ export class MarkeList {
         renderEmptyState(tbody);
         return;
       }
+
+      // Mitarbeiter für alle Marken laden (analog zu UnternehmenList)
+      const markeIds = marken.map(m => m.id).filter(Boolean);
+      const mitarbeiterMap = await this.loadMitarbeiterMap(markeIds);
+
+      // Daten an Marken anhängen
+      marken.forEach(m => {
+        m._mitarbeiter = mitarbeiterMap.get(m.id) || [];
+      });
 
       tbody.innerHTML = marken.map(marke => this.renderSingleRow(marke)).join('');
     });
@@ -752,6 +668,55 @@ export class MarkeList {
     return `<span class="text-muted">${zustaendigkeit.mitarbeiter?.name || 'Unbekannt'}</span>`;
   }
 
+  // Lade Mitarbeiter-Zuordnungen für mehrere Marken (als Map)
+  async loadMitarbeiterMap(markeIds) {
+    const map = new Map();
+    try {
+      if (!window.supabase || !Array.isArray(markeIds) || markeIds.length === 0) {
+        return map;
+      }
+      const { data, error } = await window.supabase
+        .from('marke_mitarbeiter')
+        .select(`
+          marke_id,
+          role,
+          benutzer:mitarbeiter_id (
+            id,
+            name,
+            profile_image_url
+          )
+        `)
+        .in('marke_id', markeIds);
+      
+      if (error) {
+        console.warn('⚠️ Konnte Mitarbeiter nicht laden:', error);
+        return map;
+      }
+      
+      // Gruppiere nach marke_id
+      (data || []).forEach(item => {
+        if (!item.benutzer) return; // Skip invalid entries
+        
+        const markeId = item.marke_id;
+        const mitarbeiter = {
+          ...item.benutzer,
+          role: item.role || 'mitarbeiter'
+        };
+        
+        const list = map.get(markeId) || [];
+        list.push(mitarbeiter);
+        map.set(markeId, list);
+      });
+      
+      console.log('✅ MARKELIST: Mitarbeiter-Map geladen:', map.size, 'Marken mit Mitarbeitern');
+      
+    } catch (e) {
+      console.warn('⚠️ loadMitarbeiterMap Fehler:', e);
+    }
+    
+    return map;
+  }
+
   // Mitarbeiter nach Rolle rendern (für separate Spalten)
   renderMitarbeiterByRole(list) {
     if (!list || list.length === 0) return '-';
@@ -771,19 +736,28 @@ export class MarkeList {
 
   // Cleanup
   destroy() {
-    console.log('🗑️ MARKELLIST: Destroy aufgerufen');
+    console.log('🗑️ MARKELIST: Destroy aufgerufen');
     
     // Pagination cleanup
     if (this.pagination) {
       this.pagination.destroy();
     }
     
+    // Zentrale Event-Listener entfernen
+    if (this._eventsBound) {
+      document.removeEventListener('click', this._handleDocumentClick);
+      document.removeEventListener('change', this._handleDocumentChange);
+      window.removeEventListener('entityUpdated', this._handleEntityUpdated);
+      this._eventsBound = false;
+      console.log('✅ MARKELIST: Event-Listener entfernt');
+    }
+    
+    // Legacy-Listener entfernen
     this._boundEventListeners.forEach(({ element, type, handler }) => {
       element.removeEventListener(type, handler);
     });
     this._boundEventListeners.clear();
     
-    // Event-Listener entfernen
     if (this.boundFilterResetHandler) {
       document.removeEventListener('click', this.boundFilterResetHandler);
       this.boundFilterResetHandler = null;
@@ -791,7 +765,7 @@ export class MarkeList {
     
     // Content zurücksetzen
     window.setContentSafely('');
-    console.log('✅ MARKELLIST: Destroy abgeschlossen');
+    console.log('✅ MARKELIST: Destroy abgeschlossen');
   }
 
   // Show Create Form (für Routing)

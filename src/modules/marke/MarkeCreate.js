@@ -1,6 +1,8 @@
 // MarkeCreate.js (ES6-Modul)
 // Marke-Erstellungsseite mit Multi-Select für Branchen (wie Unternehmen)
 
+import { MarkeService } from './services/MarkeService.js';
+
 export class MarkeCreate {
   constructor() {
     this.formData = {};
@@ -310,8 +312,9 @@ export class MarkeCreate {
       const mitarbeiterFields = ['management_ids', 'lead_mitarbeiter_ids', 'mitarbeiter_ids'];
       for (const fieldName of mitarbeiterFields) {
         if (!allFormData[fieldName]) {
-          // Suche nach verstecktem Select
-          const hiddenSelect = form.querySelector(`select[name="${fieldName}"][style*="display: none"]`);
+          // Suche nach verstecktem Select (mit oder ohne [] Suffix)
+          const hiddenSelect = form.querySelector(`select[name="${fieldName}"][style*="display: none"]`)
+            || form.querySelector(`select[name="${fieldName}[]"][style*="display: none"]`);
           if (hiddenSelect) {
             const selectedValues = Array.from(hiddenSelect.selectedOptions).map(option => option.value).filter(val => val !== '');
             if (selectedValues.length > 0) {
@@ -320,9 +323,9 @@ export class MarkeCreate {
             }
           }
           
-          // Falls nicht gefunden, suche nach allen Selects mit diesem Namen
+          // Falls nicht gefunden, suche nach allen Selects mit diesem Namen (mit oder ohne [] Suffix)
           if (!allFormData[fieldName]) {
-            const allSelects = form.querySelectorAll(`select[name="${fieldName}"]`);
+            const allSelects = form.querySelectorAll(`select[name="${fieldName}"], select[name="${fieldName}[]"]`);
             for (const sel of allSelects) {
               if (sel.multiple || sel.hasAttribute('multiple')) {
                 const selectedValues = Array.from(sel.selectedOptions).map(option => option.value).filter(val => val !== '');
@@ -398,21 +401,15 @@ export class MarkeCreate {
       const result = await window.dataService.createEntity('marke', data);
       
       if (result.success) {
-        // Logo-Upload (falls vorhanden)
+        // Logo-Upload (falls vorhanden) - über MarkeService
         if (result.id) {
-          try {
-            console.log('🔵 START: Logo-Upload für Marke', result.id);
-            await this.uploadLogo(result.id, form);
-            console.log('✅ Logo-Upload abgeschlossen');
-          } catch (logoErr) {
-            console.error('❌ Logo-Upload fehlgeschlagen:', logoErr);
-            if (logoErr && logoErr.message && !logoErr.message.includes('Kein Logo')) {
-              alert('Logo konnte nicht hochgeladen werden: ' + logoErr.message);
-            }
-          }
+          console.log('🔵 START: Logo-Upload für Marke', result.id);
+          await MarkeService.uploadLogo(result.id, form);
+          console.log('✅ Logo-Upload abgeschlossen');
           
-          // Mitarbeiter-Zuordnungen mit Rollen speichern
-          await this.saveMitarbeiterToMarke(result.id, data);
+          // Mitarbeiter-Zuordnungen mit Rollen speichern - über MarkeService
+          const unternehmenId = data.unternehmen_id || null;
+          await MarkeService.saveMitarbeiterToMarke(result.id, data, unternehmenId, { deleteExisting: false });
         }
 
         this.showSuccessMessage('Marke erfolgreich erstellt!');
@@ -438,109 +435,7 @@ export class MarkeCreate {
     }
   }
   
-  // Mitarbeiter-Zuordnungen mit Rollen speichern
-  async saveMitarbeiterToMarke(markeId, data) {
-    try {
-      if (!markeId || !window.supabase) return;
-      
-      console.log('🔄 MARKECREATE: Speichere Mitarbeiter-Rollen für Marke:', markeId);
-      
-      // Rollen-Mapping
-      const roleFields = {
-        'management_ids': 'management',
-        'lead_mitarbeiter_ids': 'lead_mitarbeiter',
-        'mitarbeiter_ids': 'mitarbeiter'
-      };
-      
-      // Alle INSERT-Daten sammeln
-      const allInsertData = [];
-      
-      for (const [fieldName, roleValue] of Object.entries(roleFields)) {
-        // Prüfe ob das Feld in den Daten vorhanden ist
-        const fieldData = data[fieldName] || data[`${fieldName}[]`];
-        
-        // Extrahiere IDs als Array und entferne Duplikate
-        let mitarbeiterIds = [];
-        if (Array.isArray(fieldData)) {
-          mitarbeiterIds = [...new Set(fieldData.filter(Boolean))];
-        } else if (typeof fieldData === 'string' && fieldData) {
-          mitarbeiterIds = [fieldData];
-        }
-        
-        console.log(`📋 ${fieldName} (${roleValue}): ${mitarbeiterIds.length} Mitarbeiter`, mitarbeiterIds);
-        
-        // Sammle INSERT-Daten
-        for (const mitarbeiterId of mitarbeiterIds) {
-          allInsertData.push({
-            marke_id: markeId,
-            mitarbeiter_id: mitarbeiterId,
-            role: roleValue
-          });
-        }
-      }
-      
-      // Alle Einträge in einem Batch einfügen
-      if (allInsertData.length > 0) {
-        console.log(`📤 Füge ${allInsertData.length} Mitarbeiter-Zuordnungen ein:`, allInsertData);
-        
-        const { error: insertError } = await window.supabase
-          .from('marke_mitarbeiter')
-          .insert(allInsertData);
-        
-        if (insertError) {
-          console.error('❌ Fehler beim Batch-Insert:', insertError);
-          
-          // Fallback: Einzeln einfügen mit upsert
-          console.log('🔄 Versuche Einzelinserts mit upsert...');
-          for (const row of allInsertData) {
-            const { error: upsertError } = await window.supabase
-              .from('marke_mitarbeiter')
-              .upsert(row, { onConflict: 'marke_id,mitarbeiter_id,role' });
-            
-            if (upsertError) {
-              console.error(`❌ Upsert-Fehler für ${row.mitarbeiter_id}/${row.role}:`, upsertError);
-            }
-          }
-        } else {
-          console.log(`✅ ${allInsertData.length} Mitarbeiter-Zuordnungen gespeichert`);
-        }
-        
-        // AUTO-SYNC: mitarbeiter_unternehmen für das Unternehmen der Marke erstellen
-        const unternehmenId = data.unternehmen_id;
-        if (unternehmenId) {
-          console.log('🔄 MARKECREATE: Sync mitarbeiter_unternehmen für Unternehmen:', unternehmenId);
-          const uniqueMitarbeiterIds = [...new Set(allInsertData.map(r => r.mitarbeiter_id))];
-          
-          for (const mitarbeiterId of uniqueMitarbeiterIds) {
-            const { error: syncError } = await window.supabase
-              .from('mitarbeiter_unternehmen')
-              .upsert({
-                mitarbeiter_id: mitarbeiterId,
-                unternehmen_id: unternehmenId,
-                role: 'mitarbeiter'
-              }, { 
-                onConflict: 'mitarbeiter_id,unternehmen_id,role',
-                ignoreDuplicates: true 
-              });
-            
-            if (syncError && syncError.code !== '23505') {
-              console.error(`❌ Sync-Fehler für ${mitarbeiterId}:`, syncError);
-            }
-          }
-          console.log(`✅ mitarbeiter_unternehmen synchronisiert für ${uniqueMitarbeiterIds.length} Mitarbeiter`);
-        }
-      } else {
-        console.log('ℹ️ Keine Mitarbeiter zum Speichern');
-      }
-      
-      console.log('✅ MARKECREATE: Mitarbeiter-Rollen gespeichert');
-    } catch (error) {
-      console.error('❌ MARKECREATE: Fehler beim Speichern der Mitarbeiter-Rollen:', error);
-      // Nicht werfen - Marke wurde bereits erstellt
-    }
-  }
-
-  // Validierungsfehler anzeigen (kopiert von Unternehmen)
+  // Validierungsfehler anzeigen
   showValidationErrors(errors) {
     // Alte Fehler entfernen
     document.querySelectorAll('.field-error').forEach(el => el.remove());
@@ -614,114 +509,6 @@ export class MarkeCreate {
       toast.style.opacity = '0';
       setTimeout(() => toast.remove(), 300);
     }, 3000);
-  }
-
-  // Logo-Upload
-  async uploadLogo(markeId, form) {
-    try {
-      console.log('📋 uploadLogo() aufgerufen für Marke:', markeId);
-      
-      const uploaderRoot = form.querySelector('.uploader[data-name="logo_file"]');
-      console.log('  → Uploader Root:', uploaderRoot);
-      console.log('  → Uploader Instance:', uploaderRoot?.__uploaderInstance);
-      console.log('  → Files:', uploaderRoot?.__uploaderInstance?.files);
-      
-      if (!uploaderRoot || !uploaderRoot.__uploaderInstance || !uploaderRoot.__uploaderInstance.files.length) {
-        console.log('ℹ️ Kein Logo zum Hochladen (kein Uploader/keine Files)');
-        return;
-      }
-
-      if (!window.supabase) {
-        console.warn('⚠️ Supabase nicht verfügbar - Logo-Upload übersprungen');
-        return;
-      }
-
-      const files = uploaderRoot.__uploaderInstance.files;
-      const file = files[0]; // Nur ein Logo erlaubt
-      const bucket = 'logos';
-      
-      // Security: Max 200 KB
-      const MAX_FILE_SIZE = 200 * 1024; // 200 KB
-      const ALLOWED_TYPES = ['image/png', 'image/jpeg'];
-      
-      // Dateigröße prüfen
-      if (file.size > MAX_FILE_SIZE) {
-        console.warn(`⚠️ Logo zu groß: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
-        alert(`Logo ist zu groß (max. 200 KB)`);
-        return;
-      }
-
-      // Content-Type prüfen
-      if (!ALLOWED_TYPES.includes(file.type)) {
-        console.warn(`⚠️ Nicht erlaubter Dateityp: ${file.name} (${file.type})`);
-        alert(`Nur PNG und JPG Dateien sind erlaubt`);
-        return;
-      }
-
-      // Dateiendung extrahieren
-      const ext = file.name.split('.').pop().toLowerCase();
-      const path = `marke/${markeId}/logo.${ext}`;
-      
-      console.log(`📤 Uploading Logo: ${file.name} -> ${path}`);
-      
-      // Altes Logo löschen (falls vorhanden)
-      try {
-        const { data: existingFiles } = await window.supabase.storage
-          .from(bucket)
-          .list(`marke/${markeId}`);
-        
-        if (existingFiles && existingFiles.length > 0) {
-          for (const existingFile of existingFiles) {
-            await window.supabase.storage
-              .from(bucket)
-              .remove([`marke/${markeId}/${existingFile.name}`]);
-          }
-        }
-      } catch (deleteErr) {
-        console.warn('⚠️ Fehler beim Löschen alter Logos:', deleteErr);
-      }
-      
-      // Upload zu Storage
-      const { error: upErr } = await window.supabase.storage
-        .from(bucket)
-        .upload(path, file, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: file.type
-        });
-      
-      if (upErr) {
-        console.error(`❌ Logo-Upload-Fehler:`, upErr);
-        throw upErr;
-      }
-      
-      // Öffentliche URL erstellen (permanent verfügbar)
-      const { data: publicUrlData } = window.supabase.storage
-        .from(bucket)
-        .getPublicUrl(path);
-      
-      const logo_url = publicUrlData?.publicUrl || '';
-      
-      // Logo-Daten in Datenbank speichern
-      const { error: dbErr } = await window.supabase
-        .from('marke')
-        .update({
-          logo_url,
-          logo_path: path
-        })
-        .eq('id', markeId);
-      
-      if (dbErr) {
-        console.error(`❌ DB-Fehler beim Speichern der Logo-URL:`, dbErr);
-        throw dbErr;
-      }
-      
-      console.log(`✅ Logo erfolgreich hochgeladen`);
-    } catch (error) {
-      console.error('❌ Fehler beim Logo-Upload:', error);
-      alert(`⚠️ Logo konnte nicht hochgeladen werden: ${error.message}`);
-      // Nicht werfen - Marke wurde bereits erstellt
-    }
   }
 
   // Destroy

@@ -37,7 +37,7 @@ export class AvatarBubbles {
    *   - entityType: Optional, 'unternehmen', 'marke', 'ansprechpartner', 'mitarbeiter' für Routing
    *   - logo_url: Optional, Logo-URL für Organisationen
    *   - profile_image_url: Optional, Profilbild-URL für Mitarbeiter (hat Priorität über logo_url)
-   * @param {Object} config - Konfiguration {size?: number}
+   * @param {Object} config - Konfiguration {maxVisible?: number}
    * @returns {string} HTML-String
    */
   static renderBubbles(items, config = {}) {
@@ -45,8 +45,12 @@ export class AvatarBubbles {
       return '-';
     }
 
-    const bubblesHtml = items
-      .filter(item => item && item.name) // Nur gültige Items
+    const validItems = items.filter(item => item && item.name);
+    const maxVisible = config.maxVisible || 3; // Standard: max 3 Bubbles anzeigen
+    const visibleItems = validItems.slice(0, maxVisible);
+    const remainingCount = validItems.length - maxVisible;
+
+    const bubblesHtml = visibleItems
       .map(item => {
         const initials = this.getInitials(item.name, item.type || 'org');
         const isClickable = item.id && item.entityType;
@@ -78,7 +82,12 @@ export class AvatarBubbles {
       })
       .join('');
 
-    return `<div class="avatar-bubbles">${bubblesHtml}</div>`;
+    // "+X mehr" Badge wenn es mehr Items gibt
+    const moreHtml = remainingCount > 0 
+      ? `<div class="avatar-bubble avatar-bubble--more" title="${validItems.slice(maxVisible).map(i => i.name).join(', ')}">+${remainingCount}</div>`
+      : '';
+
+    return `<div class="avatar-bubbles">${bubblesHtml}${moreHtml}</div>`;
   }
 
   /**
