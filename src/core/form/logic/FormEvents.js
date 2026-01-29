@@ -918,16 +918,33 @@ export class FormEvents {
         });
 
         // Bereits verplante Videos in Kooperationen summieren
-        const { data: existingKoops, error: koopError } = await window.supabase
+        // Im Edit-Modus: Aktuelle Kooperation ausschließen (deren Videos sind ja verfügbar)
+        const currentKoopId = form.dataset.entityId;
+        let koopQuery = window.supabase
           .from('kooperationen')
-          .select('videoanzahl')
+          .select('id, videoanzahl')
           .eq('kampagne_id', kampagneId);
+        
+        // Im Edit-Modus die aktuelle Kooperation ausschließen
+        if (currentKoopId) {
+          koopQuery = koopQuery.neq('id', currentKoopId);
+        }
+        
+        const { data: existingKoops, error: koopError } = await koopQuery;
         if (koopError) {
           console.error('❌ Fehler beim Laden der Kooperationen (videoanzahl):', koopError);
           return;
         }
         const usedVideos = (existingKoops || []).reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
         const remaining = Math.max(0, totalVideos - usedVideos);
+        
+        console.log('📊 KOOPERATION: Video-Berechnung:', {
+          totalVideos,
+          usedVideos,
+          remaining,
+          currentKoopId,
+          excludedFromCalc: !!currentKoopId
+        });
 
         // Eingabefeld konfigurieren
         videoInput.disabled = remaining === 0;
@@ -1029,14 +1046,14 @@ export class FormEvents {
     // Initial ausführen
     updateVideoLimits();
     
-    // FIX: Bei prefilled Formularen nochmal mit Delay aufrufen,
+    // FIX: Bei prefilled Formularen oder Edit-Mode nochmal mit Delay aufrufen,
     // um sicherzustellen dass der DOM-Wert korrekt synchronisiert ist
-    if (form.dataset.prefillFromKampagne === 'true') {
-      console.log('🔄 KOOPERATION PREFILL: Warte auf DOM-Synchronisation für Video-Limits...');
+    if (form.dataset.prefillFromKampagne === 'true' || form.dataset.isEditMode === 'true') {
+      console.log('🔄 KOOPERATION: Warte auf DOM-Synchronisation für Video-Limits (prefill/edit)...');
       setTimeout(() => {
-        console.log('🔄 KOOPERATION PREFILL: Aktualisiere Video-Limits nach Prefill, kampagne_id:', kampagneSelect.value);
+        console.log('🔄 KOOPERATION: Aktualisiere Video-Limits, kampagne_id:', kampagneSelect.value);
         updateVideoLimits();
-      }, 150);
+      }, 300); // Etwas länger warten im Edit-Mode da DependentFields laden müssen
     }
 
     // Beim Edit: vorhandene Videos vorausfüllen
@@ -1057,6 +1074,14 @@ export class FormEvents {
       } catch (err) {
         console.warn('⚠️ Fehler beim Laden der Kooperations-Videos:', err?.message);
       }
+      
+      // Nochmal Video-Limits aktualisieren falls Kampagne inzwischen geladen
+      setTimeout(() => {
+        if (kampagneSelect.value && !videoInput.max) {
+          console.log('🔄 KOOPERATION EDIT: Kampagne jetzt verfügbar, aktualisiere Limits');
+          updateVideoLimits();
+        }
+      }, 500);
     })();
   }
 

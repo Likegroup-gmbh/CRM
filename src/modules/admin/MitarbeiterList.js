@@ -156,6 +156,7 @@ export class MitarbeiterList {
       { key: 'Strategie', label: 'Strategie', filter: u => u.rolle !== 'admin' && u.mitarbeiter_klasse?.name === 'Strategie' },
       { key: 'Copywriter', label: 'Copywriter', filter: u => u.rolle !== 'admin' && u.mitarbeiter_klasse?.name === 'Copywriter' },
       { key: 'Cutter', label: 'Cutter', filter: u => u.rolle !== 'admin' && u.mitarbeiter_klasse?.name === 'Cutter' },
+      { key: 'Back-Office-Buchhaltung', label: 'Back-Office-Buchhaltung', filter: u => u.rolle !== 'admin' && u.mitarbeiter_klasse?.name === 'Back-Office-Buchhaltung' },
       { key: 'ohne', label: 'Ohne Rolle', filter: u => u.rolle !== 'admin' && !u.mitarbeiter_klasse?.name }
     ];
 

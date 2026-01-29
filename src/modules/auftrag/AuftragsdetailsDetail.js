@@ -325,6 +325,13 @@ export class AuftragsdetailsDetail {
       if (v === null || v === undefined || v === '') return '-';
       return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v);
     };
+    const formatPriceRange = (von, bis) => {
+      if (!von && !bis) return '-';
+      if (von && bis && von !== bis) {
+        return `${formatCurrency(von)} - ${formatCurrency(bis)}`;
+      }
+      return formatCurrency(von || bis);
+    };
 
     // Daten für die Tabelle vorbereiten
     const sections = [
@@ -366,11 +373,12 @@ export class AuftragsdetailsDetail {
       const creatorAnzahl = details[`${section.prefix}_creator_anzahl`];
       const videographenAnzahl = section.hasVideographen ? details[`${section.prefix}_videographen_anzahl`] : null;
       const budgetInfo = details[`${section.prefix}_budget_info`];
-      const einkaufspreis = details[`${section.prefix}_einkaufspreis_netto`];
+      const einkaufspreisVon = details[`${section.prefix}_einkaufspreis_netto_von`];
+      const einkaufspreisBis = details[`${section.prefix}_einkaufspreis_netto_bis`];
       const verkaufspreis = details[`${section.prefix}_verkaufspreis_netto`];
 
       // Zeige nur Zeilen mit Daten
-      if (!videoAnzahl && !bilderAnzahl && !creatorAnzahl && !videographenAnzahl && !budgetInfo && !einkaufspreis && !verkaufspreis) {
+      if (!videoAnzahl && !bilderAnzahl && !creatorAnzahl && !videographenAnzahl && !budgetInfo && !einkaufspreisVon && !einkaufspreisBis && !verkaufspreis) {
         return '';
       }
 
@@ -381,7 +389,8 @@ export class AuftragsdetailsDetail {
             ${section.title}
           </td>
           <td class="budget-cell">${budgetInfo ? `<div class="budget-info-large">${window.validatorSystem.sanitizeHtml(budgetInfo)}</div>` : '-'}</td>
-          <td class="text-right">${formatCurrency(einkaufspreis)}</td>
+          <td class="text-right">${formatCurrency(einkaufspreisVon)}</td>
+          <td class="text-right">${formatCurrency(einkaufspreisBis)}</td>
           <td class="text-right">${formatCurrency(verkaufspreis)}</td>
           <td class="text-center">${num(videoAnzahl)}</td>
           <td class="text-center">${num(bilderAnzahl)}</td>
@@ -399,7 +408,8 @@ export class AuftragsdetailsDetail {
               <tr>
                 <th>Kategorie</th>
                 <th>Budget & Informationen</th>
-                <th class="text-right">EK (Netto)</th>
+                <th class="text-right">EK von</th>
+                <th class="text-right">EK bis</th>
                 <th class="text-right">VK (Netto)</th>
                 <th class="text-center">Videos</th>
                 <th class="text-center">Bilder</th>
@@ -409,7 +419,7 @@ export class AuftragsdetailsDetail {
             </thead>
             <tbody>
               <tr>
-                <td colspan="8" class="no-data">
+                <td colspan="9" class="no-data">
                   Keine Produktionsdetails vorhanden
                 </td>
               </tr>
@@ -426,7 +436,8 @@ export class AuftragsdetailsDetail {
             <tr>
               <th>Kategorie</th>
               <th>Budget & Informationen</th>
-              <th class="text-right">EK (Netto)</th>
+              <th class="text-right">EK von</th>
+              <th class="text-right">EK bis</th>
               <th class="text-right">VK (Netto)</th>
               <th class="text-center">Videos</th>
               <th class="text-center">Bilder</th>

@@ -2293,9 +2293,15 @@ export class DataService {
       // Basisquery mit Select
       let selectClause = '*';
       
-      // Spezielle Select-Klausel für Creator (nur benötigte Felder für Listen-Ansicht)
+      // Spezielle Select-Klausel für Creator (benötigte Felder für Listen-Ansicht)
       if (entityType === 'creator') {
-        selectClause = 'id,vorname,nachname,instagram_follower,tiktok_follower,lieferadresse_stadt,lieferadresse_land';
+        selectClause = `
+          id,vorname,nachname,mail,telefonnummer,alter_jahre,
+          instagram,instagram_follower,tiktok,tiktok_follower,
+          lieferadresse_stadt,lieferadresse_land,
+          creator_creator_type(creator_type_id(id,name)),
+          creator_branchen(branche_id(id,name))
+        `;
       }
       // Spezielle Select-Klausel für Ansprechpartner mit JOINs
       // Hinweis: unternehmen_id FK wurde entfernt - nur noch Many-to-Many über ansprechpartner_unternehmen
@@ -2424,12 +2430,30 @@ export class DataService {
         await this.loadManyToManyRelations(data, entityType, entityConfig.manyToMany);
       }
 
-      // Spezielle Projektion für Creator: Arrays direkt an Top-Level anhängen
+      // Spezielle Projektion für Creator: Junction-Daten zu flachen Arrays transformieren
       if (entityType === 'creator' && data) {
         data.forEach(c => {
           c.sprachen = c.sprachen || [];
-          c.branchen = c.branchen || [];
-          c.creator_types = c.creator_types || [];
+          
+          // Branchen aus Junction-Table extrahieren
+          if (c.creator_branchen && Array.isArray(c.creator_branchen)) {
+            c.branchen = c.creator_branchen
+              .map(junction => junction.branche_id?.name)
+              .filter(Boolean);
+            delete c.creator_branchen;
+          } else {
+            c.branchen = c.branchen || [];
+          }
+          
+          // Creator Types aus Junction-Table extrahieren
+          if (c.creator_creator_type && Array.isArray(c.creator_creator_type)) {
+            c.creator_types = c.creator_creator_type
+              .map(junction => junction.creator_type_id?.name)
+              .filter(Boolean);
+            delete c.creator_creator_type;
+          } else {
+            c.creator_types = c.creator_types || [];
+          }
         });
       }
 

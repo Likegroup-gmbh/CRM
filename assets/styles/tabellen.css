@@ -74,6 +74,81 @@
 .kooperation-video-grid .col-feedback-cj { width: 400px; min-width: 400px; }
 .kooperation-video-grid .col-feedback-kunde { width: 400px; min-width: 400px; }
 .kooperation-video-grid .col-kosten { width: 100px; min-width: 100px; }
+.kooperation-video-grid .col-actions { width: 70px; min-width: 70px; }
+
+/* Aktions-Spalte rechts fixieren */
+.kooperation-video-grid thead th.col-actions,
+.kooperation-video-grid tbody td.col-actions {
+  position: sticky !important;
+  right: 0 !important;
+  z-index: 20;
+  background: white;
+  box-shadow: -4px 0 8px rgba(0, 0, 0, 0.04);
+  overflow: visible;
+}
+
+/* Header der fixierten Actions-Spalte soll über allem liegen */
+.kooperation-video-grid thead th.col-actions {
+  z-index: 25;
+  background: var(--gray-50);
+}
+
+/* Zebra-Striping für fixierte Actions-Spalte */
+.kooperation-video-grid tbody tr:nth-child(even) td.col-actions {
+  background: var(--gray-50);
+}
+
+.kooperation-video-grid tbody tr:nth-child(odd) td.col-actions {
+  background: white;
+}
+
+/* Dropdown in Kooperation-Tabelle: Overflow visible für alle Parent-Container */
+.kooperation-video-grid td.col-actions {
+  overflow: visible !important;
+}
+
+.kooperation-video-grid td.col-actions .actions-dropdown-container {
+  overflow: visible !important;
+}
+
+.kooperation-video-grid td.col-actions .actions-dropdown {
+  z-index: 99999;
+}
+
+/* Zelle mit geöffnetem Dropdown bekommt höheren z-index als andere sticky-Zellen */
+.kooperation-video-grid td.col-actions:has(.actions-dropdown.show) {
+  z-index: 9999 !important;
+}
+
+/* Grid-Wrapper: overflow visible wenn Dropdown offen */
+.grid-wrapper:has(.actions-dropdown.show) {
+  overflow: visible !important;
+}
+
+/* Container für Kooperationen-Tabelle: overflow visible wenn Dropdown offen */
+#kooperationen-videos-container:has(.actions-dropdown.show) {
+  overflow: visible !important;
+}
+
+/* Grid-Editor-Content: overflow visible wenn Dropdown offen */
+.grid-editor-content:has(.actions-dropdown.show) {
+  overflow: visible !important;
+}
+
+/* Detail-Section: overflow visible wenn Dropdown offen */
+#tab-koops-videos .detail-section:has(.actions-dropdown.show) {
+  overflow: visible !important;
+}
+
+/* Tab-Pane: overflow visible wenn Dropdown offen */
+#tab-koops-videos:has(.actions-dropdown.show) {
+  overflow: visible !important;
+}
+
+/* Main-Wrapper: overflow visible wenn Dropdown in Kooperation-Tabelle offen */
+.main-wrapper:has(.kooperation-video-grid .actions-dropdown.show) {
+  overflow: visible !important;
+}
 
 .kooperation-video-grid .col-header {
   border: 1px solid var(--gray-300);
@@ -1500,6 +1575,39 @@ td.col-produkt .stacked-video-input,
   pointer-events: none;
 }
 
+/* === SMOOTHER PAGINATION LOADING === */
+/* Dimmt alte Daten während neue laden - kein Layout-Shift! */
+.data-table tbody.table-loading-overlay {
+  opacity: 0.4;
+  pointer-events: none;
+  transition: opacity 150ms ease-out;
+}
+
+/* Pagination-Button Loading-Spinner (optional) */
+.pagination-btn.pagination-loading {
+  position: relative;
+  color: transparent !important;
+  pointer-events: none;
+}
+
+.pagination-btn.pagination-loading::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  left: 50%;
+  top: 50%;
+  margin: -7px 0 0 -7px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* === SPALTENBREITEN FÜR BESSERE LESBARKEIT === */
 /* table-layout: auto ermöglicht natürliche, lesbare Breiten */
 
@@ -1527,11 +1635,11 @@ td.col-produkt .stacked-video-input,
 
 /* Name-Spalte - explizite Klasse */
 .data-table th.col-name{
-width: 30em;
+width: 18em;
   
 }
 .data-table td.col-name {
-  width: 30em;
+  width: 18em;
  
 }
 
@@ -2073,4 +2181,22 @@ width: 30em;
 .col-name-with-icon .table-logo,
 .col-name-with-icon .table-avatar {
   margin-right: 8px;
+}
+
+/* External Link Icon für TikTok/Instagram */
+.table-link-external {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary, #64748b);
+  transition: color 0.15s ease;
+}
+
+.table-link-external:hover {
+  color: var(--primary, #3b82f6);
+}
+
+.external-link-icon {
+  width: 18px;
+  height: 18px;
 }

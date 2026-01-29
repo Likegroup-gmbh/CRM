@@ -42,8 +42,23 @@ export const TableAnimationHelper = {
    */
   async animatedUpdate(tbody, updateFn) {
     if (!tbody) return;
-    await this.fadeOut(tbody);
+    
+    // Prüfen ob Loading-Overlay aktiv ist (von Pagination-Wechsel)
+    // Wenn ja: KEIN extra Fade-Out - das Overlay hat bereits die Tabelle gedimmt
+    const hasOverlay = tbody.classList.contains('table-loading-overlay');
+    
+    if (!hasOverlay) {
+      // Normaler Flow: Fade-Out Animation
+      await this.fadeOut(tbody);
+    }
+    
+    // Content aktualisieren
     await updateFn();
+    
+    // Overlay entfernen falls vorhanden (vor dem Fade-In)
+    tbody.classList.remove('table-loading-overlay');
+    
+    // Smooth einblenden
     this.fadeIn(tbody);
   },
 
@@ -108,6 +123,25 @@ export const TableAnimationHelper = {
     // Warten bis Animation fertig, dann Zeilen entfernen
     await new Promise(resolve => setTimeout(resolve, toRemove.length * 30 + 150));
     toRemove.forEach(row => row.remove());
+  },
+
+  /**
+   * Zeigt Loading-Overlay (dimmt tbody während Daten laden)
+   * Die alten Daten bleiben sichtbar - kein Content-Replacement!
+   * @param {HTMLElement} tbody - Das tbody Element
+   */
+  showLoadingOverlay(tbody) {
+    if (!tbody) return;
+    tbody.classList.add('table-loading-overlay');
+  },
+
+  /**
+   * Versteckt Loading-Overlay
+   * @param {HTMLElement} tbody - Das tbody Element
+   */
+  hideLoadingOverlay(tbody) {
+    if (!tbody) return;
+    tbody.classList.remove('table-loading-overlay');
   }
 };
 

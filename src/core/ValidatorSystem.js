@@ -72,6 +72,46 @@ export class ValidatorSystem {
     }
   }
 
+  // URL sanitize - verhindert javascript: und andere gefährliche Schemas
+  // Gibt null zurück wenn URL ungültig oder gefährlich ist
+  sanitizeUrl(url) {
+    if (!url || typeof url !== 'string') {
+      return null;
+    }
+    
+    try {
+      const trimmed = url.trim();
+      // Erlaubte Schemas: http, https
+      // Wenn kein Schema, füge https:// hinzu
+      let urlToCheck = trimmed;
+      if (!urlToCheck.match(/^[a-zA-Z][a-zA-Z0-9+.-]*:/)) {
+        urlToCheck = 'https://' + urlToCheck;
+      }
+      
+      const parsed = new URL(urlToCheck);
+      
+      // Nur http und https erlauben - blockiert javascript:, data:, vbscript:, etc.
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        console.warn('🛡️ VALIDATOR: Unsicheres URL-Schema blockiert:', parsed.protocol);
+        return null;
+      }
+      
+      return parsed.href;
+    } catch {
+      return null;
+    }
+  }
+
+  // Bild-URL sanitize - zusätzliche Prüfung für Bild-Quellen
+  sanitizeImageUrl(url) {
+    const sanitized = this.sanitizeUrl(url);
+    if (!sanitized) return null;
+    
+    // Optional: Zusätzliche Prüfungen für Bild-URLs
+    // z.B. bekannte CDN-Domains erlauben
+    return sanitized;
+  }
+
   // Zahl validieren
   validateNumber(value, min = null, max = null) {
     const num = parseFloat(value);
@@ -198,6 +238,8 @@ export const validatorSystem = new ValidatorSystem();
 if (typeof window !== 'undefined') {
   window.Validator = {
     sanitizeHtml: (html) => validatorSystem.sanitizeHtml(html),
+    sanitizeUrl: (url) => validatorSystem.sanitizeUrl(url),
+    sanitizeImageUrl: (url) => validatorSystem.sanitizeImageUrl(url),
     validateEmail: (email) => validatorSystem.validateEmail(email),
     validatePhone: (phone) => validatorSystem.validatePhone(phone),
     validateUrl: (url) => validatorSystem.validateUrl(url),

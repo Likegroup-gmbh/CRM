@@ -216,8 +216,12 @@ export class AuftragList {
         ]);
       }
       
-      // Seite rendern
+      // Seite rendern (ersetzt HTML komplett)
       await this.render();
+      
+      // NACH render(): Overlay auf das NEUE tbody setzen
+      const tbody = document.querySelector('.data-table tbody');
+      TableAnimationHelper.showLoadingOverlay(tbody);
       
       // Event-Listener neu binden
       this.bindEvents();
@@ -234,12 +238,19 @@ export class AuftragList {
         );
         
         this.pagination.updateTotal(count);
+        // (animatedUpdate entfernt Overlay automatisch)
         await this.updateTable(auftraege);
         this.pagination.render();
+      } else {
+        // Kein List-View: Overlay manuell entfernen
+        TableAnimationHelper.hideLoadingOverlay(tbody);
       }
       
     } catch (error) {
       console.error('❌ AUFTRAGLIST: Fehler beim Laden und Rendern:', error);
+      // Loading-Overlay bei Fehler ausblenden
+      const tbodyError = document.querySelector('.data-table tbody');
+      TableAnimationHelper.hideLoadingOverlay(tbodyError);
       if (window.ErrorHandler?.handle) {
         window.ErrorHandler.handle(error, 'AuftragList.loadAndRender');
       }

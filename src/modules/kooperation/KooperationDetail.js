@@ -46,10 +46,22 @@ export class KooperationDetail {
       // Breadcrumb aktualisieren mit Edit-Button
       if (window.breadcrumbSystem && this.kooperation) {
         const canEdit = window.currentUser?.permissions?.kooperation?.can_edit || false;
-        window.breadcrumbSystem.updateBreadcrumb([
-          { label: 'Kooperation', url: '/kooperation', clickable: true },
-          { label: this.kooperation.name || 'Details', url: `/kooperation/${this.kooperationId}`, clickable: false }
-        ], {
+        const breadcrumbItems = [];
+        
+        // Wenn Kampagne vorhanden, füge Kampagnen-Pfad hinzu
+        if (this.kampagne) {
+          breadcrumbItems.push({ label: 'Kampagnen', url: '/kampagne', clickable: true });
+          breadcrumbItems.push({ 
+            label: this.kampagne.eigener_name || this.kampagne.kampagnenname || 'Kampagne', 
+            url: `/kampagne/${this.kampagne.id}`, 
+            clickable: true 
+          });
+        }
+        
+        breadcrumbItems.push({ label: 'Kooperation', url: null, clickable: false });
+        breadcrumbItems.push({ label: this.kooperation.name || 'Details', url: `/kooperation/${this.kooperationId}`, clickable: false });
+        
+        window.breadcrumbSystem.updateBreadcrumb(breadcrumbItems, {
           id: 'btn-edit-kooperation',
           canEdit: canEdit
         });
@@ -908,6 +920,30 @@ export class KooperationDetail {
   showEditForm() {
     console.log('🎯 KOOPERATIONDETAIL: Zeige Bearbeitungsformular');
     window.setHeadline('Kooperation bearbeiten');
+    
+    // Breadcrumb aktualisieren OHNE Edit-Button (da wir bereits im Edit-Modus sind)
+    if (window.breadcrumbSystem && this.kooperation) {
+      const breadcrumbItems = [];
+      
+      // Wenn Kampagne vorhanden, füge Kampagnen-Pfad hinzu
+      if (this.kampagne) {
+        breadcrumbItems.push({ label: 'Kampagnen', url: '/kampagne', clickable: true });
+        breadcrumbItems.push({ 
+          label: this.kampagne.eigener_name || this.kampagne.kampagnenname || 'Kampagne', 
+          url: `/kampagne/${this.kampagne.id}`, 
+          clickable: true 
+        });
+      }
+      
+      breadcrumbItems.push({ label: 'Kooperation', url: null, clickable: false });
+      breadcrumbItems.push({ label: this.kooperation.name || 'Details', url: `/kooperation/${this.kooperationId}`, clickable: true });
+      breadcrumbItems.push({ label: 'Bearbeiten', url: null, clickable: false });
+      
+      // Kein Edit-Button im Edit-Modus
+      window.breadcrumbSystem.updateBreadcrumb(breadcrumbItems, {
+        canEdit: false
+      });
+    }
     
     // Daten für FormSystem vorbereiten
     const formData = { ...this.kooperation };

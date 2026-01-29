@@ -5,6 +5,7 @@ import { modularFilterSystem as filterSystem } from '../../core/filters/ModularF
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { VideoFilterLogic } from './filters/VideoFilterLogic.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
+import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export class VideoList {
@@ -69,8 +70,12 @@ export class VideoList {
   // Lade und rendere Video-Liste
   async loadAndRender() {
     try {
-      // Rendere die Seiten-Struktur
+      // Rendere die Seiten-Struktur (ersetzt HTML komplett)
       await this.render();
+      
+      // NACH render(): Overlay auf das NEUE tbody setzen
+      const tbody = document.querySelector('.data-table tbody');
+      TableAnimationHelper.showLoadingOverlay(tbody);
       
       // Initialisiere Filterbar
       await this.initializeFilterBar();
@@ -79,9 +84,13 @@ export class VideoList {
       const filteredVideos = await this.loadVideosWithRelations();
       
       // Aktualisiere Tabelle
+      // (animatedUpdate entfernt Overlay automatisch)
       this.updateTable(filteredVideos);
       
     } catch (error) {
+      // Loading-Overlay bei Fehler ausblenden
+      const tbodyError = document.querySelector('.data-table tbody');
+      TableAnimationHelper.hideLoadingOverlay(tbodyError);
       window.ErrorHandler?.handle(error, 'VideoList.loadAndRender');
       console.error('❌ Fehler beim Laden der Videos:', error);
     }

@@ -252,21 +252,87 @@ export class CreatorAdressenManager {
     });
   }
 
+  // Validiere Formular-Daten
+  validateFormData(formData) {
+    const errors = [];
+    
+    // Adressname ist Pflichtfeld
+    const adressname = formData.get('adressname')?.trim();
+    if (!adressname || adressname.length === 0) {
+      errors.push('Adressname ist erforderlich');
+    } else if (adressname.length > 100) {
+      errors.push('Adressname darf maximal 100 Zeichen lang sein');
+    }
+    
+    // PLZ validieren (wenn angegeben)
+    const plz = formData.get('plz')?.trim();
+    if (plz && plz.length > 0) {
+      // Deutsche PLZ: 5 Ziffern, Österreich/Schweiz: 4 Ziffern
+      if (!/^\d{4,5}$/.test(plz)) {
+        errors.push('PLZ muss 4-5 Ziffern enthalten');
+      }
+    }
+    
+    // Feldlängen prüfen
+    const firmenname = formData.get('firmenname')?.trim();
+    if (firmenname && firmenname.length > 200) {
+      errors.push('Firmenname darf maximal 200 Zeichen lang sein');
+    }
+    
+    const strasse = formData.get('strasse')?.trim();
+    if (strasse && strasse.length > 200) {
+      errors.push('Straße darf maximal 200 Zeichen lang sein');
+    }
+    
+    const hausnummer = formData.get('hausnummer')?.trim();
+    if (hausnummer && hausnummer.length > 20) {
+      errors.push('Hausnummer darf maximal 20 Zeichen lang sein');
+    }
+    
+    const stadt = formData.get('stadt')?.trim();
+    if (stadt && stadt.length > 100) {
+      errors.push('Stadt darf maximal 100 Zeichen lang sein');
+    }
+    
+    const land = formData.get('land')?.trim();
+    if (land && land.length > 100) {
+      errors.push('Land darf maximal 100 Zeichen lang sein');
+    }
+    
+    const notiz = formData.get('notiz')?.trim();
+    if (notiz && notiz.length > 1000) {
+      errors.push('Notiz darf maximal 1000 Zeichen lang sein');
+    }
+    
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  }
+
   // Verarbeite Formular-Submit
   async handleSubmit(form) {
     try {
       const formData = new FormData(form);
+      
+      // Validierung durchführen
+      const validation = this.validateFormData(formData);
+      if (!validation.isValid) {
+        this.showError(validation.errors.join('\n'));
+        return;
+      }
+      
       const payload = {
         creator_id: this.creatorId,
-        adressname: formData.get('adressname'),
-        firmenname: formData.get('firmenname') || null,
-        strasse: formData.get('strasse') || null,
-        hausnummer: formData.get('hausnummer') || null,
-        plz: formData.get('plz') || null,
-        stadt: formData.get('stadt') || null,
-        land: formData.get('land') || 'Deutschland',
+        adressname: formData.get('adressname')?.trim(),
+        firmenname: formData.get('firmenname')?.trim() || null,
+        strasse: formData.get('strasse')?.trim() || null,
+        hausnummer: formData.get('hausnummer')?.trim() || null,
+        plz: formData.get('plz')?.trim() || null,
+        stadt: formData.get('stadt')?.trim() || null,
+        land: formData.get('land')?.trim() || 'Deutschland',
         ist_standard: formData.get('ist_standard') === 'on',
-        notiz: formData.get('notiz') || null,
+        notiz: formData.get('notiz')?.trim() || null,
         updated_at: new Date().toISOString()
       };
 
@@ -311,9 +377,24 @@ export class CreatorAdressenManager {
 
   // Lösche Adresse
   async deleteAdresse(adresseId, creatorId) {
-    if (!confirm('Möchten Sie diese Adresse wirklich löschen?')) {
-      return;
+    // Nutze confirmationModal für konsistente UX
+    let confirmed = false;
+    
+    if (window.confirmationModal) {
+      const result = await window.confirmationModal.open({
+        title: 'Adresse löschen',
+        message: 'Möchten Sie diese Adresse wirklich löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.',
+        confirmText: 'Löschen',
+        cancelText: 'Abbrechen',
+        danger: true
+      });
+      confirmed = result?.confirmed;
+    } else {
+      // Fallback auf native confirm
+      confirmed = confirm('Möchten Sie diese Adresse wirklich löschen?');
     }
+    
+    if (!confirmed) return;
 
     try {
       const { error } = await window.supabase
@@ -323,7 +404,12 @@ export class CreatorAdressenManager {
 
       if (error) throw error;
 
-      window.NotificationSystem?.show('success', 'Adresse erfolgreich gelöscht.');
+      // Nutze toastSystem oder NotificationSystem
+      if (window.toastSystem) {
+        window.toastSystem.show('success', 'Adresse erfolgreich gelöscht.');
+      } else {
+        window.NotificationSystem?.show('success', 'Adresse erfolgreich gelöscht.');
+      }
       
       // Event auslösen
       window.dispatchEvent(new CustomEvent('entityUpdated', {
@@ -331,7 +417,11 @@ export class CreatorAdressenManager {
       }));
     } catch (error) {
       console.error('❌ Fehler beim Löschen der Adresse:', error);
-      window.NotificationSystem?.show('error', 'Löschen fehlgeschlagen: ' + error.message);
+      if (window.toastSystem) {
+        window.toastSystem.show('error', 'Löschen fehlgeschlagen: ' + error.message);
+      } else {
+        window.NotificationSystem?.show('error', 'Löschen fehlgeschlagen: ' + error.message);
+      }
     }
   }
 

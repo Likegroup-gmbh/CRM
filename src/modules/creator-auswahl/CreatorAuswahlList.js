@@ -1,34 +1,70 @@
 // CreatorAuswahlList.js
-// Übersicht aller Creator-Auswahl-Listen
+// Übersicht aller Creator-Auswahl-Listen (Sourcing)
+// Basiert auf BasePaginatedList (Client-seitige Pagination)
 
+import { BasePaginatedList } from '../../core/BasePaginatedList.js';
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
-import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { AvatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { AutoGeneration } from '../../core/form/logic/AutoGeneration.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
-export class CreatorAuswahlList {
+export class CreatorAuswahlList extends BasePaginatedList {
   constructor() {
-    this._boundEventListeners = new Set();
-    this.pagination = new PaginationSystem();
+    super('creator-auswahl', {
+      itemsPerPage: 10,
+      headline: 'Sourcing',
+      breadcrumbLabel: 'Sourcing',
+      sortField: 'name',
+      sortAscending: true,
+      paginationContainerId: 'pagination-container-creator-auswahl',
+      tbodySelector: '#creator-auswahl-table-body',
+      tableColspan: 5,
+      permissionEntity: 'kampagne' // Verwendet Kampagne-Permissions
+    });
+    
+    // Client-seitige Daten (alle Listen)
     this.listen = [];
     this.autoGeneration = new AutoGeneration();
   }
-
+  
+  // ══════════════════════════════════════════════════════════════════════════
+  // IMPLEMENTIERUNG DER ABSTRAKTEN METHODEN
+  // ══════════════════════════════════════════════════════════════════════════
+  
   /**
-   * Initialisiere Liste
+   * Client-seitige Pagination: Lädt alle Daten und paginiert im Client
    */
-  async init() {
-    window.setHeadline('Sourcing');
-    
-    // Breadcrumb
-    if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Sourcing', url: '/sourcing', clickable: false }
-      ]);
+  async loadPageData(page, limit, filters) {
+    // Daten einmalig laden wenn noch nicht vorhanden
+    if (this.listen.length === 0 || this._forceReload) {
+      this.listen = await creatorAuswahlService.getAllListen();
+      this._forceReload = false;
     }
     
+    // Client-seitige Pagination
+    const start = (page - 1) * limit;
+    const end = start + limit;
+    const paginatedData = this.listen.slice(start, end);
+    
+    return {
+      data: paginatedData,
+      total: this.listen.length
+    };
+  }
+  
+  /**
+   * Berechtigungsprüfung
+   */
+  async checkViewPermission() {
+    if (window.currentUser?.rolle === 'admin') return true;
+    return window.currentUser?.permissions?.kampagne?.can_view || false;
+  }
+  
+  /**
+   * Zusätzliche Init-Logik
+   */
+  async init() {
     // FAB/Quick-Menu für Kunden in Sourcing verstecken
     const rolle = window.currentUser?.rolle?.toLowerCase();
     const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
@@ -39,99 +75,88 @@ export class CreatorAuswahlList {
       }
     }
     
-    // Berechtigungsprüfung
-    const canView = await this.checkPermission();
-    if (!canView) {
-      window.content.innerHTML = `
-        <div class="error-message">
-          <p>Sie haben keine Berechtigung, Creator-Auswahl-Listen anzuzeigen.</p>
-        </div>
-      `;
-      return;
-    }
-
-    // Pagination initialisieren mit dynamicResize
-    this.pagination.init('pagination-container-creator-auswahl', {
-      onPageChange: (page) => this.handlePageChange(page),
-      onItemsPerPageChange: (itemsPerPage, page) => this.handleItemsPerPageChange(itemsPerPage, page),
-      dynamicResize: true,
-      tbodySelector: '#creator-auswahl-table-body',
-      rowRenderer: (liste) => this.renderSingleRow(liste),
-      dataLoader: async (offset, limit) => {
-        // Alle Listen sind bereits gecacht
-        return this.listen ? this.listen.slice(offset, offset + limit) : [];
-      }
-    });
-
-    await this.loadAndRender();
+    await super.init();
   }
-
+  
   /**
-   * Berechtigungsprüfung
+   * Rendert eine einzelne Tabellenzeile
    */
-  async checkPermission() {
-    if (window.currentUser?.rolle === 'admin') return true;
-    return window.currentUser?.permissions?.kampagne?.can_view || false;
-  }
+  renderSingleRow(liste) {
+    const rolle = window.currentUser?.rolle?.toLowerCase();
+    const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+    const sanitize = this.sanitize.bind(this);
 
-  handlePageChange(page) {
-    this.pagination.currentPage = page;
-    this.loadAndRender();
-  }
+    const unternehmenBubble = liste.unternehmen 
+      ? AvatarBubbles.renderBubbles([{
+          name: liste.unternehmen.firmenname,
+          type: 'org',
+          id: liste.unternehmen.id,
+          entityType: 'unternehmen',
+          logo_url: liste.unternehmen.logo_url
+        }])
+      : '-';
 
-  handleItemsPerPageChange(itemsPerPage, page) {
-    console.log(`📊 CREATORAUSWAHLLIST: Einträge pro Seite geändert auf ${itemsPerPage}, Seite ${page}`);
-    this.pagination.currentPage = page;
-    this.loadAndRender();
-  }
+    const markeBubble = liste.marke 
+      ? AvatarBubbles.renderBubbles([{
+          name: liste.marke.markenname,
+          type: 'org',
+          id: liste.marke.id,
+          entityType: 'marke',
+          logo_url: liste.marke.logo_url
+        }])
+      : '-';
 
+    const kampagneName = KampagneUtils.getDisplayName(liste.kampagne);
+
+    return `
+      <tr class="table-row-clickable" data-liste-id="${liste.id}">
+        <td class="col-name ca-col-name">
+          <a href="#" class="table-link" data-table="sourcing" data-id="${liste.id}">
+            ${sanitize(liste.name || 'Ohne Namen')}
+          </a>
+        </td>
+        <td class="ca-col-unternehmen">${unternehmenBubble}</td>
+        <td class="ca-col-marke">${markeBubble}</td>
+        <td class="ca-col-kampagne">${kampagneName}</td>
+        <td class="col-actions">
+          <div class="actions-dropdown-container" data-entity-type="creator-auswahl">
+            <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+              </svg>
+            </button>
+            <div class="actions-dropdown">
+              <a href="#" class="action-item" data-action="view-liste" data-id="${liste.id}">
+                ${window.ActionsDropdown?.getHeroIcon('view') || ''}
+                Details anzeigen
+              </a>
+              ${!isKunde ? `
+                <a href="#" class="action-item" data-action="edit-liste" data-id="${liste.id}">
+                  ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
+                  Bearbeiten
+                </a>
+                <div class="action-separator"></div>
+                <a href="#" class="action-item action-danger" data-action="delete-liste" data-id="${liste.id}">
+                  ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
+                  Löschen
+                </a>
+              ` : ''}
+            </div>
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+  
   /**
-   * Lade und rendere Liste
+   * Rendert den Shell-Content (Struktur ohne Daten)
    */
-  async loadAndRender() {
-    await this.render();
-    this.bindEvents();
-    
-    try {
-      this.listen = await creatorAuswahlService.getAllListen();
-      
-      const { currentPage, itemsPerPage } = this.pagination.getState();
-      const start = (currentPage - 1) * itemsPerPage;
-      const end = start + itemsPerPage;
-      const paginatedData = this.listen.slice(start, end);
-      
-      this.pagination.updateTotal(this.listen.length);
-      this.pagination.render();
-      
-      await this.updateTable(paginatedData);
-      this.bindEvents();
-      
-    } catch (error) {
-      console.error('Fehler beim Laden der Listen:', error);
-      window.toastSystem?.show('Fehler beim Laden der Creator-Auswahl-Listen', 'error');
-      
-      const tbody = document.getElementById('creator-auswahl-table-body');
-      if (tbody) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="5" class="table-state-cell table-state-cell--error">
-              Fehler beim Laden der Listen
-            </td>
-          </tr>
-        `;
-      }
-    }
-  }
-
-  /**
-   * Rendere die Seiten-Struktur
-   */
-  async render() {
+  renderShellContent() {
     const rolle = window.currentUser?.rolle?.toLowerCase();
     const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
     const canCreate = !isKunde && (rolle === 'admin' || window.currentUser?.permissions?.kampagne?.can_edit);
 
-    const html = `
+    return `
       <div class="list-container">
         <div class="table-filter-wrapper">
           <div class="filter-bar">
@@ -170,910 +195,130 @@ export class CreatorAuswahlList {
         <div id="pagination-container-creator-auswahl"></div>
       </div>
     `;
-
-    window.content.innerHTML = html;
   }
-
+  
+  // ══════════════════════════════════════════════════════════════════════════
+  // ÜBERSCHRIEBENE METHODEN
+  // ══════════════════════════════════════════════════════════════════════════
+  
   /**
-   * Rendert eine einzelne Tabellenzeile
+   * Zusätzliche Events binden
    */
-  renderSingleRow(liste) {
-    const rolle = window.currentUser?.rolle?.toLowerCase();
-    const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
-    const sanitize = window.validatorSystem?.sanitizeHtml?.bind(window.validatorSystem) || (x => x);
-
-    const unternehmenBubble = liste.unternehmen 
-      ? AvatarBubbles.renderBubbles([{
-          name: liste.unternehmen.firmenname,
-          type: 'org',
-          id: liste.unternehmen.id,
-          entityType: 'unternehmen',
-          logo_url: liste.unternehmen.logo_url
-        }])
-      : '-';
-
-    const markeBubble = liste.marke 
-      ? AvatarBubbles.renderBubbles([{
-          name: liste.marke.markenname,
-          type: 'org',
-          id: liste.marke.id,
-          entityType: 'marke',
-          logo_url: liste.marke.logo_url
-        }])
-      : '-';
-
-    const kampagneName = KampagneUtils.getDisplayName(liste.kampagne);
-
-    return `
-      <tr class="table-row-clickable" data-liste-id="${liste.id}">
-        <td class="col-name ca-col-name">${sanitize(liste.name || 'Ohne Namen')}</td>
-        <td class="ca-col-unternehmen">${unternehmenBubble}</td>
-        <td class="ca-col-marke">${markeBubble}</td>
-        <td class="ca-col-kampagne">${sanitize(kampagneName)}</td>
-        <td class="col-actions">
-          <div class="actions-dropdown-container" data-entity-type="creator-auswahl">
-            <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-              </svg>
-            </button>
-            <div class="actions-dropdown">
-              <a href="#" class="action-item" data-action="view-liste" data-id="${liste.id}">
-                ${window.ActionsDropdown?.getHeroIcon('view') || ''}
-                Details anzeigen
-              </a>
-              ${!isKunde ? `
-                <a href="#" class="action-item" data-action="edit-liste" data-id="${liste.id}">
-                  ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
-                  Bearbeiten
-                </a>
-                ${rolle === 'admin' ? `
-                  <div class="action-separator"></div>
-                  <a href="#" class="action-item action-danger" data-action="delete-liste" data-id="${liste.id}">
-                    ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
-                    Löschen
-                  </a>
-                ` : ''}
-              ` : ''}
-            </div>
-          </div>
-        </td>
-      </tr>
-    `;
-  }
-
-  /**
-   * Aktualisiere die Tabelle
-   */
-  async updateTable(listen) {
-    const tbody = document.getElementById('creator-auswahl-table-body');
-    if (!tbody) return;
-
-    await TableAnimationHelper.animatedUpdate(tbody, () => {
-      if (!listen || listen.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="5" class="table-state-cell">
-              Keine Creator-Auswahl-Listen gefunden
-            </td>
-          </tr>
-        `;
-        return;
+  bindAdditionalEvents(signal) {
+    // Create Liste Button
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('[data-action="create-liste"]')) {
+        e.preventDefault();
+        window.navigateTo('/sourcing/new');
       }
-
-      tbody.innerHTML = listen.map(liste => this.renderSingleRow(liste)).join('');
-    });
+    }, { signal });
     
-    if (window.ActionsDropdown) {
-      window.ActionsDropdown.init();
-    }
-  }
-
-  /**
-   * Events binden
-   */
-  bindEvents() {
-    this._boundEventListeners.forEach(cleanup => cleanup());
-    this._boundEventListeners.clear();
-
-    // Neue Liste Button
-    const createBtn = document.querySelector('[data-action="create-liste"]');
-    if (createBtn) {
-      const handler = () => this.showCreateDialog();
-      createBtn.addEventListener('click', handler);
-      this._boundEventListeners.add(() => createBtn.removeEventListener('click', handler));
-    }
-
-    // Zeilen-Klick
-    const rows = document.querySelectorAll('.table-row-clickable');
-    rows.forEach(row => {
-      const handler = (e) => {
-        if (e.target.closest('.actions-dropdown-container')) return;
-        if (e.target.closest('button')) return;
-        if (e.target.closest('a')) return;
-        
-        const id = row.dataset.listeId;
+    // View Liste
+    document.addEventListener('click', (e) => {
+      const viewBtn = e.target.closest('[data-action="view-liste"]');
+      if (viewBtn) {
+        e.preventDefault();
+        const id = viewBtn.dataset.id;
         window.navigateTo(`/sourcing/${id}`);
-      };
-      row.addEventListener('click', handler);
-      this._boundEventListeners.add(() => row.removeEventListener('click', handler));
-    });
-
-    // View Action
-    document.querySelectorAll('[data-action="view-liste"]').forEach(btn => {
-      const handler = (e) => {
+      }
+    }, { signal });
+    
+    // Edit Liste
+    document.addEventListener('click', (e) => {
+      const editBtn = e.target.closest('[data-action="edit-liste"]');
+      if (editBtn) {
         e.preventDefault();
-        e.stopPropagation();
-        window.navigateTo(`/sourcing/${btn.dataset.id}`);
-      };
-      btn.addEventListener('click', handler);
-      this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
-    });
-
-    // Edit Action
-    document.querySelectorAll('[data-action="edit-liste"]').forEach(btn => {
-      const handler = (e) => {
+        const id = editBtn.dataset.id;
+        window.navigateTo(`/sourcing/${id}/edit`);
+      }
+    }, { signal });
+    
+    // Delete Liste
+    document.addEventListener('click', (e) => {
+      const deleteBtn = e.target.closest('[data-action="delete-liste"]');
+      if (deleteBtn) {
         e.preventDefault();
-        e.stopPropagation();
-        this.showEditDialog(btn.dataset.id);
-      };
-      btn.addEventListener('click', handler);
-      this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
-    });
-
-    // Delete Action
-    document.querySelectorAll('[data-action="delete-liste"]').forEach(btn => {
-      const handler = (e) => {
+        const id = deleteBtn.dataset.id;
+        this.confirmDeleteListe(id);
+      }
+    }, { signal });
+    
+    // Row Click
+    document.addEventListener('click', (e) => {
+      const row = e.target.closest('.table-row-clickable');
+      if (row && !e.target.closest('.actions-dropdown-container') && !e.target.closest('.table-link')) {
+        const id = row.dataset.listeId;
+        if (id) {
+          window.navigateTo(`/sourcing/${id}`);
+        }
+      }
+    }, { signal });
+    
+    // Table Link Click (für Sourcing-Links)
+    document.addEventListener('click', (e) => {
+      if (e.target.classList.contains('table-link') && e.target.dataset.table === 'sourcing') {
         e.preventDefault();
-        e.stopPropagation();
-        this.handleDelete(btn.dataset.id);
-      };
-      btn.addEventListener('click', handler);
-      this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
-    });
-  }
-
-  /**
-   * Zeige Erstellen-Drawer
-   */
-  showCreateDialog() {
-    this.removeDrawer();
-
-    const overlay = document.createElement('div');
-    overlay.className = 'drawer-overlay';
-    overlay.id = 'create-liste-overlay';
-
-    const panel = document.createElement('div');
-    panel.setAttribute('role', 'dialog');
-    panel.className = 'drawer-panel';
-    panel.id = 'create-liste-drawer';
-
-    const header = document.createElement('div');
-    header.className = 'drawer-header';
-    header.innerHTML = `
-      <div>
-        <span class="drawer-title">Neue Creator-Auswahl</span>
-        <p class="drawer-subtitle">Erstellen Sie eine neue Creator-Auswahl-Liste</p>
-      </div>
-      <div>
-        <button class="drawer-close-btn" type="button" aria-label="Schließen">&times;</button>
-      </div>
-    `;
-
-    const body = document.createElement('div');
-    body.className = 'drawer-body';
-    body.innerHTML = `
-      <form id="create-liste-form">
-        <input type="hidden" id="liste-name" name="name" value="">
-
-        <div class="form-field">
-          <label class="form-label">Beschreibung</label>
-          <textarea id="liste-beschreibung" name="beschreibung" class="form-input" rows="3" placeholder="Optional"></textarea>
-        </div>
-
-        <div class="form-field tag-based-select">
-          <label class="form-label">Unternehmen</label>
-          <input type="text" id="as-unternehmen" class="form-input auto-suggest-input" placeholder="Unternehmen suchen..." autocomplete="off">
-          <div id="asdd-unternehmen" class="auto-suggest-dropdown"></div>
-          <div id="tags-unternehmen" class="tags-container"></div>
-        </div>
-
-        <div class="form-field tag-based-select">
-          <label class="form-label">Marke</label>
-          <input type="text" id="as-marke" class="form-input auto-suggest-input" placeholder="Marke suchen..." autocomplete="off">
-          <div id="asdd-marke" class="auto-suggest-dropdown"></div>
-          <div id="tags-marke" class="tags-container"></div>
-        </div>
-
-        <div class="form-field tag-based-select">
-          <label class="form-label">Kampagne</label>
-          <input type="text" id="as-kampagne" class="form-input auto-suggest-input" placeholder="Kampagne suchen..." autocomplete="off">
-          <div id="asdd-kampagne" class="auto-suggest-dropdown"></div>
-          <div id="tags-kampagne" class="tags-container"></div>
-        </div>
-
-        <div class="form-field">
-          <label class="form-label">Teilbereiche</label>
-          <div id="teilbereiche-container">
-            <div class="teilbereich-row" data-index="0">
-              <input type="text" class="form-input teilbereich-input" name="teilbereich[]" placeholder="z.B. Food, Sport, Lifestyle">
-              <button type="button" class="teilbereich-add-btn" title="Weiteren Teilbereich hinzufügen">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px;">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
-              </button>
-            </div>
-          </div>
-          <small style="color: var(--text-secondary); font-size: var(--text-xs);">Optional: Kategorisieren Sie Ihre Creator in mehrere Teilbereiche</small>
-        </div>
-
-        <div class="drawer-footer">
-          <button type="button" class="mdc-btn mdc-btn--cancel" data-action="close-drawer">
-            <span class="mdc-btn__label">Abbrechen</span>
-          </button>
-          <button type="submit" class="mdc-btn mdc-btn--create">
-            <span class="mdc-btn__label">Erstellen</span>
-          </button>
-        </div>
-      </form>
-    `;
-
-    panel.appendChild(header);
-    panel.appendChild(body);
-
-    overlay.addEventListener('click', () => this.closeDrawer());
-    header.querySelector('.drawer-close-btn').addEventListener('click', () => this.closeDrawer());
-
-    document.body.appendChild(overlay);
-    document.body.appendChild(panel);
-
-    requestAnimationFrame(() => {
-      overlay.classList.add('active');
-      panel.classList.add('show');
-    });
-
-    this.setupAutoSuggestion();
-    this.bindCreateDialogEvents();
-  }
-
-  /**
-   * Setup Auto-Suggestion
-   */
-  setupAutoSuggestion() {
-    let selectedUnternehmenId = null;
-    let selectedMarkeId = null;
-    let selectedKampagneId = null;
-
-    const addTag = (containerId, id, label, onRemove) => {
-      const container = document.getElementById(containerId);
-      if (!container) return;
-      container.innerHTML = '';
-      
-      const tag = document.createElement('span');
-      tag.className = 'tag';
-      tag.dataset.id = id;
-      tag.textContent = label;
-      
-      const closeBtn = document.createElement('button');
-      closeBtn.type = 'button';
-      closeBtn.className = 'tag-remove';
-      closeBtn.innerHTML = '&times;';
-      closeBtn.addEventListener('click', () => {
-        onRemove();
-        tag.remove();
-      });
-      
-      tag.appendChild(closeBtn);
-      container.appendChild(tag);
-    };
-
-    const bindAutoSuggest = (inputId, dropdownId, queryFn, onSelect, renderItem) => {
-      const input = document.getElementById(inputId);
-      const dropdown = document.getElementById(dropdownId);
-      if (!input || !dropdown) return;
-
-      let debounce;
-
-      input.addEventListener('focus', async () => {
-        try {
-          const rows = await queryFn('');
-          dropdown.innerHTML = rows?.length 
-            ? rows.map(r => renderItem(r)).join('') 
-            : '<div class="dropdown-item no-results">Keine Treffer</div>';
-          dropdown.classList.add('show');
-        } catch (err) {
-          dropdown.innerHTML = '<div class="dropdown-item no-results">Fehler</div>';
-          dropdown.classList.add('show');
-        }
-      });
-
-      input.addEventListener('blur', () => {
-        setTimeout(() => dropdown.classList.remove('show'), 150);
-      });
-
-      input.addEventListener('input', () => {
-        clearTimeout(debounce);
-        debounce = setTimeout(async () => {
-          const query = input.value.trim();
-          try {
-            const rows = await queryFn(query);
-            dropdown.innerHTML = rows?.length 
-              ? rows.map(r => renderItem(r)).join('') 
-              : '<div class="dropdown-item no-results">Keine Treffer</div>';
-            dropdown.classList.add('show');
-          } catch (err) {
-            dropdown.innerHTML = '<div class="dropdown-item no-results">Fehler</div>';
-            dropdown.classList.add('show');
-          }
-        }, 200);
-      });
-
-      dropdown.addEventListener('click', (e) => {
-        const item = e.target.closest('.dropdown-item[data-id]');
-        if (!item) return;
-        onSelect(item.dataset.id, item.dataset.label);
-        dropdown.classList.remove('show');
-        input.value = '';
-      });
-    };
-
-    // Unternehmen - gefiltert nach Mitarbeiter-Zuordnungen
-    bindAutoSuggest(
-      'as-unternehmen', 
-      'asdd-unternehmen',
-      async (q) => {
-        const allowedIds = await window.getAllowedUnternehmenIds?.();
-        let query = window.supabase.from('unternehmen').select('id, firmenname').order('firmenname').limit(20);
-        if (allowedIds !== null) {
-          if (allowedIds.length === 0) return [];
-          query = query.in('id', allowedIds);
-        }
-        if (q) query = query.ilike('firmenname', `%${q}%`);
-        const { data } = await query;
-        return data || [];
-      },
-      (id, label) => {
-        selectedUnternehmenId = id;
-        addTag('tags-unternehmen', id, label, () => { selectedUnternehmenId = null; });
-        document.getElementById('tags-marke').innerHTML = '';
-        document.getElementById('tags-kampagne').innerHTML = '';
-        selectedMarkeId = null;
-        selectedKampagneId = null;
-      },
-      (r) => { const s = window.validatorSystem?.sanitizeHtml?.bind(window.validatorSystem) || (x => x); return `<div class="dropdown-item" data-id="${r.id}" data-label="${s(r.firmenname)}">${s(r.firmenname)}</div>`; }
-    );
-
-    // Marke - gefiltert nach Mitarbeiter-Zuordnungen
-    bindAutoSuggest(
-      'as-marke',
-      'asdd-marke',
-      async (q) => {
-        const allowedMarkenIds = await window.getAllowedMarkenIds?.();
-        let query = window.supabase.from('marke').select('id, markenname').order('markenname').limit(20);
-        if (allowedMarkenIds !== null) {
-          if (allowedMarkenIds.length === 0) return [];
-          query = query.in('id', allowedMarkenIds);
-        }
-        if (q) query = query.ilike('markenname', `%${q}%`);
-        if (selectedUnternehmenId) query = query.eq('unternehmen_id', selectedUnternehmenId);
-        const { data } = await query;
-        return data || [];
-      },
-      (id, label) => {
-        selectedMarkeId = id;
-        addTag('tags-marke', id, label, () => { selectedMarkeId = null; });
-      },
-      (r) => { const s = window.validatorSystem?.sanitizeHtml?.bind(window.validatorSystem) || (x => x); return `<div class="dropdown-item" data-id="${r.id}" data-label="${s(r.markenname)}">${s(r.markenname)}</div>`; }
-    );
-
-    // Kampagne
-    bindAutoSuggest(
-      'as-kampagne',
-      'asdd-kampagne',
-      async (q) => {
-        let query = window.supabase.from('kampagne').select('id, kampagnenname, eigener_name').order('kampagnenname').limit(20);
-        if (q) query = query.ilike('kampagnenname', `%${q}%`);
-        if (selectedMarkeId) query = query.eq('marke_id', selectedMarkeId);
-        const { data } = await query;
-        return data || [];
-      },
-      (id, label) => {
-        selectedKampagneId = id;
-        addTag('tags-kampagne', id, label, () => { selectedKampagneId = null; });
-        
-        // Auto-Generierung des Sourcing-Namens
-        const nameInput = document.getElementById('liste-name');
-        if (nameInput && label) {
-          const sourcingName = this.autoGeneration.autoGenerateSourcingName(label);
-          if (sourcingName) {
-            nameInput.value = sourcingName;
-            nameInput.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-        }
-      },
-      (r) => `<div class="dropdown-item" data-id="${r.id}" data-label="${KampagneUtils.getDisplayName(r)}">${KampagneUtils.getDisplayName(r)}</div>`
-    );
-  }
-
-  /**
-   * Setup Events für dynamische Teilbereiche
-   */
-  setupTeilbereicheEvents(containerId = 'teilbereiche-container') {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-
-    let teilbereichIndex = container.querySelectorAll('.teilbereich-row').length;
-
-    // Event Delegation für Add/Remove Buttons
-    container.addEventListener('click', (e) => {
-      const addBtn = e.target.closest('.teilbereich-add-btn');
-      const removeBtn = e.target.closest('.teilbereich-remove-btn');
-
-      if (addBtn) {
-        // Neuen Teilbereich hinzufügen
-        const newRow = document.createElement('div');
-        newRow.className = 'teilbereich-row';
-        newRow.dataset.index = teilbereichIndex++;
-        newRow.innerHTML = `
-          <input type="text" class="form-input teilbereich-input" name="teilbereich[]" placeholder="Weiterer Teilbereich...">
-          <button type="button" class="teilbereich-remove-btn" title="Teilbereich entfernen">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
-        `;
-        container.appendChild(newRow);
+        const id = e.target.dataset.id;
+        window.navigateTo(`/sourcing/${id}`);
       }
-
-      if (removeBtn) {
-        // Teilbereich entfernen (aber mindestens einen behalten)
-        const rows = container.querySelectorAll('.teilbereich-row');
-        if (rows.length > 1) {
-          removeBtn.closest('.teilbereich-row').remove();
-        }
-      }
-    });
+    }, { signal });
   }
-
+  
+  // ══════════════════════════════════════════════════════════════════════════
+  // CREATOR-AUSWAHL-SPEZIFISCHE METHODEN
+  // ══════════════════════════════════════════════════════════════════════════
+  
   /**
-   * Teilbereiche aus Formular sammeln
+   * Lösch-Bestätigung
    */
-  collectTeilbereiche(containerId = 'teilbereiche-container') {
-    const container = document.getElementById(containerId);
-    if (!container) return null;
-    
-    const inputs = container.querySelectorAll('.teilbereich-input');
-    const teilbereiche = Array.from(inputs)
-      .map(input => input.value.trim())
-      .filter(val => val.length > 0);
-    
-    return teilbereiche.length > 0 ? teilbereiche.join(', ') : null;
-  }
-
-  /**
-   * Binde Events für Erstellen-Drawer
-   */
-  bindCreateDialogEvents() {
-    const drawer = document.getElementById('create-liste-drawer');
-    const form = document.getElementById('create-liste-form');
-    if (!drawer || !form) return;
-
-    // Teilbereiche Events
-    this.setupTeilbereicheEvents('teilbereiche-container');
-
-    drawer.querySelectorAll('[data-action="close-drawer"]').forEach(btn => {
-      btn.addEventListener('click', () => this.closeDrawer());
-    });
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
+  async confirmDeleteListe(id) {
+    if (window.confirmationModal) {
+      const result = await window.confirmationModal.open({
+        title: 'Creator-Auswahl löschen',
+        message: 'Möchten Sie diese Creator-Auswahl wirklich löschen? Alle zugeordneten Creator werden entfernt.',
+        confirmText: 'Löschen',
+        cancelText: 'Abbrechen',
+        danger: true
+      });
       
-      const formData = new FormData(form);
-      const unternehmenTag = document.querySelector('#tags-unternehmen .tag');
-      const markeTag = document.querySelector('#tags-marke .tag');
-      const kampagneTag = document.querySelector('#tags-kampagne .tag');
-      
-      const data = {
-        name: formData.get('name'),
-        beschreibung: formData.get('beschreibung') || null,
-        unternehmen_id: unternehmenTag?.dataset.id || null,
-        marke_id: markeTag?.dataset.id || null,
-        kampagne_id: kampagneTag?.dataset.id || null,
-        teilbereich: this.collectTeilbereiche('teilbereiche-container')
-      };
-
-      if (!data.unternehmen_id && !data.marke_id && !data.kampagne_id) {
-        window.toastSystem?.show('Bitte wählen Sie mindestens ein Unternehmen, eine Marke oder eine Kampagne aus', 'error');
-        return;
+      if (result?.confirmed) {
+        await this.deleteListe(id);
       }
-
-      try {
-        const liste = await creatorAuswahlService.createListe(data);
-        window.toastSystem?.show('Creator-Auswahl erfolgreich erstellt', 'success');
-        this.closeDrawer();
-        window.navigateTo(`/sourcing/${liste.id}`);
-      } catch (error) {
-        console.error('Fehler beim Erstellen:', error);
-        window.toastSystem?.show('Fehler beim Erstellen der Creator-Auswahl', 'error');
+    } else {
+      if (confirm('Möchten Sie diese Creator-Auswahl wirklich löschen?')) {
+        await this.deleteListe(id);
       }
-    });
-  }
-
-  /**
-   * Zeige Bearbeiten-Drawer
-   */
-  async showEditDialog(listeId) {
-    const liste = this.listen.find(l => l.id === listeId);
-    if (!liste) {
-      window.toastSystem?.show('Liste nicht gefunden', 'error');
-      return;
     }
-
-    this.removeDrawer();
-
-    const overlay = document.createElement('div');
-    overlay.className = 'drawer-overlay';
-    overlay.id = 'edit-liste-overlay';
-
-    const panel = document.createElement('div');
-    panel.setAttribute('role', 'dialog');
-    panel.className = 'drawer-panel';
-    panel.id = 'edit-liste-drawer';
-
-    const header = document.createElement('div');
-    header.className = 'drawer-header';
-    header.innerHTML = `
-      <div>
-        <span class="drawer-title">Creator-Auswahl bearbeiten</span>
-        <p class="drawer-subtitle">${liste.name}</p>
-      </div>
-      <div>
-        <button class="drawer-close-btn" type="button" aria-label="Schließen">&times;</button>
-      </div>
-    `;
-
-    const body = document.createElement('div');
-    body.className = 'drawer-body';
-    body.innerHTML = `
-      <form id="edit-liste-form" data-liste-id="${liste.id}">
-        <input type="hidden" name="name" value="${liste.name || ''}">
-
-        <div class="form-field">
-          <label class="form-label">Beschreibung</label>
-          <textarea name="beschreibung" class="form-input" rows="3">${liste.beschreibung || ''}</textarea>
-        </div>
-
-        <div class="form-field tag-based-select">
-          <label class="form-label">Unternehmen</label>
-          <input type="text" id="edit-as-unternehmen" class="form-input auto-suggest-input" placeholder="Unternehmen suchen..." autocomplete="off">
-          <div id="edit-asdd-unternehmen" class="auto-suggest-dropdown"></div>
-          <div id="edit-tags-unternehmen" class="tags-container"></div>
-        </div>
-
-        <div class="form-field tag-based-select">
-          <label class="form-label">Marke</label>
-          <input type="text" id="edit-as-marke" class="form-input auto-suggest-input" placeholder="Marke suchen..." autocomplete="off">
-          <div id="edit-asdd-marke" class="auto-suggest-dropdown"></div>
-          <div id="edit-tags-marke" class="tags-container"></div>
-        </div>
-
-        <div class="form-field tag-based-select">
-          <label class="form-label">Kampagne</label>
-          <input type="text" id="edit-as-kampagne" class="form-input auto-suggest-input" placeholder="Kampagne suchen..." autocomplete="off">
-          <div id="edit-asdd-kampagne" class="auto-suggest-dropdown"></div>
-          <div id="edit-tags-kampagne" class="tags-container"></div>
-        </div>
-
-        <div class="form-field">
-          <label class="form-label">Teilbereiche</label>
-          <div id="edit-teilbereiche-container">
-            ${this.renderTeilbereicheInputs(liste.teilbereich)}
-          </div>
-          <small style="color: var(--text-secondary); font-size: var(--text-xs);">Optional: Kategorisieren Sie Ihre Creator in mehrere Teilbereiche</small>
-        </div>
-
-        <div class="drawer-footer">
-          <button type="button" class="mdc-btn mdc-btn--cancel" data-action="close-drawer">
-            <span class="mdc-btn__label">Abbrechen</span>
-          </button>
-          <button type="submit" class="mdc-btn mdc-btn--create">
-            <span class="mdc-btn__label">Speichern</span>
-          </button>
-        </div>
-      </form>
-    `;
-
-    panel.appendChild(header);
-    panel.appendChild(body);
-
-    overlay.addEventListener('click', () => this.closeDrawer());
-    header.querySelector('.drawer-close-btn').addEventListener('click', () => this.closeDrawer());
-
-    document.body.appendChild(overlay);
-    document.body.appendChild(panel);
-
-    requestAnimationFrame(() => {
-      overlay.classList.add('active');
-      panel.classList.add('show');
-    });
-
-    this.setupEditAutoSuggestion(liste);
-    this.setupTeilbereicheEvents('edit-teilbereiche-container');
-    this.bindEditDialogEvents(liste.id);
   }
-
+  
   /**
-   * Rendere Teilbereiche-Inputs für Edit
+   * Liste löschen
    */
-  renderTeilbereicheInputs(teilbereichString) {
-    const teilbereiche = teilbereichString 
-      ? teilbereichString.split(',').map(t => t.trim()).filter(t => t) 
-      : [];
-    
-    if (teilbereiche.length === 0) {
-      return `
-        <div class="teilbereich-row" data-index="0">
-          <input type="text" class="form-input teilbereich-input" name="teilbereich[]" placeholder="z.B. Food, Sport, Lifestyle">
-          <button type="button" class="teilbereich-add-btn" title="Weiteren Teilbereich hinzufügen">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-          </button>
-        </div>
-      `;
-    }
-    
-    return teilbereiche.map((tb, idx) => `
-      <div class="teilbereich-row" data-index="${idx}">
-        <input type="text" class="form-input teilbereich-input" name="teilbereich[]" value="${tb}" placeholder="Teilbereich...">
-        ${idx === 0 ? `
-          <button type="button" class="teilbereich-add-btn" title="Weiteren Teilbereich hinzufügen">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-          </button>
-        ` : `
-          <button type="button" class="teilbereich-remove-btn" title="Teilbereich entfernen">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
-        `}
-      </div>
-    `).join('');
-  }
-
-  /**
-   * Setup Auto-Suggestion für Edit
-   */
-  setupEditAutoSuggestion(liste) {
-    let selectedUnternehmenId = liste.unternehmen_id;
-    let selectedMarkeId = liste.marke_id;
-    let selectedKampagneId = liste.kampagne_id;
-
-    const addTag = (containerId, id, label, onRemove) => {
-      const container = document.getElementById(containerId);
-      if (!container) return;
-      container.innerHTML = '';
-      
-      const tag = document.createElement('span');
-      tag.className = 'tag';
-      tag.dataset.id = id;
-      tag.textContent = label;
-      
-      const closeBtn = document.createElement('button');
-      closeBtn.type = 'button';
-      closeBtn.className = 'tag-remove';
-      closeBtn.innerHTML = '&times;';
-      closeBtn.addEventListener('click', () => {
-        onRemove();
-        tag.remove();
-      });
-      
-      tag.appendChild(closeBtn);
-      container.appendChild(tag);
-    };
-
-    // Bestehende Tags setzen
-    if (liste.unternehmen) {
-      addTag('edit-tags-unternehmen', liste.unternehmen.id, liste.unternehmen.firmenname, () => { selectedUnternehmenId = null; });
-    }
-    if (liste.marke) {
-      addTag('edit-tags-marke', liste.marke.id, liste.marke.markenname, () => { selectedMarkeId = null; });
-    }
-    if (liste.kampagne) {
-      addTag('edit-tags-kampagne', liste.kampagne.id, KampagneUtils.getDisplayName(liste.kampagne), () => { selectedKampagneId = null; });
-    }
-
-    const bindAutoSuggest = (inputId, dropdownId, queryFn, onSelect, renderItem) => {
-      const input = document.getElementById(inputId);
-      const dropdown = document.getElementById(dropdownId);
-      if (!input || !dropdown) return;
-
-      let debounce;
-
-      input.addEventListener('focus', async () => {
-        const rows = await queryFn('');
-        dropdown.innerHTML = rows?.length ? rows.map(r => renderItem(r)).join('') : '<div class="dropdown-item no-results">Keine Treffer</div>';
-        dropdown.classList.add('show');
-      });
-
-      input.addEventListener('blur', () => setTimeout(() => dropdown.classList.remove('show'), 150));
-
-      input.addEventListener('input', () => {
-        clearTimeout(debounce);
-        debounce = setTimeout(async () => {
-          const rows = await queryFn(input.value.trim());
-          dropdown.innerHTML = rows?.length ? rows.map(r => renderItem(r)).join('') : '<div class="dropdown-item no-results">Keine Treffer</div>';
-          dropdown.classList.add('show');
-        }, 200);
-      });
-
-      dropdown.addEventListener('click', (e) => {
-        const item = e.target.closest('.dropdown-item[data-id]');
-        if (!item) return;
-        onSelect(item.dataset.id, item.dataset.label);
-        dropdown.classList.remove('show');
-        input.value = '';
-      });
-    };
-
-    // Unternehmen - gefiltert nach Mitarbeiter-Zuordnungen
-    bindAutoSuggest('edit-as-unternehmen', 'edit-asdd-unternehmen',
-      async (q) => {
-        const allowedIds = await window.getAllowedUnternehmenIds?.();
-        let query = window.supabase.from('unternehmen').select('id, firmenname').order('firmenname').limit(20);
-        if (allowedIds !== null) {
-          if (allowedIds.length === 0) return [];
-          query = query.in('id', allowedIds);
-        }
-        if (q) query = query.ilike('firmenname', `%${q}%`);
-        const { data } = await query;
-        return data || [];
-      },
-      (id, label) => {
-        selectedUnternehmenId = id;
-        addTag('edit-tags-unternehmen', id, label, () => { selectedUnternehmenId = null; });
-      },
-      (r) => { const s = window.validatorSystem?.sanitizeHtml?.bind(window.validatorSystem) || (x => x); return `<div class="dropdown-item" data-id="${r.id}" data-label="${s(r.firmenname)}">${s(r.firmenname)}</div>`; }
-    );
-
-    // Marke - gefiltert nach Mitarbeiter-Zuordnungen
-    bindAutoSuggest('edit-as-marke', 'edit-asdd-marke',
-      async (q) => {
-        const allowedMarkenIds = await window.getAllowedMarkenIds?.();
-        let query = window.supabase.from('marke').select('id, markenname').order('markenname').limit(20);
-        if (allowedMarkenIds !== null) {
-          if (allowedMarkenIds.length === 0) return [];
-          query = query.in('id', allowedMarkenIds);
-        }
-        if (q) query = query.ilike('markenname', `%${q}%`);
-        if (selectedUnternehmenId) query = query.eq('unternehmen_id', selectedUnternehmenId);
-        const { data } = await query;
-        return data || [];
-      },
-      (id, label) => {
-        selectedMarkeId = id;
-        addTag('edit-tags-marke', id, label, () => { selectedMarkeId = null; });
-      },
-      (r) => { const s = window.validatorSystem?.sanitizeHtml?.bind(window.validatorSystem) || (x => x); return `<div class="dropdown-item" data-id="${r.id}" data-label="${s(r.markenname)}">${s(r.markenname)}</div>`; }
-    );
-
-    bindAutoSuggest('edit-as-kampagne', 'edit-asdd-kampagne',
-      async (q) => {
-        let query = window.supabase.from('kampagne').select('id, kampagnenname, eigener_name').order('kampagnenname').limit(20);
-        if (q) query = query.ilike('kampagnenname', `%${q}%`);
-        if (selectedMarkeId) query = query.eq('marke_id', selectedMarkeId);
-        const { data } = await query;
-        return data || [];
-      },
-      (id, label) => {
-        selectedKampagneId = id;
-        addTag('edit-tags-kampagne', id, label, () => { selectedKampagneId = null; });
-        
-        // Auto-Generierung des Sourcing-Namens beim Bearbeiten
-        const nameInput = document.querySelector('#edit-liste-form input[name="name"][type="hidden"]');
-        if (nameInput && label) {
-          const sourcingName = this.autoGeneration.autoGenerateSourcingName(label);
-          if (sourcingName) {
-            nameInput.value = sourcingName;
-            nameInput.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-        }
-      },
-      (r) => `<div class="dropdown-item" data-id="${r.id}" data-label="${KampagneUtils.getDisplayName(r)}">${KampagneUtils.getDisplayName(r)}</div>`
-    );
-  }
-
-  /**
-   * Binde Events für Bearbeiten-Drawer
-   */
-  bindEditDialogEvents(listeId) {
-    const drawer = document.getElementById('edit-liste-drawer');
-    const form = document.getElementById('edit-liste-form');
-    if (!drawer || !form) return;
-
-    drawer.querySelectorAll('[data-action="close-drawer"]').forEach(btn => {
-      btn.addEventListener('click', () => this.closeDrawer());
-    });
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      
-      const formData = new FormData(form);
-      const unternehmenTag = document.querySelector('#edit-tags-unternehmen .tag');
-      const markeTag = document.querySelector('#edit-tags-marke .tag');
-      const kampagneTag = document.querySelector('#edit-tags-kampagne .tag');
-      
-      const data = {
-        name: formData.get('name'),
-        beschreibung: formData.get('beschreibung') || null,
-        unternehmen_id: unternehmenTag?.dataset.id || null,
-        marke_id: markeTag?.dataset.id || null,
-        kampagne_id: kampagneTag?.dataset.id || null,
-        teilbereich: this.collectTeilbereiche('edit-teilbereiche-container')
-      };
-
-      if (!data.unternehmen_id && !data.marke_id && !data.kampagne_id) {
-        window.toastSystem?.show('Bitte wählen Sie mindestens ein Unternehmen, eine Marke oder eine Kampagne aus', 'error');
-        return;
-      }
-
-      try {
-        await creatorAuswahlService.updateListe(listeId, data);
-        window.toastSystem?.show('Creator-Auswahl erfolgreich aktualisiert', 'success');
-        this.closeDrawer();
-        await this.loadAndRender();
-      } catch (error) {
-        console.error('Fehler beim Aktualisieren:', error);
-        window.toastSystem?.show('Fehler beim Aktualisieren', 'error');
-      }
-    });
-  }
-
-  removeDrawer() {
-    ['create-liste-overlay', 'create-liste-drawer', 'edit-liste-overlay', 'edit-liste-drawer'].forEach(id => {
-      document.getElementById(id)?.remove();
-    });
-  }
-
-  closeDrawer() {
-    ['create-liste-overlay', 'edit-liste-overlay'].forEach(id => {
-      document.getElementById(id)?.classList.remove('active');
-    });
-    ['create-liste-drawer', 'edit-liste-drawer'].forEach(id => {
-      document.getElementById(id)?.classList.remove('show');
-    });
-    setTimeout(() => this.removeDrawer(), 300);
-  }
-
-  async handleDelete(id) {
-    const result = await window.confirmationModal?.open({
-      title: 'Creator-Auswahl löschen?',
-      message: 'Möchten Sie diese Liste wirklich löschen? Alle Creator werden ebenfalls entfernt.',
-      confirmText: 'Löschen',
-      cancelText: 'Abbrechen',
-      danger: true
-    });
-
-    if (!result?.confirmed) return;
-
+  async deleteListe(id) {
     try {
       await creatorAuswahlService.deleteListe(id);
+      
       window.toastSystem?.show('Creator-Auswahl erfolgreich gelöscht', 'success');
-      await this.loadAndRender();
+      
+      // Daten neu laden
+      this._forceReload = true;
+      this.listen = [];
+      await this.loadData();
+      
     } catch (error) {
       console.error('Fehler beim Löschen:', error);
-      window.toastSystem?.show('Fehler beim Löschen', 'error');
+      window.toastSystem?.show('Fehler beim Löschen der Creator-Auswahl', 'error');
     }
   }
-
+  
+  /**
+   * Override destroy um Cache zu clearen
+   */
   destroy() {
-    this._boundEventListeners.forEach(cleanup => cleanup());
-    this._boundEventListeners.clear();
-    this.removeDrawer();
+    this.listen = [];
+    super.destroy();
   }
 }
 
+// Exportiere Instanz für globale Nutzung
 export const creatorAuswahlList = new CreatorAuswahlList();
-

@@ -691,6 +691,7 @@ export class CreatorAuswahlDetail {
               <option value="UGC" ${item.typ === 'UGC' ? 'selected' : ''}>UGC</option>
               <option value="Influencer" ${item.typ === 'Influencer' ? 'selected' : ''}>Influencer</option>
               <option value="Videograf" ${item.typ === 'Videograf' ? 'selected' : ''}>Videograf</option>
+              <option value="Model" ${item.typ === 'Model' ? 'selected' : ''}>Model</option>
             </select>
           ` : `<div class="cell-text-readonly">${item.typ || '-'}</div>`}
         </td>
@@ -1258,6 +1259,7 @@ export class CreatorAuswahlDetail {
               <option value="UGC">UGC</option>
               <option value="Influencer">Influencer</option>
               <option value="Videograf">Videograf</option>
+              <option value="Model">Model</option>
             </select>
           </div>
 

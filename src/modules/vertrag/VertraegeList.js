@@ -136,7 +136,12 @@ export class VertraegeList {
   // Lade und rendere (initiales Laden)
   async loadAndRender() {
     try {
+      // Rendere die Seite-Struktur (ersetzt HTML komplett)
       await this.render();
+      
+      // NACH render(): Overlay auf das NEUE tbody setzen
+      const tbody = document.querySelector('.data-table tbody');
+      TableAnimationHelper.showLoadingOverlay(tbody);
       
       // Pagination neu initialisieren mit korrektem Container
       const paginationContainer = this.viewMode === 'vertraege' 
@@ -159,13 +164,20 @@ export class VertraegeList {
         } else {
           this.updateUnternehmenListTable();
         }
+        // Kein animatedUpdate hier, Overlay manuell entfernen
+        TableAnimationHelper.hideLoadingOverlay(tbody);
       } else {
         // Unternehmens-Detailansicht
         await this.initializeFilterBar();
         const vertraege = await this.loadVertraege();
+        // (animatedUpdate entfernt Overlay automatisch)
         this.updateVertraegeTable(vertraege);
       }
+      
     } catch (error) {
+      // Loading-Overlay bei Fehler ausblenden
+      const tbodyError = document.querySelector('.data-table tbody');
+      TableAnimationHelper.hideLoadingOverlay(tbodyError);
       window.ErrorHandler?.handle(error, 'VertraegeList.loadAndRender');
       console.error('❌ Fehler beim Laden:', error);
     }

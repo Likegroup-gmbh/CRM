@@ -27,6 +27,9 @@ export class CreatorDetail extends PersonDetailBase {
     this.eventsBound = false;
     this._cacheInvalidationBound = false;
     this.activeMainTab = 'info';
+    // AbortController für sauberes Event-Listener Cleanup
+    this._abortController = null;
+    this._destroyed = false;
   }
 
   async init(creatorId) {
@@ -526,11 +529,14 @@ export class CreatorDetail extends PersonDetailBase {
     // Social Media Icons als klickbare Links
     let socialHtml = '';
     if (this.creator.instagram || this.creator.tiktok) {
+      // URL sanitize gegen XSS
+      const sanitizeUrl = (url) => window.validatorSystem?.sanitizeUrl(url);
+      
       const instagramUrl = this.creator.instagram 
-        ? (this.creator.instagram.startsWith('http') ? this.creator.instagram : `https://instagram.com/${this.creator.instagram.replace('@', '')}`)
+        ? sanitizeUrl(this.creator.instagram.startsWith('http') ? this.creator.instagram : `https://instagram.com/${this.creator.instagram.replace('@', '')}`)
         : null;
       const tiktokUrl = this.creator.tiktok 
-        ? (this.creator.tiktok.startsWith('http') ? this.creator.tiktok : `https://tiktok.com/@${this.creator.tiktok.replace('@', '')}`)
+        ? sanitizeUrl(this.creator.tiktok.startsWith('http') ? this.creator.tiktok : `https://tiktok.com/@${this.creator.tiktok.replace('@', '')}`)
         : null;
 
       socialHtml = `
@@ -1115,6 +1121,13 @@ export class CreatorDetail extends PersonDetailBase {
   }
 
   bindEvents() {
+    // Cleanup vorheriger Listener
+    if (this._abortController) {
+      this._abortController.abort();
+    }
+    this._abortController = new AbortController();
+    const signal = this._abortController.signal;
+
     // Sidebar Tabs binden (aus Basis-Klasse)
     this.bindSidebarTabs();
 
@@ -1124,7 +1137,7 @@ export class CreatorDetail extends PersonDetailBase {
         e.preventDefault();
         this.switchTab(e.target.dataset.tab);
       }
-    });
+    }, { signal });
 
     // Tabellen-Links (Unternehmen)
     document.addEventListener('click', (e) => {
@@ -1134,7 +1147,7 @@ export class CreatorDetail extends PersonDetailBase {
         e.preventDefault();
         window.navigateTo(`/unternehmen/${link.dataset.id}`);
       }
-    });
+    }, { signal });
 
     // Edit Creator Button / Action - korrigierter Selektor für Button-ID
     document.addEventListener('click', (e) => {
@@ -1142,7 +1155,7 @@ export class CreatorDetail extends PersonDetailBase {
         e.preventDefault();
         this.showEditForm();
       }
-    });
+    }, { signal });
 
     // Kampagne Links
     document.addEventListener('click', (e) => {
@@ -1151,26 +1164,30 @@ export class CreatorDetail extends PersonDetailBase {
         const kampagneId = e.target.getAttribute('data-kampagne-id');
         window.navigateTo(`/kampagne/${kampagneId}`);
       }
-    });
+    }, { signal });
 
     // Notizen Update Event
     window.addEventListener('notizenUpdated', async (e) => {
+      if (this._destroyed) return;
       if (e.detail.entityType === 'creator' && e.detail.entityId === this.creatorId) {
         console.log('🔄 CREATORDETAIL: Notizen wurden aktualisiert, lade neu...');
         this.notizen = await window.notizenSystem.loadNotizen('creator', this.creatorId);
+        if (this._destroyed) return;
         const notizenTab = document.querySelector('#tab-notizen');
         if (notizenTab) {
           notizenTab.innerHTML = window.notizenSystem.renderNotizenContainer(this.notizen, 'creator', this.creatorId);
         }
       }
-    });
+    }, { signal });
 
     // Creator-Adressen Update Event
-    const adressenUpdateHandler = async (e) => {
+    window.addEventListener('entityUpdated', async (e) => {
+      if (this._destroyed) return;
       if (e.detail?.entity === 'creator_adressen' && e.detail?.creatorId === this.creatorId) {
         console.log('🔄 CREATORDETAIL: Creator-Adressen aktualisiert, lade Daten neu');
         tabDataCache.invalidate('creator', this.creatorId);
         await this.loadCriticalData();
+        if (this._destroyed) return;
         
         const adresseTab = document.getElementById('tab-adresse');
         if (adresseTab) {
@@ -1178,29 +1195,25 @@ export class CreatorDetail extends PersonDetailBase {
           console.log('✅ CREATORDETAIL: Adresse-Tab erfolgreich aktualisiert');
         }
       }
-    };
-    
-    if (this.adressenUpdateHandler) {
-      window.removeEventListener('entityUpdated', this.adressenUpdateHandler);
-    }
-    
-    this.adressenUpdateHandler = adressenUpdateHandler;
-    window.addEventListener('entityUpdated', this.adressenUpdateHandler);
+    }, { signal });
 
     // Bewertungen Update Event
     window.addEventListener('bewertungenUpdated', async (e) => {
+      if (this._destroyed) return;
       if (e.detail.entityType === 'creator' && e.detail.entityId === this.creatorId) {
         console.log('🔄 CREATORDETAIL: Bewertungen wurden aktualisiert, lade neu...');
         this.ratings = await window.bewertungsSystem.loadBewertungen('creator', this.creatorId);
+        if (this._destroyed) return;
         const ratingsTab = document.querySelector('#tab-ratings');
         if (ratingsTab) {
           ratingsTab.innerHTML = window.bewertungsSystem.renderBewertungenContainer(this.ratings, 'creator', this.creatorId);
         }
       }
-    });
+    }, { signal });
 
     // Soft-Refresh bei Realtime-Updates
     window.addEventListener('softRefresh', async (e) => {
+      if (this._destroyed) return;
       const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
       if (hasActiveForm) {
         console.log('⏸️ CREATORDETAIL: Formular aktiv - Soft-Refresh übersprungen');
@@ -1212,8 +1225,9 @@ export class CreatorDetail extends PersonDetailBase {
       console.log('🔄 CREATORDETAIL: Soft-Refresh - lade Daten neu');
       tabDataCache.invalidate('creator', this.creatorId);
       await this.loadCriticalData();
+      if (this._destroyed) return;
       this.render();
-    });
+    }, { signal });
   }
 
   async switchTab(tabName) {
@@ -1478,6 +1492,21 @@ export class CreatorDetail extends PersonDetailBase {
 
   destroy() {
     console.log('🗑️ CREATORDETAIL: Destroy aufgerufen - räume auf');
+    
+    // Markiere als zerstört um laufende async Operationen zu stoppen
+    this._destroyed = true;
+    
+    // AbortController: Entferne alle Event-Listener auf einmal
+    if (this._abortController) {
+      this._abortController.abort();
+      this._abortController = null;
+    }
+    
+    // Legacy-Handler entfernen (falls noch vorhanden)
+    if (this.adressenUpdateHandler) {
+      window.removeEventListener('entityUpdated', this.adressenUpdateHandler);
+      this.adressenUpdateHandler = null;
+    }
     
     tabDataCache.invalidate('creator', this.creatorId);
     this._cacheInvalidationBound = false;

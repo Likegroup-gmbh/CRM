@@ -1,5 +1,5 @@
 export class AutoGeneration {
-  // Auftragsname automatisch generieren: "[Art]_[Nummer]_[Unternehmensname]"
+  // Auftragsname automatisch generieren: "[Art]_[Nummer]_[Kürzel]" (Fallback: Firmenname)
   async autoGenerateAuftragsname(form) {
     try {
       // Werte aus dem Formular holen
@@ -28,10 +28,10 @@ export class AutoGeneration {
       
       console.log(`🔧 Generiere Auftragsname für Unternehmen: ${unternehmenId}, Art: ${auftragType}`);
       
-      // 1. Unternehmensname laden
+      // 1. Unternehmensdaten laden (Kürzel und Firmenname)
       const { data: unternehmen, error: unternehmenError } = await window.supabase
         .from('unternehmen')
-        .select('firmenname')
+        .select('firmenname, internes_kuerzel')
         .eq('id', unternehmenId)
         .single();
       
@@ -40,7 +40,8 @@ export class AutoGeneration {
         return;
       }
       
-      const firmenname = unternehmen.firmenname || 'Unbekannt';
+      // Kürzel bevorzugen, Fallback auf Firmenname
+      const displayName = unternehmen.internes_kuerzel || unternehmen.firmenname || 'Unbekannt';
       
       // 2. Bestehende Aufträge mit gleicher Art UND gleichem Unternehmen zählen
       const { data: existingAuftraege, error: auftraegeError } = await window.supabase
@@ -71,7 +72,7 @@ export class AutoGeneration {
       }
       
       // 4. Auftragsname generieren
-      const auftragsname = `${auftragType}_${nextNumber}_${firmenname}`;
+      const auftragsname = `${auftragType}_${nextNumber}_${displayName}`;
       
       // 5. Feld aktualisieren
       auftragnameInput.value = auftragsname;
@@ -89,19 +90,19 @@ export class AutoGeneration {
     }
   }
 
-  // Kampagnenname automatisch generieren
+  // Kampagnenname automatisch generieren: "[Kürzel] - X/Y - Datum" (Fallback: Firmenname)
   async autoGenerateKampagnenname(form, auftragId) {
     try {
       if (!auftragId) return;
 
       console.log(`🔧 Generiere Kampagnenname für Auftrag: ${auftragId}`);
 
-      // 1. Auftrag-Details laden
+      // 1. Auftrag-Details laden (inkl. Kürzel und Firmenname)
       const { data: auftrag, error: auftragError } = await window.supabase
         .from('auftrag')
         .select(`
           *,
-          unternehmen:unternehmen_id(firmenname),
+          unternehmen:unternehmen_id(firmenname, internes_kuerzel),
           marke:marke_id(markenname)
         `)
         .eq('id', auftragId)
@@ -131,10 +132,10 @@ export class AutoGeneration {
       const deadlineInput = form.querySelector('input[name="deadline"]');
       const deadline = deadlineInput ? deadlineInput.value : '';
 
-      // 4. Kampagnenname generieren
-      const firmenname = auftrag.unternehmen?.firmenname || 'Unbekannte Firma';
+      // 4. Kampagnenname generieren (Kürzel bevorzugen, Fallback auf Firmenname)
+      const displayName = auftrag.unternehmen?.internes_kuerzel || auftrag.unternehmen?.firmenname || 'Unbekannte Firma';
       
-      let kampagnenname = `${firmenname} - ${currentKampagneNummer}/${maxKampagnen}`;
+      let kampagnenname = `${displayName} - ${currentKampagneNummer}/${maxKampagnen}`;
       
       if (deadline) {
         const deadlineDate = new Date(deadline);
