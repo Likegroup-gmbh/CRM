@@ -463,12 +463,24 @@ export class KampagneKooperationenVideoTable {
         assets = assetsResult.status === 'fulfilled' ? (assetsResult.value.data || []) : [];
         comments = commentsResult.status === 'fulfilled' ? (commentsResult.value.data || []) : [];
 
-        // Warnungen bei Fehlern
+        // User-Feedback bei fehlgeschlagenen Daten-Loads
+        const failedLoads = [];
         if (assetsResult.status === 'rejected') {
           console.warn('⚠️ Assets konnten nicht geladen werden:', assetsResult.reason);
+          failedLoads.push('Assets');
         }
         if (commentsResult.status === 'rejected') {
           console.warn('⚠️ Comments konnten nicht geladen werden:', commentsResult.reason);
+          failedLoads.push('Kommentare');
+        }
+        if (versandResult.status === 'rejected') {
+          console.warn('⚠️ Versand-Infos konnten nicht geladen werden:', versandResult.reason);
+          failedLoads.push('Versand-Infos');
+        }
+        
+        // Zeige User-Benachrichtigung bei Fehlern
+        if (failedLoads.length > 0 && window.notificationSystem?.warning) {
+          window.notificationSystem.warning(`Einige Daten (${failedLoads.join(', ')}) konnten nicht vollständig geladen werden.`);
         }
       }
 

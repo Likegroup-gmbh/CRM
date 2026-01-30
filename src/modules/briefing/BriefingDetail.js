@@ -359,18 +359,16 @@ export class BriefingDetail {
         
         try {
           console.log('📄 Öffne Dokument:', docPath);
-          // Frische signierte URL generieren (7 Tage Gültigkeit)
-          const { data: signed, error } = await window.supabase.storage
+          // Permanente Public URL generieren
+          const { data: urlData } = window.supabase.storage
             .from('documents')
-            .createSignedUrl(docPath, 60 * 60 * 24 * 7);
+            .getPublicUrl(docPath);
           
-          if (error) throw error;
-          
-          if (signed?.signedUrl) {
-            console.log('✅ Signierte URL generiert, öffne neues Fenster');
-            window.open(signed.signedUrl, '_blank', 'noopener,noreferrer');
+          if (urlData?.publicUrl) {
+            console.log('✅ Public URL generiert, öffne neues Fenster');
+            window.open(urlData.publicUrl, '_blank', 'noopener,noreferrer');
           } else {
-            throw new Error('Signierte URL konnte nicht generiert werden');
+            throw new Error('Public URL konnte nicht generiert werden');
           }
         } catch (error) {
           console.error('❌ Fehler beim Öffnen:', error);

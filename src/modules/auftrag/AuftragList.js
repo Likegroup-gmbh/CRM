@@ -1500,21 +1500,16 @@ export class AuftragList {
       throw upErr;
     }
 
-    // Signierte URL erstellen (7 Tage gültig)
-    const { data: signed, error: signErr } = await window.supabase.storage
+    // Permanente Public URL generieren
+    const { data: urlData } = window.supabase.storage
       .from(bucket)
-      .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 Tage
-
-    if (signErr) {
-      console.error('❌ Fehler bei signierter URL:', signErr);
-      throw signErr;
-    }
+      .getPublicUrl(path);
 
     // URL in DB speichern
     const { error: dbErr } = await window.supabase
       .from('auftrag')
       .update({
-        auftragsbestaetigung_url: signed.signedUrl,
+        auftragsbestaetigung_url: urlData?.publicUrl || '',
         auftragsbestaetigung_path: path
       })
       .eq('id', auftragId);

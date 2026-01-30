@@ -3,9 +3,13 @@
 
 import { KampagneUtils } from './KampagneUtils.js';
 
+// Debug-Flag für Logging (Production: false)
+const DEBUG_KANBAN = false;
+const debugLog = (...args) => DEBUG_KANBAN && console.log(...args);
+
 export class KampagneKanbanBoard {
   constructor() {
-    console.log('🏗️ KampagneKanbanBoard Constructor');
+    debugLog('🏗️ KampagneKanbanBoard Constructor');
     this.kampagnen = [];
     this.statusOptions = [];
     this.draggedKampagne = null;
@@ -58,140 +62,13 @@ export class KampagneKanbanBoard {
         return;
       }
 
-      // Sichtbarkeit: Nicht-Admins sehen nur zugewiesene Kampagnen
-      const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-      let assignedKampagnenIds = [];
-
-      // Neue Logik: Marken-Zuordnung als Zusatzfilter
-      // - Nur Unternehmen zugeordnet → Sieht ALLES vom Unternehmen
-      // - Unternehmen + bestimmte Marken → Sieht NUR Inhalte der zugewiesenen Marken
-      if (!isAdmin) {
-        try {
-          // 1. Direkt zugeordnete Kampagnen
-          const { data: assignedKampagnen } = await window.supabase
-            .from('kampagne_mitarbeiter')
-            .select('kampagne_id')
-            .eq('mitarbeiter_id', window.currentUser?.id);
-          const directKampagnenIds = (assignedKampagnen || []).map(r => r.kampagne_id).filter(Boolean);
-          
-          // 2. Zugeordnete Marken (OHNE Join wegen RLS)
-          const { data: assignedMarken } = await window.supabase
-            .from('marke_mitarbeiter')
-            .select('marke_id')
-            .eq('mitarbeiter_id', window.currentUser?.id);
-          
-          // Marken-IDs extrahieren
-          const markenIds = (assignedMarken || []).map(r => r.marke_id).filter(Boolean);
-          
-          // Zugeordnete Marken mit ihren Unternehmen (separat laden wegen RLS)
-          let markenMitUnternehmen = [];
-          if (markenIds.length > 0) {
-            const { data: markenData } = await window.supabase
-              .from('marke')
-              .select('id, unternehmen_id')
-              .in('id', markenIds);
-            
-            markenMitUnternehmen = (markenData || []).map(m => ({
-              marke_id: m.id,
-              unternehmen_id: m.unternehmen_id
-            }));
-          }
-          
-          // 3. Zugeordnete Unternehmen
-          const { data: mitarbeiterUnternehmen } = await window.supabase
-            .from('mitarbeiter_unternehmen')
-            .select('unternehmen_id')
-            .eq('mitarbeiter_id', window.currentUser?.id);
-          
-          const unternehmenIds = (mitarbeiterUnternehmen || [])
-            .map(r => r.unternehmen_id)
-            .filter(Boolean);
-          
-          // Erstelle Map: Unternehmen-ID → zugeordnete Marken-IDs
-          const unternehmenMarkenMap = new Map();
-          markenMitUnternehmen.forEach(r => {
-            if (r.unternehmen_id) {
-              if (!unternehmenMarkenMap.has(r.unternehmen_id)) {
-                unternehmenMarkenMap.set(r.unternehmen_id, []);
-              }
-              unternehmenMarkenMap.get(r.unternehmen_id).push(r.marke_id);
-            }
-          });
-          
-          // Für jedes Unternehmen die erlaubten Marken ermitteln
-          let allowedMarkenIds = [];
-          
-          for (const unternehmenId of unternehmenIds) {
-            const explicitMarkenIds = unternehmenMarkenMap.get(unternehmenId);
-            
-            if (explicitMarkenIds && explicitMarkenIds.length > 0) {
-              // User hat explizite Marken-Zuordnung → Nur diese Marken erlauben
-              allowedMarkenIds.push(...explicitMarkenIds);
-            } else {
-              // Keine Marken-Zuordnung → ALLE Marken des Unternehmens erlauben
-              const { data: alleMarken } = await window.supabase
-                .from('marke')
-                .select('id')
-                .eq('unternehmen_id', unternehmenId);
-              
-              allowedMarkenIds.push(...(alleMarken || []).map(m => m.id));
-            }
-          }
-          
-          // WICHTIG: Direkt zugeordnete Marken hinzufügen (auch ohne separate Unternehmen-Zuordnung)
-          const direktZugeordneteMarkenIds = markenMitUnternehmen.map(r => r.marke_id);
-          allowedMarkenIds.push(...direktZugeordneteMarkenIds);
-          
-          // Duplikate entfernen
-          allowedMarkenIds = [...new Set(allowedMarkenIds)];
-          
-          // Kampagnen für erlaubte Marken laden
-          let markenKampagnenIds = [];
-          if (allowedMarkenIds.length > 0) {
-            const { data: kampagnen } = await window.supabase
-              .from('kampagne')
-              .select('id')
-              .in('marke_id', allowedMarkenIds);
-            
-            markenKampagnenIds = (kampagnen || []).map(k => k.id).filter(Boolean);
-          }
-          
-          // Kampagnen direkt über Unternehmen laden (für Kampagnen ohne Marke)
-          let unternehmenKampagnenIds = [];
-          if (unternehmenIds.length > 0) {
-            const { data: kampagnen } = await window.supabase
-              .from('kampagne')
-              .select('id')
-              .in('unternehmen_id', unternehmenIds);
-            
-            unternehmenKampagnenIds = (kampagnen || []).map(k => k.id).filter(Boolean);
-          }
-          
-          assignedKampagnenIds = [...new Set([
-            ...directKampagnenIds,
-            ...markenKampagnenIds,
-            ...unternehmenKampagnenIds
-          ])];
-          
-          console.log(`🔍 KAMPAGNEKANBAN: Mitarbeiter ${window.currentUser?.id} hat Zugriff auf:`, {
-            direkteKampagnen: directKampagnenIds.length,
-            erlaubteMarken: allowedMarkenIds.length,
-            markenKampagnen: markenKampagnenIds.length,
-            unternehmenKampagnen: unternehmenKampagnenIds.length,
-            gesamt: assignedKampagnenIds.length
-          });
-          
-          if (assignedKampagnenIds.length === 0 && window.currentUser?.rolle !== 'kunde') {
-            this.kampagnen = [];
-            return;
-          }
-        } catch (error) {
-          console.error('❌ Fehler beim Laden der Zuordnungen:', error);
-          if (window.currentUser?.rolle !== 'kunde') {
-            this.kampagnen = [];
-            return;
-          }
-        }
+      // Nutze zentralisierte Permission-Logik aus KampagneUtils
+      const allowedIds = await KampagneUtils.loadAllowedKampagneIds();
+      
+      // null = keine Filterung (Admin/Kunde), [] = kein Zugriff
+      if (allowedIds !== null && allowedIds.length === 0) {
+        this.kampagnen = [];
+        return;
       }
 
       let query = window.supabase
@@ -204,9 +81,9 @@ export class KampagneKanbanBoard {
         `)
         .order('created_at', { ascending: false });
 
-      // Für Mitarbeiter: Filtere nach zugewiesenen Kampagnen
-      if (!isAdmin && window.currentUser?.rolle !== 'kunde' && assignedKampagnenIds.length > 0) {
-        query = query.in('id', assignedKampagnenIds);
+      // Permission-Filterung anwenden (nur wenn allowedIds ein Array ist)
+      if (allowedIds !== null && allowedIds.length > 0) {
+        query = query.in('id', allowedIds);
       }
 
       const { data, error } = await query;
@@ -217,7 +94,6 @@ export class KampagneKanbanBoard {
       }
 
       this.kampagnen = data || [];
-      console.log('✅ Kampagnen geladen:', this.kampagnen.length);
 
     } catch (error) {
       console.error('❌ Fehler beim Laden der Kampagnen:', error);

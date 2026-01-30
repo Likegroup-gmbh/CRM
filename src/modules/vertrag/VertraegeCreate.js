@@ -2982,6 +2982,69 @@ export class VertraegeCreate {
       // Font auf Helvetica setzen (ähnlich Arial, in jsPDF eingebaut)
       doc.setFont('helvetica');
 
+      // Konstanten für Fußzeile (gesperrter Bereich)
+      const FOOTER_Y = 285; // Position der Fußzeile
+      const MAX_CONTENT_Y = 250; // Maximale Y-Position für Content (vor Fußzeile)
+
+      // LikeGroup Logo als SVG (wird zur Laufzeit zu PNG konvertiert)
+      const logoSvg = `<svg width="120" height="66" viewBox="0 0 120 66" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_4719_236)">
+<path d="M65.7855 50.1389V47.153H64.2168V60.8863H65.7855V53.7794C65.7855 50.6035 67.8717 48.5575 71.1445 48.5575H71.4975V46.9418H71.1445C68.7105 46.9418 66.8153 48.1536 65.7855 50.1468V50.1415V50.1389Z" fill="#0D0D0D"/>
+<path d="M79.4557 46.8257C75.2885 46.8257 72.1484 49.9224 72.1484 54.0144C72.1484 58.1064 75.3176 61.2031 79.4557 61.2031C83.5937 61.2031 86.739 58.1064 86.739 54.0144C86.739 49.9224 83.6282 46.8257 79.4557 46.8257ZM85.1119 54.017C85.1119 57.2458 82.7019 59.6983 79.4557 59.6983C76.2095 59.6983 73.7702 57.2484 73.7702 54.017C73.7702 50.7857 76.2042 48.3358 79.4557 48.3358C82.7072 48.3358 85.1119 50.7857 85.1119 54.017Z" fill="#0D0D0D"/>
+<path d="M100.293 55.1998C100.293 57.8926 98.3151 59.6957 95.6343 59.6957C92.9535 59.6957 91.1937 57.919 91.1937 55.2526V47.1504H89.625V55.6855C89.625 59.0278 91.844 61.2058 95.1751 61.2058C97.4764 61.2058 99.26 60.2078 100.293 58.4866V60.8837H101.861V47.1504H100.293V55.2024V55.1971V55.1998Z" fill="#0D0D0D"/>
+<path d="M112.96 46.8257C110.335 46.8257 108.169 48.1694 107.004 50.2999V47.1478H105.436V66H107.004V57.7342C108.164 59.8594 110.33 61.2084 112.96 61.2084C116.995 61.2084 120 58.1117 120 54.0197C120 49.9277 116.998 46.831 112.96 46.831V46.8257ZM112.692 59.6983C109.441 59.6983 107.007 57.2484 107.007 54.017C107.007 50.7857 109.441 48.3358 112.692 48.3358C115.944 48.3358 118.378 50.7857 118.378 54.017C118.378 57.2484 115.944 59.6983 112.692 59.6983Z" fill="#0D0D0D"/>
+<path d="M48.8391 48.6869H59.8119C59.419 55.007 54.2883 59.6006 47.7349 59.6006C40.6719 59.6006 35.3421 54.2626 35.3421 47.1926C35.3421 47.0158 35.3474 46.8389 35.3553 46.6594H33.6168C33.6115 46.8362 33.6035 47.0105 33.6035 47.1926C33.6035 55.1628 39.6792 61.2084 47.7376 61.2084C55.796 61.2084 61.5531 55.4374 61.5531 47.7022V47.153H48.8417V48.6842H48.8364H48.8391V48.6869Z" fill="#0D0D0D"/>
+<path d="M28.7462 15.3067H23.1191V41.5879H28.7462V15.3067Z" fill="#0D0D0D"/>
+<path d="M5.58991 0H0V41.448H18.2535V36.4531H5.59257L5.58991 0Z" fill="#0D0D0D"/>
+<path d="M82.6114 35.9753C81.0347 37.2636 78.9777 38.0503 76.6233 38.0503C71.8589 38.0503 68.4667 34.9642 67.6041 30.7402H91.3838C91.6784 28.3114 91.3838 26.1703 91.3838 26.1703C90.3513 19.4885 84.3207 14.1715 76.6233 14.1715C68.0633 14.1715 61.7461 20.6844 61.7461 28.4513C61.7461 36.2182 68.0659 42.731 76.6233 42.731C82.2477 42.731 86.8423 39.9538 89.3851 35.9753H82.6114ZM76.618 18.8522C81.3825 18.8522 84.9472 22.0519 85.7514 26.1624H67.6041C68.5251 21.8777 72.0261 18.8522 76.6233 18.8522H76.618Z" fill="#0D0D0D"/>
+<path d="M62.0331 41.4525C61.6187 40.1351 61.0132 38.8889 60.2323 37.748C57.5524 33.817 53.1035 31.4694 48.3254 31.4694C45.927 31.4694 43.595 32.078 41.5286 33.1767L59.2071 15.2815H52.3678L39.7225 28.3367V0H34.0918V41.5052H39.4251C40.8248 38.3356 44.0147 36.1171 47.7251 36.1171C51.4356 36.1171 54.6254 38.3329 56.0252 41.5052H62.0463C62.0463 41.5052 62.041 41.4893 62.0384 41.4683C62.0384 41.4683 62.0384 41.4604 62.0331 41.4525Z" fill="#0D0D0D"/>
+</g>
+<defs>
+<clipPath id="clip0_4719_236">
+<rect width="120" height="66" fill="white"/>
+</clipPath>
+</defs>
+</svg>`;
+
+      // Helper: SVG zu PNG konvertieren (für jsPDF) - verwendet data: URL statt blob:
+      const svgToPngDataUrl = async (svgString, width, height) => {
+        return new Promise((resolve, reject) => {
+          const svgBase64 = btoa(unescape(encodeURIComponent(svgString)));
+          const dataUrl = `data:image/svg+xml;base64,${svgBase64}`;
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = width * 2; // Höhere Auflösung
+            canvas.height = height * 2;
+            const ctx = canvas.getContext('2d');
+            ctx.scale(2, 2);
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/png'));
+          };
+          img.onerror = reject;
+          img.src = dataUrl;
+        });
+      };
+
+      // Logo konvertieren
+      const logoBase64 = await svgToPngDataUrl(logoSvg, 120, 66);
+
+      // Seitenzähler für Fußzeile
+      let pageNumber = 1;
+
+      // Helper: Fußzeile hinzufügen
+      const addFooter = () => {
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100);
+        // Links: Adresse
+        doc.text('LikeGroup GmbH | Jakob-Latscha-Str. 3 | 60314 Frankfurt am Main | Deutschland', 14, FOOTER_Y);
+        // Rechts: Seitenzahl
+        doc.text(`Seite ${pageNumber}`, 196, FOOTER_Y, { align: 'right' });
+        doc.setTextColor(0);
+        pageNumber++;
+      };
+
       // Hole Kunden- und Creator-Daten
       const kunde = this.unternehmen.find(u => u.id === vertrag.kunde_unternehmen_id);
       const creator = this.creators.find(c => c.id === vertrag.creator_id);
@@ -3042,17 +3105,20 @@ export class VertraegeCreate {
       // SEITE 1: Titel + Adressdaten (ZENTRIERT)
       // ============================================
 
-      // Titel
+      // Logo oben zentriert
+      doc.addImage(logoBase64, 'PNG', 93.6, 10, 22.75, 12.6);
+
+      // Titel (Logo endet bei y=28, daher Titel ab y=36)
       doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
-      doc.text('UGC-PRODUKTIONSVERTRAG', 105, 30, { align: 'center' });
+      doc.text('UGC-PRODUKTIONSVERTRAG', 105, 36, { align: 'center' });
       doc.setFont('helvetica', 'normal');
       
       // Vertragsname
       doc.setFontSize(10);
-      doc.text(`${vertrag.name || 'Ohne Name'}`, 105, 40, { align: 'center' });
+      doc.text(`${vertrag.name || 'Ohne Name'}`, 105, 46, { align: 'center' });
 
-      let y = 60;
+      let y = 62;
 
       // Agenturdaten (zentriert)
       doc.setFontSize(12);
@@ -3081,7 +3147,7 @@ export class VertraegeCreate {
       y += 5;
       doc.text(`${kunde?.rechnungsadresse_plz || ''} ${kunde?.rechnungsadresse_stadt || ''}`, 105, y, { align: 'center' });
 
-      // Creatordaten (zentriert)
+      // Creatordaten (zentriert, untereinander formatiert)
       y += 18;
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
@@ -3091,7 +3157,11 @@ export class VertraegeCreate {
       y += 8;
       doc.text(`Name: ${creator?.vorname || ''} ${creator?.nachname || ''}`, 105, y, { align: 'center' });
       y += 5;
-      doc.text(`Adresse: ${creator?.lieferadresse_strasse || ''} ${creator?.lieferadresse_hausnummer || ''}, ${creator?.lieferadresse_plz || ''} ${creator?.lieferadresse_stadt || ''}, ${creator?.lieferadresse_land || 'Deutschland'}`, 105, y, { align: 'center' });
+      doc.text(`${creator?.lieferadresse_strasse || ''} ${creator?.lieferadresse_hausnummer || ''}`, 105, y, { align: 'center' });
+      y += 5;
+      doc.text(`${creator?.lieferadresse_plz || ''} ${creator?.lieferadresse_stadt || ''}`, 105, y, { align: 'center' });
+      y += 5;
+      doc.text(`${creator?.lieferadresse_land || 'Deutschland'}`, 105, y, { align: 'center' });
 
       // Influencer-Vertretung (zentriert)
       y += 15;
@@ -3114,6 +3184,21 @@ export class VertraegeCreate {
         y += 5;
         doc.text(`Vertreten durch: ${vertrag.influencer_agentur_vertretung || '-'}`, 105, y, { align: 'center' });
       }
+
+      // PO / Auftragsnummer (zentriert)
+      y += 15;
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('PO / Auftragsnummer', 105, y, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+      doc.text('Zwingend auf der Rechnung anzugeben. Ohne Angabe ist keine Zahlung möglich.', 105, y, { align: 'center' });
+      y += 6;
+      doc.text(`${vertrag.kunde_po_nummer || '_______________________________'}`, 105, y, { align: 'center' });
+
+      // Fußzeile für Seite 1
+      addFooter();
 
       // ============================================
       // SEITE 2: Vertragsinhalte (linksbündig)
@@ -3240,7 +3325,14 @@ export class VertraegeCreate {
         y += 6;
         doc.text(`Bei Zusatzkosten: ${vertrag.zusatzkosten_betrag} € netto`, 14, y);
       }
-      y += 8;
+      // 5.2 Zahlungsbedingungen - benötigt ~30mm, daher Seitenumbruch wenn nötig
+      if (y > 220) {
+        addFooter();
+        doc.addPage();
+        y = 20;
+      } else {
+        y += 8;
+      }
       doc.setFont('helvetica', 'bold');
       doc.text('5.2 Zahlungsbedingungen', 14, y);
       doc.setFont('helvetica', 'normal');
@@ -3256,7 +3348,8 @@ export class VertraegeCreate {
       doc.text('Creator 3% Skonto auf den Nettorechnungsbetrag. Der Skonto-Hinweis ist auf der Rechnung auszuweisen.', 14, y);
 
       // §6 Deadlines & Korrekturen - Seitenumbruch wenn nötig
-      if (y > 230) {
+      if (y > MAX_CONTENT_Y) {
+        addFooter();
         doc.addPage();
         y = 20;
       } else {
@@ -3284,7 +3377,8 @@ export class VertraegeCreate {
       // SEITE 3+: Statische Paragraphen §7-§13
       // ============================================
       // Nur neue Seite wenn nicht genug Platz für §7
-      if (y > 200) {
+      if (y > MAX_CONTENT_Y) {
+        addFooter();
         doc.addPage();
         y = 20;
       } else {
@@ -3372,7 +3466,14 @@ export class VertraegeCreate {
       y += 4;
       doc.text('• Inhaltlich oder qualitativ nicht verwertbarem Content', 18, y);
 
-      y += 8;
+      // 10.2 Anpassungen - benötigt ~35mm, daher Seitenumbruch wenn nötig
+      if (y > 215) {
+        addFooter();
+        doc.addPage();
+        y = 20;
+      } else {
+        y += 8;
+      }
       doc.setFont('helvetica', 'bold');
       doc.text('10.2 Anpassungen (Korrekturschleifen)', 14, y);
       doc.setFont('helvetica', 'normal');
@@ -3388,7 +3489,8 @@ export class VertraegeCreate {
       doc.text('• Nachfilmen einzelner Szenen, allgemeiner Performance-Feinschliff', 18, y);
 
       // Seitenumbruch prüfen
-      if (y > 250) {
+      if (y > MAX_CONTENT_Y) {
+        addFooter();
         doc.addPage();
         y = 20;
       }
@@ -3405,7 +3507,8 @@ export class VertraegeCreate {
       doc.text('anteilig oder vollständig zurückzufordern.', 14, y);
 
       // §11 Agenturbeauftragung & Stellvertretung - Seitenumbruch wenn nötig
-      if (y > 230) {
+      if (y > MAX_CONTENT_Y) {
+        addFooter();
         doc.addPage();
         y = 20;
       } else {
@@ -3428,7 +3531,8 @@ export class VertraegeCreate {
       doc.text('• Die Agentur übernimmt keine Haftung für Inhalt oder Rechtskonformität.', 18, y);
 
       // Seitenumbruch prüfen für §12
-      if (y > 230) {
+      if (y > MAX_CONTENT_Y) {
+        addFooter();
         doc.addPage();
         y = 20;
       } else {
@@ -3461,7 +3565,8 @@ export class VertraegeCreate {
       // §14 Weitere Bestimmungen (nur wenn ausgefüllt)
       if (vertrag.weitere_bestimmungen) {
         y += 14;
-        if (y > 250) {
+        if (y > MAX_CONTENT_Y) {
+          addFooter();
           doc.addPage();
           y = 20;
         }
@@ -3482,6 +3587,9 @@ export class VertraegeCreate {
       doc.text('Ort, Datum: ___________________________', 14, y);
       y += 15;
       doc.text('Creator: ______________________________', 14, y);
+
+      // Fußzeile für letzte Seite
+      addFooter();
 
       // PDF als Blob generieren
       const pdfBlob = doc.output('blob');
@@ -3504,17 +3612,17 @@ export class VertraegeCreate {
         // Fallback: Nur lokal herunterladen
         doc.save(fileName);
       } else {
-        // Signierte URL generieren (7 Tage gültig)
-        const { data: urlData } = await window.supabase.storage
+        // Permanente Public URL generieren
+        const { data: urlData } = window.supabase.storage
           .from('vertraege')
-          .createSignedUrl(filePath, 60 * 60 * 24 * 7); // 7 Tage
+          .getPublicUrl(filePath);
 
         // URL in DB speichern
-        if (urlData?.signedUrl) {
+        if (urlData?.publicUrl) {
           await window.supabase
             .from('vertraege')
             .update({
-              datei_url: urlData.signedUrl,
+              datei_url: urlData.publicUrl,
               datei_path: filePath
             })
             .eq('id', vertrag.id);
@@ -3542,6 +3650,67 @@ export class VertraegeCreate {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
       doc.setFont('helvetica');
+
+      // Konstanten für Fußzeile (gesperrter Bereich)
+      const FOOTER_Y = 285;
+      const MAX_CONTENT_Y = 265;
+
+      // LikeGroup Logo als SVG
+      const logoSvg = `<svg width="120" height="66" viewBox="0 0 120 66" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_4719_236)">
+<path d="M65.7855 50.1389V47.153H64.2168V60.8863H65.7855V53.7794C65.7855 50.6035 67.8717 48.5575 71.1445 48.5575H71.4975V46.9418H71.1445C68.7105 46.9418 66.8153 48.1536 65.7855 50.1468V50.1415V50.1389Z" fill="#0D0D0D"/>
+<path d="M79.4557 46.8257C75.2885 46.8257 72.1484 49.9224 72.1484 54.0144C72.1484 58.1064 75.3176 61.2031 79.4557 61.2031C83.5937 61.2031 86.739 58.1064 86.739 54.0144C86.739 49.9224 83.6282 46.8257 79.4557 46.8257ZM85.1119 54.017C85.1119 57.2458 82.7019 59.6983 79.4557 59.6983C76.2095 59.6983 73.7702 57.2484 73.7702 54.017C73.7702 50.7857 76.2042 48.3358 79.4557 48.3358C82.7072 48.3358 85.1119 50.7857 85.1119 54.017Z" fill="#0D0D0D"/>
+<path d="M100.293 55.1998C100.293 57.8926 98.3151 59.6957 95.6343 59.6957C92.9535 59.6957 91.1937 57.919 91.1937 55.2526V47.1504H89.625V55.6855C89.625 59.0278 91.844 61.2058 95.1751 61.2058C97.4764 61.2058 99.26 60.2078 100.293 58.4866V60.8837H101.861V47.1504H100.293V55.2024V55.1971V55.1998Z" fill="#0D0D0D"/>
+<path d="M112.96 46.8257C110.335 46.8257 108.169 48.1694 107.004 50.2999V47.1478H105.436V66H107.004V57.7342C108.164 59.8594 110.33 61.2084 112.96 61.2084C116.995 61.2084 120 58.1117 120 54.0197C120 49.9277 116.998 46.831 112.96 46.831V46.8257ZM112.692 59.6983C109.441 59.6983 107.007 57.2484 107.007 54.017C107.007 50.7857 109.441 48.3358 112.692 48.3358C115.944 48.3358 118.378 50.7857 118.378 54.017C118.378 57.2484 115.944 59.6983 112.692 59.6983Z" fill="#0D0D0D"/>
+<path d="M48.8391 48.6869H59.8119C59.419 55.007 54.2883 59.6006 47.7349 59.6006C40.6719 59.6006 35.3421 54.2626 35.3421 47.1926C35.3421 47.0158 35.3474 46.8389 35.3553 46.6594H33.6168C33.6115 46.8362 33.6035 47.0105 33.6035 47.1926C33.6035 55.1628 39.6792 61.2084 47.7376 61.2084C55.796 61.2084 61.5531 55.4374 61.5531 47.7022V47.153H48.8417V48.6842H48.8364H48.8391V48.6869Z" fill="#0D0D0D"/>
+<path d="M28.7462 15.3067H23.1191V41.5879H28.7462V15.3067Z" fill="#0D0D0D"/>
+<path d="M5.58991 0H0V41.448H18.2535V36.4531H5.59257L5.58991 0Z" fill="#0D0D0D"/>
+<path d="M82.6114 35.9753C81.0347 37.2636 78.9777 38.0503 76.6233 38.0503C71.8589 38.0503 68.4667 34.9642 67.6041 30.7402H91.3838C91.6784 28.3114 91.3838 26.1703 91.3838 26.1703C90.3513 19.4885 84.3207 14.1715 76.6233 14.1715C68.0633 14.1715 61.7461 20.6844 61.7461 28.4513C61.7461 36.2182 68.0659 42.731 76.6233 42.731C82.2477 42.731 86.8423 39.9538 89.3851 35.9753H82.6114ZM76.618 18.8522C81.3825 18.8522 84.9472 22.0519 85.7514 26.1624H67.6041C68.5251 21.8777 72.0261 18.8522 76.6233 18.8522H76.618Z" fill="#0D0D0D"/>
+<path d="M62.0331 41.4525C61.6187 40.1351 61.0132 38.8889 60.2323 37.748C57.5524 33.817 53.1035 31.4694 48.3254 31.4694C45.927 31.4694 43.595 32.078 41.5286 33.1767L59.2071 15.2815H52.3678L39.7225 28.3367V0H34.0918V41.5052H39.4251C40.8248 38.3356 44.0147 36.1171 47.7251 36.1171C51.4356 36.1171 54.6254 38.3329 56.0252 41.5052H62.0463C62.0463 41.5052 62.041 41.4893 62.0384 41.4683C62.0384 41.4683 62.0384 41.4604 62.0331 41.4525Z" fill="#0D0D0D"/>
+</g>
+<defs>
+<clipPath id="clip0_4719_236">
+<rect width="120" height="66" fill="white"/>
+</clipPath>
+</defs>
+</svg>`;
+
+      // Helper: SVG zu PNG konvertieren - verwendet data: URL statt blob:
+      const svgToPngDataUrl = async (svgString, width, height) => {
+        return new Promise((resolve, reject) => {
+          const svgBase64 = btoa(unescape(encodeURIComponent(svgString)));
+          const dataUrl = `data:image/svg+xml;base64,${svgBase64}`;
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = width * 2;
+            canvas.height = height * 2;
+            const ctx = canvas.getContext('2d');
+            ctx.scale(2, 2);
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/png'));
+          };
+          img.onerror = reject;
+          img.src = dataUrl;
+        });
+      };
+
+      // Logo konvertieren
+      const logoBase64 = await svgToPngDataUrl(logoSvg, 120, 66);
+
+      // Seitenzähler für Fußzeile
+      let pageNumber = 1;
+
+      // Helper: Fußzeile hinzufügen
+      const addFooter = () => {
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100);
+        doc.text('LikeGroup GmbH | Jakob-Latscha-Str. 3 | 60314 Frankfurt am Main | Deutschland', 14, FOOTER_Y);
+        doc.text(`Seite ${pageNumber}`, 196, FOOTER_Y, { align: 'right' });
+        doc.setTextColor(0);
+        pageNumber++;
+      };
 
       // Hole Kunden- und Creator-Daten
       const kunde = this.unternehmen.find(u => u.id === vertrag.kunde_unternehmen_id);
@@ -3620,17 +3789,20 @@ export class VertraegeCreate {
       // SEITE 1: Titel + Adressdaten (ZENTRIERT)
       // ============================================
 
-      // Titel
+      // Logo oben zentriert
+      doc.addImage(logoBase64, 'PNG', 93.6, 10, 22.75, 12.6);
+
+      // Titel (Logo endet bei y=46, daher Titel ab y=54)
       doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
-      doc.text('INFLUENCER-KOOPERATIONSVERTRAG', 105, 30, { align: 'center' });
+      doc.text('INFLUENCER-KOOPERATIONSVERTRAG', 105, 54, { align: 'center' });
       doc.setFont('helvetica', 'normal');
       
       // Vertragsname
       doc.setFontSize(10);
-      doc.text(`${vertrag.name || 'Ohne Name'}`, 105, 40, { align: 'center' });
+      doc.text(`${vertrag.name || 'Ohne Name'}`, 105, 64, { align: 'center' });
 
-      let y = 55;
+      let y = 80;
 
       // Agenturdaten (zentriert)
       doc.setFontSize(12);
@@ -3647,7 +3819,7 @@ export class VertraegeCreate {
       y += 5;
       doc.text('Deutschland', 105, y, { align: 'center' });
 
-      // Kundendaten (zentriert)
+      // Kundendaten (zentriert, untereinander formatiert)
       y += 15;
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
@@ -3657,7 +3829,9 @@ export class VertraegeCreate {
       y += 8;
       doc.text(`Firmenname: ${kunde?.firmenname || '-'}`, 105, y, { align: 'center' });
       y += 5;
-      doc.text(`Adresse: ${kunde?.rechnungsadresse_strasse || ''} ${kunde?.rechnungsadresse_hausnummer || ''}, ${kunde?.rechnungsadresse_plz || ''} ${kunde?.rechnungsadresse_stadt || ''}`, 105, y, { align: 'center' });
+      doc.text(`${kunde?.rechnungsadresse_strasse || ''} ${kunde?.rechnungsadresse_hausnummer || ''}`, 105, y, { align: 'center' });
+      y += 5;
+      doc.text(`${kunde?.rechnungsadresse_plz || ''} ${kunde?.rechnungsadresse_stadt || ''}`, 105, y, { align: 'center' });
 
       // Influencer-Vertretung
       y += 15;
@@ -3681,7 +3855,7 @@ export class VertraegeCreate {
         doc.text(`Vertreten durch: ${vertrag.influencer_agentur_vertretung || '-'}`, 105, y, { align: 'center' });
       }
 
-      // Influencer-Daten (zentriert)
+      // Influencer-Daten (zentriert, untereinander formatiert)
       y += 15;
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
@@ -3691,12 +3865,29 @@ export class VertraegeCreate {
       y += 8;
       doc.text(`Name: ${creator?.vorname || ''} ${creator?.nachname || ''}`, 105, y, { align: 'center' });
       y += 5;
-      doc.text(`Adresse: ${creator?.lieferadresse_strasse || ''} ${creator?.lieferadresse_hausnummer || ''}, ${creator?.lieferadresse_plz || ''} ${creator?.lieferadresse_stadt || ''}`, 105, y, { align: 'center' });
+      doc.text(`${creator?.lieferadresse_strasse || ''} ${creator?.lieferadresse_hausnummer || ''}`, 105, y, { align: 'center' });
       y += 5;
-      doc.text(`Land: ${vertrag.influencer_land || 'Deutschland'}`, 105, y, { align: 'center' });
+      doc.text(`${creator?.lieferadresse_plz || ''} ${creator?.lieferadresse_stadt || ''}`, 105, y, { align: 'center' });
+      y += 5;
+      doc.text(`${vertrag.influencer_land || 'Deutschland'}`, 105, y, { align: 'center' });
       y += 5;
       const profiles = vertrag.influencer_profile || [];
       doc.text(`Profil(e): ${profiles.length > 0 ? profiles.join(', ') : '-'}`, 105, y, { align: 'center' });
+
+      // PO / Auftragsnummer (zentriert)
+      y += 15;
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('PO / Auftragsnummer', 105, y, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+      doc.text('Zwingend auf der Rechnung anzugeben. Ohne Angabe ist keine Zahlung möglich.', 105, y, { align: 'center' });
+      y += 6;
+      doc.text(`${vertrag.kunde_po_nummer || '_______________________________'}`, 105, y, { align: 'center' });
+
+      // Fußzeile für Seite 1
+      addFooter();
 
       // ============================================
       // SEITE 2: Vertragsinhalte
@@ -3834,7 +4025,8 @@ export class VertraegeCreate {
       drawCheckbox(14, y, vertrag.exklusivitaet, `Exklusivität für ${vertrag.exklusivitaet_monate || '-'} Monate`);
 
       // Seitenumbruch prüfen
-      if (y > 230) {
+      if (y > MAX_CONTENT_Y) {
+        addFooter();
         doc.addPage();
         y = 20;
       }
@@ -3886,7 +4078,8 @@ export class VertraegeCreate {
       });
 
       // Seitenumbruch prüfen
-      if (y > 220) {
+      if (y > MAX_CONTENT_Y) {
+        addFooter();
         doc.addPage();
         y = 20;
       }
@@ -3927,7 +4120,8 @@ export class VertraegeCreate {
       });
 
       // §12-§15 (statische Paragraphen)
-      if (y > 200) {
+      if (y > MAX_CONTENT_Y) {
+        addFooter();
         doc.addPage();
         y = 20;
       }
@@ -3971,7 +4165,8 @@ export class VertraegeCreate {
       // §16 Weitere Bestimmungen (nur wenn ausgefüllt)
       if (vertrag.weitere_bestimmungen) {
         y += 10;
-        if (y > 250) {
+        if (y > MAX_CONTENT_Y) {
+          addFooter();
           doc.addPage();
           y = 20;
         }
@@ -3989,6 +4184,9 @@ export class VertraegeCreate {
       doc.text('Ort, Datum: ___________________________', 14, y);
       y += 15;
       doc.text('Influencer / Vertreter: ___________________________', 14, y);
+
+      // Fußzeile für letzte Seite
+      addFooter();
 
       // PDF speichern
       const pdfBlob = doc.output('blob');
@@ -4010,15 +4208,15 @@ export class VertraegeCreate {
         console.warn('⚠️ PDF-Upload fehlgeschlagen:', uploadError);
         doc.save(fileName);
       } else {
-        const { data: urlData } = await window.supabase.storage
+        const { data: urlData } = window.supabase.storage
           .from('vertraege')
-          .createSignedUrl(filePath, 60 * 60 * 24 * 7);
+          .getPublicUrl(filePath);
 
-        if (urlData?.signedUrl) {
+        if (urlData?.publicUrl) {
           await window.supabase
             .from('vertraege')
             .update({
-              datei_url: urlData.signedUrl,
+              datei_url: urlData.publicUrl,
               datei_path: filePath
             })
             .eq('id', vertrag.id);
@@ -4047,6 +4245,67 @@ export class VertraegeCreate {
 
       // Font auf Helvetica setzen
       doc.setFont('helvetica');
+
+      // Konstanten für Fußzeile (gesperrter Bereich)
+      const FOOTER_Y = 285;
+      const MAX_CONTENT_Y = 265;
+
+      // LikeGroup Logo als SVG
+      const logoSvg = `<svg width="120" height="66" viewBox="0 0 120 66" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_4719_236)">
+<path d="M65.7855 50.1389V47.153H64.2168V60.8863H65.7855V53.7794C65.7855 50.6035 67.8717 48.5575 71.1445 48.5575H71.4975V46.9418H71.1445C68.7105 46.9418 66.8153 48.1536 65.7855 50.1468V50.1415V50.1389Z" fill="#0D0D0D"/>
+<path d="M79.4557 46.8257C75.2885 46.8257 72.1484 49.9224 72.1484 54.0144C72.1484 58.1064 75.3176 61.2031 79.4557 61.2031C83.5937 61.2031 86.739 58.1064 86.739 54.0144C86.739 49.9224 83.6282 46.8257 79.4557 46.8257ZM85.1119 54.017C85.1119 57.2458 82.7019 59.6983 79.4557 59.6983C76.2095 59.6983 73.7702 57.2484 73.7702 54.017C73.7702 50.7857 76.2042 48.3358 79.4557 48.3358C82.7072 48.3358 85.1119 50.7857 85.1119 54.017Z" fill="#0D0D0D"/>
+<path d="M100.293 55.1998C100.293 57.8926 98.3151 59.6957 95.6343 59.6957C92.9535 59.6957 91.1937 57.919 91.1937 55.2526V47.1504H89.625V55.6855C89.625 59.0278 91.844 61.2058 95.1751 61.2058C97.4764 61.2058 99.26 60.2078 100.293 58.4866V60.8837H101.861V47.1504H100.293V55.2024V55.1971V55.1998Z" fill="#0D0D0D"/>
+<path d="M112.96 46.8257C110.335 46.8257 108.169 48.1694 107.004 50.2999V47.1478H105.436V66H107.004V57.7342C108.164 59.8594 110.33 61.2084 112.96 61.2084C116.995 61.2084 120 58.1117 120 54.0197C120 49.9277 116.998 46.831 112.96 46.831V46.8257ZM112.692 59.6983C109.441 59.6983 107.007 57.2484 107.007 54.017C107.007 50.7857 109.441 48.3358 112.692 48.3358C115.944 48.3358 118.378 50.7857 118.378 54.017C118.378 57.2484 115.944 59.6983 112.692 59.6983Z" fill="#0D0D0D"/>
+<path d="M48.8391 48.6869H59.8119C59.419 55.007 54.2883 59.6006 47.7349 59.6006C40.6719 59.6006 35.3421 54.2626 35.3421 47.1926C35.3421 47.0158 35.3474 46.8389 35.3553 46.6594H33.6168C33.6115 46.8362 33.6035 47.0105 33.6035 47.1926C33.6035 55.1628 39.6792 61.2084 47.7376 61.2084C55.796 61.2084 61.5531 55.4374 61.5531 47.7022V47.153H48.8417V48.6842H48.8364H48.8391V48.6869Z" fill="#0D0D0D"/>
+<path d="M28.7462 15.3067H23.1191V41.5879H28.7462V15.3067Z" fill="#0D0D0D"/>
+<path d="M5.58991 0H0V41.448H18.2535V36.4531H5.59257L5.58991 0Z" fill="#0D0D0D"/>
+<path d="M82.6114 35.9753C81.0347 37.2636 78.9777 38.0503 76.6233 38.0503C71.8589 38.0503 68.4667 34.9642 67.6041 30.7402H91.3838C91.6784 28.3114 91.3838 26.1703 91.3838 26.1703C90.3513 19.4885 84.3207 14.1715 76.6233 14.1715C68.0633 14.1715 61.7461 20.6844 61.7461 28.4513C61.7461 36.2182 68.0659 42.731 76.6233 42.731C82.2477 42.731 86.8423 39.9538 89.3851 35.9753H82.6114ZM76.618 18.8522C81.3825 18.8522 84.9472 22.0519 85.7514 26.1624H67.6041C68.5251 21.8777 72.0261 18.8522 76.6233 18.8522H76.618Z" fill="#0D0D0D"/>
+<path d="M62.0331 41.4525C61.6187 40.1351 61.0132 38.8889 60.2323 37.748C57.5524 33.817 53.1035 31.4694 48.3254 31.4694C45.927 31.4694 43.595 32.078 41.5286 33.1767L59.2071 15.2815H52.3678L39.7225 28.3367V0H34.0918V41.5052H39.4251C40.8248 38.3356 44.0147 36.1171 47.7251 36.1171C51.4356 36.1171 54.6254 38.3329 56.0252 41.5052H62.0463C62.0463 41.5052 62.041 41.4893 62.0384 41.4683C62.0384 41.4683 62.0384 41.4604 62.0331 41.4525Z" fill="#0D0D0D"/>
+</g>
+<defs>
+<clipPath id="clip0_4719_236">
+<rect width="120" height="66" fill="white"/>
+</clipPath>
+</defs>
+</svg>`;
+
+      // Helper: SVG zu PNG konvertieren - verwendet data: URL statt blob:
+      const svgToPngDataUrl = async (svgString, width, height) => {
+        return new Promise((resolve, reject) => {
+          const svgBase64 = btoa(unescape(encodeURIComponent(svgString)));
+          const dataUrl = `data:image/svg+xml;base64,${svgBase64}`;
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = width * 2;
+            canvas.height = height * 2;
+            const ctx = canvas.getContext('2d');
+            ctx.scale(2, 2);
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/png'));
+          };
+          img.onerror = reject;
+          img.src = dataUrl;
+        });
+      };
+
+      // Logo konvertieren
+      const logoBase64 = await svgToPngDataUrl(logoSvg, 120, 66);
+
+      // Seitenzähler für Fußzeile
+      let pageNumber = 1;
+
+      // Helper: Fußzeile hinzufügen
+      const addFooter = () => {
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100);
+        doc.text('LikeGroup GmbH | Jakob-Latscha-Str. 3 | 60314 Frankfurt am Main | Deutschland', 14, FOOTER_Y);
+        doc.text(`Seite ${pageNumber}`, 196, FOOTER_Y, { align: 'right' });
+        doc.setTextColor(0);
+        pageNumber++;
+      };
 
       // Hole Kunden- und Creator-Daten
       const kunde = this.unternehmen.find(u => u.id === vertrag.kunde_unternehmen_id);
@@ -4099,7 +4358,8 @@ export class VertraegeCreate {
       const addWrappedText = (text, x, y, maxWidth) => {
         const lines = doc.splitTextToSize(text, maxWidth);
         lines.forEach(line => {
-          if (y > 280) {
+          if (y > MAX_CONTENT_Y) {
+            addFooter();
             doc.addPage();
             y = 20;
           }
@@ -4121,16 +4381,19 @@ export class VertraegeCreate {
         }
       };
 
-      let y = 20;
+      // Logo oben zentriert
+      doc.addImage(logoBase64, 'PNG', 93.6, 10, 22.75, 12.6);
 
-      // Titel
+      // Titel (Logo endet bei y=28, daher Titel ab y=36)
+      let y = 36;
+
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.text('VIDEOGRAFEN- & FOTOGRAFEN-PRODUKTIONSVERTRAG', 105, y, { align: 'center' });
       doc.setFont('helvetica', 'normal');
 
       // Agenturdaten
-      y += 15;
+      y += 12;
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('Agenturdaten', 105, y, { align: 'center' });
@@ -4145,7 +4408,7 @@ export class VertraegeCreate {
       y += 5;
       doc.text('Deutschland', 105, y, { align: 'center' });
 
-      // Kundendaten
+      // Kundendaten (untereinander formatiert)
       y += 12;
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
@@ -4157,9 +4420,11 @@ export class VertraegeCreate {
       y += 5;
       doc.text(`Rechtsform: ${vertrag.kunde_rechtsform || '-'}`, 105, y, { align: 'center' });
       y += 5;
-      doc.text(`Adresse: ${kunde?.rechnungsadresse_strasse || ''} ${kunde?.rechnungsadresse_hausnummer || ''}, ${kunde?.rechnungsadresse_plz || ''} ${kunde?.rechnungsadresse_stadt || ''}`, 105, y, { align: 'center' });
+      doc.text(`${kunde?.rechnungsadresse_strasse || ''} ${kunde?.rechnungsadresse_hausnummer || ''}`, 105, y, { align: 'center' });
+      y += 5;
+      doc.text(`${kunde?.rechnungsadresse_plz || ''} ${kunde?.rechnungsadresse_stadt || ''}`, 105, y, { align: 'center' });
 
-      // Auftragnehmer
+      // Auftragnehmer (untereinander formatiert)
       y += 12;
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
@@ -4169,12 +4434,28 @@ export class VertraegeCreate {
       y += 8;
       doc.text(`Name / Firma: ${creator?.vorname || ''} ${creator?.nachname || ''}`, 105, y, { align: 'center' });
       y += 5;
-      const creatorAdresse = creator ? `${creator.lieferadresse_strasse || ''} ${creator.lieferadresse_hausnummer || ''}, ${creator.lieferadresse_plz || ''} ${creator.lieferadresse_stadt || ''}` : '-';
-      doc.text(`Adresse: ${creatorAdresse}`, 105, y, { align: 'center' });
+      doc.text(`${creator?.lieferadresse_strasse || ''} ${creator?.lieferadresse_hausnummer || ''}`, 105, y, { align: 'center' });
+      y += 5;
+      doc.text(`${creator?.lieferadresse_plz || ''} ${creator?.lieferadresse_stadt || ''}`, 105, y, { align: 'center' });
+      y += 5;
+      doc.text(`${vertrag.influencer_land || 'Deutschland'}`, 105, y, { align: 'center' });
       y += 5;
       doc.text(`Steuer-ID / USt-ID: ${vertrag.influencer_steuer_id || '-'}`, 105, y, { align: 'center' });
-      y += 5;
-      doc.text(`Land: ${vertrag.influencer_land || 'Deutschland'}`, 105, y, { align: 'center' });
+
+      // PO / Auftragsnummer (zentriert)
+      y += 15;
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('PO / Auftragsnummer', 105, y, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+      doc.text('Zwingend auf der Rechnung anzugeben. Ohne Angabe ist keine Zahlung möglich.', 105, y, { align: 'center' });
+      y += 6;
+      doc.text(`${vertrag.kunde_po_nummer || '_______________________________'}`, 105, y, { align: 'center' });
+
+      // Fußzeile für Seite 1
+      addFooter();
 
       // ============================================
       // SEITE 2: Vertragsinhalte (linksbündig)
@@ -4247,7 +4528,8 @@ export class VertraegeCreate {
           y += 5;
           doc.text(`  Ort: ${item.ort || '-'}`, 14, y);
           y += 5;
-          if (y > 250) {
+          if (y > MAX_CONTENT_Y) {
+            addFooter();
             doc.addPage();
             y = 20;
           }
@@ -4262,7 +4544,8 @@ export class VertraegeCreate {
 
       // §3 Output, Abgabe & Versionierung
       y += 10;
-      if (y > 240) {
+      if (y > MAX_CONTENT_Y) {
+        addFooter();
         doc.addPage();
         y = 20;
       }
@@ -4314,7 +4597,8 @@ export class VertraegeCreate {
 
       // §4 Qualitätsanforderungen
       y += 10;
-      if (y > 220) {
+      if (y > MAX_CONTENT_Y) {
+        addFooter();
         doc.addPage();
         y = 20;
       }
@@ -4343,7 +4627,8 @@ export class VertraegeCreate {
 
       // §5 Nachbesserung & Neuerstellung
       y += 10;
-      if (y > 200) {
+      if (y > MAX_CONTENT_Y) {
+        addFooter();
         doc.addPage();
         y = 20;
       }
@@ -4369,7 +4654,8 @@ export class VertraegeCreate {
 
       // §7 Nutzungsrechte
       y += 10;
-      if (y > 200) {
+      if (y > MAX_CONTENT_Y) {
+        addFooter();
         doc.addPage();
         y = 20;
       }
@@ -4402,7 +4688,8 @@ export class VertraegeCreate {
 
       // §9 Vergütung
       y += 10;
-      if (y > 200) {
+      if (y > MAX_CONTENT_Y) {
+        addFooter();
         doc.addPage();
         y = 20;
       }
@@ -4442,7 +4729,8 @@ export class VertraegeCreate {
 
       // §10 Verschwiegenheit
       y += 10;
-      if (y > 220) {
+      if (y > MAX_CONTENT_Y) {
+        addFooter();
         doc.addPage();
         y = 20;
       }
@@ -4477,7 +4765,8 @@ export class VertraegeCreate {
       // §13 Weitere Bestimmungen (nur wenn ausgefüllt)
       if (vertrag.weitere_bestimmungen) {
         y += 10;
-        if (y > 250) {
+        if (y > MAX_CONTENT_Y) {
+          addFooter();
           doc.addPage();
           y = 20;
         }
@@ -4492,7 +4781,8 @@ export class VertraegeCreate {
 
       // Unterschrift
       y += 20;
-      if (y > 260) {
+      if (y > MAX_CONTENT_Y) {
+        addFooter();
         doc.addPage();
         y = 20;
       }
@@ -4500,8 +4790,8 @@ export class VertraegeCreate {
       y += 15;
       doc.text('Auftragnehmer: ___________________________', 14, y);
 
-      // Seitenzahlen hinzufügen
-      addPageNumber();
+      // Fußzeile für letzte Seite
+      addFooter();
 
       // PDF speichern
       const pdfBlob = doc.output('blob');
@@ -4523,15 +4813,15 @@ export class VertraegeCreate {
         console.warn('⚠️ PDF-Upload fehlgeschlagen:', uploadError);
         doc.save(fileName);
       } else {
-        const { data: urlData } = await window.supabase.storage
+        const { data: urlData } = window.supabase.storage
           .from('vertraege')
-          .createSignedUrl(filePath, 60 * 60 * 24 * 7);
+          .getPublicUrl(filePath);
 
-        if (urlData?.signedUrl) {
+        if (urlData?.publicUrl) {
           await window.supabase
             .from('vertraege')
             .update({
-              datei_url: urlData.signedUrl,
+              datei_url: urlData.publicUrl,
               datei_path: filePath
             })
             .eq('id', vertrag.id);

@@ -56,15 +56,11 @@ export class RechnungDetail {
       const bucket = 'rechnung-belege';
       const processed = [];
       for (const row of (belegeRows || [])) {
-        let openUrl = row.file_url || '';
-        try {
-          const { data: signed } = await window.supabase.storage
-            .from(bucket)
-            .createSignedUrl(row.file_path, 60 * 60);
-          if (signed?.signedUrl) openUrl = signed.signedUrl;
-        } catch (err) {
-          console.warn('⚠️ Fehler beim Erstellen der Signed URL:', err?.message);
-        }
+        // Permanente Public URL generieren
+        const { data: urlData } = window.supabase.storage
+          .from(bucket)
+          .getPublicUrl(row.file_path);
+        const openUrl = urlData?.publicUrl || row.file_url || '';
         processed.push({ ...row, open_url: openUrl });
       }
       this.belege = processed;
@@ -253,9 +249,9 @@ export class RechnungDetail {
                 contentType: file.type
               });
               if (upErr) throw upErr;
-              // Signierte URL (privater Bucket)
-              const { data: signed } = await window.supabase.storage.from(belegeBucket).createSignedUrl(belegePath, 60 * 60 * 24 * 7); // 7 Tage
-              const file_url = signed?.signedUrl || '';
+              // Permanente Public URL generieren
+              const { data: urlData } = window.supabase.storage.from(belegeBucket).getPublicUrl(belegePath);
+              const file_url = urlData?.publicUrl || '';
               // Metadaten in rechnung_belege speichern
               await window.supabase.from('rechnung_belege').insert({
                 rechnung_id: rechnungId,

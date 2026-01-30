@@ -4,6 +4,10 @@
 import { KampagnePreviewDrawer } from './KampagnePreviewDrawer.js';
 import { KampagneUtils } from './KampagneUtils.js';
 
+// Debug-Flag für Logging (Production: false)
+const DEBUG_CALENDAR = false;
+const debugLog = (...args) => DEBUG_CALENDAR && console.log(...args);
+
 export class KampagneCalendarView {
   constructor() {
     this.container = null;
@@ -53,64 +57,13 @@ export class KampagneCalendarView {
         return;
       }
 
-      // Berechtigungsprüfung wie bei KampagneKanbanBoard
-      const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-      let assignedKampagnenIds = [];
-
-      if (!isAdmin && window.currentUser?.rolle !== 'kunde') {
-        // Gleiche Logik wie KampagneKanbanBoard für Mitarbeiter-Permissions
-        const [directResult, markenResult, unternehmenResult] = await Promise.all([
-          window.supabase.from('kampagne_mitarbeiter').select('kampagne_id').eq('mitarbeiter_id', window.currentUser?.id),
-          window.supabase.from('marke_mitarbeiter').select('marke_id').eq('mitarbeiter_id', window.currentUser?.id),
-          window.supabase.from('mitarbeiter_unternehmen').select('unternehmen_id').eq('mitarbeiter_id', window.currentUser?.id)
-        ]);
-
-        const directKampagnenIds = (directResult.data || []).map(r => r.kampagne_id).filter(Boolean);
-        const markenIds = (markenResult.data || []).map(r => r.marke_id).filter(Boolean);
-        const unternehmenIds = (unternehmenResult.data || []).map(r => r.unternehmen_id).filter(Boolean);
-
-        // Marken mit Unternehmen laden
-        let allowedMarkenIds = [...markenIds];
-        
-        if (unternehmenIds.length > 0) {
-          const { data: unternehmensMarken } = await window.supabase
-            .from('marke')
-            .select('id')
-            .in('unternehmen_id', unternehmenIds);
-          
-          allowedMarkenIds.push(...(unternehmensMarken || []).map(m => m.id));
-        }
-
-        allowedMarkenIds = [...new Set(allowedMarkenIds)];
-
-        // Kampagnen für erlaubte Marken
-        let markenKampagnenIds = [];
-        if (allowedMarkenIds.length > 0) {
-          const { data: kampagnen } = await window.supabase
-            .from('kampagne')
-            .select('id')
-            .in('marke_id', allowedMarkenIds);
-          
-          markenKampagnenIds = (kampagnen || []).map(k => k.id);
-        }
-
-        // Kampagnen direkt über Unternehmen laden (für Kampagnen ohne Marke)
-        let unternehmenKampagnenIds = [];
-        if (unternehmenIds.length > 0) {
-          const { data: kampagnen } = await window.supabase
-            .from('kampagne')
-            .select('id')
-            .in('unternehmen_id', unternehmenIds);
-          
-          unternehmenKampagnenIds = (kampagnen || []).map(k => k.id);
-        }
-
-        assignedKampagnenIds = [...new Set([...directKampagnenIds, ...markenKampagnenIds, ...unternehmenKampagnenIds])];
-
-        if (assignedKampagnenIds.length === 0) {
-          this.kampagnen = [];
-          return;
-        }
+      // Nutze zentralisierte Permission-Logik aus KampagneUtils
+      const allowedIds = await KampagneUtils.loadAllowedKampagneIds();
+      
+      // null = keine Filterung (Admin/Kunde), [] = kein Zugriff
+      if (allowedIds !== null && allowedIds.length === 0) {
+        this.kampagnen = [];
+        return;
       }
 
       // Kampagnen laden
@@ -134,8 +87,9 @@ export class KampagneCalendarView {
         `)
         .order('created_at', { ascending: false });
 
-      if (!isAdmin && window.currentUser?.rolle !== 'kunde' && assignedKampagnenIds.length > 0) {
-        query = query.in('id', assignedKampagnenIds);
+      // Permission-Filterung anwenden (nur wenn allowedIds ein Array ist)
+      if (allowedIds !== null && allowedIds.length > 0) {
+        query = query.in('id', allowedIds);
       }
 
       const { data, error } = await query;
@@ -143,7 +97,6 @@ export class KampagneCalendarView {
       if (error) throw error;
 
       this.kampagnen = data || [];
-      console.log('✅ CALENDAR: Kampagnen geladen:', this.kampagnen.length);
 
     } catch (error) {
       console.error('❌ CALENDAR: Fehler beim Laden:', error);

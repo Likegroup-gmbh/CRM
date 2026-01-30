@@ -770,17 +770,12 @@ export class BriefingList {
           throw upErr;
         }
         
-        // Signierte URL erstellen (7 Tage gültig)
-        const { data: signed, error: signErr } = await window.supabase.storage
+        // Permanente Public URL generieren
+        const { data: urlData } = window.supabase.storage
           .from(bucket)
-          .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 Tage
+          .getPublicUrl(path);
         
-        if (signErr) {
-          console.error(`❌ Signierte URL Fehler für ${file.name}:`, signErr);
-          throw signErr;
-        }
-        
-        const file_url = signed?.signedUrl || '';
+        const file_url = urlData?.publicUrl || '';
         
         // Metadaten in briefing_documents speichern
         const { error: dbErr } = await window.supabase.from('briefing_documents').insert({

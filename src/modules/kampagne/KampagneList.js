@@ -13,17 +13,41 @@ import { KampagneFilterLogic } from './filters/KampagneFilterLogic.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { KampagneUtils } from './KampagneUtils.js';
 
-// Kampagnen-Cache mit TTL
+// Debug-Flag für Logging (Production: false)
+const DEBUG_KAMPAGNE = false;
+
+// Helper für bedingte Debug-Logs
+const debugLog = (...args) => DEBUG_KAMPAGNE && console.log(...args);
+
+// Einfache Debounce-Funktion für Filter-Änderungen
+const debounce = (fn, delay) => {
+  let timeoutId;
+  return (...args) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn.apply(null, args), delay);
+  };
+};
+
+// Kampagnen-Cache mit TTL und User-Context
 const kampagnenCache = {
   data: null,
   timestamp: 0,
   ttl: 60000, // 60 Sekunden
-  filterKey: null,
+  cacheKey: null, // Kombiniert User-ID + Filter
+  
+  /**
+   * Erstellt einen Cache-Key der User-ID und Filter kombiniert
+   * Verhindert dass User A Cache-Daten von User B sieht
+   */
+  _buildKey(filterKey) {
+    const userId = window.currentUser?.id || 'anonymous';
+    return `${userId}:${filterKey}`;
+  },
   
   get(filterKey) {
     const now = Date.now();
-    if (this.data && this.filterKey === filterKey && (now - this.timestamp) < this.ttl) {
-      console.log('📦 CACHE HIT: Kampagnen aus Cache geladen');
+    const fullKey = this._buildKey(filterKey);
+    if (this.data && this.cacheKey === fullKey && (now - this.timestamp) < this.ttl) {
       return this.data;
     }
     return null;
@@ -31,16 +55,14 @@ const kampagnenCache = {
   
   set(data, filterKey) {
     this.data = data;
-    this.filterKey = filterKey;
+    this.cacheKey = this._buildKey(filterKey);
     this.timestamp = Date.now();
-    console.log('📦 CACHE SET: Kampagnen im Cache gespeichert');
   },
   
   invalidate() {
     this.data = null;
-    this.filterKey = null;
+    this.cacheKey = null;
     this.timestamp = 0;
-    console.log('📦 CACHE INVALIDATED');
   }
 };
 
@@ -64,6 +86,139 @@ export class KampagneList {
     // AbortController und Mount-Status für Race Condition Prevention
     this._abortController = null;
     this._isMounted = false;
+    
+    // Named Event-Handler References (für sauberes Cleanup)
+    this._handlers = {
+      globalClick: this._handleGlobalClick.bind(this),
+      globalChange: this._handleGlobalChange.bind(this),
+      entityUpdated: this._handleEntityUpdated.bind(this),
+      kampagneUpdated: this._handleKampagneUpdated.bind(this)
+    };
+    
+    // Debounced Methoden (verhindert multiple API-Calls bei schnellen Filter-Änderungen)
+    this._debouncedLoadAndRender = debounce(() => {
+      if (this._isMounted) {
+        this.loadAndRender();
+      }
+    }, 300);
+  }
+
+  // ========================================
+  // EVENT HANDLER (Named References für Cleanup)
+  // ========================================
+
+  _handleGlobalClick(e) {
+    // Neue Kampagne anlegen Button
+    if (e.target.id === 'btn-kampagne-new' || e.target.id === 'btn-kampagne-new-filter') {
+      e.preventDefault();
+      window.navigateTo('/kampagne/new');
+      return;
+    }
+    
+    // Kampagne Detail Link
+    if (e.target.classList.contains('table-link') && e.target.dataset.table === 'kampagne') {
+      e.preventDefault();
+      const kampagneId = e.target.dataset.id;
+      window.navigateTo(`/kampagne/${kampagneId}`);
+      return;
+    }
+    
+    // Filter-Tag X-Buttons
+    if (e.target.classList.contains('tag-x')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const tagElement = e.target.closest('.filter-tag');
+      const key = tagElement?.dataset.key;
+      if (key) {
+        const currentFilters = filterSystem.getFilters('kampagne');
+        delete currentFilters[key];
+        filterSystem.applyFilters('kampagne', currentFilters);
+        this.loadAndRender();
+      }
+      return;
+    }
+    
+    // List-View spezifische Clicks
+    if (this.currentView === 'list') {
+      // Alle auswählen Button
+      if (e.target.id === 'btn-select-all') {
+        e.preventDefault();
+        const checkboxes = document.querySelectorAll('.kampagne-check');
+        checkboxes.forEach(cb => {
+          cb.checked = true;
+          if (cb.dataset.id) this.selectedKampagnen.add(cb.dataset.id);
+        });
+        const selectAllHeader = document.getElementById('select-all-kampagnen');
+        if (selectAllHeader) {
+          selectAllHeader.indeterminate = false;
+          selectAllHeader.checked = true;
+        }
+        this.updateSelection();
+        return;
+      }
+      
+      // Auswahl aufheben Button
+      if (e.target.id === 'btn-deselect-all') {
+        e.preventDefault();
+        this.deselectAll();
+        return;
+      }
+    }
+  }
+
+  _handleGlobalChange(e) {
+    if (this.currentView !== 'list') return;
+    
+    // Select-All Checkbox (Tabellen-Header)
+    if (e.target.id === 'select-all-kampagnen') {
+      const checkboxes = document.querySelectorAll('.kampagne-check');
+      const isChecked = e.target.checked;
+      
+      checkboxes.forEach(cb => {
+        cb.checked = isChecked;
+        if (isChecked) {
+          this.selectedKampagnen.add(cb.dataset.id);
+        } else {
+          this.selectedKampagnen.delete(cb.dataset.id);
+        }
+      });
+      
+      this.updateSelection();
+      return;
+    }
+    
+    // Kampagne Checkboxes
+    if (e.target.classList.contains('kampagne-check')) {
+      if (e.target.checked) {
+        this.selectedKampagnen.add(e.target.dataset.id);
+      } else {
+        this.selectedKampagnen.delete(e.target.dataset.id);
+      }
+      this.updateSelection();
+      this.updateSelectAllCheckbox();
+    }
+  }
+
+  _handleEntityUpdated(e) {
+    if (e.detail.entity === 'kampagne') {
+      if (this.currentView === 'kanban' && this.kanbanBoard) {
+        this.kanbanBoard.refresh();
+      } else if (this.currentView === 'calendar' && this.calendarView) {
+        this.calendarView.refresh();
+      } else {
+        this.loadAndRender();
+      }
+    }
+  }
+
+  _handleKampagneUpdated() {
+    if (this.currentView === 'kanban' && this.kanbanBoard) {
+      this.kanbanBoard.refresh();
+    } else if (this.currentView === 'calendar' && this.calendarView) {
+      this.calendarView.refresh();
+    } else {
+      this.loadAndRender();
+    }
   }
 
   // Initialisiere Kampagnen-Liste
@@ -107,39 +262,32 @@ export class KampagneList {
 
   // Lade und rendere Kampagnen-Liste
   async loadAndRender() {
+    // Helper für konsistente Mount-Prüfung
+    const checkMounted = () => this._isMounted && !this._abortController?.signal.aborted;
+    
     try {
       // Prüfe Mount-Status vor DOM-Updates
-      if (!this._isMounted) {
-        console.log('⚠️ KAMPAGNELIST: Nicht mehr gemounted, breche ab');
-        return;
-      }
+      if (!checkMounted()) return;
       
       // Rendere die Seite (asynchron)
       await this.render();
+      
+      // Guard nach render()
+      if (!checkMounted()) return;
       
       // Nur für List-View: Filter und Daten laden
       if (this.currentView === 'list') {
         // Initialisiere Filterbar mit neuem System
         await this.initializeFilterBar();
         
-        // Prüfe ob abgebrochen wurde
-        if (this._abortController?.signal.aborted || !this._isMounted) {
-          console.log('⚠️ KAMPAGNELIST: Request abgebrochen');
-          return;
-        }
+        // Guard nach initializeFilterBar()
+        if (!checkMounted()) return;
         
         // Lade gefilterte Kampagnen für die Anzeige
-        const currentFilters = filterSystem.getFilters('kampagne');
-        console.log('🔍 Lade Kampagnen mit Filter:', currentFilters);
         const filteredKampagnen = await this.loadKampagnenWithRelations();
         
-        // Prüfe nochmal ob noch gemounted vor DOM-Update
-        if (!this._isMounted || this._abortController?.signal.aborted) {
-          console.log('⚠️ KAMPAGNELIST: Nicht mehr gemounted nach Laden, überspringe DOM-Update');
-          return;
-        }
-        
-        console.log('📊 Kampagnen geladen:', filteredKampagnen?.length || 0);
+        // Guard nach loadKampagnenWithRelations()
+        if (!checkMounted()) return;
         
         // Aktualisiere nur die Tabelle mit gefilterten Daten
         await this.updateTable(filteredKampagnen);
@@ -148,10 +296,7 @@ export class KampagneList {
       
     } catch (error) {
       // Ignoriere Abort-Fehler
-      if (error.name === 'AbortError') {
-        console.log('⚠️ KAMPAGNELIST: Request wurde abgebrochen');
-        return;
-      }
+      if (error.name === 'AbortError') return;
       window.ErrorHandler.handle(error, 'KampagneList.loadAndRender');
     }
   }
@@ -175,42 +320,31 @@ export class KampagneList {
       }
 
       // PARALLEL: Status, Arten und Permission-Daten gleichzeitig laden
-      const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-      
-      const [statusResult, artResult, permissionsResult] = await parallelLoad([
+      // Nutze zentralisierte Permission-Logik aus KampagneUtils
+      const [statusResult, artResult, allowedIds] = await Promise.all([
         // 1. Status-Optionen laden
-        () => window.supabase
+        window.supabase
           .from('kampagne_status')
           .select('id, name, sort_order')
           .order('sort_order', { ascending: true })
           .order('name', { ascending: true }),
         
         // 2. Kampagnenarten laden
-        () => window.supabase
+        window.supabase
           .from('kampagne_art_typen')
           .select('id, name'),
         
-        // 3. Permissions laden (nur für Nicht-Admins)
-        () => isAdmin ? Promise.resolve({ data: null }) : this.loadUserPermissions()
+        // 3. Permissions laden (zentralisiert)
+        KampagneUtils.loadAllowedKampagneIds()
       ]);
       
       // Status und Arten verarbeiten
       this.statusOptions = statusResult.data || [];
       this.kampagneArtMap = new Map((artResult.data || []).map(r => [r.id, r.name]));
       
-      // Permissions verarbeiten
-      let assignedKampagnenIds = [];
-      if (!isAdmin) {
-        assignedKampagnenIds = permissionsResult.data || [];
-        
-        console.log(`🔍 KAMPAGNELIST: Mitarbeiter ${window.currentUser?.id} hat Zugriff auf ${assignedKampagnenIds.length} Kampagnen`);
-        
-        // Für Mitarbeiter: Wenn keine zugewiesenen Kampagnen, dann keine Daten
-        // Für Kunden: RLS-Policies filtern automatisch, also weiter machen
-        if (assignedKampagnenIds.length === 0 && window.currentUser?.rolle !== 'kunde') {
-          console.log('⚠️ Keine zugewiesenen Kampagnen für Mitarbeiter gefunden');
-          return [];
-        }
+      // Permissions verarbeiten: null = keine Filterung, [] = kein Zugriff, [...ids] = gefiltert
+      if (allowedIds !== null && allowedIds.length === 0) {
+        return [];
       }
 
       // Haupt-Query
@@ -225,14 +359,13 @@ export class KampagneList {
         `)
         .order('created_at', { ascending: false });
 
-      // Für Mitarbeiter: Filtere nach zugewiesenen Kampagnen
-      // Für Kunden: RLS-Policies filtern automatisch
-      if (!isAdmin && window.currentUser?.rolle !== 'kunde' && assignedKampagnenIds.length > 0) {
-        query = query.in('id', assignedKampagnenIds);
+      // Permission-Filterung anwenden (nur wenn allowedIds ein Array ist)
+      if (allowedIds !== null && allowedIds.length > 0) {
+        query = query.in('id', allowedIds);
       }
 
       // Filter aus FilterSystem anwenden (activeFilters bereits oben definiert)
-      console.log('🔍 KAMPAGNELIST: Wende Filter an:', activeFilters);
+      debugLog('🔍 KAMPAGNELIST: Wende Filter an:', activeFilters);
       query = KampagneFilterLogic.buildSupabaseQuery(query, activeFilters);
 
       const { data, error } = await query;
@@ -298,7 +431,7 @@ export class KampagneList {
               zuordnungsart: m.zuordnungsart
             });
           });
-          console.log('✅ KAMPAGNELIST: Mitarbeiter geladen für', Object.keys(mitarbeiterByKampagne).length, 'Kampagnen');
+          debugLog('✅ KAMPAGNELIST: Mitarbeiter geladen für', Object.keys(mitarbeiterByKampagne).length, 'Kampagnen');
         } else if (mitarbeiterError) {
           console.error('❌ Fehler beim Laden der Mitarbeiter:', mitarbeiterError);
         }
@@ -315,7 +448,7 @@ export class KampagneList {
       const filtered = KampagneFilterLogic.applyVirtualFilters(formattedData, activeFilters);
 
       const loadTime = (performance.now() - startTime).toFixed(0);
-      console.log(`✅ KAMPAGNELIST: ${filtered.length} Kampagnen geladen (von ${formattedData.length} nach Filter) in ${loadTime}ms`);
+      debugLog(`✅ KAMPAGNELIST: ${filtered.length} Kampagnen geladen (von ${formattedData.length} nach Filter) in ${loadTime}ms`);
       
       // Cache speichern
       kampagnenCache.set(filtered, cacheKey);
@@ -329,155 +462,14 @@ export class KampagneList {
     }
   }
   
-  // Helper: Lade User Permissions parallel (OPTIMIERT)
-  // Neue Logik: Marken-Zuordnung als Zusatzfilter
-  // - Nur Unternehmen zugeordnet → Sieht ALLES vom Unternehmen
-  // - Unternehmen + bestimmte Marken → Sieht NUR Inhalte der zugewiesenen Marken
+  /**
+   * @deprecated Nutze stattdessen KampagneUtils.loadAllowedKampagneIds()
+   * Diese Methode ist nur noch für Backwards-Compatibility
+   */
   async loadUserPermissions() {
-    try {
-      const userId = window.currentUser?.id;
-      if (!userId) return { data: [] };
-      
-      // STUFE 1: Alle Basis-Permission-Queries PARALLEL ausführen
-      const [directResult, markenResult, unternehmenResult] = await parallelLoad([
-        // 1. Direkt zugeordnete Kampagnen
-        () => window.supabase
-          .from('kampagne_mitarbeiter')
-          .select('kampagne_id')
-          .eq('mitarbeiter_id', userId),
-        
-        // 2. Kampagnen über zugeordnete Marken (OHNE Join wegen RLS)
-        () => window.supabase
-          .from('marke_mitarbeiter')
-          .select('marke_id')
-          .eq('mitarbeiter_id', userId),
-        
-        // 3. Zugeordnete Unternehmen
-        () => window.supabase
-          .from('mitarbeiter_unternehmen')
-          .select('unternehmen_id')
-          .eq('mitarbeiter_id', userId)
-      ]);
-      
-      // Direkte Kampagnen-IDs
-      const directKampagnenIds = (directResult.data || []).map(r => r.kampagne_id).filter(Boolean);
-      
-      // Zugeordnete Unternehmen-IDs
-      const unternehmenIds = (unternehmenResult.data || []).map(r => r.unternehmen_id).filter(Boolean);
-      
-      // Marken-IDs aus marke_mitarbeiter (ohne Join)
-      const markenIds = (markenResult.data || []).map(r => r.marke_id).filter(Boolean);
-      
-      // Zugeordnete Marken mit ihren Unternehmen (separat laden wegen RLS)
-      let markenMitUnternehmen = [];
-      if (markenIds.length > 0) {
-        const { data: markenData } = await window.supabase
-          .from('marke')
-          .select('id, unternehmen_id')
-          .in('id', markenIds);
-        
-        markenMitUnternehmen = (markenData || []).map(m => ({
-          marke_id: m.id,
-          unternehmen_id: m.unternehmen_id
-        }));
-      }
-      
-      // Erstelle Map: Unternehmen-ID → zugeordnete Marken-IDs (für diesen User)
-      const unternehmenMarkenMap = new Map();
-      markenMitUnternehmen.forEach(r => {
-        if (r.unternehmen_id) {
-          if (!unternehmenMarkenMap.has(r.unternehmen_id)) {
-            unternehmenMarkenMap.set(r.unternehmen_id, []);
-          }
-          unternehmenMarkenMap.get(r.unternehmen_id).push(r.marke_id);
-        }
-      });
-      
-      console.log(`🔍 Marken-Zuordnung pro Unternehmen:`, Object.fromEntries(unternehmenMarkenMap));
-      
-      // STUFE 2: Für jedes Unternehmen die erlaubten Marken ermitteln
-      let allowedMarkenIds = [];
-      
-      for (const unternehmenId of unternehmenIds) {
-        const explicitMarkenIds = unternehmenMarkenMap.get(unternehmenId);
-        
-        if (explicitMarkenIds && explicitMarkenIds.length > 0) {
-          // User hat explizite Marken-Zuordnung für dieses Unternehmen
-          // → Nur diese Marken erlauben
-          allowedMarkenIds.push(...explicitMarkenIds);
-          console.log(`🔒 Unternehmen ${unternehmenId}: Nur explizite Marken erlaubt:`, explicitMarkenIds);
-        } else {
-          // User hat KEINE Marken-Zuordnung für dieses Unternehmen
-          // → ALLE Marken des Unternehmens erlauben
-          const { data: alleMarken } = await window.supabase
-            .from('marke')
-            .select('id')
-            .eq('unternehmen_id', unternehmenId);
-          
-          const alleMarkenIds = (alleMarken || []).map(m => m.id);
-          allowedMarkenIds.push(...alleMarkenIds);
-          console.log(`🔓 Unternehmen ${unternehmenId}: Alle Marken erlaubt:`, alleMarkenIds.length);
-        }
-      }
-      
-      // WICHTIG: Direkt zugeordnete Marken hinzufügen (auch ohne separate Unternehmen-Zuordnung)
-      // Falls mitarbeiter_unternehmen Sync nicht existiert
-      const direktZugeordneteMarkenIds = markenMitUnternehmen.map(r => r.marke_id);
-      allowedMarkenIds.push(...direktZugeordneteMarkenIds);
-      console.log(`📍 Direkt zugeordnete Marken hinzugefügt:`, direktZugeordneteMarkenIds);
-      
-      // Duplikate entfernen
-      allowedMarkenIds = [...new Set(allowedMarkenIds)];
-      
-      // STUFE 3: Kampagnen für erlaubte Marken laden
-      let markenKampagnenIds = [];
-      if (allowedMarkenIds.length > 0) {
-        const { data: kampagnen } = await window.supabase
-          .from('kampagne')
-          .select('id')
-          .in('marke_id', allowedMarkenIds);
-        
-        markenKampagnenIds = (kampagnen || []).map(k => k.id).filter(Boolean);
-      }
-      
-      // STUFE 4: Kampagnen direkt über Unternehmen laden (für Kampagnen ohne Marke)
-      let unternehmenKampagnenIds = [];
-      if (unternehmenIds.length > 0) {
-        const { data: kampagnen } = await window.supabase
-          .from('kampagne')
-          .select('id')
-          .in('unternehmen_id', unternehmenIds);
-        
-        unternehmenKampagnenIds = (kampagnen || []).map(k => k.id).filter(Boolean);
-        console.log(`🏢 Kampagnen über Unternehmen gefunden:`, unternehmenKampagnenIds.length);
-      }
-      
-      // Alle zusammenführen und Duplikate entfernen
-      const allKampagnenIds = [...new Set([
-        ...directKampagnenIds,
-        ...markenKampagnenIds,
-        ...unternehmenKampagnenIds
-      ])];
-      
-      console.log(`🔍 Permission-Details:`, {
-        direkteKampagnen: directKampagnenIds.length,
-        erlaubteMarken: allowedMarkenIds.length,
-        markenKampagnen: markenKampagnenIds.length,
-        unternehmenKampagnen: unternehmenKampagnenIds.length,
-        gesamt: allKampagnenIds.length
-      });
-      
-      return { data: allKampagnenIds };
-      
-    } catch (error) {
-      console.error('❌ Fehler beim Laden der Permissions:', error);
-      // Für Kunden: RLS-Policies filtern automatisch, also weiter machen
-      // Für Mitarbeiter: Bei Fehler keine Daten anzeigen
-      if (window.currentUser?.rolle !== 'kunde') {
-        return { data: [] };
-      }
-      return { data: [] };
-    }
+    console.warn('⚠️ loadUserPermissions() ist deprecated - nutze KampagneUtils.loadAllowedKampagneIds()');
+    const ids = await KampagneUtils.loadAllowedKampagneIds();
+    return { data: ids || [] };
   }
 
   // Rendere Kampagnen-Liste
@@ -633,16 +625,16 @@ export class KampagneList {
     }
   }
 
-  // Filter angewendet
+  // Filter angewendet (mit Debouncing)
   onFiltersApplied(filters) {
-    console.log('🔍 KampagneList: Filter angewendet:', filters);
     filterSystem.applyFilters('kampagne', filters);
-    this.loadAndRender();
+    // Debounced: Verhindert multiple API-Calls bei schnellen Filter-Änderungen
+    this._debouncedLoadAndRender();
   }
 
   // Filter zurückgesetzt
   onFiltersReset() {
-    console.log('🔄 KampagneList: Filter zurückgesetzt');
+    debugLog('🔄 KampagneList: Filter zurückgesetzt');
     filterSystem.resetFilters('kampagne');
     this.loadAndRender();
   }
@@ -656,12 +648,12 @@ export class KampagneList {
       
       if (this.currentView === 'kanban') {
         mainContent.classList.add('kanban-view-active');
-        console.log('✅ Kanban-View CSS-Klasse gesetzt');
+        debugLog('✅ Kanban-View CSS-Klasse gesetzt');
       } else if (this.currentView === 'calendar') {
         mainContent.classList.add('calendar-view-active');
-        console.log('✅ Calendar-View CSS-Klasse gesetzt');
+        debugLog('✅ Calendar-View CSS-Klasse gesetzt');
       } else {
-        console.log('✅ View CSS-Klassen entfernt');
+        debugLog('✅ View CSS-Klassen entfernt');
       }
     }
   }
@@ -675,8 +667,7 @@ export class KampagneList {
 
     if (listBtn) {
       listBtn.addEventListener('click', async () => {
-        console.log('🔄 Wechsel zu List-View');
-        if (this.currentView === 'list') return; // Bereits in List-View
+        if (!this._isMounted || this.currentView === 'list') return;
         
         // Cleanup Kanban Board
         if (this.kanbanBoard) {
@@ -691,18 +682,16 @@ export class KampagneList {
         }
         
         this.currentView = 'list';
-        
-        // Entferne Kanban-View CSS-Klasse
         this.updateViewClass();
         
-        await this.loadAndRender(); // Re-render und Daten laden
+        // Guard nach async Operation
+        await this.loadAndRender();
       });
     }
 
     if (kanbanBtn) {
       kanbanBtn.addEventListener('click', async () => {
-        console.log('🔄 Wechsel zu Kanban-View');
-        if (this.currentView === 'kanban') return; // Bereits in Kanban-View
+        if (!this._isMounted || this.currentView === 'kanban') return;
         
         // Cleanup Calendar View
         if (this.calendarView) {
@@ -711,18 +700,16 @@ export class KampagneList {
         }
         
         this.currentView = 'kanban';
-        
-        // Setze Kanban-View CSS-Klasse
         this.updateViewClass();
         
-        await this.render(); // Re-render (initKanbanBoard wird in render() aufgerufen)
+        // Guard nach async Operation
+        await this.render();
       });
     }
 
     if (calendarBtn) {
       calendarBtn.addEventListener('click', async () => {
-        console.log('🔄 Wechsel zu Calendar-View');
-        if (this.currentView === 'calendar') return; // Bereits in Calendar-View
+        if (!this._isMounted || this.currentView === 'calendar') return;
         
         // Cleanup Kanban Board
         if (this.kanbanBoard) {
@@ -731,145 +718,28 @@ export class KampagneList {
         }
         
         this.currentView = 'calendar';
-        
-        // Update CSS-Klassen
         this.updateViewClass();
         
-        await this.render(); // Re-render (initCalendarView wird in render() aufgerufen)
+        // Guard nach async Operation
+        await this.render();
       });
     }
 
     // Filter-Events werden vom FilterDropdown gehandelt (nur in List-View)
     if (this.currentView === 'list') {
-      // Initialisiere Filterbar nur für List-View
       this.initializeFilterBar();
-    }
-
-    // Neue Kampagne anlegen Button
-    document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-kampagne-new' || e.target.id === 'btn-kampagne-new-filter') {
-        e.preventDefault();
-        window.navigateTo('/kampagne/new');
-      }
-    });
-
-    // Nur für List-View: Bulk-Actions, Select-All, etc.
-    if (this.currentView === 'list') {
-      // Alle auswählen Button
-      document.addEventListener('click', (e) => {
-        if (e.target.id === 'btn-select-all') {
-          e.preventDefault();
-          const checkboxes = document.querySelectorAll('.kampagne-check');
-          checkboxes.forEach(cb => {
-            cb.checked = true;
-            if (cb.dataset.id) this.selectedKampagnen.add(cb.dataset.id);
-          });
-          const selectAllHeader = document.getElementById('select-all-kampagnen');
-          if (selectAllHeader) {
-            selectAllHeader.indeterminate = false;
-            selectAllHeader.checked = true;
-          }
-          this.updateSelection();
-        }
-      });
-
-      // Auswahl aufheben Button
-      document.addEventListener('click', (e) => {
-        if (e.target.id === 'btn-deselect-all') {
-          e.preventDefault();
-          this.deselectAll();
-        }
-      });
-
-      // Select-All Checkbox (Tabellen-Header)
-      document.addEventListener('change', (e) => {
-        if (e.target.id === 'select-all-kampagnen') {
-          const checkboxes = document.querySelectorAll('.kampagne-check');
-          const isChecked = e.target.checked;
-          
-          checkboxes.forEach(cb => {
-            cb.checked = isChecked;
-            if (isChecked) {
-              this.selectedKampagnen.add(cb.dataset.id);
-            } else {
-              this.selectedKampagnen.delete(cb.dataset.id);
-            }
-          });
-          
-          this.updateSelection();
-          console.log(`${isChecked ? '✅ Alle Kampagnen ausgewählt' : '❌ Alle Kampagnen abgewählt'}: ${this.selectedKampagnen.size}`);
-        }
-      });
-
-      // Kampagne Checkboxes
-      document.addEventListener('change', (e) => {
-        if (e.target.classList.contains('kampagne-check')) {
-          if (e.target.checked) {
-            this.selectedKampagnen.add(e.target.dataset.id);
-          } else {
-            this.selectedKampagnen.delete(e.target.dataset.id);
-          }
-          this.updateSelection();
-          this.updateSelectAllCheckbox();
-        }
-      });
-
+      
       // Bulk-Actions werden jetzt vom BulkActionSystem verwaltet
       if (window.bulkActionSystem) {
         window.bulkActionSystem.registerList('kampagne', this);
       }
-
-      // Filter-Tag X-Buttons
-      document.addEventListener('click', (e) => {
-        if (e.target.classList.contains('tag-x')) {
-          e.preventDefault();
-          e.stopPropagation();
-          
-          const tagElement = e.target.closest('.filter-tag');
-          const key = tagElement.dataset.key;
-          
-          // Entferne Filter
-          const currentFilters = filterSystem.getFilters('kampagne');
-          delete currentFilters[key];
-          filterSystem.applyFilters('kampagne', currentFilters);
-          this.loadAndRender();
-        }
-      });
     }
 
-    // Kampagne Detail Links
-    document.addEventListener('click', (e) => {
-      if (e.target.classList.contains('table-link') && e.target.dataset.table === 'kampagne') {
-        e.preventDefault();
-        const kampagneId = e.target.dataset.id;
-        console.log('🎯 KAMPAGNELIST: Navigiere zu Kampagne Details:', kampagneId);
-        window.navigateTo(`/kampagne/${kampagneId}`);
-      }
-    });
-
-    // Entity Updated Event
-    window.addEventListener('entityUpdated', (e) => {
-      if (e.detail.entity === 'kampagne') {
-        if (this.currentView === 'kanban' && this.kanbanBoard) {
-          this.kanbanBoard.refresh();
-        } else if (this.currentView === 'calendar' && this.calendarView) {
-          this.calendarView.refresh();
-        } else {
-          this.loadAndRender();
-        }
-      }
-    });
-
-    // Kampagne Updated Event (von Kanban Board)
-    window.addEventListener('kampagneUpdated', (e) => {
-      if (this.currentView === 'kanban' && this.kanbanBoard) {
-        this.kanbanBoard.refresh();
-      } else if (this.currentView === 'calendar' && this.calendarView) {
-        this.calendarView.refresh();
-      } else {
-        this.loadAndRender();
-      }
-    });
+    // Globale Event-Listener mit Named References (für sauberes Cleanup)
+    document.addEventListener('click', this._handlers.globalClick);
+    document.addEventListener('change', this._handlers.globalChange);
+    window.addEventListener('entityUpdated', this._handlers.entityUpdated);
+    window.addEventListener('kampagneUpdated', this._handlers.kampagneUpdated);
   }
 
   // Prüfe ob aktive Filter vorhanden
@@ -956,8 +826,6 @@ export class KampagneList {
 
   // Cleanup
   destroy() {
-    console.log('KampagneList: Cleaning up...');
-    
     // Setze Mount-Status auf false (verhindert weitere DOM-Updates)
     this._isMounted = false;
     
@@ -967,12 +835,20 @@ export class KampagneList {
       this._abortController = null;
     }
     
+    // Entferne globale Event-Listener (Named References)
+    if (this._handlers) {
+      document.removeEventListener('click', this._handlers.globalClick);
+      document.removeEventListener('change', this._handlers.globalChange);
+      window.removeEventListener('entityUpdated', this._handlers.entityUpdated);
+      window.removeEventListener('kampagneUpdated', this._handlers.kampagneUpdated);
+    }
+    
+    // Legacy: Entferne alte Event-Listener falls vorhanden
     this._boundEventListeners.forEach(({ element, type, handler }) => {
       element.removeEventListener(type, handler);
     });
     this._boundEventListeners.clear();
     
-    // Event-Listener entfernen
     if (this.boundFilterResetHandler) {
       document.removeEventListener('click', this.boundFilterResetHandler);
       this.boundFilterResetHandler = null;
@@ -994,7 +870,6 @@ export class KampagneList {
     const mainContent = document.querySelector('.main-content');
     if (mainContent) {
       mainContent.classList.remove('kanban-view-active', 'calendar-view-active');
-      console.log('✅ KampagneList: View CSS-Klassen entfernt');
     }
     
     // Sicherheits-Cleanup: Entferne alle Kanban-Floating-Scrollbars
@@ -1002,7 +877,6 @@ export class KampagneList {
     floatingScrollbars.forEach(scrollbar => {
       if (scrollbar.parentNode) {
         scrollbar.parentNode.removeChild(scrollbar);
-        console.log('✅ KampagneList: Floating-Scrollbar aus DOM entfernt (Fallback)');
       }
     });
   }
@@ -1202,34 +1076,33 @@ export class KampagneList {
         // Nach Erstellung: Many-to-Many Beziehungen speichern
         try {
           const kampagneId = result.id;
-          console.log('🎯 Kampagne erstellt mit ID:', kampagneId);
           const toArray = (v) => Array.isArray(v) ? v : (v ? [v] : []);
           const uniq = (arr) => Array.from(new Set((arr || []).filter(Boolean)));
+          // UUID-Validierung mit zentralisierter Methode
+          const validUUIDs = (arr) => KampagneUtils.filterValidUUIDs(uniq(toArray(arr)));
           
-          // Ansprechpartner-Zuordnungen
-          const ansprechpartner = uniq(toArray(submitData.ansprechpartner_ids));
+          // Ansprechpartner-Zuordnungen (mit UUID-Validierung)
+          const ansprechpartner = validUUIDs(submitData.ansprechpartner_ids);
           if (ansprechpartner.length > 0) {
             const ansprechpartnerRows = ansprechpartner.map(apId => ({
               kampagne_id: kampagneId,
               ansprechpartner_id: apId
             }));
             await window.supabase.from('ansprechpartner_kampagne').insert(ansprechpartnerRows);
-            console.log('✅ Ansprechpartner-Zuordnungen gespeichert:', ansprechpartnerRows.length);
           }
           
           // Mitarbeiter-Zuordnungen (alle Rollen + allgemeine Mitarbeiter)
-          const mitarbeiter = uniq(toArray(submitData.mitarbeiter_ids));
-          const pm = uniq(toArray(submitData.pm_ids));
-          const sc = uniq(toArray(submitData.scripter_ids));
-          const cu = uniq(toArray(submitData.cutter_ids));
-          const cw = uniq(toArray(submitData.copywriter_ids));
-          const st = uniq(toArray(submitData.strategie_ids));
-          const cs = uniq(toArray(submitData.creator_sourcing_ids));
-          
-          console.log('👥 Mitarbeiter-Daten:', { mitarbeiter, pm, sc, cu, cw, st, cs });
+          // Alle IDs mit UUID-Validierung filtern
+          const mitarbeiter = validUUIDs(submitData.mitarbeiter_ids);
+          const pm = validUUIDs(submitData.pm_ids);
+          const sc = validUUIDs(submitData.scripter_ids);
+          const cu = validUUIDs(submitData.cutter_ids);
+          const cw = validUUIDs(submitData.copywriter_ids);
+          const st = validUUIDs(submitData.strategie_ids);
+          const cs = validUUIDs(submitData.creator_sourcing_ids);
           
           const mitarbeiterRows = [];
-          // Allgemeine Mitarbeiter als 'projektmanager' einfügen (da 'mitarbeiter' nicht erlaubt ist)
+          // Allgemeine Mitarbeiter als 'projektmanager' einfügen
           mitarbeiter.forEach(uid => mitarbeiterRows.push({ kampagne_id: kampagneId, mitarbeiter_id: uid, role: 'projektmanager' }));
           pm.forEach(uid => mitarbeiterRows.push({ kampagne_id: kampagneId, mitarbeiter_id: uid, role: 'projektmanager' }));
           sc.forEach(uid => mitarbeiterRows.push({ kampagne_id: kampagneId, mitarbeiter_id: uid, role: 'scripter' }));
@@ -1238,43 +1111,35 @@ export class KampagneList {
           st.forEach(uid => mitarbeiterRows.push({ kampagne_id: kampagneId, mitarbeiter_id: uid, role: 'strategie' }));
           cs.forEach(uid => mitarbeiterRows.push({ kampagne_id: kampagneId, mitarbeiter_id: uid, role: 'creator_sourcing' }));
           
-          console.log('📋 Zu speichernde Mitarbeiter-Rows:', mitarbeiterRows);
-          
           if (mitarbeiterRows.length > 0 && window.supabase) {
-            const { data, error } = await window.supabase.from('kampagne_mitarbeiter').insert(mitarbeiterRows);
+            const { error } = await window.supabase.from('kampagne_mitarbeiter').insert(mitarbeiterRows);
             if (error) {
               console.error('❌ Fehler beim Speichern der Mitarbeiter:', error);
-            } else {
-              console.log('✅ Mitarbeiter-Zuordnungen gespeichert:', mitarbeiterRows.length, data);
             }
-          } else {
-            console.log('ℹ️ Keine Mitarbeiter-Rows zu speichern (Länge:', mitarbeiterRows.length, ')');
           }
           
-          // Paid-Ziele Zuordnungen
-          const paidZiele = uniq(toArray(submitData.paid_ziele_ids));
+          // Paid-Ziele Zuordnungen (mit UUID-Validierung)
+          const paidZiele = validUUIDs(submitData.paid_ziele_ids);
           if (paidZiele.length > 0) {
             const paidZieleRows = paidZiele.map(zielId => ({
               kampagne_id: kampagneId,
               ziel_id: zielId
             }));
             await window.supabase.from('kampagne_paid_ziele').insert(paidZieleRows);
-            console.log('✅ Paid-Ziele Zuordnungen gespeichert:', paidZieleRows.length);
           }
           
-          // Organic-Ziele Zuordnungen
-          const organicZiele = uniq(toArray(submitData.organic_ziele_ids));
+          // Organic-Ziele Zuordnungen (mit UUID-Validierung)
+          const organicZiele = validUUIDs(submitData.organic_ziele_ids);
           if (organicZiele.length > 0) {
             const organicZieleRows = organicZiele.map(zielId => ({
               kampagne_id: kampagneId,
               ziel_id: zielId
             }));
             await window.supabase.from('kampagne_organic_ziele').insert(organicZieleRows);
-            console.log('✅ Organic-Ziele Zuordnungen gespeichert:', organicZieleRows.length);
           }
           
-          // Plattformen Zuordnungen
-          const plattformen = uniq(toArray(submitData.plattform_ids));
+          // Plattformen Zuordnungen (mit UUID-Validierung)
+          const plattformen = validUUIDs(submitData.plattform_ids);
           if (plattformen.length > 0) {
             const plattformenRows = plattformen.map(plattformId => ({
               kampagne_id: kampagneId,
@@ -1283,13 +1148,11 @@ export class KampagneList {
             const { error: plattformError } = await window.supabase.from('kampagne_plattformen').insert(plattformenRows);
             if (plattformError) {
               console.error('❌ Fehler beim Speichern der Plattformen:', plattformError);
-            } else {
-              console.log('✅ Plattformen Zuordnungen gespeichert:', plattformenRows.length);
             }
           }
           
-          // Formate Zuordnungen
-          const formate = uniq(toArray(submitData.format_ids));
+          // Formate Zuordnungen (mit UUID-Validierung)
+          const formate = validUUIDs(submitData.format_ids);
           if (formate.length > 0) {
             const formateRows = formate.map(formatId => ({
               kampagne_id: kampagneId,
@@ -1298,8 +1161,6 @@ export class KampagneList {
             const { error: formatError } = await window.supabase.from('kampagne_formate').insert(formateRows);
             if (formatError) {
               console.error('❌ Fehler beim Speichern der Formate:', formatError);
-            } else {
-              console.log('✅ Formate Zuordnungen gespeichert:', formateRows.length);
             }
           }
           

@@ -1,8 +1,273 @@
 // KampagneUtils.js (ES6-Modul)
 // Hilfsfunktionen für das Kampagnen-System
 
+// Debug-Flag für Logging (Production: false)
+const DEBUG_PERMISSIONS = false;
+
 export class KampagneUtils {
   
+  // ========================================
+  // ZENTRALISIERTE PERMISSION-LOGIK
+  // Wird von KampagneList, KampagneKanbanBoard und KampagneCalendarView verwendet
+  // ========================================
+
+  /**
+   * Prüft ob der aktuelle User Admin ist
+   * @returns {boolean}
+   */
+  static isUserAdmin() {
+    const rolle = window.currentUser?.rolle;
+    return rolle === 'admin' || rolle?.toLowerCase() === 'admin';
+  }
+
+  /**
+   * Prüft ob der aktuelle User ein Kunde ist
+   * @returns {boolean}
+   */
+  static isUserKunde() {
+    return window.currentUser?.rolle === 'kunde';
+  }
+
+  /**
+   * Lädt alle Kampagnen-IDs auf die der aktuelle User Zugriff hat.
+   * Zentralisierte Logik für Permission-basierte Filterung.
+   * 
+   * Logik:
+   * - Admin: Zugriff auf alle (returns null = keine Filterung nötig)
+   * - Kunde: RLS filtert automatisch (returns null)
+   * - Mitarbeiter: Basierend auf:
+   *   1. Direkte Kampagnen-Zuordnung (kampagne_mitarbeiter)
+   *   2. Marken-Zuordnung (marke_mitarbeiter)
+   *   3. Unternehmen-Zuordnung (mitarbeiter_unternehmen)
+   * 
+   * @returns {Promise<string[]|null>} Array von Kampagnen-IDs oder null (= keine Filterung)
+   */
+  static async loadAllowedKampagneIds() {
+    try {
+      const userId = window.currentUser?.id;
+      if (!userId) return [];
+      
+      // Admins sehen alles
+      if (this.isUserAdmin()) {
+        if (DEBUG_PERMISSIONS) console.log('🔓 PERMISSIONS: Admin - keine Filterung');
+        return null;
+      }
+      
+      // Kunden: RLS filtert automatisch
+      if (this.isUserKunde()) {
+        if (DEBUG_PERMISSIONS) console.log('🔓 PERMISSIONS: Kunde - RLS filtert');
+        return null;
+      }
+      
+      // STUFE 1: Alle Basis-Permission-Queries PARALLEL ausführen
+      const [directResult, markenResult, unternehmenResult] = await Promise.all([
+        // 1. Direkt zugeordnete Kampagnen
+        window.supabase
+          .from('kampagne_mitarbeiter')
+          .select('kampagne_id')
+          .eq('mitarbeiter_id', userId),
+        
+        // 2. Kampagnen über zugeordnete Marken
+        window.supabase
+          .from('marke_mitarbeiter')
+          .select('marke_id')
+          .eq('mitarbeiter_id', userId),
+        
+        // 3. Zugeordnete Unternehmen
+        window.supabase
+          .from('mitarbeiter_unternehmen')
+          .select('unternehmen_id')
+          .eq('mitarbeiter_id', userId)
+      ]);
+      
+      // Direkte Kampagnen-IDs
+      const directKampagnenIds = (directResult.data || []).map(r => r.kampagne_id).filter(Boolean);
+      
+      // Zugeordnete Unternehmen-IDs
+      const unternehmenIds = (unternehmenResult.data || []).map(r => r.unternehmen_id).filter(Boolean);
+      
+      // Marken-IDs aus marke_mitarbeiter
+      const markenIds = (markenResult.data || []).map(r => r.marke_id).filter(Boolean);
+      
+      // Zugeordnete Marken mit ihren Unternehmen laden
+      let markenMitUnternehmen = [];
+      if (markenIds.length > 0) {
+        const { data: markenData } = await window.supabase
+          .from('marke')
+          .select('id, unternehmen_id')
+          .in('id', markenIds);
+        
+        markenMitUnternehmen = (markenData || []).map(m => ({
+          marke_id: m.id,
+          unternehmen_id: m.unternehmen_id
+        }));
+      }
+      
+      // Map: Unternehmen-ID → zugeordnete Marken-IDs (für diesen User)
+      const unternehmenMarkenMap = new Map();
+      markenMitUnternehmen.forEach(r => {
+        if (r.unternehmen_id) {
+          if (!unternehmenMarkenMap.has(r.unternehmen_id)) {
+            unternehmenMarkenMap.set(r.unternehmen_id, []);
+          }
+          unternehmenMarkenMap.get(r.unternehmen_id).push(r.marke_id);
+        }
+      });
+      
+      // STUFE 2: Erlaubte Marken ermitteln (mit Batch-Query statt N+1)
+      let allowedMarkenIds = [];
+      
+      // Unternehmen OHNE explizite Marken-Zuordnung
+      const unternehmenOhneExpliziteMarken = unternehmenIds.filter(uid => !unternehmenMarkenMap.has(uid));
+      
+      // Für diese alle Marken in EINER Query laden
+      let markenByUnternehmen = {};
+      if (unternehmenOhneExpliziteMarken.length > 0) {
+        const { data: alleMarken } = await window.supabase
+          .from('marke')
+          .select('id, unternehmen_id')
+          .in('unternehmen_id', unternehmenOhneExpliziteMarken);
+        
+        markenByUnternehmen = (alleMarken || []).reduce((acc, m) => {
+          if (!acc[m.unternehmen_id]) acc[m.unternehmen_id] = [];
+          acc[m.unternehmen_id].push(m.id);
+          return acc;
+        }, {});
+      }
+      
+      // Erlaubte Marken zusammenstellen
+      for (const unternehmenId of unternehmenIds) {
+        const explicitMarkenIds = unternehmenMarkenMap.get(unternehmenId);
+        
+        if (explicitMarkenIds && explicitMarkenIds.length > 0) {
+          allowedMarkenIds.push(...explicitMarkenIds);
+        } else {
+          const alleMarkenIds = markenByUnternehmen[unternehmenId] || [];
+          allowedMarkenIds.push(...alleMarkenIds);
+        }
+      }
+      
+      // Direkt zugeordnete Marken hinzufügen
+      const direktZugeordneteMarkenIds = markenMitUnternehmen.map(r => r.marke_id);
+      allowedMarkenIds.push(...direktZugeordneteMarkenIds);
+      
+      // Duplikate entfernen
+      allowedMarkenIds = [...new Set(allowedMarkenIds)];
+      
+      // STUFE 3: Kampagnen für erlaubte Marken laden
+      let markenKampagnenIds = [];
+      if (allowedMarkenIds.length > 0) {
+        const { data: kampagnen } = await window.supabase
+          .from('kampagne')
+          .select('id')
+          .in('marke_id', allowedMarkenIds);
+        
+        markenKampagnenIds = (kampagnen || []).map(k => k.id).filter(Boolean);
+      }
+      
+      // STUFE 4: Kampagnen direkt über Unternehmen
+      let unternehmenKampagnenIds = [];
+      if (unternehmenIds.length > 0) {
+        const { data: kampagnen } = await window.supabase
+          .from('kampagne')
+          .select('id')
+          .in('unternehmen_id', unternehmenIds);
+        
+        unternehmenKampagnenIds = (kampagnen || []).map(k => k.id).filter(Boolean);
+      }
+      
+      // Alle zusammenführen und Duplikate entfernen
+      const allKampagnenIds = [...new Set([
+        ...directKampagnenIds,
+        ...markenKampagnenIds,
+        ...unternehmenKampagnenIds
+      ])];
+      
+      if (DEBUG_PERMISSIONS) {
+        console.log(`🔍 PERMISSIONS: Mitarbeiter ${userId}:`, {
+          direkteKampagnen: directKampagnenIds.length,
+          erlaubteMarken: allowedMarkenIds.length,
+          markenKampagnen: markenKampagnenIds.length,
+          unternehmenKampagnen: unternehmenKampagnenIds.length,
+          gesamt: allKampagnenIds.length
+        });
+      }
+      
+      return allKampagnenIds;
+      
+    } catch (error) {
+      console.error('❌ KampagneUtils.loadAllowedKampagneIds Fehler:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Lädt Kampagnen mit Permission-Filterung
+   * @param {object} options - Query-Optionen
+   * @param {string} options.selectFields - Felder für SELECT (default: *)
+   * @param {string} options.orderBy - Sortierfeld (default: created_at)
+   * @param {boolean} options.ascending - Sortierrichtung (default: false)
+   * @returns {Promise<{data: Array, error: Error|null}>}
+   */
+  static async loadKampagnenWithPermissions(options = {}) {
+    const { 
+      selectFields = '*', 
+      orderBy = 'created_at', 
+      ascending = false 
+    } = options;
+    
+    try {
+      const allowedIds = await this.loadAllowedKampagneIds();
+      
+      let query = window.supabase
+        .from('kampagne')
+        .select(selectFields)
+        .order(orderBy, { ascending });
+      
+      // Nur filtern wenn allowedIds ein Array ist (nicht null)
+      if (allowedIds !== null) {
+        if (allowedIds.length === 0) {
+          return { data: [], error: null };
+        }
+        query = query.in('id', allowedIds);
+      }
+      
+      return await query;
+      
+    } catch (error) {
+      console.error('❌ KampagneUtils.loadKampagnenWithPermissions Fehler:', error);
+      return { data: [], error };
+    }
+  }
+
+  // ========================================
+  // UUID VALIDIERUNG
+  // ========================================
+
+  /**
+   * Validiert ob ein String eine gültige UUID ist
+   * @param {string} str - Zu validierende Zeichenkette
+   * @returns {boolean}
+   */
+  static isValidUUID(str) {
+    if (!str || typeof str !== 'string') return false;
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+  }
+
+  /**
+   * Filtert ein Array und behält nur gültige UUIDs
+   * @param {Array} arr - Array mit potentiellen UUIDs
+   * @returns {string[]} Nur gültige UUIDs
+   */
+  static filterValidUUIDs(arr) {
+    if (!Array.isArray(arr)) return [];
+    return arr.filter(item => this.isValidUUID(item));
+  }
+
+  // ========================================
+  // DISPLAY & FORMATIERUNG
+  // ========================================
+
   // Hole Anzeigename: eigener_name hat Priorität, sonst kampagnenname
   static getDisplayName(kampagne) {
     return kampagne?.eigener_name || kampagne?.kampagnenname || 'Unbenannte Kampagne';

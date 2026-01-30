@@ -168,12 +168,12 @@ export class KundenKooperationDetail {
         e.preventDefault();
         const storagePath = dl.dataset.path;
         try {
-          // Falls Storage privat ist, hier signierte URL generieren (Edge/Server). Vorerst: direkte URL.
-          const { data, error } = await window.supabase.storage
+          // Permanente Public URL generieren
+          const { data: urlData } = window.supabase.storage
             ?.from('kooperation_uploads')
-            ?.createSignedUrl(storagePath, 60 * 10);
-          if (!error && data?.signedUrl) {
-            window.open(data.signedUrl, '_blank');
+            ?.getPublicUrl(storagePath);
+          if (urlData?.publicUrl) {
+            window.open(urlData.publicUrl, '_blank');
           } else {
             // Fallback: versuche direkten Link
             window.open(storagePath, '_blank');

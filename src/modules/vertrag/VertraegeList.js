@@ -170,8 +170,9 @@ export class VertraegeList {
         // Unternehmens-Detailansicht
         await this.initializeFilterBar();
         const vertraege = await this.loadVertraege();
-        // (animatedUpdate entfernt Overlay automatisch)
         this.updateVertraegeTable(vertraege);
+        // Loading-Overlay entfernen
+        TableAnimationHelper.hideLoadingOverlay(tbody);
       }
       
     } catch (error) {
