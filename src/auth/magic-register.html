@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registrierung | CRM</title>
+    <link rel="stylesheet" href="../../assets/styles/variables.css">
+    <link rel="stylesheet" href="../../assets/styles/base.css">
+    <link rel="stylesheet" href="../../assets/styles/layout.css">
+    <link rel="stylesheet" href="../../assets/styles/components.css">
+    <style>
+      .info-box {
+        background: var(--background-secondary, #f5f5f5);
+        border: 1px solid var(--border-color, #e0e0e0);
+        border-radius: var(--radius-md, 8px);
+        padding: var(--space-md, 16px);
+        margin-bottom: var(--space-lg, 24px);
+      }
+      .info-box h3 {
+        margin: 0 0 var(--space-sm, 8px) 0;
+        font-size: 0.875rem;
+        color: var(--text-secondary, #666);
+      }
+      .info-box p {
+        margin: 0;
+        font-size: 1rem;
+        color: var(--text-primary, #333);
+      }
+      .info-box .company-list {
+        margin-top: var(--space-sm, 8px);
+        font-size: 0.875rem;
+        color: var(--text-secondary, #666);
+      }
+      .loading-state {
+        text-align: center;
+        padding: var(--space-xl, 32px);
+      }
+      .error-state {
+        text-align: center;
+        padding: var(--space-xl, 32px);
+      }
+      .error-state svg {
+        width: 64px;
+        height: 64px;
+        color: var(--color-error, #dc3545);
+        margin-bottom: var(--space-md, 16px);
+      }
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid var(--border-color, #e0e0e0);
+        border-top-color: var(--color-primary, #007bff);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto var(--space-md, 16px);
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
+</head>
+<body style="margin: 0; padding: 0;">
+  
+  <div class="login-split-container">
+    <div class="login-left">
+      <div class="login-box">
+        <div class="login-logo-wrapper">
+          <img src="/assets/background/Logo-Icon-gray.svg" alt="Logo" class="login-logo">
+        </div>
+        
+        <!-- Loading State -->
+        <div id="loading-state" class="loading-state">
+          <div class="spinner"></div>
+          <p>Link wird überprüft...</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="error-state" class="error-state" style="display: none;">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+          </svg>
+          <h2>Link ungültig</h2>
+          <p id="error-message">Dieser Link ist ungültig oder abgelaufen.</p>
+          <a href="/" class="btn primary-btn" style="margin-top: var(--space-md);">Zurück zur Startseite</a>
+        </div>
+
+        <!-- Registration Form -->
+        <div id="register-state" style="display: none;">
+          <h2>Konto erstellen</h2>
+          
+          <!-- Ansprechpartner Info -->
+          <div id="ansprechpartner-info" class="info-box">
+            <h3>Eingeladen von</h3>
+            <p id="ansprechpartner-name">-</p>
+            <div id="company-info" class="company-list"></div>
+          </div>
+
+          <div id="msg" class="text-error" style="display: none;"></div>
+
+          <form id="register-form">
+            <div class="form-box">
+              <label class="label" for="name">Name</label>
+              <input id="name" class="input" type="text" placeholder="Max Mustermann" required />
+            </div>
+            <div class="form-box">
+              <label class="label" for="email">E-Mail</label>
+              <input id="email" class="input" type="email" placeholder="ihre@email.com" required />
+            </div>
+            <div class="form-box">
+              <label class="label" for="password">Passwort</label>
+              <input id="password" class="input" type="password" placeholder="••••••••" minlength="8" required />
+            </div>
+            <div class="form-box">
+              <button id="btn-submit" type="submit" class="btn primary-btn" style="width: 100%;">Konto erstellen</button>
+            </div>
+            <div class="login-divider">
+              <span>Bereits registriert?</span>
+            </div>
+            <div class="register-links-row">
+              <a href="/" class="register-link-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                </svg>
+                Zum Login
+              </a>
+            </div>
+            <div class="login-version">Magic Link Registrierung</div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="login-right"></div>
+  </div>
+
+<script type="module">
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/+esm'
+  import { getSupabaseConfig } from './config.js'
+
+  // State Elements
+  const loadingState = document.getElementById('loading-state');
+  const errorState = document.getElementById('error-state');
+  const registerState = document.getElementById('register-state');
+  const errorMessage = document.getElementById('error-message');
+  const ansprechpartnerName = document.getElementById('ansprechpartner-name');
+  const companyInfo = document.getElementById('company-info');
+  const form = document.getElementById('register-form');
+  const btn = document.getElementById('btn-submit');
+  const msg = document.getElementById('msg');
+
+  // Supabase initialisieren
+  const cfg = getSupabaseConfig();
+  if (!cfg) {
+    showError('Konfigurationsfehler. Bitte kontaktieren Sie den Support.');
+    throw new Error('Missing Supabase config');
+  }
+  const supabase = createClient(cfg.url, cfg.anonKey);
+
+  // Token aus URL holen
+  const urlParams = new URLSearchParams(window.location.search);
+  const token = urlParams.get('token');
+
+  let validationData = null;
+
+  function showError(message) {
+    loadingState.style.display = 'none';
+    registerState.style.display = 'none';
+    errorState.style.display = 'block';
+    errorMessage.textContent = message;
+  }
+
+  function showRegisterForm(data) {
+    loadingState.style.display = 'none';
+    errorState.style.display = 'none';
+    registerState.style.display = 'block';
+
+    const ap = data.ansprechpartner;
+    ansprechpartnerName.textContent = `${ap.vorname || ''} ${ap.nachname || ''}`.trim() || 'Unbekannt';
+
+    // Unternehmen anzeigen
+    const unternehmen = ap.ansprechpartner_unternehmen || [];
+    if (unternehmen.length > 0) {
+      const names = unternehmen.map(u => u.unternehmen?.firmenname).filter(Boolean);
+      companyInfo.innerHTML = `<strong>Unternehmen:</strong> ${names.join(', ')}`;
+    }
+
+    // E-Mail vorausfüllen wenn vorhanden
+    if (ap.email) {
+      document.getElementById('email').value = ap.email;
+    }
+    
+    // Name vorausfüllen
+    if (ap.vorname || ap.nachname) {
+      document.getElementById('name').value = `${ap.vorname || ''} ${ap.nachname || ''}`.trim();
+    }
+  }
+
+  function showMessage(type, text) {
+    msg.style.display = 'block';
+    msg.className = type === 'error' ? 'text-error' : 'text-success';
+    msg.textContent = text;
+  }
+
+  // Token validieren
+  async function validateToken() {
+    if (!token) {
+      showError('Kein Token vorhanden. Bitte verwenden Sie den vollständigen Link.');
+      return;
+    }
+
+    try {
+      // Magic Link mit Ansprechpartner-Daten laden
+      const { data: magicLink, error: linkError } = await supabase
+        .from('magic_links')
+        .select(`
+          *,
+          ansprechpartner:ansprechpartner_id (
+            id,
+            vorname,
+            nachname,
+            email,
+            ansprechpartner_unternehmen (
+              unternehmen:unternehmen_id (id, firmenname)
+            ),
+            ansprechpartner_marke (
+              marke:marke_id (id, markenname)
+            )
+          )
+        `)
+        .eq('token', token)
+        .single();
+
+      if (linkError || !magicLink) {
+        showError('Dieser Link ist ungültig oder wurde nicht gefunden.');
+        return;
+      }
+
+      // Prüfen ob bereits verwendet
+      if (magicLink.used_at) {
+        showError('Dieser Link wurde bereits verwendet. Bitte fordern Sie einen neuen Link an.');
+        return;
+      }
+
+      // Prüfen ob abgelaufen
+      if (new Date(magicLink.expires_at) < new Date()) {
+        showError('Dieser Link ist abgelaufen. Bitte fordern Sie einen neuen Link an.');
+        return;
+      }
+
+      // Erfolg - Formular anzeigen
+      validationData = {
+        ansprechpartner: magicLink.ansprechpartner,
+        magicLinkId: magicLink.id
+      };
+      showRegisterForm(validationData);
+
+    } catch (error) {
+      console.error('Validation error:', error);
+      showError('Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.');
+    }
+  }
+
+  // Registrierung durchführen
+  async function handleRegister(e) {
+    e.preventDefault();
+    msg.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Wird erstellt...';
+
+    const name = document.getElementById('name').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+
+    try {
+      const ansprechpartner = validationData.ansprechpartner;
+
+      // 1. Supabase Auth User erstellen
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/src/auth/verify-email.html?redirect_to=/kunden`,
+          data: { 
+            role: 'kunde', 
+            subrole: 'can_view', 
+            name,
+            source: 'magic_link',
+            ansprechpartner_id: ansprechpartner.id
+          }
+        }
+      });
+
+      if (authError) throw authError;
+
+      const authUserId = authData.user?.id;
+      if (!authUserId) throw new Error('Registrierung fehlgeschlagen');
+
+      // 2. Benutzer-Record erstellen/aktualisieren
+      const { data: benutzerData, error: benutzerError } = await supabase
+        .from('benutzer')
+        .upsert({
+          auth_user_id: authUserId,
+          name,
+          email,
+          rolle: 'kunde',
+          freigeschaltet: true
+        }, {
+          onConflict: 'auth_user_id'
+        })
+        .select()
+        .single();
+
+      const kundeId = benutzerData?.id;
+
+      if (kundeId) {
+        // 3. Unternehmen kopieren
+        const unternehmen = ansprechpartner.ansprechpartner_unternehmen || [];
+        if (unternehmen.length > 0) {
+          const links = unternehmen.map(u => ({
+            kunde_id: kundeId,
+            unternehmen_id: u.unternehmen.id
+          }));
+          await supabase.from('kunde_unternehmen').insert(links);
+        }
+
+        // 4. Marken kopieren
+        const marken = ansprechpartner.ansprechpartner_marke || [];
+        if (marken.length > 0) {
+          const links = marken.map(m => ({
+            kunde_id: kundeId,
+            marke_id: m.marke.id
+          }));
+          await supabase.from('kunde_marke').insert(links);
+        }
+
+        // 5. Kunde ↔ Ansprechpartner verknüpfen
+        await supabase.from('kunde_ansprechpartner').insert({
+          kunde_id: kundeId,
+          ansprechpartner_id: ansprechpartner.id
+        });
+      }
+
+      // 6. Magic Link als verwendet markieren
+      await supabase
+        .from('magic_links')
+        .update({ used_at: new Date().toISOString() })
+        .eq('id', validationData.magicLinkId);
+
+      // Weiterleitung zur E-Mail-Verifizierung
+      window.location.href = `/src/auth/verify-email.html?email=${encodeURIComponent(email)}&redirect_to=/kunden`;
+
+    } catch (error) {
+      console.error('Registration error:', error);
+      showMessage('error', error?.message || 'Registrierung fehlgeschlagen');
+      btn.disabled = false;
+      btn.textContent = 'Konto erstellen';
+    }
+  }
+
+  // Event Listener
+  form.addEventListener('submit', handleRegister);
+
+  // Start: Token validieren
+  validateToken();
+</script>
+</body>
+</html>

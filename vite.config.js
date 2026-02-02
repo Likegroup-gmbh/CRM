@@ -8,6 +8,7 @@ export default defineConfig({
       input: {
         main: 'index.html',
         kundenRegister: 'src/auth/kunden-register.html',
+        magicRegister: 'src/auth/magic-register.html',
         verifyEmail: 'src/auth/verify-email.html',
         confirmEmail: 'src/auth/confirm-email.html',
         resetPassword: 'src/auth/reset-password.html'
@@ -15,7 +16,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           core: ['src/core/FilterSystem.js', 'src/core/FilterConfig.js', 'src/core/FilterLogic.js', 'src/core/FilterUI.js'],
-          auth: ['src/modules/auth/AuthService.js', 'src/modules/auth/AuthUtils.js'],
+          auth: ['src/modules/auth/AuthService.js', 'src/modules/auth/AuthUtils.js', 'src/modules/auth/MagicLinkService.js'],
           modules: ['src/modules/creator/CreatorList.js']
         }
       }

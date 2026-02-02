@@ -9,6 +9,7 @@ import { renderTabButton } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { ImageUploadHelper } from '../../core/ImageUploadHelper.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { magicLinkService } from '../auth/MagicLinkService.js';
 
 export class AnsprechpartnerDetail extends PersonDetailBase {
   constructor() {
@@ -193,8 +194,16 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       avatarOnly: true
     };
 
-    // Quick Actions (keine im Header für Ansprechpartner)
-    const quickActions = [];
+    // Quick Actions - Magic Link Button
+    const canEdit = window.permissionSystem?.checkPermission('ansprechpartner', 'edit') !== false;
+    const quickActions = [
+      { 
+        icon: 'link', 
+        label: 'Magic Link', 
+        action: 'generate-magic-link',
+        disabled: !canEdit
+      }
+    ];
 
     // Info-Items für Sidebar
     const sidebarInfo = this.renderInfoItems([
@@ -617,6 +626,150 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       await this.loadCriticalData();
       this.render();
     });
+
+    // Magic Link Button Handler
+    document.addEventListener('click', (e) => {
+      const actionBtn = e.target.closest('[data-action="generate-magic-link"]');
+      if (actionBtn && !actionBtn.classList.contains('disabled')) {
+        e.preventDefault();
+        this.showMagicLinkModal();
+      }
+    });
+  }
+
+  // Magic Link Modal anzeigen
+  async showMagicLinkModal() {
+    console.log('🔗 ANSPRECHPARTNERDETAIL: Generiere Magic Link für:', this.ansprechpartnerId);
+    
+    // Prüfe Berechtigung
+    const canEdit = window.permissionSystem?.checkPermission('ansprechpartner', 'edit') !== false;
+    if (!canEdit) {
+      window.toastSystem?.show('Keine Berechtigung für diese Aktion', 'error');
+      return;
+    }
+
+    // Zeige Loading Modal
+    const modalId = 'magic-link-modal';
+    const loadingHtml = `
+      <div id="${modalId}" class="modal show" style="display: flex; position: fixed; inset: 0; z-index: 9999; align-items: center; justify-content: center;">
+        <div class="modal-overlay" data-close-modal style="position: absolute; inset: 0; background: rgba(0,0,0,0.5); z-index: 1;"></div>
+        <div class="modal-content" style="max-width: 500px; position: relative; z-index: 2; background: var(--background-primary, #fff); border-radius: var(--radius-lg, 12px); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);">
+          <div class="modal-header">
+            <h3>Magic Link generieren</h3>
+            <button class="modal-close" data-close-modal>&times;</button>
+          </div>
+          <div class="modal-body" style="text-align: center; padding: var(--space-xl);">
+            <div class="spinner" style="width: 40px; height: 40px; border: 3px solid var(--border-color); border-top-color: var(--color-primary); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto var(--space-md);"></div>
+            <p>Link wird generiert...</p>
+          </div>
+        </div>
+      </div>
+      <style>
+        @keyframes spin { to { transform: rotate(360deg); } }
+      </style>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', loadingHtml);
+    
+    try {
+      // Magic Link erstellen
+      const result = await magicLinkService.createMagicLink(this.ansprechpartnerId);
+      
+      // Modal entfernen
+      document.getElementById(modalId)?.remove();
+      
+      if (!result.success) {
+        window.toastSystem?.show(result.error || 'Fehler beim Erstellen des Links', 'error');
+        return;
+      }
+
+      // Erfolgs-Modal mit Link anzeigen
+      const fullName = `${this.ansprechpartner?.vorname || ''} ${this.ansprechpartner?.nachname || ''}`.trim();
+      const expiresDate = new Date(result.expiresAt).toLocaleDateString('de-DE', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
+      const successHtml = `
+        <div id="${modalId}" class="modal show" style="display: flex; position: fixed; inset: 0; z-index: 9999; align-items: center; justify-content: center;">
+          <div class="modal-overlay" data-close-modal style="position: absolute; inset: 0; background: rgba(0,0,0,0.5); z-index: 1;"></div>
+          <div class="modal-content" style="max-width: 550px; position: relative; z-index: 2; background: var(--background-primary, #fff); border-radius: var(--radius-lg, 12px); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);">
+            <div class="modal-header">
+              <h3>Magic Link erstellt</h3>
+              <button class="modal-close" data-close-modal>&times;</button>
+            </div>
+            <div class="modal-body">
+              <div style="background: var(--background-secondary); border-radius: var(--radius-md); padding: var(--space-md); margin-bottom: var(--space-md);">
+                <p style="margin: 0 0 var(--space-xs); color: var(--text-secondary); font-size: 0.875rem;">Link für</p>
+                <p style="margin: 0; font-weight: 500;">${this.sanitize(fullName || 'Ansprechpartner')}</p>
+              </div>
+              
+              <div style="margin-bottom: var(--space-md);">
+                <label style="display: block; margin-bottom: var(--space-xs); font-size: 0.875rem; color: var(--text-secondary);">
+                  Registrierungs-Link (einmalig verwendbar)
+                </label>
+                <div style="display: flex; gap: var(--space-sm);">
+                  <input 
+                    type="text" 
+                    id="magic-link-input" 
+                    class="input" 
+                    value="${result.link}" 
+                    readonly 
+                    style="flex: 1; font-family: monospace; font-size: 0.8rem;"
+                  />
+                  <button id="copy-magic-link" class="btn primary-btn" style="white-space: nowrap;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="margin-right: 4px;">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    Kopieren
+                  </button>
+                </div>
+              </div>
+              
+              <div style="background: var(--color-warning-bg, #fff3cd); border: 1px solid var(--color-warning-border, #ffc107); border-radius: var(--radius-md); padding: var(--space-sm); font-size: 0.875rem;">
+                <strong>Hinweis:</strong> Dieser Link ist gültig bis ${expiresDate} und kann nur einmal verwendet werden.
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn secondary-btn" data-close-modal>Schließen</button>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      document.body.insertAdjacentHTML('beforeend', successHtml);
+      
+      // Copy Button Handler
+      document.getElementById('copy-magic-link')?.addEventListener('click', async () => {
+        const input = document.getElementById('magic-link-input');
+        try {
+          await navigator.clipboard.writeText(input.value);
+          window.toastSystem?.show('Link in Zwischenablage kopiert!', 'success');
+        } catch (err) {
+          // Fallback für ältere Browser
+          input.select();
+          document.execCommand('copy');
+          window.toastSystem?.show('Link kopiert!', 'success');
+        }
+      });
+      
+      // Modal schließen Handler
+      document.querySelectorAll(`#${modalId} [data-close-modal]`).forEach(el => {
+        el.addEventListener('click', () => {
+          document.getElementById(modalId)?.remove();
+        });
+      });
+      
+      console.log('✅ ANSPRECHPARTNERDETAIL: Magic Link Modal angezeigt');
+      
+    } catch (error) {
+      console.error('❌ ANSPRECHPARTNERDETAIL: Fehler beim Generieren des Magic Links:', error);
+      document.getElementById(modalId)?.remove();
+      window.toastSystem?.show('Fehler beim Erstellen des Links', 'error');
+    }
   }
 
   // Breadcrumb Edit Handler binden (wie ProfileDetailV2 - sauberes Cleanup)
