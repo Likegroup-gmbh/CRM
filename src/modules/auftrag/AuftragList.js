@@ -185,7 +185,7 @@ export class AuftragList {
     
     // Pagination initialisieren mit dynamicResize für animiertes Entfernen
     this.pagination.init('pagination-auftrag', {
-      itemsPerPage: 10,
+      itemsPerPage: 25,
       onPageChange: (page) => this.handlePageChange(page),
       onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page),
       dynamicResize: true,
@@ -603,8 +603,8 @@ export class AuftragList {
   renderListView() {
     return `
       <!-- Daten-Tabelle -->
-      <div class="table-container drag-scroll-enabled" id="auftrag-table-container">
-          <table class="data-table auftrag-table">
+      <div class="table-container">
+          <table class="data-table">
             <thead>
               <tr>
                 ${this.isAdmin ? `<th class="col-checkbox">

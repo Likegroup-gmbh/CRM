@@ -205,11 +205,11 @@ export class CreatorAuswahlList extends BasePaginatedList {
    * Zusätzliche Events binden
    */
   bindAdditionalEvents(signal) {
-    // Create Liste Button
+    // Create Liste Button - öffnet Drawer statt Navigation
     document.addEventListener('click', (e) => {
       if (e.target.closest('[data-action="create-liste"]')) {
         e.preventDefault();
-        window.navigateTo('/sourcing/new');
+        this.openCreateDrawer();
       }
     }, { signal });
     
@@ -308,6 +308,156 @@ export class CreatorAuswahlList extends BasePaginatedList {
     } catch (error) {
       console.error('Fehler beim Löschen:', error);
       window.toastSystem?.show('Fehler beim Löschen der Creator-Auswahl', 'error');
+    }
+  }
+  
+  /**
+   * Öffne Create-Drawer für neue Creator-Auswahl
+   */
+  openCreateDrawer() {
+    console.log('🎯 Öffne Creator-Auswahl Create-Drawer');
+    
+    // Bestehenden Drawer entfernen falls vorhanden
+    this.closeCreateDrawer();
+    
+    // Overlay erstellen
+    const overlay = document.createElement('div');
+    overlay.className = 'drawer-overlay';
+    overlay.id = 'sourcing-create-drawer-overlay';
+    
+    // Drawer Panel erstellen
+    const panel = document.createElement('div');
+    panel.setAttribute('role', 'dialog');
+    panel.className = 'drawer-panel';
+    panel.id = 'sourcing-create-drawer';
+    
+    // Header
+    const header = document.createElement('div');
+    header.className = 'drawer-header';
+    header.innerHTML = `
+      <div>
+        <span class="drawer-title">Neue Creator-Auswahl</span>
+        <p class="drawer-subtitle">Erstellen Sie eine neue Sourcing-Liste für eine Kampagne</p>
+      </div>
+      <div>
+        <button type="button" class="drawer-close-btn" aria-label="Schließen">&times;</button>
+      </div>
+    `;
+    
+    // Body mit Formular
+    const body = document.createElement('div');
+    body.className = 'drawer-body';
+    body.innerHTML = window.formSystem.renderFormOnly('sourcing');
+    
+    panel.appendChild(header);
+    panel.appendChild(body);
+    
+    // Events
+    overlay.addEventListener('click', () => this.closeCreateDrawer());
+    header.querySelector('.drawer-close-btn').addEventListener('click', () => this.closeCreateDrawer());
+    
+    // Zum DOM hinzufügen
+    document.body.appendChild(overlay);
+    document.body.appendChild(panel);
+    
+    // Slide-in Animation
+    requestAnimationFrame(() => {
+      panel.classList.add('show');
+    });
+    
+    // Formular-Events binden
+    window.formSystem.bindFormEvents('sourcing', null);
+    
+    // Custom Submit Handler
+    const form = panel.querySelector('#sourcing-form');
+    if (form) {
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        await this.handleCreateFormSubmit(form);
+      };
+      
+      // Abbrechen-Button im Formular abfangen
+      const cancelBtn = form.querySelector('.mdc-btn--cancel');
+      if (cancelBtn) {
+        cancelBtn.onclick = (e) => {
+          e.preventDefault();
+          this.closeCreateDrawer();
+        };
+      }
+    }
+  }
+  
+  /**
+   * Schließe Create-Drawer
+   */
+  closeCreateDrawer() {
+    const overlay = document.getElementById('sourcing-create-drawer-overlay');
+    const panel = document.getElementById('sourcing-create-drawer');
+    
+    if (panel) {
+      panel.classList.remove('show');
+      setTimeout(() => {
+        overlay?.remove();
+        panel?.remove();
+      }, 300);
+    } else {
+      overlay?.remove();
+    }
+  }
+  
+  /**
+   * Handle Submit für Create-Formular
+   */
+  async handleCreateFormSubmit(form) {
+    try {
+      const submitData = window.formSystem.collectSubmitData(form);
+      
+      // Name automatisch generieren falls leer
+      if (!submitData.name || submitData.name.trim() === '') {
+        const generatedName = await this.autoGeneration.autoGenerateSourcingName(
+          submitData.kampagne_id,
+          submitData.marke_id,
+          submitData.unternehmen_id
+        );
+        if (generatedName) {
+          submitData.name = generatedName;
+        }
+      }
+      
+      console.log('📤 Erstelle Creator-Auswahl:', submitData);
+      
+      // Creator-Auswahl erstellen
+      const newListe = await creatorAuswahlService.createListe(submitData);
+      
+      if (newListe && newListe.id) {
+        window.toastSystem?.show('Creator-Auswahl erfolgreich erstellt', 'success');
+        
+        // Drawer schließen
+        this.closeCreateDrawer();
+        
+        // Zur Detail-Ansicht navigieren
+        window.navigateTo(`/sourcing/${newListe.id}`);
+      } else {
+        throw new Error('Keine ID zurückgegeben');
+      }
+      
+    } catch (error) {
+      console.error('❌ Fehler beim Erstellen:', error);
+      window.toastSystem?.show(`Fehler beim Erstellen: ${error.message}`, 'error');
+    }
+  }
+  
+  /**
+   * showCreateForm für Routing-Kompatibilität (öffnet auch den Drawer)
+   */
+  showCreateForm() {
+    // Zur Liste navigieren und Drawer öffnen
+    if (window.location.pathname !== '/sourcing') {
+      window.navigateTo('/sourcing');
+      // Drawer nach Navigation öffnen
+      setTimeout(() => this.openCreateDrawer(), 100);
+    } else {
+      this.openCreateDrawer();
     }
   }
   
