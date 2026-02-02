@@ -733,6 +733,32 @@ export class ActionsDropdown {
         this.confirmDelete(entityId, entityType);
         break;
       
+      case 'delete-liste':
+        // Speziell für Creator-Auswahl Listen
+        if (entityType === 'creator-auswahl' && window.creatorAuswahlList) {
+          window.creatorAuswahlList.confirmDeleteListe(entityId);
+        } else {
+          this.confirmDelete(entityId, entityType);
+        }
+        break;
+      
+      case 'delete-strategie':
+        // Speziell für Strategien
+        if (window.strategieList) {
+          window.strategieList.confirmDeleteStrategie(entityId);
+        } else {
+          this.confirmDelete(entityId, 'strategie');
+        }
+        break;
+      
+      case 'view-strategie':
+        window.navigateTo(`/strategie/${entityId}`);
+        break;
+      
+      case 'edit-strategie':
+        window.navigateTo(`/strategie/${entityId}/edit`);
+        break;
+      
       case 'remove':
         this.handleRemoveZuordnung(entityId, entityType);
         break;

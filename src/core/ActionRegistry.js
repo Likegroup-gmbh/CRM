@@ -22,7 +22,7 @@ export class ActionRegistry {
 
     // Liste aller Actions, die ans Legacy-System delegiert werden sollen
     const legacyActions = [
-      'edit', 'delete', 'notiz', 
+      'edit', 'delete', 'delete-liste', 'notiz', 
       'add_ansprechpartner_unternehmen', 'remove_ansprechpartner_unternehmen',
       'add_ansprechpartner_kampagne', 'remove_ansprechpartner_kampagne',
       'add_ansprechpartner',
@@ -42,7 +42,9 @@ export class ActionRegistry {
       // Rechnung Download
       'download',
       // Verträge: Unterschriebener Vertrag
-      'add-signed', 'edit-signed'
+      'add-signed', 'edit-signed',
+      // Strategie Actions
+      'view-strategie', 'edit-strategie', 'delete-strategie'
     ];
 
     if (legacyActions.includes(action)) {

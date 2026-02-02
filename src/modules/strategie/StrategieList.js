@@ -7,6 +7,7 @@ import { strategieService } from './StrategieService.js';
 import { AvatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { AutoGeneration } from '../../core/form/logic/AutoGeneration.js';
 
 export class StrategieList extends BasePaginatedList {
   constructor() {
@@ -24,6 +25,9 @@ export class StrategieList extends BasePaginatedList {
     
     // Client-seitige Daten (alle Strategien)
     this.strategien = [];
+    
+    // Auto-Generierung für Namen
+    this.autoGeneration = new AutoGeneration();
   }
   
   // ══════════════════════════════════════════════════════════════════════════
@@ -52,15 +56,14 @@ export class StrategieList extends BasePaginatedList {
   }
   
   /**
-   * Generiert automatisch einen Strategie-Namen aus Unternehmen und Kampagne
+   * Generiert automatisch einen Strategie-Namen aus Kampagnenname
+   * Format: "Strategie [Kampagnenname]"
    */
   generateStrategieName(unternehmenDisplay, kampagnenname) {
-    if (unternehmenDisplay && kampagnenname) {
-      return `${unternehmenDisplay} Strategie ${kampagnenname}`;
+    if (kampagnenname) {
+      return `Strategie ${kampagnenname}`;
     } else if (unternehmenDisplay) {
       return `${unternehmenDisplay} Strategie`;
-    } else if (kampagnenname) {
-      return `Strategie ${kampagnenname}`;
     }
     return '';
   }
@@ -223,7 +226,7 @@ export class StrategieList extends BasePaginatedList {
     document.addEventListener('click', (e) => {
       if (e.target.closest('[data-action="create-strategie"]')) {
         e.preventDefault();
-        window.navigateTo('/strategie/new');
+        this.openCreateDrawer();
       }
     }, { signal });
     
@@ -360,11 +363,166 @@ export class StrategieList extends BasePaginatedList {
     }
   }
   
+  // ══════════════════════════════════════════════════════════════════════════
+  // DRAWER METHODEN FÜR STRATEGIE-ERSTELLUNG
+  // ══════════════════════════════════════════════════════════════════════════
+  
+  /**
+   * Öffne Create-Drawer für neue Strategie
+   */
+  openCreateDrawer() {
+    console.log('🎯 Öffne Strategie Create-Drawer');
+    
+    // Bestehenden Drawer entfernen falls vorhanden
+    this.closeCreateDrawer();
+    
+    // Overlay erstellen
+    const overlay = document.createElement('div');
+    overlay.className = 'drawer-overlay';
+    overlay.id = 'strategie-create-drawer-overlay';
+    
+    // Drawer Panel erstellen
+    const panel = document.createElement('div');
+    panel.setAttribute('role', 'dialog');
+    panel.className = 'drawer-panel';
+    panel.id = 'strategie-create-drawer';
+    
+    // Header
+    const header = document.createElement('div');
+    header.className = 'drawer-header';
+    header.innerHTML = `
+      <div>
+        <span class="drawer-title">Neue Strategie</span>
+        <p class="drawer-subtitle">Erstellen Sie eine neue Strategie für eine Kampagne</p>
+      </div>
+      <div>
+        <button type="button" class="drawer-close-btn" aria-label="Schließen">&times;</button>
+      </div>
+    `;
+    
+    // Body mit Formular
+    const body = document.createElement('div');
+    body.className = 'drawer-body';
+    body.innerHTML = window.formSystem.renderFormOnly('strategie');
+    
+    panel.appendChild(header);
+    panel.appendChild(body);
+    
+    // Events
+    overlay.addEventListener('click', () => this.closeCreateDrawer());
+    header.querySelector('.drawer-close-btn').addEventListener('click', () => this.closeCreateDrawer());
+    
+    // Zum DOM hinzufügen
+    document.body.appendChild(overlay);
+    document.body.appendChild(panel);
+    
+    // Slide-in Animation
+    requestAnimationFrame(() => {
+      panel.classList.add('show');
+    });
+    
+    // Formular-Events binden
+    window.formSystem.bindFormEvents('strategie', null);
+    
+    // Custom Submit Handler
+    const form = panel.querySelector('#strategie-form');
+    if (form) {
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        await this.handleCreateFormSubmit(form);
+      };
+      
+      // Abbrechen-Button im Formular abfangen
+      const cancelBtn = form.querySelector('.mdc-btn--cancel');
+      if (cancelBtn) {
+        cancelBtn.onclick = (e) => {
+          e.preventDefault();
+          this.closeCreateDrawer();
+        };
+      }
+    }
+  }
+  
+  /**
+   * Schließe Create-Drawer
+   */
+  closeCreateDrawer() {
+    const overlay = document.getElementById('strategie-create-drawer-overlay');
+    const panel = document.getElementById('strategie-create-drawer');
+    
+    if (panel) {
+      panel.classList.remove('show');
+      setTimeout(() => {
+        overlay?.remove();
+        panel?.remove();
+      }, 300);
+    } else {
+      overlay?.remove();
+    }
+  }
+  
+  /**
+   * Handle Submit für Create-Formular
+   */
+  async handleCreateFormSubmit(form) {
+    try {
+      const submitData = window.formSystem.collectSubmitData(form);
+      
+      // Name automatisch generieren falls leer
+      if (!submitData.name || submitData.name.trim() === '') {
+        const generatedName = await this.autoGeneration.autoGenerateStrategieName(
+          submitData.kampagne_id,
+          submitData.marke_id,
+          submitData.unternehmen_id
+        );
+        if (generatedName) {
+          submitData.name = generatedName;
+        }
+      }
+      
+      console.log('📤 Erstelle Strategie:', submitData);
+      
+      // Strategie erstellen
+      const newStrategie = await strategieService.createStrategie(submitData);
+      
+      if (newStrategie && newStrategie.id) {
+        window.toastSystem?.show('Strategie erfolgreich erstellt', 'success');
+        
+        // Drawer schließen
+        this.closeCreateDrawer();
+        
+        // Zur Detail-Ansicht navigieren
+        window.navigateTo(`/strategie/${newStrategie.id}`);
+      } else {
+        throw new Error('Keine ID zurückgegeben');
+      }
+      
+    } catch (error) {
+      console.error('❌ Fehler beim Erstellen:', error);
+      window.toastSystem?.show(`Fehler beim Erstellen: ${error.message}`, 'error');
+    }
+  }
+  
+  /**
+   * showCreateForm für Routing-Kompatibilität (öffnet auch den Drawer)
+   */
+  showCreateForm() {
+    // Zur Liste navigieren und Drawer öffnen
+    if (window.location.pathname !== '/strategie') {
+      window.navigateTo('/strategie');
+      // Drawer nach Navigation öffnen
+      setTimeout(() => this.openCreateDrawer(), 100);
+    } else {
+      this.openCreateDrawer();
+    }
+  }
+  
   /**
    * Override destroy um Cache zu clearen
    */
   destroy() {
     this.strategien = [];
+    this.closeCreateDrawer();
     super.destroy();
   }
 }

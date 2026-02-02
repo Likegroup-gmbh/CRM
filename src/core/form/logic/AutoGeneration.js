@@ -232,12 +232,182 @@ export class AutoGeneration {
     }
   }
 
-  // Sourcing-Name automatisch generieren: "Sourcing + Kampagnenname"
-  autoGenerateSourcingName(kampagnenname) {
-    if (!kampagnenname) return null;
-    const sourcingName = `Sourcing + ${kampagnenname}`;
-    console.log(`✅ Sourcing-Name generiert: ${sourcingName}`);
-    return sourcingName;
+  // Sourcing-Name automatisch generieren: "Sourcing - Kampagnenname"
+  // Akzeptiert entweder einen Kampagnennamen-String oder Kampagnen-ID zum Laden
+  async autoGenerateSourcingName(kampagneIdOrName, markeId = null, unternehmenId = null) {
+    try {
+      let kampagnenname = null;
+      
+      // Wenn es eine UUID ist (Kampagnen-ID), lade den Namen aus der DB
+      const isUuid = typeof kampagneIdOrName === 'string' && 
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(kampagneIdOrName);
+      
+      if (isUuid) {
+        console.log(`🔧 Lade Kampagnennamen für ID: ${kampagneIdOrName}`);
+        
+        const { data: kampagne, error } = await window.supabase
+          .from('kampagne')
+          .select('kampagnenname, eigener_name')
+          .eq('id', kampagneIdOrName)
+          .single();
+        
+        if (error || !kampagne) {
+          console.error('❌ Fehler beim Laden der Kampagne:', error);
+          // Fallback: Generiere einen Namen ohne Kampagne
+          return this.generateFallbackSourcingName(markeId, unternehmenId);
+        }
+        
+        // Eigener Name hat Priorität, dann Kampagnenname
+        kampagnenname = kampagne.eigener_name || kampagne.kampagnenname;
+      } else if (typeof kampagneIdOrName === 'string' && kampagneIdOrName.trim()) {
+        // Es ist bereits ein Kampagnenname-String
+        kampagnenname = kampagneIdOrName;
+      }
+      
+      if (!kampagnenname) {
+        // Fallback ohne Kampagnenname
+        return this.generateFallbackSourcingName(markeId, unternehmenId);
+      }
+      
+      const sourcingName = `Sourcing - ${kampagnenname}`;
+      console.log(`✅ Sourcing-Name generiert: ${sourcingName}`);
+      return sourcingName;
+      
+    } catch (error) {
+      console.error('❌ Fehler beim Generieren des Sourcing-Namens:', error);
+      return null;
+    }
+  }
+  
+  // Fallback Sourcing-Name ohne Kampagne
+  async generateFallbackSourcingName(markeId, unternehmenId) {
+    try {
+      let displayName = 'Neue Liste';
+      
+      // Versuche Markennamen zu laden
+      if (markeId) {
+        const { data: marke } = await window.supabase
+          .from('marke')
+          .select('markenname')
+          .eq('id', markeId)
+          .single();
+        
+        if (marke?.markenname) {
+          displayName = marke.markenname;
+        }
+      }
+      // Fallback auf Unternehmensname
+      else if (unternehmenId) {
+        const { data: unternehmen } = await window.supabase
+          .from('unternehmen')
+          .select('firmenname, internes_kuerzel')
+          .eq('id', unternehmenId)
+          .single();
+        
+        if (unternehmen) {
+          displayName = unternehmen.internes_kuerzel || unternehmen.firmenname;
+        }
+      }
+      
+      // Datum hinzufügen für Eindeutigkeit
+      const today = new Date().toLocaleDateString('de-DE');
+      const sourcingName = `Sourcing - ${displayName} - ${today}`;
+      console.log(`✅ Fallback Sourcing-Name generiert: ${sourcingName}`);
+      return sourcingName;
+      
+    } catch (error) {
+      console.error('❌ Fehler beim Generieren des Fallback-Namens:', error);
+      return `Sourcing - ${new Date().toLocaleDateString('de-DE')}`;
+    }
+  }
+
+  // Strategie-Name automatisch generieren: "Strategie - Kampagnenname"
+  // Akzeptiert entweder einen Kampagnennamen-String oder Kampagnen-ID zum Laden
+  async autoGenerateStrategieName(kampagneIdOrName, markeId = null, unternehmenId = null) {
+    try {
+      let kampagnenname = null;
+      
+      // Wenn es eine UUID ist (Kampagnen-ID), lade den Namen aus der DB
+      const isUuid = typeof kampagneIdOrName === 'string' && 
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(kampagneIdOrName);
+      
+      if (isUuid) {
+        console.log(`🔧 Lade Kampagnennamen für Strategie, ID: ${kampagneIdOrName}`);
+        
+        const { data: kampagne, error } = await window.supabase
+          .from('kampagne')
+          .select('kampagnenname, eigener_name')
+          .eq('id', kampagneIdOrName)
+          .single();
+        
+        if (error || !kampagne) {
+          console.error('❌ Fehler beim Laden der Kampagne:', error);
+          // Fallback: Generiere einen Namen ohne Kampagne
+          return this.generateFallbackStrategieName(markeId, unternehmenId);
+        }
+        
+        // Eigener Name hat Priorität, dann Kampagnenname
+        kampagnenname = kampagne.eigener_name || kampagne.kampagnenname;
+      } else if (typeof kampagneIdOrName === 'string' && kampagneIdOrName.trim()) {
+        // Es ist bereits ein Kampagnenname-String
+        kampagnenname = kampagneIdOrName;
+      }
+      
+      if (!kampagnenname) {
+        // Fallback ohne Kampagnenname
+        return this.generateFallbackStrategieName(markeId, unternehmenId);
+      }
+      
+      const strategieName = `Strategie ${kampagnenname}`;
+      console.log(`✅ Strategie-Name generiert: ${strategieName}`);
+      return strategieName;
+      
+    } catch (error) {
+      console.error('❌ Fehler beim Generieren des Strategie-Namens:', error);
+      return null;
+    }
+  }
+  
+  // Fallback Strategie-Name ohne Kampagne
+  async generateFallbackStrategieName(markeId, unternehmenId) {
+    try {
+      let displayName = 'Neue Strategie';
+      
+      // Versuche Markennamen zu laden
+      if (markeId) {
+        const { data: marke } = await window.supabase
+          .from('marke')
+          .select('markenname')
+          .eq('id', markeId)
+          .single();
+        
+        if (marke?.markenname) {
+          displayName = marke.markenname;
+        }
+      }
+      // Fallback auf Unternehmensname
+      else if (unternehmenId) {
+        const { data: unternehmen } = await window.supabase
+          .from('unternehmen')
+          .select('firmenname, internes_kuerzel')
+          .eq('id', unternehmenId)
+          .single();
+        
+        if (unternehmen) {
+          displayName = unternehmen.internes_kuerzel || unternehmen.firmenname;
+        }
+      }
+      
+      // Datum hinzufügen für Eindeutigkeit
+      const today = new Date().toLocaleDateString('de-DE');
+      const strategieName = `Strategie ${displayName} - ${today}`;
+      console.log(`✅ Fallback Strategie-Name generiert: ${strategieName}`);
+      return strategieName;
+      
+    } catch (error) {
+      console.error('❌ Fehler beim Generieren des Fallback-Strategie-Namens:', error);
+      return `Strategie - ${new Date().toLocaleDateString('de-DE')}`;
+    }
   }
 
   // Auto-Generierung einrichten
@@ -329,6 +499,58 @@ export class AutoGeneration {
       }
     }
 
+    // ========== SOURCING-NAME (für Sourcing-Formulare) ==========
+    const sourcingNameInput = form.querySelector('input[name="name"]');
+    const kampagneSelectForSourcing = form.querySelector('select[name="kampagne_id"]');
+    const sourcingForm = form.id === 'sourcing-form';
+    
+    if (sourcingForm && sourcingNameInput && kampagneSelectForSourcing) {
+      const triggerSourcingName = async () => {
+        const kampagneId = kampagneSelectForSourcing.value;
+        if (kampagneId) {
+          const markeSelect = form.querySelector('select[name="marke_id"]');
+          const unternehmenSelect = form.querySelector('select[name="unternehmen_id"]');
+          const generatedName = await this.autoGenerateSourcingName(
+            kampagneId,
+            markeSelect?.value,
+            unternehmenSelect?.value
+          );
+          if (generatedName && sourcingNameInput) {
+            sourcingNameInput.value = generatedName;
+            sourcingNameInput.dispatchEvent(new Event('input', { bubbles: true }));
+            sourcingNameInput.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }
+      };
+      
+      // Event-Listener für Kampagnen-Auswahl
+      kampagneSelectForSourcing.addEventListener('change', triggerSourcingName);
+      
+      // Searchable Select für Kampagne
+      const kampagneField = kampagneSelectForSourcing.closest('.form-field');
+      if (kampagneField) {
+        const searchableContainer = kampagneField.querySelector('.searchable-select-container');
+        if (searchableContainer) {
+          const searchInput = searchableContainer.querySelector('.searchable-select-input');
+          if (searchInput) {
+            let timeout;
+            searchInput.addEventListener('input', () => {
+              clearTimeout(timeout);
+              timeout = setTimeout(triggerSourcingName, 300);
+            });
+          }
+        }
+      }
+      
+      // Sofort generieren wenn Kampagne bereits ausgewählt
+      if (kampagneSelectForSourcing.value) {
+        triggerSourcingName();
+      }
+      
+      console.log('✅ Auto-Generierung für Sourcing-Name eingerichtet');
+    }
+
+    // ========== KOOPERATIONSNAME (für Kooperation-Formulare) ==========
     // Kooperationsname: auf Änderungen von Kampagne und Creator reagieren
     const kampagneSelect = form.querySelector('select[name="kampagne_id"]');
     const creatorSelect = form.querySelector('select[name="creator_id"]');
@@ -358,6 +580,57 @@ export class AutoGeneration {
       };
       wireSearchable(kampagneSelect);
       wireSearchable(creatorSelect);
+    }
+
+    // ========== STRATEGIENAME (für Strategie-Formulare) ==========
+    const strategieNameInput = form.querySelector('input[name="name"]');
+    const kampagneSelectForStrategie = form.querySelector('select[name="kampagne_id"]');
+    const strategieForm = form.id === 'strategie-form';
+    
+    if (strategieForm && strategieNameInput && kampagneSelectForStrategie) {
+      const triggerStrategieName = async () => {
+        const kampagneId = kampagneSelectForStrategie.value;
+        if (kampagneId) {
+          const markeSelect = form.querySelector('select[name="marke_id"]');
+          const unternehmenSelect = form.querySelector('select[name="unternehmen_id"]');
+          const generatedName = await this.autoGenerateStrategieName(
+            kampagneId,
+            markeSelect?.value,
+            unternehmenSelect?.value
+          );
+          if (generatedName && strategieNameInput) {
+            strategieNameInput.value = generatedName;
+            strategieNameInput.dispatchEvent(new Event('input', { bubbles: true }));
+            strategieNameInput.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }
+      };
+      
+      // Event-Listener für Kampagnen-Auswahl
+      kampagneSelectForStrategie.addEventListener('change', triggerStrategieName);
+      
+      // Searchable Select für Kampagne
+      const kampagneField = kampagneSelectForStrategie.closest('.form-field');
+      if (kampagneField) {
+        const searchableContainer = kampagneField.querySelector('.searchable-select-container');
+        if (searchableContainer) {
+          const searchInput = searchableContainer.querySelector('.searchable-select-input');
+          if (searchInput) {
+            let timeout;
+            searchInput.addEventListener('input', () => {
+              clearTimeout(timeout);
+              timeout = setTimeout(triggerStrategieName, 300);
+            });
+          }
+        }
+      }
+      
+      // Sofort generieren wenn Kampagne bereits ausgewählt
+      if (kampagneSelectForStrategie.value) {
+        triggerStrategieName();
+      }
+      
+      console.log('✅ Auto-Generierung für Strategie-Name eingerichtet');
     }
   }
 } 
