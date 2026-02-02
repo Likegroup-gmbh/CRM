@@ -10,7 +10,7 @@ export class KundenDetail extends PersonDetailBase {
     super();
     this.userId = null;
     this.user = null;
-    this.assignments = { unternehmen: [], marken: [], kampagnen: [], kooperationen: [] };
+    this.assignments = { unternehmen: [], marken: [], kampagnen: [], kooperationen: [], ansprechpartner: [] };
     this.activeMainTab = 'stammdaten';
   }
 
@@ -34,14 +34,16 @@ export class KundenDetail extends PersonDetailBase {
 
   async load() {
     try {
-      const [{ data: user }, { data: urels }, { data: mrels }] = await Promise.all([
+      const [{ data: user }, { data: urels }, { data: mrels }, { data: aprels }] = await Promise.all([
         window.supabase.from('benutzer').select('*').eq('id', this.userId).single(),
         window.supabase.from('kunde_unternehmen').select('unternehmen:unternehmen_id(id, firmenname)').eq('kunde_id', this.userId),
-        window.supabase.from('kunde_marke').select('marke:marke_id(id, markenname)').eq('kunde_id', this.userId)
+        window.supabase.from('kunde_marke').select('marke:marke_id(id, markenname)').eq('kunde_id', this.userId),
+        window.supabase.from('kunde_ansprechpartner').select('ansprechpartner:ansprechpartner_id(id, vorname, nachname, email)').eq('kunde_id', this.userId)
       ]);
       this.user = user || {};
       this.assignments.unternehmen = (urels || []).map(r => r.unternehmen).filter(Boolean);
       this.assignments.marken = (mrels || []).map(r => r.marke).filter(Boolean);
+      this.assignments.ansprechpartner = (aprels || []).map(r => r.ansprechpartner).filter(Boolean);
       
       // Kampagnen über Unternehmen und Marken laden
       const unternehmenIds = this.assignments.unternehmen.map(u => u.id).filter(Boolean);
@@ -93,7 +95,8 @@ export class KundenDetail extends PersonDetailBase {
         unternehmen: this.assignments.unternehmen.length,
         marken: this.assignments.marken.length,
         kampagnen: this.assignments.kampagnen.length,
-        kooperationen: this.assignments.kooperationen.length
+        kooperationen: this.assignments.kooperationen.length,
+        ansprechpartner: this.assignments.ansprechpartner.length
       });
     } catch (e) {
       console.error('❌ Fehler beim Laden Kunden-Details:', e);
@@ -231,7 +234,47 @@ export class KundenDetail extends PersonDetailBase {
   }
 
   renderStammdatenTab() {
+    // Ansprechpartner-Verknüpfung Info
+    const ansprechpartnerInfo = this.assignments.ansprechpartner.length > 0
+      ? this.assignments.ansprechpartner.map(ap => {
+          const fullName = `${ap.vorname || ''} ${ap.nachname || ''}`.trim() || 'Unbekannt';
+          return `
+            <div style="display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) 0;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="var(--color-success)" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>Verknüpft mit: </span>
+              <a href="/ansprechpartner/${ap.id}" onclick="event.preventDefault(); window.navigateTo('/ansprechpartner/${ap.id}')" class="table-link" style="font-weight: 500;">
+                ${window.validatorSystem.sanitizeHtml(fullName)}
+              </a>
+            </div>
+          `;
+        }).join('')
+      : `
+        <div style="display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) 0; color: var(--text-secondary);">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>Keine Ansprechpartner-Verknüpfung</span>
+        </div>
+      `;
+
     return `
+      <div class="detail-section">
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
+              <tr><th>Ansprechpartner-Verknüpfung (Magic Link)</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>${ansprechpartnerInfo}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="detail-section">
         <div class="data-table-container">
           <table class="data-table">

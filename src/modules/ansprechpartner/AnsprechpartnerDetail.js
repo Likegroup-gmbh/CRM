@@ -18,6 +18,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     this.ansprechpartnerId = null;
     this.notizen = [];
     this.ratings = [];
+    this.kundeVerknuepfung = null; // Verknüpfter Kunde via Magic Link
     this.activeMainTab = 'informationen';
     this.eventsBound = false;
     this._cacheInvalidationBound = false;
@@ -76,7 +77,8 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       const [
         ansprechpartnerResult,
         notizenResult,
-        ratingsResult
+        ratingsResult,
+        kundeResult
       ] = await parallelLoad([
         // 1. Ansprechpartner mit Relations
         () => window.supabase
@@ -101,7 +103,14 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
         // 3. Ratings
         () => window.bewertungsSystem ? 
           window.bewertungsSystem.loadBewertungen('ansprechpartner', this.ansprechpartnerId) : 
-          Promise.resolve([])
+          Promise.resolve([]),
+        
+        // 4. Kunden-Verknüpfung (via Magic Link)
+        () => window.supabase
+          .from('kunde_ansprechpartner')
+          .select('kunde:kunde_id(id, name, email)')
+          .eq('ansprechpartner_id', this.ansprechpartnerId)
+          .maybeSingle()
       ]);
       
       // Daten verarbeiten
@@ -114,9 +123,12 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       this.ansprechpartner = ansprechpartnerResult.data;
       this.notizen = notizenResult || [];
       this.ratings = ratingsResult || [];
+      this.kundeVerknuepfung = kundeResult?.data?.kunde || null;
       
       const loadTime = (performance.now() - startTime).toFixed(0);
-      console.log(`✅ ANSPRECHPARTNERDETAIL: Kritische Daten geladen in ${loadTime}ms`);
+      console.log(`✅ ANSPRECHPARTNERDETAIL: Kritische Daten geladen in ${loadTime}ms`, {
+        kundeVerknuepfung: this.kundeVerknuepfung ? this.kundeVerknuepfung.name : 'keine'
+      });
       
     } catch (error) {
       console.error('❌ ANSPRECHPARTNERDETAIL: Unerwarteter Fehler:', error);
@@ -194,9 +206,10 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       avatarOnly: true
     };
 
-    // Quick Actions - Magic Link Button
+    // Quick Actions - Magic Link Button (nur wenn keine Kunden-Verknüpfung besteht)
     const canEdit = window.permissionSystem?.checkPermission('ansprechpartner', 'edit') !== false;
-    const quickActions = [
+    const hasKundeConnection = !!this.kundeVerknuepfung;
+    const quickActions = hasKundeConnection ? [] : [
       { 
         icon: 'link', 
         label: 'Magic Link', 
@@ -321,7 +334,38 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
 
   // Rendere Informationen-Tab
   renderInformationen() {
+    // Kunden-Verknüpfung Info (via Magic Link)
+    const kundeInfo = this.kundeVerknuepfung
+      ? `
+        <div class="detail-section">
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr><th>Kunden-Verknüpfung (Magic Link)</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <div style="display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) 0;">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="var(--color-success)" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>Verknüpfter Kunde: </span>
+                      <a href="/admin/kunden/${this.kundeVerknuepfung.id}" onclick="event.preventDefault(); window.navigateTo('/admin/kunden/${this.kundeVerknuepfung.id}')" class="table-link" style="font-weight: 500;">
+                        ${this.sanitize(this.kundeVerknuepfung.name || this.kundeVerknuepfung.email || 'Unbekannt')}
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `
+      : '';
+
     return `
+      ${kundeInfo}
       <div class="detail-section">
         <div class="data-table-container">
           <table class="data-table">

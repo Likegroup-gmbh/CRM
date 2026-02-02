@@ -325,6 +325,7 @@ export class AuftragsdetailsDetail {
       if (v === null || v === undefined || v === '') return '-';
       return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v);
     };
+    const formatDate = (d) => d ? new Date(d).toLocaleDateString('de-DE') : '-';
     const formatPriceRange = (von, bis) => {
       if (!von && !bis) return '-';
       if (von && bis && von !== bis) {
@@ -332,6 +333,10 @@ export class AuftragsdetailsDetail {
       }
       return formatCurrency(von || bis);
     };
+    
+    // Start und Ende aus Auftrag
+    const auftragStart = formatDate(this.auftrag?.start);
+    const auftragEnde = formatDate(this.auftrag?.ende);
 
     // Daten für die Tabelle vorbereiten
     const sections = [
@@ -375,10 +380,11 @@ export class AuftragsdetailsDetail {
       const budgetInfo = details[`${section.prefix}_budget_info`];
       const einkaufspreisVon = details[`${section.prefix}_einkaufspreis_netto_von`];
       const einkaufspreisBis = details[`${section.prefix}_einkaufspreis_netto_bis`];
-      const verkaufspreis = details[`${section.prefix}_verkaufspreis_netto`];
+      const verkaufspreisVon = details[`${section.prefix}_verkaufspreis_netto_von`];
+      const verkaufspreisBis = details[`${section.prefix}_verkaufspreis_netto_bis`];
 
       // Zeige nur Zeilen mit Daten
-      if (!videoAnzahl && !bilderAnzahl && !creatorAnzahl && !videographenAnzahl && !budgetInfo && !einkaufspreisVon && !einkaufspreisBis && !verkaufspreis) {
+      if (!videoAnzahl && !bilderAnzahl && !creatorAnzahl && !videographenAnzahl && !budgetInfo && !einkaufspreisVon && !einkaufspreisBis && !verkaufspreisVon && !verkaufspreisBis) {
         return '';
       }
 
@@ -389,9 +395,12 @@ export class AuftragsdetailsDetail {
             ${section.title}
           </td>
           <td class="budget-cell">${budgetInfo ? `<div class="budget-info-large">${window.validatorSystem.sanitizeHtml(budgetInfo)}</div>` : '-'}</td>
+          <td class="text-center">${auftragStart}</td>
+          <td class="text-center">${auftragEnde}</td>
           <td class="text-right">${formatCurrency(einkaufspreisVon)}</td>
           <td class="text-right">${formatCurrency(einkaufspreisBis)}</td>
-          <td class="text-right">${formatCurrency(verkaufspreis)}</td>
+          <td class="text-right">${formatCurrency(verkaufspreisVon)}</td>
+          <td class="text-right">${formatCurrency(verkaufspreisBis)}</td>
           <td class="text-center">${num(videoAnzahl)}</td>
           <td class="text-center">${num(bilderAnzahl)}</td>
           <td class="text-center">${num(creatorAnzahl)}</td>
@@ -408,9 +417,12 @@ export class AuftragsdetailsDetail {
               <tr>
                 <th>Kategorie</th>
                 <th>Budget & Informationen</th>
+                <th class="text-center">Start</th>
+                <th class="text-center">Ende</th>
                 <th class="text-right">EK von</th>
                 <th class="text-right">EK bis</th>
-                <th class="text-right">VK (Netto)</th>
+                <th class="text-right">VK von</th>
+                <th class="text-right">VK bis</th>
                 <th class="text-center">Videos</th>
                 <th class="text-center">Bilder</th>
                 <th class="text-center">Creator</th>
@@ -419,7 +431,7 @@ export class AuftragsdetailsDetail {
             </thead>
             <tbody>
               <tr>
-                <td colspan="9" class="no-data">
+                <td colspan="12" class="no-data">
                   Keine Produktionsdetails vorhanden
                 </td>
               </tr>
@@ -436,9 +448,12 @@ export class AuftragsdetailsDetail {
             <tr>
               <th>Kategorie</th>
               <th>Budget & Informationen</th>
+              <th class="text-center">Start</th>
+              <th class="text-center">Ende</th>
               <th class="text-right">EK von</th>
               <th class="text-right">EK bis</th>
-              <th class="text-right">VK (Netto)</th>
+              <th class="text-right">VK von</th>
+              <th class="text-right">VK bis</th>
               <th class="text-center">Videos</th>
               <th class="text-center">Bilder</th>
               <th class="text-center">Creator</th>

@@ -98,7 +98,7 @@ export class PermissionSystem {
         unternehmen: { can_view: false, can_edit: false, can_delete: false },
         marke: { can_view: false, can_edit: false, can_delete: false },
         produkt: { can_view: true, can_edit: false, can_delete: false },
-        auftrag: { can_view: true, can_edit: false, can_delete: false }, // Kunden können IHRE Aufträge sehen (RLS-gefiltert)
+        auftrag: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Aufträge NICHT sehen
         auftragsdetails: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Auftragsdetails NICHT sehen (Einkaufspreise!)
         kampagne: { can_view: true, can_edit: false, can_delete: false },
         kooperation: { can_view: true, can_edit: false, can_delete: false },
@@ -109,6 +109,7 @@ export class PermissionSystem {
         dashboard: { can_view: true, can_edit: false, can_delete: false },
         tasks: { can_view: true, can_edit: true, can_delete: false },
         strategie: { can_view: true, can_edit: true, can_delete: false },
+        sourcing: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Sourcing sehen
         feedback: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Feedback NICHT sehen
         mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
         'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
@@ -120,7 +121,7 @@ export class PermissionSystem {
         unternehmen: { can_view: false, can_edit: false, can_delete: false },
         marke: { can_view: false, can_edit: false, can_delete: false },
         produkt: { can_view: true, can_edit: false, can_delete: false },
-        auftrag: { can_view: true, can_edit: false, can_delete: false }, // Kunden können IHRE Aufträge sehen (RLS-gefiltert)
+        auftrag: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Aufträge NICHT sehen
         auftragsdetails: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Auftragsdetails NICHT sehen (Einkaufspreise!)
         kampagne: { can_view: true, can_edit: false, can_delete: false },
         kooperation: { can_view: true, can_edit: false, can_delete: false },
@@ -131,6 +132,7 @@ export class PermissionSystem {
         dashboard: { can_view: true, can_edit: false, can_delete: false },
         tasks: { can_view: true, can_edit: true, can_delete: false },
         strategie: { can_view: true, can_edit: true, can_delete: false },
+        sourcing: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Sourcing sehen
         feedback: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Feedback NICHT sehen
         mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
         'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
@@ -156,29 +158,6 @@ export class PermissionSystem {
       dashboard: { can_view: true, can_edit: false, can_delete: false },
       strategie: { can_view: false, can_edit: false, can_delete: false },
       feedback: { can_view: true, can_edit: false, can_delete: false },
-      mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
-      'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
-    };
-
-    // Kunden-Berechtigungen (NUR LESEN - RLS filtert die Daten)
-    const kundenPermissions = {
-      creator: { can_view: false, can_edit: false, can_delete: false },
-      'creator-lists': { can_view: false, can_edit: false, can_delete: false },
-      unternehmen: { can_view: false, can_edit: false, can_delete: false },
-      marke: { can_view: false, can_edit: false, can_delete: false },
-      produkt: { can_view: true, can_edit: false, can_delete: false },
-      auftrag: { can_view: true, can_edit: false, can_delete: false }, // Kunden können IHRE Aufträge sehen (RLS-gefiltert)
-      auftragsdetails: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Auftragsdetails NICHT sehen (Einkaufspreise!)
-      kampagne: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Kampagnen NUR sehen
-      kooperation: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Kooperationen NUR sehen
-      briefing: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Briefings NUR sehen
-      videos: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Videos NICHT sehen
-      rechnung: { can_view: false, can_edit: false, can_delete: false }, // Kunden können Rechnungen NICHT sehen
-      ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
-      dashboard: { can_view: true, can_edit: false, can_delete: false },
-      tasks: { can_view: true, can_edit: true, can_delete: false }, // Kunden können Tasks sehen und bearbeiten
-      strategie: { can_view: true, can_edit: true, can_delete: false }, // Kunden können Strategien sehen und Items bearbeiten
-      feedback: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Feedback NICHT sehen
       mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
       'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
     };
@@ -211,24 +190,19 @@ export class PermissionSystem {
       return pendingPermissions;
     }
 
-    // Kunden: Spezielle Berechtigungen (RLS filtert die Daten)
-    if (normalizedRole === 'kunde') {
-      console.log('👤 Kunde: Zugriff auf Kampagnen, Kooperationen, Briefings, Rechnungen (RLS-gefiltert)');
-      return kundenPermissions;
-    }
-
-    // Admin hat alle Rechte (case-insensitive)
+    // Admin hat alle Rechte
     if (normalizedRole === 'admin') {
       return basePermissions.admin;
     }
 
-    // Standard Mitarbeiter-Rechte (case-insensitive)
+    // Mitarbeiter-Rechte
     if (normalizedRole === 'mitarbeiter') {
       return basePermissions.mitarbeiter;
     }
 
-    // Kunde (read-only)
+    // Kunde (read-only, RLS filtert die Daten)
     if (normalizedRole === 'kunde') {
+      console.log('👤 Kunde: Zugriff auf Kampagnen, Kooperationen, Briefings (RLS-gefiltert)');
       return basePermissions.kunde;
     }
 

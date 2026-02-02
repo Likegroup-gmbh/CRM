@@ -591,7 +591,8 @@ export class DataService {
           ugc_budget_info: 'text',
           ugc_einkaufspreis_netto_von: 'number',
           ugc_einkaufspreis_netto_bis: 'number',
-          ugc_verkaufspreis_netto: 'number',
+          ugc_verkaufspreis_netto_von: 'number',
+          ugc_verkaufspreis_netto_bis: 'number',
           // Influencer
           influencer_video_anzahl: 'number',
           influencer_creator_anzahl: 'number',
@@ -599,7 +600,8 @@ export class DataService {
           influencer_budget_info: 'text',
           influencer_einkaufspreis_netto_von: 'number',
           influencer_einkaufspreis_netto_bis: 'number',
-          influencer_verkaufspreis_netto: 'number',
+          influencer_verkaufspreis_netto_von: 'number',
+          influencer_verkaufspreis_netto_bis: 'number',
           // Vor Ort
           vor_ort_video_anzahl: 'number',
           vor_ort_creator_anzahl: 'number',
@@ -608,12 +610,17 @@ export class DataService {
           vor_ort_budget_info: 'text',
           vor_ort_einkaufspreis_netto_von: 'number',
           vor_ort_einkaufspreis_netto_bis: 'number',
-          vor_ort_verkaufspreis_netto: 'number',
+          vor_ort_verkaufspreis_netto_von: 'number',
+          vor_ort_verkaufspreis_netto_bis: 'number',
           // Vor Ort Mitarbeiter
           vor_ort_mitarbeiter_video_anzahl: 'number',
           vor_ort_mitarbeiter_bilder_anzahl: 'number',
           vor_ort_mitarbeiter_videographen_anzahl: 'number',
           vor_ort_mitarbeiter_budget_info: 'text',
+          vor_ort_mitarbeiter_einkaufspreis_netto_von: 'number',
+          vor_ort_mitarbeiter_einkaufspreis_netto_bis: 'number',
+          vor_ort_mitarbeiter_verkaufspreis_netto_von: 'number',
+          vor_ort_mitarbeiter_verkaufspreis_netto_bis: 'number',
           // IGC
           igc_video_anzahl: 'number',
           igc_creator_anzahl: 'number',
@@ -621,7 +628,8 @@ export class DataService {
           igc_budget_info: 'text',
           igc_einkaufspreis_netto_von: 'number',
           igc_einkaufspreis_netto_bis: 'number',
-          igc_verkaufspreis_netto: 'number',
+          igc_verkaufspreis_netto_von: 'number',
+          igc_verkaufspreis_netto_bis: 'number',
           // Gesamt
           gesamt_videos: 'number',
           gesamt_creator: 'number'
@@ -647,7 +655,8 @@ export class DataService {
           ugc_budget_info: 'text',
           ugc_einkaufspreis_netto_von: 'number',
           ugc_einkaufspreis_netto_bis: 'number',
-          ugc_verkaufspreis_netto: 'number',
+          ugc_verkaufspreis_netto_von: 'number',
+          ugc_verkaufspreis_netto_bis: 'number',
           // Influencer
           influencer_video_anzahl: 'number',
           influencer_creator_anzahl: 'number',
@@ -655,7 +664,8 @@ export class DataService {
           influencer_budget_info: 'text',
           influencer_einkaufspreis_netto_von: 'number',
           influencer_einkaufspreis_netto_bis: 'number',
-          influencer_verkaufspreis_netto: 'number',
+          influencer_verkaufspreis_netto_von: 'number',
+          influencer_verkaufspreis_netto_bis: 'number',
           // Vor Ort
           vor_ort_video_anzahl: 'number',
           vor_ort_creator_anzahl: 'number',
@@ -664,12 +674,17 @@ export class DataService {
           vor_ort_budget_info: 'text',
           vor_ort_einkaufspreis_netto_von: 'number',
           vor_ort_einkaufspreis_netto_bis: 'number',
-          vor_ort_verkaufspreis_netto: 'number',
+          vor_ort_verkaufspreis_netto_von: 'number',
+          vor_ort_verkaufspreis_netto_bis: 'number',
           // Vor Ort Mitarbeiter
           vor_ort_mitarbeiter_video_anzahl: 'number',
           vor_ort_mitarbeiter_bilder_anzahl: 'number',
           vor_ort_mitarbeiter_videographen_anzahl: 'number',
           vor_ort_mitarbeiter_budget_info: 'text',
+          vor_ort_mitarbeiter_einkaufspreis_netto_von: 'number',
+          vor_ort_mitarbeiter_einkaufspreis_netto_bis: 'number',
+          vor_ort_mitarbeiter_verkaufspreis_netto_von: 'number',
+          vor_ort_mitarbeiter_verkaufspreis_netto_bis: 'number',
           // IGC
           igc_video_anzahl: 'number',
           igc_creator_anzahl: 'number',
@@ -677,7 +692,8 @@ export class DataService {
           igc_budget_info: 'text',
           igc_einkaufspreis_netto_von: 'number',
           igc_einkaufspreis_netto_bis: 'number',
-          igc_verkaufspreis_netto: 'number',
+          igc_verkaufspreis_netto_von: 'number',
+          igc_verkaufspreis_netto_bis: 'number',
           gesamt_videos: 'number',
           gesamt_creator: 'number'
         },

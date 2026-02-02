@@ -434,6 +434,85 @@
             })
         }
 
+        // Magic Link Verknüpfungen erstellen (nach erfolgreicher E-Mail-Bestätigung)
+        async function createMagicLinkConnections(data) {
+            const { ansprechpartnerId, magicLinkId, unternehmenIds, markenIds } = data
+            
+            // 1. Aktuellen User (Kunde) laden
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) {
+                throw new Error('Kein eingeloggter User')
+            }
+            
+            // 2. Benutzer-Record laden um kunde_id zu bekommen
+            const { data: benutzer, error: benutzerError } = await supabase
+                .from('benutzer')
+                .select('id')
+                .eq('auth_user_id', user.id)
+                .single()
+            
+            if (benutzerError || !benutzer) {
+                throw new Error('Benutzer nicht gefunden')
+            }
+            
+            const kundeId = benutzer.id
+            console.log('🔗 Kunde ID:', kundeId)
+            
+            // 3. Unternehmen verknüpfen
+            if (unternehmenIds && unternehmenIds.length > 0) {
+                const links = unternehmenIds.map(id => ({
+                    kunde_id: kundeId,
+                    unternehmen_id: id
+                }))
+                const { error } = await supabase.from('kunde_unternehmen').insert(links)
+                if (error) {
+                    console.warn('⚠️ Unternehmen-Verknüpfung fehlgeschlagen:', error)
+                } else {
+                    console.log('✅ Unternehmen verknüpft:', unternehmenIds.length)
+                }
+            }
+            
+            // 4. Marken verknüpfen
+            if (markenIds && markenIds.length > 0) {
+                const links = markenIds.map(id => ({
+                    kunde_id: kundeId,
+                    marke_id: id
+                }))
+                const { error } = await supabase.from('kunde_marke').insert(links)
+                if (error) {
+                    console.warn('⚠️ Marken-Verknüpfung fehlgeschlagen:', error)
+                } else {
+                    console.log('✅ Marken verknüpft:', markenIds.length)
+                }
+            }
+            
+            // 5. Ansprechpartner verknüpfen
+            if (ansprechpartnerId) {
+                const { error } = await supabase.from('kunde_ansprechpartner').insert({
+                    kunde_id: kundeId,
+                    ansprechpartner_id: ansprechpartnerId
+                })
+                if (error) {
+                    console.warn('⚠️ Ansprechpartner-Verknüpfung fehlgeschlagen:', error)
+                } else {
+                    console.log('✅ Ansprechpartner verknüpft')
+                }
+            }
+            
+            // 6. Magic Link als verwendet markieren
+            if (magicLinkId) {
+                const { error } = await supabase
+                    .from('magic_links')
+                    .update({ used_at: new Date().toISOString() })
+                    .eq('id', magicLinkId)
+                if (error) {
+                    console.warn('⚠️ Magic Link Update fehlgeschlagen:', error)
+                } else {
+                    console.log('✅ Magic Link als verwendet markiert')
+                }
+            }
+        }
+
         // Handle OTP verification
         async function handleVerifyOTP() {
             if (isVerifying) return
@@ -472,6 +551,20 @@
                 console.log('OTP verification successful!')
                 
                 // Keine automatische Freischaltung - Admin muss final freischalten
+                
+                // Magic Link Verknüpfungen erstellen (falls vorhanden)
+                const pendingMagicLinkData = localStorage.getItem('pendingMagicLinkData')
+                if (pendingMagicLinkData) {
+                    console.log('🔗 Erstelle Magic Link Verknüpfungen...')
+                    try {
+                        await createMagicLinkConnections(JSON.parse(pendingMagicLinkData))
+                        localStorage.removeItem('pendingMagicLinkData')
+                        console.log('✅ Magic Link Verknüpfungen erfolgreich erstellt')
+                    } catch (linkError) {
+                        console.error('⚠️ Fehler bei Magic Link Verknüpfungen:', linkError)
+                        // Nicht abbrechen - User ist trotzdem registriert
+                    }
+                }
                 
                 showSuccess('E-Mail erfolgreich bestätigt! Sie werden weitergeleitet...')
                 

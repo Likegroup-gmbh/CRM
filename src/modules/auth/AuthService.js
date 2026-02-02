@@ -108,6 +108,9 @@ export class AuthService {
           // notificationSystem deaktiviert - FeedbackNotifications übernimmt
           // window.notificationSystem?.init?.();
           
+          // Header-Buttons basierend auf Rolle anpassen (Education, Notifications für Kunden ausblenden)
+          this.updateHeaderForRole(data.rolle);
+          
           // Aktuelle Route neu navigieren, damit Berechtigungen greifen
           const currentRoute = location.pathname;
           if (currentRoute) {
@@ -159,6 +162,9 @@ export class AuthService {
                 window.setupHeaderUI?.();
                 window.navigationSystem?.init?.();
                 window.actionsDropdown?.init?.();
+                
+                // Header-Buttons basierend auf Rolle anpassen
+                this.updateHeaderForRole(updatedUser.rolle);
                 
                 // Benachrichtigungs-Refresh triggern
                 window.dispatchEvent(new Event('notificationsRefresh'));
@@ -495,6 +501,25 @@ export class AuthService {
   // Versuche löschen
   clearAttempts(email) {
     this._loginAttempts.delete(email);
+  }
+
+  // Header-Buttons basierend auf Rolle anpassen
+  updateHeaderForRole(rolle) {
+    const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+    
+    // Education Button ausblenden für Kunden
+    const educationBtn = document.querySelector('.education-btn');
+    if (educationBtn) {
+      educationBtn.style.display = isKunde ? 'none' : '';
+    }
+    
+    // Notification Menu ausblenden für Kunden
+    const notificationMenu = document.getElementById('feedbackNotificationMenu');
+    if (notificationMenu) {
+      notificationMenu.style.display = isKunde ? 'none' : '';
+    }
+    
+    console.log(`🎨 Header aktualisiert für Rolle: ${rolle}, isKunde: ${isKunde}`);
   }
 }
 

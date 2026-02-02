@@ -62,8 +62,10 @@ export class FeedbackNotifications {
     this._dropdown = dropdown;
     this._isDropdownOpen = false;
 
-    // Zeige den Button
-    menu.style.display = '';
+    // Zeige den Button nur für Nicht-Kunden (Kunden sollen keine Notifications sehen)
+    const rolle = window.currentUser?.rolle?.toLowerCase();
+    const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+    menu.style.display = isKunde ? 'none' : '';
 
     // Toggle Dropdown
     bell.addEventListener('click', (e) => {

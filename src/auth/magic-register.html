@@ -98,9 +98,15 @@
           <div id="msg" class="text-error" style="display: none;"></div>
 
           <form id="register-form">
-            <div class="form-box">
-              <label class="label" for="name">Name</label>
-              <input id="name" class="input" type="text" placeholder="Max Mustermann" required />
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md, 16px);">
+              <div class="form-box">
+                <label class="label" for="vorname">Vorname</label>
+                <input id="vorname" class="input" type="text" placeholder="Max" required />
+              </div>
+              <div class="form-box">
+                <label class="label" for="nachname">Nachname</label>
+                <input id="nachname" class="input" type="text" placeholder="Mustermann" required />
+              </div>
             </div>
             <div class="form-box">
               <label class="label" for="email">E-Mail</label>
@@ -188,9 +194,12 @@
       document.getElementById('email').value = ap.email;
     }
     
-    // Name vorausfüllen
-    if (ap.vorname || ap.nachname) {
-      document.getElementById('name').value = `${ap.vorname || ''} ${ap.nachname || ''}`.trim();
+    // Vorname und Nachname vorausfüllen
+    if (ap.vorname) {
+      document.getElementById('vorname').value = ap.vorname;
+    }
+    if (ap.nachname) {
+      document.getElementById('nachname').value = ap.nachname;
     }
   }
 
@@ -266,7 +275,9 @@
     btn.disabled = true;
     btn.textContent = 'Wird erstellt...';
 
-    const name = document.getElementById('name').value.trim();
+    const vorname = document.getElementById('vorname').value.trim();
+    const nachname = document.getElementById('nachname').value.trim();
+    const name = `${vorname} ${nachname}`.trim();
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
 
@@ -283,6 +294,8 @@
             role: 'kunde', 
             subrole: 'can_view', 
             name,
+            vorname,
+            nachname,
             source: 'magic_link',
             ansprechpartner_id: ansprechpartner.id
           }
@@ -300,6 +313,8 @@
         .upsert({
           auth_user_id: authUserId,
           name,
+          vorname,
+          nachname,
           email,
           rolle: 'kunde',
           freigeschaltet: true
@@ -309,41 +324,20 @@
         .select()
         .single();
 
-      const kundeId = benutzerData?.id;
+      // Verknüpfungs-Daten in localStorage speichern
+      // (werden erst nach E-Mail-Bestätigung in verify-email.html erstellt,
+      // da der User erst dann eingeloggt ist und RLS Policies greifen)
+      const unternehmen = ansprechpartner.ansprechpartner_unternehmen || [];
+      const marken = ansprechpartner.ansprechpartner_marke || [];
+      
+      localStorage.setItem('pendingMagicLinkData', JSON.stringify({
+        ansprechpartnerId: ansprechpartner.id,
+        magicLinkId: validationData.magicLinkId,
+        unternehmenIds: unternehmen.map(u => u.unternehmen.id),
+        markenIds: marken.map(m => m.marke.id)
+      }));
 
-      if (kundeId) {
-        // 3. Unternehmen kopieren
-        const unternehmen = ansprechpartner.ansprechpartner_unternehmen || [];
-        if (unternehmen.length > 0) {
-          const links = unternehmen.map(u => ({
-            kunde_id: kundeId,
-            unternehmen_id: u.unternehmen.id
-          }));
-          await supabase.from('kunde_unternehmen').insert(links);
-        }
-
-        // 4. Marken kopieren
-        const marken = ansprechpartner.ansprechpartner_marke || [];
-        if (marken.length > 0) {
-          const links = marken.map(m => ({
-            kunde_id: kundeId,
-            marke_id: m.marke.id
-          }));
-          await supabase.from('kunde_marke').insert(links);
-        }
-
-        // 5. Kunde ↔ Ansprechpartner verknüpfen
-        await supabase.from('kunde_ansprechpartner').insert({
-          kunde_id: kundeId,
-          ansprechpartner_id: ansprechpartner.id
-        });
-      }
-
-      // 6. Magic Link als verwendet markieren
-      await supabase
-        .from('magic_links')
-        .update({ used_at: new Date().toISOString() })
-        .eq('id', validationData.magicLinkId);
+      console.log('✅ Magic Link Daten in localStorage gespeichert');
 
       // Weiterleitung zur E-Mail-Verifizierung
       window.location.href = `/src/auth/verify-email.html?email=${encodeURIComponent(email)}&redirect_to=/kunden`;

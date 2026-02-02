@@ -108,7 +108,7 @@ export class NavigationSystem {
         vertraege: 'briefing', // Verträge nutzt vorerst briefing-Berechtigung
         creator: 'creator',
         'creator-lists': 'creator',
-        'sourcing': 'creator',
+        'sourcing': 'sourcing',
         mitarbeiter: 'mitarbeiter',
         'kunden-admin': 'kunden-admin',
         tasks: 'tasks',

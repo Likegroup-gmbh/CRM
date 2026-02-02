@@ -457,19 +457,55 @@ export class AuftragDetail {
     
     const html = `
       <div class="content-section">
-        <!-- Tab-Navigation (nur Auftragsdetails) -->
+        <!-- Tab-Navigation -->
         <div class="tab-navigation">
-          <button class="tab-button active" data-tab="auftragsdetails">
+          <button class="tab-button active" data-tab="uebersicht">
+            <span class="tab-icon">${getTabIcon('info')}</span>
+            Übersicht
+          </button>
+          <button class="tab-button" data-tab="finanzen">
+            <span class="tab-icon">${getTabIcon('finanzen')}</span>
+            Finanzen
+          </button>
+          <button class="tab-button" data-tab="auftragsdetails">
             <span class="tab-icon">${getTabIcon('auftragsdetails')}</span>
             Auftragsdetails
+          </button>
+          <button class="tab-button" data-tab="notizen">
+            <span class="tab-icon">${getTabIcon('notizen')}</span>
+            Notizen
+          </button>
+          <button class="tab-button" data-tab="bewertungen">
+            <span class="tab-icon">${getTabIcon('bewertungen')}</span>
+            Bewertungen
           </button>
         </div>
 
         <!-- Tab-Content -->
         <div class="tab-content">
+          <!-- Übersicht Tab -->
+          <div class="tab-pane active" id="tab-uebersicht">
+            ${this.renderUebersicht()}
+          </div>
+          
+          <!-- Finanzen Tab -->
+          <div class="tab-pane" id="tab-finanzen">
+            ${this.renderFinanzenTab()}
+          </div>
+          
           <!-- Auftragsdetails Tab -->
-          <div class="tab-pane active" id="auftragsdetails">
+          <div class="tab-pane" id="tab-auftragsdetails">
             ${this.renderAuftragsdetails()}
+          </div>
+          
+          <!-- Notizen Tab -->
+          <div class="tab-pane" id="tab-notizen">
+            ${this.renderNotizen()}
+          </div>
+          
+          <!-- Bewertungen Tab -->
+          <div class="tab-pane" id="tab-bewertungen">
+            ${this.renderRatings()}
           </div>
         </div>
       </div>
@@ -530,6 +566,133 @@ export class AuftragDetail {
         </div>
       </div>
     `;
+  }
+
+  // Rendere Übersicht-Tab mit allen wichtigen Auftragsinformationen
+  renderUebersicht() {
+    const a = this.auftrag || {};
+    const fmt = (v) => v || v === 0 ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v) : '-';
+    const formatDate = (d) => d ? new Date(d).toLocaleDateString('de-DE') : '-';
+    
+    // Mitarbeiter-Namen sammeln
+    const mitarbeiterNamen = (a.mitarbeiter || []).map(m => m.name).filter(Boolean).join(', ') || '-';
+    const cutterNamen = (a.cutter || []).map(c => c.name).filter(Boolean).join(', ') || '-';
+    const copywriterNamen = (a.copywriter || []).map(c => c.name).filter(Boolean).join(', ') || '-';
+    
+    // Ansprechpartner formatieren
+    const ansprechpartner = a.ansprechpartner 
+      ? `${a.ansprechpartner.vorname || ''} ${a.ansprechpartner.nachname || ''}`.trim() || '-'
+      : '-';
+    const ansprechpartnerEmail = a.ansprechpartner?.email || '-';
+    
+    // Kampagnenarten formatieren
+    const kampagnenarten = (a.art_der_kampagne_namen || []).join(', ') || '-';
+
+    return `
+      <div class="detail-section">
+        <div class="detail-grid">
+          <!-- Auftrags-Eckdaten -->
+          <div class="detail-card">
+            <h3 class="section-title">Auftrags-Eckdaten</h3>
+            <div class="detail-item">
+              <label>Status:</label>
+              <span class="status-badge status-${(a.status?.toLowerCase() || 'unknown').replace(/\s+/g, '-')}">
+                ${a.status || 'Unbekannt'}
+              </span>
+            </div>
+            <div class="detail-item"><label>PO-Nummer:</label><span>${a.po || '-'}</span></div>
+            <div class="detail-item"><label>RE-Nummer:</label><span>${a.re_nr || '-'}</span></div>
+            <div class="detail-item"><label>RE-Fälligkeit:</label><span>${formatDate(a.re_faelligkeit)}</span></div>
+            <div class="detail-item"><label>Zahlungsziel:</label><span>${a.zahlungsziel_tage != null ? `${a.zahlungsziel_tage} Tage` : '-'}</span></div>
+            <div class="detail-item"><label>Start:</label><span>${formatDate(a.start)}</span></div>
+            <div class="detail-item"><label>Ende:</label><span>${formatDate(a.ende)}</span></div>
+            <div class="detail-item"><label>Kampagnenarten:</label><span>${kampagnenarten}</span></div>
+          </div>
+          
+          <!-- Unternehmen & Marke -->
+          <div class="detail-card">
+            <h3 class="section-title">Kunde</h3>
+            <div class="detail-item">
+              <label>Unternehmen:</label>
+              <span>${a.unternehmen?.firmenname 
+                ? `<a href="#" class="table-link" data-table="unternehmen" data-id="${a.unternehmen_id}">${a.unternehmen.firmenname}</a>` 
+                : '-'}</span>
+            </div>
+            <div class="detail-item">
+              <label>Marke:</label>
+              <span>${a.marke?.markenname 
+                ? `<a href="#" class="table-link" data-table="marke" data-id="${a.marke_id}">${a.marke.markenname}</a>` 
+                : '-'}</span>
+            </div>
+            <div class="detail-item">
+              <label>Ansprechpartner:</label>
+              <span>${a.ansprechpartner_id 
+                ? `<a href="#" class="table-link" data-table="ansprechpartner" data-id="${a.ansprechpartner_id}">${ansprechpartner}</a>` 
+                : '-'}</span>
+            </div>
+            <div class="detail-item"><label>E-Mail:</label><span>${ansprechpartnerEmail !== '-' ? `<a href="mailto:${ansprechpartnerEmail}">${ansprechpartnerEmail}</a>` : '-'}</span></div>
+          </div>
+          
+          <!-- Team -->
+          <div class="detail-card">
+            <h3 class="section-title">Team</h3>
+            <div class="detail-item"><label>Projektleitung:</label><span>${mitarbeiterNamen}</span></div>
+            <div class="detail-item"><label>Cutter:</label><span>${cutterNamen}</span></div>
+            <div class="detail-item"><label>Copywriter:</label><span>${copywriterNamen}</span></div>
+          </div>
+          
+          <!-- Quick-Finanzen -->
+          <div class="detail-card">
+            <h3 class="section-title">Budget (Übersicht)</h3>
+            <div class="detail-item"><label>Nettobetrag:</label><span>${fmt(a.nettobetrag)}</span></div>
+            <div class="detail-item"><label>Bruttobetrag:</label><span>${fmt(a.bruttobetrag)}</span></div>
+            <div class="detail-item"><label>Creator-Budget:</label><span>${fmt(a.creator_budget)}</span></div>
+            <div class="detail-item">
+              <label>Rechnung gestellt:</label>
+              <span>${a.rechnung_gestellt 
+                ? '<span class="status-badge status-erfolg">Ja</span>' 
+                : '<span class="status-badge status-offen">Nein</span>'}</span>
+            </div>
+            <div class="detail-item">
+              <label>Überwiesen:</label>
+              <span>${a.ueberwiesen 
+                ? '<span class="status-badge status-erfolg">Ja</span>' 
+                : '<span class="status-badge status-offen">Nein</span>'}</span>
+            </div>
+            ${a.ueberwiesen_am ? `<div class="detail-item"><label>Überwiesen am:</label><span>${formatDate(a.ueberwiesen_am)}</span></div>` : ''}
+          </div>
+          
+          <!-- Zeitstempel -->
+          <div class="detail-card">
+            <h3 class="section-title">Protokoll</h3>
+            <div class="detail-item"><label>Erstellt am:</label><span>${formatDate(a.created_at)}</span></div>
+            <div class="detail-item"><label>Aktualisiert am:</label><span>${formatDate(a.updated_at)}</span></div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  // Rendere Finanzen-Tab (Budget + Rechnungen)
+  renderFinanzenTab() {
+    return `
+      <div class="detail-section">
+        ${this.renderBudget()}
+        
+        <div style="margin-top: 32px;">
+          <h3>Rechnungen</h3>
+          ${this.renderRechnungen()}
+        </div>
+      </div>
+    `;
+  }
+  
+  // Rendere Rechnungen-Tabelle
+  renderRechnungenTab() {
+    const container = document.querySelector('#tab-rechnungen');
+    if (container) {
+      container.innerHTML = this.renderRechnungen();
+    }
   }
 
   /**
@@ -897,6 +1060,15 @@ export class AuftragDetail {
         this.showEditForm();
       }
     });
+    
+    // Table-Links (Unternehmen, Marke, Ansprechpartner, Creator etc.)
+    document.addEventListener('click', (e) => {
+      const link = e.target.closest('.table-link');
+      if (link && link.dataset.table && link.dataset.id) {
+        e.preventDefault();
+        window.navigateTo(`/${link.dataset.table}/${link.dataset.id}`);
+      }
+    });
 
     // Notizen und Bewertungen Events
     document.addEventListener('notizenUpdated', () => {
@@ -954,10 +1126,21 @@ export class AuftragDetail {
 
     // Gewählten Tab aktivieren
     const selectedButton = document.querySelector(`[data-tab="${tabName}"]`);
-    const selectedPane = document.getElementById(tabName);
+    const selectedPane = document.getElementById(`tab-${tabName}`);
 
     if (selectedButton) selectedButton.classList.add('active');
     if (selectedPane) selectedPane.classList.add('active');
+    
+    // Lazy-Loading für Finanzen-Tab (Rechnungen)
+    if (tabName === 'finanzen' && !this._finanzenLoaded) {
+      this._finanzenLoaded = true;
+      this.loadTabData('rechnungen').then(() => {
+        const finanzenPane = document.getElementById('tab-finanzen');
+        if (finanzenPane) {
+          finanzenPane.innerHTML = this.renderFinanzenTab();
+        }
+      });
+    }
   }
 
   // Bearbeitungsformular anzeigen
