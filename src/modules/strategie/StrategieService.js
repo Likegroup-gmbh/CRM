@@ -288,13 +288,13 @@ export class StrategieService {
 
   /**
    * Strategie löschen (inkl. aller Items und Screenshots)
-   * Nur für Admins - Kunden und normale Mitarbeiter dürfen Strategien nicht löschen
+   * Berechtigungsprüfung über Permission-System
    */
   async deleteStrategie(id) {
-    // Berechtigungsprüfung: Nur Admins dürfen Strategien löschen
-    const rolle = window.currentUser?.rolle?.toLowerCase();
-    if (rolle !== 'admin') {
-      console.warn('🔐 Nur Admins dürfen Strategien löschen');
+    // Berechtigungsprüfung über Permission-System
+    const canDelete = window.currentUser?.permissions?.strategie?.can_delete || false;
+    if (!canDelete) {
+      console.warn('🔐 Keine Berechtigung zum Löschen von Strategien');
       throw new Error('Keine Berechtigung zum Löschen von Strategien');
     }
     

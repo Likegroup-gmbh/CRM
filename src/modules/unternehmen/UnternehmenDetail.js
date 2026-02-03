@@ -1380,7 +1380,11 @@ export class UnternehmenDetail extends PersonDetailBase {
       // Tag-basierte Multi-Selects
       const tagBasedSelects = form.querySelectorAll('select[data-tag-based="true"]');
       tagBasedSelects.forEach(select => {
-        let hiddenSelect = form.querySelector(`select[name="${select.name}"][style*="display: none"]`);
+        // Zuerst mit [], dann ohne (wie in FormSubmitHelper.js) - Hidden Select wird mit [] erstellt
+        let hiddenSelect = form.querySelector(`select[name="${select.name}[]"][style*="display: none"]`);
+        if (!hiddenSelect) {
+          hiddenSelect = form.querySelector(`select[name="${select.name}"][style*="display: none"]`);
+        }
         if (!hiddenSelect) {
           const allSelects = form.querySelectorAll(`select[name="${select.name}"]`);
           if (allSelects.length > 1) hiddenSelect = allSelects[1];

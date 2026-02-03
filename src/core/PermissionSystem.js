@@ -71,23 +71,23 @@ export class PermissionSystem {
         'kunden-admin': { can_view: true, can_edit: true, can_delete: true }
       },
       mitarbeiter: {
-        creator: { can_view: true, can_edit: true, can_delete: false },
-        'creator-lists': { can_view: true, can_edit: true, can_delete: false },
-        unternehmen: { can_view: true, can_edit: false, can_delete: false },
-        marke: { can_view: true, can_edit: false, can_delete: false },
-        produkt: { can_view: true, can_edit: true, can_delete: false },
+        creator: { can_view: true, can_edit: true, can_delete: true },
+        'creator-lists': { can_view: true, can_edit: true, can_delete: true },
+        unternehmen: { can_view: true, can_edit: false, can_delete: false }, // Kein Löschen erlaubt
+        marke: { can_view: true, can_edit: false, can_delete: false }, // Kein Löschen erlaubt
+        produkt: { can_view: true, can_edit: true, can_delete: true },
         auftrag: { can_view: false, can_edit: false, can_delete: false }, // Aufträge für Mitarbeiter ausgeblendet
-        auftragsdetails: { can_view: true, can_edit: false, can_delete: false }, // Auftragsdetails für Mitarbeiter sichtbar
-        kampagne: { can_view: true, can_edit: true, can_delete: false },
-        kooperation: { can_view: true, can_edit: true, can_delete: false },
-        briefing: { can_view: true, can_edit: true, can_delete: false },
-        videos: { can_view: true, can_edit: true, can_delete: false },
-        rechnung: { can_view: true, can_edit: true, can_delete: false },
-        ansprechpartner: { can_view: true, can_edit: true, can_delete: false },
+        auftragsdetails: { can_view: true, can_edit: false, can_delete: false }, // Kein Löschen erlaubt
+        kampagne: { can_view: true, can_edit: true, can_delete: true },
+        kooperation: { can_view: true, can_edit: true, can_delete: true },
+        briefing: { can_view: true, can_edit: true, can_delete: true },
+        videos: { can_view: true, can_edit: true, can_delete: true },
+        rechnung: { can_view: true, can_edit: true, can_delete: true },
+        ansprechpartner: { can_view: true, can_edit: true, can_delete: true },
         dashboard: { can_view: true, can_edit: false, can_delete: false },
         tasks: { can_view: true, can_edit: false, can_delete: false },
-        strategie: { can_view: true, can_edit: true, can_delete: false },
-        feedback: { can_view: true, can_edit: true, can_delete: false },
+        strategie: { can_view: true, can_edit: true, can_delete: true },
+        feedback: { can_view: true, can_edit: true, can_delete: true },
         mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
         'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
       },

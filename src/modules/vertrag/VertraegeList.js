@@ -8,6 +8,7 @@ import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { modularFilterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { UploaderField } from '../../core/form/fields/UploaderField.js';
 
 export class VertraegeList {
   constructor() {
@@ -479,6 +480,7 @@ export class VertraegeList {
           datei_url,
           datei_path,
           unterschriebener_vertrag_url,
+          unterschriebener_vertrag_path,
           created_at,
           kunde_unternehmen_id,
           kampagne_id,
@@ -728,13 +730,13 @@ export class VertraegeList {
 
     // Unterschriebener Vertrag Aktion (hinzufügen oder bearbeiten)
     const signedAction = vertrag.unterschriebener_vertrag_url
-      ? `<a href="#" class="action-item" data-action="edit-signed" data-id="${vertrag.id}" data-url="${escapeAttr(vertrag.unterschriebener_vertrag_url)}">
+      ? `<a href="#" class="action-item" data-action="edit-signed" data-id="${vertrag.id}" data-url="${escapeAttr(vertrag.unterschriebener_vertrag_url)}" data-path="${escapeAttr(vertrag.unterschriebener_vertrag_path || '')}">
           ${signedIcon}
           Unterschriebenen Vertrag bearbeiten
         </a>`
       : `<a href="#" class="action-item" data-action="add-signed" data-id="${vertrag.id}">
           ${signedIcon}
-          Unterschriebenen Vertrag verlinken
+          Unterschriebenen Vertrag hochladen
         </a>`;
 
     if (isDraft) {
@@ -947,18 +949,18 @@ export class VertraegeList {
 
     // Event-Listener für Signed-Contract Actions vom ActionsDropdown
     const signedActionHandler = async (e) => {
-      const { action, vertragId, existingUrl } = e.detail;
+      const { action, vertragId, existingUrl, existingPath } = e.detail;
       if (action === 'add-signed') {
         const result = await this.openSignedContractModal(vertragId);
-        if (result.action === 'save') {
-          await this.saveSignedContractUrl(vertragId, result.url);
+        if (result.action === 'save' && result.file) {
+          await this.saveSignedContract(vertragId, result.file);
         }
       } else if (action === 'edit-signed') {
-        const result = await this.openSignedContractModal(vertragId, existingUrl);
-        if (result.action === 'save') {
-          await this.saveSignedContractUrl(vertragId, result.url);
+        const result = await this.openSignedContractModal(vertragId, existingUrl, existingPath);
+        if (result.action === 'save' && result.file) {
+          await this.saveSignedContract(vertragId, result.file);
         } else if (result.action === 'remove') {
-          await this.removeSignedContractUrl(vertragId);
+          await this.removeSignedContract(vertragId);
         }
       }
     };
@@ -1076,18 +1078,19 @@ export class VertraegeList {
             break;
           case 'add-signed': {
             const result = await this.openSignedContractModal(id);
-            if (result.action === 'save') {
-              await this.saveSignedContractUrl(id, result.url);
+            if (result.action === 'save' && result.file) {
+              await this.saveSignedContract(id, result.file);
             }
             break;
           }
           case 'edit-signed': {
             const existingUrl = item.dataset.url;
-            const result = await this.openSignedContractModal(id, existingUrl);
-            if (result.action === 'save') {
-              await this.saveSignedContractUrl(id, result.url);
+            const existingPath = item.dataset.path || '';
+            const result = await this.openSignedContractModal(id, existingUrl, existingPath);
+            if (result.action === 'save' && result.file) {
+              await this.saveSignedContract(id, result.file);
             } else if (result.action === 'remove') {
-              await this.removeSignedContractUrl(id);
+              await this.removeSignedContract(id);
             }
             break;
           }
@@ -1288,80 +1291,82 @@ export class VertraegeList {
   }
 
   // ============================================
-  // UNTERSCHRIEBENER VERTRAG MODAL
+  // UNTERSCHRIEBENER VERTRAG MODAL (Upload)
   // ============================================
 
-  // Modal zum Hinzufügen/Bearbeiten des Links zum unterschriebenen Vertrag
-  openSignedContractModal(vertragId, existingUrl = '') {
+  // Modal zum Hochladen des unterschriebenen Vertrags (PDF)
+  openSignedContractModal(vertragId, existingUrl = '', existingPath = '') {
     return new Promise((resolve) => {
-      const isEdit = !!existingUrl;
+      const hasExisting = !!existingUrl;
       const modal = document.createElement('div');
       modal.className = 'modal overlay-modal';
+      
+      // Dateiname aus Pfad extrahieren
+      const existingFileName = existingPath ? existingPath.split('/').pop() : '';
+      
       modal.innerHTML = `
         <div class="modal-dialog signed-contract-modal">
           <div class="modal-header">
-            <h3>${isEdit ? 'Link bearbeiten' : 'Unterschriebenen Vertrag verlinken'}</h3>
+            <h3>${hasExisting ? 'Unterschriebenen Vertrag ersetzen' : 'Unterschriebenen Vertrag hochladen'}</h3>
             <button class="modal-close" data-action="close">×</button>
           </div>
           <div class="modal-body">
-            <p class="modal-description">
-              Fügen Sie den Link zur unterschriebenen Vertragsversion ein (z.B. Dropbox, Google Drive, OneDrive).
-            </p>
+            ${hasExisting ? `
+              <div class="existing-file-info">
+                <div class="existing-file-header">
+                  <span class="file-icon">📄</span>
+                  <span class="file-name">${existingFileName || 'Unterschriebener Vertrag'}</span>
+                </div>
+                <div class="existing-file-actions">
+                  <a href="${existingUrl}" target="_blank" rel="noopener" class="btn-download">
+                    <span>↓</span> Herunterladen
+                  </a>
+                </div>
+              </div>
+              <p class="modal-description">
+                Sie können den bestehenden Vertrag herunterladen oder durch eine neue Version ersetzen.
+              </p>
+            ` : `
+              <p class="modal-description">
+                Laden Sie die unterschriebene Vertragsversion als PDF hoch (max. 10 MB).
+              </p>
+            `}
             <div class="form-group">
-              <label for="signed-url-input">URL zum unterschriebenen Vertrag</label>
-              <input 
-                type="url" 
-                id="signed-url-input" 
-                class="form-input" 
-                placeholder="https://www.dropbox.com/..." 
-                value="${existingUrl}"
-                autocomplete="off"
-              >
-              <span class="input-hint">Der Link sollte mit http:// oder https:// beginnen</span>
-              <span class="input-error" id="url-error" style="display: none;"></span>
+              <label>${hasExisting ? 'Neue Version hochladen (optional)' : 'PDF-Datei auswählen'}</label>
+              <div class="uploader" data-name="signed_contract_file"></div>
             </div>
           </div>
           <div class="modal-footer">
-            ${isEdit ? `<button type="button" class="danger-btn" data-action="remove">Link entfernen</button>` : ''}
+            ${hasExisting ? `<button type="button" class="danger-btn" data-action="remove">Vertrag entfernen</button>` : ''}
             <button type="button" class="secondary-btn" data-action="cancel">Abbrechen</button>
-            <button type="button" class="primary-btn" data-action="save">Speichern</button>
+            <button type="button" class="primary-btn" data-action="save">${hasExisting ? 'Ersetzen' : 'Hochladen'}</button>
           </div>
         </div>`;
 
       document.body.appendChild(modal);
 
-      const input = modal.querySelector('#signed-url-input');
-      const errorSpan = modal.querySelector('#url-error');
-      const saveBtn = modal.querySelector('[data-action="save"]');
-
-      // URL Validierung
-      const validateUrl = (url) => {
-        if (!url.trim()) {
-          return { valid: false, message: 'Bitte geben Sie eine URL ein' };
-        }
-        try {
-          const parsed = new URL(url);
-          if (!['http:', 'https:'].includes(parsed.protocol)) {
-            return { valid: false, message: 'URL muss mit http:// oder https:// beginnen' };
+      // UploaderField initialisieren
+      const uploaderRoot = modal.querySelector('.uploader[data-name="signed_contract_file"]');
+      const uploader = new UploaderField({
+        multiple: false,
+        accept: 'application/pdf',
+        maxFileSize: 10 * 1024 * 1024, // 10 MB
+        onFilesChanged: (files) => {
+          // Save-Button aktivieren/deaktivieren
+          const saveBtn = modal.querySelector('[data-action="save"]');
+          if (!hasExisting) {
+            saveBtn.disabled = files.length === 0;
           }
-          return { valid: true };
-        } catch {
-          return { valid: false, message: 'Ungültige URL' };
         }
-      };
+      });
+      uploader.mount(uploaderRoot);
 
-      const showError = (message) => {
-        errorSpan.textContent = message;
-        errorSpan.style.display = 'block';
-        input.classList.add('input-error-border');
-      };
-
-      const hideError = () => {
-        errorSpan.style.display = 'none';
-        input.classList.remove('input-error-border');
-      };
-
-      input.addEventListener('input', hideError);
+      const saveBtn = modal.querySelector('[data-action="save"]');
+      
+      // Bei neuem Upload: Button initial deaktivieren
+      if (!hasExisting) {
+        saveBtn.disabled = true;
+      }
 
       const close = (result) => {
         if (!modal.parentNode) return;
@@ -1374,13 +1379,17 @@ export class VertraegeList {
       modal.querySelector('[data-action="cancel"]').addEventListener('click', () => close({ action: 'cancel' }));
       
       saveBtn.addEventListener('click', () => {
-        const url = input.value.trim();
-        const validation = validateUrl(url);
-        if (!validation.valid) {
-          showError(validation.message);
+        const files = uploader.files;
+        if (files.length === 0 && !hasExisting) {
+          window.toastSystem?.show('Bitte wählen Sie eine PDF-Datei aus', 'error');
           return;
         }
-        close({ action: 'save', url });
+        // Wenn keine neue Datei ausgewählt aber bestehende vorhanden: Modal einfach schließen
+        if (files.length === 0 && hasExisting) {
+          close({ action: 'cancel' });
+          return;
+        }
+        close({ action: 'save', file: files[0] });
       });
 
       const removeBtn = modal.querySelector('[data-action="remove"]');
@@ -1393,48 +1402,99 @@ export class VertraegeList {
         if (e.target === modal) close({ action: 'cancel' });
       });
 
-      // Escape schließt, Enter speichert
+      // Escape schließt
       const onKey = (ev) => {
         if (ev.key === 'Escape') {
           window.removeEventListener('keydown', onKey);
           close({ action: 'cancel' });
-        } else if (ev.key === 'Enter' && document.activeElement === input) {
-          ev.preventDefault();
-          saveBtn.click();
         }
       };
       window.addEventListener('keydown', onKey);
-
-      // Focus auf Input
-      setTimeout(() => input.focus(), 100);
     });
   }
 
-  // Link speichern
-  async saveSignedContractUrl(vertragId, url) {
+  // Unterschriebenen Vertrag hochladen und speichern
+  async saveSignedContract(vertragId, file) {
     try {
-      const { error } = await window.supabase
+      if (!window.supabase) {
+        throw new Error('Supabase nicht verfügbar');
+      }
+
+      // Zuerst: Bestehende Datei löschen falls vorhanden
+      const { data: existing } = await window.supabase
         .from('vertraege')
-        .update({ unterschriebener_vertrag_url: url })
+        .select('unterschriebener_vertrag_path')
+        .eq('id', vertragId)
+        .single();
+
+      if (existing?.unterschriebener_vertrag_path) {
+        console.log('🗑️ Lösche bestehende Datei:', existing.unterschriebener_vertrag_path);
+        await window.supabase.storage
+          .from('unterschriebene-vertraege')
+          .remove([existing.unterschriebener_vertrag_path]);
+      }
+
+      // Dateiname sanitizen
+      const timestamp = Date.now();
+      const safeName = file.name
+        .replace(/[^a-zA-Z0-9._-]/g, '_')
+        .replace(/\.{2,}/g, '_')
+        .substring(0, 200);
+      const path = `${vertragId}/${timestamp}_${safeName}`;
+
+      console.log(`📤 Uploading: ${file.name} -> ${path}`);
+
+      // Upload zu Storage
+      const { error: uploadError } = await window.supabase.storage
+        .from('unterschriebene-vertraege')
+        .upload(path, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type
+        });
+
+      if (uploadError) {
+        console.error('❌ Upload-Fehler:', uploadError);
+        throw uploadError;
+      }
+
+      // Public URL holen
+      const { data: urlData } = window.supabase.storage
+        .from('unterschriebene-vertraege')
+        .getPublicUrl(path);
+
+      const publicUrl = urlData?.publicUrl || '';
+
+      // In DB speichern
+      const { error: dbError } = await window.supabase
+        .from('vertraege')
+        .update({ 
+          unterschriebener_vertrag_url: publicUrl,
+          unterschriebener_vertrag_path: path 
+        })
         .eq('id', vertragId);
 
-      if (error) throw error;
+      if (dbError) {
+        console.error('❌ DB-Fehler:', dbError);
+        throw dbError;
+      }
 
-      window.toastSystem?.show('Link gespeichert', 'success');
+      console.log('✅ Unterschriebener Vertrag hochgeladen:', path);
+      window.toastSystem?.show('Vertrag hochgeladen', 'success');
       await this.reloadData();
       this.bindSignedContractEvents();
 
     } catch (error) {
-      console.error('❌ Fehler beim Speichern:', error);
+      console.error('❌ Fehler beim Hochladen:', error);
       window.toastSystem?.show(`Fehler: ${error.message}`, 'error');
     }
   }
 
-  // Link entfernen
-  async removeSignedContractUrl(vertragId) {
+  // Unterschriebenen Vertrag entfernen (Storage + DB)
+  async removeSignedContract(vertragId) {
     const result = await window.confirmationModal?.open({
-      title: 'Link entfernen?',
-      message: 'Möchten Sie den Link zum unterschriebenen Vertrag wirklich entfernen?',
+      title: 'Vertrag entfernen?',
+      message: 'Möchten Sie den hochgeladenen unterschriebenen Vertrag wirklich entfernen? Die Datei wird unwiderruflich gelöscht.',
       confirmText: 'Entfernen',
       cancelText: 'Abbrechen',
       danger: true
@@ -1443,14 +1503,42 @@ export class VertraegeList {
     if (!result?.confirmed) return;
 
     try {
+      if (!window.supabase) {
+        throw new Error('Supabase nicht verfügbar');
+      }
+
+      // Zuerst Storage-Pfad aus DB holen
+      const { data } = await window.supabase
+        .from('vertraege')
+        .select('unterschriebener_vertrag_path')
+        .eq('id', vertragId)
+        .single();
+
+      // Datei aus Storage löschen
+      if (data?.unterschriebener_vertrag_path) {
+        console.log('🗑️ Lösche Datei aus Storage:', data.unterschriebener_vertrag_path);
+        const { error: storageError } = await window.supabase.storage
+          .from('unterschriebene-vertraege')
+          .remove([data.unterschriebener_vertrag_path]);
+
+        if (storageError) {
+          console.warn('⚠️ Storage-Löschfehler (nicht kritisch):', storageError);
+        }
+      }
+
+      // DB-Felder leeren
       const { error } = await window.supabase
         .from('vertraege')
-        .update({ unterschriebener_vertrag_url: null })
+        .update({ 
+          unterschriebener_vertrag_url: null,
+          unterschriebener_vertrag_path: null 
+        })
         .eq('id', vertragId);
 
       if (error) throw error;
 
-      window.toastSystem?.show('Link entfernt', 'success');
+      console.log('✅ Unterschriebener Vertrag entfernt');
+      window.toastSystem?.show('Vertrag entfernt', 'success');
       await this.reloadData();
       this.bindSignedContractEvents();
 
@@ -1468,8 +1556,8 @@ export class VertraegeList {
         e.stopPropagation();
         const vertragId = btn.dataset.id;
         const result = await this.openSignedContractModal(vertragId);
-        if (result.action === 'save') {
-          await this.saveSignedContractUrl(vertragId, result.url);
+        if (result.action === 'save' && result.file) {
+          await this.saveSignedContract(vertragId, result.file);
         }
       };
       btn.addEventListener('click', handler);

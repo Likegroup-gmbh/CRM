@@ -1475,8 +1475,8 @@ export class DataService {
         if (relationName === 'sprachen') {
           fieldName = 'sprachen_ids';
         } else if (relationName === 'branchen') {
-          // Für Unternehmen: branche_id, für Marke und Creator: branche_ids
-          fieldName = (entityType === 'unternehmen') ? 'branche_id' : 'branche_ids';
+          // Für Unternehmen und Marke: branche_id, für Creator: branche_ids
+          fieldName = (entityType === 'unternehmen' || entityType === 'marke') ? 'branche_id' : 'branche_ids';
         } else if (relationName === 'creator_types') {
           fieldName = 'creator_type_ids';
         } else if (relationName === 'marken') {
@@ -1895,7 +1895,7 @@ export class DataService {
       
       // Spezielle Behandlung für Marke Many-to-Many Felder
       if (entityType === 'marke' && (
-        field === 'branche_ids' || field === 'branche_ids[]'
+        field === 'branche_id' || field === 'branche_id[]'
       )) {
         console.log(`🏷️ Verarbeite ${field} für Marke:`, value);
         // Marke Many-to-Many Felder werden über handleManyToManyRelations verwaltet - hier überspringen

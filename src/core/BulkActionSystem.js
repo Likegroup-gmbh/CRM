@@ -100,11 +100,13 @@ export class BulkActionSystem {
   handleDeleteSelected() {
     console.log('🔧 BulkActionSystem: Handle Delete Selected');
     
-    // Sicherheits-Check: Nur Admins dürfen löschen
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-    if (!isAdmin) {
-      console.warn('⚠️ Löschen verweigert: Fehlende Berechtigung (Nur Admins)');
-      alert('Nur Administratoren dürfen Einträge löschen.');
+    // Permission-basierte Prüfung: Prüfe can_delete für den aktuellen Entity-Typ
+    const entityType = this.currentEntityType || this.detectCurrentEntityType();
+    const canDelete = window.currentUser?.permissions?.[entityType]?.can_delete || false;
+    
+    if (!canDelete) {
+      console.warn(`⚠️ Löschen verweigert: Fehlende Berechtigung für ${entityType}`);
+      alert('Sie haben keine Berechtigung, diese Einträge zu löschen.');
       return;
     }
     

@@ -146,8 +146,7 @@ export class BriefingDetail {
     const title = this.briefing.product_service_offer || 'Briefing';
     window.setHeadline(`Briefing: ${window.validatorSystem?.sanitizeHtml?.(title) || title}`);
 
-    const isAdmin = window.currentUser?.rolle === 'admin';
-    const canDelete = isAdmin; // Nur Admins dürfen löschen
+    const canDelete = window.currentUser?.permissions?.briefing?.can_delete || false;
 
     const formatDate = (d) => (d ? new Date(d).toLocaleDateString('de-DE') : '-');
     const escape = (s) => window.validatorSystem?.sanitizeHtml?.(s || '-') || (s || '-');

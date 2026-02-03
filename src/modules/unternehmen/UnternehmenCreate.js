@@ -580,9 +580,11 @@ export class UnternehmenCreate {
       console.log('🏷️ Tag-basierte Selects gefunden:', tagBasedSelects.length);
       
       tagBasedSelects.forEach(select => {
-        // Suche das versteckte Select
-        let hiddenSelect = form.querySelector(`select[name="${select.name}"][style*="display: none"]`);
-        
+        // Zuerst mit [], dann ohne (wie in FormSubmitHelper.js) - Hidden Select wird mit [] erstellt
+        let hiddenSelect = form.querySelector(`select[name="${select.name}[]"][style*="display: none"]`);
+        if (!hiddenSelect) {
+          hiddenSelect = form.querySelector(`select[name="${select.name}"][style*="display: none"]`);
+        }
         // Fallback: Nach allen Selects mit dem gleichen Namen
         if (!hiddenSelect) {
           const allSelects = form.querySelectorAll(`select[name="${select.name}"]`);

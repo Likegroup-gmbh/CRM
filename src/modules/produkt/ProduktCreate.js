@@ -215,8 +215,11 @@ export class ProduktCreate {
       console.log('🏷️ Tag-basierte Selects gefunden:', tagBasedSelects.length);
       
       tagBasedSelects.forEach(select => {
-        let hiddenSelect = form.querySelector(`select[name="${select.name}"][style*="display: none"]`);
-        
+        // Zuerst mit [], dann ohne (wie in FormSubmitHelper.js) - Hidden Select wird mit [] erstellt
+        let hiddenSelect = form.querySelector(`select[name="${select.name}[]"][style*="display: none"]`);
+        if (!hiddenSelect) {
+          hiddenSelect = form.querySelector(`select[name="${select.name}"][style*="display: none"]`);
+        }
         if (!hiddenSelect) {
           const allSelects = form.querySelectorAll(`select[name="${select.name}"]`);
           if (allSelects.length > 1) {

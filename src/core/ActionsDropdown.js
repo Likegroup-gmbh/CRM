@@ -856,11 +856,13 @@ export class ActionsDropdown {
       case 'edit-signed': {
         // Unterschriebenen Vertrag hinzufügen/bearbeiten - Event an VertraegeList weiterleiten
         const existingUrl = actionItem?.dataset?.url || '';
+        const existingPath = actionItem?.dataset?.path || '';
         window.dispatchEvent(new CustomEvent('vertrag-signed-action', { 
           detail: { 
             action, 
             vertragId: entityId, 
-            existingUrl 
+            existingUrl,
+            existingPath
           } 
         }));
         break;
