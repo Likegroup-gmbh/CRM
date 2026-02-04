@@ -6,6 +6,7 @@ import { BasePaginatedList } from '../../core/BasePaginatedList.js';
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { sortDropdown } from '../../core/components/SortDropdown.js';
+import { SearchInput } from '../../core/components/SearchInput.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
@@ -30,6 +31,19 @@ export class UnternehmenList extends BasePaginatedList {
     this.selectedUnternehmen = this.selectedItems;
     
     // Erlaubte IDs für Nicht-Admins
+    this._allowedUnternehmenIds = null;
+  }
+  
+  // ══════════════════════════════════════════════════════════════════════════
+  // ÜBERSCHRIEBENE METHODEN FÜR PERMISSION-HANDLING
+  // ══════════════════════════════════════════════════════════════════════════
+  
+  /**
+   * Setzt entity-spezifische Caches zurück bei Permission-Änderungen
+   * @override
+   */
+  resetEntityCaches() {
+    console.log('🔄 UNTERNEHMENLISTE: Cache zurückgesetzt');
     this._allowedUnternehmenIds = null;
   }
   
@@ -102,6 +116,10 @@ export class UnternehmenList extends BasePaginatedList {
       }
       
       // Weitere Filter anwenden
+      // Name-Filter vom Suchfeld (wird als 'name' übergeben)
+      if (filters.name) {
+        query = query.ilike('firmenname', `%${filters.name}%`);
+      }
       if (filters.firmenname) {
         query = query.ilike('firmenname', `%${filters.firmenname}%`);
       }
@@ -193,6 +211,10 @@ export class UnternehmenList extends BasePaginatedList {
       <div class="table-filter-wrapper">
         <div class="filter-bar">
           <div class="filter-left">
+            ${SearchInput.render('unternehmen', { 
+              placeholder: 'Unternehmen suchen...', 
+              currentValue: this.searchQuery 
+            })}
             <div id="sort-dropdown-container"></div>
             <div id="filter-dropdown-container"></div>
           </div>
@@ -264,6 +286,9 @@ export class UnternehmenList extends BasePaginatedList {
    * Zusätzliche Events binden
    */
   bindAdditionalEvents(signal) {
+    // Suchfeld Events über globale Komponente
+    SearchInput.bind('unternehmen', (value) => this.handleSearch(value), signal);
+    
     // Neues Unternehmen anlegen Button
     document.addEventListener('click', (e) => {
       if (e.target.id === 'btn-unternehmen-new' || e.target.id === 'btn-unternehmen-new-filter') {

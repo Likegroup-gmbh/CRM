@@ -19,6 +19,7 @@ export class VertraegeCreate {
     this._filtersInitialized = false; // Flag um doppelte Filter-Initialisierung zu verhindern
     this._isRendering = false; // Lock um Flackern während des Renderns zu verhindern
     this._isInitializing = false; // Flag um Change-Events während Initialisierung zu ignorieren
+    this.creatorAddressMissing = false; // Flag: Creator hat keine gültige Adresse
   }
 
   // Initialisiere Vertrags-Erstellung (oder Draft-Bearbeitung)
@@ -2540,14 +2541,31 @@ export class VertraegeCreate {
         const creator = this.creators.find(c => c.id === id);
         const preview = document.getElementById('creator-adresse');
         if (preview && creator) {
-          preview.innerHTML = `
-            <small class="address-text">
-              ${creator.lieferadresse_strasse || ''} ${creator.lieferadresse_hausnummer || ''}<br>
-              ${creator.lieferadresse_plz || ''} ${creator.lieferadresse_stadt || ''}<br>
-              ${creator.lieferadresse_land || 'Deutschland'}
-            </small>
-          `;
+          // Prüfen ob Creator eine gültige Adresse hat
+          if (this.hasValidCreatorAddress(creator)) {
+            this.creatorAddressMissing = false;
+            preview.innerHTML = `
+              <small class="address-text">
+                ${creator.lieferadresse_strasse || ''} ${creator.lieferadresse_hausnummer || ''}<br>
+                ${creator.lieferadresse_plz || ''} ${creator.lieferadresse_stadt || ''}<br>
+                ${creator.lieferadresse_land || 'Deutschland'}
+              </small>
+            `;
+          } else {
+            // Keine gültige Adresse - Warnung mit Link zum Creator-Profil
+            this.creatorAddressMissing = true;
+            preview.innerHTML = `
+              <div class="address-warning" style="color: #dc3545; background: #fff3f3; padding: 8px 12px; border-radius: 4px; border: 1px solid #dc3545; margin-top: 8px;">
+                <span style="margin-right: 6px;">⚠️</span>
+                <span>Keine Adresse hinterlegt! Vertragserstellung nicht möglich.</span><br>
+                <a href="/creator/${creator.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${creator.id}')" style="color: #0066cc; text-decoration: underline; margin-top: 4px; display: inline-block;">
+                  Zum Creator-Profil →
+                </a>
+              </div>
+            `;
+          }
         } else if (preview) {
+          this.creatorAddressMissing = false;
           preview.innerHTML = '';
         }
         
@@ -2675,13 +2693,29 @@ export class VertraegeCreate {
       const creator = this.creators.find(c => c.id === selectedCreator);
       const preview = document.getElementById('creator-adresse');
       if (preview && creator) {
-        preview.innerHTML = `
-          <small class="address-text">
-            ${creator.lieferadresse_strasse || ''} ${creator.lieferadresse_hausnummer || ''}<br>
-            ${creator.lieferadresse_plz || ''} ${creator.lieferadresse_stadt || ''}<br>
-            ${creator.lieferadresse_land || 'Deutschland'}
-          </small>
-        `;
+        // Prüfen ob Creator eine gültige Adresse hat
+        if (this.hasValidCreatorAddress(creator)) {
+          this.creatorAddressMissing = false;
+          preview.innerHTML = `
+            <small class="address-text">
+              ${creator.lieferadresse_strasse || ''} ${creator.lieferadresse_hausnummer || ''}<br>
+              ${creator.lieferadresse_plz || ''} ${creator.lieferadresse_stadt || ''}<br>
+              ${creator.lieferadresse_land || 'Deutschland'}
+            </small>
+          `;
+        } else {
+          // Keine gültige Adresse - Warnung mit Link zum Creator-Profil
+          this.creatorAddressMissing = true;
+          preview.innerHTML = `
+            <div class="address-warning" style="color: #dc3545; background: #fff3f3; padding: 8px 12px; border-radius: 4px; border: 1px solid #dc3545; margin-top: 8px;">
+              <span style="margin-right: 6px;">⚠️</span>
+              <span>Keine Adresse hinterlegt! Vertragserstellung nicht möglich.</span><br>
+              <a href="/creator/${creator.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${creator.id}')" style="color: #0066cc; text-decoration: underline; margin-top: 4px; display: inline-block;">
+                Zum Creator-Profil →
+              </a>
+            </div>
+          `;
+        }
       }
     }
     
@@ -2693,14 +2727,31 @@ export class VertraegeCreate {
       const creator = this.creators.find(c => c.id === id);
       const preview = document.getElementById('creator-adresse');
       if (preview && creator) {
-        preview.innerHTML = `
-          <small class="address-text">
-            ${creator.lieferadresse_strasse || ''} ${creator.lieferadresse_hausnummer || ''}<br>
-            ${creator.lieferadresse_plz || ''} ${creator.lieferadresse_stadt || ''}<br>
-            ${creator.lieferadresse_land || 'Deutschland'}
-          </small>
-        `;
+        // Prüfen ob Creator eine gültige Adresse hat
+        if (this.hasValidCreatorAddress(creator)) {
+          this.creatorAddressMissing = false;
+          preview.innerHTML = `
+            <small class="address-text">
+              ${creator.lieferadresse_strasse || ''} ${creator.lieferadresse_hausnummer || ''}<br>
+              ${creator.lieferadresse_plz || ''} ${creator.lieferadresse_stadt || ''}<br>
+              ${creator.lieferadresse_land || 'Deutschland'}
+            </small>
+          `;
+        } else {
+          // Keine gültige Adresse - Warnung mit Link zum Creator-Profil
+          this.creatorAddressMissing = true;
+          preview.innerHTML = `
+            <div class="address-warning" style="color: #dc3545; background: #fff3f3; padding: 8px 12px; border-radius: 4px; border: 1px solid #dc3545; margin-top: 8px;">
+              <span style="margin-right: 6px;">⚠️</span>
+              <span>Keine Adresse hinterlegt! Vertragserstellung nicht möglich.</span><br>
+              <a href="/creator/${creator.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${creator.id}')" style="color: #0066cc; text-decoration: underline; margin-top: 4px; display: inline-block;">
+                Zum Creator-Profil →
+              </a>
+            </div>
+          `;
+        }
       } else if (preview) {
+        this.creatorAddressMissing = false;
         preview.innerHTML = '';
       }
     });
@@ -2731,6 +2782,16 @@ export class VertraegeCreate {
     }
     
     // KEIN dispatchEvent - Adress-Vorschauen werden separat gesetzt
+  }
+
+  // Prüft ob ein Creator eine gültige Adresse hat
+  hasValidCreatorAddress(creator) {
+    if (!creator) return false;
+    // Mindestens Straße, PLZ und Stadt müssen vorhanden sein
+    const hasStrasse = creator.lieferadresse_strasse && creator.lieferadresse_strasse.trim() !== '';
+    const hasPlz = creator.lieferadresse_plz && creator.lieferadresse_plz.trim() !== '';
+    const hasStadt = creator.lieferadresse_stadt && creator.lieferadresse_stadt.trim() !== '';
+    return hasStrasse && hasPlz && hasStadt;
   }
 
   // Aktuellen Schritt validieren
@@ -2863,6 +2924,15 @@ export class VertraegeCreate {
 
     if (!this.validateCurrentStep()) return;
     this.saveCurrentStepData();
+
+    // Prüfen ob Creator ausgewählt ist und keine gültige Adresse hat
+    if (this.formData.creator_id) {
+      const creator = this.creators.find(c => c.id === this.formData.creator_id);
+      if (creator && !this.hasValidCreatorAddress(creator)) {
+        window.toastSystem?.show('Der ausgewählte Creator hat keine gültige Adresse hinterlegt. Bitte zuerst Adresse im Creator-Profil ergänzen.', 'error');
+        return;
+      }
+    }
 
     const submitBtn = document.getElementById('btn-submit');
     const submitAndNewBtn = document.getElementById('btn-submit-and-new');

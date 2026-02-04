@@ -840,6 +840,35 @@ button.is-submit-locked,
     margin-left: auto;
   }
 
+  /* ===== Global Search Input Component ===== */
+  .search-input-container {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+  }
+
+  .search-input-field {
+    width: 220px;
+    padding: var(--space-xs) var(--space-sm);
+    padding-right: 36px;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    background: var(--white);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .search-input-field:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
+  }
+
+  .search-input-field::placeholder {
+    color: var(--gray-400);
+  }
+
+  /* Legacy-Support für creator-search-* Klassen */
   .creator-search-container {
     display: flex;
     align-items: center;
@@ -849,6 +878,7 @@ button.is-submit-locked,
   .creator-search-input {
     width: 220px;
     padding: var(--space-xs) var(--space-sm);
+    padding-right: 36px;
     border: 1px solid var(--gray-300);
     border-radius: var(--radius-md);
     font-size: var(--text-sm);

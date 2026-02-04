@@ -6,6 +6,7 @@ import { BasePaginatedList } from '../../core/BasePaginatedList.js';
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { sortDropdown } from '../../core/components/SortDropdown.js';
+import { SearchInput } from '../../core/components/SearchInput.js';
 import { markeCreate } from './MarkeCreate.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
@@ -30,6 +31,23 @@ export class MarkeList extends BasePaginatedList {
     
     // Alias für Kompatibilität
     this.selectedMarken = this.selectedItems;
+    
+    // Erlaubte IDs (kein lokaler Cache - wird über MarkeService geladen)
+    this._lastAllowedMarkeIds = null;
+  }
+  
+  // ══════════════════════════════════════════════════════════════════════════
+  // ÜBERSCHRIEBENE METHODEN FÜR PERMISSION-HANDLING
+  // ══════════════════════════════════════════════════════════════════════════
+  
+  /**
+   * Setzt entity-spezifische Caches zurück bei Permission-Änderungen
+   * @override
+   */
+  resetEntityCaches() {
+    console.log('🔄 MARKENLISTE: Cache zurückgesetzt');
+    this._lastAllowedMarkeIds = null;
+    // MarkeService hat keinen Cache, also wird hier nur das Log ausgegeben
   }
   
   // ══════════════════════════════════════════════════════════════════════════
@@ -174,6 +192,10 @@ export class MarkeList extends BasePaginatedList {
       <div class="table-filter-wrapper">
         <div class="filter-bar">
           <div class="filter-left">
+            ${SearchInput.render('marke', { 
+              placeholder: 'Marke suchen...', 
+              currentValue: this.searchQuery 
+            })}
             <div id="sort-dropdown-container"></div>
             <div id="filter-dropdown-container"></div>
           </div>
@@ -244,6 +266,9 @@ export class MarkeList extends BasePaginatedList {
    * Zusätzliche Events binden
    */
   bindAdditionalEvents(signal) {
+    // Suchfeld Events über globale Komponente
+    SearchInput.bind('marke', (value) => this.handleSearch(value), signal);
+    
     // Neue Marke anlegen Button
     document.addEventListener('click', (e) => {
       if (e.target.id === 'btn-marke-new' || e.target.id === 'btn-marke-new-filter') {

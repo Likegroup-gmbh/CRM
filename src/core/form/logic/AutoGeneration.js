@@ -113,10 +113,10 @@ export class AutoGeneration {
         return;
       }
 
-      // 2. Bestehende Kampagnen für diesen Auftrag zählen
+      // 2. Bestehende Kampagnen für diesen Auftrag laden (inkl. Namen für Nummern-Extraktion)
       const { data: existingKampagnen, error: kampagnenError } = await window.supabase
         .from('kampagne')
-        .select('id')
+        .select('id, kampagnenname')
         .eq('auftrag_id', auftragId);
 
       if (kampagnenError) {
@@ -124,9 +124,22 @@ export class AutoGeneration {
         return;
       }
 
-      const kampagnenCount = existingKampagnen.length;
-      const currentKampagneNummer = kampagnenCount + 1;
+      // 3. Nächste verfügbare Nummer finden (um Dopplungen nach Löschen zu vermeiden)
+      let currentKampagneNummer = (existingKampagnen?.length || 0) + 1;
       const maxKampagnen = auftrag.kampagnenanzahl || 1;
+
+      // Höchste existierende Nummer aus Kampagnennamen extrahieren
+      // Pattern: "ABC - 2/5" oder "ABC - 2/5 - 01.02.2025"
+      const existingNumbers = (existingKampagnen || [])
+        .map(k => {
+          const match = k.kampagnenname?.match(/- (\d+)\/\d+/);
+          return match ? parseInt(match[1]) : 0;
+        })
+        .filter(n => n > 0);
+
+      if (existingNumbers.length > 0) {
+        currentKampagneNummer = Math.max(...existingNumbers) + 1;
+      }
 
       // 3. Deadline aus dem Formular holen
       const deadlineInput = form.querySelector('input[name="deadline"]');
@@ -189,10 +202,10 @@ export class AutoGeneration {
         return;
       }
 
-      // Bestehende Kooperationen für diese Kampagne zählen
+      // Bestehende Kooperationen für diese Kampagne laden (inkl. Namen für Nummern-Extraktion)
       const { data: existingKoops, error: koopError } = await window.supabase
         .from('kooperationen')
-        .select('id')
+        .select('id, name')
         .eq('kampagne_id', kampagneId);
 
       if (koopError) {
@@ -200,8 +213,22 @@ export class AutoGeneration {
         return;
       }
 
-      const currentKoopNummer = (existingKoops?.length || 0) + 1;
+      // Nächste verfügbare Nummer finden (um Dopplungen nach Löschen zu vermeiden)
+      let currentKoopNummer = (existingKoops?.length || 0) + 1;
       const maxKoops = kampagne.creatoranzahl || 1;
+
+      // Höchste existierende Nummer aus Kooperationsnamen extrahieren
+      // Pattern: "Max Mustermann 2/5"
+      const existingNumbers = (existingKoops || [])
+        .map(k => {
+          const match = k.name?.match(/(\d+)\/\d+$/);
+          return match ? parseInt(match[1]) : 0;
+        })
+        .filter(n => n > 0);
+
+      if (existingNumbers.length > 0) {
+        currentKoopNummer = Math.max(...existingNumbers) + 1;
+      }
 
       // Creator laden (für Namen)
       const { data: creator, error: creatorError } = await window.supabase

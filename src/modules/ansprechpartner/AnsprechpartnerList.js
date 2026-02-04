@@ -6,6 +6,7 @@ import { BasePaginatedList } from '../../core/BasePaginatedList.js';
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { sortDropdown } from '../../core/components/SortDropdown.js';
+import { SearchInput } from '../../core/components/SearchInput.js';
 import { ansprechpartnerCreate } from './AnsprechpartnerCreate.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
@@ -46,6 +47,19 @@ export class AnsprechpartnerList extends BasePaginatedList {
     this.selectedAnsprechpartner = this.selectedItems;
     
     // Erlaubte IDs für Nicht-Admins (gecacht)
+    this._allowedAnsprechpartnerIds = null;
+  }
+  
+  // ══════════════════════════════════════════════════════════════════════════
+  // ÜBERSCHRIEBENE METHODEN FÜR PERMISSION-HANDLING
+  // ══════════════════════════════════════════════════════════════════════════
+  
+  /**
+   * Setzt entity-spezifische Caches zurück bei Permission-Änderungen
+   * @override
+   */
+  resetEntityCaches() {
+    console.log('🔄 ANSPRECHPARTNERLISTE: Cache zurückgesetzt');
     this._allowedAnsprechpartnerIds = null;
   }
   
@@ -233,6 +247,10 @@ export class AnsprechpartnerList extends BasePaginatedList {
       <div class="table-filter-wrapper">
         <div class="filter-bar">
           <div class="filter-left">
+            ${SearchInput.render('ansprechpartner', { 
+              placeholder: 'Ansprechpartner suchen...', 
+              currentValue: this.searchQuery 
+            })}
             <div id="sort-dropdown-container"></div>
             <div id="filter-dropdown-container"></div>
           </div>
@@ -305,6 +323,9 @@ export class AnsprechpartnerList extends BasePaginatedList {
    * Zusätzliche Events binden
    */
   bindAdditionalEvents(signal) {
+    // Suchfeld Events über globale Komponente
+    SearchInput.bind('ansprechpartner', (value) => this.handleSearch(value), signal);
+    
     // Neuen Ansprechpartner anlegen Button
     document.addEventListener('click', (e) => {
       if (e.target.id === 'btn-ansprechpartner-new') {

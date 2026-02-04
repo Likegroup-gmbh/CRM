@@ -187,10 +187,97 @@ export class AuthService {
             
           console.log('✅ Realtime-Subscription für Benutzer-Updates aktiv');
         }
+        
+        // 5) Realtime-Subscription für Unternehmen-Zuordnungen (mitarbeiter_unternehmen)
+        if (!this._unternehmenSubscription) {
+          this._unternehmenSubscription = window.supabase
+            .channel(`unternehmen-zuordnung-${data.id}`)
+            .on('postgres_changes', {
+              event: '*', // INSERT, UPDATE, DELETE
+              schema: 'public',
+              table: 'mitarbeiter_unternehmen',
+              filter: `mitarbeiter_id=eq.${data.id}`
+            }, (payload) => {
+              console.log('🔄 REALTIME: Unternehmen-Zuordnung geändert', payload);
+              this._handlePermissionChange('unternehmen', payload);
+            })
+            .subscribe();
+            
+          console.log('✅ Realtime-Subscription für Unternehmen-Zuordnungen aktiv');
+        }
+        
+        // 6) Realtime-Subscription für Marken-Zuordnungen (marke_mitarbeiter)
+        if (!this._markenSubscription) {
+          this._markenSubscription = window.supabase
+            .channel(`marken-zuordnung-${data.id}`)
+            .on('postgres_changes', {
+              event: '*', // INSERT, UPDATE, DELETE
+              schema: 'public',
+              table: 'marke_mitarbeiter',
+              filter: `mitarbeiter_id=eq.${data.id}`
+            }, (payload) => {
+              console.log('🔄 REALTIME: Marken-Zuordnung geändert', payload);
+              this._handlePermissionChange('marke', payload);
+            })
+            .subscribe();
+            
+          console.log('✅ Realtime-Subscription für Marken-Zuordnungen aktiv');
+        }
+        
+        // 7) Realtime-Subscription für User-Permissions (user_permissions)
+        if (!this._permissionsSubscription) {
+          this._permissionsSubscription = window.supabase
+            .channel(`user-permissions-${data.id}`)
+            .on('postgres_changes', {
+              event: '*', // INSERT, UPDATE, DELETE
+              schema: 'public',
+              table: 'user_permissions',
+              filter: `user_id=eq.${data.id}`
+            }, async (payload) => {
+              console.log('🔄 REALTIME: User-Permissions geändert', payload);
+              
+              // Scoped Permissions neu laden
+              try {
+                const { data: scoped } = await window.supabase
+                  .from('user_permissions')
+                  .select('page_id, table_id, can_view, can_edit, can_delete, data_filters')
+                  .eq('user_id', data.id);
+                permissionSystem.setScopedPermissions(scoped || []);
+                console.log('✅ Scoped Permissions aktualisiert');
+              } catch (e) {
+                console.warn('⚠️ Scoped Permissions reload failed', e);
+              }
+              
+              this._handlePermissionChange('permissions', payload);
+            })
+            .subscribe();
+            
+          console.log('✅ Realtime-Subscription für User-Permissions aktiv');
+        }
       }
     } catch (error) {
       console.error('❌ Fehler beim Laden des Benutzers:', error);
     }
+  }
+  
+  /**
+   * Handler für Permission-Änderungen
+   * Dispatcht ein Event, damit Listen-Komponenten ihre Caches invalidieren können
+   */
+  _handlePermissionChange(type, payload) {
+    console.log(`🔔 Permission-Änderung erkannt: ${type}`, payload.eventType);
+    
+    // Event dispatchen für Listen-Komponenten
+    window.dispatchEvent(new CustomEvent('permissionsChanged', {
+      detail: {
+        type: type, // 'unternehmen', 'marke', oder 'permissions'
+        eventType: payload.eventType, // 'INSERT', 'UPDATE', 'DELETE'
+        payload: payload,
+        timestamp: Date.now()
+      }
+    }));
+    
+    console.log('🔔 permissionsChanged Event gesendet');
   }
 
   // Passwort-basierte Anmeldung
@@ -383,12 +470,25 @@ export class AuthService {
   // Abmeldung
   async signOut() {
     try {
-      // Cleanup Realtime-Subscription
-      if (this._userSubscription) {
-        await window.supabase?.removeChannel(this._userSubscription);
-        this._userSubscription = null;
-        console.log('✅ Realtime-Subscription entfernt');
+      // Cleanup alle Realtime-Subscriptions
+      const subscriptions = [
+        { name: 'user', ref: this._userSubscription },
+        { name: 'unternehmen', ref: this._unternehmenSubscription },
+        { name: 'marken', ref: this._markenSubscription },
+        { name: 'permissions', ref: this._permissionsSubscription }
+      ];
+      
+      for (const sub of subscriptions) {
+        if (sub.ref) {
+          await window.supabase?.removeChannel(sub.ref);
+          console.log(`✅ ${sub.name}-Subscription entfernt`);
+        }
       }
+      
+      this._userSubscription = null;
+      this._unternehmenSubscription = null;
+      this._markenSubscription = null;
+      this._permissionsSubscription = null;
       
       if (window.supabase) {
         await window.supabase.auth.signOut();

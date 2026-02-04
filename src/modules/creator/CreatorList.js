@@ -6,6 +6,7 @@ import { BasePaginatedList } from '../../core/BasePaginatedList.js';
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { sortDropdown } from '../../core/components/SortDropdown.js';
+import { SearchInput } from '../../core/components/SearchInput.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { creatorUtils } from './CreatorUtils.js';
@@ -102,13 +103,10 @@ export class CreatorList extends BasePaginatedList {
     
     const filterHtml = `<div class="filter-bar">
       <div class="filter-left">
-        <div class="creator-search-container">
-          <input type="text" 
-                 id="creator-search-input" 
-                 class="form-input creator-search-input" 
-                 placeholder="Creator suchen..."
-                 value="${this.searchQuery || ''}">
-        </div>
+        ${SearchInput.render('creator', { 
+          placeholder: 'Creator suchen...', 
+          currentValue: this.searchQuery 
+        })}
         <div id="sort-dropdown-container"></div>
         <div id="filter-dropdown-container"></div>
       </div>
@@ -191,11 +189,8 @@ export class CreatorList extends BasePaginatedList {
    * Zusätzliche Events binden (Suche, Creator-New Button)
    */
   bindAdditionalEvents(signal) {
-    // Suchfeld Event
-    const searchInput = document.getElementById('creator-search-input');
-    if (searchInput) {
-      searchInput.addEventListener('input', (e) => this.handleSearch(e.target.value), { signal });
-    }
+    // Suchfeld Events über globale Komponente
+    SearchInput.bind('creator', (value) => this.handleSearch(value), signal);
     
     // Neuen Creator anlegen Button
     document.addEventListener('click', (e) => {

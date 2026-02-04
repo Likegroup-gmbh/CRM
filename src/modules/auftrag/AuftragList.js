@@ -4,6 +4,7 @@
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
+import { SearchInput } from '../../core/components/SearchInput.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
@@ -47,6 +48,10 @@ export class AuftragList {
     this._auftragNewBound = false;
     this._globalEventsBound = false;
     this._isAdmin = null; // Gecachter Admin-Status
+    
+    // Suchfeld
+    this.searchQuery = '';
+    this._searchDebounceTimer = null;
     
     // Finanzdaten
     this.monthlyRevenue = { total: 0, auftraege: [] };
@@ -231,6 +236,12 @@ export class AuftragList {
         await this.initializeFilterBar();
         
         const filters = filterSystem.getFilters('auftrag');
+        
+        // Suchbegriff als name-Filter hinzufügen
+        if (this.searchQuery && this.searchQuery.trim().length > 0) {
+          filters.auftragsname = this.searchQuery.trim();
+        }
+        
         const { data: auftraege, count } = await this.loadAuftraegeWithPagination(
           filters,
           this.pagination.currentPage,
@@ -366,7 +377,13 @@ export class AuftragList {
       filterHtml = `
         <div class="table-filter-wrapper">
           <div class="filter-bar">
-            <div id="filter-dropdown-container"></div>
+            <div class="filter-left">
+              ${SearchInput.render('auftrag', { 
+                placeholder: 'Auftrag suchen...', 
+                currentValue: this.searchQuery 
+              })}
+              <div id="filter-dropdown-container"></div>
+            </div>
           </div>
           <div class="table-actions">
             ${this.isAdmin ? '<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>' : ''}
@@ -745,10 +762,28 @@ export class AuftragList {
     this.loadAndRender();
   }
 
+  // Suche Handler (debounced)
+  handleSearch(query) {
+    if (this._searchDebounceTimer) {
+      clearTimeout(this._searchDebounceTimer);
+    }
+    
+    this._searchDebounceTimer = setTimeout(() => {
+      this.searchQuery = query.trim();
+      this.pagination.reset();
+      this.loadAndRender();
+    }, 300);
+  }
+
   // Binde Events
   bindEvents() {
     // Finanzen Toggle Event
     this.bindFinancialsToggle();
+
+    // Suchfeld Events über globale Komponente (nur in List-View)
+    if (this.currentView === 'list') {
+      SearchInput.bind('auftrag', (value) => this.handleSearch(value));
+    }
 
     // Drag-to-Scroll für Tabelle initialisieren (nur in List-View)
     if (this.currentView === 'list') {

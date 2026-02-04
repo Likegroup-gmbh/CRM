@@ -187,6 +187,50 @@ export class BasePaginatedList {
     // Standard-Implementierung: nichts tun
   }
   
+  /**
+   * Handler für Permission-Änderungen (z.B. Zuordnungen geändert)
+   * Wird automatisch aufgerufen wenn permissionsChanged Event gefeuert wird
+   * Kann überschrieben werden um spezifische Caches zu invalidieren
+   * @param {Object} detail - Event-Details mit type, eventType, payload
+   */
+  handlePermissionsChanged(detail) {
+    console.log(`🔄 ${this.entityType.toUpperCase()}LIST: Permission-Änderung verarbeiten`, detail.type);
+    
+    // 1) Permission-Cache invalidieren
+    this.invalidatePermissionCache();
+    
+    // 2) Entity-spezifische Caches zurücksetzen (kann in Unterklasse überschrieben werden)
+    this.resetEntityCaches();
+    
+    // 3) Tabelle komplett verstecken um Flackern zu verhindern
+    // Verwendet spezielle Klasse die Daten vollständig ausblendet (nicht nur dimmt)
+    const tbody = document.querySelector(this.options.tbodySelector);
+    if (tbody) {
+      tbody.classList.add('table-permission-loading');
+      tbody.classList.remove('table-loading-overlay'); // Falls gesetzt
+    }
+    
+    // 4) Daten neu laden (leicht verzögert um UI-Update zu ermöglichen)
+    setTimeout(async () => {
+      await this.loadData();
+      
+      // 5) Nach dem Laden: Permission-Loading entfernen
+      const tbodyAfter = document.querySelector(this.options.tbodySelector);
+      if (tbodyAfter) {
+        tbodyAfter.classList.remove('table-permission-loading');
+      }
+    }, 50);
+  }
+  
+  /**
+   * Setzt entity-spezifische Caches zurück
+   * Kann in Unterklassen überschrieben werden für zusätzliche Cache-Invalidierung
+   */
+  resetEntityCaches() {
+    // Standard-Implementierung: nichts tun
+    // Unterklassen können hier _allowedUnternehmenIds etc. zurücksetzen
+  }
+  
   // ══════════════════════════════════════════════════════════════════════════
   // STANDARD-IMPLEMENTIERUNGEN
   // ══════════════════════════════════════════════════════════════════════════
@@ -553,6 +597,12 @@ export class BasePaginatedList {
       if (e.detail.entity === this.entityType) {
         this.loadDataDebounced(100);
       }
+    }, { signal });
+    
+    // Permissions Changed Event (von AuthService bei Zuordnungs-Änderungen)
+    window.addEventListener('permissionsChanged', (e) => {
+      console.log(`🔔 ${this.entityType.toUpperCase()}LIST: permissionsChanged Event empfangen`, e.detail);
+      this.handlePermissionsChanged(e.detail);
     }, { signal });
     
     // Filter-Tag X-Buttons

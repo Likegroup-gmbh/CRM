@@ -2045,9 +2045,25 @@ export class DataService {
       // Stelle sicher, dass der Wert als String behandelt wird
       const stringValue = typeof value === 'object' ? '' : String(value);
       
-      // Spezielle Behandlung für Name-Filter (sucht in vorname UND nachname)
+      // Spezielle Behandlung für Name-Filter (Entity-spezifisch)
       if (field === 'name' && value) {
-        query = query.or(`vorname.ilike.%${value}%,nachname.ilike.%${value}%`);
+        switch (entityType) {
+          case 'unternehmen':
+            query = query.ilike('firmenname', `%${value}%`);
+            break;
+          case 'marke':
+            query = query.ilike('markenname', `%${value}%`);
+            break;
+          case 'auftrag':
+            query = query.ilike('auftragsname', `%${value}%`);
+            break;
+          case 'ansprechpartner':
+          case 'creator':
+          default:
+            // Suche in vorname UND nachname
+            query = query.or(`vorname.ilike.%${value}%,nachname.ilike.%${value}%`);
+            break;
+        }
         continue;
       }
       

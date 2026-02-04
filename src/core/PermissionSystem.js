@@ -66,6 +66,7 @@ export class PermissionSystem {
         dashboard: { can_view: true, can_edit: true, can_delete: true },
         tasks: { can_view: true, can_edit: true, can_delete: true },
         strategie: { can_view: true, can_edit: true, can_delete: true },
+        sourcing: { can_view: true, can_edit: true, can_delete: true },
         feedback: { can_view: true, can_edit: true, can_delete: true },
         mitarbeiter: { can_view: true, can_edit: true, can_delete: true },
         'kunden-admin': { can_view: true, can_edit: true, can_delete: true }
@@ -87,6 +88,7 @@ export class PermissionSystem {
         dashboard: { can_view: true, can_edit: false, can_delete: false },
         tasks: { can_view: true, can_edit: false, can_delete: false },
         strategie: { can_view: true, can_edit: true, can_delete: true },
+        sourcing: { can_view: true, can_edit: true, can_delete: true },
         feedback: { can_view: true, can_edit: true, can_delete: true },
         mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
         'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
@@ -157,6 +159,7 @@ export class PermissionSystem {
       ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
       dashboard: { can_view: true, can_edit: false, can_delete: false },
       strategie: { can_view: false, can_edit: false, can_delete: false },
+      sourcing: { can_view: false, can_edit: false, can_delete: false },
       feedback: { can_view: true, can_edit: false, can_delete: false },
       mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
       'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
@@ -179,6 +182,7 @@ export class PermissionSystem {
       dashboard: { can_view: true, can_edit: false, can_delete: false },
       tasks: { can_view: false, can_edit: false, can_delete: false },
       strategie: { can_view: false, can_edit: false, can_delete: false },
+      sourcing: { can_view: false, can_edit: false, can_delete: false },
       feedback: { can_view: false, can_edit: false, can_delete: false },
       mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
       'kunden-admin': { can_view: false, can_edit: false, can_delete: false }

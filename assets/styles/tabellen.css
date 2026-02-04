@@ -1583,6 +1583,18 @@ td.col-produkt .stacked-video-input,
   transition: opacity 150ms ease-out;
 }
 
+/* === PERMISSION-RELOAD LOADING === */
+/* Versteckt alte Daten komplett bei Permission-Änderungen um Flackern zu verhindern */
+.data-table tbody.table-permission-loading {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms ease-out;
+}
+
+.data-table tbody.table-permission-loading tr {
+  visibility: hidden;
+}
+
 /* Pagination-Button Loading-Spinner (optional) */
 .pagination-btn.pagination-loading {
   position: relative;

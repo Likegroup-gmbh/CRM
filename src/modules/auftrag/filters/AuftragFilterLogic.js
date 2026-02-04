@@ -20,9 +20,9 @@ export class AuftragFilterLogic {
 
       switch (key) {
         case 'auftragsname':
-          // Exakte Übereinstimmung für Auftragsnamen (aus Dropdown)
+          // Text-Suche für Auftragsname (aus Suchfeld)
           processedFilters[key] = {
-            type: 'equals',
+            type: 'text_search',
             value: value
           };
           break;

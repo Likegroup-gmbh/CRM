@@ -18,10 +18,18 @@ export class MarkeFilterLogic {
       if (!value) continue;
 
       switch (key) {
+        case 'name':
+          // Text-Suche für Markenname (aus Suchfeld)
+          processedFilters['markenname'] = {
+            type: 'text_search',
+            value: value
+          };
+          break;
+          
         case 'markenname':
-          // Exakte Übereinstimmung für Markennamen (aus Dropdown)
+          // Text-Suche für Markennamen
           processedFilters[key] = {
-            type: 'equals',
+            type: 'text_search',
             value: value
           };
           break;
