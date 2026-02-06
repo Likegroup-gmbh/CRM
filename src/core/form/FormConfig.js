@@ -122,7 +122,8 @@ export class FormConfig {
               { value: 'divers', label: 'Divers' }
             ]
           },
-          { name: 'alter_jahre', label: 'Alter', type: 'number', required: false },
+          { name: 'alter_min', label: 'Alter von', type: 'number', required: false, row: 'alter', colSize: 'grow' },
+          { name: 'alter_max', label: 'Alter bis', type: 'number', required: false, row: 'alter', colSize: 'grow' },
           // Haustier Toggle + Beschreibung
           { name: 'hat_haustier', label: 'Hat Haustier', type: 'toggle', required: false },
           { 
@@ -574,7 +575,16 @@ export class FormConfig {
           // Überwiesen + Uploader ohne Section
           { name: 'ueberwiesen', label: 'Überwiesen', type: 'toggle', required: false },
           { name: 'ueberwiesen_am', label: 'Überwiesen am', type: 'date', required: false, placeholder: 'Datum wann Zahlung überwiesen wurde', dependsOn: 'ueberwiesen' },
-          { name: 'auftragsbestaetigung_file', label: 'Auftragsbestätigung', type: 'custom', customType: 'uploader', accept: 'application/pdf,image/*', multiple: false, required: false, maxFileSize: 10 * 1024 * 1024 }
+          { name: 'auftragsbestaetigung_file', label: 'Auftragsbestätigung', type: 'custom', customType: 'uploader', accept: 'application/pdf,image/*', multiple: false, required: false, maxFileSize: 10 * 1024 * 1024 },
+          // Toggle für Auftragsdetails Split-View
+          { 
+            name: 'create_auftragsdetails', 
+            label: 'Auftragsdetails erstellen', 
+            type: 'toggle', 
+            required: false,
+            section: 'auftragsdetails_toggle',
+            helpText: 'Aktivieren um direkt Auftragsdetails zu erfassen'
+          }
         ]
       },
       kooperation: {

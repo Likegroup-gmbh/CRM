@@ -213,7 +213,7 @@ export class FilterDropdown {
 
       // Versuche Label aus Cache zu holen, sonst lade es
       let displayValue;
-      const cacheKey = `${filterId}:${filterValue}`;
+      const cacheKey = `${filterId}:${typeof filterValue === 'object' ? JSON.stringify(filterValue) : filterValue}`;
       
       if (instance.labelCache?.has(cacheKey)) {
         displayValue = instance.labelCache.get(cacheKey);
@@ -262,7 +262,8 @@ export class FilterDropdown {
       if (!filterConfig) return;
 
       // Versuche Label aus Cache zu holen
-      const cachedLabel = instance.labelCache?.get(`${filterId}:${filterValue}`);
+      const cacheKey = `${filterId}:${typeof filterValue === 'object' ? JSON.stringify(filterValue) : filterValue}`;
+      const cachedLabel = instance.labelCache?.get(cacheKey);
       const displayValue = cachedLabel || this.formatFilterValueSync(filterConfig, filterValue);
       
       chips.push(`
@@ -1084,8 +1085,9 @@ export class FilterDropdown {
         break;
 
       case 'numberRange':
-        const numMin = currentValue?.min ?? filterConfig.min ?? '';
-        const numMax = currentValue?.max ?? filterConfig.max ?? '';
+        // Nur den aktuellen Filter-Wert anzeigen, NICHT die Config-Defaults
+        const numMin = currentValue?.min ?? '';
+        const numMax = currentValue?.max ?? '';
         inputHtml = `
           <div class="filter-range-inputs">
             <label class="filter-range-label">Min:</label>
@@ -1095,6 +1097,7 @@ export class FilterDropdown {
                    data-range="min"
                    min="${filterConfig.min || 0}"
                    step="${filterConfig.step || 1}"
+                   placeholder="${filterConfig.min || 0}"
                    value="${numMin}">
             <label class="filter-range-label">Max:</label>
             <input type="number" 
@@ -1103,6 +1106,7 @@ export class FilterDropdown {
                    data-range="max"
                    max="${filterConfig.max || ''}"
                    step="${filterConfig.step || 1}"
+                   placeholder="${filterConfig.max || ''}"
                    value="${numMax}">
           </div>
         `;

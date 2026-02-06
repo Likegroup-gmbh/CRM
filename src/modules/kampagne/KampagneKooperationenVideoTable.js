@@ -335,17 +335,18 @@ export class KampagneKooperationenVideoTable {
 
       // ========================================
       // STUFE 1: Kooperationen laden (ohne Creator-Join)
+      // Kunden: einkaufspreis_* nicht laden (Datenschutz)
       // ========================================
       this._startPerformanceTracking('Query: kooperationen');
-      
+      const rolle = window.currentUser?.rolle?.toLowerCase();
+      const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+      const koopSelect = isKunde
+        ? `id, name, status, content_art, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, skript_deadline, content_deadline, created_at, creator_id, kampagne:kampagne_id (id, kampagnenname)`
+        : `id, name, status, einkaufspreis_netto, einkaufspreis_gesamt, content_art, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, skript_deadline, content_deadline, created_at, creator_id, kampagne:kampagne_id (id, kampagnenname)`;
+
       const kooperationenResult = await window.supabase
         .from('kooperationen')
-        .select(`
-          id, name, status, einkaufspreis_netto, einkaufspreis_gesamt, content_art,
-          posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ,
-          videoanzahl, skript_deadline, content_deadline, created_at, creator_id,
-          kampagne:kampagne_id (id, kampagnenname)
-        `)
+        .select(koopSelect)
         .eq('kampagne_id', this.kampagneId)
         .order('created_at', { ascending: false });
 
@@ -1058,7 +1059,7 @@ export class KampagneKooperationenVideoTable {
               placeholder="TT.MM.JJJJ"/>
           `)}
         </td>
-        <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-kosten') ? 'style="display:none;"' : ''}>${formatCurrency(koop.einkaufspreis_gesamt)}</td>
+        <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-kosten') ? 'style="display:none;"' : ''}>${this.isColumnVisibleForCustomer('col-kosten') ? formatCurrency(koop.einkaufspreis_gesamt) : '—'}</td>
         <td class="grid-cell col-actions" ${!this.isColumnVisibleForCustomer('col-actions') ? 'style="display:none;"' : ''}>
           <div class="actions-dropdown-container" data-entity-type="kooperation">
             <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">

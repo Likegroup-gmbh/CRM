@@ -80,7 +80,7 @@ export class CreatorList extends BasePaginatedList {
         <td>${this.renderLocationTag(creator.lieferadresse_land, 'land')}</td>
         <td>${creator.mail ? `<a href="mailto:${sanitize(creator.mail)}">${sanitize(creator.mail)}</a>` : '-'}</td>
         <td>${sanitize(creator.telefonnummer || '-')}</td>
-        <td>${creator.alter_jahre || '-'}</td>
+        <td>${this.formatAgeRange(creator.alter_min, creator.alter_max, creator.alter_jahre)}</td>
         <td>${this.renderCreatorTypeTags(creator.creator_types)}</td>
         <td>${this.renderBrancheTags(creator.branchen)}</td>
         <td>${formatLink(creator.instagram)}</td>
@@ -255,6 +255,18 @@ export class CreatorList extends BasePaginatedList {
     if (!value || (typeof value === 'string' && !value.trim())) return '-';
     const sanitized = this.sanitize(value);
     return `<span class="tag tag--${type}">${sanitized}</span>`;
+  }
+
+  formatAgeRange(min, max, legacy) {
+    // Fallback auf altes alter_jahre Feld
+    if (!min && !max && legacy) {
+      return `${legacy}`;
+    }
+    if (!min && !max) return '-';
+    if (min && max && min !== max) {
+      return `${min}-${max}`;
+    }
+    return `${min || max}`;
   }
   
   // Prüfe ob aktive Filter vorhanden

@@ -31,7 +31,9 @@ export class DataService {
           rechnungsadresse_land: 'string',
           notiz: 'string',
           geschlecht: 'string',
-          alter_jahre: 'number',
+          alter_jahre: 'number', // Legacy, wird durch alter_min/alter_max ersetzt
+          alter_min: 'number',
+          alter_max: 'number',
           hat_haustier: 'boolean',
           haustier_beschreibung: 'string'
         },
@@ -2328,7 +2330,7 @@ export class DataService {
       // Spezielle Select-Klausel für Creator (benötigte Felder für Listen-Ansicht)
       if (entityType === 'creator') {
         selectClause = `
-          id,vorname,nachname,mail,telefonnummer,alter_jahre,
+          id,vorname,nachname,mail,telefonnummer,alter_jahre,alter_min,alter_max,
           instagram,instagram_follower,tiktok,tiktok_follower,
           lieferadresse_stadt,lieferadresse_land,
           creator_creator_type(creator_type_id(id,name)),
@@ -2427,7 +2429,19 @@ export class DataService {
       delete filtersToApply._sortBy;
       delete filtersToApply._sortOrder;
       delete filtersToApply._allowedIds; // wurde bereits oben behandelt
-      query = this.applyFilters(query, filtersToApply, entityConfig.fields, entityType);
+      
+      // Filter anwenden (priorisiere FilterLogic wenn vorhanden)
+      if (window.filterSystem) {
+        const logic = await window.filterSystem.loadEntityLogic(entityType);
+        if (logic && logic.buildSupabaseQuery) {
+          console.log(`🔧 Nutze spezifische FilterLogic für ${entityType} (Pagination)`);
+          query = logic.buildSupabaseQuery(query, filtersToApply);
+        } else {
+          query = this.applyFilters(query, filtersToApply, entityConfig.fields, entityType);
+        }
+      } else {
+        query = this.applyFilters(query, filtersToApply, entityConfig.fields, entityType);
+      }
 
       // Sortierung anwenden (Filter-Override hat Vorrang)
       const sortBy = filters._sortBy || entityConfig.sortBy;

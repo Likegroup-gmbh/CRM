@@ -44,6 +44,17 @@ export class CreatorFilterLogic {
           }
           break;
 
+        case 'alter':
+          // Spezielle Alters-Range Filter (mappt auf alter_min/alter_max)
+          if (typeof value === 'object') {
+            processedFilters[key] = {
+              type: 'age_range',
+              min: value.min != null && value.min !== '' ? parseInt(value.min) : null,
+              max: value.max != null && value.max !== '' ? parseInt(value.max) : null
+            };
+          }
+          break;
+
         case 'has_email':
           // Virtual Filter: Email vorhanden
           processedFilters['mail'] = {
@@ -133,6 +144,16 @@ export class CreatorFilterLogic {
       }
     }
 
+    // Alter Validierung
+    if (filters.alter && typeof filters.alter === 'object') {
+      if (filters.alter.min && filters.alter.max && filters.alter.min > filters.alter.max) {
+        errors.push('Alter: Minimum darf nicht größer als Maximum sein');
+      }
+      if (filters.alter.min && filters.alter.min < 0) {
+        errors.push('Alter: Minimum darf nicht negativ sein');
+      }
+    }
+
     // Datum-Range Validierung
     if (filters.created_at && typeof filters.created_at === 'object') {
       if (!BASE_VALIDATORS.dateRange(filters.created_at)) {
@@ -176,6 +197,24 @@ export class CreatorFilterLogic {
 
         case 'number_min':
           query = query.gte(field, filter.value);
+          break;
+
+        case 'age_range':
+          // Alters-Filter: Prüfe ob Creator im Altersbereich liegt
+          // Nutzt alter_min/alter_max mit Fallback auf alter_jahre (Legacy)
+          if (filter.min !== null && filter.max !== null) {
+            // Beide angegeben: Creator-Range muss überlappen
+            // alter_min >= filterMin ODER alter_jahre >= filterMin
+            // UND alter_max <= filterMax ODER alter_min <= filterMax (wenn kein alter_max) ODER alter_jahre <= filterMax
+            query = query.or(`alter_min.gte.${filter.min},alter_jahre.gte.${filter.min}`);
+            query = query.or(`alter_max.lte.${filter.max},alter_min.lte.${filter.max},alter_jahre.lte.${filter.max}`);
+          } else if (filter.min !== null) {
+            // Nur min: Creator muss mindestens so alt sein
+            query = query.or(`alter_min.gte.${filter.min},alter_jahre.gte.${filter.min}`);
+          } else if (filter.max !== null) {
+            // Nur max: Creator darf höchstens so alt sein
+            query = query.or(`alter_max.lte.${filter.max},alter_min.lte.${filter.max},alter_jahre.lte.${filter.max}`);
+          }
           break;
 
         case 'not_null':

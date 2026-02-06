@@ -222,6 +222,15 @@ export class StrategieList extends BasePaginatedList {
    * Zusätzliche Events binden
    */
   bindAdditionalEvents(signal) {
+    // Kampagne umbenannt: Cache invalidieren, damit Kampagnenname in Strategie-Liste aktuell ist
+    window.addEventListener('entityUpdated', (e) => {
+      if (e.detail.entity === 'kampagne') {
+        this.strategien = [];
+        this._forceReload = true;
+        this.loadDataDebounced(100);
+      }
+    }, { signal });
+
     // Create Strategie Button
     document.addEventListener('click', (e) => {
       if (e.target.closest('[data-action="create-strategie"]')) {

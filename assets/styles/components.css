@@ -897,10 +897,10 @@ button.is-submit-locked,
   }
 
 .form-page {
-  width: 50%;
+  width: 100%;
   border-right: 1px solid var(--gray-100);
   padding: var(--space-xxl);
-  height: 100%;
+  
 }
 
   /* ===== Table ===== */
@@ -3872,6 +3872,20 @@ h3.section-title,
 
 #auftrag-table-container::-webkit-scrollbar-thumb:hover {
   background: var(--gray-400);
+}
+
+/* ============================================
+   Auftrag Zeilen-Farbkodierung (Zahlungsstatus)
+   ============================================ */
+
+/* Rechnung gestellt → Orange-Indikator (links) */
+.data-table tr.auftrag-row--rechnung-gestellt {
+  border-left: 4px solid #f59e0b;
+}
+
+/* Überwiesen → Grüner Indikator (links) */
+.data-table tr.auftrag-row--ueberwiesen {
+  border-left: 4px solid var(--color-success);
 }
 
 
@@ -13405,4 +13419,146 @@ table.vertraege-unternehmen-table td:last-child {
   color: var(--gray-500);
   font-weight: 500;
   flex-shrink: 0;
+}
+
+/* =====================================================
+   FORM SPLIT-VIEW (Auftrag + Auftragsdetails)
+   ===================================================== */
+.form-split-container {
+  display: flex;
+  
+  align-items: flex-start;
+}
+
+.form-split-left {
+  flex: 1;
+  max-width: 720px;
+  min-width: 0;
+}
+
+.form-split-right {
+  flex: 1;
+  max-width: 720px;
+  min-width: 0;
+  border-left: 1px solid var(--gray-200);
+  padding: var(--space-xxl);
+  animation: fadeInRight 0.3s ease-out;
+}
+
+.form-split-right.hidden {
+  display: none;
+}
+
+.form-split-header {
+  margin-bottom: var(--space-lg);
+}
+
+.form-split-header h2 {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  color: var(--gray-900);
+  margin: 0 0 var(--space-xs) 0;
+}
+
+.form-split-header .form-hint {
+  margin: 0;
+  color: var(--gray-500);
+}
+
+/* Embedded Auftragsdetails Styles */
+.auftragsdetails-embedded {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+/* Synchronisierte Info-Box */
+.auftragsdetails-sync-info {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.sync-info-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.sync-info-label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--gray-600);
+  min-width: 120px;
+}
+
+.sync-info-value {
+  font-size: var(--text-sm);
+  color: var(--gray-900);
+  font-weight: 500;
+}
+
+.sync-info-input {
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  background: var(--gray-100);
+  font-size: var(--text-sm);
+  color: var(--gray-700);
+  width: 100px;
+}
+
+.sync-info-input:read-only {
+  cursor: not-allowed;
+}
+
+/* Aktivieren Button im Embedded Form */
+.auftragsdetails-embedded .kampagnenart-activate-actions {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: var(--space-xs);
+}
+
+/* Budget Sections im Embedded Form */
+#auftragsdetails-budget-sections {
+  margin-top: var(--space-md);
+}
+
+#auftragsdetails-budget-sections .details-section {
+  margin-bottom: var(--space-lg);
+}
+
+/* Animation für Split-View Einblenden */
+@keyframes fadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Responsive: Untereinander auf kleinen Bildschirmen */
+@media (max-width: 1400px) {
+  .form-split-container {
+    flex-direction: column;
+  }
+  
+  .form-split-left,
+  .form-split-right {
+    max-width: 100%;
+  }
+  
+  .form-split-right {
+    border-left: none;
+    border-top: 1px solid var(--gray-200);
+    padding-left: 0;
+    padding: var(--space-xxl);
+  }
 }

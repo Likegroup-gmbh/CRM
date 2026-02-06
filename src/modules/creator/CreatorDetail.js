@@ -765,7 +765,7 @@ export class CreatorDetail extends PersonDetailBase {
             </div>
             <div class="detail-item">
               <label>Alter:</label>
-              <span>${this.creator.alter_jahre ? `${this.creator.alter_jahre} Jahre` : '-'}</span>
+              <span>${this.formatAgeRange(this.creator.alter_min, this.creator.alter_max, this.creator.alter_jahre)}</span>
             </div>
             ${this.creator.hat_haustier ? `
             <div class="detail-item">
@@ -1118,6 +1118,18 @@ export class CreatorDetail extends PersonDetailBase {
       return (num / 1000).toFixed(1) + 'K';
     }
     return num.toString();
+  }
+
+  formatAgeRange(min, max, legacy) {
+    // Fallback auf altes alter_jahre Feld
+    if (!min && !max && legacy) {
+      return `${legacy} Jahre`;
+    }
+    if (!min && !max) return '-';
+    if (min && max && min !== max) {
+      return `${min}-${max} Jahre`;
+    }
+    return `${min || max} Jahre`;
   }
 
   bindEvents() {

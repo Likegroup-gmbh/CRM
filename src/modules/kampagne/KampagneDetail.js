@@ -181,7 +181,9 @@ export class KampagneDetail {
   // Kooperationen-Tab rendern mit Budget-Progress
   renderKooperationen() {
     const formatCurrency = (v) => v ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v) : '-';
-    // Für Progress das Creator-Budget verwenden (nicht Gesamtbudget)
+    const rolle = window.currentUser?.rolle?.toLowerCase();
+    const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+    // Für Progress das Creator-Budget verwenden (nicht Gesamtbudget) – nur für Nicht-Kunden (Einkaufspreis)
     const totalBudget = this.kampagneData?.auftrag?.creator_budget || 0;
     const used = this.koopBudgetSum;
     const percent = totalBudget > 0 ? Math.min(100, Math.round((used / totalBudget) * 100)) : 0;
@@ -191,7 +193,14 @@ export class KampagneDetail {
     const remainingVideos = Math.max(0, totalVideos - usedVideos);
     const percentVideos = totalVideos > 0 ? Math.min(100, Math.round((usedVideos / totalVideos) * 100)) : 0;
 
-    const progressHtml = `
+    const progressHtml = isKunde ? `
+      <div class="budget-progress" style="margin-top:0;">
+        <div class="budget-header">
+          <span>Videos: ${usedVideos} von ${totalVideos} | Rest: ${remainingVideos}</span>
+          <span>${percentVideos}%</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${percentVideos}%"></div></div>
+      </div>` : `
       <div class="budget-progress">
         <div class="budget-header">
           <span>Aufgebraucht: ${formatCurrency(used)} von ${formatCurrency(totalBudget)}</span>
@@ -217,13 +226,14 @@ export class KampagneDetail {
       `;
     }
 
+    const priceLabel = isKunde ? 'Verkaufspreis' : 'Gesamtkosten';
     const rows = this.kooperationen.map(k => `
       <tr>
         <td><a href="/kooperation/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kooperation/${k.id}')">${window.validatorSystem.sanitizeHtml(k.name || '—')}</a></td>
         <td>${window.validatorSystem.sanitizeHtml(k.creator ? `${k.creator.vorname} ${k.creator.nachname}` : 'Unbekannt')}</td>
         <td>${k.videoanzahl || 0}</td>
         <td><span class="status-badge status-${(k.status || 'unknown').toLowerCase()}">${k.status || '-'}</span></td>
-        <td>${formatCurrency(k.einkaufspreis_gesamt)}</td>
+        <td>${formatCurrency(isKunde ? k.verkaufspreis_gesamt : k.einkaufspreis_gesamt)}</td>
       </tr>
     `).join('');
 
@@ -237,7 +247,7 @@ export class KampagneDetail {
               <th>Creator</th>
               <th>Videos</th>
               <th>Status</th>
-              <th>Gesamtkosten</th>
+              <th>${priceLabel}</th>
             </tr>
           </thead>
           <tbody>
@@ -423,15 +433,19 @@ export class KampagneDetail {
           .eq('kampagne_id', this.kampagneId),
         
         // 4. Kooperationen mit Creator (für Tab-Count & koops-videos)
-        // Creator-Daten direkt joinen statt nachzuladen!
-        window.supabase
-          .from('kooperationen')
-          .select(`
-            id, name, status, einkaufspreis_gesamt, verkaufspreis_gesamt, videoanzahl,
-            creator:creator_id(id, vorname, nachname)
-          `)
-          .eq('kampagne_id', this.kampagneId)
-          .order('created_at', { ascending: false })
+        // Kunden: einkaufspreis_* nicht laden (Datenschutz)
+        (() => {
+          const rolle = window.currentUser?.rolle?.toLowerCase();
+          const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+          const koopFields = isKunde
+            ? 'id, name, status, verkaufspreis_gesamt, videoanzahl'
+            : 'id, name, status, einkaufspreis_gesamt, verkaufspreis_gesamt, videoanzahl';
+          return window.supabase
+            .from('kooperationen')
+            .select(`${koopFields}, creator:creator_id(id, vorname, nachname)`)
+            .eq('kampagne_id', this.kampagneId)
+            .order('created_at', { ascending: false });
+        })()
       ]);
       
       // Fehler-Handling

@@ -56,6 +56,16 @@ export const CREATOR_FILTERS = [
     priority: 4
   }),
 
+  // Alter Range (filtert auf alter_min und alter_max)
+  createFilterConfig('numberRange', {
+    id: 'alter',
+    label: 'Alter',
+    min: 0,
+    max: 100,
+    step: 1,
+    priority: 5
+  }),
+
   // Instagram Follower Range
   createFilterConfig('numberRange', {
     id: 'instagram_follower',
@@ -157,7 +167,7 @@ export const CREATOR_FILTER_GROUPS = [
   {
     id: 'basic',
     label: 'Grundlagen',
-    filters: ['name', 'creator_type_id', 'sprache_id', 'branche_id'],
+    filters: ['name', 'creator_type_id', 'sprache_id', 'branche_id', 'alter'],
     expanded: true
   },
   {

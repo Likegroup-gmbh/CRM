@@ -3,6 +3,7 @@ import '../assets/styles/variables.css';
 import '../assets/styles/base.css';
 import '../assets/styles/layout.css';
 import '../assets/styles/components.css';
+import '../assets/styles/global-search.css';
 import '../assets/styles/dashboard.css';
 import '../assets/styles/addresses.css';
 import '../assets/styles/tabellen.css';
@@ -82,6 +83,7 @@ import { videoList } from './modules/video/VideoList.js';
 import { vertraegeList } from './modules/vertrag/VertraegeList.js';
 import { vertraegeCreate } from './modules/vertrag/VertraegeCreate.js';
 import { kickOffPage } from './modules/marke/KickOffPage.js';
+import { globalSearch } from './core/components/GlobalSearch.js';
 // Zentrales Bestätigungs-Modal (side-effect Import, hängt window.confirmationModal an)
 import './core/ConfirmationModal.js';
 // Duplicate Checker für Creator, Marke, Unternehmen
@@ -286,6 +288,13 @@ class ModuleRegistry {
     
     // Spezielle Behandlung für Kampagnen-Details (aber nicht für 'new')
     if (id && segment === 'kampagne' && id !== 'new') {
+      // Kunden immer auf Kunden-Kampagnen-Detail umleiten (kein Zugriff auf Admin-Ansicht inkl. Einkaufspreise)
+      const rolle = window.currentUser?.rolle?.toLowerCase();
+      if (rolle === 'kunde' || rolle === 'kunde_editor') {
+        const kundenRoute = `/kunden-kampagne/${id}`;
+        console.log(`🎯 Kunde greift auf /kampagne/${id} zu → Redirect zu ${kundenRoute}`);
+        return this.navigateTo(kundenRoute);
+      }
       moduleKey = 'kampagne-detail';
       module = this.modules.get(moduleKey);
       console.log(`🎯 Kampagnen-Details erkannt, verwende Modul: ${moduleKey}`);
@@ -621,6 +630,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // ActionRegistry mit ModuleRegistry verbinden
     actionRegistry.setModuleRegistry(moduleRegistry);
+    
+    // Globale Suche (nur für Mitarbeiter/Admin) – vor Navigation, damit Sidebar-Button sichtbar ist
+    window.globalSearch = globalSearch;
+    document.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        if (window.globalSearch?.isAllowed?.()) window.globalSearch.open();
+      }
+    });
     
     // Navigation initialisieren
     navigationSystem.init();

@@ -69,7 +69,7 @@ export const BASE_FILTER_TYPES = {
 
   // Nummern-Bereich Filter
   numberRange: {
-    type: 'number-range',
+    type: 'numberRange',
     component: 'NumberRangeFilter',
     defaultProps: {
       min: 0,

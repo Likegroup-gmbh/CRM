@@ -1067,8 +1067,15 @@ export class AuftragList {
         return;
       }
 
-      tbody.innerHTML = auftraege.map(auftrag => `
-        <tr data-id="${auftrag.id}">
+      tbody.innerHTML = auftraege.map(auftrag => {
+        // Farbklasse basierend auf Zahlungsstatus: Überwiesen > Rechnung gestellt
+        const statusClass = auftrag.ueberwiesen
+          ? 'auftrag-row--ueberwiesen'
+          : auftrag.rechnung_gestellt
+            ? 'auftrag-row--rechnung-gestellt'
+            : '';
+        return `
+        <tr data-id="${auftrag.id}" class="${statusClass}">
           ${this.isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
           <td>${this.formatUnternehmenTag(auftrag.unternehmen)}</td>
           <td>${this.formatMarkeTag(auftrag.marke)}</td>
@@ -1098,7 +1105,7 @@ export class AuftragList {
             ${actionBuilder.create('auftrag', auftrag.id)}
           </td>
         </tr>
-      `).join('');
+      `}).join('');
     });
   }
 
@@ -1166,13 +1173,39 @@ export class AuftragList {
 
     const formHtml = window.formSystem.renderFormOnly('auftrag');
     const html = `
-      <div class="form-page">
-        ${formHtml}
+      <div class="form-split-container">
+        <div class="form-split-left">
+          <div class="form-page">
+            ${formHtml}
+          </div>
+        </div>
+        <div class="form-split-right hidden" id="auftragsdetails-split-container">
+          <div class="form-split-header">
+            <h2>Auftragsdetails</h2>
+            <p class="form-hint">Die Auftragsdetails werden zusammen mit dem Auftrag gespeichert.</p>
+          </div>
+          <div id="auftragsdetails-embedded-form"></div>
+        </div>
       </div>
     `;
 
     window.content.innerHTML = html;
+    
+    // Debug: Prüfen ob Split-Container nach innerHTML gesetzt wurde
+    console.log('🔍 Nach innerHTML - Split-Container:', document.getElementById('auftragsdetails-split-container'));
+    console.log('🔍 Nach innerHTML - form-split-container:', document.querySelector('.form-split-container'));
+    
     window.formSystem.bindFormEvents('auftrag', null);
+    
+    // Debug: Prüfen ob Split-Container nach bindFormEvents noch existiert
+    console.log('🔍 Nach bindFormEvents - Split-Container:', document.getElementById('auftragsdetails-split-container'));
+    
+    // Toggle Event-Handler für Auftragsdetails Split-View
+    // Mit kurzem Delay, damit das FormSystem das DOM fertig aufgebaut hat
+    setTimeout(() => {
+      this.bindAuftragsdetailsToggle();
+      this.setupFieldSynchronization();
+    }, 100);
     
     // Custom Submit Handler für Seiten-Formular
     const form = document.getElementById('auftrag-form');
@@ -1182,6 +1215,537 @@ export class AuftragList {
         await this.handleFormSubmit();
       };
     }
+  }
+  
+  /**
+   * Bindet den Toggle Event-Handler für das Auftragsdetails Split-View
+   */
+  bindAuftragsdetailsToggle() {
+    console.log('🎯 bindAuftragsdetailsToggle wird aufgerufen...');
+    
+    // FormSystem verwendet "field-" Prefix für IDs
+    const toggle = document.getElementById('field-create_auftragsdetails');
+    const splitContainer = document.getElementById('auftragsdetails-split-container');
+    
+    console.log('🔍 Toggle gefunden:', toggle);
+    console.log('🔍 SplitContainer gefunden:', splitContainer);
+    
+    if (!toggle || !splitContainer) {
+      console.warn('⚠️ Auftragsdetails Toggle oder Split-Container nicht gefunden');
+      // Debug: Alle Checkboxen im DOM
+      const allInputs = document.querySelectorAll('input[type="checkbox"]');
+      console.log('📋 Alle Checkboxen im DOM:', Array.from(allInputs).map(i => ({ id: i.id, name: i.name })));
+      return;
+    }
+    
+    // Toggle initial deaktivieren - erst aktivieren wenn Unternehmen gewählt
+    toggle.disabled = true;
+    const toggleContainer = toggle.closest('.form-field');
+    if (toggleContainer) {
+      toggleContainer.style.opacity = '0.5';
+      toggleContainer.title = 'Bitte zuerst ein Unternehmen auswählen';
+      
+      // Hinweis-Text hinzufügen (nur wenn noch nicht vorhanden)
+      if (!document.getElementById('auftragsdetails-toggle-hint')) {
+        const hint = document.createElement('small');
+        hint.className = 'form-hint auftragsdetails-toggle-hint';
+        hint.id = 'auftragsdetails-toggle-hint';
+        hint.textContent = 'Erst Unternehmen auswählen, um Auftragsdetails direkt zu erstellen.';
+        hint.style.color = 'var(--gray-500)';
+        toggleContainer.appendChild(hint);
+      }
+    }
+    
+    console.log('✅ Toggle Setup abgeschlossen, disabled:', toggle.disabled);
+    
+    // Handler-Funktion für Toggle-Änderung
+    const handleToggleChange = async () => {
+      const isActive = toggle.checked;
+      console.log('🔄 Auftragsdetails Toggle geändert:', isActive);
+      
+      // Prüfen ob Unternehmen ausgewählt
+      // IDs haben "field-" Prefix vom FormSystem
+      const unternehmenHidden = document.getElementById('field-unternehmen_id_value');
+      const unternehmenSelect = document.getElementById('field-unternehmen_id');
+      const unternehmenId = unternehmenHidden?.value || unternehmenSelect?.value;
+      
+      const markeHidden = document.getElementById('field-marke_id_value');
+      const markeSelect = document.getElementById('field-marke_id');
+      const markeId = markeHidden?.value || markeSelect?.value;
+      
+      // Prüfen ob Marken verfügbar sind (mehr als nur Placeholder-Option)
+      const hatMarkenOptionen = markeSelect && markeSelect.options.length > 1;
+      
+      console.log('🔍 Unternehmen-ID:', unternehmenId, ', Marke-ID:', markeId, ', Hat Marken:', hatMarkenOptionen);
+      
+      // Validierung: Unternehmen muss gewählt sein
+      if (isActive && !unternehmenId) {
+        window.toastSystem?.show('Bitte zuerst ein Unternehmen auswählen', 'warning');
+        toggle.checked = false;
+        return;
+      }
+      
+      // Validierung: Wenn Marken verfügbar, muss eine gewählt sein
+      if (isActive && hatMarkenOptionen && !markeId) {
+        window.toastSystem?.show('Bitte zuerst eine Marke auswählen', 'warning');
+        toggle.checked = false;
+        return;
+      }
+      
+      if (isActive) {
+        console.log('📋 Aktiviere Split-View...');
+        // Split-View anzeigen
+        splitContainer.classList.remove('hidden');
+        
+        // Embedded Form rendern
+        try {
+          await this.renderEmbeddedAuftragsdetailsForm();
+          console.log('✅ Embedded Form gerendert');
+        } catch (err) {
+          console.error('❌ Fehler beim Rendern des Embedded Forms:', err);
+        }
+        
+        // Initiale Synchronisation
+        this.syncToAuftragsdetails();
+        
+        // Smooth scroll nach oben zum Split-Container
+        setTimeout(() => {
+          const formContainer = document.querySelector('.form-split-container');
+          if (formContainer) {
+            formContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          } else {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        }, 100);
+      } else {
+        console.log('📋 Deaktiviere Split-View...');
+        // Split-View ausblenden
+        splitContainer.classList.add('hidden');
+      }
+    };
+    
+    // Event-Listener auf das Input-Element
+    toggle.addEventListener('change', (e) => {
+      console.log('🎯 Toggle change Event gefeuert, checked:', e.target.checked);
+      handleToggleChange();
+    });
+    
+    // Speichere Handler für Unternehmen-Change
+    this._auftragsdetailsToggleHandler = handleToggleChange;
+  }
+  
+  /**
+   * Setup der Feld-Synchronisation zwischen Auftrag und Auftragsdetails
+   */
+  setupFieldSynchronization() {
+    console.log('🔧 setupFieldSynchronization wird aufgerufen...');
+    
+    // Gemeinsamer Handler für Unternehmen- und Marken-Änderungen
+    const updateToggleState = () => {
+      // IDs haben "field-" Prefix vom FormSystem
+      const unternehmenHidden = document.getElementById('field-unternehmen_id_value');
+      const unternehmenSelect = document.getElementById('field-unternehmen_id');
+      const unternehmenId = unternehmenHidden?.value || unternehmenSelect?.value;
+      
+      const markeHidden = document.getElementById('field-marke_id_value');
+      const markeSelect = document.getElementById('field-marke_id');
+      const markeId = markeHidden?.value || markeSelect?.value;
+      
+      // Prüfen ob Marken verfügbar sind (mehr als nur Placeholder-Option)
+      const hatMarkenOptionen = markeSelect && markeSelect.options.length > 1;
+      
+      console.log('🔄 updateToggleState:', { unternehmenId, markeId, hatMarkenOptionen });
+      
+      // Toggle aktivieren/deaktivieren
+      const toggle = document.getElementById('field-create_auftragsdetails');
+      const toggleContainer = toggle?.closest('.form-field');
+      const hint = document.getElementById('auftragsdetails-toggle-hint');
+      
+      if (!toggle) {
+        console.warn('⚠️ Toggle nicht gefunden');
+        return;
+      }
+      
+      // Logik: Toggle aktivieren wenn:
+      // 1. Unternehmen gewählt UND keine Marken verfügbar, ODER
+      // 2. Unternehmen gewählt UND Marke gewählt
+      const kannAktivieren = unternehmenId && (!hatMarkenOptionen || markeId);
+      
+      if (kannAktivieren) {
+        // Toggle aktivieren
+        toggle.disabled = false;
+        if (toggleContainer) {
+          toggleContainer.style.opacity = '1';
+          toggleContainer.title = '';
+        }
+        if (hint) {
+          hint.textContent = 'Auftragsdetails können jetzt erstellt werden.';
+          hint.style.color = 'var(--primary-600)';
+        }
+        console.log('✅ Toggle aktiviert');
+      } else if (unternehmenId && hatMarkenOptionen && !markeId) {
+        // Unternehmen gewählt aber Marke fehlt
+        toggle.disabled = true;
+        toggle.checked = false;
+        if (toggleContainer) {
+          toggleContainer.style.opacity = '0.5';
+          toggleContainer.title = 'Bitte zuerst eine Marke auswählen';
+        }
+        if (hint) {
+          hint.textContent = 'Erst Marke auswählen, um Auftragsdetails direkt zu erstellen.';
+          hint.style.color = 'var(--gray-500)';
+        }
+        // Split-View ausblenden
+        const splitContainer = document.getElementById('auftragsdetails-split-container');
+        if (splitContainer) splitContainer.classList.add('hidden');
+        console.log('⏳ Toggle deaktiviert (Marke fehlt)');
+      } else {
+        // Kein Unternehmen gewählt
+        toggle.disabled = true;
+        toggle.checked = false;
+        if (toggleContainer) {
+          toggleContainer.style.opacity = '0.5';
+          toggleContainer.title = 'Bitte zuerst ein Unternehmen auswählen';
+        }
+        if (hint) {
+          hint.textContent = 'Erst Unternehmen auswählen, um Auftragsdetails direkt zu erstellen.';
+          hint.style.color = 'var(--gray-500)';
+        }
+        // Split-View ausblenden
+        const splitContainer = document.getElementById('auftragsdetails-split-container');
+        if (splitContainer) splitContainer.classList.add('hidden');
+        console.log('⏳ Toggle deaktiviert (Unternehmen fehlt)');
+      }
+      
+      // Synchronisation
+      this.syncToAuftragsdetails();
+    };
+    
+    // Event-Listener für Unternehmen
+    const unternehmenSelect = document.getElementById('field-unternehmen_id');
+    if (unternehmenSelect) {
+      unternehmenSelect.addEventListener('change', updateToggleState);
+      console.log('✅ Unternehmen Select Listener registriert');
+      
+      // Hidden Input beobachten (für Searchable Select)
+      const unternehmenHidden = document.getElementById('field-unternehmen_id_value');
+      if (unternehmenHidden) {
+        const observer = new MutationObserver(updateToggleState);
+        observer.observe(unternehmenHidden, { attributes: true, attributeFilter: ['value'] });
+        unternehmenHidden.addEventListener('input', updateToggleState);
+        console.log('✅ Unternehmen Hidden Input Observer registriert');
+      }
+    } else {
+      console.warn('⚠️ Unternehmen Select nicht gefunden');
+    }
+    
+    // Event-Listener für Marke
+    const markeSelect = document.getElementById('field-marke_id');
+    if (markeSelect) {
+      markeSelect.addEventListener('change', updateToggleState);
+      console.log('✅ Marke Select Listener registriert');
+      
+      // Hidden Input beobachten (für Searchable Select)
+      const markeHidden = document.getElementById('field-marke_id_value');
+      if (markeHidden) {
+        const observer = new MutationObserver(updateToggleState);
+        observer.observe(markeHidden, { attributes: true, attributeFilter: ['value'] });
+        markeHidden.addEventListener('input', updateToggleState);
+        console.log('✅ Marke Hidden Input Observer registriert');
+      }
+    }
+    
+    // Synchronisation bei kampagnenanzahl Änderung
+    const kampagnenanzahlInput = document.getElementById('field-kampagnenanzahl');
+    if (kampagnenanzahlInput) {
+      kampagnenanzahlInput.addEventListener('input', () => {
+        this.syncToAuftragsdetails();
+      });
+    }
+    
+    // Speichere Handler für externen Zugriff
+    this._updateToggleState = updateToggleState;
+  }
+  
+  /**
+   * Synchronisiert Werte vom Auftragsformular zum Auftragsdetails-Formular
+   */
+  syncToAuftragsdetails() {
+    const splitContainer = document.getElementById('auftragsdetails-split-container');
+    if (!splitContainer || splitContainer.classList.contains('hidden')) return;
+    
+    // Unternehmen synchronisieren (IDs haben "field-" Prefix)
+    const unternehmenHidden = document.getElementById('field-unternehmen_id_value');
+    const unternehmenSelect = document.getElementById('field-unternehmen_id');
+    const unternehmenId = unternehmenHidden?.value || unternehmenSelect?.value;
+    
+    // Firmenname aus dem Select holen
+    let firmenname = 'Kein Unternehmen ausgewählt';
+    if (unternehmenSelect && unternehmenId) {
+      const selectedOption = unternehmenSelect.querySelector(`option[value="${unternehmenId}"]`);
+      firmenname = selectedOption?.textContent || firmenname;
+    }
+    
+    // Marke synchronisieren
+    const markeHidden = document.getElementById('field-marke_id_value');
+    const markeSelect = document.getElementById('field-marke_id');
+    const markeId = markeHidden?.value || markeSelect?.value;
+    
+    let markenname = '';
+    if (markeSelect && markeId) {
+      const selectedOption = markeSelect.querySelector(`option[value="${markeId}"]`);
+      markenname = selectedOption?.textContent || '';
+    }
+    
+    // Unternehmen-Anzeige im Auftragsdetails-Formular aktualisieren
+    const unternehmenDisplay = document.getElementById('auftragsdetails-unternehmen-display');
+    if (unternehmenDisplay) {
+      const displayText = markenname ? `${firmenname} (${markenname})` : firmenname;
+      unternehmenDisplay.textContent = displayText;
+      unternehmenDisplay.dataset.unternehmenId = unternehmenId || '';
+      unternehmenDisplay.dataset.markeId = markeId || '';
+    }
+    
+    // Kampagnenanzahl synchronisieren
+    const kampagnenanzahlInput = document.getElementById('field-kampagnenanzahl');
+    const kampagnenanzahlDisplay = document.getElementById('auftragsdetails-kampagnenanzahl');
+    if (kampagnenanzahlDisplay && kampagnenanzahlInput) {
+      kampagnenanzahlDisplay.value = kampagnenanzahlInput.value || '';
+    }
+    
+    console.log('🔄 Felder synchronisiert:', { unternehmenId, firmenname, markeId, markenname, kampagnenanzahl: kampagnenanzahlInput?.value });
+  }
+  
+  /**
+   * Rendert das Embedded Auftragsdetails-Formular
+   */
+  async renderEmbeddedAuftragsdetailsForm() {
+    const container = document.getElementById('auftragsdetails-embedded-form');
+    if (!container) return;
+    
+    // Lade Kampagnenart-Typen
+    let kampagnenartTypen = [];
+    try {
+      const { data, error } = await window.supabase
+        .from('kampagne_art_typen')
+        .select('id, name')
+        .order('sort_order, name');
+      
+      if (!error && data) {
+        kampagnenartTypen = data;
+      }
+    } catch (e) {
+      console.warn('⚠️ Kampagnenart-Typen konnten nicht geladen werden:', e);
+    }
+    
+    // Aktuelles Unternehmen holen (IDs haben "field-" Prefix)
+    const unternehmenHidden = document.getElementById('field-unternehmen_id_value');
+    const unternehmenSelect = document.getElementById('field-unternehmen_id');
+    const unternehmenId = unternehmenHidden?.value || unternehmenSelect?.value;
+    let firmenname = 'Kein Unternehmen ausgewählt';
+    if (unternehmenSelect && unternehmenId) {
+      const selectedOption = unternehmenSelect.querySelector(`option[value="${unternehmenId}"]`);
+      firmenname = selectedOption?.textContent || firmenname;
+    }
+    
+    // Aktuelle Marke holen
+    const markeHidden = document.getElementById('field-marke_id_value');
+    const markeSelect = document.getElementById('field-marke_id');
+    const markeId = markeHidden?.value || markeSelect?.value;
+    let markenname = '';
+    if (markeSelect && markeId) {
+      const selectedOption = markeSelect.querySelector(`option[value="${markeId}"]`);
+      markenname = selectedOption?.textContent || '';
+    }
+    
+    // Display-Text für Unternehmen/Marke
+    const displayText = markenname ? `${firmenname} (${markenname})` : firmenname;
+    
+    // Kampagnenanzahl holen
+    const kampagnenanzahl = document.getElementById('field-kampagnenanzahl')?.value || '';
+    
+    // Embedded Form HTML
+    const formHtml = `
+      <div class="auftragsdetails-embedded">
+        <!-- Synchronisierte Info-Box -->
+        <div class="auftragsdetails-sync-info">
+          <div class="sync-info-item">
+            <span class="sync-info-label">Unternehmen:</span>
+            <span class="sync-info-value" id="auftragsdetails-unternehmen-display" data-unternehmen-id="${unternehmenId || ''}" data-marke-id="${markeId || ''}">${displayText}</span>
+          </div>
+          <div class="sync-info-item">
+            <span class="sync-info-label">Kampagnenanzahl:</span>
+            <input type="number" id="auftragsdetails-kampagnenanzahl" class="sync-info-input" value="${kampagnenanzahl}" readonly>
+          </div>
+        </div>
+        
+        <!-- Kampagnenart-Auswahl -->
+        <div class="form-field">
+          <label for="auftragsdetails-kampagnenart">Art der Kampagne</label>
+          <select id="auftragsdetails-kampagnenart" 
+                  name="auftragsdetails_art_der_kampagne" 
+                  multiple 
+                  data-searchable="true" 
+                  data-tag-based="true" 
+                  data-placeholder="Kampagnenart suchen und auswählen...">
+            ${kampagnenartTypen.map(typ => `<option value="${typ.id}">${typ.name}</option>`).join('')}
+          </select>
+          <small class="form-hint">Wählen Sie die Kampagnenarten und klicken Sie auf "Aktivieren".</small>
+        </div>
+        
+        <div class="kampagnenart-activate-actions">
+          <button type="button" id="auftragsdetails-activate-btn" class="mdc-btn mdc-btn--secondary">
+            <span class="mdc-btn__label">Aktivieren</span>
+          </button>
+        </div>
+        
+        <!-- Container für dynamische Budget-Sections -->
+        <div id="auftragsdetails-budget-sections">
+          <div class="alert alert-info">
+            <p>Wählen Sie oben die Kampagnenarten aus und klicken Sie auf "Aktivieren", um die Budget-Felder anzuzeigen.</p>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    container.innerHTML = formHtml;
+    
+    // TagBased-Multiselect initialisieren
+    const selectElement = document.getElementById('auftragsdetails-kampagnenart');
+    if (selectElement && window.formSystem?.optionsManager?.createTagBasedSelect) {
+      const options = kampagnenartTypen.map(typ => ({
+        value: typ.id,
+        label: typ.name,
+        selected: false
+      }));
+      
+      const field = {
+        name: 'auftragsdetails_art_der_kampagne',
+        tagBased: true,
+        placeholder: 'Kampagnenart suchen und auswählen...'
+      };
+      
+      window.formSystem.optionsManager.createTagBasedSelect(selectElement, options, field);
+      console.log('✅ TagBased-Multiselect für embedded Auftragsdetails initialisiert');
+    }
+    
+    // Aktivieren-Button Event
+    const activateBtn = document.getElementById('auftragsdetails-activate-btn');
+    if (activateBtn) {
+      activateBtn.addEventListener('click', async () => {
+        await this.activateEmbeddedKampagnenarten();
+      });
+    }
+    
+    // Speichere Kampagnenart-Typen für späteren Zugriff
+    this.embeddedKampagnenartTypen = kampagnenartTypen;
+  }
+  
+  /**
+   * Aktiviert die ausgewählten Kampagnenarten im Embedded Form
+   */
+  async activateEmbeddedKampagnenarten() {
+    const activateBtn = document.getElementById('auftragsdetails-activate-btn');
+    if (activateBtn) {
+      activateBtn.disabled = true;
+      const labelEl = activateBtn.querySelector('.mdc-btn__label');
+      if (labelEl) labelEl.textContent = 'Aktiviere...';
+    }
+    
+    try {
+      // Sammle ausgewählte Kampagnenart-IDs
+      const selectedIds = this.getEmbeddedSelectedKampagnenartIds();
+      
+      if (selectedIds.length === 0) {
+        window.toastSystem?.show('Bitte wählen Sie mindestens eine Kampagnenart aus.', 'warning');
+        return;
+      }
+      
+      // Hole die Namen der ausgewählten Kampagnenarten
+      const selectedArten = this.embeddedKampagnenartTypen
+        .filter(typ => selectedIds.includes(typ.id))
+        .map(typ => typ.name);
+      
+      // Dynamisches Import der KampagnenartenMapping
+      const { KAMPAGNENARTEN_MAPPING, generateBudgetOnlyFieldsHtml } = await import('./logic/KampagnenartenMapping.js');
+      
+      // Rendere Budget-Sections
+      const container = document.getElementById('auftragsdetails-budget-sections');
+      if (container) {
+        let sectionsHtml = '';
+        selectedArten.forEach(artName => {
+          const config = KAMPAGNENARTEN_MAPPING[artName];
+          if (config) {
+            sectionsHtml += generateBudgetOnlyFieldsHtml(artName, {});
+          } else {
+            console.warn(`⚠️ Unbekannte Kampagnenart: "${artName}"`);
+          }
+        });
+        
+        if (sectionsHtml) {
+          container.innerHTML = sectionsHtml;
+        } else {
+          container.innerHTML = `
+            <div class="alert alert-warning">
+              <p>Keine Budget-Felder für die ausgewählten Kampagnenarten verfügbar.</p>
+            </div>
+          `;
+        }
+      }
+      
+      // Speichere aktivierte Kampagnenarten
+      this.embeddedSelectedKampagnenarten = selectedArten;
+      this.embeddedSelectedKampagnenartIds = selectedIds;
+      
+      window.toastSystem?.show(`${selectedArten.length} Kampagnenart(en) aktiviert.`, 'success');
+      
+    } catch (error) {
+      console.error('❌ Fehler beim Aktivieren der Kampagnenarten:', error);
+      window.toastSystem?.show('Fehler beim Aktivieren der Kampagnenarten.', 'error');
+    } finally {
+      if (activateBtn) {
+        activateBtn.disabled = false;
+        const labelEl = activateBtn.querySelector('.mdc-btn__label');
+        if (labelEl) labelEl.textContent = 'Aktivieren';
+      }
+    }
+  }
+  
+  /**
+   * Holt die ausgewählten Kampagnenart-IDs aus dem Embedded Multiselect
+   */
+  getEmbeddedSelectedKampagnenartIds() {
+    const selectedIds = [];
+    
+    // Versuche das versteckte Select zu finden (TagBased-Multiselect)
+    const hiddenSelect = document.getElementById('auftragsdetails-kampagnenart_hidden');
+    if (hiddenSelect) {
+      Array.from(hiddenSelect.selectedOptions).forEach(option => {
+        if (option.value) selectedIds.push(option.value);
+      });
+    }
+    
+    // Fallback: Normales Select
+    if (selectedIds.length === 0) {
+      const selectElement = document.getElementById('auftragsdetails-kampagnenart');
+      if (selectElement) {
+        Array.from(selectElement.selectedOptions).forEach(option => {
+          if (option.value) selectedIds.push(option.value);
+        });
+      }
+    }
+    
+    // Fallback: Aus Tags lesen
+    if (selectedIds.length === 0) {
+      const tags = document.querySelectorAll('#auftragsdetails-embedded-form .tag[data-value]');
+      tags.forEach(tag => {
+        const value = tag.dataset?.value;
+        if (value) selectedIds.push(value);
+      });
+    }
+    
+    console.log('📋 Embedded ausgewählte Kampagnenart-IDs:', selectedIds);
+    return selectedIds;
   }
 
   // Handle Form Submit für Seiten-Formular
@@ -1330,13 +1894,27 @@ export class AuftragList {
           console.warn('⚠️ Auftragsbestätigung Upload fehlgeschlagen', e);
         }
 
+        // Auftragsdetails erstellen (wenn Toggle aktiv)
+        const createDetailsToggle = document.getElementById('field-create_auftragsdetails');
+        const detailsCreated = await this.handleAuftragsdetailsCreation(result.id, createDetailsToggle?.checked);
+        
         // Toast-Erfolgsmeldung
-        window.toastSystem?.show('Auftrag erfolgreich angelegt', 'success');
+        if (detailsCreated) {
+          window.toastSystem?.show('Auftrag und Auftragsdetails erfolgreich angelegt', 'success');
+        } else {
+          window.toastSystem?.show('Auftrag erfolgreich angelegt', 'success');
+        }
         
         // Event auslösen für Listen-Update
         window.dispatchEvent(new CustomEvent('entityUpdated', {
           detail: { entity: 'auftrag', action: 'created', id: result.id }
         }));
+        
+        if (detailsCreated) {
+          window.dispatchEvent(new CustomEvent('entityUpdated', {
+            detail: { entity: 'auftrag_details', action: 'created' }
+          }));
+        }
         
         // Zurück zur Liste
         setTimeout(() => {
@@ -1369,6 +1947,99 @@ export class AuftragList {
       }
       window.unlockSubmit?.();
       window.toastSystem?.show('Ein unerwarteter Fehler ist aufgetreten', 'error');
+    }
+  }
+
+  /**
+   * Erstellt Auftragsdetails wenn der Toggle aktiv ist
+   * @param {string} auftragId - ID des gerade erstellten Auftrags
+   * @param {boolean} shouldCreate - Ob Auftragsdetails erstellt werden sollen (Toggle-Status)
+   * @returns {Promise<boolean>} - True wenn Auftragsdetails erstellt wurden
+   */
+  async handleAuftragsdetailsCreation(auftragId, shouldCreate) {
+    if (!shouldCreate || !auftragId) {
+      return false;
+    }
+    
+    console.log('📋 Erstelle Auftragsdetails für Auftrag:', auftragId);
+    
+    try {
+      // Prüfe ob Kampagnenarten aktiviert wurden
+      if (!this.embeddedSelectedKampagnenartIds || this.embeddedSelectedKampagnenartIds.length === 0) {
+        console.log('ℹ️ Keine Kampagnenarten aktiviert, überspringe Auftragsdetails');
+        return false;
+      }
+      
+      // 1. Sammle Daten aus dem Embedded Form
+      const detailsData = {
+        auftrag_id: auftragId,
+        kampagnenanzahl: parseInt(document.getElementById('auftragsdetails-kampagnenanzahl')?.value) || null
+      };
+      
+      // Sammle alle Budget-Felder aus dem Embedded Form
+      const budgetContainer = document.getElementById('auftragsdetails-budget-sections');
+      if (budgetContainer) {
+        const inputs = budgetContainer.querySelectorAll('input, textarea');
+        inputs.forEach(input => {
+          const name = input.name;
+          if (!name) return;
+          
+          let value = input.value;
+          
+          // Leere Werte als null
+          if (value === '' || value === null) {
+            detailsData[name] = null;
+          } else if (name.endsWith('_anzahl') || name.includes('_preis_') || name.includes('preis_netto')) {
+            // Zahlen konvertieren
+            detailsData[name] = parseFloat(value) || null;
+          } else {
+            detailsData[name] = value;
+          }
+        });
+      }
+      
+      console.log('📤 Auftragsdetails-Daten:', detailsData);
+      
+      // 2. Auftragsdetails in Datenbank speichern
+      const { data: createdDetails, error: detailsError } = await window.supabase
+        .from('auftrag_details')
+        .insert([detailsData])
+        .select()
+        .single();
+      
+      if (detailsError) {
+        console.error('❌ Fehler beim Erstellen der Auftragsdetails:', detailsError);
+        window.toastSystem?.show('Auftrag erstellt, aber Auftragsdetails konnten nicht gespeichert werden.', 'warning');
+        return false;
+      }
+      
+      console.log('✅ Auftragsdetails erstellt:', createdDetails);
+      
+      // 3. Kampagnenarten in Junction-Tabelle speichern
+      if (this.embeddedSelectedKampagnenartIds.length > 0) {
+        const junctionData = this.embeddedSelectedKampagnenartIds.map(kampagneArtId => ({
+          auftrag_id: auftragId,
+          kampagne_art_id: kampagneArtId
+        }));
+        
+        const { error: junctionError } = await window.supabase
+          .from('auftrag_kampagne_art')
+          .insert(junctionData);
+        
+        if (junctionError) {
+          console.error('❌ Fehler beim Speichern der Kampagnenarten:', junctionError);
+          // Kein Fehler werfen, da Auftragsdetails bereits erstellt wurden
+        } else {
+          console.log('✅ Kampagnenarten in Junction-Tabelle gespeichert');
+        }
+      }
+      
+      return true;
+      
+    } catch (error) {
+      console.error('❌ Fehler bei handleAuftragsdetailsCreation:', error);
+      window.toastSystem?.show('Auftrag erstellt, aber Auftragsdetails konnten nicht gespeichert werden.', 'warning');
+      return false;
     }
   }
 
