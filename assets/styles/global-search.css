@@ -146,6 +146,17 @@
   margin-top: 2px;
 }
 
+.global-search-result-via {
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+  margin-top: 2px;
+  opacity: 0.9;
+}
+
+.global-search-category-related {
+  margin-top: var(--space-sm);
+}
+
 .global-search-footer {
   display: flex;
   align-items: center;

@@ -241,7 +241,15 @@ export class StrategieService {
       console.warn('🔐 Kunden dürfen keine Strategien erstellen');
       throw new Error('Keine Berechtigung zum Erstellen von Strategien');
     }
-    
+
+    // Leere Strings in UUID-Feldern zu null konvertieren
+    const uuidFields = ['unternehmen_id', 'marke_id', 'kampagne_id', 'auftrag_id'];
+    for (const field of uuidFields) {
+      if (strategieData[field] === '') {
+        strategieData[field] = null;
+      }
+    }
+
     const { data, error } = await window.supabase
       .from('strategie')
       .insert({
@@ -270,7 +278,15 @@ export class StrategieService {
       console.warn('🔐 Kunden dürfen Strategien nicht bearbeiten');
       throw new Error('Keine Berechtigung zum Bearbeiten von Strategien');
     }
-    
+
+    // Leere Strings in UUID-Feldern zu null konvertieren
+    const uuidFields = ['unternehmen_id', 'marke_id', 'kampagne_id', 'auftrag_id'];
+    for (const field of uuidFields) {
+      if (updates[field] === '') {
+        updates[field] = null;
+      }
+    }
+
     const { data, error } = await window.supabase
       .from('strategie')
       .update(updates)

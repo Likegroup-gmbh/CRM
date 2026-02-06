@@ -966,7 +966,7 @@
 /* Fullscreen Background Container */
 .login-split-container {
   min-height: 100vh;
-  background: url('../background/iceland-split.jpg') center/cover no-repeat fixed;
+  background: url('../background/pine-trees.avif') center/cover no-repeat fixed;
   background-image: image-set(
     url('../background/iceland-split.avif') type('image/avif'),
     url('../background/iceland-split.jpg') type('image/jpeg')
