@@ -352,7 +352,7 @@ export class KampagneList {
         .from('kampagne')
         .select(`
           *,
-          unternehmen:unternehmen_id(id, firmenname, logo_url),
+          unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
           marke:marke_id(id, markenname, logo_url),
           auftrag:auftrag_id(auftragsname),
           status_ref:status_id(id, name)
@@ -1577,17 +1577,16 @@ export class KampagneList {
       return '-';
     }
 
-    console.log('🏢 Render Unternehmen:', unternehmen.firmenname, 'Logo URL:', unternehmen.logo_url);
-
     const items = [{
       name: unternehmen.firmenname,
+      label: unternehmen.internes_kuerzel || unternehmen.firmenname,
       type: 'org',
       id: unternehmen.id,
       entityType: 'unternehmen',
       logo_url: unternehmen.logo_url || null
     }];
 
-    return avatarBubbles.renderBubbles(items);
+    return avatarBubbles.renderBubbles(items, { showLabel: true });
   }
 
   // Render Marke
@@ -1595,8 +1594,6 @@ export class KampagneList {
     if (!marke || !marke.markenname) {
       return '-';
     }
-
-    console.log('🏷️ Render Marke:', marke.markenname, 'Logo URL:', marke.logo_url);
 
     const items = [{
       name: marke.markenname,
@@ -1606,7 +1603,7 @@ export class KampagneList {
       logo_url: marke.logo_url || null
     }];
 
-    return avatarBubbles.renderBubbles(items);
+    return avatarBubbles.renderBubbles(items, { showLabel: true });
   }
 
   // Render Art der Kampagne als Tags (abgekürzt)

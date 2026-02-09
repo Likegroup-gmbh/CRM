@@ -12,7 +12,7 @@ import { AutoGeneration } from '../../core/form/logic/AutoGeneration.js';
 export class StrategieList extends BasePaginatedList {
   constructor() {
     super('strategie', {
-      itemsPerPage: 10,
+      itemsPerPage: 25,
       headline: 'Strategien',
       breadcrumbLabel: 'Strategien',
       sortField: 'name',
@@ -217,7 +217,15 @@ export class StrategieList extends BasePaginatedList {
   // ══════════════════════════════════════════════════════════════════════════
   // ÜBERSCHRIEBENE METHODEN
   // ══════════════════════════════════════════════════════════════════════════
-  
+
+  /**
+   * Bei jedem Anzeigen der Liste neu laden, damit Kampagnennamen (und andere Relationen) aktuell sind.
+   */
+  async init() {
+    this._forceReload = true;
+    await super.init();
+  }
+
   /**
    * Zusätzliche Events binden
    */

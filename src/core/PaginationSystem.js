@@ -6,7 +6,7 @@ import { TableAnimationHelper } from './TableAnimationHelper.js';
 export class PaginationSystem {
   constructor() {
     this.currentPage = 1;
-    this.itemsPerPage = 10;
+    this.itemsPerPage = 25;
     this.totalCount = 0;
     this.totalPages = 0;
     this.containerId = null;
@@ -37,7 +37,7 @@ export class PaginationSystem {
    */
   init(containerId, options = {}) {
     this.containerId = containerId;
-    this.itemsPerPage = options.itemsPerPage || 10;
+    this.itemsPerPage = options.itemsPerPage || 25;
     this.callbacks.onPageChange = options.onPageChange || null;
     this.callbacks.onItemsPerPageChange = options.onItemsPerPageChange || null;
     

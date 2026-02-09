@@ -38,10 +38,11 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       return;
     } else {
       await this.loadCriticalData();
-      
+      if (window.moduleRegistry?.currentModule !== this) return;
+
       // Breadcrumb aktualisieren mit Edit-Button
       this.updateBreadcrumb();
-      
+
       // Debug: Permission-Check für Edit-Button
       const canEdit = window.currentUser?.permissions?.ansprechpartner?.can_edit !== false;
       console.log('🔐 ANSPRECHPARTNERDETAIL: Permission-Check:', {
@@ -50,19 +51,22 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
         canEdit: canEdit,
         ansprechpartnerId: this.ansprechpartnerId
       });
-      
+
       await this.loadActivities();
+      if (window.moduleRegistry?.currentModule !== this) return;
+
       await this.render();
-      
+      if (window.moduleRegistry?.currentModule !== this) return;
+
       // Events nur einmal binden
       if (!this.eventsBound) {
         this.bindEvents();
         this.eventsBound = true;
       }
-      
+
       // Breadcrumb Edit Handler - nur einmal binden (wie ProfileDetailV2)
       this.bindBreadcrumbEditHandler();
-      
+
       this.setupCacheInvalidation();
     }
   }
@@ -600,95 +604,72 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     `;
   }
 
-  // Events für Detail-Ansicht binden
+  // Events für Detail-Ansicht binden (benannte Handler für sauberes Cleanup in destroy())
   bindEvents() {
+    if (this.eventsBound) return;
     // Sidebar Tabs binden (aus Basis-Klasse)
     this.bindSidebarTabs();
 
-    // Main Tab-Navigation
-    document.addEventListener('click', (e) => {
+    this._onDocumentClick = (e) => {
       const btn = e.target.closest('.tab-button');
-      if (!btn) return;
-      e.preventDefault();
-      const tab = btn.dataset.tab;
-      if (!tab) return;
-      
-      this.activeMainTab = tab;
-      document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-      const pane = document.getElementById(`tab-${tab}`);
-      if (pane) pane.classList.add('active');
-    });
-
-    // Zurück Button
-    document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-back' || e.target.closest('#btn-back')) {
+      if (btn) {
+        e.preventDefault();
+        const tab = btn.dataset.tab;
+        if (tab) {
+          this.activeMainTab = tab;
+          document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+          const pane = document.getElementById(`tab-${tab}`);
+          if (pane) pane.classList.add('active');
+        }
+        return;
+      }
+      if (e.target.id === 'btn-back' || e.target.closest('#btn-back') || e.target.id === 'btn-back-error' || e.target.closest('#btn-back-error')) {
         e.preventDefault();
         window.navigateTo('/ansprechpartner');
+        return;
       }
-    });
-
-    // Bearbeiten Button - wird jetzt über bindBreadcrumbEditHandler() gebunden
-
-    // Navigation zu verknüpften Entitäten
-    document.addEventListener('click', (e) => {
       if (e.target.classList.contains('table-link')) {
         e.preventDefault();
         const table = e.target.dataset.table;
         const id = e.target.dataset.id;
-        window.navigateTo(`/${table}/${id}`);
-      }
-    });
-
-    // Notizen Events - NUR für diesen Ansprechpartner reagieren!
-    document.addEventListener('notizenUpdated', (e) => {
-      // Ignoriere Events für andere Entitäten
-      if (e.detail?.entityType !== 'ansprechpartner' || e.detail?.entityId !== this.ansprechpartnerId) {
+        if (table && id) window.navigateTo(`/${table}/${id}`);
         return;
       }
-      this.loadCriticalData().then(() => {
-        this.render();
-      });
-    });
-
-    // Bewertungen Events - NUR für diesen Ansprechpartner reagieren!
-    document.addEventListener('bewertungenUpdated', (e) => {
-      // Ignoriere Events für andere Entitäten
-      if (e.detail?.entityType !== 'ansprechpartner' || e.detail?.entityId !== this.ansprechpartnerId) {
-        return;
-      }
-      this.loadCriticalData().then(() => {
-        this.render();
-      });
-    });
-
-    // Soft-Refresh bei Realtime-Updates - NUR wenn auf Ansprechpartner-Detail-Seite!
-    window.addEventListener('softRefresh', async (e) => {
-      // Prüfe ob wir überhaupt auf einer Ansprechpartner-Detail-Seite sind
-      if (!this.ansprechpartnerId) return;
-      if (!location.pathname.startsWith('/ansprechpartner/')) return;
-      
-      // Prüfe ob Formular aktiv ist
-      const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
-      if (hasActiveForm) {
-        console.log('⏸️ ANSPRECHPARTNERDETAIL: Formular aktiv - Soft-Refresh übersprungen');
-        return;
-      }
-      
-      console.log('🔄 ANSPRECHPARTNERDETAIL: Soft-Refresh - lade Daten neu');
-      await this.loadCriticalData();
-      this.render();
-    });
-
-    // Magic Link Button Handler (Kunden einladen)
-    document.addEventListener('click', (e) => {
       const actionBtn = e.target.closest('[data-action="generate-magic-link"]');
       if (actionBtn && !actionBtn.classList.contains('disabled') && !actionBtn.disabled) {
         e.preventDefault();
         this.showMagicLinkModal();
       }
-    });
+    };
+    document.addEventListener('click', this._onDocumentClick);
+
+    this._onNotizenUpdated = (e) => {
+      if (e.detail?.entityType !== 'ansprechpartner' || e.detail?.entityId !== this.ansprechpartnerId) return;
+      this.loadCriticalData().then(() => { this.render(); });
+    };
+    document.addEventListener('notizenUpdated', this._onNotizenUpdated);
+
+    this._onBewertungenUpdated = (e) => {
+      if (e.detail?.entityType !== 'ansprechpartner' || e.detail?.entityId !== this.ansprechpartnerId) return;
+      this.loadCriticalData().then(() => { this.render(); });
+    };
+    document.addEventListener('bewertungenUpdated', this._onBewertungenUpdated);
+
+    this._onSoftRefresh = async () => {
+      if (!this.ansprechpartnerId || !location.pathname.startsWith('/ansprechpartner/')) return;
+      if (document.querySelector('form.edit-form, .drawer.show, .modal.show')) {
+        console.log('⏸️ ANSPRECHPARTNERDETAIL: Formular aktiv - Soft-Refresh übersprungen');
+        return;
+      }
+      console.log('🔄 ANSPRECHPARTNERDETAIL: Soft-Refresh - lade Daten neu');
+      await this.loadCriticalData();
+      this.render();
+    };
+    window.addEventListener('softRefresh', this._onSoftRefresh);
+
+    this.eventsBound = true;
   }
 
   // Magic Link Modal anzeigen (Link wird erst beim Kopieren generiert!)
@@ -978,10 +959,11 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     return ImageUploadHelper.uploadProfileImage(ansprechpartnerId, form);
   }
 
-  // Fehler anzeigen
+  // Fehler anzeigen (bindEvents aufrufen, damit btn-back-error vom gemeinsamen Handler bedient wird)
   showError(message) {
     const content = document.getElementById('dashboard-content');
     if (!content) return;
+    if (!this.eventsBound) this.bindEvents();
 
     content.innerHTML = `
       <div class="page-header">
@@ -1001,27 +983,36 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
         <p>${message}</p>
       </div>
     `;
-
-    // Event für Zurück-Button
-    document.addEventListener('click', (e) => {
-      if (e.target.id === 'btn-back-error' || e.target.closest('#btn-back-error')) {
-        e.preventDefault();
-        window.navigateTo('/ansprechpartner');
-      }
-    });
   }
 
   // Cleanup
   destroy() {
     console.log('AnsprechpartnerDetail: Cleaning up...');
-    
+
+    if (this._onDocumentClick) {
+      document.removeEventListener('click', this._onDocumentClick);
+      this._onDocumentClick = null;
+    }
+    if (this._onNotizenUpdated) {
+      document.removeEventListener('notizenUpdated', this._onNotizenUpdated);
+      this._onNotizenUpdated = null;
+    }
+    if (this._onBewertungenUpdated) {
+      document.removeEventListener('bewertungenUpdated', this._onBewertungenUpdated);
+      this._onBewertungenUpdated = null;
+    }
+    if (this._onSoftRefresh) {
+      window.removeEventListener('softRefresh', this._onSoftRefresh);
+      this._onSoftRefresh = null;
+    }
+
     // Breadcrumb Edit Handler entfernen
     if (this._breadcrumbEditHandler) {
       window.removeEventListener('breadcrumbEditClick', this._breadcrumbEditHandler);
       this._breadcrumbEditHandler = null;
       this._breadcrumbEditHandlerBound = false;
     }
-    
+
     this.ansprechpartner = null;
     this.ansprechpartnerId = null;
     this.eventsBound = false;

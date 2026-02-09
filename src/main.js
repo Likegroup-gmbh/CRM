@@ -108,7 +108,8 @@ class ModuleRegistry {
   }
 
   // Navigation zu Modul
-  navigateTo(route) {
+  // skipPushState: true = bei popstate (Browser-Zurück), damit keine doppelte History-Eintragung
+  navigateTo(route, skipPushState = false) {
     // Blockiere Navigation für nicht freigeschaltete Benutzer (außer Dashboard)
     if (window.currentUser?.isBlocked === true) {
       const allowedRoutes = ['/', '/dashboard', ''];
@@ -120,14 +121,16 @@ class ModuleRegistry {
       }
     }
 
-    // URL aktualisieren (inkl. Query-String), damit searchParams verfügbar sind
-    try {
-      if (window.history && window.history.pushState) {
-        const url = route.startsWith('/') ? route : `/${route}`;
-        window.history.pushState({ route: url }, '', url);
+    // URL aktualisieren (nur bei normaler Navigation, nicht bei popstate)
+    if (!skipPushState) {
+      try {
+        if (window.history && window.history.pushState) {
+          const url = route.startsWith('/') ? route : `/${route}`;
+          window.history.pushState({ route: url }, '', url);
+        }
+      } catch (err) {
+        console.warn('⚠️ History pushState fehlgeschlagen:', err?.message);
       }
-    } catch (err) {
-      console.warn('⚠️ History pushState fehlgeschlagen:', err?.message);
     }
 
     // Kompatibilitäts-Redirects
@@ -495,9 +498,15 @@ window.moduleRegistry = moduleRegistry;
 // Weitere Module folgen...
 
 // Globale Navigation-Funktion
-window.navigateTo = (route) => {
-  moduleRegistry.navigateTo(route);
+window.navigateTo = (route, skipPushState = false) => {
+  moduleRegistry.navigateTo(route, skipPushState);
 };
+
+// Browser-Zurück/-Vor: URL ist bereits geändert, nur Inhalt synchronisieren
+window.addEventListener('popstate', (event) => {
+  const route = (event.state && event.state.route) || window.location.pathname || '/';
+  moduleRegistry.navigateTo(route, true);
+});
 
 // Vorab keine Client-Initialisierung – erfolgt sauber nach DOMContentLoaded mit echten Keys
 

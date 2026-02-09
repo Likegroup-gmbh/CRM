@@ -12,7 +12,7 @@ import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 export class CreatorAuswahlList extends BasePaginatedList {
   constructor() {
     super('creator-auswahl', {
-      itemsPerPage: 10,
+      itemsPerPage: 25,
       headline: 'Sourcing',
       breadcrumbLabel: 'Sourcing',
       sortField: 'name',
@@ -89,11 +89,12 @@ export class CreatorAuswahlList extends BasePaginatedList {
     const unternehmenBubble = liste.unternehmen 
       ? AvatarBubbles.renderBubbles([{
           name: liste.unternehmen.firmenname,
+          label: liste.unternehmen.internes_kuerzel || liste.unternehmen.firmenname,
           type: 'org',
           id: liste.unternehmen.id,
           entityType: 'unternehmen',
           logo_url: liste.unternehmen.logo_url
-        }])
+        }], { showLabel: true })
       : '-';
 
     const markeBubble = liste.marke 
@@ -103,7 +104,7 @@ export class CreatorAuswahlList extends BasePaginatedList {
           id: liste.marke.id,
           entityType: 'marke',
           logo_url: liste.marke.logo_url
-        }])
+        }], { showLabel: true })
       : '-';
 
     const kampagneName = KampagneUtils.getDisplayName(liste.kampagne);

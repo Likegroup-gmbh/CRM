@@ -14,7 +14,7 @@ import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 export class ProduktList extends BasePaginatedList {
   constructor() {
     super('produkt', {
-      itemsPerPage: 10,
+      itemsPerPage: 25,
       headline: 'Produkte Übersicht',
       breadcrumbLabel: 'Produkte',
       sortField: 'created_at',

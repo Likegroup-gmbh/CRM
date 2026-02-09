@@ -69,7 +69,7 @@ export class BasePaginatedList {
     
     // Konfigurierbare Optionen mit sinnvollen Defaults
     this.options = {
-      itemsPerPage: options.itemsPerPage || 15,
+      itemsPerPage: options.itemsPerPage || 25,
       paginationContainerId: options.paginationContainerId || `pagination-${entityType}`,
       tbodySelector: options.tbodySelector || '.data-table tbody',
       tableColspan: options.tableColspan || 10,

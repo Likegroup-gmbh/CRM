@@ -138,11 +138,12 @@ export class AuftragList {
     
     return avatarBubbles.renderBubbles([{
       name: unternehmen.firmenname,
+      label: unternehmen.internes_kuerzel || unternehmen.firmenname,
       type: 'org',
       id: unternehmen.id,
       entityType: 'unternehmen',
       logo_url: unternehmen.logo_url || null
-    }]);
+    }], { showLabel: true });
   }
 
   formatMarkeTag(marke) {
@@ -154,7 +155,7 @@ export class AuftragList {
       id: marke.id,
       entityType: 'marke',
       logo_url: marke.logo_url || null
-    }]);
+    }], { showLabel: true });
   }
 
   formatMitarbeiterTags(entries) {
@@ -660,7 +661,7 @@ export class AuftragList {
   }
 
   // Lade Aufträge mit Beziehungen und Pagination
-  async loadAuftraegeWithPagination(filters = {}, page = 1, limit = 10) {
+  async loadAuftraegeWithPagination(filters = {}, page = 1, limit = 25) {
     try {
       if (!window.supabase) {
         const mockData = await window.dataService.loadEntities('auftrag');
@@ -690,7 +691,7 @@ export class AuftragList {
           rechnung_gestellt,
           ueberwiesen,
           created_at,
-          unternehmen:unternehmen_id(id, firmenname, logo_url),
+          unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
           marke:marke_id(id, markenname, logo_url),
           ansprechpartner:ansprechpartner_id(id, vorname, nachname, email, profile_image_url),
           kampagne_arten:auftrag_kampagne_art(art:kampagne_art_id(id, name))
@@ -717,6 +718,7 @@ export class AuftragList {
         unternehmen: auftrag.unternehmen ? { 
           id: auftrag.unternehmen.id,
           firmenname: auftrag.unternehmen.firmenname,
+          internes_kuerzel: auftrag.unternehmen.internes_kuerzel,
           logo_url: auftrag.unternehmen.logo_url
         } : null,
         marke: auftrag.marke ? { 

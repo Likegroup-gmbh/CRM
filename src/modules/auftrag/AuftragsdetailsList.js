@@ -29,7 +29,7 @@ export class AuftragsdetailsList {
     
     // Pagination initialisieren mit dynamicResize für animiertes Entfernen
     this.pagination.init('pagination-auftragsdetails', {
-      itemsPerPage: 10,
+      itemsPerPage: 25,
       onPageChange: (page) => this.handlePageChange(page),
       onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page),
       dynamicResize: true,
@@ -155,7 +155,7 @@ export class AuftragsdetailsList {
   }
 
   // Lade Auftragsdetails mit Beziehungen und Pagination
-  async loadDetailsWithPagination(filters = {}, page = 1, limit = 10) {
+  async loadDetailsWithPagination(filters = {}, page = 1, limit = 25) {
     try {
       if (!window.supabase) {
         console.warn('⚠️ Supabase nicht verfügbar - verwende Mock-Daten');
@@ -282,7 +282,7 @@ export class AuftragsdetailsList {
             auftragsname,
             status,
             po,
-            unternehmen:unternehmen_id(id, firmenname, logo_url),
+            unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
             marke:marke_id(id, markenname, logo_url)
           )
         `, { count: 'exact' });
@@ -604,11 +604,12 @@ export class AuftragsdetailsList {
         const unternehmenHtml = auftrag.unternehmen
           ? avatarBubbles.renderBubbles([{
               name: auftrag.unternehmen.firmenname,
+              label: auftrag.unternehmen.internes_kuerzel || auftrag.unternehmen.firmenname,
               type: 'org',
               id: auftrag.unternehmen.id,
               entityType: 'unternehmen',
               logo_url: auftrag.unternehmen.logo_url || null
-            }])
+            }], { showLabel: true })
           : '-';
 
         // Marke Bubble
@@ -619,7 +620,7 @@ export class AuftragsdetailsList {
               id: auftrag.marke.id,
               entityType: 'marke',
               logo_url: auftrag.marke.logo_url || null
-            }])
+            }], { showLabel: true })
           : '-';
         
         return `

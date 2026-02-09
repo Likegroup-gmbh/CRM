@@ -45,7 +45,7 @@ export class CreatorAuswahlService {
       .from('creator_auswahl')
       .select(`
         *,
-        unternehmen:unternehmen_id(id, firmenname, logo_url),
+        unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
         marke:marke_id(id, markenname, logo_url),
         kampagne:kampagne_id(id, kampagnenname),
         created_by_user:created_by(id, name, profile_image_url)
@@ -150,7 +150,7 @@ export class CreatorAuswahlService {
       .from('creator_auswahl')
       .select(`
         *,
-        unternehmen:unternehmen_id(id, firmenname, logo_url),
+        unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
         marke:marke_id(id, markenname, logo_url),
         kampagne:kampagne_id(id, kampagnenname),
         created_by_user:created_by(id, name, profile_image_url)

@@ -1,5 +1,7 @@
 // GlobalSearch.js – globale Command-Palette-Suche (nur für Mitarbeiter/Admin)
 
+import { KampagneUtils } from '../../modules/kampagne/KampagneUtils.js';
+
 const SEARCH_LIMIT = 5;
 const DEBOUNCE_MS = 300;
 const MIN_QUERY_LENGTH = 2;
@@ -203,6 +205,10 @@ export class GlobalSearch {
     this.debounceTimer = null;
     this.boundKeydown = this.handleKeydown.bind(this);
     this.boundClickOverlay = (e) => { if (e.target === this.overlay) this.close(); };
+    /** @type {Object<string, string[]|null>|null} Cache für erlaubte IDs pro Entity (null = kein Filter nötig) */
+    this._allowedIdsCache = null;
+    /** @type {Promise|null} */
+    this._allowedIdsCachePromise = null;
   }
 
   /** Nur Mitarbeiter und Admin dürfen die Suche nutzen. */
@@ -217,12 +223,163 @@ export class GlobalSearch {
     return !!perms?.can_view;
   }
 
+  /** Prüft ob der aktuelle User Admin ist. */
+  _isAdmin() {
+    return window.currentUser?.rolle === 'admin';
+  }
+
+  /**
+   * Lädt alle erlaubten IDs für Mitarbeiter und speichert sie im Cache.
+   * Für Admins wird kein Cache gesetzt (= keine Filterung).
+   */
+  async _loadAllowedIdsForMitarbeiter() {
+    const rolle = window.currentUser?.rolle?.toLowerCase();
+
+    // Admin sieht alles – kein Cache nötig
+    if (rolle === 'admin') {
+      this._allowedIdsCache = null;
+      return;
+    }
+
+    // Kein Mitarbeiter → kein Filter (Sicherheits-Fallback)
+    if (rolle !== 'mitarbeiter') {
+      this._allowedIdsCache = null;
+      return;
+    }
+
+    try {
+      // Phase 1: Basis-IDs parallel laden
+      const [unternehmenIds, markenIds, kampagneIds] = await Promise.all([
+        window.permissionSystem?.getAllowedUnternehmenIds?.() ?? [],
+        window.permissionSystem?.getAllowedMarkenIds?.() ?? [],
+        KampagneUtils.loadAllowedKampagneIds()
+      ]);
+
+      // Phase 2: Abgeleitete IDs parallel laden
+      const [ansprechpartnerIds, produktIds, rechnungIds] = await Promise.all([
+        this._loadAllowedAnsprechpartnerIds(unternehmenIds, markenIds),
+        this._loadAllowedProduktIds(markenIds),
+        this._loadAllowedRechnungIds(kampagneIds, unternehmenIds)
+      ]);
+
+      this._allowedIdsCache = {
+        creator: null,          // Creators: keine Einschränkung
+        unternehmen: unternehmenIds ?? [],
+        marke: markenIds ?? [],
+        kampagne: kampagneIds ?? [],
+        auftrag: [],            // Aufträge: IMMER gesperrt für Mitarbeiter
+        ansprechpartner: ansprechpartnerIds,
+        produkt: produktIds,
+        rechnung: rechnungIds
+      };
+    } catch (error) {
+      console.error('GlobalSearch: Fehler beim Laden der erlaubten IDs:', error);
+      // Sicherheits-Fallback: Alles sperren außer Creator
+      this._allowedIdsCache = {
+        creator: null,
+        unternehmen: [],
+        marke: [],
+        kampagne: [],
+        auftrag: [],
+        ansprechpartner: [],
+        produkt: [],
+        rechnung: []
+      };
+    }
+  }
+
+  /** Ansprechpartner-IDs basierend auf erlaubten Unternehmen + Marken laden. */
+  async _loadAllowedAnsprechpartnerIds(unternehmenIds, markenIds) {
+    try {
+      const ids = new Set();
+      const promises = [];
+
+      if (Array.isArray(unternehmenIds) && unternehmenIds.length > 0) {
+        promises.push(
+          window.supabase
+            .from('ansprechpartner_unternehmen')
+            .select('ansprechpartner_id')
+            .in('unternehmen_id', unternehmenIds)
+            .then(({ data }) => (data || []).forEach(r => { if (r.ansprechpartner_id) ids.add(r.ansprechpartner_id); }))
+        );
+      }
+
+      if (Array.isArray(markenIds) && markenIds.length > 0) {
+        promises.push(
+          window.supabase
+            .from('ansprechpartner_marke')
+            .select('ansprechpartner_id')
+            .in('marke_id', markenIds)
+            .then(({ data }) => (data || []).forEach(r => { if (r.ansprechpartner_id) ids.add(r.ansprechpartner_id); }))
+        );
+      }
+
+      await Promise.all(promises);
+      return [...ids];
+    } catch (error) {
+      console.warn('GlobalSearch: Fehler bei Ansprechpartner-IDs:', error);
+      return [];
+    }
+  }
+
+  /** Produkt-IDs basierend auf erlaubten Marken laden. */
+  async _loadAllowedProduktIds(markenIds) {
+    try {
+      if (!Array.isArray(markenIds)) return null; // null = keine Filterung
+      if (markenIds.length === 0) return [];
+
+      const { data } = await window.supabase
+        .from('produkt')
+        .select('id')
+        .in('marke_id', markenIds);
+      return (data || []).map(r => r.id);
+    } catch (error) {
+      console.warn('GlobalSearch: Fehler bei Produkt-IDs:', error);
+      return [];
+    }
+  }
+
+  /** Rechnung-IDs basierend auf erlaubten Kampagnen + Unternehmen laden. */
+  async _loadAllowedRechnungIds(kampagneIds, unternehmenIds) {
+    try {
+      const ids = new Set();
+      const promises = [];
+
+      if (Array.isArray(kampagneIds) && kampagneIds.length > 0) {
+        promises.push(
+          window.supabase
+            .from('rechnung')
+            .select('id')
+            .in('kampagne_id', kampagneIds)
+            .then(({ data }) => (data || []).forEach(r => ids.add(r.id)))
+        );
+      }
+
+      if (Array.isArray(unternehmenIds) && unternehmenIds.length > 0) {
+        promises.push(
+          window.supabase
+            .from('rechnung')
+            .select('id')
+            .in('unternehmen_id', unternehmenIds)
+            .then(({ data }) => (data || []).forEach(r => ids.add(r.id)))
+        );
+      }
+
+      await Promise.all(promises);
+      return [...ids];
+    } catch (error) {
+      console.warn('GlobalSearch: Fehler bei Rechnung-IDs:', error);
+      return [];
+    }
+  }
+
   sourceKeyToLabel(key) {
     return key.charAt(0).toUpperCase() + key.slice(1);
   }
 
   async loadCrossRefs(directResults) {
     if (!window.supabase || directResults.length === 0) return [];
+    const isAdmin = this._isAdmin();
     const byKey = {};
     directResults.forEach((r) => {
       if (!byKey[r.key]) byKey[r.key] = [];
@@ -231,6 +388,9 @@ export class GlobalSearch {
 
     const all = [];
     for (const sourceKey of Object.keys(CROSS_REF_CONFIG)) {
+      // Auftrags-Quellen für Nicht-Admins komplett überspringen
+      if (!isAdmin && sourceKey === 'auftrag') continue;
+
       const refs = CROSS_REF_CONFIG[sourceKey];
       const sourceItems = (byKey[sourceKey] || []).slice(0, 5);
       if (sourceItems.length === 0) continue;
@@ -239,17 +399,36 @@ export class GlobalSearch {
       const sourceTypeLabel = this.sourceKeyToLabel(sourceKey);
 
       for (const ref of refs) {
+        // Auftrags-Ziele für Nicht-Admins komplett überspringen
+        if (!isAdmin && ref.targetKey === 'auftrag') continue;
+
         const display = getDisplayForTargetKey(ref.targetKey);
         if (!display || !this.canViewEntity(display.permKey)) continue;
+
+        // Daten-Level: Prüfen ob Target-Entität überhaupt erlaubte IDs hat
+        if (this._allowedIdsCache) {
+          const allowedIds = this._allowedIdsCache[ref.targetKey];
+          if (Array.isArray(allowedIds) && allowedIds.length === 0) continue;
+        }
 
         try {
           if (ref.type === 'fk') {
             const selectFields = ['id', ref.labelField, ref.fk].filter((f, i, a) => a.indexOf(f) === i);
-            const { data: rows, error } = await window.supabase
+            let crossQuery = window.supabase
               .from(ref.table)
               .select(selectFields.join(','))
               .in(ref.fk, sourceIds)
               .limit(CROSS_REF_LIMIT_PER_TYPE);
+
+            // Allowed-IDs-Filter für Cross-Refs
+            if (this._allowedIdsCache) {
+              const allowedIds = this._allowedIdsCache[ref.targetKey];
+              if (Array.isArray(allowedIds) && allowedIds.length > 0) {
+                crossQuery = crossQuery.in('id', allowedIds);
+              }
+            }
+
+            const { data: rows, error } = await crossQuery;
             if (error) throw error;
             for (const row of (rows || [])) {
               const viaLabel = sourceLabelById[row[ref.fk]] != null ? `via ${sourceTypeLabel} ${sourceLabelById[row[ref.fk]]}` : '';
@@ -272,7 +451,18 @@ export class GlobalSearch {
               .in(ref.sourceIdColumn, sourceIds)
               .limit(CROSS_REF_LIMIT_PER_TYPE);
             if (jErr || !jRows?.length) continue;
-            const targetIds = [...new Set(jRows.map((r) => r[ref.targetIdColumn]))];
+            let targetIds = [...new Set(jRows.map((r) => r[ref.targetIdColumn]))];
+
+            // Allowed-IDs-Filter für Junction-Cross-Refs
+            if (this._allowedIdsCache) {
+              const allowedIds = this._allowedIdsCache[ref.targetKey];
+              if (Array.isArray(allowedIds)) {
+                const allowedSet = new Set(allowedIds);
+                targetIds = targetIds.filter(id => allowedSet.has(id));
+              }
+            }
+            if (targetIds.length === 0) continue;
+
             const { data: targetRows, error: tErr } = await window.supabase
               .from(ref.targetTable)
               .select(`id,${ref.targetLabelField}`)
@@ -319,6 +509,10 @@ export class GlobalSearch {
     }
     document.addEventListener('keydown', this.boundKeydown);
     this.overlay.addEventListener('click', this.boundClickOverlay);
+
+    // Cache zurücksetzen und erlaubte IDs vorladen (wird in runSearch() awaitet)
+    this._allowedIdsCache = null;
+    this._allowedIdsCachePromise = this._loadAllowedIdsForMitarbeiter();
   }
 
   close() {
@@ -387,66 +581,96 @@ export class GlobalSearch {
     this._loading = true;
     this.renderResults([]);
 
-    const configs = SEARCH_CONFIG.filter(c => this.canViewEntity(c.permKey));
-    const tokens = q.split(/\s+/).filter((t) => t.length >= 2);
+    const isAdmin = this._isAdmin();
 
-    const promises = configs.map(async (config) => {
-      const selectFields = ['id', ...config.searchFields];
-      try {
-        let query = window.supabase
-          .from(config.table)
-          .select(selectFields.join(','))
-          .limit(SEARCH_LIMIT);
-        if (tokens.length <= 1) {
-          const pattern = `%${escapeIlike(tokens.length === 1 ? tokens[0] : q)}%`;
-          const orClause = config.searchFields.map((f) => `${f}.ilike.${pattern}`).join(',');
-          query = query.or(orClause);
-        } else {
-          for (const token of tokens) {
-            const pattern = `%${escapeIlike(token)}%`;
-            const orClause = config.searchFields.map((f) => `${f}.ilike.${pattern}`).join(',');
-            query = query.or(orClause);
-          }
-        }
-        const { data, error } = await query;
-        if (error) throw error;
-        return { config, rows: data || [] };
-      } catch (err) {
-        console.warn('GlobalSearch:', config.key, err);
-        return { config, rows: [] };
+    // Warte auf den Cache (wird in open() gestartet)
+    const cacheReady = this._allowedIdsCachePromise || Promise.resolve();
+
+    cacheReady.then(() => {
+      // Basis-Filterung: nur Entitäten mit can_view
+      let configs = SEARCH_CONFIG.filter(c => this.canViewEntity(c.permKey));
+      // Aufträge HART ausfiltern für Nicht-Admins (unabhängig von Permission-Overrides)
+      if (!isAdmin) {
+        configs = configs.filter(c => c.key !== 'auftrag');
       }
-    });
 
-    Promise.allSettled(promises).then(async (outcomes) => {
-      if (requestId !== this._searchRequestId) return;
-      this._loading = false;
-      const flat = [];
-      outcomes.forEach((out) => {
-        if (out.status !== 'fulfilled' || !out.value) return;
-        const { config, rows } = out.value;
-        rows.forEach((row) => {
-          const label = getLabel(row, config);
-          const sublabel = findMatchedField(row, config, q);
-          flat.push({
-            id: row.id,
-            label,
-            sublabel: sublabel || '',
-            route: `${config.routePrefix}/${row.id}`,
-            icon: config.icon,
-            category: config.category,
-            key: config.key,
-            isCrossRef: false
-          });
-        });
+      const tokens = q.split(/\s+/).filter((t) => t.length >= 2);
+
+      const promises = configs.map(async (config) => {
+        const selectFields = ['id', ...config.searchFields];
+        try {
+          // Daten-Level-Filter: Erlaubte IDs prüfen
+          if (this._allowedIdsCache) {
+            const allowedIds = this._allowedIdsCache[config.key];
+            if (Array.isArray(allowedIds) && allowedIds.length === 0) {
+              return { config, rows: [] }; // Kein Zugriff auf diese Entität
+            }
+          }
+
+          let dbQuery = window.supabase
+            .from(config.table)
+            .select(selectFields.join(','))
+            .limit(SEARCH_LIMIT);
+
+          // Allowed-IDs-Filter zur Query hinzufügen
+          if (this._allowedIdsCache) {
+            const allowedIds = this._allowedIdsCache[config.key];
+            if (Array.isArray(allowedIds) && allowedIds.length > 0) {
+              dbQuery = dbQuery.in('id', allowedIds);
+            }
+          }
+
+          if (tokens.length <= 1) {
+            const pattern = `%${escapeIlike(tokens.length === 1 ? tokens[0] : q)}%`;
+            const orClause = config.searchFields.map((f) => `${f}.ilike.${pattern}`).join(',');
+            dbQuery = dbQuery.or(orClause);
+          } else {
+            for (const token of tokens) {
+              const pattern = `%${escapeIlike(token)}%`;
+              const orClause = config.searchFields.map((f) => `${f}.ilike.${pattern}`).join(',');
+              dbQuery = dbQuery.or(orClause);
+            }
+          }
+          const { data, error } = await dbQuery;
+          if (error) throw error;
+          return { config, rows: data || [] };
+        } catch (err) {
+          console.warn('GlobalSearch:', config.key, err);
+          return { config, rows: [] };
+        }
       });
 
-      const crossRefItems = await this.loadCrossRefs(flat);
-      const directRoutes = new Set(flat.map((r) => r.route));
-      const deduped = crossRefItems.filter((it) => !directRoutes.has(it.route));
-      this.results = flat.concat(deduped);
-      this.selectedIndex = -1;
-      this.renderResults(this.results);
-      this.highlightSelected();
+      Promise.allSettled(promises).then(async (outcomes) => {
+        if (requestId !== this._searchRequestId) return;
+        this._loading = false;
+        const flat = [];
+        outcomes.forEach((out) => {
+          if (out.status !== 'fulfilled' || !out.value) return;
+          const { config, rows } = out.value;
+          rows.forEach((row) => {
+            const label = getLabel(row, config);
+            const sublabel = findMatchedField(row, config, q);
+            flat.push({
+              id: row.id,
+              label,
+              sublabel: sublabel || '',
+              route: `${config.routePrefix}/${row.id}`,
+              icon: config.icon,
+              category: config.category,
+              key: config.key,
+              isCrossRef: false
+            });
+          });
+        });
+
+        const crossRefItems = await this.loadCrossRefs(flat);
+        const directRoutes = new Set(flat.map((r) => r.route));
+        const deduped = crossRefItems.filter((it) => !directRoutes.has(it.route));
+        this.results = flat.concat(deduped);
+        this.selectedIndex = -1;
+        this.renderResults(this.results);
+        this.highlightSelected();
+      });
     });
   }
 

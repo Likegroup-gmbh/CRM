@@ -14,7 +14,7 @@ import { creatorUtils } from './CreatorUtils.js';
 export class CreatorList extends BasePaginatedList {
   constructor() {
     super('creator', {
-      itemsPerPage: 10,
+      itemsPerPage: 25,
       headline: 'Creator Übersicht',
       breadcrumbLabel: 'Creator',
       sortField: 'nachname',

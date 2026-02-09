@@ -47,7 +47,7 @@ export class StrategieService {
         *,
         unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
         marke:marke_id(id, markenname, logo_url),
-        kampagne:kampagne_id(id, kampagnenname),
+        kampagne:kampagne_id(id, kampagnenname, eigener_name),
         auftrag:auftrag_id(id, auftragsname),
         created_by_user:created_by(id, name, profile_image_url)
       `)
@@ -202,7 +202,7 @@ export class StrategieService {
         *,
         unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
         marke:marke_id(id, markenname, logo_url),
-        kampagne:kampagne_id(id, kampagnenname),
+        kampagne:kampagne_id(id, kampagnenname, eigener_name),
         auftrag:auftrag_id(id, auftragsname),
         created_by_user:created_by(id, name, profile_image_url)
       `)

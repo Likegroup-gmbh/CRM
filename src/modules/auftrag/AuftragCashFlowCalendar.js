@@ -51,7 +51,7 @@ export class AuftragCashFlowCalendar {
         .from('auftrag')
         .select(`
           *,
-          unternehmen:unternehmen_id(id, firmenname, logo_url),
+          unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
           marke:marke_id(id, markenname, logo_url)
         `);
 
@@ -261,16 +261,24 @@ export class AuftragCashFlowCalendar {
     let rows = [];
     
     this.groupedData.forEach((group, index) => {
-      const unternehmenName = group.unternehmen?.firmenname || 'Unbekanntes Unternehmen';
+      // Unternehmen als Avatar-Bubble mit Label rendern
+      const unternehmenBubble = group.unternehmen ? avatarBubbles.renderBubbles([{
+        name: group.unternehmen.firmenname,
+        label: group.unternehmen.internes_kuerzel || group.unternehmen.firmenname,
+        logo_url: group.unternehmen.logo_url,
+        type: 'org',
+        id: group.unternehmen.id,
+        entityType: 'unternehmen'
+      }], { showLabel: true }) : this.escapeHtml('Unbekanntes Unternehmen');
       
-      // Marke als Avatar-Bubble rendern
+      // Marke als Avatar-Bubble mit Label rendern
       const markeBubble = group.marke ? avatarBubbles.renderBubbles([{
         name: group.marke.markenname,
         logo_url: group.marke.logo_url,
         type: 'org',
         id: group.marke.id,
         entityType: 'marke'
-      }]) : '';
+      }], { showLabel: true }) : '';
       
       // Jahres-Total für diese Marke berechnen
       const yearTotal = group.months.reduce((sum, m) => sum + m.total, 0);
@@ -278,7 +286,7 @@ export class AuftragCashFlowCalendar {
       // Datenzeile (ohne Gruppierungs-Header)
       rows.push(`
         <tr class="cash-flow-data-row" data-group-index="${index}">
-          <td class="sticky-col unternehmen-cell">${this.escapeHtml(unternehmenName)}</td>
+          <td class="sticky-col unternehmen-cell">${unternehmenBubble}</td>
           <td class="sticky-col-2 marke-cell">${markeBubble}</td>
           ${group.months.map((month, monthIndex) => this.renderCell(month, index, monthIndex)).join('')}
           <td class="total-cell">${this.formatCurrency(yearTotal)}</td>

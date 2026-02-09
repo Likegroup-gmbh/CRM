@@ -1182,6 +1182,7 @@ export class DataService {
                     unternehmen:unternehmen_id (
                       id,
                       firmenname,
+                      internes_kuerzel,
                       logo_url
                     )
                   ),
@@ -2298,7 +2299,7 @@ export class DataService {
    * @param {number} limit - Anzahl Items pro Seite
    * @returns {Promise<Object>} { data, total, page, limit }
    */
-  async loadEntitiesWithPagination(entityType, filters = {}, page = 1, limit = 10) {
+  async loadEntitiesWithPagination(entityType, filters = {}, page = 1, limit = 25) {
     try {
       console.log(`📄 Lade ${entityType} mit Pagination:`, { filters, page, limit });
       
@@ -2375,6 +2376,7 @@ export class DataService {
             unternehmen:unternehmen_id (
               id,
               firmenname,
+              internes_kuerzel,
               logo_url
             )
           )

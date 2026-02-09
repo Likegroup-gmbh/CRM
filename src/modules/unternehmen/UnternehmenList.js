@@ -15,7 +15,7 @@ import { UnternehmenService } from './services/UnternehmenService.js';
 export class UnternehmenList extends BasePaginatedList {
   constructor() {
     super('unternehmen', {
-      itemsPerPage: 10,
+      itemsPerPage: 25,
       headline: 'Unternehmen Übersicht',
       breadcrumbLabel: 'Unternehmen',
       sortField: 'firmenname',

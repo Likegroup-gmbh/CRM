@@ -30,14 +30,15 @@ export class AvatarBubbles {
 
   /**
    * Rendert HTML für überlappende Avatar-Bubbles
-   * @param {Array} items - Array von Objekten: {name, type, id?, entityType?, logo_url?, profile_image_url?}
-   *   - name: Anzeigename
+   * @param {Array} items - Array von Objekten: {name, type, id?, entityType?, logo_url?, profile_image_url?, label?}
+   *   - name: Anzeigename (wird auch für Tooltip verwendet)
    *   - type: 'person' oder 'org'
    *   - id: Optional, ID für Klickbarkeit
    *   - entityType: Optional, 'unternehmen', 'marke', 'ansprechpartner', 'mitarbeiter' für Routing
    *   - logo_url: Optional, Logo-URL für Organisationen
    *   - profile_image_url: Optional, Profilbild-URL für Mitarbeiter (hat Priorität über logo_url)
-   * @param {Object} config - Konfiguration {maxVisible?: number}
+   *   - label: Optional, alternativer Text für das Label (z.B. internes_kuerzel statt firmenname)
+   * @param {Object} config - Konfiguration {maxVisible?: number, showLabel?: boolean}
    * @returns {string} HTML-String
    */
   static renderBubbles(items, config = {}) {
@@ -47,6 +48,7 @@ export class AvatarBubbles {
 
     const validItems = items.filter(item => item && item.name);
     const maxVisible = config.maxVisible || 3; // Standard: max 3 Bubbles anzeigen
+    const showLabel = config.showLabel || false;
     const visibleItems = validItems.slice(0, maxVisible);
     const remainingCount = validItems.length - maxVisible;
 
@@ -74,10 +76,17 @@ export class AvatarBubbles {
           ? `<img src="${imageUrl}" alt="${safeName}" class="avatar-bubble-logo" />` 
           : initials;
         
-        return `<div class="avatar-bubble ${clickableClass} ${imageClass}" 
-                     title="${safeName}" 
-                     ${dataAttrs}>
-          ${content}
+        // Label-Text (item.label hat Priorität, Fallback auf item.name)
+        const labelText = showLabel 
+          ? `<span class="avatar-bubble-label ${isClickable ? 'avatar-bubble-label--clickable' : ''}" ${dataAttrs}>${window.validatorSystem?.sanitizeHtml?.(item.label || item.name) || item.label || item.name}</span>` 
+          : '';
+        
+        return `<div class="avatar-bubble-item ${showLabel ? 'avatar-bubble-item--labeled' : ''}" ${dataAttrs}>
+          <div class="avatar-bubble ${clickableClass} ${imageClass}" 
+                       ${showLabel ? '' : `title="${safeName}"`} 
+                       ${dataAttrs}>
+            ${content}
+          </div>${labelText}
         </div>`;
       })
       .join('');
@@ -87,7 +96,8 @@ export class AvatarBubbles {
       ? `<div class="avatar-bubble avatar-bubble--more" title="${validItems.slice(maxVisible).map(i => i.name).join(', ')}">+${remainingCount}</div>`
       : '';
 
-    return `<div class="avatar-bubbles">${bubblesHtml}${moreHtml}</div>`;
+    const labeledClass = showLabel ? 'avatar-bubbles--labeled' : '';
+    return `<div class="avatar-bubbles ${labeledClass}">${bubblesHtml}${moreHtml}</div>`;
   }
 
   /**
@@ -97,7 +107,8 @@ export class AvatarBubbles {
   static bindClickEvents() {
     // Verwende Event-Delegation auf document für dynamisch geladene Bubbles
     document.addEventListener('click', (e) => {
-      const bubble = e.target.closest('.avatar-bubble--clickable');
+      // Klick auf Avatar-Bubble oder Label mit data-entity
+      const bubble = e.target.closest('.avatar-bubble--clickable') || e.target.closest('.avatar-bubble-label--clickable');
       if (!bubble) return;
 
       const entityType = bubble.dataset.entity;

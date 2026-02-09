@@ -31,7 +31,7 @@ function getSprachKuerzel(name) {
 export class AnsprechpartnerList extends BasePaginatedList {
   constructor() {
     super('ansprechpartner', {
-      itemsPerPage: 10,
+      itemsPerPage: 25,
       headline: 'Ansprechpartner Übersicht',
       breadcrumbLabel: 'Ansprechpartner',
       sortField: 'nachname',
@@ -384,24 +384,26 @@ export class AnsprechpartnerList extends BasePaginatedList {
     if (Array.isArray(ap.unternehmen) && ap.unternehmen.length > 0) {
       const items = ap.unternehmen.map(u => ({
         name: u.firmenname,
+        label: u.internes_kuerzel || u.firmenname,
         type: 'org',
         id: u.id,
         entityType: 'unternehmen',
         logo_url: u.logo_url || null
       }));
-      return avatarBubbles.renderBubbles(items);
+      return avatarBubbles.renderBubbles(items, { showLabel: true });
     }
     
     // Legacy: unternehmen als Einzelobjekt
     if (ap.unternehmen && ap.unternehmen.firmenname) {
       const items = [{
         name: ap.unternehmen.firmenname,
+        label: ap.unternehmen.internes_kuerzel || ap.unternehmen.firmenname,
         type: 'org',
         id: ap.unternehmen.id,
         entityType: 'unternehmen',
         logo_url: ap.unternehmen.logo_url || null
       }];
-      return avatarBubbles.renderBubbles(items);
+      return avatarBubbles.renderBubbles(items, { showLabel: true });
     }
     
     return '-';

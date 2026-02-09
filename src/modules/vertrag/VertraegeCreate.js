@@ -14,6 +14,7 @@ export class VertraegeCreate {
     this.filteredKampagnen = [];  // Gefiltert nach Kunde
     this.creators = [];
     this.filteredCreators = [];   // Gefiltert nach Kampagne (via Kooperationen)
+    this.kundeAuftraegePo = [];   // PO-Nummern aus Aufträgen des Kunden
     this.isGenerated = false;
     this.editId = null; // ID wenn Draft bearbeitet wird
     this._filtersInitialized = false; // Flag um doppelte Filter-Initialisierung zu verhindern
@@ -79,6 +80,7 @@ export class VertraegeCreate {
           kunde_unternehmen_id: draft.kunde_unternehmen_id,
           kampagne_id: draft.kampagne_id,
           creator_id: draft.creator_id,
+          // UGC-spezifische Felder
           anzahl_videos: draft.anzahl_videos || 0,
           anzahl_fotos: draft.anzahl_fotos || 0,
           anzahl_storys: draft.anzahl_storys || 0,
@@ -91,6 +93,7 @@ export class VertraegeCreate {
           nutzungsdauer: draft.nutzungsdauer,
           exklusivitaet: draft.exklusivitaet,
           exklusivitaet_monate: draft.exklusivitaet_monate,
+          exklusivitaet_einheit: draft.exklusivitaet_einheit || 'monate',
           verguetung_netto: draft.verguetung_netto,
           zusatzkosten: draft.zusatzkosten,
           zusatzkosten_betrag: draft.zusatzkosten_betrag,
@@ -100,16 +103,35 @@ export class VertraegeCreate {
           korrekturschleifen: draft.korrekturschleifen,
           abnahmedatum: draft.abnahmedatum,
           weitere_bestimmungen: draft.weitere_bestimmungen,
+          // Influencer-spezifische Felder
+          influencer_agentur_vertreten: draft.influencer_agentur_vertreten || false,
+          influencer_agentur_name: draft.influencer_agentur_name,
+          influencer_agentur_adresse: draft.influencer_agentur_adresse,
+          influencer_agentur_vertretung: draft.influencer_agentur_vertretung,
+          influencer_land: draft.influencer_land,
+          influencer_profile: draft.influencer_profile || [],
+          plattformen: draft.plattformen || [],
+          plattformen_sonstige: draft.plattformen_sonstige,
+          anzahl_reels: draft.anzahl_reels || 0,
+          anzahl_feed_posts: draft.anzahl_feed_posts || 0,
+          veroeffentlichungsplan: draft.veroeffentlichungsplan || {},
+          organische_veroeffentlichung: draft.organische_veroeffentlichung,
+          media_buyout: draft.media_buyout,
+          reichweiten_garantie: draft.reichweiten_garantie || false,
+          reichweiten_garantie_wert: draft.reichweiten_garantie_wert,
+          mindest_online_dauer: draft.mindest_online_dauer,
+          anpassungen: draft.anpassungen || [],
           // Videograf-spezifische Felder
           kunde_rechtsform: draft.kunde_rechtsform,
           influencer_steuer_id: draft.influencer_steuer_id,
-          influencer_land: draft.influencer_land,
           videograf_produktionsart: draft.videograf_produktionsart,
           videograf_produktionsplan: draft.videograf_produktionsplan || [],
           videograf_lieferumfang: draft.videograf_lieferumfang || [],
           videograf_v1_deadline: draft.videograf_v1_deadline,
           videograf_finale_werktage: draft.videograf_finale_werktage,
-          videograf_nutzungsart: draft.videograf_nutzungsart || []
+          videograf_nutzungsart: draft.videograf_nutzungsart || [],
+          // PO-Nummer
+          kunde_po_nummer: draft.kunde_po_nummer
         };
         this.selectedTyp = draft.typ;
         this.isGenerated = true;
@@ -117,6 +139,7 @@ export class VertraegeCreate {
         
         // Kaskade initialisieren: Kampagnen für Kunde und Creator für Kampagne laden
         this.updateFilteredKampagnen();
+        await this.loadKundeAuftraegePo();
         await this.updateFilteredCreators();
         this._filtersInitialized = true; // Verhindert doppelte Initialisierung in renderStep2
         
@@ -137,6 +160,7 @@ export class VertraegeCreate {
     this.formData = {};
     this.filteredKampagnen = [];
     this.filteredCreators = [];
+    this.kundeAuftraegePo = [];
     this.isGenerated = false;
     this.editId = null;
     this._filtersInitialized = false;
@@ -562,6 +586,38 @@ export class VertraegeCreate {
     }
   }
 
+  // PO-Nummern aus Aufträgen des gewählten Kunden laden
+  // Auto-selektiert die neueste PO, sofern noch keine gesetzt ist
+  async loadKundeAuftraegePo() {
+    if (!this.formData.kunde_unternehmen_id) {
+      this.kundeAuftraegePo = [];
+      return;
+    }
+
+    try {
+      const kundeId = String(this.formData.kunde_unternehmen_id);
+      const { data: auftraege, error } = await window.supabase
+        .from('auftrag')
+        .select('id, po, auftragsname')
+        .eq('unternehmen_id', kundeId)
+        .not('po', 'is', null)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      this.kundeAuftraegePo = auftraege || [];
+      console.log('📋 VERTRAG: PO-Nummern geladen:', this.kundeAuftraegePo.length);
+
+      // Automatisch die neueste PO setzen, wenn noch keine gewählt
+      if (!this.formData.kunde_po_nummer && this.kundeAuftraegePo.length > 0) {
+        this.formData.kunde_po_nummer = this.kundeAuftraegePo[0].po;
+        console.log('📋 VERTRAG: PO automatisch gesetzt:', this.formData.kunde_po_nummer);
+      }
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der PO-Nummern:', error);
+      this.kundeAuftraegePo = [];
+    }
+  }
+
   // Vertragsname automatisch generieren: Typ + Kampagne + Creator
   generateVertragName() {
     const typ = this.formData.typ || this.selectedTyp || '';
@@ -783,9 +839,16 @@ export class VertraegeCreate {
             </label>
           </div>
           <div class="form-field ${this.formData.exklusivitaet ? '' : 'hidden'}" id="exklusivitaet-monate-wrapper">
-            <label for="exklusivitaet_monate">Exklusivität Monate</label>
-            <input type="number" id="exklusivitaet_monate" name="exklusivitaet_monate" min="1" max="24"
-                   value="${this.formData.exklusivitaet_monate || ''}">
+            <label for="exklusivitaet_monate">Exklusivität Zeitraum</label>
+            <div class="input-with-select">
+              <input type="number" id="exklusivitaet_monate" name="exklusivitaet_monate" min="1" max="365"
+                     value="${this.formData.exklusivitaet_monate || ''}" placeholder="Anzahl">
+              <select id="exklusivitaet_einheit" name="exklusivitaet_einheit">
+                <option value="monate" ${!this.formData.exklusivitaet_einheit || this.formData.exklusivitaet_einheit === 'monate' ? 'selected' : ''}>Monate</option>
+                <option value="wochen" ${this.formData.exklusivitaet_einheit === 'wochen' ? 'selected' : ''}>Wochen</option>
+                <option value="tage" ${this.formData.exklusivitaet_einheit === 'tage' ? 'selected' : ''}>Tage</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -1249,9 +1312,16 @@ export class VertraegeCreate {
             </label>
           </div>
           <div class="form-field ${this.formData.exklusivitaet ? '' : 'hidden'}" id="exklusivitaet-monate-wrapper">
-            <label for="exklusivitaet_monate">Zeitraum (Monate)</label>
-            <input type="number" id="exklusivitaet_monate" name="exklusivitaet_monate" min="1" max="24"
-                   value="${this.formData.exklusivitaet_monate || ''}">
+            <label for="exklusivitaet_monate">Zeitraum</label>
+            <div class="input-with-select">
+              <input type="number" id="exklusivitaet_monate" name="exklusivitaet_monate" min="1" max="365"
+                     value="${this.formData.exklusivitaet_monate || ''}" placeholder="Anzahl">
+              <select id="exklusivitaet_einheit" name="exklusivitaet_einheit">
+                <option value="monate" ${!this.formData.exklusivitaet_einheit || this.formData.exklusivitaet_einheit === 'monate' ? 'selected' : ''}>Monate</option>
+                <option value="wochen" ${this.formData.exklusivitaet_einheit === 'wochen' ? 'selected' : ''}>Wochen</option>
+                <option value="tage" ${this.formData.exklusivitaet_einheit === 'tage' ? 'selected' : ''}>Tage</option>
+              </select>
+            </div>
           </div>
         </div>
         <p class="form-hint">Am Veröffentlichungstag darf keine Werbung für konkurrierende Marken erfolgen.</p>
@@ -1969,13 +2039,15 @@ export class VertraegeCreate {
       nutzungsdauer: this.formData.nutzungsdauer || null,
       exklusivitaet: this.formData.exklusivitaet || false,
       exklusivitaet_monate: this.formData.exklusivitaet ? parseInt(this.formData.exklusivitaet_monate) || null : null,
+      exklusivitaet_einheit: this.formData.exklusivitaet ? (this.formData.exklusivitaet_einheit || 'monate') : null,
       verguetung_netto: parseFloat(this.formData.verguetung_netto) || null,
       zusatzkosten: this.formData.zusatzkosten || false,
       zusatzkosten_betrag: this.formData.zusatzkosten ? parseFloat(this.formData.zusatzkosten_betrag) || null : null,
       zahlungsziel: this.formData.zahlungsziel || null,
       skonto: this.formData.skonto || false,
       korrekturschleifen: parseInt(this.formData.korrekturschleifen) || null,
-      weitere_bestimmungen: this.formData.weitere_bestimmungen || null
+      weitere_bestimmungen: this.formData.weitere_bestimmungen || null,
+      kunde_po_nummer: this.formData.kunde_po_nummer || null
     };
 
     if (typ === 'Influencer Kooperation') {
@@ -1993,6 +2065,7 @@ export class VertraegeCreate {
         
         // Plattformen & Inhalte
         plattformen: this.formData.plattformen || [],
+        plattformen_sonstige: this.formData.plattformen_sonstige || null,
         anzahl_reels: parseInt(this.formData.anzahl_reels) || 0,
         anzahl_feed_posts: parseInt(this.formData.anzahl_feed_posts) || 0,
         
@@ -2287,7 +2360,8 @@ export class VertraegeCreate {
     
     this.formData.veroeffentlichungsplan[typ].splice(idx, 1);
     
-    const list = document.getElementById(`${typ === 'videos' ? 'video' : 'story'}-dates-list`);
+    const listIds = { 'videos': 'video-dates-list', 'feed_posts': 'feed-post-dates-list', 'storys': 'story-dates-list' };
+    const list = document.getElementById(listIds[typ]);
     if (list) {
       list.innerHTML = this.renderVeroeffentlichungsDaten(typ, this.formData.veroeffentlichungsplan[typ]);
     }
@@ -2411,6 +2485,9 @@ export class VertraegeCreate {
 
         // Kampagnen filtern
         this.updateFilteredKampagnen();
+        
+        // PO-Nummer automatisch laden (neueste PO wird automatisch gesetzt)
+        await this.loadKundeAuftraegePo();
         
         // Kampagne zurücksetzen
         this.formData.kampagne_id = null;
@@ -2828,14 +2905,11 @@ export class VertraegeCreate {
     // Array-Felder die speziell behandelt werden müssen
     const arrayFields = ['medien', 'plattformen', 'anpassungen', 'videograf_lieferumfang', 'videograf_nutzungsart'];
     
-    // Normale Felder
+    // Normale Felder (Array-Felder werden separat gesammelt)
     for (const [key, value] of formData.entries()) {
       if (arrayFields.includes(key)) {
-        // Array sammeln
-        if (!this.formData[key]) this.formData[key] = [];
-        if (!this.formData[key].includes(value)) {
-          this.formData[key].push(value);
-        }
+        // Array-Felder überspringen - werden unten autoritativ gesammelt
+        continue;
       } else if (value === 'true') {
         this.formData[key] = true;
       } else if (value === 'false') {
@@ -2853,7 +2927,8 @@ export class VertraegeCreate {
       }
     });
 
-    // Array-Felder bereinigen und neu sammeln
+    // Array-Felder: Nur neu sammeln wenn die Checkboxen im aktuellen Step vorhanden sind
+    // Ansonsten vorherige Werte beibehalten
     arrayFields.forEach(fieldName => {
       const checkboxesForField = form.querySelectorAll(`input[name="${fieldName}"]`);
       if (checkboxesForField.length > 0) {
@@ -2864,19 +2939,24 @@ export class VertraegeCreate {
           }
         });
       }
+      // Wenn keine Checkboxen im DOM: vorherige Werte bleiben erhalten
     });
 
     // Veröffentlichungsplan: Daten aus Date-Inputs sammeln
     const videoDates = form.querySelectorAll('input[name^="videos_date_"]');
+    const feedPostDates = form.querySelectorAll('input[name^="feed_posts_date_"]');
     const storyDates = form.querySelectorAll('input[name^="storys_date_"]');
     
-    if (videoDates.length > 0 || storyDates.length > 0) {
+    if (videoDates.length > 0 || feedPostDates.length > 0 || storyDates.length > 0) {
       if (!this.formData.veroeffentlichungsplan) {
         this.formData.veroeffentlichungsplan = {};
       }
       
       if (videoDates.length > 0) {
         this.formData.veroeffentlichungsplan.videos = Array.from(videoDates).map(input => input.value);
+      }
+      if (feedPostDates.length > 0) {
+        this.formData.veroeffentlichungsplan.feed_posts = Array.from(feedPostDates).map(input => input.value);
       }
       if (storyDates.length > 0) {
         this.formData.veroeffentlichungsplan.storys = Array.from(storyDates).map(input => input.value);
@@ -3261,11 +3341,13 @@ export class VertraegeCreate {
       doc.setFont('helvetica', 'bold');
       doc.text('PO / Auftragsnummer', 105, y, { align: 'center' });
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
+      doc.setFontSize(11);
       y += 8;
-      doc.text('Zwingend auf der Rechnung anzugeben. Ohne Angabe ist keine Zahlung möglich.', 105, y, { align: 'center' });
-      y += 6;
       doc.text(`${vertrag.kunde_po_nummer || '_______________________________'}`, 105, y, { align: 'center' });
+      doc.setFontSize(9);
+      y += 7;
+      doc.text('Zwingend auf der Rechnung anzugeben. Ohne Angabe ist keine Zahlung möglich.', 105, y, { align: 'center' });
+      doc.setFontSize(10);
 
       // Fußzeile für Seite 1
       addFooter();
@@ -3368,7 +3450,9 @@ export class VertraegeCreate {
       drawYesNoCheckboxes(14, y, vertrag.exklusivitaet);
       if (vertrag.exklusivitaet && vertrag.exklusivitaet_monate) {
         y += 5;
-        doc.text(`Exklusivität für ${vertrag.exklusivitaet_monate} Monate`, 14, y);
+        const ugcEinheitLabels = { 'monate': 'Monate', 'wochen': 'Wochen', 'tage': 'Tage' };
+        const ugcEinheit = ugcEinheitLabels[vertrag.exklusivitaet_einheit] || 'Monate';
+        doc.text(`Exklusivität für ${vertrag.exklusivitaet_monate} ${ugcEinheit}`, 14, y);
       }
 
       // §5 Vergütung
@@ -3514,26 +3598,28 @@ export class VertraegeCreate {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
       y += 8;
+      doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.text('10.1 Anspruch auf Neudreh', 14, y);
       doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
       y += 6;
       doc.text('Ein Anspruch auf Neudreh besteht insbesondere bei:', 14, y);
-      y += 4;
+      y += 5;
       doc.text('• Abweichung vom Skript oder Briefing', 18, y);
-      y += 4;
+      y += 5;
       doc.text('• Unzureichender Tonqualität', 18, y);
-      y += 4;
+      y += 5;
       doc.text('• Schlechter Beleuchtung oder Bildqualität', 18, y);
-      y += 4;
+      y += 5;
       doc.text('• Unnatürlicher oder stark werblicher Darstellung', 18, y);
-      y += 4;
+      y += 5;
       doc.text('• Unpassendem oder unaufgeräumtem Hintergrund', 18, y);
-      y += 4;
+      y += 5;
       doc.text('• Fehlender Kreativität, Dynamik oder Energie', 18, y);
-      y += 4;
+      y += 5;
       doc.text('• Missachtung der Qualitätsrichtlinien, Rechtsverstößen, unangemessenen Inhalten', 18, y);
-      y += 4;
+      y += 5;
       doc.text('• Inhaltlich oder qualitativ nicht verwertbarem Content', 18, y);
 
       // 10.2 Anpassungen - benötigt ~35mm, daher Seitenumbruch wenn nötig
@@ -3544,18 +3630,20 @@ export class VertraegeCreate {
       } else {
         y += 8;
       }
+      doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.text('10.2 Anpassungen (Korrekturschleifen)', 14, y);
       doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
       y += 6;
       doc.text('Als Anpassungen gelten insbesondere:', 14, y);
-      y += 4;
+      y += 5;
       doc.text('• Schnittgeschwindigkeit, Optimierung des Einstiegs (Hook)', 18, y);
-      y += 4;
+      y += 5;
       doc.text('• Kürzen, Straffen oder Umstellen von Szenen', 18, y);
-      y += 4;
+      y += 5;
       doc.text('• Anpassung der Dramaturgie, Zoom-/Bewegungseffekte, Untertitel', 18, y);
-      y += 4;
+      y += 5;
       doc.text('• Nachfilmen einzelner Szenen, allgemeiner Performance-Feinschliff', 18, y);
 
       // Seitenumbruch prüfen
@@ -3566,14 +3654,16 @@ export class VertraegeCreate {
       }
 
       y += 8;
+      doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.text('10.3 Rücktrittsrecht', 14, y);
       doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
       y += 6;
       doc.text('Erfüllt der Creator die vereinbarten Anforderungen auch nach Nachbesserung oder Neudreh wiederholt', 14, y);
-      y += 4;
+      y += 5;
       doc.text('nicht, ist der Auftraggeber berechtigt, vom Vertrag zurückzutreten und bereits gezahlte Vergütungen', 14, y);
-      y += 4;
+      y += 5;
       doc.text('anteilig oder vollständig zurückzufordern.', 14, y);
 
       // §11 Agenturbeauftragung & Stellvertretung - Seitenumbruch wenn nötig
@@ -3950,11 +4040,13 @@ export class VertraegeCreate {
       doc.setFont('helvetica', 'bold');
       doc.text('PO / Auftragsnummer', 105, y, { align: 'center' });
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
+      doc.setFontSize(11);
       y += 8;
-      doc.text('Zwingend auf der Rechnung anzugeben. Ohne Angabe ist keine Zahlung möglich.', 105, y, { align: 'center' });
-      y += 6;
       doc.text(`${vertrag.kunde_po_nummer || '_______________________________'}`, 105, y, { align: 'center' });
+      doc.setFontSize(9);
+      y += 7;
+      doc.text('Zwingend auf der Rechnung anzugeben. Ohne Angabe ist keine Zahlung möglich.', 105, y, { align: 'center' });
+      doc.setFontSize(10);
 
       // Fußzeile für Seite 1
       addFooter();
@@ -3990,7 +4082,10 @@ export class VertraegeCreate {
       drawCheckbox(14, y, plattformen.includes('instagram'), 'Instagram');
       drawCheckbox(50, y, plattformen.includes('tiktok'), 'TikTok');
       drawCheckbox(86, y, plattformen.includes('youtube'), 'YouTube');
-      drawCheckbox(122, y, plattformen.includes('sonstige'), 'Sonstige');
+      const sonstigeLabel = plattformen.includes('sonstige') && vertrag.plattformen_sonstige
+        ? `Sonstige: ${vertrag.plattformen_sonstige}`
+        : 'Sonstige';
+      drawCheckbox(122, y, plattformen.includes('sonstige'), sonstigeLabel);
 
       y += 10;
       doc.setFont('helvetica', 'bold');
@@ -4027,6 +4122,7 @@ export class VertraegeCreate {
       y += 6;
       const veroeffentlichungsplan = vertrag.veroeffentlichungsplan || {};
       const videoDates = veroeffentlichungsplan.videos || [];
+      const feedPostDates = veroeffentlichungsplan.feed_posts || [];
       const storyDates = veroeffentlichungsplan.storys || [];
       
       if (videoDates.length > 0) {
@@ -4034,6 +4130,15 @@ export class VertraegeCreate {
         y += 5;
         videoDates.forEach((date, idx) => {
           doc.text(`Video ${idx + 1} – Veröffentlichung am: ${formatDate(date)}`, 20, y);
+          y += 4;
+        });
+      }
+      if (feedPostDates.length > 0) {
+        y += 3;
+        doc.text('Feed-Posts:', 14, y);
+        y += 5;
+        feedPostDates.forEach((date, idx) => {
+          doc.text(`Feed-Post ${idx + 1} – Veröffentlichung am: ${formatDate(date)}`, 20, y);
           y += 4;
         });
       }
@@ -4047,7 +4152,17 @@ export class VertraegeCreate {
         });
       }
 
+      // Helper: Seitenumbruch prüfen - wenn nicht genug Platz, neue Seite
+      const checkPageBreak = (neededSpace) => {
+        if (y + neededSpace > MAX_CONTENT_Y) {
+          addFooter();
+          doc.addPage();
+          y = 20;
+        }
+      };
+
       // §4 Werbekennzeichnung
+      checkPageBreak(30);
       y += 10;
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
@@ -4058,6 +4173,7 @@ export class VertraegeCreate {
       y = addWrappedText('Der Influencer verpflichtet sich zur vollständigen, gesetzeskonformen Kennzeichnung der Inhalte (z.B. „Werbung", „Anzeige", „Paid Partnership").', 14, y, 180);
 
       // §5 Nutzungsrechte & Media Buyout
+      checkPageBreak(80);
       y += 10;
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
@@ -4090,18 +4206,14 @@ export class VertraegeCreate {
       doc.text('5.3 Exklusivität', 14, y);
       doc.setFont('helvetica', 'normal');
       y += 6;
+      const exklusivitaetEinheitLabels = { 'monate': 'Monate', 'wochen': 'Wochen', 'tage': 'Tage' };
+      const exklusivitaetEinheit = exklusivitaetEinheitLabels[vertrag.exklusivitaet_einheit] || 'Monate';
       drawCheckbox(14, y, !vertrag.exklusivitaet, 'Keine Exklusivität');
       y += 5;
-      drawCheckbox(14, y, vertrag.exklusivitaet, `Exklusivität für ${vertrag.exklusivitaet_monate || '-'} Monate`);
-
-      // Seitenumbruch prüfen
-      if (y > MAX_CONTENT_Y) {
-        addFooter();
-        doc.addPage();
-        y = 20;
-      }
+      drawCheckbox(14, y, vertrag.exklusivitaet, `Exklusivität für ${vertrag.exklusivitaet_monate || '-'} ${exklusivitaetEinheit}`);
 
       // §6 Vergütung
+      checkPageBreak(55);
       y += 12;
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
@@ -4122,6 +4234,7 @@ export class VertraegeCreate {
       doc.text('(3% bei Zahlung innerhalb 7 Tage)', 60, y);
 
       // §7 Qualitätsanforderungen
+      checkPageBreak(35);
       y += 12;
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
@@ -4132,6 +4245,7 @@ export class VertraegeCreate {
       y = addWrappedText('Der Content muss insbesondere: technisch sauber (Ton, Licht, Bild), natürlich und nicht übermäßig werblich, markenkonform, visuell hochwertig, kreativ, lebendig und mit ästhetisch geeignetem Hintergrund umgesetzt sein.', 14, y, 180);
 
       // §8 Anpassungen
+      checkPageBreak(55);
       y += 10;
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
@@ -4143,18 +4257,17 @@ export class VertraegeCreate {
       y += 6;
       const anpassungen = vertrag.anpassungen || [];
       Object.entries(anpassungenLabels).forEach(([key, label]) => {
+        if (y + 5 > MAX_CONTENT_Y) {
+          addFooter();
+          doc.addPage();
+          y = 20;
+        }
         drawCheckbox(14, y, anpassungen.includes(key), label);
         y += 5;
       });
 
-      // Seitenumbruch prüfen
-      if (y > MAX_CONTENT_Y) {
-        addFooter();
-        doc.addPage();
-        y = 20;
-      }
-
       // §9 Neuerstellung (Neudreh)
+      checkPageBreak(30);
       y += 8;
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
@@ -4165,6 +4278,7 @@ export class VertraegeCreate {
       y = addWrappedText('Weicht der Content erheblich vom Briefing oder den Qualitätsanforderungen ab und ist nicht anpassbar, ist er vor Veröffentlichung kostenfrei neu zu erstellen.', 14, y, 180);
 
       // §10 Reichweiten-Garantie
+      checkPageBreak(25);
       y += 10;
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
@@ -4177,6 +4291,7 @@ export class VertraegeCreate {
       drawCheckbox(14, y, vertrag.reichweiten_garantie, `Mindestreichweite: ${vertrag.reichweiten_garantie_wert || '-'}`);
 
       // §11 Mindest-Online-Dauer
+      checkPageBreak(35);
       y += 10;
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
@@ -4189,13 +4304,8 @@ export class VertraegeCreate {
         y += 5;
       });
 
-      // §12-§15 (statische Paragraphen)
-      if (y > MAX_CONTENT_Y) {
-        addFooter();
-        doc.addPage();
-        y = 20;
-      }
-
+      // §12 Rechte Dritter
+      checkPageBreak(25);
       y += 8;
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
@@ -4205,6 +4315,8 @@ export class VertraegeCreate {
       y += 8;
       y = addWrappedText('Der Influencer garantiert, dass der Content frei von Rechten Dritter ist und haftet für Rechtsverletzungen.', 14, y, 180);
 
+      // §13 Künstlersozialkasse
+      checkPageBreak(25);
       y += 10;
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
@@ -4214,6 +4326,8 @@ export class VertraegeCreate {
       y += 8;
       y = addWrappedText('Die KSK-Abgabe wird – sofern relevant – vom Auftraggeber abgeführt und nicht gesondert auf der Rechnung des Influencers ausgewiesen.', 14, y, 180);
 
+      // §14 Rücktritt
+      checkPageBreak(25);
       y += 10;
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
@@ -4223,6 +4337,8 @@ export class VertraegeCreate {
       y += 8;
       y = addWrappedText('Bei Nichterfüllung, wiederholter Qualitätsabweichung oder Nichtveröffentlichung ist ein Rücktritt zulässig. Ein Vergütungsanspruch besteht dann nicht.', 14, y, 180);
 
+      // §15 Vertragsschluss
+      checkPageBreak(25);
       y += 10;
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
@@ -4234,12 +4350,8 @@ export class VertraegeCreate {
 
       // §16 Weitere Bestimmungen (nur wenn ausgefüllt)
       if (vertrag.weitere_bestimmungen) {
+        checkPageBreak(30);
         y += 10;
-        if (y > MAX_CONTENT_Y) {
-          addFooter();
-          doc.addPage();
-          y = 20;
-        }
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
         doc.text('§16 Weitere Bestimmungen', 14, y);
@@ -4250,6 +4362,7 @@ export class VertraegeCreate {
       }
 
       // Unterschriften
+      checkPageBreak(45);
       y += 20;
       doc.text('Ort, Datum: ___________________________', 14, y);
       y += 15;
@@ -4518,11 +4631,13 @@ export class VertraegeCreate {
       doc.setFont('helvetica', 'bold');
       doc.text('PO / Auftragsnummer', 105, y, { align: 'center' });
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
+      doc.setFontSize(11);
       y += 8;
-      doc.text('Zwingend auf der Rechnung anzugeben. Ohne Angabe ist keine Zahlung möglich.', 105, y, { align: 'center' });
-      y += 6;
       doc.text(`${vertrag.kunde_po_nummer || '_______________________________'}`, 105, y, { align: 'center' });
+      doc.setFontSize(9);
+      y += 7;
+      doc.text('Zwingend auf der Rechnung anzugeben. Ohne Angabe ist keine Zahlung möglich.', 105, y, { align: 'center' });
+      doc.setFontSize(10);
 
       // Fußzeile für Seite 1
       addFooter();

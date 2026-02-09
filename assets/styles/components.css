@@ -4814,6 +4814,49 @@ h3.section-title,
   margin-left: 0;
 }
 
+/* Avatar Bubbles mit Label (Logo + Text) */
+.avatar-bubbles--labeled {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  vertical-align: middle;
+}
+
+.avatar-bubble-item {
+  display: contents; /* Standard: keine Layout-Änderung */
+}
+
+.avatar-bubble-item--labeled {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.avatar-bubble-item--labeled .avatar-bubble {
+  margin-left: 0; /* Kein Overlap im labeled-Modus */
+  flex-shrink: 0;
+}
+
+.avatar-bubble-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+  line-height: 1.2;
+}
+
+.avatar-bubble-label--clickable {
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: color 0.15s ease;
+}
+
+.avatar-bubble-label--clickable:hover {
+  color: var(--primary-600);
+}
+
 /* Toggle Switch Styles */
 .toggle-label {
   display: flex;
@@ -12031,6 +12074,24 @@ table:has(#strategien-table-body) td:nth-child(6) {
   right: 12px;
   color: var(--text-secondary);
   font-weight: 500;
+}
+
+/* Input with Select (Number + Einheit Dropdown) */
+.input-with-select {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.input-with-select input {
+  flex: 1;
+  min-width: 0;
+}
+
+.input-with-select select {
+  flex-shrink: 0;
+  width: auto;
+  min-width: 100px;
 }
 
 /* Step Navigation */

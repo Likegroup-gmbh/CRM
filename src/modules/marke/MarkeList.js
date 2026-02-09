@@ -17,7 +17,7 @@ import { MarkeService } from './services/MarkeService.js';
 export class MarkeList extends BasePaginatedList {
   constructor() {
     super('marke', {
-      itemsPerPage: 10,
+      itemsPerPage: 25,
       headline: 'Marken Übersicht',
       breadcrumbLabel: 'Marke',
       sortField: 'markenname',
@@ -85,7 +85,7 @@ export class MarkeList extends BasePaginatedList {
         .from('marke')
         .select(`
           *,
-          unternehmen:unternehmen_id(id, firmenname, logo_url),
+          unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
           branchen:marke_branchen(branche:branche_id(id, name)),
           ansprechpartner:ansprechpartner_marke(ansprechpartner:ansprechpartner_id(id, vorname, nachname, email, profile_image_url))
         `, { count: 'exact' })
@@ -331,11 +331,12 @@ export class MarkeList extends BasePaginatedList {
 
     return avatarBubbles.renderBubbles([{
       name: unternehmen.firmenname,
+      label: unternehmen.internes_kuerzel || unternehmen.firmenname,
       type: 'org',
       id: unternehmen.id,
       entityType: 'unternehmen',
       logo_url: unternehmen.logo_url || null
-    }]);
+    }], { showLabel: true });
   }
 
   /**
