@@ -143,7 +143,7 @@ export class StrategieList extends BasePaginatedList {
                   ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
                   Bearbeiten
                 </a>
-                ${rolle === 'admin' ? `
+                ${window.currentUser?.permissions?.strategie?.can_delete ? `
                   <div class="action-separator"></div>
                   <a href="#" class="action-item action-danger" data-action="delete-strategie" data-id="${strategie.id}">
                     ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
