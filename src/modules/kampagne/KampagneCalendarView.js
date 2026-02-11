@@ -18,6 +18,9 @@ export class KampagneCalendarView {
     this.currentSidebarTab = 'today'; // 'today', 'week', 'month'
     this.currentView = 'week'; // 'week' oder 'month'
     
+    // Suchfilter
+    this.searchQuery = '';
+    
     // Drag & Drop State
     this.draggedEvent = null;
     this.boundDragHandlers = {
@@ -151,11 +154,30 @@ export class KampagneCalendarView {
     return `${year}-${month}-${day}`;
   }
 
+  // Suchbegriff setzen und View aktualisieren
+  setSearchQuery(query) {
+    this.searchQuery = (query || '').trim().toLowerCase();
+    this.render();
+    this.bindEvents();
+  }
+
+  // Kampagnen nach Suchbegriff filtern
+  getFilteredKampagnen() {
+    if (!this.searchQuery) return this.kampagnen;
+    const q = this.searchQuery;
+    return this.kampagnen.filter(k => {
+      const name = (k.kampagnenname || '').toLowerCase();
+      const eigenName = (k.eigener_name || '').toLowerCase();
+      return name.includes(q) || eigenName.includes(q);
+    });
+  }
+
   // Kampagnen nach Deadline-Events gruppieren
   getKampagnenWithDeadlines() {
     const events = [];
+    const filteredKampagnen = this.getFilteredKampagnen();
 
-    this.kampagnen.forEach(kampagne => {
+    filteredKampagnen.forEach(kampagne => {
       Object.keys(this.deadlineTypes).forEach(field => {
         if (kampagne[field]) {
           const date = new Date(kampagne[field]);

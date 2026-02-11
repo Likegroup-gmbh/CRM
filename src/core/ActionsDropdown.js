@@ -730,7 +730,15 @@ export class ActionsDropdown {
         break;
       
       case 'delete':
-        this.confirmDelete(entityId, entityType);
+        if (entityType === 'vertraege') {
+          // Vertraege haben eigene Lösch-Logik (inkl. PDF-Datei-Löschung)
+          const vertraegeModule = window.moduleRegistry?.modules?.get('vertraege');
+          if (vertraegeModule?.deleteVertrag) {
+            vertraegeModule.deleteVertrag(entityId);
+          }
+        } else {
+          this.confirmDelete(entityId, entityType);
+        }
         break;
       
       case 'delete-liste':

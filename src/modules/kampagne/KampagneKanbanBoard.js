@@ -25,6 +25,9 @@ export class KampagneKanbanBoard {
     this.isDragging = false;
     this.startX = 0;
     this.scrollLeft = 0;
+    
+    // Suchfilter
+    this.searchQuery = '';
   }
 
   async init(containerElement) {
@@ -101,10 +104,32 @@ export class KampagneKanbanBoard {
     }
   }
 
+  // Suchbegriff setzen und View aktualisieren
+  setSearchQuery(query) {
+    this.searchQuery = (query || '').trim().toLowerCase();
+    this.render();
+    this.bindEvents();
+    setTimeout(() => this.initFloatingScrollbar(), 100);
+  }
+
+  // Kampagnen nach Suchbegriff filtern
+  getFilteredKampagnen() {
+    if (!this.searchQuery) return this.kampagnen;
+    const q = this.searchQuery;
+    return this.kampagnen.filter(k => {
+      const name = (k.kampagnenname || '').toLowerCase();
+      const eigenName = (k.eigener_name || '').toLowerCase();
+      return name.includes(q) || eigenName.includes(q);
+    });
+  }
+
   render() {
     if (!this.container) return;
 
     const safe = (str) => window.validatorSystem?.sanitizeHtml?.(str) ?? str;
+
+    // Gefilterte Kampagnen (berücksichtigt Suchbegriff)
+    const filteredKampagnen = this.getFilteredKampagnen();
 
     // Gruppiere Kampagnen nach Status
     const kampagnenByStatus = {};
@@ -117,8 +142,8 @@ export class KampagneKanbanBoard {
       };
     });
 
-    // Verteile Kampagnen auf die Status-Spalten
-    this.kampagnen.forEach(kampagne => {
+    // Verteile gefilterte Kampagnen auf die Status-Spalten
+    filteredKampagnen.forEach(kampagne => {
       const statusId = kampagne.status_id;
       if (kampagnenByStatus[statusId]) {
         kampagnenByStatus[statusId].kampagnen.push(kampagne);

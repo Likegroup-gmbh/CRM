@@ -7,6 +7,7 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
+import { SearchInput } from '../../core/components/SearchInput.js';
 
 export class AuftragsdetailsList {
   constructor() {
@@ -14,6 +15,8 @@ export class AuftragsdetailsList {
     this._boundEventListeners = new Set();
     this.boundFilterResetHandler = null;
     this.pagination = new PaginationSystem();
+    this.searchQuery = '';
+    this._searchDebounceTimer = null;
   }
 
   // Initialisiere Auftragsdetails-Liste
@@ -111,7 +114,13 @@ export class AuftragsdetailsList {
     const html = `
       <div class="table-filter-wrapper">
         <div class="filter-bar">
-          <div id="filter-dropdown-container"></div>
+          <div class="filter-left">
+            ${SearchInput.render('auftragsdetails', { 
+              placeholder: 'Auftragsdetails suchen...', 
+              currentValue: this.searchQuery 
+            })}
+            <div id="filter-dropdown-container"></div>
+          </div>
         </div>
         <div class="table-actions">
           ${isAdmin ? '<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>' : ''}
@@ -313,7 +322,21 @@ export class AuftragsdetailsList {
       }
 
       console.log('✅ Auftragsdetails mit Beziehungen und Pagination geladen:', data);
-      return { data: data || [], count: count || 0 };
+
+      // Client-seitige Suche (Relations-Felder können nicht serverseitig per ilike gefiltert werden)
+      let filteredData = data || [];
+      if (this.searchQuery) {
+        const search = this.searchQuery.toLowerCase();
+        filteredData = filteredData.filter(d => {
+          const auftrag = d.auftrag;
+          return (auftrag?.auftragsname?.toLowerCase().includes(search)) ||
+                 (auftrag?.unternehmen?.firmenname?.toLowerCase().includes(search)) ||
+                 (auftrag?.marke?.markenname?.toLowerCase().includes(search)) ||
+                 (auftrag?.po?.toLowerCase().includes(search));
+        });
+      }
+
+      return { data: filteredData, count: this.searchQuery ? filteredData.length : (count || 0) };
 
     } catch (error) {
       console.error('❌ Fehler beim Laden der Auftragsdetails mit Beziehungen:', error);
@@ -355,8 +378,21 @@ export class AuftragsdetailsList {
     this.loadAndRender();
   }
 
+  // Suche mit Debounce
+  handleSearch(query) {
+    if (this._searchDebounceTimer) clearTimeout(this._searchDebounceTimer);
+    this._searchDebounceTimer = setTimeout(() => {
+      this.searchQuery = query.trim();
+      this.pagination.reset();
+      this.loadAndRender();
+    }, 300);
+  }
+
   // Binde Events
   bindEvents() {
+    // Suchfeld Events
+    SearchInput.bind('auftragsdetails', (value) => this.handleSearch(value));
+
     // Neuen Auftragsdetails anlegen Button
     document.addEventListener('click', (e) => {
       if (e.target.id === 'btn-auftragsdetails-new' || e.target.closest('#btn-auftragsdetails-new')) {

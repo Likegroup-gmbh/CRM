@@ -12076,6 +12076,13 @@ table:has(#strategien-table-body) td:nth-child(6) {
   font-weight: 500;
 }
 
+/* Platform Handle Inputs (Grid) */
+.platform-handles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-sm);
+}
+
 /* Input with Select (Number + Einheit Dropdown) */
 .input-with-select {
   display: flex;

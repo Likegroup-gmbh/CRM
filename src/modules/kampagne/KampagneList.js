@@ -12,6 +12,7 @@ import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { KampagneFilterLogic } from './filters/KampagneFilterLogic.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { KampagneUtils } from './KampagneUtils.js';
+import { SearchInput } from '../../core/components/SearchInput.js';
 
 // Debug-Flag für Logging (Production: false)
 const DEBUG_KAMPAGNE = false;
@@ -94,6 +95,10 @@ export class KampagneList {
       entityUpdated: this._handleEntityUpdated.bind(this),
       kampagneUpdated: this._handleKampagneUpdated.bind(this)
     };
+    
+    // Suchfeld
+    this.searchQuery = '';
+    this._searchDebounceTimer = null;
     
     // Debounced Methoden (verhindert multiple API-Calls bei schnellen Filter-Änderungen)
     this._debouncedLoadAndRender = debounce(() => {
@@ -313,6 +318,13 @@ export class KampagneList {
       
       // Cache-Check: Prüfe ob Daten im Cache sind
       const activeFilters = filterSystem.getFilters('kampagne');
+      
+      // Suchbegriff VOR Cache-Key hinzufügen, damit der Cache
+      // unterschiedliche Suchergebnisse korrekt unterscheidet
+      if (this.searchQuery) {
+        activeFilters.kampagnenname = this.searchQuery;
+      }
+      
       const cacheKey = JSON.stringify(activeFilters);
       const cachedData = kampagnenCache.get(cacheKey);
       if (cachedData) {
@@ -364,7 +376,7 @@ export class KampagneList {
         query = query.in('id', allowedIds);
       }
 
-      // Filter aus FilterSystem anwenden (activeFilters bereits oben definiert)
+      // Filter aus FilterSystem anwenden (activeFilters bereits oben definiert, inkl. searchQuery)
       debugLog('🔍 KAMPAGNELIST: Wende Filter an:', activeFilters);
       query = KampagneFilterLogic.buildSupabaseQuery(query, activeFilters);
 
@@ -484,6 +496,10 @@ export class KampagneList {
       <div class="table-filter-wrapper">
         <div class="filter-bar">
           <div class="filter-left">
+            ${SearchInput.render('kampagne', { 
+              placeholder: 'Kampagne suchen...', 
+              currentValue: this.searchQuery 
+            })}
             <div class="view-toggle">
               <button id="btn-view-list" class="secondary-btn ${this.currentView === 'list' ? 'active' : ''}">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
@@ -597,6 +613,11 @@ export class KampagneList {
     // Neue Board-Instanz
     this.kanbanBoard = new KampagneKanbanBoard();
     await this.kanbanBoard.init(container);
+    
+    // Aktuellen Suchbegriff an Kanban übergeben
+    if (this.searchQuery) {
+      this.kanbanBoard.setSearchQuery(this.searchQuery);
+    }
   }
 
   async initCalendarView() {
@@ -611,6 +632,11 @@ export class KampagneList {
     // Neue Calendar-Instanz
     this.calendarView = new KampagneCalendarView();
     await this.calendarView.init(container);
+    
+    // Aktuellen Suchbegriff an Kalender übergeben
+    if (this.searchQuery) {
+      this.calendarView.setSearchQuery(this.searchQuery);
+    }
   }
 
   // Initialisiere Filter-Dropdown
@@ -658,8 +684,33 @@ export class KampagneList {
     }
   }
 
+  // Suche mit Debounce
+  handleSearch(query) {
+    if (this._searchDebounceTimer) clearTimeout(this._searchDebounceTimer);
+    this._searchDebounceTimer = setTimeout(() => {
+      this.searchQuery = query.trim();
+      
+      // Für Kanban/Kalender: Client-seitige Filterung ohne Reload
+      if (this.currentView === 'kanban' && this.kanbanBoard) {
+        this.kanbanBoard.setSearchQuery(this.searchQuery);
+        return;
+      }
+      if (this.currentView === 'calendar' && this.calendarView) {
+        this.calendarView.setSearchQuery(this.searchQuery);
+        return;
+      }
+      
+      // Für List-View: Server-seitige Filterung
+      kampagnenCache.invalidate();
+      this.loadAndRender();
+    }, 300);
+  }
+
   // Binde Events
   bindEvents() {
+    // Suchfeld Events
+    SearchInput.bind('kampagne', (value) => this.handleSearch(value));
+
     // View-Toggle Events
     const listBtn = document.getElementById('btn-view-list');
     const kanbanBtn = document.getElementById('btn-view-kanban');

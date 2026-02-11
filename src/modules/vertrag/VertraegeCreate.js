@@ -110,6 +110,8 @@ export class VertraegeCreate {
           influencer_agentur_vertretung: draft.influencer_agentur_vertretung,
           influencer_land: draft.influencer_land,
           influencer_profile: draft.influencer_profile || [],
+          // Handle-Felder aus gespeicherten Profil-Strings parsen (Format: "Plattform @handle")
+          ...this._parseProfileHandles(draft.influencer_profile || []),
           plattformen: draft.plattformen || [],
           plattformen_sonstige: draft.plattformen_sonstige,
           anzahl_reels: draft.anzahl_reels || 0,
@@ -142,6 +144,12 @@ export class VertraegeCreate {
         await this.loadKundeAuftraegePo();
         await this.updateFilteredCreators();
         this._filtersInitialized = true; // Verhindert doppelte Initialisierung in renderStep2
+        
+        // Creator-Profile aus Creator-Profil übernehmen (falls Creator gewählt)
+        if (this.formData.creator_id) {
+          const creator = this.creators.find(c => c.id === this.formData.creator_id);
+          if (creator) this._applyCreatorProfiles(creator);
+        }
         
         console.log('📋 Draft aus DB geladen:', draft);
         console.log('📋 Gefilterte Kampagnen:', this.filteredKampagnen.length);
@@ -197,7 +205,7 @@ export class VertraegeCreate {
       // Lade Creator mit Adressen
       const { data: creators } = await window.supabase
         .from('creator')
-        .select('id, vorname, nachname, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land')
+        .select('id, vorname, nachname, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land, instagram, tiktok')
         .order('nachname');
       
       this.creators = creators || [];
@@ -1045,24 +1053,6 @@ export class VertraegeCreate {
         </div>
 
         <div class="form-field">
-          <label for="influencer_profile_input">Profil(e) <small>(Plattform + @Username, Enter zum Hinzufügen)</small></label>
-          <div class="tags-input-container" id="profile-tags-container">
-            <div class="tags-list" id="profile-tags-list">
-              ${(this.formData.influencer_profile || []).map(p => `
-                <span class="tag">
-                  ${p}
-                  <button type="button" class="tag-remove" data-value="${p}">&times;</button>
-                </span>
-              `).join('')}
-            </div>
-            <input type="text" id="influencer_profile_input" 
-                   placeholder="z.B. Instagram @username">
-          </div>
-          <input type="hidden" name="influencer_profile" id="influencer_profile" 
-                 value="${JSON.stringify(this.formData.influencer_profile || [])}">
-        </div>
-
-        <div class="form-field">
           <label for="name">Vertragsname (automatisch generiert)</label>
           <input type="text" id="name" name="name" readonly 
                  value="${this.formData.name || ''}"
@@ -1112,6 +1102,8 @@ export class VertraegeCreate {
                  value="${this.formData.plattformen_sonstige || ''}"
                  placeholder="z.B. LinkedIn, Twitter">
         </div>
+
+        <!-- Profile werden automatisch aus dem Creator-Profil übernommen -->
 
         <h4>2.2 Inhalte</h4>
         <div class="form-three-col">
@@ -2044,7 +2036,7 @@ export class VertraegeCreate {
       zusatzkosten: this.formData.zusatzkosten || false,
       zusatzkosten_betrag: this.formData.zusatzkosten ? parseFloat(this.formData.zusatzkosten_betrag) || null : null,
       zahlungsziel: this.formData.zahlungsziel || null,
-      skonto: this.formData.skonto || false,
+      skonto: this.formData.skonto === true || this.formData.skonto === 'true',
       korrekturschleifen: parseInt(this.formData.korrekturschleifen) || null,
       weitere_bestimmungen: this.formData.weitere_bestimmungen || null,
       kunde_po_nummer: this.formData.kunde_po_nummer || null
@@ -2139,6 +2131,20 @@ export class VertraegeCreate {
     if (exklusivitaetCheckbox && exklusivitaetWrapper) {
       exklusivitaetCheckbox.addEventListener('change', (e) => {
         exklusivitaetWrapper.classList.toggle('hidden', !e.target.checked);
+        this.formData.exklusivitaet = e.target.checked;
+      });
+    }
+    // Exklusivität Monate/Einheit sofort speichern bei Eingabe
+    const exklusivitaetMonateInput = document.getElementById('exklusivitaet_monate');
+    if (exklusivitaetMonateInput) {
+      exklusivitaetMonateInput.addEventListener('input', (e) => {
+        this.formData.exklusivitaet_monate = e.target.value;
+      });
+    }
+    const exklusivitaetEinheitSelect = document.getElementById('exklusivitaet_einheit');
+    if (exklusivitaetEinheitSelect) {
+      exklusivitaetEinheitSelect.addEventListener('change', (e) => {
+        this.formData.exklusivitaet_einheit = e.target.value;
       });
     }
 
@@ -2208,54 +2214,6 @@ export class VertraegeCreate {
     if (anzahlStorysInput) {
       anzahlStorysInput.addEventListener('blur', () => {
         this.syncVeroeffentlichungsplanStorys();
-      });
-    }
-
-    // Profile-Tags Input (Enter zum Hinzufügen)
-    const profileInput = document.getElementById('influencer_profile_input');
-    const profileHidden = document.getElementById('influencer_profile');
-    const profileTagsList = document.getElementById('profile-tags-list');
-    if (profileInput && profileHidden && profileTagsList) {
-      profileInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          const value = profileInput.value.trim();
-          if (value) {
-            let profiles = [];
-            try {
-              profiles = JSON.parse(profileHidden.value || '[]');
-            } catch { profiles = []; }
-            
-            if (!profiles.includes(value)) {
-              profiles.push(value);
-              profileHidden.value = JSON.stringify(profiles);
-              this.formData.influencer_profile = profiles;
-              
-              // Tag hinzufügen
-              const tag = document.createElement('span');
-              tag.className = 'tag';
-              tag.innerHTML = `${value}<button type="button" class="tag-remove" data-value="${value}">&times;</button>`;
-              profileTagsList.appendChild(tag);
-            }
-            profileInput.value = '';
-          }
-        }
-      });
-
-      // Tag entfernen
-      profileTagsList.addEventListener('click', (e) => {
-        if (e.target.classList.contains('tag-remove')) {
-          const value = e.target.dataset.value;
-          let profiles = [];
-          try {
-            profiles = JSON.parse(profileHidden.value || '[]');
-          } catch { profiles = []; }
-          
-          profiles = profiles.filter(p => p !== value);
-          profileHidden.value = JSON.stringify(profiles);
-          this.formData.influencer_profile = profiles;
-          e.target.parentElement.remove();
-        }
       });
     }
 
@@ -2641,9 +2599,13 @@ export class VertraegeCreate {
               </div>
             `;
           }
+          // Social-Media-Profile aus Creator-Profil übernehmen
+          this._applyCreatorProfiles(creator);
         } else if (preview) {
           this.creatorAddressMissing = false;
           preview.innerHTML = '';
+          // Profile zurücksetzen wenn kein Creator
+          this.formData.influencer_profile = [];
         }
         
         // Vertragsname automatisch generieren
@@ -2827,11 +2789,49 @@ export class VertraegeCreate {
             </div>
           `;
         }
+        // Social-Media-Profile aus Creator-Profil übernehmen
+        this._applyCreatorProfiles(creator);
       } else if (preview) {
         this.creatorAddressMissing = false;
         preview.innerHTML = '';
+        // Profile zurücksetzen wenn kein Creator
+        this.formData.influencer_profile = [];
       }
     });
+  }
+
+  // Social-Media-Profile aus Creator-Profil in formData übernehmen
+  _applyCreatorProfiles(creator) {
+    if (!creator) return;
+    const profiles = [];
+    if (creator.instagram) {
+      const handle = this._extractHandle(creator.instagram);
+      profiles.push(`Instagram: @${handle}`);
+    }
+    if (creator.tiktok) {
+      const handle = this._extractHandle(creator.tiktok);
+      profiles.push(`TikTok: @${handle}`);
+    }
+    this.formData.influencer_profile = profiles;
+  }
+
+  // Handle aus URL oder String extrahieren
+  // "https://www.instagram.com/majercars/" → "majercars"
+  // "https://www.tiktok.com/@majer.cars" → "majer.cars"
+  // "@majercars" → "majercars"
+  // "majercars" → "majercars"
+  _extractHandle(value) {
+    if (!value) return '';
+    let handle = value.trim();
+    // URL → letzten Pfad-Teil nehmen
+    if (handle.includes('.com/')) {
+      handle = handle.split('.com/').pop();
+    }
+    // Trailing Slash entfernen
+    handle = handle.replace(/\/+$/, '');
+    // Führendes @ entfernen (wird beim Zusammenbauen wieder hinzugefügt)
+    handle = handle.replace(/^@/, '');
+    return handle;
   }
 
   // Hilfsfunktion: Wert in Searchable Select setzen (ohne Change-Event zu triggern!)
@@ -2859,6 +2859,27 @@ export class VertraegeCreate {
     }
     
     // KEIN dispatchEvent - Adress-Vorschauen werden separat gesetzt
+  }
+
+  // Profil-Strings ("Plattform @handle") in Handle-Felder parsen
+  _parseProfileHandles(profiles) {
+    const handles = {};
+    const platformMap = {
+      'instagram': 'handle_instagram',
+      'tiktok': 'handle_tiktok',
+      'youtube': 'handle_youtube',
+      'sonstige': 'handle_sonstige'
+    };
+    (profiles || []).forEach(p => {
+      const lower = (p || '').toLowerCase();
+      for (const [key, field] of Object.entries(platformMap)) {
+        if (lower.startsWith(key)) {
+          handles[field] = p.substring(key.length).trim();
+          break;
+        }
+      }
+    });
+    return handles;
   }
 
   // Prüft ob ein Creator eine gültige Adresse hat
@@ -2963,15 +2984,7 @@ export class VertraegeCreate {
       }
     }
 
-    // influencer_profile aus hidden field
-    const profileHidden = form.querySelector('input[name="influencer_profile"]');
-    if (profileHidden) {
-      try {
-        this.formData.influencer_profile = JSON.parse(profileHidden.value || '[]');
-      } catch {
-        this.formData.influencer_profile = [];
-      }
-    }
+    // influencer_profile wird jetzt automatisch aus dem Creator-Profil übernommen (via _applyCreatorProfiles)
 
     // Videograf-Produktionsplan: Drehtage & Orte sammeln
     const produktionsplanRows = form.querySelectorAll('.produktionsplan-row');
@@ -3448,11 +3461,12 @@ export class VertraegeCreate {
       doc.setFont('helvetica', 'normal');
       y += 6;
       drawYesNoCheckboxes(14, y, vertrag.exklusivitaet);
-      if (vertrag.exklusivitaet && vertrag.exklusivitaet_monate) {
+      if (vertrag.exklusivitaet) {
         y += 5;
         const ugcEinheitLabels = { 'monate': 'Monate', 'wochen': 'Wochen', 'tage': 'Tage' };
-        const ugcEinheit = ugcEinheitLabels[vertrag.exklusivitaet_einheit] || 'Monate';
-        doc.text(`Exklusivität für ${vertrag.exklusivitaet_monate} ${ugcEinheit}`, 14, y);
+        const ugcEinheit = ugcEinheitLabels[vertrag.exklusivitaet_einheit || this.formData.exklusivitaet_einheit] || 'Monate';
+        const ugcMonate = vertrag.exklusivitaet_monate || parseInt(this.formData.exklusivitaet_monate) || '-';
+        doc.text(`Exklusivität für ${ugcMonate} ${ugcEinheit}`, 14, y);
       }
 
       // §5 Vergütung
@@ -3494,8 +3508,12 @@ export class VertraegeCreate {
       const zahlungszielLabels = { '30_tage': '30 Tage', '60_tage': '60 Tage' };
       doc.text(`Zahlungsziel: ${zahlungszielLabels[vertrag.zahlungsziel] || '-'}`, 14, y);
       y += 6;
+      const ugcSkontoValue = vertrag.skonto === true || vertrag.skonto === 'true';
       doc.text('Skonto:', 14, y);
-      drawYesNoCheckboxes(30, y, vertrag.skonto);
+      y += 5;
+      drawCheckbox(14, y, ugcSkontoValue, 'Ja (3% bei Zahlung innerhalb 7 Tage)');
+      y += 5;
+      drawCheckbox(14, y, !ugcSkontoValue, 'Nein');
       y += 5;
       doc.text('Bei Skonto gilt: Bei Zahlung innerhalb von 7 Kalendertagen ab Rechnungsdatum gewährt der', 14, y);
       y += 4;
@@ -4207,10 +4225,11 @@ export class VertraegeCreate {
       doc.setFont('helvetica', 'normal');
       y += 6;
       const exklusivitaetEinheitLabels = { 'monate': 'Monate', 'wochen': 'Wochen', 'tage': 'Tage' };
-      const exklusivitaetEinheit = exklusivitaetEinheitLabels[vertrag.exklusivitaet_einheit] || 'Monate';
+      const exklusivitaetEinheit = exklusivitaetEinheitLabels[vertrag.exklusivitaet_einheit || this.formData.exklusivitaet_einheit] || 'Monate';
+      const exklusivitaetMonate = vertrag.exklusivitaet_monate || parseInt(this.formData.exklusivitaet_monate) || '-';
       drawCheckbox(14, y, !vertrag.exklusivitaet, 'Keine Exklusivität');
       y += 5;
-      drawCheckbox(14, y, vertrag.exklusivitaet, `Exklusivität für ${vertrag.exklusivitaet_monate || '-'} ${exklusivitaetEinheit}`);
+      drawCheckbox(14, y, vertrag.exklusivitaet, `Exklusivität für ${exklusivitaetMonate} ${exklusivitaetEinheit}`);
 
       // §6 Vergütung
       checkPageBreak(55);
@@ -4229,9 +4248,12 @@ export class VertraegeCreate {
       y += 8;
       doc.text(`Zahlungsziel: ${zahlungszielLabels[vertrag.zahlungsziel] || '-'}`, 14, y);
       y += 5;
+      const skontoValue = vertrag.skonto === true || vertrag.skonto === 'true';
       doc.text('Skonto:', 14, y);
-      drawYesNoCheckboxes(32, y, vertrag.skonto);
-      doc.text('(3% bei Zahlung innerhalb 7 Tage)', 60, y);
+      y += 5;
+      drawCheckbox(14, y, skontoValue, 'Ja (3% bei Zahlung innerhalb 7 Tage)');
+      y += 5;
+      drawCheckbox(14, y, !skontoValue, 'Nein');
 
       // §7 Qualitätsanforderungen
       checkPageBreak(35);
@@ -4908,7 +4930,7 @@ export class VertraegeCreate {
       y += 6;
       doc.text(`Zahlungsziel: ${zahlungszielLabels[vertrag.zahlungsziel] || '-'}`, 14, y);
       y += 5;
-      doc.text(`Skonto: ${vertrag.skonto ? 'Ja (3% bei Zahlung innerhalb 7 Tage)' : 'Nein'}`, 14, y);
+      doc.text(`Skonto: ${(vertrag.skonto === true || vertrag.skonto === 'true') ? 'Ja (3% bei Zahlung innerhalb 7 Tage)' : 'Nein'}`, 14, y);
       y += 5;
       y = addWrappedText('Die Zahlung erfolgt durch die LikeGroup GmbH im Auftrag des Kunden. Die Rechnungsstellung erfolgt nach finaler Abnahme.', 14, y, 180);
 
