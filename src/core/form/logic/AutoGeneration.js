@@ -91,11 +91,11 @@ export class AutoGeneration {
   }
 
   // Kampagnenname automatisch generieren: "[Kürzel] - X/Y - Datum" (Fallback: Firmenname)
-  async autoGenerateKampagnenname(form, auftragId) {
+  async autoGenerateKampagnenname(form, auftragId, excludeKampagneId = null) {
     try {
       if (!auftragId) return;
 
-      console.log(`🔧 Generiere Kampagnenname für Auftrag: ${auftragId}`);
+      console.log(`🔧 Generiere Kampagnenname für Auftrag: ${auftragId}${excludeKampagneId ? ` (exkl. Kampagne ${excludeKampagneId})` : ''}`);
 
       // 1. Auftrag-Details laden (inkl. Kürzel und Firmenname)
       const { data: auftrag, error: auftragError } = await window.supabase
@@ -124,13 +124,18 @@ export class AutoGeneration {
         return;
       }
 
+      // Im Edit-Mode: Aktuelle Kampagne aus der Zählung ausschließen
+      const filteredKampagnen = excludeKampagneId
+        ? (existingKampagnen || []).filter(k => k.id !== excludeKampagneId)
+        : (existingKampagnen || []);
+
       // 3. Nächste verfügbare Nummer finden (um Dopplungen nach Löschen zu vermeiden)
-      let currentKampagneNummer = (existingKampagnen?.length || 0) + 1;
+      let currentKampagneNummer = filteredKampagnen.length + 1;
       const maxKampagnen = auftrag.kampagnenanzahl || 1;
 
       // Höchste existierende Nummer aus Kampagnennamen extrahieren
       // Pattern: "ABC - 2/5" oder "ABC - 2/5 - 01.02.2025"
-      const existingNumbers = (existingKampagnen || [])
+      const existingNumbers = filteredKampagnen
         .map(k => {
           const match = k.kampagnenname?.match(/- (\d+)\/\d+/);
           return match ? parseInt(match[1]) : 0;
@@ -476,13 +481,20 @@ export class AutoGeneration {
     }
     
     // ========== KAMPAGNENNAME (für Kampagne-Formulare) ==========
+    const isKampagneEditMode = form.dataset.isEditMode === 'true' && form.dataset.entityType === 'kampagne';
+    const editKampagneId = isKampagneEditMode ? form.dataset.entityId : null;
+
+    if (isKampagneEditMode) {
+      console.log('🔒 AUTOGENERATION: Kampagne Edit-Mode erkannt, überspringe initiale Auto-Generierung. Kampagne-ID:', editKampagneId);
+    }
+
     // Deadline-Änderung überwachen (Kampagne)
     const deadlineInput = form.querySelector('input[name="deadline"]');
     if (deadlineInput) {
       deadlineInput.addEventListener('change', () => {
         const auftragSelect = form.querySelector('select[name="auftrag_id"]');
         if (auftragSelect && auftragSelect.value) {
-          this.autoGenerateKampagnenname(form, auftragSelect.value);
+          this.autoGenerateKampagnenname(form, auftragSelect.value, editKampagneId);
         }
       });
     }
@@ -492,12 +504,12 @@ export class AutoGeneration {
     if (auftragSelect) {
       auftragSelect.addEventListener('change', () => {
         if (auftragSelect.value) {
-          this.autoGenerateKampagnenname(form, auftragSelect.value);
+          this.autoGenerateKampagnenname(form, auftragSelect.value, editKampagneId);
         }
       });
       
-      // Sofort auslösen, wenn bereits ein Wert vorhanden ist
-      if (auftragSelect.value) {
+      // Sofort auslösen NUR im Create-Mode (nicht im Edit-Mode)
+      if (auftragSelect.value && !isKampagneEditMode) {
         this.autoGenerateKampagnenname(form, auftragSelect.value);
       }
     }
@@ -513,15 +525,17 @@ export class AutoGeneration {
           timeout = setTimeout(() => {
             const hiddenSelect = auftragContainer.querySelector('select[style*="display: none"]');
             if (hiddenSelect && hiddenSelect.value) {
-              this.autoGenerateKampagnenname(form, hiddenSelect.value);
+              this.autoGenerateKampagnenname(form, hiddenSelect.value, editKampagneId);
             }
           }, 300);
         });
         
-        // Sofort auslösen für searchable Selects, wenn bereits ein Wert vorhanden ist
-        const hiddenSelect = auftragContainer.querySelector('select[style*="display: none"]');
-        if (hiddenSelect && hiddenSelect.value) {
-          this.autoGenerateKampagnenname(form, hiddenSelect.value);
+        // Sofort auslösen NUR im Create-Mode
+        if (!isKampagneEditMode) {
+          const hiddenSelect = auftragContainer.querySelector('select[style*="display: none"]');
+          if (hiddenSelect && hiddenSelect.value) {
+            this.autoGenerateKampagnenname(form, hiddenSelect.value);
+          }
         }
       }
     }

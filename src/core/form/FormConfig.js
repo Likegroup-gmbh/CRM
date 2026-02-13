@@ -240,7 +240,7 @@ export class FormConfig {
             autoGenerate: true,
             dependsOn: 'auftrag_id',
             showWhen: 'any',
-            readonly: true,
+            readonlyExceptEdit: true,
             placeholder: 'Wird automatisch generiert...'
           },
           { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...', table: 'unternehmen', displayField: 'firmenname', valueField: 'id' },

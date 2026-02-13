@@ -93,13 +93,20 @@ export class FormRenderer {
     };
     
     for (let i = 0; i < fields.length; i++) {
-      const field = fields[i];
+      let field = fields[i];
       
       // Überspringe bereits verarbeitete Felder (z.B. Datum-Felder die mit Toggle gerendert wurden)
       if (processedFields.has(field.name)) continue;
       
       // Felder mit editOnly nur im Edit-Modus anzeigen
       if (field.editOnly && !data?._isEditMode) continue;
+
+      // readonlyExceptEdit: Im Edit-Mode readonly aufheben, im Create-Mode readonly setzen
+      if (field.readonlyExceptEdit && data?._isEditMode) {
+        field = { ...field, readonly: false };
+      } else if (field.readonlyExceptEdit && !data?._isEditMode) {
+        field = { ...field, readonly: true };
+      }
       
       // SECTION-Gruppierung: Felder mit gleichem section-Attribut in einem Container
       if (field.section !== currentSection) {

@@ -193,8 +193,9 @@ export class DependentFields {
             }
             console.log(`🔍 Feld ${field.dataset.dependsOn} ${shouldShow ? 'angezeigt' : (fieldContainer.dataset.prefillFromUnternehmen ? 'sichtbar (prefill)' : 'versteckt')}`);
             
-            // Auto-Generierung für Kampagnenname
-            if (shouldShow && field.dataset.autoGenerate === 'true') {
+            // Auto-Generierung für Kampagnenname (nicht im Kampagne-Edit-Mode)
+            const isKampagneEdit = form.dataset.isEditMode === 'true' && form.dataset.entityType === 'kampagne';
+            if (shouldShow && field.dataset.autoGenerate === 'true' && !isKampagneEdit) {
               this.autoGeneration.autoGenerateKampagnenname(form, parentValue);
             }
           }
