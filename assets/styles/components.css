@@ -9775,33 +9775,47 @@ input.readonly-field {
 
 /* === STRATEGIE TABLE ERWEITERUNGEN === */
 
-/* Strategien-Liste: Spaltenbreiten */
+/* Strategien-Liste: Spaltenbreiten (nur width in em, kein min-width) */
 table:has(#strategien-table-body) {
   table-layout: fixed;
 }
 
-table:has(#strategien-table-body) th:nth-child(1),
-table:has(#strategien-table-body) td:nth-child(1) {
-  width: 35%;
+table:has(#strategien-table-body) th.col-name,
+table:has(#strategien-table-body) td.col-name {
+  width: 20em;
   font-weight: normal;
   text-align: left;
 }
 
-table:has(#strategien-table-body) th:nth-child(2),
-table:has(#strategien-table-body) td:nth-child(2) {
-  width: 130px;
-  min-width: 130px;
+table:has(#strategien-table-body) th.col-unternehmen,
+table:has(#strategien-table-body) td.col-unternehmen {
+  width: 10em;
 }
 
-table:has(#strategien-table-body) th:nth-child(3),
-table:has(#strategien-table-body) td:nth-child(3) {
-  width: 80px;
+table:has(#strategien-table-body) th.col-marke,
+table:has(#strategien-table-body) td.col-marke {
+  width: 10em;
 }
 
-table:has(#strategien-table-body) th:nth-child(6),
-table:has(#strategien-table-body) td:nth-child(6) {
-  width: 120px;
-  min-width: 120px;
+table:has(#strategien-table-body) th.col-kampagne,
+table:has(#strategien-table-body) td.col-kampagne {
+  width: 12em;
+}
+
+table:has(#strategien-table-body) th.col-erstellt-von,
+table:has(#strategien-table-body) td.col-erstellt-von {
+  width: 10em;
+}
+
+table:has(#strategien-table-body) th.col-actions,
+table:has(#strategien-table-body) td.col-actions {
+  width: 7em;
+}
+
+/* Erstellt-von-Spalte global (auch in Detail-Tabellen) */
+.data-table th.col-erstellt-von,
+.data-table td.col-erstellt-von {
+  width: 10em;
 }
 
 /* Drag-to-Scroll Support für Tabellen */
@@ -13500,7 +13514,7 @@ table.vertraege-unternehmen-table td:last-child {
 
 .form-split-left {
   flex: 1;
-  max-width: 720px;
+  max-width: 50%;
   min-width: 0;
 }
 

@@ -5,6 +5,7 @@ import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { PersonDetailBase } from './PersonDetailBase.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 
 export class MitarbeiterDetail extends PersonDetailBase {
   constructor() {
@@ -15,6 +16,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
     this.zugeordnet = { unternehmen: [], marken: [] };
     this.budget = { invoicesByKoop: {}, totals: { netto: 0, zusatz: 0, gesamt: 0, invoice_netto: 0, invoice_brutto: 0 } };
     this.statusOptions = [];
+    this.euLaender = [];
     this.activeMainTab = 'rechte';
   }
 
@@ -38,11 +40,20 @@ export class MitarbeiterDetail extends PersonDetailBase {
 
   async load() {
     try {
-      const { data: user } = await window.supabase
+      let { data: user, error: userError } = await window.supabase
         .from('benutzer')
-        .select('*, mitarbeiter_klasse:mitarbeiter_klasse_id(id, name)')
+        .select('*, mitarbeiter_klasse:mitarbeiter_klasse_id(id, name), telefonnummer_firmenhandy_land:telefonnummer_firmenhandy_land_id(id, name_de, vorwahl, iso_code)')
         .eq('id', this.userId)
         .single();
+      if (userError) {
+        console.warn('⚠️ Mitarbeiter-Ladung mit Firmenhandy-Feldern fehlgeschlagen, nutze Fallback:', userError.message);
+        const fallbackResult = await window.supabase
+          .from('benutzer')
+          .select('*, mitarbeiter_klasse:mitarbeiter_klasse_id(id, name)')
+          .eq('id', this.userId)
+          .single();
+        user = fallbackResult.data;
+      }
       this.user = user || {};
       
       // Mitarbeiter-Klassen-Name extrahieren
@@ -50,7 +61,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
         this.user.mitarbeiter_klasse_name = this.user.mitarbeiter_klasse.name;
       }
 
-      const [{ data: kampRel }, { data: koops }, { data: briefs }, { data: statusRows }, { data: unternehmenRel }, { data: markenRel }] = await Promise.all([
+      const [{ data: kampRel }, { data: koops }, { data: briefs }, { data: statusRows }, { data: unternehmenRel }, { data: markenRel }, { data: euLaenderRows }] = await Promise.all([
         window.supabase
           .from('kampagne_mitarbeiter')
           .select('kampagne:kampagne_id(id, kampagnenname, eigener_name)')
@@ -65,7 +76,11 @@ export class MitarbeiterDetail extends PersonDetailBase {
         window.supabase
           .from('marke_mitarbeiter')
           .select('marke:marke_id(id, markenname)')
-          .eq('mitarbeiter_id', this.userId)
+          .eq('mitarbeiter_id', this.userId),
+        window.supabase
+          .from('eu_laender')
+          .select('id, name_de, vorwahl, iso_code')
+          .order('name_de', { ascending: true })
       ]);
 
       // Direkt zugeordnete Kampagnen
@@ -136,6 +151,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
       this.assignments.kooperationen = Array.from(allKoopsMap.values());
       this.assignments.briefings = briefs || [];
       this.statusOptions = statusRows || [];
+      this.euLaender = euLaenderRows || [];
       this.zugeordnet = {
         unternehmen: (unternehmenRel || []).map(r => ({
           ...r.unternehmen,
@@ -281,6 +297,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
     const sidebarInfo = this.renderInfoItems([
       { label: 'Rolle', value: this.user?.rolle || '-', badge: true, badgeType: this.user?.rolle === 'admin' ? 'primary' : 'secondary' },
       { label: 'Klasse', value: this.user?.mitarbeiter_klasse_name || 'Nicht zugewiesen' },
+      { label: 'Firmenhandy', value: '-', rawHtml: this.getFirmenhandyDisplayHtml() },
       { label: 'Freigeschaltet', value: this.user?.freigeschaltet ? 'Ja' : 'Nein', badge: true, badgeType: this.user?.freigeschaltet ? 'success' : 'warning' },
       { label: 'Erstellt', value: this.formatDate(this.user?.created_at) }
     ]);
@@ -314,6 +331,14 @@ export class MitarbeiterDetail extends PersonDetailBase {
       { tab: 'briefings', label: 'Briefings', count: this.assignments.briefings.length, isActive: this.activeMainTab === 'briefings' },
       { tab: 'auftragsdetails', label: 'Auftragsdetails', count: this.assignments.auftragsdetails.length, isActive: this.activeMainTab === 'auftragsdetails' }
     ];
+  }
+
+  getFirmenhandyDisplayHtml() {
+    const nummer = this.user?.telefonnummer_firmenhandy;
+    if (!nummer) return '';
+    const land = this.user?.telefonnummer_firmenhandy_land;
+    const cleanNumber = String(nummer).replace(/[^\d+\s()/.-]/g, '');
+    return PhoneDisplay.renderClickable(land?.iso_code, land?.vorwahl, cleanNumber);
   }
 
   renderTabNavigation() {
@@ -430,6 +455,52 @@ export class MitarbeiterDetail extends PersonDetailBase {
                 </td>
                 <td style="text-align: right;">
                   <button class="secondary-btn" id="btn-change-rolle">Rolle ändern</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Kontaktdaten</th>
+                <th style="width: 320px; text-align: right;">Wert</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div>
+                    <strong>Firmenhandy</strong>
+                    <div class="form-help" style="margin-top: 4px;">
+                      Wird auf der Mitarbeiter-Detailseite angezeigt.
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div style="display:flex; gap:8px; justify-content:flex-end; align-items:center;">
+                    <select id="firmenhandy-land" class="form-select" style="max-width: 170px;">
+                      <option value="">Land wählen...</option>
+                      ${(this.euLaender || []).map(land => `
+                        <option value="${land.id}" ${land.id === this.user?.telefonnummer_firmenhandy_land_id ? 'selected' : ''}>
+                          ${this.sanitize(`${land.vorwahl || ''} ${land.name_de || ''}`.trim())}
+                        </option>
+                      `).join('')}
+                    </select>
+                    <input
+                      id="firmenhandy-nummer"
+                      type="tel"
+                      class="form-input"
+                      placeholder="z. B. 15123456789"
+                      value="${this.sanitize(this.user?.telefonnummer_firmenhandy || '')}"
+                      style="max-width: 180px;"
+                    />
+                    <button id="btn-save-firmenhandy" class="secondary-btn">Speichern</button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -944,6 +1015,12 @@ export class MitarbeiterDetail extends PersonDetailBase {
         window.navigateTo('/mitarbeiter');
         return;
       }
+
+      if (e.target && e.target.id === 'btn-save-firmenhandy') {
+        e.preventDefault();
+        await this.saveFirmenhandyFromForm();
+        return;
+      }
     });
 
     // Event-Handler für Unternehmen zuordnen
@@ -1373,6 +1450,39 @@ export class MitarbeiterDetail extends PersonDetailBase {
     } catch (err) {
       console.error('❌ Entfernen fehlgeschlagen', err);
       window.NotificationSystem?.show('error', 'Entfernen fehlgeschlagen: ' + err.message);
+    }
+  }
+
+  async saveFirmenhandyFromForm() {
+    try {
+      const landId = document.getElementById('firmenhandy-land')?.value || null;
+      const nummer = document.getElementById('firmenhandy-nummer')?.value?.trim() || null;
+
+      if (nummer && !landId) {
+        window.NotificationSystem?.show('warning', 'Bitte Land auswählen.');
+        return;
+      }
+
+      const { error } = await window.supabase
+        .from('benutzer')
+        .update({
+          telefonnummer_firmenhandy: nummer,
+          telefonnummer_firmenhandy_land_id: landId
+        })
+        .eq('id', this.userId);
+
+      if (error) throw error;
+
+      this.user.telefonnummer_firmenhandy = nummer;
+      this.user.telefonnummer_firmenhandy_land_id = landId;
+      this.user.telefonnummer_firmenhandy_land = (this.euLaender || []).find(land => land.id === landId) || null;
+
+      window.NotificationSystem?.show('success', 'Firmenhandy gespeichert.');
+      await this.render();
+      this.bind();
+    } catch (error) {
+      console.error('❌ Firmenhandy speichern fehlgeschlagen', error);
+      window.NotificationSystem?.show('error', `Speichern fehlgeschlagen: ${error.message}`);
     }
   }
 

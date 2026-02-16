@@ -354,11 +354,14 @@ export class DataService {
           auth_user_id: 'uuid',
           profile_image_url: 'string',
           mitarbeiter_klasse_id: 'uuid',
+          telefonnummer_firmenhandy: 'string',
+          telefonnummer_firmenhandy_land_id: 'uuid',
           freigeschaltet: 'boolean',
           updated_at: 'date'
         },
         relations: {
-          mitarbeiter_klasse: { table: 'mitarbeiter_klasse', foreignKey: 'mitarbeiter_klasse_id', displayField: 'name' }
+          mitarbeiter_klasse: { table: 'mitarbeiter_klasse', foreignKey: 'mitarbeiter_klasse_id', displayField: 'name' },
+          telefonnummer_firmenhandy_land: { table: 'eu_laender', foreignKey: 'telefonnummer_firmenhandy_land_id', displayField: 'name_de' }
         }
       },
       kunden: {
@@ -777,6 +780,7 @@ export class DataService {
         table: 'marke_kickoff',
         displayField: 'brand_essenz',
         fields: {
+          kickoff_type: 'string',
           marke_id: 'uuid',
           unternehmen_id: 'uuid',
           brand_essenz: 'string',

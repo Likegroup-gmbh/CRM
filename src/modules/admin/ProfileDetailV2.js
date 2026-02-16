@@ -6,6 +6,7 @@ import { PersonDetailBase } from './PersonDetailBase.js';
 import { getTabIcon } from '../../core/TabUtils.js';
 import { UploaderField } from '../../core/form/fields/UploaderField.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 
 export class ProfileDetailV2 extends PersonDetailBase {
   constructor() {
@@ -19,6 +20,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     this.kooperationen = [];
     this.videos = [];
     this.sprachen = [];
+    this.euLaender = [];
     this.activeMainTab = 'unternehmen';
   }
 
@@ -49,20 +51,36 @@ export class ProfileDetailV2 extends PersonDetailBase {
 
   async loadAllData() {
     await this.loadUserData();
+    await this.loadEuLaender();
     await this.loadAssignedEntities();
     await this.loadActivitiesData();
   }
 
   async loadUserData() {
     try {
-      const { data: user, error } = await window.supabase
+      let { data: user, error } = await window.supabase
         .from('benutzer')
         .select(`
           *,
-          mitarbeiter_klasse:mitarbeiter_klasse_id(name, description)
+          mitarbeiter_klasse:mitarbeiter_klasse_id(name, description),
+          telefonnummer_firmenhandy_land:telefonnummer_firmenhandy_land_id(id, name_de, vorwahl, iso_code)
         `)
         .eq('id', this.userId)
         .single();
+
+      if (error) {
+        console.warn('⚠️ Profil-Ladung mit Firmenhandy-Feldern fehlgeschlagen, nutze Fallback:', error.message);
+        const fallbackResult = await window.supabase
+          .from('benutzer')
+          .select(`
+            *,
+            mitarbeiter_klasse:mitarbeiter_klasse_id(name, description)
+          `)
+          .eq('id', this.userId)
+          .single();
+        user = fallbackResult.data;
+        error = fallbackResult.error;
+      }
 
       if (error) throw error;
       this.user = user || {};
@@ -79,6 +97,21 @@ export class ProfileDetailV2 extends PersonDetailBase {
     } catch (error) {
       console.error('❌ Fehler beim Laden des Profils:', error);
       window.ErrorHandler.handle(error, 'ProfileDetailV2.loadUserData');
+    }
+  }
+
+  async loadEuLaender() {
+    try {
+      const { data, error } = await window.supabase
+        .from('eu_laender')
+        .select('id, name_de, vorwahl, iso_code')
+        .order('name_de', { ascending: true });
+
+      if (error) throw error;
+      this.euLaender = data || [];
+    } catch (error) {
+      console.error('❌ Fehler beim Laden von EU-Ländern:', error);
+      this.euLaender = [];
     }
   }
 
@@ -461,6 +494,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     const sprachenText = this.sprachen.length > 0 
       ? this.sprachen.map(s => s.name).join(', ') 
       : 'Keine Sprachen';
+    const firmenhandyHtml = this.getFirmenhandyDisplayHtml();
 
     const items = [
       { label: 'Rolle', value: rolle, badge: true, badgeType: rolle === 'admin' ? 'primary' : 'secondary' }
@@ -470,10 +504,22 @@ export class ProfileDetailV2 extends PersonDetailBase {
       items.push({ label: 'Klasse', value: mitarbeiterKlasse });
     }
 
+    if (firmenhandyHtml) {
+      items.push({ label: 'Firmenhandy', value: '-', rawHtml: firmenhandyHtml });
+    }
+
     items.push({ label: 'Sprachen', value: sprachenText });
     items.push({ label: 'Mitglied seit', value: this.formatDate(this.user?.created_at) });
 
     return this.renderInfoItems(items);
+  }
+
+  getFirmenhandyDisplayHtml() {
+    const land = this.user?.telefonnummer_firmenhandy_land;
+    const nummer = this.user?.telefonnummer_firmenhandy;
+    if (!nummer) return '';
+    const cleanNumber = String(nummer).replace(/[^\d+\s()/.-]/g, '');
+    return PhoneDisplay.renderClickable(land?.iso_code, land?.vorwahl, cleanNumber);
   }
 
   renderProfileTabNavigation(isKunde) {
@@ -532,7 +578,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
           <thead>
             <tr>
               <th>Firmenname</th>
-              <th>Website</th>
+              <th class="col-webseite">Website</th>
               <th style="width: 80px; text-align: right;">Aktionen</th>
             </tr>
           </thead>
@@ -545,7 +591,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
                     <span>${this.sanitize(u.firmenname)}</span>
                   </div>
                 </td>
-                <td>${u.webseite ? `<a href="${u.webseite}" target="_blank" rel="noopener">${this.sanitize(u.webseite)}</a>` : '-'}</td>
+                <td class="col-webseite">${u.webseite ? `<a href="${u.webseite}" target="_blank" rel="noopener">${this.sanitize(u.webseite)}</a>` : '-'}</td>
                 <td style="text-align: right;">
                   <a href="/unternehmen/${u.id}" onclick="event.preventDefault(); window.navigateTo('/unternehmen/${u.id}')" class="secondary-btn btn-sm">Details</a>
                 </td>
@@ -810,6 +856,13 @@ export class ProfileDetailV2 extends PersonDetailBase {
            <img src="${this.sanitize(this.user.profile_image_url)}" alt="Aktuelles Profilbild" class="profile-image-current">
          </div>`
       : '';
+    const countryOptions = this.euLaender
+      .map(land => {
+        const isSelected = land.id === this.user?.telefonnummer_firmenhandy_land_id ? 'selected' : '';
+        const label = `${land.vorwahl || ''} ${this.sanitize(land.name_de || '')}`.trim();
+        return `<option value="${land.id}" ${isSelected}>${label}</option>`;
+      })
+      .join('');
     
     body.innerHTML = `
       <form id="profile-edit-form" data-no-submit-guard="true">
@@ -827,6 +880,20 @@ export class ProfileDetailV2 extends PersonDetailBase {
         <div class="form-field">
           <label for="profile-name">Name *</label>
           <input type="text" id="profile-name" class="form-input" value="${this.sanitize(this.user?.name || '')}" placeholder="Vollständiger Name" required>
+        </div>
+
+        <div class="form-row" style="display:flex; gap:12px;">
+          <div class="form-field" style="flex:0 0 48%;">
+            <label for="profile-firmenhandy-land">Land (Firmenhandy)</label>
+            <select id="profile-firmenhandy-land" class="form-input">
+              <option value="">Land wählen...</option>
+              ${countryOptions}
+            </select>
+          </div>
+          <div class="form-field" style="flex:1;">
+            <label for="profile-firmenhandy">Firmenhandy</label>
+            <input type="tel" id="profile-firmenhandy" class="form-input" value="${this.sanitize(this.user?.telefonnummer_firmenhandy || '')}" placeholder="z. B. 15123456789">
+          </div>
         </div>
         
         <div class="form-field">
@@ -947,6 +1014,8 @@ export class ProfileDetailV2 extends PersonDetailBase {
     console.log('🔄 handleProfileSave: Start');
     
     const nameInput = document.getElementById('profile-name');
+    const firmenhandyInput = document.getElementById('profile-firmenhandy');
+    const firmenhandyLandInput = document.getElementById('profile-firmenhandy-land');
     const saveBtn = document.getElementById('profile-save-btn');
     
     console.log('🔄 handleProfileSave: nameInput=', nameInput, 'value=', nameInput?.value);
@@ -955,6 +1024,13 @@ export class ProfileDetailV2 extends PersonDetailBase {
     if (!nameInput?.value?.trim()) {
       window.showToast?.('Bitte gib einen Namen ein.', 'error');
       console.log('❌ handleProfileSave: Kein Name eingegeben');
+      return;
+    }
+
+    const firmenhandy = firmenhandyInput?.value?.trim() || null;
+    const firmenhandyLandId = firmenhandyLandInput?.value || null;
+    if (firmenhandy && !firmenhandyLandId) {
+      window.showToast?.('Bitte ein Land für das Firmenhandy auswählen.', 'error');
       return;
     }
     
@@ -1011,7 +1087,11 @@ export class ProfileDetailV2 extends PersonDetailBase {
       console.log('🔄 handleProfileSave: Speichere Name:', nameInput.value.trim(), 'für userId:', this.userId);
       const { error } = await window.supabase
         .from('benutzer')
-        .update({ name: nameInput.value.trim() })
+        .update({
+          name: nameInput.value.trim(),
+          telefonnummer_firmenhandy: firmenhandy,
+          telefonnummer_firmenhandy_land_id: firmenhandyLandId
+        })
         .eq('id', this.userId);
       
       if (error) {
@@ -1023,8 +1103,13 @@ export class ProfileDetailV2 extends PersonDetailBase {
       
       // User-Daten und currentUser aktualisieren
       this.user.name = nameInput.value.trim();
+      this.user.telefonnummer_firmenhandy = firmenhandy;
+      this.user.telefonnummer_firmenhandy_land_id = firmenhandyLandId;
+      this.user.telefonnummer_firmenhandy_land = this.euLaender.find(land => land.id === firmenhandyLandId) || null;
       if (window.currentUser) {
         window.currentUser.name = nameInput.value.trim();
+        window.currentUser.telefonnummer_firmenhandy = firmenhandy;
+        window.currentUser.telefonnummer_firmenhandy_land_id = firmenhandyLandId;
       }
       
       window.showToast?.('Profil erfolgreich aktualisiert.', 'success');

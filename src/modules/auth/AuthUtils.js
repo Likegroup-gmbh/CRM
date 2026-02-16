@@ -154,6 +154,11 @@ export class AuthUtils {
               <div class="form-box">
                 <label for="registerEmail" class="label">E-Mail</label>
                 <input type="email" id="registerEmail" class="input" placeholder="ihre@email.com" required>
+                <div id="registerEmailError" class="text-error" style="display: none;"></div>
+              </div>
+              <div class="form-box">
+                <label for="registerFirmenhandy" class="label">Firmenhandy</label>
+                <input type="tel" id="registerFirmenhandy" class="input" placeholder="z. B. 15123456789" required>
               </div>
               <div class="form-box">
                 <label for="registerPassword" class="label">Passwort</label>
@@ -205,19 +210,35 @@ export class AuthUtils {
     
     const vorname = document.getElementById('registerVorname').value.trim();
     const nachname = document.getElementById('registerNachname').value.trim();
-    const email = document.getElementById('registerEmail').value;
+    const emailInput = document.getElementById('registerEmail');
+    const email = emailInput.value;
+    const firmenhandy = document.getElementById('registerFirmenhandy')?.value?.trim() || '';
     const password = document.getElementById('registerPassword').value;
     const errorDiv = document.getElementById('registerError');
+    const emailErrorDiv = document.getElementById('registerEmailError');
 
     try {
       errorDiv.style.display = 'none';
+      this.clearRegisterEmailError(emailInput, emailErrorDiv);
       
       // Validierung
       if (!vorname || !nachname) {
         throw new Error('Bitte geben Sie Vorname und Nachname ein.');
       }
+
+      if (!firmenhandy) {
+        throw new Error('Bitte Firmenhandy angeben.');
+      }
       
-      const result = await authService.signUp(email, vorname, nachname, password);
+      const result = await authService.signUp(
+        email,
+        vorname,
+        nachname,
+        password,
+        null,
+        firmenhandy,
+        null
+      );
       
       if (result.error) {
         throw result.error;
@@ -240,8 +261,50 @@ export class AuthUtils {
       }
     } catch (error) {
       console.error('Registration failed:', error);
+
+      if (this.isDuplicateEmailError(error)) {
+        this.showRegisterEmailError(
+          emailInput,
+          emailErrorDiv,
+          error.message || 'Diese E-Mail-Adresse wird bereits verwendet.'
+        );
+        return;
+      }
+
       errorDiv.textContent = error.message || 'Registrierung fehlgeschlagen';
       errorDiv.style.display = 'block';
+    }
+  }
+
+  isDuplicateEmailError(error) {
+    if (!error) return false;
+    return error.code === 'DUPLICATE_EMAIL' || error.isDuplicateEmail === true;
+  }
+
+  clearRegisterEmailError(emailInput, emailErrorDiv) {
+    if (emailInput) {
+      emailInput.classList.remove('is-invalid');
+      emailInput.style.borderColor = '';
+      emailInput.style.boxShadow = '';
+    }
+
+    if (emailErrorDiv) {
+      emailErrorDiv.textContent = '';
+      emailErrorDiv.style.display = 'none';
+    }
+  }
+
+  showRegisterEmailError(emailInput, emailErrorDiv, message) {
+    if (emailInput) {
+      emailInput.classList.add('is-invalid');
+      emailInput.style.borderColor = 'var(--color-error)';
+      emailInput.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.2)';
+      emailInput.focus();
+    }
+
+    if (emailErrorDiv) {
+      emailErrorDiv.textContent = message;
+      emailErrorDiv.style.display = 'block';
     }
   }
 
@@ -423,6 +486,7 @@ export class AuthUtils {
     if (!data.vorname) errors.push('Vorname ist erforderlich');
     if (!data.nachname) errors.push('Nachname ist erforderlich');
     if (!data.email) errors.push('E-Mail ist erforderlich');
+    if (!data.firmenhandy) errors.push('Firmenhandy ist erforderlich');
     if (!data.password) errors.push('Passwort ist erforderlich');
     
     return errors;

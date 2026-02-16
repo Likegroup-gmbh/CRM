@@ -318,7 +318,7 @@ export class AuthService {
   }
 
   // Registrierung
-  async signUp(email, vorname, nachname, password, klasseId = null) {
+  async signUp(email, vorname, nachname, password, klasseId = null, firmenhandy = null, firmenhandyLandId = null) {
     try {
       // Rate Limiting prüfen
       if (this.checkRateLimit(email)) {
@@ -328,6 +328,10 @@ export class AuthService {
       // Passwort-Stärke validieren
       if (!this.validatePasswordStrength(password)) {
         throw new Error('Passwort muss mindestens 4 Zeichen haben.');
+      }
+
+      if (!firmenhandy) {
+        throw new Error('Bitte Firmenhandy angeben.');
       }
 
       if (!window.supabase) {
@@ -352,11 +356,31 @@ export class AuthService {
 
       if (error) {
         this.recordFailedAttempt(email);
+
+        if (this.isDuplicateEmailError(error)) {
+          throw this.createDuplicateEmailError();
+        }
+
         throw error;
       }
 
+      // Supabase kann bei bestehender E-Mail in manchen Konfigurationen keinen harten Fehler liefern.
+      // identities=[] ist dann ein starkes Signal für "bereits registriert".
+      if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        this.recordFailedAttempt(email);
+        throw this.createDuplicateEmailError();
+      }
+
       if (data.user) {
-        await this.createBenutzerRecord(data.user.id, vorname, nachname, email, klasseId);
+        await this.createBenutzerRecord(
+          data.user.id,
+          vorname,
+          nachname,
+          email,
+          klasseId,
+          firmenhandy,
+          firmenhandyLandId
+        );
       }
 
       this.clearAttempts(email);
@@ -378,7 +402,15 @@ export class AuthService {
   }
 
   // Benutzer-Record erstellen (wird vom Trigger automatisch erstellt, prüfen ob vorhanden)
-  async createBenutzerRecord(authUserId, vorname, nachname, email = null, klasseId = null) {
+  async createBenutzerRecord(
+    authUserId,
+    vorname,
+    nachname,
+    email = null,
+    klasseId = null,
+    firmenhandy = null,
+    firmenhandyLandId = null
+  ) {
     try {
       if (!window.supabase) {
         console.warn('⚠️ Supabase nicht verfügbar - überspringe Benutzer-Erstellung');
@@ -410,6 +442,8 @@ export class AuthService {
         if (vorname) updateData.vorname = vorname;
         if (nachname) updateData.nachname = nachname;
         if (fullName) updateData.name = fullName;
+        if (firmenhandy) updateData.telefonnummer_firmenhandy = firmenhandy;
+        if (firmenhandyLandId) updateData.telefonnummer_firmenhandy_land_id = firmenhandyLandId;
         
         if (Object.keys(updateData).length > 0) {
           const { error: updateError } = await window.supabase
@@ -438,6 +472,8 @@ export class AuthService {
           email: email,
           rolle: 'pending',
           mitarbeiter_klasse_id: klasseId,
+          telefonnummer_firmenhandy: firmenhandy,
+          telefonnummer_firmenhandy_land_id: firmenhandyLandId,
           zugriffsrechte: null,
           freigeschaltet: false
         });
@@ -448,7 +484,14 @@ export class AuthService {
           console.warn('⚠️ Record existiert bereits (Race Condition), versuche Update...');
           const { error: retryError } = await window.supabase
             .from('benutzer')
-            .update({ email: email, name: fullName, vorname: vorname, nachname: nachname })
+            .update({
+              email: email,
+              name: fullName,
+              vorname: vorname,
+              nachname: nachname,
+              telefonnummer_firmenhandy: firmenhandy,
+              telefonnummer_firmenhandy_land_id: firmenhandyLandId
+            })
             .eq('auth_user_id', authUserId);
           
           if (retryError) {
@@ -574,6 +617,36 @@ export class AuthService {
   // Passwort-Stärke validieren (Entwicklung: nur 4 Zeichen)
   validatePasswordStrength(password) {
     return password.length >= 4;
+  }
+
+  isDuplicateEmailError(error) {
+    if (!error) return false;
+
+    const rawMessage = `${error.message || ''} ${error.error_description || ''}`.toLowerCase();
+    const errorCode = `${error.code || ''}`.toLowerCase();
+    const status = Number(error.status || 0);
+
+    if (status === 422) return true;
+    if (errorCode === 'user_already_exists' || errorCode === 'email_exists') return true;
+
+    const duplicateMarkers = [
+      'already registered',
+      'already exists',
+      'email already',
+      'user already',
+      'is already in use',
+      'bereits registriert',
+      'bereits verwendet'
+    ];
+
+    return duplicateMarkers.some((marker) => rawMessage.includes(marker));
+  }
+
+  createDuplicateEmailError() {
+    const duplicateError = new Error('Diese E-Mail-Adresse wird bereits verwendet.');
+    duplicateError.code = 'DUPLICATE_EMAIL';
+    duplicateError.isDuplicateEmail = true;
+    return duplicateError;
   }
 
   // Rate Limiting prüfen

@@ -28,6 +28,9 @@ export class MarkeDetail extends PersonDetailBase {
     this.strategien = [];
     this.kickoff = null;
     this.kickoffMarkenwerte = [];
+    this.kickoffsByType = { paid: null, organic: null };
+    this.kickoffMarkenwerteByType = { paid: [], organic: [] };
+    this.activeKickoffType = 'organic';
     this.activeMainTab = 'informationen';
     
     // AbortController für Tab-Daten-Laden (verhindert Race Conditions)
@@ -63,6 +66,18 @@ export class MarkeDetail extends PersonDetailBase {
           await this.loadTabData(tab);
         }
       }
+      return;
+    }
+
+    const kickoffTypeBtn = e.target.closest('.kickoff-type-btn');
+    if (kickoffTypeBtn) {
+      e.preventDefault();
+      const nextType = kickoffTypeBtn.dataset.kickoffType;
+      if (!['paid', 'organic'].includes(nextType)) return;
+      this.activeKickoffType = nextType;
+      this.kickoff = this.kickoffsByType[nextType] || null;
+      this.kickoffMarkenwerte = this.kickoffMarkenwerteByType[nextType] || [];
+      this.updateKickOffTab();
       return;
     }
     
@@ -353,7 +368,7 @@ export class MarkeDetail extends PersonDetailBase {
           case 'strategien':
             const { data: strategien } = await window.supabase
               .from('strategie')
-              .select('id, name, beschreibung, teilbereich, created_at, updated_at')
+              .select('id, name, beschreibung, teilbereich, created_at, updated_at, created_by_user:created_by(id, name)')
               .eq('marke_id', this.markeId)
               .order('created_at', { ascending: false });
             if (!isStillActive()) return strategien;
@@ -362,28 +377,50 @@ export class MarkeDetail extends PersonDetailBase {
             return strategien;
           
           case 'kickoff':
-            const { data: kickoff } = await window.supabase
+            const { data: kickoffList } = await window.supabase
               .from('marke_kickoff')
               .select('*')
-              .eq('marke_id', this.markeId)
-              .single();
-            if (!isStillActive()) return kickoff;
-            this.kickoff = kickoff || null;
-            
-            // Lade auch die Markenwerte
-            if (kickoff) {
-              const { data: markenwerte } = await window.supabase
-                .from('marke_kickoff_markenwerte')
-                .select('markenwert:markenwert_id(id, name)')
-                .eq('kickoff_id', kickoff.id);
-              if (!isStillActive()) return kickoff;
-              this.kickoffMarkenwerte = markenwerte?.map(m => m.markenwert) || [];
-            } else {
-              this.kickoffMarkenwerte = [];
+              .eq('marke_id', this.markeId);
+            if (!isStillActive()) return kickoffList;
+
+            this.kickoffsByType = { paid: null, organic: null };
+            (kickoffList || []).forEach(item => {
+              const typeKey = item.kickoff_type || 'organic';
+              if (typeKey === 'paid' || typeKey === 'organic') {
+                this.kickoffsByType[typeKey] = item;
+              }
+            });
+
+            if (!this.kickoffsByType[this.activeKickoffType]) {
+              this.activeKickoffType = this.kickoffsByType.organic
+                ? 'organic'
+                : (this.kickoffsByType.paid ? 'paid' : 'organic');
             }
-            
+
+            this.kickoffMarkenwerteByType = { paid: [], organic: [] };
+            const kickoffEntries = Object.entries(this.kickoffsByType).filter(([, value]) => value);
+            if (kickoffEntries.length > 0) {
+              const markenwerteResults = await Promise.all(
+                kickoffEntries.map(async ([typeKey, kickoffItem]) => {
+                  const { data: markenwerte } = await window.supabase
+                    .from('marke_kickoff_markenwerte')
+                    .select('markenwert:markenwert_id(id, name)')
+                    .eq('kickoff_id', kickoffItem.id);
+                  return { typeKey, markenwerte: markenwerte?.map(m => m.markenwert) || [] };
+                })
+              );
+
+              if (!isStillActive()) return kickoffList;
+              markenwerteResults.forEach(({ typeKey, markenwerte }) => {
+                this.kickoffMarkenwerteByType[typeKey] = markenwerte;
+              });
+            }
+
+            this.kickoff = this.kickoffsByType[this.activeKickoffType] || null;
+            this.kickoffMarkenwerte = this.kickoffMarkenwerteByType[this.activeKickoffType] || [];
+
             this.updateKickOffTab();
-            return kickoff;
+            return kickoffList;
         }
       } catch (error) {
         console.error(`❌ Fehler beim Laden von Tab ${tabName}:`, error);
@@ -514,7 +551,12 @@ export class MarkeDetail extends PersonDetailBase {
   getTabsConfig() {
     return [
       { tab: 'informationen', label: 'Informationen', isActive: this.activeMainTab === 'informationen' },
-      { tab: 'kickoff', label: 'Kick-Off', count: this.kickoff ? 1 : 0, isActive: this.activeMainTab === 'kickoff' },
+      {
+        tab: 'kickoff',
+        label: 'Kick-Off',
+        count: Object.values(this.kickoffsByType).filter(Boolean).length,
+        isActive: this.activeMainTab === 'kickoff'
+      },
       { tab: 'ansprechpartner', label: 'Ansprechpartner', count: this.ansprechpartner.length, isActive: this.activeMainTab === 'ansprechpartner' },
       { tab: 'auftraege', label: 'Aufträge', count: this.auftraege.length, isActive: this.activeMainTab === 'auftraege' },
       { tab: 'briefings', label: 'Briefings', count: this.briefings.length, isActive: this.activeMainTab === 'briefings' },
@@ -949,6 +991,7 @@ export class MarkeDetail extends PersonDetailBase {
         </td>
         <td>${this.sanitize(strategie.teilbereich) || '-'}</td>
         <td>${strategie.beschreibung ? (strategie.beschreibung.length > 100 ? this.sanitize(strategie.beschreibung.substring(0, 100)) + '...' : this.sanitize(strategie.beschreibung)) : '-'}</td>
+        <td class="col-erstellt-von">${this.sanitize(strategie.created_by_user?.name) || '-'}</td>
         <td>${this.formatDate(strategie.created_at)}</td>
         <td>${this.formatDate(strategie.updated_at)}</td>
         <td>
@@ -965,6 +1008,7 @@ export class MarkeDetail extends PersonDetailBase {
               <th>Name</th>
               <th>Teilbereich</th>
               <th>Beschreibung</th>
+              <th class="col-erstellt-von">Erstellt von</th>
               <th>Erstellt am</th>
               <th>Aktualisiert am</th>
               <th>Aktion</th>
@@ -980,7 +1024,12 @@ export class MarkeDetail extends PersonDetailBase {
 
   // Rendere Kick-Off
   renderKickOff() {
-    if (!this.kickoff) {
+    const availableCount = Object.values(this.kickoffsByType).filter(Boolean).length;
+    const activeKickoff = this.kickoffsByType[this.activeKickoffType];
+    const activeMarkenwerte = this.kickoffMarkenwerteByType[this.activeKickoffType] || [];
+    const typeLabel = this.activeKickoffType === 'paid' ? 'Paid' : 'Organic';
+
+    if (availableCount === 0) {
       return `
         <div class="empty-state">
           <div class="empty-icon">🚀</div>
@@ -998,12 +1047,36 @@ export class MarkeDetail extends PersonDetailBase {
       return this.sanitize(value).replace(/\n/g, '<br>');
     };
 
-    const markenwerteHtml = this.kickoffMarkenwerte.length > 0
-      ? this.kickoffMarkenwerte.map(mw => `<span class="tag tag--markenwert">${this.sanitize(mw.name)}</span>`).join(' ')
+    const markenwerteHtml = activeMarkenwerte.length > 0
+      ? activeMarkenwerte.map(mw => `<span class="tag tag--markenwert">${this.sanitize(mw.name)}</span>`).join(' ')
       : '<span class="text-muted">-</span>';
+
+    const typeSwitcher = `
+      <div class="kickoff-type-switcher" style="display:flex; gap:0.5rem; margin-bottom:1rem;">
+        <button type="button" class="btn btn-sm ${this.activeKickoffType === 'organic' ? 'btn-primary' : 'btn-secondary'} kickoff-type-btn" data-kickoff-type="organic">Organic</button>
+        <button type="button" class="btn btn-sm ${this.activeKickoffType === 'paid' ? 'btn-primary' : 'btn-secondary'} kickoff-type-btn" data-kickoff-type="paid">Paid</button>
+      </div>
+    `;
+
+    if (!activeKickoff) {
+      return `
+        <div class="detail-section">
+          ${typeSwitcher}
+          <div class="empty-state">
+            <div class="empty-icon">🚀</div>
+            <h3>Kein ${typeLabel} Kick-Off vorhanden</h3>
+            <p>Für den Typ ${typeLabel} wurde noch kein Kick-Off erstellt.</p>
+            <a href="/kickoff" class="btn btn-primary" onclick="event.preventDefault(); window.navigateTo('/kickoff')">
+              ${typeLabel} Kick-Off erstellen
+            </a>
+          </div>
+        </div>
+      `;
+    }
 
     return `
       <div class="detail-section">
+        ${typeSwitcher}
         <div class="data-table-container">
           <table class="data-table kickoff-table">
             <thead>
@@ -1015,11 +1088,11 @@ export class MarkeDetail extends PersonDetailBase {
             <tbody>
               <tr>
                 <td><strong>1. Brand-Essenz</strong></td>
-                <td>${formatValue(this.kickoff.brand_essenz)}</td>
+                <td>${formatValue(activeKickoff.brand_essenz)}</td>
               </tr>
               <tr>
                 <td><strong>2. Mission / Zweck</strong></td>
-                <td>${formatValue(this.kickoff.mission)}</td>
+                <td>${formatValue(activeKickoff.mission)}</td>
               </tr>
               <tr>
                 <td><strong>3. Markenwerte</strong></td>
@@ -1027,38 +1100,38 @@ export class MarkeDetail extends PersonDetailBase {
               </tr>
               <tr>
                 <td><strong>4. Zielgruppe</strong></td>
-                <td>${formatValue(this.kickoff.zielgruppe)}</td>
+                <td>${formatValue(activeKickoff.zielgruppe)}</td>
               </tr>
               <tr>
                 <td><strong>5. Zielgruppen-Mindset</strong></td>
-                <td>${formatValue(this.kickoff.zielgruppen_mindset)}</td>
+                <td>${formatValue(activeKickoff.zielgruppen_mindset)}</td>
               </tr>
               <tr>
                 <td><strong>6. Marken-USP</strong></td>
-                <td>${formatValue(this.kickoff.marken_usp)}</td>
+                <td>${formatValue(activeKickoff.marken_usp)}</td>
               </tr>
               <tr>
                 <td><strong>7. Tonalität & Sprachstil</strong></td>
-                <td>${formatValue(this.kickoff.tonalitaet_sprachstil)}</td>
+                <td>${formatValue(activeKickoff.tonalitaet_sprachstil)}</td>
               </tr>
               <tr>
                 <td><strong>8. Content-Charakter</strong></td>
-                <td>${formatValue(this.kickoff.content_charakter)}</td>
+                <td>${formatValue(activeKickoff.content_charakter)}</td>
               </tr>
               <tr>
                 <td><strong>9. Do's & Don'ts</strong></td>
-                <td>${formatValue(this.kickoff.dos_donts)}</td>
+                <td>${formatValue(activeKickoff.dos_donts)}</td>
               </tr>
               <tr>
                 <td><strong>10. Rechtliche Leitplanken</strong></td>
-                <td>${formatValue(this.kickoff.rechtliche_leitplanken)}</td>
+                <td>${formatValue(activeKickoff.rechtliche_leitplanken)}</td>
               </tr>
             </tbody>
           </table>
         </div>
         <div class="kickoff-meta">
           <small class="text-muted">
-            Zuletzt aktualisiert: ${this.formatDate(this.kickoff.updated_at)}
+            Typ: ${typeLabel} | Zuletzt aktualisiert: ${this.formatDate(activeKickoff.updated_at)}
           </small>
           <a href="/kickoff" class="btn btn-sm btn-secondary" onclick="event.preventDefault(); window.navigateTo('/kickoff')" style="margin-left: 1rem;">
             Bearbeiten

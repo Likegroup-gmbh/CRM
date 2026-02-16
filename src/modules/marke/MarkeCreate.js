@@ -30,11 +30,18 @@ export class MarkeCreate {
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('marke');
     window.content.innerHTML = `
-      <div class="form-page">
-        ${formHtml}
-        <div id="logo-preview-container" class="form-logo-preview" style="display: none;">
-          <label class="form-logo-label">Logo Vorschau:</label>
-          <img id="logo-preview-image" class="form-logo-image" alt="Logo Vorschau" />
+      <div class="form-split-container">
+        <div class="form-split-left">
+          <div class="form-page">
+            ${formHtml}
+            <div id="logo-preview-container" class="form-logo-preview" style="display: none;">
+              <label class="form-logo-label">Logo Vorschau:</label>
+              <img id="logo-preview-image" class="form-logo-image" alt="Logo Vorschau" />
+            </div>
+          </div>
+        </div>
+        <div class="form-split-right hidden" id="marke-split-container">
+          <div id="marke-embedded-form"></div>
         </div>
       </div>
     `;

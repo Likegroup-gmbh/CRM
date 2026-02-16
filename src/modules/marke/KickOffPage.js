@@ -5,6 +5,7 @@ export class KickOffPage {
   constructor() {
     this.selectedUnternehmenId = null;
     this.selectedMarkeId = null;
+    this.selectedKickoffType = 'organic';
     this.hasMarken = false; // Flag: Hat das Unternehmen Marken?
     this.existingKickOff = null;
     this.existingMarkenwerte = [];
@@ -14,6 +15,7 @@ export class KickOffPage {
     this._handleDocumentClick = this._handleDocumentClick.bind(this);
     this._eventsBound = false;
     this._mutationObserver = null;
+    this._typeMutationObserver = null;
   }
   
   // Document Click Handler für Tag-Input Schließen
@@ -41,6 +43,11 @@ export class KickOffPage {
       this._mutationObserver.disconnect();
       this._mutationObserver = null;
     }
+
+    if (this._typeMutationObserver) {
+      this._typeMutationObserver.disconnect();
+      this._typeMutationObserver = null;
+    }
     
     console.log('✅ KICKOFF: Destroy abgeschlossen');
   }
@@ -52,6 +59,7 @@ export class KickOffPage {
     // State zurücksetzen (wichtig bei Navigation zurück zur Seite)
     this.selectedUnternehmenId = null;
     this.selectedMarkeId = null;
+    this.selectedKickoffType = 'organic';
     this.hasMarken = false;
     this.existingKickOff = null;
     this.existingMarkenwerte = [];
@@ -111,6 +119,15 @@ export class KickOffPage {
               <label for="kickoff_marke">Marke</label>
               <select id="kickoff_marke" class="form-select" disabled>
                 <option value="">Erst Unternehmen wählen...</option>
+              </select>
+            </div>
+
+            <div class="form-field">
+              <label for="kickoff_type">Kick-Off Typ <span class="required">*</span></label>
+              <select id="kickoff_type" class="form-select" data-searchable="true" required>
+                <option value="">Typ auswählen...</option>
+                <option value="organic" selected>Organic</option>
+                <option value="paid">Paid</option>
               </select>
             </div>
             
@@ -314,7 +331,7 @@ export class KickOffPage {
         select.disabled = true;
         
         // Felder direkt anzeigen - Kick-Off auf Unternehmen-Ebene
-        await this.checkExistingKickOff(null, unternehmenId);
+        await this.checkExistingKickOff(null, unternehmenId, this.selectedKickoffType);
         
       } else {
         // Marken vorhanden - Select befüllen
@@ -343,7 +360,7 @@ export class KickOffPage {
   }
 
   // Prüfe ob Kick-Off existiert (für Marke ODER Unternehmen)
-  async checkExistingKickOff(markeId, unternehmenId = null) {
+  async checkExistingKickOff(markeId, unternehmenId = null, kickoffType = this.selectedKickoffType) {
     const statusDiv = document.getElementById('kickoff_status');
     const fieldsDiv = document.getElementById('kickoff_fields');
     const actionsDiv = document.getElementById('kickoff_actions');
@@ -371,11 +388,13 @@ export class KickOffPage {
         query = query.eq('unternehmen_id', unternehmenId).is('marke_id', null);
       }
 
-      const { data, error } = await query.single();
+      if (kickoffType) {
+        query = query.eq('kickoff_type', kickoffType);
+      }
 
-      // PGRST116 = keine Zeile gefunden - das ist OK
-      if (error && error.code !== 'PGRST116') {
-        // Andere Fehler (z.B. Spalte existiert nicht) - ignorieren, leeres Formular zeigen
+      const { data, error } = await query.maybeSingle();
+
+      if (error) {
         console.warn('⚠️ DB-Fehler beim Laden des Kick-Offs (wird ignoriert):', error.message);
       } else {
         kickoff = data || null;
@@ -436,14 +455,20 @@ export class KickOffPage {
     const data = this.existingKickOff || {};
 
     const fields = [
-      'brand_essenz', 'mission', 'zielgruppe', 'zielgruppen_mindset',
+      'kickoff_type', 'brand_essenz', 'mission', 'zielgruppe', 'zielgruppen_mindset',
       'marken_usp', 'tonalitaet_sprachstil', 'content_charakter',
       'dos_donts', 'rechtliche_leitplanken'
     ];
 
     fields.forEach(field => {
       const el = document.getElementById(field);
-      if (el) el.value = data[field] || '';
+      if (!el) return;
+      if (field === 'kickoff_type') {
+        el.value = data.kickoff_type || this.selectedKickoffType || 'organic';
+        this.selectedKickoffType = el.value;
+        return;
+      }
+      el.value = data[field] || '';
     });
 
     this.updateCharCounter();
@@ -512,7 +537,35 @@ export class KickOffPage {
         console.log('🔄 Marke geändert:', newValue);
         this.selectedMarkeId = newValue;
         if (newValue) {
-          this.checkExistingKickOff(newValue, null);
+          this.checkExistingKickOff(newValue, null, this.selectedKickoffType);
+        }
+      });
+    }
+
+    const kickoffTypeSelect = document.getElementById('kickoff_type');
+    if (kickoffTypeSelect) {
+      this._typeMutationObserver = new MutationObserver(() => {
+        const newValue = kickoffTypeSelect.value;
+        if (newValue && newValue !== this.selectedKickoffType) {
+          this.selectedKickoffType = newValue;
+          if (this.selectedMarkeId) {
+            this.checkExistingKickOff(this.selectedMarkeId, null, newValue);
+          } else if (!this.hasMarken && this.selectedUnternehmenId) {
+            this.checkExistingKickOff(null, this.selectedUnternehmenId, newValue);
+          }
+        }
+      });
+      this._typeMutationObserver.observe(kickoffTypeSelect, { attributes: true, attributeFilter: ['value'] });
+
+      kickoffTypeSelect.addEventListener('change', (e) => {
+        const newValue = e.target.value;
+        if (!newValue || newValue === this.selectedKickoffType) return;
+        this.selectedKickoffType = newValue;
+
+        if (this.selectedMarkeId) {
+          this.checkExistingKickOff(this.selectedMarkeId, null, newValue);
+        } else if (!this.hasMarken && this.selectedUnternehmenId) {
+          this.checkExistingKickOff(null, this.selectedUnternehmenId, newValue);
         }
       });
     }
@@ -710,6 +763,13 @@ export class KickOffPage {
       return;
     }
 
+    const kickoffType = document.getElementById('kickoff_type')?.value || this.selectedKickoffType;
+    if (!kickoffType) {
+      this.showError('Bitte wähle einen Kick-Off Typ aus.');
+      return;
+    }
+    this.selectedKickoffType = kickoffType;
+
     const submitBtn = document.getElementById('kickoff_submit');
     
     if (submitBtn) {
@@ -720,6 +780,7 @@ export class KickOffPage {
     try {
       // Daten sammeln - je nach Fall (mit oder ohne Marke)
       const kickoffData = {
+        kickoff_type: this.selectedKickoffType,
         marke_id: this.selectedMarkeId || null,
         unternehmen_id: this.hasMarken ? null : this.selectedUnternehmenId, // Nur setzen wenn keine Marke
         brand_essenz: document.getElementById('brand_essenz')?.value?.trim() || null,
@@ -787,6 +848,7 @@ export class KickOffPage {
         detail: { 
           entity: 'marke_kickoff', 
           id: kickoffId, 
+          kickoff_type: this.selectedKickoffType,
           marke_id: this.selectedMarkeId,
           unternehmen_id: this.selectedUnternehmenId
         }

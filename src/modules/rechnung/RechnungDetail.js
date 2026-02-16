@@ -230,7 +230,32 @@ export class RechnungDetail {
       // Ersteller automatisch setzen
       submitData.created_by_id = window.currentUser?.id || null;
 
-      // PO-Nummer wird nicht mehr automatisch generiert (jetzt bei Aufträgen)
+      // PO-Nummer aus verknüpftem Auftrag übernehmen
+      if (submitData.auftrag_id && window.supabase) {
+        try {
+          const { data: auftrag, error: poErr } = await window.supabase
+            .from('auftrag')
+            .select('po, externe_po')
+            .eq('id', submitData.auftrag_id)
+            .single();
+
+          if (!poErr && auftrag) {
+            if (auftrag.po) {
+              submitData.po_nummer = auftrag.po;
+              console.log('✅ PO-Nummer aus Auftrag übernommen:', auftrag.po);
+            }
+            // Externe PO nur übernehmen, wenn im Formular nicht bereits manuell eingegeben
+            if (auftrag.externe_po && !submitData.externe_angebotsnummer) {
+              submitData.externe_angebotsnummer = auftrag.externe_po;
+              console.log('✅ Externe PO aus Auftrag übernommen:', auftrag.externe_po);
+            }
+          } else if (poErr) {
+            console.warn('⚠️ PO-Nummer konnte nicht aus Auftrag geladen werden:', poErr.message);
+          }
+        } catch (e) {
+          console.warn('⚠️ Fehler beim Laden der PO-Nummer:', e.message);
+        }
+      }
 
       const result = await window.dataService.createEntity('rechnung', submitData);
       if (result.success) {

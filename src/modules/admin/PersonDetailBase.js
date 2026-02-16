@@ -201,10 +201,12 @@ export class PersonDetailBase {
     return `
       <div class="profile-info-section">
         ${items.map(item => {
-          if (item.value === null || item.value === undefined || item.value === '' || item.value === '-') return '';
+          if (!item.rawHtml && (item.value === null || item.value === undefined || item.value === '' || item.value === '-')) return '';
           
           let valueHtml = '';
-          if (item.badge) {
+          if (item.rawHtml) {
+            valueHtml = item.rawHtml;
+          } else if (item.badge) {
             valueHtml = `<span class="badge badge-${item.badgeType || 'secondary'}">${this.sanitize(item.value)}</span>`;
           } else if (item.tags && Array.isArray(item.value)) {
             valueHtml = item.value.map(v => `<span class="tag">${this.sanitize(v)}</span>`).join('');

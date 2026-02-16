@@ -5,34 +5,36 @@ export class FormConfig {
         title: 'Neuen Creator anlegen',
         fields: [
           // Name in einer Zeile
-          { name: 'vorname', label: 'Vorname', type: 'text', required: true, validation: { type: 'text', minLength: 2 }, row: 'name', colSize: 'grow' },
-          { name: 'nachname', label: 'Nachname', type: 'text', required: true, validation: { type: 'text', minLength: 2 }, row: 'name', colSize: 'grow' },
+          { name: 'vorname', label: 'Vorname', type: 'text', required: true, validation: { type: 'text', minLength: 2 }, row: 'name', colSize: 'grow', section: 'basis' },
+          { name: 'nachname', label: 'Nachname', type: 'text', required: true, validation: { type: 'text', minLength: 2 }, row: 'name', colSize: 'grow', section: 'basis' },
           // Lieferadresse gruppiert
-          { name: 'lieferadresse_strasse', label: 'Straße', type: 'text', required: false, row: 'lieferadresse1', colSize: 'grow' },
-          { name: 'lieferadresse_hausnummer', label: 'Nr.', type: 'text', required: false, row: 'lieferadresse1', colSize: 'small' },
-          { name: 'lieferadresse_plz', label: 'PLZ', type: 'text', required: false, row: 'lieferadresse2', colSize: 'small' },
-          { name: 'lieferadresse_stadt', label: 'Stadt', type: 'text', required: false, row: 'lieferadresse2', colSize: 'grow' },
-          { name: 'lieferadresse_land', label: 'Land', type: 'text', required: false, defaultValue: 'Deutschland' },
+          { name: 'lieferadresse_strasse', label: 'Straße', type: 'text', required: false, row: 'lieferadresse1', colSize: 'grow', section: 'basis' },
+          { name: 'lieferadresse_hausnummer', label: 'Nr.', type: 'text', required: false, row: 'lieferadresse1', colSize: 'small', section: 'basis' },
+          { name: 'lieferadresse_plz', label: 'PLZ', type: 'text', required: false, row: 'lieferadresse2', colSize: 'small', section: 'basis' },
+          { name: 'lieferadresse_stadt', label: 'Stadt', type: 'text', required: false, row: 'lieferadresse2', colSize: 'grow', section: 'basis' },
+          { name: 'lieferadresse_land', label: 'Land', type: 'text', required: false, defaultValue: 'Deutschland', section: 'basis' },
           // Toggle: Rechnungsadresse abweichend
-          { name: 'rechnungsadresse_abweichend', label: 'Rechnungsadresse abweichend von Lieferadresse', type: 'toggle', required: false },
+          { name: 'rechnungsadresse_abweichend', label: 'Rechnungsadresse abweichend von Lieferadresse', type: 'toggle', required: false, section: 'basis' },
           // Rechnungsadresse (nur wenn Toggle aktiv)
-          { name: 'rechnungsadresse_strasse', label: 'Straße (Rechnung)', type: 'text', required: false, row: 'rechnungsadresse1', colSize: 'grow', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true' },
-          { name: 'rechnungsadresse_hausnummer', label: 'Nr.', type: 'text', required: false, row: 'rechnungsadresse1', colSize: 'small', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true' },
-          { name: 'rechnungsadresse_plz', label: 'PLZ', type: 'text', required: false, row: 'rechnungsadresse2', colSize: 'small', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true' },
-          { name: 'rechnungsadresse_stadt', label: 'Stadt', type: 'text', required: false, row: 'rechnungsadresse2', colSize: 'grow', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true' },
-          { name: 'rechnungsadresse_land', label: 'Land (Rechnung)', type: 'text', required: false, defaultValue: 'Deutschland', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true' },
+          { name: 'rechnungsadresse_strasse', label: 'Straße (Rechnung)', type: 'text', required: false, row: 'rechnungsadresse1', colSize: 'grow', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true', section: 'basis' },
+          { name: 'rechnungsadresse_hausnummer', label: 'Nr.', type: 'text', required: false, row: 'rechnungsadresse1', colSize: 'small', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true', section: 'basis' },
+          { name: 'rechnungsadresse_plz', label: 'PLZ', type: 'text', required: false, row: 'rechnungsadresse2', colSize: 'small', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true', section: 'basis' },
+          { name: 'rechnungsadresse_stadt', label: 'Stadt', type: 'text', required: false, row: 'rechnungsadresse2', colSize: 'grow', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true', section: 'basis' },
+          { name: 'rechnungsadresse_land', label: 'Land (Rechnung)', type: 'text', required: false, defaultValue: 'Deutschland', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true', section: 'basis' },
           // Agentur-Vertretung
-          { name: 'agentur_vertreten', label: 'Wird der Creator durch eine Agentur vertreten?', type: 'toggle', required: false },
-          { name: 'agentur_name', label: 'Agenturname', type: 'text', required: false, dependsOn: 'agentur_vertreten', showWhen: 'true', placeholder: 'Name der Agentur' },
-          { name: 'agentur_adresse', label: 'Agenturadresse', type: 'text', required: false, dependsOn: 'agentur_vertreten', showWhen: 'true', placeholder: 'Straße, PLZ Stadt' },
-          { name: 'agentur_vertretung', label: 'Vertreten durch', type: 'text', required: false, dependsOn: 'agentur_vertreten', showWhen: 'true', placeholder: 'Name des Vertreters' },
+          { name: 'agentur_vertreten', label: 'Wird der Creator durch eine Agentur vertreten?', type: 'toggle', required: false, section: 'basis' },
+          { name: 'agentur_name', label: 'Agenturname', type: 'text', required: false, dependsOn: 'agentur_vertreten', showWhen: 'true', placeholder: 'Name der Agentur', section: 'basis' },
+          { name: 'agentur_adresse', label: 'Agenturadresse', type: 'text', required: false, dependsOn: 'agentur_vertreten', showWhen: 'true', placeholder: 'Straße, PLZ Stadt', section: 'basis' },
+          { name: 'agentur_vertretung', label: 'Vertreten durch', type: 'text', required: false, dependsOn: 'agentur_vertreten', showWhen: 'true', placeholder: 'Name des Vertreters', section: 'basis' },
           // Social Media
-          { name: 'instagram', label: 'Instagram', type: 'text', required: false },
+          { name: 'instagram', label: 'Instagram', type: 'text', required: false, row: 'social_instagram', section: 'social' },
           { 
             name: 'instagram_follower', 
             label: 'Instagram Follower', 
             type: 'select', 
             required: false,
+            row: 'social_instagram',
+            section: 'social',
             options: [
               { value: '0-2500', label: '0 - 2.500' },
               { value: '2500-5000', label: '2.500 - 5.000' },
@@ -46,12 +48,14 @@ export class FormConfig {
               { value: '1000000+', label: '+ 1.000.000' }
             ]
           },
-          { name: 'tiktok', label: 'TikTok', type: 'text', required: false },
+          { name: 'tiktok', label: 'TikTok', type: 'text', required: false, row: 'social_tiktok', section: 'social' },
           { 
             name: 'tiktok_follower', 
             label: 'TikTok Follower', 
             type: 'select', 
             required: false,
+            row: 'social_tiktok',
+            section: 'social',
             options: [
               { value: '0-2500', label: '0 - 2.500' },
               { value: '2500-5000', label: '2.500 - 5.000' },
@@ -78,7 +82,8 @@ export class FormConfig {
             table: 'sprachen',
             displayField: 'name',
             valueField: 'id',
-            customField: true
+            customField: true,
+            section: 'profil'
           },
           {
             name: 'branche_ids',
@@ -93,7 +98,8 @@ export class FormConfig {
             table: 'branchen_creator',
             displayField: 'name',
             valueField: 'id',
-            customField: true
+            customField: true,
+            section: 'profil'
           },
           {
             name: 'creator_type_ids',
@@ -108,7 +114,8 @@ export class FormConfig {
             table: 'creator_type',
             displayField: 'name',
             valueField: 'id',
-            customField: true
+            customField: true,
+            section: 'profil'
           },
           // Persönliche Infos
           { 
@@ -116,28 +123,30 @@ export class FormConfig {
             label: 'Geschlecht', 
             type: 'select', 
             required: false,
+            section: 'profil',
             options: [
               { value: 'männlich', label: 'Männlich' },
               { value: 'weiblich', label: 'Weiblich' },
               { value: 'divers', label: 'Divers' }
             ]
           },
-          { name: 'alter_min', label: 'Alter von', type: 'number', required: false, row: 'alter', colSize: 'grow' },
-          { name: 'alter_max', label: 'Alter bis', type: 'number', required: false, row: 'alter', colSize: 'grow' },
+          { name: 'alter_min', label: 'Alter von', type: 'number', required: false, row: 'alter', colSize: 'grow', section: 'profil' },
+          { name: 'alter_max', label: 'Alter bis', type: 'number', required: false, row: 'alter', colSize: 'grow', section: 'profil' },
           // Haustier Toggle + Beschreibung
-          { name: 'hat_haustier', label: 'Hat Haustier', type: 'toggle', required: false },
+          { name: 'hat_haustier', label: 'Hat Haustier', type: 'toggle', required: false, section: 'profil' },
           { 
             name: 'haustier_beschreibung', 
             label: 'Haustier Beschreibung', 
             type: 'textarea', 
             required: false,
             dependsOn: 'hat_haustier',
-            showWhen: 'true'
+            showWhen: 'true',
+            section: 'profil'
           },
-          { name: 'telefonnummer', label: 'Telefonnummer', type: 'tel', required: false, validation: { type: 'phone' } },
-          { name: 'mail', label: 'Email', type: 'email', required: false, validation: { type: 'email' } },
-          { name: 'portfolio_link', label: 'Portfolio Link', type: 'url', required: false, validation: { type: 'url' } },
-          { name: 'notiz', label: 'Notizen', type: 'textarea', required: false }
+          { name: 'telefonnummer', label: 'Telefonnummer', type: 'tel', required: false, validation: { type: 'phone' }, section: 'kontakt' },
+          { name: 'mail', label: 'Email', type: 'email', required: false, validation: { type: 'email' }, section: 'kontakt' },
+          { name: 'portfolio_link', label: 'Portfolio Link', type: 'url', required: false, validation: { type: 'url' }, section: 'kontakt' },
+          { name: 'notiz', label: 'Notizen', type: 'textarea', required: false, section: 'kontakt' }
         ]
       },
       unternehmen: {
@@ -739,9 +748,7 @@ export class FormConfig {
           { name: 'stadt', label: 'Stadt', type: 'text', required: false, row: 'ort', colSize: 'grow', section: 'kontakt' },
           { name: 'land', label: 'Land', type: 'text', required: false, row: 'ort', section: 'kontakt' },
           // Ohne Section (am Ende) - Einwilligungen, Notizen
-          { name: 'erlaubt_updates', label: 'Updates zu unserem Unternehmen', type: 'toggle', required: false },
           { name: 'erlaubt_newsletter', label: 'Newsletter (1x/Monat)', type: 'toggle', required: false },
-          { name: 'erlaubt_webinare', label: 'Webinar-Einladungen', type: 'toggle', required: false },
           { name: 'notiz', label: 'Notizen', type: 'textarea', required: false, rows: 4 }
         ]
       },

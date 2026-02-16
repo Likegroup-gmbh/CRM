@@ -1655,6 +1655,20 @@ width: 18em;
  
 }
 
+/* Stadt-Spalte (Unternehmensliste) - Breite anpassbar */
+.data-table--unternehmen th.col-stadt,
+.data-table--unternehmen td.col-stadt {
+  width: 12em;
+  
+}
+
+/* Webseite-Spalte (global) - Breite anpassbar, Icon oder Link */
+.data-table th.col-webseite,
+.data-table td.col-webseite {
+  width: 4em;
+  
+}
+
 /* Actions-Spalte - explizite Klasse */
 .data-table th.col-actions,
 .data-table td.col-actions {

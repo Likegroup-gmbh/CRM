@@ -46,7 +46,7 @@ export class StrategieService {
       .select(`
         *,
         unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
-        marke:marke_id(id, markenname, logo_url),
+        marke:marke_id(id, markenname, logo_url, unternehmen:unternehmen_id(internes_kuerzel)),
         kampagne:kampagne_id(id, kampagnenname, eigener_name),
         auftrag:auftrag_id(id, auftragsname),
         created_by_user:created_by(id, name, profile_image_url)
@@ -201,7 +201,7 @@ export class StrategieService {
       .select(`
         *,
         unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
-        marke:marke_id(id, markenname, logo_url),
+        marke:marke_id(id, markenname, logo_url, unternehmen:unternehmen_id(internes_kuerzel)),
         kampagne:kampagne_id(id, kampagnenname, eigener_name),
         auftrag:auftrag_id(id, auftragsname),
         created_by_user:created_by(id, name, profile_image_url)

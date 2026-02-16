@@ -364,8 +364,15 @@ export class CreatorList extends BasePaginatedList {
     
     const formHtml = window.formSystem.renderFormOnly('creator');
     window.content.innerHTML = `
-      <div class="form-page">
-        ${formHtml}
+      <div class="form-split-container">
+        <div class="form-split-left">
+          <div class="form-page">
+            ${formHtml}
+          </div>
+        </div>
+        <div class="form-split-right hidden" id="creator-split-container">
+          <div id="creator-embedded-form"></div>
+        </div>
       </div>
     `;
 

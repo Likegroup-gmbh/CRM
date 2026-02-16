@@ -86,21 +86,28 @@ export class StrategieList extends BasePaginatedList {
     const unternehmenBubble = strategie.unternehmen 
       ? AvatarBubbles.renderBubbles([{
           name: strategie.unternehmen.firmenname,
+          label: strategie.unternehmen.internes_kuerzel || strategie.unternehmen.firmenname,
           type: 'org',
           id: strategie.unternehmen.id,
           entityType: 'unternehmen',
           logo_url: strategie.unternehmen.logo_url
-        }])
+        }], { showLabel: true })
       : '-';
 
+    const markeLabel = strategie.marke
+      ? (strategie.marke.unternehmen?.internes_kuerzel
+          ? `${strategie.marke.markenname} (${strategie.marke.unternehmen.internes_kuerzel})`
+          : strategie.marke.markenname)
+      : null;
     const markeBubble = strategie.marke 
       ? AvatarBubbles.renderBubbles([{
           name: strategie.marke.markenname,
+          label: markeLabel,
           type: 'org',
           id: strategie.marke.id,
           entityType: 'marke',
           logo_url: strategie.marke.logo_url
-        }])
+        }], { showLabel: true })
       : '-';
 
     const kampagneName = KampagneUtils.getDisplayName(strategie.kampagne);
@@ -122,10 +129,10 @@ export class StrategieList extends BasePaginatedList {
             ${this.sanitize(strategie.name || 'Ohne Namen')}
           </a>
         </td>
-        <td>${unternehmenBubble}</td>
-        <td>${markeBubble}</td>
-        <td>${kampagneName}</td>
-        <td>${createdByBubble}</td>
+        <td class="col-unternehmen">${unternehmenBubble}</td>
+        <td class="col-marke">${markeBubble}</td>
+        <td class="col-kampagne">${kampagneName}</td>
+        <td class="col-erstellt-von">${createdByBubble}</td>
         <td class="col-actions">
           <div class="actions-dropdown-container" data-entity-type="strategie">
             <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
@@ -192,10 +199,10 @@ export class StrategieList extends BasePaginatedList {
             <thead>
               <tr>
                 <th class="col-name">Name</th>
-                <th>Unternehmen</th>
-                <th>Marke</th>
-                <th>Kampagne</th>
-                <th>Erstellt von</th>
+                <th class="col-unternehmen">Unternehmen</th>
+                <th class="col-marke">Marke</th>
+                <th class="col-kampagne">Kampagne</th>
+                <th class="col-erstellt-von">Erstellt von</th>
                 <th class="col-actions">Aktionen</th>
               </tr>
             </thead>

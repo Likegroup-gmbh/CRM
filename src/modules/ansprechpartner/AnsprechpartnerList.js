@@ -38,7 +38,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
       sortAscending: true,
       paginationContainerId: 'pagination-ansprechpartner',
       tbodySelector: '.data-table tbody',
-      tableColspan: 11, // Mit Admin-Checkbox
+      tableColspan: 12, // Mit Admin-Checkbox + Newsletter-Spalte
       checkboxClass: 'ansprechpartner-check',
       selectAllId: 'select-all-ansprechpartner'
     });
@@ -190,6 +190,13 @@ export class AnsprechpartnerList extends BasePaginatedList {
   /**
    * Rendert eine einzelne Ansprechpartner-Zeile
    */
+  renderEinwilligungBadge(erlaubt) {
+    if (erlaubt) {
+      return '<span class="status-badge success">✓ Erlaubt</span>';
+    }
+    return '<span class="status-badge danger">✗ Nicht erlaubt</span>';
+  }
+
   renderSingleRow(ap) {
     const isAdmin = this.isAdmin;
     const sanitize = this.sanitize.bind(this);
@@ -229,6 +236,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
           ap.telefonnummer
         )}</td>
         <td>${this.renderLinkedInLink(ap.linkedin)}</td>
+        <td>${this.renderEinwilligungBadge(ap.erlaubt_newsletter)}</td>
         <td class="col-actions">
           ${actionBuilder.create('ansprechpartner', ap.id)}
         </td>
@@ -278,12 +286,13 @@ export class AnsprechpartnerList extends BasePaginatedList {
               <th>Mail</th>
               <th>Telefon Mobil</th>
               <th>LinkedIn</th>
+              <th>Newsletter</th>
               <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td colspan="${isAdmin ? '11' : '10'}" class="no-data">Lade Ansprechpartner...</td>
+              <td colspan="${isAdmin ? '12' : '11'}" class="no-data">Lade Ansprechpartner...</td>
             </tr>
           </tbody>
         </table>
