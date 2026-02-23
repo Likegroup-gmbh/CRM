@@ -225,7 +225,8 @@ export class MarkeDetail extends PersonDetailBase {
               ),
               telefonnummer_office_land:eu_laender!telefonnummer_office_land_id (
                 id, name, name_de, iso_code, vorwahl
-              )
+              ),
+              kunde_ansprechpartner(kunde_id)
             )
           `)
           .eq('marke_id', this.markeId)
@@ -247,7 +248,15 @@ export class MarkeDetail extends PersonDetailBase {
       
       // Ansprechpartner verarbeiten
       if (!ansprechpartnerResult.error) {
-        this.ansprechpartner = ansprechpartnerResult.data?.map(item => item.ansprechpartner) || [];
+        this.ansprechpartner = (ansprechpartnerResult.data || []).map(item => {
+          const ap = item.ansprechpartner;
+          if (!ap) return null;
+          ap.ist_verknuepft = (ap.kunde_ansprechpartner?.length ?? 0) > 0;
+          delete ap.kunde_ansprechpartner;
+          return ap;
+        }).filter(Boolean);
+      } else {
+        this.ansprechpartner = [];
       }
       
       const loadTime = (performance.now() - startTime).toFixed(0);
@@ -792,6 +801,7 @@ export class MarkeDetail extends PersonDetailBase {
           <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
             ${this.sanitize(ap.vorname)} ${this.sanitize(ap.nachname)}
           </a>
+          ${ap.ist_verknuepft ? `<span class="tag tag--verknuepft" title="verknüpft"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="tag--verknuepft-icon"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></svg></span>` : ''}
         </td>
         <td>${this.sanitize(ap.position?.name) || '-'}</td>
         <td>${ap.email ? `<a href="mailto:${ap.email}">${this.sanitize(ap.email)}</a>` : '-'}</td>
@@ -1203,11 +1213,13 @@ export class MarkeDetail extends PersonDetailBase {
     
     const formHtml = window.formSystem.renderFormOnly('marke', formData);
     
-    // Logo-Anzeige wenn vorhanden
-    const currentLogoHtml = this.marke?.logo_url ? `
+    // Logo-Anzeige wenn vorhanden (URL sanitizen gegen XSS)
+    const safeLogoUrl = this.marke?.logo_url;
+    const isValidLogoUrl = safeLogoUrl && /^https?:\/\//i.test(safeLogoUrl);
+    const currentLogoHtml = isValidLogoUrl ? `
       <div class="form-logo-display">
         <label class="form-logo-label">Aktuelles Logo:</label>
-        <img src="${this.marke.logo_url}" alt="${this.marke.markenname} Logo" class="form-logo-image" />
+        <img src="${safeLogoUrl}" alt="${(this.marke.markenname || '').replace(/"/g, '&quot;')} Logo" class="form-logo-image" />
       </div>
     ` : '';
     
@@ -1287,56 +1299,102 @@ export class MarkeDetail extends PersonDetailBase {
 
   // Handle Edit Form Submit
   async handleEditFormSubmit() {
+    const form = document.getElementById('marke-form');
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalText = submitBtn?.innerHTML;
+
     try {
       console.log('🎯 MARKEDETAIL: Verarbeite Formular-Submit');
-      
-      const form = document.getElementById('marke-form');
+
+      if (submitBtn) {
+        submitBtn.innerHTML = '<div class="loading-spinner"></div> Wird gespeichert...';
+        submitBtn.disabled = true;
+      }
+
       const formData = new FormData(form);
       const allFormData = {};
 
-      // Standard FormData-Einträge sammeln
-      for (const [key, value] of formData.entries()) {
-        allFormData[key] = value;
-      }
+      // 1) Tag-basierte Multi-Selects ZUERST sammeln (bevor FormData-Loop überschreibt)
+      const tagBasedSelects = form.querySelectorAll('select[data-tag-based="true"]');
+      tagBasedSelects.forEach(select => {
+        let hiddenSel = form.querySelector(`select[name="${select.name}[]"][style*="display: none"]`);
+        if (!hiddenSel) {
+          hiddenSel = form.querySelector(`select[name="${select.name}"][style*="display: none"]`);
+        }
+        if (!hiddenSel) {
+          const allSels = form.querySelectorAll(`select[name="${select.name}"]`);
+          if (allSels.length > 1) hiddenSel = allSels[1];
+        }
+        if (hiddenSel) {
+          const selectedValues = Array.from(hiddenSel.selectedOptions).map(o => o.value).filter(Boolean);
+          if (selectedValues.length > 0) allFormData[select.name] = selectedValues;
+        }
+      });
 
-      // Tag-basierte Multi-Selects explizit sammeln
-      // WICHTIG: DataService erwartet für Marke "branche_ids[]" (mit s), nicht "branche_id[]"
-      const hiddenSelect = form.querySelector('select[name="branche_id[]"]');
-      if (hiddenSelect) {
-        const selectedValues = Array.from(hiddenSelect.selectedOptions).map(option => option.value).filter(val => val !== '');
-        if (selectedValues.length > 0) {
-          allFormData['branche_ids[]'] = selectedValues;
-          console.log('🏷️ MARKEDETAIL: Alle ausgewählten Branchen gesammelt:', selectedValues);
+      // Branchen explizit sammeln (Key muss "branche_id" sein, NICHT "branche_ids")
+      if (!allFormData['branche_id']) {
+        const branchenSelect = form.querySelector('select[name="branche_id[]"]');
+        if (branchenSelect) {
+          const selectedValues = Array.from(branchenSelect.selectedOptions).map(o => o.value).filter(Boolean);
+          if (selectedValues.length > 0) {
+            allFormData['branche_id'] = selectedValues;
+            console.log('🏷️ MARKEDETAIL: Branchen gesammelt:', selectedValues);
+          }
         }
       }
-      
-      // Mitarbeiter-Felder explizit sammeln (Management, Lead, Mitarbeiter)
+
+      // Mitarbeiter-Felder explizit sammeln (immer, auch wenn FormData sie schon hat)
       const mitarbeiterFields = ['management_ids', 'lead_mitarbeiter_ids', 'mitarbeiter_ids'];
       for (const fieldName of mitarbeiterFields) {
-        if (!allFormData[fieldName]) {
-          // Suche nach verstecktem Select
-          const hiddenSelect = form.querySelector(`select[name="${fieldName}"][style*="display: none"]`);
-          if (hiddenSelect) {
-            const selectedValues = Array.from(hiddenSelect.selectedOptions).map(option => option.value).filter(val => val !== '');
-            if (selectedValues.length > 0) {
-              allFormData[fieldName] = selectedValues;
-              console.log(`✅ MARKEDETAIL: ${fieldName} gesammelt:`, selectedValues);
-            }
+        const fieldId = `marke-${fieldName}`;
+
+        // 1) Primär: Hidden-Select per ID (von OptionsManager erstellt)
+        let hiddenSel = document.getElementById(`${fieldId}_hidden`);
+
+        // 2) Fallback: CSS-Selector im Formular
+        if (!hiddenSel) {
+          hiddenSel = form.querySelector(`select[name="${fieldName}[]"][style*="display: none"]`);
+        }
+        if (!hiddenSel) {
+          hiddenSel = form.querySelector(`select[name="${fieldName}"][style*="display: none"]`);
+        }
+
+        if (hiddenSel) {
+          const selectedValues = Array.from(hiddenSel.selectedOptions).map(o => o.value).filter(Boolean);
+          if (selectedValues.length > 0) {
+            allFormData[fieldName] = selectedValues;
+            console.log(`✅ MARKEDETAIL: ${fieldName} gesammelt (${selectedValues.length} Werte):`, selectedValues);
+            continue;
           }
-          
-          // Falls nicht gefunden, suche nach allen Selects mit diesem Namen
-          if (!allFormData[fieldName]) {
-            const allSelects = form.querySelectorAll(`select[name="${fieldName}"]`);
-            for (const sel of allSelects) {
-              if (sel.multiple || sel.hasAttribute('multiple')) {
-                const selectedValues = Array.from(sel.selectedOptions).map(option => option.value).filter(val => val !== '');
-                if (selectedValues.length > 0) {
-                  allFormData[fieldName] = selectedValues;
-                  console.log(`✅ MARKEDETAIL: ${fieldName} aus Multi-Select gesammelt:`, selectedValues);
-                  break;
-                }
-              }
-            }
+        }
+
+        // 3) Fallback: Original-Select (OptionsManager spiegelt Werte dorthin)
+        const origSel = document.getElementById(fieldId);
+        if (origSel) {
+          const selectedValues = Array.from(origSel.selectedOptions).map(o => o.value).filter(Boolean);
+          if (selectedValues.length > 0) {
+            allFormData[fieldName] = selectedValues;
+            console.log(`✅ MARKEDETAIL: ${fieldName} aus Original-Select gesammelt:`, selectedValues);
+            continue;
+          }
+        }
+
+        console.log(`⚠️ MARKEDETAIL: ${fieldName} – keine Werte gefunden`);
+      }
+
+      // 2) Standard FormData sammeln – nur Felder die NICHT schon via Tag/Multi-Select erfasst wurden
+      for (const [key, value] of formData.entries()) {
+        if (allFormData.hasOwnProperty(key)) continue;
+        if (key.includes('[]')) {
+          const cleanKey = key.replace('[]', '');
+          if (!allFormData[cleanKey]) allFormData[cleanKey] = [];
+          allFormData[cleanKey].push(value);
+        } else {
+          if (allFormData[key]) {
+            if (!Array.isArray(allFormData[key])) allFormData[key] = [allFormData[key]];
+            allFormData[key].push(value);
+          } else {
+            allFormData[key] = value;
           }
         }
       }
@@ -1350,6 +1408,10 @@ export class MarkeDetail extends PersonDetailBase {
       
       if (!validation.isValid) {
         this.showValidationErrors(validation.errors);
+        if (submitBtn) {
+          submitBtn.innerHTML = originalText;
+          submitBtn.disabled = false;
+        }
         return;
       }
 
@@ -1357,21 +1419,20 @@ export class MarkeDetail extends PersonDetailBase {
       const result = await window.dataService.updateEntity('marke', this.markeId, allFormData);
 
       if (result.success) {
-        // Logo-Upload (falls vorhanden) - über MarkeService
-        console.log('🔵 START: Logo-Upload für Marke', this.markeId);
-        await MarkeService.uploadLogo(this.markeId, form);
-        console.log('✅ Logo-Upload abgeschlossen');
+        // Logo-Upload (falls vorhanden)
+        try {
+          await MarkeService.uploadLogo(this.markeId, form);
+        } catch (logoError) {
+          console.warn('⚠️ Logo-Upload fehlgeschlagen, aber Marke wurde aktualisiert:', logoError);
+        }
         
-        // Mitarbeiter-Zuordnungen speichern - über MarkeService
+        // Mitarbeiter-Zuordnungen speichern
         const unternehmenId = this.marke?.unternehmen_id || allFormData.unternehmen_id;
         await MarkeService.saveMitarbeiterToMarke(this.markeId, allFormData, unternehmenId, { deleteExisting: true });
 
         window.toastSystem.success('Marke erfolgreich aktualisiert!');
         
-        // Zur Markenübersicht navigieren
-        setTimeout(() => {
-          window.navigateTo('/marke');
-        }, 1500);
+        await this.init(this.markeId);
       } else {
         throw new Error(result.error || 'Unbekannter Fehler');
       }
@@ -1379,6 +1440,10 @@ export class MarkeDetail extends PersonDetailBase {
     } catch (error) {
       console.error('❌ Formular-Submit Fehler:', error);
       this.showErrorMessage(error.message);
+      if (submitBtn) {
+        submitBtn.innerHTML = originalText || 'Speichern';
+        submitBtn.disabled = false;
+      }
     }
   }
   

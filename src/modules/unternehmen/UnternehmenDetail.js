@@ -148,7 +148,8 @@ export class UnternehmenDetail extends PersonDetailBase {
             position:position_id(name),
             unternehmen:unternehmen_id(firmenname, logo_url),
             telefonnummer_land:eu_laender!telefonnummer_land_id (id, name, name_de, iso_code, vorwahl),
-            telefonnummer_office_land:eu_laender!telefonnummer_office_land_id (id, name, name_de, iso_code, vorwahl)
+            telefonnummer_office_land:eu_laender!telefonnummer_office_land_id (id, name, name_de, iso_code, vorwahl),
+            kunde_ansprechpartner(kunde_id)
           )
         `).eq('unternehmen_id', this.unternehmenId),
         // Notizen (falls System verfügbar)
@@ -225,7 +226,12 @@ export class UnternehmenDetail extends PersonDetailBase {
       if (!ansprechpartnerResult.error) {
         this.ansprechpartner = (ansprechpartnerResult.data || [])
           .filter(item => item.ansprechpartner)
-          .map(item => item.ansprechpartner);
+          .map(item => {
+            const ap = item.ansprechpartner;
+            ap.ist_verknuepft = (ap.kunde_ansprechpartner?.length ?? 0) > 0;
+            delete ap.kunde_ansprechpartner;
+            return ap;
+          });
       } else {
         this.ansprechpartner = [];
       }
@@ -917,6 +923,7 @@ export class UnternehmenDetail extends PersonDetailBase {
           <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
             ${this.sanitize(ap.vorname)} ${this.sanitize(ap.nachname)}
           </a>
+          ${ap.ist_verknuepft ? `<span class="tag tag--verknuepft" title="verknüpft"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="tag--verknuepft-icon"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></svg></span>` : ''}
         </td>
         <td>${this.sanitize(ap.position?.name) || '-'}</td>
         <td>${ap.email ? `<a href="mailto:${ap.email}">${this.sanitize(ap.email)}</a>` : '-'}</td>
@@ -1372,10 +1379,11 @@ export class UnternehmenDetail extends PersonDetailBase {
       const formHtml = window.formSystem.renderFormOnly('unternehmen', formData);
       
       // Logo-Anzeige wenn vorhanden
-      const currentLogoHtml = this.unternehmen?.logo_url ? `
+      const safeLogoUrl = UnternehmenService.sanitizeUrl(this.unternehmen?.logo_url);
+      const currentLogoHtml = (safeLogoUrl && safeLogoUrl !== '#') ? `
         <div class="form-logo-display">
           <label class="form-logo-label">Aktuelles Logo:</label>
-          <img src="${this.unternehmen.logo_url}" alt="${this.unternehmen.firmenname} Logo" class="form-logo-image" />
+          <img src="${safeLogoUrl}" alt="${(this.unternehmen.firmenname || '').replace(/"/g, '&quot;')} Logo" class="form-logo-image" />
         </div>
       ` : '';
       
@@ -1555,14 +1563,18 @@ export class UnternehmenDetail extends PersonDetailBase {
         // Weiter machen, auch wenn Logo-Upload fehlschlägt
       }
 
-      alert('Unternehmen wurde erfolgreich aktualisiert!');
+      if (window.toastSystem) {
+        window.toastSystem.success('Unternehmen erfolgreich aktualisiert!');
+      }
       
       // Zurück zur Detail-Ansicht
       await this.init(this.unternehmenId);
 
     } catch (error) {
       console.error('❌ UNTERNEHMENDETAIL: Fehler beim Aktualisieren:', error);
-      alert('Fehler beim Aktualisieren: ' + error.message);
+      if (window.toastSystem) {
+        window.toastSystem.show('Fehler beim Aktualisieren: ' + error.message, 'error');
+      }
       const submitBtn = form.querySelector('button[type="submit"]');
       if (submitBtn) {
         submitBtn.innerHTML = 'Speichern';

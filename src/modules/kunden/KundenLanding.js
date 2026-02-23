@@ -47,7 +47,7 @@ export class KundenLanding {
 
   async render() {
     const kampagnenRows = (this.kampagnen || []).map(k => `
-      <tr class="table-row-clickable" onclick="window.navigateTo('/kunden-kampagne/${k.id}')">
+      <tr class="table-row-clickable" onclick="window.navigateTo('/kampagne/${k.id}')">
         <td><strong>${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(k))}</strong></td>
         <td>${window.validatorSystem.sanitizeHtml(k.unternehmen?.firmenname || '—')}</td>
         <td>${window.validatorSystem.sanitizeHtml(k.marke?.markenname || '—')}</td>

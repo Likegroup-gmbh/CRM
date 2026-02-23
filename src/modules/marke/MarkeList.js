@@ -405,8 +405,13 @@ export class MarkeList extends BasePaginatedList {
         return map;
       }
       
+      let skippedCount = 0;
       (data || []).forEach(item => {
-        if (!item.benutzer) return;
+        if (!item.benutzer) {
+          skippedCount++;
+          console.warn('⚠️ loadMitarbeiterMap: Verwaiste Referenz – mitarbeiter_id hat keinen benutzer-Eintrag:', item.marke_id, item.role);
+          return;
+        }
         
         const markeId = item.marke_id;
         const mitarbeiter = {
@@ -418,6 +423,9 @@ export class MarkeList extends BasePaginatedList {
         list.push(mitarbeiter);
         map.set(markeId, list);
       });
+      if (skippedCount > 0) {
+        console.warn(`⚠️ loadMitarbeiterMap: ${skippedCount} verwaiste Referenzen übersprungen (benutzer nicht gefunden)`);
+      }
       
     } catch (e) {
       console.warn('⚠️ loadMitarbeiterMap Fehler:', e);

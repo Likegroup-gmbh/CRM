@@ -87,7 +87,7 @@ export const ActionConfigs = {
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
       { id: 'add_to_list', icon: 'add-to-list', label: 'Zur Liste hinzufügen', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
-      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
+      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],
     kundenActions: ['view']
   },

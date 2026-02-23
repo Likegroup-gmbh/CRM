@@ -270,14 +270,15 @@ export class UnternehmenService {
   }
 
   /**
-   * Speichert Branchen-Verknüpfungen für ein Unternehmen
-   * HINWEIS: Diese Funktion sollte NICHT manuell aufgerufen werden, wenn DataService verwendet wird!
-   * DataService.handleManyToManyRelations() verwaltet Branchen automatisch.
+   * @deprecated Nicht manuell aufrufen! DataService.handleManyToManyRelations() verwaltet
+   * Branchen automatisch. Ein manueller Aufruf parallel zum DataService führt zu Race Conditions
+   * und doppelten Schreibvorgängen auf die Junction Table `unternehmen_branchen`.
    * @param {string} unternehmenId - UUID des Unternehmens
    * @param {string[]|string|null} brancheIds - Branchen-IDs oder null
    * @param {HTMLElement|null} form - Optional: Formular-Context für Fallback-Selektion
    */
   static async saveUnternehmenBranchen(unternehmenId, brancheIds = null, form = null) {
+    console.warn('⚠️ UnternehmenService.saveUnternehmenBranchen() ist deprecated. Verwende DataService.handleManyToManyRelations() stattdessen.');
     try {
       if (!unternehmenId) return;
 

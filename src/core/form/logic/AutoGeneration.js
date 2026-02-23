@@ -1,6 +1,7 @@
 export class AutoGeneration {
   // Auftragsname automatisch generieren: "[Art]_[Nummer]_[Kürzel]" (Fallback: Firmenname)
   async autoGenerateAuftragsname(form) {
+    if (form.dataset?.isEditMode === 'true' && form.dataset?.entityType === 'auftrag') return;
     try {
       // Werte aus dem Formular holen
       const unternehmenSelect = form.querySelector('select[name="unternehmen_id"]');
@@ -445,11 +446,15 @@ export class AutoGeneration {
   // Auto-Generierung einrichten
   setupAutoGeneration(form) {
     // ========== AUFTRAGSNAME (für Auftrag-Formulare) ==========
+    const isAuftragEditMode = form.dataset.isEditMode === 'true' && form.dataset.entityType === 'auftrag';
+    if (isAuftragEditMode) {
+      console.log('🔒 AUTOGENERATION: Auftrag Edit-Mode erkannt, überspringe Auto-Generierung für Auftragsname. Auftrag-ID:', form.dataset.entityId);
+    }
     const auftragnameInput = form.querySelector('input[name="auftragsname"]');
     const unternehmenSelectForAuftrag = form.querySelector('select[name="unternehmen_id"]');
     const auftragTypeSelect = form.querySelector('select[name="auftragtype"]');
     
-    if (auftragnameInput && unternehmenSelectForAuftrag && auftragTypeSelect) {
+    if (!isAuftragEditMode && auftragnameInput && unternehmenSelectForAuftrag && auftragTypeSelect) {
       const triggerAuftragsname = () => this.autoGenerateAuftragsname(form);
       
       // Event-Listener für normale Selects

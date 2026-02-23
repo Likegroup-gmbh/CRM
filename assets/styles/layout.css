@@ -1168,6 +1168,65 @@
   transition: all 0.2s ease;
 }
 
+/* Passwort-Hinweise (Registrierung) */
+.password-hints {
+  margin-top: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  font-size: var(--text-xs);
+}
+
+.login-box .password-hints {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.password-hints-title {
+  font-weight: 600;
+  margin-bottom: var(--space-xs);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.password-hints-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.password-hints-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 2px 0;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.password-hints-list li.hint-satisfied {
+  color: var(--color-success, #059669);
+}
+
+.password-hints .hint-icon {
+  display: inline-flex;
+  width: 1.2em;
+  font-size: 0.9em;
+  font-weight: bold;
+}
+
+.password-hints .hint-icon.hint-ok {
+  color: var(--color-success, #059669);
+}
+
+.password-hints .hint-icon.hint-pending {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.password-hints-success {
+  color: var(--color-success, #059669);
+  font-weight: 500;
+}
+
 .register-link-btn:hover {
   background: rgba(255, 255, 255, 0.2);
   color: #fff;

@@ -669,7 +669,7 @@ export class DashboardModule {
       
       const kampagnenRows = (kampagnen || []).map(k => `
         <tr>
-          <td><a href="/kunden-kampagne/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kunden-kampagne/${k.id}')">${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(k))}</a></td>
+          <td><a href="/kampagne/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${k.id}')">${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(k))}</a></td>
           <td>${window.validatorSystem.sanitizeHtml(k.unternehmen?.firmenname || '—')}</td>
           <td>${window.validatorSystem.sanitizeHtml(k.marke?.markenname || '—')}</td>
           <td><span class="status-badge">${window.validatorSystem.sanitizeHtml(k.status?.name || '—')}</span></td>

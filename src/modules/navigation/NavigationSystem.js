@@ -105,7 +105,7 @@ export class NavigationSystem {
         kooperation: 'kooperation',
         rechnung: 'rechnung',
         videos: 'videos', // Eigene Videos-Berechtigung
-        vertraege: 'briefing', // Verträge nutzt vorerst briefing-Berechtigung
+        vertraege: 'vertraege',
         creator: 'creator',
         'creator-lists': 'creator',
         'sourcing': 'sourcing',

@@ -61,7 +61,6 @@ import { mitarbeiterDetail } from './modules/admin/MitarbeiterDetail.js';
 import { kundenList } from './modules/admin/KundenList.js';
 import { kundenDetail } from './modules/admin/KundenDetail.js';
 import { kundenLanding } from './modules/kunden/KundenLanding.js';
-import { kundenKampagneDetail } from './modules/kunden/KundenKampagneDetail.js';
 import { kundenKooperationDetail } from './modules/kunden/KundenKooperationDetail.js';
 import { bulkActionSystem } from './core/BulkActionSystem.js';
 import { notificationSystem } from './core/NotificationSystem.js';
@@ -195,11 +194,6 @@ class ModuleRegistry {
     }
 
     // Kunden-Portal Detailseiten
-    if (id && segment === 'kunden-kampagne' && id !== 'new') {
-      moduleKey = 'kunden-kampagne-detail';
-      module = this.modules.get(moduleKey);
-      console.log('🎯 Kunden Kampagne-Detail erkannt');
-    }
     if (id && segment === 'kunden-kooperation' && id !== 'new') {
       moduleKey = 'kunden-kooperation-detail';
       module = this.modules.get(moduleKey);
@@ -291,13 +285,6 @@ class ModuleRegistry {
     
     // Spezielle Behandlung für Kampagnen-Details (aber nicht für 'new')
     if (id && segment === 'kampagne' && id !== 'new') {
-      // Kunden immer auf Kunden-Kampagnen-Detail umleiten (kein Zugriff auf Admin-Ansicht inkl. Einkaufspreise)
-      const rolle = window.currentUser?.rolle?.toLowerCase();
-      if (rolle === 'kunde' || rolle === 'kunde_editor') {
-        const kundenRoute = `/kunden-kampagne/${id}`;
-        console.log(`🎯 Kunde greift auf /kampagne/${id} zu → Redirect zu ${kundenRoute}`);
-        return this.navigateTo(kundenRoute);
-      }
       moduleKey = 'kampagne-detail';
       module = this.modules.get(moduleKey);
       console.log(`🎯 Kampagnen-Details erkannt, verwende Modul: ${moduleKey}`);
@@ -475,7 +462,6 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('kunden-admin', kundenList);
   moduleRegistry.register('kunden-detail', kundenDetail);
   moduleRegistry.register('kunden', kundenLanding);
-  moduleRegistry.register('kunden-kampagne-detail', kundenKampagneDetail);
   moduleRegistry.register('kunden-kooperation-detail', kundenKooperationDetail);
   moduleRegistry.register('dashboard', dashboardModule);
   moduleRegistry.register('tasks', taskListPage);

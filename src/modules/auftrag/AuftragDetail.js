@@ -1312,6 +1312,22 @@ export class AuftragDetail {
         }
       }
 
+      // Checkboxen explizit erfassen (unchecked erscheinen nicht in FormData)
+      const checkboxes = form.querySelectorAll('input[type="checkbox"]');
+      checkboxes.forEach(checkbox => {
+        if (checkbox.name) {
+          submitData[checkbox.name] = checkbox.checked;
+        }
+      });
+
+      // Bei ueberwiesen=false: ueberwiesen_am auf null setzen
+      if (submitData.ueberwiesen === false) {
+        submitData.ueberwiesen_am = null;
+      }
+      if (submitData.rechnung_gestellt === false) {
+        submitData.rechnung_gestellt_am = null;
+      }
+
       console.log('📋 AUFTRAGDETAIL: Submit-Daten gesammelt:', submitData);
 
       // Validierung

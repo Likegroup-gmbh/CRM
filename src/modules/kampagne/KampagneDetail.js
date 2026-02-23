@@ -89,8 +89,10 @@ export class KampagneDetail {
       // Breadcrumb aktualisieren mit Edit-Button
       if (window.breadcrumbSystem && this.kampagneData) {
         const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
+        const rolle = window.currentUser?.rolle?.toLowerCase();
+        const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
         window.breadcrumbSystem.updateBreadcrumb([
-          { label: 'Kampagne', url: '/kampagne', clickable: true },
+          { label: isKunde ? 'Meine Kampagnen' : 'Kampagne', url: isKunde ? '/kunden' : '/kampagne', clickable: true },
           { label: KampagneUtils.getDisplayName(this.kampagneData), url: `/kampagne/${this.kampagneId}`, clickable: false }
         ], {
           id: 'btn-edit-kampagne',
@@ -221,7 +223,7 @@ export class KampagneDetail {
         ${progressHtml}
         <div class="empty-state">
           <p>Keine Kooperationen verknüpft</p>
-          <button class="primary-btn" onclick="window.navigateTo('/kooperation/new')">Kooperation anlegen</button>
+          ${!isKunde ? `<button class="primary-btn" onclick="window.navigateTo('/kooperation/new')">Kooperation anlegen</button>` : ''}
         </div>
       `;
     }

@@ -1,6 +1,8 @@
 export class OptionsManager {
   // Verhindere mehrfache Erstellung von Tag-basierten Selects
   static createdTagBasedSelects = new Set();
+  // AbortControllers für Document-Level Event-Listener (Cleanup bei Formular-Wechsel)
+  static _abortControllers = [];
 
   // Select-Optionen aktualisieren
   updateSelectOptions(selectElement, options, field) {
@@ -464,9 +466,9 @@ export class OptionsManager {
 
     // Ausgewählte Werte verwalten (bereits oben definiert)
 
-    // Bestehende Tag-basierte Container entfernen (nur wenn nicht das gleiche)
+    // Bestehende Tag-basierte Container entfernen
     const existingContainer = selectElement.parentNode.querySelector('.tag-based-select');
-    if (existingContainer && existingContainer !== container) {
+    if (existingContainer) {
       console.log('🗑️ Entferne bestehenden Tag-basierten Container');
       existingContainer.remove();
     }
@@ -759,12 +761,14 @@ export class OptionsManager {
       createDropdownItems(filtered);
     });
     
-    // Click-Outside Handler
+    // Click-Outside Handler (mit AbortController für Cleanup)
+    const abortController = new AbortController();
+    OptionsManager._abortControllers.push(abortController);
     document.addEventListener('click', (e) => {
       if (!container.contains(e.target)) {
         dropdown.classList.remove('show');
       }
-    });
+    }, { signal: abortController.signal });
     
     // Escape-Key Handler
     input.addEventListener('keydown', (e) => {
@@ -797,5 +801,13 @@ export class OptionsManager {
     }
     
     console.log(`✅ Tag-basierte Auto-Suggestion Select erstellt für ${field.name}`);
+  }
+
+  static cleanup() {
+    for (const controller of OptionsManager._abortControllers) {
+      controller.abort();
+    }
+    OptionsManager._abortControllers = [];
+    OptionsManager.createdTagBasedSelects.clear();
   }
 } 

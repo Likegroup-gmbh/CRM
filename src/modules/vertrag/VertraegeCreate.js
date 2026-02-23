@@ -91,6 +91,8 @@ export class VertraegeCreate {
           nutzungsart: draft.nutzungsart,
           medien: draft.medien || [],
           nutzungsdauer: draft.nutzungsdauer,
+          nutzungsdauer_custom_wert: draft.nutzungsdauer_custom_wert,
+          nutzungsdauer_custom_einheit: draft.nutzungsdauer_custom_einheit,
           exklusivitaet: draft.exklusivitaet,
           exklusivitaet_monate: draft.exklusivitaet_monate,
           exklusivitaet_einheit: draft.exklusivitaet_einheit || 'monate',
@@ -835,7 +837,19 @@ export class VertraegeCreate {
             <option value="12_monate" ${this.formData.nutzungsdauer === '12_monate' ? 'selected' : ''}>12 Monate</option>
             <option value="6_monate" ${this.formData.nutzungsdauer === '6_monate' ? 'selected' : ''}>6 Monate</option>
             <option value="3_monate" ${this.formData.nutzungsdauer === '3_monate' ? 'selected' : ''}>3 Monate</option>
+            <option value="individuell" ${this.formData.nutzungsdauer === 'individuell' ? 'selected' : ''}>Individuell</option>
           </select>
+        </div>
+        <div class="form-field ${this.formData.nutzungsdauer === 'individuell' ? '' : 'hidden'}" id="nutzungsdauer-custom-wrapper">
+          <label for="nutzungsdauer_custom_wert">Nutzungsdauer individuell</label>
+          <div class="input-with-select">
+            <input type="number" id="nutzungsdauer_custom_wert" name="nutzungsdauer_custom_wert" min="1" max="99"
+                   value="${this.formData.nutzungsdauer_custom_wert ?? ''}" placeholder="Anzahl">
+            <select id="nutzungsdauer_custom_einheit" name="nutzungsdauer_custom_einheit">
+              <option value="jahre" ${this.formData.nutzungsdauer_custom_einheit === 'jahre' ? 'selected' : ''}>Jahre</option>
+              <option value="monate" ${!this.formData.nutzungsdauer_custom_einheit || this.formData.nutzungsdauer_custom_einheit === 'monate' ? 'selected' : ''}>Monate</option>
+            </select>
+          </div>
         </div>
 
         <div class="form-two-col">
@@ -1268,6 +1282,22 @@ export class VertraegeCreate {
                      ${this.formData.nutzungsdauer === '3_monate' ? 'checked' : ''}>
               <span>3 Monate</span>
             </label>
+            <label class="radio-option">
+              <input type="radio" name="nutzungsdauer" value="individuell" 
+                     ${this.formData.nutzungsdauer === 'individuell' ? 'checked' : ''}>
+              <span>Individuell</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-field ${this.formData.nutzungsdauer === 'individuell' ? '' : 'hidden'}" id="nutzungsdauer-custom-wrapper">
+          <label for="nutzungsdauer_custom_wert">Nutzungsdauer individuell</label>
+          <div class="input-with-select">
+            <input type="number" id="nutzungsdauer_custom_wert" name="nutzungsdauer_custom_wert" min="1" max="99"
+                   value="${this.formData.nutzungsdauer_custom_wert ?? ''}" placeholder="Anzahl">
+            <select id="nutzungsdauer_custom_einheit" name="nutzungsdauer_custom_einheit">
+              <option value="jahre" ${this.formData.nutzungsdauer_custom_einheit === 'jahre' ? 'selected' : ''}>Jahre</option>
+              <option value="monate" ${!this.formData.nutzungsdauer_custom_einheit || this.formData.nutzungsdauer_custom_einheit === 'monate' ? 'selected' : ''}>Monate</option>
+            </select>
           </div>
         </div>
 
@@ -2029,6 +2059,8 @@ export class VertraegeCreate {
       anzahl_storys: parseInt(this.formData.anzahl_storys) || 0,
       medien: this.formData.medien || [],
       nutzungsdauer: this.formData.nutzungsdauer || null,
+      nutzungsdauer_custom_wert: this.formData.nutzungsdauer === 'individuell' ? (parseInt(this.formData.nutzungsdauer_custom_wert, 10) || null) : null,
+      nutzungsdauer_custom_einheit: this.formData.nutzungsdauer === 'individuell' ? (this.formData.nutzungsdauer_custom_einheit || null) : null,
       exklusivitaet: this.formData.exklusivitaet || false,
       exklusivitaet_monate: this.formData.exklusivitaet ? parseInt(this.formData.exklusivitaet_monate) || null : null,
       exklusivitaet_einheit: this.formData.exklusivitaet ? (this.formData.exklusivitaet_einheit || 'monate') : null,
@@ -2145,6 +2177,39 @@ export class VertraegeCreate {
     if (exklusivitaetEinheitSelect) {
       exklusivitaetEinheitSelect.addEventListener('change', (e) => {
         this.formData.exklusivitaet_einheit = e.target.value;
+      });
+    }
+
+    // Nutzungsdauer Individuell Toggle (UGC Select + Influencer Radios)
+    const nutzungsdauerCustomWrapper = document.getElementById('nutzungsdauer-custom-wrapper');
+    const nutzungsdauerSelect = document.getElementById('nutzungsdauer');
+    if (nutzungsdauerSelect && nutzungsdauerCustomWrapper) {
+      nutzungsdauerSelect.addEventListener('change', (e) => {
+        const isIndividuell = e.target.value === 'individuell';
+        nutzungsdauerCustomWrapper.classList.toggle('hidden', !isIndividuell);
+        this.formData.nutzungsdauer = e.target.value;
+      });
+    }
+    const nutzungsdauerRadios = document.querySelectorAll('input[name="nutzungsdauer"]');
+    if (nutzungsdauerRadios.length > 0 && nutzungsdauerCustomWrapper) {
+      nutzungsdauerRadios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+          const isIndividuell = e.target.value === 'individuell';
+          nutzungsdauerCustomWrapper.classList.toggle('hidden', !isIndividuell);
+          this.formData.nutzungsdauer = e.target.value;
+        });
+      });
+    }
+    const nutzungsdauerCustomWertInput = document.getElementById('nutzungsdauer_custom_wert');
+    if (nutzungsdauerCustomWertInput) {
+      nutzungsdauerCustomWertInput.addEventListener('input', (e) => {
+        this.formData.nutzungsdauer_custom_wert = e.target.value || null;
+      });
+    }
+    const nutzungsdauerCustomEinheitSelect = document.getElementById('nutzungsdauer_custom_einheit');
+    if (nutzungsdauerCustomEinheitSelect) {
+      nutzungsdauerCustomEinheitSelect.addEventListener('change', (e) => {
+        this.formData.nutzungsdauer_custom_einheit = e.target.value;
       });
     }
 
@@ -3234,12 +3299,19 @@ export class VertraegeCreate {
         'beides': 'Organisch & Paid Ads'
       };
       
-      // Helper: Nutzungsdauer lesbar machen
+      // Helper: Nutzungsdauer lesbar machen (inkl. individuell)
       const nutzungsdauerLabels = {
         'unbegrenzt': 'Unbegrenzt',
         '12_monate': '12 Monate',
         '6_monate': '6 Monate',
         '3_monate': '3 Monate'
+      };
+      const getNutzungsdauerText = (v) => {
+        if (v.nutzungsdauer === 'individuell' && v.nutzungsdauer_custom_wert != null) {
+          const einheit = v.nutzungsdauer_custom_einheit === 'jahre' ? 'Jahre' : 'Monate';
+          return `${v.nutzungsdauer_custom_wert} ${einheit}`;
+        }
+        return nutzungsdauerLabels[v.nutzungsdauer] || '-';
       };
 
       // Helper: Datum formatieren
@@ -3454,7 +3526,7 @@ export class VertraegeCreate {
       doc.text('4.3 Nutzungsdauer', 14, y);
       doc.setFont('helvetica', 'normal');
       y += 6;
-      doc.text(`${nutzungsdauerLabels[vertrag.nutzungsdauer] || '-'}`, 14, y);
+      doc.text(getNutzungsdauerText(vertrag), 14, y);
       y += 8;
       doc.setFont('helvetica', 'bold');
       doc.text('4.4 Exklusivität', 14, y);
@@ -3927,6 +3999,13 @@ export class VertraegeCreate {
         '6_monate': '6 Monate',
         '3_monate': '3 Monate'
       };
+      const getNutzungsdauerText = (v) => {
+        if (v.nutzungsdauer === 'individuell' && v.nutzungsdauer_custom_wert != null) {
+          const einheit = v.nutzungsdauer_custom_einheit === 'jahre' ? 'Jahre' : 'Monate';
+          return `${v.nutzungsdauer_custom_wert} ${einheit}`;
+        }
+        return nutzungsdauerLabels[v.nutzungsdauer] || '-';
+      };
 
       const organischeVeroeffentlichungLabels = {
         'influencer_only': 'Veröffentlichung ausschließlich über den Influencer',
@@ -4213,7 +4292,7 @@ export class VertraegeCreate {
       doc.text(mediaBuyoutLabels[vertrag.media_buyout] || '-', 14, y);
 
       y += 8;
-      doc.text(`Nutzungsdauer: ${nutzungsdauerLabels[vertrag.nutzungsdauer] || '-'}`, 14, y);
+      doc.text(`Nutzungsdauer: ${getNutzungsdauerText(vertrag)}`, 14, y);
       y += 5;
       const medienLabels = { 'social_media': 'Social Media', 'website': 'Website', 'otv': 'OTV' };
       const medienText = (vertrag.medien || []).map(m => medienLabels[m] || m).join(', ') || '-';

@@ -143,13 +143,15 @@ export class AuftragsdetailsList {
                 <th class="col-ad-marke">Marke</th>
                 <th class="col-ad-auftrag">Auftrag</th>
                 <th>PO intern</th>
+                <th>Start</th>
+                <th>Ende</th>
                 <th>Erstellt am</th>
                 <th class="col-actions">Aktionen</th>
               </tr>
             </thead>
             <tbody id="auftragsdetails-table-body">
               <tr>
-                <td colspan="${isAdmin ? '7' : '6'}" class="loading">Lade Auftragsdetails...</td>
+                <td colspan="${isAdmin ? '9' : '8'}" class="loading">Lade Auftragsdetails...</td>
               </tr>
             </tbody>
           </table>
@@ -291,6 +293,8 @@ export class AuftragsdetailsList {
             auftragsname,
             status,
             po,
+            start,
+            ende,
             unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
             marke:marke_id(id, markenname, logo_url)
           )
@@ -670,6 +674,8 @@ export class AuftragsdetailsList {
               </a>
             </td>
             <td>${window.validatorSystem?.sanitizeHtml(auftrag.po) || auftrag.po || '-'}</td>
+            <td>${formatDate(auftrag.start)}</td>
+            <td>${formatDate(auftrag.ende)}</td>
             <td>${formatDate(detail.created_at)}</td>
             <td class="col-actions">
               ${actionBuilder.create('auftragsdetails', detail.id)}

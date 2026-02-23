@@ -139,10 +139,9 @@ export class CreatorAuswahlDetail {
    */
   getVisibleColumnCount() {
     const allColumns = [
-      'cp-col-drag', 'cp-col-name', 'cp-col-typ', 'cp-col-link-ig', 'cp-col-follower-ig',
-      'cp-col-link-tt', 'cp-col-follower-tt', 'cp-col-check', 'cp-col-kategorie',
-      'cp-col-location', 'cp-col-notiz', 'cp-col-feedback', 'cp-col-prio1', 'cp-col-prio2',
-      'cp-col-nicht', 'cp-col-pricing', 'cp-col-actions'
+      'cp-col-drag', 'cp-col-name', 'cp-col-typ', 'cp-col-notiz', 'cp-col-link-ig', 'cp-col-follower-ig',
+      'cp-col-link-tt', 'cp-col-follower-tt', 'cp-col-location', 'cp-col-feedback',
+      'cp-col-prio1', 'cp-col-prio2', 'cp-col-nicht', 'cp-col-check', 'cp-col-pricing', 'cp-col-actions'
     ];
     
     let count = 0;
@@ -335,24 +334,6 @@ export class CreatorAuswahlDetail {
     });
   }
 
-  /**
-   * Kategorie-Select für Formulare rendern
-   */
-  renderKategorieSelect(selectedValue = '') {
-    const teilbereiche = this.getTeilbereicheFromListe();
-    
-    if (teilbereiche.length === 0) {
-      // Wenn keine Kategorien definiert sind, zeige ein Textfeld
-      return `<input type="text" name="kategorie" class="form-input" placeholder="z.B. Food, Fashion, Tech">`;
-    }
-    
-    return `
-      <select name="kategorie" class="form-input">
-        <option value="">Ohne Kategorie</option>
-        ${teilbereiche.map(tb => `<option value="${tb}" ${selectedValue === tb ? 'selected' : ''}>${tb}</option>`).join('')}
-      </select>
-    `;
-  }
 
   /**
    * Kategorien-Drawer öffnen
@@ -530,18 +511,17 @@ export class CreatorAuswahlDetail {
               ${!this.isKunde ? '<th class="col-drag col-sticky-1 cp-col-drag"></th>' : ''}
               <th class="${this.isKunde ? 'col-sticky-1' : 'col-sticky-2'} cp-col-name">Name</th>
               <th class="${this.isKunde ? 'col-sticky-2' : 'col-sticky-3'} cp-col-typ" ${!this.isColumnVisibleForCustomer('cp-col-typ') ? 'style="display:none;"' : ''}>Creator Art</th>
+              <th class="cp-col-notiz" ${!this.isColumnVisibleForCustomer('cp-col-notiz') ? 'style="display:none;"' : ''}>Kurzbeschreibung</th>
               <th class="cp-col-link-ig" ${!this.isColumnVisibleForCustomer('cp-col-link-ig') ? 'style="display:none;"' : ''}>Link ${instagramIcon}</th>
               <th class="cp-col-follower-ig" ${!this.isColumnVisibleForCustomer('cp-col-follower-ig') ? 'style="display:none;"' : ''}>Follower ${instagramIcon}</th>
               <th class="cp-col-link-tt" ${!this.isColumnVisibleForCustomer('cp-col-link-tt') ? 'style="display:none;"' : ''}>Link ${tiktokIcon}</th>
               <th class="cp-col-follower-tt" ${!this.isColumnVisibleForCustomer('cp-col-follower-tt') ? 'style="display:none;"' : ''}>Follower ${tiktokIcon}</th>
-              <th class="cp-col-check" ${!this.isColumnVisibleForCustomer('cp-col-check') ? 'style="display:none;"' : ''}>Rückmeldung</th>
-              <th class="cp-col-kategorie" ${!this.isColumnVisibleForCustomer('cp-col-kategorie') ? 'style="display:none;"' : ''}>Kategorie</th>
               <th class="cp-col-location" ${!this.isColumnVisibleForCustomer('cp-col-location') ? 'style="display:none;"' : ''}>Location</th>
-              <th class="cp-col-notiz" ${!this.isColumnVisibleForCustomer('cp-col-notiz') ? 'style="display:none;"' : ''}>Notiz</th>
-              <th class="cp-col-feedback" ${!this.isColumnVisibleForCustomer('cp-col-feedback') ? 'style="display:none;"' : ''}>Feedback Kunde</th>
+              <th class="cp-col-feedback" ${!this.isColumnVisibleForCustomer('cp-col-feedback') ? 'style="display:none;"' : ''}>Rückmeldung Kunde</th>
               <th class="cp-col-prio1" ${!this.isColumnVisibleForCustomer('cp-col-prio1') ? 'style="display:none;"' : ''}>Prio 1</th>
               <th class="cp-col-prio2" ${!this.isColumnVisibleForCustomer('cp-col-prio2') ? 'style="display:none;"' : ''}>Prio 2</th>
-              <th class="cp-col-nicht" ${!this.isColumnVisibleForCustomer('cp-col-nicht') ? 'style="display:none;"' : ''}>Nicht umsetzen</th>
+              <th class="cp-col-nicht" ${!this.isColumnVisibleForCustomer('cp-col-nicht') ? 'style="display:none;"' : ''}>Nicht buchen</th>
+              <th class="cp-col-check" ${!this.isColumnVisibleForCustomer('cp-col-check') ? 'style="display:none;"' : ''}>Rückmeldung</th>
               <th class="cp-col-pricing" ${!this.isColumnVisibleForCustomer('cp-col-pricing') ? 'style="display:none;"' : ''}>Pricing</th>
               ${!this.isKunde ? '<th class="col-actions cp-col-actions">Aktionen</th>' : ''}
             </tr>
@@ -695,6 +675,11 @@ export class CreatorAuswahlDetail {
             </select>
           ` : `<div class="cell-text-readonly">${item.typ || '-'}</div>`}
         </td>
+        <td class="cell-textarea cp-col-notiz" ${!this.isColumnVisibleForCustomer('cp-col-notiz') ? 'style="display:none;"' : ''}>
+          ${!this.isKunde ? `
+            <textarea class="strategie-textarea" data-field="notiz" data-item-id="${item.id}" placeholder="Kurzbeschreibung...">${item.notiz || ''}</textarea>
+          ` : `<div class="cell-text-readonly">${item.notiz || '-'}</div>`}
+        </td>
         <td class="cell-textarea cp-col-link-ig" style="text-align: center;${!this.isColumnVisibleForCustomer('cp-col-link-ig') ? ' display:none;' : ''}">
           ${!this.isKunde ? `
             <div class="link-cell-wrapper">
@@ -721,37 +706,17 @@ export class CreatorAuswahlDetail {
             <textarea class="strategie-textarea" data-field="follower_tiktok" data-item-id="${item.id}" placeholder="0">${item.follower_tiktok || ''}</textarea>
           ` : `<div class="cell-text-readonly">${formatFollower(item.follower_tiktok) || '-'}</div>`}
         </td>
-        <td class="cp-col-check" style="text-align: center;${!this.isColumnVisibleForCustomer('cp-col-check') ? ' display:none;' : ''}">
-          <input 
-            type="checkbox" 
-            ${item.rueckmeldung_creator ? 'checked' : ''} 
-            data-field="rueckmeldung_creator"
-            data-item-id="${item.id}"
-            style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'default' : 'pointer'};"
-            ${this.isKunde ? 'disabled' : ''}
-          >
-        </td>
-        <td class="cell-textarea cp-col-kategorie" ${!this.isColumnVisibleForCustomer('cp-col-kategorie') ? 'style="display:none;"' : ''}>
-          ${!this.isKunde ? `
-            <textarea class="strategie-textarea" data-field="kategorie" data-item-id="${item.id}" placeholder="Kategorie...">${item.kategorie || ''}</textarea>
-          ` : `<div class="cell-text-readonly">${item.kategorie || '-'}</div>`}
-        </td>
         <td class="cell-textarea cp-col-location" ${!this.isColumnVisibleForCustomer('cp-col-location') ? 'style="display:none;"' : ''}>
           ${!this.isKunde ? `
             <textarea class="strategie-textarea" data-field="wohnort" data-item-id="${item.id}" placeholder="Location...">${item.wohnort || ''}</textarea>
           ` : `<div class="cell-text-readonly">${item.wohnort || '-'}</div>`}
-        </td>
-        <td class="cell-textarea cp-col-notiz" ${!this.isColumnVisibleForCustomer('cp-col-notiz') ? 'style="display:none;"' : ''}>
-          ${!this.isKunde ? `
-            <textarea class="strategie-textarea" data-field="notiz" data-item-id="${item.id}" placeholder="Notiz...">${item.notiz || ''}</textarea>
-          ` : `<div class="cell-text-readonly">${item.notiz || '-'}</div>`}
         </td>
         <td class="cell-textarea cp-col-feedback" ${!this.isColumnVisibleForCustomer('cp-col-feedback') ? 'style="display:none;"' : ''}>
           <textarea 
             class="strategie-textarea ${this.isKunde ? '' : 'readonly-textarea'}" 
             data-field="feedback_kunde" 
             data-item-id="${item.id}" 
-            placeholder="${this.isKunde ? 'Ihr Feedback...' : 'Kunden-Feedback...'}"
+            placeholder="${this.isKunde ? 'Ihr Feedback...' : 'Rückmeldung Kunde...'}"
             ${this.isKunde ? '' : 'readonly'}
           >${item.feedback_kunde || ''}</textarea>
         </td>
@@ -780,6 +745,16 @@ export class CreatorAuswahlDetail {
             data-field="nicht_umsetzen"
             data-item-id="${item.id}"
             style="width: 20px; height: 20px; cursor: pointer;"
+          >
+        </td>
+        <td class="cp-col-check" style="text-align: center;${!this.isColumnVisibleForCustomer('cp-col-check') ? ' display:none;' : ''}">
+          <input 
+            type="checkbox" 
+            ${item.rueckmeldung_creator ? 'checked' : ''} 
+            data-field="rueckmeldung_creator"
+            data-item-id="${item.id}"
+            style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'default' : 'pointer'};"
+            ${this.isKunde ? 'disabled' : ''}
           >
         </td>
         <td class="cell-textarea cp-col-pricing" ${!this.isColumnVisibleForCustomer('cp-col-pricing') ? 'style="display:none;"' : ''}>
@@ -1290,20 +1265,14 @@ export class CreatorAuswahlDetail {
             </div>
           </div>
 
-          <div class="form-row">
-            <div class="form-field">
-              <label class="form-label">Kategorie</label>
-              ${this.renderKategorieSelect()}
-            </div>
-            <div class="form-field">
-              <label class="form-label">Location</label>
-              <input type="text" name="wohnort" class="form-input" placeholder="z.B. Berlin">
-            </div>
+          <div class="form-field">
+            <label class="form-label">Location</label>
+            <input type="text" name="wohnort" class="form-input" placeholder="z.B. Berlin">
           </div>
 
           <div class="form-field">
-            <label class="form-label">Notiz</label>
-            <textarea name="notiz" class="form-input" rows="2" placeholder="Interne Notizen..."></textarea>
+            <label class="form-label">Kurzbeschreibung</label>
+            <textarea name="notiz" class="form-input" rows="2" placeholder="Kurzbeschreibung..."></textarea>
           </div>
 
           <div class="form-field">

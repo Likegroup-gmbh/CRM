@@ -128,6 +128,14 @@ export class AuftragCashFlowCalendar {
       return markeA.localeCompare(markeB);
     });
     
+    // Aufträge innerhalb der Gruppen und Monate alphabetisch nach Auftragsname sortieren
+    this.groupedData.forEach(group => {
+      group.auftraege.sort((a, b) => (a.auftragsname || '').localeCompare(b.auftragsname || ''));
+      group.months.forEach(month => {
+        month.auftraege.sort((a, b) => (a.auftragsname || '').localeCompare(b.auftragsname || ''));
+      });
+    });
+    
     console.log(`✅ ${this.groupedData.length} Gruppen erstellt`);
   }
 
@@ -421,6 +429,9 @@ export class AuftragCashFlowCalendar {
         }
         return;
       }
+      
+      // Alphabetisch nach Auftragsname sortieren
+      auftraege.sort((a, b) => (a.auftragsname || '').localeCompare(b.auftragsname || ''));
       
       // Öffne den Details-Drawer
       const { CashFlowDetailsDrawer } = await import('./CashFlowDetailsDrawer.js');

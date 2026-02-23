@@ -47,7 +47,7 @@
 }
 
 /* Standard-Spaltenbreiten für kooperation-video-grid */
-.kooperation-video-grid .col-nr { width: 50px; min-width: 50px; }
+.kooperation-video-grid .col-nr { width: 25px; min-width: 25px; }
 .kooperation-video-grid .col-creator { width: 150px; min-width: 150px; }
 .kooperation-video-grid .col-videoanzahl { width: 70px; min-width: 70px; }
 .kooperation-video-grid .col-status { width: 120px; min-width: 120px; }

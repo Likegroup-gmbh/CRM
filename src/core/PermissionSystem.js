@@ -69,6 +69,7 @@ export class PermissionSystem {
         sourcing: { can_view: true, can_edit: true, can_delete: true },
         feedback: { can_view: true, can_edit: true, can_delete: true },
         mitarbeiter: { can_view: true, can_edit: true, can_delete: true },
+        vertraege: { can_view: true, can_edit: true, can_delete: true },
         'kunden-admin': { can_view: true, can_edit: true, can_delete: true }
       },
       mitarbeiter: {
@@ -91,6 +92,7 @@ export class PermissionSystem {
         sourcing: { can_view: true, can_edit: true, can_delete: true },
         feedback: { can_view: true, can_edit: true, can_delete: true },
         mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
+        vertraege: { can_view: true, can_edit: true, can_delete: true },
         'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
       },
       // Kunden: read-only Einsicht in relevante Module (RLS filtert auf eigene Daten)
@@ -114,6 +116,7 @@ export class PermissionSystem {
         sourcing: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Sourcing sehen
         feedback: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Feedback NICHT sehen
         mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
+        vertraege: { can_view: false, can_edit: false, can_delete: false },
         'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
       },
       // Kunde-Editor: perspektivisch eingeschränkt bearbeitbar; v1 wie kunde
@@ -137,6 +140,7 @@ export class PermissionSystem {
         sourcing: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Sourcing sehen
         feedback: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Feedback NICHT sehen
         mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
+        vertraege: { can_view: false, can_edit: false, can_delete: false },
         'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
       }
     };
@@ -162,6 +166,7 @@ export class PermissionSystem {
       sourcing: { can_view: false, can_edit: false, can_delete: false },
       feedback: { can_view: true, can_edit: false, can_delete: false },
       mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
+      vertraege: { can_view: false, can_edit: false, can_delete: false },
       'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
     };
 
@@ -185,6 +190,7 @@ export class PermissionSystem {
       sourcing: { can_view: false, can_edit: false, can_delete: false },
       feedback: { can_view: false, can_edit: false, can_delete: false },
       mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
+      vertraege: { can_view: false, can_edit: false, can_delete: false },
       'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
     };
 

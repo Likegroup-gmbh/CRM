@@ -635,8 +635,6 @@ export class AuftragList {
                 <th>RE. Nr</th>
                 <th class="col-re-faelligkeit">RE-Fälligkeit</th>
                 <th>Zahlungsziel</th>
-                <th>Start</th>
-                <th>Ende</th>
                 <th>Netto</th>
                 <th>UST</th>
                 <th>Brutto</th>
@@ -1090,8 +1088,6 @@ export class AuftragList {
           <td>${auftrag.re_nr || '-'}</td>
           <td>${this.formatDate(auftrag.re_faelligkeit)}</td>
           <td>${this.formatZahlungsziel(auftrag.zahlungsziel_tage)}</td>
-          <td>${this.formatDate(auftrag.start)}</td>
-          <td>${this.formatDate(auftrag.ende)}</td>
           <td>${this.formatCurrency(auftrag.nettobetrag)}</td>
           <td>${this.formatCurrency(auftrag.ust_betrag)}</td>
           <td>${this.formatCurrency(auftrag.bruttobetrag)}</td>
@@ -1839,7 +1835,8 @@ export class AuftragList {
 
       // Validierung
       const validationResult = window.validatorSystem.validateForm(submitData, {
-        auftragsname: { type: 'text', minLength: 2, required: true }
+        auftragsname: { type: 'text', minLength: 2, required: true },
+        re_faelligkeit: { required: true }
       });
       
       if (!validationResult.isValid) {

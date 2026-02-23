@@ -9,11 +9,10 @@ export class DependentFields {
 
   // Abhängige Felder verwalten
   setupDependentFields(form) {
-    // Spezielle Behandlung für Kampagne/Auftrag Edit-Mode: Überspringen
+    // Spezielle Behandlung für Kampagne Edit-Mode: Überspringen (DynamicDataLoader übernimmt)
     const isKampagneEditMode = form.dataset.entityType === 'kampagne' && form.dataset.isEditMode === 'true';
-    const isAuftragEditMode = form.dataset.entityType === 'auftrag' && form.dataset.isEditMode === 'true';
-    if (isKampagneEditMode || isAuftragEditMode) {
-      console.log(`🎯 DEPENDENTFIELDS: Überspringe Setup für ${form.dataset.entityType} Edit-Mode - DynamicDataLoader übernimmt`);
+    if (isKampagneEditMode) {
+      console.log(`🎯 DEPENDENTFIELDS: Überspringe Setup für Kampagne Edit-Mode - DynamicDataLoader übernimmt`);
       return;
     }
     
@@ -80,8 +79,11 @@ export class DependentFields {
               fieldContainer.style.display = ''; // Inline-Style entfernen
               
               // Tag-basiertes Select reinitialisieren wenn es sichtbar wird
+              // NICHT für prefillFromUnternehmen-Felder – diese werden von DynamicDataLoader initialisiert
+              // und dürfen hier nicht zerstört werden (Re-Init kennt nur paid/organic_ziele_ids)
+              const isPrefillField = fieldContainer.dataset.prefillFromUnternehmen === 'true';
               const selectElement = fieldContainer.querySelector('select[data-tag-based="true"]');
-              if (selectElement && window.formSystem?.optionsManager) {
+              if (selectElement && window.formSystem?.optionsManager && !isPrefillField) {
                 const fieldName = selectElement.name;
                 
                 // Debounce: Verhindere mehrfache gleichzeitige Initialisierungen
@@ -549,6 +551,17 @@ export class DependentFields {
       return;
     }
 
+    // Im Marke-Edit-Modus: prefillFromUnternehmen-Felder komplett überspringen.
+    // DynamicDataLoader hat die korrekten Werte bereits aus marke_mitarbeiter geladen.
+    // Wichtig: VOR showLoadingState, damit kein "Lädt..." State hängen bleibt.
+    if (fieldConfig.prefillFromUnternehmen && fieldConfig.prefillRole) {
+      const isMarkeEditMode = form.dataset.entityType === 'marke' && form.dataset.isEditMode === 'true';
+      if (isMarkeEditMode) {
+        console.log(`⏭️ DEPENDENTFIELDS: Überspringe ${fieldConfig.name} komplett im Marke-Edit-Modus`);
+        return;
+      }
+    }
+
     console.log(`🔄 Lade Daten für ${fieldConfig.name} basierend auf ${fieldConfig.dependsOn}:`, parentValue);
     
     // Loading State anzeigen (Performance Optimierung #4)
@@ -884,6 +897,7 @@ export class DependentFields {
 
       // Erweiterte Waterfall-Logik: Mitarbeiter bei Marke vom Unternehmen vorausfüllen
       // Behandelt management_ids, lead_mitarbeiter_ids, mitarbeiter_ids mit Rollen-Filterung
+      // Hinweis: Im Marke-Edit-Modus wird diese Methode gar nicht erst aufgerufen (Early Return oben).
       if (fieldConfig.dependsOn === 'unternehmen_id' && fieldConfig.prefillFromUnternehmen && fieldConfig.prefillRole) {
         const targetRole = fieldConfig.prefillRole;
         console.log(`🔄 DEPENDENTFIELDS PREFILL: Starte Prefill für ${fieldConfig.name} (Rolle: ${targetRole}) vom Unternehmen:`, parentValue);

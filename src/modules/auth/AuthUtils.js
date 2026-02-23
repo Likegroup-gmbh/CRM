@@ -2,6 +2,7 @@
 // UI-Funktionen für Authentifizierung
 
 import { authService } from './AuthService.js';
+import { initPasswordHints } from '../../auth/password-hints.js';
 
 export class AuthUtils {
   constructor() {
@@ -201,6 +202,7 @@ export class AuthUtils {
     const registerForm = document.getElementById('registerForm');
     if (registerForm) {
       registerForm.onsubmit = (e) => this.handleRegisterSubmit(e);
+      initPasswordHints('registerPassword');
     }
   }
 

@@ -4641,19 +4641,25 @@ h3.section-title,
 .tag--ansprechpartner,
 .tag--stadt,
 .tag--land,
-.tag--kampagne-art {
+.tag--kampagne-art,
+.tag--verknuepft {
   color: var(--gray-800);
-  border-color: var(--gray-300);
+  border-color: var(--gray-200);
   transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  
 }
+
 
 .tag--type svg,
 .tag--lang svg,
-.tag--branche svg {
+.tag--branche svg,
+.tag--verknuepft svg {
   width: var(--icon-xs);
   height: var(--icon-xs);
   flex-shrink: 0;
-  margin-right: 4px;
+  
 }
 
 
@@ -9970,11 +9976,13 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table .cp-col-name {
   width: 140px;
   min-width: 140px;
+  vertical-align: middle;
 }
 
 .creator-pool-table .cp-col-typ {
   width: 100px;
   min-width: 100px;
+  vertical-align: middle;
 }
 
 .creator-pool-table .cp-col-link {
@@ -9992,11 +10000,6 @@ table:has(#strategien-table-body) td.col-actions {
   width: 95px;
   min-width: 95px;
   text-align: center;
-}
-
-.creator-pool-table .cp-col-kategorie {
-  width: 100px;
-  min-width: 100px;
 }
 
 .creator-pool-table .cp-col-location {

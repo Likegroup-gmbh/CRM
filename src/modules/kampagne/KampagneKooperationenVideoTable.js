@@ -16,7 +16,7 @@ export class KampagneKooperationenVideoTable {
     this.resizeCol = null;
     this.resizeStartX = 0;
     this.resizeStartWidth = 0;
-    this.storageKey = `kampagne_koops_videos_column_widths_v2_${kampagneId}`;
+    this.storageKey = `kampagne_koops_videos_column_widths_v3_${kampagneId}`;
     this.hiddenColumns = []; // Spalten die für Kunden versteckt sind
     this._visibilityEventBound = false; // Verhindere mehrfache Event-Registrierung
     
@@ -651,14 +651,18 @@ export class KampagneKooperationenVideoTable {
   // Rendere die Tabelle
   render() {
     if (!this.kooperationen || this.kooperationen.length === 0) {
+      const rolle = window.currentUser?.rolle?.toLowerCase();
+      const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
       return `
         <div class="empty-state">
           <div class="empty-icon">🎬</div>
           <h3>Keine Kooperationen vorhanden</h3>
-          <p>Erstelle eine Kooperation, um sie hier mit Videos zu verwalten.</p>
-          <button class="primary-btn" onclick="window.navigateTo('/kooperation/new?kampagne_id=${this.kampagneId}')">
-            Kooperation anlegen
-          </button>
+          ${!isKunde ? `
+            <p>Erstelle eine Kooperation, um sie hier mit Videos zu verwalten.</p>
+            <button class="primary-btn" onclick="window.navigateTo('/kooperation/new?kampagne_id=${this.kampagneId}')">
+              Kooperation anlegen
+            </button>
+          ` : '<p>Es wurden noch keine Kooperationen für diese Kampagne angelegt.</p>'}
         </div>
       `;
     }
@@ -696,96 +700,96 @@ export class KampagneKooperationenVideoTable {
                 Creator
                 <div class="resize-handle resize-handle-col" data-col="1"></div>
               </th>
-              <th class="col-header col-typ" ${!this.isColumnVisibleForCustomer('col-typ') ? 'style="display:none;"' : ''} data-col="2">
-                Typ
+              <th class="col-header col-kosten" ${!this.isColumnVisibleForCustomer('col-kosten') ? 'style="display:none;"' : ''} data-col="2">
+                Kosten
                 <div class="resize-handle resize-handle-col" data-col="2"></div>
               </th>
-              <th class="col-header col-vertrag" ${!this.isColumnVisibleForCustomer('col-vertrag') ? 'style="display:none;"' : ''} data-col="3">
-                Vertrag
+              <th class="col-header col-typ" ${!this.isColumnVisibleForCustomer('col-typ') ? 'style="display:none;"' : ''} data-col="3">
+                Typ
                 <div class="resize-handle resize-handle-col" data-col="3"></div>
               </th>
-              <th class="col-header col-nutzungsrechte" ${!this.isColumnVisibleForCustomer('col-nutzungsrechte') ? 'style="display:none;"' : ''} data-col="4">
-                Nutzungsrechte
+              <th class="col-header col-vertrag" ${!this.isColumnVisibleForCustomer('col-vertrag') ? 'style="display:none;"' : ''} data-col="4">
+                Vertrag
                 <div class="resize-handle resize-handle-col" data-col="4"></div>
               </th>
-              <th class="col-header col-start-datum" ${!this.isColumnVisibleForCustomer('col-start-datum') ? 'style="display:none;"' : ''} data-col="5">
-                Erstellt
+              <th class="col-header col-nutzungsrechte" ${!this.isColumnVisibleForCustomer('col-nutzungsrechte') ? 'style="display:none;"' : ''} data-col="5">
+                Nutzungsrechte
                 <div class="resize-handle resize-handle-col" data-col="5"></div>
               </th>
-              <th class="col-header col-script-deadline" ${!this.isColumnVisibleForCustomer('col-script-deadline') ? 'style="display:none;"' : ''} data-col="6">
-                Script Deadline
+              <th class="col-header col-start-datum" ${!this.isColumnVisibleForCustomer('col-start-datum') ? 'style="display:none;"' : ''} data-col="6">
+                Erstellt
                 <div class="resize-handle resize-handle-col" data-col="6"></div>
               </th>
-              <th class="col-header col-end-datum" ${!this.isColumnVisibleForCustomer('col-end-datum') ? 'style="display:none;"' : ''} data-col="7">
-                Content Deadline
+              <th class="col-header col-script-deadline" ${!this.isColumnVisibleForCustomer('col-script-deadline') ? 'style="display:none;"' : ''} data-col="7">
+                Script Deadline
                 <div class="resize-handle resize-handle-col" data-col="7"></div>
               </th>
-              <th class="col-header col-videoanzahl" ${!this.isColumnVisibleForCustomer('col-videoanzahl') ? 'style="display:none;"' : ''} data-col="8">
-                Videos
+              <th class="col-header col-end-datum" ${!this.isColumnVisibleForCustomer('col-end-datum') ? 'style="display:none;"' : ''} data-col="8">
+                Content Deadline
                 <div class="resize-handle resize-handle-col" data-col="8"></div>
               </th>
-              <th class="col-header col-video-nr" ${!this.isColumnVisibleForCustomer('col-video-nr') ? 'style="display:none;"' : ''} data-col="9">
-                Video-Nr
+              <th class="col-header col-videoanzahl" ${!this.isColumnVisibleForCustomer('col-videoanzahl') ? 'style="display:none;"' : ''} data-col="9">
+                Videos
                 <div class="resize-handle resize-handle-col" data-col="9"></div>
               </th>
-              <th class="col-header col-thema" ${!this.isColumnVisibleForCustomer('col-thema') ? 'style="display:none;"' : ''} data-col="10">
-                Thema
+              <th class="col-header col-video-nr" ${!this.isColumnVisibleForCustomer('col-video-nr') ? 'style="display:none;"' : ''} data-col="10">
+                Video-Nr
                 <div class="resize-handle resize-handle-col" data-col="10"></div>
               </th>
-              <th class="col-header col-organic-paid" ${!this.isColumnVisibleForCustomer('col-organic-paid') ? 'style="display:none;"' : ''} data-col="11">
-                Content/Art
+              <th class="col-header col-thema" ${!this.isColumnVisibleForCustomer('col-thema') ? 'style="display:none;"' : ''} data-col="11">
+                Thema
                 <div class="resize-handle resize-handle-col" data-col="11"></div>
               </th>
-              <th class="col-header col-produkt" ${!this.isColumnVisibleForCustomer('col-produkt') ? 'style="display:none;"' : ''} data-col="12">
-                Produkte
+              <th class="col-header col-organic-paid" ${!this.isColumnVisibleForCustomer('col-organic-paid') ? 'style="display:none;"' : ''} data-col="12">
+                Content/Art
                 <div class="resize-handle resize-handle-col" data-col="12"></div>
               </th>
-              <th class="col-header col-lieferadresse" ${!this.isColumnVisibleForCustomer('col-lieferadresse') ? 'style="display:none;"' : ''} data-col="13">
-                Lieferadresse
+              <th class="col-header col-produkt" ${!this.isColumnVisibleForCustomer('col-produkt') ? 'style="display:none;"' : ''} data-col="13">
+                Produkte
                 <div class="resize-handle resize-handle-col" data-col="13"></div>
               </th>
-              <th class="col-header col-paket-tracking" ${!this.isColumnVisibleForCustomer('col-paket-tracking') ? 'style="display:none;"' : ''} data-col="14">
-                Tracking
+              <th class="col-header col-lieferadresse" ${!this.isColumnVisibleForCustomer('col-lieferadresse') ? 'style="display:none;"' : ''} data-col="14">
+                Lieferadresse
                 <div class="resize-handle resize-handle-col" data-col="14"></div>
               </th>
-              <th class="col-header col-drehort" ${!this.isColumnVisibleForCustomer('col-drehort') ? 'style="display:none;"' : ''} data-col="15">
-                Drehort
+              <th class="col-header col-paket-tracking" ${!this.isColumnVisibleForCustomer('col-paket-tracking') ? 'style="display:none;"' : ''} data-col="15">
+                Tracking
                 <div class="resize-handle resize-handle-col" data-col="15"></div>
               </th>
-              <th class="col-header col-link-skript" ${!this.isColumnVisibleForCustomer('col-link-skript') ? 'style="display:none;"' : ''} data-col="16">
-                Link Skript / Briefing
+              <th class="col-header col-drehort" ${!this.isColumnVisibleForCustomer('col-drehort') ? 'style="display:none;"' : ''} data-col="16">
+                Drehort
                 <div class="resize-handle resize-handle-col" data-col="16"></div>
               </th>
-              <th class="col-header col-skript-freigegeben" ${!this.isColumnVisibleForCustomer('col-skript-freigegeben') ? 'style="display:none;"' : ''} data-col="17">
-                Skript freigegeben
+              <th class="col-header col-link-skript" ${!this.isColumnVisibleForCustomer('col-link-skript') ? 'style="display:none;"' : ''} data-col="17">
+                Link Skript / Briefing
                 <div class="resize-handle resize-handle-col" data-col="17"></div>
               </th>
-              <th class="col-header col-link-content" ${!this.isColumnVisibleForCustomer('col-link-content') ? 'style="display:none;"' : ''} data-col="18">
-                Link Content
+              <th class="col-header col-skript-freigegeben" ${!this.isColumnVisibleForCustomer('col-skript-freigegeben') ? 'style="display:none;"' : ''} data-col="18">
+                Skript freigegeben
                 <div class="resize-handle resize-handle-col" data-col="18"></div>
               </th>
-              <th class="col-header col-feedback-cj" ${!this.isColumnVisibleForCustomer('col-feedback-cj') ? 'style="display:none;"' : ''} data-col="19">
-                Feedback CJ
+              <th class="col-header col-link-content" ${!this.isColumnVisibleForCustomer('col-link-content') ? 'style="display:none;"' : ''} data-col="19">
+                Link Content
                 <div class="resize-handle resize-handle-col" data-col="19"></div>
               </th>
-              <th class="col-header col-feedback-kunde" ${!this.isColumnVisibleForCustomer('col-feedback-kunde') ? 'style="display:none;"' : ''} data-col="20">
-                Feedback Kunde
+              <th class="col-header col-feedback-cj" ${!this.isColumnVisibleForCustomer('col-feedback-cj') ? 'style="display:none;"' : ''} data-col="20">
+                Feedback CJ
                 <div class="resize-handle resize-handle-col" data-col="20"></div>
               </th>
-              <th class="col-header col-freigabe" ${!this.isColumnVisibleForCustomer('col-freigabe') ? 'style="display:none;"' : ''} data-col="21">
-                Freigabe
+              <th class="col-header col-feedback-kunde" ${!this.isColumnVisibleForCustomer('col-feedback-kunde') ? 'style="display:none;"' : ''} data-col="21">
+                Feedback Kunde
                 <div class="resize-handle resize-handle-col" data-col="21"></div>
               </th>
-              <th class="col-header col-caption" ${!this.isColumnVisibleForCustomer('col-caption') ? 'style="display:none;"' : ''} data-col="22">
-                Caption
+              <th class="col-header col-freigabe" ${!this.isColumnVisibleForCustomer('col-freigabe') ? 'style="display:none;"' : ''} data-col="22">
+                Freigabe
                 <div class="resize-handle resize-handle-col" data-col="22"></div>
               </th>
-              <th class="col-header col-posting-datum" ${!this.isColumnVisibleForCustomer('col-posting-datum') ? 'style="display:none;"' : ''} data-col="23">
-                Posting Datum
+              <th class="col-header col-caption" ${!this.isColumnVisibleForCustomer('col-caption') ? 'style="display:none;"' : ''} data-col="23">
+                Caption
                 <div class="resize-handle resize-handle-col" data-col="23"></div>
               </th>
-              <th class="col-header col-kosten" ${!this.isColumnVisibleForCustomer('col-kosten') ? 'style="display:none;"' : ''} data-col="24">
-                Kosten
+              <th class="col-header col-posting-datum" ${!this.isColumnVisibleForCustomer('col-posting-datum') ? 'style="display:none;"' : ''} data-col="24">
+                Posting Datum
                 <div class="resize-handle resize-handle-col" data-col="24"></div>
               </th>
               <th class="col-header col-actions" ${!this.isColumnVisibleForCustomer('col-actions') ? 'style="display:none;"' : ''} data-col="25">
@@ -831,6 +835,7 @@ export class KampagneKooperationenVideoTable {
             ${this.escapeHtml(`${creator.vorname || ''} ${creator.nachname || ''}`.trim() || 'Unbekannt')}
           </a>
         </td>
+        <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-kosten') ? 'style="display:none;"' : ''}>${this.isColumnVisibleForCustomer('col-kosten') ? formatCurrency(koop.einkaufspreis_gesamt) : '—'}</td>
         <td class="grid-cell" ${!this.isColumnVisibleForCustomer('col-typ') ? 'style="display:none;"' : ''}>
           <select 
             class="grid-select" 
@@ -1059,7 +1064,6 @@ export class KampagneKooperationenVideoTable {
               placeholder="TT.MM.JJJJ"/>
           `)}
         </td>
-        <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-kosten') ? 'style="display:none;"' : ''}>${this.isColumnVisibleForCustomer('col-kosten') ? formatCurrency(koop.einkaufspreis_gesamt) : '—'}</td>
         <td class="grid-cell col-actions" ${!this.isColumnVisibleForCustomer('col-actions') ? 'style="display:none;"' : ''}>
           <div class="actions-dropdown-container" data-entity-type="kooperation">
             <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">

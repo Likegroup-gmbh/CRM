@@ -58,6 +58,7 @@
 <script type="module">
   import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/+esm'
   import { getSupabaseConfig } from './config.js'
+  import { initPasswordHints } from './password-hints.js'
 
   const cfg = getSupabaseConfig();
   if (!cfg) {
@@ -71,6 +72,8 @@
   const form = document.getElementById('register-form');
   const btn = document.getElementById('btn-submit');
   const msg = document.getElementById('msg');
+
+  initPasswordHints('password');
 
   function show(type, text) {
     msg.style.display = 'block';

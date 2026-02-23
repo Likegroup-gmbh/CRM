@@ -458,15 +458,9 @@ export class DataService {
             localKey: 'marke_id',
             foreignKey: 'ansprechpartner_id',
             displayField: 'id,vorname,nachname,email'
-          },
-          mitarbeiter: {
-            table: 'benutzer',
-            junctionTable: 'marke_mitarbeiter',
-            localKey: 'marke_id',
-            foreignKey: 'mitarbeiter_id',
-            displayField: 'name',
-            additionalFields: 'created_at,assigned_by'
           }
+          // mitarbeiter: Bewusst NICHT hier – marke_mitarbeiter hat eine role-Spalte
+          // und wird ausschließlich über MarkeService.saveMitarbeiterToMarke() verwaltet.
         },
         filters: ['markenname', 'unternehmen_id', 'branche_id'],
         sortBy: 'created_at',
@@ -2383,7 +2377,8 @@ export class DataService {
               internes_kuerzel,
               logo_url
             )
-          )
+          ),
+          kunde_ansprechpartner (kunde_id)
         `;
       }
       
@@ -2535,6 +2530,10 @@ export class DataService {
           }
           
           ap.unternehmen = unternehmenList;
+
+          // Kunde-Verknüpfung (Magic Link): Verknüpft wenn mindestens ein Kunde existiert
+          ap.ist_verknuepft = (ap.kunde_ansprechpartner?.length ?? 0) > 0;
+          delete ap.kunde_ansprechpartner;
         });
       }
 
