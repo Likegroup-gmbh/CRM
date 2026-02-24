@@ -429,26 +429,24 @@ export class PermissionSystem {
   }
 
   /**
-   * Holt alle Marken-IDs, auf die der aktuelle User Zugriff hat
+   * Holt alle Marken-IDs, auf die der aktuelle User Zugriff hat.
+   * Override-Semantik: Pro Unternehmen gilt entweder nur die expliziten Marken (marke_mitarbeiter)
+   * oder, falls keine explizite Zuordnung, alle Marken des Unternehmens.
    * @returns {Promise<string[]|null>} Array von IDs oder null (= alle erlaubt für Admin)
    */
   async getAllowedMarkenIds() {
     const rolle = window.currentUser?.rolle?.toLowerCase();
     const userId = window.currentUser?.id;
     
-    // Admin hat uneingeschränkten Zugriff
     if (rolle === 'admin') return null;
-    
-    // Kunde hat auch uneingeschränkten Zugriff (RLS filtert auf DB-Ebene)
     if (rolle === 'kunde' || rolle === 'kunde_editor') return null;
-    
     if (!userId) {
       console.warn('⚠️ getAllowedMarkenIds: Kein User-ID gefunden');
       return [];
     }
     
     try {
-      // 1. Direkt über marke_mitarbeiter zugeordnete Marken
+      // 1. Direkt zugeordnete Marken (marke_mitarbeiter)
       const { data: direkteMarken, error: err1 } = await window.supabase
         .from('marke_mitarbeiter')
         .select('marke_id')
@@ -458,42 +456,49 @@ export class PermissionSystem {
         console.error('❌ Fehler beim Laden direkter Marken-Zuordnungen:', err1);
       }
       
-      // 2. Indirekt über mitarbeiter_unternehmen -> alle Marken des Unternehmens
+      const directMarkeIds = (direkteMarken || []).map(r => r.marke_id).filter(Boolean);
+      
+      // 2. Marken → Unternehmen für Override-Logik
+      let unternehmenMarkenMap = new Map();
+      if (directMarkeIds.length > 0) {
+        const { data: markenData } = await window.supabase
+          .from('marke')
+          .select('id, unternehmen_id')
+          .in('id', directMarkeIds);
+        (markenData || []).forEach(m => {
+          if (m.unternehmen_id) {
+            if (!unternehmenMarkenMap.has(m.unternehmen_id)) unternehmenMarkenMap.set(m.unternehmen_id, []);
+            unternehmenMarkenMap.get(m.unternehmen_id).push(m.id);
+          }
+        });
+      }
+      
+      // 3. Unternehmen-Zuordnungen (mitarbeiter_unternehmen)
       const { data: unternehmenZuordnung, error: err2 } = await window.supabase
         .from('mitarbeiter_unternehmen')
         .select('unternehmen_id')
         .eq('mitarbeiter_id', userId);
       
-      if (err2) {
-        console.error('❌ Fehler beim Laden Unternehmen-Zuordnungen:', err2);
-      }
-      
-      // Marken der zugeordneten Unternehmen laden
+      if (err2) console.error('❌ Fehler beim Laden Unternehmen-Zuordnungen:', err2);
       const unternehmenIds = (unternehmenZuordnung || []).map(r => r.unternehmen_id).filter(Boolean);
-      let markenVonUnternehmen = [];
       
-      if (unternehmenIds.length > 0) {
-        const { data: markenData, error: err3 } = await window.supabase
-          .from('marke')
-          .select('id')
-          .in('unternehmen_id', unternehmenIds);
-        
-        if (err3) {
-          console.error('❌ Fehler beim Laden Marken der Unternehmen:', err3);
+      const allowedMarkeIds = [];
+      for (const unternehmenId of unternehmenIds) {
+        const expliziteMarken = unternehmenMarkenMap.get(unternehmenId);
+        if (expliziteMarken && expliziteMarken.length > 0) {
+          allowedMarkeIds.push(...expliziteMarken);
+        } else {
+          const { data: markenData } = await window.supabase
+            .from('marke')
+            .select('id')
+            .eq('unternehmen_id', unternehmenId);
+          allowedMarkeIds.push(...(markenData || []).map(m => m.id));
         }
-        markenVonUnternehmen = (markenData || []).map(m => m.id);
       }
-      
-      // Zusammenführen und Duplikate entfernen
-      const alleIds = [
-        ...(direkteMarken || []).map(r => r.marke_id),
-        ...markenVonUnternehmen
-      ];
-      const uniqueIds = [...new Set(alleIds)];
-      
+      allowedMarkeIds.push(...directMarkeIds);
+      const uniqueIds = [...new Set(allowedMarkeIds)];
       console.log(`🔐 getAllowedMarkenIds: ${uniqueIds.length} Marken für User ${userId}`);
       return uniqueIds;
-      
     } catch (error) {
       console.error('❌ getAllowedMarkenIds Fehler:', error);
       return [];

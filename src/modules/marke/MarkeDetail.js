@@ -11,6 +11,7 @@ import { renderTabButton } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { MarkeService } from './services/MarkeService.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { FormSubmitHelper } from '../../core/form/FormSubmitHelper.js';
 
 export class MarkeDetail extends PersonDetailBase {
   constructor() {
@@ -1312,93 +1313,9 @@ export class MarkeDetail extends PersonDetailBase {
       }
 
       const formData = new FormData(form);
-      const allFormData = {};
-
-      // 1) Tag-basierte Multi-Selects ZUERST sammeln (bevor FormData-Loop überschreibt)
-      const tagBasedSelects = form.querySelectorAll('select[data-tag-based="true"]');
-      tagBasedSelects.forEach(select => {
-        let hiddenSel = form.querySelector(`select[name="${select.name}[]"][style*="display: none"]`);
-        if (!hiddenSel) {
-          hiddenSel = form.querySelector(`select[name="${select.name}"][style*="display: none"]`);
-        }
-        if (!hiddenSel) {
-          const allSels = form.querySelectorAll(`select[name="${select.name}"]`);
-          if (allSels.length > 1) hiddenSel = allSels[1];
-        }
-        if (hiddenSel) {
-          const selectedValues = Array.from(hiddenSel.selectedOptions).map(o => o.value).filter(Boolean);
-          if (selectedValues.length > 0) allFormData[select.name] = selectedValues;
-        }
-      });
-
-      // Branchen explizit sammeln (Key muss "branche_id" sein, NICHT "branche_ids")
-      if (!allFormData['branche_id']) {
-        const branchenSelect = form.querySelector('select[name="branche_id[]"]');
-        if (branchenSelect) {
-          const selectedValues = Array.from(branchenSelect.selectedOptions).map(o => o.value).filter(Boolean);
-          if (selectedValues.length > 0) {
-            allFormData['branche_id'] = selectedValues;
-            console.log('🏷️ MARKEDETAIL: Branchen gesammelt:', selectedValues);
-          }
-        }
-      }
-
-      // Mitarbeiter-Felder explizit sammeln (immer, auch wenn FormData sie schon hat)
-      const mitarbeiterFields = ['management_ids', 'lead_mitarbeiter_ids', 'mitarbeiter_ids'];
-      for (const fieldName of mitarbeiterFields) {
-        const fieldId = `marke-${fieldName}`;
-
-        // 1) Primär: Hidden-Select per ID (von OptionsManager erstellt)
-        let hiddenSel = document.getElementById(`${fieldId}_hidden`);
-
-        // 2) Fallback: CSS-Selector im Formular
-        if (!hiddenSel) {
-          hiddenSel = form.querySelector(`select[name="${fieldName}[]"][style*="display: none"]`);
-        }
-        if (!hiddenSel) {
-          hiddenSel = form.querySelector(`select[name="${fieldName}"][style*="display: none"]`);
-        }
-
-        if (hiddenSel) {
-          const selectedValues = Array.from(hiddenSel.selectedOptions).map(o => o.value).filter(Boolean);
-          if (selectedValues.length > 0) {
-            allFormData[fieldName] = selectedValues;
-            console.log(`✅ MARKEDETAIL: ${fieldName} gesammelt (${selectedValues.length} Werte):`, selectedValues);
-            continue;
-          }
-        }
-
-        // 3) Fallback: Original-Select (OptionsManager spiegelt Werte dorthin)
-        const origSel = document.getElementById(fieldId);
-        if (origSel) {
-          const selectedValues = Array.from(origSel.selectedOptions).map(o => o.value).filter(Boolean);
-          if (selectedValues.length > 0) {
-            allFormData[fieldName] = selectedValues;
-            console.log(`✅ MARKEDETAIL: ${fieldName} aus Original-Select gesammelt:`, selectedValues);
-            continue;
-          }
-        }
-
-        console.log(`⚠️ MARKEDETAIL: ${fieldName} – keine Werte gefunden`);
-      }
-
-      // 2) Standard FormData sammeln – nur Felder die NICHT schon via Tag/Multi-Select erfasst wurden
-      for (const [key, value] of formData.entries()) {
-        if (allFormData.hasOwnProperty(key)) continue;
-        if (key.includes('[]')) {
-          const cleanKey = key.replace('[]', '');
-          if (!allFormData[cleanKey]) allFormData[cleanKey] = [];
-          allFormData[cleanKey].push(value);
-        } else {
-          if (allFormData[key]) {
-            if (!Array.isArray(allFormData[key])) allFormData[key] = [allFormData[key]];
-            allFormData[key].push(value);
-          } else {
-            allFormData[key] = value;
-          }
-        }
-      }
-
+      const tagBasedValues = FormSubmitHelper.collectTagBasedSelects(form);
+      const allFormData = FormSubmitHelper.formDataToObject(formData, tagBasedValues);
+      if (typeof allFormData.markenname === 'string') allFormData.markenname = allFormData.markenname.trim();
       console.log('📤 MARKEDETAIL: Submit-Daten für Update:', allFormData);
 
       // Validierung
@@ -1428,7 +1345,14 @@ export class MarkeDetail extends PersonDetailBase {
         
         // Mitarbeiter-Zuordnungen speichern
         const unternehmenId = this.marke?.unternehmen_id || allFormData.unternehmen_id;
-        await MarkeService.saveMitarbeiterToMarke(this.markeId, allFormData, unternehmenId, { deleteExisting: true });
+        try {
+          await MarkeService.saveMitarbeiterToMarke(this.markeId, allFormData, unternehmenId, { deleteExisting: true });
+        } catch (mitarbeiterErr) {
+          console.error('❌ Mitarbeiter-Zuordnungen:', mitarbeiterErr);
+          this.showErrorMessage(mitarbeiterErr.message || 'Mitarbeiter-Zuordnungen konnten nicht gespeichert werden.');
+          if (submitBtn) { submitBtn.innerHTML = originalText; submitBtn.disabled = false; }
+          return;
+        }
 
         window.toastSystem.success('Marke erfolgreich aktualisiert!');
         

@@ -2,6 +2,7 @@
 // Marke-Erstellungsseite mit Multi-Select für Branchen (wie Unternehmen)
 
 import { MarkeService } from './services/MarkeService.js';
+import { FormSubmitHelper } from '../../core/form/FormSubmitHelper.js';
 
 export class MarkeCreate {
   constructor() {
@@ -268,121 +269,13 @@ export class MarkeCreate {
         submitBtn.disabled = true;
       }
 
-      // Formular-Daten sammeln
       const form = document.getElementById('marke-form');
       const formData = new FormData(form);
+      const tagBasedValues = FormSubmitHelper.collectTagBasedSelects(form);
+      const allFormData = FormSubmitHelper.formDataToObject(formData, tagBasedValues);
       const data = {};
-      
-      // Multi-Select Felder zuerst sammeln (Tag-basierte)
-      const allFormData = {};
-      
-      // Tag-basierte Multi-Selects verarbeiten (genau wie bei Unternehmen)
-      const tagBasedSelects = form.querySelectorAll('select[data-tag-based="true"]');
-      console.log('🏷️ Tag-basierte Selects gefunden:', tagBasedSelects.length);
-      
-      tagBasedSelects.forEach(select => {
-        // Zuerst mit [], dann ohne (wie in FormSubmitHelper.js) - Hidden Select wird mit [] erstellt
-        let hiddenSelect = form.querySelector(`select[name="${select.name}[]"][style*="display: none"]`);
-        if (!hiddenSelect) {
-          hiddenSelect = form.querySelector(`select[name="${select.name}"][style*="display: none"]`);
-        }
-        // Fallback: Nach allen Selects mit dem gleichen Namen
-        if (!hiddenSelect) {
-          const allSelects = form.querySelectorAll(`select[name="${select.name}"]`);
-          if (allSelects.length > 1) {
-            hiddenSelect = allSelects[1]; // Das zweite ist das versteckte
-          }
-        }
-        
-        if (hiddenSelect) {
-          const selectedValues = Array.from(hiddenSelect.selectedOptions).map(option => option.value).filter(val => val !== '');
-          if (selectedValues.length > 0) {
-            allFormData[select.name] = selectedValues;
-            console.log(`🏷️ Tag-basiertes Multi-Select ${select.name}:`, selectedValues);
-          }
-        }
-      });
-      
-      // Spezielle Behandlung für Tag-basierte Multi-Selects - versteckte Selects manuell verarbeiten
-      // Das versteckte Select wird möglicherweise nicht korrekt von FormData erfasst
-      const hiddenBranchenSelect = form.querySelector('select[name="branche_id[]"]');
-      if (hiddenBranchenSelect && hiddenBranchenSelect.multiple) {
-        const selectedOptions = Array.from(hiddenBranchenSelect.selectedOptions);
-        if (selectedOptions.length > 0) {
-          const branchenIds = selectedOptions.map(option => option.value).filter(val => val !== '');
-          if (branchenIds.length > 0) {
-            allFormData['branche_id[]'] = branchenIds;
-            console.log('🏷️ MARKECREATE: Verstecktes Branchen-Select manuell verarbeitet:', branchenIds);
-          }
-        }
-      }
-      
-      // Mitarbeiter-Felder explizit sammeln (Management, Lead, Mitarbeiter)
-      const mitarbeiterFields = ['management_ids', 'lead_mitarbeiter_ids', 'mitarbeiter_ids'];
-      for (const fieldName of mitarbeiterFields) {
-        if (!allFormData[fieldName]) {
-          // Suche nach verstecktem Select (mit oder ohne [] Suffix)
-          const hiddenSelect = form.querySelector(`select[name="${fieldName}"][style*="display: none"]`)
-            || form.querySelector(`select[name="${fieldName}[]"][style*="display: none"]`);
-          if (hiddenSelect) {
-            const selectedValues = Array.from(hiddenSelect.selectedOptions).map(option => option.value).filter(val => val !== '');
-            if (selectedValues.length > 0) {
-              allFormData[fieldName] = selectedValues;
-              console.log(`✅ MARKECREATE: ${fieldName} gesammelt:`, selectedValues);
-            }
-          }
-          
-          // Falls nicht gefunden, suche nach allen Selects mit diesem Namen (mit oder ohne [] Suffix)
-          if (!allFormData[fieldName]) {
-            const allSelects = form.querySelectorAll(`select[name="${fieldName}"], select[name="${fieldName}[]"]`);
-            for (const sel of allSelects) {
-              if (sel.multiple || sel.hasAttribute('multiple')) {
-                const selectedValues = Array.from(sel.selectedOptions).map(option => option.value).filter(val => val !== '');
-                if (selectedValues.length > 0) {
-                  allFormData[fieldName] = selectedValues;
-                  console.log(`✅ MARKECREATE: ${fieldName} aus Multi-Select gesammelt:`, selectedValues);
-                  break;
-                }
-              }
-            }
-          }
-        }
-      }
-      
-      // Standard FormData-Einträge sammeln (nur für Felder, die nicht bereits von Tag-basierten Selects verarbeitet wurden)
-      for (let [key, value] of formData.entries()) {
-        if (!allFormData.hasOwnProperty(key)) {
-          if (key.includes('[]')) {
-            // Multi-Select Array behandeln (z.B. branche_ids[])
-            const cleanKey = key.replace('[]', '');
-            // Nur verarbeiten wenn nicht bereits von Tag-basierten Selects verarbeitet
-            if (!allFormData[cleanKey]) {
-              allFormData[cleanKey] = [];
-            }
-            allFormData[cleanKey].push(value);
-          } else {
-            if (allFormData[key]) {
-              if (!Array.isArray(allFormData[key])) {
-                allFormData[key] = [allFormData[key]];
-              }
-              allFormData[key].push(value);
-            } else {
-              allFormData[key] = value;
-            }
-          }
-        }
-      }
-      
-      // Duplikate aus Array-Feldern entfernen
-      for (let [key, value] of Object.entries(allFormData)) {
-        if (Array.isArray(value)) {
-          allFormData[key] = [...new Set(value)]; // Entfernt Duplikate
-        }
-      }
-      
-      // Finale Daten zusammenstellen
-      for (let [key, value] of Object.entries(allFormData)) {
-        data[key] = Array.isArray(value) ? value : value.trim();
+      for (const [key, value] of Object.entries(allFormData)) {
+        data[key] = Array.isArray(value) ? value : (typeof value === 'string' ? value.trim() : value);
       }
       
       // URL-Felder: https:// automatisch hinzufügen

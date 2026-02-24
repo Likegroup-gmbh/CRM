@@ -18,6 +18,11 @@ export class KickOffPage {
     this._typeMutationObserver = null;
   }
   
+  // Markenwert-ID einheitlich als String für zuverlässige Vergleiche
+  _normId(id) {
+    return id == null ? '' : String(id);
+  }
+
   // Document Click Handler für Tag-Input Schließen
   _handleDocumentClick(e) {
     if (!e.target.closest('.tag-input-wrapper')) {
@@ -90,7 +95,7 @@ export class KickOffPage {
         .order('name', { ascending: true });
 
       if (error) throw error;
-      this.allMarkenwerte = data || [];
+      this.allMarkenwerte = (data || []).map(m => ({ ...m, id: this._normId(m.id) }));
       console.log('✅ Markenwerte geladen:', this.allMarkenwerte.length);
     } catch (error) {
       console.error('❌ Fehler beim Laden der Markenwerte:', error);
@@ -413,7 +418,10 @@ export class KickOffPage {
           .select('markenwert_id, markenwert:markenwert_id(id, name)')
           .eq('kickoff_id', kickoff.id);
 
-        this.existingMarkenwerte = markenwerte?.map(m => m.markenwert) || [];
+        this.existingMarkenwerte = (markenwerte || [])
+          .map(m => m.markenwert)
+          .filter(Boolean)
+          .map(m => ({ id: this._normId(m.id), name: m.name }));
       } catch (e) {
         console.warn('⚠️ Fehler beim Laden der Markenwerte:', e);
         this.existingMarkenwerte = [];
@@ -636,7 +644,7 @@ export class KickOffPage {
     suggestionsDiv.addEventListener('click', async (e) => {
       const item = e.target.closest('.suggestion-item');
       if (item) {
-        const id = item.dataset.id;
+        const id = this._normId(item.dataset.id);
         const name = item.dataset.name;
         
         if (id && this.existingMarkenwerte.length < 3) {
@@ -655,8 +663,8 @@ export class KickOffPage {
       selectedContainer.addEventListener('click', (e) => {
         const removeBtn = e.target.closest('.tag-remove');
         if (removeBtn) {
-          const id = removeBtn.dataset.id;
-          this.existingMarkenwerte = this.existingMarkenwerte.filter(m => m.id !== id);
+          const id = this._normId(removeBtn.dataset.id);
+          this.existingMarkenwerte = this.existingMarkenwerte.filter(m => this._normId(m.id) !== id);
           this.renderSelectedMarkenwerte();
         }
       });
@@ -675,10 +683,10 @@ export class KickOffPage {
     }
 
     const lowerFilter = filter.toLowerCase();
-    const selectedIds = this.existingMarkenwerte.map(m => m.id);
+    const selectedIds = this.existingMarkenwerte.map(m => this._normId(m.id));
     
-    const filtered = this.allMarkenwerte.filter(mw => 
-      !selectedIds.includes(mw.id) && 
+    const filtered = this.allMarkenwerte.filter(mw =>
+      !selectedIds.includes(this._normId(mw.id)) &&
       mw.name.toLowerCase().includes(lowerFilter)
     );
 
@@ -722,8 +730,9 @@ export class KickOffPage {
     const existing = this.allMarkenwerte.find(m => m.name.toLowerCase() === name.toLowerCase());
     
     if (existing) {
-      if (!this.existingMarkenwerte.find(m => m.id === existing.id)) {
-        this.existingMarkenwerte.push(existing);
+      const normId = this._normId(existing.id);
+      if (!this.existingMarkenwerte.find(m => m.id === normId)) {
+        this.existingMarkenwerte.push({ id: normId, name: existing.name });
       }
     } else {
       try {
@@ -735,8 +744,9 @@ export class KickOffPage {
 
         if (error) throw error;
 
-        this.allMarkenwerte.push(data);
-        this.existingMarkenwerte.push(data);
+        const normalized = { ...data, id: this._normId(data.id) };
+        this.allMarkenwerte.push(normalized);
+        this.existingMarkenwerte.push({ id: normalized.id, name: normalized.name });
         console.log('✅ Neuer Markenwert angelegt:', data.name);
       } catch (error) {
         console.error('❌ Fehler beim Anlegen des Markenwerts:', error);
@@ -824,21 +834,29 @@ export class KickOffPage {
         console.log('✅ Kick-Off angelegt');
       }
 
-      // Markenwerte speichern
+      // Markenwerte speichern (nach markenwert_id deduplizieren)
       await window.supabase
         .from('marke_kickoff_markenwerte')
         .delete()
         .eq('kickoff_id', kickoffId);
 
-      if (this.existingMarkenwerte.length > 0) {
-        const junctionData = this.existingMarkenwerte.map(mw => ({
+      const seenIds = new Set();
+      const uniqueMarkenwerte = this.existingMarkenwerte.filter(mw => {
+        const id = this._normId(mw.id);
+        if (seenIds.has(id)) return false;
+        seenIds.add(id);
+        return true;
+      });
+
+      if (uniqueMarkenwerte.length > 0) {
+        const junctionData = uniqueMarkenwerte.map(mw => ({
           kickoff_id: kickoffId,
           markenwert_id: mw.id
         }));
 
         const { error: junctionError } = await window.supabase
           .from('marke_kickoff_markenwerte')
-          .insert(junctionData);
+          .upsert(junctionData, { onConflict: 'kickoff_id,markenwert_id', ignoreDuplicates: true });
 
         if (junctionError) throw junctionError;
       }

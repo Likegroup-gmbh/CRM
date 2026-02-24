@@ -11,42 +11,29 @@ export class FormSubmitHelper {
    */
   static collectTagBasedSelects(form) {
     const result = {};
-    
     const tagBasedSelects = form.querySelectorAll('select[data-tag-based="true"]');
     tagBasedSelects.forEach(select => {
       const fieldName = select.name;
-      
-      // Suche das versteckte Select mit den tatsächlichen Werten
-      let hiddenSelect = form.querySelector(`select[name="${fieldName}[]"][style*="display: none"]`);
-      if (!hiddenSelect) {
-        hiddenSelect = form.querySelector(`select[name="${fieldName}"][style*="display: none"]`);
+      let hiddenSelect = form.querySelector(`select[name="${fieldName}[]"][style*="display: none"]`)
+        || form.querySelector(`select[name="${fieldName}"][style*="display: none"]`);
+      if (!hiddenSelect && select.id) {
+        hiddenSelect = document.getElementById(select.id + '_hidden');
       }
-      
-      // Alternative: Suche nach Tag-Container und sammle Werte aus Tags
       if (!hiddenSelect) {
-        const tagContainer = form.querySelector(`select[name="${fieldName}"]`)?.closest('.form-field')?.querySelector('.tag-based-select');
+        const tagContainer = select.closest('.form-field')?.querySelector('.tag-based-select');
         if (tagContainer) {
-          const tags = tagContainer.querySelectorAll('.tag[data-value]');
-          const tagValues = Array.from(tags).map(tag => tag.dataset.value).filter(Boolean);
-          if (tagValues.length > 0) {
-            result[fieldName] = tagValues;
-            console.log(`🏷️ Tag-basiertes Feld ${fieldName} aus Tags gesammelt:`, tagValues);
-            return;
-          }
+          const tagValues = Array.from(tagContainer.querySelectorAll('.tag[data-value]')).map(tag => tag.dataset.value).filter(Boolean);
+          // WICHTIG: Auch leere Arrays setzen, damit "alles entfernt" als explizites Clear verarbeitet wird.
+          result[fieldName] = tagValues;
+          return;
         }
       }
-      
       if (hiddenSelect) {
         const values = Array.from(hiddenSelect.selectedOptions).map(opt => opt.value).filter(Boolean);
-        if (values.length > 0) {
-          result[fieldName] = values;
-          console.log(`🏷️ Tag-basiertes Feld ${fieldName} aus Hidden-Select gesammelt:`, values);
-        }
-      } else {
-        console.warn(`⚠️ Kein Hidden-Select oder Tags für ${fieldName} gefunden`);
+        // WICHTIG: Auch leere Arrays setzen, damit "alles entfernt" nicht als "unverändert" interpretiert wird.
+        result[fieldName] = values;
       }
     });
-    
     return result;
   }
 

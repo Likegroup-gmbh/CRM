@@ -46,122 +46,113 @@ export class MarkeService {
   }
 
   /**
-   * Speichert Mitarbeiter-Zuordnungen mit Rollen für eine Marke
+   * Speichert Mitarbeiter-Zuordnungen mit Rollen für eine Marke.
+   * Deduplizierung auf (marke_id, mitarbeiter_id, role). Bei Fehlern wird geworfen.
    * @param {string} markeId - UUID der Marke
    * @param {Object} data - Formulardaten mit management_ids, lead_mitarbeiter_ids, mitarbeiter_ids
    * @param {string|null} unternehmenId - Optional: Unternehmen-ID für Auto-Sync
    * @param {Object} options - Optional: { deleteExisting: true }
+   * @throws {Error} bei Lösch- oder Insert-Fehlern (nach Fallback)
    */
   static async saveMitarbeiterToMarke(markeId, data, unternehmenId = null, options = { deleteExisting: true }) {
-    try {
-      if (!markeId || !window.supabase) return;
-      
-      console.log('🔄 MarkeService: Speichere Mitarbeiter-Rollen für Marke:', markeId);
-      
-      // Rollen-Mapping
-      const roleFields = {
-        'management_ids': 'management',
-        'lead_mitarbeiter_ids': 'lead_mitarbeiter',
-        'mitarbeiter_ids': 'mitarbeiter'
-      };
-      
-      // Alle INSERT-Daten sammeln
-      const allInsertData = [];
-      
-      for (const [fieldName, roleValue] of Object.entries(roleFields)) {
-        // Prüfe ob das Feld in den Daten vorhanden ist
-        const fieldData = data[fieldName] || data[`${fieldName}[]`];
-        
-        // Extrahiere IDs als Array und entferne Duplikate
-        let mitarbeiterIds = [];
-        if (Array.isArray(fieldData)) {
-          mitarbeiterIds = [...new Set(fieldData.filter(Boolean))];
-        } else if (typeof fieldData === 'string' && fieldData) {
-          mitarbeiterIds = [fieldData];
-        }
-        
-        console.log(`📋 ${fieldName} (${roleValue}): ${mitarbeiterIds.length} Mitarbeiter`, mitarbeiterIds);
-        
-        // Sammle INSERT-Daten
-        for (const mitarbeiterId of mitarbeiterIds) {
-          allInsertData.push({
-            marke_id: markeId,
-            mitarbeiter_id: mitarbeiterId,
-            role: roleValue
-          });
-        }
+    if (!markeId || !window.supabase) return;
+    
+    const roleFields = {
+      'management_ids': 'management',
+      'lead_mitarbeiter_ids': 'lead_mitarbeiter',
+      'mitarbeiter_ids': 'mitarbeiter'
+    };
+    
+    const rawInsertData = [];
+    for (const [fieldName, roleValue] of Object.entries(roleFields)) {
+      const fieldData = data[fieldName] || data[`${fieldName}[]`];
+      let mitarbeiterIds = [];
+      if (Array.isArray(fieldData)) {
+        mitarbeiterIds = [...new Set(fieldData.filter(Boolean))];
+      } else if (typeof fieldData === 'string' && fieldData) {
+        mitarbeiterIds = [fieldData];
       }
-      
-      // Bestehende Einträge löschen (wenn gewünscht - bei Edit-Mode)
-      if (options.deleteExisting) {
-        console.log('🗑️ Lösche alle bestehenden Mitarbeiter-Zuordnungen für Marke:', markeId);
-        const { error: deleteError } = await window.supabase
-          .from('marke_mitarbeiter')
-          .delete()
-          .eq('marke_id', markeId);
-        
-        if (deleteError) {
-          console.error('❌ Fehler beim Löschen:', deleteError);
-        }
+      for (const mitarbeiterId of mitarbeiterIds) {
+        rawInsertData.push({ marke_id: markeId, mitarbeiter_id: mitarbeiterId, role: roleValue });
       }
+    }
+    
+    // Globale Deduplizierung nach (marke_id, mitarbeiter_id, role)
+    const seen = new Set();
+    const allInsertData = rawInsertData.filter(row => {
+      const key = `${row.marke_id}|${row.mitarbeiter_id}|${row.role}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    
+    console.log(`🔄 MarkeService: Speichere ${allInsertData.length} Mitarbeiter-Zuordnungen für Marke:`, markeId);
+    
+    if (options.deleteExisting) {
+      const { error: deleteError } = await window.supabase
+        .from('marke_mitarbeiter')
+        .delete()
+        .eq('marke_id', markeId);
+      if (deleteError) {
+        console.error('❌ Fehler beim Löschen marke_mitarbeiter:', deleteError);
+        throw new Error(`Mitarbeiter-Zuordnungen konnten nicht zurückgesetzt werden: ${deleteError.message}`);
+      }
+    }
+    
+    if (allInsertData.length > 0) {
+      const { error: insertError } = await window.supabase
+        .from('marke_mitarbeiter')
+        .insert(allInsertData);
       
-      // Neue Einträge in einem Batch einfügen
-      if (allInsertData.length > 0) {
-        console.log(`📤 Füge ${allInsertData.length} Mitarbeiter-Zuordnungen ein:`, allInsertData);
-        
-        const { error: insertError } = await window.supabase
-          .from('marke_mitarbeiter')
-          .insert(allInsertData);
-        
-        if (insertError) {
-          console.error('❌ Fehler beim Batch-Insert:', insertError);
-          
-          // Fallback: Einzeln einfügen mit upsert
-          console.log('🔄 Versuche Einzelinserts mit upsert...');
-          for (const row of allInsertData) {
-            const { error: upsertError } = await window.supabase
-              .from('marke_mitarbeiter')
-              .upsert(row, { onConflict: 'marke_id,mitarbeiter_id,role' });
-            
-            if (upsertError) {
-              console.error(`❌ Upsert-Fehler für ${row.mitarbeiter_id}/${row.role}:`, upsertError);
+      if (insertError) {
+        console.warn('⚠️ Batch-Insert fehlgeschlagen, Fallback Einzel-Insert:', insertError);
+        const failed = [];
+        for (const row of allInsertData) {
+          const { error: singleError } = await window.supabase
+            .from('marke_mitarbeiter')
+            .insert(row);
+          if (singleError) {
+            const isDuplicate = singleError.code === '23505' || singleError.status === 409 ||
+              (singleError.message && (String(singleError.message).includes('duplicate') || String(singleError.message).includes('unique') || String(singleError.message).includes('conflict')));
+            if (isDuplicate) {
+              console.log('ℹ️ Zeile bereits vorhanden, überspringe:', row.mitarbeiter_id, row.role);
+            } else {
+              failed.push({ row, error: singleError });
             }
           }
-        } else {
-          console.log(`✅ ${allInsertData.length} Mitarbeiter-Zuordnungen gespeichert`);
         }
-        
-        // AUTO-SYNC: mitarbeiter_unternehmen für das Unternehmen der Marke erstellen
-        if (unternehmenId) {
-          console.log('🔄 MarkeService: Sync mitarbeiter_unternehmen für Unternehmen:', unternehmenId);
-          const uniqueMitarbeiterIds = [...new Set(allInsertData.map(r => r.mitarbeiter_id))];
-          
-          for (const mitarbeiterId of uniqueMitarbeiterIds) {
-            const { error: syncError } = await window.supabase
-              .from('mitarbeiter_unternehmen')
-              .upsert({
-                mitarbeiter_id: mitarbeiterId,
-                unternehmen_id: unternehmenId,
-                role: 'mitarbeiter'
-              }, { 
-                onConflict: 'mitarbeiter_id,unternehmen_id,role',
-                ignoreDuplicates: true 
-              });
-            
-            if (syncError && syncError.code !== '23505') {
-              console.error(`❌ Sync-Fehler für ${mitarbeiterId}:`, syncError);
-            }
-          }
-          console.log(`✅ mitarbeiter_unternehmen synchronisiert für ${uniqueMitarbeiterIds.length} Mitarbeiter`);
+        if (failed.length > 0) {
+          console.error('❌ Einzel-Insert-Fehler:', failed);
+          throw new Error(`Mitarbeiter-Zuordnungen teilweise fehlgeschlagen: ${failed.length} Fehler`);
         }
-      } else {
-        console.log('ℹ️ Keine Mitarbeiter zum Speichern');
       }
       
-      console.log('✅ MarkeService: Mitarbeiter-Rollen gespeichert');
-    } catch (error) {
-      console.error('❌ MarkeService: Fehler beim Speichern der Mitarbeiter-Rollen:', error);
-      // Nicht werfen - Marke wurde bereits erstellt/aktualisiert
+      // Auto-Sync: Nur Existenz in mitarbeiter_unternehmen sicherstellen, ohne bestehende Rollen zu überschreiben
+      if (unternehmenId) {
+        const uniqueMitarbeiterIds = [...new Set(allInsertData.map(r => r.mitarbeiter_id))];
+        const { data: existing } = await window.supabase
+          .from('mitarbeiter_unternehmen')
+          .select('mitarbeiter_id')
+          .eq('unternehmen_id', unternehmenId)
+          .in('mitarbeiter_id', uniqueMitarbeiterIds);
+        const existingIds = new Set((existing || []).map(r => r.mitarbeiter_id));
+        const toSync = uniqueMitarbeiterIds.filter(id => !existingIds.has(id));
+        for (const mitarbeiterId of toSync) {
+          const { error: syncError } = await window.supabase
+            .from('mitarbeiter_unternehmen')
+            .insert({
+              mitarbeiter_id: mitarbeiterId,
+              unternehmen_id: unternehmenId,
+              role: 'mitarbeiter'
+            });
+          if (syncError && syncError.code !== '23505') {
+            console.warn(`⚠️ Sync mitarbeiter_unternehmen für ${mitarbeiterId}:`, syncError);
+          }
+        }
+        if (toSync.length > 0) {
+          console.log(`✅ mitarbeiter_unternehmen: ${toSync.length} neue Zuordnung(en), bestehende unverändert`);
+        }
+      }
     }
   }
 

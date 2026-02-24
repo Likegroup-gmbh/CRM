@@ -1476,8 +1476,11 @@ export class UnternehmenDetail extends PersonDetailBase {
           if (allSelects.length > 1) hiddenSelect = allSelects[1];
         }
         if (hiddenSelect) {
-          const selectedValues = Array.from(hiddenSelect.selectedOptions).map(option => option.value).filter(val => val !== '');
-          if (selectedValues.length > 0) allFormData[select.name] = selectedValues;
+          const selectedValues = Array.from(hiddenSelect.selectedOptions)
+            .map(option => option.value)
+            .filter(val => val !== '');
+          // WICHTIG: Auch leere Arrays setzen, damit "alle Tags entfernt" korrekt als Clear verarbeitet wird.
+          allFormData[select.name] = selectedValues;
         }
       });
       
