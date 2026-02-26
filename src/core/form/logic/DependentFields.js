@@ -788,7 +788,7 @@ export class DependentFields {
       else if (fieldConfig.name === 'kampagne_id' && fieldConfig.dependsOn === 'unternehmen_id') {
         const { data: kampagnen, error } = await window.supabase
           .from('kampagne')
-          .select('id, kampagnenname, eigener_name, unternehmen_id, videoanzahl, ugc_pro_paid_video_anzahl, ugc_pro_organic_video_anzahl, ugc_video_paid_video_anzahl, ugc_video_organic_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl')
+          .select('id, kampagnenname, eigener_name, unternehmen_id, videoanzahl, ugc_pro_paid_video_anzahl, ugc_pro_organic_video_anzahl, ugc_video_paid_video_anzahl, ugc_video_organic_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl, ugc_video_anzahl, igc_video_anzahl')
           .eq('unternehmen_id', parentValue)
           .order('kampagnenname');
 
@@ -797,16 +797,20 @@ export class DependentFields {
           return;
         }
 
-        // Hilfsfunktion: Gesamt-Videos einer Kampagne berechnen
         const getKampagneTotalVideos = (k) => {
-          return k.videoanzahl || (
+          const newSum =
             (parseInt(k.ugc_pro_paid_video_anzahl, 10) || 0) +
             (parseInt(k.ugc_pro_organic_video_anzahl, 10) || 0) +
             (parseInt(k.ugc_video_paid_video_anzahl, 10) || 0) +
             (parseInt(k.ugc_video_organic_video_anzahl, 10) || 0) +
             (parseInt(k.influencer_video_anzahl, 10) || 0) +
-            (parseInt(k.vor_ort_video_anzahl, 10) || 0)
-          );
+            (parseInt(k.vor_ort_video_anzahl, 10) || 0);
+          const legacySum =
+            (parseInt(k.ugc_video_anzahl, 10) || 0) +
+            (parseInt(k.igc_video_anzahl, 10) || 0) +
+            (parseInt(k.influencer_video_anzahl, 10) || 0) +
+            (parseInt(k.vor_ort_video_anzahl, 10) || 0);
+          return k.videoanzahl || newSum || legacySum;
         };
 
         // Edit-Mode: Aktuelle Kampagne-ID merken

@@ -891,25 +891,29 @@ export class FormEvents {
       }
 
       try {
-        // Gesamtanzahl Videos aus der Kampagne laden (alle Video-Typen summieren)
+        // Gesamtanzahl Videos aus der Kampagne laden (alle Video-Typen summieren, inkl. Legacy-Felder)
         const { data: kampagne, error: kampagneError } = await window.supabase
           .from('kampagne')
-          .select('videoanzahl, ugc_pro_paid_video_anzahl, ugc_pro_organic_video_anzahl, ugc_video_paid_video_anzahl, ugc_video_organic_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl')
+          .select('videoanzahl, ugc_pro_paid_video_anzahl, ugc_pro_organic_video_anzahl, ugc_video_paid_video_anzahl, ugc_video_organic_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl, ugc_video_anzahl, igc_video_anzahl')
           .eq('id', kampagneId)
           .single();
         if (kampagneError) {
           console.error('❌ Fehler beim Laden der Kampagne (videoanzahl):', kampagneError);
           return;
         }
-        // Nutze videoanzahl falls vorhanden, sonst Summe der einzelnen Typen
-        const totalVideos = kampagne?.videoanzahl || (
+        const newFieldsSum =
           (parseInt(kampagne?.ugc_pro_paid_video_anzahl, 10) || 0) +
           (parseInt(kampagne?.ugc_pro_organic_video_anzahl, 10) || 0) +
           (parseInt(kampagne?.ugc_video_paid_video_anzahl, 10) || 0) +
           (parseInt(kampagne?.ugc_video_organic_video_anzahl, 10) || 0) +
           (parseInt(kampagne?.influencer_video_anzahl, 10) || 0) +
-          (parseInt(kampagne?.vor_ort_video_anzahl, 10) || 0)
-        );
+          (parseInt(kampagne?.vor_ort_video_anzahl, 10) || 0);
+        const legacyFieldsSum =
+          (parseInt(kampagne?.ugc_video_anzahl, 10) || 0) +
+          (parseInt(kampagne?.igc_video_anzahl, 10) || 0) +
+          (parseInt(kampagne?.influencer_video_anzahl, 10) || 0) +
+          (parseInt(kampagne?.vor_ort_video_anzahl, 10) || 0);
+        const totalVideos = kampagne?.videoanzahl || newFieldsSum || legacyFieldsSum;
         console.log('📊 KOOPERATION: Kampagne Video-Anzahlen:', {
           videoanzahl: kampagne?.videoanzahl,
           ugc_pro_paid: kampagne?.ugc_pro_paid_video_anzahl,
