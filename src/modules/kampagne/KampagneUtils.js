@@ -297,8 +297,14 @@ export class KampagneUtils {
     
     const artMap = {
       'influencer': 'Influencer Kampagne',
-      'ugc': 'UGC',
-      'igc': 'IGC',
+      'vor_ort_produktion': 'Vor Ort Produktionen',
+      'ugc_pro_paid': 'UGC Pro Paid',
+      'ugc_pro_organic': 'UGC Pro Organic',
+      'ugc_video_paid': 'UGC Video Paid',
+      'ugc_video_organic': 'UGC Video Organic',
+      // Legacy-Werte
+      'ugc': 'UGC Video Organic',
+      'igc': 'UGC Pro Organic',
       'ai': 'AI'
     };
     
@@ -476,11 +482,12 @@ export class KampagneUtils {
         { value: 'pending', label: 'Ausstehend' }
       ],
       art_der_kampagne: [
-        { value: 'influencer', label: 'Influencer Kampagne' },
-        { value: 'ugc', label: 'UGC Kampagne' },
-        { value: 'paid', label: 'Paid Kampagne' },
-        { value: 'organic', label: 'Organische Kampagne' },
-        { value: 'hybrid', label: 'Hybrid Kampagne' }
+        { value: 'UGC Pro Paid', label: 'UGC Pro Paid' },
+        { value: 'UGC Pro Organic', label: 'UGC Pro Organic' },
+        { value: 'UGC Video Paid', label: 'UGC Video Paid' },
+        { value: 'UGC Video Organic', label: 'UGC Video Organic' },
+        { value: 'Influencer Kampagne', label: 'Influencer Kampagne' },
+        { value: 'Vor Ort Produktionen', label: 'Vor Ort Produktionen' }
       ]
     };
   }

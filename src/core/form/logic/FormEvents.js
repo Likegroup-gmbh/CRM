@@ -894,7 +894,7 @@ export class FormEvents {
         // Gesamtanzahl Videos aus der Kampagne laden (alle Video-Typen summieren)
         const { data: kampagne, error: kampagneError } = await window.supabase
           .from('kampagne')
-          .select('videoanzahl, ugc_video_anzahl, igc_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl')
+          .select('videoanzahl, ugc_pro_paid_video_anzahl, ugc_pro_organic_video_anzahl, ugc_video_paid_video_anzahl, ugc_video_organic_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl')
           .eq('id', kampagneId)
           .single();
         if (kampagneError) {
@@ -903,15 +903,19 @@ export class FormEvents {
         }
         // Nutze videoanzahl falls vorhanden, sonst Summe der einzelnen Typen
         const totalVideos = kampagne?.videoanzahl || (
-          (parseInt(kampagne?.ugc_video_anzahl, 10) || 0) +
-          (parseInt(kampagne?.igc_video_anzahl, 10) || 0) +
+          (parseInt(kampagne?.ugc_pro_paid_video_anzahl, 10) || 0) +
+          (parseInt(kampagne?.ugc_pro_organic_video_anzahl, 10) || 0) +
+          (parseInt(kampagne?.ugc_video_paid_video_anzahl, 10) || 0) +
+          (parseInt(kampagne?.ugc_video_organic_video_anzahl, 10) || 0) +
           (parseInt(kampagne?.influencer_video_anzahl, 10) || 0) +
           (parseInt(kampagne?.vor_ort_video_anzahl, 10) || 0)
         );
         console.log('📊 KOOPERATION: Kampagne Video-Anzahlen:', {
           videoanzahl: kampagne?.videoanzahl,
-          ugc: kampagne?.ugc_video_anzahl,
-          igc: kampagne?.igc_video_anzahl,
+          ugc_pro_paid: kampagne?.ugc_pro_paid_video_anzahl,
+          ugc_pro_organic: kampagne?.ugc_pro_organic_video_anzahl,
+          ugc_video_paid: kampagne?.ugc_video_paid_video_anzahl,
+          ugc_video_organic: kampagne?.ugc_video_organic_video_anzahl,
           influencer: kampagne?.influencer_video_anzahl,
           vor_ort: kampagne?.vor_ort_video_anzahl,
           total: totalVideos
@@ -1015,13 +1019,15 @@ export class FormEvents {
       try {
         const { data: kampagne } = await window.supabase
           .from('kampagne')
-          .select('videoanzahl, ugc_video_anzahl, igc_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl')
+          .select('videoanzahl, ugc_pro_paid_video_anzahl, ugc_pro_organic_video_anzahl, ugc_video_paid_video_anzahl, ugc_video_organic_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl')
           .eq('id', kampagneId)
           .single();
         // Nutze videoanzahl falls vorhanden, sonst Summe der einzelnen Typen
         const totalVideos = kampagne?.videoanzahl || (
-          (parseInt(kampagne?.ugc_video_anzahl, 10) || 0) +
-          (parseInt(kampagne?.igc_video_anzahl, 10) || 0) +
+          (parseInt(kampagne?.ugc_pro_paid_video_anzahl, 10) || 0) +
+          (parseInt(kampagne?.ugc_pro_organic_video_anzahl, 10) || 0) +
+          (parseInt(kampagne?.ugc_video_paid_video_anzahl, 10) || 0) +
+          (parseInt(kampagne?.ugc_video_organic_video_anzahl, 10) || 0) +
           (parseInt(kampagne?.influencer_video_anzahl, 10) || 0) +
           (parseInt(kampagne?.vor_ort_video_anzahl, 10) || 0)
         );

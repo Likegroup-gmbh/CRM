@@ -1,9 +1,11 @@
 // AuftragsdetailsCreate.js (ES6-Modul)
 // Auftragsdetails-Erstellungsseite - Dynamisch basierend auf Kampagnenarten
 
-import { KAMPAGNENARTEN_MAPPING, generateBudgetOnlyFieldsHtml } from './logic/KampagnenartenMapping.js';
+import { auftragsdetailsRepository } from './repository/AuftragsdetailsRepository.js';
+import { auftragsdetailsCreateView } from './views/AuftragsdetailsCreateView.js';
+import { kampagnenartenService } from './services/KampagnenartenService.js';
 
-export class AuftragsdetailsCreate {
+export class AuftragsdetailsCreateController {
   constructor() {
     this.formData = {};
     this.unternehmen = []; // Gefilterte Unternehmen für Mitarbeiter
@@ -18,6 +20,15 @@ export class AuftragsdetailsCreate {
     this.isEditMode = false;
     this.editDetailsId = null;
     this.existingDetails = null;
+    this.repository = auftragsdetailsRepository;
+    this.view = auftragsdetailsCreateView;
+    this.kampagnenartenService = kampagnenartenService;
+
+    // Lifecycle/Cleanup
+    this._eventDisposers = [];
+    this._observers = [];
+    this._eventsBound = false;
+    this._navigateTimer = null;
   }
 
   // Initialisiere Auftragsdetails-Erstellung
@@ -77,37 +88,13 @@ export class AuftragsdetailsCreate {
     console.log('🔄 AUFTRAGSDETAILSCREATE: Lade bestehende Details für ID:', detailsId);
     
     try {
-      const { data, error } = await window.supabase
-        .from('auftrag_details')
-        .select(`
-          *,
-          auftrag:auftrag_id (
-            id,
-            auftragsname,
-            kampagnenanzahl,
-            unternehmen_id,
-            unternehmen:unternehmen_id (
-              id,
-              firmenname
-            ),
-            marke:marke_id (
-              id,
-              markenname
-            )
-          )
-        `)
-        .eq('id', detailsId)
-        .single();
-
-      if (error) throw error;
-
-      this.existingDetails = data;
-      console.log('✅ AUFTRAGSDETAILSCREATE: Bestehende Details geladen:', data);
+      this.existingDetails = await this.repository.loadExistingDetails(detailsId);
+      console.log('✅ AUFTRAGSDETAILSCREATE: Bestehende Details geladen');
       
       // IDs für Vorausfüllung setzen
-      if (data.auftrag) {
-        this.currentUnternehmenId = data.auftrag.unternehmen_id;
-        this.currentAuftragId = data.auftrag_id;
+      if (this.existingDetails.auftrag) {
+        this.currentUnternehmenId = this.existingDetails.auftrag.unternehmen_id;
+        this.currentAuftragId = this.existingDetails.auftrag_id;
       }
       
     } catch (error) {
@@ -144,18 +131,17 @@ export class AuftragsdetailsCreate {
     }
     
     // Schritt 1: Lade alle Aufträge, die bereits Details haben
-    const { data: existingDetails, error: detailsError } = await window.supabase
-      .from('auftrag_details')
-      .select('auftrag_id');
-
-    if (detailsError) {
+    let auftragIdsWithDetails = [];
+    try {
+      auftragIdsWithDetails = await this.repository.loadAuftragIdsWithDetails();
+    } catch (detailsError) {
       console.error('Fehler beim Laden der existierenden Details:', detailsError);
       window.showNotification('Fehler beim Laden der Daten', 'error');
       return;
     }
 
     // IDs der Aufträge, die bereits Details haben
-    this.auftragIdsWithDetails = existingDetails.map(d => d.auftrag_id);
+    this.auftragIdsWithDetails = auftragIdsWithDetails;
     console.log('📋 Aufträge mit Details:', this.auftragIdsWithDetails);
 
     // Schritt 2: Lade Unternehmen (gefiltert nach Mitarbeiter-Zuordnung)
@@ -169,104 +155,17 @@ export class AuftragsdetailsCreate {
     this.allKampagnenartTypen = await this.loadAllKampagnenartTypen();
 
     // Formular HTML - Basis-Struktur mit dynamischem Container
-    const formHtml = `
-      <div class="form-page">
-        <form id="auftragsdetails-form" data-entity="auftragsdetails">
-          
-          <!-- Unternehmen & Auftrag Auswahl (Kaskade) -->
-          <div class="form-two-col">
-            <div class="form-field form-field--half">
-              <label for="unternehmen_id">Unternehmen auswählen <span class="required">*</span></label>
-              <select id="unternehmen_id" name="unternehmen_id" required data-searchable="true" data-placeholder="Unternehmen suchen...">
-                ${this.unternehmen.length === 0 
-                  ? '<option value="">Keine Unternehmen zugeordnet</option>'
-                  : '<option value="">Bitte wählen...</option>'
-                }
-                ${this.unternehmen.map(u => `
-                  <option value="${u.id}">${u.firmenname}</option>
-                `).join('')}
-              </select>
-              ${this.unternehmen.length === 0 
-                ? '<small class="form-hint" style="color: var(--color-error);">Sie haben keine Unternehmen zugeordnet.</small>'
-                : '<small class="form-hint">Wählen Sie zuerst ein Unternehmen, um die verfügbaren Aufträge zu sehen.</small>'
-              }
-            </div>
-
-            <div class="form-field form-field--half">
-              <label for="auftrag_id">Auftrag auswählen <span class="required">*</span></label>
-              <select id="auftrag_id" name="auftrag_id" required disabled data-searchable="true" data-placeholder="Erst Unternehmen wählen...">
-                <option value="">Erst Unternehmen wählen...</option>
-              </select>
-              <small class="form-hint" id="auftrag-hint">Aufträge werden nach Unternehmen-Auswahl geladen.</small>
-            </div>
-          </div>
-
-          <div class="form-two-col">
-            <div class="form-field form-field--half">
-              <label for="kampagnenanzahl">Anzahl Kampagnen</label>
-              <input type="number" id="kampagnenanzahl" name="kampagnenanzahl" min="0" placeholder="Wird aus Auftrag übernommen..." readonly>
-              <small class="form-hint">Wird automatisch aus dem Auftrag übernommen</small>
-            </div>
-            <div class="form-field form-field--half"></div>
-          </div>
-
-          <!-- Kampagnenart-Auswahl Section -->
-          <div id="kampagnenart-selection-section" class="details-section" style="display: none;">
-            <h3>Art der Kampagne</h3>
-            <p class="form-hint">Wählen Sie die Kampagnenarten für diesen Auftrag aus und klicken Sie auf "Aktivieren".</p>
-            <div class="form-field">
-              <select id="kampagnenart-select" 
-                      name="art_der_kampagne" 
-                      multiple 
-                      data-searchable="true" 
-                      data-tag-based="true" 
-                      data-placeholder="Kampagnenart suchen und auswählen...">
-                ${this.allKampagnenartTypen.map(typ => `<option value="${typ.id}">${typ.name}</option>`).join('')}
-              </select>
-            </div>
-            <div class="kampagnenart-activate-actions">
-              <button type="button" id="activate-kampagnenarten-btn" class="primary-btn">
-                Aktivieren
-              </button>
-            </div>
-          </div>
-
-          <!-- Dynamischer Container für Budget-Felder pro Kampagnenart -->
-          <div id="kampagnenart-sections-container">
-            <div class="alert alert-info">
-              <p>Bitte wählen Sie einen Auftrag aus, um die Kampagnenart-Auswahl anzuzeigen.</p>
-            </div>
-          </div>
-
-          <!-- Submit Buttons -->
-          <div class="form-actions">
-            <button type="button" class="mdc-btn mdc-btn--cancel" onclick="window.navigateTo('/auftragsdetails')">
-              <span class="mdc-btn__icon" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
-                </svg>
-              </span>
-              <span class="mdc-btn__label">Abbrechen</span>
-            </button>
-            <button type="submit" class="mdc-btn ${this.isEditMode ? 'mdc-btn--save' : 'mdc-btn--create'}" id="submit-btn" data-variant="@create-prd.mdc" data-entity-label="Auftragsdetails" data-mode="${this.isEditMode ? 'edit' : 'create'}" disabled>
-              <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                  <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
-                </svg>
-              </span>
-              <span class="mdc-btn__spinner" aria-hidden="true">
-                <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
-                  <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
-                </svg>
-              </span>
-              <span class="mdc-btn__label">${this.isEditMode ? 'Speichern' : 'Erstellen'}</span>
-            </button>
-          </div>
-        </form>
-      </div>
-    `;
+    const formHtml = this.view.renderForm({
+      isEditMode: this.isEditMode,
+      unternehmen: this.unternehmen,
+      allKampagnenartTypen: this.allKampagnenartTypen
+    });
 
     window.content.innerHTML = formHtml;
+
+    // Dynamische Optionen sicher per DOM-API befüllen
+    this.populateUnternehmenOptions();
+    this.populateKampagnenartOptions();
     
     // Events binden
     this.bindFormEvents();
@@ -433,20 +332,8 @@ export class AuftragsdetailsCreate {
    * @returns {Promise<Array<{id: string, name: string}>>}
    */
   async loadAllKampagnenartTypen() {
-    if (!window.supabase) return [];
-    
     try {
-      const { data, error } = await window.supabase
-        .from('kampagne_art_typen')
-        .select('id, name')
-        .order('sort_order, name');
-      
-      if (error) {
-        console.error('❌ Fehler beim Laden der Kampagnenart-Typen:', error);
-        return [];
-      }
-      
-      return data || [];
+      return await this.repository.loadAllKampagnenartTypen();
     } catch (error) {
       console.error('❌ Fehler beim Laden der Kampagnenart-Typen:', error);
       return [];
@@ -460,8 +347,6 @@ export class AuftragsdetailsCreate {
    * @returns {Promise<Array<{id: string, firmenname: string}>>}
    */
   async loadUnternehmen() {
-    if (!window.supabase) return [];
-    
     try {
       // Hole erlaubte Unternehmen-IDs vom PermissionSystem
       const allowedIds = await window.getAllowedUnternehmenIds?.();
@@ -493,21 +378,11 @@ export class AuftragsdetailsCreate {
       console.log('📋 Aufträge mit Details:', auftragIdsWithDetails.length);
       
       // Schritt 2: Aufträge OHNE Details laden und deren Unternehmen-IDs extrahieren
-      let auftraegeQuery = window.supabase
-        .from('auftrag')
-        .select('unternehmen_id');
-      
-      // Filter: Nur Aufträge OHNE Details
-      if (auftragIdsWithDetails.length > 0) {
-        auftraegeQuery = auftraegeQuery.not('id', 'in', `(${auftragIdsWithDetails.join(',')})`);
-      }
-      
-      const { data: auftraegeData, error: auftraegeError } = await auftraegeQuery;
-      
-      if (auftraegeError) {
-        console.error('❌ Fehler beim Laden der Aufträge:', auftraegeError);
-        return [];
-      }
+      const alleAuftraegeData = await this.repository.loadAllAuftraegeBasic();
+
+      // Filter robust client-seitig statt fragiler NOT IN Stringbildung
+      const detailsIdSet = new Set(auftragIdsWithDetails);
+      const auftraegeData = (alleAuftraegeData || []).filter(a => !detailsIdSet.has(a.id));
       
       // Unique Unternehmen-IDs mit offenen Aufträgen
       let unternehmenMitOffenenAuftraegen = [...new Set(
@@ -544,19 +419,9 @@ export class AuftragsdetailsCreate {
         }
       }
       
-      const { data, error } = await window.supabase
-        .from('unternehmen')
-        .select('id, firmenname')
-        .in('id', finalIds)
-        .order('firmenname', { ascending: true });
-      
-      if (error) {
-        console.error('❌ Fehler beim Laden der Unternehmen:', error);
-        return [];
-      }
-      
-      console.log('✅ Geladene Unternehmen (mit offenen Aufträgen):', (data || []).length);
-      return data || [];
+      const data = await this.repository.loadUnternehmenByIds(finalIds);
+      console.log('✅ Geladene Unternehmen (mit offenen Aufträgen):', data.length);
+      return data;
     } catch (error) {
       console.error('❌ Fehler beim Laden der Unternehmen:', error);
       return [];
@@ -570,19 +435,10 @@ export class AuftragsdetailsCreate {
    * @returns {Promise<Array>}
    */
   async loadAuftraegeForUnternehmen(unternehmenId) {
-    if (!window.supabase || !unternehmenId) return [];
+    if (!unternehmenId) return [];
     
     try {
-      const { data, error } = await window.supabase
-        .from('auftrag')
-        .select('id, auftragsname, kampagnenanzahl, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname)')
-        .eq('unternehmen_id', unternehmenId)
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        console.error('❌ Fehler beim Laden der Aufträge:', error);
-        return [];
-      }
+      const data = await this.repository.loadAuftraegeForUnternehmen(unternehmenId);
       
       // Filtere Aufträge die bereits Details haben
       // Im Edit-Mode: Den aktuellen Auftrag NICHT herausfiltern!
@@ -654,11 +510,11 @@ export class AuftragsdetailsCreate {
       container.remove();
     }
     
-    // Select-Optionen aktualisieren
-    auftragSelect.innerHTML = auftraege.length === 0
-      ? '<option value="">Keine Aufträge verfügbar</option>'
-      : '<option value="">Bitte wählen...</option>' + 
-        options.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+    // Select-Optionen aktualisieren (sicher per DOM API)
+    this.setSelectOptions(auftragSelect, options, {
+      placeholder: 'Bitte wählen...',
+      emptyLabel: 'Keine Aufträge verfügbar'
+    });
     
     // WICHTIG: ZUERST disabled-Status setzen, DANN Searchable Select erstellen
     // (createSearchableSelect prüft das disabled-Attribut während der Erstellung)
@@ -744,14 +600,7 @@ export class AuftragsdetailsCreate {
       // Lade bestehende auftrag_details Werte (falls vorhanden)
       let existingValues = {};
       try {
-        const { data } = await window.supabase
-          .from('auftrag_details')
-          .select('*')
-          .eq('auftrag_id', this.currentAuftragId)
-          .maybeSingle();
-        if (data) {
-          existingValues = data;
-        }
+        existingValues = await this.repository.loadExistingValuesForAuftrag(this.currentAuftragId);
       } catch (e) {
         console.warn('⚠️ Keine bestehenden auftrag_details gefunden');
       }
@@ -779,35 +628,7 @@ export class AuftragsdetailsCreate {
    * @returns {string[]} - Array der ausgewählten IDs
    */
   getSelectedKampagnenartIds() {
-    const selectedIds = [];
-    
-    // Versuche zuerst das versteckte Select zu finden (TagBased-Multiselect)
-    const hiddenSelect = document.getElementById('kampagnenart-select_hidden');
-    if (hiddenSelect) {
-      Array.from(hiddenSelect.selectedOptions).forEach(option => {
-        if (option.value) selectedIds.push(option.value);
-      });
-    }
-    
-    // Fallback: Normales Select
-    if (selectedIds.length === 0) {
-      const selectElement = document.getElementById('kampagnenart-select');
-      if (selectElement) {
-        Array.from(selectElement.selectedOptions).forEach(option => {
-          if (option.value) selectedIds.push(option.value);
-        });
-      }
-    }
-    
-    // Fallback: Aus Tags lesen
-    if (selectedIds.length === 0) {
-      const tags = document.querySelectorAll('#kampagnenart-selection-section .tag');
-      tags.forEach(tag => {
-        const value = tag.dataset?.value;
-        if (value) selectedIds.push(value);
-      });
-    }
-    
+    const selectedIds = this.kampagnenartenService.getSelectedKampagnenartIds();
     console.log('📋 Ausgewählte Kampagnenart-IDs:', selectedIds);
     return selectedIds;
   }
@@ -818,38 +639,8 @@ export class AuftragsdetailsCreate {
    * @param {string[]} kampagneArtIds - Array der Kampagnenart-IDs
    */
   async saveKampagnenartenToJunction(auftragId, kampagneArtIds) {
-    if (!window.supabase) return;
-
     console.log('💾 Speichere Kampagnenarten in Junction:', { auftragId, kampagneArtIds });
-
-    // Lösche bestehende Einträge
-    const { error: deleteError } = await window.supabase
-      .from('auftrag_kampagne_art')
-      .delete()
-      .eq('auftrag_id', auftragId);
-
-    if (deleteError) {
-      console.error('❌ Fehler beim Löschen alter Kampagnenarten:', deleteError);
-      throw deleteError;
-    }
-
-    // Füge neue Einträge hinzu
-    if (kampagneArtIds.length > 0) {
-      const insertData = kampagneArtIds.map(kampagneArtId => ({
-        auftrag_id: auftragId,
-        kampagne_art_id: kampagneArtId
-      }));
-
-      const { error: insertError } = await window.supabase
-        .from('auftrag_kampagne_art')
-        .insert(insertData);
-
-      if (insertError) {
-        console.error('❌ Fehler beim Speichern der Kampagnenarten:', insertError);
-        throw insertError;
-      }
-    }
-
+    await this.repository.replaceKampagnenartenForAuftrag(auftragId, kampagneArtIds);
     console.log('✅ Kampagnenarten in Junction gespeichert');
   }
 
@@ -861,63 +652,12 @@ export class AuftragsdetailsCreate {
    * @returns {Promise<string[]>} - Array der eindeutigen Kampagnenarten-Namen
    */
   async loadKampagnenartenForAuftrag(auftragId) {
-    if (!window.supabase || !auftragId) return [];
+    if (!auftragId) return [];
     
     try {
-      const artenSet = new Set();
-      
-      // PRIMÄR: Lade Kampagnenarten direkt vom Auftrag (über auftrag_kampagne_art Junction)
-      const { data: auftragArten, error: auftragError } = await window.supabase
-        .from('auftrag_kampagne_art')
-        .select(`
-          kampagne_art_typen:kampagne_art_id(id, name)
-        `)
-        .eq('auftrag_id', auftragId);
-      
-      if (auftragError) {
-        console.warn('⚠️ Fehler beim Laden der Auftrag-Kampagnenarten:', auftragError);
-      } else {
-        (auftragArten || []).forEach(item => {
-          if (item.kampagne_art_typen?.name) {
-            artenSet.add(item.kampagne_art_typen.name);
-          }
-        });
-      }
-      
-      // Falls vom Auftrag Kampagnenarten gefunden wurden, diese verwenden
-      if (artenSet.size > 0) {
-        console.log('📋 Kampagnenarten aus Auftrag geladen:', Array.from(artenSet));
-        return Array.from(artenSet);
-      }
-      
-      // FALLBACK: Lade aus den Kampagnen (für Abwärtskompatibilität)
-      console.log('ℹ️ Keine Kampagnenarten im Auftrag, prüfe Kampagnen...');
-      const { data: kampagnen, error: kampError } = await window.supabase
-        .from('kampagne')
-        .select(`
-          id,
-          kampagne_art_typen:art_der_kampagne(id, name)
-        `)
-        .eq('auftrag_id', auftragId);
-      
-      if (kampError) {
-        console.error('❌ Fehler beim Laden der Kampagnen:', kampError);
-        return [];
-      }
-      
-      (kampagnen || []).forEach(kampagne => {
-        const arten = kampagne.kampagne_art_typen;
-        if (Array.isArray(arten)) {
-          arten.forEach(art => {
-            if (art?.name) artenSet.add(art.name);
-          });
-        } else if (arten?.name) {
-          artenSet.add(arten.name);
-        }
-      });
-      
-      console.log('📋 Kampagnenarten aus Kampagnen geladen:', Array.from(artenSet));
-      return Array.from(artenSet);
+      const arten = await this.repository.loadKampagnenartenForAuftrag(auftragId);
+      console.log('📋 Kampagnenarten geladen:', arten);
+      return arten;
     } catch (error) {
       console.error('❌ Fehler beim Laden der Kampagnenarten:', error);
       return [];
@@ -931,34 +671,14 @@ export class AuftragsdetailsCreate {
    * @param {object} existingValues - Bestehende Werte (optional)
    */
   renderDynamicSections(kampagnenarten, existingValues = {}) {
-    const container = document.getElementById('kampagnenart-sections-container');
-    if (!container) return;
-    
-    if (kampagnenarten.length === 0) {
-      container.innerHTML = `
-        <div class="alert alert-info">
-          <p>Wählen Sie oben die Kampagnenarten aus und klicken Sie auf "Aktivieren", um die Budget-Felder anzuzeigen.</p>
-        </div>
-      `;
-      return;
-    }
-    
-    // Generiere Sections für jede Kampagnenart - NUR Budget
-    let sectionsHtml = '';
-    kampagnenarten.forEach(artName => {
-      const config = KAMPAGNENARTEN_MAPPING[artName];
-      if (config) {
-        sectionsHtml += generateBudgetOnlyFieldsHtml(artName, existingValues);
-      } else {
-        console.warn(`⚠️ Unbekannte Kampagnenart: "${artName}"`);
-      }
-    });
-    
-    container.innerHTML = sectionsHtml;
+    this.kampagnenartenService.renderDynamicSections(kampagnenarten, existingValues);
   }
 
   // Events binden
   bindFormEvents() {
+    this.cleanupBindings();
+    this._eventsBound = true;
+
     const form = document.getElementById('auftragsdetails-form');
     if (!form) return;
 
@@ -971,7 +691,7 @@ export class AuftragsdetailsCreate {
     // Aktivieren-Button Event
     const activateBtn = document.getElementById('activate-kampagnenarten-btn');
     if (activateBtn) {
-      activateBtn.addEventListener('click', async () => {
+      this.addManagedListener(activateBtn, 'click', async () => {
         activateBtn.disabled = true;
         activateBtn.textContent = 'Aktiviere...';
         try {
@@ -984,7 +704,7 @@ export class AuftragsdetailsCreate {
     }
 
     // Submit Handler
-    form.addEventListener('submit', (e) => this.handleFormSubmit(e));
+    this.addManagedListener(form, 'submit', (e) => this.handleFormSubmit(e));
   }
 
   /**
@@ -1054,7 +774,7 @@ export class AuftragsdetailsCreate {
     };
     
     // Event auf Original-Select (für Searchable Select)
-    unternehmenSelect.addEventListener('change', (e) => {
+    this.addManagedListener(unternehmenSelect, 'change', (e) => {
       handleUnternehmenChange(e.target.value);
     });
     
@@ -1066,9 +786,10 @@ export class AuftragsdetailsCreate {
         handleUnternehmenChange(hiddenInput.value);
       });
       observer.observe(hiddenInput, { attributes: true, attributeFilter: ['value'] });
+      this.trackObserver(observer);
       
       // Zusätzlich: Input-Event
-      hiddenInput.addEventListener('input', (e) => {
+      this.addManagedListener(hiddenInput, 'input', (e) => {
         handleUnternehmenChange(e.target.value);
       });
     }
@@ -1143,14 +864,7 @@ export class AuftragsdetailsCreate {
         // Lade bestehende auftrag_details Werte (falls vorhanden)
         let existingValues = {};
         try {
-          const { data } = await window.supabase
-            .from('auftrag_details')
-            .select('*')
-            .eq('auftrag_id', auftragId)
-            .maybeSingle();
-          if (data) {
-            existingValues = data;
-          }
+          existingValues = await this.repository.loadExistingValuesForAuftrag(auftragId);
         } catch (e) {
           console.warn('⚠️ Keine bestehenden auftrag_details gefunden');
         }
@@ -1174,7 +888,7 @@ export class AuftragsdetailsCreate {
     };
     
     // Event auf Original-Select
-    auftragSelect.addEventListener('change', (e) => {
+    this.addManagedListener(auftragSelect, 'change', (e) => {
       handleAuftragChange(e.target.value);
     });
     
@@ -1185,8 +899,9 @@ export class AuftragsdetailsCreate {
         handleAuftragChange(hiddenInput.value);
       });
       observer.observe(hiddenInput, { attributes: true, attributeFilter: ['value'] });
+      this.trackObserver(observer);
       
-      hiddenInput.addEventListener('input', (e) => {
+      this.addManagedListener(hiddenInput, 'input', (e) => {
         handleAuftragChange(e.target.value);
       });
     }
@@ -1224,13 +939,30 @@ export class AuftragsdetailsCreate {
           data[key] = null;
         } else if (key.endsWith('_anzahl') || key === 'gesamt_videos' || key === 'gesamt_creator' || key === 'kampagnenanzahl') {
           // Zahlen konvertieren
-          data[key] = value ? parseInt(value) : null;
+          data[key] = value ? parseInt(value, 10) : null;
         } else {
           data[key] = value;
         }
       }
 
-      console.log('📤 Auftragsdetails-Daten:', data);
+      // Toggle-Hilfsfelder nicht persistieren; bei deaktiviertem Toggle Zahl explizit nullen
+      const videoToggleInputs = form.querySelectorAll('input[data-video-toggle="true"]');
+      videoToggleInputs.forEach(toggleInput => {
+        const toggleName = toggleInput.name;
+        if (toggleName && Object.prototype.hasOwnProperty.call(data, toggleName)) {
+          delete data[toggleName];
+        }
+
+        const videoFieldName = toggleInput.dataset.target;
+        if (!videoFieldName) return;
+
+        const isEnabled = Boolean(toggleInput.checked);
+        if (!isEnabled) {
+          data[videoFieldName] = null;
+        }
+      });
+
+      console.log('📤 Auftragsdetails-Daten vorbereitet:', Object.keys(data).length, 'Felder');
 
       // Validierung
       if (!data.auftrag_id) {
@@ -1242,36 +974,9 @@ export class AuftragsdetailsCreate {
         return;
       }
 
-      // Prüfe ob bereits Details existieren
-      const { data: existing, error: checkError } = await window.supabase
-        .from('auftrag_details')
-        .select('id')
-        .eq('auftrag_id', data.auftrag_id)
-        .maybeSingle();
-
-      let result;
-      if (existing?.id) {
-        // Update
-        const { data: updated, error } = await window.supabase
-          .from('auftrag_details')
-          .update(data)
-          .eq('id', existing.id)
-          .select()
-          .single();
-        if (error) throw error;
-        result = updated;
-        console.log('✅ Auftragsdetails erfolgreich aktualisiert:', result);
-      } else {
-        // Insert
-        const { data: created, error } = await window.supabase
-          .from('auftrag_details')
-          .insert([data])
-          .select()
-          .single();
-        if (error) throw error;
-        result = created;
-        console.log('✅ Auftragsdetails erfolgreich erstellt:', result);
-      }
+      // Idempotent und race-safe speichern
+      const result = await this.repository.upsertAuftragsdetails(data);
+      console.log('✅ Auftragsdetails erfolgreich gespeichert');
       
       // Success-State für Button
       if (submitBtn) {
@@ -1284,11 +989,11 @@ export class AuftragsdetailsCreate {
       
       // Event auslösen für Listen-Update
       window.dispatchEvent(new CustomEvent('entityUpdated', { 
-        detail: { entity: 'auftrag_details', id: result.id, action: existing ? 'updated' : 'created' } 
+        detail: { entity: 'auftrag_details', id: result.id, action: 'saved' } 
       }));
       
       // Kurz warten damit Success-State sichtbar ist, dann navigieren
-      setTimeout(() => {
+      this._navigateTimer = setTimeout(() => {
         window.navigateTo('/auftragsdetails');
       }, 400);
 
@@ -1308,8 +1013,57 @@ export class AuftragsdetailsCreate {
   // Destroy
   destroy() {
     console.log('🎯 AUFTRAGSDETAILSCREATE: Destroy');
+    this.cleanupBindings();
+    if (this._navigateTimer) {
+      clearTimeout(this._navigateTimer);
+      this._navigateTimer = null;
+    }
+  }
+
+  addManagedListener(target, type, handler, options) {
+    if (!target || !type || !handler) return;
+    target.addEventListener(type, handler, options);
+    this._eventDisposers.push(() => target.removeEventListener(type, handler, options));
+  }
+
+  trackObserver(observer) {
+    if (!observer) return;
+    this._observers.push(observer);
+  }
+
+  cleanupBindings() {
+    this._eventDisposers.forEach(dispose => {
+      try {
+        dispose();
+      } catch (e) {
+        console.warn('⚠️ Fehler beim Entfernen eines Event-Listeners:', e);
+      }
+    });
+    this._eventDisposers = [];
+
+    this._observers.forEach(observer => {
+      try {
+        observer.disconnect();
+      } catch (e) {
+        console.warn('⚠️ Fehler beim Disconnect eines Observers:', e);
+      }
+    });
+    this._observers = [];
+    this._eventsBound = false;
+  }
+
+  setSelectOptions(selectElement, options = [], { placeholder = 'Bitte wählen...', emptyLabel = 'Keine Optionen verfügbar' } = {}) {
+    this.view.setSelectOptions(selectElement, options, { placeholder, emptyLabel });
+  }
+
+  populateUnternehmenOptions() {
+    this.view.populateUnternehmenOptions(this.unternehmen);
+  }
+
+  populateKampagnenartOptions() {
+    this.view.populateKampagnenartOptions(this.allKampagnenartTypen);
   }
 }
 
 // Exportiere Instanz für globale Nutzung
-export const auftragsdetailsCreate = new AuftragsdetailsCreate();
+export const auftragsdetailsCreate = new AuftragsdetailsCreateController();

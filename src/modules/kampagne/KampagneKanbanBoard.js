@@ -264,16 +264,22 @@ export class KampagneKanbanBoard {
     const orgBubble = this.renderOrganisationBubble(kampagne);
 
     return `
-      <div class="task-card kampagne-card" 
-           draggable="true" 
+      <div class="task-card kampagne-card"
            data-kampagne-id="${kampagne.id}"
            data-status-id="${kampagne.status_id}">
-        
+        <div class="task-card-header">
+          <div class="kampagne-card-drag-handle"
+               draggable="true"
+               data-kampagne-id="${kampagne.id}"
+               data-status-id="${kampagne.status_id}"
+               title="Kampagne verschieben"
+               aria-label="Kampagne verschieben">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-grip-icon lucide-grip" aria-hidden="true"><circle cx="12" cy="5" r="1"/><circle cx="19" cy="5" r="1"/><circle cx="5" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="12" cy="19" r="1"/><circle cx="19" cy="19" r="1"/><circle cx="5" cy="19" r="1"/></svg>
+          </div>
+        </div>
         <div class="task-card-body">
           <h4 class="task-title">
-            <a href="#/kampagne/${kampagne.id}" class="kampagne-link" data-kampagne-id="${kampagne.id}">
-              ${safe(KampagneUtils.getDisplayName(kampagne))}
-            </a>
+            <span class="kampagne-link">${safe(KampagneUtils.getDisplayName(kampagne))}</span>
           </h4>
         </div>
 
@@ -352,15 +358,38 @@ export class KampagneKanbanBoard {
   bindDragDropEventsAfterRender() {
     if (!this.container) return;
 
-    // Binde Drag & Drop Events auf Kampagnen Cards
+    // Binde Click-Events auf Kampagnen Cards
     const kampagneCards = this.container.querySelectorAll('.kampagne-card');
     kampagneCards.forEach(card => {
-      // Skip wenn bereits gebunden
-      if (card.dataset.dragBound === 'true') return;
-      
-      card.addEventListener('dragstart', this.boundHandlers.dragStart);
-      card.addEventListener('dragend', this.boundHandlers.dragEnd);
-      card.dataset.dragBound = 'true';
+      if (card.dataset.clickBound === 'true') return;
+
+      card.addEventListener('click', (e) => {
+        // Interaktive Elemente und Drag-Handle sollen Card-Open nicht triggern
+        if (e.target.closest('a, button, input, select, textarea, .kampagne-card-drag-handle, .avatar-bubble')) {
+          return;
+        }
+
+        const kampagneId = card.dataset.kampagneId;
+        if (kampagneId) {
+          window.navigateTo(`/kampagne/${kampagneId}`);
+        }
+      });
+
+      card.dataset.clickBound = 'true';
+    });
+
+    // Binde Drag-Events nur auf Handle
+    const dragHandles = this.container.querySelectorAll('.kampagne-card-drag-handle');
+    dragHandles.forEach(handle => {
+      if (handle.dataset.dragBound === 'true') return;
+
+      handle.addEventListener('dragstart', this.boundHandlers.dragStart);
+      handle.addEventListener('dragend', this.boundHandlers.dragEnd);
+      handle.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+      handle.dataset.dragBound = 'true';
     });
 
     // Binde Drop-Events auf Spalten
@@ -380,17 +409,6 @@ export class KampagneKanbanBoard {
       window.AvatarBubbles.bindClickEvents(this.container);
     }
 
-    // Binde Click-Events für Kampagnen-Links
-    const kampagneLinks = this.container.querySelectorAll('.kampagne-link');
-    kampagneLinks.forEach(link => {
-      link.addEventListener('click', (e) => {
-        e.preventDefault();
-        const kampagneId = e.target.dataset.kampagneId;
-        if (kampagneId) {
-          window.navigateTo(`/kampagne/${kampagneId}`);
-        }
-      });
-    });
   }
 
   bindDragDropEvents() {
@@ -398,21 +416,27 @@ export class KampagneKanbanBoard {
   }
 
   onDragStart(e) {
-    console.log('🎯 DRAG START:', e.target.dataset.kampagneId);
+    const card = e.target.closest('.kampagne-card');
+    if (!card) return;
+
+    console.log('🎯 DRAG START:', card.dataset.kampagneId);
     this.draggedKampagne = {
-      id: e.target.dataset.kampagneId,
-      statusId: e.target.dataset.statusId
+      id: card.dataset.kampagneId,
+      statusId: card.dataset.statusId
     };
     console.log('🎯 draggedKampagne set:', this.draggedKampagne);
 
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', this.draggedKampagne.id);
 
-    e.target.classList.add('dragging');
+    card.classList.add('dragging');
   }
 
   onDragEnd(e) {
-    e.target.classList.remove('dragging');
+    const card = e.target.closest('.kampagne-card');
+    if (card) {
+      card.classList.remove('dragging');
+    }
     
     // Entferne alle Highlights
     this.container.querySelectorAll('.kanban-column-body').forEach(col => {
@@ -444,6 +468,8 @@ export class KampagneKanbanBoard {
     if (!column) return;
 
     column.classList.remove('drag-over');
+
+    if (!this.draggedKampagne) return;
 
     const newStatusId = column.dataset.statusId;
     const kampagneId = this.draggedKampagne.id;

@@ -546,7 +546,7 @@ export class AuftragDetail {
           <div class="detail-card">
             <h3 class="section-title">Preisaufbau (Netto)</h3>
             <div class="detail-item"><label>Influencer:</label><span>${num(a.influencer)} × ${fmt(a.influencer_preis)}</span></div>
-            <div class="detail-item"><label>UGC:</label><span>${num(a.ugc)} × ${fmt(a.ugc_preis)}</span></div>
+            <div class="detail-item"><label>UGC Video:</label><span>${num(a.ugc)} × ${fmt(a.ugc_preis)}</span></div>
             <div class="detail-item"><label>Vor Ort Produktion:</label><span>${num(a.vor_ort_produktion)} × ${fmt(a.vor_ort_preis)}</span></div>
             <div class="detail-item"><label>Summe Positionen (Netto):</label><span>${fmt(itemsNetto)}</span></div>
           </div>
@@ -774,10 +774,12 @@ export class AuftragDetail {
     // (für Abwärtskompatibilität mit bestehenden Daten)
     if (sections.length === 0) {
       sections.push(
-        { title: 'UGC', prefix: 'ugc', color: '#28a745', hasCreator: true, hasBilder: true, hasVideographen: false },
-        { title: 'Influencer', prefix: 'influencer', color: '#6f42c1', hasCreator: true, hasBilder: true, hasVideographen: false },
-        { title: 'Vor Ort', prefix: 'vor_ort', color: '#fd7e14', hasCreator: true, hasBilder: true, hasVideographen: true },
-        { title: 'Vor Ort Mitarbeiter', prefix: 'vor_ort_mitarbeiter', color: '#20c997', hasCreator: false, hasBilder: true, hasVideographen: true }
+        { title: 'UGC Pro Paid', prefix: 'ugc_pro_paid', color: '#28a745', hasCreator: true, hasBilder: false, hasVideographen: false },
+        { title: 'UGC Pro Organic', prefix: 'ugc_pro_organic', color: '#6f42c1', hasCreator: true, hasBilder: false, hasVideographen: false },
+        { title: 'UGC Video Paid', prefix: 'ugc_video_paid', color: '#fd7e14', hasCreator: true, hasBilder: false, hasVideographen: false },
+        { title: 'UGC Video Organic', prefix: 'ugc_video_organic', color: '#20c997', hasCreator: true, hasBilder: false, hasVideographen: false },
+        { title: 'Influencer Kampagne', prefix: 'influencer', color: '#007bff', hasCreator: true, hasBilder: false, hasVideographen: false },
+        { title: 'Vor Ort Produktion', prefix: 'vor_ort', color: '#dc3545', hasCreator: true, hasBilder: false, hasVideographen: true }
       );
     }
 

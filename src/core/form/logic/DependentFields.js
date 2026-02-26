@@ -536,6 +536,12 @@ export class DependentFields {
       if (tagsContainer) {
         tagsContainer.innerHTML = '';
       }
+      
+      // Verstecktes _value-Feld zurücksetzen (wird beim Submit sonst als stale Wert übernommen)
+      const hiddenValue = document.getElementById(field.id + '_value');
+      if (hiddenValue) {
+        hiddenValue.value = '';
+      }
     }
     
     // Original Select leeren
@@ -716,7 +722,7 @@ export class DependentFields {
       if (fieldConfig.name === 'kampagne_id' && fieldConfig.dependsOn === 'marke_id') {
         const { data: kampagnen, error } = await window.supabase
           .from('kampagne')
-          .select('id, kampagnenname, eigener_name, marke_id, videoanzahl, ugc_video_anzahl, igc_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl')
+          .select('id, kampagnenname, eigener_name, marke_id, videoanzahl, ugc_pro_paid_video_anzahl, ugc_pro_organic_video_anzahl, ugc_video_paid_video_anzahl, ugc_video_organic_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl')
           .eq('marke_id', parentValue)
           .order('kampagnenname');
 
@@ -728,8 +734,10 @@ export class DependentFields {
         // Hilfsfunktion: Gesamt-Videos einer Kampagne berechnen
         const getKampagneTotalVideos = (k) => {
           return k.videoanzahl || (
-            (parseInt(k.ugc_video_anzahl, 10) || 0) +
-            (parseInt(k.igc_video_anzahl, 10) || 0) +
+            (parseInt(k.ugc_pro_paid_video_anzahl, 10) || 0) +
+            (parseInt(k.ugc_pro_organic_video_anzahl, 10) || 0) +
+            (parseInt(k.ugc_video_paid_video_anzahl, 10) || 0) +
+            (parseInt(k.ugc_video_organic_video_anzahl, 10) || 0) +
             (parseInt(k.influencer_video_anzahl, 10) || 0) +
             (parseInt(k.vor_ort_video_anzahl, 10) || 0)
           );
@@ -780,7 +788,7 @@ export class DependentFields {
       else if (fieldConfig.name === 'kampagne_id' && fieldConfig.dependsOn === 'unternehmen_id') {
         const { data: kampagnen, error } = await window.supabase
           .from('kampagne')
-          .select('id, kampagnenname, eigener_name, unternehmen_id, videoanzahl, ugc_video_anzahl, igc_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl')
+          .select('id, kampagnenname, eigener_name, unternehmen_id, videoanzahl, ugc_pro_paid_video_anzahl, ugc_pro_organic_video_anzahl, ugc_video_paid_video_anzahl, ugc_video_organic_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl')
           .eq('unternehmen_id', parentValue)
           .order('kampagnenname');
 
@@ -792,8 +800,10 @@ export class DependentFields {
         // Hilfsfunktion: Gesamt-Videos einer Kampagne berechnen
         const getKampagneTotalVideos = (k) => {
           return k.videoanzahl || (
-            (parseInt(k.ugc_video_anzahl, 10) || 0) +
-            (parseInt(k.igc_video_anzahl, 10) || 0) +
+            (parseInt(k.ugc_pro_paid_video_anzahl, 10) || 0) +
+            (parseInt(k.ugc_pro_organic_video_anzahl, 10) || 0) +
+            (parseInt(k.ugc_video_paid_video_anzahl, 10) || 0) +
+            (parseInt(k.ugc_video_organic_video_anzahl, 10) || 0) +
             (parseInt(k.influencer_video_anzahl, 10) || 0) +
             (parseInt(k.vor_ort_video_anzahl, 10) || 0)
           );
@@ -1069,6 +1079,11 @@ export class DependentFields {
               dropdown.innerHTML = `<div class="dropdown-item no-results">${placeholder}</div>`;
             }
           }
+          // Verstecktes _value-Feld zurücksetzen, damit marke_id beim Submit nicht gesetzt wird
+          const markeHiddenValue = document.getElementById(markeField.id + '_value');
+          if (markeHiddenValue) {
+            markeHiddenValue.value = '';
+          }
         }
       }
     } catch (error) {
@@ -1232,6 +1247,11 @@ export class DependentFields {
       const dropdown = container.querySelector('.searchable-select-dropdown');
       if (dropdown) {
         dropdown.innerHTML = `<div class="dropdown-item no-results">${message}</div>`;
+      }
+      // Verstecktes _value-Feld zurücksetzen (Submit darf keine alte Marke mitschicken)
+      const hiddenValue = document.getElementById(field.id + '_value');
+      if (hiddenValue) {
+        hiddenValue.value = '';
       }
     }
     field.innerHTML = `<option value="">${message}</option>`;

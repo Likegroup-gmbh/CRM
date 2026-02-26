@@ -356,6 +356,9 @@ export class KampagneDetail {
     const fDate = (d) => d ? new Date(d).toLocaleDateString('de-DE') : '-';
     const getStatusLabel = (isDraft) => isDraft ? 'Entwurf' : 'Final';
     const getStatusClass = (isDraft) => isDraft ? 'draft' : 'aktiv';
+    const canViewViaPage = window.canViewPage?.('creator');
+    const canViewViaPerm = window.currentUser?.permissions?.creator?.can_view;
+    const canViewCreator = canViewViaPage !== false && canViewViaPerm !== false;
 
     const rows = this.vertraege.map(v => {
       const creatorName = v.creator ? `${v.creator.vorname || ''} ${v.creator.nachname || ''}`.trim() : '-';
@@ -365,7 +368,7 @@ export class KampagneDetail {
           <td><a href="/vertraege/${v.id}" onclick="event.preventDefault(); window.navigateTo('/vertraege/${v.id}')">${window.validatorSystem.sanitizeHtml(v.name || '—')}</a></td>
           <td>${window.validatorSystem.sanitizeHtml(v.typ || '-')}</td>
           <td><span class="status-badge status-${getStatusClass(v.is_draft)}">${getStatusLabel(v.is_draft)}</span></td>
-          <td>${v.creator ? `<a href="/creator/${v.creator.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${v.creator.id}')">${window.validatorSystem.sanitizeHtml(creatorName)}</a>` : '-'}</td>
+          <td>${v.creator ? (canViewCreator ? `<a href="/creator/${v.creator.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${v.creator.id}')">${window.validatorSystem.sanitizeHtml(creatorName)}</a>` : window.validatorSystem.sanitizeHtml(creatorName)) : '-'}</td>
           <td>${v.datei_url ? `<a href="${v.datei_url}" target="_blank" rel="noopener">PDF</a>` : '-'}</td>
           <td>${fDate(v.created_at)}</td>
         </tr>
@@ -896,6 +899,9 @@ export class KampagneDetail {
       return String(array);
     };
 
+    const rolle = String(window.currentUser?.rolle || '').trim().toLowerCase();
+    const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+
     const showPageHeader = canCreateKooperation || canCreateVideo;
     const html = `
       ${showPageHeader ? `
@@ -930,22 +936,22 @@ export class KampagneDetail {
             <span class="tab-icon">${getTabIcon('briefings')}</span>
             Briefings<span class="tab-count">${this.briefings.length}</span>
           </button>
-          ${window.currentUser?.rolle !== 'kunde' && window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? `
+          ${!isKunde && window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? `
           <button class="tab-button" data-tab="info">
             <span class="tab-icon">${getTabIcon('info')}</span>
             Informationen
           </button>` : ''}
-          ${window.currentUser?.rolle !== 'kunde' && window.canViewTable && window.canViewTable('kampagne','rechnungen') !== false ? `
+          ${!isKunde && window.canViewTable && window.canViewTable('kampagne','rechnungen') !== false ? `
           <button class="tab-button" data-tab="rechnungen">
             <span class="tab-icon">${getTabIcon('rechnungen')}</span>
             Rechnungen<span class="tab-count">${this.rechnungen?.length || 0}</span>
           </button>` : ''}
-          ${window.currentUser?.rolle !== 'kunde' ? `
+          ${!isKunde ? `
           <button class="tab-button" data-tab="vertraege">
             <span class="tab-icon">${getTabIcon('vertraege')}</span>
             Verträge<span class="tab-count">${this.vertraege?.length || 0}</span>
           </button>` : ''}
-          ${window.currentUser?.rolle !== 'kunde' && window.canViewTable && window.canViewTable('kampagne','notizen') !== false ? `
+          ${!isKunde && window.canViewTable && window.canViewTable('kampagne','notizen') !== false ? `
           <button class="tab-button" data-tab="notizen">
             <span class="tab-icon">${getTabIcon('notizen')}</span>
             Notizen<span class="tab-count">${this.notizen.length}</span>
@@ -955,7 +961,7 @@ export class KampagneDetail {
             <span class="tab-icon">${getTabIcon('history')}</span>
             History<span class="tab-count">${this.historyCount + this.koopHistoryCount}</span>
           </button>` : ''}
-          ${window.currentUser?.rolle !== 'kunde' ? `
+          ${!isKunde ? `
           <button class="tab-button" data-tab="mitarbeiter">
             <span class="tab-icon">${getTabIcon('ansprechpartner')}</span>
             Mitarbeiter<span class="tab-count">${this.kampagneData?.mitarbeiter?.length || 0}</span>
@@ -1130,7 +1136,7 @@ export class KampagneDetail {
                   </svg>
                   <span id="btn-toggle-approved-text">Freigegebene ausblenden</span>
                 </button>
-                ${window.currentUser?.rolle !== 'kunde' ? `
+                ${!isKunde ? `
                 <button id="btn-column-visibility" class="secondary-btn">
                   Sichtbarkeit anpassen
                 </button>` : ''}
@@ -2455,11 +2461,18 @@ export class KampagneDetail {
         paid_ziele_ids: formData.paid_ziele_ids,
         organic_ziele_ids: formData.organic_ziele_ids,
         // Kampagnenart-spezifische Felder (für dynamische Stepper im Edit-Mode)
-        ugc_video_anzahl: this.kampagneData.ugc_video_anzahl,
-        ugc_creator_anzahl: this.kampagneData.ugc_creator_anzahl,
-        ugc_bilder_anzahl: this.kampagneData.ugc_bilder_anzahl,
-        igc_video_anzahl: this.kampagneData.igc_video_anzahl,
-        igc_creator_anzahl: this.kampagneData.igc_creator_anzahl,
+        ugc_pro_paid_video_anzahl: this.kampagneData.ugc_pro_paid_video_anzahl,
+        ugc_pro_paid_creator_anzahl: this.kampagneData.ugc_pro_paid_creator_anzahl,
+        ugc_pro_paid_bilder_anzahl: this.kampagneData.ugc_pro_paid_bilder_anzahl,
+        ugc_pro_organic_video_anzahl: this.kampagneData.ugc_pro_organic_video_anzahl,
+        ugc_pro_organic_creator_anzahl: this.kampagneData.ugc_pro_organic_creator_anzahl,
+        ugc_pro_organic_bilder_anzahl: this.kampagneData.ugc_pro_organic_bilder_anzahl,
+        ugc_video_paid_video_anzahl: this.kampagneData.ugc_video_paid_video_anzahl,
+        ugc_video_paid_creator_anzahl: this.kampagneData.ugc_video_paid_creator_anzahl,
+        ugc_video_paid_bilder_anzahl: this.kampagneData.ugc_video_paid_bilder_anzahl,
+        ugc_video_organic_video_anzahl: this.kampagneData.ugc_video_organic_video_anzahl,
+        ugc_video_organic_creator_anzahl: this.kampagneData.ugc_video_organic_creator_anzahl,
+        ugc_video_organic_bilder_anzahl: this.kampagneData.ugc_video_organic_bilder_anzahl,
         influencer_video_anzahl: this.kampagneData.influencer_video_anzahl,
         influencer_creator_anzahl: this.kampagneData.influencer_creator_anzahl,
         vor_ort_video_anzahl: this.kampagneData.vor_ort_video_anzahl,

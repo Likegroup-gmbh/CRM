@@ -1,71 +1,34 @@
 // CreatorAuswahlList.js
-// Übersicht aller Creator-Auswahl-Listen (Sourcing)
-// Basiert auf BasePaginatedList (Client-seitige Pagination)
+// Hierarchische Sourcing-Ansicht: Unternehmen -> Marken -> Inhalte
 
-import { BasePaginatedList } from '../../core/BasePaginatedList.js';
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
-import { AvatarBubbles } from '../../core/components/AvatarBubbles.js';
-import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { AutoGeneration } from '../../core/form/logic/AutoGeneration.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { PaginationSystem } from '../../core/PaginationSystem.js';
+import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 
-export class CreatorAuswahlList extends BasePaginatedList {
+export class CreatorAuswahlList {
   constructor() {
-    super('creator-auswahl', {
-      itemsPerPage: 25,
-      headline: 'Sourcing',
-      breadcrumbLabel: 'Sourcing',
-      sortField: 'name',
-      sortAscending: true,
-      paginationContainerId: 'pagination-container-creator-auswahl',
-      tbodySelector: '#creator-auswahl-table-body',
-      tableColspan: 5,
-      permissionEntity: 'kampagne' // Verwendet Kampagne-Permissions
-    });
-    
-    // Client-seitige Daten (alle Listen)
     this.listen = [];
     this.autoGeneration = new AutoGeneration();
+    this.pagination = new PaginationSystem();
+    this._boundEventListeners = new Set();
+
+    this.viewMode = 'companies'; // companies | brands | items
+    this.listViewMode = 'grid'; // grid | list (nur companies)
+
+    this.currentUnternehmenId = null;
+    this.currentUnternehmenName = null;
+    this.currentMarkeId = null;
+    this.currentMarkeName = null;
+    this.currentItems = [];
+
+    this.companyFolders = [];
+    this.brandFolders = [];
+    this.companyOnlyItems = [];
   }
-  
-  // ══════════════════════════════════════════════════════════════════════════
-  // IMPLEMENTIERUNG DER ABSTRAKTEN METHODEN
-  // ══════════════════════════════════════════════════════════════════════════
-  
-  /**
-   * Client-seitige Pagination: Lädt alle Daten und paginiert im Client
-   */
-  async loadPageData(page, limit, filters) {
-    // Daten einmalig laden wenn noch nicht vorhanden
-    if (this.listen.length === 0 || this._forceReload) {
-      this.listen = await creatorAuswahlService.getAllListen();
-      this._forceReload = false;
-    }
-    
-    // Client-seitige Pagination
-    const start = (page - 1) * limit;
-    const end = start + limit;
-    const paginatedData = this.listen.slice(start, end);
-    
-    return {
-      data: paginatedData,
-      total: this.listen.length
-    };
-  }
-  
-  /**
-   * Berechtigungsprüfung
-   */
-  async checkViewPermission() {
-    if (window.currentUser?.rolle === 'admin') return true;
-    return window.currentUser?.permissions?.kampagne?.can_view || false;
-  }
-  
-  /**
-   * Zusätzliche Init-Logik
-   */
+
   async init() {
-    // FAB/Quick-Menu für Kunden in Sourcing verstecken
     const rolle = window.currentUser?.rolle?.toLowerCase();
     const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
     if (isKunde) {
@@ -74,85 +37,131 @@ export class CreatorAuswahlList extends BasePaginatedList {
         quickMenuContainer.style.display = 'none';
       }
     }
-    
-    await super.init();
+
+    const canView = window.currentUser?.rolle === 'admin' || window.currentUser?.permissions?.kampagne?.can_view;
+    if (!canView) {
+      window.content.innerHTML = `
+        <div class="error-message">
+          <p>Sie haben keine Berechtigung, Sourcing anzuzeigen.</p>
+        </div>
+      `;
+      return;
+    }
+
+    window.setHeadline('Sourcing');
+    this.updateBreadcrumb();
+    await this.loadAndRender();
   }
-  
-  /**
-   * Rendert eine einzelne Tabellenzeile
-   */
-  renderSingleRow(liste) {
-    const rolle = window.currentUser?.rolle?.toLowerCase();
-    const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
-    const sanitize = this.sanitize.bind(this);
 
-    const unternehmenBubble = liste.unternehmen 
-      ? AvatarBubbles.renderBubbles([{
-          name: liste.unternehmen.firmenname,
-          label: liste.unternehmen.internes_kuerzel || liste.unternehmen.firmenname,
-          type: 'org',
-          id: liste.unternehmen.id,
-          entityType: 'unternehmen',
-          logo_url: liste.unternehmen.logo_url
-        }], { showLabel: true })
-      : '-';
+  async loadAndRender() {
+    if (this.listen.length === 0 || this._forceReload) {
+      this.listen = await creatorAuswahlService.getAllListen();
+      this._forceReload = false;
+    }
 
-    const markeBubble = liste.marke 
-      ? AvatarBubbles.renderBubbles([{
-          name: liste.marke.markenname,
-          type: 'org',
-          id: liste.marke.id,
-          entityType: 'marke',
-          logo_url: liste.marke.logo_url
-        }], { showLabel: true })
-      : '-';
+    if (this.viewMode === 'companies') {
+      this.buildCompanyFolders();
+    } else if (this.viewMode === 'brands') {
+      this.buildBrandFolders();
+    } else {
+      this.buildCurrentItems();
+    }
 
-    const kampagneName = KampagneUtils.getDisplayName(liste.kampagne);
+    this.render();
+    this.bindEvents();
 
-    return `
-      <tr class="table-row-clickable" data-liste-id="${liste.id}">
-        <td class="col-name ca-col-name">
-          <a href="#" class="table-link" data-table="sourcing" data-id="${liste.id}">
-            ${sanitize(liste.name || 'Ohne Namen')}
-          </a>
-        </td>
-        <td class="ca-col-unternehmen">${unternehmenBubble}</td>
-        <td class="ca-col-marke">${markeBubble}</td>
-        <td class="ca-col-kampagne">${kampagneName}</td>
-        <td class="col-actions">
-          <div class="actions-dropdown-container" data-entity-type="creator-auswahl">
-            <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-              </svg>
-            </button>
-            <div class="actions-dropdown">
-              <a href="#" class="action-item" data-action="view-liste" data-id="${liste.id}">
-                ${window.ActionsDropdown?.getHeroIcon('view') || ''}
-                Details anzeigen
-              </a>
-              ${!isKunde ? `
-                <a href="#" class="action-item" data-action="edit-liste" data-id="${liste.id}">
-                  ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
-                  Bearbeiten
-                </a>
-                <div class="action-separator"></div>
-                <a href="#" class="action-item action-danger" data-action="delete-liste" data-id="${liste.id}">
-                  ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
-                  Löschen
-                </a>
-              ` : ''}
-            </div>
-          </div>
-        </td>
-      </tr>
-    `;
+    if (this.viewMode === 'items') {
+      this.pagination.init('pagination-container-creator-auswahl-items', {
+        itemsPerPage: 25,
+        onPageChange: () => this.updateItemsTable(),
+        onItemsPerPageChange: () => this.updateItemsTable()
+      });
+      this.pagination.currentPage = this.pagination.currentPage || 1;
+      this.updateItemsTable();
+      this.pagination.updateTotal(this.currentItems.length);
+      this.pagination.render();
+    }
   }
-  
-  /**
-   * Rendert den Shell-Content (Struktur ohne Daten)
-   */
-  renderShellContent() {
+
+  updateBreadcrumb() {
+    if (!window.breadcrumbSystem) return;
+    if (this.viewMode === 'companies') {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Sourcing', url: '/sourcing', clickable: false }
+      ]);
+      return;
+    }
+
+    if (this.viewMode === 'brands') {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Sourcing', url: '/sourcing', clickable: true },
+        { label: this.currentUnternehmenName || 'Unternehmen', url: '#', clickable: false }
+      ]);
+      return;
+    }
+
+    window.breadcrumbSystem.updateBreadcrumb([
+      { label: 'Sourcing', url: '/sourcing', clickable: true },
+      { label: this.currentUnternehmenName || 'Unternehmen', url: '#', clickable: false },
+      { label: this.currentMarkeName || 'Marke', url: '#', clickable: false }
+    ]);
+  }
+
+  sanitize(value) {
+    return window.validatorSystem?.sanitizeHtml(value) || value || '';
+  }
+
+  buildCompanyFolders() {
+    const map = new Map();
+    this.listen.forEach((item) => {
+      if (!item.unternehmen?.id) return;
+      const key = item.unternehmen.id;
+      if (!map.has(key)) {
+        map.set(key, {
+          id: key,
+          firmenname: item.unternehmen.firmenname,
+          logo_url: item.unternehmen.logo_url,
+          count: 0
+        });
+      }
+      map.get(key).count += 1;
+    });
+
+    this.companyFolders = Array.from(map.values()).sort((a, b) =>
+      (a.firmenname || '').localeCompare(b.firmenname || '', 'de')
+    );
+  }
+
+  buildBrandFolders() {
+    const scoped = this.listen.filter((item) => item.unternehmen_id === this.currentUnternehmenId);
+    const brandMap = new Map();
+    this.companyOnlyItems = scoped.filter((item) => !item.marke_id);
+
+    scoped.forEach((item) => {
+      if (!item.marke_id || !item.marke?.id) return;
+      if (!brandMap.has(item.marke.id)) {
+        brandMap.set(item.marke.id, {
+          id: item.marke.id,
+          markenname: item.marke.markenname,
+          logo_url: item.marke.logo_url,
+          count: 0
+        });
+      }
+      brandMap.get(item.marke.id).count += 1;
+    });
+
+    this.brandFolders = Array.from(brandMap.values()).sort((a, b) =>
+      (a.markenname || '').localeCompare(b.markenname || '', 'de')
+    );
+  }
+
+  buildCurrentItems() {
+    this.currentItems = this.listen.filter(
+      (item) => item.unternehmen_id === this.currentUnternehmenId && item.marke_id === this.currentMarkeId
+    );
+  }
+
+  renderCompaniesView() {
     const rolle = window.currentUser?.rolle?.toLowerCase();
     const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
     const canCreate = !isKunde && (rolle === 'admin' || window.currentUser?.permissions?.kampagne?.can_edit);
@@ -162,116 +171,459 @@ export class CreatorAuswahlList extends BasePaginatedList {
         <div class="table-filter-wrapper">
           <div class="filter-bar">
             <div class="filter-left">
-              <div id="filter-dropdown-container"></div>
+              ${ViewModeToggle.render([
+                { buttonId: 'btn-view-list', label: 'Liste', icon: 'list', active: this.listViewMode === 'list' },
+                { buttonId: 'btn-view-grid', label: 'Grid', icon: 'grid', active: this.listViewMode === 'grid' }
+              ])}
             </div>
           </div>
           <div class="table-actions">
-            ${canCreate ? `
-              <button class="primary-btn" data-action="create-liste">Neue Creator-Auswahl</button>
-            ` : ''}
+            ${canCreate ? `<button class="primary-btn" data-action="create-liste">Neue Creator-Auswahl</button>` : ''}
           </div>
         </div>
 
+        <div class="table-container">
+          ${this.listViewMode === 'grid'
+            ? `<div class="folders-grid" id="companies-grid"></div>`
+            : this.renderCompaniesTable()}
+        </div>
+      </div>
+    `;
+  }
+
+  renderCompaniesTable() {
+    return `
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Unternehmen</th>
+            <th>Sourcing-Listen</th>
+          </tr>
+        </thead>
+        <tbody id="companies-table-body"></tbody>
+      </table>
+    `;
+  }
+
+  updateCompaniesGrid() {
+    const grid = document.getElementById('companies-grid');
+    if (!grid) return;
+
+    if (this.companyFolders.length === 0) {
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><p>Keine Sourcing-Listen vorhanden.</p></div>`;
+      return;
+    }
+
+    grid.innerHTML = this.companyFolders.map((folder) => `
+      <div class="folder-card" data-unternehmen-id="${folder.id}" data-unternehmen-name="${this.sanitize(folder.firmenname)}">
+        <div class="folder-icon">
+          ${folder.logo_url
+            ? `<img src="${this.sanitize(folder.logo_url)}" alt="${this.sanitize(folder.firmenname)}" class="folder-logo">`
+            : `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="folder-svg">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
+              </svg>`
+          }
+        </div>
+        <div class="folder-info">
+          <span class="folder-name">${this.sanitize(folder.firmenname)}</span>
+          <span class="folder-count">${folder.count} ${folder.count === 1 ? 'Liste' : 'Listen'}</span>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  updateCompaniesTable() {
+    const tbody = document.getElementById('companies-table-body');
+    if (!tbody) return;
+
+    if (this.companyFolders.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="2" class="no-data">Keine Sourcing-Listen vorhanden.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = this.companyFolders.map((folder) => `
+      <tr class="table-row-clickable company-row" data-unternehmen-id="${folder.id}" data-unternehmen-name="${this.sanitize(folder.firmenname)}">
+        <td>
+          <a href="#" class="table-link company-link" data-unternehmen-id="${folder.id}" data-unternehmen-name="${this.sanitize(folder.firmenname)}">
+            ${this.sanitize(folder.firmenname)}
+          </a>
+        </td>
+        <td>${folder.count}</td>
+      </tr>
+    `).join('');
+  }
+
+  renderBrandsView() {
+    const rolle = window.currentUser?.rolle?.toLowerCase();
+    const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+    const canCreate = !isKunde && (rolle === 'admin' || window.currentUser?.permissions?.kampagne?.can_edit);
+
+    return `
+      <div class="list-container">
+        <div class="table-filter-wrapper">
+          <div class="filter-bar">
+            <div class="filter-left">
+              <button id="btn-back-to-companies" class="secondary-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+                </svg>
+                Zurück
+              </button>
+            </div>
+          </div>
+          <div class="table-actions">
+            ${canCreate ? `<button class="primary-btn" data-action="create-liste">Neue Creator-Auswahl</button>` : ''}
+          </div>
+        </div>
+
+        <div class="table-container">
+          <h3 style="margin-bottom: var(--space-sm);">Marken</h3>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Marke</th>
+                <th>Sourcing-Listen</th>
+              </tr>
+            </thead>
+            <tbody id="brands-table-body"></tbody>
+          </table>
+        </div>
+
+        <div class="table-container" style="margin-top: var(--space-lg);">
+          <h3 style="margin-bottom: var(--space-sm);">Ohne Marke</h3>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Kampagne</th>
+                <th>Aktionen</th>
+              </tr>
+            </thead>
+            <tbody id="company-only-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  updateBrandsTable() {
+    const tbody = document.getElementById('brands-table-body');
+    if (!tbody) return;
+
+    if (this.brandFolders.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="2" class="no-data">Keine markenbezogenen Sourcing-Listen vorhanden.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = this.brandFolders.map((brand) => `
+      <tr class="table-row-clickable brand-row" data-marke-id="${brand.id}" data-marke-name="${this.sanitize(brand.markenname)}">
+        <td>
+          <a href="#" class="table-link brand-link" data-marke-id="${brand.id}" data-marke-name="${this.sanitize(brand.markenname)}">
+            ${this.sanitize(brand.markenname)}
+          </a>
+        </td>
+        <td>${brand.count}</td>
+      </tr>
+    `).join('');
+  }
+
+  renderItemsRows(items) {
+    return items.map((liste) => {
+      const rolle = window.currentUser?.rolle?.toLowerCase();
+      const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+      const kampagneName = KampagneUtils.getDisplayName(liste.kampagne);
+      return `
+        <tr class="table-row-clickable" data-liste-id="${liste.id}">
+          <td class="col-name">
+            <a href="#" class="table-link" data-table="sourcing" data-id="${liste.id}">
+              ${this.sanitize(liste.name || 'Ohne Namen')}
+            </a>
+          </td>
+          <td>${kampagneName}</td>
+          <td class="col-actions">
+            <div class="actions-dropdown-container" data-entity-type="creator-auswahl">
+              <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                </svg>
+              </button>
+              <div class="actions-dropdown">
+                <a href="#" class="action-item" data-action="view-liste" data-id="${liste.id}">
+                  ${window.ActionsDropdown?.getHeroIcon('view') || ''}
+                  Details anzeigen
+                </a>
+                ${!isKunde ? `
+                  <a href="#" class="action-item" data-action="edit-liste" data-id="${liste.id}">
+                    ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
+                    Bearbeiten
+                  </a>
+                  <div class="action-separator"></div>
+                  <a href="#" class="action-item action-danger" data-action="delete-liste" data-id="${liste.id}">
+                    ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
+                    Löschen
+                  </a>
+                ` : ''}
+              </div>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  updateCompanyOnlyTable() {
+    const tbody = document.getElementById('company-only-table-body');
+    if (!tbody) return;
+
+    if (this.companyOnlyItems.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="3" class="no-data">Keine unternehmensweiten Einträge ohne Marke.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = this.renderItemsRows(this.companyOnlyItems);
+  }
+
+  renderItemsView() {
+    const rolle = window.currentUser?.rolle?.toLowerCase();
+    const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+    const canCreate = !isKunde && (rolle === 'admin' || window.currentUser?.permissions?.kampagne?.can_edit);
+    return `
+      <div class="list-container">
+        <div class="table-filter-wrapper">
+          <div class="filter-bar">
+            <div class="filter-left">
+              <button id="btn-back-to-brands" class="secondary-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+                </svg>
+                Zurück
+              </button>
+            </div>
+          </div>
+          <div class="table-actions">
+            ${canCreate ? `<button class="primary-btn" data-action="create-liste">Neue Creator-Auswahl</button>` : ''}
+          </div>
+        </div>
         <div class="table-container table-container--creator-auswahl-list">
           <table class="data-table data-table--creator-auswahl-list">
             <thead>
               <tr>
                 <th class="col-name ca-col-name">Name</th>
-                <th class="ca-col-unternehmen">Unternehmen</th>
-                <th class="ca-col-marke">Marke</th>
                 <th class="ca-col-kampagne">Kampagne</th>
                 <th class="col-actions">Aktionen</th>
               </tr>
             </thead>
             <tbody id="creator-auswahl-table-body">
-              <tr>
-                <td colspan="5" class="table-state-cell">
-                  Lade Creator-Auswahl-Listen...
-                </td>
-              </tr>
+              <tr><td colspan="3" class="table-state-cell">Lade Creator-Auswahl-Listen...</td></tr>
             </tbody>
           </table>
         </div>
-
-        <div id="pagination-container-creator-auswahl"></div>
+        <div id="pagination-container-creator-auswahl-items"></div>
       </div>
     `;
   }
-  
-  // ══════════════════════════════════════════════════════════════════════════
-  // ÜBERSCHRIEBENE METHODEN
-  // ══════════════════════════════════════════════════════════════════════════
-  
-  /**
-   * Zusätzliche Events binden
-   */
-  bindAdditionalEvents(signal) {
-    // Create Liste Button - öffnet Drawer statt Navigation
-    document.addEventListener('click', (e) => {
+
+  updateItemsTable() {
+    const tbody = document.getElementById('creator-auswahl-table-body');
+    if (!tbody) return;
+
+    if (this.currentItems.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="3" class="table-state-cell">Keine Sourcing-Listen für diese Marke vorhanden.</td></tr>`;
+      this.pagination.updateTotal(0);
+      this.pagination.render();
+      return;
+    }
+
+    const { currentPage, itemsPerPage } = this.pagination.getState();
+    const start = (currentPage - 1) * itemsPerPage;
+    const end = start + itemsPerPage;
+    const pageItems = this.currentItems.slice(start, end);
+
+    tbody.innerHTML = this.renderItemsRows(pageItems);
+    this.pagination.updateTotal(this.currentItems.length);
+    this.pagination.render();
+    if (window.ActionsDropdown) {
+      window.ActionsDropdown.init();
+    }
+  }
+
+  render() {
+    this.updateBreadcrumb();
+    let html = '';
+    if (this.viewMode === 'companies') {
+      html = this.renderCompaniesView();
+    } else if (this.viewMode === 'brands') {
+      html = this.renderBrandsView();
+    } else {
+      html = this.renderItemsView();
+    }
+
+    window.setContentSafely(window.content, html);
+
+    if (this.viewMode === 'companies') {
+      if (this.listViewMode === 'grid') {
+        this.updateCompaniesGrid();
+      } else {
+        this.updateCompaniesTable();
+      }
+    } else if (this.viewMode === 'brands') {
+      this.updateBrandsTable();
+      this.updateCompanyOnlyTable();
+      if (window.ActionsDropdown) {
+        window.ActionsDropdown.init();
+      }
+    }
+  }
+
+  switchToBrandsView(unternehmenId, unternehmenName) {
+    this.viewMode = 'brands';
+    this.currentUnternehmenId = unternehmenId;
+    this.currentUnternehmenName = unternehmenName;
+    this.currentMarkeId = null;
+    this.currentMarkeName = null;
+    this.loadAndRender();
+  }
+
+  switchToItemsView(markeId, markeName) {
+    this.viewMode = 'items';
+    this.currentMarkeId = markeId;
+    this.currentMarkeName = markeName;
+    this.pagination.currentPage = 1;
+    this.loadAndRender();
+  }
+
+  switchToCompaniesView() {
+    this.viewMode = 'companies';
+    this.currentUnternehmenId = null;
+    this.currentUnternehmenName = null;
+    this.currentMarkeId = null;
+    this.currentMarkeName = null;
+    this.loadAndRender();
+  }
+
+  bindEvents() {
+    this._boundEventListeners.forEach((cleanup) => cleanup());
+    this._boundEventListeners.clear();
+
+    const btnViewList = document.getElementById('btn-view-list');
+    if (btnViewList) {
+      const handler = (e) => {
+        e.preventDefault();
+        if (this.listViewMode === 'list') return;
+        this.listViewMode = 'list';
+        this.loadAndRender();
+      };
+      btnViewList.addEventListener('click', handler);
+      this._boundEventListeners.add(() => btnViewList.removeEventListener('click', handler));
+    }
+
+    const btnViewGrid = document.getElementById('btn-view-grid');
+    if (btnViewGrid) {
+      const handler = (e) => {
+        e.preventDefault();
+        if (this.listViewMode === 'grid') return;
+        this.listViewMode = 'grid';
+        this.loadAndRender();
+      };
+      btnViewGrid.addEventListener('click', handler);
+      this._boundEventListeners.add(() => btnViewGrid.removeEventListener('click', handler));
+    }
+
+    const btnBackToCompanies = document.getElementById('btn-back-to-companies');
+    if (btnBackToCompanies) {
+      const handler = (e) => {
+        e.preventDefault();
+        this.switchToCompaniesView();
+      };
+      btnBackToCompanies.addEventListener('click', handler);
+      this._boundEventListeners.add(() => btnBackToCompanies.removeEventListener('click', handler));
+    }
+
+    const btnBackToBrands = document.getElementById('btn-back-to-brands');
+    if (btnBackToBrands) {
+      const handler = (e) => {
+        e.preventDefault();
+        this.viewMode = 'brands';
+        this.currentMarkeId = null;
+        this.currentMarkeName = null;
+        this.loadAndRender();
+      };
+      btnBackToBrands.addEventListener('click', handler);
+      this._boundEventListeners.add(() => btnBackToBrands.removeEventListener('click', handler));
+    }
+
+    const companiesGrid = document.getElementById('companies-grid');
+    if (companiesGrid) {
+      const handler = (e) => {
+        const folder = e.target.closest('.folder-card');
+        if (!folder) return;
+        this.switchToBrandsView(folder.dataset.unternehmenId, folder.dataset.unternehmenName);
+      };
+      companiesGrid.addEventListener('click', handler);
+      this._boundEventListeners.add(() => companiesGrid.removeEventListener('click', handler));
+    }
+
+    document.querySelectorAll('.company-row').forEach((row) => {
+      const handler = (e) => {
+        if (e.target.closest('.company-link')) e.preventDefault();
+        this.switchToBrandsView(row.dataset.unternehmenId, row.dataset.unternehmenName);
+      };
+      row.addEventListener('click', handler);
+      this._boundEventListeners.add(() => row.removeEventListener('click', handler));
+    });
+
+    document.querySelectorAll('.brand-row').forEach((row) => {
+      const handler = (e) => {
+        if (e.target.closest('.brand-link')) e.preventDefault();
+        this.switchToItemsView(row.dataset.markeId, row.dataset.markeName);
+      };
+      row.addEventListener('click', handler);
+      this._boundEventListeners.add(() => row.removeEventListener('click', handler));
+    });
+
+    document.addEventListener('click', this._globalClickHandler = (e) => {
       if (e.target.closest('[data-action="create-liste"]')) {
         e.preventDefault();
         this.openCreateDrawer();
+        return;
       }
-    }, { signal });
-    
-    // View Liste
-    document.addEventListener('click', (e) => {
+
       const viewBtn = e.target.closest('[data-action="view-liste"]');
       if (viewBtn) {
         e.preventDefault();
-        const id = viewBtn.dataset.id;
-        window.navigateTo(`/sourcing/${id}`);
+        window.navigateTo(`/sourcing/${viewBtn.dataset.id}`);
+        return;
       }
-    }, { signal });
-    
-    // Edit Liste
-    document.addEventListener('click', (e) => {
+
       const editBtn = e.target.closest('[data-action="edit-liste"]');
       if (editBtn) {
         e.preventDefault();
-        const id = editBtn.dataset.id;
-        window.navigateTo(`/sourcing/${id}/edit`);
+        window.navigateTo(`/sourcing/${editBtn.dataset.id}/edit`);
+        return;
       }
-    }, { signal });
-    
-    // Delete Liste
-    document.addEventListener('click', (e) => {
+
       const deleteBtn = e.target.closest('[data-action="delete-liste"]');
       if (deleteBtn) {
         e.preventDefault();
-        const id = deleteBtn.dataset.id;
-        this.confirmDeleteListe(id);
+        this.confirmDeleteListe(deleteBtn.dataset.id);
+        return;
       }
-    }, { signal });
-    
-    // Row Click
-    document.addEventListener('click', (e) => {
+
+      if (e.target.classList.contains('table-link') && e.target.dataset.table === 'sourcing') {
+        e.preventDefault();
+        window.navigateTo(`/sourcing/${e.target.dataset.id}`);
+        return;
+      }
+
       const row = e.target.closest('.table-row-clickable');
       if (row && !e.target.closest('.actions-dropdown-container') && !e.target.closest('.table-link')) {
         const id = row.dataset.listeId;
-        if (id) {
-          window.navigateTo(`/sourcing/${id}`);
-        }
+        if (id) window.navigateTo(`/sourcing/${id}`);
       }
-    }, { signal });
-    
-    // Table Link Click (für Sourcing-Links)
-    document.addEventListener('click', (e) => {
-      if (e.target.classList.contains('table-link') && e.target.dataset.table === 'sourcing') {
-        e.preventDefault();
-        const id = e.target.dataset.id;
-        window.navigateTo(`/sourcing/${id}`);
-      }
-    }, { signal });
+    });
+    this._boundEventListeners.add(() => document.removeEventListener('click', this._globalClickHandler));
   }
-  
-  // ══════════════════════════════════════════════════════════════════════════
-  // CREATOR-AUSWAHL-SPEZIFISCHE METHODEN
-  // ══════════════════════════════════════════════════════════════════════════
-  
-  /**
-   * Lösch-Bestätigung
-   */
+
   async confirmDeleteListe(id) {
     if (window.confirmationModal) {
       const result = await window.confirmationModal.open({
@@ -281,58 +633,39 @@ export class CreatorAuswahlList extends BasePaginatedList {
         cancelText: 'Abbrechen',
         danger: true
       });
-      
       if (result?.confirmed) {
         await this.deleteListe(id);
       }
-    } else {
-      if (confirm('Möchten Sie diese Creator-Auswahl wirklich löschen?')) {
-        await this.deleteListe(id);
-      }
+    } else if (confirm('Möchten Sie diese Creator-Auswahl wirklich löschen?')) {
+      await this.deleteListe(id);
     }
   }
-  
-  /**
-   * Liste löschen
-   */
+
   async deleteListe(id) {
     try {
       await creatorAuswahlService.deleteListe(id);
-      
       window.toastSystem?.show('Creator-Auswahl erfolgreich gelöscht', 'success');
-      
-      // Daten neu laden
       this._forceReload = true;
       this.listen = [];
-      await this.loadData();
-      
+      await this.loadAndRender();
     } catch (error) {
       console.error('Fehler beim Löschen:', error);
       window.toastSystem?.show('Fehler beim Löschen der Creator-Auswahl', 'error');
     }
   }
-  
-  /**
-   * Öffne Create-Drawer für neue Creator-Auswahl
-   */
+
   openCreateDrawer() {
-    console.log('🎯 Öffne Creator-Auswahl Create-Drawer');
-    
-    // Bestehenden Drawer entfernen falls vorhanden
     this.closeCreateDrawer();
-    
-    // Overlay erstellen
+
     const overlay = document.createElement('div');
     overlay.className = 'drawer-overlay';
     overlay.id = 'sourcing-create-drawer-overlay';
-    
-    // Drawer Panel erstellen
+
     const panel = document.createElement('div');
     panel.setAttribute('role', 'dialog');
     panel.className = 'drawer-panel';
     panel.id = 'sourcing-create-drawer';
-    
-    // Header
+
     const header = document.createElement('div');
     header.className = 'drawer-header';
     header.innerHTML = `
@@ -344,40 +677,33 @@ export class CreatorAuswahlList extends BasePaginatedList {
         <button type="button" class="drawer-close-btn" aria-label="Schließen">&times;</button>
       </div>
     `;
-    
-    // Body mit Formular
+
     const body = document.createElement('div');
     body.className = 'drawer-body';
     body.innerHTML = window.formSystem.renderFormOnly('sourcing');
-    
+
     panel.appendChild(header);
     panel.appendChild(body);
-    
-    // Events
+
     overlay.addEventListener('click', () => this.closeCreateDrawer());
     header.querySelector('.drawer-close-btn').addEventListener('click', () => this.closeCreateDrawer());
-    
-    // Zum DOM hinzufügen
+
     document.body.appendChild(overlay);
     document.body.appendChild(panel);
-    
-    // Slide-in Animation
+
     requestAnimationFrame(() => {
       panel.classList.add('show');
     });
-    
-    // Formular-Events binden
+
     window.formSystem.bindFormEvents('sourcing', null);
-    
-    // Custom Submit Handler
+
     const form = panel.querySelector('#sourcing-form');
     if (form) {
       form.onsubmit = async (e) => {
         e.preventDefault();
         await this.handleCreateFormSubmit(form);
       };
-      
-      // Abbrechen-Button im Formular abfangen
+
       const cancelBtn = form.querySelector('.mdc-btn--cancel');
       if (cancelBtn) {
         cancelBtn.onclick = (e) => {
@@ -387,14 +713,11 @@ export class CreatorAuswahlList extends BasePaginatedList {
       }
     }
   }
-  
-  /**
-   * Schließe Create-Drawer
-   */
+
   closeCreateDrawer() {
     const overlay = document.getElementById('sourcing-create-drawer-overlay');
     const panel = document.getElementById('sourcing-create-drawer');
-    
+
     if (panel) {
       panel.classList.remove('show');
       setTimeout(() => {
@@ -405,71 +728,54 @@ export class CreatorAuswahlList extends BasePaginatedList {
       overlay?.remove();
     }
   }
-  
-  /**
-   * Handle Submit für Create-Formular
-   */
+
   async handleCreateFormSubmit(form) {
     try {
       const submitData = window.formSystem.collectSubmitData(form);
-      
-      // Name automatisch generieren falls leer
       if (!submitData.name || submitData.name.trim() === '') {
         const generatedName = await this.autoGeneration.autoGenerateSourcingName(
           submitData.kampagne_id,
           submitData.marke_id,
           submitData.unternehmen_id
         );
-        if (generatedName) {
-          submitData.name = generatedName;
-        }
+        if (generatedName) submitData.name = generatedName;
       }
-      
-      console.log('📤 Erstelle Creator-Auswahl:', submitData);
-      
-      // Creator-Auswahl erstellen
+
       const newListe = await creatorAuswahlService.createListe(submitData);
-      
-      if (newListe && newListe.id) {
+      if (newListe?.id) {
         window.toastSystem?.show('Creator-Auswahl erfolgreich erstellt', 'success');
-        
-        // Drawer schließen
         this.closeCreateDrawer();
-        
-        // Zur Detail-Ansicht navigieren
         window.navigateTo(`/sourcing/${newListe.id}`);
       } else {
         throw new Error('Keine ID zurückgegeben');
       }
-      
     } catch (error) {
       console.error('❌ Fehler beim Erstellen:', error);
       window.toastSystem?.show(`Fehler beim Erstellen: ${error.message}`, 'error');
     }
   }
-  
-  /**
-   * showCreateForm für Routing-Kompatibilität (öffnet auch den Drawer)
-   */
+
   showCreateForm() {
-    // Zur Liste navigieren und Drawer öffnen
     if (window.location.pathname !== '/sourcing') {
       window.navigateTo('/sourcing');
-      // Drawer nach Navigation öffnen
       setTimeout(() => this.openCreateDrawer(), 100);
     } else {
       this.openCreateDrawer();
     }
   }
-  
-  /**
-   * Override destroy um Cache zu clearen
-   */
+
   destroy() {
+    this._boundEventListeners.forEach((cleanup) => cleanup());
+    this._boundEventListeners.clear();
+    this.closeCreateDrawer();
     this.listen = [];
-    super.destroy();
+    this.companyFolders = [];
+    this.brandFolders = [];
+    this.companyOnlyItems = [];
+    this.currentItems = [];
+    this.pagination.destroy();
   }
 }
 
-// Exportiere Instanz für globale Nutzung
 export const creatorAuswahlList = new CreatorAuswahlList();
+

@@ -11,6 +11,7 @@ import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { AuftragFilterLogic } from './filters/AuftragFilterLogic.js';
 import { AuftragCashFlowCalendar } from './AuftragCashFlowCalendar.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
+import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 
 // Statische Formatter (einmalig definiert, nicht bei jedem Render)
 const currencyFormatter = new Intl.NumberFormat('de-DE', { 
@@ -24,11 +25,15 @@ const numberFormatter = new Intl.NumberFormat('de-DE', {
 
 // Kampagne-Art Abkürzungen (statisch)
 const KAMPAGNE_ART_ABBR = {
-  'UGC Kampagne': 'UK',
+  'UGC Pro Paid': 'UPP',
+  'UGC Pro Organic': 'UPO',
+  'UGC Video Paid': 'UVP',
+  'UGC Video Organic': 'UVO',
   'Influencer Kampagne': 'IK',
-  'Hybrid Kampagne': 'HK',
-  'UGC': 'UG',
-  'IGC': 'IG',
+  'Vor Ort Produktionen': 'VOP',
+  'UGC Kampagne': 'UVO',
+  'UGC': 'UVO',
+  'IGC': 'UPO',
   'Influencer': 'IN',
   'Content Creation': 'CC'
 };
@@ -47,6 +52,7 @@ export class AuftragList {
     this.cashFlowCalendar = null;
     this._auftragNewBound = false;
     this._globalEventsBound = false;
+    this._inlineDatePickerCleanup = null;
     this._isAdmin = null; // Gecachter Admin-Status
     
     // Suchfeld
@@ -106,6 +112,110 @@ export class AuftragList {
 
   formatBoolean(value) {
     return value ? CHECK_ICON : CROSS_ICON;
+  }
+
+  renderBillingDateCell(auftrag, boolField, dateField) {
+    if (!this.isAdmin) {
+      return this.formatBoolean(Boolean(auftrag[boolField]));
+    }
+    const label = boolField === 'rechnung_gestellt' ? 'Rechnung gestellt am' : 'Ueberwiesen am';
+    return CustomDatePicker.render({
+      id: auftrag.id,
+      field: boolField,
+      dateField,
+      value: auftrag[dateField],
+      label,
+      inputClass: 'auftrag-inline-date-input'
+    });
+  }
+
+  updateAuftragRowStatusClass(row) {
+    if (!row) return;
+    const isUeberwiesen = row.dataset.ueberwiesen === 'true';
+    const isRechnungGestellt = row.dataset.rechnungGestellt === 'true';
+    row.classList.remove('auftrag-row--ueberwiesen', 'auftrag-row--rechnung-gestellt');
+    if (isUeberwiesen) {
+      row.classList.add('auftrag-row--ueberwiesen');
+    } else if (isRechnungGestellt) {
+      row.classList.add('auftrag-row--rechnung-gestellt');
+    }
+  }
+
+  syncInlineBillingUpdate(auftragId, dateField, value) {
+    const row = document.querySelector(`.data-table tr[data-id="${auftragId}"]`);
+    if (!row) {
+      this.loadAndRender();
+      return;
+    }
+
+    if (dateField === 'rechnung_gestellt_am') {
+      row.dataset.rechnungGestellt = String(Boolean(value));
+    } else if (dateField === 'ueberwiesen_am') {
+      row.dataset.ueberwiesen = String(Boolean(value));
+    }
+    this.updateAuftragRowStatusClass(row);
+
+    const inputSelector = dateField === 'rechnung_gestellt_am'
+      ? '.col-rechnung-gestellt .auftrag-inline-date-input'
+      : '.col-ueberwiesen .auftrag-inline-date-input';
+    const input = row.querySelector(inputSelector);
+    if (!input) return;
+
+    CustomDatePicker.setValue(input, value || '');
+    input.dataset.previousValue = value || '';
+  }
+
+  async handleInlineBillingDateChange(input) {
+    if (!this.isAdmin || !input) return;
+
+    const auftragId = input.dataset.id;
+    const boolField = input.dataset.field;
+    const dateField = input.dataset.dateField;
+    if (!auftragId || !boolField || !dateField) return;
+
+    const previousValue = input.dataset.previousValue || '';
+    const nextValue = CustomDatePicker.getValue(input);
+    if (nextValue === previousValue) return;
+
+    const payload = nextValue
+      ? { [dateField]: nextValue, [boolField]: true }
+      : { [dateField]: null, [boolField]: false };
+
+    CustomDatePicker.setDisabled(input, true);
+    try {
+      const result = await window.dataService.updateEntity('auftrag', auftragId, payload);
+      if (!result?.success) {
+        throw new Error(result?.error || 'Update fehlgeschlagen');
+      }
+
+      input.dataset.previousValue = nextValue;
+
+      const row = input.closest('tr');
+      if (row) {
+        if (boolField === 'rechnung_gestellt') {
+          row.dataset.rechnungGestellt = String(Boolean(nextValue));
+        } else if (boolField === 'ueberwiesen') {
+          row.dataset.ueberwiesen = String(Boolean(nextValue));
+        }
+        this.updateAuftragRowStatusClass(row);
+      }
+
+      window.dispatchEvent(new CustomEvent('entityUpdated', {
+        detail: {
+          entity: 'auftrag',
+          action: 'updated',
+          id: auftragId,
+          field: dateField,
+          value: nextValue || null
+        }
+      }));
+    } catch (error) {
+      console.error('❌ Fehler beim Inline-Update des Datums:', error);
+      CustomDatePicker.setValue(input, previousValue);
+      window.toastSystem?.show('Aktualisierung fehlgeschlagen', 'error');
+    } finally {
+      CustomDatePicker.setDisabled(input, false);
+    }
   }
 
   formatKampagneArtTags(arten) {
@@ -687,7 +797,9 @@ export class AuftragList {
           ust_betrag,
           bruttobetrag,
           rechnung_gestellt,
+          rechnung_gestellt_am,
           ueberwiesen,
+          ueberwiesen_am,
           created_at,
           unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
           marke:marke_id(id, markenname, logo_url),
@@ -962,6 +1074,12 @@ export class AuftragList {
 
     // Ein einziger Change-Handler für alle delegierten Change-Events
     this._globalChangeHandler = (e) => {
+      // Inline Datepicker für Rechnungs-/Ueberweisungsstatus
+      if (e.target.classList.contains('auftrag-inline-date-input')) {
+        this.handleInlineBillingDateChange(e.target);
+        return;
+      }
+
       // Select-All Checkbox
       if (e.target.id === 'select-all-auftraege') {
         const checkboxes = document.querySelectorAll('.auftrag-check');
@@ -991,14 +1109,25 @@ export class AuftragList {
 
     // Entity Updated Event Handler
     this._entityUpdatedHandler = (e) => {
-      if (e.detail.entity === 'auftrag') {
-        this.loadAndRender();
+      if (e.detail.entity !== 'auftrag') return;
+
+      const isInlineBillingUpdate =
+        e.detail.action === 'updated' &&
+        (e.detail.field === 'rechnung_gestellt_am' || e.detail.field === 'ueberwiesen_am') &&
+        e.detail.id;
+
+      if (isInlineBillingUpdate) {
+        this.syncInlineBillingUpdate(e.detail.id, e.detail.field, e.detail.value);
+        return;
       }
+
+      this.loadAndRender();
     };
 
     // Events registrieren
     document.addEventListener('click', this._globalClickHandler);
     document.addEventListener('change', this._globalChangeHandler);
+    this._inlineDatePickerCleanup = CustomDatePicker.bind(document);
     window.addEventListener('entityUpdated', this._entityUpdatedHandler);
   }
 
@@ -1075,7 +1204,7 @@ export class AuftragList {
             ? 'auftrag-row--rechnung-gestellt'
             : '';
         return `
-        <tr data-id="${auftrag.id}" class="${statusClass}">
+        <tr data-id="${auftrag.id}" class="${statusClass}" data-rechnung-gestellt="${Boolean(auftrag.rechnung_gestellt)}" data-ueberwiesen="${Boolean(auftrag.ueberwiesen)}">
           ${this.isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
           <td>${this.formatUnternehmenTag(auftrag.unternehmen)}</td>
           <td>${this.formatMarkeTag(auftrag.marke)}</td>
@@ -1092,8 +1221,8 @@ export class AuftragList {
           <td>${this.formatCurrency(auftrag.ust_betrag)}</td>
           <td>${this.formatCurrency(auftrag.bruttobetrag)}</td>
           <td>${this.formatAnsprechpartner(auftrag.ansprechpartner)}</td>
-          <td class="col-rechnung-gestellt">${this.formatBoolean(auftrag.rechnung_gestellt)}</td>
-          <td class="col-ueberwiesen">${this.formatBoolean(auftrag.ueberwiesen)}</td>
+          <td class="col-rechnung-gestellt">${this.renderBillingDateCell(auftrag, 'rechnung_gestellt', 'rechnung_gestellt_am')}</td>
+          <td class="col-ueberwiesen">${this.renderBillingDateCell(auftrag, 'ueberwiesen', 'ueberwiesen_am')}</td>
           <td>
             <span class="status-badge status-${(auftrag.status?.toLowerCase() || 'unknown').replace(/\s+/g, '-')}">
               ${auftrag.status || '-'}
@@ -1143,6 +1272,10 @@ export class AuftragList {
     if (this._entityUpdatedHandler) {
       window.removeEventListener('entityUpdated', this._entityUpdatedHandler);
       this._entityUpdatedHandler = null;
+    }
+    if (this._inlineDatePickerCleanup) {
+      this._inlineDatePickerCleanup();
+      this._inlineDatePickerCleanup = null;
     }
     
     // Flags zurücksetzen
@@ -1809,7 +1942,8 @@ export class AuftragList {
         }
       });
 
-      // FormData zu Objekt konvertieren
+      // FormData zu Objekt konvertieren (bei doppelten Keys z. B. marke_id: nicht-leeren Wert bevorzugen)
+      const isEmpty = (v) => v === undefined || v === null || v === '' || (typeof v === 'string' && v.trim() === '');
       for (const [key, value] of formData.entries()) {
         if (key.includes('[]')) {
           const cleanKey = key.replace('[]', '');
@@ -1821,7 +1955,13 @@ export class AuftragList {
           }
         } else {
           if (!submitData.hasOwnProperty(key) || !Array.isArray(submitData[key])) {
-            submitData[key] = value;
+            const existing = submitData[key];
+            if (existing === undefined) {
+              submitData[key] = value;
+            } else if (isEmpty(existing) && !isEmpty(value)) {
+              submitData[key] = value;
+            }
+            // sonst: existing behalten (leerer Wert überschreibt keinen gültigen)
           }
         }
       }

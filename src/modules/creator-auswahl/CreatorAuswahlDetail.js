@@ -667,9 +667,12 @@ export class CreatorAuswahlDetail {
               style="border: none; background: transparent; cursor: pointer;"
             >
               <option value="">-</option>
-              <option value="IGC" ${item.typ === 'IGC' ? 'selected' : ''}>IGC</option>
-              <option value="UGC" ${item.typ === 'UGC' ? 'selected' : ''}>UGC</option>
+              <option value="UGC Pro Paid" ${item.typ === 'UGC Pro Paid' ? 'selected' : ''}>UGC Pro Paid</option>
+              <option value="UGC Pro Organic" ${item.typ === 'UGC Pro Organic' ? 'selected' : ''}>UGC Pro Organic</option>
+              <option value="UGC Video Paid" ${item.typ === 'UGC Video Paid' ? 'selected' : ''}>UGC Video Paid</option>
+              <option value="UGC Video Organic" ${item.typ === 'UGC Video Organic' ? 'selected' : ''}>UGC Video Organic</option>
               <option value="Influencer" ${item.typ === 'Influencer' ? 'selected' : ''}>Influencer</option>
+              <option value="Vor-Ort-Produktion" ${item.typ === 'Vor-Ort-Produktion' ? 'selected' : ''}>Vor-Ort-Produktion</option>
               <option value="Videograf" ${item.typ === 'Videograf' ? 'selected' : ''}>Videograf</option>
               <option value="Model" ${item.typ === 'Model' ? 'selected' : ''}>Model</option>
             </select>
@@ -1230,9 +1233,12 @@ export class CreatorAuswahlDetail {
             <label class="form-label">Creator Art *</label>
             <select id="creator-typ" name="typ" class="form-input" required>
               <option value="">Bitte wählen...</option>
-              <option value="IGC">IGC</option>
-              <option value="UGC">UGC</option>
+              <option value="UGC Pro Paid">UGC Pro Paid</option>
+              <option value="UGC Pro Organic">UGC Pro Organic</option>
+              <option value="UGC Video Paid">UGC Video Paid</option>
+              <option value="UGC Video Organic">UGC Video Organic</option>
               <option value="Influencer">Influencer</option>
+              <option value="Vor-Ort-Produktion">Vor-Ort-Produktion</option>
               <option value="Videograf">Videograf</option>
               <option value="Model">Model</option>
             </select>

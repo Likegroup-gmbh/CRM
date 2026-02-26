@@ -193,19 +193,25 @@ export class DataService {
           videoanzahl: 'number',
           budget_info: 'string',
           // Dynamische Kampagnenart-Felder
-          ugc_video_anzahl: 'number',
-          ugc_creator_anzahl: 'number',
-          ugc_bilder_anzahl: 'number',
+          ugc_pro_paid_video_anzahl: 'number',
+          ugc_pro_paid_creator_anzahl: 'number',
+          ugc_pro_paid_bilder_anzahl: 'number',
+          ugc_pro_organic_video_anzahl: 'number',
+          ugc_pro_organic_creator_anzahl: 'number',
+          ugc_pro_organic_bilder_anzahl: 'number',
+          ugc_video_paid_video_anzahl: 'number',
+          ugc_video_paid_creator_anzahl: 'number',
+          ugc_video_paid_bilder_anzahl: 'number',
+          ugc_video_organic_video_anzahl: 'number',
+          ugc_video_organic_creator_anzahl: 'number',
+          ugc_video_organic_bilder_anzahl: 'number',
           influencer_video_anzahl: 'number',
           influencer_creator_anzahl: 'number',
           influencer_bilder_anzahl: 'number',
           vor_ort_video_anzahl: 'number',
           vor_ort_creator_anzahl: 'number',
           vor_ort_bilder_anzahl: 'number',
-          vor_ort_videographen_anzahl: 'number',
-          igc_video_anzahl: 'number',
-          igc_creator_anzahl: 'number',
-          igc_bilder_anzahl: 'number'
+          vor_ort_videographen_anzahl: 'number'
         },
         relations: {
           unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' },
@@ -526,6 +532,7 @@ export class DataService {
           zahlungsziel_tage: 'number',
           re_nr: 'string',
           re_faelligkeit: 'date',
+          erwarteter_monat_zahlungseingang: 'date',
           kampagnenanzahl: 'number',
           start: 'date',
           ende: 'date',
@@ -583,15 +590,42 @@ export class DataService {
         fields: {
           auftrag_id: 'uuid',
           kampagnenanzahl: 'number',
-          // UGC
-          ugc_video_anzahl: 'number',
-          ugc_creator_anzahl: 'number',
-          ugc_bilder_anzahl: 'number',
-          ugc_budget_info: 'text',
-          ugc_einkaufspreis_netto_von: 'number',
-          ugc_einkaufspreis_netto_bis: 'number',
-          ugc_verkaufspreis_netto_von: 'number',
-          ugc_verkaufspreis_netto_bis: 'number',
+          // UGC Pro Paid
+          ugc_pro_paid_video_anzahl: 'number',
+          ugc_pro_paid_creator_anzahl: 'number',
+          ugc_pro_paid_bilder_anzahl: 'number',
+          ugc_pro_paid_budget_info: 'text',
+          ugc_pro_paid_einkaufspreis_netto_von: 'number',
+          ugc_pro_paid_einkaufspreis_netto_bis: 'number',
+          ugc_pro_paid_verkaufspreis_netto_von: 'number',
+          ugc_pro_paid_verkaufspreis_netto_bis: 'number',
+          // UGC Pro Organic
+          ugc_pro_organic_video_anzahl: 'number',
+          ugc_pro_organic_creator_anzahl: 'number',
+          ugc_pro_organic_bilder_anzahl: 'number',
+          ugc_pro_organic_budget_info: 'text',
+          ugc_pro_organic_einkaufspreis_netto_von: 'number',
+          ugc_pro_organic_einkaufspreis_netto_bis: 'number',
+          ugc_pro_organic_verkaufspreis_netto_von: 'number',
+          ugc_pro_organic_verkaufspreis_netto_bis: 'number',
+          // UGC Video Paid
+          ugc_video_paid_video_anzahl: 'number',
+          ugc_video_paid_creator_anzahl: 'number',
+          ugc_video_paid_bilder_anzahl: 'number',
+          ugc_video_paid_budget_info: 'text',
+          ugc_video_paid_einkaufspreis_netto_von: 'number',
+          ugc_video_paid_einkaufspreis_netto_bis: 'number',
+          ugc_video_paid_verkaufspreis_netto_von: 'number',
+          ugc_video_paid_verkaufspreis_netto_bis: 'number',
+          // UGC Video Organic
+          ugc_video_organic_video_anzahl: 'number',
+          ugc_video_organic_creator_anzahl: 'number',
+          ugc_video_organic_bilder_anzahl: 'number',
+          ugc_video_organic_budget_info: 'text',
+          ugc_video_organic_einkaufspreis_netto_von: 'number',
+          ugc_video_organic_einkaufspreis_netto_bis: 'number',
+          ugc_video_organic_verkaufspreis_netto_von: 'number',
+          ugc_video_organic_verkaufspreis_netto_bis: 'number',
           // Influencer
           influencer_video_anzahl: 'number',
           influencer_creator_anzahl: 'number',
@@ -620,15 +654,6 @@ export class DataService {
           vor_ort_mitarbeiter_einkaufspreis_netto_bis: 'number',
           vor_ort_mitarbeiter_verkaufspreis_netto_von: 'number',
           vor_ort_mitarbeiter_verkaufspreis_netto_bis: 'number',
-          // IGC
-          igc_video_anzahl: 'number',
-          igc_creator_anzahl: 'number',
-          igc_bilder_anzahl: 'number',
-          igc_budget_info: 'text',
-          igc_einkaufspreis_netto_von: 'number',
-          igc_einkaufspreis_netto_bis: 'number',
-          igc_verkaufspreis_netto_von: 'number',
-          igc_verkaufspreis_netto_bis: 'number',
           // Gesamt
           gesamt_videos: 'number',
           gesamt_creator: 'number'
@@ -647,15 +672,42 @@ export class DataService {
         fields: {
           auftrag_id: 'uuid',
           kampagnenanzahl: 'number',
-          // UGC
-          ugc_video_anzahl: 'number',
-          ugc_creator_anzahl: 'number',
-          ugc_bilder_anzahl: 'number',
-          ugc_budget_info: 'text',
-          ugc_einkaufspreis_netto_von: 'number',
-          ugc_einkaufspreis_netto_bis: 'number',
-          ugc_verkaufspreis_netto_von: 'number',
-          ugc_verkaufspreis_netto_bis: 'number',
+          // UGC Pro Paid
+          ugc_pro_paid_video_anzahl: 'number',
+          ugc_pro_paid_creator_anzahl: 'number',
+          ugc_pro_paid_bilder_anzahl: 'number',
+          ugc_pro_paid_budget_info: 'text',
+          ugc_pro_paid_einkaufspreis_netto_von: 'number',
+          ugc_pro_paid_einkaufspreis_netto_bis: 'number',
+          ugc_pro_paid_verkaufspreis_netto_von: 'number',
+          ugc_pro_paid_verkaufspreis_netto_bis: 'number',
+          // UGC Pro Organic
+          ugc_pro_organic_video_anzahl: 'number',
+          ugc_pro_organic_creator_anzahl: 'number',
+          ugc_pro_organic_bilder_anzahl: 'number',
+          ugc_pro_organic_budget_info: 'text',
+          ugc_pro_organic_einkaufspreis_netto_von: 'number',
+          ugc_pro_organic_einkaufspreis_netto_bis: 'number',
+          ugc_pro_organic_verkaufspreis_netto_von: 'number',
+          ugc_pro_organic_verkaufspreis_netto_bis: 'number',
+          // UGC Video Paid
+          ugc_video_paid_video_anzahl: 'number',
+          ugc_video_paid_creator_anzahl: 'number',
+          ugc_video_paid_bilder_anzahl: 'number',
+          ugc_video_paid_budget_info: 'text',
+          ugc_video_paid_einkaufspreis_netto_von: 'number',
+          ugc_video_paid_einkaufspreis_netto_bis: 'number',
+          ugc_video_paid_verkaufspreis_netto_von: 'number',
+          ugc_video_paid_verkaufspreis_netto_bis: 'number',
+          // UGC Video Organic
+          ugc_video_organic_video_anzahl: 'number',
+          ugc_video_organic_creator_anzahl: 'number',
+          ugc_video_organic_bilder_anzahl: 'number',
+          ugc_video_organic_budget_info: 'text',
+          ugc_video_organic_einkaufspreis_netto_von: 'number',
+          ugc_video_organic_einkaufspreis_netto_bis: 'number',
+          ugc_video_organic_verkaufspreis_netto_von: 'number',
+          ugc_video_organic_verkaufspreis_netto_bis: 'number',
           // Influencer
           influencer_video_anzahl: 'number',
           influencer_creator_anzahl: 'number',
@@ -684,15 +736,6 @@ export class DataService {
           vor_ort_mitarbeiter_einkaufspreis_netto_bis: 'number',
           vor_ort_mitarbeiter_verkaufspreis_netto_von: 'number',
           vor_ort_mitarbeiter_verkaufspreis_netto_bis: 'number',
-          // IGC
-          igc_video_anzahl: 'number',
-          igc_creator_anzahl: 'number',
-          igc_bilder_anzahl: 'number',
-          igc_budget_info: 'text',
-          igc_einkaufspreis_netto_von: 'number',
-          igc_einkaufspreis_netto_bis: 'number',
-          igc_verkaufspreis_netto_von: 'number',
-          igc_verkaufspreis_netto_bis: 'number',
           gesamt_videos: 'number',
           gesamt_creator: 'number'
         },
@@ -2017,7 +2060,12 @@ export class DataService {
             supabaseData[field] = value === 'on' || value === true || value === 'true' ? true : false;
             break;
           default: // string, uuid, etc.
-            supabaseData[field] = value || null;
+            // Leere/Whitespace-Strings als null, damit UNIQUE-Constraints (z. B. angebotsnummer) nicht mehrfach '' bekommen
+            if (fieldType === 'string' && typeof value === 'string' && value.trim() === '') {
+              supabaseData[field] = null;
+            } else {
+              supabaseData[field] = value || null;
+            }
         }
       } else {
         // Ausnahme: Meta-Felder und automatisch generierte Felder immer übernehmen

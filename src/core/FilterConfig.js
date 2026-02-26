@@ -146,10 +146,12 @@ export const FILTER_CONFIGS = {
       type: 'select',
       multiple: true,
       options: [
-        { value: 'UGC Kampagne', label: 'UGC Kampagne' },
+        { value: 'UGC Pro Paid', label: 'UGC Pro Paid' },
+        { value: 'UGC Pro Organic', label: 'UGC Pro Organic' },
+        { value: 'UGC Video Paid', label: 'UGC Video Paid' },
+        { value: 'UGC Video Organic', label: 'UGC Video Organic' },
         { value: 'Influencer Kampagne', label: 'Influencer Kampagne' },
-        { value: 'Hybrid Kampagne', label: 'Hybrid Kampagne' },
-        { value: 'Produktions Kampagne', label: 'Produktions Kampagne' }
+        { value: 'Vor Ort Produktionen', label: 'Vor Ort Produktionen' }
       ]
     },
     {
@@ -280,10 +282,12 @@ export const FILTER_CONFIGS = {
       type: 'select',
       multiple: true,
       options: [
-        { value: 'UGC Kampagne', label: 'UGC Kampagne' },
+        { value: 'UGC Pro Paid', label: 'UGC Pro Paid' },
+        { value: 'UGC Pro Organic', label: 'UGC Pro Organic' },
+        { value: 'UGC Video Paid', label: 'UGC Video Paid' },
+        { value: 'UGC Video Organic', label: 'UGC Video Organic' },
         { value: 'Influencer Kampagne', label: 'Influencer Kampagne' },
-        { value: 'Hybrid Kampagne', label: 'Hybrid Kampagne' },
-        { value: 'Produktions Kampagne', label: 'Produktions Kampagne' }
+        { value: 'Vor Ort Produktionen', label: 'Vor Ort Produktionen' }
       ]
     },
     {

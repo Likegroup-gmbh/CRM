@@ -143,28 +143,26 @@ export class AuftragCashFlowCalendar {
   assignToMonths(auftrag, months) {
     const rechnungDatum = auftrag.rechnung_gestellt_am ? new Date(auftrag.rechnung_gestellt_am) : null;
     const ueberweisenDatum = auftrag.ueberwiesen_am ? new Date(auftrag.ueberwiesen_am) : null;
+    const erwarteterZahlungseingangDatum = auftrag.erwarteter_monat_zahlungseingang
+      ? new Date(auftrag.erwarteter_monat_zahlungseingang)
+      : null;
     const reFaelligkeitDatum = auftrag.re_faelligkeit ? new Date(auftrag.re_faelligkeit) : null;
     const betrag = parseFloat(auftrag.nettobetrag) || 0;
     
-    // LOGIK (Priorität von oben nach unten):
-    // 1. Wenn ueberwiesen_am existiert → NUR grün anzeigen (im Überweisungsmonat)
-    // 2. Wenn rechnung_gestellt_am existiert (aber nicht überwiesen) → NUR orange anzeigen
-    // 3. Wenn nur re_faelligkeit existiert (nichts anderes) → weiß anzeigen
-    
-    // Bestimme welches Datum und welchen Status wir verwenden
+    // Priorität: paid > invoiced > pending (expected/re_faelligkeit)
     let anzeigeStatus = null;
     let anzeigeDatum = null;
     
     if (ueberweisenDatum) {
-      // Höchste Priorität: Überwiesen
       anzeigeStatus = 'paid';
       anzeigeDatum = ueberweisenDatum;
     } else if (rechnungDatum) {
-      // Mittlere Priorität: Rechnung gestellt
       anzeigeStatus = 'invoiced';
       anzeigeDatum = rechnungDatum;
+    } else if (erwarteterZahlungseingangDatum) {
+      anzeigeStatus = 'pending';
+      anzeigeDatum = erwarteterZahlungseingangDatum;
     } else if (reFaelligkeitDatum) {
-      // Niedrigste Priorität: Nur RE-Fälligkeit
       anzeigeStatus = 'pending';
       anzeigeDatum = reFaelligkeitDatum;
     }
@@ -189,7 +187,6 @@ export class AuftragCashFlowCalendar {
     }
     
     // Setze Zellen-Status (höchster Status gewinnt)
-    // paid > invoiced > pending
     const statusPriority = { 'paid': 3, 'invoiced': 2, 'pending': 1 };
     const currentPriority = statusPriority[months[monthIndex].status] || 0;
     const newPriority = statusPriority[anzeigeStatus] || 0;
@@ -259,7 +256,7 @@ export class AuftragCashFlowCalendar {
             <div class="empty-state">
               <div class="empty-icon">📅</div>
               <h3>Keine Daten für ${this.currentYear}</h3>
-              <p>Für dieses Jahr gibt es noch keine Aufträge mit Rechnungs- oder Überweisungsdaten.</p>
+              <p>Für dieses Jahr gibt es noch keine Aufträge mit relevanten Zahlungsdaten.</p>
             </div>
           </td>
         </tr>

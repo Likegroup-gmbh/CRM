@@ -39,11 +39,33 @@ export class KampagneKooperationenVideoTable {
     this.startX = 0;
     this.scrollLeft = 0;
     this.dragScrollContainer = null;
+    this._entityUpdatedHandler = null;
+  }
+
+  getCurrentUserRole() {
+    return String(window.currentUser?.rolle || '').trim().toLowerCase();
+  }
+
+  isKundeRole() {
+    const role = this.getCurrentUserRole();
+    return role === 'kunde' || role === 'kunde_editor';
+  }
+
+  canDeleteKooperation() {
+    if (this.isKundeRole()) return false;
+
+    const canDelete = window.currentUser?.permissions?.kooperation?.can_delete;
+    if (typeof canDelete === 'boolean') {
+      return canDelete;
+    }
+
+    const role = this.getCurrentUserRole();
+    return role === 'admin' || role === 'mitarbeiter';
   }
 
   // Prüfe ob ein Feld für den aktuellen Benutzer editierbar ist
   isFieldEditableForUser(entity, field) {
-    const userRole = window.currentUser?.rolle;
+    const userRole = this.getCurrentUserRole();
     
     // Admins und Mitarbeiter können alles bearbeiten
     if (userRole === 'admin' || userRole === 'mitarbeiter') {
@@ -51,7 +73,7 @@ export class KampagneKooperationenVideoTable {
     }
     
     // Kunden dürfen folgende Felder NICHT bearbeiten:
-    if (userRole === 'kunde') {
+    if (this.isKundeRole()) {
       const readOnlyFieldsForKunden = {
         'kooperation': ['vertrag_unterschrieben', 'typ', 'nutzungsrechte'],
         'versand': ['versendet', 'tracking_nummer', 'produkt_name', 'produkt_link'],
@@ -338,8 +360,7 @@ export class KampagneKooperationenVideoTable {
       // Kunden: einkaufspreis_* nicht laden (Datenschutz)
       // ========================================
       this._startPerformanceTracking('Query: kooperationen');
-      const rolle = window.currentUser?.rolle?.toLowerCase();
-      const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+      const isKunde = this.isKundeRole();
       const koopSelect = isKunde
         ? `id, name, status, content_art, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, skript_deadline, content_deadline, created_at, creator_id, kampagne:kampagne_id (id, kampagnenname)`
         : `id, name, status, einkaufspreis_netto, einkaufspreis_gesamt, content_art, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, skript_deadline, content_deadline, created_at, creator_id, kampagne:kampagne_id (id, kampagnenname)`;
@@ -584,7 +605,7 @@ export class KampagneKooperationenVideoTable {
 
   // Prüfe ob eine Spalte für Kunden sichtbar ist
   isColumnVisibleForCustomer(columnClass) {
-    const userRole = window.currentUser?.rolle;
+    const userRole = this.getCurrentUserRole();
     
     // Admin/Mitarbeiter sehen immer alles
     if (userRole === 'admin' || userRole === 'mitarbeiter') {
@@ -598,6 +619,11 @@ export class KampagneKooperationenVideoTable {
     
     // Kosten-Spalte für Kunden IMMER ausblenden (Einkaufspreise!)
     if (columnClass === 'col-kosten') {
+      return false;
+    }
+
+    // Kunden sehen kein Aktionsmenü in der Kooperations-/Video-Tabelle
+    if (columnClass === 'col-actions' && this.isKundeRole()) {
       return false;
     }
     
@@ -651,8 +677,7 @@ export class KampagneKooperationenVideoTable {
   // Rendere die Tabelle
   render() {
     if (!this.kooperationen || this.kooperationen.length === 0) {
-      const rolle = window.currentUser?.rolle?.toLowerCase();
-      const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+      const isKunde = this.isKundeRole();
       return `
         <div class="empty-state">
           <div class="empty-icon">🎬</div>
@@ -811,6 +836,9 @@ export class KampagneKooperationenVideoTable {
     const videos = this.videos[koop.id] || [];
     const versand = this.versandInfos[koop.id] || null;
     const creator = koop.creator || {};
+    const canViewViaPage = window.canViewPage?.('creator');
+    const canViewViaPerm = window.currentUser?.permissions?.creator?.can_view;
+    const canViewCreator = !this.isKundeRole() && canViewViaPage !== false && canViewViaPerm !== false;
     
     const formatCurrency = (v) => v ? new Intl.NumberFormat('de-DE', { 
       style: 'currency', 
@@ -831,9 +859,11 @@ export class KampagneKooperationenVideoTable {
       <tr class="kooperation-row" data-kooperation-id="${koop.id}">
         <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-nr') ? 'style="display:none;"' : ''}>${rowNumber}</td>
         <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-creator') ? 'style="display:none;"' : ''}>
-          <a href="/creator/${creator.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${creator.id}')" class="table-link">
+          ${canViewCreator && creator.id
+            ? `<a href="/creator/${creator.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${creator.id}')" class="table-link">
             ${this.escapeHtml(`${creator.vorname || ''} ${creator.nachname || ''}`.trim() || 'Unbekannt')}
-          </a>
+          </a>`
+            : this.escapeHtml(`${creator.vorname || ''} ${creator.nachname || ''}`.trim() || 'Unbekannt')}
         </td>
         <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-kosten') ? 'style="display:none;"' : ''}>${this.isColumnVisibleForCustomer('col-kosten') ? formatCurrency(koop.einkaufspreis_gesamt) : '—'}</td>
         <td class="grid-cell" ${!this.isColumnVisibleForCustomer('col-typ') ? 'style="display:none;"' : ''}>
@@ -845,9 +875,12 @@ export class KampagneKooperationenVideoTable {
             ${!this.isFieldEditableForUser('kooperation', 'typ') ? 'disabled' : ''}
           >
             <option value="">-- Bitte wählen --</option>
-            <option value="UGC" ${koop.typ === 'UGC' ? 'selected' : ''}>UGC</option>
-            <option value="IGC" ${koop.typ === 'IGC' ? 'selected' : ''}>IGC</option>
+            <option value="UGC Pro Paid" ${koop.typ === 'UGC Pro Paid' ? 'selected' : ''}>UGC Pro Paid</option>
+            <option value="UGC Pro Organic" ${koop.typ === 'UGC Pro Organic' ? 'selected' : ''}>UGC Pro Organic</option>
+            <option value="UGC Video Paid" ${koop.typ === 'UGC Video Paid' ? 'selected' : ''}>UGC Video Paid</option>
+            <option value="UGC Video Organic" ${koop.typ === 'UGC Video Organic' ? 'selected' : ''}>UGC Video Organic</option>
             <option value="Influencer" ${koop.typ === 'Influencer' ? 'selected' : ''}>Influencer</option>
+            <option value="Vor-Ort-Produktion" ${koop.typ === 'Vor-Ort-Produktion' ? 'selected' : ''}>Vor-Ort-Produktion</option>
             <option value="Videograph" ${koop.typ === 'Videograph' ? 'selected' : ''}>Videograph</option>
             <option value="Fotograph" ${koop.typ === 'Fotograph' ? 'selected' : ''}>Fotograph</option>
           </select>
@@ -1078,6 +1111,15 @@ export class KampagneKooperationenVideoTable {
                 </svg>
                 Bearbeiten
               </a>
+              ${this.canDeleteKooperation() ? `
+                <div class="action-separator"></div>
+                <a href="#" class="action-item action-danger" data-action="delete" data-id="${koop.id}">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673A2.25 2.25 0 0 1 15.916 21H8.084a2.25 2.25 0 0 1-2.244-2.327L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916A2.25 2.25 0 0 0 13.5 2.25h-3a2.25 2.25 0 0 0-2.25 2.25v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                  </svg>
+                  Löschen
+                </a>
+              ` : ''}
             </div>
           </div>
         </td>
@@ -1608,12 +1650,23 @@ export class KampagneKooperationenVideoTable {
           if (e.detail.kampagneId === this.kampagneId) {
             this.hiddenColumns = e.detail.hiddenColumns;
             // Nur refreshen wenn der User ein Kunde ist
-            if (window.currentUser?.rolle === 'kunde') {
+            if (this.isKundeRole()) {
               this.refresh();
             }
           }
         });
         this._visibilityEventBound = true;
+      }
+
+      // Fallback: Sofortiges UI-Update nach erfolgreicher Löschung aus ActionsDropdown
+      if (!this._entityUpdatedHandler) {
+        this._entityUpdatedHandler = async (e) => {
+          const detail = e.detail || {};
+          if (detail.entity === 'kooperation' && detail.action === 'deleted' && detail.id) {
+            await this.handleKooperationDeletedById(detail.id, 'entityUpdated');
+          }
+        };
+        window.addEventListener('entityUpdated', this._entityUpdatedHandler);
       }
       
       // Floating Scrollbar initialisieren
@@ -1850,6 +1903,24 @@ export class KampagneKooperationenVideoTable {
           this.handleKooperationUpdate(payload);
         }
       })
+
+      // 3c. Überwache Kooperations-Löschungen
+      .on('postgres_changes', {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'kooperationen'
+      }, (payload) => {
+        const deletedKooperationId = payload?.old?.id;
+        const belongsByKampagne = payload?.old?.kampagne_id === this.kampagneId;
+        const belongsByLocalState = deletedKooperationId
+          ? this.kooperationen.some(k => k.id === deletedKooperationId)
+          : false;
+
+        if (belongsByKampagne || belongsByLocalState) {
+          console.log('✅ REALTIME: Kooperation-Löschung gehört zu dieser Kampagne', deletedKooperationId);
+          this.handleKooperationDelete(payload);
+        }
+      })
       
       // 4. Überwache Video-Kommentare (für Feedback-Änderungen)
       .on('postgres_changes', {
@@ -1984,6 +2055,34 @@ export class KampagneKooperationenVideoTable {
       };
       console.log('✅ REALTIME: Lokale Daten aktualisiert (kein DOM-Update)');
     }
+  }
+
+  async handleKooperationDelete(payload) {
+    const deletedKooperationId = payload?.old?.id;
+    if (!deletedKooperationId) return;
+
+    await this.handleKooperationDeletedById(deletedKooperationId, 'realtime');
+  }
+
+  async handleKooperationDeletedById(kooperationId, source = 'unknown') {
+    if (!kooperationId) return;
+
+    const hasKooperation = this.kooperationen.some(k => k.id === kooperationId);
+    if (!hasKooperation) return;
+
+    const deletedVideos = this.videos[kooperationId] || [];
+    const deletedVideoIds = deletedVideos.map(v => v.id);
+
+    this.kooperationen = this.kooperationen.filter(k => k.id !== kooperationId);
+    delete this.videos[kooperationId];
+
+    deletedVideoIds.forEach((videoId) => {
+      delete this.videoComments[videoId];
+      delete this.versandInfos[videoId];
+    });
+
+    console.log(`🗑️ KOOPERATIONENVIDEOTABLE: Kooperation ${kooperationId} lokal entfernt (Quelle: ${source})`);
+    await this.refresh();
   }
 
   async handleCommentChange(payload) {
@@ -2306,6 +2405,12 @@ export class KampagneKooperationenVideoTable {
     
     // Cleanup Realtime-Subscription
     this.cleanupRealtimeSubscription();
+
+    // Cleanup entityUpdated-Fallback-Listener
+    if (this._entityUpdatedHandler) {
+      window.removeEventListener('entityUpdated', this._entityUpdatedHandler);
+      this._entityUpdatedHandler = null;
+    }
     
     // Floating-Scrollbar aus DOM entfernen
     const floatingScrollbar = document.getElementById('floating-scrollbar-kampagne');

@@ -148,6 +148,19 @@ class ModuleRegistry {
     const [segment, idRaw, action] = pathParts;
     const id = idRaw ? idRaw.split('?')[0] : idRaw;
 
+    // Sperre Creator-Detailseiten für Rollen ohne View-Recht (z. B. kunde/kunde_editor)
+    if (segment === 'creator' && id && id !== 'new') {
+      const canViewViaPage = window.canViewPage?.('creator');
+      const canViewViaPerm = window.currentUser?.permissions?.creator?.can_view;
+      const canViewCreator = canViewViaPage !== false && canViewViaPerm !== false;
+
+      if (!canViewCreator) {
+        console.log('🚫 Navigation blockiert: Keine Berechtigung für Creator-Profile');
+        window.toastSystem?.show('Sie haben keine Berechtigung, Creator-Profile anzuzeigen.', 'warning');
+        return;
+      }
+    }
+
     if (import.meta.env.DEV) {
       console.log(`🧭 Navigation zu: ${segment}${id ? ` (ID: ${id})` : ''}${action ? ` (Action: ${action})` : ''}`);
       console.log(`🔍 Verfügbare Module:`, Array.from(this.modules.keys()));

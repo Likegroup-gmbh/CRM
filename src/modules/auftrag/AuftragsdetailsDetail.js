@@ -17,6 +17,10 @@ export class AuftragsdetailsDetail {
       totalVideos: 0,
       totalCreators: 0
     };
+    this._eventsBound = false;
+    this._docClickHandler = null;
+    this._notizenUpdatedHandler = null;
+    this._bewertungenUpdatedHandler = null;
   }
 
   // Initialisiere Auftragsdetails-Detailseite
@@ -42,7 +46,7 @@ export class AuftragsdetailsDetail {
       
       // Breadcrumb aktualisieren mit Edit-Button
       if (window.breadcrumbSystem && this.auftrag) {
-        const canEdit = window.currentUser?.permissions?.auftrag?.can_edit !== false;
+        const canEdit = window.currentUser?.permissions?.auftragsdetails?.can_edit !== false;
         window.breadcrumbSystem.updateBreadcrumb([
           { label: 'Auftragsdetails', url: '/auftragsdetails', clickable: true },
           { label: this.auftrag.auftragsname || 'Details', url: `/auftragsdetails/${this.detailsId}`, clickable: false }
@@ -341,33 +345,39 @@ export class AuftragsdetailsDetail {
     // Daten für die Tabelle vorbereiten
     const sections = [
       {
-        title: 'UGC (User Generated Content)',
-        prefix: 'ugc',
+        title: 'UGC Pro Paid',
+        prefix: 'ugc_pro_paid',
         color: '#28a745',
         hasVideographen: false
       },
       {
-        title: 'IGC (Influencer Generated Content)',
-        prefix: 'igc',
+        title: 'UGC Pro Organic',
+        prefix: 'ugc_pro_organic',
         color: '#17a2b8',
         hasVideographen: false
       },
       {
-        title: 'Influencer',
-        prefix: 'influencer', 
+        title: 'UGC Video Paid',
+        prefix: 'ugc_video_paid',
         color: '#6f42c1',
         hasVideographen: false
       },
       {
-        title: 'Vor Ort Dreh',
-        prefix: 'vor_ort',
+        title: 'UGC Video Organic',
+        prefix: 'ugc_video_organic',
         color: '#fd7e14',
-        hasVideographen: true
+        hasVideographen: false
       },
       {
-        title: 'Vor Ort Dreh Mitarbeiter',
-        prefix: 'vor_ort_mitarbeiter',
+        title: 'Influencer Kampagne',
+        prefix: 'influencer',
         color: '#20c997',
+        hasVideographen: false
+      },
+      {
+        title: 'Vor-Ort-Produktion',
+        prefix: 'vor_ort',
+        color: '#007bff',
         hasVideographen: true
       }
     ];
@@ -628,8 +638,11 @@ export class AuftragsdetailsDetail {
 
   // Binde Events
   bindEvents() {
-    // Edit-Button
-    document.addEventListener('click', (e) => {
+    if (this._eventsBound) return;
+    this._eventsBound = true;
+
+    // Edit-Button + Table-Links
+    this._docClickHandler = (e) => {
       if (e.target.id === 'btn-edit-details' || e.target.closest('#btn-edit-details')) {
         e.preventDefault();
         this.showEditForm();
@@ -645,22 +658,23 @@ export class AuftragsdetailsDetail {
           window.navigateTo(`/${table}/${id}`);
         }
       }
-    });
+    };
+    document.addEventListener('click', this._docClickHandler);
 
     // Notizen und Bewertungen Events
-    document.addEventListener('notizenUpdated', () => {
+    this._notizenUpdatedHandler = () => {
       this.loadDetailsData().then(() => {
         this.render();
-        this.bindEvents();
       });
-    });
+    };
+    document.addEventListener('notizenUpdated', this._notizenUpdatedHandler);
 
-    document.addEventListener('bewertungenUpdated', () => {
+    this._bewertungenUpdatedHandler = () => {
       this.loadDetailsData().then(() => {
         this.render();
-        this.bindEvents();
       });
-    });
+    };
+    document.addEventListener('bewertungenUpdated', this._bewertungenUpdatedHandler);
   }
 
   // Bearbeitungsformular anzeigen
@@ -674,6 +688,19 @@ export class AuftragsdetailsDetail {
   // Cleanup
   destroy() {
     console.log('AUFTRAGSDETAILSDETAIL: Cleaning up...');
+    if (this._docClickHandler) {
+      document.removeEventListener('click', this._docClickHandler);
+      this._docClickHandler = null;
+    }
+    if (this._notizenUpdatedHandler) {
+      document.removeEventListener('notizenUpdated', this._notizenUpdatedHandler);
+      this._notizenUpdatedHandler = null;
+    }
+    if (this._bewertungenUpdatedHandler) {
+      document.removeEventListener('bewertungenUpdated', this._bewertungenUpdatedHandler);
+      this._bewertungenUpdatedHandler = null;
+    }
+    this._eventsBound = false;
   }
 }
 

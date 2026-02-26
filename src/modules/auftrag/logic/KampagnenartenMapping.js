@@ -2,12 +2,33 @@
 // Mapping zwischen Kampagnenarten-Namen (aus DB kampagne_art_typen) und Feld-Präfixen
 
 export const KAMPAGNENARTEN_MAPPING = {
-  'UGC-Kampagne': { 
-    prefix: 'ugc', 
-    hasCreator: true, 
-    hasBilder: true,  // Nur UGC hat Bilder
+  'UGC Pro Paid': {
+    prefix: 'ugc_pro_paid',
+    hasCreator: true,
+    hasBilder: false,
     hasVideographen: false,
-    displayName: 'UGC'
+    displayName: 'UGC Pro Paid'
+  },
+  'UGC Pro Organic': {
+    prefix: 'ugc_pro_organic',
+    hasCreator: true,
+    hasBilder: false,
+    hasVideographen: false,
+    displayName: 'UGC Pro Organic'
+  },
+  'UGC Video Paid': {
+    prefix: 'ugc_video_paid',
+    hasCreator: true,
+    hasBilder: false,
+    hasVideographen: false,
+    displayName: 'UGC Video Paid'
+  },
+  'UGC Video Organic': {
+    prefix: 'ugc_video_organic',
+    hasCreator: true,
+    hasBilder: false,
+    hasVideographen: false,
+    displayName: 'UGC Video Organic'
   },
   'Influencer Kampagne': { 
     prefix: 'influencer', 
@@ -23,18 +44,40 @@ export const KAMPAGNENARTEN_MAPPING = {
     hasVideographen: true,  // Nur Vor Ort hat Videographen
     displayName: 'Vor Ort'
   },
-  'IGC Kampagnen': { 
-    prefix: 'igc', 
-    hasCreator: true, 
-    hasBilder: false,  // IGC hat keine Bilder
+  // Legacy-Kompatibilität (kann entfernt werden, sobald Altwerte nicht mehr vorkommen)
+  'UGC-Kampagne': {
+    prefix: 'ugc_video_organic',
+    hasCreator: true,
+    hasBilder: false,
     hasVideographen: false,
-    displayName: 'IGC'
+    displayName: 'UGC Video Organic'
+  },
+  'UGC Kampagne': {
+    prefix: 'ugc_video_organic',
+    hasCreator: true,
+    hasBilder: false,
+    hasVideographen: false,
+    displayName: 'UGC Video Organic'
+  },
+  'IGC Kampagnen': {
+    prefix: 'ugc_pro_organic',
+    hasCreator: true,
+    hasBilder: false,
+    hasVideographen: false,
+    displayName: 'UGC Pro Organic'
+  },
+  'IGC Kampagne': {
+    prefix: 'ugc_pro_organic',
+    hasCreator: true,
+    hasBilder: false,
+    hasVideographen: false,
+    displayName: 'UGC Pro Organic'
   }
 };
 
 /**
  * Generiert Feldnamen für eine Kampagnenart
- * @param {string} artName - Name der Kampagnenart (z.B. "UGC-Kampagne")
+ * @param {string} artName - Name der Kampagnenart (z.B. "UGC Pro Paid")
  * @returns {object|null} - Objekt mit Feldnamen oder null wenn nicht gefunden
  */
 export function getFieldsForKampagnenart(artName) {
@@ -265,8 +308,8 @@ export function generateFieldsWithBudgetHtml(artName, values = {}, anzahlReadonl
 }
 
 /**
- * Generiert HTML NUR für Budget-Info (ohne Anzahl-Felder)
- * Für die Auftragsdetails-Erstellung - Anzahl wird über Kampagnen gepflegt
+ * Generiert HTML für Budget-Info + optionales Videoanzahl-Feld (per Toggle)
+ * Für die Auftragsdetails-Erstellung - zusätzliche Info getrennt von Kampagnenwerten
  * Enthält Einkaufspreis und Verkaufspreis pro Kampagnenart (jeweils als Preisspanne)
  * @param {string} artName - Name der Kampagnenart
  * @param {object} values - Werte für die Felder (optional)
@@ -277,10 +320,38 @@ export function generateBudgetOnlyFieldsHtml(artName, values = {}) {
   if (!config) return '';
   
   const { prefix, displayName } = config;
+  const videoAnzahlValue = values[`${prefix}_video_anzahl`];
+  const hasVideoAnzahl = videoAnzahlValue !== null && videoAnzahlValue !== undefined && videoAnzahlValue !== '';
   
   return `
     <fieldset class="kampagnenart-fields form-section-fieldset" data-art="${artName}" data-prefix="${prefix}">
       <legend>${displayName}</legend>
+      <div class="form-field form-field--full">
+        <label class="toggle-label" for="${prefix}_video_anzahl_enabled">
+          <span class="toggle-text">Anzahl Videos vorhanden?</span>
+          <span class="toggle-switch">
+            <input 
+              type="checkbox" 
+              id="${prefix}_video_anzahl_enabled" 
+              name="${prefix}_video_anzahl_enabled"
+              data-video-toggle="true"
+              data-target="${prefix}_video_anzahl"
+              ${hasVideoAnzahl ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </span>
+        </label>
+      </div>
+      <div class="form-field form-field--half" data-video-anzahl-wrapper="${prefix}" style="${hasVideoAnzahl ? '' : 'display: none;'}">
+        <label for="${prefix}_video_anzahl">Anzahl Videos</label>
+        <input 
+          type="number" 
+          id="${prefix}_video_anzahl" 
+          name="${prefix}_video_anzahl" 
+          min="0" 
+          step="1" 
+          value="${hasVideoAnzahl ? videoAnzahlValue : ''}" 
+          placeholder="z.B. 5">
+      </div>
       <div class="form-two-col">
         <div class="form-field form-field--half">
           <label>Einkaufspreis (Netto)</label>

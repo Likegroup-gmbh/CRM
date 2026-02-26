@@ -17,6 +17,9 @@ export class AuftragsdetailsList {
     this.pagination = new PaginationSystem();
     this.searchQuery = '';
     this._searchDebounceTimer = null;
+    this._eventsBound = false;
+    this._reloadTimer = null;
+    this._loadRequestId = 0;
   }
 
   // Initialisiere Auftragsdetails-Liste
@@ -54,6 +57,7 @@ export class AuftragsdetailsList {
 
   // Lade und rendere Auftragsdetails
   async loadAndRender() {
+    const requestId = ++this._loadRequestId;
     console.log('🔄 AUFTRAGSDETAILSLIST: Lade und rendere Auftragsdetails');
     
     try {
@@ -72,6 +76,7 @@ export class AuftragsdetailsList {
         this.pagination.currentPage,
         this.pagination.itemsPerPage
       );
+      if (requestId !== this._loadRequestId) return;
       
       console.log('📊 AUFTRAGSDETAILSLIST: Auftragsdetails mit Beziehungen geladen:', details?.length, details);
       
@@ -221,18 +226,28 @@ export class AuftragsdetailsList {
           });
           
           let allowedMarkenIds = [];
-          for (const unternehmenId of unternehmenIds) {
-            const explicitMarkenIds = unternehmenMarkenMap.get(unternehmenId);
-            if (explicitMarkenIds && explicitMarkenIds.length > 0) {
-              allowedMarkenIds.push(...explicitMarkenIds);
-            } else {
-              const { data: alleMarken } = await window.supabase
-                .from('marke')
-                .select('id')
-                .eq('unternehmen_id', unternehmenId);
-              allowedMarkenIds.push(...(alleMarken || []).map(m => m.id));
-            }
+          const unternehmenOhneExpliziteMarken = unternehmenIds.filter(
+            unternehmenId => !unternehmenMarkenMap.has(unternehmenId)
+          );
+
+          if (unternehmenOhneExpliziteMarken.length > 0) {
+            const { data: alleMarkenFuerUnternehmen } = await window.supabase
+              .from('marke')
+              .select('id, unternehmen_id')
+              .in('unternehmen_id', unternehmenOhneExpliziteMarken);
+
+            (alleMarkenFuerUnternehmen || []).forEach(marke => {
+              if (!unternehmenMarkenMap.has(marke.unternehmen_id)) {
+                unternehmenMarkenMap.set(marke.unternehmen_id, []);
+              }
+              unternehmenMarkenMap.get(marke.unternehmen_id).push(marke.id);
+            });
           }
+
+          unternehmenIds.forEach(unternehmenId => {
+            const markenIdsForUnternehmen = unternehmenMarkenMap.get(unternehmenId) || [];
+            allowedMarkenIds.push(...markenIdsForUnternehmen);
+          });
           
           // Direkt zugeordnete Marken hinzufügen
           allowedMarkenIds.push(...markenIds);
@@ -313,10 +328,13 @@ export class AuftragsdetailsList {
         query = query.eq('auftrag_id', filters.auftrag_id);
       }
 
-      // Sortierung und Pagination
-      query = query
-        .order('created_at', { ascending: false })
-        .range(from, to);
+      // Sortierung
+      query = query.order('created_at', { ascending: false });
+
+      // Nur ohne Suchbegriff serverseitig paginieren
+      if (!this.searchQuery) {
+        query = query.range(from, to);
+      }
 
       const { data, error, count } = await query;
 
@@ -340,7 +358,12 @@ export class AuftragsdetailsList {
         });
       }
 
-      return { data: filteredData, count: this.searchQuery ? filteredData.length : (count || 0) };
+      if (this.searchQuery) {
+        const paginated = filteredData.slice(from, to + 1);
+        return { data: paginated, count: filteredData.length };
+      }
+
+      return { data: filteredData, count: count || 0 };
 
     } catch (error) {
       console.error('❌ Fehler beim Laden der Auftragsdetails mit Beziehungen:', error);
@@ -367,8 +390,8 @@ export class AuftragsdetailsList {
     
     // Pagination auf Seite 1 zurücksetzen bei Filter-Änderung
     this.pagination.reset();
-    
-    this.loadAndRender();
+
+    this.scheduleReload();
   }
 
   // Filter zurückgesetzt
@@ -378,8 +401,8 @@ export class AuftragsdetailsList {
     
     // Pagination auf Seite 1 zurücksetzen
     this.pagination.reset();
-    
-    this.loadAndRender();
+
+    this.scheduleReload();
   }
 
   // Suche mit Debounce
@@ -388,17 +411,20 @@ export class AuftragsdetailsList {
     this._searchDebounceTimer = setTimeout(() => {
       this.searchQuery = query.trim();
       this.pagination.reset();
-      this.loadAndRender();
+      this.scheduleReload(0);
     }, 300);
   }
 
   // Binde Events
   bindEvents() {
+    if (this._eventsBound) return;
+    this._eventsBound = true;
+
     // Suchfeld Events
     SearchInput.bind('auftragsdetails', (value) => this.handleSearch(value));
 
     // Neuen Auftragsdetails anlegen Button
-    document.addEventListener('click', (e) => {
+    this.addManagedListener(document, 'click', (e) => {
       if (e.target.id === 'btn-auftragsdetails-new' || e.target.closest('#btn-auftragsdetails-new')) {
         e.preventDefault();
         window.navigateTo('/auftragsdetails/new');
@@ -406,7 +432,7 @@ export class AuftragsdetailsList {
     });
 
     // Alle auswählen Button
-    document.addEventListener('click', (e) => {
+    this.addManagedListener(document, 'click', (e) => {
       if (e.target.id === 'btn-select-all') {
         e.preventDefault();
         const checkboxes = document.querySelectorAll('.auftragsdetails-check');
@@ -424,7 +450,7 @@ export class AuftragsdetailsList {
     });
 
     // Auswahl aufheben Button
-    document.addEventListener('click', (e) => {
+    this.addManagedListener(document, 'click', (e) => {
       if (e.target.id === 'btn-deselect-all') {
         e.preventDefault();
         const checkboxes = document.querySelectorAll('.auftragsdetails-check');
@@ -440,7 +466,7 @@ export class AuftragsdetailsList {
     });
 
     // Auftragsdetails Detail Links
-    document.addEventListener('click', (e) => {
+    this.addManagedListener(document, 'click', (e) => {
       if (e.target.classList.contains('table-link') && e.target.dataset.table === 'auftragsdetails') {
         e.preventDefault();
         const detailsId = e.target.dataset.id;
@@ -450,14 +476,14 @@ export class AuftragsdetailsList {
     });
 
     // Entity Updated Event
-    window.addEventListener('entityUpdated', (e) => {
+    this.addManagedListener(window, 'entityUpdated', (e) => {
       if (e.detail.entity === 'auftragsdetails' || e.detail.entity === 'auftrag_details') {
-        this.loadAndRender();
+        this.scheduleReload();
       }
     });
 
     // Filter-Tag X-Buttons
-    document.addEventListener('click', (e) => {
+    this.addManagedListener(document, 'click', (e) => {
       if (e.target.classList.contains('tag-x')) {
         e.preventDefault();
         e.stopPropagation();
@@ -469,12 +495,12 @@ export class AuftragsdetailsList {
         const currentFilters = window.filterSystem.getFilters('auftragsdetails');
         delete currentFilters[key];
         window.filterSystem.applyFilters('auftragsdetails', currentFilters);
-        this.loadAndRender();
+        this.scheduleReload();
       }
     });
 
     // Select-All Checkbox
-    document.addEventListener('change', (e) => {
+    this.addManagedListener(document, 'change', (e) => {
       if (e.target.id === 'select-all-auftragsdetails') {
         const checkboxes = document.querySelectorAll('.auftragsdetails-check');
         checkboxes.forEach(cb => {
@@ -490,7 +516,7 @@ export class AuftragsdetailsList {
     });
 
     // Auftragsdetails Checkboxes
-    document.addEventListener('change', (e) => {
+    this.addManagedListener(document, 'change', (e) => {
       if (e.target.classList.contains('auftragsdetails-check')) {
         if (e.target.checked) {
           this.selectedDetails.add(e.target.dataset.id);
@@ -699,12 +725,34 @@ export class AuftragsdetailsList {
       element.removeEventListener(type, handler);
     });
     this._boundEventListeners.clear();
+    this._eventsBound = false;
+    if (this._searchDebounceTimer) {
+      clearTimeout(this._searchDebounceTimer);
+      this._searchDebounceTimer = null;
+    }
+    if (this._reloadTimer) {
+      clearTimeout(this._reloadTimer);
+      this._reloadTimer = null;
+    }
     
     // Event-Listener entfernen
     if (this.boundFilterResetHandler) {
       document.removeEventListener('click', this.boundFilterResetHandler);
       this.boundFilterResetHandler = null;
     }
+  }
+
+  addManagedListener(element, type, handler) {
+    element.addEventListener(type, handler);
+    this._boundEventListeners.add({ element, type, handler });
+  }
+
+  scheduleReload(delayMs = 100) {
+    if (this._reloadTimer) clearTimeout(this._reloadTimer);
+    this._reloadTimer = setTimeout(() => {
+      this.loadAndRender();
+      this._reloadTimer = null;
+    }, delayMs);
   }
 
   // Show Create Form (für Routing)

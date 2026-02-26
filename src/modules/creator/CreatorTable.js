@@ -4,6 +4,12 @@ import { creatorUtils } from './CreatorUtils.js';
 
 export function renderCreatorTable(creators, options = {}) {
   const { showFavoriteAction = false, showFavoritesMenu = false, showSelection = false, kampagneId = null } = options || {};
+  const rolle = String(window.currentUser?.rolle || '').trim().toLowerCase();
+  const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+  const canViewViaPage = window.canViewPage?.('creator');
+  const canViewViaPerm = window.currentUser?.permissions?.creator?.can_view;
+  const canViewCreator = !isKunde && canViewViaPage !== false && canViewViaPerm !== false;
+  const canShowActions = !isKunde && (showFavoriteAction || showFavoritesMenu);
 
   const rows = (creators || []).map((c) => {
     const id = c.id;
@@ -22,7 +28,7 @@ export function renderCreatorTable(creators, options = {}) {
     const stadt = c.lieferadresse_stadt || '-';
     const land = c.lieferadresse_land || '-';
 
-    const actionsCell = showFavoriteAction
+    const actionsCell = canShowActions && showFavoriteAction
       ? `
         <td>
           <div class="actions-dropdown-container" data-entity-type="creator">
@@ -51,7 +57,7 @@ export function renderCreatorTable(creators, options = {}) {
           </div>
         </td>
       `
-      : showFavoritesMenu
+      : canShowActions && showFavoritesMenu
       ? `
         <td>
           <div class="actions-dropdown-container" data-entity-type="creator">
@@ -85,7 +91,7 @@ export function renderCreatorTable(creators, options = {}) {
         ${showSelection ? `<td><input type=\"checkbox\" class=\"creator-check\" data-id=\"${id}\"></td>` : ''}
         <td class="col-name-with-icon">
           <span class="table-avatar">${(c.vorname || '?')[0].toUpperCase()}</span>
-          ${id ? `<a href="#" class="table-link" data-table="creator" data-id="${id}">${name}</a>` : name}
+          ${id && canViewCreator ? `<a href="#" class="table-link" data-table="creator" data-id="${id}">${name}</a>` : name}
         </td>
         <td>${typen}</td>
         <td>${sprachen}</td>
@@ -113,7 +119,7 @@ export function renderCreatorTable(creators, options = {}) {
             <th>TikTok</th>
             <th>Stadt</th>
             <th>Land</th>
-            ${(showFavoriteAction || showFavoritesMenu) ? '<th>Aktionen</th>' : ''}
+            ${canShowActions ? '<th>Aktionen</th>' : ''}
           </tr>
         </thead>
         <tbody>

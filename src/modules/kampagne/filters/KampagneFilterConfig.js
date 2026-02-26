@@ -205,10 +205,10 @@ export const KAMPAGNE_FILTER_PRESETS = [
   },
   {
     id: 'ugc_campaigns',
-    label: 'UGC Kampagnen',
-    description: 'User Generated Content Kampagnen',
+    label: 'UGC Kampagnen (Pro/Video)',
+    description: 'UGC Pro und UGC Video Kampagnen (Paid/Organic)',
     filters: {
-      art_der_kampagne: ['UGC Kampagne']
+      art_der_kampagne: ['UGC Pro Paid', 'UGC Pro Organic', 'UGC Video Paid', 'UGC Video Organic']
     }
   },
   {
