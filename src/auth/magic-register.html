@@ -369,6 +369,21 @@
 
       if (benutzerError) throw benutzerError;
 
+      // Kunde mit Ansprechpartner verknüpfen (DB-Trigger kopiert Unternehmen + Marken automatisch)
+      const kundeId = benutzerData?.id;
+      if (kundeId && ansprechpartner?.id) {
+        const { error: linkError } = await supabase
+          .from('kunde_ansprechpartner')
+          .upsert({
+            kunde_id: kundeId,
+            ansprechpartner_id: ansprechpartner.id
+          }, { onConflict: 'kunde_id,ansprechpartner_id', ignoreDuplicates: true });
+
+        if (linkError) {
+          console.warn('⚠️ Kunde-Ansprechpartner Verknüpfung fehlgeschlagen:', linkError);
+        }
+      }
+
       // Weiterleitung zur E-Mail-Verifizierung
       window.location.href = `/src/auth/verify-email.html?email=${encodeURIComponent(email)}&redirect_to=/kunden&magic_token=${encodeURIComponent(token)}`;
 
