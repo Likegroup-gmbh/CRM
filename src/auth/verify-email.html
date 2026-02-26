@@ -437,7 +437,7 @@
         }
 
         // Magic Link als verwendet markieren.
-        // Die eigentliche Kunden-Verknüpfung läuft serverseitig per DB-Trigger.
+        // Die Kunden-Verknüpfung passiert im Registrierungs-Flow (magic-register / MagicLinkService).
         async function consumeMagicLinkToken() {
             if (!magicToken) return;
 
@@ -496,6 +496,7 @@
                 // Magic Link konsumieren (falls Token vorhanden)
                 if (magicToken) {
                     console.log('🔗 Konsumiere Magic Link...')
+                    console.log('ℹ️ Hinweis: Verknüpfungen werden hier nicht erstellt, nur Token-Status wird gesetzt.')
                     try {
                         await consumeMagicLinkToken()
                     } catch (linkError) {

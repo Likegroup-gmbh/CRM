@@ -1762,7 +1762,7 @@ h3.section-title,
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: -1;
   padding: 1rem;
 }
 
@@ -3844,7 +3844,7 @@ h3.section-title,
 }
 
 .data-table .custom-date-picker.has-value .custom-date-picker__trigger {
-  background: var(--gray-400);
+  background: var(--color-success);
   color: var(--bg-primary);
   
 }

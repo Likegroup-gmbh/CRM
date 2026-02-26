@@ -129,8 +129,13 @@ export class CustomDatePicker {
         event.preventDefault();
         const action = actionButton.dataset.action;
         if (action === 'today') {
-          this.applyValue(input, this.formatISO(new Date()));
-          this.closePicker(picker);
+          const today = new Date();
+          const todayIso = this.formatISO(today);
+          this.applyValue(input, todayIso);
+          popover.dataset.viewMonth = String(today.getMonth());
+          popover.dataset.viewYear = String(today.getFullYear());
+          popover.dataset.focusedValue = todayIso;
+          this.renderCalendar(picker);
         } else if (action === 'clear') {
           this.applyValue(input, '');
           this.closePicker(picker);

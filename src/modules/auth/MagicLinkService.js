@@ -136,6 +136,66 @@ export class MagicLinkService {
     }
   }
 
+  async syncCustomerLinksFromAnsprechpartner(kundeId, ansprechpartner) {
+    if (!kundeId || !ansprechpartner) return;
+
+    // Unternehmen-Zuordnungen idempotent ergänzen
+    const unternehmenLinks = (ansprechpartner.ansprechpartner_unternehmen || [])
+      .map(au => au?.unternehmen?.id)
+      .filter(Boolean)
+      .map(unternehmenId => ({
+        kunde_id: kundeId,
+        unternehmen_id: unternehmenId
+      }));
+
+    if (unternehmenLinks.length > 0) {
+      const { error: unternehmenError } = await window.supabase
+        .from('kunde_unternehmen')
+        .upsert(unternehmenLinks, { onConflict: 'kunde_id,unternehmen_id', ignoreDuplicates: true });
+
+      if (unternehmenError) {
+        console.warn('⚠️ Unternehmen-Verknüpfung fehlgeschlagen:', unternehmenError);
+      } else {
+        console.log('✅ Unternehmen verknüpft:', unternehmenLinks.length);
+      }
+    }
+
+    // Marken-Zuordnungen idempotent ergänzen
+    const markenLinks = (ansprechpartner.ansprechpartner_marke || [])
+      .map(am => am?.marke?.id)
+      .filter(Boolean)
+      .map(markeId => ({
+        kunde_id: kundeId,
+        marke_id: markeId
+      }));
+
+    if (markenLinks.length > 0) {
+      const { error: markenError } = await window.supabase
+        .from('kunde_marke')
+        .upsert(markenLinks, { onConflict: 'kunde_id,marke_id', ignoreDuplicates: true });
+
+      if (markenError) {
+        console.warn('⚠️ Marken-Verknüpfung fehlgeschlagen:', markenError);
+      } else {
+        console.log('✅ Marken verknüpft:', markenLinks.length);
+      }
+    }
+
+    // Kunde ↔ Ansprechpartner idempotent ergänzen
+    const { error: linkError } = await window.supabase
+      .from('kunde_ansprechpartner')
+      .upsert({
+        kunde_id: kundeId,
+        ansprechpartner_id: ansprechpartner.id
+      }, { onConflict: 'kunde_id,ansprechpartner_id', ignoreDuplicates: true });
+
+    if (linkError) {
+      console.warn('⚠️ Kunde-Ansprechpartner Verknüpfung fehlgeschlagen:', linkError);
+    } else {
+      console.log('✅ Kunde mit Ansprechpartner verknüpft');
+    }
+  }
+
   /**
    * Registriert einen neuen Kunden über Magic Link
    * @param {string} token - Magic Link Token
@@ -184,79 +244,66 @@ export class MagicLinkService {
         throw new Error('Auth User ID nicht erhalten');
       }
 
-      // 3. Benutzer-Record erstellen (wird evtl. vom Trigger gemacht, also upsert)
-      const { data: benutzerData, error: benutzerError } = await window.supabase
+      // 3. Bestehenden Kunden via E-Mail wiederverwenden, sonst neu anlegen
+      const { data: existingByEmail, error: existingLookupError } = await window.supabase
         .from('benutzer')
-        .upsert({
-          auth_user_id: authUserId,
-          name,
-          email,
-          rolle: 'kunde',
-          freigeschaltet: true, // Direkt freigeschaltet da über Magic Link
-          zugriffsrechte: null
-        }, {
-          onConflict: 'auth_user_id'
-        })
-        .select()
-        .single();
+        .select('id, auth_user_id')
+        .ilike('email', email)
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-      if (benutzerError) {
-        console.error('❌ Benutzer erstellen fehlgeschlagen:', benutzerError);
-        // Nicht abbrechen, evtl. wurde User vom Trigger erstellt
+      if (existingLookupError) {
+        throw existingLookupError;
+      }
+
+      const existingKunde = existingByEmail?.[0] || null;
+      if (existingKunde?.auth_user_id && existingKunde.auth_user_id !== authUserId) {
+        throw new Error('E-Mail ist bereits mit einem anderen Login verknüpft.');
+      }
+
+      let benutzerData = null;
+
+      if (existingKunde) {
+        const { data, error: updateError } = await window.supabase
+          .from('benutzer')
+          .update({
+            auth_user_id: authUserId,
+            name,
+            rolle: 'kunde',
+            freigeschaltet: true,
+            zugriffsrechte: null
+          })
+          .eq('id', existingKunde.id)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+        benutzerData = data;
+      } else {
+        const { data, error: benutzerError } = await window.supabase
+          .from('benutzer')
+          .upsert({
+            auth_user_id: authUserId,
+            name,
+            email,
+            rolle: 'kunde',
+            freigeschaltet: true, // Direkt freigeschaltet da über Magic Link
+            zugriffsrechte: null
+          }, {
+            onConflict: 'auth_user_id'
+          })
+          .select()
+          .single();
+
+        if (benutzerError) throw benutzerError;
+        benutzerData = data;
       }
 
       const kundeId = benutzerData?.id;
 
-      // 4. Unternehmen vom Ansprechpartner kopieren
-      if (kundeId && ansprechpartner.ansprechpartner_unternehmen?.length > 0) {
-        const unternehmenLinks = ansprechpartner.ansprechpartner_unternehmen.map(au => ({
-          kunde_id: kundeId,
-          unternehmen_id: au.unternehmen.id
-        }));
-
-        const { error: unternehmenError } = await window.supabase
-          .from('kunde_unternehmen')
-          .insert(unternehmenLinks);
-
-        if (unternehmenError) {
-          console.warn('⚠️ Unternehmen-Verknüpfung fehlgeschlagen:', unternehmenError);
-        } else {
-          console.log('✅ Unternehmen verknüpft:', unternehmenLinks.length);
-        }
-      }
-
-      // 5. Marken vom Ansprechpartner kopieren
-      if (kundeId && ansprechpartner.ansprechpartner_marke?.length > 0) {
-        const markenLinks = ansprechpartner.ansprechpartner_marke.map(am => ({
-          kunde_id: kundeId,
-          marke_id: am.marke.id
-        }));
-
-        const { error: markenError } = await window.supabase
-          .from('kunde_marke')
-          .insert(markenLinks);
-
-        if (markenError) {
-          console.warn('⚠️ Marken-Verknüpfung fehlgeschlagen:', markenError);
-        } else {
-          console.log('✅ Marken verknüpft:', markenLinks.length);
-        }
-      }
-
-      // 6. Kunde ↔ Ansprechpartner Verknüpfung
+      // 4. Fehlende Zuordnungen vom Ansprechpartner idempotent ergänzen
       if (kundeId) {
-        const { error: linkError } = await window.supabase
-          .from('kunde_ansprechpartner')
-          .insert({
-            kunde_id: kundeId,
-            ansprechpartner_id: ansprechpartner.id
-          });
-
-        if (linkError) {
-          console.warn('⚠️ Kunde-Ansprechpartner Verknüpfung fehlgeschlagen:', linkError);
-        } else {
-          console.log('✅ Kunde mit Ansprechpartner verknüpft');
-        }
+        await this.syncCustomerLinksFromAnsprechpartner(kundeId, ansprechpartner);
       }
 
       // 7. Magic Link als verwendet markieren
