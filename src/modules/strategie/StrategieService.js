@@ -18,22 +18,28 @@ export class StrategieService {
     if (rolle === 'admin') {
       return this._fetchAllStrategien();
     }
-    
-    // Für Mitarbeiter und Kunden: erlaubte Kampagnen ermitteln
+
+    if (rolle === 'kunde' || rolle === 'kunde_editor') {
+      const customerScope = await this._getCustomerAccessScope(user?.id);
+      console.log('🔐 Kundenscope Strategie:', customerScope);
+
+      const allStrategien = await this._fetchAllStrategien();
+      const filtered = allStrategien.filter((strategie) => this._isInCustomerScope(strategie, customerScope));
+
+      console.log(`🔐 Strategien (Kunde) gefiltert: ${filtered.length} von ${allStrategien.length}`);
+      return filtered;
+    }
+
+    // Für Mitarbeiter: erlaubte Kampagnen ermitteln
     const allowedKampagneIds = await this._getAllowedKampagneIds(user, rolle);
-    
     console.log('🔐 Erlaubte Kampagnen für Benutzer:', allowedKampagneIds);
-    
-    // Alle Strategien laden
+
     const allStrategien = await this._fetchAllStrategien();
-    
-    // Filtern: Strategie muss einer erlaubten Kampagne zugeordnet sein
-    const filtered = allStrategien.filter(s => 
-      s.kampagne_id && allowedKampagneIds.includes(s.kampagne_id)
+    const filtered = allStrategien.filter(
+      (s) => s.kampagne_id && allowedKampagneIds.includes(s.kampagne_id)
     );
-    
+
     console.log(`🔐 Strategien gefiltert: ${filtered.length} von ${allStrategien.length}`);
-    
     return filtered;
   }
 
@@ -59,6 +65,69 @@ export class StrategieService {
     }
 
     return data;
+  }
+
+  async _getCustomerAccessScope(userId) {
+    if (!userId) {
+      return { unternehmenIds: [], markeIds: [], kampagneIds: [] };
+    }
+
+    const { data: userUnternehmen } = await window.supabase
+      .from('kunde_unternehmen')
+      .select('unternehmen_id')
+      .eq('kunde_id', userId);
+
+    const unternehmenIds = [...new Set((userUnternehmen || []).map((u) => u.unternehmen_id).filter(Boolean))];
+
+    const { data: userMarken } = await window.supabase
+      .from('kunde_marke')
+      .select('marke_id')
+      .eq('kunde_id', userId);
+
+    const directMarkeIds = (userMarken || []).map((m) => m.marke_id).filter(Boolean);
+
+    let unternehmenMarkeIds = [];
+    if (unternehmenIds.length > 0) {
+      const { data: markenByUnternehmen } = await window.supabase
+        .from('marke')
+        .select('id')
+        .in('unternehmen_id', unternehmenIds);
+      unternehmenMarkeIds = (markenByUnternehmen || []).map((m) => m.id).filter(Boolean);
+    }
+
+    const markeIds = [...new Set([...directMarkeIds, ...unternehmenMarkeIds])];
+    const kampagneIds = new Set();
+
+    if (unternehmenIds.length > 0) {
+      const { data: unternehmensKampagnen } = await window.supabase
+        .from('kampagne')
+        .select('id')
+        .in('unternehmen_id', unternehmenIds);
+      (unternehmensKampagnen || []).forEach((k) => kampagneIds.add(k.id));
+    }
+
+    if (markeIds.length > 0) {
+      const { data: markenKampagnen } = await window.supabase
+        .from('kampagne')
+        .select('id')
+        .in('marke_id', markeIds);
+      (markenKampagnen || []).forEach((k) => kampagneIds.add(k.id));
+    }
+
+    return {
+      unternehmenIds,
+      markeIds,
+      kampagneIds: Array.from(kampagneIds)
+    };
+  }
+
+  _isInCustomerScope(entry, scope) {
+    if (!entry || !scope) return false;
+
+    if (entry.kampagne_id && scope.kampagneIds.includes(entry.kampagne_id)) return true;
+    if (entry.marke_id && scope.markeIds.includes(entry.marke_id)) return true;
+    if (entry.unternehmen_id && scope.unternehmenIds.includes(entry.unternehmen_id)) return true;
+    return false;
   }
 
   /**
@@ -157,35 +226,8 @@ export class StrategieService {
       }
       
     } else if (rolle === 'kunde' || rolle === 'kunde_editor') {
-      // 1. Kampagnen über Unternehmen-Zuordnung (kunde_unternehmen)
-      const { data: userUnternehmen } = await window.supabase
-        .from('kunde_unternehmen')
-        .select('unternehmen_id')
-        .eq('kunde_id', userId);
-      const unternehmenIds = (userUnternehmen || []).map(u => u.unternehmen_id);
-      
-      if (unternehmenIds.length > 0) {
-        const { data: unternehmensKampagnen } = await window.supabase
-          .from('kampagne')
-          .select('id')
-          .in('unternehmen_id', unternehmenIds);
-        (unternehmensKampagnen || []).forEach(k => kampagneIds.add(k.id));
-      }
-      
-      // 2. Kampagnen über Marken-Zuordnung (kunde_marke)
-      const { data: userMarken } = await window.supabase
-        .from('kunde_marke')
-        .select('marke_id')
-        .eq('kunde_id', userId);
-      const markeIds = (userMarken || []).map(m => m.marke_id);
-      
-      if (markeIds.length > 0) {
-        const { data: markenKampagnen } = await window.supabase
-          .from('kampagne')
-          .select('id')
-          .in('marke_id', markeIds);
-        (markenKampagnen || []).forEach(k => kampagneIds.add(k.id));
-      }
+      const customerScope = await this._getCustomerAccessScope(userId);
+      customerScope.kampagneIds.forEach((id) => kampagneIds.add(id));
     }
     
     return Array.from(kampagneIds);

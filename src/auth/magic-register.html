@@ -290,7 +290,7 @@
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/src/auth/verify-email.html?redirect_to=/kunden`,
+          emailRedirectTo: `${window.location.origin}/src/auth/verify-email.html?redirect_to=/kunden&magic_token=${encodeURIComponent(token)}`,
           data: { 
             role: 'kunde', 
             subrole: 'can_view', 
@@ -325,23 +325,8 @@
         .select()
         .single();
 
-      // Verknüpfungs-Daten in localStorage speichern
-      // (werden erst nach E-Mail-Bestätigung in verify-email.html erstellt,
-      // da der User erst dann eingeloggt ist und RLS Policies greifen)
-      const unternehmen = ansprechpartner.ansprechpartner_unternehmen || [];
-      const marken = ansprechpartner.ansprechpartner_marke || [];
-      
-      localStorage.setItem('pendingMagicLinkData', JSON.stringify({
-        ansprechpartnerId: ansprechpartner.id,
-        magicLinkId: validationData.magicLinkId,
-        unternehmenIds: unternehmen.map(u => u.unternehmen.id),
-        markenIds: marken.map(m => m.marke.id)
-      }));
-
-      console.log('✅ Magic Link Daten in localStorage gespeichert');
-
       // Weiterleitung zur E-Mail-Verifizierung
-      window.location.href = `/src/auth/verify-email.html?email=${encodeURIComponent(email)}&redirect_to=/kunden`;
+      window.location.href = `/src/auth/verify-email.html?email=${encodeURIComponent(email)}&redirect_to=/kunden&magic_token=${encodeURIComponent(token)}`;
 
     } catch (error) {
       console.error('Registration error:', error);
