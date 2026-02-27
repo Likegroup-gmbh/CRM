@@ -538,19 +538,19 @@ export class VideoCreateDrawer {
   }
 
   showError(message) {
-    if (window.notificationSystem?.error) {
-      window.notificationSystem.error(message);
-    } else {
-      alert(message);
+    if (window.toastSystem?.error) {
+      window.toastSystem.error(message);
+      return;
     }
+    window.notificationSystem?.show?.(message, 'error');
   }
 
   showSuccess(message) {
-    if (window.notificationSystem?.success) {
-      window.notificationSystem.success(message);
-    } else {
-      alert(message);
+    if (window.toastSystem?.success) {
+      window.toastSystem.success(message);
+      return;
     }
+    window.notificationSystem?.show?.(message, 'success');
   }
 
   escapeHtml(text) {

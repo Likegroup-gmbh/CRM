@@ -821,7 +821,7 @@ export class AuftragList {
 
       // Sortierung und Pagination
       query = query
-        .order('created_at', { ascending: false })
+        .order('angebotsnummer', { ascending: false, nullsFirst: false })
         .range(from, to);
 
       const { data, error, count } = await query;

@@ -117,6 +117,11 @@ export class StrategieDetail {
         ${teilbereiche.length > 0 ? teilbereiche.map(tb => `
           <div class="kategorie-item" data-kategorie="${tb}">
             <span class="kategorie-name">${tb}</span>
+            <button type="button" class="kategorie-delete-btn" data-action="edit-kategorie" data-kategorie="${tb}" title="Kategorie bearbeiten">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 3.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 15.07a4.5 4.5 0 0 1-1.897 1.13L6 17l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931ZM19.5 7.125 16.875 4.5" />
+              </svg>
+            </button>
             <button type="button" class="kategorie-delete-btn" data-kategorie="${tb}" title="Kategorie löschen">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -1285,8 +1290,13 @@ export class StrategieDetail {
       }
     });
     
+    // Bearbeiten-Events
+    document.querySelectorAll('.kategorie-delete-btn[data-action="edit-kategorie"]').forEach(btn => {
+      btn.addEventListener('click', () => this.handleEditKategoriePrompt(btn.dataset.kategorie));
+    });
+
     // Löschen-Events
-    document.querySelectorAll('.kategorie-delete-btn').forEach(btn => {
+    document.querySelectorAll('.kategorie-delete-btn:not([data-action])').forEach(btn => {
       btn.addEventListener('click', () => this.handleDeleteKategorie(btn.dataset.kategorie));
     });
     
@@ -1359,6 +1369,76 @@ export class StrategieDetail {
     } catch (error) {
       console.error('Fehler beim Hinzufügen der Kategorie:', error);
       window.toastSystem?.show('Fehler beim Hinzufügen der Kategorie', 'error');
+    }
+  }
+
+  /**
+   * Kategorie-Bearbeitung starten (einfachster UX-Flow per Prompt)
+   */
+  async handleEditKategoriePrompt(oldKategorie) {
+    const newKategorie = window.prompt('Kategorie umbenennen', oldKategorie);
+    if (newKategorie === null) return;
+    await this.handleRenameKategorie(oldKategorie, newKategorie);
+  }
+
+  /**
+   * Kategorie umbenennen
+   */
+  async handleRenameKategorie(oldKategorie, newKategorieInput) {
+    const newKategorie = newKategorieInput?.trim();
+
+    if (!newKategorie) {
+      window.toastSystem?.show('Bitte Kategorie-Name eingeben', 'warning');
+      return;
+    }
+
+    if (newKategorie.includes(',')) {
+      window.toastSystem?.show('Kommas sind im Kategorienamen nicht erlaubt', 'warning');
+      return;
+    }
+
+    const oldKategorieNormalized = oldKategorie?.trim().toLowerCase();
+    const newKategorieNormalized = newKategorie.toLowerCase();
+    const existingKategorien = this.getTeilbereicheFromStrategie();
+
+    const hasDuplicate = existingKategorien.some(k => (
+      k.trim().toLowerCase() === newKategorieNormalized &&
+      k.trim().toLowerCase() !== oldKategorieNormalized
+    ));
+
+    if (hasDuplicate) {
+      window.toastSystem?.show('Diese Kategorie existiert bereits', 'warning');
+      return;
+    }
+
+    const unchangedName = newKategorieNormalized === oldKategorieNormalized;
+    if (unchangedName) return;
+
+    try {
+      // Kategorien-Liste aktualisieren
+      const updatedKategorien = existingKategorien.map(k => (k === oldKategorie ? newKategorie : k));
+      const teilbereichString = updatedKategorien.length > 0 ? updatedKategorien.join(', ') : null;
+
+      await strategieService.updateStrategie(this.strategieId, { teilbereich: teilbereichString });
+
+      // Nur betroffene Items aktualisieren
+      const itemsToUpdate = this.items.filter(item => item.teilbereich === oldKategorie);
+      await Promise.all(itemsToUpdate.map(item => (
+        strategieService.updateStrategieItem(item.id, { teilbereich: newKategorie })
+      )));
+
+      itemsToUpdate.forEach(item => {
+        item.teilbereich = newKategorie;
+      });
+
+      this.strategie.teilbereich = teilbereichString;
+      this.rerenderKategorienDrawerBody();
+      this.rerenderItemsTable();
+
+      window.toastSystem?.show(`Kategorie "${oldKategorie}" wurde umbenannt`, 'success');
+    } catch (error) {
+      console.error('Fehler beim Umbenennen der Kategorie:', error);
+      window.toastSystem?.show('Fehler beim Umbenennen der Kategorie', 'error');
     }
   }
 
