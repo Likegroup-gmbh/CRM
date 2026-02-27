@@ -143,7 +143,6 @@ export class VertraegeCreate {
         
         // Kaskade initialisieren: Kampagnen für Kunde und Creator für Kampagne laden
         this.updateFilteredKampagnen();
-        await this.loadKundeAuftraegePo();
         await this.updateFilteredCreators();
         this._filtersInitialized = true; // Verhindert doppelte Initialisierung in renderStep2
         
@@ -195,7 +194,7 @@ export class VertraegeCreate {
       // Lade Kampagnen mit Unternehmen-ID
       const { data: kampagnen } = await window.supabase
         .from('kampagne')
-        .select('id, kampagnenname, eigener_name, unternehmen_id')
+        .select('id, kampagnenname, eigener_name, unternehmen_id, auftrag_id')
         .order('kampagnenname');
       
       this.kampagnen = kampagnen || [];
@@ -616,15 +615,42 @@ export class VertraegeCreate {
       if (error) throw error;
       this.kundeAuftraegePo = auftraege || [];
       console.log('📋 VERTRAG: PO-Nummern geladen:', this.kundeAuftraegePo.length);
-
-      // Automatisch die neueste PO setzen, wenn noch keine gewählt
-      if (!this.formData.kunde_po_nummer && this.kundeAuftraegePo.length > 0) {
-        this.formData.kunde_po_nummer = this.kundeAuftraegePo[0].po;
-        console.log('📋 VERTRAG: PO automatisch gesetzt:', this.formData.kunde_po_nummer);
-      }
     } catch (error) {
       console.error('❌ Fehler beim Laden der PO-Nummern:', error);
       this.kundeAuftraegePo = [];
+    }
+  }
+
+  // PO über die gewählte Kampagne → auftrag_id → auftrag.po laden
+  async loadPoFromKampagne(kampagneId) {
+    if (!kampagneId) {
+      this.formData.kunde_po_nummer = null;
+      return;
+    }
+
+    try {
+      const kampagne = this.kampagnen.find(k => k.id === kampagneId);
+      const auftragId = kampagne?.auftrag_id;
+
+      if (!auftragId) {
+        console.warn('⚠️ VERTRAG: Kampagne hat keine auftrag_id, PO kann nicht geladen werden');
+        this.formData.kunde_po_nummer = null;
+        return;
+      }
+
+      const { data: auftrag, error } = await window.supabase
+        .from('auftrag')
+        .select('po')
+        .eq('id', auftragId)
+        .single();
+
+      if (error) throw error;
+
+      this.formData.kunde_po_nummer = auftrag?.po || null;
+      console.log('📋 VERTRAG: PO aus Kampagne-Auftrag gesetzt:', this.formData.kunde_po_nummer);
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der PO aus Kampagne:', error);
+      this.formData.kunde_po_nummer = null;
     }
   }
 
@@ -2509,8 +2535,8 @@ export class VertraegeCreate {
         // Kampagnen filtern
         this.updateFilteredKampagnen();
         
-        // PO-Nummer automatisch laden (neueste PO wird automatisch gesetzt)
-        await this.loadKundeAuftraegePo();
+        // PO zurücksetzen (wird über Kampagne-Auswahl neu gesetzt)
+        this.formData.kunde_po_nummer = null;
         
         // Kampagne zurücksetzen
         this.formData.kampagne_id = null;
@@ -2574,6 +2600,7 @@ export class VertraegeCreate {
         this.formData.kampagne_id = id;
         this.formData.creator_id = null;
         
+        await this.loadPoFromKampagne(id);
         await this.updateFilteredCreators();
         this.rebuildCreatorSelect(!!id);
         
@@ -2762,6 +2789,7 @@ export class VertraegeCreate {
       this.formData.kampagne_id = id;
       this.formData.creator_id = null;
       
+      await this.loadPoFromKampagne(id);
       await this.updateFilteredCreators();
       this.rebuildCreatorSelect(!!id);
       

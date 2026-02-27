@@ -4056,7 +4056,7 @@ h3.section-title,
 #auftrag-table-container.table-container.drag-scroll-enabled,
 .table-container.drag-scroll-enabled#auftrag-table-container {
   overflow-x: auto !important;
-  overflow-y: visible !important;
+  overflow-y: hidden !important;
   max-height: unset !important;
   height: unset !important;
   scrollbar-width: thin;

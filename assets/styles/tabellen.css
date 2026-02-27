@@ -1793,7 +1793,7 @@ width: 18em;
 /* Auftrag-Tabelle: NUR horizontales Scrollen erlauben */
 #auftrag-table-container {
   overflow-x: auto !important;
-  overflow-y: visible !important;
+  overflow-y: hidden !important;
   max-height: unset !important;
   height: unset !important;
 }

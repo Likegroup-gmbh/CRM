@@ -54,6 +54,11 @@ export class AuftragList {
     this._globalEventsBound = false;
     this._inlineDatePickerCleanup = null;
     this._isAdmin = null; // Gecachter Admin-Status
+    this.isDragging = false;
+    this.startX = 0;
+    this.scrollLeft = 0;
+    this.dragScrollContainer = null;
+    this._dragToScrollCleanup = null;
     
     // Suchfeld
     this.searchQuery = '';
@@ -731,7 +736,7 @@ export class AuftragList {
   renderListView() {
     return `
       <!-- Daten-Tabelle -->
-      <div class="table-container">
+      <div class="table-container" id="auftrag-table-container">
           <table class="data-table">
             <thead>
               <tr>
@@ -904,6 +909,9 @@ export class AuftragList {
     // Drag-to-Scroll für Tabelle initialisieren (nur in List-View)
     if (this.currentView === 'list') {
       this.initDragToScroll();
+    } else if (this._dragToScrollCleanup) {
+      this._dragToScrollCleanup();
+      this._dragToScrollCleanup = null;
     }
 
     // Globale delegierte Events nur EINMAL binden
@@ -923,9 +931,7 @@ export class AuftragList {
       this._dragToScrollCleanup();
     }
     
-    let isDragging = false;
-    let startX = 0;
-    let scrollLeft = 0;
+    this.dragScrollContainer = container;
     
     const handleMouseDown = (e) => {
       // Ignoriere wenn auf interaktive Elemente geklickt wird
@@ -934,6 +940,9 @@ export class AuftragList {
         e.target.tagName === 'TEXTAREA' || 
         e.target.tagName === 'SELECT' ||
         e.target.tagName === 'BUTTON' ||
+        e.target.closest('input') ||
+        e.target.closest('textarea') ||
+        e.target.closest('select') ||
         e.target.tagName === 'A' ||
         e.target.closest('a') ||
         e.target.closest('button') ||
@@ -942,26 +951,26 @@ export class AuftragList {
         return;
       }
       
-      isDragging = true;
-      startX = e.pageX - container.offsetLeft;
-      scrollLeft = container.scrollLeft;
+      this.isDragging = true;
+      this.startX = e.pageX - container.offsetLeft;
+      this.scrollLeft = container.scrollLeft;
       container.style.cursor = 'grabbing';
       container.style.userSelect = 'none';
       e.preventDefault();
     };
     
     const handleMouseMove = (e) => {
-      if (!isDragging) return;
+      if (!this.isDragging) return;
       e.preventDefault();
       
       const x = e.pageX - container.offsetLeft;
-      const walk = (x - startX) * 1.5;
-      container.scrollLeft = scrollLeft - walk;
+      const walk = (x - this.startX) * 1.5;
+      container.scrollLeft = this.scrollLeft - walk;
     };
     
     const handleMouseUp = () => {
-      if (isDragging) {
-        isDragging = false;
+      if (this.isDragging) {
+        this.isDragging = false;
         container.style.cursor = 'grab';
         container.style.userSelect = '';
       }
@@ -980,7 +989,11 @@ export class AuftragList {
       container.removeEventListener('mouseleave', handleMouseUp);
       container.style.cursor = '';
       container.style.userSelect = '';
+      this.isDragging = false;
+      this.dragScrollContainer = null;
     };
+
+    container.style.cursor = 'grab';
   }
 
   // Globale delegierte Events - nur EINMAL gebunden (Performance)
@@ -1275,6 +1288,10 @@ export class AuftragList {
     if (this._inlineDatePickerCleanup) {
       this._inlineDatePickerCleanup();
       this._inlineDatePickerCleanup = null;
+    }
+    if (this._dragToScrollCleanup) {
+      this._dragToScrollCleanup();
+      this._dragToScrollCleanup = null;
     }
     
     // Flags zurücksetzen
