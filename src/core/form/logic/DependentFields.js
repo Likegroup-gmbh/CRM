@@ -784,11 +784,16 @@ export class DependentFields {
         this.updateDependentFieldOptions(field, fieldConfig, options);
       }
       
-      // Neue Logik: Kampagnen direkt basierend auf Unternehmen filtern (für Kooperation)
+      // Neue Logik: Kampagnen direkt basierend auf Unternehmen filtern
       else if (fieldConfig.name === 'kampagne_id' && fieldConfig.dependsOn === 'unternehmen_id') {
+        const isStrategieContext = form?.dataset?.entity === 'strategie' || form?.dataset?.entityType === 'strategie';
+        const isSourcingContext = form?.dataset?.entity === 'sourcing' || form?.dataset?.entityType === 'sourcing';
+        const markeField = form?.querySelector('[name="marke_id"]');
+        const selectedMarkeId = markeField ? this.getFieldValue(markeField) : null;
+
         const { data: kampagnen, error } = await window.supabase
           .from('kampagne')
-          .select('id, kampagnenname, eigener_name, unternehmen_id, videoanzahl, ugc_pro_paid_video_anzahl, ugc_pro_organic_video_anzahl, ugc_video_paid_video_anzahl, ugc_video_organic_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl, ugc_video_anzahl, igc_video_anzahl')
+          .select('id, kampagnenname, eigener_name, unternehmen_id, marke_id, videoanzahl, ugc_pro_paid_video_anzahl, ugc_pro_organic_video_anzahl, ugc_video_paid_video_anzahl, ugc_video_organic_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl, ugc_video_anzahl, igc_video_anzahl')
           .eq('unternehmen_id', parentValue)
           .order('kampagnenname');
 
@@ -826,6 +831,25 @@ export class DependentFields {
         }
 
         let filtered = kampagnen || [];
+
+        // Strategie/Sourcing-Formular: Marke (falls gewählt) + Kampagnen-Berechtigungen anwenden, aber KEIN Video-Slot-Filter
+        if (isStrategieContext || isSourcingContext) {
+          if (selectedMarkeId) {
+            filtered = filtered.filter(k => k.marke_id === selectedMarkeId);
+          }
+
+          const allowedKampagneIds = await KampagneUtils.loadAllowedKampagneIds();
+          if (Array.isArray(allowedKampagneIds)) {
+            const allowedSet = new Set(allowedKampagneIds);
+            filtered = filtered.filter(k => allowedSet.has(k.id));
+          }
+
+          const options = filtered.map(k => ({ value: k.id, label: KampagneUtils.getDisplayName(k) }));
+          field.disabled = false;
+          this.updateDependentFieldOptions(field, fieldConfig, options);
+          return;
+        }
+
         try {
           const kampagneIds = filtered.map(k => k.id);
           if (kampagneIds.length > 0) {
@@ -1387,6 +1411,15 @@ export class DependentFields {
           value: item[fieldConfig.valueField || 'id'],
           label: item[fieldConfig.displayField] || item.name || 'Unbekannt'
         }));
+
+        // Kampagnen-Filter (z.B. Strategie + filterByMarke): zusätzlich auf erlaubte Kampagnen beschränken
+        if (fieldConfig.table === 'kampagne') {
+          const allowedKampagneIds = await KampagneUtils.loadAllowedKampagneIds();
+          if (Array.isArray(allowedKampagneIds)) {
+            const allowedSet = new Set(allowedKampagneIds);
+            options = options.filter(option => allowedSet.has(option.value));
+          }
+        }
         
         console.log(`✅ ${options.length} Optionen geladen für ${fieldConfig.name}`);
       } else {
@@ -1417,6 +1450,9 @@ export class DependentFields {
         
         // Optionen aktualisieren
         window.formSystem.optionsManager.createTagBasedSelect(field, options, fieldConfig);
+      } else {
+        // Normale Selects/Searchable Selects ebenfalls mit neuen Optionen aktualisieren
+        this.updateDependentFieldOptions(field, fieldConfig, options);
       }
       
       this.hideLoadingState(field);

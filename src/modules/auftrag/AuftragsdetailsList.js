@@ -150,13 +150,14 @@ export class AuftragsdetailsList {
                 <th>PO intern</th>
                 <th>Start</th>
                 <th>Ende</th>
+                <th>Status</th>
                 <th>Erstellt am</th>
                 <th class="col-actions">Aktionen</th>
               </tr>
             </thead>
             <tbody id="auftragsdetails-table-body">
               <tr>
-                <td colspan="${isAdmin ? '9' : '8'}" class="loading">Lade Auftragsdetails...</td>
+                <td colspan="${isAdmin ? '10' : '9'}" class="loading">Lade Auftragsdetails...</td>
               </tr>
             </tbody>
           </table>
@@ -640,7 +641,7 @@ export class AuftragsdetailsList {
       if (!details || details.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="${isAdmin ? '7' : '6'}" class="no-data">
+            <td colspan="${isAdmin ? '8' : '7'}" class="no-data">
               <div style="text-align: center; padding: 40px 20px;">
                 <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📄</div>
                 <h3 style="color: #666; margin-bottom: 8px;">Keine Auftragsdetails vorhanden</h3>
@@ -702,6 +703,11 @@ export class AuftragsdetailsList {
             <td>${window.validatorSystem?.sanitizeHtml(auftrag.po) || auftrag.po || '-'}</td>
             <td>${formatDate(auftrag.start)}</td>
             <td>${formatDate(auftrag.ende)}</td>
+            <td>
+              <span class="status-badge status-${(auftrag.status?.toLowerCase() || 'unknown').replace(/\s+/g, '-')}">
+                ${auftrag.status || '-'}
+              </span>
+            </td>
             <td>${formatDate(detail.created_at)}</td>
             <td class="col-actions">
               ${actionBuilder.create('auftragsdetails', detail.id)}

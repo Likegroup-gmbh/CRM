@@ -738,20 +738,23 @@ export class AuftragList {
                 ${this.isAdmin ? `<th class="col-checkbox">
                   <input type="checkbox" id="select-all-auftraege">
                 </th>` : ''}
-                <th>Unternehmen</th>
-                <th>Marke</th>
-                <th class="col-name">Auftragsname</th>
-                <th>PO</th>
-                <th>RE. Nr</th>
-                <th class="col-re-faelligkeit">RE-Fälligkeit</th>
+                <th>Angebotsnummer</th>
+                <th>Rechnungsnummer</th>
+                <th>Company</th>
+                <th>Brand</th>
+                <th>Interne PO</th>
+                <th>Rechnung gestellt</th>
+                <th class="col-rechnung-gestellt">Rechnungsdatum</th>
                 <th>Zahlungsziel</th>
-                <th>Netto</th>
-                <th>UST</th>
-                <th>Brutto</th>
+                <th class="col-re-faelligkeit">Rechnungsfälligkeit</th>
+                <th>Betrag netto</th>
+                <th>Umsatzsteuer</th>
+                <th>Betrag brutto</th>
+                <th>Rechnungsart</th>
+                <th>Überwiesen</th>
+                <th>Status bezahlt</th>
+                <th class="col-ueberwiesen">Bezahlt am</th>
                 <th>Ansprechpartner</th>
-                <th class="col-rechnung-gestellt">Rechnung gestellt</th>
-                <th class="col-ueberwiesen">Überwiesen</th>
-                <th class="col-status">Status</th>
                 <th class="col-actions">Aktionen</th>
               </tr>
             </thead>
@@ -786,6 +789,7 @@ export class AuftragList {
         .select(`
           id,
           auftragsname,
+          angebotsnummer,
           status,
           po,
           re_nr,
@@ -1206,28 +1210,23 @@ export class AuftragList {
         return `
         <tr data-id="${auftrag.id}" class="${statusClass}" data-rechnung-gestellt="${Boolean(auftrag.rechnung_gestellt)}" data-ueberwiesen="${Boolean(auftrag.ueberwiesen)}">
           ${this.isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
+          <td>${window.validatorSystem.sanitizeHtml(auftrag.angebotsnummer || '-')}</td>
+          <td>${window.validatorSystem.sanitizeHtml(auftrag.re_nr || '-')}</td>
           <td>${this.formatUnternehmenTag(auftrag.unternehmen)}</td>
           <td>${this.formatMarkeTag(auftrag.marke)}</td>
-          <td class="col-name">
-            <a href="#" class="table-link" data-table="auftrag" data-id="${auftrag.id}">
-              ${window.validatorSystem.sanitizeHtml(auftrag.auftragsname || 'Unbekannt')}
-            </a>
-          </td>
-          <td>${auftrag.po || '-'}</td>
-          <td>${auftrag.re_nr || '-'}</td>
-          <td>${this.formatDate(auftrag.re_faelligkeit)}</td>
+          <td>${window.validatorSystem.sanitizeHtml(auftrag.po || '-')}</td>
+          <td>${this.renderBillingDateCell(auftrag, 'rechnung_gestellt', 'rechnung_gestellt_am')}</td>
+          <td class="col-rechnung-gestellt">${this.formatDate(auftrag.rechnung_gestellt_am)}</td>
           <td>${this.formatZahlungsziel(auftrag.zahlungsziel_tage)}</td>
+          <td>${this.formatDate(auftrag.re_faelligkeit)}</td>
           <td>${this.formatCurrency(auftrag.nettobetrag)}</td>
           <td>${this.formatCurrency(auftrag.ust_betrag)}</td>
           <td>${this.formatCurrency(auftrag.bruttobetrag)}</td>
+          <td>${window.validatorSystem.sanitizeHtml(auftrag.status || '-')}</td>
+          <td>${this.renderBillingDateCell(auftrag, 'ueberwiesen', 'ueberwiesen_am')}</td>
+          <td>${this.formatBoolean(Boolean(auftrag.ueberwiesen))}</td>
+          <td class="col-ueberwiesen">${this.formatDate(auftrag.ueberwiesen_am)}</td>
           <td>${this.formatAnsprechpartner(auftrag.ansprechpartner)}</td>
-          <td class="col-rechnung-gestellt">${this.renderBillingDateCell(auftrag, 'rechnung_gestellt', 'rechnung_gestellt_am')}</td>
-          <td class="col-ueberwiesen">${this.renderBillingDateCell(auftrag, 'ueberwiesen', 'ueberwiesen_am')}</td>
-          <td>
-            <span class="status-badge status-${(auftrag.status?.toLowerCase() || 'unknown').replace(/\s+/g, '-')}">
-              ${auftrag.status || '-'}
-            </span>
-          </td>
           <td class="col-actions">
             ${actionBuilder.create('auftrag', auftrag.id)}
           </td>
