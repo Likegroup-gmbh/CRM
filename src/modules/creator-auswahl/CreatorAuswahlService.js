@@ -1,9 +1,19 @@
 // CreatorAuswahlService.js
 // Service für Creator-Auswahl Datenbank-Operationen
 
+import { CREATOR_TYP_OPTIONS, isAllowedCreatorTyp, normalizeCreatorTyp } from './creatorTypeOptions.js';
+
 export class CreatorAuswahlService {
   constructor() {
     // Supabase Client wird bei jedem Aufruf direkt verwendet
+  }
+
+  _assertValidCreatorTyp(typValue) {
+    const normalized = normalizeCreatorTyp(typValue);
+    if (!isAllowedCreatorTyp(normalized)) {
+      throw new Error(`Ungültige Creator Art: "${typValue}". Erlaubte Werte: ${CREATOR_TYP_OPTIONS.join(', ')}`);
+    }
+    return normalized;
   }
 
   /**
@@ -308,12 +318,18 @@ export class CreatorAuswahlService {
    * Item erstellen
    */
   async createItem(itemData) {
+    const payload = {
+      ...itemData,
+      created_by: window.currentUser?.id
+    };
+
+    if (Object.prototype.hasOwnProperty.call(payload, 'typ')) {
+      payload.typ = this._assertValidCreatorTyp(payload.typ);
+    }
+
     const { data, error } = await window.supabase
       .from('creator_auswahl_items')
-      .insert({
-        ...itemData,
-        created_by: window.currentUser?.id
-      })
+      .insert(payload)
       .select()
       .single();
 
@@ -329,9 +345,14 @@ export class CreatorAuswahlService {
    * Item aktualisieren
    */
   async updateItem(id, updates) {
+    const payload = { ...updates };
+    if (Object.prototype.hasOwnProperty.call(payload, 'typ')) {
+      payload.typ = this._assertValidCreatorTyp(payload.typ);
+    }
+
     const { data, error } = await window.supabase
       .from('creator_auswahl_items')
-      .update(updates)
+      .update(payload)
       .eq('id', id)
       .select()
       .single();

@@ -3,6 +3,7 @@
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { SourcingDetailColumnVisibilityDrawer } from './SourcingDetailColumnVisibilityDrawer.js';
+import { CREATOR_TYP_OPTIONS, isAllowedCreatorTyp, normalizeCreatorTyp } from './creatorTypeOptions.js';
 
 export class CreatorAuswahlDetail {
   constructor() {
@@ -643,6 +644,9 @@ export class CreatorAuswahlDetail {
       if (count >= 1000) return (count / 1000).toFixed(1) + 'K';
       return count.toLocaleString('de-DE');
     };
+    const typOptionsHtml = CREATOR_TYP_OPTIONS
+      .map((typ) => `<option value="${typ}" ${item.typ === typ ? 'selected' : ''}>${typ}</option>`)
+      .join('');
 
     return `
       <tr class="item-row ${!this.isKunde ? 'draggable' : ''} ${item.nicht_umsetzen ? 'item-nicht-umsetzen' : ''}" data-item-id="${item.id}" draggable="${!this.isKunde}">
@@ -667,14 +671,7 @@ export class CreatorAuswahlDetail {
               style="border: none; background: transparent; cursor: pointer;"
             >
               <option value="">-</option>
-              <option value="UGC Pro Paid" ${item.typ === 'UGC Pro Paid' ? 'selected' : ''}>UGC Pro Paid</option>
-              <option value="UGC Pro Organic" ${item.typ === 'UGC Pro Organic' ? 'selected' : ''}>UGC Pro Organic</option>
-              <option value="UGC Video Paid" ${item.typ === 'UGC Video Paid' ? 'selected' : ''}>UGC Video Paid</option>
-              <option value="UGC Video Organic" ${item.typ === 'UGC Video Organic' ? 'selected' : ''}>UGC Video Organic</option>
-              <option value="Influencer" ${item.typ === 'Influencer' ? 'selected' : ''}>Influencer</option>
-              <option value="Vor-Ort-Produktion" ${item.typ === 'Vor-Ort-Produktion' ? 'selected' : ''}>Vor-Ort-Produktion</option>
-              <option value="Videograf" ${item.typ === 'Videograf' ? 'selected' : ''}>Videograf</option>
-              <option value="Model" ${item.typ === 'Model' ? 'selected' : ''}>Model</option>
+              ${typOptionsHtml}
             </select>
           ` : `<div class="cell-text-readonly">${item.typ || '-'}</div>`}
         </td>
@@ -1027,6 +1024,14 @@ export class CreatorAuswahlDetail {
 
     if (element.type === 'checkbox') {
       value = element.checked;
+    } else if (field === 'typ') {
+      value = normalizeCreatorTyp(element.value);
+      if (!isAllowedCreatorTyp(value)) {
+        const currentItem = this.items.find(i => i.id === itemId);
+        element.value = currentItem?.typ || '';
+        window.toastSystem?.show('Ungültige Creator Art. Bitte einen gültigen Wert auswählen.', 'error');
+        return;
+      }
     } else if (field === 'follower_instagram' || field === 'follower_tiktok') {
       // Zahlenfelder parsen
       const numValue = element.value?.trim();
@@ -1203,6 +1208,9 @@ export class CreatorAuswahlDetail {
    */
   renderAddCreatorForm() {
     const isDatabaseMode = this.addCreatorMode === 'database';
+    const creatorTypOptionsHtml = CREATOR_TYP_OPTIONS
+      .map((typ) => `<option value="${typ}">${typ}</option>`)
+      .join('');
 
     // Datenbank-Suche Section
     const searchSection = isDatabaseMode ? `
@@ -1233,14 +1241,7 @@ export class CreatorAuswahlDetail {
             <label class="form-label">Creator Art *</label>
             <select id="creator-typ" name="typ" class="form-input" required>
               <option value="">Bitte wählen...</option>
-              <option value="UGC Pro Paid">UGC Pro Paid</option>
-              <option value="UGC Pro Organic">UGC Pro Organic</option>
-              <option value="UGC Video Paid">UGC Video Paid</option>
-              <option value="UGC Video Organic">UGC Video Organic</option>
-              <option value="Influencer">Influencer</option>
-              <option value="Vor-Ort-Produktion">Vor-Ort-Produktion</option>
-              <option value="Videograf">Videograf</option>
-              <option value="Model">Model</option>
+              ${creatorTypOptionsHtml}
             </select>
           </div>
 
@@ -1536,7 +1537,7 @@ export class CreatorAuswahlDetail {
    * Creator manuell hinzufügen
    */
   async handleAddCreatorSubmit(formData) {
-    const typ = formData.get('typ')?.trim();
+    const typ = normalizeCreatorTyp(formData.get('typ'));
     const name = formData.get('name')?.trim();
 
     // Bei Datenbank-Modus: Creator muss ausgewählt sein
@@ -1557,9 +1558,16 @@ export class CreatorAuswahlDetail {
       submitBtn.disabled = true;
 
       // Item-Daten aus Formular zusammenstellen
+      const resolvedTyp = typ || (this.selectedCreatorFromDb ? 'Influencer' : null);
+      if (!isAllowedCreatorTyp(resolvedTyp)) {
+        window.toastSystem?.show('Ungültige Creator Art. Bitte gültigen Typ auswählen.', 'error');
+        submitBtn.disabled = false;
+        return;
+      }
+
       const itemData = {
         creator_auswahl_id: this.listeId,
-        typ: typ || (this.selectedCreatorFromDb ? 'Influencer' : null), // Default für DB-Creator
+        typ: resolvedTyp, // Default für DB-Creator
         name: name || (this.selectedCreatorFromDb ? `${this.selectedCreatorFromDb.vorname || ''} ${this.selectedCreatorFromDb.nachname || ''}`.trim() : null),
         link_instagram: formData.get('link_instagram')?.trim() || null,
         follower_instagram: formData.get('follower_instagram') ? parseInt(formData.get('follower_instagram'), 10) : null,
