@@ -748,7 +748,6 @@ export class AuftragList {
                 <th>Company</th>
                 <th>Brand</th>
                 <th>Interne PO</th>
-                <th>Rechnung gestellt</th>
                 <th class="col-rechnung-gestellt">Rechnungsdatum</th>
                 <th>Zahlungsziel</th>
                 <th class="col-re-faelligkeit">Rechnungsfälligkeit</th>
@@ -756,8 +755,8 @@ export class AuftragList {
                 <th>Umsatzsteuer</th>
                 <th>Betrag brutto</th>
                 <th>Rechnungsart</th>
+                <th>Rechnung gestellt</th>
                 <th>Überwiesen</th>
-                <th>Status bezahlt</th>
                 <th class="col-ueberwiesen">Bezahlt am</th>
                 <th>Ansprechpartner</th>
                 <th class="col-actions">Aktionen</th>
@@ -765,7 +764,7 @@ export class AuftragList {
             </thead>
             <tbody id="auftraege-table-body">
               <tr>
-                <td colspan="20" class="loading">Lade Aufträge...</td>
+                <td colspan="19" class="loading">Lade Aufträge...</td>
               </tr>
             </tbody>
           </table>
@@ -1189,7 +1188,7 @@ export class AuftragList {
       if (!auftraege || auftraege.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="20" class="no-data">
+            <td colspan="19" class="no-data">
               <div style="text-align: center; padding: 40px 20px;">
                 <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📋</div>
                 <h3 style="color: #666; margin-bottom: 8px;">Keine Aufträge vorhanden</h3>
@@ -1228,7 +1227,6 @@ export class AuftragList {
           <td>${this.formatUnternehmenTag(auftrag.unternehmen)}</td>
           <td>${this.formatMarkeTag(auftrag.marke)}</td>
           <td>${window.validatorSystem.sanitizeHtml(auftrag.po || '-')}</td>
-          <td>${this.renderBillingDateCell(auftrag, 'rechnung_gestellt', 'rechnung_gestellt_am')}</td>
           <td class="col-rechnung-gestellt">${this.formatDate(auftrag.rechnung_gestellt_am)}</td>
           <td>${this.formatZahlungsziel(auftrag.zahlungsziel_tage)}</td>
           <td>${this.formatDate(auftrag.re_faelligkeit)}</td>
@@ -1236,8 +1234,8 @@ export class AuftragList {
           <td>${this.formatCurrency(auftrag.ust_betrag)}</td>
           <td>${this.formatCurrency(auftrag.bruttobetrag)}</td>
           <td>${window.validatorSystem.sanitizeHtml(auftrag.status || '-')}</td>
+          <td>${this.renderBillingDateCell(auftrag, 'rechnung_gestellt', 'rechnung_gestellt_am')}</td>
           <td>${this.renderBillingDateCell(auftrag, 'ueberwiesen', 'ueberwiesen_am')}</td>
-          <td>${this.formatBoolean(Boolean(auftrag.ueberwiesen))}</td>
           <td class="col-ueberwiesen">${this.formatDate(auftrag.ueberwiesen_am)}</td>
           <td>${this.formatAnsprechpartner(auftrag.ansprechpartner)}</td>
           <td class="col-actions">

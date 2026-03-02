@@ -8921,7 +8921,7 @@ input.readonly-field {
 .kategorie-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--space-xs);
   padding: var(--space-sm) var(--space-md);
   background: var(--gray-50);
   border-radius: var(--radius-md);
@@ -8929,16 +8929,21 @@ input.readonly-field {
 }
 
 .kategorie-item .kategorie-name {
+  flex: 1;
   font-size: var(--text-sm);
   font-weight: 500;
+}
+
+.kategorie-item .form-input {
+  flex: 1;
 }
 
 .kategorie-delete-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   border: none;
   border-radius: var(--radius-sm);
@@ -8946,6 +8951,7 @@ input.readonly-field {
   color: var(--text-muted);
   cursor: pointer;
   transition: all 0.15s ease;
+  flex-shrink: 0;
 }
 
 .kategorie-delete-btn:hover {

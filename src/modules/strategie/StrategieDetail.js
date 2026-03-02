@@ -118,14 +118,10 @@ export class StrategieDetail {
           <div class="kategorie-item" data-kategorie="${tb}">
             <span class="kategorie-name">${tb}</span>
             <button type="button" class="kategorie-delete-btn" data-action="edit-kategorie" data-kategorie="${tb}" title="Kategorie bearbeiten">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 3.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 15.07a4.5 4.5 0 0 1-1.897 1.13L6 17l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931ZM19.5 7.125 16.875 4.5" />
-              </svg>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 3.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 15.07a4.5 4.5 0 0 1-1.897 1.13L6 17l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931ZM19.5 7.125 16.875 4.5" /></svg>
             </button>
-            <button type="button" class="kategorie-delete-btn" data-kategorie="${tb}" title="Kategorie löschen">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-              </svg>
+            <button type="button" class="kategorie-delete-btn" data-action="delete-kategorie" data-kategorie="${tb}" title="Kategorie löschen">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
             </button>
           </div>
         `).join('') : '<p class="no-kategorien">Keine Kategorien vorhanden</p>'}
@@ -1291,12 +1287,12 @@ export class StrategieDetail {
     });
     
     // Bearbeiten-Events
-    document.querySelectorAll('.kategorie-delete-btn[data-action="edit-kategorie"]').forEach(btn => {
-      btn.addEventListener('click', () => this.handleEditKategoriePrompt(btn.dataset.kategorie));
+    document.querySelectorAll('[data-action="edit-kategorie"]').forEach(btn => {
+      btn.addEventListener('click', () => this.startInlineEdit(btn.dataset.kategorie));
     });
 
     // Löschen-Events
-    document.querySelectorAll('.kategorie-delete-btn:not([data-action])').forEach(btn => {
+    document.querySelectorAll('[data-action="delete-kategorie"]').forEach(btn => {
       btn.addEventListener('click', () => this.handleDeleteKategorie(btn.dataset.kategorie));
     });
     
@@ -1373,12 +1369,44 @@ export class StrategieDetail {
   }
 
   /**
-   * Kategorie-Bearbeitung starten (einfachster UX-Flow per Prompt)
+   * Inline-Edit für Kategorie starten
    */
-  async handleEditKategoriePrompt(oldKategorie) {
-    const newKategorie = window.prompt('Kategorie umbenennen', oldKategorie);
-    if (newKategorie === null) return;
-    await this.handleRenameKategorie(oldKategorie, newKategorie);
+  startInlineEdit(kategorie) {
+    const row = document.querySelector(`.kategorie-item[data-kategorie="${kategorie}"]`);
+    if (!row) return;
+
+    const checkSvg = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>';
+    const cancelSvg = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>';
+
+    row.innerHTML = `
+      <input type="text" class="form-input" value="${kategorie}" data-edit-kategorie="${kategorie}">
+      <button type="button" class="kategorie-delete-btn" data-action="save-kategorie" title="Speichern">${checkSvg}</button>
+      <button type="button" class="kategorie-delete-btn" data-action="cancel-edit" title="Abbrechen">${cancelSvg}</button>
+    `;
+
+    const input = row.querySelector('input');
+    input.focus();
+    input.select();
+
+    let saving = false;
+
+    const save = async () => {
+      if (saving) return;
+      saving = true;
+      await this.handleRenameKategorie(kategorie, input.value);
+    };
+
+    const cancel = () => {
+      this.rerenderKategorienDrawerBody();
+    };
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); save(); }
+      if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+    });
+
+    row.querySelector('[data-action="save-kategorie"]').addEventListener('click', save);
+    row.querySelector('[data-action="cancel-edit"]').addEventListener('click', cancel);
   }
 
   /**

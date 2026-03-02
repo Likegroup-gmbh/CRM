@@ -65,6 +65,17 @@ export class RechnungList {
         this.handleDownload(id);
       }
     });
+    
+    // Kampagne-Link in Tabelle
+    document.addEventListener('click', (e) => {
+      const link = e.target.closest('.table-link[data-table="kampagne"]');
+      if (!link) return;
+      e.preventDefault();
+      const kampagneId = link.dataset.id;
+      if (kampagneId) {
+        window.navigateTo(`/kampagne/${kampagneId}`);
+      }
+    });
   }
   
   // Rechnung PDF herunterladen
@@ -110,13 +121,22 @@ export class RechnungList {
       rechnung.status = newStatus;
     }
 
-    // 3. Status-Text in der Zeile aktualisieren (Status ist jetzt nach Beleg, vor Aktionen)
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-    const statusCellIndex = isAdmin ? 12 : 11; // Bei Admin gibt es eine zusätzliche Checkbox-Spalte
-    const statusCell = row.cells[statusCellIndex];
-    if (statusCell) {
-      statusCell.textContent = newStatus || '-';
+    // 3. Status-Text robust aktualisieren (unabhängig von Spaltenreihenfolge)
+    let statusCell = row.querySelector('td[data-col="status"]');
+    if (!statusCell) {
+      const table = row.closest('table');
+      const headerCells = table ? Array.from(table.querySelectorAll('thead th')) : [];
+      const statusCellIndex = headerCells.findIndex((th) => th.textContent?.trim() === 'Status');
+      if (statusCellIndex >= 0) {
+        statusCell = row.cells[statusCellIndex];
+      }
     }
+    if (!statusCell) {
+      console.warn('⚠️ Status-Zelle nicht gefunden, lade Liste neu');
+      this.loadAndRender();
+      return;
+    }
+    statusCell.textContent = newStatus || '-';
 
     // 4. Row-Class für farbliche Hervorhebung aktualisieren
     row.classList.remove('rechnung-row-paid', 'rechnung-row-overdue');
@@ -280,9 +300,30 @@ export class RechnungList {
         rechnungen = await window.dataService.loadEntities('rechnung', currentFilters);
       }
       this.rechnungen = rechnungen; // Speichern für Download-Zugriff
+      await this.enrichKampagnenNames(rechnungen);
       await this.updateTable(rechnungen);
     } catch (error) {
       window.ErrorHandler?.handle?.(error, 'RechnungList.loadAndRender');
+    }
+  }
+
+  async enrichKampagnenNames(rechnungen) {
+    try {
+      const ids = [...new Set((rechnungen || []).map(r => r.kampagne_id).filter(Boolean))];
+      if (ids.length === 0) return;
+      const { data, error } = await window.supabase
+        .from('kampagne')
+        .select('id, kampagnenname, eigener_name')
+        .in('id', ids);
+      if (error || !data) return;
+      const map = new Map(data.map(k => [k.id, k]));
+      rechnungen.forEach(r => {
+        if (r.kampagne_id && map.has(r.kampagne_id)) {
+          r.kampagne = map.get(r.kampagne_id);
+        }
+      });
+    } catch (e) {
+      console.warn('⚠️ Kampagnennamen konnten nicht nachgeladen werden:', e);
     }
   }
 
@@ -319,6 +360,7 @@ export class RechnungList {
               <th>Erstellt am</th>
               <th>Unternehmen</th>
               <th>Auftrag</th>
+              <th>Kampagne</th>
               <th>Land</th>
               <th>Creator</th>
               <th>Gestellt am</th>
@@ -334,7 +376,7 @@ export class RechnungList {
           </thead>
           <tbody id="rechnungen-table-body">
             <tr>
-              <td colspan="${isAdmin ? '15' : '14'}" class="loading">Lade Rechnungen...</td>
+              <td colspan="${isAdmin ? '18' : '17'}" class="loading">Lade Rechnungen...</td>
             </tr>
           </tbody>
         </table>
@@ -405,6 +447,7 @@ export class RechnungList {
           <td>${formatDate(r.created_at)}</td>
           <td>${r.unternehmen?.firmenname || '-'}</td>
           <td>${r.auftrag?.auftragsname || '-'}</td>
+          <td>${r.kampagne_id ? `<a href="#" class="table-link" data-table="kampagne" data-id="${r.kampagne_id}">${r.kampagne?.eigener_name || r.kampagne?.kampagnenname || '-'}</a>` : '-'}</td>
           <td>${r.land || '-'}</td>
           <td>${[r.creator?.vorname, r.creator?.nachname].filter(Boolean).join(' ') || '-'}</td>
           <td>${formatDate(r.gestellt_am)}</td>
@@ -414,7 +457,7 @@ export class RechnungList {
           <td>${r.videoanzahl && r.nettobetrag ? formatCurrency(r.nettobetrag / r.videoanzahl) : '-'}</td>
           <td>${formatCurrency(r.bruttobetrag)}</td>
           <td>${r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener noreferrer">PDF</a>` : '-'}</td>
-          <td>${r.status || '-'}</td>
+          <td data-col="status">${r.status || '-'}</td>
           <td class="col-actions">
             ${actionBuilder.create('rechnung', r.id, window.currentUser, { 
               statusOptions: this.statusOptions, 
