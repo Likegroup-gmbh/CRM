@@ -10,6 +10,13 @@ export class FeedbackNotifications {
     this._initialized = false;
     this._subscription = null;
     this._activeTab = 'comments'; // 'comments' oder 'tickets'
+    this._menu = null;
+    this._bell = null;
+    this._dropdown = null;
+    this._isDropdownOpen = false;
+    this._bellClickHandler = null;
+    this._outsidePointerHandler = null;
+    this._notificationUpdateHandler = null;
   }
 
   /**
@@ -36,10 +43,26 @@ export class FeedbackNotifications {
    * Zerstört das System (Cleanup)
    */
   destroy() {
+    if (this._bell && this._bellClickHandler) {
+      this._bell.removeEventListener('click', this._bellClickHandler);
+    }
+    if (this._outsidePointerHandler) {
+      document.removeEventListener('pointerdown', this._outsidePointerHandler, true);
+    }
+    if (this._notificationUpdateHandler) {
+      window.removeEventListener('feedbackNotificationUpdate', this._notificationUpdateHandler);
+    }
     if (this._subscription) {
       window.supabase?.removeChannel(this._subscription);
       this._subscription = null;
     }
+    this._bellClickHandler = null;
+    this._outsidePointerHandler = null;
+    this._notificationUpdateHandler = null;
+    this._menu = null;
+    this._bell = null;
+    this._dropdown = null;
+    this._isDropdownOpen = false;
     this._initialized = false;
   }
 
@@ -67,26 +90,36 @@ export class FeedbackNotifications {
     const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
     menu.style.display = isKunde ? 'none' : '';
 
+    // Bestehende Listener entfernen (falls init/destroy mehrfach aufgerufen wurde)
+    if (this._bell && this._bellClickHandler) {
+      this._bell.removeEventListener('click', this._bellClickHandler);
+    }
+    if (this._outsidePointerHandler) {
+      document.removeEventListener('pointerdown', this._outsidePointerHandler, true);
+    }
+
     // Toggle Dropdown
-    bell.addEventListener('click', (e) => {
+    this._bellClickHandler = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      e.stopImmediatePropagation();
       
       if (this._isDropdownOpen) {
         this.closeDropdown();
       } else {
         this.openDropdown();
       }
-    });
+    };
+    bell.addEventListener('click', this._bellClickHandler);
 
-    // Schließen bei Klick außerhalb (mit Verzögerung um Race Conditions zu vermeiden)
-    document.addEventListener('click', (e) => {
+    // Schließen bei Pointer-Down außerhalb in Capture-Phase.
+    // So wird der Handler nicht durch stopImmediatePropagation() in Bubble-Handlern blockiert.
+    this._outsidePointerHandler = (e) => {
       // Nur schließen wenn das Dropdown offen ist und der Klick außerhalb war
       if (this._isDropdownOpen && !menu.contains(e.target)) {
         this.closeDropdown();
       }
-    });
+    };
+    document.addEventListener('pointerdown', this._outsidePointerHandler, true);
   }
 
   /**
@@ -549,10 +582,14 @@ export class FeedbackNotifications {
     if (!window.supabase) return;
 
     // Listener für manuelle Updates (z.B. nach Kommentar-Erstellung)
-    window.addEventListener('feedbackNotificationUpdate', () => {
+    if (this._notificationUpdateHandler) {
+      window.removeEventListener('feedbackNotificationUpdate', this._notificationUpdateHandler);
+    }
+    this._notificationUpdateHandler = () => {
       console.log('🔔 Manual notification update triggered');
       this.refresh(true); // Force render auch wenn Dropdown offen
-    });
+    };
+    window.addEventListener('feedbackNotificationUpdate', this._notificationUpdateHandler);
 
     // Realtime Subscription für alle relevanten Änderungen
     this._subscription = window.supabase
