@@ -182,7 +182,7 @@ export class UnternehmenList extends BasePaginatedList {
         <td class="col-name">
           ${u.logo_url ? `<img src="${u.logo_url}" class="table-logo" width="24" height="24" alt="" />` : ''}
           <a href="#" class="table-link" data-table="unternehmen" data-id="${u.id}">
-            ${sanitize(u.firmenname || '')}
+            ${sanitize(u.internes_kuerzel || u.firmenname || '')}
           </a>
         </td>
         <td class="col-stadt">${sanitize(u.rechnungsadresse_stadt || '-')}</td>

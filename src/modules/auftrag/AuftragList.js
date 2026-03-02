@@ -1990,7 +1990,8 @@ export class AuftragList {
       // Validierung
       const validationResult = window.validatorSystem.validateForm(submitData, {
         auftragsname: { type: 'text', minLength: 2, required: true },
-        re_faelligkeit: { required: true }
+        angebotsnummer: { type: 'text', required: true },
+        erwarteter_monat_zahlungseingang: { required: true }
       });
       
       if (!validationResult.isValid) {

@@ -548,7 +548,7 @@ export class FormConfig {
             section: 'ansprechpartner' 
           },
           // Section Nummern: Angebotsnummer, Rechnungsnummer, PO
-          { name: 'angebotsnummer', label: 'Angebotsnummer', type: 'text', required: false, placeholder: 'Angebotsnummer eingeben...', row: 'nummern', section: 'nummern' },
+          { name: 'angebotsnummer', label: 'Angebotsnummer', type: 'text', required: true, placeholder: 'Angebotsnummer eingeben...', row: 'nummern', section: 'nummern' },
           { name: 're_nr', label: 'Rechnungsnummer', type: 'text', required: false, placeholder: 'Rechnungsnummer eingeben...', row: 'nummern', section: 'nummern' },
           { name: 'po', label: 'Interne PO', type: 'text', required: false, readonly: true, placeholder: 'Wird automatisch generiert...', row: 'po', section: 'nummern' },
           { name: 'externe_po', label: 'Externe PO', type: 'text', required: false, placeholder: 'Externe PO-Nummer eingeben...', row: 'po', section: 'nummern' },
@@ -571,8 +571,8 @@ export class FormConfig {
           },
           { name: 'rechnung_gestellt', label: 'RE gestellt', type: 'toggle', required: false, row: 'zahlung', section: 'details' },
           { name: 'rechnung_gestellt_am', label: 'Datum', type: 'date', required: false, placeholder: 'Rechnungsdatum', dependsOn: 'rechnung_gestellt', row: 'zahlung', section: 'details' },
-          { name: 'erwarteter_monat_zahlungseingang', label: 'Erwarteter Zahlungseingang', type: 'date', required: false, placeholder: 'Erwartetes Datum des Zahlungseingangs', row: 'zahlung', section: 'details' },
-          { name: 're_faelligkeit', label: 'RE-Fälligkeit', type: 'date', required: true, section: 'details' },
+          { name: 'erwarteter_monat_zahlungseingang', label: 'Erwarteter Zahlungseingang', type: 'date', required: true, placeholder: 'Erwartetes Datum des Zahlungseingangs', row: 'zahlung', section: 'details' },
+          { name: 're_faelligkeit', label: 'RE-Fälligkeit', type: 'date', required: false, section: 'details' },
           { name: 'start', label: 'Startdatum', type: 'date', required: false, row: 'zeitraum', section: 'details' },
           { name: 'ende', label: 'Enddatum', type: 'date', required: false, row: 'zeitraum', section: 'details' },
           // Section Kampagne
