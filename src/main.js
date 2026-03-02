@@ -142,11 +142,13 @@ class ModuleRegistry {
       console.warn('⚠️ Route-Mapping fehlgeschlagen:', err?.message);
     }
 
-    const path = route.replace(/^\//, '');
+    const pathOnly = String(route || '').split(/[?#]/)[0];
+    const path = pathOnly.replace(/^\//, '');
     const pathParts = path.split('/');
     // ID von Query-Parametern trennen (z.B. "new?kampagne_id=123" → "new")
-    const [segment, idRaw, action] = pathParts;
+    const [segment, idRaw, actionRaw] = pathParts;
     const id = idRaw ? idRaw.split('?')[0] : idRaw;
+    const action = actionRaw ? actionRaw.split('?')[0] : actionRaw;
 
     // Sperre Creator-Detailseiten für Rollen ohne View-Recht (z. B. kunde/kunde_editor)
     if (segment === 'creator' && id && id !== 'new') {
