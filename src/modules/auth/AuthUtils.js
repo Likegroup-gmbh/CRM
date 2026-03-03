@@ -76,6 +76,29 @@ export class AuthUtils {
     }
   }
 
+  // Supabase-Auth-Fehler auf Deutsch übersetzen
+  translateAuthError(error) {
+    if (!error) return 'Anmeldung fehlgeschlagen';
+    const msg = (error.message || '').toLowerCase();
+    const code = (error.code || '').toLowerCase();
+    if (code === 'invalid_credentials' || msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
+      return 'E-Mail oder Passwort ist falsch. Bitte versuchen Sie es erneut.';
+    }
+    if (code === 'email_not_confirmed' || msg.includes('email not confirmed')) {
+      return 'Bitte bestätigen Sie zuerst Ihre E-Mail-Adresse.';
+    }
+    if (code === 'user_not_found' || msg.includes('user not found')) {
+      return 'Kein Konto mit dieser E-Mail-Adresse gefunden.';
+    }
+    if (code === 'over_request_rate_limit' || msg.includes('too many requests')) {
+      return 'Zu viele Anfragen. Bitte warten Sie einige Minuten.';
+    }
+    if (msg.includes('network') || msg.includes('fetch')) {
+      return 'Verbindungsfehler. Bitte prüfen Sie Ihre Internetverbindung.';
+    }
+    return error.message || 'Anmeldung fehlgeschlagen';
+  }
+
   // Login-Submit behandeln
   async handleLoginSubmit(e) {
     e.preventDefault();
@@ -99,7 +122,7 @@ export class AuthUtils {
       }
     } catch (error) {
       console.error('Login failed:', error);
-      errorDiv.textContent = error.message || 'Anmeldung fehlgeschlagen';
+      errorDiv.textContent = this.translateAuthError(error);
       errorDiv.style.display = 'block';
     }
   }

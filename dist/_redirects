@@ -1,5 +1,8 @@
 # Netlify Redirects für SPA (Single Page Application)
-# Alle Anfragen auf index.html umleiten, damit Client-Side Routing funktioniert
 
+# Auth-Seiten direkt ausliefern (NICHT auf index.html umleiten)
+/src/auth/*  /src/auth/:splat  200
+
+# Alle anderen Anfragen auf index.html umleiten für Client-Side Routing
 /*    /index.html   200
 

@@ -255,7 +255,7 @@ export class FormConfig {
           },
           { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...', table: 'unternehmen', displayField: 'firmenname', valueField: 'id' },
           { name: 'marke_id', label: 'Marke', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Marke suchen und auswählen...', dependsOn: 'unternehmen_id', table: 'marke', displayField: 'markenname', valueField: 'id' },
-          { name: 'auftrag_id', label: 'Auftrag', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Auftrag suchen und auswählen...', dependsOn: 'unternehmen_id', table: 'auftrag', displayField: 'auftragsname', valueField: 'id', filterByMarke: true },
+          { name: 'auftrag_id', label: 'Auftrag', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Auftrag suchen und auswählen...', dependsOn: 'unternehmen_id', table: 'auftrag', displayField: 'auftragsname', valueField: 'id', filterByMarke: true },
           { 
             name: 'art_der_kampagne', 
             label: 'Art der Kampagne', 

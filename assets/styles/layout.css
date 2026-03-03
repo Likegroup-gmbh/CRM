@@ -1090,7 +1090,7 @@
 }
 
 .login-box .input::placeholder {
-  color: var(--gray-900);
+  color: var(--gray-400);
 }
 
 .login-box .input:focus {
@@ -1183,7 +1183,7 @@
 /* Passwort-Hinweise (Registrierung) */
 .password-hints {
   margin-top: var(--space-xs);
-  padding: var(--space-sm) var(--space-md);
+  
   background: rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-md);
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -1191,14 +1191,14 @@
 }
 
 .login-box .password-hints {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
+  
 }
 
 .password-hints-title {
-  font-weight: 600;
+  font-weight: 400;
   margin-bottom: var(--space-xs);
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--gray-700);
+  font-size: var(--text-sm);
 }
 
 .password-hints-list {
@@ -1210,9 +1210,10 @@
 .password-hints-list li {
   display: flex;
   align-items: center;
-  gap: var(--space-xs);
+  gap: var(--space-xxs);
   padding: 2px 0;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--gray-500);
+  font-size: var(--text-sm);
 }
 
 .password-hints-list li.hint-satisfied {
@@ -1231,17 +1232,19 @@
 }
 
 .password-hints .hint-icon.hint-pending {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--gray-500);
 }
 
 .password-hints-success {
   color: var(--color-success, #059669);
-  font-weight: 500;
+  font-weight: 400;
+  font-size: var(--text-sm);
 }
 
 .register-link-btn:hover {
   
 }
+
 
 /* Version text */
 .login-version {

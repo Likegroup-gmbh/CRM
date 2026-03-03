@@ -5,7 +5,7 @@ import { permissionSystem } from '../../core/PermissionSystem.js';
 export class AuthService {
   constructor() {
     this._loginAttempts = new Map();
-    this._maxAttempts = 3;
+    this._maxAttempts = 10;
     this._lockoutTime = 900000; // 15 Minuten
   }
 
