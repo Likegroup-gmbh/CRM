@@ -825,6 +825,65 @@ export class KampagneList {
     }
   }
 
+  // Drag-to-Scroll für horizontales Scrollen der Tabelle
+  bindDragToScroll() {
+    const container = document.querySelector('.data-table-container');
+    if (!container) return;
+
+    this.dragScrollContainer = container;
+    container.classList.add('drag-scroll-enabled');
+
+    // Entferne alte Event-Listener, falls vorhanden
+    if (this._dragMouseDown) {
+      container.removeEventListener('mousedown', this._dragMouseDown);
+      container.removeEventListener('mousemove', this._dragMouseMove);
+      container.removeEventListener('mouseup', this._dragMouseUp);
+      container.removeEventListener('mouseleave', this._dragMouseUp);
+    }
+
+    this._dragMouseDown = (e) => {
+      if (
+        e.target.tagName === 'INPUT' ||
+        e.target.tagName === 'BUTTON' ||
+        e.target.classList.contains('status-badge') ||
+        e.target.closest('a') ||
+        e.target.closest('.actions-dropdown-container')
+      ) {
+        return;
+      }
+
+      this.isDragging = true;
+      this.startX = e.pageX - container.offsetLeft;
+      this.scrollLeft = container.scrollLeft;
+
+      container.style.cursor = 'grabbing';
+      container.style.userSelect = 'none';
+      e.preventDefault();
+    };
+
+    this._dragMouseMove = (e) => {
+      if (!this.isDragging) return;
+      e.preventDefault();
+
+      const x = e.pageX - container.offsetLeft;
+      const walk = (x - this.startX) * 1.5;
+      container.scrollLeft = this.scrollLeft - walk;
+    };
+
+    this._dragMouseUp = () => {
+      if (this.isDragging) {
+        this.isDragging = false;
+        container.style.cursor = 'grab';
+        container.style.userSelect = '';
+      }
+    };
+
+    container.addEventListener('mousedown', this._dragMouseDown);
+    container.addEventListener('mousemove', this._dragMouseMove);
+    container.addEventListener('mouseup', this._dragMouseUp);
+    container.addEventListener('mouseleave', this._dragMouseUp);
+  }
+
   // Update Tabelle
   async updateTable(kampagnen) {
     const tbody = document.getElementById('kampagnen-table-body');
@@ -873,6 +932,8 @@ export class KampagneList {
         </tr>
       `).join('');
     });
+
+    this.bindDragToScroll();
   }
 
   // Cleanup
@@ -903,6 +964,18 @@ export class KampagneList {
     if (this.boundFilterResetHandler) {
       document.removeEventListener('click', this.boundFilterResetHandler);
       this.boundFilterResetHandler = null;
+    }
+
+    if (this.dragScrollContainer) {
+      this.dragScrollContainer.removeEventListener('mousedown', this._dragMouseDown);
+      this.dragScrollContainer.removeEventListener('mousemove', this._dragMouseMove);
+      this.dragScrollContainer.removeEventListener('mouseup', this._dragMouseUp);
+      this.dragScrollContainer.removeEventListener('mouseleave', this._dragMouseUp);
+      this.dragScrollContainer.classList.remove('drag-scroll-enabled');
+      this.dragScrollContainer.style.cursor = '';
+      this.dragScrollContainer.style.userSelect = '';
+      this.isDragging = false;
+      this.dragScrollContainer = null;
     }
     
     // Kanban Board cleanup

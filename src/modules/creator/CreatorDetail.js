@@ -782,6 +782,10 @@ export class CreatorDetail extends PersonDetailBase {
               <span>${this.creator.budget_letzte_buchung ? this.formatCurrency(this.creator.budget_letzte_buchung) : '-'}</span>
             </div>
             <div class="detail-item">
+              <label>Umsatzsteuerpflichtig:</label>
+              <span>${this.creator.umsatzsteuerpflichtig ? 'Ja' : 'Nein'}</span>
+            </div>
+            <div class="detail-item">
               <label>Erstellt:</label>
               <span>${this.formatDate(this.creator.created_at)}</span>
             </div>
@@ -1372,6 +1376,9 @@ export class CreatorDetail extends PersonDetailBase {
       });
 
       for (const [key, value] of formData.entries()) {
+        if (submitData.hasOwnProperty(key) && Array.isArray(submitData[key])) {
+          continue;
+        }
         if (key.includes('[]')) {
           const cleanKey = key.replace('[]', '');
           if (!submitData[cleanKey]) {
@@ -1379,13 +1386,15 @@ export class CreatorDetail extends PersonDetailBase {
           }
           submitData[cleanKey].push(value);
         } else {
-          if (!submitData.hasOwnProperty(key) || !Array.isArray(submitData[key])) {
-            submitData[key] = value;
-          } else {
-            console.log(`⚠️ Überspringe ${key}, bereits als Array gesetzt:`, submitData[key]);
-          }
+          submitData[key] = value;
         }
       }
+
+      // Checkboxes/Toggles explizit als Boolean setzen (auch wenn nicht angehakt)
+      const toggleInputs = form.querySelectorAll('input[type="checkbox"][name]');
+      toggleInputs.forEach(input => {
+        submitData[input.name] = input.checked;
+      });
 
       const validation = window.validatorSystem.validateForm(submitData, {
         vorname: { type: 'text', minLength: 2, required: true },

@@ -21,6 +21,7 @@ export class FormConfig {
           { name: 'rechnungsadresse_plz', label: 'PLZ', type: 'text', required: false, row: 'rechnungsadresse2', colSize: 'small', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true', section: 'basis' },
           { name: 'rechnungsadresse_stadt', label: 'Stadt', type: 'text', required: false, row: 'rechnungsadresse2', colSize: 'grow', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true', section: 'basis' },
           { name: 'rechnungsadresse_land', label: 'Land (Rechnung)', type: 'text', required: false, defaultValue: 'Deutschland', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true', section: 'basis' },
+          { name: 'umsatzsteuerpflichtig', label: 'Umsatzsteuerpflichtig', type: 'toggle', required: false, defaultValue: true, section: 'basis' },
           // Agentur-Vertretung
           { name: 'agentur_vertreten', label: 'Wird der Creator durch eine Agentur vertreten?', type: 'toggle', required: false, section: 'basis' },
           { name: 'agentur_name', label: 'Agenturname', type: 'text', required: false, dependsOn: 'agentur_vertreten', showWhen: 'true', placeholder: 'Name der Agentur', section: 'basis' },
@@ -620,7 +621,8 @@ export class FormConfig {
           // Einkaufspreis
           { name: 'einkaufspreis_netto', label: 'Einkaufspreis Netto', type: 'number', required: false, validation: { type: 'number', min: 0 } },
           { name: 'einkaufspreis_zusatzkosten', label: 'Einkaufspreis Zusatzkosten', type: 'number', required: false, validation: { type: 'number', min: 0 } },
-          { name: 'einkaufspreis_ust', label: 'Einkaufspreis USt (19%)', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['einkaufspreis_netto', 'einkaufspreis_zusatzkosten'] },
+          { name: 'einkaufspreis_ust_prozent', type: 'hidden', defaultValue: 19 },
+          { name: 'einkaufspreis_ust', label: 'Einkaufspreis USt (19%)', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['einkaufspreis_netto', 'einkaufspreis_zusatzkosten', 'einkaufspreis_ust_prozent'] },
           { name: 'einkaufspreis_gesamt', label: 'Einkaufspreis Gesamt', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['einkaufspreis_netto', 'einkaufspreis_zusatzkosten', 'einkaufspreis_ust'] },
           
           // Verkaufspreis
@@ -871,7 +873,7 @@ export class FormConfig {
           // Eingabefelder
           { name: 'nettobetrag', label: 'Betrag (Netto)', type: 'number', required: true, validation: { type: 'number', min: 0 } },
           { name: 'zusatzkosten', label: 'Zusatzkosten (Netto)', type: 'number', required: false, validation: { type: 'number', min: 0 } },
-          { name: 'ust_prozent', label: 'Umsatzsteuer', type: 'number', required: false, readonly: true, defaultValue: 19, suffix: '%' },
+          { name: 'ust_prozent', label: 'Umsatzsteuer (%)', type: 'number', required: false, readonly: true, defaultValue: 19, suffix: '%' },
           { name: 'skonto', label: '3% Skonto berücksichtigen', type: 'toggle', required: false },
           // Berechnete Ergebnis-Felder (readonly)
           { name: 'netto_gesamt', label: 'Netto gesamt (vor Skonto)', type: 'number', required: false, readonly: true, validation: { type: 'number', min: 0 } },

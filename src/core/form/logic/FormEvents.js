@@ -479,7 +479,7 @@ export class FormEvents {
     const videoInput = form.querySelector('input[name="videoanzahl"]');
     const nettoInput = form.querySelector('input[name="nettobetrag"]');
     const zusatzInput = form.querySelector('input[name="zusatzkosten"]');
-    const ustInput = form.querySelector('input[name="ust"]');
+    const ustProzentInput = form.querySelector('input[name="ust_prozent"]');
     const bruttoInput = form.querySelector('input[name="bruttobetrag"]');
 
     // Original Placeholder speichern für Reset
@@ -572,6 +572,7 @@ export class FormEvents {
         if (nettoInput) nettoInput.value = '';
         if (zusatzInput) zusatzInput.value = '';
         if (bruttoInput) bruttoInput.value = '';
+        if (ustProzentInput) ustProzentInput.value = '19';
         
         return;
       }
@@ -666,14 +667,21 @@ export class FormEvents {
           if (creatorId) {
             const { data: creator } = await window.supabase
               .from('creator')
-              .select('id, vorname, nachname')
+              .select('id, vorname, nachname, umsatzsteuerpflichtig')
               .eq('id', creatorId)
               .single();
             creatorLabel = creator ? `${creator.vorname || ''} ${creator.nachname || ''}`.trim() : '';
+            if (ustProzentInput) {
+              const ustProzent = creator?.umsatzsteuerpflichtig === false ? 0 : 19;
+              ustProzentInput.value = String(ustProzent);
+            }
+          } else if (ustProzentInput) {
+            ustProzentInput.value = '19';
           }
           fillSelect(creatorField, creatorId, creatorLabel);
         } catch (e) {
           console.warn('⚠️ Konnte Creator nicht laden:', e);
+          if (ustProzentInput) ustProzentInput.value = '19';
         }
       }
 
@@ -687,6 +695,7 @@ export class FormEvents {
       if (nettoInput) nettoInput.value = netto ? String(netto) : '';
       if (zusatzInput) zusatzInput.value = zusatz ? String(zusatz) : '';
       if (bruttoInput) bruttoInput.value = isNaN(brutto) ? '' : String(brutto);
+      berechneRechnung();
     };
 
     koopSelect.addEventListener('change', onKoopChange);
@@ -703,12 +712,14 @@ export class FormEvents {
       const netto = parseFloat(nettoInput?.value) || 0;
       const zusatz = parseFloat(zusatzInput?.value) || 0;
       const hatSkonto = skontoToggle?.checked || false;
+      const ustProzent = parseFloat(ustProzentInput?.value) || 0;
+      const ustRate = ustProzent / 100;
       
       const nettoGesamt = netto + zusatz;
-      const bruttoVorSkonto = nettoGesamt * 1.19;
+      const bruttoVorSkonto = nettoGesamt * (1 + ustRate);
       const skontoBetrag = hatSkonto ? nettoGesamt * 0.03 : 0;
       const nettoNachSkonto = nettoGesamt - skontoBetrag;
-      const ustBetrag = nettoNachSkonto * 0.19;
+      const ustBetrag = nettoNachSkonto * ustRate;
       const brutto = nettoNachSkonto + ustBetrag;
       
       // Felder aktualisieren
@@ -724,6 +735,10 @@ export class FormEvents {
     if (nettoInput) nettoInput.addEventListener('input', berechneRechnung);
     if (zusatzInput) zusatzInput.addEventListener('input', berechneRechnung);
     if (skontoToggle) skontoToggle.addEventListener('change', berechneRechnung);
+    if (ustProzentInput) {
+      ustProzentInput.addEventListener('input', berechneRechnung);
+      ustProzentInput.addEventListener('change', berechneRechnung);
+    }
     
     // Initial: Wenn keine Kooperation vorausgewählt ist, alle Felder für manuelle Eingabe freischalten
     if (!koopSelect.value) {

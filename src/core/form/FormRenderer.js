@@ -127,8 +127,8 @@ export class FormRenderer {
         };
       }
       
-      // Default-Wert setzen falls vorhanden und kein Wert gegeben
-      if (!value && field.defaultValue) {
+      // Default-Wert nur setzen wenn tatsächlich kein Wert vorhanden (false/0 sind gültige Werte)
+      if ((value === null || value === undefined || value === '') && field.defaultValue !== undefined) {
         value = field.defaultValue;
       }
       
@@ -241,6 +241,9 @@ export class FormRenderer {
     const requiredMark = field.required ? '<span class="required">*</span>' : '';
 
     switch (field.type) {
+      case 'hidden':
+        return `<input type="hidden" name="${field.name}" id="${fieldId}" value="${value || field.defaultValue || ''}">`;
+
       case 'text':
       case 'email':
       case 'tel':

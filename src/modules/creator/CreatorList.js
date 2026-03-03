@@ -612,6 +612,12 @@ export class CreatorList extends BasePaginatedList {
         }
       }
 
+      // Checkboxes/Toggles explizit als Boolean setzen (auch wenn nicht angehakt)
+      const toggleInputs = form.querySelectorAll('input[type="checkbox"][name]');
+      toggleInputs.forEach(input => {
+        submitData[input.name] = input.checked;
+      });
+
       for (const [key, value] of Object.entries(submitData)) {
         if (Array.isArray(value)) {
           submitData[key] = [...new Set(value)];

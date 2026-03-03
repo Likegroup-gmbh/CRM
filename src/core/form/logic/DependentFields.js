@@ -272,7 +272,9 @@ export class DependentFields {
       const fieldName = changedField.name;
       
       console.log(`🔔 FORM-CHANGE-EVENT: Feld "${fieldName}" geändert, Wert:`, this.getFieldValue(changedField));
-      console.log(`   → In DependencyMap? ${dependencyMap.has(fieldName)}, Keys:`, Array.from(dependencyMap.keys()));
+      if (dependencyMap.has(fieldName)) {
+        console.log(`   → DependencyMap-Treffer für "${fieldName}"`);
+      }
       
       // dependsOn-Logik: Felder die versteckt/angezeigt werden
       if (dependencyMap.has(fieldName)) {
@@ -411,6 +413,13 @@ export class DependentFields {
   // Wert aus Feld extrahieren (auch für searchable Selects)
   getFieldValue(field) {
     console.log(`🔍 getFieldValue für Feld:`, field.name);
+    
+    // Checkbox/Toggle: checked-Status statt .value verwenden
+    if (field.type === 'checkbox') {
+      const checked = field.checked;
+      console.log(`☑️ Checkbox/Toggle Wert:`, checked);
+      return String(checked);
+    }
     
     // WICHTIG: Zuerst das ursprüngliche Select-Element prüfen
     const originalValue = field.value;
@@ -905,6 +914,39 @@ export class DependentFields {
             });
           field.disabled = false;
           this.updateDependentFieldOptions(field, fieldConfig, options);
+
+          // Bei Creator-Wechsel: Umsatzsteuerpflichtig prüfen und EK-USt anpassen
+          if (!field._ustListenerAttached) {
+            field._ustListenerAttached = true;
+            field.addEventListener('change', async () => {
+              const creatorId = field.value;
+              const ustProzentField = form.querySelector('[name="einkaufspreis_ust_prozent"]');
+              if (!ustProzentField) return;
+
+              let ustProzent = 19;
+              if (creatorId) {
+                try {
+                  const { data: creator } = await window.supabase
+                    .from('creator')
+                    .select('umsatzsteuerpflichtig')
+                    .eq('id', creatorId)
+                    .single();
+                  ustProzent = creator?.umsatzsteuerpflichtig === false ? 0 : 19;
+                } catch (e) {
+                  console.warn('⚠️ Konnte Creator-USt-Status nicht laden:', e);
+                }
+              }
+
+              ustProzentField.value = String(ustProzent);
+
+              const ustLabel = form.querySelector('[name="einkaufspreis_ust"]')?.closest('.form-field')?.querySelector('label');
+              if (ustLabel) ustLabel.textContent = `Einkaufspreis USt (${ustProzent}%)`;
+
+              if (window.formSystem?.autoCalculation) {
+                window.formSystem.autoCalculation.recalculateAllDependentFields(form);
+              }
+            });
+          }
         } catch (e) {
           console.error('❌ Fehler beim Laden aller Creator:', e);
         }

@@ -2494,8 +2494,8 @@ h3.section-title,
 /* Form Row für Sourcing-Formular */
 .form-row {
   display: flex;
-  gap: var(--space-md);
-  margin-bottom: var(--space-md);
+  gap: var(--space-xs);
+ 
 }
 
 .form-row > .form-field {
@@ -6548,12 +6548,7 @@ width: 100%;
   
 }
 
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-lg);
-  
-}
+
 
 .form-row:last-child {
   margin-bottom: 0;
@@ -10033,6 +10028,28 @@ table:has(#strategien-table-body) td.col-actions {
   width: 7em;
 }
 
+/* Kampagnen-Liste: Name-Spalte links fixieren */
+table:has(#kampagnen-table-body) th.col-name,
+table:has(#kampagnen-table-body) td.col-name {
+  position: sticky;
+  left: 0;
+  background: var(--bg-primary, #fff);
+}
+
+table:has(#kampagnen-table-body) th.col-name {
+  z-index: 16; /* ueber sticky Header-Basiszindex */
+  box-shadow: inset -1px 0 0 0 var(--gray-200);
+}
+
+table:has(#kampagnen-table-body) td.col-name {
+  z-index: 11;
+  box-shadow: inset -1px 0 0 0 var(--gray-200);
+}
+
+table:has(#kampagnen-table-body) tbody tr:hover td.col-name {
+  background: var(--gray-50);
+}
+
 /* Erstellt-von-Spalte global (auch in Detail-Tabellen) */
 .data-table th.col-erstellt-von,
 .data-table td.col-erstellt-von {
@@ -10051,6 +10068,20 @@ table:has(#strategien-table-body) td.col-actions {
 }
 
 .table-container.drag-scroll-enabled::-webkit-scrollbar {
+  display: none;
+}
+
+.data-table-container.drag-scroll-enabled {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-height: none;
+  height: auto;
+  cursor: grab;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.data-table-container.drag-scroll-enabled::-webkit-scrollbar {
   display: none;
 }
 

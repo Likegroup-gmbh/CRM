@@ -130,7 +130,6 @@
                 Zum Login
               </a>
             </div>
-            <div class="login-version">Magic Link Registrierung</div>
           </form>
         </div>
       </div>
@@ -369,19 +368,23 @@
 
       if (benutzerError) throw benutzerError;
 
-      // Kunde mit Ansprechpartner verknüpfen (DB-Trigger kopiert Unternehmen + Marken automatisch)
+      // Alle Verknüpfungen atomar über SECURITY DEFINER Funktion erstellen
+      // (umgeht RLS, da nach signUp() ohne Email-Confirm kein auth.uid() vorhanden ist)
       const kundeId = benutzerData?.id;
       if (kundeId && ansprechpartner?.id) {
-        const { error: linkError } = await supabase
-          .from('kunde_ansprechpartner')
-          .upsert({
-            kunde_id: kundeId,
-            ansprechpartner_id: ansprechpartner.id
-          }, { onConflict: 'kunde_id,ansprechpartner_id', ignoreDuplicates: true });
+        const { data: linkResult, error: linkError } = await supabase
+          .rpc('link_kunde_from_magic_link', {
+            p_kunde_id: kundeId,
+            p_ansprechpartner_id: ansprechpartner.id,
+            p_magic_link_id: validationData.magicLinkId
+          });
 
         if (linkError) {
-          console.warn('⚠️ Kunde-Ansprechpartner Verknüpfung fehlgeschlagen:', linkError);
+          console.error('❌ Verknüpfung fehlgeschlagen:', linkError);
+          throw new Error('Konto erstellt, aber Verknüpfung fehlgeschlagen. Bitte kontaktieren Sie den Support.');
         }
+
+        console.log('✅ Verknüpfungen erstellt:', linkResult);
       }
 
       // Weiterleitung zur E-Mail-Verifizierung

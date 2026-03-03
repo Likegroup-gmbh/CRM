@@ -342,8 +342,24 @@ export class AuftragsdetailsDetail {
     const auftragStart = formatDate(this.auftrag?.start);
     const auftragEnde = formatDate(this.auftrag?.ende);
 
-    // Daten für die Tabelle vorbereiten
-    const sections = [
+    const hasValue = (value) => value !== null && value !== undefined && value !== '';
+    const hasDataForPrefix = (prefix, hasVideographen = false) => {
+      const fields = [
+        `${prefix}_video_anzahl`,
+        `${prefix}_bilder_anzahl`,
+        `${prefix}_creator_anzahl`,
+        `${prefix}_budget_info`,
+        `${prefix}_einkaufspreis_netto_von`,
+        `${prefix}_einkaufspreis_netto_bis`,
+        `${prefix}_verkaufspreis_netto_von`,
+        `${prefix}_verkaufspreis_netto_bis`
+      ];
+
+      if (hasVideographen) fields.push(`${prefix}_videographen_anzahl`);
+      return fields.some(field => hasValue(details[field]));
+    };
+
+    const newUgcSections = [
       {
         title: 'UGC Pro Paid',
         prefix: 'ugc_pro_paid',
@@ -367,7 +383,30 @@ export class AuftragsdetailsDetail {
         prefix: 'ugc_video_organic',
         color: '#fd7e14',
         hasVideographen: false
+      }
+    ];
+
+    const legacyUgcSections = [
+      {
+        title: 'UGC',
+        prefix: 'ugc',
+        color: '#28a745',
+        hasVideographen: false
       },
+      {
+        title: 'IGC',
+        prefix: 'igc',
+        color: '#17a2b8',
+        hasVideographen: false
+      }
+    ];
+
+    const hasNewUgcData = newUgcSections.some(section => hasDataForPrefix(section.prefix, section.hasVideographen));
+    const ugcSections = hasNewUgcData ? newUgcSections : legacyUgcSections;
+
+    // Daten für die Tabelle vorbereiten (hybrid: neue UGC-Kategorien mit Legacy-Fallback)
+    const sections = [
+      ...ugcSections,
       {
         title: 'Influencer Kampagne',
         prefix: 'influencer',

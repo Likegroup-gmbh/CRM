@@ -1128,6 +1128,27 @@ export class DynamicDataLoader {
                 }
               });
               console.log(`✅ DYNAMICDATALOADER: Kooperation ${field.name} vorausgewählt:`, editData.creator_id);
+
+              // EK-USt-Satz basierend auf Creator-Umsatzsteuerpflicht setzen (Edit-Mode)
+              if (form.dataset.entityType === 'kooperation') {
+                try {
+                  const { data: creatorUst } = await window.supabase
+                    .from('creator')
+                    .select('umsatzsteuerpflichtig')
+                    .eq('id', editData.creator_id)
+                    .single();
+                  const ustProzent = creatorUst?.umsatzsteuerpflichtig === false ? 0 : 19;
+                  const ustProzentField = form.querySelector('[name="einkaufspreis_ust_prozent"]');
+                  if (ustProzentField) ustProzentField.value = String(ustProzent);
+                  const ustLabel = form.querySelector('[name="einkaufspreis_ust"]')?.closest('.form-field')?.querySelector('label');
+                  if (ustLabel) ustLabel.textContent = `Einkaufspreis USt (${ustProzent}%)`;
+                  if (window.formSystem?.autoCalculation) {
+                    window.formSystem.autoCalculation.recalculateAllDependentFields(form);
+                  }
+                } catch (e) {
+                  console.warn('⚠️ Konnte Creator-USt-Status im Edit-Mode nicht laden:', e);
+                }
+              }
             }
             
             if (field.name === 'content_art' && editData.content_art) {

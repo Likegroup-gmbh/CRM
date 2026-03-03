@@ -368,7 +368,7 @@ export class FormSystem {
     checkboxes.forEach(checkbox => {
       const name = checkbox.name;
       if (name) {
-        submitData[name] = checkbox.checked ? 'on' : false;
+        submitData[name] = checkbox.checked;
       }
     });
 

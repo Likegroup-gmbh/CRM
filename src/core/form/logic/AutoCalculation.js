@@ -243,15 +243,17 @@ export class AutoCalculation {
   }
 
   /**
-   * Berechne Einkaufspreis USt (19% von Netto + Zusatzkosten)
+   * Berechne Einkaufspreis USt (dynamisch 0% oder 19% basierend auf Creator-Umsatzsteuerpflicht)
    */
   calculateEinkaufspreisUst(form, targetField) {
     try {
       const nettoField = form.querySelector('[name="einkaufspreis_netto"]');
       const zusatzField = form.querySelector('[name="einkaufspreis_zusatzkosten"]');
+      const ustProzentField = form.querySelector('[name="einkaufspreis_ust_prozent"]');
       const netto = nettoField ? (parseFloat(nettoField.value) || 0) : 0;
       const zusatz = zusatzField ? (parseFloat(zusatzField.value) || 0) : 0;
-      const ust = (netto + zusatz) * 0.19;
+      const ustSatz = ustProzentField ? (parseFloat(ustProzentField.value) ?? 19) : 19;
+      const ust = (netto + zusatz) * (ustSatz / 100);
       return Math.round(ust * 100) / 100;
     } catch (error) {
       console.error('❌ Fehler bei Einkaufspreis-USt-Berechnung:', error);

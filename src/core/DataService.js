@@ -35,6 +35,7 @@ export class DataService {
           alter_min: 'number',
           alter_max: 'number',
           hat_haustier: 'boolean',
+          umsatzsteuerpflichtig: 'boolean',
           haustier_beschreibung: 'string'
         },
         relations: {},
@@ -760,6 +761,8 @@ export class DataService {
           videoanzahl: 'number',
           nettobetrag: 'number',
           zusatzkosten: 'number',
+          ust_prozent: 'number',
+          ust_betrag: 'number',
           bruttobetrag: 'number',
           gestellt_am: 'date',
           zahlungsziel: 'date',
@@ -1818,9 +1821,10 @@ export class DataService {
     }
     
     for (const [field, rawValue] of Object.entries(data)) {
-      // Kooperation: dynamische Video-Felder NICHT in kooperationen schreiben
+      // Kooperation: dynamische Video-Felder und rein clientseitige Hilfsfelder NICHT in kooperationen schreiben
       if (
         entityType === 'kooperation' && (
+          field === 'einkaufspreis_ust_prozent' ||
           field.startsWith('video_') ||
           field.startsWith('adressname_') || field.startsWith('strasse_') || field.startsWith('hausnummer_') ||
           field.startsWith('plz_') || field.startsWith('stadt_') || field.startsWith('land_') || field.startsWith('notiz_')

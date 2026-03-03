@@ -49,27 +49,16 @@ export class AuthUtils {
                 </div>
                 <a href="javascript:void(0)" onclick="window.authUtils.showForgotPassword()" class="forgot-password-link">Passwort vergessen?</a>
               </div>
-              <div class="form-box">
-                <button type="submit" class="btn primary-btn" style="width: 100%;">Anmelden</button>
+              <div class="login-actions">
+                <div class="form-box">
+                  <button type="submit" class="btn primary-btn" style="width: 100%;">Anmelden</button>
+                </div>
+                <div class="register-links-row">
+                  <a href="javascript:void(0)" onclick="window.authUtils.showRegister()" class="register-link-btn">
+                    Registrierung
+                  </a>
+                </div>
               </div>
-              <div class="login-divider">
-                <span>Registrierung</span>
-              </div>
-              <div class="register-links-row">
-                <a href="/src/auth/kunden-register.html" class="register-link-btn">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                  Kunden
-                </a>
-                <a href="javascript:void(0)" onclick="window.authUtils.showRegister()" class="register-link-btn">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  Mitarbeiter
-                </a>
-              </div>
-              <div class="login-version">Version 1.0</div>
               <div id="loginError" class="text-error" style="display: none;"></div>
             </form>
           </div>
@@ -142,27 +131,27 @@ export class AuthUtils {
             </div>
             <h2>Registrierung</h2>
             <form id="registerForm" class="register-form">
-              <div class="form-row" style="display: flex; gap: 12px;">
-                <div class="form-box" style="flex: 1;">
-                  <label for="registerVorname" class="label">Vorname</label>
+              <div class="form-row">
+                <div class="form-box">
+                  <label for="registerVorname" class="label label-register">Vorname *</label>
                   <input type="text" id="registerVorname" class="input" placeholder="Vorname" required>
                 </div>
-                <div class="form-box" style="flex: 1;">
-                  <label for="registerNachname" class="label">Nachname</label>
+                <div class="form-box">
+                  <label for="registerNachname" class="label label-register">Nachname *</label>
                   <input type="text" id="registerNachname" class="input" placeholder="Nachname" required>
                 </div>
               </div>
               <div class="form-box">
-                <label for="registerEmail" class="label">E-Mail</label>
+                <label for="registerEmail" class="label label-register">E-Mail *</label>
                 <input type="email" id="registerEmail" class="input" placeholder="ihre@email.com" required>
                 <div id="registerEmailError" class="text-error" style="display: none;"></div>
               </div>
               <div class="form-box">
-                <label for="registerFirmenhandy" class="label">Firmenhandy</label>
-                <input type="tel" id="registerFirmenhandy" class="input" placeholder="z. B. 15123456789" required>
+                <label for="registerFirmenhandy" class="label label-register">Firmenhandy <span class="label-optional">(optional)</span></label>
+                <input type="tel" id="registerFirmenhandy" class="input" placeholder="z. B. 15123456789">
               </div>
               <div class="form-box">
-                <label for="registerPassword" class="label">Passwort</label>
+                <label for="registerPassword" class="label label-register">Passwort *</label>
                 <div class="password-input-container">
                   <input type="password" id="registerPassword" class="input" placeholder="Passwort" required>
                   <button type="button" class="password-toggle" onclick="window.authUtils.togglePassword('registerPassword')">
@@ -173,21 +162,16 @@ export class AuthUtils {
                   </button>
                 </div>
               </div>
-              <div class="form-box">
-                <button type="submit" class="btn primary-btn" style="width: 100%;">Registrieren</button>
+              <div class="login-actions">
+                <div class="form-box">
+                  <button type="submit" class="btn primary-btn" style="width: 100%;">Registrieren</button>
+                </div>
+                <div class="register-links-row">
+                  <a href="javascript:void(0)" onclick="window.authUtils.showLogin()" class="register-link-btn">
+                    Zurück zum Login
+                  </a>
+                </div>
               </div>
-              <div class="login-divider">
-                <span>Login</span>
-              </div>
-              <div class="register-links-row">
-                <a href="javascript:void(0)" onclick="window.authUtils.showLogin()" class="register-link-btn">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                  </svg>
-                  Zurück zum Login
-                </a>
-              </div>
-              <div class="login-version">Version 1.0</div>
               <div id="registerError" class="text-error" style="display: none;"></div>
             </form>
           </div>
@@ -228,9 +212,6 @@ export class AuthUtils {
         throw new Error('Bitte geben Sie Vorname und Nachname ein.');
       }
 
-      if (!firmenhandy) {
-        throw new Error('Bitte Firmenhandy angeben.');
-      }
       
       const result = await authService.signUp(
         email,
@@ -387,21 +368,16 @@ export class AuthUtils {
                 <label for="forgotEmail" class="label">E-Mail</label>
                 <input type="email" id="forgotEmail" class="input" placeholder="ihre@email.com" required>
               </div>
-              <div class="form-box">
-                <button type="submit" class="btn primary-btn" style="width: 100%;">Link senden</button>
+              <div class="login-actions">
+                <div class="form-box">
+                  <button type="submit" class="btn primary-btn" style="width: 100%;">Link senden</button>
+                </div>
+                <div class="register-links-row">
+                  <a href="javascript:void(0)" onclick="window.authUtils.showLogin()" class="register-link-btn">
+                    Zurück zum Login
+                  </a>
+                </div>
               </div>
-              <div class="login-divider">
-                <span>oder</span>
-              </div>
-              <div class="register-links-row">
-                <a href="javascript:void(0)" onclick="window.authUtils.showLogin()" class="register-link-btn">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                  </svg>
-                  Zurück zum Login
-                </a>
-              </div>
-              <div class="login-version">Version 1.0</div>
               <div id="forgotPasswordError" class="text-error" style="display: none;"></div>
             </form>
           </div>
@@ -488,7 +464,6 @@ export class AuthUtils {
     if (!data.vorname) errors.push('Vorname ist erforderlich');
     if (!data.nachname) errors.push('Nachname ist erforderlich');
     if (!data.email) errors.push('E-Mail ist erforderlich');
-    if (!data.firmenhandy) errors.push('Firmenhandy ist erforderlich');
     if (!data.password) errors.push('Passwort ist erforderlich');
     
     return errors;

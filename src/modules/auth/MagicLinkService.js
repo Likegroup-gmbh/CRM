@@ -301,21 +301,20 @@ export class MagicLinkService {
 
       const kundeId = benutzerData?.id;
 
-      // 4. Fehlende Zuordnungen vom Ansprechpartner idempotent ergänzen
+      // 4. Alle Verknüpfungen + Magic Link consume atomar über SECURITY DEFINER Funktion
       if (kundeId) {
-        await this.syncCustomerLinksFromAnsprechpartner(kundeId, ansprechpartner);
-      }
+        const { data: linkResult, error: linkError } = await window.supabase
+          .rpc('link_kunde_from_magic_link', {
+            p_kunde_id: kundeId,
+            p_ansprechpartner_id: ansprechpartner.id,
+            p_magic_link_id: magicLink.id
+          });
 
-      // 7. Magic Link als verwendet markieren
-      const { error: usedError } = await window.supabase
-        .from('magic_links')
-        .update({ used_at: new Date().toISOString() })
-        .eq('id', magicLink.id);
-
-      if (usedError) {
-        console.warn('⚠️ Magic Link konnte nicht als verwendet markiert werden:', usedError);
-      } else {
-        console.log('✅ Magic Link als verwendet markiert');
+        if (linkError) {
+          console.error('❌ Verknüpfung fehlgeschlagen:', linkError);
+        } else {
+          console.log('✅ Verknüpfungen erstellt:', linkResult);
+        }
       }
 
       console.log('✅ Registrierung über Magic Link erfolgreich:', { kundeId, email });
