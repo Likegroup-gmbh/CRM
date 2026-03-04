@@ -1829,6 +1829,8 @@ export class AuftragList {
         
         if (sectionsHtml) {
           container.innerHTML = sectionsHtml;
+          const { kampagnenartenService } = await import('./services/KampagnenartenService.js');
+          kampagnenartenService.bindVideoToggleEvents(container);
         } else {
           container.innerHTML = `
             <div class="alert alert-warning">
@@ -2050,6 +2052,9 @@ export class AuftragList {
 
         // Auftragsdetails erstellen (wenn Toggle aktiv)
         const createDetailsToggle = document.getElementById('field-create_auftragsdetails');
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/ef7c4a93-6b3c-4f97-afd6-79f1e3285bc3',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1da93c'},body:JSON.stringify({sessionId:'1da93c',location:'AuftragList.js:2052',message:'Toggle state before handleAuftragsdetailsCreation',data:{toggleExists:!!createDetailsToggle,toggleChecked:createDetailsToggle?.checked,auftragId:result.id,embeddedKampagnenartIds:this.embeddedSelectedKampagnenartIds},timestamp:Date.now(),hypothesisId:'H-A,H-B'})}).catch(()=>{});
+        // #endregion
         const detailsCreated = await this.handleAuftragsdetailsCreation(result.id, createDetailsToggle?.checked);
         
         // Toast-Erfolgsmeldung
@@ -2150,9 +2155,27 @@ export class AuftragList {
             detailsData[name] = value;
           }
         });
+
+        // Toggle-Hilfsfelder nicht persistieren; bei deaktiviertem Toggle Zahl explizit nullen
+        const videoToggleInputs = budgetContainer.querySelectorAll('input[data-video-toggle="true"]');
+        videoToggleInputs.forEach(toggleInput => {
+          const toggleName = toggleInput.name;
+          if (toggleName && Object.prototype.hasOwnProperty.call(detailsData, toggleName)) {
+            delete detailsData[toggleName];
+          }
+          const videoFieldName = toggleInput.dataset.target;
+          if (!videoFieldName) return;
+          if (!toggleInput.checked) {
+            detailsData[videoFieldName] = null;
+          }
+        });
       }
       
       console.log('📤 Auftragsdetails-Daten:', detailsData);
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ef7c4a93-6b3c-4f97-afd6-79f1e3285bc3',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1da93c'},body:JSON.stringify({sessionId:'1da93c',location:'AuftragList.js:2170',message:'detailsData before insert',data:{fieldKeys:Object.keys(detailsData),fieldCount:Object.keys(detailsData).length,detailsData:detailsData},timestamp:Date.now(),hypothesisId:'H-A,H-C'})}).catch(()=>{});
+      // #endregion
       
       // 2. Auftragsdetails in Datenbank speichern
       const { data: createdDetails, error: detailsError } = await window.supabase
@@ -2162,12 +2185,18 @@ export class AuftragList {
         .single();
       
       if (detailsError) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/ef7c4a93-6b3c-4f97-afd6-79f1e3285bc3',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1da93c'},body:JSON.stringify({sessionId:'1da93c',location:'AuftragList.js:2180',message:'INSERT FAILED',data:{error:detailsError,errorMessage:detailsError?.message,errorDetails:detailsError?.details,errorHint:detailsError?.hint,errorCode:detailsError?.code},timestamp:Date.now(),hypothesisId:'H-A,H-C'})}).catch(()=>{});
+        // #endregion
         console.error('❌ Fehler beim Erstellen der Auftragsdetails:', detailsError);
         window.toastSystem?.show('Auftrag erstellt, aber Auftragsdetails konnten nicht gespeichert werden.', 'warning');
         return false;
       }
       
       console.log('✅ Auftragsdetails erstellt:', createdDetails);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ef7c4a93-6b3c-4f97-afd6-79f1e3285bc3',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1da93c'},body:JSON.stringify({sessionId:'1da93c',location:'AuftragList.js:2190',message:'INSERT SUCCESS',data:{createdDetailsId:createdDetails?.id},timestamp:Date.now(),hypothesisId:'H-A'})}).catch(()=>{});
+      // #endregion
       
       // 3. Kampagnenarten in Junction-Tabelle speichern
       if (this.embeddedSelectedKampagnenartIds.length > 0) {
@@ -2176,13 +2205,19 @@ export class AuftragList {
           kampagne_art_id: kampagneArtId
         }));
         
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/ef7c4a93-6b3c-4f97-afd6-79f1e3285bc3',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1da93c'},body:JSON.stringify({sessionId:'1da93c',location:'AuftragList.js:2200',message:'Junction insert data',data:{junctionData:junctionData,count:junctionData.length},timestamp:Date.now(),hypothesisId:'H-D'})}).catch(()=>{});
+        // #endregion
+        
         const { error: junctionError } = await window.supabase
           .from('auftrag_kampagne_art')
           .insert(junctionData);
         
         if (junctionError) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/ef7c4a93-6b3c-4f97-afd6-79f1e3285bc3',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1da93c'},body:JSON.stringify({sessionId:'1da93c',location:'AuftragList.js:2208',message:'Junction INSERT FAILED',data:{error:junctionError,errorMessage:junctionError?.message,errorCode:junctionError?.code},timestamp:Date.now(),hypothesisId:'H-D'})}).catch(()=>{});
+          // #endregion
           console.error('❌ Fehler beim Speichern der Kampagnenarten:', junctionError);
-          // Kein Fehler werfen, da Auftragsdetails bereits erstellt wurden
         } else {
           console.log('✅ Kampagnenarten in Junction-Tabelle gespeichert');
         }
