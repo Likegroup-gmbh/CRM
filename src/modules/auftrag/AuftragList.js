@@ -737,7 +737,7 @@ export class AuftragList {
     return `
       <!-- Daten-Tabelle -->
       <div class="table-container" id="auftrag-table-container">
-          <table class="data-table">
+          <table class="data-table auftrag-table">
             <thead>
               <tr>
                 ${this.isAdmin ? `<th class="col-checkbox">
@@ -2053,7 +2053,7 @@ export class AuftragList {
         // Auftragsdetails erstellen (wenn Toggle aktiv)
         const createDetailsToggle = document.getElementById('field-create_auftragsdetails');
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/ef7c4a93-6b3c-4f97-afd6-79f1e3285bc3',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1da93c'},body:JSON.stringify({sessionId:'1da93c',location:'AuftragList.js:2052',message:'Toggle state before handleAuftragsdetailsCreation',data:{toggleExists:!!createDetailsToggle,toggleChecked:createDetailsToggle?.checked,auftragId:result.id,embeddedKampagnenartIds:this.embeddedSelectedKampagnenartIds},timestamp:Date.now(),hypothesisId:'H-A,H-B'})}).catch(()=>{});
+        {const _d={sessionId:'1da93c',location:'AuftragList.js:2055',message:'Toggle state before handleAuftragsdetailsCreation',data:{toggleExists:!!createDetailsToggle,toggleChecked:createDetailsToggle?.checked,auftragId:result.id,embeddedKampagnenartIds:this.embeddedSelectedKampagnenartIds},timestamp:Date.now(),hypothesisId:'H-A,H-B'};console.warn('[DEBUG-1da93c]',_d.message,_d.data);window.__debugLog=window.__debugLog||[];window.__debugLog.push(_d);fetch('http://127.0.0.1:7242/ingest/ef7c4a93-6b3c-4f97-afd6-79f1e3285bc3',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1da93c'},body:JSON.stringify(_d)}).catch(()=>{});}
         // #endregion
         const detailsCreated = await this.handleAuftragsdetailsCreation(result.id, createDetailsToggle?.checked);
         
@@ -2174,7 +2174,7 @@ export class AuftragList {
       console.log('📤 Auftragsdetails-Daten:', detailsData);
       
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/ef7c4a93-6b3c-4f97-afd6-79f1e3285bc3',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1da93c'},body:JSON.stringify({sessionId:'1da93c',location:'AuftragList.js:2170',message:'detailsData before insert',data:{fieldKeys:Object.keys(detailsData),fieldCount:Object.keys(detailsData).length,detailsData:detailsData},timestamp:Date.now(),hypothesisId:'H-A,H-C'})}).catch(()=>{});
+      {const _d={sessionId:'1da93c',location:'AuftragList.js:2172',message:'detailsData before insert',data:{fieldKeys:Object.keys(detailsData),fieldCount:Object.keys(detailsData).length,detailsData:detailsData},timestamp:Date.now(),hypothesisId:'H-A,H-C'};console.warn('[DEBUG-1da93c]',_d.message,_d.data);window.__debugLog=window.__debugLog||[];window.__debugLog.push(_d);fetch('http://127.0.0.1:7242/ingest/ef7c4a93-6b3c-4f97-afd6-79f1e3285bc3',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1da93c'},body:JSON.stringify(_d)}).catch(()=>{});}
       // #endregion
       
       // 2. Auftragsdetails in Datenbank speichern
@@ -2186,7 +2186,7 @@ export class AuftragList {
       
       if (detailsError) {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/ef7c4a93-6b3c-4f97-afd6-79f1e3285bc3',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1da93c'},body:JSON.stringify({sessionId:'1da93c',location:'AuftragList.js:2180',message:'INSERT FAILED',data:{error:detailsError,errorMessage:detailsError?.message,errorDetails:detailsError?.details,errorHint:detailsError?.hint,errorCode:detailsError?.code},timestamp:Date.now(),hypothesisId:'H-A,H-C'})}).catch(()=>{});
+        {const _d={sessionId:'1da93c',location:'AuftragList.js:2183',message:'INSERT FAILED',data:{error:detailsError,errorMessage:detailsError?.message,errorDetails:detailsError?.details,errorHint:detailsError?.hint,errorCode:detailsError?.code},timestamp:Date.now(),hypothesisId:'H-A,H-C'};console.warn('[DEBUG-1da93c]',_d.message,_d.data);window.__debugLog=window.__debugLog||[];window.__debugLog.push(_d);fetch('http://127.0.0.1:7242/ingest/ef7c4a93-6b3c-4f97-afd6-79f1e3285bc3',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1da93c'},body:JSON.stringify(_d)}).catch(()=>{});}
         // #endregion
         console.error('❌ Fehler beim Erstellen der Auftragsdetails:', detailsError);
         window.toastSystem?.show('Auftrag erstellt, aber Auftragsdetails konnten nicht gespeichert werden.', 'warning');
@@ -2195,7 +2195,7 @@ export class AuftragList {
       
       console.log('✅ Auftragsdetails erstellt:', createdDetails);
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/ef7c4a93-6b3c-4f97-afd6-79f1e3285bc3',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1da93c'},body:JSON.stringify({sessionId:'1da93c',location:'AuftragList.js:2190',message:'INSERT SUCCESS',data:{createdDetailsId:createdDetails?.id},timestamp:Date.now(),hypothesisId:'H-A'})}).catch(()=>{});
+      {const _d={sessionId:'1da93c',location:'AuftragList.js:2193',message:'INSERT SUCCESS',data:{createdDetailsId:createdDetails?.id},timestamp:Date.now(),hypothesisId:'H-A'};console.warn('[DEBUG-1da93c]',_d.message,_d.data);window.__debugLog=window.__debugLog||[];window.__debugLog.push(_d);fetch('http://127.0.0.1:7242/ingest/ef7c4a93-6b3c-4f97-afd6-79f1e3285bc3',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1da93c'},body:JSON.stringify(_d)}).catch(()=>{});}
       // #endregion
       
       // 3. Kampagnenarten in Junction-Tabelle speichern
@@ -2206,7 +2206,7 @@ export class AuftragList {
         }));
         
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/ef7c4a93-6b3c-4f97-afd6-79f1e3285bc3',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1da93c'},body:JSON.stringify({sessionId:'1da93c',location:'AuftragList.js:2200',message:'Junction insert data',data:{junctionData:junctionData,count:junctionData.length},timestamp:Date.now(),hypothesisId:'H-D'})}).catch(()=>{});
+        {const _d={sessionId:'1da93c',location:'AuftragList.js:2205',message:'Junction insert data',data:{junctionData:junctionData,count:junctionData.length},timestamp:Date.now(),hypothesisId:'H-D'};console.warn('[DEBUG-1da93c]',_d.message,_d.data);window.__debugLog=window.__debugLog||[];window.__debugLog.push(_d);fetch('http://127.0.0.1:7242/ingest/ef7c4a93-6b3c-4f97-afd6-79f1e3285bc3',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1da93c'},body:JSON.stringify(_d)}).catch(()=>{});}
         // #endregion
         
         const { error: junctionError } = await window.supabase

@@ -145,6 +145,11 @@
   overflow: visible !important;
 }
 
+/* Auftrag-Container: overflow visible wenn Dropdown offen */
+#auftrag-table-container:has(.actions-dropdown.show) {
+  overflow: visible !important;
+}
+
 /* Main-Wrapper: overflow visible wenn Dropdown in Kooperation-Tabelle offen */
 .main-wrapper:has(.kooperation-video-grid .actions-dropdown.show) {
   overflow: visible !important;

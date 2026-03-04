@@ -454,11 +454,6 @@ export class AuthUtils {
       <div class="login-split-container">
         <div class="login-left">
           <div class="login-box">
-            <div class="login-box-icon success">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-              </svg>
-            </div>
             <h2 class="success">E-Mail gesendet!</h2>
             <p class="login-box-message">
               Falls ein Account mit <strong>${email}</strong> existiert, haben wir einen Link zum Zurücksetzen des Passworts gesendet.
