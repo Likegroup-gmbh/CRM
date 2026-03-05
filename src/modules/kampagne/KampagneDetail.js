@@ -346,7 +346,6 @@ export class KampagneDetail {
     if (!this.vertraege || this.vertraege.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">📄</div>
           <h3>Keine Verträge vorhanden</h3>
           <p>Für diese Kampagne wurden noch keine Verträge erfasst.</p>
         </div>
@@ -921,50 +920,40 @@ export class KampagneDetail {
         <div class="tab-navigation">
           ${window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? `
           <button class="tab-button active" data-tab="koops-videos">
-            <span class="tab-icon">${getTabIcon('kooperationen')}</span>
-            Kooperationen & Videos<span class="tab-count">${this.kooperationen.length}</span>
+            Kooperationen & Videos
           </button>` : `
           <button class="tab-button active" data-tab="info">
-            <span class="tab-icon">${getTabIcon('info')}</span>
             Informationen
           </button>`}
           <button class="tab-button" data-tab="strategien">
-            <span class="tab-icon">${getTabIcon('strategie')}</span>
-            Strategien<span class="tab-count">${this.strategien.length}</span>
+            Strategien
           </button>
           <button class="tab-button" data-tab="briefings">
-            <span class="tab-icon">${getTabIcon('briefings')}</span>
-            Briefings<span class="tab-count">${this.briefings.length}</span>
+            Briefings
           </button>
           ${!isKunde && window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? `
           <button class="tab-button" data-tab="info">
-            <span class="tab-icon">${getTabIcon('info')}</span>
             Informationen
           </button>` : ''}
           ${!isKunde && window.canViewTable && window.canViewTable('kampagne','rechnungen') !== false ? `
           <button class="tab-button" data-tab="rechnungen">
-            <span class="tab-icon">${getTabIcon('rechnungen')}</span>
-            Rechnungen<span class="tab-count">${this.rechnungen?.length || 0}</span>
+            Rechnungen
           </button>` : ''}
           ${!isKunde ? `
           <button class="tab-button" data-tab="vertraege">
-            <span class="tab-icon">${getTabIcon('vertraege')}</span>
-            Verträge<span class="tab-count">${this.vertraege?.length || 0}</span>
+            Verträge
           </button>` : ''}
           ${!isKunde && window.canViewTable && window.canViewTable('kampagne','notizen') !== false ? `
           <button class="tab-button" data-tab="notizen">
-            <span class="tab-icon">${getTabIcon('notizen')}</span>
-            Notizen<span class="tab-count">${this.notizen.length}</span>
+            Notizen
           </button>` : ''}
           ${window.canViewTable && window.canViewTable('kampagne','history') !== false ? `
           <button class="tab-button" data-tab="history">
-            <span class="tab-icon">${getTabIcon('history')}</span>
-            History<span class="tab-count">${this.historyCount + this.koopHistoryCount}</span>
+            History
           </button>` : ''}
           ${!isKunde ? `
           <button class="tab-button" data-tab="mitarbeiter">
-            <span class="tab-icon">${getTabIcon('ansprechpartner')}</span>
-            Mitarbeiter<span class="tab-count">${this.kampagneData?.mitarbeiter?.length || 0}</span>
+            Mitarbeiter
           </button>` : ''}
         </div>
 

@@ -17,7 +17,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
     this.budget = { invoicesByKoop: {}, totals: { netto: 0, zusatz: 0, gesamt: 0, invoice_netto: 0, invoice_brutto: 0 } };
     this.statusOptions = [];
     this.euLaender = [];
-    this.activeMainTab = 'rechte';
+    this.activeMainTab = 'informationen';
   }
 
   async init(id) {
@@ -287,7 +287,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
     const personConfig = {
       name: this.getDisplayName(),
       avatarUrl: this.user?.profile_image_url,
-      avatarOnly: true  // Nur Avatar anzeigen, kein Name/Email/Subtitle im Header
+      avatarOnly: false
     };
 
     // Quick Actions (leer - werden nicht angezeigt)
@@ -295,11 +295,11 @@ export class MitarbeiterDetail extends PersonDetailBase {
 
     // Info-Items für Sidebar
     const sidebarInfo = this.renderInfoItems([
-      { label: 'Rolle', value: this.user?.rolle || '-', badge: true, badgeType: this.user?.rolle === 'admin' ? 'primary' : 'secondary' },
-      { label: 'Klasse', value: this.user?.mitarbeiter_klasse_name || 'Nicht zugewiesen' },
-      { label: 'Firmenhandy', value: '-', rawHtml: this.getFirmenhandyDisplayHtml() },
-      { label: 'Freigeschaltet', value: this.user?.freigeschaltet ? 'Ja' : 'Nein', badge: true, badgeType: this.user?.freigeschaltet ? 'success' : 'warning' },
-      { label: 'Erstellt', value: this.formatDate(this.user?.created_at) }
+      { icon: 'shield', label: 'Rolle', value: this.user?.rolle || '-', badge: true, badgeType: this.user?.rolle === 'admin' ? 'primary' : 'secondary' },
+      { icon: 'tag', label: 'Klasse', value: this.user?.mitarbeiter_klasse_name || 'Nicht zugewiesen' },
+      { icon: 'phone', label: 'Firmenhandy', value: '-', rawHtml: this.getFirmenhandyDisplayHtml() },
+      { icon: 'check', label: 'Freigeschaltet', value: this.user?.freigeschaltet ? 'Ja' : 'Nein', badge: true, badgeType: this.user?.freigeschaltet ? 'success' : 'warning' },
+      { icon: 'clock', label: 'Erstellt', value: this.formatDate(this.user?.created_at) }
     ]);
 
     // Tab-Navigation (oben über volle Breite)
@@ -323,13 +323,13 @@ export class MitarbeiterDetail extends PersonDetailBase {
 
   getTabsConfig() {
     return [
-      { tab: 'rechte', label: 'Rechte', isActive: this.activeMainTab === 'rechte' },
       { tab: 'unternehmen', label: 'Unternehmen', count: this.zugeordnet.unternehmen.length, isActive: this.activeMainTab === 'unternehmen' },
+      { tab: 'auftragsdetails', label: 'Auftragsdetails', count: this.assignments.auftragsdetails.length, isActive: this.activeMainTab === 'auftragsdetails' },
       { tab: 'kampagnen', label: 'Kampagnen', count: this.assignments.kampagnen.length, isActive: this.activeMainTab === 'kampagnen' },
+      { tab: 'briefings', label: 'Briefings', count: this.assignments.briefings.length, isActive: this.activeMainTab === 'briefings' },
       { tab: 'kooperationen', label: 'Kooperationen', count: this.assignments.kooperationen.length, isActive: this.activeMainTab === 'koops' },
       { tab: 'cashflow', label: 'Budget', isActive: this.activeMainTab === 'budget' },
-      { tab: 'briefings', label: 'Briefings', count: this.assignments.briefings.length, isActive: this.activeMainTab === 'briefings' },
-      { tab: 'auftragsdetails', label: 'Auftragsdetails', count: this.assignments.auftragsdetails.length, isActive: this.activeMainTab === 'auftragsdetails' }
+      { tab: 'rechte', label: 'Rechte', isActive: this.activeMainTab === 'rechte' }
     ];
   }
 
@@ -343,7 +343,8 @@ export class MitarbeiterDetail extends PersonDetailBase {
 
   renderTabNavigation() {
     const tabs = this.getTabsConfig();
-    return tabs.map(t => renderTabButton({ ...t, tab: t.tab === 'kooperationen' ? 'koops' : (t.tab === 'cashflow' ? 'budget' : t.tab) })).join('');
+    const tabsHtml = tabs.map(t => renderTabButton({ ...t, showIcon: true, tab: t.tab === 'kooperationen' ? 'koops' : (t.tab === 'cashflow' ? 'budget' : t.tab) })).join('');
+    return `<div class="tabs-header-container" style="--tab-count: ${tabs.length}"><div class="tabs-left">${tabsHtml}</div></div>`;
   }
 
   renderMainContent() {

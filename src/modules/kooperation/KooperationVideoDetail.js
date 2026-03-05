@@ -316,11 +316,9 @@ export const kooperationVideoDetail = {
       <!-- Tab-Navigation -->
       <div class="tab-navigation">
         <button class="tab-button active" data-tab="info">
-          <span class="tab-icon">${getTabIcon('info')}</span>
           Informationen
         </button>
         <button class="tab-button" data-tab="videos">
-          <span class="tab-icon">${getTabIcon('videos')}</span>
           Videos & Feedback
         </button>
       </div>

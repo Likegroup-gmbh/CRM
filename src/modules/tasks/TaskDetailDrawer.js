@@ -345,20 +345,16 @@ export class TaskDetailDrawer {
     const html = `
       <div class="tab-navigation">
         <button class="tab-button active" data-tab="details">
-          <span class="tab-icon">${getTabIcon('details')}</span>
           Details
         </button>
         <button class="tab-button" data-tab="comments">
-          <span class="tab-icon">${getTabIcon('notizen')}</span>
-          Kommentare<span class="tab-count">${this.comments.length}</span>
+          Kommentare
         </button>
         <button class="tab-button" data-tab="attachments">
-          <span class="tab-icon">${getTabIcon('dateien')}</span>
-          Anhänge<span class="tab-count">${this.attachments.length}</span>
+          Anhänge
         </button>
         <button class="tab-button" data-tab="history">
-          <span class="tab-icon">${getTabIcon('history')}</span>
-          Verlauf<span class="tab-count">${this.history.length}</span>
+          Verlauf
         </button>
       </div>
 

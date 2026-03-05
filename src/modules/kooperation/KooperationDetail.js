@@ -358,8 +358,7 @@ export class KooperationDetail {
           ${renderTabButton({ tab: 'ratings', label: 'Bewertungen', count: this.ratings.length })}
           ${renderTabButton({ tab: 'history', label: 'History', count: this.historyCount || 0 })}
           <button class="tab-button" data-tab="tasks">
-            <span class="tab-icon">${getTabIcon('tasks')}</span>
-            Aufgaben<span class="tab-count" id="tasks-count">...</span>
+            Aufgaben
           </button>
         </div>
 
@@ -1218,7 +1217,6 @@ export class KooperationDetail {
     if (!this.versandDaten || this.versandDaten.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">📦</div>
           <h3>Keine Versand-Daten vorhanden</h3>
           <p>Es wurden noch keine Produkte für diese Kooperation versendet.</p>
           <button onclick="window.kooperationVersandManager?.open('${this.kooperationId}')" class="primary-btn">

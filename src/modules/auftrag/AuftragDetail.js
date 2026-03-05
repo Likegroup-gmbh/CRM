@@ -460,23 +460,18 @@ export class AuftragDetail {
         <!-- Tab-Navigation -->
         <div class="tab-navigation">
           <button class="tab-button active" data-tab="uebersicht">
-            <span class="tab-icon">${getTabIcon('info')}</span>
             Übersicht
           </button>
           <button class="tab-button" data-tab="finanzen">
-            <span class="tab-icon">${getTabIcon('finanzen')}</span>
             Finanzen
           </button>
           <button class="tab-button" data-tab="auftragsdetails">
-            <span class="tab-icon">${getTabIcon('auftragsdetails')}</span>
             Auftragsdetails
           </button>
           <button class="tab-button" data-tab="notizen">
-            <span class="tab-icon">${getTabIcon('notizen')}</span>
             Notizen
           </button>
           <button class="tab-button" data-tab="bewertungen">
-            <span class="tab-icon">${getTabIcon('bewertungen')}</span>
             Bewertungen
           </button>
         </div>
@@ -739,7 +734,6 @@ export class AuftragDetail {
     if (!this.auftragsDetails) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">📋</div>
           <h3>Keine Auftragsdetails vorhanden</h3>
           <p>Es wurden noch keine detaillierten Produktionsinformationen für diesen Auftrag hinterlegt.</p>
           <button onclick="window.navigateTo('/auftragsdetails/new')" class="primary-btn">
@@ -973,7 +967,6 @@ export class AuftragDetail {
     if (!this.creator || this.creator.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">👤</div>
           <h3>Keine Creator zugewiesen</h3>
           <p>Es wurden noch keine Creator diesem Auftrag zugewiesen.</p>
         </div>
@@ -1008,7 +1001,6 @@ export class AuftragDetail {
     if (!this.rechnungen || this.rechnungen.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">💶</div>
           <h3>Keine Rechnungen vorhanden</h3>
         </div>
       `;
@@ -1518,7 +1510,6 @@ export class AuftragDetail {
     if (!this.kooperationen || this.kooperationen.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">🤝</div>
           <h3>Keine Kooperationen vorhanden</h3>
           <p>Für diesen Auftrag wurden noch keine Kooperationen angelegt.</p>
         </div>

@@ -350,7 +350,7 @@ export class RechnungList {
         </div>
       </div>
 
-      <div class="table-container">
+      <div class="data-table-container rechnung-table-container">
         <table class="data-table">
           <thead>
             <tr>
@@ -534,6 +534,68 @@ export class RechnungList {
         await this.downloadSelected();
       };
     }
+
+    this.bindDragToScroll();
+  }
+
+  // Drag-to-Scroll für horizontales Scrollen der Rechnungstabelle
+  bindDragToScroll() {
+    const container = document.querySelector('.rechnung-table-container');
+    if (!container) return;
+
+    this.dragScrollContainer = container;
+    container.classList.add('drag-scroll-enabled');
+
+    // Alte Event-Listener entfernen, falls vorhanden
+    if (this._dragMouseDown) {
+      container.removeEventListener('mousedown', this._dragMouseDown);
+      container.removeEventListener('mousemove', this._dragMouseMove);
+      container.removeEventListener('mouseup', this._dragMouseUp);
+      container.removeEventListener('mouseleave', this._dragMouseUp);
+    }
+
+    this._dragMouseDown = (e) => {
+      if (
+        e.target.tagName === 'INPUT' ||
+        e.target.tagName === 'BUTTON' ||
+        e.target.closest('a') ||
+        e.target.closest('button') ||
+        e.target.closest('.actions-dropdown-container')
+      ) {
+        return;
+      }
+
+      this.isDragging = true;
+      this.startX = e.pageX - container.offsetLeft;
+      this.scrollLeft = container.scrollLeft;
+
+      container.style.cursor = 'grabbing';
+      container.style.userSelect = 'none';
+      e.preventDefault();
+    };
+
+    this._dragMouseMove = (e) => {
+      if (!this.isDragging) return;
+      e.preventDefault();
+
+      const x = e.pageX - container.offsetLeft;
+      const walk = (x - this.startX) * 1.5;
+      container.scrollLeft = this.scrollLeft - walk;
+    };
+
+    this._dragMouseUp = () => {
+      if (this.isDragging) {
+        this.isDragging = false;
+        container.style.cursor = 'grab';
+        container.style.userSelect = '';
+      }
+    };
+
+    container.addEventListener('mousedown', this._dragMouseDown);
+    container.addEventListener('mousemove', this._dragMouseMove);
+    container.addEventListener('mouseup', this._dragMouseUp);
+    container.addEventListener('mouseleave', this._dragMouseUp);
+    container.style.cursor = 'grab';
   }
 
   // Ausgewählte Rechnungen herunterladen
@@ -694,6 +756,20 @@ export class RechnungList {
   // Erstellungsformular aus der Liste heraus
   showCreateForm() {
     window.navigateTo('/rechnung/new');
+  }
+
+  destroy() {
+    if (this.dragScrollContainer) {
+      this.dragScrollContainer.removeEventListener('mousedown', this._dragMouseDown);
+      this.dragScrollContainer.removeEventListener('mousemove', this._dragMouseMove);
+      this.dragScrollContainer.removeEventListener('mouseup', this._dragMouseUp);
+      this.dragScrollContainer.removeEventListener('mouseleave', this._dragMouseUp);
+      this.dragScrollContainer.classList.remove('drag-scroll-enabled');
+      this.dragScrollContainer.style.cursor = '';
+      this.dragScrollContainer.style.userSelect = '';
+      this.isDragging = false;
+      this.dragScrollContainer = null;
+    }
   }
 }
 

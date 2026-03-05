@@ -237,21 +237,17 @@ export function getTabIcon(tabName) {
  * @param {boolean} [config.skipPermissionCheck=false] - Überspringt die Berechtigungsprüfung wenn true
  * @returns {string} HTML für den Tab-Button oder leerer String wenn keine Berechtigung
  */
-export function renderTabButton({ tab, label, count, isActive = false, icon, skipPermissionCheck = false }) {
+export function renderTabButton({ tab, label, count, isActive = false, icon, skipPermissionCheck = false, showIcon = false }) {
   // Berechtigungsprüfung (kann mit skipPermissionCheck umgangen werden)
   if (!skipPermissionCheck && !canViewTab(tab)) {
     return ''; // Tab nicht rendern wenn keine Berechtigung
   }
   
   const tabIcon = icon || getTabIcon(tab);
-  const countHtml = count !== undefined && count !== null 
-    ? `<span class="tab-count">${count}</span>` 
-    : '';
-  
   return `
     <button class="tab-button ${isActive ? 'active' : ''}" data-tab="${tab}">
-      <span class="tab-icon">${tabIcon}</span>
-      ${label}${countHtml}
+      ${showIcon ? `<span class="tab-icon">${tabIcon}</span>` : ''}
+      ${label}
     </button>
   `;
 }

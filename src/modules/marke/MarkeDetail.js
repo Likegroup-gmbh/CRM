@@ -63,7 +63,7 @@ export class MarkeDetail extends PersonDetailBase {
         pane.classList.add('active');
         
         // Lazy load Tab-Daten (nur wenn nötig)
-        if (!['informationen', 'ansprechpartner'].includes(tab)) {
+        if (!['ansprechpartner'].includes(tab)) {
           await this.loadTabData(tab);
         }
       }
@@ -519,7 +519,7 @@ export class MarkeDetail extends PersonDetailBase {
       email: '',
       subtitle: this.marke?.unternehmen?.firmenname || 'Marke',
       avatarUrl: this.marke?.logo_url,
-      avatarOnly: true
+      avatarOnly: false
     };
 
     // Quick Actions (keine im Header für Marken)
@@ -527,11 +527,11 @@ export class MarkeDetail extends PersonDetailBase {
 
     // Info-Items für Sidebar
     const sidebarInfo = this.renderInfoItems([
-      { label: 'Unternehmen', value: this.marke?.unternehmen?.firmenname || '-' },
-      { label: 'Branchen', value: this.getBranchenDisplay() },
-      { label: 'Webseite', value: this.marke?.webseite ? 'Vorhanden' : '-' },
-      { label: 'Erstellt', value: this.formatDate(this.marke?.created_at) },
-      { label: 'Aktualisiert', value: this.formatDate(this.marke?.updated_at) }
+      { icon: 'building', label: 'Unternehmen', value: this.marke?.unternehmen?.firmenname || '-' },
+      { icon: 'tag', label: 'Branchen', value: this.getBranchenDisplay() },
+      { icon: 'link', label: 'Webseite', rawHtml: this.marke?.webseite ? `<a href="${this.marke.webseite}" target="_blank" rel="noopener">${this.sanitize(this.marke.webseite)}</a>` : '-' },
+      { icon: 'clock', label: 'Erstellt', value: this.formatDate(this.marke?.created_at) },
+      { icon: 'clock', label: 'Aktualisiert', value: this.formatDate(this.marke?.updated_at) }
     ]);
 
     // Tab-Navigation (oben über volle Breite)
@@ -560,7 +560,6 @@ export class MarkeDetail extends PersonDetailBase {
 
   getTabsConfig() {
     return [
-      { tab: 'informationen', label: 'Informationen', isActive: this.activeMainTab === 'informationen' },
       {
         tab: 'kickoff',
         label: 'Kick-Off',
@@ -569,26 +568,22 @@ export class MarkeDetail extends PersonDetailBase {
       },
       { tab: 'ansprechpartner', label: 'Ansprechpartner', count: this.ansprechpartner.length, isActive: this.activeMainTab === 'ansprechpartner' },
       { tab: 'auftraege', label: 'Aufträge', count: this.auftraege.length, isActive: this.activeMainTab === 'auftraege' },
-      { tab: 'briefings', label: 'Briefings', count: this.briefings.length, isActive: this.activeMainTab === 'briefings' },
       { tab: 'kampagnen', label: 'Kampagnen', count: this.kampagnen.length, isActive: this.activeMainTab === 'kampagnen' },
-      { tab: 'kooperationen', label: 'Kooperationen', count: this.kooperationen.length, isActive: this.activeMainTab === 'kooperationen' },
+      { tab: 'briefings', label: 'Briefings', count: this.briefings.length, isActive: this.activeMainTab === 'briefings' },
       { tab: 'strategien', label: 'Strategien', count: this.strategien.length, isActive: this.activeMainTab === 'strategien' },
+      { tab: 'kooperationen', label: 'Kooperationen', count: this.kooperationen.length, isActive: this.activeMainTab === 'kooperationen' },
       { tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen.length, isActive: this.activeMainTab === 'rechnungen' }
     ];
   }
 
   renderTabNavigation() {
     const tabs = this.getTabsConfig();
-    return tabs.map(t => renderTabButton(t)).join('');
+    return `<div class="tabs-header-container" style="--tab-count: ${tabs.length}"><div class="tabs-left">${tabs.map(t => renderTabButton({ ...t, showIcon: true })).join('')}</div></div>`;
   }
 
   renderMainContent() {
     return `
       <div class="tab-content">
-        <div class="tab-pane ${this.activeMainTab === 'informationen' ? 'active' : ''}" id="tab-informationen">
-          ${this.renderInformationen()}
-        </div>
-
         <div class="tab-pane ${this.activeMainTab === 'kickoff' ? 'active' : ''}" id="tab-kickoff">
           ${this.renderKickOff()}
         </div>
@@ -684,7 +679,6 @@ export class MarkeDetail extends PersonDetailBase {
     if (!this.kampagnen || this.kampagnen.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">📢</div>
           <h3>Keine Kampagnen vorhanden</h3>
           <p>Es wurden noch keine Kampagnen für diese Marke erstellt.</p>
         </div>
@@ -736,7 +730,6 @@ export class MarkeDetail extends PersonDetailBase {
     if (!this.auftraege || this.auftraege.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">📋</div>
           <h3>Keine Aufträge vorhanden</h3>
           <p>Es wurden noch keine Aufträge für diese Marke erstellt.</p>
         </div>
@@ -786,7 +779,6 @@ export class MarkeDetail extends PersonDetailBase {
     if (!this.ansprechpartner || this.ansprechpartner.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">👥</div>
           <h3>Keine Ansprechpartner vorhanden</h3>
           <p>Es wurden noch keine Ansprechpartner für diese Marke zugeordnet.</p>
         </div>
@@ -843,7 +835,6 @@ export class MarkeDetail extends PersonDetailBase {
     if (!this.rechnungen || this.rechnungen.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">💶</div>
           <h3>Keine Rechnungen vorhanden</h3>
         </div>
       `;
@@ -884,7 +875,6 @@ export class MarkeDetail extends PersonDetailBase {
     if (!this.briefings || this.briefings.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">📝</div>
           <h3>Keine Briefings vorhanden</h3>
           <p>Es wurden noch keine Briefings für diese Marke erstellt.</p>
         </div>
@@ -932,7 +922,6 @@ export class MarkeDetail extends PersonDetailBase {
     if (!this.kooperationen || this.kooperationen.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">🤝</div>
           <h3>Keine Kooperationen vorhanden</h3>
           <p>Für die Kampagnen dieser Marke wurden keine Kooperationen gefunden.</p>
         </div>
@@ -986,7 +975,6 @@ export class MarkeDetail extends PersonDetailBase {
     if (!this.strategien || this.strategien.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">💡</div>
           <h3>Keine Strategien vorhanden</h3>
           <p>Es wurden noch keine Strategien für diese Marke erstellt.</p>
         </div>
@@ -1043,7 +1031,6 @@ export class MarkeDetail extends PersonDetailBase {
     if (availableCount === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">🚀</div>
           <h3>Kein Kick-Off vorhanden</h3>
           <p>Es wurde noch kein Brand Kick-Off für diese Marke erstellt.</p>
           <a href="/kickoff" class="btn btn-primary" onclick="event.preventDefault(); window.navigateTo('/kickoff')">
@@ -1074,7 +1061,6 @@ export class MarkeDetail extends PersonDetailBase {
         <div class="detail-section">
           ${typeSwitcher}
           <div class="empty-state">
-            <div class="empty-icon">🚀</div>
             <h3>Kein ${typeLabel} Kick-Off vorhanden</h3>
             <p>Für den Typ ${typeLabel} wurde noch kein Kick-Off erstellt.</p>
             <a href="/kickoff" class="btn btn-primary" onclick="event.preventDefault(); window.navigateTo('/kickoff')">

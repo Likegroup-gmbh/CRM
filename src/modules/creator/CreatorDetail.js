@@ -26,7 +26,7 @@ export class CreatorDetail extends PersonDetailBase {
     this.creatorAdressen = [];
     this.eventsBound = false;
     this._cacheInvalidationBound = false;
-    this.activeMainTab = 'info';
+    this.activeMainTab = 'informationen';
     // AbortController für sauberes Event-Listener Cleanup
     this._abortController = null;
     this._destroyed = false;
@@ -494,10 +494,10 @@ export class CreatorDetail extends PersonDetailBase {
     const personConfig = {
       name: creatorName,
       email: this.creator.mail || '',
-      subtitle: this.creator.creator_types?.map(t => t.name).join(', ') || 'Creator',
+      subtitle: '',
       avatarUrl: this.creator.profilbild_url,
       lastActivity: this.creator.updated_at,
-      avatarOnly: true
+      avatarOnly: false
     };
 
     // Quick Actions entfernt - nur Profilbild im Header
@@ -526,94 +526,97 @@ export class CreatorDetail extends PersonDetailBase {
   }
 
   renderSidebarInfo() {
-    // Social Media Icons als klickbare Links
-    let socialHtml = '';
-    if (this.creator.instagram || this.creator.tiktok) {
-      // URL sanitize gegen XSS
-      const sanitizeUrl = (url) => window.validatorSystem?.sanitizeUrl(url);
-      
-      const instagramUrl = this.creator.instagram 
-        ? sanitizeUrl(this.creator.instagram.startsWith('http') ? this.creator.instagram : `https://instagram.com/${this.creator.instagram.replace('@', '')}`)
-        : null;
-      const tiktokUrl = this.creator.tiktok 
-        ? sanitizeUrl(this.creator.tiktok.startsWith('http') ? this.creator.tiktok : `https://tiktok.com/@${this.creator.tiktok.replace('@', '')}`)
-        : null;
+    const sanitizeUrl = (url) => window.validatorSystem?.sanitizeUrl(url);
 
-      socialHtml = `
-        <div class="profile-social-links">
-          ${instagramUrl ? `
-            <a href="${instagramUrl}" target="_blank" rel="noopener noreferrer" class="social-link social-instagram" title="Instagram: @${this.creator.instagram}">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
-              </svg>
-              ${this.creator.instagram_follower ? `<span class="social-follower">${this.formatNumber(this.creator.instagram_follower)}</span>` : ''}
-            </a>
-          ` : ''}
-          ${tiktokUrl ? `
-            <a href="${tiktokUrl}" target="_blank" rel="noopener noreferrer" class="social-link social-tiktok" title="TikTok: @${this.creator.tiktok}">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
-              </svg>
-              ${this.creator.tiktok_follower ? `<span class="social-follower">${this.formatNumber(this.creator.tiktok_follower)}</span>` : ''}
-            </a>
-          ` : ''}
-        </div>
-      `;
+    const instagramHandle = this.creator.instagram;
+    const instagramUrl = instagramHandle
+      ? sanitizeUrl(instagramHandle.startsWith('http') ? instagramHandle : `https://instagram.com/${instagramHandle.replace('@', '')}`)
+      : null;
+    const tiktokHandle = this.creator.tiktok;
+    const tiktokUrl = tiktokHandle
+      ? sanitizeUrl(tiktokHandle.startsWith('http') ? tiktokHandle : `https://tiktok.com/@${tiktokHandle.replace('@', '')}`)
+      : null;
+
+    const items = [];
+
+    // Social Media als Info-Items
+    if (instagramUrl) {
+      items.push({ icon: 'instagram', label: 'Instagram', rawHtml: `<a href="${instagramUrl}" target="_blank" rel="noopener noreferrer">@${this.sanitize(instagramHandle.replace('@', ''))}</a>` });
+      if (this.creator.instagram_follower) {
+        items.push({ icon: 'instagram', label: 'IG Follower', value: this.formatNumber(this.creator.instagram_follower) });
+      }
+    }
+    if (tiktokUrl) {
+      items.push({ icon: 'tiktok', label: 'TikTok', rawHtml: `<a href="${tiktokUrl}" target="_blank" rel="noopener noreferrer">@${this.sanitize(tiktokHandle.replace('@', ''))}</a>` });
+      if (this.creator.tiktok_follower) {
+        items.push({ icon: 'tiktok', label: 'TT Follower', value: this.formatNumber(this.creator.tiktok_follower) });
+      }
     }
 
-    // Reguläre Info-Items
-    const items = [
-      { label: 'Stadt', value: this.creator.lieferadresse_stadt || '-' },
-      { label: 'Land', value: this.creator.lieferadresse_land || '-' }
-    ];
+    items.push(
+      { icon: 'mail', label: 'E-Mail', value: this.creator.mail || '-', mailto: true },
+      { icon: 'phone', label: 'Telefon', value: this.creator.telefonnummer || '-' },
+      { icon: 'city', label: 'Stadt', value: this.creator.lieferadresse_stadt || '-' },
+      { icon: 'globe', label: 'Land', value: this.creator.lieferadresse_land || '-' },
+    );
 
-    // Sprachen
     if (this.creator.sprachen && this.creator.sprachen.length > 0) {
-      items.push({ label: 'Sprachen', value: this.creator.sprachen.map(s => s.name), tags: true });
+      items.push({ icon: 'language', label: 'Sprachen', value: this.creator.sprachen.map(s => s.name), tags: true });
     }
-
-    // Branchen
     if (this.creator.branchen && this.creator.branchen.length > 0) {
-      items.push({ label: 'Branchen', value: this.creator.branchen.map(b => b.name), tags: true });
+      items.push({ icon: 'tag', label: 'Branchen', value: this.creator.branchen.map(b => b.name), tags: true });
     }
-
-    // Budget
+    if (this.creator.creator_types && this.creator.creator_types.length > 0) {
+      const types = this.creator.creator_types.map(t => typeof t === 'string' ? t : t.name).filter(Boolean);
+      if (types.length > 0) items.push({ icon: 'user', label: 'Typen', value: types, tags: true });
+    }
+    if (this.creator.geschlecht) {
+      items.push({ icon: 'user', label: 'Geschlecht', value: this.creator.geschlecht });
+    }
+    if (this.creator.alter_min || this.creator.alter_max || this.creator.alter_jahre) {
+      items.push({ icon: 'calendar', label: 'Alter', value: this.formatAgeRange(this.creator.alter_min, this.creator.alter_max, this.creator.alter_jahre) });
+    }
+    if (this.creator.portfolio_link) {
+      items.push({ icon: 'link', label: 'Portfolio', rawHtml: `<a href="${this.creator.portfolio_link}" target="_blank" rel="noopener">Link</a>` });
+    }
+    if (this.creator.hat_haustier) {
+      items.push({ icon: 'info', label: 'Haustier', value: this.creator.haustier_beschreibung || 'Ja' });
+    }
+    if (this.creator.agentur_vertreten) {
+      items.push({ icon: 'building', label: 'Agentur', value: this.creator.agentur_name || 'Ja' });
+      if (this.creator.agentur_vertretung) {
+        items.push({ icon: 'user', label: 'Vertreten durch', value: this.creator.agentur_vertretung });
+      }
+    }
     if (this.creator.budget_letzte_buchung) {
-      items.push({ label: 'Letztes Budget', value: this.formatCurrency(this.creator.budget_letzte_buchung) });
+      items.push({ icon: 'currency', label: 'Letztes Budget', value: this.formatCurrency(this.creator.budget_letzte_buchung) });
     }
+    items.push({ icon: 'check', label: 'USt-pflichtig', value: this.creator.umsatzsteuerpflichtig ? 'Ja' : 'Nein' });
+    items.push({ icon: 'clock', label: 'Erstellt', value: this.formatDate(this.creator.created_at) });
 
-    items.push({ label: 'Erstellt', value: this.formatDate(this.creator.created_at) });
-
-    return socialHtml + this.renderInfoItems(items);
+    return this.renderInfoItems(items);
   }
 
   getTabsConfig() {
     return [
-      { tab: 'info', label: 'Informationen', isActive: this.activeMainTab === 'info' },
+      { tab: 'unternehmen', label: 'Unternehmen', count: this.unternehmen?.length || 0, isActive: this.activeMainTab === 'unternehmen' },
       { tab: 'kampagnen', label: 'Kampagnen', count: this.kampagnen?.length || 0, isActive: this.activeMainTab === 'kampagnen' },
       { tab: 'kooperationen', label: 'Kooperationen', count: this.kooperationen?.length || 0, isActive: this.activeMainTab === 'kooperationen' },
-      { tab: 'listen', label: 'Listen', count: this.lists?.length || 0, isActive: this.activeMainTab === 'listen' },
-      { tab: 'unternehmen', label: 'Unternehmen', count: this.unternehmen?.length || 0, isActive: this.activeMainTab === 'unternehmen' },
       { tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen?.length || 0, isActive: this.activeMainTab === 'rechnungen' },
       { tab: 'vertraege', label: 'Verträge', count: this.vertraege?.length || 0, isActive: this.activeMainTab === 'vertraege' },
-      { tab: 'adresse', label: 'Adresse', isActive: this.activeMainTab === 'adresse' },
-      { tab: 'notizen', label: 'Notizen', count: this.notizen.length, isActive: this.activeMainTab === 'notizen' },
-      { tab: 'ratings', label: 'Bewertungen', count: this.ratings.length, isActive: this.activeMainTab === 'ratings' }
+      { tab: 'listen', label: 'Listen', count: this.lists?.length || 0, isActive: this.activeMainTab === 'listen' },
+      { tab: 'adresse', label: 'Adresse', isActive: this.activeMainTab === 'adresse' }
     ];
   }
 
   renderTabNavigation() {
     const tabs = this.getTabsConfig();
-    return tabs.map(t => renderTabButton(t)).join('');
+    return `<div class="tabs-header-container" style="--tab-count: ${tabs.length}"><div class="tabs-left">${tabs.map(t => renderTabButton({ ...t, showIcon: true })).join('')}</div></div>`;
   }
 
   renderMainContent() {
     return `
       <div class="tab-content">
-        <div class="tab-pane ${this.activeMainTab === 'info' ? 'active' : ''}" id="tab-info">
-          ${this.renderInfoTab()}
-        </div>
-
         <div class="tab-pane ${this.activeMainTab === 'kampagnen' ? 'active' : ''}" id="tab-kampagnen">
           ${this.renderKampagnenContent()}
         </div>
@@ -864,7 +867,6 @@ export class CreatorDetail extends PersonDetailBase {
     if (this.kooperationen.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">🤝</div>
           <h3>Keine Kooperationen vorhanden</h3>
           <p>Für diesen Creator wurden noch keine Kooperationen erstellt.</p>
         </div>
@@ -950,7 +952,6 @@ export class CreatorDetail extends PersonDetailBase {
     if (!this.vertraege || this.vertraege.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">📄</div>
           <h3>Keine Verträge vorhanden</h3>
           <p>Für diesen Creator wurden noch keine Verträge erfasst.</p>
         </div>
@@ -1267,7 +1268,7 @@ export class CreatorDetail extends PersonDetailBase {
       activePane.classList.add('active');
       
       // Lazy load Tab-Daten
-      if (!['info', 'notizen', 'ratings', 'adresse'].includes(tabName)) {
+      if (!['notizen', 'ratings', 'adresse'].includes(tabName)) {
         await this.loadTabData(tabName);
       }
     }

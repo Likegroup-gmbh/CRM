@@ -90,9 +90,10 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
           .select(`
             *,
             unternehmen:unternehmen_id (id, firmenname),
-            ansprechpartner_marke (marke:marke_id (id, markenname)),
+            ansprechpartner_marke (marke:marke_id (id, markenname, logo_url)),
             ansprechpartner_kampagne (kampagne:kampagne_id (id, kampagnenname, eigener_name)),
             ansprechpartner_unternehmen (unternehmen:unternehmen_id (id, firmenname, logo_url)),
+            ansprechpartner_sprache (sprache:sprache_id (id, name)),
             telefonnummer_land:eu_laender!telefonnummer_land_id (id, name, name_de, iso_code, vorwahl),
             telefonnummer_office_land:eu_laender!telefonnummer_office_land_id (id, name, name_de, iso_code, vorwahl)
           `)
@@ -125,6 +126,14 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       }
       
       this.ansprechpartner = ansprechpartnerResult.data;
+
+      // Sprachen aus Junction-Tabelle in flaches Array mappen
+      if (this.ansprechpartner?.ansprechpartner_sprache) {
+        this.ansprechpartner.sprachen = this.ansprechpartner.ansprechpartner_sprache
+          .map(s => s.sprache)
+          .filter(Boolean);
+      }
+
       this.notizen = notizenResult || [];
       this.ratings = ratingsResult || [];
       this.kundeVerknuepfung = kundeResult?.data?.kunde || null;
@@ -205,24 +214,38 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     const personConfig = {
       name: fullName || 'Unbekannt',
       email: this.ansprechpartner?.email || '',
-      subtitle: this.ansprechpartner?.position || 'Ansprechpartner',
+      subtitle: '',
       avatarUrl: this.ansprechpartner?.profile_image_url,
-      avatarOnly: true
+      avatarOnly: false
     };
 
     // Quick Actions - keine mehr in der Sidebar (Magic Link ist jetzt im Tab-Header)
     const quickActions = [];
 
+    // Kunden-Verknüpfung ganz oben, oder Magic-Link-Button wenn keine besteht
+    const canEdit = window.permissionSystem?.checkPermission('ansprechpartner', 'edit') !== false;
+    let kundeItem;
+    if (this.kundeVerknuepfung) {
+      const kundeLink = `<a href="/admin/kunden/${this.kundeVerknuepfung.id}" onclick="event.preventDefault(); window.navigateTo('/admin/kunden/${this.kundeVerknuepfung.id}')" class="table-link" style="font-weight: 500;">${this.sanitize(this.kundeVerknuepfung.name || this.kundeVerknuepfung.email || 'Unbekannt')}</a>`;
+      kundeItem = { icon: 'user', label: 'Verknüpfter Kunde', rawHtml: kundeLink };
+    } else {
+      const btnHtml = `<button class="btn-inline-action" data-action="generate-magic-link" ${!canEdit ? 'disabled' : ''}>Kunden einladen</button>`;
+      kundeItem = { icon: 'user', label: 'Kunden-Verknüpfung', rawHtml: btnHtml };
+    }
+
     // Info-Items für Sidebar
-    const sidebarInfo = this.renderInfoItems([
-      { label: 'Position', value: this.ansprechpartner?.position || '-' },
-      { label: 'Unternehmen', value: this.ansprechpartner?.unternehmen?.firmenname || '-' },
-      { label: 'Stadt', value: this.ansprechpartner?.stadt || '-' },
-      { label: 'Land', value: this.ansprechpartner?.land || '-' },
-      { label: 'Sprache', value: this.getSprachenDisplay() },
-      { label: 'Geburtsdatum', value: this.ansprechpartner?.geburtsdatum ? this.formatDate(this.ansprechpartner.geburtsdatum) : '-' },
-      { label: 'Erstellt', value: this.formatDate(this.ansprechpartner?.created_at) }
+    const sidebarInfoItems = this.renderInfoItems([
+      kundeItem,
+      { icon: 'position', label: 'Position', value: this.ansprechpartner?.position || '-' },
+      { icon: 'building', label: 'Unternehmen', value: this.ansprechpartner?.unternehmen?.firmenname || '-' },
+      { icon: 'city', label: 'Stadt', value: this.ansprechpartner?.stadt || '-' },
+      { icon: 'globe', label: 'Land', value: this.ansprechpartner?.land || '-' },
+      { icon: 'language', label: 'Sprache', value: this.getSprachenDisplay() },
+      { icon: 'calendar', label: 'Geburtsdatum', value: this.ansprechpartner?.geburtsdatum ? this.formatDate(this.ansprechpartner.geburtsdatum) : '-' },
+      { icon: 'clock', label: 'Erstellt', value: this.formatDate(this.ansprechpartner?.created_at) }
     ]);
+
+    const sidebarInfo = sidebarInfoItems + this.renderInformationen();
 
     // Tab-Navigation (oben über volle Breite)
     const tabNavigation = this.renderTabNavigation();
@@ -237,7 +260,9 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       quickActions,
       sidebarInfo,
       mainContent,
-      tabNavigation
+      tabNavigation,
+      
+      sidebarHeader: 'Information'
     });
 
     window.setContentSafely(window.content, html);
@@ -286,32 +311,18 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
 
   renderTabNavigation() {
     const tabs = [
-      { tab: 'informationen', label: 'Informationen', isActive: this.activeMainTab === 'informationen' },
       { tab: 'unternehmen', label: 'Unternehmen', count: this.ansprechpartner?.ansprechpartner_unternehmen?.length || 0, isActive: this.activeMainTab === 'unternehmen' },
       { tab: 'marken', label: 'Marken', count: this.ansprechpartner?.ansprechpartner_marke?.length || 0, isActive: this.activeMainTab === 'marken' },
       { tab: 'kampagnen', label: 'Kampagnen', count: this.ansprechpartner?.ansprechpartner_kampagne?.length || 0, isActive: this.activeMainTab === 'kampagnen' },
-      { tab: 'notizen', label: 'Notizen', count: this.notizen?.length || 0, isActive: this.activeMainTab === 'notizen' },
-      { tab: 'bewertungen', label: 'Bewertungen', count: this.ratings?.length || 0, isActive: this.activeMainTab === 'bewertungen' }
     ];
 
-    const tabsHtml = tabs.map(t => renderTabButton(t)).join('');
-    
-    // Prüfe ob Kunden-Einladen-Button angezeigt werden soll
-    const canEdit = window.permissionSystem?.checkPermission('ansprechpartner', 'edit') !== false;
-    const hasKundeConnection = !!this.kundeVerknuepfung;
-    
-    const inviteButtonHtml = !hasKundeConnection ? `
-      <button class="primary-btn" data-action="generate-magic-link" ${!canEdit ? 'disabled' : ''}>
-        Kunden einladen
-      </button>
-    ` : '';
+    const tabsHtml = tabs.map(t => renderTabButton({ ...t, showIcon: true })).join('');
 
     return `
-      <div class="tabs-header-container">
+      <div class="tabs-header-container" style="--tab-count: ${tabs.length}">
         <div class="tabs-left">
           ${tabsHtml}
         </div>
-        ${inviteButtonHtml ? `<div class="tabs-right">${inviteButtonHtml}</div>` : ''}
       </div>
     `;
   }
@@ -319,10 +330,6 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
   renderMainContent() {
     return `
       <div class="tab-content">
-        <div class="tab-pane ${this.activeMainTab === 'informationen' ? 'active' : ''}" id="tab-informationen">
-          ${this.renderInformationen()}
-        </div>
-
         <div class="tab-pane ${this.activeMainTab === 'unternehmen' ? 'active' : ''}" id="tab-unternehmen">
           ${this.renderUnternehmen()}
         </div>
@@ -334,137 +341,37 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
         <div class="tab-pane ${this.activeMainTab === 'kampagnen' ? 'active' : ''}" id="tab-kampagnen">
           ${this.renderKampagnen()}
         </div>
-
-        <div class="tab-pane ${this.activeMainTab === 'notizen' ? 'active' : ''}" id="tab-notizen">
-          ${this.renderNotizen()}
-        </div>
-
-        <div class="tab-pane ${this.activeMainTab === 'bewertungen' ? 'active' : ''}" id="tab-bewertungen">
-          ${this.renderBewertungen()}
-        </div>
       </div>
     `;
   }
 
   // Rendere Informationen-Tab
   renderInformationen() {
-    // Kunden-Verknüpfung Info (via Magic Link)
-    const kundeInfo = this.kundeVerknuepfung
-      ? `
-        <div class="detail-section">
-          <div class="data-table-container">
-            <table class="data-table">
-              <thead>
-                <tr><th>Kunden-Verknüpfung (Magic Link)</th></tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>
-                    <div style="display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) 0;">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="var(--color-success)" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span>Verknüpfter Kunde: </span>
-                      <a href="/admin/kunden/${this.kundeVerknuepfung.id}" onclick="event.preventDefault(); window.navigateTo('/admin/kunden/${this.kundeVerknuepfung.id}')" class="table-link" style="font-weight: 500;">
-                        ${this.sanitize(this.kundeVerknuepfung.name || this.kundeVerknuepfung.email || 'Unbekannt')}
-                      </a>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      `
-      : '';
+    const kontaktItems = [
+      { icon: 'phone', label: 'Telefon (Mobil)', rawHtml: PhoneDisplay.renderClickable(
+        this.ansprechpartner?.telefonnummer_land?.iso_code,
+        this.ansprechpartner?.telefonnummer_land?.vorwahl,
+        this.ansprechpartner?.telefonnummer
+      ) || '-' },
+      { icon: 'phone', label: 'Telefon (Büro)', rawHtml: PhoneDisplay.renderClickable(
+        this.ansprechpartner?.telefonnummer_office_land?.iso_code,
+        this.ansprechpartner?.telefonnummer_office_land?.vorwahl,
+        this.ansprechpartner?.telefonnummer_office
+      ) || '-' },
+      { icon: 'mail', label: 'E-Mail', value: this.ansprechpartner?.email || '-', mailto: true },
+      { icon: 'link', label: 'LinkedIn', rawHtml: this.renderLinkedInLink(this.ansprechpartner?.linkedin) },
+      { icon: 'tag', label: 'Newsletter (1x/Monat)', rawHtml: this.renderEinwilligungBadge(this.ansprechpartner?.erlaubt_newsletter) },
+    ].filter(Boolean);
 
-    return `
-      ${kundeInfo}
-      <div class="detail-section">
-        <div class="data-table-container">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Kontakt</th>
-                <th style="text-align: right;">Wert</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><strong>Telefon (Mobil)</strong></td>
-                <td style="text-align: right;">${PhoneDisplay.renderClickable(
-                  this.ansprechpartner?.telefonnummer_land?.iso_code,
-                  this.ansprechpartner?.telefonnummer_land?.vorwahl,
-                  this.ansprechpartner?.telefonnummer
-                )}</td>
-              </tr>
-              <tr>
-                <td><strong>Telefon (Büro)</strong></td>
-                <td style="text-align: right;">${PhoneDisplay.renderClickable(
-                  this.ansprechpartner?.telefonnummer_office_land?.iso_code,
-                  this.ansprechpartner?.telefonnummer_office_land?.vorwahl,
-                  this.ansprechpartner?.telefonnummer_office
-                )}</td>
-              </tr>
-              <tr>
-                <td><strong>E-Mail</strong></td>
-                <td style="text-align: right;">${this.ansprechpartner?.email ? `<a href="mailto:${this.ansprechpartner.email}">${this.ansprechpartner.email}</a>` : '-'}</td>
-              </tr>
-              <tr>
-                <td><strong>LinkedIn</strong></td>
-                <td style="text-align: right;">${this.renderLinkedInLink(this.ansprechpartner?.linkedin)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+    let html = this.renderInfoItems(kontaktItems);
 
-      <div class="detail-section">
-        <div class="data-table-container">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Marketing-Einwilligung</th>
-                <th style="text-align: right;">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><strong>Updates zu unserem Unternehmen</strong></td>
-                <td style="text-align: right;">${this.renderEinwilligungBadge(this.ansprechpartner?.erlaubt_updates)}</td>
-              </tr>
-              <tr>
-                <td><strong>Newsletter (1x/Monat)</strong></td>
-                <td style="text-align: right;">${this.renderEinwilligungBadge(this.ansprechpartner?.erlaubt_newsletter)}</td>
-              </tr>
-              <tr>
-                <td><strong>Webinar-Einladungen</strong></td>
-                <td style="text-align: right;">${this.renderEinwilligungBadge(this.ansprechpartner?.erlaubt_webinare)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+    if (this.ansprechpartner?.notiz) {
+      html += this.renderInfoItems([
+        { icon: 'info', label: 'Interne Notiz', value: this.ansprechpartner.notiz }
+      ]);
+    }
 
-      ${this.ansprechpartner?.notiz ? `
-      <div class="detail-section">
-        <div class="data-table-container">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Interne Notiz</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>${this.sanitize(this.ansprechpartner.notiz)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      ` : ''}
-    `;
+    return html;
   }
 
   // Rendere Notizen-Tab
@@ -488,42 +395,26 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     if (!this.ansprechpartner?.ansprechpartner_unternehmen || this.ansprechpartner.ansprechpartner_unternehmen.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">🏢</div>
           <h3>Keine Unternehmen zugeordnet</h3>
           <p>Diesem Ansprechpartner sind noch keine Unternehmen zugeordnet.</p>
         </div>
       `;
     }
 
-    const rows = this.ansprechpartner.ansprechpartner_unternehmen.map(item => {
-      const unternehmen = item.unternehmen;
+    const items = this.ansprechpartner.ansprechpartner_unternehmen.map(item => {
+      const u = item.unternehmen;
+      const logoHtml = u.logo_url
+        ? `<img src="${u.logo_url}" class="table-logo" width="24" height="24" alt="" />`
+        : `<span class="table-avatar">${(u.firmenname || '?')[0].toUpperCase()}</span>`;
       return `
-        <tr>
-          <td>
-            <a href="#" class="table-link" data-table="unternehmen" data-id="${unternehmen.id}">
-              ${unternehmen.firmenname || 'Unbekanntes Unternehmen'}
-            </a>
-          </td>
-          <td>${unternehmen.logo_url ? `<img src="${unternehmen.logo_url}" alt="${unternehmen.firmenname}" style="max-width: 50px; max-height: 50px;">` : '-'}</td>
-          <td>${item.created_at ? new Date(item.created_at).toLocaleDateString('de-DE') : '-'}</td>
-        </tr>
+        <a href="#" class="entity-list-item" data-table="unternehmen" data-id="${u.id}">
+          ${logoHtml}
+          <span class="entity-list-name">${this.sanitize(u.firmenname || 'Unbekannt')}</span>
+        </a>
       `;
     }).join('');
 
-    return `
-      <div class="data-table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Unternehmen</th>
-              <th>Logo</th>
-              <th>Zugeordnet am</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-    `;
+    return `<div class="entity-list">${items}</div>`;
   }
 
   // Rendere Marken-Tab
@@ -531,38 +422,26 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     if (!this.ansprechpartner?.ansprechpartner_marke || this.ansprechpartner.ansprechpartner_marke.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">🏷️</div>
           <h3>Keine Marken zugeordnet</h3>
           <p>Diesem Ansprechpartner sind noch keine Marken zugeordnet.</p>
         </div>
       `;
     }
 
-    const rows = this.ansprechpartner.ansprechpartner_marke.map(item => {
-      const marke = item.marke;
+    const items = this.ansprechpartner.ansprechpartner_marke.map(item => {
+      const m = item.marke;
+      const logoHtml = m.logo_url
+        ? `<img src="${m.logo_url}" class="table-logo" width="24" height="24" alt="" />`
+        : `<span class="table-avatar">${(m.markenname || '?')[0].toUpperCase()}</span>`;
       return `
-        <tr>
-          <td>
-            <a href="#" class="table-link" data-table="marke" data-id="${marke.id}">
-              ${marke.markenname || 'Unbekannte Marke'}
-            </a>
-          </td>
-        </tr>
+        <a href="#" class="entity-list-item" data-table="marke" data-id="${m.id}">
+          ${logoHtml}
+          <span class="entity-list-name">${this.sanitize(m.markenname || 'Unbekannt')}</span>
+        </a>
       `;
     }).join('');
 
-    return `
-      <div class="data-table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Marke</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-    `;
+    return `<div class="entity-list">${items}</div>`;
   }
 
   // Rendere Kampagnen-Tab
@@ -570,7 +449,6 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     if (!this.ansprechpartner?.ansprechpartner_kampagne || this.ansprechpartner.ansprechpartner_kampagne.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">📢</div>
           <h3>Keine Kampagnen zugeordnet</h3>
           <p>Diesem Ansprechpartner sind noch keine Kampagnen zugeordnet.</p>
         </div>

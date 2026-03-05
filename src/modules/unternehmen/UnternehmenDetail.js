@@ -35,7 +35,7 @@ export class UnternehmenDetail extends PersonDetailBase {
     this.kickoffsByType = { paid: null, organic: null };
     this.kickoffMarkenwerteByType = { paid: [], organic: [] };
     this.activeKickoffType = 'organic';
-    this.activeMainTab = 'informationen';
+    this.activeMainTab = null;
     this.eventsBound = false;
     this._isLoading = false;
     this._lastRenderTime = 0;
@@ -309,6 +309,10 @@ export class UnternehmenDetail extends PersonDetailBase {
     }
     this._lastRenderTime = now;
     
+    if (!this.activeMainTab) {
+      this.activeMainTab = 'informationen';
+    }
+
     window.setHeadline(`${this.unternehmen?.firmenname || 'Unternehmen'} - Details`);
 
     // Person-Config für die Sidebar (Unternehmen als "Person" behandeln, nur Logo im Header)
@@ -317,7 +321,7 @@ export class UnternehmenDetail extends PersonDetailBase {
       email: '',
       subtitle: this.unternehmen?.branchen_names?.join(', ') || 'Unternehmen',
       avatarUrl: this.unternehmen?.logo_url,
-      avatarOnly: true
+      avatarOnly: false
     };
 
     // Quick Actions
@@ -325,29 +329,31 @@ export class UnternehmenDetail extends PersonDetailBase {
     // Keine Standard-Quick-Actions für Unternehmen
 
     // Info-Items für Sidebar
+    const webseiteLinkHtml = this.unternehmen?.webseite
+      ? `<a href="${UnternehmenService.sanitizeUrl(this.unternehmen.webseite)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${this.sanitize(this.unternehmen.webseite)}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>`
+      : null;
+
     const sidebarInfo = this.renderInfoItems([
-      { label: 'Branchen', value: this.unternehmen?.branchen_names?.join(', ') || '-' },
-      { label: 'E-Mail', value: this.unternehmen?.mail, mailto: true },
-      { label: 'Rechnungs-E-Mail', value: this.unternehmen?.invoice_email, mailto: true },
-      { label: 'Rechnungsadresse', value: this.getAdresseDisplay() },
-      { label: 'Erstellt', value: this.formatDate(this.unternehmen?.created_at) },
-      { label: 'Aktualisiert', value: this.formatDate(this.unternehmen?.updated_at) }
+      ...(this.unternehmen?.internes_kuerzel ? [{ icon: 'info', label: 'Internes Kürzel', value: this.unternehmen.internes_kuerzel }] : []),
+      { icon: 'tag', label: 'Branchen', value: this.unternehmen?.branchen_names?.join(', ') || '-' },
+      ...(webseiteLinkHtml ? [{ icon: 'link', label: 'Webseite', rawHtml: webseiteLinkHtml }] : []),
+      { icon: 'mail', label: 'E-Mail', value: this.unternehmen?.mail, mailto: true },
+      { icon: 'mail', label: 'Rechnungs-E-Mail', value: this.unternehmen?.invoice_email, mailto: true },
+      { icon: 'home', label: 'Rechnungsadresse', rawHtml: this.renderAdresseBlock('rechnungsadresse') },
+      { icon: 'clock', label: 'Erstellt', value: this.formatDate(this.unternehmen?.created_at) },
+      { icon: 'clock', label: 'Aktualisiert', value: this.formatDate(this.unternehmen?.updated_at) }
     ]);
 
-    // Tab-Navigation (oben über volle Breite)
     const tabNavigation = this.renderTabNavigation();
-
-    // Main Content (nur Tab-Content, ohne Navigation)
     const mainContent = this.renderMainContent();
 
-    // Layout mit Tabs oben rendern
     const html = this.renderTwoColumnLayout({
       person: personConfig,
       stats: [],
       quickActions,
       sidebarInfo,
-      mainContent,
-      tabNavigation
+      tabNavigation,
+      mainContent
     });
 
     window.setContentSafely(window.content, html);
@@ -360,6 +366,23 @@ export class UnternehmenDetail extends PersonDetailBase {
       this.unternehmen?.rechnungsadresse_land
     ].filter(Boolean);
     return parts.length > 0 ? parts.join(', ') : '-';
+  }
+
+  renderAdresseBlock(prefix) {
+    const strasse = this.unternehmen?.[`${prefix}_strasse`];
+    const hausnr = this.unternehmen?.[`${prefix}_hausnummer`];
+    const plz = this.unternehmen?.[`${prefix}_plz`];
+    const stadt = this.unternehmen?.[`${prefix}_stadt`];
+    const land = this.unternehmen?.[`${prefix}_land`];
+
+    const line1 = [strasse, hausnr].filter(Boolean).join(' ');
+    const line2 = [plz, stadt].filter(Boolean).join(' ');
+    const line3 = land || '';
+
+    const lines = [line1, line2, line3].filter(Boolean);
+    if (lines.length === 0) return '-';
+
+    return `<span class="info-address">${lines.map(l => this.sanitize(l)).join('<br>')}</span>`;
   }
 
   renderTabNavigation() {
@@ -388,63 +411,59 @@ export class UnternehmenDetail extends PersonDetailBase {
       { tab: 'vertraege', label: 'Verträge', count: this.vertraege.length, isActive: this.activeMainTab === 'vertraege' }
     ];
 
-    return tabs.map(t => renderTabButton(t)).join('');
+    return tabs.map(t => renderTabButton({ ...t, showIcon: true })).join('');
   }
 
   renderMainContent() {
     return `
-      <div class="tab-content">
-        <div class="tab-pane ${this.activeMainTab === 'informationen' ? 'active' : ''}" id="tab-informationen">
-          ${this.renderInformationen()}
-        </div>
-
+      <div class="tab-content secondary-tab-content">
         <div class="tab-pane ${this.activeMainTab === 'kickoff' ? 'active' : ''}" id="tab-kickoff">
           ${this.renderKickOff()}
         </div>
 
-        <div class="tab-pane ${this.activeMainTab === 'marken' ? 'active' : ''}" id="tab-marken">
-          ${this.renderMarken()}
-        </div>
+          <div class="tab-pane ${this.activeMainTab === 'marken' ? 'active' : ''}" id="tab-marken">
+            ${this.renderMarken()}
+          </div>
 
-        <div class="tab-pane ${this.activeMainTab === 'ansprechpartner' ? 'active' : ''}" id="tab-ansprechpartner">
-          ${this.renderAnsprechpartner()}
-        </div>
+          <div class="tab-pane ${this.activeMainTab === 'ansprechpartner' ? 'active' : ''}" id="tab-ansprechpartner">
+            ${this.renderAnsprechpartner()}
+          </div>
 
-        <div class="tab-pane ${this.activeMainTab === 'auftraege' ? 'active' : ''}" id="tab-auftraege">
-          ${this.renderAuftraege()}
-        </div>
+          <div class="tab-pane ${this.activeMainTab === 'auftraege' ? 'active' : ''}" id="tab-auftraege">
+            ${this.renderAuftraege()}
+          </div>
 
-        <div class="tab-pane ${this.activeMainTab === 'auftragsdetails' ? 'active' : ''}" id="tab-auftragsdetails">
-          ${this.renderAuftragsdetails()}
-        </div>
+          <div class="tab-pane ${this.activeMainTab === 'auftragsdetails' ? 'active' : ''}" id="tab-auftragsdetails">
+            ${this.renderAuftragsdetails()}
+          </div>
 
-        <div class="tab-pane ${this.activeMainTab === 'kampagnen' ? 'active' : ''}" id="tab-kampagnen">
-          ${this.renderKampagnen()}
-        </div>
+          <div class="tab-pane ${this.activeMainTab === 'kampagnen' ? 'active' : ''}" id="tab-kampagnen">
+            ${this.renderKampagnen()}
+          </div>
 
-        <div class="tab-pane ${this.activeMainTab === 'briefings' ? 'active' : ''}" id="tab-briefings">
-          ${this.renderBriefings()}
-        </div>
+          <div class="tab-pane ${this.activeMainTab === 'briefings' ? 'active' : ''}" id="tab-briefings">
+            ${this.renderBriefings()}
+          </div>
 
-        <div class="tab-pane ${this.activeMainTab === 'strategien' ? 'active' : ''}" id="tab-strategien">
-          ${this.renderStrategien()}
-        </div>
+          <div class="tab-pane ${this.activeMainTab === 'strategien' ? 'active' : ''}" id="tab-strategien">
+            ${this.renderStrategien()}
+          </div>
 
-        <div class="tab-pane ${this.activeMainTab === 'creatorauswahl' ? 'active' : ''}" id="tab-creatorauswahl">
-          ${this.renderCreatorAuswahl()}
-        </div>
+          <div class="tab-pane ${this.activeMainTab === 'creatorauswahl' ? 'active' : ''}" id="tab-creatorauswahl">
+            ${this.renderCreatorAuswahl()}
+          </div>
 
-        <div class="tab-pane ${this.activeMainTab === 'kooperationen' ? 'active' : ''}" id="tab-kooperationen">
-          ${this.renderKooperationen()}
-        </div>
+          <div class="tab-pane ${this.activeMainTab === 'kooperationen' ? 'active' : ''}" id="tab-kooperationen">
+            ${this.renderKooperationen()}
+          </div>
 
-        <div class="tab-pane ${this.activeMainTab === 'creators' ? 'active' : ''}" id="tab-creators">
-          ${this.renderCreators()}
-        </div>
-        
-        <div class="tab-pane ${this.activeMainTab === 'rechnungen' ? 'active' : ''}" id="tab-rechnungen">
-          ${this.renderRechnungen()}
-        </div>
+          <div class="tab-pane ${this.activeMainTab === 'creators' ? 'active' : ''}" id="tab-creators">
+            ${this.renderCreators()}
+          </div>
+          
+          <div class="tab-pane ${this.activeMainTab === 'rechnungen' ? 'active' : ''}" id="tab-rechnungen">
+            ${this.renderRechnungen()}
+          </div>
 
         <div class="tab-pane ${this.activeMainTab === 'vertraege' ? 'active' : ''}" id="tab-vertraege">
           ${this.renderVertraege()}
@@ -496,7 +515,6 @@ export class UnternehmenDetail extends PersonDetailBase {
     if (!this.marken || this.marken.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">🏷️</div>
           <h3>Keine Marken vorhanden</h3>
           <p>Es wurden noch keine Marken für dieses Unternehmen erstellt.</p>
         </div>
@@ -541,7 +559,6 @@ export class UnternehmenDetail extends PersonDetailBase {
     if (!this.auftraege || this.auftraege.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">📋</div>
           <h3>Keine Aufträge vorhanden</h3>
           <p>Es wurden noch keine Aufträge für dieses Unternehmen erstellt.</p>
         </div>
@@ -593,7 +610,6 @@ export class UnternehmenDetail extends PersonDetailBase {
     if (!this.auftragsdetails || this.auftragsdetails.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">📄</div>
           <h3>Keine Auftragsdetails vorhanden</h3>
           <p>Es wurden noch keine Auftragsdetails für die Aufträge dieses Unternehmens erstellt.</p>
         </div>
@@ -643,7 +659,6 @@ export class UnternehmenDetail extends PersonDetailBase {
     if (!this.briefings || this.briefings.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">📝</div>
           <h3>Keine Briefings vorhanden</h3>
           <p>Es wurden noch keine Briefings für dieses Unternehmen erstellt.</p>
         </div>
@@ -691,7 +706,6 @@ export class UnternehmenDetail extends PersonDetailBase {
     if (!this.kampagnen || this.kampagnen.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">📣</div>
           <h3>Keine Kampagnen vorhanden</h3>
           <p>Es wurden noch keine Kampagnen für dieses Unternehmen erstellt.</p>
         </div>
@@ -745,7 +759,6 @@ export class UnternehmenDetail extends PersonDetailBase {
     if (!this.strategien || this.strategien.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">💡</div>
           <h3>Keine Strategien vorhanden</h3>
           <p>Es wurden noch keine Strategien für dieses Unternehmen erstellt.</p>
         </div>
@@ -793,7 +806,6 @@ export class UnternehmenDetail extends PersonDetailBase {
     if (!this.creatorAuswahlen || this.creatorAuswahlen.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">👥</div>
           <h3>Keine Creator-Auswahlen vorhanden</h3>
           <p>Es wurden noch keine Creator-Auswahlen für dieses Unternehmen erstellt.</p>
         </div>
@@ -837,7 +849,6 @@ export class UnternehmenDetail extends PersonDetailBase {
     if (!this.kooperationen || this.kooperationen.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">🤝</div>
           <h3>Keine Kooperationen vorhanden</h3>
           <p>Für die Kampagnen dieses Unternehmens wurden keine Kooperationen gefunden.</p>
         </div>
@@ -891,7 +902,6 @@ export class UnternehmenDetail extends PersonDetailBase {
     if (!this.creators || this.creators.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">👤</div>
           <h3>Keine Creator vorhanden</h3>
           <p>Es gibt keine Creator in Kooperationen für dieses Unternehmen.</p>
         </div>
@@ -907,7 +917,6 @@ export class UnternehmenDetail extends PersonDetailBase {
     if (!this.ansprechpartner || this.ansprechpartner.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">👥</div>
           <h3>Keine Ansprechpartner vorhanden</h3>
           <p>Es wurden noch keine Ansprechpartner für dieses Unternehmen zugeordnet.</p>
         </div>
@@ -969,7 +978,6 @@ export class UnternehmenDetail extends PersonDetailBase {
     if (!this.rechnungen || this.rechnungen.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">💶</div>
           <h3>Keine Rechnungen vorhanden</h3>
           <p>Für dieses Unternehmen wurden noch keine Rechnungen erfasst.</p>
         </div>
@@ -1015,7 +1023,6 @@ export class UnternehmenDetail extends PersonDetailBase {
     if (!this.vertraege || this.vertraege.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">📄</div>
           <h3>Keine Verträge vorhanden</h3>
           <p>Für dieses Unternehmen wurden noch keine Verträge erfasst.</p>
         </div>
@@ -1072,7 +1079,6 @@ export class UnternehmenDetail extends PersonDetailBase {
     if (availableCount === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-icon">🚀</div>
           <h3>Kein Kick-Off vorhanden</h3>
           <p>Es wurde noch kein Brand Kick-Off für dieses Unternehmen erstellt.</p>
           <a href="/kickoff" class="btn btn-primary" onclick="event.preventDefault(); window.navigateTo('/kickoff')">
@@ -1103,7 +1109,6 @@ export class UnternehmenDetail extends PersonDetailBase {
         <div class="detail-section">
           ${typeSwitcher}
           <div class="empty-state">
-            <div class="empty-icon">🚀</div>
             <h3>Kein ${typeLabel} Kick-Off vorhanden</h3>
             <p>Für den Typ ${typeLabel} wurde noch kein Kick-Off erstellt.</p>
             <a href="/kickoff" class="btn btn-primary" onclick="event.preventDefault(); window.navigateTo('/kickoff')">

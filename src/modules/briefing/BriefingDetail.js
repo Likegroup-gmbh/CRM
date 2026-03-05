@@ -163,12 +163,10 @@ export class BriefingDetail {
       <div class="content-section">
         <div class="tab-navigation">
           <button class="tab-button active" data-tab="info">
-            <span class="tab-icon">${getTabIcon('info')}</span>
             Informationen
           </button>
           <button class="tab-button" data-tab="dokumente">
-            <span class="tab-icon">${getTabIcon('dateien')}</span>
-            Dokumente<span class="tab-count">${this.briefing.documents?.length || 0}</span>
+            Dokumente
           </button>
         </div>
 

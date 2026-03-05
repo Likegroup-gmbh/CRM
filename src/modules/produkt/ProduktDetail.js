@@ -3,6 +3,7 @@
 
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
+import { getTabIcon } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 
 export class ProduktDetail extends PersonDetailBase {
@@ -123,35 +124,49 @@ export class ProduktDetail extends PersonDetailBase {
       email: '',
       subtitle: this.produkt?.marke?.markenname || 'Produkt',
       avatarUrl: this.produkt?.marke?.logo_url,
-      avatarOnly: true
+      avatarOnly: false
     };
 
     // Quick Actions
     const quickActions = [];
 
+    const markeLink = this.produkt?.marke?.id
+      ? `<a href="/marke/${this.produkt.marke.id}" onclick="event.preventDefault(); window.navigateTo('/marke/${this.produkt.marke.id}')">${this.sanitize(this.produkt.marke.markenname)}</a>`
+      : null;
+    const unternehmenLink = this.produkt?.unternehmen?.id
+      ? `<a href="/unternehmen/${this.produkt.unternehmen.id}" onclick="event.preventDefault(); window.navigateTo('/unternehmen/${this.produkt.unternehmen.id}')">${this.sanitize(this.produkt.unternehmen.firmenname)}</a>`
+      : null;
+    const urlLink = this.produkt?.url
+      ? `<a href="${this.produkt.url}" target="_blank" rel="noopener">${this.sanitize(this.produkt.url)}</a>`
+      : null;
+
     // Info-Items für Sidebar
     const sidebarInfo = this.renderInfoItems([
-      { label: 'Marke', value: this.produkt?.marke?.markenname || '-' },
-      { label: 'Unternehmen', value: this.produkt?.unternehmen?.firmenname || '-' },
-      { label: 'URL', value: this.produkt?.url ? 'Vorhanden' : '-' },
-      { label: 'Erstellt', value: this.formatDate(this.produkt?.created_at) },
-      { label: 'Aktualisiert', value: this.formatDate(this.produkt?.updated_at) }
+      { icon: 'tag', label: 'Marke', rawHtml: markeLink || '-' },
+      { icon: 'building', label: 'Unternehmen', rawHtml: unternehmenLink || '-' },
+      { icon: 'link', label: 'Produkt-URL', rawHtml: urlLink || '-' },
+      { icon: 'info', label: 'Kernbotschaft', value: this.produkt?.kernbotschaft || '-' },
+      { icon: 'info', label: 'Hauptproblem', value: this.produkt?.hauptproblem || '-' },
+      { icon: 'info', label: 'Kernnutzen', value: this.produkt?.kernnutzen || '-' },
+      { icon: 'info', label: 'USP 1', value: this.produkt?.usp_1 || '-' },
+      { icon: 'info', label: 'USP 2', value: this.produkt?.usp_2 || '-' },
+      { icon: 'info', label: 'USP 3', value: this.produkt?.usp_3 || '-' },
+      { icon: 'tag', label: 'Pflicht-Elemente', rawHtml: this.renderTags(this.pflichtElemente, 'pflicht') },
+      { icon: 'tag', label: 'No-Gos / Tabus', rawHtml: this.renderTags(this.noGos, 'nogo') },
+      { icon: 'info', label: 'Kauf-Trigger', value: this.produkt?.kauf_conversion_trigger || '-' },
+      { icon: 'user', label: 'Zielnutzer', value: this.produkt?.zielnutzer_anwendungskontext || '-' },
+      { icon: 'clock', label: 'Erstellt', value: this.formatDate(this.produkt?.created_at) },
+      { icon: 'clock', label: 'Aktualisiert', value: this.formatDate(this.produkt?.updated_at) }
     ]);
 
-    // Tab-Navigation
-    const tabNavigation = this.renderTabNavigation();
-
-    // Main Content
-    const mainContent = this.renderMainContent();
-
-    // Layout mit Tabs oben rendern
+    // Layout ohne Tabs (alle Infos in der Sidebar)
     const html = this.renderTwoColumnLayout({
       person: personConfig,
       stats: [],
       quickActions,
       sidebarInfo,
-      tabNavigation,
-      mainContent
+      tabNavigation: '',
+      mainContent: ''
     });
 
     window.setContentSafely(window.content, html);
@@ -167,8 +182,8 @@ export class ProduktDetail extends PersonDetailBase {
     const tabs = this.getTabsConfig();
     return tabs.map(t => `
       <button class="tab-button ${t.isActive ? 'active' : ''}" data-tab="${t.tab}">
+        <span class="tab-icon">${getTabIcon(t.tab)}</span>
         ${t.label}
-        ${t.count !== undefined ? `<span class="tab-count">${t.count}</span>` : ''}
       </button>
     `).join('');
   }

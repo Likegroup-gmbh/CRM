@@ -524,7 +524,6 @@ export class AuftragsdetailsDetail {
         <div style="margin-top: var(--space-xl);">
           <h3 style="margin-bottom: var(--space-md);">Creator & Videos Übersicht</h3>
           <div class="empty-state">
-            <div class="empty-icon">📹</div>
             <h3>Keine Kooperationen vorhanden</h3>
             <p>Für diesen Auftrag wurden noch keine Kooperationen mit Creator und Videos angelegt.</p>
           </div>
@@ -577,7 +576,6 @@ export class AuftragsdetailsDetail {
         <div style="margin-top: var(--space-xl);">
           <h3 style="margin-bottom: var(--space-md);">Creator & Videos Übersicht</h3>
           <div class="empty-state">
-            <div class="empty-icon">📹</div>
             <h3>Keine Videos vorhanden</h3>
             <p>Für diesen Auftrag wurden noch keine Videos angelegt.</p>
           </div>

@@ -333,15 +333,12 @@ export class KampagneCalendarView {
           <div class="tab-navigation calendar-sidebar-tabs">
             <button class="tab-button ${this.currentSidebarTab === 'today' ? 'active' : ''}" data-tab="today">
               Heute
-              <span class="tab-count">${sidebarData.today.length}</span>
             </button>
             <button class="tab-button ${this.currentSidebarTab === 'week' ? 'active' : ''}" data-tab="week">
-            Woche
-              <span class="tab-count">${sidebarData.thisWeek.length}</span>
+              Woche
             </button>
             <button class="tab-button ${this.currentSidebarTab === 'month' ? 'active' : ''}" data-tab="month">
-            Monat
-              <span class="tab-count">${sidebarData.thisMonth.length}</span>
+              Monat
             </button>
           </div>
 

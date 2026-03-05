@@ -1563,12 +1563,12 @@ h3.section-title,
   padding: var(--space-xxs) var(--space-xxs) var(--space-xxs) var(--space-xxs);
   background: none;
   border: 1px solid transparent;
-  color: var(--gray-500);
+  color: var(--gray-700);
   font-weight: 400;
-  font-size: var(--text-xsm);
+  font-size: var(--text-sm);
   gap: var(--space-xxs);
   cursor: pointer;
-
+  white-space: nowrap;
 }
 
 .tab-button:hover {
@@ -1596,20 +1596,6 @@ h3.section-title,
 /* Active Tab Indicator Line */
 
 
-/* Tab Icon */
-.tab-button .tab-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-}
-
-.tab-button .tab-icon svg {
-  width: 16px;
-  height: 16px;
-}
 
 
 
@@ -1675,18 +1661,6 @@ h3.section-title,
   overflow-x: visible; /* Page Header bleibt sichtbar */
 }
 
-/* Tab Count (schlichte Zahl) */
-.tab-button .tab-count {
-  color: var(--text-tertiary);
-  font-size: var(--text-sm);
-  font-weight: 400;
-  margin-left: var(--space-xxs);
-}
-
-.tab-button.active .tab-count {
-  color: var(--text-secondary);
-}
-
 /* Responsive Tab Design */
 @media (max-width: 768px) {
   .tab-navigation {
@@ -1700,15 +1674,6 @@ h3.section-title,
     font-size: var(--text-sm);
   }
   
-  .tab-button .tab-icon {
-    width: 14px;
-    height: 14px;
-  }
-  
-  .tab-button .tab-icon svg {
-    width: 14px;
-    height: 14px;
-  }
 }
 
 @media (max-width: 480px) {
@@ -7569,34 +7534,48 @@ width: 100%;
   height: 100%;
 }
 
-/* Tab-Navigation Header - volle Breite oben */
+/* Tab-Navigation Header - innerhalb der rechten Spalte */
 .profile-tabs-header {
   flex-shrink: 0;
   width: 100%;
   background: var(--color-white);
   border-bottom: 1px solid var(--gray-100);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  padding: var(--space-xs) var(--space-md);
+  padding: 0 var(--space-md);
+  min-height: 45px;
+  display: flex;
+  align-items: stretch;
+  box-sizing: border-box;
 }
 
 /* Tabs Header Container - Flexbox Layout für Tabs links, Actions rechts */
 .tabs-header-container {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: stretch;
   gap: var(--space-md);
   width: 100%;
 }
 
+.profile-tabs-header .tab-button {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+}
+
+.profile-tabs-header .tab-button.active::after {
+  bottom: -1px;
+}
+
 .tabs-header-container .tabs-left {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: var(--space-xs);
   overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+}
+
+.tabs-header-container .tabs-left::-webkit-scrollbar {
+  display: none;
 }
 
 .tabs-header-container .tabs-left::-webkit-scrollbar {
@@ -7650,13 +7629,11 @@ width: 100%;
   border-radius: 2px;
 }
 
-/* Main Layout - jetzt unterhalb der Tabs */
+/* Main Layout - Split-Screen: Sidebar links, Tabs+Content rechts */
 .profile-detail-layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
-  flex: 1;
+  grid-template-columns: 14em 1fr;
   width: 100%;
-  min-height: 0; /* Wichtig für flex overflow */
 }
 
 @media (max-width: 1024px) {
@@ -7665,39 +7642,80 @@ width: 100%;
   }
 }
 
+/* Sidebar Header (z.B. "Information") */
+.profile-sidebar-header {
+  display: flex;
+  align-items: center;
+  padding: var(--space-xxs) var(--space-md);
+  min-height: 45px;
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--gray-100);
+ 
+  box-sizing: border-box;
+}
+
 /* Sidebar */
 .profile-sidebar {
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
+ 
   height: 100%;
 }
 
 .profile-sidebar-card {
   background: var(--color-white);
-  border-right-width: 0px;
-  border-right-color: rgba(0, 0, 0, 0);
-  border-right-style: none;
-  border-image: none;
+  border-right: 1px solid var(--gray-100);
   height: 100%;
-  overflow: hidden;
+  overflow-y: auto;
+}
+
+/* Avatar Wrapper */
+.profile-avatar-wrapper {
+  border-bottom: 1px solid var(--gray-100);
+  padding: var(--space-md);
 }
 
 /* Avatar Section */
 .profile-avatar-section {
   display: flex;
-  justify-content: center;
+  flex-direction: row;
   align-items: center;
-  text-align: center;
-  width: 100%;
-  height:20em;
-  border-right: 1px solid var(--gray-100);
+  gap: var(--space-md);
+}
+
+.profile-avatar-section .profile-avatar-large {
+  flex-shrink: 0;
+  width: 5rem;
+  height: 5rem;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.profile-avatar-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.profile-avatar-info .profile-name {
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.profile-avatar-info .profile-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.profile-avatar-info .profile-email {
+  margin: 0;
 }
 
 .profile-avatar-large {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
   position: relative;
 }
 
@@ -7752,7 +7770,7 @@ width: 100%;
   font-size: 1 rem;
   font-weight: 500;
   color: var(--text-primary);
-  margin: 0 0 var(--space-xs) 0;
+ 
 }
 
 span.profile-name {
@@ -7760,8 +7778,8 @@ span.profile-name {
 }
 
 .profile-email {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  color: var(--gray-500);
   margin: 0 0 var(--space-md) 0;
   word-break: break-word;
 }
@@ -7858,48 +7876,84 @@ span.profile-name {
   background: transparent;
 }
 
-/* Sidebar Content */
+/* Sidebar Content - direkt angezeigt (kein Tab-Toggle mehr) */
 .profile-sidebar-content {
-  position: relative;
-  height: 100%;
-  border-right: 1px solid var(--gray-100);
-}
-
-.profile-sidebar-pane {
-  display: none;
-  padding: var(--space-md);
-  height: 100%;
-}
-
-.profile-sidebar-pane.active {
-  display: block;
+  
 }
 
 /* Info Section */
 .profile-info-section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
+  padding: 0;
 }
 
 .profile-info-item {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--gray-100);
+  min-height: 44px;
+}
+
+.profile-info-item:last-child {
+  border-bottom: none;
+}
+
+.profile-info-item .info-icon {
+  flex-shrink: 0;
+  width: 18x;
+  height: 18px;
+  color: var(--gray-500);
+}
+
+.profile-info-item .info-icon svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
 .profile-info-item .info-label {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-weight: 500;
+  font-size: var(--text-xsm);
+  color: var(--gray-500);
+  font-weight: 400;
+  white-space: nowrap;
+  min-width: 100px;
 }
 
 .profile-info-item .info-value {
   font-size: 0.875rem;
   color: var(--text-primary);
   font-weight: 400;
+  margin-left: auto;
+  text-align: right;
+}
+
+.info-address {
+  display: inline-block;
+  line-height: 1.5;
+}
+
+.btn-inline-action {
+  font-size: 0.8125rem;
+  padding: 4px 12px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.btn-inline-action:hover:not(:disabled) {
+  background: var(--gray-50);
+  border-color: var(--gray-400);
+}
+
+.btn-inline-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .info-mailto-link {
@@ -7913,19 +7967,191 @@ span.profile-name {
   text-decoration-style: solid;
 }
 
-/* Main Content */
+/* Entity List (Logo + Name, z.B. Unternehmen/Marken in Tabs) */
+.entity-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.entity-list-item {
+  display: flex;
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--gray-100);
+  text-decoration: none;
+  color: var(--text-primary);
+  transition: background 0.15s ease;
+}
+
+.entity-list-item:last-child {
+  border-bottom: none;
+}
+
+.entity-list-item:hover {
+  background: var(--gray-50);
+}
+
+.entity-list-item .table-logo,
+.entity-list-item .table-avatar {
+  margin-right: var(--space-sm);
+}
+
+.entity-list-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Main Content - rechte Spalte mit Tabs + Content */
 .profile-main-content {
   background: var(--color-white);
   display: flex;
   flex-direction: column;
-  border-radius: var(--radius-md);
+  overflow-y: auto;
+  min-width: 0;
+}
+
+/* Secondary Navigation Layout (Unternehmen Detail - Test) */
+.profile-detail-layout--secondary-nav {
+  height: 100vh;
   overflow: hidden;
-  padding-left: 0px;
-  padding-right: 0px;
-  padding-top: 0px;
-  padding-bottom: 0px;
+}
+
+.profile-sidebar--secondary-fixed {
+  border-right: 1px solid var(--gray-100);
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow: hidden;
+}
+
+.profile-sidebar--secondary-fixed .profile-sidebar-header {
+  min-height: var(--space-xxl);
+  height: var(--space-xxl);
+  padding: 0 var(--space-md);
+ 
+}
+
+.profile-main-content--secondary-scroll {
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.secondary-nav-sidebar {
+  padding: var(--space-sm) var(--space-sm);
+  height: calc(100% - var(--space-xxl));
+  overflow-y: auto;
+}
+
+.secondary-tab-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.secondary-tab-nav .tabs-header-container {
+  display: block;
+  width: 100%;
+}
+
+.secondary-tab-nav .tabs-header-container .tabs-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: visible;
+}
+
+.secondary-tab-nav .tabs-header-container .tabs-right {
+  display: none;
+}
+
+.secondary-tab-nav .tab-button {
+  width: 100%;
   justify-content: flex-start;
-  align-items: flex-start;
+  padding: var(--space-xs)  var(--space-xs);
+  border: none;
+  border-radius: var(--radius-md);
+  text-align: left;
+}
+
+.secondary-tab-nav .tab-button .tab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-lm);
+  height: var(--space-lm);
+  flex-shrink: 0;
+}
+
+.secondary-tab-nav .tab-button .tab-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.secondary-tab-nav .tab-button.active {
+  background: var(--gray-100);
+  color: var(--gray-900);
+  font-weight: 500;
+}
+
+.secondary-tab-nav .tab-button.active::after {
+  display: none;
+}
+
+/* Unternehmen-Detail (Secondary): Header ohne Tabellen-Border */
+.profile-detail-layout--secondary-nav .tab-content .data-table thead th {
+  border-top: none !important;
+  border-bottom: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  box-shadow: none !important;
+}
+
+.profile-detail-layout--secondary-nav .tab-content .data-table thead th:not(:first-child) {
+  border-left: 1px solid var(--gray-100) !important;
+}
+
+@media (max-width: 1024px) {
+  .profile-detail-layout--secondary-nav {
+    height: auto;
+    overflow: visible;
+  }
+
+  .profile-sidebar--secondary-fixed {
+    position: static;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--gray-100);
+  }
+
+  .profile-main-content--secondary-scroll {
+    height: auto;
+    overflow-y: visible;
+  }
+
+  .secondary-tab-nav {
+    border-right: none;
+    border-bottom: 1px solid var(--gray-100);
+    overflow-x: auto;
+    flex-direction: row;
+    padding: 0 var(--space-md);
+  }
+
+  .secondary-tab-nav .tabs-header-container .tabs-left {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .secondary-tab-nav .tab-button {
+    width: auto;
+    border-bottom: 1px solid transparent;
+    padding: var(--space-sm) var(--space-xs);
+  }
+
+  .secondary-tab-nav .tab-button.active {
+    background: transparent;
+    border-bottom-color: var(--gray-900);
+  }
 }
 
 /* Legacy: Tab Navigation innerhalb von Profile Main Content (nicht mehr aktiv verwendet) */
@@ -11366,6 +11592,61 @@ table:has(#kampagnen-table-body) tbody tr:hover td.col-name {
 }
 
 /* ============================================
+   RECHNUNG TABELLE - STICKY SPALTEN
+   ============================================ */
+
+/* Checkbox-Spalte (wenn vorhanden) fixieren */
+.rechnung-table-container .data-table th.col-checkbox,
+.rechnung-table-container .data-table td.col-checkbox {
+  position: sticky !important;
+  left: 0 !important;
+  z-index: 20;
+  background: white !important;
+  width: 40px !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  text-align: center;
+  padding: var(--space-xs) !important;
+  border: none !important;
+  box-shadow:
+    inset 0 1px 0 0 var(--gray-100),
+    inset 0 -1px 0 0 var(--gray-100);
+}
+
+/* Rechnungsname standardmäßig als erste sichtbare Spalte fixieren */
+.rechnung-table-container .data-table th.col-name,
+.rechnung-table-container .data-table td.col-name {
+  position: sticky !important;
+  left: 0 !important;
+  z-index: 20;
+  background: white !important;
+  border: none !important;
+  box-shadow:
+    inset 0 1px 0 0 var(--gray-100),
+    inset -1px 0 0 0 var(--gray-200),
+    inset 0 -1px 0 0 var(--gray-100);
+}
+
+/* Wenn Checkbox-Spalte vorhanden ist, Name als zweite fixe Spalte verschieben */
+.rechnung-table-container .data-table:has(th.col-checkbox) th.col-name,
+.rechnung-table-container .data-table:has(th.col-checkbox) td.col-name {
+  left: 40px !important;
+}
+
+/* Header über Body-Zellen halten */
+.rechnung-table-container .data-table thead th.col-checkbox,
+.rechnung-table-container .data-table thead th.col-name {
+  z-index: 25;
+  background: white !important;
+}
+
+/* Hover-Zustand für fixierte Spalten konsistent halten */
+.rechnung-table-container .data-table tbody tr:hover td.col-checkbox,
+.rechnung-table-container .data-table tbody tr:hover td.col-name {
+  background: var(--gray-50) !important;
+}
+
+/* ============================================
    RECHNUNG STATUS-ZEILEN
    ============================================ */
 
@@ -12803,6 +13084,13 @@ table:has(#kampagnen-table-body) tbody tr:hover td.col-name {
   width: 40em ! important;
   white-space: normal;
   word-wrap: break-word;
+}
+
+/* "Erstellt am" im Header immer einzeilig halten */
+.vertraege-detail-table th:last-child,
+.vertraege-detail-table td:last-child {
+  white-space: nowrap;
+  min-width: 90px;
 }
 
 /* ===== VERTRÄGE ORDNER-ANSICHT ===== */

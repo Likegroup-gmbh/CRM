@@ -21,7 +21,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     this.videos = [];
     this.sprachen = [];
     this.euLaender = [];
-    this.activeMainTab = 'unternehmen';
+    this.activeMainTab = 'informationen';
   }
 
   async init() {
@@ -459,7 +459,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
       email: this.user?.email || '',
       subtitle: this.user?.mitarbeiter_klasse?.name || this.user?.rolle || 'Benutzer',
       avatarUrl: this.user?.profile_image_url,
-      avatarOnly: true,
+      avatarOnly: false,
       lastActivity: this.user?.updated_at
     };
 
@@ -497,19 +497,19 @@ export class ProfileDetailV2 extends PersonDetailBase {
     const firmenhandyHtml = this.getFirmenhandyDisplayHtml();
 
     const items = [
-      { label: 'Rolle', value: rolle, badge: true, badgeType: rolle === 'admin' ? 'primary' : 'secondary' }
+      { icon: 'shield', label: 'Rolle', value: rolle, badge: true, badgeType: rolle === 'admin' ? 'primary' : 'secondary' }
     ];
 
     if (mitarbeiterKlasse !== 'Nicht zugewiesen') {
-      items.push({ label: 'Klasse', value: mitarbeiterKlasse });
+      items.push({ icon: 'tag', label: 'Klasse', value: mitarbeiterKlasse });
     }
 
     if (firmenhandyHtml) {
-      items.push({ label: 'Firmenhandy', value: '-', rawHtml: firmenhandyHtml });
+      items.push({ icon: 'phone', label: 'Firmenhandy', value: '-', rawHtml: firmenhandyHtml });
     }
 
-    items.push({ label: 'Sprachen', value: sprachenText });
-    items.push({ label: 'Mitglied seit', value: this.formatDate(this.user?.created_at) });
+    items.push({ icon: 'language', label: 'Sprachen', value: sprachenText });
+    items.push({ icon: 'clock', label: 'Mitglied seit', value: this.formatDate(this.user?.created_at) });
 
     return this.renderInfoItems(items);
   }
@@ -526,7 +526,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     const renderMainTab = (tab, label, count) => `
       <button class="tab-button ${this.activeMainTab === tab ? 'active' : ''}" data-main-tab="${tab}">
         <span class="tab-icon">${getTabIcon(tab)}</span>
-        ${label}<span class="tab-count">${count}</span>
+        ${label}
       </button>
     `;
 

@@ -11,7 +11,7 @@ export class KundenDetail extends PersonDetailBase {
     this.userId = null;
     this.user = null;
     this.assignments = { unternehmen: [], marken: [], kampagnen: [], kooperationen: [], ansprechpartner: [] };
-    this.activeMainTab = 'stammdaten';
+    this.activeMainTab = 'informationen';
   }
 
   async init(id) {
@@ -146,7 +146,7 @@ export class KundenDetail extends PersonDetailBase {
       email: this.user?.email || '',
       subtitle: 'Kunde',
       avatarUrl: this.user?.profile_image_url,
-      avatarOnly: true  // Nur Bild anzeigen, kein Name/Email/Subtitle
+      avatarOnly: false
     };
 
     // Keine Quick Actions
@@ -154,9 +154,9 @@ export class KundenDetail extends PersonDetailBase {
 
     // Info-Items für Sidebar
     const sidebarInfo = this.renderInfoItems([
-      { label: 'Rolle', value: this.user?.rolle || '-', badge: true, badgeType: 'secondary' },
-      { label: 'Freigeschaltet', value: this.user?.freigeschaltet ? 'Ja' : 'Nein', badge: true, badgeType: this.user?.freigeschaltet ? 'success' : 'warning' },
-      { label: 'Erstellt', value: this.formatDate(this.user?.created_at) }
+      { icon: 'shield', label: 'Rolle', value: this.user?.rolle || '-', badge: true, badgeType: 'secondary' },
+      { icon: 'check', label: 'Freigeschaltet', value: this.user?.freigeschaltet ? 'Ja' : 'Nein', badge: true, badgeType: this.user?.freigeschaltet ? 'success' : 'warning' },
+      { icon: 'clock', label: 'Erstellt', value: this.formatDate(this.user?.created_at) }
     ]);
 
     // Tab-Navigation (oben über volle Breite)
@@ -180,17 +180,17 @@ export class KundenDetail extends PersonDetailBase {
 
   getTabsConfig() {
     return [
-      { tab: 'stammdaten', label: 'Stammdaten', isActive: this.activeMainTab === 'stammdaten' },
       { tab: 'unternehmen', label: 'Unternehmen', count: this.assignments.unternehmen.length, isActive: this.activeMainTab === 'unternehmen' },
       { tab: 'marken', label: 'Marken', count: this.assignments.marken.length, isActive: this.activeMainTab === 'marken' },
       { tab: 'kampagnen', label: 'Kampagnen', count: this.assignments.kampagnen.length, isActive: this.activeMainTab === 'kampagnen' },
-      { tab: 'kooperationen', label: 'Kooperationen', count: this.assignments.kooperationen.length, isActive: this.activeMainTab === 'kooperationen' }
+      { tab: 'kooperationen', label: 'Kooperationen', count: this.assignments.kooperationen.length, isActive: this.activeMainTab === 'kooperationen' },
+      { tab: 'stammdaten', label: 'Stammdaten', isActive: this.activeMainTab === 'stammdaten' }
     ];
   }
 
   renderTabNavigation() {
     const tabs = this.getTabsConfig();
-    return tabs.map(t => renderTabButton(t)).join('');
+    return `<div class="tabs-header-container" style="--tab-count: ${tabs.length}"><div class="tabs-left">${tabs.map(t => renderTabButton({ ...t, showIcon: true })).join('')}</div></div>`;
   }
 
   renderMainContent() {
