@@ -572,7 +572,7 @@ export class FormConfig {
           },
           { name: 'rechnung_gestellt', label: 'RE gestellt', type: 'toggle', required: false, row: 'zahlung', section: 'details' },
           { name: 'rechnung_gestellt_am', label: 'Datum', type: 'date', required: false, placeholder: 'Rechnungsdatum', dependsOn: 'rechnung_gestellt', row: 'zahlung', section: 'details' },
-          { name: 'erwarteter_monat_zahlungseingang', label: 'Erwarteter Zahlungseingang', type: 'date', required: true, placeholder: 'Erwartetes Datum des Zahlungseingangs', row: 'zahlung', section: 'details' },
+          { name: 'erwarteter_monat_zahlungseingang', label: 'Erwarteter Zahlungseingang', type: 'date', required: false, placeholder: 'Erwartetes Datum des Zahlungseingangs', row: 'zahlung', section: 'details' },
           { name: 're_faelligkeit', label: 'RE-Fälligkeit', type: 'date', required: false, section: 'details' },
           { name: 'start', label: 'Startdatum', type: 'date', required: false, row: 'zeitraum', section: 'details' },
           { name: 'ende', label: 'Enddatum', type: 'date', required: false, row: 'zeitraum', section: 'details' },
