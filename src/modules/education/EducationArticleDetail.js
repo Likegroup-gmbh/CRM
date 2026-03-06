@@ -19,6 +19,7 @@ export const educationArticleDetail = {
     if (!this.article) {
       window.setHeadline('Artikel nicht gefunden');
       window.content.innerHTML = this.renderNotFound();
+      this.bindBackButton();
       return;
     }
     
@@ -171,7 +172,7 @@ export const educationArticleDetail = {
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="16" height="16">
               <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
             </svg>
-            Zurück zur Übersicht
+            ${window.currentUser?.rolle === 'kunde' ? 'Zurück zum Dashboard' : 'Zurück zur Übersicht'}
           </button>
         </div>
 
@@ -196,6 +197,7 @@ export const educationArticleDetail = {
   },
 
   renderNotFound() {
+    const backLabel = window.currentUser?.rolle === 'kunde' ? 'Zurück zum Dashboard' : 'Zurück zur Übersicht';
     return `
       <div class="education-not-found">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="not-found-icon">
@@ -204,7 +206,7 @@ export const educationArticleDetail = {
         <h2>Artikel nicht gefunden</h2>
         <p>Der gesuchte Artikel existiert nicht oder wurde entfernt.</p>
         <button class="primary-btn" id="btn-back-to-education">
-          Zurück zur Übersicht
+          ${backLabel}
         </button>
       </div>
     `;
@@ -297,15 +299,23 @@ export const educationArticleDetail = {
     });
   },
 
-  bindEvents() {
-    // Zurück-Button
+  getBackUrl() {
+    return window.currentUser?.rolle === 'kunde' ? '/dashboard' : '/education';
+  },
+
+  bindBackButton() {
     const backBtn = document.getElementById('btn-back-to-education');
     if (backBtn) {
       backBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        window.navigateTo('/education');
+        window.navigateTo(this.getBackUrl());
       });
     }
+  },
+
+  bindEvents() {
+    // Zurück-Button
+    this.bindBackButton();
 
     // Verwandte Artikel Links
     document.querySelectorAll('.education-related-card').forEach(card => {

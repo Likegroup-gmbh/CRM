@@ -764,12 +764,17 @@ window.setupHeaderUI = () => {
 
     // Kick-Off Button setup
     const kickoffBtn = document.getElementById('kickoffBtn');
-    if (kickoffBtn && !kickoffBtn.dataset.bound) {
-      kickoffBtn.dataset.bound = 'true';
-      kickoffBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        moduleRegistry.navigateTo('/kickoff');
-      });
+    if (kickoffBtn) {
+      const isKunde = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
+      kickoffBtn.style.display = isKunde ? 'none' : '';
+
+      if (!isKunde && !kickoffBtn.dataset.bound) {
+        kickoffBtn.dataset.bound = 'true';
+        kickoffBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          moduleRegistry.navigateTo('/kickoff');
+        });
+      }
     }
 
     // Profile dropdown setup

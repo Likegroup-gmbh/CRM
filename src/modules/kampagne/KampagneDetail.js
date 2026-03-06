@@ -947,7 +947,7 @@ export class KampagneDetail {
           <button class="tab-button" data-tab="notizen">
             Notizen
           </button>` : ''}
-          ${window.canViewTable && window.canViewTable('kampagne','history') !== false ? `
+          ${!isKunde && window.canViewTable && window.canViewTable('kampagne','history') !== false ? `
           <button class="tab-button" data-tab="history">
             History
           </button>` : ''}
@@ -1204,11 +1204,13 @@ export class KampagneDetail {
           </div>
 
           <!-- History Tab -->
+          ${!isKunde ? `
           <div class="tab-pane" id="tab-history">
             <div class="detail-section">
               ${this.renderHistory()}
             </div>
           </div>
+          ` : ''}
 
           <!-- Mitarbeiter Tab -->
           <div class="tab-pane" id="tab-mitarbeiter">

@@ -4,6 +4,8 @@
 import { KampagneKanbanBoard } from '../kampagne/KampagneKanbanBoard.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
+const MAGIC_LINK_ARTICLE_SLUG = 'erste-schritte-nach-ihrem-magic-link';
+
 export class DashboardModule {
   constructor() {
     this.data = {
@@ -685,8 +687,25 @@ export class DashboardModule {
         </tr>
       `).join('');
       
+      const magicLinkArticleUrl = `/education/${MAGIC_LINK_ARTICLE_SLUG}`;
       const html = `
         <div class="dashboard-container">
+          <div class="content-section dashboard-kunden-article-card">
+            <a href="${magicLinkArticleUrl}" onclick="event.preventDefault(); window.navigateTo('${magicLinkArticleUrl}')" class="dashboard-article-link">
+              <div class="dashboard-article-link-inner">
+                <span class="dashboard-article-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+                  </svg>
+                </span>
+                <div class="dashboard-article-text">
+                  <h3 class="dashboard-article-title">Erste Schritte nach Ihrem Magic Link</h3>
+                  <p class="dashboard-article-desc">Erfahren Sie, welche Schritte nach der Registrierung folgen.</p>
+                </div>
+                <span class="dashboard-article-arrow">→</span>
+              </div>
+            </a>
+          </div>
           <div class="content-section">
             <div class="section-header">
               <h2>Meine Kampagnen</h2>

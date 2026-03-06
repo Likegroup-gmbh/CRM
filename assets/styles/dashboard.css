@@ -89,8 +89,62 @@
   margin: 0 auto;
 }
 
+/* Kunden-Dashboard: Magic-Link-Artikel-Kachel */
+.dashboard-kunden-article-card {
+  margin-bottom: var(--space-xl);
+}
 
+.dashboard-article-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  transition: all 0.2s;
+}
 
+.dashboard-article-link:hover {
+  border-color: var(--primary-300);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  background: var(--white);
+}
+
+.dashboard-article-link-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.dashboard-article-icon {
+  flex-shrink: 0;
+  color: var(--primary-600);
+}
+
+.dashboard-article-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.dashboard-article-title {
+  margin: 0 0 var(--space-xxs) 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.dashboard-article-desc {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.dashboard-article-arrow {
+  flex-shrink: 0;
+  font-size: var(--text-xl);
+  color: var(--text-tertiary);
+}
 
 .stats-icon {
   width: var(--space-lg);

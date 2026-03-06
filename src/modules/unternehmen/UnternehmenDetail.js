@@ -57,8 +57,15 @@ export class UnternehmenDetail extends PersonDetailBase {
       // Breadcrumb aktualisieren mit Edit-Button
       if (window.breadcrumbSystem && this.unternehmen) {
         const canEdit = window.currentUser?.permissions?.unternehmen?.can_edit !== false;
+        const canNavigateToUnternehmenList = window.canViewPage
+          ? window.canViewPage('unternehmen') !== false
+          : true;
         window.breadcrumbSystem.updateBreadcrumb([
-          { label: 'Unternehmen', url: '/unternehmen', clickable: true },
+          {
+            label: 'Unternehmen',
+            url: canNavigateToUnternehmenList ? '/unternehmen' : null,
+            clickable: canNavigateToUnternehmenList
+          },
           { label: this.unternehmen.firmenname || 'Details', url: `/unternehmen/${this.unternehmenId}`, clickable: false }
         ], {
           id: 'btn-edit-unternehmen',

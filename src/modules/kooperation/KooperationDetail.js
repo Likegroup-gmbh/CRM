@@ -345,6 +345,7 @@ export class KooperationDetail {
       return;
     }
 
+    const isKundeRole = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
     const title = this.kooperation.name || 'Kooperation';
     if (window.setHeadline) {
       window.setHeadline(`Kooperation: ${window.validatorSystem?.sanitizeHtml?.(title) || title}`);
@@ -359,7 +360,7 @@ export class KooperationDetail {
           ${renderTabButton({ tab: 'versand', label: 'Versand', count: this.versandDaten?.length || 0 })}
           ${renderTabButton({ tab: 'notizen', label: 'Notizen', count: this.notizen.length })}
           ${renderTabButton({ tab: 'ratings', label: 'Bewertungen', count: this.ratings.length })}
-          ${renderTabButton({ tab: 'history', label: 'History', count: this.historyCount || 0 })}
+          ${!isKundeRole ? renderTabButton({ tab: 'history', label: 'History', count: this.historyCount || 0 }) : ''}
           <button class="tab-button" data-tab="tasks">
             Aufgaben
           </button>
@@ -399,12 +400,14 @@ export class KooperationDetail {
               ${this.renderRatings()}
             </div>
           </div>
+          ${!isKundeRole ? `
           <div class="tab-pane" id="tab-history">
             <div class="detail-section">
               <h2>History</h2>
               ${this.renderHistory()}
             </div>
           </div>
+          ` : ''}
           <div class="tab-pane" id="tab-tasks">
             <div class="detail-section">
               <div id="tasks-kanban-container"></div>
