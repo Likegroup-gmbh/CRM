@@ -811,7 +811,7 @@ export class FormEvents {
         const selected = parseInt(videoInput.value || '0', 10) || 0;
         const remainingAfter = Math.max(0, max - selected);
         const sSel = selected === 1 ? 'Video' : 'Videos';
-        info.textContent = max > 0 ? `${selected} ${sSel} | Rest: ${remainingAfter}` : 'Bitte zuerst Kampagne wählen';
+        info.textContent = max > 0 ? `${selected} ${sSel} | Rest: ${remainingAfter}` : (kampagneSelect.value ? 'Keine Videos verfügbar' : 'Bitte zuerst Kampagne wählen');
         minusBtn.disabled = max === 0 || selected <= (parseInt(videoInput.min || '0', 10) || 0);
         plusBtn.disabled = max === 0 || selected >= max;
       };
@@ -879,7 +879,7 @@ export class FormEvents {
       const remainingAfter = Math.max(0, max - selected);
       const sSel = selected === 1 ? 'Video' : 'Videos';
       if (stepperInfo) {
-        stepperInfo.textContent = max > 0 ? `${selected} ${sSel} | Rest: ${remainingAfter}` : 'Bitte zuerst Kampagne wählen';
+        stepperInfo.textContent = max > 0 ? `${selected} ${sSel} | Rest: ${remainingAfter}` : (kampagneSelect.value ? 'Keine Videos verfügbar' : 'Bitte zuerst Kampagne wählen');
       }
       if (minusBtn) minusBtn.disabled = max === 0 || selected <= min;
       if (plusBtn) plusBtn.disabled = max === 0 || selected >= max;
@@ -928,7 +928,7 @@ export class FormEvents {
           (parseInt(kampagne?.igc_video_anzahl, 10) || 0) +
           (parseInt(kampagne?.influencer_video_anzahl, 10) || 0) +
           (parseInt(kampagne?.vor_ort_video_anzahl, 10) || 0);
-        const totalVideos = kampagne?.videoanzahl || newFieldsSum || legacyFieldsSum;
+        const totalVideos = newFieldsSum || legacyFieldsSum || (kampagne?.videoanzahl ?? 0);
         console.log('📊 KOOPERATION: Kampagne Video-Anzahlen:', {
           videoanzahl: kampagne?.videoanzahl,
           ugc_pro_paid: kampagne?.ugc_pro_paid_video_anzahl,

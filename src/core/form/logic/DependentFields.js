@@ -742,14 +742,14 @@ export class DependentFields {
 
         // Hilfsfunktion: Gesamt-Videos einer Kampagne berechnen
         const getKampagneTotalVideos = (k) => {
-          return k.videoanzahl || (
+          const subfieldsSum =
             (parseInt(k.ugc_pro_paid_video_anzahl, 10) || 0) +
             (parseInt(k.ugc_pro_organic_video_anzahl, 10) || 0) +
             (parseInt(k.ugc_video_paid_video_anzahl, 10) || 0) +
             (parseInt(k.ugc_video_organic_video_anzahl, 10) || 0) +
             (parseInt(k.influencer_video_anzahl, 10) || 0) +
-            (parseInt(k.vor_ort_video_anzahl, 10) || 0)
-          );
+            (parseInt(k.vor_ort_video_anzahl, 10) || 0);
+          return subfieldsSum || (k.videoanzahl ?? 0);
         };
 
         let filtered = kampagnen || [];
@@ -771,7 +771,7 @@ export class DependentFields {
                 const total = getKampagneTotalVideos(k);
                 const used = usedMap[k.id] || 0;
                 const remaining = Math.max(0, total - used);
-                return remaining > 0; // nur Kampagnen mit freien Videos
+                return remaining > 0;
               });
             }
           }
@@ -824,7 +824,7 @@ export class DependentFields {
             (parseInt(k.igc_video_anzahl, 10) || 0) +
             (parseInt(k.influencer_video_anzahl, 10) || 0) +
             (parseInt(k.vor_ort_video_anzahl, 10) || 0);
-          return k.videoanzahl || newSum || legacySum;
+          return newSum || legacySum || (k.videoanzahl ?? 0);
         };
 
         // Edit-Mode: Aktuelle Kampagne-ID merken

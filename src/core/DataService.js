@@ -2050,7 +2050,7 @@ export class DataService {
 
         switch (fieldType) {
           case 'number':
-            supabaseData[field] = value ? parseFloat(value) : null;
+            supabaseData[field] = (value !== null && value !== undefined && value !== '') ? parseFloat(value) : null;
             break;
           case 'array':
             supabaseData[field] = Array.isArray(value) ? value : (value ? [value] : null);

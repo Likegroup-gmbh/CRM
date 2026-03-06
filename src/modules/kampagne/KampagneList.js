@@ -1162,6 +1162,14 @@ export class KampagneList {
         console.log('⚠️ Kampagnenart-Container nicht gefunden');
       }
 
+      // Aggregiere Gesamtzahlen für Kampagne (für Anzeige & Listen)
+      const sumBySuffix = (suffix) => Object.entries(submitData).reduce((sum, [key, val]) => {
+        if (!key.endsWith(suffix)) return sum;
+        return sum + (parseInt(val, 10) || 0);
+      }, 0);
+      submitData.videoanzahl = sumBySuffix('_video_anzahl');
+      submitData.creatoranzahl = sumBySuffix('_creator_anzahl');
+
       // GLOBALE DEDUPLIZIERUNG: Entferne Duplikate aus allen Array-Feldern
       for (const key of Object.keys(submitData)) {
         if (Array.isArray(submitData[key])) {
