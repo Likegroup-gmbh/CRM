@@ -726,10 +726,6 @@ export class KampagneKooperationenVideoTable {
                 <div class="resize-handle resize-handle-col" data-col="1"></div>
               </th>
               <!-- col-kosten entfernt (EK-Spalte nicht mehr nötig) -->
-              <th class="col-header col-typ" ${!this.isColumnVisibleForCustomer('col-typ') ? 'style="display:none;"' : ''} data-col="3">
-                Typ
-                <div class="resize-handle resize-handle-col" data-col="3"></div>
-              </th>
               <th class="col-header col-vertrag" ${!this.isColumnVisibleForCustomer('col-vertrag') ? 'style="display:none;"' : ''} data-col="4">
                 Vertrag
                 <div class="resize-handle resize-handle-col" data-col="4"></div>
@@ -761,6 +757,10 @@ export class KampagneKooperationenVideoTable {
               <th class="col-header col-vk-video" ${!this.isColumnVisibleForCustomer('col-vk-video') ? 'style="display:none;"' : ''} data-col="10b">
                 VK/Video
                 <div class="resize-handle resize-handle-col" data-col="10b"></div>
+              </th>
+              <th class="col-header col-video-typ" ${!this.isColumnVisibleForCustomer('col-video-typ') ? 'style="display:none;"' : ''} data-col="10c">
+                Typ
+                <div class="resize-handle resize-handle-col" data-col="10c"></div>
               </th>
               <th class="col-header col-thema" ${!this.isColumnVisibleForCustomer('col-thema') ? 'style="display:none;"' : ''} data-col="11">
                 Thema
@@ -867,25 +867,6 @@ export class KampagneKooperationenVideoTable {
             : this.escapeHtml(`${creator.vorname || ''} ${creator.nachname || ''}`.trim() || 'Unbekannt')}
         </td>
         <!-- col-kosten entfernt -->
-        <td class="grid-cell" ${!this.isColumnVisibleForCustomer('col-typ') ? 'style="display:none;"' : ''}>
-          <select 
-            class="grid-select" 
-            data-entity="kooperation" 
-            data-id="${koop.id}" 
-            data-field="typ"
-            ${!this.isFieldEditableForUser('kooperation', 'typ') ? 'disabled' : ''}
-          >
-            <option value="">-- Bitte wählen --</option>
-            <option value="UGC Pro Paid" ${koop.typ === 'UGC Pro Paid' ? 'selected' : ''}>UGC Pro Paid</option>
-            <option value="UGC Pro Organic" ${koop.typ === 'UGC Pro Organic' ? 'selected' : ''}>UGC Pro Organic</option>
-            <option value="UGC Video Paid" ${koop.typ === 'UGC Video Paid' ? 'selected' : ''}>UGC Video Paid</option>
-            <option value="UGC Video Organic" ${koop.typ === 'UGC Video Organic' ? 'selected' : ''}>UGC Video Organic</option>
-            <option value="Influencer" ${koop.typ === 'Influencer' ? 'selected' : ''}>Influencer</option>
-            <option value="Vor-Ort-Produktion" ${koop.typ === 'Vor-Ort-Produktion' ? 'selected' : ''}>Vor-Ort-Produktion</option>
-            <option value="Videograph" ${koop.typ === 'Videograph' ? 'selected' : ''}>Videograph</option>
-            <option value="Fotograph" ${koop.typ === 'Fotograph' ? 'selected' : ''}>Fotograph</option>
-          </select>
-        </td>
         <td class="grid-cell cell-centered" ${!this.isColumnVisibleForCustomer('col-vertrag') ? 'style="display:none;"' : ''}>
           <input 
             type="checkbox" 
@@ -923,6 +904,11 @@ export class KampagneKooperationenVideoTable {
           ${this.renderVideoFieldStack(videos, (video) => {
             const vk = video.verkaufspreis_netto != null ? parseFloat(video.verkaufspreis_netto) : null;
             return vk != null ? `<div class="video-vk-text">${vk.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</div>` : '<div class="video-vk-text">—</div>';
+          })}
+        </td>
+        <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-video-typ') ? 'style="display:none;"' : ''}>
+          ${this.renderVideoFieldStack(videos, (video) => {
+            return `<div class="video-typ-text">${this.escapeHtml(video.kampagnenart || '—')}</div>`;
           })}
         </td>
         <!-- Video-Spalten: Jedes Video als eigene Zeile über alle Spalten -->
