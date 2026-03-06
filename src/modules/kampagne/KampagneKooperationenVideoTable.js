@@ -402,7 +402,7 @@ export class KampagneKooperationenVideoTable {
       const [videosResult, creatorsResult] = await Promise.allSettled([
         window.supabase
           .from('kooperation_videos')
-          .select('id, kooperation_id, position, asset_url, content_art, caption, feedback_creatorjobs, feedback_ritzenhoff, freigabe, link_content, link_produkte, thema, link_skript, skript_freigegeben, drehort, posting_datum, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id)')
+          .select('id, kooperation_id, position, asset_url, content_art, caption, feedback_creatorjobs, feedback_ritzenhoff, freigabe, link_content, link_produkte, thema, link_skript, skript_freigegeben, drehort, posting_datum, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id)')
           .in('kooperation_id', koopIds)
           .order('position', { ascending: true }),
         
@@ -617,8 +617,8 @@ export class KampagneKooperationenVideoTable {
       return true;
     }
     
-    // Kosten-Spalte für Kunden IMMER ausblenden (Einkaufspreise!)
-    if (columnClass === 'col-kosten') {
+    // EK-Spalten für Kunden IMMER ausblenden (Einkaufspreise!)
+    if (columnClass === 'col-kosten' || columnClass === 'col-ek-video') {
       return false;
     }
 
@@ -725,10 +725,7 @@ export class KampagneKooperationenVideoTable {
                 Creator
                 <div class="resize-handle resize-handle-col" data-col="1"></div>
               </th>
-              <th class="col-header col-kosten" ${!this.isColumnVisibleForCustomer('col-kosten') ? 'style="display:none;"' : ''} data-col="2">
-                Kosten
-                <div class="resize-handle resize-handle-col" data-col="2"></div>
-              </th>
+              <!-- col-kosten entfernt (EK-Spalte nicht mehr nötig) -->
               <th class="col-header col-typ" ${!this.isColumnVisibleForCustomer('col-typ') ? 'style="display:none;"' : ''} data-col="3">
                 Typ
                 <div class="resize-handle resize-handle-col" data-col="3"></div>
@@ -760,6 +757,10 @@ export class KampagneKooperationenVideoTable {
               <th class="col-header col-video-nr" ${!this.isColumnVisibleForCustomer('col-video-nr') ? 'style="display:none;"' : ''} data-col="10">
                 Video-Nr
                 <div class="resize-handle resize-handle-col" data-col="10"></div>
+              </th>
+              <th class="col-header col-vk-video" ${!this.isColumnVisibleForCustomer('col-vk-video') ? 'style="display:none;"' : ''} data-col="10b">
+                VK/Video
+                <div class="resize-handle resize-handle-col" data-col="10b"></div>
               </th>
               <th class="col-header col-thema" ${!this.isColumnVisibleForCustomer('col-thema') ? 'style="display:none;"' : ''} data-col="11">
                 Thema
@@ -865,7 +866,7 @@ export class KampagneKooperationenVideoTable {
           </a>`
             : this.escapeHtml(`${creator.vorname || ''} ${creator.nachname || ''}`.trim() || 'Unbekannt')}
         </td>
-        <td class="grid-cell read-only" ${!this.isColumnVisibleForCustomer('col-kosten') ? 'style="display:none;"' : ''}>${this.isColumnVisibleForCustomer('col-kosten') ? formatCurrency(koop.einkaufspreis_gesamt) : '—'}</td>
+        <!-- col-kosten entfernt -->
         <td class="grid-cell" ${!this.isColumnVisibleForCustomer('col-typ') ? 'style="display:none;"' : ''}>
           <select 
             class="grid-select" 
@@ -916,6 +917,12 @@ export class KampagneKooperationenVideoTable {
           ${this.renderVideoFieldStack(videos, (video, index, total) => {
             const videoNr = index + 1;
             return `<div class="video-nr-text">${videoNr}/${total}</div>`;
+          })}
+        </td>
+        <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-vk-video') ? 'style="display:none;"' : ''}>
+          ${this.renderVideoFieldStack(videos, (video) => {
+            const vk = video.verkaufspreis_netto != null ? parseFloat(video.verkaufspreis_netto) : null;
+            return vk != null ? `<div class="video-vk-text">${vk.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</div>` : '<div class="video-vk-text">—</div>';
           })}
         </td>
         <!-- Video-Spalten: Jedes Video als eigene Zeile über alle Spalten -->
@@ -1105,7 +1112,7 @@ export class KampagneKooperationenVideoTable {
               </svg>
             </button>
             <div class="actions-dropdown">
-              <a href="#" class="action-item" data-action="edit" data-id="${koop.id}">
+              <a href="#" class="action-item" data-action="edit" data-id="${koop.id}" data-return-to="/kampagne/${this.kampagneId}">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                   <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
                 </svg>

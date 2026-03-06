@@ -1,6 +1,7 @@
 // Kooperation Video Detail – lädt Video, Kommentare (Runde 1/2), Assets und erlaubt Statuswechsel + Kommentare
 import { getTabIcon } from '../../core/TabUtils.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { CONTENT_ART_OPTIONS } from './contentArtOptions.js';
 
 export const kooperationVideoDetail = {
   videoId: null,
@@ -44,6 +45,9 @@ export const kooperationVideoDetail = {
         const limitReached = videoLimit > 0 && uploaded >= videoLimit;
         const koopName = koopInfo?.name || '-';
         const kampName = KampagneUtils.getDisplayName(koopInfo?.kampagne);
+        const contentArtOptionsHtml = CONTENT_ART_OPTIONS
+          .map(option => `<option value="${option}">${option}</option>`)
+          .join('');
         const formHtml = `
           <div class="form-page">
             ${limitReached ? `<div class=\"alert alert-danger\">Videolimit erreicht (${uploaded}/${videoLimit}). Es können keine weiteren Videos angelegt werden.</div>` : ''}
@@ -57,12 +61,7 @@ export const kooperationVideoDetail = {
                   <label>Content Art</label>
                   <select name="content_art" class="form-input">
                     <option value="">– bitte wählen –</option>
-                    <option value="Paid">Paid</option>
-                    <option value="Organisch">Organisch</option>
-                    <option value="Influencer">Influencer</option>
-                    <option value="Videograph">Videograph</option>
-                    <option value="Whitelisting">Whitelisting</option>
-                    <option value="Spark-Ad">Spark-Ad</option>
+                    ${contentArtOptionsHtml}
                   </select>
                 </div>
                 <div class="form-field">

@@ -211,6 +211,85 @@ export class FormSystem {
 
 
 
+  getKampagneTotalVideos(kampagne) {
+    const newFieldsSum =
+      (parseInt(kampagne?.ugc_pro_paid_video_anzahl, 10) || 0) +
+      (parseInt(kampagne?.ugc_pro_organic_video_anzahl, 10) || 0) +
+      (parseInt(kampagne?.ugc_video_paid_video_anzahl, 10) || 0) +
+      (parseInt(kampagne?.ugc_video_organic_video_anzahl, 10) || 0) +
+      (parseInt(kampagne?.influencer_video_anzahl, 10) || 0) +
+      (parseInt(kampagne?.vor_ort_video_anzahl, 10) || 0);
+
+    const legacyFieldsSum =
+      (parseInt(kampagne?.ugc_video_anzahl, 10) || 0) +
+      (parseInt(kampagne?.igc_video_anzahl, 10) || 0) +
+      (parseInt(kampagne?.influencer_video_anzahl, 10) || 0) +
+      (parseInt(kampagne?.vor_ort_video_anzahl, 10) || 0);
+
+    return newFieldsSum || legacyFieldsSum || (kampagne?.videoanzahl ?? 0);
+  }
+
+  async validateKooperationVideoLimit(form, submitData, kooperationId = null) {
+    try {
+      if (!window.supabase) {
+        return { isValid: true };
+      }
+
+      const kampagneId = submitData?.kampagne_id || form?.querySelector('[name="kampagne_id"]')?.value;
+      if (!kampagneId) {
+        return { isValid: true };
+      }
+
+      const desiredVideos = parseInt(submitData?.videoanzahl, 10) || 0;
+      if (desiredVideos <= 0) {
+        return { isValid: true };
+      }
+
+      const { data: kampagne, error: kampagneError } = await window.supabase
+        .from('kampagne')
+        .select('videoanzahl, ugc_pro_paid_video_anzahl, ugc_pro_organic_video_anzahl, ugc_video_paid_video_anzahl, ugc_video_organic_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl, ugc_video_anzahl, igc_video_anzahl')
+        .eq('id', kampagneId)
+        .single();
+
+      if (kampagneError) {
+        throw kampagneError;
+      }
+
+      let koopQuery = window.supabase
+        .from('kooperationen')
+        .select('id, videoanzahl')
+        .eq('kampagne_id', kampagneId);
+
+      if (kooperationId) {
+        koopQuery = koopQuery.neq('id', kooperationId);
+      }
+
+      const { data: existingKoops, error: koopError } = await koopQuery;
+      if (koopError) {
+        throw koopError;
+      }
+
+      const totalVideos = this.getKampagneTotalVideos(kampagne);
+      const usedVideos = (existingKoops || []).reduce((sum, koop) => sum + (parseInt(koop.videoanzahl, 10) || 0), 0);
+      const remainingVideos = Math.max(0, totalVideos - usedVideos);
+
+      if (desiredVideos > remainingVideos) {
+        return {
+          isValid: false,
+          message: 'Die gewählte Video Anzahl überschreitet die verfügbaren Videos dieser Kampagne.'
+        };
+      }
+
+      return { isValid: true };
+    } catch (error) {
+      console.error('❌ FORMSYSTEM: Fehler bei Kooperations-Video-Limit-Prüfung:', error);
+      return {
+        isValid: false,
+        message: 'Die verfügbare Video Anzahl konnte nicht geprüft werden. Bitte erneut versuchen.'
+      };
+    }
+  }
+
   // Formular-Submit verarbeiten
   async handleFormSubmit(entity, data, formOverride) {
     try {
@@ -240,6 +319,14 @@ export class FormSystem {
       if (errors.length > 0) {
         this.validator.showValidationErrors(errors);
         return;
+      }
+
+      if (entity === 'kooperation') {
+        const videoLimitValidation = await this.validateKooperationVideoLimit(form, submitData, data?.id || data?._entityId || null);
+        if (!videoLimitValidation.isValid) {
+          this.validator.showErrorMessage(videoLimitValidation.message);
+          return { success: false };
+        }
       }
 
       // Entity erstellen/aktualisieren
@@ -454,9 +541,17 @@ export class FormSystem {
       const rows = items.map((el, idx) => {
         const id = el.getAttribute('data-video-id');
         const contentArt = form.querySelector(`select[name="video_content_art_${id}"]`)?.value || null;
+        const kampagnenart = form.querySelector(`select[name="video_kampagnenart_${id}"]`)?.value || null;
+        const ekRaw = form.querySelector(`input[name="video_ek_netto_${id}"]`)?.value;
+        const einkaufspreis = (ekRaw !== null && ekRaw !== undefined && ekRaw !== '') ? parseFloat(ekRaw) : 0;
+        const vkRaw = form.querySelector(`input[name="video_vk_netto_${id}"]`)?.value;
+        const verkaufspreis = (vkRaw !== null && vkRaw !== undefined && vkRaw !== '') ? parseFloat(vkRaw) : 0;
         return {
           kooperation_id: kooperationId,
           content_art: contentArt,
+          kampagnenart: kampagnenart,
+          einkaufspreis_netto: einkaufspreis,
+          verkaufspreis_netto: verkaufspreis,
           titel: null,
           asset_url: null,
           kommentar: null,
@@ -464,7 +559,7 @@ export class FormSystem {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
-      }).filter(r => r.content_art || r.titel || r.asset_url || r.kommentar);
+      }).filter(r => r.content_art || r.kampagnenart || r.einkaufspreis_netto > 0);
 
       // Bestehende Videos löschen und neu schreiben
       await window.supabase

@@ -12,6 +12,7 @@ export class KooperationDetail {
   constructor() {
     this.kooperationId = null;
     this.kooperation = null;
+    this.returnToRoute = null;
     this.notizen = [];
     this.ratings = [];
     this.creator = null;
@@ -31,6 +32,8 @@ export class KooperationDetail {
   async init(kooperationId) {
     console.log('🎯 KOOPERATIONDETAIL: Initialisiere Kooperations-Detailseite für ID:', kooperationId);
     
+    const currentUrl = new URL(window.location.href);
+    this.returnToRoute = currentUrl.searchParams.get('returnTo') || null;
     this.kooperationId = kooperationId;
     
     // Prüfen ob dieses Modul noch das aktuelle ist
@@ -200,7 +203,7 @@ export class KooperationDetail {
     try {
       const { data: videos } = await window.supabase
         .from('kooperation_videos')
-        .select('id, content_art, titel, asset_url, kommentar, status, position, created_at')
+        .select('id, content_art, kampagnenart, einkaufspreis_netto, verkaufspreis_netto, titel, asset_url, kommentar, status, position, created_at')
         .eq('kooperation_id', this.kooperationId)
         .order('position', { ascending: true });
       
@@ -692,10 +695,16 @@ export class KooperationDetail {
             ` : ''}
           </div>
         </div>`;
+      const isKundeRole = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
+      const vkFormatted = v.verkaufspreis_netto != null ? parseFloat(v.verkaufspreis_netto).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }) : '-';
+      const ekFormatted = v.einkaufspreis_netto != null ? parseFloat(v.einkaufspreis_netto).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }) : '-';
       return `
         <tr>
           <td>${v.position || '-'}</td>
+          <td>${window.validatorSystem.sanitizeHtml(v.kampagnenart || '-')}</td>
           <td>${window.validatorSystem.sanitizeHtml(v.content_art || '-')}</td>
+          <td class="text-right">${vkFormatted}</td>
+          ${!isKundeRole ? `<td class="text-right">${ekFormatted}</td>` : ''}
           <td>
             ${v.titel ? `<a href="/video/${v.id}" class="table-link" data-table="video" data-id="${v.id}">${window.validatorSystem.sanitizeHtml(v.titel)}</a>`
             : (v.asset_url ? `<a href="${v.asset_url}" target="_blank" rel="noopener">Link</a>` : '-')}
@@ -714,7 +723,10 @@ export class KooperationDetail {
           <thead>
             <tr>
               <th>#</th>
+              <th>Kampagnenart</th>
               <th>Content Art</th>
+              <th class="text-right">VK Netto</th>
+              ${!(window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor') ? '<th class="text-right">EK Netto</th>' : ''}
               <th>URL</th>
               <th>Feedback K1</th>
               <th>Feedback K2</th>
@@ -723,6 +735,13 @@ export class KooperationDetail {
             </tr>
           </thead>
           <tbody>${rows}</tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3" style="text-align:right; font-weight:600;">Gesamt VK Netto:</td>
+              <td class="text-right" style="font-weight:600;">${(this.videos || []).reduce((s, v) => s + (parseFloat(v.verkaufspreis_netto) || 0), 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</td>
+              <td colspan="${!(window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor') ? '6' : '5'}"></td>
+            </tr>
+          </tfoot>
         </table>
       </div>
     `;
@@ -1041,10 +1060,23 @@ export class KooperationDetail {
         return;
       }
 
+      if (window.formSystem) {
+        const videoLimitValidation = await window.formSystem.validateKooperationVideoLimit(form, submitData, this.kooperationId);
+        if (!videoLimitValidation.isValid) {
+          this.showErrorMessage(videoLimitValidation.message);
+          return;
+        }
+      }
+
       // Update Kooperation
       const result = await window.dataService.updateEntity('kooperation', this.kooperationId, submitData);
       
       if (result.success) {
+        // Videos-Repeater speichern (EK/VK pro Video)
+        if (window.formSystem) {
+          await window.formSystem.handleKooperationVideos(this.kooperationId, form);
+        }
+
         this.showSuccessMessage('Kooperation erfolgreich aktualisiert!');
         
         // Event auslösen für Listen-Update
@@ -1052,9 +1084,9 @@ export class KooperationDetail {
           detail: { entity: 'kooperation', action: 'updated', id: this.kooperationId }
         }));
         
-        // Zurück zu Details
+        // Zurück zum Ursprungskontext, falls Edit aus einer Kampagne geöffnet wurde
         setTimeout(() => {
-          window.navigateTo(`/kooperation/${this.kooperationId}`);
+          window.navigateTo(this.returnToRoute || `/kooperation/${this.kooperationId}`);
         }, 1500);
       } else {
         this.showErrorMessage(`Fehler beim Aktualisieren: ${result.error}`);

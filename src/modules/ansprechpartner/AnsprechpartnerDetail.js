@@ -52,7 +52,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
         ansprechpartnerId: this.ansprechpartnerId
       });
 
-      await this.loadActivities();
+      await Promise.all([this.loadActivities(), this.loadIndirectKampagnen()]);
       if (window.moduleRegistry?.currentModule !== this) return;
 
       await this.render();
@@ -149,6 +149,55 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     }
   }
 
+  // Lade Kampagnen, die indirekt über Unternehmen/Marken-Zugehörigkeit erreichbar sind
+  async loadIndirectKampagnen() {
+    try {
+      const unternehmenIds = (this.ansprechpartner?.ansprechpartner_unternehmen || [])
+        .map(u => u.unternehmen?.id).filter(Boolean);
+      const markenIds = (this.ansprechpartner?.ansprechpartner_marke || [])
+        .map(m => m.marke?.id).filter(Boolean);
+
+      if (unternehmenIds.length === 0 && markenIds.length === 0) {
+        this.indirectKampagnen = [];
+        return;
+      }
+
+      const queries = [];
+
+      if (unternehmenIds.length > 0) {
+        queries.push(
+          window.supabase
+            .from('kampagne')
+            .select('id, kampagnenname, eigener_name, unternehmen_id, marke_id')
+            .in('unternehmen_id', unternehmenIds)
+        );
+      }
+
+      if (markenIds.length > 0) {
+        queries.push(
+          window.supabase
+            .from('kampagne')
+            .select('id, kampagnenname, eigener_name, unternehmen_id, marke_id')
+            .in('marke_id', markenIds)
+        );
+      }
+
+      const results = await Promise.all(queries);
+      const allKampagnen = results.flatMap(r => r.data || []);
+
+      // Deduplizieren per ID
+      const seen = new Set();
+      this.indirectKampagnen = allKampagnen.filter(k => {
+        if (seen.has(k.id)) return false;
+        seen.add(k.id);
+        return true;
+      });
+    } catch (error) {
+      console.error('❌ ANSPRECHPARTNERDETAIL: Fehler beim Laden indirekter Kampagnen:', error);
+      this.indirectKampagnen = [];
+    }
+  }
+
   // Lade Aktivitäten für Timeline
   async loadActivities() {
     try {
@@ -192,9 +241,10 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       if (e.detail?.entity === 'ansprechpartner' && e.detail?.id === this.ansprechpartnerId) {
         console.log('🔄 ANSPRECHPARTNERDETAIL: Entity updated - lade neu');
         this.loadCriticalData().then(() => {
-          this.render();
-          // WICHTIG: Breadcrumb auch nach Update aktualisieren!
-          this.updateBreadcrumb();
+          this.loadIndirectKampagnen().then(() => {
+            this.render();
+            this.updateBreadcrumb();
+          });
         });
       }
     });
@@ -444,9 +494,28 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     return `<div class="entity-list">${items}</div>`;
   }
 
-  // Rendere Kampagnen-Tab
+  // Rendere Kampagnen-Tab (explizit zugeordnete + indirekt über Unternehmen/Marke)
   renderKampagnen() {
-    if (!this.ansprechpartner?.ansprechpartner_kampagne || this.ansprechpartner.ansprechpartner_kampagne.length === 0) {
+    const explicitIds = new Set();
+    const explicitKampagnen = (this.ansprechpartner?.ansprechpartner_kampagne || [])
+      .map(item => item.kampagne)
+      .filter(Boolean);
+    explicitKampagnen.forEach(k => explicitIds.add(k.id));
+
+    // Unternehmen/Marken-Lookup für Herkunft-Badge
+    const unternehmenMap = new Map();
+    (this.ansprechpartner?.ansprechpartner_unternehmen || []).forEach(u => {
+      if (u.unternehmen) unternehmenMap.set(u.unternehmen.id, u.unternehmen.firmenname);
+    });
+    const markenMap = new Map();
+    (this.ansprechpartner?.ansprechpartner_marke || []).forEach(m => {
+      if (m.marke) markenMap.set(m.marke.id, m.marke.markenname);
+    });
+
+    const indirectOnly = (this.indirectKampagnen || [])
+      .filter(k => !explicitIds.has(k.id));
+
+    if (explicitKampagnen.length === 0 && indirectOnly.length === 0) {
       return `
         <div class="empty-state">
           <h3>Keine Kampagnen zugeordnet</h3>
@@ -455,18 +524,33 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       `;
     }
 
-    const rows = this.ansprechpartner.ansprechpartner_kampagne.map(item => {
-      const kampagne = item.kampagne;
-      return `
-        <tr>
-          <td>
-            <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
-              ${KampagneUtils.getDisplayName(kampagne)}
-            </a>
-          </td>
-        </tr>
-      `;
-    }).join('');
+    const renderRow = (kampagne, source) => `
+      <tr>
+        <td>
+          <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
+            ${KampagneUtils.getDisplayName(kampagne)}
+          </a>
+        </td>
+        <td>${source}</td>
+      </tr>
+    `;
+
+    const rows = [];
+
+    explicitKampagnen.forEach(k => {
+      rows.push(renderRow(k, '<span class="badge badge--direkt">Direkt zugeordnet</span>'));
+    });
+
+    indirectOnly.forEach(k => {
+      const sources = [];
+      if (k.unternehmen_id && unternehmenMap.has(k.unternehmen_id)) {
+        sources.push(`<span class="badge badge--unternehmen">via ${unternehmenMap.get(k.unternehmen_id)}</span>`);
+      }
+      if (k.marke_id && markenMap.has(k.marke_id)) {
+        sources.push(`<span class="badge badge--marke">via ${markenMap.get(k.marke_id)}</span>`);
+      }
+      rows.push(renderRow(k, sources.join(' ') || '<span class="badge badge--indirekt">via Unternehmen/Marke</span>'));
+    });
 
     return `
       <div class="data-table-container">
@@ -474,9 +558,10 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
           <thead>
             <tr>
               <th>Kampagne</th>
+              <th>Zuordnung</th>
             </tr>
           </thead>
-          <tbody>${rows}</tbody>
+          <tbody>${rows.join('')}</tbody>
         </table>
       </div>
     `;

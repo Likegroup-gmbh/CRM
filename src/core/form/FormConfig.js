@@ -1,3 +1,5 @@
+import { CONTENT_ART_OPTIONS } from '../../modules/kooperation/contentArtOptions.js';
+
 export class FormConfig {
   getFormConfig(entity) {
     const configs = {
@@ -618,26 +620,28 @@ export class FormConfig {
           },
           { name: 'skript_autor', label: 'Skript schreibt', type: 'select', required: false, options: ['Brand', 'Creator', 'Agentur'] },
           
+          { name: 'videoanzahl', label: 'Video Anzahl', type: 'number', required: false, validation: { type: 'number', min: 1 } },
+          { name: 'videos', label: 'Videos', type: 'custom', customType: 'videos', options: CONTENT_ART_OPTIONS },
+
           // Einkaufspreis
-          { name: 'einkaufspreis_netto', label: 'Einkaufspreis Netto', type: 'number', required: false, validation: { type: 'number', min: 0 } },
+          { name: 'einkaufspreis_netto', label: 'Einkaufspreis Netto', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, placeholder: 'Wird aus Video-Preisen berechnet' },
           { name: 'einkaufspreis_zusatzkosten', label: 'Einkaufspreis Zusatzkosten', type: 'number', required: false, validation: { type: 'number', min: 0 } },
           { name: 'einkaufspreis_ust_prozent', type: 'hidden', defaultValue: 19 },
           { name: 'einkaufspreis_ust', label: 'Einkaufspreis USt (19%)', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['einkaufspreis_netto', 'einkaufspreis_zusatzkosten', 'einkaufspreis_ust_prozent'] },
           { name: 'einkaufspreis_gesamt', label: 'Einkaufspreis Gesamt', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['einkaufspreis_netto', 'einkaufspreis_zusatzkosten', 'einkaufspreis_ust'] },
           
           // Verkaufspreis
-          { name: 'verkaufspreis_netto', label: 'Verkaufspreis Netto', type: 'number', required: false, validation: { type: 'number', min: 0 } },
+          { name: 'verkaufspreis_netto', label: 'Verkaufspreis Netto', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, placeholder: 'Wird aus Video-Preisen berechnet' },
           { name: 'verkaufspreis_zusatzkosten', label: 'Verkaufspreis Zusatzkosten', type: 'number', required: false, validation: { type: 'number', min: 0 } },
           { name: 'verkaufspreis_ust', label: 'Verkaufspreis USt (19%)', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['verkaufspreis_netto', 'verkaufspreis_zusatzkosten'] },
           { name: 'verkaufspreis_gesamt', label: 'Verkaufspreis Gesamt', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['verkaufspreis_netto', 'verkaufspreis_zusatzkosten', 'verkaufspreis_ust'] },
           
           { name: 'vertrag_unterschrieben', label: 'Vertrag unterschrieben', type: 'checkbox', required: false },
           { name: 'vertrag_link', label: 'Vertrag Link', type: 'url', required: false, validation: { type: 'url' } },
-          { name: 'videoanzahl', label: 'Video Anzahl', type: 'number', required: false, validation: { type: 'number', min: 1 } },
           { name: 'skript_deadline', label: 'Skript Deadline', type: 'date', required: false },
           { name: 'skript_link', label: 'Skript Link', type: 'url', required: false, validation: { type: 'url' } },
           { name: 'content_deadline', label: 'Content Deadline', type: 'date', required: false },
-          { name: 'content_art', label: 'Content Art', type: 'select', required: true, options: ['Paid', 'Organisch', 'Influencer', 'Whitelisting', 'Spark-Ad'] },
+          { name: 'content_art', label: 'Content Art', type: 'select', required: true, options: CONTENT_ART_OPTIONS },
           
           { name: 'status', label: 'Status', type: 'select', required: true, options: ['Todo', 'In progress', 'Done'] }
                 ]

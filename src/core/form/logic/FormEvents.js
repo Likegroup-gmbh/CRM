@@ -766,6 +766,38 @@ export class FormEvents {
     })();
     if (!kampagneSelect || !videoInput || !window.supabase) return;
 
+    // Kampagnenarten-Optionen (dynamisch aus Auftrag geladen)
+    let kampagnenartenOptions = [];
+
+    // EK Netto Summe aus den Einzelvideo-Preisen berechnen und ins Kooperationsfeld schreiben
+    const recalcEkSum = () => {
+      if (!videosList) return;
+      const inputs = videosList.querySelectorAll('.video-ek-input');
+      let sum = 0;
+      inputs.forEach(inp => { sum += parseFloat(inp.value) || 0; });
+      const ekField = form.querySelector('input[name="einkaufspreis_netto"]');
+      if (ekField) {
+        ekField.value = sum.toFixed(2);
+        ekField.dispatchEvent(new Event('input', { bubbles: true }));
+        ekField.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    };
+
+    const recalcVkSum = () => {
+      if (!videosList) return;
+      const inputs = videosList.querySelectorAll('.video-vk-input');
+      let sum = 0;
+      inputs.forEach(inp => { sum += parseFloat(inp.value) || 0; });
+      const vkField = form.querySelector('input[name="verkaufspreis_netto"]');
+      if (vkField) {
+        vkField.value = sum.toFixed(2);
+        vkField.dispatchEvent(new Event('input', { bubbles: true }));
+        vkField.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    };
+
+    const recalcAllPrices = () => { recalcEkSum(); recalcVkSum(); };
+
     // Stepper-UI aufbauen (einmalig) und Input verstecken
     const attachStepper = () => {
       if (videoInput.dataset.stepperAttached === 'true') return;
@@ -822,13 +854,14 @@ export class FormEvents {
         const current = videosList.querySelectorAll('.video-item').length;
         if (desired > current) {
           for (let i = 0; i < (desired - current); i++) {
-            this.addVideoRow(videosList, contentArtOptions);
+            this.addVideoRow(videosList, contentArtOptions, {}, kampagnenartenOptions, recalcAllPrices);
           }
         } else if (desired < current) {
           for (let i = 0; i < (current - desired); i++) {
             const last = videosList.querySelector('.video-item:last-of-type');
             if (last) last.remove();
           }
+          recalcAllPrices();
         }
       };
 
@@ -892,6 +925,25 @@ export class FormEvents {
       return String(Math.max(min, Math.min(n, max)));
     };
 
+    const refreshExistingVideoSelects = () => {
+      if (!videosList || kampagnenartenOptions.length === 0) return;
+
+      videosList.querySelectorAll('.video-kampagnenart-select').forEach(sel => {
+        const selectedValue = sel.value || sel.dataset.initialValue || '';
+        sel.innerHTML = this.buildVideoSelectOptions(kampagnenartenOptions, selectedValue);
+        if (selectedValue) {
+          sel.value = selectedValue;
+        }
+      });
+
+      videosList.querySelectorAll('.video-content-select').forEach(sel => {
+        const selectedValue = sel.value || sel.dataset.initialValue || '';
+        if (selectedValue) {
+          sel.value = selectedValue;
+        }
+      });
+    };
+
     const updateVideoLimits = async () => {
       const kampagneId = kampagneSelect.value;
       if (!kampagneId) {
@@ -909,12 +961,46 @@ export class FormEvents {
         // Gesamtanzahl Videos aus der Kampagne laden (alle Video-Typen summieren, inkl. Legacy-Felder)
         const { data: kampagne, error: kampagneError } = await window.supabase
           .from('kampagne')
-          .select('videoanzahl, ugc_pro_paid_video_anzahl, ugc_pro_organic_video_anzahl, ugc_video_paid_video_anzahl, ugc_video_organic_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl, ugc_video_anzahl, igc_video_anzahl')
+          .select('videoanzahl, auftrag_id, ugc_pro_paid_video_anzahl, ugc_pro_organic_video_anzahl, ugc_video_paid_video_anzahl, ugc_video_organic_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl, ugc_video_anzahl, igc_video_anzahl')
           .eq('id', kampagneId)
           .single();
         if (kampagneError) {
           console.error('❌ Fehler beim Laden der Kampagne (videoanzahl):', kampagneError);
           return;
+        }
+
+        // Kampagnenarten aus dem Auftrag der Kampagne laden
+        try {
+          if (kampagne?.auftrag_id) {
+            const { data: auftragArten, error: artError } = await window.supabase
+              .from('auftrag_kampagne_art')
+              .select('kampagne_art_id')
+              .eq('auftrag_id', kampagne.auftrag_id);
+            console.log('📋 KOOPERATION: auftrag_kampagne_art Ergebnis:', { auftragArten, artError, auftrag_id: kampagne.auftrag_id });
+            if (!artError && auftragArten && auftragArten.length > 0) {
+              const artIds = auftragArten.map(a => a.kampagne_art_id).filter(Boolean);
+              if (artIds.length > 0) {
+                const { data: artTypen, error: typError } = await window.supabase
+                  .from('kampagne_art_typen')
+                  .select('name')
+                  .in('id', artIds);
+                console.log('📋 KOOPERATION: kampagne_art_typen Ergebnis:', { artTypen, typError });
+                kampagnenartenOptions = (artTypen || []).map(t => t.name).filter(Boolean);
+              }
+            }
+          }
+          // Fallback: Alle Kampagnenarten laden, wenn keine über den Auftrag gefunden
+          if (kampagnenartenOptions.length === 0) {
+            console.log('📋 KOOPERATION: Fallback - lade alle Kampagnenarten');
+            const { data: alleArten } = await window.supabase
+              .from('kampagne_art_typen')
+              .select('name')
+              .order('sort_order', { ascending: true });
+            kampagnenartenOptions = (alleArten || []).map(t => t.name).filter(Boolean);
+          }
+          console.log('📋 KOOPERATION: Kampagnenarten final:', kampagnenartenOptions);
+        } catch (e) {
+          console.warn('⚠️ Kampagnenarten konnten nicht geladen werden:', e);
         }
         const newFieldsSum =
           (parseInt(kampagne?.ugc_pro_paid_video_anzahl, 10) || 0) +
@@ -991,15 +1077,19 @@ export class FormEvents {
           if (desired !== current) {
             const diff = desired - current;
             if (diff > 0) {
-              for (let i = 0; i < diff; i++) this.addVideoRow(videosList, contentArtOptions);
+              for (let i = 0; i < diff; i++) this.addVideoRow(videosList, contentArtOptions, {}, kampagnenartenOptions, recalcAllPrices);
             } else {
               for (let i = 0; i < Math.abs(diff); i++) {
                 const last = videosList.querySelector('.video-item:last-of-type');
                 if (last) last.remove();
               }
+              recalcAllPrices();
             }
           }
         }
+
+        // Bestehende Video-Zeilen: Select-Optionen updaten und gespeicherte Werte erhalten
+        refreshExistingVideoSelects();
 
       } catch (err) {
         console.error('❌ Fehler beim Aktualisieren der Video-Limits:', err);
@@ -1020,53 +1110,38 @@ export class FormEvents {
         if (desired !== current) {
           const diff = desired - current;
           if (diff > 0) {
-            for (let i = 0; i < diff; i++) this.addVideoRow(videosList, contentArtOptions);
+            for (let i = 0; i < diff; i++) this.addVideoRow(videosList, contentArtOptions, {}, kampagnenartenOptions, recalcAllPrices);
           } else {
             for (let i = 0; i < Math.abs(diff); i++) {
               const last = videosList.querySelector('.video-item:last-of-type');
               if (last) last.remove();
             }
+            recalcAllPrices();
           }
         }
       }
     });
 
-    // Submit-Guard: sicherstellen, dass der Wert nicht über Remaining liegt
-    form.addEventListener('submit', async (e) => {
-      const kampagneId = kampagneSelect.value;
-      if (!kampagneId) return;
-      try {
-        const { data: kampagne } = await window.supabase
-          .from('kampagne')
-          .select('videoanzahl, ugc_pro_paid_video_anzahl, ugc_pro_organic_video_anzahl, ugc_video_paid_video_anzahl, ugc_video_organic_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl')
-          .eq('id', kampagneId)
-          .single();
-        // Nutze videoanzahl falls vorhanden, sonst Summe der einzelnen Typen
-        const totalVideos = kampagne?.videoanzahl || (
-          (parseInt(kampagne?.ugc_pro_paid_video_anzahl, 10) || 0) +
-          (parseInt(kampagne?.ugc_pro_organic_video_anzahl, 10) || 0) +
-          (parseInt(kampagne?.ugc_video_paid_video_anzahl, 10) || 0) +
-          (parseInt(kampagne?.ugc_video_organic_video_anzahl, 10) || 0) +
-          (parseInt(kampagne?.influencer_video_anzahl, 10) || 0) +
-          (parseInt(kampagne?.vor_ort_video_anzahl, 10) || 0)
-        );
-        const { data: existingKoops } = await window.supabase
-          .from('kooperationen')
-          .select('videoanzahl')
-          .eq('kampagne_id', kampagneId);
-        const usedVideos = (existingKoops || []).reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
-        const remaining = Math.max(0, totalVideos - usedVideos);
-        const desired = parseInt(videoInput.value || '0', 10) || 0;
-        if (desired > remaining) {
-          e.preventDefault();
-          videoInput.value = clampValue(videoInput.value, remaining > 0 ? 1 : 0, remaining);
-          alert('Die gewählte Video Anzahl überschreitet die verfügbaren Videos dieser Kampagne.');
+    // Event-Delegation: Video-Remove-Button
+    if (videosList) {
+      videosList.addEventListener('click', (e) => {
+        const removeBtn = e.target.closest('.video-item-remove');
+        if (!removeBtn) return;
+        const item = removeBtn.closest('.video-item');
+        if (item) {
+          item.remove();
+          // Video-Counter aktualisieren
+          const count = videosList.querySelectorAll('.video-item').length;
+          videoInput.value = String(count || '');
           refreshStepperUI();
+          recalcAllPrices();
+          // Nummern neu vergeben
+          videosList.querySelectorAll('.video-item-number').forEach((el, i) => {
+            el.textContent = `Video ${i + 1}`;
+          });
         }
-      } catch (_) {
-        // Ignorieren, falls offline / Fehler – Browser-Constraints greifen
-      }
-    });
+      });
+    }
 
     // Initial ausführen
     updateVideoLimits();
@@ -1088,14 +1163,17 @@ export class FormEvents {
         if (!koopId || !window.supabase || !videosList) return;
         const { data: rows, error } = await window.supabase
           .from('kooperation_videos')
-          .select('id, content_art, titel, asset_url, kommentar, position')
+          .select('id, content_art, kampagnenart, einkaufspreis_netto, verkaufspreis_netto, titel, asset_url, kommentar, position')
           .eq('kooperation_id', koopId)
           .order('position', { ascending: true });
         if (error) return;
-        (rows || []).forEach(r => this.addVideoRow(videosList, contentArtOptions, r));
+        videosList.innerHTML = '';
+        (rows || []).forEach(r => this.addVideoRow(videosList, contentArtOptions, r, kampagnenartenOptions, recalcAllPrices));
+        refreshExistingVideoSelects();
         // Anzahl synchronisieren und UI updaten
         videoInput.value = String((rows || []).length || '');
         refreshStepperUI();
+        recalcAllPrices();
       } catch (err) {
         console.warn('⚠️ Fehler beim Laden der Kooperations-Videos:', err?.message);
       }
@@ -1145,19 +1223,62 @@ export class FormEvents {
   // Videos-Felder einrichten
   setupVideosFields(form) {}
 
-  addVideoRow(list, contentArtOptions = [], initial = {}) {
-    const itemId = `video-${Date.now()}`;
-    const optionsHtml = ['<option value="">Bitte wählen</option>']
-      .concat(contentArtOptions.map(o => `<option value="${o}" ${initial.content_art === o ? 'selected' : ''}>${o}</option>`))
+  buildVideoSelectOptions(options = [], selectedValue = '') {
+    const normalizedOptions = Array.from(new Set((options || []).filter(Boolean)));
+    if (selectedValue && !normalizedOptions.includes(selectedValue)) {
+      normalizedOptions.unshift(selectedValue);
+    }
+
+    return ['<option value="">Bitte wählen</option>']
+      .concat(normalizedOptions.map(option => `<option value="${option}" ${selectedValue === option ? 'selected' : ''}>${option}</option>`))
       .join('');
+  }
+
+  addVideoRow(list, contentArtOptions = [], initial = {}, kampagnenartenOpts = [], onPriceChange = null) {
+    const itemId = `video-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const videoNum = list.querySelectorAll('.video-item').length + 1;
+
+    const kampagnenartHtml = this.buildVideoSelectOptions(kampagnenartenOpts, initial.kampagnenart || '');
+    const contentArtHtml = this.buildVideoSelectOptions(contentArtOptions, initial.content_art || '');
+    const ekValue = initial.einkaufspreis_netto != null ? parseFloat(initial.einkaufspreis_netto) || '' : '';
+    const vkValue = initial.verkaufspreis_netto != null ? parseFloat(initial.verkaufspreis_netto) || '' : '';
+
     const html = `
-      <div class="video-item video-item-compact" data-video-id="${itemId}">
-        <label class="sr-only">Content Art</label>
-        <select name="video_content_art_${itemId}" class="video-content-select">
-          ${optionsHtml}
-        </select>
+      <div class="video-item" data-video-id="${itemId}">
+        <div class="video-item-header">
+          <span class="video-item-number">Video ${videoNum}</span>
+          <button type="button" class="video-item-remove" title="Entfernen">&times;</button>
+        </div>
+        <div class="video-item-fields">
+          <div class="video-field">
+            <label>Kampagnenart</label>
+            <select name="video_kampagnenart_${itemId}" class="video-kampagnenart-select" data-initial-value="${initial.kampagnenart || ''}">
+              ${kampagnenartHtml}
+            </select>
+          </div>
+          <div class="video-field">
+            <label>Content Art</label>
+            <select name="video_content_art_${itemId}" class="video-content-select" data-initial-value="${initial.content_art || ''}">
+              ${contentArtHtml}
+            </select>
+          </div>
+          <div class="video-field">
+            <label>EK Netto (€)</label>
+            <input type="number" name="video_ek_netto_${itemId}" class="video-ek-input" min="0" step="0.01" value="${ekValue}" placeholder="0,00">
+          </div>
+          <div class="video-field">
+            <label>VK Netto (€)</label>
+            <input type="number" name="video_vk_netto_${itemId}" class="video-vk-input" min="0" step="0.01" value="${vkValue}" placeholder="0,00">
+          </div>
+        </div>
       </div>`;
     list.insertAdjacentHTML('beforeend', html);
+
+    const videoEl = list.querySelector(`.video-item[data-video-id="${itemId}"]`);
+    if (videoEl && onPriceChange) {
+      videoEl.querySelector('.video-ek-input')?.addEventListener('input', onPriceChange);
+      videoEl.querySelector('.video-vk-input')?.addEventListener('input', onPriceChange);
+    }
   }
 
   // Neue Adresszeile hinzufügen

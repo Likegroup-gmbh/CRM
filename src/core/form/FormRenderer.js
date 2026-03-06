@@ -613,7 +613,7 @@ export class FormRenderer {
       <div class="form-field form-field-full">
         <label for="${fieldId}" class="form-label">${field.label}</label>
         <div class="videos-container" id="${fieldId}" data-options='${optionsAttr}'>
-          <div class="videos-list videos-grid"></div>
+          <div class="videos-list"></div>
         </div>
       </div>
     `;

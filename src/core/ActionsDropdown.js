@@ -726,7 +726,13 @@ export class ActionsDropdown {
       
       case 'edit':
         // Standard-Route für alle Entitäten inkl. Auftragsdetails
-        window.navigateTo(`/${entityType}/${entityId}/edit`);
+        {
+          const returnTo = actionItem?.dataset?.returnTo;
+          const editRoute = returnTo
+            ? `/${entityType}/${entityId}/edit?returnTo=${encodeURIComponent(returnTo)}`
+            : `/${entityType}/${entityId}/edit`;
+          window.navigateTo(editRoute);
+        }
         break;
       
       case 'delete':
