@@ -318,6 +318,7 @@ export class StrategieList {
     tbody.innerHTML = this.brandFolders.map((brand) => `
       <tr class="table-row-clickable brand-row" data-marke-id="${brand.id}" data-marke-name="${this.sanitize(brand.markenname)}">
         <td>
+          ${brand.logo_url ? `<img src="${this.sanitize(brand.logo_url)}" class="table-logo" width="24" height="24" alt="" />` : ''}
           <a href="#" class="table-link brand-link" data-marke-id="${brand.id}" data-marke-name="${this.sanitize(brand.markenname)}">
             ${this.sanitize(brand.markenname)}
           </a>
