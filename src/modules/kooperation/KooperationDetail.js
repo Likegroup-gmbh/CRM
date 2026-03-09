@@ -391,9 +391,10 @@ export class KooperationDetail extends PersonDetailBase {
   }
 
   _getSidebarInfo() {
-    return this.renderInfoItems([
+    const isKunde = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
+    const items = [
       { icon: 'tag', label: 'Status', value: this.kooperation?.status || '-', badge: true, badgeType: (this.kooperation?.status || 'unknown').toLowerCase() },
-      { icon: 'currency', label: 'EK Gesamt', value: this.formatCurrency(this.kooperation?.einkaufspreis_gesamt) },
+      ...(!isKunde ? [{ icon: 'currency', label: 'EK Gesamt', value: this.formatCurrency(this.kooperation?.einkaufspreis_gesamt) }] : []),
       { icon: 'currency', label: 'VK Gesamt', value: this.formatCurrency(this.kooperation?.verkaufspreis_gesamt) },
       { icon: 'calendar', label: 'Skript-Deadline', value: this.formatDate(this.kooperation?.skript_deadline) },
       { icon: 'calendar', label: 'Content-Deadline', value: this.formatDate(this.kooperation?.content_deadline) },
@@ -402,7 +403,8 @@ export class KooperationDetail extends PersonDetailBase {
       { icon: 'building', label: 'Unternehmen', value: this.kooperation?.unternehmen?.firmenname || this.kampagne?.unternehmen?.firmenname || '-' },
       { icon: 'tag', label: 'Marke', value: this.kampagne?.marke?.markenname || '-' },
       { icon: 'info', label: 'Kampagne', value: this.kampagne ? KampagneUtils.getDisplayName(this.kampagne) : '-' }
-    ]);
+    ];
+    return this.renderInfoItems(items);
   }
 
   // ============================================
@@ -496,9 +498,10 @@ export class KooperationDetail extends PersonDetailBase {
   // ============================================
 
   renderInfoDetails() {
+    const isKunde = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
     const allgemeinItems = this.renderInfoItems([
       { icon: 'tag', label: 'Status', value: this.kooperation.status || '-', badge: true, badgeType: (this.kooperation.status || 'unknown').toLowerCase() },
-      { icon: 'currency', label: 'Einkaufspreis', value: this.formatCurrency(this.kooperation.einkaufspreis_gesamt) },
+      ...(!isKunde ? [{ icon: 'currency', label: 'Einkaufspreis', value: this.formatCurrency(this.kooperation.einkaufspreis_gesamt) }] : []),
       { icon: 'currency', label: 'Verkaufspreis', value: this.formatCurrency(this.kooperation.verkaufspreis_gesamt) },
       { icon: 'calendar', label: 'Skript-Deadline', value: this.formatDate(this.kooperation.skript_deadline) },
       { icon: 'calendar', label: 'Content-Deadline', value: this.formatDate(this.kooperation.content_deadline) }

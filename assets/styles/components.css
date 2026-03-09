@@ -1304,8 +1304,8 @@ button.is-submit-locked,
 .detail-section h2 {
   margin-bottom: 1rem;
   color: #333;
-  font-size: 1.5rem;
-  font-weight: 600;
+  font-size: var(--text-lg);
+  font-weight: 400;
 }
 
 .detail-grid {
@@ -1335,7 +1335,7 @@ button.is-submit-locked,
 /* H3 mit Border für Sektions-Trennung */
 h3.section-title,
 .section-title {
-  padding: var(--space-xs);
+  padding: var(--space-xs) var(--space-md);
   border-top: 1px solid var(--gray-100);
   border-bottom: 1px solid var(--gray-100);
 }
