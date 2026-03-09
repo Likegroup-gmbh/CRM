@@ -944,11 +944,11 @@ export class KampagneDetail {
           <button class="tab-button" data-tab="strategien">
             Strategien
           </button>
-          <button class="tab-button" data-tab="briefings">
-            Briefings
-          </button>
           <button class="tab-button" data-tab="sourcing-listen">
             Sourcing
+          </button>
+          <button class="tab-button" data-tab="briefings">
+            Briefings
           </button>
           ${!isKunde && window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? `
           <button class="tab-button" data-tab="info">
