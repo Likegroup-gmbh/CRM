@@ -513,14 +513,18 @@ export class KooperationDetail extends PersonDetailBase {
         ${this.renderInfoItems([
           { icon: 'user', label: 'Name', value: `${this.creator.vorname || ''} ${this.creator.nachname || ''}`.trim() || '-' },
           { icon: 'mail', label: 'E-Mail', value: this.creator.mail || '-', mailto: !!this.creator.mail },
-          { icon: 'instagram', label: 'Instagram', value: this.creator.instagram ? `@${this.creator.instagram}` : '-' },
+          { icon: 'instagram', label: 'Instagram', rawHtml: this.creator.instagram
+            ? `<a href="https://instagram.com/${this.creator.instagram.replace('@', '')}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Instagram öffnen"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:16px;height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>`
+            : '-' },
           { icon: 'info', label: 'Instagram Follower', value: this.creator.instagram_follower ? this.formatNumber(this.creator.instagram_follower) : '-' },
-          { icon: 'tiktok', label: 'TikTok', value: this.creator.tiktok ? `@${this.creator.tiktok}` : '-' },
+          { icon: 'tiktok', label: 'TikTok', rawHtml: this.creator.tiktok
+            ? `<a href="https://tiktok.com/@${this.creator.tiktok.replace('@', '')}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="TikTok öffnen"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:16px;height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>`
+            : '-' },
           { icon: 'info', label: 'TikTok Follower', value: this.creator.tiktok_follower ? this.formatNumber(this.creator.tiktok_follower) : '-' }
         ])}
-        <div class="detail-actions">
+        ${!(window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor') ? `<div class="detail-actions">
           <button onclick="window.navigateTo('/creator/${this.creator.id}')" class="secondary-btn">Creator Details anzeigen</button>
-        </div>
+        </div>` : ''}
       </div>
     ` : '';
 
