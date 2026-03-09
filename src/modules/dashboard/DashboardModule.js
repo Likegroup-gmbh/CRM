@@ -699,8 +699,8 @@ export class DashboardModule {
                   </svg>
                 </span>
                 <div class="dashboard-article-text">
-                  <h3 class="dashboard-article-title">Erste Schritte nach Ihrem Magic Link</h3>
-                  <p class="dashboard-article-desc">Erfahren Sie, welche Schritte nach der Registrierung folgen.</p>
+                  <h3 class="dashboard-article-title">Mini-Tutorial: Erste Schritte nach dem Login</h3>
+                  <p class="dashboard-article-desc">Eine kurze Nachschlage-Liste mit den wichtigsten Schritten, falls nach der Registrierung Fragen auftauchen.</p>
                 </div>
               </div>
             </a>

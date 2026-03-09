@@ -5,6 +5,11 @@ export const educationArticleDetail = {
   article: null,
   relatedArticles: [],
 
+  isKundeRole() {
+    const rolle = window.currentUser?.rolle;
+    return rolle === 'kunde' || rolle === 'kunde_editor';
+  },
+
   async init(slug) {
     console.log('📖 EducationArticleDetail: init() für slug:', slug);
     
@@ -172,7 +177,7 @@ export const educationArticleDetail = {
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="16" height="16">
               <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
             </svg>
-            ${window.currentUser?.rolle === 'kunde' ? 'Zurück zum Dashboard' : 'Zurück zur Übersicht'}
+            ${this.isKundeRole() ? 'Zurück zum Dashboard' : 'Zurück zur Übersicht'}
           </button>
         </div>
 
@@ -197,7 +202,7 @@ export const educationArticleDetail = {
   },
 
   renderNotFound() {
-    const backLabel = window.currentUser?.rolle === 'kunde' ? 'Zurück zum Dashboard' : 'Zurück zur Übersicht';
+    const backLabel = this.isKundeRole() ? 'Zurück zum Dashboard' : 'Zurück zur Übersicht';
     return `
       <div class="education-not-found">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="not-found-icon">
@@ -300,7 +305,7 @@ export const educationArticleDetail = {
   },
 
   getBackUrl() {
-    return window.currentUser?.rolle === 'kunde' ? '/dashboard' : '/education';
+    return this.isKundeRole() ? '/dashboard' : '/education';
   },
 
   bindBackButton() {

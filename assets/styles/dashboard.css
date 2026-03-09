@@ -99,16 +99,16 @@
   display: block;
   text-decoration: none;
   color: inherit;
-  background: var(--gray-50);
+  
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
-  padding: var(--space-lg);
+  padding: var(--space-md);
   transition: all 0.2s;
 }
 
 .dashboard-article-link:hover {
-  border-color: var(--primary-300);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: var(--gray-400);
+ 
   background: var(--white);
 }
 

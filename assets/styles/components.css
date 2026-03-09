@@ -1654,6 +1654,27 @@ h3.section-title,
   background-color: var(--gray-600);
 }
 
+.tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--gray-600);
+  background: var(--gray-100);
+  border-radius: 9px;
+}
+
+.tab-button.active .tab-count {
+  color: var(--gray-800);
+  background: var(--gray-200);
+}
+
 /* Active Tab Indicator Line */
 
 
@@ -13555,6 +13576,7 @@ table.vertraege-unternehmen-table td:last-child {
 .education-article-page {
   max-width: 800px;
   margin: 0 auto;
+  padding: var(--space-lg) 0
 }
 
 .education-article-header {

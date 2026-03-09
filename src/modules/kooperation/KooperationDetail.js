@@ -1,15 +1,17 @@
 // KooperationDetail.js (ES6-Modul)
-// Kooperations-Detailseite mit allen relevanten Informationen
+// Kooperations-Detailseite – migriert auf PersonDetailBase (Standard-Layout)
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { kooperationVersandManager } from './VersandManager.js';
 import { TaskKanbanBoard } from '../tasks/TaskKanbanBoard.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
-import { renderTabButton, getTabIcon } from '../../core/TabUtils.js';
+import { renderTabButton } from '../../core/TabUtils.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 
-export class KooperationDetail {
+export class KooperationDetail extends PersonDetailBase {
   constructor() {
+    super();
     this.kooperationId = null;
     this.kooperation = null;
     this.returnToRoute = null;
@@ -24,85 +26,84 @@ export class KooperationDetail {
     this.versandDaten = null;
     this.taskKanbanBoard = null;
     this.tasksCount = 0;
-    // Event-Listener Cleanup mit AbortController
-    this._abortController = null;
+    this.activeMainTab = 'informationen';
+
+    // Bound Event Handlers für sauberes Cleanup
+    this._handleDocumentClick = this._handleDocumentClick.bind(this);
+    this._handleNotizenUpdated = this._handleNotizenUpdated.bind(this);
+    this._handleEntityUpdated = this._handleEntityUpdated.bind(this);
+    this._handleSoftRefresh = this._handleSoftRefresh.bind(this);
+    this._handleVideoEntityUpdated = this._handleVideoEntityUpdated.bind(this);
+    this._eventsBound = false;
   }
 
-  // Initialisiere Kooperations-Detailseite
+  // ============================================
+  // INIT
+  // ============================================
+
   async init(kooperationId) {
-    console.log('🎯 KOOPERATIONDETAIL: Initialisiere Kooperations-Detailseite für ID:', kooperationId);
-    
+    console.log('🎯 KOOPERATIONDETAIL: Initialisiere für ID:', kooperationId);
+
     const currentUrl = new URL(window.location.href);
     this.returnToRoute = currentUrl.searchParams.get('returnTo') || null;
     this.kooperationId = kooperationId;
-    
-    // Prüfen ob dieses Modul noch das aktuelle ist
+
     if (window.moduleRegistry?.currentModule !== this) {
       console.log('⚠️ KOOPERATIONDETAIL: Nicht mehr das aktuelle Modul, breche ab');
       return;
     }
-    
+
     try {
-      // Lade kritische Kooperations-Daten parallel (optimiert!)
       await this.loadCriticalData();
-      
-      // Breadcrumb aktualisieren mit Edit-Button
+
       if (window.breadcrumbSystem && this.kooperation) {
         const canEdit = window.currentUser?.permissions?.kooperation?.can_edit || false;
         const breadcrumbItems = [];
-        
-        // Wenn Kampagne vorhanden, füge Kampagnen-Pfad hinzu
+
         if (this.kampagne) {
           breadcrumbItems.push({ label: 'Kampagnen', url: '/kampagne', clickable: true });
-          breadcrumbItems.push({ 
-            label: this.kampagne.eigener_name || this.kampagne.kampagnenname || 'Kampagne', 
-            url: `/kampagne/${this.kampagne.id}`, 
-            clickable: true 
+          breadcrumbItems.push({
+            label: this.kampagne.eigener_name || this.kampagne.kampagnenname || 'Kampagne',
+            url: `/kampagne/${this.kampagne.id}`,
+            clickable: true
           });
         }
-        
+
         breadcrumbItems.push({ label: 'Kooperation', url: null, clickable: false });
         breadcrumbItems.push({ label: this.kooperation.name || 'Details', url: `/kooperation/${this.kooperationId}`, clickable: false });
-        
+
         window.breadcrumbSystem.updateBreadcrumb(breadcrumbItems, {
           id: 'btn-edit-kooperation',
           canEdit: canEdit
         });
       }
-      
-      // Rendere die Seite
-      await this.render();
-      
-      // Lade Tasks-Count
+
+      this.render();
       await this.loadTasksCount();
-      
-      // Binde Events
       this.bindEvents();
-      
-      // Event-Listener für automatische Cache-Invalidierung
       this.setupCacheInvalidation();
-      
+
       console.log('✅ KOOPERATIONDETAIL: Initialisierung abgeschlossen');
-      
     } catch (error) {
       console.error('❌ KOOPERATIONDETAIL: Fehler bei der Initialisierung:', error);
       window.ErrorHandler.handle(error, 'KooperationDetail.init');
     }
   }
 
-  // Lade kritische Kooperations-Daten PARALLEL (Performance-Optimiert!)
+  // ============================================
+  // DATA LOADING
+  // ============================================
+
   async loadCriticalData() {
     console.log('🔄 KOOPERATIONDETAIL: Lade kritische Daten parallel...');
     const startTime = performance.now();
-    
-    // Alle kritischen Daten PARALLEL laden
+
     const [
       kooperationResult,
       notizenResult,
       ratingsResult,
       versandResult
     ] = await parallelLoad([
-      // 1. Kooperation mit allen Relations
       () => window.supabase
         .from('kooperationen')
         .select(`
@@ -110,7 +111,7 @@ export class KooperationDetail {
           verkaufspreis_netto, verkaufspreis_zusatzkosten, verkaufspreis_ust, verkaufspreis_gesamt,
           skript_deadline, content_deadline, videoanzahl, content_art, skript_autor,
           creator_id, kampagne_id, unternehmen_id, briefing_id,
-          creator:creator_id ( 
+          creator:creator_id (
             id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, mail,
             lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land
           ),
@@ -123,14 +124,8 @@ export class KooperationDetail {
         `)
         .eq('id', this.kooperationId)
         .single(),
-      
-      // 2. Notizen
       () => window.notizenSystem.loadNotizen('kooperation', this.kooperationId),
-      
-      // 3. Ratings
       () => window.bewertungsSystem?.loadBewertungen('kooperation', this.kooperationId).catch(() => []),
-      
-      // 4. Versand-Daten
       () => window.supabase
         .from('kooperation_versand')
         .select(`
@@ -139,7 +134,7 @@ export class KooperationDetail {
           kooperation:kooperation_id(
             creator:creator_id(
               id, vorname, nachname,
-              lieferadresse_strasse, lieferadresse_hausnummer, 
+              lieferadresse_strasse, lieferadresse_hausnummer,
               lieferadresse_plz, lieferadresse_stadt, lieferadresse_land
             )
           )
@@ -147,58 +142,51 @@ export class KooperationDetail {
         .eq('kooperation_id', this.kooperationId)
         .order('created_at', { ascending: false })
     ]);
-    
-    // Error-Handling für Kooperation
+
     if (kooperationResult.error) {
       throw new Error(`Fehler beim Laden der Kooperations-Daten: ${kooperationResult.error.message}`);
     }
-    
-    // Daten verarbeiten
+
     this.kooperation = kooperationResult.data;
     this.creator = kooperationResult.data.creator || null;
     this.kampagne = kooperationResult.data.kampagne || null;
     this.notizen = notizenResult || [];
     this.ratings = ratingsResult || [];
     this.versandDaten = versandResult.data || [];
-    
+
     const loadTime = (performance.now() - startTime).toFixed(0);
     console.log(`✅ KOOPERATIONDETAIL: Kritische Daten geladen in ${loadTime}ms`);
   }
-  
-  // Lazy-Load Tab-spezifische Daten
+
   async loadTabData(tabName) {
     return await tabDataCache.load('kooperation', this.kooperationId, tabName, async () => {
       console.log(`🔄 KOOPERATIONDETAIL: Lade Tab-Daten für "${tabName}"`);
       const startTime = performance.now();
-      
+
       try {
-        switch(tabName) {
+        switch (tabName) {
           case 'videos':
             await this.loadVideos();
             this.updateVideosTab();
             break;
-            
           case 'rechnungen':
             await this.loadRechnungen();
             this.updateRechnungenTab();
             break;
-            
           case 'history':
             await this.loadHistory();
             this.updateHistoryTab();
             break;
         }
-        
+
         const loadTime = (performance.now() - startTime).toFixed(0);
         console.log(`✅ KOOPERATIONDETAIL: Tab "${tabName}" geladen in ${loadTime}ms`);
-        
       } catch (error) {
         console.error(`❌ KOOPERATIONDETAIL: Fehler beim Laden von Tab "${tabName}":`, error);
       }
     });
   }
-  
-  // Lade Videos mit allen Relationen
+
   async loadVideos() {
     try {
       const { data: videos } = await window.supabase
@@ -206,10 +194,9 @@ export class KooperationDetail {
         .select('id, content_art, kampagnenart, einkaufspreis_netto, verkaufspreis_netto, titel, asset_url, kommentar, status, position, created_at')
         .eq('kooperation_id', this.kooperationId)
         .order('position', { ascending: true });
-      
+
       this.videos = videos || [];
-      
-      // Für jedes Video die aktuelle Asset-Version laden
+
       if (this.videos.length > 0) {
         const videoIds = this.videos.map(v => v.id);
         const { data: assets } = await window.supabase
@@ -217,15 +204,13 @@ export class KooperationDetail {
           .select('id, video_id, file_url, version_number, is_current, created_at')
           .in('video_id', videoIds)
           .eq('is_current', true);
-        
-        // Assets den Videos zuordnen
+
         this.videos = this.videos.map(v => ({
           ...v,
           currentAsset: (assets || []).find(a => a.video_id === v.id) || null
         }));
       }
-      
-      // Kampagnen-Kontingent (geplante Videos) aggregieren
+
       try {
         const kampId = this.kooperation?.kampagne?.id || this.kooperation?.kampagne_id;
         if (kampId) {
@@ -242,8 +227,7 @@ export class KooperationDetail {
       } catch (_) {
         this.campaignVideoTotals = null;
       }
-      
-      // Kommentar-Zusammenfassung je Runde laden (1/2)
+
       try {
         const videoIds = (this.videos || []).map(v => v.id);
         if (videoIds.length > 0) {
@@ -272,8 +256,7 @@ export class KooperationDetail {
       this.videos = [];
     }
   }
-  
-  // Lade Rechnungen
+
   async loadRechnungen() {
     try {
       const { data: rechnungen } = await window.supabase
@@ -286,8 +269,7 @@ export class KooperationDetail {
       this.rechnungen = [];
     }
   }
-  
-  // Lade History
+
   async loadHistory() {
     try {
       const { data: hist } = await window.supabase
@@ -309,37 +291,53 @@ export class KooperationDetail {
       this.historyCount = 0;
     }
   }
-  
-  // Tab-Update-Methoden
+
+  async loadTasksCount() {
+    try {
+      const { count, error } = await window.supabase
+        .from('kooperation_tasks')
+        .select('*', { count: 'exact', head: true })
+        .eq('entity_type', 'kooperation')
+        .eq('entity_id', this.kooperationId);
+
+      if (!error) {
+        this.tasksCount = count || 0;
+      }
+    } catch (err) {
+      console.error('Fehler beim Laden der Tasks-Anzahl:', err);
+    }
+  }
+
+  // ============================================
+  // TAB UPDATE HELPERS
+  // ============================================
+
   updateVideosTab() {
     const container = document.querySelector('#tab-videos .detail-section');
     if (container) {
       container.innerHTML = `<h2>Videos ${this.renderVideoCounters()}</h2>${this.renderVideos()}`;
-      const btn = document.querySelector('.tab-button[data-tab="videos"] .tab-count');
-      if (btn) btn.textContent = String(this.videos.length);
     }
   }
-  
+
   updateRechnungenTab() {
     const container = document.querySelector('#tab-rechnungen .detail-section');
     if (container) {
       container.innerHTML = `<h2>Rechnungen</h2>${this.renderRechnungen()}`;
-      const btn = document.querySelector('.tab-button[data-tab="rechnungen"] .tab-count');
-      if (btn) btn.textContent = String(this.rechnungen.length);
     }
   }
-  
+
   updateHistoryTab() {
     const container = document.querySelector('#tab-history .detail-section');
     if (container) {
       container.innerHTML = `<h2>History</h2>${this.renderHistory()}`;
-      const btn = document.querySelector('.tab-button[data-tab="history"] .tab-count');
-      if (btn) btn.textContent = String(this.historyCount);
     }
   }
 
-  // Rendere Kooperations-Detailseite mit Tabs
-  async render() {
+  // ============================================
+  // RENDER – Standard-Layout via PersonDetailBase
+  // ============================================
+
+  render() {
     if (!this.kooperation) {
       this.showNotFound();
       return;
@@ -348,77 +346,221 @@ export class KooperationDetail {
     const isKundeRole = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
     const title = this.kooperation.name || 'Kooperation';
     if (window.setHeadline) {
-      window.setHeadline(`Kooperation: ${window.validatorSystem?.sanitizeHtml?.(title) || title}`);
+      window.setHeadline(`Kooperation: ${this.sanitize(title)}`);
     }
 
-    const html = `
-      <div class="content-section">
-        <div class="tab-navigation">
-          ${renderTabButton({ tab: 'info', label: 'Informationen', isActive: true })}
-          ${renderTabButton({ tab: 'videos', label: 'Videos', count: this.videos?.length || 0 })}
-          ${renderTabButton({ tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen?.length || 0 })}
-          ${renderTabButton({ tab: 'versand', label: 'Versand', count: this.versandDaten?.length || 0 })}
-          ${renderTabButton({ tab: 'notizen', label: 'Notizen', count: this.notizen.length })}
-          ${renderTabButton({ tab: 'ratings', label: 'Bewertungen', count: this.ratings.length })}
-          ${!isKundeRole ? renderTabButton({ tab: 'history', label: 'History', count: this.historyCount || 0 }) : ''}
-          <button class="tab-button" data-tab="tasks">
-            Aufgaben
-          </button>
+    const personConfig = this._getPersonConfig();
+    const quickActions = this._getQuickActions();
+    const sidebarInfo = this._getSidebarInfo();
+    const tabNavigation = this.renderTabNavigation(isKundeRole);
+    const mainContent = this.renderMainContent(isKundeRole);
+
+    const html = this.renderTwoColumnLayout({
+      person: personConfig,
+      stats: [],
+      quickActions,
+      sidebarInfo,
+      tabNavigation,
+      mainContent
+    });
+
+    window.setContentSafely(window.content, html);
+  }
+
+  // ============================================
+  // CONFIG HELPERS (shared between render + renderMainContent)
+  // ============================================
+
+  _getPersonConfig() {
+    const title = this.kooperation?.name || 'Kooperation';
+    const creatorName = this.creator
+      ? `${this.creator.vorname || ''} ${this.creator.nachname || ''}`.trim()
+      : null;
+
+    return {
+      name: title,
+      email: '',
+      subtitle: creatorName ? `Creator: ${creatorName}` : 'Kooperation',
+      avatarUrl: null,
+      avatarOnly: false
+    };
+  }
+
+  _getQuickActions() {
+    return [];
+  }
+
+  _getSidebarInfo() {
+    return this.renderInfoItems([
+      { icon: 'tag', label: 'Status', value: this.kooperation?.status || '-', badge: true, badgeType: (this.kooperation?.status || 'unknown').toLowerCase() },
+      { icon: 'currency', label: 'EK Gesamt', value: this.formatCurrency(this.kooperation?.einkaufspreis_gesamt) },
+      { icon: 'currency', label: 'VK Gesamt', value: this.formatCurrency(this.kooperation?.verkaufspreis_gesamt) },
+      { icon: 'calendar', label: 'Skript-Deadline', value: this.formatDate(this.kooperation?.skript_deadline) },
+      { icon: 'calendar', label: 'Content-Deadline', value: this.formatDate(this.kooperation?.content_deadline) },
+      { icon: 'info', label: 'Videoanzahl', value: this.kooperation?.videoanzahl || '-' },
+      { icon: 'info', label: 'Content Art', value: this.kooperation?.content_art || '-' },
+      { icon: 'building', label: 'Unternehmen', value: this.kooperation?.unternehmen?.firmenname || this.kampagne?.unternehmen?.firmenname || '-' },
+      { icon: 'tag', label: 'Marke', value: this.kampagne?.marke?.markenname || '-' },
+      { icon: 'info', label: 'Kampagne', value: this.kampagne ? KampagneUtils.getDisplayName(this.kampagne) : '-' }
+    ]);
+  }
+
+  // ============================================
+  // TAB NAVIGATION + MAIN CONTENT
+  // ============================================
+
+  getTabsConfig(isKundeRole) {
+    const tabs = [
+      { tab: 'videos', label: 'Videos', isActive: this.activeMainTab === 'videos' },
+      { tab: 'rechnungen', label: 'Rechnungen', isActive: this.activeMainTab === 'rechnungen' },
+      { tab: 'versand', label: 'Versand', isActive: this.activeMainTab === 'versand' },
+      { tab: 'notizen', label: 'Notizen', isActive: this.activeMainTab === 'notizen' },
+      { tab: 'ratings', label: 'Bewertungen', isActive: this.activeMainTab === 'ratings' }
+    ];
+
+    if (!isKundeRole) {
+      tabs.push({ tab: 'history', label: 'History', isActive: this.activeMainTab === 'history' });
+    }
+
+    tabs.push({ tab: 'tasks', label: 'Aufgaben', isActive: this.activeMainTab === 'tasks' });
+
+    return tabs;
+  }
+
+  renderTabNavigation(isKundeRole) {
+    const tabs = this.getTabsConfig(isKundeRole);
+    return `<div class="tabs-header-container" style="--tab-count: ${tabs.length}"><div class="tabs-left">${tabs.map(t => renderTabButton({ ...t, showIcon: true })).join('')}</div></div>`;
+  }
+
+  renderMainContent(isKundeRole) {
+    const personConfig = this._getPersonConfig();
+    const quickActions = this._getQuickActions();
+    const sidebarInfo = this._getSidebarInfo();
+    const sidebarHtml = this.renderSidebar(personConfig, quickActions, sidebarInfo);
+
+    return `
+      <div class="tab-content secondary-tab-content">
+        <div class="tab-pane ${this.activeMainTab === 'informationen' ? 'active' : ''}" id="tab-informationen">
+          ${sidebarHtml}
+          ${this.renderInfoDetails()}
         </div>
 
-        <div class="tab-content">
-          <div class="tab-pane active" id="tab-info">
-            ${this.renderInfo()}
+        <div class="tab-pane ${this.activeMainTab === 'videos' ? 'active' : ''}" id="tab-videos">
+          <div class="detail-section">
+            <h2>Videos ${this.renderVideoCounters()}</h2>
+            ${this.renderVideos()}
           </div>
-          <div class="tab-pane" id="tab-videos">
-            <div class="detail-section">
-              <h2>Videos ${this.renderVideoCounters()}</h2>
-              ${this.renderVideos()}
-            </div>
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'rechnungen' ? 'active' : ''}" id="tab-rechnungen">
+          <div class="detail-section">
+            <h2>Rechnungen</h2>
+            ${this.renderRechnungen()}
           </div>
-          <div class="tab-pane" id="tab-rechnungen">
-            <div class="detail-section">
-              <h2>Rechnungen</h2>
-              ${this.renderRechnungen()}
-            </div>
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'versand' ? 'active' : ''}" id="tab-versand">
+          <div class="detail-section">
+            <h2>Versand</h2>
+            ${this.renderVersand()}
           </div>
-          <div class="tab-pane" id="tab-versand">
-            <div class="detail-section">
-              <h2>Versand</h2>
-              ${this.renderVersand()}
-            </div>
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'notizen' ? 'active' : ''}" id="tab-notizen">
+          <div class="detail-section">
+            <h2>Notizen</h2>
+            ${this.renderNotizen()}
           </div>
-          <div class="tab-pane" id="tab-notizen">
-            <div class="detail-section">
-              <h2>Notizen</h2>
-              ${this.renderNotizen()}
-            </div>
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'ratings' ? 'active' : ''}" id="tab-ratings">
+          <div class="detail-section">
+            <h2>Bewertungen</h2>
+            ${this.renderRatings()}
           </div>
-          <div class="tab-pane" id="tab-ratings">
-            <div class="detail-section">
-              <h2>Bewertungen</h2>
-              ${this.renderRatings()}
-            </div>
+        </div>
+
+        ${!isKundeRole ? `
+        <div class="tab-pane ${this.activeMainTab === 'history' ? 'active' : ''}" id="tab-history">
+          <div class="detail-section">
+            <h2>History</h2>
+            ${this.renderHistory()}
           </div>
-          ${!isKundeRole ? `
-          <div class="tab-pane" id="tab-history">
-            <div class="detail-section">
-              <h2>History</h2>
-              ${this.renderHistory()}
-            </div>
-          </div>
-          ` : ''}
-          <div class="tab-pane" id="tab-tasks">
-            <div class="detail-section">
-              <div id="tasks-kanban-container"></div>
-            </div>
+        </div>
+        ` : ''}
+
+        <div class="tab-pane ${this.activeMainTab === 'tasks' ? 'active' : ''}" id="tab-tasks">
+          <div class="detail-section">
+            <div id="tasks-kanban-container"></div>
           </div>
         </div>
       </div>
     `;
-
-    window.setContentSafely(window.content, html);
   }
+
+  // ============================================
+  // INFO TAB (rendered into Sidebar via PersonDetailBase)
+  // ============================================
+
+  renderInfoDetails() {
+    const allgemeinItems = this.renderInfoItems([
+      { icon: 'tag', label: 'Status', value: this.kooperation.status || '-', badge: true, badgeType: (this.kooperation.status || 'unknown').toLowerCase() },
+      { icon: 'currency', label: 'Einkaufspreis', value: this.formatCurrency(this.kooperation.einkaufspreis_gesamt) },
+      { icon: 'currency', label: 'Verkaufspreis', value: this.formatCurrency(this.kooperation.verkaufspreis_gesamt) },
+      { icon: 'calendar', label: 'Skript-Deadline', value: this.formatDate(this.kooperation.skript_deadline) },
+      { icon: 'calendar', label: 'Content-Deadline', value: this.formatDate(this.kooperation.content_deadline) }
+    ]);
+
+    const creatorHtml = this.creator ? `
+      <div class="detail-card">
+        <h3 class="section-title">Creator</h3>
+        ${this.renderInfoItems([
+          { icon: 'user', label: 'Name', value: `${this.creator.vorname || ''} ${this.creator.nachname || ''}`.trim() || '-' },
+          { icon: 'mail', label: 'E-Mail', value: this.creator.mail || '-', mailto: !!this.creator.mail },
+          { icon: 'instagram', label: 'Instagram', value: this.creator.instagram ? `@${this.creator.instagram}` : '-' },
+          { icon: 'info', label: 'Instagram Follower', value: this.creator.instagram_follower ? this.formatNumber(this.creator.instagram_follower) : '-' },
+          { icon: 'tiktok', label: 'TikTok', value: this.creator.tiktok ? `@${this.creator.tiktok}` : '-' },
+          { icon: 'info', label: 'TikTok Follower', value: this.creator.tiktok_follower ? this.formatNumber(this.creator.tiktok_follower) : '-' }
+        ])}
+        <div class="detail-actions">
+          <button onclick="window.navigateTo('/creator/${this.creator.id}')" class="secondary-btn">Creator Details anzeigen</button>
+        </div>
+      </div>
+    ` : '';
+
+    const kampagneHtml = this.kampagne ? `
+      <div class="detail-card">
+        <h3 class="section-title">Kampagne</h3>
+        ${this.renderInfoItems([
+          { icon: 'info', label: 'Name', value: KampagneUtils.getDisplayName(this.kampagne) },
+          { icon: 'tag', label: 'Status', value: this.kampagne.status || '-', badge: true, badgeType: (this.kampagne.status || 'unknown').toLowerCase() },
+          { icon: 'building', label: 'Unternehmen', value: this.kampagne.unternehmen?.firmenname || '-' },
+          { icon: 'tag', label: 'Marke', value: this.kampagne.marke?.markenname || '-' }
+        ])}
+        <div class="detail-actions">
+          <button onclick="window.navigateTo('/kampagne/${this.kampagne.id}')" class="secondary-btn">Kampagne Details anzeigen</button>
+        </div>
+      </div>
+    ` : '';
+
+    return `
+      <div class="detail-section">
+        <h2>Kooperations-Informationen</h2>
+        <div class="detail-grid">
+          <div class="detail-card">
+            <h3 class="section-title">Allgemein</h3>
+            ${allgemeinItems}
+          </div>
+          ${creatorHtml}
+          ${kampagneHtml}
+        </div>
+      </div>
+    `;
+  }
+
+  // ============================================
+  // TAB CONTENT RENDERERS
+  // ============================================
 
   renderVideoCounters() {
     try {
@@ -436,78 +578,12 @@ export class KooperationDetail {
     }
   }
 
-  // Info-Tab Inhalt
-  renderInfo() {
-    const formatCurrency = (value) => value ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value) : '-';
-    const formatDate = (date) => (date ? new Date(date).toLocaleDateString('de-DE') : '-');
-
-    const sanitize = window.validatorSystem?.sanitizeHtml?.bind(window.validatorSystem) || (x => x);
-    
-    const creatorHtml = this.creator ? `
-      <div class="detail-card">
-        <h3 class="section-title">Creator</h3>
-        <div class="detail-grid-2">
-          <div class="detail-item"><label>Name</label><span>${sanitize(this.creator.vorname)} ${sanitize(this.creator.nachname)}</span></div>
-          <div class="detail-item"><label>E-Mail</label><span>${sanitize(this.creator.mail || '-')}</span></div>
-          <div class="detail-item"><label>Instagram</label><span>${this.creator.instagram ? `@${sanitize(this.creator.instagram)}` : '-'}</span></div>
-          <div class="detail-item"><label>Instagram Follower</label><span>${this.creator.instagram_follower ? this.formatNumber(this.creator.instagram_follower) : '-'}</span></div>
-          <div class="detail-item"><label>TikTok</label><span>${this.creator.tiktok ? `@${sanitize(this.creator.tiktok)}` : '-'}</span></div>
-          <div class="detail-item"><label>TikTok Follower</label><span>${this.creator.tiktok_follower ? this.formatNumber(this.creator.tiktok_follower) : '-'}</span></div>
-        </div>
-        <div class="detail-actions">
-          <button onclick="window.navigateTo('/creator/${this.creator.id}')" class="secondary-btn">Creator Details anzeigen</button>
-        </div>
-      </div>
-    ` : '<div class="detail-card"><h3 class="section-title">Creator</h3><p>Keine Creator-Daten</p></div>';
-
-    const kampagneHtml = this.kampagne ? `
-      <div class="detail-card">
-        <h3 class="section-title">Kampagne</h3>
-        <div class="detail-grid-2">
-          <div class="detail-item"><label>Name</label><span>${sanitize(KampagneUtils.getDisplayName(this.kampagne))}</span></div>
-          <div class="detail-item"><label>Status</label><span class="status-badge status-${this.kampagne.status?.toLowerCase() || 'unknown'}">${sanitize(this.kampagne.status || '-')}</span></div>
-          <div class="detail-item"><label>Unternehmen</label><span>${sanitize(this.kampagne.unternehmen?.firmenname || '-')}</span></div>
-          <div class="detail-item"><label>Marke</label><span>${sanitize(this.kampagne.marke?.markenname || '-')}</span></div>
-        </div>
-        <div class="detail-actions">
-          <button onclick="window.navigateTo('/kampagne/${this.kampagne.id}')" class="secondary-btn">Kampagne Details anzeigen</button>
-        </div>
-      </div>
-    ` : '<div class="detail-card"><h3 class="section-title">Kampagne</h3><p>Keine Kampagnen-Daten</p></div>';
-
-    return `
-      <div class="detail-section">
-        <h2>Kooperations-Informationen</h2>
-        <div class="detail-grid">
-          <div class="detail-card">
-            <h3 class="section-title">Allgemein</h3>
-            <div class="detail-grid-2">
-              <div class="detail-item"><label>Status</label><span class="status-badge status-${this.kooperation.status?.toLowerCase() || 'unknown'}">${this.kooperation.status || '-'}</span></div>
-              <div class="detail-item"><label>Einkaufspreis</label><span>${formatCurrency(this.kooperation.einkaufspreis_gesamt)}</span></div>
-              <div class="detail-item"><label>Verkaufspreis</label><span>${formatCurrency(this.kooperation.verkaufspreis_gesamt)}</span></div>
-              <div class="detail-item"><label>Skript-Deadline</label><span>${formatDate(this.kooperation.skript_deadline)}</span></div>
-              <div class="detail-item"><label>Content-Deadline</label><span>${formatDate(this.kooperation.content_deadline)}</span></div>
-            </div>
-          </div>
-
-          ${creatorHtml}
-          ${kampagneHtml}
-        </div>
-      </div>
-    `;
-  }
-
-  // Rendere Notizen (einheitlich über NotizenSystem)
   renderNotizen() {
     if (window.notizenSystem) {
       return window.notizenSystem.renderNotizenContainer(this.notizen, 'kooperation', this.kooperationId);
     }
     if (!this.notizen || this.notizen.length === 0) {
-      return `
-        <div class="empty-state">
-          <p>Keine Notizen vorhanden</p>
-        </div>
-      `;
+      return '<div class="empty-state"><p>Keine Notizen vorhanden</p></div>';
     }
     const inner = this.notizen.map(n => `
       <div class="notiz-card">
@@ -515,65 +591,46 @@ export class KooperationDetail {
           <span>${n.user_name || 'Unbekannt'}</span>
           <span>${new Date(n.created_at).toLocaleDateString('de-DE')}</span>
         </div>
-        <div class="notiz-content"><p>${window.validatorSystem?.sanitizeHtml?.(n.text) || n.text}</p></div>
+        <div class="notiz-content"><p>${this.sanitize(n.text)}</p></div>
       </div>
     `).join('');
     return `<div class="notizen-container">${inner}</div>`;
   }
 
-  // Rendere Bewertungen
   renderRatings() {
     if (window.bewertungsSystem) {
       return window.bewertungsSystem.renderBewertungenContainer(this.ratings, 'kooperation', this.kooperationId);
     }
     if (!this.ratings || this.ratings.length === 0) {
-      return `
-        <div class="empty-state">
-          <p>Keine Bewertungen vorhanden.</p>
-        </div>
-      `;
+      return '<div class="empty-state"><p>Keine Bewertungen vorhanden.</p></div>';
     }
     return '';
   }
 
-  // Rendere History (Status-Änderungen)
   renderHistory() {
     if (!this.history || this.history.length === 0) {
-      return `
-        <div class="empty-state">
-          <p>Keine Historie vorhanden</p>
-        </div>
-      `;
+      return '<div class="empty-state"><p>Keine Historie vorhanden</p></div>';
     }
     const fDateTime = (d) => d ? new Date(d).toLocaleString('de-DE') : '-';
     const rows = this.history.map(h => `
       <tr>
         <td>${fDateTime(h.created_at)}</td>
-        <td>${window.validatorSystem.sanitizeHtml(h.user_name || '-')}</td>
-        <td>${window.validatorSystem.sanitizeHtml(h.old_status || '-')}</td>
-        <td>${window.validatorSystem.sanitizeHtml(h.new_status || '-')}</td>
-        <td>${window.validatorSystem.sanitizeHtml(h.comment || '')}</td>
+        <td>${this.sanitize(h.user_name || '-')}</td>
+        <td>${this.sanitize(h.old_status || '-')}</td>
+        <td>${this.sanitize(h.new_status || '-')}</td>
+        <td>${this.sanitize(h.comment || '')}</td>
       </tr>
     `).join('');
     return `
       <div class="data-table-container">
         <table class="data-table">
-          <thead>
-            <tr>
-              <th>Zeitpunkt</th>
-              <th>User</th>
-              <th>Alt</th>
-              <th>Neu</th>
-              <th>Kommentar</th>
-            </tr>
-          </thead>
+          <thead><tr><th>Zeitpunkt</th><th>User</th><th>Alt</th><th>Neu</th><th>Kommentar</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
     `;
   }
 
-  // Rechnungen rendern
   renderRechnungen() {
     if (!this.rechnungen || this.rechnungen.length === 0) {
       return '<p class="empty-state">Keine Rechnungen zu dieser Kooperation.</p>';
@@ -582,7 +639,7 @@ export class KooperationDetail {
     const fDate = (d) => d ? new Date(d).toLocaleDateString('de-DE') : '-';
     const rows = this.rechnungen.map(r => `
       <tr>
-        <td><a href="/rechnung/${r.id}" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${window.validatorSystem.sanitizeHtml(r.rechnung_nr || '—')}</a></td>
+        <td><a href="/rechnung/${r.id}" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${this.sanitize(r.rechnung_nr || '—')}</a></td>
         <td>${r.status || '-'}</td>
         <td>${fmt(r.nettobetrag)}</td>
         <td>${fmt(r.bruttobetrag)}</td>
@@ -594,24 +651,13 @@ export class KooperationDetail {
     return `
       <div class="data-table-container">
         <table class="data-table">
-          <thead>
-            <tr>
-              <th>Rechnungs-Nr</th>
-              <th>Status</th>
-              <th>Netto</th>
-              <th>Brutto</th>
-              <th>Gestellt</th>
-              <th>Bezahlt</th>
-              <th>Beleg</th>
-            </tr>
-          </thead>
+          <thead><tr><th>Rechnungs-Nr</th><th>Status</th><th>Netto</th><th>Brutto</th><th>Gestellt</th><th>Bezahlt</th><th>Beleg</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
     `;
   }
 
-  // Videos rendern
   renderVideos() {
     const canEdit = window.currentUser?.permissions?.kooperation?.can_edit || window.currentUser?.rolle === 'admin';
     const canUpload = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle === 'mitarbeiter';
@@ -626,26 +672,28 @@ export class KooperationDetail {
           ${canAddMore ? `<button id="btn-goto-video-create" class="primary-btn">Video hinzufügen</button>` : `<button class="secondary-btn" disabled title="Limit erreicht">Limit erreicht</button>`}
         </div>
       </div>` : '';
+
     if (!this.videos || this.videos.length === 0) {
-      return `${actionsHtml}<p class=\"empty-state\">Keine Videos angelegt.</p>`;
+      return `${actionsHtml}<p class="empty-state">Keine Videos angelegt.</p>`;
     }
+
+    const isKundeRole = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
+
     const rows = this.videos.map(v => {
       const formatList = (arr) => {
         if (!arr || arr.length === 0) return '-';
         return arr.map(c => {
           const date = c.created_at ? new Date(c.created_at).toLocaleDateString('de-DE') : '';
           const author = c.author_name || '';
-          const text = window.validatorSystem.sanitizeHtml(c.text || '');
+          const text = this.sanitize(c.text || '');
           return `<div class="fb-line"><span class="fb-meta">${author}${date ? ' • ' + date : ''}</span><div class="fb-text">${text}</div></div>`;
         }).join('');
       };
-      
-      // Rollen-Prüfung für Action-Menü
+
       const userRole = window.currentUser?.rolle;
       const isKunde = userRole === 'kunde';
       const isAdmin = userRole === 'admin';
-      const isMitarbeiter = userRole === 'mitarbeiter';
-      
+
       const menu = `
         <div class="actions-dropdown-container" data-entity-type="kooperation_videos">
           <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
@@ -662,12 +710,12 @@ export class KooperationDetail {
                 <a href="#" class="submenu-item" data-action="set-field" data-field="status" data-value="produktion" data-id="${v.id}">
                   ${actionsDropdown.getStatusIcon('Kick-Off')}
                   <span>Produktion</span>
-                  ${(v.status||'produktion')==='produktion' ? '<span class="submenu-check">✓</span>' : ''}
+                  ${(v.status || 'produktion') === 'produktion' ? '<span class="submenu-check">✓</span>' : ''}
                 </a>
                 <a href="#" class="submenu-item" data-action="set-field" data-field="status" data-value="abgeschlossen" data-id="${v.id}">
                   ${actionsDropdown.getHeroIcon('check')}
                   <span>Abgeschlossen</span>
-                  ${v.status==='abgeschlossen' ? '<span class="submenu-check">✓</span>' : ''}
+                  ${v.status === 'abgeschlossen' ? '<span class="submenu-check">✓</span>' : ''}
                 </a>
               </div>
             </div>
@@ -698,18 +746,19 @@ export class KooperationDetail {
             ` : ''}
           </div>
         </div>`;
-      const isKundeRole = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
+
       const vkFormatted = v.verkaufspreis_netto != null ? parseFloat(v.verkaufspreis_netto).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }) : '-';
       const ekFormatted = v.einkaufspreis_netto != null ? parseFloat(v.einkaufspreis_netto).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }) : '-';
+
       return `
         <tr>
           <td>${v.position || '-'}</td>
-          <td>${window.validatorSystem.sanitizeHtml(v.kampagnenart || '-')}</td>
-          <td>${window.validatorSystem.sanitizeHtml(v.content_art || '-')}</td>
+          <td>${this.sanitize(v.kampagnenart || '-')}</td>
+          <td>${this.sanitize(v.content_art || '-')}</td>
           <td class="text-right">${vkFormatted}</td>
           ${!isKundeRole ? `<td class="text-right">${ekFormatted}</td>` : ''}
           <td>
-            ${v.titel ? `<a href="/video/${v.id}" class="table-link" data-table="video" data-id="${v.id}">${window.validatorSystem.sanitizeHtml(v.titel)}</a>`
+            ${v.titel ? `<a href="/video/${v.id}" class="table-link" data-table="video" data-id="${v.id}">${this.sanitize(v.titel)}</a>`
             : (v.asset_url ? `<a href="${v.asset_url}" target="_blank" rel="noopener">Link</a>` : '-')}
             ${v.currentAsset ? `<span class="version-badge" style="margin-left:8px;">V${v.currentAsset.version_number || 1}</span>` : ''}
           </td>
@@ -719,6 +768,7 @@ export class KooperationDetail {
           <td>${menu}</td>
         </tr>`;
     }).join('');
+
     return `
       ${actionsHtml}
       <div class="data-table-container">
@@ -729,7 +779,7 @@ export class KooperationDetail {
               <th>Kampagnenart</th>
               <th>Content Art</th>
               <th class="text-right">VK Netto</th>
-              ${!(window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor') ? '<th class="text-right">EK Netto</th>' : ''}
+              ${!isKundeRole ? '<th class="text-right">EK Netto</th>' : ''}
               <th>URL</th>
               <th>Feedback K1</th>
               <th>Feedback K2</th>
@@ -742,7 +792,7 @@ export class KooperationDetail {
             <tr>
               <td colspan="3" style="text-align:right; font-weight:600;">Gesamt VK Netto:</td>
               <td class="text-right" style="font-weight:600;">${(this.videos || []).reduce((s, v) => s + (parseFloat(v.verkaufspreis_netto) || 0), 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</td>
-              <td colspan="${!(window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor') ? '6' : '5'}"></td>
+              <td colspan="${!isKundeRole ? '6' : '5'}"></td>
             </tr>
           </tfoot>
         </table>
@@ -750,504 +800,6 @@ export class KooperationDetail {
     `;
   }
 
-  // Binde Events
-  bindEvents() {
-    // Cleanup vorheriger Listener
-    if (this._abortController) {
-      this._abortController.abort();
-    }
-    this._abortController = new AbortController();
-    const signal = this._abortController.signal;
-
-    // Tabs
-    document.addEventListener('click', (e) => {
-      if (e.target.classList?.contains('tab-button')) {
-        e.preventDefault();
-        this.switchTab(e.target.dataset.tab);
-      }
-    }, { signal });
-
-    // Video Tabellen-Link → Detailseite
-    document.addEventListener('click', (e) => {
-      const link = e.target.closest && e.target.closest('.table-link');
-      if (!link) return;
-      if (link.dataset.table === 'video' && link.dataset.id) {
-        e.preventDefault();
-        window.navigateTo(`/video/${link.dataset.id}`);
-      }
-    }, { signal });
-
-    // Bearbeiten Button
-    document.addEventListener('click', (e) => {
-      if (e.target.closest('#btn-edit-kooperation')) {
-        e.preventDefault();
-        this.showEditForm();
-      }
-    }, { signal });
-
-    // Notizen aktualisiert
-    window.addEventListener('notizenUpdated', async (e) => {
-      if (e.detail.entityType === 'kooperation' && e.detail.entityId === this.kooperationId) {
-        this.notizen = await window.notizenSystem.loadNotizen('kooperation', this.kooperationId);
-        const pane = document.querySelector('#tab-notizen .detail-section');
-        if (pane) pane.innerHTML = `<h2>Notizen</h2>${this.renderNotizen()}`;
-        const btn = document.querySelector('.tab-button[data-tab="notizen"] .tab-count');
-        if (btn) btn.textContent = String(this.notizen.length);
-      }
-    }, { signal });
-
-    // Versand Updated Event
-    window.addEventListener('entityUpdated', (e) => {
-      if (e.detail.entity === 'kooperation_versand' && e.detail.kooperation_id == this.kooperationId) {
-        // Invalidiere Cache und lade neu
-        tabDataCache.invalidate('kooperation', this.kooperationId);
-        this.loadCriticalData().then(() => {
-          this.render();
-          this.bindEvents();
-        });
-      }
-    }, { signal });
-
-    // Refresh bei Video-Status-Änderung
-    window.addEventListener('entityUpdated', async (e) => {
-      if (e.detail?.entity === 'kooperation_videos') {
-        // Invalidiere Cache und lade Videos neu
-        tabDataCache.invalidate('kooperation', this.kooperationId);
-        await this.loadVideos();
-        this.updateVideosTab();
-        // Wenn der Nutzer aktuell die Video-Detailseite offen hat, dort auch neu laden
-        if (window.location.pathname.startsWith('/video/')) {
-          try {
-            const vid = window.location.pathname.split('/').pop();
-            if (vid) window.navigateTo(`/video/${vid}`);
-          } catch(err) {
-            console.warn('⚠️ Fehler bei Video-Navigation:', err?.message);
-          }
-        }
-      }
-    }, { signal });
-
-    // Soft-Refresh bei Realtime-Updates (nur wenn kein Formular aktiv)
-    window.addEventListener('softRefresh', async (e) => {
-      // Prüfe ob ein Formular aktiv ist (Edit-Form oder Create-Drawer)
-      const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
-      
-      if (hasActiveForm) {
-        console.log('⏸️ KOOPERATIONDETAIL: Formular aktiv - Soft-Refresh übersprungen');
-        return;
-      }
-      
-      // Nur wenn auf Kooperation-Detail-Seite
-      if (!this.kooperationId || !location.pathname.includes('/kooperation/')) {
-        return;
-      }
-      
-      console.log('🔄 KOOPERATIONDETAIL: Soft-Refresh - lade Daten neu');
-      tabDataCache.invalidate('kooperation', this.kooperationId);
-      await this.loadCriticalData();
-      this.render();
-      this.bindEvents();
-    }, { signal });
-
-    // Navigation: Neues Video Formular
-    document.addEventListener('click', (e) => {
-      if (e.target && e.target.id === 'btn-goto-video-create') {
-        e.preventDefault();
-        window.navigateTo(`/video/new?kooperation=${this.kooperationId}`);
-      }
-    }, { signal });
-
-    // Video Actions: view, edit, delete
-    document.addEventListener('click', async (e) => {
-      const actionItem = e.target.closest('.action-item');
-      if (!actionItem) return;
-      
-      const action = actionItem.dataset.action;
-      const videoId = actionItem.dataset.id;
-      
-      if (action === 'video-view' && videoId) {
-        e.preventDefault();
-        window.navigateTo(`/video/${videoId}`);
-      } else if (action === 'video-edit' && videoId) {
-        e.preventDefault();
-        // TODO: Video-Edit Formular implementieren
-        alert('Video-Bearbeitung noch nicht implementiert');
-      } else if (action === 'video-delete' && videoId) {
-        e.preventDefault();
-        if (!confirm('Video wirklich löschen?')) return;
-        try {
-          const { error } = await window.supabase
-            .from('kooperation_videos')
-            .delete()
-            .eq('id', videoId);
-          if (error) throw error;
-          
-          // Invalidiere Cache und lade Videos neu
-          tabDataCache.invalidate('kooperation', this.kooperationId);
-          await this.loadVideos();
-          this.updateVideosTab();
-        } catch (err) {
-          console.error('Video löschen fehlgeschlagen', err);
-          alert('Video konnte nicht gelöscht werden.');
-        }
-      }
-    }, { signal });
-
-    // (kein Inline-Video-Add – separate Implementierung folgt, falls gewünscht)
-  }
-  
-  // Setup automatische Cache-Invalidierung bei Entity-Updates
-  setupCacheInvalidation() {
-    // Verwende den gleichen AbortController falls vorhanden
-    const signal = this._abortController?.signal;
-    
-    window.addEventListener('entityUpdated', (e) => {
-      if (e.detail.entity === 'kooperation' && e.detail.id === this.kooperationId) {
-        console.log('🔄 KOOPERATIONDETAIL: Entity updated - invalidiere Cache');
-        tabDataCache.invalidate('kooperation', this.kooperationId);
-        
-        // Optional: Reload kritische Daten bei Updates
-        if (e.detail.action === 'updated') {
-          this.loadCriticalData().then(() => {
-            // Aktualisiere nur die Info-Sektion ohne vollständiges Neu-Rendering
-            const infoTab = document.querySelector('#tab-info');
-            if (infoTab && infoTab.classList.contains('active')) {
-              infoTab.innerHTML = this.renderInfo();
-            }
-          });
-        }
-      }
-    }, { signal });
-  }
-
-  // Cleanup
-  destroy() {
-    console.log('KooperationDetail: Cleaning up...');
-    
-    // AbortController alle Event-Listener auf einmal entfernen
-    if (this._abortController) {
-      this._abortController.abort();
-      this._abortController = null;
-    }
-    
-    // Kanban Board cleanup
-    if (this.taskKanbanBoard) {
-      this.taskKanbanBoard.destroy?.();
-      this.taskKanbanBoard = null;
-    }
-  }
-
-  // Zeige Bearbeitungsformular
-  showEditForm() {
-    console.log('🎯 KOOPERATIONDETAIL: Zeige Bearbeitungsformular');
-    window.setHeadline('Kooperation bearbeiten');
-    
-    // Breadcrumb aktualisieren OHNE Edit-Button (da wir bereits im Edit-Modus sind)
-    if (window.breadcrumbSystem && this.kooperation) {
-      const breadcrumbItems = [];
-      
-      // Wenn Kampagne vorhanden, füge Kampagnen-Pfad hinzu
-      if (this.kampagne) {
-        breadcrumbItems.push({ label: 'Kampagnen', url: '/kampagne', clickable: true });
-        breadcrumbItems.push({ 
-          label: this.kampagne.eigener_name || this.kampagne.kampagnenname || 'Kampagne', 
-          url: `/kampagne/${this.kampagne.id}`, 
-          clickable: true 
-        });
-      }
-      
-      breadcrumbItems.push({ label: 'Kooperation', url: null, clickable: false });
-      breadcrumbItems.push({ label: this.kooperation.name || 'Details', url: `/kooperation/${this.kooperationId}`, clickable: true });
-      breadcrumbItems.push({ label: 'Bearbeiten', url: null, clickable: false });
-      
-      // Kein Edit-Button im Edit-Modus
-      window.breadcrumbSystem.updateBreadcrumb(breadcrumbItems, {
-        canEdit: false
-      });
-    }
-    
-    // Daten für FormSystem vorbereiten
-    const formData = { ...this.kooperation };
-    
-    // Edit-Mode Flags setzen
-    formData._isEditMode = true;
-    formData._entityId = this.kooperationId;
-    
-    // Verknüpfte IDs für das Formular setzen
-    if (this.kooperation.unternehmen_id) {
-      formData.unternehmen_id = this.kooperation.unternehmen_id;
-      console.log('🏢 KOOPERATIONDETAIL: Unternehmen-ID für Edit-Mode:', this.kooperation.unternehmen_id);
-    }
-    if (this.kooperation.kampagne_id) {
-      formData.kampagne_id = this.kooperation.kampagne_id;
-      console.log('📋 KOOPERATIONDETAIL: Kampagne-ID für Edit-Mode:', this.kooperation.kampagne_id);
-    }
-    // Marke-ID aus Kampagne extrahieren (falls vorhanden)
-    if (this.kooperation.kampagne && this.kooperation.kampagne.marke && this.kooperation.kampagne.marke.id) {
-      formData.marke_id = this.kooperation.kampagne.marke.id;
-      console.log('🏷️ KOOPERATIONDETAIL: Marke-ID für Edit-Mode:', this.kooperation.kampagne.marke.id);
-    }
-    if (this.kooperation.briefing_id) {
-      formData.briefing_id = this.kooperation.briefing_id;
-      console.log('📄 KOOPERATIONDETAIL: Briefing-ID für Edit-Mode:', this.kooperation.briefing_id);
-    }
-    if (this.kooperation.creator_id) {
-      formData.creator_id = this.kooperation.creator_id;
-      console.log('👤 KOOPERATIONDETAIL: Creator-ID für Edit-Mode:', this.kooperation.creator_id);
-    }
-    
-    // Weitere Felder
-    if (this.kooperation.content_art) {
-      formData.content_art = this.kooperation.content_art;
-    }
-    if (this.kooperation.skript_autor) {
-      formData.skript_autor = this.kooperation.skript_autor;
-    }
-    
-    console.log('📋 KOOPERATIONDETAIL: FormData vorbereitet:', {
-      unternehmen_id: formData.unternehmen_id,
-      marke_id: formData.marke_id,
-      kampagne_id: formData.kampagne_id,
-      briefing_id: formData.briefing_id,
-      creator_id: formData.creator_id
-    });
-    
-    // Formular direkt in content rendern
-    const formHtml = window.formSystem.renderFormOnly('kooperation', formData);
-    window.content.innerHTML = `
-      <div class="form-page">
-        ${formHtml}
-      </div>
-    `;
-
-    // Formular-Events binden
-    window.formSystem.bindFormEvents('kooperation', formData);
-    
-    // Custom Submit Handler für Seiten-Formular
-    const form = document.getElementById('kooperation-form');
-    if (form) {
-      form.onsubmit = async (e) => {
-        e.preventDefault();
-        await this.handleEditFormSubmit();
-      };
-    }
-  }
-
-  // Handle Edit Form Submit
-  async handleEditFormSubmit() {
-    try {
-      const form = document.getElementById('kooperation-form');
-      const formData = new FormData(form);
-      const submitData = {};
-
-      // FormData zu Objekt konvertieren
-      for (const [key, value] of formData.entries()) {
-        if (key.includes('[]')) {
-          // Multi-Select behandeln
-          const cleanKey = key.replace('[]', '');
-          if (!submitData[cleanKey]) {
-            submitData[cleanKey] = [];
-          }
-          submitData[cleanKey].push(value);
-        } else {
-          submitData[key] = value;
-        }
-      }
-
-      console.log('📝 Kooperation Edit Submit-Daten:', submitData);
-
-      // Validierung
-      const validationResult = window.validatorSystem.validateForm(submitData, 'kooperation');
-      if (!validationResult.isValid) {
-        this.showValidationErrors(validationResult.errors);
-        return;
-      }
-
-      if (window.formSystem) {
-        const videoLimitValidation = await window.formSystem.validateKooperationVideoLimit(form, submitData, this.kooperationId);
-        if (!videoLimitValidation.isValid) {
-          this.showErrorMessage(videoLimitValidation.message);
-          return;
-        }
-      }
-
-      // Update Kooperation
-      const result = await window.dataService.updateEntity('kooperation', this.kooperationId, submitData);
-      
-      if (result.success) {
-        // Videos-Repeater speichern (EK/VK pro Video)
-        if (window.formSystem) {
-          await window.formSystem.handleKooperationVideos(this.kooperationId, form);
-        }
-
-        this.showSuccessMessage('Kooperation erfolgreich aktualisiert!');
-        
-        // Event auslösen für Listen-Update
-        window.dispatchEvent(new CustomEvent('entityUpdated', {
-          detail: { entity: 'kooperation', action: 'updated', id: this.kooperationId }
-        }));
-        
-        // Zurück zum Ursprungskontext, falls Edit aus einer Kampagne geöffnet wurde
-        setTimeout(() => {
-          window.navigateTo(this.returnToRoute || `/kooperation/${this.kooperationId}`);
-        }, 1500);
-      } else {
-        this.showErrorMessage(`Fehler beim Aktualisieren: ${result.error}`);
-      }
-
-    } catch (error) {
-      console.error('❌ Fehler beim Aktualisieren der Kooperation:', error);
-      this.showErrorMessage('Ein unerwarteter Fehler ist aufgetreten.');
-    }
-  }
-
-  // Zeige Notiz Modal
-  showAddNotizModal() {
-    window.notizenSystem.showAddNotizModal('kooperation', this.kooperationId, () => {
-      // Callback nach erfolgreichem Hinzufügen
-      this.loadKooperationData().then(() => {
-        this.render();
-      });
-    });
-  }
-
-  // Tab wechseln
-  async switchTab(tabName) {
-    // UI sofort updaten
-    document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-    document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
-    
-    const activeButton = document.querySelector(`[data-tab="${tabName}"]`);
-    const activePane = document.getElementById(`tab-${tabName}`);
-    
-    if (activeButton && activePane) {
-      activeButton.classList.add('active');
-      activePane.classList.add('active');
-      
-      // Lazy load Tab-Daten (außer für bereits geladene Tabs)
-      if (!['info', 'notizen', 'ratings', 'versand'].includes(tabName) && tabName !== 'tasks') {
-        await this.loadTabData(tabName);
-      }
-      
-      // Initialisiere Kanban Board wenn Tasks-Tab geöffnet wird
-      if (tabName === 'tasks' && !this.taskKanbanBoard) {
-        await this.initTasksBoard();
-      }
-    }
-  }
-
-  async loadTasksCount() {
-    try {
-      const { count, error } = await window.supabase
-        .from('kooperation_tasks')
-        .select('*', { count: 'exact', head: true })
-        .eq('entity_type', 'kooperation')
-        .eq('entity_id', this.kooperationId);
-      
-      if (!error) {
-        this.tasksCount = count || 0;
-        const countEl = document.getElementById('tasks-count');
-        if (countEl) countEl.textContent = this.tasksCount;
-      }
-    } catch (err) {
-      console.error('Fehler beim Laden der Tasks-Anzahl:', err);
-    }
-  }
-
-  async initTasksBoard() {
-    const container = document.getElementById('tasks-kanban-container');
-    if (!container) return;
-
-    console.log('🎯 initTasksBoard: Container gefunden, erstelle Board für Kooperation:', this.kooperationId);
-
-    // Erstelle Board immer neu, um sicherzustellen dass die Entity-Daten korrekt sind
-    this.taskKanbanBoard = new TaskKanbanBoard('kooperation', this.kooperationId);
-    await this.taskKanbanBoard.init(container);
-    
-    // Event-Listener für Task-Updates
-    window.addEventListener('taskCreated', () => this.loadTasksCount());
-    window.addEventListener('taskUpdated', () => this.loadTasksCount());
-    window.addEventListener('taskDeleted', () => this.loadTasksCount());
-  }
-
-  showNotFound() {
-    window.setHeadline('Kooperation nicht gefunden');
-    window.content.innerHTML = `
-      <div class="error-message">
-        <h2>Kooperation nicht gefunden</h2>
-        <p>Die angeforderte Kooperation konnte nicht gefunden werden.</p>
-      </div>
-    `;
-  }
-
-  // Zeige Validierungsfehler
-  showValidationErrors(errors) {
-    console.error('❌ Validierungsfehler:', errors);
-    
-    // Alle bestehenden Fehlermeldungen entfernen
-    document.querySelectorAll('.validation-error').forEach(el => el.remove());
-    
-    // Neue Fehlermeldungen anzeigen
-    Object.entries(errors).forEach(([field, message]) => {
-      const fieldElement = document.querySelector(`[name="${field}"]`);
-      if (fieldElement) {
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'validation-error';
-        errorDiv.textContent = message;
-        fieldElement.parentNode.appendChild(errorDiv);
-      }
-    });
-  }
-
-  // Zeige Erfolgsmeldung
-  showSuccessMessage(message) {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = 'alert alert-success';
-    alertDiv.textContent = message;
-    
-    const form = document.getElementById('kooperation-form');
-    if (form) {
-      form.parentNode.insertBefore(alertDiv, form);
-      
-      setTimeout(() => {
-        alertDiv.remove();
-      }, 5000);
-    }
-  }
-
-  // Zeige Fehlermeldung
-  showErrorMessage(message) {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = 'alert alert-danger';
-    alertDiv.textContent = message;
-    
-    const form = document.getElementById('kooperation-form');
-    if (form) {
-      form.parentNode.insertBefore(alertDiv, form);
-      
-      setTimeout(() => {
-        alertDiv.remove();
-      }, 5000);
-    }
-  }
-
-  // Hilfsfunktionen für Formatierung
-  formatNumber(num) {
-    if (!num) return '-';
-    return new Intl.NumberFormat('de-DE').format(num);
-  }
-
-  formatCurrency(amount) {
-    if (!amount) return '-';
-    return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
-  }
-
-  formatDate(dateString) {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('de-DE');
-  }
-
-  // Rendere Versand-Tab
   renderVersand() {
     if (!this.versandDaten || this.versandDaten.length === 0) {
       return `
@@ -1261,33 +813,25 @@ export class KooperationDetail {
       `;
     }
 
-    const versandListe = this.versandDaten;
-    const creator = this.kooperation?.creator || this.creator; // Verwende Creator aus Kooperation
-    
+    const creator = this.kooperation?.creator || this.creator;
     const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
-    const formatAddress = (versand, creator) => {
-      // Verwende creator_adresse falls vorhanden, sonst Hauptadresse
+    const formatAddress = (versand, cr) => {
       if (versand.creator_adresse) {
         const addr = versand.creator_adresse;
         return `<strong>${addr.adressname}:</strong><br>${addr.strasse || ''} ${addr.hausnummer || ''}, ${addr.plz || ''} ${addr.stadt || ''}, ${addr.land || 'Deutschland'}`;
-      } else {
-        if (!creator?.lieferadresse_strasse) {
-          return 'Keine Adresse hinterlegt';
-        }
-        return `<strong>Hauptadresse:</strong><br>${creator.lieferadresse_strasse} ${creator.lieferadresse_hausnummer || ''}, ${creator.lieferadresse_plz || ''} ${creator.lieferadresse_stadt || ''}, ${creator.lieferadresse_land || 'Deutschland'}`;
       }
+      if (!cr?.lieferadresse_strasse) return 'Keine Adresse hinterlegt';
+      return `<strong>Hauptadresse:</strong><br>${cr.lieferadresse_strasse} ${cr.lieferadresse_hausnummer || ''}, ${cr.lieferadresse_plz || ''} ${cr.lieferadresse_stadt || ''}, ${cr.lieferadresse_land || 'Deutschland'}`;
     };
 
-    const tableRows = versandListe.map(versand => {
-      // Creator-Daten aus Versand-Eintrag oder Fallback auf this.creator
+    const tableRows = this.versandDaten.map(versand => {
       const versandCreator = versand.kooperation?.creator || creator;
-      
       return `
         <tr>
           <td>
             <div class="product-info">
-              <div class="product-name">${window.validatorSystem.sanitizeHtml(versand.produkt_name)}</div>
-              ${versand.beschreibung ? `<div class="product-desc">${window.validatorSystem.sanitizeHtml(versand.beschreibung)}</div>` : ''}
+              <div class="product-name">${this.sanitize(versand.produkt_name)}</div>
+              ${versand.beschreibung ? `<div class="product-desc">${this.sanitize(versand.beschreibung)}</div>` : ''}
             </div>
           </td>
           <td class="address-cell">
@@ -1308,7 +852,7 @@ export class KooperationDetail {
         </tr>
       `;
     }).join('');
-    
+
     return `
       <div class="versand-container">
         <div class="section-header">
@@ -1317,7 +861,6 @@ export class KooperationDetail {
             Neues Produkt versenden
           </button>
         </div>
-
         <div class="data-table-container">
           <table class="data-table versand-table">
             <thead>
@@ -1329,26 +872,374 @@ export class KooperationDetail {
                 <th class="text-center">Versand-Datum</th>
               </tr>
             </thead>
-            <tbody>
-              ${tableRows}
-            </tbody>
+            <tbody>${tableRows}</tbody>
           </table>
         </div>
       </div>
     `;
   }
 
-  // Cleanup
+  // ============================================
+  // EVENT BINDING (robust, mit .closest())
+  // ============================================
+
+  async _handleDocumentClick(e) {
+    // Tab-Button (robust via closest)
+    const tabBtn = e.target.closest('.tab-button');
+    if (tabBtn) {
+      e.preventDefault();
+      const tab = tabBtn.dataset.tab;
+      if (tab) {
+        this.activeMainTab = tab;
+        document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+        tabBtn.classList.add('active');
+        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+        const pane = document.getElementById(`tab-${tab}`);
+        if (pane) {
+          pane.classList.add('active');
+          if (!['notizen', 'ratings', 'versand'].includes(tab) && tab !== 'tasks') {
+            await this.loadTabData(tab);
+          }
+          if (tab === 'tasks' && !this.taskKanbanBoard) {
+            await this.initTasksBoard();
+          }
+        }
+      }
+      return;
+    }
+
+    // Video table-link
+    const tableLink = e.target.closest('.table-link');
+    if (tableLink && tableLink.dataset.table === 'video' && tableLink.dataset.id) {
+      e.preventDefault();
+      window.navigateTo(`/video/${tableLink.dataset.id}`);
+      return;
+    }
+
+    // Edit button
+    if (e.target.closest('#btn-edit-kooperation')) {
+      e.preventDefault();
+      this.showEditForm();
+      return;
+    }
+
+    // Video create
+    if (e.target.closest('#btn-goto-video-create')) {
+      e.preventDefault();
+      window.navigateTo(`/video/new?kooperation=${this.kooperationId}`);
+      return;
+    }
+
+    // Video Actions: view, edit, delete
+    const actionItem = e.target.closest('.action-item');
+    if (actionItem) {
+      const action = actionItem.dataset.action;
+      const videoId = actionItem.dataset.id;
+
+      if (action === 'video-view' && videoId) {
+        e.preventDefault();
+        window.navigateTo(`/video/${videoId}`);
+      } else if (action === 'video-edit' && videoId) {
+        e.preventDefault();
+        alert('Video-Bearbeitung noch nicht implementiert');
+      } else if (action === 'video-delete' && videoId) {
+        e.preventDefault();
+        if (!confirm('Video wirklich löschen?')) return;
+        try {
+          const { error } = await window.supabase
+            .from('kooperation_videos')
+            .delete()
+            .eq('id', videoId);
+          if (error) throw error;
+          tabDataCache.invalidate('kooperation', this.kooperationId);
+          await this.loadVideos();
+          this.updateVideosTab();
+        } catch (err) {
+          console.error('Video löschen fehlgeschlagen', err);
+          alert('Video konnte nicht gelöscht werden.');
+        }
+      }
+    }
+  }
+
+  async _handleNotizenUpdated(e) {
+    if (e.detail.entityType === 'kooperation' && e.detail.entityId === this.kooperationId) {
+      this.notizen = await window.notizenSystem.loadNotizen('kooperation', this.kooperationId);
+      const pane = document.querySelector('#tab-notizen .detail-section');
+      if (pane) pane.innerHTML = `<h2>Notizen</h2>${this.renderNotizen()}`;
+    }
+  }
+
+  _handleEntityUpdated(e) {
+    if (e.detail.entity === 'kooperation_versand' && e.detail.kooperation_id == this.kooperationId) {
+      tabDataCache.invalidate('kooperation', this.kooperationId);
+      this.loadCriticalData().then(() => {
+        this.render();
+        this.bindEvents();
+      });
+    }
+
+    if (e.detail?.entity === 'kooperation' && e.detail?.id === this.kooperationId) {
+      console.log('🔄 KOOPERATIONDETAIL: Entity updated - invalidiere Cache');
+      tabDataCache.invalidate('kooperation', this.kooperationId);
+      if (e.detail.action === 'updated') {
+        this.loadCriticalData().then(() => {
+          const infoTab = document.querySelector('#tab-informationen');
+          if (infoTab && infoTab.classList.contains('active')) {
+            infoTab.innerHTML = this.renderInfoDetails();
+          }
+        });
+      }
+    }
+  }
+
+  async _handleVideoEntityUpdated(e) {
+    if (e.detail?.entity === 'kooperation_videos') {
+      tabDataCache.invalidate('kooperation', this.kooperationId);
+      await this.loadVideos();
+      this.updateVideosTab();
+    }
+  }
+
+  async _handleSoftRefresh() {
+    const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
+    if (hasActiveForm) return;
+    if (!this.kooperationId || !location.pathname.includes('/kooperation/')) return;
+
+    console.log('🔄 KOOPERATIONDETAIL: Soft-Refresh');
+    tabDataCache.invalidate('kooperation', this.kooperationId);
+    await this.loadCriticalData();
+    this.render();
+    this.bindEvents();
+  }
+
+  bindEvents() {
+    this.bindSidebarTabs();
+
+    if (this._eventsBound) return;
+    this._eventsBound = true;
+
+    document.addEventListener('click', this._handleDocumentClick);
+    window.addEventListener('notizenUpdated', this._handleNotizenUpdated);
+    window.addEventListener('entityUpdated', this._handleEntityUpdated);
+    window.addEventListener('entityUpdated', this._handleVideoEntityUpdated);
+    window.addEventListener('softRefresh', this._handleSoftRefresh);
+
+    console.log('✅ KOOPERATIONDETAIL: Event-Listener registriert');
+  }
+
+  // ============================================
+  // TASKS
+  // ============================================
+
+  async initTasksBoard() {
+    const container = document.getElementById('tasks-kanban-container');
+    if (!container) return;
+
+    console.log('🎯 initTasksBoard: Erstelle Board für Kooperation:', this.kooperationId);
+    this.taskKanbanBoard = new TaskKanbanBoard('kooperation', this.kooperationId);
+    await this.taskKanbanBoard.init(container);
+
+    window.addEventListener('taskCreated', () => this.loadTasksCount());
+    window.addEventListener('taskUpdated', () => this.loadTasksCount());
+    window.addEventListener('taskDeleted', () => this.loadTasksCount());
+  }
+
+  // ============================================
+  // EDIT FORM
+  // ============================================
+
+  showEditForm() {
+    console.log('🎯 KOOPERATIONDETAIL: Zeige Bearbeitungsformular');
+    window.setHeadline('Kooperation bearbeiten');
+
+    if (window.breadcrumbSystem && this.kooperation) {
+      const breadcrumbItems = [];
+      if (this.kampagne) {
+        breadcrumbItems.push({ label: 'Kampagnen', url: '/kampagne', clickable: true });
+        breadcrumbItems.push({
+          label: this.kampagne.eigener_name || this.kampagne.kampagnenname || 'Kampagne',
+          url: `/kampagne/${this.kampagne.id}`,
+          clickable: true
+        });
+      }
+      breadcrumbItems.push({ label: 'Kooperation', url: null, clickable: false });
+      breadcrumbItems.push({ label: this.kooperation.name || 'Details', url: `/kooperation/${this.kooperationId}`, clickable: true });
+      breadcrumbItems.push({ label: 'Bearbeiten', url: null, clickable: false });
+      window.breadcrumbSystem.updateBreadcrumb(breadcrumbItems, { canEdit: false });
+    }
+
+    const formData = { ...this.kooperation };
+    formData._isEditMode = true;
+    formData._entityId = this.kooperationId;
+
+    if (this.kooperation.unternehmen_id) formData.unternehmen_id = this.kooperation.unternehmen_id;
+    if (this.kooperation.kampagne_id) formData.kampagne_id = this.kooperation.kampagne_id;
+    if (this.kooperation.kampagne?.marke?.id) formData.marke_id = this.kooperation.kampagne.marke.id;
+    if (this.kooperation.briefing_id) formData.briefing_id = this.kooperation.briefing_id;
+    if (this.kooperation.creator_id) formData.creator_id = this.kooperation.creator_id;
+    if (this.kooperation.content_art) formData.content_art = this.kooperation.content_art;
+    if (this.kooperation.skript_autor) formData.skript_autor = this.kooperation.skript_autor;
+
+    const formHtml = window.formSystem.renderFormOnly('kooperation', formData);
+    window.content.innerHTML = `<div class="form-page">${formHtml}</div>`;
+    window.formSystem.bindFormEvents('kooperation', formData);
+
+    const form = document.getElementById('kooperation-form');
+    if (form) {
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        await this.handleEditFormSubmit();
+      };
+    }
+  }
+
+  async handleEditFormSubmit() {
+    try {
+      const form = document.getElementById('kooperation-form');
+      const formData = new FormData(form);
+      const submitData = {};
+
+      for (const [key, value] of formData.entries()) {
+        if (key.includes('[]')) {
+          const cleanKey = key.replace('[]', '');
+          if (!submitData[cleanKey]) submitData[cleanKey] = [];
+          submitData[cleanKey].push(value);
+        } else {
+          submitData[key] = value;
+        }
+      }
+
+      const validationResult = window.validatorSystem.validateForm(submitData, 'kooperation');
+      if (!validationResult.isValid) {
+        this.showValidationErrors(validationResult.errors);
+        return;
+      }
+
+      if (window.formSystem) {
+        const videoLimitValidation = await window.formSystem.validateKooperationVideoLimit(form, submitData, this.kooperationId);
+        if (!videoLimitValidation.isValid) {
+          this.showErrorMessage(videoLimitValidation.message);
+          return;
+        }
+      }
+
+      const result = await window.dataService.updateEntity('kooperation', this.kooperationId, submitData);
+
+      if (result.success) {
+        if (window.formSystem) {
+          await window.formSystem.handleKooperationVideos(this.kooperationId, form);
+        }
+
+        this.showSuccessMessage('Kooperation erfolgreich aktualisiert!');
+        window.dispatchEvent(new CustomEvent('entityUpdated', {
+          detail: { entity: 'kooperation', action: 'updated', id: this.kooperationId }
+        }));
+
+        setTimeout(() => {
+          window.navigateTo(this.returnToRoute || `/kooperation/${this.kooperationId}`);
+        }, 1500);
+      } else {
+        this.showErrorMessage(`Fehler beim Aktualisieren: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('❌ Fehler beim Aktualisieren der Kooperation:', error);
+      this.showErrorMessage('Ein unerwarteter Fehler ist aufgetreten.');
+    }
+  }
+
+  // ============================================
+  // HELPERS
+  // ============================================
+
+  showNotFound() {
+    window.setHeadline('Kooperation nicht gefunden');
+    window.content.innerHTML = `
+      <div class="error-message">
+        <h2>Kooperation nicht gefunden</h2>
+        <p>Die angeforderte Kooperation konnte nicht gefunden werden.</p>
+      </div>
+    `;
+  }
+
+  showValidationErrors(errors) {
+    document.querySelectorAll('.validation-error').forEach(el => el.remove());
+    Object.entries(errors).forEach(([field, message]) => {
+      const fieldElement = document.querySelector(`[name="${field}"]`);
+      if (fieldElement) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'validation-error';
+        errorDiv.textContent = message;
+        fieldElement.parentNode.appendChild(errorDiv);
+      }
+    });
+  }
+
+  showSuccessMessage(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-success';
+    alertDiv.textContent = message;
+    const form = document.getElementById('kooperation-form');
+    if (form) {
+      form.parentNode.insertBefore(alertDiv, form);
+      setTimeout(() => alertDiv.remove(), 5000);
+    }
+  }
+
+  showErrorMessage(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-danger';
+    alertDiv.textContent = message;
+    const form = document.getElementById('kooperation-form');
+    if (form) {
+      form.parentNode.insertBefore(alertDiv, form);
+      setTimeout(() => alertDiv.remove(), 5000);
+    }
+  }
+
+  showAddNotizModal() {
+    window.notizenSystem.showAddNotizModal('kooperation', this.kooperationId, () => {
+      this.loadCriticalData().then(() => {
+        this.render();
+      });
+    });
+  }
+
+  formatNumber(num) {
+    if (!num) return '-';
+    return new Intl.NumberFormat('de-DE').format(num);
+  }
+
+  setupCacheInvalidation() {
+    // Handled in _handleEntityUpdated
+  }
+
+  // ============================================
+  // CLEANUP (single consolidated destroy)
+  // ============================================
+
   destroy() {
     console.log('🗑️ KOOPERATIONDETAIL: Destroy aufgerufen - räume auf');
-    
-    // Invalidiere Tab-Cache für diese Kooperation
+
+    if (this._eventsBound) {
+      document.removeEventListener('click', this._handleDocumentClick);
+      window.removeEventListener('notizenUpdated', this._handleNotizenUpdated);
+      window.removeEventListener('entityUpdated', this._handleEntityUpdated);
+      window.removeEventListener('entityUpdated', this._handleVideoEntityUpdated);
+      window.removeEventListener('softRefresh', this._handleSoftRefresh);
+      this._eventsBound = false;
+      console.log('✅ KOOPERATIONDETAIL: Event-Listener entfernt');
+    }
+
+    if (this.taskKanbanBoard) {
+      this.taskKanbanBoard.destroy?.();
+      this.taskKanbanBoard = null;
+    }
+
     tabDataCache.invalidate('kooperation', this.kooperationId);
-    
-    // Bestehende Cleanup-Logik
     window.setContentSafely('');
+    console.log('✅ KOOPERATIONDETAIL: Destroy abgeschlossen');
   }
 }
 
-// Exportiere Instanz für globale Nutzung
-export const kooperationDetail = new KooperationDetail(); 
+export const kooperationDetail = new KooperationDetail();
