@@ -10456,7 +10456,7 @@ table:has(#kampagnen-table-body) tbody tr:hover td.col-name {
   left: 172px !important; /* 32px + 140px */
   z-index: 20;
   background: white;
-  min-width: 100px;
+  min-width: 130px;
   border-left: none !important;
   /* Borders als Box-Shadow */
   box-shadow: 
@@ -10520,9 +10520,14 @@ table:has(#kampagnen-table-body) tbody tr:hover td.col-name {
 }
 
 .creator-pool-table .cp-col-typ {
-  width: 100px;
-  min-width: 100px;
+  width: 130px;
+  min-width: 130px;
   vertical-align: top;
+}
+
+.creator-pool-table .cp-col-typ select.strategie-textarea {
+  min-height: auto;
+  padding: var(--space-sm) var(--space-xs);
 }
 
 .creator-pool-table .cp-col-link {
