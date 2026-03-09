@@ -7,6 +7,7 @@ import { getTabIcon } from '../../core/TabUtils.js';
 import { UploaderField } from '../../core/form/fields/UploaderField.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
+import { actionsDropdown } from '../../core/ActionsDropdown.js';
 
 export class ProfileDetailV2 extends PersonDetailBase {
   constructor() {
@@ -172,7 +173,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     if (markenIds.length > 0) {
       const { data: kampagnenViaMarke } = await window.supabase
         .from('kampagne')
-        .select('id, kampagnenname, eigener_name, status, created_at, marke:marke_id(markenname), unternehmen:unternehmen_id(firmenname)')
+        .select('id, kampagnenname, eigener_name, status, created_at, status_ref:status_id(id, name), marke:marke_id(markenname), unternehmen:unternehmen_id(firmenname)')
         .in('marke_id', markenIds)
         .order('created_at', { ascending: false })
         .limit(100);
@@ -183,7 +184,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     if (unternehmenIds.length > 0) {
       const { data: kampagnenViaUnternehmen } = await window.supabase
         .from('kampagne')
-        .select('id, kampagnenname, eigener_name, status, created_at, marke:marke_id(markenname), unternehmen:unternehmen_id(firmenname)')
+        .select('id, kampagnenname, eigener_name, status, created_at, status_ref:status_id(id, name), marke:marke_id(markenname), unternehmen:unternehmen_id(firmenname)')
         .in('unternehmen_id', unternehmenIds)
         .order('created_at', { ascending: false })
         .limit(100);
@@ -276,7 +277,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     if (markenIds.length > 0) {
       const { data: kampagnenViaMarke } = await window.supabase
         .from('kampagne')
-        .select('id, kampagnenname, eigener_name, status, created_at, marke:marke_id(markenname), unternehmen:unternehmen_id(firmenname)')
+        .select('id, kampagnenname, eigener_name, status, created_at, status_ref:status_id(id, name), marke:marke_id(markenname), unternehmen:unternehmen_id(firmenname)')
         .in('marke_id', markenIds)
         .order('created_at', { ascending: false })
         .limit(100);
@@ -287,7 +288,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     if (unternehmenIds.length > 0) {
       const { data: kampagnenViaUnternehmen } = await window.supabase
         .from('kampagne')
-        .select('id, kampagnenname, eigener_name, status, created_at, marke:marke_id(markenname), unternehmen:unternehmen_id(firmenname)')
+        .select('id, kampagnenname, eigener_name, status, created_at, status_ref:status_id(id, name), marke:marke_id(markenname), unternehmen:unternehmen_id(firmenname)')
         .in('unternehmen_id', unternehmenIds)
         .order('created_at', { ascending: false })
         .limit(100);
@@ -696,7 +697,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
               <tr>
                 <td>${this.sanitize(KampagneUtils.getDisplayName(k))}</td>
                 <td>${k.marke?.markenname ? this.sanitize(k.marke.markenname) : (k.unternehmen?.firmenname ? this.sanitize(k.unternehmen.firmenname) : '-')}</td>
-                <td><span class="badge badge-secondary">${this.sanitize(k.status || 'Unbekannt')}</span></td>
+                <td>${(() => { const sn = k.status_ref?.name || k.status; if (!sn) return '-'; const icon = actionsDropdown?.getStatusIcon?.(sn) || ''; return `<div class="tags tags-compact"><span class="tag tag--type">${icon}${this.sanitize(sn)}</span></div>`; })()}</td>
                 <td>${this.formatDate(k.created_at)}</td>
                 ${!isKunde ? `<td style="text-align: right;">
                   <a href="/kampagne/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${k.id}')" class="secondary-btn btn-sm">Details</a>
