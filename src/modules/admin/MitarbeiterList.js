@@ -225,7 +225,10 @@ export class MitarbeiterList {
 
   // Render Aktionsmenü für Mitarbeiter
   renderActionsMenu(user) {
-    return actionBuilder.create('mitarbeiter', user.id);
+    return actionBuilder.create('mitarbeiter', user.id, null, {
+      statusOptions: this.mitarbeiterKlassen.map(k => ({ id: k.id, name: k.name })),
+      currentStatus: user.mitarbeiter_klasse ? { id: user.mitarbeiter_klasse.id, name: user.mitarbeiter_klasse.name } : null
+    });
   }
 
   // Icons für verschiedene Rollen
@@ -274,26 +277,29 @@ export class MitarbeiterList {
       }
     });
 
-    // Event-Handler für Aktionsmenü
+    // Event-Handler für Rollen-Submenu (generiert von ActionBuilder als .submenu-item)
     document.addEventListener('click', (e) => {
-      if (e.target.closest('.action-item[data-action="set-field"]')) {
+      const submenuItem = e.target.closest('.submenu-item[data-action="set-field"]');
+      if (submenuItem) {
+        const container = submenuItem.closest('[data-entity-type="mitarbeiter"]');
+        if (!container) return;
         e.preventDefault();
-        const item = e.target.closest('.action-item[data-action="set-field"]');
-        const userId = item.dataset.id;
-        const fieldName = item.dataset.field;
-        const fieldValue = item.dataset.value;
-        const roleName = item.dataset.rolleName;
+        const userId = submenuItem.dataset.id;
+        const fieldName = submenuItem.dataset.field;
+        const fieldValue = submenuItem.dataset.value;
+        const roleName = submenuItem.dataset.statusName;
 
         this.handleRoleChange(userId, fieldName, fieldValue, roleName);
       }
 
-      if (e.target.closest('.action-item[data-action="freischalten"]')) {
+      const freischaltenItem = e.target.closest('.action-item[data-action="freischalten"]');
+      if (freischaltenItem) {
         e.preventDefault();
-        const item = e.target.closest('.action-item[data-action="freischalten"]');
-        const userId = item.dataset.id;
-        const currentStatus = item.dataset.currentStatus === 'true';
-
-        this.handleFreischaltenToggle(userId, !currentStatus);
+        const userId = freischaltenItem.dataset.id;
+        const user = this.rows.find(r => r.id === userId);
+        if (user) {
+          this.handleFreischaltenToggle(userId, !user.freigeschaltet);
+        }
       }
     });
 

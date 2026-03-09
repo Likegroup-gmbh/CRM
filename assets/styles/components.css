@@ -1813,7 +1813,7 @@ h3.section-title,
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: -1;
+  z-index: 12000;
   padding: 1rem;
 }
 
@@ -1864,6 +1864,30 @@ h3.section-title,
 /* Modal Größenvarianten */
 .modal-sm .modal-content {
   max-width: 500px;
+}
+
+/* Role-Modal (Mitarbeiter-Rolle ändern) */
+.role-modal .modal-content {
+  width: min(92vw, 760px);
+  max-width: none;
+  height: 50vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.role-modal .modal-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.role-modal .form-group {
+  position: relative;
+}
+
+.role-modal #rolle-dropdown {
+  max-height: 320px;
+  z-index: 13000;
 }
 
 /* Info Card - für Zusammenfassungen in Modals */

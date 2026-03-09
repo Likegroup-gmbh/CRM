@@ -220,6 +220,17 @@ export const ActionConfigs = {
   // Mitarbeiter Actions (Admin-Bereich)
   mitarbeiter: {
     actions: [
+      { 
+        id: 'rolle', 
+        type: 'submenu', 
+        icon: 'edit',
+        label: 'Rolle ändern',
+        dynamicOptions: 'mitarbeiter_klasse',
+        handler: 'setField',
+        updateFields: ['mitarbeiter_klasse_id'],
+        roles: ['admin']
+      },
+      { id: 'freischalten', icon: 'check', label: 'Freischalten / Sperren', roles: ['admin'] },
       { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['admin'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin'] },
       { id: 'separator' },

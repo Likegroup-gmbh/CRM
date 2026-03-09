@@ -18,6 +18,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
     this.statusOptions = [];
     this.euLaender = [];
     this.activeMainTab = 'informationen';
+    this._eventsBound = false;
   }
 
   async init(id) {
@@ -886,6 +887,9 @@ export class MitarbeiterDetail extends PersonDetailBase {
     // Sidebar Tabs binden (aus Basis-Klasse)
     this.bindSidebarTabs();
 
+    if (this._eventsBound) return;
+    this._eventsBound = true;
+
     // Main Tab-Navigation
     document.addEventListener('click', (e) => {
       const btn = e.target.closest('.tab-button');
@@ -1032,7 +1036,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
       }
     });
     
-    // Event-Handler für Rolle ändern
+    // Event-Handler für Unternehmen-Rolle ändern
     document.addEventListener('change', async (e) => {
       const roleSelect = e.target.closest('.role-select');
       if (roleSelect) {
@@ -1089,9 +1093,9 @@ export class MitarbeiterDetail extends PersonDetailBase {
     document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
 
     const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
+    modal.className = 'modal-overlay role-modal';
     modal.innerHTML = `
-      <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-content">
         <div class="modal-header">
           <h3>Mitarbeiter-Rolle ändern</h3>
           <button id="close-modal" class="modal-close">&times;</button>
@@ -1142,6 +1146,31 @@ export class MitarbeiterDetail extends PersonDetailBase {
       return;
     }
 
+    const renderSelectedRolle = (rolle) => {
+      if (!rolle) {
+        selectedContainer.innerHTML = '';
+        saveBtn.disabled = true;
+        return;
+      }
+
+      selectedContainer.innerHTML = `
+        <div class="selected-item">
+          <span class="item-name">${window.validatorSystem.sanitizeHtml(rolle.name)}</span>
+          <button type="button" class="remove-item" aria-label="Auswahl entfernen">&times;</button>
+        </div>
+      `;
+      saveBtn.disabled = false;
+    };
+
+    const currentKlasseId = this.user?.mitarbeiter_klasse_id || this.user?.mitarbeiter_klasse?.id;
+    if (currentKlasseId) {
+      const match = allRollen.find(r => r.id === currentKlasseId);
+      if (match) {
+        selectedRolle = { id: match.id, name: match.name };
+        renderSelectedRolle(selectedRolle);
+      }
+    }
+
     input.addEventListener('input', (e) => {
       clearTimeout(searchTimeout);
       searchTimeout = setTimeout(() => {
@@ -1159,12 +1188,6 @@ export class MitarbeiterDetail extends PersonDetailBase {
           displayRollen(filtered);
         }
       }, 150);
-    });
-
-    input.addEventListener('focus', () => {
-      if (input.value.trim().length === 0) {
-        displayRollen(allRollen);
-      }
     });
 
     function displayRollen(rollen) {
@@ -1191,23 +1214,16 @@ export class MitarbeiterDetail extends PersonDetailBase {
         name: item.dataset.name
       };
 
-      selectedContainer.innerHTML = `
-        <div class="selected-item">
-          <span class="selected-item-name">${window.validatorSystem.sanitizeHtml(selectedRolle.name)}</span>
-          <button type="button" class="selected-item-remove">&times;</button>
-        </div>
-      `;
+      renderSelectedRolle(selectedRolle);
 
       input.value = '';
       dropdown.style.display = 'none';
-      saveBtn.disabled = false;
     });
 
     selectedContainer.addEventListener('click', (e) => {
-      if (e.target.closest('.selected-item-remove')) {
+      if (e.target.closest('.remove-item') || e.target.closest('.selected-item-remove')) {
         selectedRolle = null;
-        selectedContainer.innerHTML = '';
-        saveBtn.disabled = true;
+        renderSelectedRolle(null);
       }
     });
 
@@ -1488,6 +1504,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
   }
 
   destroy() {
+    this._eventsBound = false;
     window.setContentSafely('');
   }
 }
