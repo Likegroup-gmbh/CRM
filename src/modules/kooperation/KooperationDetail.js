@@ -392,17 +392,20 @@ export class KooperationDetail extends PersonDetailBase {
 
   _getSidebarInfo() {
     const isKunde = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
+    const campaignItems = [
+      { icon: 'info', label: 'Kampagne', value: this.kampagne ? KampagneUtils.getDisplayName(this.kampagne) : '-' },
+      { icon: 'building', label: 'Unternehmen', value: this.kooperation?.unternehmen?.firmenname || this.kampagne?.unternehmen?.firmenname || '-' },
+      { icon: 'tag', label: 'Marke', value: this.kampagne?.marke?.markenname || '-' },
+    ];
     const items = [
-      { icon: 'tag', label: 'Status', value: this.kooperation?.status || '-', badge: true, badgeType: (this.kooperation?.status || 'unknown').toLowerCase() },
+      ...campaignItems,
+      ...(!isKunde ? [{ icon: 'tag', label: 'Status', value: this.kooperation?.status || '-', badge: true, badgeType: (this.kooperation?.status || 'unknown').toLowerCase() }] : []),
       ...(!isKunde ? [{ icon: 'currency', label: 'EK Gesamt', value: this.formatCurrency(this.kooperation?.einkaufspreis_gesamt) }] : []),
-      { icon: 'currency', label: 'VK Gesamt', value: this.formatCurrency(this.kooperation?.verkaufspreis_gesamt) },
+      ...(!isKunde ? [{ icon: 'currency', label: 'VK Gesamt', value: this.formatCurrency(this.kooperation?.verkaufspreis_gesamt) }] : []),
       { icon: 'calendar', label: 'Skript-Deadline', value: this.formatDate(this.kooperation?.skript_deadline) },
       { icon: 'calendar', label: 'Content-Deadline', value: this.formatDate(this.kooperation?.content_deadline) },
       { icon: 'info', label: 'Videoanzahl', value: this.kooperation?.videoanzahl || '-' },
-      { icon: 'info', label: 'Content Art', value: this.kooperation?.content_art || '-' },
-      { icon: 'building', label: 'Unternehmen', value: this.kooperation?.unternehmen?.firmenname || this.kampagne?.unternehmen?.firmenname || '-' },
-      { icon: 'tag', label: 'Marke', value: this.kampagne?.marke?.markenname || '-' },
-      { icon: 'info', label: 'Kampagne', value: this.kampagne ? KampagneUtils.getDisplayName(this.kampagne) : '-' }
+      { icon: 'info', label: 'Content Art', value: this.kooperation?.content_art || '-' }
     ];
     return this.renderInfoItems(items);
   }
@@ -543,16 +546,20 @@ export class KooperationDetail extends PersonDetailBase {
       </div>
     ` : '';
 
+    const allgemeinHtml = !isKunde ? `
+      <div class="detail-card">
+        <h3 class="section-title">Allgemein</h3>
+        ${allgemeinItems}
+      </div>
+    ` : '';
+
     return `
       <div class="detail-section">
-        <h2>Kooperations-Informationen</h2>
+        ${!isKunde ? '<h2>Kooperations-Informationen</h2>' : ''}
         <div class="detail-grid">
-          <div class="detail-card">
-            <h3 class="section-title">Allgemein</h3>
-            ${allgemeinItems}
-          </div>
           ${creatorHtml}
           ${kampagneHtml}
+          ${allgemeinHtml}
         </div>
       </div>
     `;
