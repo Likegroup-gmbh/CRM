@@ -10566,11 +10566,19 @@ table:has(#kampagnen-table-body) tbody tr:hover td.col-name {
   min-width: 120px;
 }
 
+.creator-pool-table td.cp-col-prio1,
+.creator-pool-table td.cp-col-prio2,
+.creator-pool-table td.cp-col-nicht,
+.creator-pool-table td.cp-col-check {
+  padding: var(--space-sm) !important;
+  vertical-align: top;
+}
+
 .creator-pool-table .cp-checkbox {
   width: 20px;
   height: 20px;
   cursor: pointer;
-  margin: var(--space-sm) 0 0 var(--space-sm);
+  display: block;
 }
 
 .creator-pool-table .cp-checkbox--readonly {
