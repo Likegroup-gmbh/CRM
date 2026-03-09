@@ -315,21 +315,21 @@ export class KooperationDetail extends PersonDetailBase {
   updateVideosTab() {
     const container = document.querySelector('#tab-videos .detail-section');
     if (container) {
-      container.innerHTML = `<h2>Videos ${this.renderVideoCounters()}</h2>${this.renderVideos()}`;
+      container.innerHTML = this.renderVideos();
     }
   }
 
   updateRechnungenTab() {
     const container = document.querySelector('#tab-rechnungen .detail-section');
     if (container) {
-      container.innerHTML = `<h2>Rechnungen</h2>${this.renderRechnungen()}`;
+      container.innerHTML = this.renderRechnungen();
     }
   }
 
   updateHistoryTab() {
     const container = document.querySelector('#tab-history .detail-section');
     if (container) {
-      container.innerHTML = `<h2>History</h2>${this.renderHistory()}`;
+      container.innerHTML = this.renderHistory();
     }
   }
 
@@ -413,16 +413,15 @@ export class KooperationDetail extends PersonDetailBase {
     const tabs = [
       { tab: 'videos', label: 'Videos', isActive: this.activeMainTab === 'videos' },
       { tab: 'rechnungen', label: 'Rechnungen', isActive: this.activeMainTab === 'rechnungen' },
-      { tab: 'versand', label: 'Versand', isActive: this.activeMainTab === 'versand' },
-      { tab: 'notizen', label: 'Notizen', isActive: this.activeMainTab === 'notizen' },
-      { tab: 'ratings', label: 'Bewertungen', isActive: this.activeMainTab === 'ratings' }
+      { tab: 'versand', label: 'Versand', isActive: this.activeMainTab === 'versand' }
     ];
 
     if (!isKundeRole) {
+      tabs.push({ tab: 'notizen', label: 'Notizen', isActive: this.activeMainTab === 'notizen' });
+      tabs.push({ tab: 'ratings', label: 'Bewertungen', isActive: this.activeMainTab === 'ratings' });
       tabs.push({ tab: 'history', label: 'History', isActive: this.activeMainTab === 'history' });
+      tabs.push({ tab: 'tasks', label: 'Aufgaben', isActive: this.activeMainTab === 'tasks' });
     }
-
-    tabs.push({ tab: 'tasks', label: 'Aufgaben', isActive: this.activeMainTab === 'tasks' });
 
     return tabs;
   }
@@ -447,53 +446,47 @@ export class KooperationDetail extends PersonDetailBase {
 
         <div class="tab-pane ${this.activeMainTab === 'videos' ? 'active' : ''}" id="tab-videos">
           <div class="detail-section">
-            <h2>Videos ${this.renderVideoCounters()}</h2>
             ${this.renderVideos()}
           </div>
         </div>
 
         <div class="tab-pane ${this.activeMainTab === 'rechnungen' ? 'active' : ''}" id="tab-rechnungen">
           <div class="detail-section">
-            <h2>Rechnungen</h2>
             ${this.renderRechnungen()}
           </div>
         </div>
 
         <div class="tab-pane ${this.activeMainTab === 'versand' ? 'active' : ''}" id="tab-versand">
           <div class="detail-section">
-            <h2>Versand</h2>
             ${this.renderVersand()}
           </div>
         </div>
 
+        ${!isKundeRole ? `
         <div class="tab-pane ${this.activeMainTab === 'notizen' ? 'active' : ''}" id="tab-notizen">
           <div class="detail-section">
-            <h2>Notizen</h2>
             ${this.renderNotizen()}
           </div>
         </div>
 
         <div class="tab-pane ${this.activeMainTab === 'ratings' ? 'active' : ''}" id="tab-ratings">
           <div class="detail-section">
-            <h2>Bewertungen</h2>
             ${this.renderRatings()}
           </div>
         </div>
 
-        ${!isKundeRole ? `
         <div class="tab-pane ${this.activeMainTab === 'history' ? 'active' : ''}" id="tab-history">
           <div class="detail-section">
-            <h2>History</h2>
             ${this.renderHistory()}
           </div>
         </div>
-        ` : ''}
 
         <div class="tab-pane ${this.activeMainTab === 'tasks' ? 'active' : ''}" id="tab-tasks">
           <div class="detail-section">
             <div id="tasks-kanban-container"></div>
           </div>
         </div>
+        ` : ''}
       </div>
     `;
   }
@@ -801,14 +794,14 @@ export class KooperationDetail extends PersonDetailBase {
   }
 
   renderVersand() {
+    const isKunde = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
+
     if (!this.versandDaten || this.versandDaten.length === 0) {
       return `
         <div class="empty-state">
           <h3>Keine Versand-Daten vorhanden</h3>
           <p>Es wurden noch keine Produkte für diese Kooperation versendet.</p>
-          <button onclick="window.kooperationVersandManager?.open('${this.kooperationId}')" class="primary-btn">
-            Erstes Produkt versenden
-          </button>
+          ${!isKunde ? `<button onclick="window.kooperationVersandManager?.open('${this.kooperationId}')" class="primary-btn">Erstes Produkt versenden</button>` : ''}
         </div>
       `;
     }
@@ -857,9 +850,7 @@ export class KooperationDetail extends PersonDetailBase {
       <div class="versand-container">
         <div class="section-header">
           <h3>Versand-Übersicht</h3>
-          <button onclick="window.kooperationVersandManager?.open('${this.kooperationId}')" class="secondary-btn">
-            Neues Produkt versenden
-          </button>
+          ${!isKunde ? `<button onclick="window.kooperationVersandManager?.open('${this.kooperationId}')" class="secondary-btn">Neues Produkt versenden</button>` : ''}
         </div>
         <div class="data-table-container">
           <table class="data-table versand-table">
@@ -966,7 +957,7 @@ export class KooperationDetail extends PersonDetailBase {
     if (e.detail.entityType === 'kooperation' && e.detail.entityId === this.kooperationId) {
       this.notizen = await window.notizenSystem.loadNotizen('kooperation', this.kooperationId);
       const pane = document.querySelector('#tab-notizen .detail-section');
-      if (pane) pane.innerHTML = `<h2>Notizen</h2>${this.renderNotizen()}`;
+      if (pane) pane.innerHTML = this.renderNotizen();
     }
   }
 
