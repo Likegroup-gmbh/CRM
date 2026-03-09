@@ -14106,13 +14106,48 @@ table.vertraege-unternehmen-table td:last-child {
    KICK-OFF TABLE STYLES
    ===================================================== */
 
+/* Kick-Off Header in Marke-Detail: bündig zur linken Navigation */
+.profile-detail-layout--secondary-nav #tab-kickoff .kickoff-type-switcher {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0 var(--space-md);
+  min-height: var(--space-xxl);
+  height: var(--space-xxl);
+  border: none;
+  border-bottom: 1px solid var(--gray-100);
+  gap: var(--space-md);
+  box-sizing: border-box;
+}
+
+.profile-detail-layout--secondary-nav #tab-kickoff .kickoff-type-switcher .tab-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+}
+
+.profile-detail-layout--secondary-nav #tab-kickoff .kickoff-type-switcher .tab-button.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: var(--gray-600);
+}
+
 .kickoff-table td {
   vertical-align: top;
   padding: var(--space-md);
 }
 
 .kickoff-table td:first-child {
-  background: var(--gray-50);
+  
   color: var(--gray-700);
   white-space: nowrap;
 }

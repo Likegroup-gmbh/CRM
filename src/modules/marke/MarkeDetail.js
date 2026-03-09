@@ -32,6 +32,7 @@ export class MarkeDetail extends PersonDetailBase {
     this.kickoffsByType = { paid: null, organic: null };
     this.kickoffMarkenwerteByType = { paid: [], organic: [] };
     this.activeKickoffType = 'organic';
+    this._kickoffLoaded = false;
     this.activeMainTab = 'informationen';
     
     // AbortController für Tab-Daten-Laden (verhindert Race Conditions)
@@ -144,6 +145,10 @@ export class MarkeDetail extends PersonDetailBase {
     
     try {
       this.markeId = markeId;
+      this.kickoffsByType = { paid: null, organic: null };
+      this.kickoffMarkenwerteByType = { paid: [], organic: [] };
+      this._kickoffLoaded = false;
+      tabDataCache.invalidate('marke', markeId);
       await this.loadCriticalData();
       
       // Breadcrumb aktualisieren mit Edit-Button
@@ -162,6 +167,10 @@ export class MarkeDetail extends PersonDetailBase {
       this.render();
       this.bindEvents();
       this.setupCacheInvalidation();
+      
+      if (this.activeMainTab && !['informationen', 'ansprechpartner'].includes(this.activeMainTab)) {
+        this.loadTabData(this.activeMainTab);
+      }
       console.log('✅ MARKENDETAIL: Initialisierung abgeschlossen');
     } catch (error) {
       console.error('❌ MARKENDETAIL: Fehler bei der Initialisierung:', error);
@@ -429,6 +438,7 @@ export class MarkeDetail extends PersonDetailBase {
 
             this.kickoff = this.kickoffsByType[this.activeKickoffType] || null;
             this.kickoffMarkenwerte = this.kickoffMarkenwerteByType[this.activeKickoffType] || [];
+            this._kickoffLoaded = true;
 
             this.updateKickOffTab();
             return kickoffList;
@@ -1031,6 +1041,9 @@ export class MarkeDetail extends PersonDetailBase {
     const isKunde = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
 
     if (availableCount === 0) {
+      if (!this._kickoffLoaded) {
+        return `<div class="empty-state"><p>Laden...</p></div>`;
+      }
       return `
         <div class="empty-state">
           <h3>Kein Kick-Off vorhanden</h3>
@@ -1082,43 +1095,43 @@ export class MarkeDetail extends PersonDetailBase {
             </thead>
             <tbody>
               <tr>
-                <td><strong>1. Brand-Essenz</strong></td>
+                <td>1. Brand-Essenz</td>
                 <td>${formatValue(activeKickoff.brand_essenz)}</td>
               </tr>
               <tr>
-                <td><strong>2. Mission / Zweck</strong></td>
+                <td>2. Mission / Zweck</td>
                 <td>${formatValue(activeKickoff.mission)}</td>
               </tr>
               <tr>
-                <td><strong>3. Markenwerte</strong></td>
+                <td>3. Markenwerte</td>
                 <td>${markenwerteHtml}</td>
               </tr>
               <tr>
-                <td><strong>4. Zielgruppe</strong></td>
+                <td>4. Zielgruppe</td>
                 <td>${formatValue(activeKickoff.zielgruppe)}</td>
               </tr>
               <tr>
-                <td><strong>5. Zielgruppen-Mindset</strong></td>
+                <td>5. Zielgruppen-Mindset</td>
                 <td>${formatValue(activeKickoff.zielgruppen_mindset)}</td>
               </tr>
               <tr>
-                <td><strong>6. Marken-USP</strong></td>
+                <td>6. Marken-USP</td>
                 <td>${formatValue(activeKickoff.marken_usp)}</td>
               </tr>
               <tr>
-                <td><strong>7. Tonalität & Sprachstil</strong></td>
+                <td>7. Tonalität &amp; Sprachstil</td>
                 <td>${formatValue(activeKickoff.tonalitaet_sprachstil)}</td>
               </tr>
               <tr>
-                <td><strong>8. Content-Charakter</strong></td>
+                <td>8. Content-Charakter</td>
                 <td>${formatValue(activeKickoff.content_charakter)}</td>
               </tr>
               <tr>
-                <td><strong>9. Do's & Don'ts</strong></td>
+                <td>9. Do's &amp; Don'ts</td>
                 <td>${formatValue(activeKickoff.dos_donts)}</td>
               </tr>
               <tr>
-                <td><strong>10. Rechtliche Leitplanken</strong></td>
+                <td>10. Rechtliche Leitplanken</td>
                 <td>${formatValue(activeKickoff.rechtliche_leitplanken)}</td>
               </tr>
             </tbody>
