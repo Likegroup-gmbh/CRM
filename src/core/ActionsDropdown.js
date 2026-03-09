@@ -350,33 +350,43 @@ export class ActionsDropdown {
     this.closeAllDropdowns();
 
     if (!isOpen) {
-      // Prüfe ob wir in einer Auftrags-Tabelle sind (braucht fixed positioning wegen overflow)
-      const isInAuftragTable = toggleButton.closest('.auftrag-table');
-      
-      if (isInAuftragTable) {
-        // Fixed positioning berechnen
-        const buttonRect = toggleButton.getBoundingClientRect();
-        const dropdownHeight = 300; // Geschätzte Höhe
-        const viewportHeight = window.innerHeight;
-        
-        // Prüfe ob genug Platz nach oben ist
-        const spaceAbove = buttonRect.top;
-        const spaceBelow = viewportHeight - buttonRect.bottom;
-        
+      dropdown.classList.remove('dropdown-flip-up');
+      dropdown.style.position = '';
+      dropdown.style.top = '';
+      dropdown.style.bottom = '';
+      dropdown.style.right = '';
+
+      const buttonRect = toggleButton.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const spaceBelow = viewportHeight - buttonRect.bottom;
+
+      // Dropdown kurz unsichtbar einblenden um die echte Höhe zu messen
+      dropdown.style.visibility = 'hidden';
+      dropdown.style.opacity = '0';
+      dropdown.classList.add('show');
+      const dropdownHeight = dropdown.offsetHeight || 300;
+      dropdown.classList.remove('show');
+      dropdown.style.visibility = '';
+      dropdown.style.opacity = '';
+
+      const needsFlip = spaceBelow < dropdownHeight && buttonRect.top > dropdownHeight;
+
+      // Container mit overflow: hidden/auto schneiden das Dropdown ab → fixed positioning
+      const scrollContainer = toggleButton.closest('.data-table-container, .auftrag-table, [style*="overflow"]');
+      if (scrollContainer) {
         dropdown.style.position = 'fixed';
         dropdown.style.right = (window.innerWidth - buttonRect.right) + 'px';
-        
-        if (spaceAbove > spaceBelow && spaceAbove > dropdownHeight) {
-          // Nach oben öffnen
+        if (needsFlip) {
           dropdown.style.top = 'auto';
           dropdown.style.bottom = (viewportHeight - buttonRect.top + 4) + 'px';
         } else {
-          // Nach unten öffnen
           dropdown.style.top = (buttonRect.bottom + 4) + 'px';
           dropdown.style.bottom = 'auto';
         }
+      } else if (needsFlip) {
+        dropdown.classList.add('dropdown-flip-up');
       }
-      
+
       dropdown.classList.add('show');
       toggleButton.setAttribute('aria-expanded', 'true');
     }

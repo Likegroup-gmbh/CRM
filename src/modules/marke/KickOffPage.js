@@ -769,10 +769,15 @@ export class KickOffPage {
       return;
     }
 
-    // Wenn Unternehmen Marken hat, muss eine Marke ausgewählt sein
+    // Wenn Unternehmen Marken hat, Marke zur Auswahl anbieten (aber nicht erzwingen)
     if (this.hasMarken && !this.selectedMarkeId) {
-      this.showError('Bitte wähle eine Marke aus.');
-      return;
+      const markeSelect = document.getElementById('kickoff_marke');
+      const hasSelectableOptions = markeSelect && [...markeSelect.options].some(o => o.value);
+      if (hasSelectableOptions) {
+        this.showError('Bitte wähle eine Marke aus.');
+        return;
+      }
+      // Keine wählbaren Marken vorhanden → auf Unternehmensebene speichern
     }
 
     const kickoffType = document.getElementById('kickoff_type')?.value || this.selectedKickoffType;
@@ -794,7 +799,7 @@ export class KickOffPage {
       const kickoffData = {
         kickoff_type: this.selectedKickoffType,
         marke_id: this.selectedMarkeId || null,
-        unternehmen_id: this.hasMarken ? null : this.selectedUnternehmenId, // Nur setzen wenn keine Marke
+        unternehmen_id: this.selectedMarkeId ? null : this.selectedUnternehmenId,
         brand_essenz: document.getElementById('brand_essenz')?.value?.trim() || null,
         mission: document.getElementById('mission')?.value?.trim() || null,
         zielgruppe: document.getElementById('zielgruppe')?.value?.trim() || null,

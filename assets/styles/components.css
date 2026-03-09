@@ -6074,6 +6074,16 @@ width: 100%;
   transform: translateY(0);
 }
 
+.actions-dropdown.dropdown-flip-up {
+  top: auto;
+  bottom: 100%;
+  transform: translateY(10px);
+}
+
+.actions-dropdown.dropdown-flip-up.show {
+  transform: translateY(0);
+}
+
 .action-item {
   display: flex;
   align-items: center;
