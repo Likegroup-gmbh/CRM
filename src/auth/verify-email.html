@@ -9,24 +9,8 @@
     <link rel="stylesheet" href="../../assets/styles/layout.css">
     <link rel="stylesheet" href="../../assets/styles/components.css">
     <style>
-        .auth-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            background-color: var(--bg-secondary);
-            padding: var(--space-lg);
-        }
-
         .auth-card {
-            background: var(--bg-primary);
-            padding: var(--space-xl);
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-lg);
             text-align: center;
-            max-width: 500px;
-            width: 100%;
-            border: var(--border-xs) solid var(--border-primary);
         }
 
         /* Icon entfernt für einfacheres Layout */
@@ -237,9 +221,13 @@
         }
     </style>
 </head>
-<body>
-    <div class="auth-container">
-        <div class="auth-card">
+<body style="margin: 0; padding: 0;">
+    <div class="login-split-container">
+      <div class="login-left">
+        <div class="login-box auth-card">
+          <div class="login-logo-wrapper">
+            <img src="/assets/background/Logo-Icon-gray.svg" alt="Logo" class="login-logo">
+          </div>
             <h1 class="auth-title">E-Mail bestätigen</h1>
             <p class="auth-subtitle">Wir haben einen 6-stelligen Code gesendet an:</p>
             <div class="email-address" id="user-email">ihre-email@domain.com</div>
@@ -279,6 +267,8 @@
                 <a href="/login">← Zurück zum Login</a>
             </div>
         </div>
+      </div>
+      <div class="login-right"></div>
     </div>
 
     <script type="module">
