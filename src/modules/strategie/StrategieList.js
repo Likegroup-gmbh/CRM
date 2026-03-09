@@ -276,7 +276,7 @@ export class StrategieList {
         </div>
 
         <div class="table-container">
-          <h3 style="margin-bottom: var(--space-sm);">Marken</h3>
+          <h3 class="table-section-title">Marken</h3>
           <table class="data-table">
             <thead>
               <tr>
@@ -288,8 +288,8 @@ export class StrategieList {
           </table>
         </div>
 
-        <div class="table-container" style="margin-top: var(--space-lg);">
-          <h3 style="margin-bottom: var(--space-sm);">Ohne Marke</h3>
+        <div class="table-container table-container--spaced">
+          <h3 class="table-section-title">Ohne Marke</h3>
           <table class="data-table">
             <thead>
               <tr>

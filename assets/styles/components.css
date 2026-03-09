@@ -4232,6 +4232,11 @@ h3.section-title,
   text-align: center;
 }
 
+/* Wiederverwendbar: Tabellenzellen zentriert (Header + Inhalt) */
+.table-cell-center {
+  text-align: center;
+}
+
 /* Verfügbarkeits-Info für Kampagne-Formular */
 .availability-info {
   margin-top: 0.5rem;
@@ -14275,4 +14280,15 @@ table.vertraege-unternehmen-table td:last-child {
 .badge--indirekt {
   background: var(--gray-100, #f3f4f6);
   color: var(--gray-600, #4b5563);
+}
+
+.table-section-title {
+  margin-bottom: var(--space-sm);
+  padding-left: 12px;
+  font-weight: 400;
+  font-size: var(--text-md);
+}
+
+.table-container--spaced {
+  margin-top: var(--space-lg);
 }
