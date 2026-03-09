@@ -682,7 +682,7 @@ export class DashboardModule {
       
       const koopRows = (kooperationen || []).map(k => `
         <tr>
-          <td><a href="/kunden-kooperation/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kunden-kooperation/${k.id}')">${window.validatorSystem.sanitizeHtml(k.name || k.id)}</a></td>
+          <td><a href="/kooperation/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kooperation/${k.id}')">${window.validatorSystem.sanitizeHtml(k.name || k.id)}</a></td>
           <td>${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(k.kampagne))}</td>
           <td>${window.validatorSystem.sanitizeHtml(k.creator ? `${k.creator.vorname || ''} ${k.creator.nachname || ''}`.trim() : '—')}</td>
           <td><span class="status-badge status-${(k.status||'').toLowerCase().replace(/\s+/g,'-')}">${window.validatorSystem.sanitizeHtml(k.status || '—')}</span></td>
