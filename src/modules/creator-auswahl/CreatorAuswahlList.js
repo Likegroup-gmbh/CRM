@@ -244,6 +244,7 @@ export class CreatorAuswahlList {
     tbody.innerHTML = this.companyFolders.map((folder) => `
       <tr class="table-row-clickable company-row" data-unternehmen-id="${folder.id}" data-unternehmen-name="${this.sanitize(folder.firmenname)}">
         <td>
+          ${folder.logo_url ? `<img src="${this.sanitize(folder.logo_url)}" class="table-logo" width="24" height="24" alt="" />` : ''}
           <a href="#" class="table-link company-link" data-unternehmen-id="${folder.id}" data-unternehmen-name="${this.sanitize(folder.firmenname)}">
             ${this.sanitize(folder.firmenname)}
           </a>

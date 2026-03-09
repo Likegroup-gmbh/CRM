@@ -702,7 +702,6 @@ export class DashboardModule {
                   <h3 class="dashboard-article-title">Erste Schritte nach Ihrem Magic Link</h3>
                   <p class="dashboard-article-desc">Erfahren Sie, welche Schritte nach der Registrierung folgen.</p>
                 </div>
-                <span class="dashboard-article-arrow">→</span>
               </div>
             </a>
           </div>
