@@ -9859,6 +9859,8 @@ input.readonly-field {
   justify-content: flex-end;
   align-items: center;
   padding: var(--space-xs);
+  position: sticky;
+  left: 0;
 }
 
 .add-item-actions-right {
