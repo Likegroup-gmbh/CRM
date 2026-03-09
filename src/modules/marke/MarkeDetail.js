@@ -1027,15 +1027,14 @@ export class MarkeDetail extends PersonDetailBase {
     const activeKickoff = this.kickoffsByType[this.activeKickoffType];
     const activeMarkenwerte = this.kickoffMarkenwerteByType[this.activeKickoffType] || [];
     const typeLabel = this.activeKickoffType === 'paid' ? 'Paid' : 'Organic';
+    const isKunde = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
 
     if (availableCount === 0) {
       return `
         <div class="empty-state">
           <h3>Kein Kick-Off vorhanden</h3>
           <p>Es wurde noch kein Brand Kick-Off für diese Marke erstellt.</p>
-          <a href="/kickoff" class="btn btn-primary" onclick="event.preventDefault(); window.navigateTo('/kickoff')">
-            Kick-Off erstellen
-          </a>
+          ${!isKunde ? `<a href="/kickoff" class="btn btn-primary" onclick="event.preventDefault(); window.navigateTo('/kickoff')">Kick-Off erstellen</a>` : ''}
         </div>
       `;
     }
@@ -1063,9 +1062,7 @@ export class MarkeDetail extends PersonDetailBase {
           <div class="empty-state">
             <h3>Kein ${typeLabel} Kick-Off vorhanden</h3>
             <p>Für den Typ ${typeLabel} wurde noch kein Kick-Off erstellt.</p>
-            <a href="/kickoff" class="btn btn-primary" onclick="event.preventDefault(); window.navigateTo('/kickoff')">
-              ${typeLabel} Kick-Off erstellen
-            </a>
+            ${!isKunde ? `<a href="/kickoff" class="btn btn-primary" onclick="event.preventDefault(); window.navigateTo('/kickoff')">${typeLabel} Kick-Off erstellen</a>` : ''}
           </div>
         </div>
       `;
@@ -1130,9 +1127,7 @@ export class MarkeDetail extends PersonDetailBase {
           <small class="text-muted">
             Typ: ${typeLabel} | Zuletzt aktualisiert: ${this.formatDate(activeKickoff.updated_at)}
           </small>
-          <a href="/kickoff" class="btn btn-sm btn-secondary" onclick="event.preventDefault(); window.navigateTo('/kickoff')" style="margin-left: 1rem;">
-            Bearbeiten
-          </a>
+          ${!isKunde ? `<a href="/kickoff" class="btn btn-sm btn-secondary" onclick="event.preventDefault(); window.navigateTo('/kickoff')" style="margin-left: 1rem;">Bearbeiten</a>` : ''}
         </div>
       </div>
     `;

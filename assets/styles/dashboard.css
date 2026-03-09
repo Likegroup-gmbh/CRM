@@ -131,7 +131,7 @@
 .dashboard-article-title {
   margin: 0 0 var(--space-xxs) 0;
   font-size: var(--text-lg);
-  font-weight: 600;
+  font-weight: 400;
   color: var(--text-primary);
 }
 

@@ -1302,10 +1302,11 @@ button.is-submit-locked,
 }
 
 .detail-section h2 {
-  margin-bottom: 1rem;
-  color: #333;
+  margin: 1rem 0;
+  color:var(--gray-900);
   font-size: var(--text-lg);
   font-weight: 400;
+  padding-left: var(--space-md);
 }
 
 .detail-grid {
@@ -1338,6 +1339,9 @@ h3.section-title,
   padding: var(--space-xs) var(--space-md);
   border-top: 1px solid var(--gray-100);
   border-bottom: 1px solid var(--gray-100);
+  font-weight: 400;
+  font-size: var(--text-md);
+  margin-bottom: 0;
 }
 
 
@@ -10537,6 +10541,9 @@ table:has(#kampagnen-table-body) tbody tr:hover td.col-name {
 .creator-pool-table .cp-col-name {
   width: 140px;
   min-width: 140px;
+}
+
+.creator-pool-table td.cp-col-name {
   vertical-align: top;
 }
 
