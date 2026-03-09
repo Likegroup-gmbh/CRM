@@ -711,6 +711,28 @@ window.handleLogout = async () => {
   } catch (e) {
     console.warn('Logout warn:', e);
   } finally {
+    // Aktuelles Modul sauber zerstören (Floating-Scrollbars, Listener etc.)
+    try {
+      const current = window.moduleRegistry?.currentModule;
+      if (current?.destroy) {
+        current.destroy();
+        window.moduleRegistry.currentModule = null;
+      }
+    } catch (err) {
+      console.warn('Modul-Cleanup beim Logout fehlgeschlagen:', err);
+    }
+
+    // Dynamische Body-Overlays entfernen (Floating-Scrollbars, Drawer, Modals)
+    document.querySelectorAll(
+      '.floating-scrollbar-kanban, .drawer-overlay, .drawer, .modal-overlay, .modal'
+    ).forEach(el => el.remove());
+
+    // Scroll-/Overflow-State am body/html zurücksetzen
+    document.documentElement.style.overflow = '';
+    document.documentElement.style.overflowX = '';
+    document.body.style.overflow = '';
+    document.body.style.overflowX = '';
+
     // URL auf Root zurücksetzen
     window.history.pushState({}, '', '/');
     

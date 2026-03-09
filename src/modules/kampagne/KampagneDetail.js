@@ -863,6 +863,8 @@ export class KampagneDetail {
               .select(`
                 id, name, created_at,
                 kampagne:kampagne_id(id, kampagnenname),
+                unternehmen:unternehmen_id(id, firmenname, logo_url),
+                marke:marke_id(id, markenname, logo_url),
                 created_by_user:created_by(id, name, profile_image_url)
               `)
               .eq('kampagne_id', this.kampagneId)
@@ -1476,23 +1478,27 @@ export class KampagneDetail {
       return new Date(dateStr).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
     };
 
-    const renderBubble = (item) => {
+    const renderBubble = (item, type) => {
       if (!item) return '-';
-      const name = item.name || '';
-      const logoUrl = item.profile_image_url;
+      const name = type === 'unternehmen' ? item.firmenname :
+                   type === 'marke' ? item.markenname :
+                   item.name;
+      const logoUrl = item.logo_url || item.profile_image_url;
       const initials = name ? name.substring(0, 2).toUpperCase() : '??';
       if (logoUrl) {
-        return `<span class="avatar-bubble" title="${name}">
-          <img src="${logoUrl}" alt="${name}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+        return `<span class="avatar-bubble" title="${name || ''}">
+          <img src="${logoUrl}" alt="${name || ''}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
         </span>`;
       }
-      return `<span class="avatar-bubble" title="${name}">${initials}</span>`;
+      return `<span class="avatar-bubble" title="${name || ''}">${initials}</span>`;
     };
 
     const rows = this.sourcingListen.map(liste => `
       <tr class="table-row-clickable" data-sourcing-liste-id="${liste.id}">
         <td><strong>${window.validatorSystem.sanitizeHtml(liste.name || 'Ohne Namen')}</strong></td>
-        <td>${liste.created_by_user ? renderBubble(liste.created_by_user) : '-'}</td>
+        <td>${liste.unternehmen ? renderBubble(liste.unternehmen, 'unternehmen') : '-'}</td>
+        <td>${liste.marke ? renderBubble(liste.marke, 'marke') : '-'}</td>
+        <td>${liste.created_by_user ? renderBubble(liste.created_by_user, 'benutzer') : '-'}</td>
         <td>${formatDate(liste.created_at)}</td>
       </tr>
     `).join('');
@@ -1503,6 +1509,8 @@ export class KampagneDetail {
           <thead>
             <tr>
               <th>Name</th>
+              <th>Unternehmen</th>
+              <th>Marke</th>
               <th>Erstellt von</th>
               <th>Erstellt am</th>
             </tr>

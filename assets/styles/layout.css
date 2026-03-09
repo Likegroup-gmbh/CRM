@@ -966,14 +966,15 @@
 /* Fullscreen Background Container */
 .login-split-container {
   min-height: 100vh;
-  background: url('../../src/images/background/likebase_creator_bg.avif') center/cover no-repeat fixed;
+  min-height: 100dvh;
+  background: url('../../src/images/background/likebase_creator_bg.avif') center/cover no-repeat;
   background-size: cover;
   background-position: center;
-  background-attachment: fixed;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: var(--space-xl);
+  overflow-x: hidden;
 }
 
 .login-left {
