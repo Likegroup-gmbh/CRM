@@ -92,6 +92,7 @@
 /* Kunden-Dashboard: Magic-Link-Artikel-Kachel */
 .dashboard-kunden-article-card {
   margin-bottom: var(--space-xl);
+  padding: var(--space-sm);
 }
 
 .dashboard-article-link {

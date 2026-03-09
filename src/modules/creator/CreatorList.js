@@ -83,9 +83,9 @@ export class CreatorList extends BasePaginatedList {
         <td>${this.formatAgeRange(creator.alter_min, creator.alter_max, creator.alter_jahre)}</td>
         <td>${this.renderCreatorTypeTags(creator.creator_types)}</td>
         <td>${this.renderBrancheTags(creator.branchen)}</td>
-        <td>${formatLink(creator.instagram)}</td>
+        <td class="table-cell-center">${formatLink(creator.instagram)}</td>
         <td>${creatorUtils.formatFollowerRange(creator.instagram_follower)}</td>
-        <td>${formatLink(creator.tiktok)}</td>
+        <td class="table-cell-center">${formatLink(creator.tiktok)}</td>
         <td>${creatorUtils.formatFollowerRange(creator.tiktok_follower)}</td>
         <td class="col-actions">
           ${actionBuilder.create('creator', creator.id)}
@@ -137,9 +137,9 @@ export class CreatorList extends BasePaginatedList {
               <th>Alter</th>
               <th>Typ</th>
               <th>Branche</th>
-              <th>Insta-Link</th>
+              <th class="table-cell-center">Insta-Link</th>
               <th>Insta-Follower</th>
-              <th>TikTok-Link</th>
+              <th class="table-cell-center">TikTok-Link</th>
               <th>TikTok-Follower</th>
               <th class="col-actions">Aktionen</th>
             </tr>

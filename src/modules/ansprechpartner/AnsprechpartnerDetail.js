@@ -328,9 +328,9 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
   // Rendert Badge für Marketing-Einwilligung
   renderEinwilligungBadge(erlaubt) {
     if (erlaubt) {
-      return '<span class="status-badge success">✓ Erlaubt</span>';
+      return '<span class="status-badge success">✓</span>';
     }
-    return '<span class="status-badge inactive">Nicht erlaubt</span>';
+    return '<span class="status-badge danger">✗</span>';
   }
 
   // Sichere Render-Methode für LinkedIn-URLs (XSS-Schutz)

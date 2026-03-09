@@ -194,9 +194,9 @@ export class AnsprechpartnerList extends BasePaginatedList {
    */
   renderEinwilligungBadge(erlaubt) {
     if (erlaubt) {
-      return '<span class="status-badge success">✓ Erlaubt</span>';
+      return '<span class="status-badge success">✓</span>';
     }
-    return '<span class="status-badge danger">✗ Nicht erlaubt</span>';
+    return '<span class="status-badge danger">✗</span>';
   }
 
   renderSingleRow(ap) {
@@ -238,9 +238,9 @@ export class AnsprechpartnerList extends BasePaginatedList {
           ap.telefonnummer_land?.vorwahl,
           ap.telefonnummer
         )}</td>
-        <td>${this.renderLinkedInLink(ap.linkedin)}</td>
-        <td>${this.renderEinwilligungBadge(ap.erlaubt_newsletter)}</td>
-        <td class="col-actions">
+        <td class="table-cell-center">${this.renderLinkedInLink(ap.linkedin)}</td>
+        <td class="table-cell-center">${this.renderEinwilligungBadge(ap.erlaubt_newsletter)}</td>
+        <td class="col-actions table-cell-center">
           ${actionBuilder.create('ansprechpartner', ap.id)}
         </td>
       </tr>
@@ -288,9 +288,9 @@ export class AnsprechpartnerList extends BasePaginatedList {
               <th>Position</th>
               <th>Mail</th>
               <th>Telefon Mobil</th>
-              <th>LinkedIn</th>
-              <th>Newsletter</th>
-              <th class="col-actions">Aktionen</th>
+              <th class="table-cell-center">LinkedIn</th>
+              <th class="table-cell-center">Newsletter</th>
+              <th class="col-actions table-cell-center">Aktionen</th>
             </tr>
           </thead>
           <tbody>

@@ -755,8 +755,8 @@ export class AuftragList {
                 <th>Umsatzsteuer</th>
                 <th>Betrag brutto</th>
                 <th>Rechnungsart</th>
-                <th>Rechnung gestellt</th>
-                <th>Überwiesen</th>
+                <th class="table-cell-center">Rechnung gestellt</th>
+                <th class="table-cell-center">Überwiesen</th>
                 <th class="col-ueberwiesen">Bezahlt am</th>
                 <th>Ansprechpartner</th>
                 <th class="col-actions">Aktionen</th>
@@ -1234,8 +1234,8 @@ export class AuftragList {
           <td>${this.formatCurrency(auftrag.ust_betrag)}</td>
           <td>${this.formatCurrency(auftrag.bruttobetrag)}</td>
           <td>${window.validatorSystem.sanitizeHtml(auftrag.status || '-')}</td>
-          <td>${this.renderBillingDateCell(auftrag, 'rechnung_gestellt', 'rechnung_gestellt_am')}</td>
-          <td>${this.renderBillingDateCell(auftrag, 'ueberwiesen', 'ueberwiesen_am')}</td>
+          <td class="table-cell-center">${this.renderBillingDateCell(auftrag, 'rechnung_gestellt', 'rechnung_gestellt_am')}</td>
+          <td class="table-cell-center">${this.renderBillingDateCell(auftrag, 'ueberwiesen', 'ueberwiesen_am')}</td>
           <td class="col-ueberwiesen">${this.formatDate(auftrag.ueberwiesen_am)}</td>
           <td>${this.formatAnsprechpartner(auftrag.ansprechpartner)}</td>
           <td class="col-actions">

@@ -1682,6 +1682,12 @@ width: 18em;
   border-right: none;
 }
 
+/* table-cell-center überschreibt col-actions wenn beide gesetzt */
+.data-table th.table-cell-center,
+.data-table td.table-cell-center {
+  text-align: center;
+}
+
 /* Fallback: letzte Spalte ohne rechten Border */
 .data-table th:last-child,
 .data-table td:last-child {
