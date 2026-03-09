@@ -738,16 +738,18 @@ export class KickOffPage {
       try {
         const { data, error } = await window.supabase
           .from('markenwert_typen')
-          .insert({ name: name.trim() })
+          .upsert({ name: name.trim() }, { onConflict: 'name', ignoreDuplicates: true })
           .select()
           .single();
 
         if (error) throw error;
 
         const normalized = { ...data, id: this._normId(data.id) };
-        this.allMarkenwerte.push(normalized);
+        if (!this.allMarkenwerte.find(m => m.id === normalized.id)) {
+          this.allMarkenwerte.push(normalized);
+        }
         this.existingMarkenwerte.push({ id: normalized.id, name: normalized.name });
-        console.log('✅ Neuer Markenwert angelegt:', data.name);
+        console.log('✅ Markenwert bereit:', data.name);
       } catch (error) {
         console.error('❌ Fehler beim Anlegen des Markenwerts:', error);
         return;
@@ -823,22 +825,44 @@ export class KickOffPage {
         kickoffId = this.existingKickOff.id;
         console.log('✅ Kick-Off aktualisiert');
       } else {
-        const { data, error } = await window.supabase
-          .from('marke_kickoff')
-          .insert(kickoffData)
-          .select()
-          .single();
+        // Nochmal prüfen ob bereits ein Kick-Off für diese Kombination existiert (Race-Condition / veralteter State)
+        let existingCheckQuery = window.supabase.from('marke_kickoff').select('id');
+        if (kickoffData.marke_id) {
+          existingCheckQuery = existingCheckQuery.eq('marke_id', kickoffData.marke_id);
+        } else {
+          existingCheckQuery = existingCheckQuery.eq('unternehmen_id', kickoffData.unternehmen_id).is('marke_id', null);
+        }
+        const { data: existingCheck } = await existingCheckQuery
+          .eq('kickoff_type', kickoffData.kickoff_type)
+          .maybeSingle();
 
-        if (error) throw error;
-        kickoffId = data.id;
-        console.log('✅ Kick-Off angelegt');
+        if (existingCheck) {
+          const { error } = await window.supabase
+            .from('marke_kickoff')
+            .update(kickoffData)
+            .eq('id', existingCheck.id);
+          if (error) throw error;
+          kickoffId = existingCheck.id;
+          console.log('✅ Kick-Off aktualisiert (existierte bereits)');
+        } else {
+          const { data, error } = await window.supabase
+            .from('marke_kickoff')
+            .insert(kickoffData)
+            .select()
+            .single();
+
+          if (error) throw error;
+          kickoffId = data.id;
+          console.log('✅ Kick-Off angelegt');
+        }
       }
 
       // Markenwerte speichern (nach markenwert_id deduplizieren)
-      await window.supabase
+      const { error: deleteError } = await window.supabase
         .from('marke_kickoff_markenwerte')
         .delete()
         .eq('kickoff_id', kickoffId);
+      if (deleteError) throw deleteError;
 
       const seenIds = new Set();
       const uniqueMarkenwerte = this.existingMarkenwerte.filter(mw => {

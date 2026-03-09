@@ -1105,9 +1105,9 @@ export class UnternehmenDetail extends PersonDetailBase {
       : '<span class="text-muted">-</span>';
 
     const typeSwitcher = `
-      <div class="kickoff-type-switcher" style="display:flex; gap:0.5rem; margin-bottom:1rem;">
-        <button type="button" class="btn btn-sm ${this.activeKickoffType === 'organic' ? 'btn-primary' : 'btn-secondary'} kickoff-type-btn" data-kickoff-type="organic">Organic</button>
-        <button type="button" class="btn btn-sm ${this.activeKickoffType === 'paid' ? 'btn-primary' : 'btn-secondary'} kickoff-type-btn" data-kickoff-type="paid">Paid</button>
+      <div class="tab-navigation kickoff-type-switcher">
+        <button type="button" class="tab-button ${this.activeKickoffType === 'organic' ? 'active' : ''} kickoff-type-btn" data-kickoff-type="organic">Organic</button>
+        <button type="button" class="tab-button ${this.activeKickoffType === 'paid' ? 'active' : ''} kickoff-type-btn" data-kickoff-type="paid">Paid</button>
       </div>
     `;
 

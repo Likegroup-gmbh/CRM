@@ -47,6 +47,19 @@ export class MarkeDetail extends PersonDetailBase {
   
   // Zentraler Click-Handler für document
   async _handleDocumentClick(e) {
+    // KickOff-Type-Switcher VOR generischem Tab-Handler prüfen
+    const kickoffTypeBtn = e.target.closest('.kickoff-type-btn');
+    if (kickoffTypeBtn) {
+      e.preventDefault();
+      const nextType = kickoffTypeBtn.dataset.kickoffType;
+      if (!['paid', 'organic'].includes(nextType)) return;
+      this.activeKickoffType = nextType;
+      this.kickoff = this.kickoffsByType[nextType] || null;
+      this.kickoffMarkenwerte = this.kickoffMarkenwerteByType[nextType] || [];
+      this.updateKickOffTab();
+      return;
+    }
+
     // Tab-Button Navigation
     const btn = e.target.closest('.tab-button');
     if (btn) {
@@ -67,18 +80,6 @@ export class MarkeDetail extends PersonDetailBase {
           await this.loadTabData(tab);
         }
       }
-      return;
-    }
-
-    const kickoffTypeBtn = e.target.closest('.kickoff-type-btn');
-    if (kickoffTypeBtn) {
-      e.preventDefault();
-      const nextType = kickoffTypeBtn.dataset.kickoffType;
-      if (!['paid', 'organic'].includes(nextType)) return;
-      this.activeKickoffType = nextType;
-      this.kickoff = this.kickoffsByType[nextType] || null;
-      this.kickoffMarkenwerte = this.kickoffMarkenwerteByType[nextType] || [];
-      this.updateKickOffTab();
       return;
     }
     
@@ -1049,9 +1050,9 @@ export class MarkeDetail extends PersonDetailBase {
       : '<span class="text-muted">-</span>';
 
     const typeSwitcher = `
-      <div class="kickoff-type-switcher" style="display:flex; gap:0.5rem; margin-bottom:1rem;">
-        <button type="button" class="btn btn-sm ${this.activeKickoffType === 'organic' ? 'btn-primary' : 'btn-secondary'} kickoff-type-btn" data-kickoff-type="organic">Organic</button>
-        <button type="button" class="btn btn-sm ${this.activeKickoffType === 'paid' ? 'btn-primary' : 'btn-secondary'} kickoff-type-btn" data-kickoff-type="paid">Paid</button>
+      <div class="tab-navigation kickoff-type-switcher">
+        <button type="button" class="tab-button ${this.activeKickoffType === 'organic' ? 'active' : ''} kickoff-type-btn" data-kickoff-type="organic">Organic</button>
+        <button type="button" class="tab-button ${this.activeKickoffType === 'paid' ? 'active' : ''} kickoff-type-btn" data-kickoff-type="paid">Paid</button>
       </div>
     `;
 

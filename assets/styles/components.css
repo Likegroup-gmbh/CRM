@@ -4897,6 +4897,7 @@ h3.section-title,
 
 .tags-compact .tag {
   padding: var(--space-xxxs) var(--space-xs);
+  gap: var(--space-xxs);
 }
 
 .tag--type,

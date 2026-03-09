@@ -196,7 +196,7 @@ export const ActionConfigs = {
         staticOptions: true,
         handler: 'setField',
         updateFields: ['status'],
-        roles: ['admin', 'mitarbeiter']
+        roles: ['admin']
       },
       { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
