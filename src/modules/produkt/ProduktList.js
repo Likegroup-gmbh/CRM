@@ -43,11 +43,9 @@ export class ProduktList extends BasePaginatedList {
         return { data: [], total: 0 };
       }
 
-      // Berechne Range für Supabase
       const from = (page - 1) * limit;
       const to = from + limit - 1;
 
-      // Basis-Query mit Embeds
       let query = window.supabase
         .from('produkt')
         .select(`
@@ -59,13 +57,28 @@ export class ProduktList extends BasePaginatedList {
         `, { count: 'exact' })
         .order('created_at', { ascending: false });
 
-      // Filter anwenden (ohne Sort-Parameter)
+      // Kunden-Filter: nur Produkte der eigenen Unternehmen/Marken
+      const rolle = window.currentUser?.rolle?.toLowerCase();
+      if (rolle === 'kunde' || rolle === 'kunde_editor') {
+        const scope = await this._getCustomerScope();
+        if (scope.unternehmenIds.length === 0 && scope.markeIds.length === 0) {
+          return { data: [], total: 0 };
+        }
+        const orParts = [];
+        if (scope.unternehmenIds.length > 0) {
+          orParts.push(`unternehmen_id.in.(${scope.unternehmenIds.join(',')})`);
+        }
+        if (scope.markeIds.length > 0) {
+          orParts.push(`marke_id.in.(${scope.markeIds.join(',')})`);
+        }
+        query = query.or(orParts.join(','));
+      }
+
       const filtersToApply = { ...filters };
       delete filtersToApply._sortBy;
       delete filtersToApply._sortOrder;
       query = ProduktFilterLogic.buildSupabaseQuery(query, filtersToApply);
 
-      // Range für Pagination
       query = query.range(from, to);
 
       const { data, error, count } = await query;
@@ -235,6 +248,42 @@ export class ProduktList extends BasePaginatedList {
     const sanitized = this.sanitize(text);
     if (sanitized.length <= maxLength) return sanitized;
     return sanitized.substring(0, maxLength) + '...';
+  }
+
+  /**
+   * Kunden-Scope: Unternehmen- und Marke-IDs des eingeloggten Kunden ermitteln
+   */
+  async _getCustomerScope() {
+    const userId = window.currentUser?.id;
+    if (!userId) return { unternehmenIds: [], markeIds: [] };
+
+    const { data: userUnternehmen } = await window.supabase
+      .from('kunde_unternehmen')
+      .select('unternehmen_id')
+      .eq('kunde_id', userId);
+
+    const unternehmenIds = [...new Set((userUnternehmen || []).map(u => u.unternehmen_id).filter(Boolean))];
+
+    const { data: userMarken } = await window.supabase
+      .from('kunde_marke')
+      .select('marke_id')
+      .eq('kunde_id', userId);
+
+    const directMarkeIds = (userMarken || []).map(m => m.marke_id).filter(Boolean);
+
+    let unternehmenMarkeIds = [];
+    if (unternehmenIds.length > 0) {
+      const { data: markenByUnternehmen } = await window.supabase
+        .from('marke')
+        .select('id')
+        .in('unternehmen_id', unternehmenIds);
+      unternehmenMarkeIds = (markenByUnternehmen || []).map(m => m.id).filter(Boolean);
+    }
+
+    return {
+      unternehmenIds,
+      markeIds: [...new Set([...directMarkeIds, ...unternehmenMarkeIds])]
+    };
   }
 
   /**
