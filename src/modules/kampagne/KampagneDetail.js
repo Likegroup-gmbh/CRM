@@ -1119,13 +1119,13 @@ export class KampagneDetail {
           <div class="tab-pane active" id="tab-koops-videos">
             <div class="detail-section">
               <div style="margin-bottom: 16px; display: flex; justify-content: flex-end; gap: 8px;">
+                ${!isKunde ? `
                 <button id="btn-toggle-approved" class="secondary-btn" title="Blende Kooperationen aus, bei denen alle Videos freigegeben sind">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
                     <polyline points="20 6 9 17 4 12"></polyline>
                   </svg>
                   <span id="btn-toggle-approved-text">Freigegebene ausblenden</span>
                 </button>
-                ${!isKunde ? `
                 <button id="btn-column-visibility" class="secondary-btn">
                   Sichtbarkeit anpassen
                 </button>` : ''}
