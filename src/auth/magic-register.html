@@ -9,28 +9,6 @@
     <link rel="stylesheet" href="../../assets/styles/layout.css">
     <link rel="stylesheet" href="../../assets/styles/components.css">
     <style>
-      .info-box {
-        background: var(--background-secondary, #f5f5f5);
-        border: 1px solid var(--border-color, #e0e0e0);
-        border-radius: var(--radius-md, 8px);
-        padding: var(--space-md, 16px);
-        margin-bottom: var(--space-lg, 24px);
-      }
-      .info-box h3 {
-        margin: 0 0 var(--space-sm, 8px) 0;
-        font-size: 0.875rem;
-        color: var(--text-secondary, #666);
-      }
-      .info-box p {
-        margin: 0;
-        font-size: 1rem;
-        color: var(--text-primary, #333);
-      }
-      .info-box .company-list {
-        margin-top: var(--space-sm, 8px);
-        font-size: 0.875rem;
-        color: var(--text-secondary, #666);
-      }
       .loading-state {
         text-align: center;
         padding: var(--space-xl, 32px);
@@ -88,12 +66,6 @@
         <div id="register-state" style="display: none;">
           <h2>Konto erstellen</h2>
           
-          <!-- Ansprechpartner Info -->
-          <div id="ansprechpartner-info" class="info-box">
-            <p id="ansprechpartner-name">-</p>
-            <div id="company-info" class="company-list"></div>
-          </div>
-
           <div id="msg" class="text-error" style="display: none;"></div>
 
           <form id="register-form">
@@ -113,7 +85,15 @@
             </div>
             <div class="form-box">
               <label class="label" for="password">Passwort</label>
-              <input id="password" class="input" type="password" placeholder="••••••••" minlength="8" required />
+              <div class="password-input-container">
+                <input id="password" class="input" type="password" placeholder="••••••••" minlength="8" required />
+                <button type="button" class="password-toggle" id="togglePassword">
+                  <svg class="eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                  </svg>
+                </button>
+              </div>
             </div>
             <div class="form-box">
               <button id="btn-submit" type="submit" class="btn primary-btn" style="width: 100%;">Konto erstellen</button>
@@ -135,9 +115,8 @@
   const errorState = document.getElementById('error-state');
   const registerState = document.getElementById('register-state');
   const errorMessage = document.getElementById('error-message');
-  const ansprechpartnerName = document.getElementById('ansprechpartner-name');
-  const companyInfo = document.getElementById('company-info');
   const form = document.getElementById('register-form');
+  const togglePasswordBtn = document.getElementById('togglePassword');
   const btn = document.getElementById('btn-submit');
   const msg = document.getElementById('msg');
 
@@ -168,21 +147,10 @@
     registerState.style.display = 'block';
 
     const ap = data.ansprechpartner;
-    ansprechpartnerName.textContent = `${ap.vorname || ''} ${ap.nachname || ''}`.trim() || 'Unbekannt';
 
-    // Unternehmen anzeigen
-    const unternehmen = ap.ansprechpartner_unternehmen || [];
-    if (unternehmen.length > 0) {
-      const names = unternehmen.map(u => u.unternehmen?.firmenname).filter(Boolean);
-      companyInfo.innerHTML = `<strong>Unternehmen:</strong> ${names.join(', ')}`;
-    }
-
-    // E-Mail vorausfüllen wenn vorhanden
     if (ap.email) {
       document.getElementById('email').value = ap.email;
     }
-    
-    // Vorname und Nachname vorausfüllen
     if (ap.vorname) {
       document.getElementById('vorname').value = ap.vorname;
     }
@@ -389,6 +357,19 @@
   // Event Listener
   form.addEventListener('submit', handleRegister);
   initPasswordHints('password');
+
+  let isPasswordVisible = false;
+  togglePasswordBtn.addEventListener('click', () => {
+    const input = document.getElementById('password');
+    isPasswordVisible = !isPasswordVisible;
+    input.type = isPasswordVisible ? 'text' : 'password';
+    const icon = togglePasswordBtn.querySelector('svg');
+    if (isPasswordVisible) {
+      icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path>';
+    } else {
+      icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>';
+    }
+  });
 
   // Start: Token validieren
   validateToken();
