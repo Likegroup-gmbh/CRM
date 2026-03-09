@@ -141,7 +141,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
 
     const unternehmenIds = this.unternehmen.map(u => u.id);
 
-    const markenSet = new Set();
+    const markenMap = new Map();
     
     const { data: markenLinks } = await window.supabase
       .from('kunde_marke')
@@ -151,7 +151,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     (markenLinks || [])
       .map(link => link.marke)
       .filter(Boolean)
-      .forEach(m => markenSet.add(JSON.stringify(m)));
+      .forEach(m => markenMap.set(m.id, m));
 
     if (unternehmenIds.length > 0) {
       const { data: markenViaUnternehmen } = await window.supabase
@@ -161,10 +161,10 @@ export class ProfileDetailV2 extends PersonDetailBase {
       
       (markenViaUnternehmen || [])
         .filter(Boolean)
-        .forEach(m => markenSet.add(JSON.stringify(m)));
+        .forEach(m => markenMap.set(m.id, m));
     }
 
-    this.marken = Array.from(markenSet).map(m => JSON.parse(m));
+    this.marken = Array.from(markenMap.values());
 
     const kampagnenSet = new Map();
     const markenIds = this.marken.map(m => m.id);
@@ -544,10 +544,10 @@ export class ProfileDetailV2 extends PersonDetailBase {
     return `
       <div class="tab-content">
         <div class="tab-pane ${this.activeMainTab === 'unternehmen' ? 'active' : ''}" id="main-unternehmen">
-          ${this.renderUnternehmenTab()}
+          ${this.renderUnternehmenTab(isKunde)}
         </div>
         <div class="tab-pane ${this.activeMainTab === 'marken' ? 'active' : ''}" id="main-marken">
-          ${this.renderMarkenTab()}
+          ${this.renderMarkenTab(isKunde)}
         </div>
         ${!isKunde ? `
           <div class="tab-pane ${this.activeMainTab === 'auftraege' ? 'active' : ''}" id="main-auftraege">
@@ -555,7 +555,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
           </div>
         ` : ''}
         <div class="tab-pane ${this.activeMainTab === 'kampagnen' ? 'active' : ''}" id="main-kampagnen">
-          ${this.renderKampagnenTab()}
+          ${this.renderKampagnenTab(isKunde)}
         </div>
         <div class="tab-pane ${this.activeMainTab === 'kooperationen' ? 'active' : ''}" id="main-kooperationen">
           ${this.renderKooperationenTab()}
@@ -567,7 +567,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     `;
   }
 
-  renderUnternehmenTab() {
+  renderUnternehmenTab(isKunde) {
     if (this.unternehmen.length === 0) {
       return '<div class="empty-state"><p>Keine Unternehmen zugeordnet.</p></div>';
     }
@@ -579,7 +579,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
             <tr>
               <th>Firmenname</th>
               <th class="col-webseite">Website</th>
-              <th style="width: 80px; text-align: right;">Aktionen</th>
+              ${!isKunde ? '<th style="width: 80px; text-align: right;">Aktionen</th>' : ''}
             </tr>
           </thead>
           <tbody>
@@ -592,9 +592,9 @@ export class ProfileDetailV2 extends PersonDetailBase {
                   </div>
                 </td>
                 <td class="col-webseite">${u.webseite ? `<a href="${u.webseite}" target="_blank" rel="noopener">${this.sanitize(u.webseite)}</a>` : '-'}</td>
-                <td style="text-align: right;">
+                ${!isKunde ? `<td style="text-align: right;">
                   <a href="/unternehmen/${u.id}" onclick="event.preventDefault(); window.navigateTo('/unternehmen/${u.id}')" class="secondary-btn btn-sm">Details</a>
-                </td>
+                </td>` : ''}
               </tr>
             `).join('')}
           </tbody>
@@ -603,7 +603,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     `;
   }
 
-  renderMarkenTab() {
+  renderMarkenTab(isKunde) {
     if (this.marken.length === 0) {
       return '<div class="empty-state"><p>Keine Marken zugeordnet.</p></div>';
     }
@@ -615,7 +615,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
             <tr>
               <th>Markenname</th>
               <th>Unternehmen</th>
-              <th style="width: 80px; text-align: right;">Aktionen</th>
+              ${!isKunde ? '<th style="width: 80px; text-align: right;">Aktionen</th>' : ''}
             </tr>
           </thead>
           <tbody>
@@ -628,9 +628,9 @@ export class ProfileDetailV2 extends PersonDetailBase {
                   </div>
                 </td>
                 <td>${m.unternehmen?.firmenname ? this.sanitize(m.unternehmen.firmenname) : '-'}</td>
-                <td style="text-align: right;">
+                ${!isKunde ? `<td style="text-align: right;">
                   <a href="/marke/${m.id}" onclick="event.preventDefault(); window.navigateTo('/marke/${m.id}')" class="secondary-btn btn-sm">Details</a>
-                </td>
+                </td>` : ''}
               </tr>
             `).join('')}
           </tbody>
@@ -674,7 +674,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     `;
   }
 
-  renderKampagnenTab() {
+  renderKampagnenTab(isKunde) {
     if (this.kampagnen.length === 0) {
       return '<div class="empty-state"><p>Keine Kampagnen zugeordnet.</p></div>';
     }
@@ -688,7 +688,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
               <th>Marke</th>
               <th>Status</th>
               <th>Erstellt am</th>
-              <th style="width: 80px; text-align: right;">Aktionen</th>
+              ${!isKunde ? '<th style="width: 80px; text-align: right;">Aktionen</th>' : ''}
             </tr>
           </thead>
           <tbody>
@@ -698,9 +698,9 @@ export class ProfileDetailV2 extends PersonDetailBase {
                 <td>${k.marke?.markenname ? this.sanitize(k.marke.markenname) : (k.unternehmen?.firmenname ? this.sanitize(k.unternehmen.firmenname) : '-')}</td>
                 <td><span class="badge badge-secondary">${this.sanitize(k.status || 'Unbekannt')}</span></td>
                 <td>${this.formatDate(k.created_at)}</td>
-                <td style="text-align: right;">
+                ${!isKunde ? `<td style="text-align: right;">
                   <a href="/kampagne/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${k.id}')" class="secondary-btn btn-sm">Details</a>
-                </td>
+                </td>` : ''}
               </tr>
             `).join('')}
           </tbody>
