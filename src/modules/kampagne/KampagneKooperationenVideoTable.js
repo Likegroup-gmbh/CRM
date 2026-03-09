@@ -755,7 +755,7 @@ export class KampagneKooperationenVideoTable {
                 <div class="resize-handle resize-handle-col" data-col="10"></div>
               </th>
               <th class="col-header col-vk-video" ${!this.isColumnVisibleForCustomer('col-vk-video') ? 'style="display:none;"' : ''} data-col="10b">
-                VK/Video
+                Kosten
                 <div class="resize-handle resize-handle-col" data-col="10b"></div>
               </th>
               <th class="col-header col-video-typ" ${!this.isColumnVisibleForCustomer('col-video-typ') ? 'style="display:none;"' : ''} data-col="10c">
