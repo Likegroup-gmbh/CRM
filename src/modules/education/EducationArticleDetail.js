@@ -1,6 +1,8 @@
 // EducationArticleDetail.js - Einzelner Education-Artikel
 // Markdown-Rendering und verwandte Artikel
 
+import { KUNDE_ALLOWED_SLUGS, ARTICLE_DISPLAY_OVERRIDES } from './EducationConstants.js';
+
 export const educationArticleDetail = {
   article: null,
   relatedArticles: [],
@@ -17,6 +19,12 @@ export const educationArticleDetail = {
       window.navigateTo('/education');
       return;
     }
+
+    // Kunden dürfen nur freigegebene Artikel sehen
+    if (this.isKundeRole() && !KUNDE_ALLOWED_SLUGS.includes(slug)) {
+      window.navigateTo('/dashboard');
+      return;
+    }
     
     // Artikel laden
     await this.loadArticle(slug);
@@ -27,12 +35,19 @@ export const educationArticleDetail = {
       this.bindBackButton();
       return;
     }
+
+    // Display-Override anwenden (konsistenter Titel über alle Seiten)
+    const override = ARTICLE_DISPLAY_OVERRIDES[slug];
+    if (override) {
+      this.article.title = override.title;
+      if (override.short_description) this.article.short_description = override.short_description;
+    }
     
     // Headline & Breadcrumb
     window.setHeadline(this.article.title);
     if (window.breadcrumbSystem) {
       window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Education', url: '/education', clickable: true },
+        { label: 'Education', url: '/education', clickable: !this.isKundeRole() },
         { label: this.article.title, url: `/education/${slug}`, clickable: false }
       ]);
     }

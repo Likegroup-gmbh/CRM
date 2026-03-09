@@ -1,6 +1,8 @@
 // EducationPage.js - Education/Wissensdatenbank Seite
 // Card-basierte Übersicht mit Kategorien, Tags und Suche
 
+import { KUNDE_ALLOWED_SLUGS, ARTICLE_DISPLAY_OVERRIDES } from './EducationConstants.js';
+
 export const educationPage = {
   articles: [],
   categories: [],
@@ -56,7 +58,9 @@ export const educationPage = {
       this.tags = tags || [];
 
       // Artikel mit Kategorie und Tags laden (nur published)
-      const { data: articles, error: artError } = await window.supabase
+      const isKunde = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
+
+      let articlesQuery = window.supabase
         .from('education_articles')
         .select(`
           *,
@@ -65,16 +69,26 @@ export const educationPage = {
             tag:tag_id(id, name)
           )
         `)
-        .eq('status', 'published')
+        .eq('status', 'published');
+
+      if (isKunde) {
+        articlesQuery = articlesQuery.in('slug', KUNDE_ALLOWED_SLUGS);
+      }
+
+      const { data: articles, error: artError } = await articlesQuery
         .order('created_at', { ascending: false });
 
       if (artError) throw artError;
       
-      // Tags flach machen
-      this.articles = (articles || []).map(article => ({
-        ...article,
-        tags: (article.article_tags || []).map(at => at.tag).filter(Boolean)
-      }));
+      // Tags flach machen + Display-Overrides anwenden
+      this.articles = (articles || []).map(article => {
+        const override = ARTICLE_DISPLAY_OVERRIDES[article.slug];
+        return {
+          ...article,
+          ...(override ? { title: override.title, short_description: override.short_description } : {}),
+          tags: (article.article_tags || []).map(at => at.tag).filter(Boolean)
+        };
+      });
 
       console.log('✅ Education-Daten geladen:', {
         categories: this.categories.length,
@@ -91,7 +105,10 @@ export const educationPage = {
   },
 
   getFilteredArticles() {
-    let filtered = [...this.articles];
+    const isKunde = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
+    let filtered = isKunde
+      ? this.articles.filter(a => KUNDE_ALLOWED_SLUGS.includes(a.slug))
+      : [...this.articles];
 
     // Nach Kategorie filtern
     if (this.selectedCategory) {

@@ -3,8 +3,10 @@
 
 import { KampagneKanbanBoard } from '../kampagne/KampagneKanbanBoard.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { KUNDE_ALLOWED_SLUGS, ARTICLE_DISPLAY_OVERRIDES } from '../education/EducationConstants.js';
 
-const MAGIC_LINK_ARTICLE_SLUG = 'erste-schritte-nach-ihrem-magic-link';
+const MAGIC_LINK_ARTICLE_SLUG = KUNDE_ALLOWED_SLUGS[0];
+const MAGIC_LINK_ARTICLE = ARTICLE_DISPLAY_OVERRIDES[MAGIC_LINK_ARTICLE_SLUG];
 
 export class DashboardModule {
   constructor() {
@@ -699,8 +701,8 @@ export class DashboardModule {
                   </svg>
                 </span>
                 <div class="dashboard-article-text">
-                  <h3 class="dashboard-article-title">Mini-Tutorial: Erste Schritte nach dem Login</h3>
-                  <p class="dashboard-article-desc">Eine kurze Nachschlage-Liste mit den wichtigsten Schritten, falls nach der Registrierung Fragen auftauchen.</p>
+                  <h3 class="dashboard-article-title">${MAGIC_LINK_ARTICLE.title}</h3>
+                  <p class="dashboard-article-desc">${MAGIC_LINK_ARTICLE.short_description}</p>
                 </div>
               </div>
             </a>

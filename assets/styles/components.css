@@ -13316,8 +13316,9 @@ table.vertraege-unternehmen-table td:last-child {
 
 /* Education Page Layout */
 .education-page {
-  max-width: 1400px;
+  max-width: 1280px;
   margin: 0 auto;
+  padding: var(--space-md);
 }
 
 /* Education Header mit Suche */
@@ -13441,16 +13442,16 @@ table.vertraege-unternehmen-table td:last-child {
   flex-direction: column;
   background: var(--white);
   border: 1px solid var(--gray-200);
-  border-radius: var(--radius-lg);
-  padding: var(--space-lg);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .education-card:hover {
-  border-color: var(--primary-300);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  transform: translateY(-2px);
+  border-color: var(--gray-400);
+  
+ 
 }
 
 .education-card-header {
