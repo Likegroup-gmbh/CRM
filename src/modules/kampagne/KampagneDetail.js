@@ -855,6 +855,22 @@ export class KampagneDetail {
             await this.loadHistory();
           }
           break;
+
+        case 'sourcing-listen':
+          if (!this.sourcingListen || this.sourcingListen.length === 0) {
+            const { data } = await window.supabase
+              .from('creator_auswahl')
+              .select(`
+                id, name, created_at,
+                kampagne:kampagne_id(id, kampagnenname),
+                created_by_user:created_by(id, name, profile_image_url)
+              `)
+              .eq('kampagne_id', this.kampagneId)
+              .order('created_at', { ascending: false });
+            this.sourcingListen = data || [];
+            this.updateSourcingListenTab();
+          }
+          break;
       }
       
       this[loadingKey] = true;
@@ -930,6 +946,9 @@ export class KampagneDetail {
           </button>
           <button class="tab-button" data-tab="briefings">
             Briefings
+          </button>
+          <button class="tab-button" data-tab="sourcing-listen">
+            Sourcing
           </button>
           ${!isKunde && window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? `
           <button class="tab-button" data-tab="info">
@@ -1145,6 +1164,13 @@ export class KampagneDetail {
           <div class="tab-pane" id="tab-briefings">
             <div class="detail-section">
               ${this.renderBriefings()}
+            </div>
+          </div>
+
+          <!-- Sourcing-Listen Tab -->
+          <div class="tab-pane" id="tab-sourcing-listen">
+            <div class="detail-section">
+              ${this.renderSourcingListen()}
             </div>
           </div>
 
@@ -1426,6 +1452,57 @@ export class KampagneDetail {
               <th>Name</th>
               <th>Unternehmen</th>
               <th>Marke</th>
+              <th>Erstellt von</th>
+              <th>Erstellt am</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  renderSourcingListen() {
+    if (!this.sourcingListen || this.sourcingListen.length === 0) {
+      return `
+        <div class="empty-state">
+          <p>Keine Sourcing-Listen für diese Kampagne vorhanden</p>
+        </div>
+      `;
+    }
+
+    const formatDate = (dateStr) => {
+      if (!dateStr) return '-';
+      return new Date(dateStr).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    };
+
+    const renderBubble = (item) => {
+      if (!item) return '-';
+      const name = item.name || '';
+      const logoUrl = item.profile_image_url;
+      const initials = name ? name.substring(0, 2).toUpperCase() : '??';
+      if (logoUrl) {
+        return `<span class="avatar-bubble" title="${name}">
+          <img src="${logoUrl}" alt="${name}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+        </span>`;
+      }
+      return `<span class="avatar-bubble" title="${name}">${initials}</span>`;
+    };
+
+    const rows = this.sourcingListen.map(liste => `
+      <tr class="table-row-clickable" data-sourcing-liste-id="${liste.id}">
+        <td><strong>${window.validatorSystem.sanitizeHtml(liste.name || 'Ohne Namen')}</strong></td>
+        <td>${liste.created_by_user ? renderBubble(liste.created_by_user) : '-'}</td>
+        <td>${formatDate(liste.created_at)}</td>
+      </tr>
+    `).join('');
+
+    return `
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
               <th>Erstellt von</th>
               <th>Erstellt am</th>
             </tr>
@@ -1761,6 +1838,18 @@ export class KampagneDetail {
         const strategieId = row.dataset.strategieId;
         if (strategieId) {
           window.navigateTo(`/strategie/${strategieId}`);
+        }
+      }
+    });
+
+    // Sourcing-Liste klicken -> zur Sourcing-Detailseite navigieren
+    document.addEventListener('click', (e) => {
+      const row = e.target.closest('#tab-sourcing-listen tr[data-sourcing-liste-id]');
+      if (row) {
+        e.preventDefault();
+        const listeId = row.dataset.sourcingListeId;
+        if (listeId) {
+          window.navigateTo(`/sourcing/${listeId}`);
         }
       }
     });
@@ -2206,9 +2295,15 @@ export class KampagneDetail {
     const container = document.querySelector('#tab-sourcing .detail-section');
     if (container) {
       container.innerHTML = this.renderCreatorSourcing();
-      // Tab-Count aktualisieren
       const btn = document.querySelector('.tab-button[data-tab="sourcing"] .tab-count');
       if (btn) btn.textContent = String(this.sourcingCreators.length);
+    }
+  }
+
+  updateSourcingListenTab() {
+    const container = document.querySelector('#tab-sourcing-listen .detail-section');
+    if (container) {
+      container.innerHTML = this.renderSourcingListen();
     }
   }
 
