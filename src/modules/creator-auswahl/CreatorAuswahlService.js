@@ -64,7 +64,8 @@ export class CreatorAuswahlService {
         unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
         marke:marke_id(id, markenname, logo_url),
         kampagne:kampagne_id(id, kampagnenname),
-        created_by_user:created_by(id, name, profile_image_url)
+        created_by_user:created_by(id, name, profile_image_url),
+        creator_auswahl_items(count)
       `)
       .order('created_at', { ascending: false });
 
@@ -73,7 +74,10 @@ export class CreatorAuswahlService {
       throw error;
     }
 
-    return data;
+    return (data || []).map(liste => ({
+      ...liste,
+      item_count: liste.creator_auswahl_items?.[0]?.count ?? 0
+    }));
   }
 
   async _getCustomerAccessScope(userId) {

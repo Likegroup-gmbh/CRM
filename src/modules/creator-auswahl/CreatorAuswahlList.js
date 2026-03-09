@@ -297,6 +297,9 @@ export class CreatorAuswahlList {
               <tr>
                 <th>Name</th>
                 <th>Kampagne</th>
+                <th>Creator</th>
+                <th>Erstellt von</th>
+                <th>Erstellt am</th>
                 <th>Aktionen</th>
               </tr>
             </thead>
@@ -330,6 +333,12 @@ export class CreatorAuswahlList {
   }
 
   renderItemsRows(items) {
+    const formatDate = (dateStr) => {
+      if (!dateStr) return '-';
+      const d = new Date(dateStr);
+      return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    };
+
     return items.map((liste) => {
       const rolle = window.currentUser?.rolle?.toLowerCase();
       const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
@@ -342,6 +351,9 @@ export class CreatorAuswahlList {
             </a>
           </td>
           <td>${kampagneName}</td>
+          <td>${liste.item_count ?? 0}</td>
+          <td>${this.sanitize(liste.created_by_user?.name || '-')}</td>
+          <td>${formatDate(liste.created_at)}</td>
           <td class="col-actions">
             <div class="actions-dropdown-container" data-entity-type="creator-auswahl">
               <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
@@ -378,7 +390,7 @@ export class CreatorAuswahlList {
     if (!tbody) return;
 
     if (this.companyOnlyItems.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="3" class="no-data">Keine unternehmensweiten Einträge ohne Marke.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" class="no-data">Keine unternehmensweiten Einträge ohne Marke.</td></tr>`;
       return;
     }
 
@@ -412,11 +424,14 @@ export class CreatorAuswahlList {
               <tr>
                 <th class="col-name ca-col-name">Name</th>
                 <th class="ca-col-kampagne">Kampagne</th>
+                <th class="ca-col-creator-count">Creator</th>
+                <th class="ca-col-erstellt-von">Erstellt von</th>
+                <th class="ca-col-erstellt-am">Erstellt am</th>
                 <th class="col-actions">Aktionen</th>
               </tr>
             </thead>
             <tbody id="creator-auswahl-table-body">
-              <tr><td colspan="3" class="table-state-cell">Lade Creator-Auswahl-Listen...</td></tr>
+              <tr><td colspan="6" class="table-state-cell">Lade Creator-Auswahl-Listen...</td></tr>
             </tbody>
           </table>
         </div>
@@ -430,7 +445,7 @@ export class CreatorAuswahlList {
     if (!tbody) return;
 
     if (this.currentItems.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="3" class="table-state-cell">Keine Sourcing-Listen für diese Marke vorhanden.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" class="table-state-cell">Keine Sourcing-Listen für diese Marke vorhanden.</td></tr>`;
       this.pagination.updateTotal(0);
       this.pagination.render();
       return;
