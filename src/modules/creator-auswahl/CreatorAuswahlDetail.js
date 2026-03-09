@@ -1748,7 +1748,6 @@ export class CreatorAuswahlDetail {
    * Floating Scrollbar initialisieren
    */
   initFloatingScrollbar() {
-    // Entferne vorhandene Floating Scrollbar
     const existingScrollbar = document.getElementById('floating-scrollbar-creator-auswahl');
     if (existingScrollbar) {
       existingScrollbar.remove();
@@ -1757,7 +1756,8 @@ export class CreatorAuswahlDetail {
     const tableWrapper = document.querySelector('.table-container');
     if (!tableWrapper) return;
 
-    // Erstelle Floating Scrollbar
+    const scrollTarget = document.querySelector('.main-wrapper') || tableWrapper;
+
     const floatingScrollbar = document.createElement('div');
     floatingScrollbar.id = 'floating-scrollbar-creator-auswahl';
     floatingScrollbar.className = 'floating-scrollbar-kampagne';
@@ -1768,24 +1768,22 @@ export class CreatorAuswahlDetail {
 
     document.body.appendChild(floatingScrollbar);
 
-    // Update Scrollbar-Größe und Position
     const updateScrollbarSize = () => {
       const table = tableWrapper.querySelector('table');
       if (table) {
         scrollbarInner.style.width = table.scrollWidth + 'px';
       }
-      const wrapperRect = tableWrapper.getBoundingClientRect();
+      const wrapperRect = scrollTarget.getBoundingClientRect();
       floatingScrollbar.style.left = wrapperRect.left + 'px';
       floatingScrollbar.style.width = wrapperRect.width + 'px';
     };
 
     updateScrollbarSize();
 
-    // Synchronisiere Scrolling
     const handleFloatingScroll = () => {
       if (this._isScrollingFromTable) return;
       this._isScrollingFromFloating = true;
-      tableWrapper.scrollLeft = floatingScrollbar.scrollLeft;
+      scrollTarget.scrollLeft = floatingScrollbar.scrollLeft;
       requestAnimationFrame(() => { this._isScrollingFromFloating = false; });
     };
 
@@ -1794,18 +1792,18 @@ export class CreatorAuswahlDetail {
     const handleTableScroll = () => {
       if (this._isScrollingFromFloating) return;
       this._isScrollingFromTable = true;
-      floatingScrollbar.scrollLeft = tableWrapper.scrollLeft;
+      floatingScrollbar.scrollLeft = scrollTarget.scrollLeft;
       requestAnimationFrame(() => { this._isScrollingFromTable = false; });
     };
 
-    tableWrapper.addEventListener('scroll', handleTableScroll);
+    scrollTarget.addEventListener('scroll', handleTableScroll);
 
-    // Zeige/Verstecke Floating-Scrollbar
     const toggleFloatingScrollbar = () => {
       const wrapperRect = tableWrapper.getBoundingClientRect();
       const viewportHeight = window.innerHeight;
       const isTableVisible = wrapperRect.top < viewportHeight && wrapperRect.bottom > 0;
-      const needsScroll = tableWrapper.scrollWidth > tableWrapper.clientWidth;
+      const table = tableWrapper.querySelector('table');
+      const needsScroll = table && table.scrollWidth > scrollTarget.clientWidth;
 
       if (isTableVisible && needsScroll && wrapperRect.bottom > viewportHeight) {
         floatingScrollbar.classList.add('visible');
@@ -1822,12 +1820,11 @@ export class CreatorAuswahlDetail {
       toggleFloatingScrollbar();
     });
 
-    // Cleanup-Funktion speichern
     this.cleanupFloatingScrollbar = () => {
       floatingScrollbar.classList.remove('visible');
       window.removeEventListener('scroll', toggleFloatingScrollbar);
       floatingScrollbar.removeEventListener('scroll', handleFloatingScroll);
-      tableWrapper.removeEventListener('scroll', handleTableScroll);
+      scrollTarget.removeEventListener('scroll', handleTableScroll);
       if (floatingScrollbar.parentNode) {
         floatingScrollbar.parentNode.removeChild(floatingScrollbar);
       }
@@ -1841,7 +1838,8 @@ export class CreatorAuswahlDetail {
     const container = document.querySelector('.table-container');
     if (!container) return;
 
-    // Entferne alte Event-Listener
+    const scrollTarget = document.querySelector('.main-wrapper') || container;
+
     if (this._dragMouseDown) {
       container.removeEventListener('mousedown', this._dragMouseDown);
       document.removeEventListener('mousemove', this._dragMouseMove);
@@ -1849,7 +1847,6 @@ export class CreatorAuswahlDetail {
     }
 
     this._dragMouseDown = (e) => {
-      // Ignoriere wenn auf editierbare Elemente geklickt wird
       if (
         e.target.tagName === 'TEXTAREA' ||
         e.target.tagName === 'SELECT' ||
@@ -1864,8 +1861,8 @@ export class CreatorAuswahlDetail {
       }
 
       this.isDragging = true;
-      this.startX = e.pageX - container.offsetLeft;
-      this.scrollLeft = container.scrollLeft;
+      this.startX = e.pageX - scrollTarget.offsetLeft;
+      this.scrollLeft = scrollTarget.scrollLeft;
 
       container.style.cursor = 'grabbing';
       container.style.userSelect = 'none';
@@ -1878,9 +1875,9 @@ export class CreatorAuswahlDetail {
 
       e.preventDefault();
 
-      const x = e.pageX - container.offsetLeft;
+      const x = e.pageX - scrollTarget.offsetLeft;
       const walk = (x - this.startX) * 1.5;
-      container.scrollLeft = this.scrollLeft - walk;
+      scrollTarget.scrollLeft = this.scrollLeft - walk;
     };
 
     this._dragMouseUp = () => {
@@ -1895,7 +1892,6 @@ export class CreatorAuswahlDetail {
     document.addEventListener('mousemove', this._dragMouseMove);
     document.addEventListener('mouseup', this._dragMouseUp);
 
-    // Setze initialen Cursor und Klasse
     container.classList.add('drag-scroll-enabled');
     container.style.cursor = 'grab';
   }

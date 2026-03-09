@@ -10514,13 +10514,13 @@ table:has(#kampagnen-table-body) tbody tr:hover td.col-name {
 .creator-pool-table .cp-col-name {
   width: 140px;
   min-width: 140px;
-  vertical-align: middle;
+  vertical-align: top;
 }
 
 .creator-pool-table .cp-col-typ {
   width: 100px;
   min-width: 100px;
-  vertical-align: middle;
+  vertical-align: top;
 }
 
 .creator-pool-table .cp-col-link {
