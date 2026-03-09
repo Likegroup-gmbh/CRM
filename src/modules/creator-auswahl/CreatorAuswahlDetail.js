@@ -720,40 +720,40 @@ export class CreatorAuswahlDetail {
             ${this.isKunde ? '' : 'readonly'}
           >${item.feedback_kunde || ''}</textarea>
         </td>
-        <td class="cp-col-prio1" style="text-align: center;${!this.isColumnVisibleForCustomer('cp-col-prio1') ? ' display:none;' : ''}">
-          <input 
-            type="checkbox" 
-            ${item.prio_1 ? 'checked' : ''} 
+        <td class="cp-col-prio1" ${!this.isColumnVisibleForCustomer('cp-col-prio1') ? 'style="display:none;"' : ''}>
+          <input
+            type="checkbox"
+            ${item.prio_1 ? 'checked' : ''}
             data-field="prio_1"
             data-item-id="${item.id}"
-            style="width: 20px; height: 20px; cursor: pointer;"
+            class="cp-checkbox"
           >
         </td>
-        <td class="cp-col-prio2" style="text-align: center;${!this.isColumnVisibleForCustomer('cp-col-prio2') ? ' display:none;' : ''}">
-          <input 
-            type="checkbox" 
-            ${item.prio_2 ? 'checked' : ''} 
+        <td class="cp-col-prio2" ${!this.isColumnVisibleForCustomer('cp-col-prio2') ? 'style="display:none;"' : ''}>
+          <input
+            type="checkbox"
+            ${item.prio_2 ? 'checked' : ''}
             data-field="prio_2"
             data-item-id="${item.id}"
-            style="width: 20px; height: 20px; cursor: pointer;"
+            class="cp-checkbox"
           >
         </td>
-        <td class="cp-col-nicht" style="text-align: center;${!this.isColumnVisibleForCustomer('cp-col-nicht') ? ' display:none;' : ''}">
+        <td class="cp-col-nicht" ${!this.isColumnVisibleForCustomer('cp-col-nicht') ? 'style="display:none;"' : ''}>
           <input 
             type="checkbox" 
             ${item.nicht_umsetzen ? 'checked' : ''} 
             data-field="nicht_umsetzen"
             data-item-id="${item.id}"
-            style="width: 20px; height: 20px; cursor: pointer;"
+            class="cp-checkbox"
           >
         </td>
-        <td class="cp-col-check" style="text-align: center;${!this.isColumnVisibleForCustomer('cp-col-check') ? ' display:none;' : ''}">
+        <td class="cp-col-check" ${!this.isColumnVisibleForCustomer('cp-col-check') ? 'style="display:none;"' : ''}>
           <input 
             type="checkbox" 
             ${item.rueckmeldung_creator ? 'checked' : ''} 
             data-field="rueckmeldung_creator"
             data-item-id="${item.id}"
-            style="width: 20px; height: 20px; cursor: ${this.isKunde ? 'default' : 'pointer'};"
+            class="cp-checkbox${this.isKunde ? ' cp-checkbox--readonly' : ''}"
             ${this.isKunde ? 'disabled' : ''}
           >
         </td>

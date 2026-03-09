@@ -10544,7 +10544,6 @@ table:has(#kampagnen-table-body) tbody tr:hover td.col-name {
 .creator-pool-table .cp-col-check {
   width: 95px;
   min-width: 95px;
-  text-align: center;
 }
 
 .creator-pool-table .cp-col-location {
@@ -10560,13 +10559,22 @@ table:has(#kampagnen-table-body) tbody tr:hover td.col-name {
 .creator-pool-table .cp-col-prio {
   width: 60px;
   min-width: 60px;
-  text-align: center;
 }
 
 .creator-pool-table .cp-col-nicht {
   width: 120px;
   min-width: 120px;
-  text-align: center;
+}
+
+.creator-pool-table .cp-checkbox {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  margin: var(--space-sm) 0 0 var(--space-sm);
+}
+
+.creator-pool-table .cp-checkbox--readonly {
+  cursor: default;
 }
 
 .creator-pool-table .cp-col-pricing {
