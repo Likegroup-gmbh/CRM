@@ -1139,7 +1139,7 @@ export class KampagneDetail {
           ${window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? `
           <div class="tab-pane active" id="tab-koops-videos">
             <div class="detail-section">
-              <div style="margin-bottom: 16px; display: flex; justify-content: flex-end; gap: 8px;">
+              <div class="koops-videos-toolbar">
                 ${!isKunde ? `
                 <button id="btn-toggle-approved" class="secondary-btn" title="Blende Kooperationen aus, bei denen alle Videos freigegeben sind">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">

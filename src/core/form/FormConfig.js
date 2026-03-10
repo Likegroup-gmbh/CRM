@@ -578,6 +578,7 @@ export class FormConfig {
           { name: 're_faelligkeit', label: 'RE-Fälligkeit', type: 'date', required: false, section: 'details' },
           { name: 'start', label: 'Startdatum', type: 'date', required: false, row: 'zeitraum', section: 'details' },
           { name: 'ende', label: 'Enddatum', type: 'date', required: false, row: 'zeitraum', section: 'details' },
+          { name: 'kurzbeschreibung', label: 'Kurzbeschreibung', type: 'textarea', required: false, rows: 3, section: 'details' },
           // Section Kampagne
           { name: 'kampagnenanzahl', label: 'Kampagnenanzahl', type: 'number', required: false, validation: { type: 'number', min: 1 }, section: 'kampagne' },
           // Section Finanzen

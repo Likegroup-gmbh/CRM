@@ -20,6 +20,15 @@ export class AuftragsdetailsList {
     this._eventsBound = false;
     this._reloadTimer = null;
     this._loadRequestId = 0;
+    this._supportsAuftragKurzbeschreibung = true;
+    this._kurzbeschreibungFallbackLogged = false;
+  }
+
+  isKurzbeschreibungMissingError(error) {
+    const text = `${error?.message || ''} ${error?.details || ''} ${error?.hint || ''}`.toLowerCase();
+    const mentionsKurzbeschreibung = text.includes('kurzbeschreibung');
+    const looksLikeMissingColumn = text.includes('column') || text.includes('schema cache') || error?.code === '42703' || error?.code === 'PGRST204';
+    return mentionsKurzbeschreibung && looksLikeMissingColumn;
   }
 
   // Initialisiere Auftragsdetails-Liste
@@ -147,6 +156,7 @@ export class AuftragsdetailsList {
                 <th class="col-ad-unternehmen">Unternehmen</th>
                 <th class="col-ad-marke">Marke</th>
                 <th class="col-ad-auftrag">Auftrag</th>
+                <th>Kurzbeschreibung</th>
                 <th>PO intern</th>
                 <th>Start</th>
                 <th>Ende</th>
@@ -157,7 +167,7 @@ export class AuftragsdetailsList {
             </thead>
             <tbody id="auftragsdetails-table-body">
               <tr>
-                <td colspan="${isAdmin ? '10' : '9'}" class="loading">Lade Auftragsdetails...</td>
+                <td colspan="${isAdmin ? '11' : '10'}" class="loading">Lade Auftragsdetails...</td>
               </tr>
             </tbody>
           </table>
@@ -299,45 +309,64 @@ export class AuftragsdetailsList {
       const from = (page - 1) * limit;
       const to = from + limit - 1;
 
-      // Query mit allen Relations aufbauen
-      let query = window.supabase
-        .from('auftrag_details')
-        .select(`
-          *,
-          auftrag:auftrag_id(
-            id,
-            auftragsname,
-            status,
-            po,
-            start,
-            ende,
-            unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
-            marke:marke_id(id, markenname, logo_url)
-          )
-        `, { count: 'exact' });
-      
-      // Filtere nach erlaubten Aufträgen für Nicht-Admins
-      if (!isAdmin && allowedAuftragIds !== null && allowedAuftragIds.length > 0) {
-        query = query.in('auftrag_id', allowedAuftragIds);
-      }
+      const buildAndRunQuery = async (includeKurzbeschreibung) => {
+        const auftragFields = [
+          'id',
+          'auftragsname',
+          ...(includeKurzbeschreibung ? ['kurzbeschreibung'] : []),
+          'notiz',
+          'status',
+          'po',
+          'start',
+          'ende',
+          'unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url)',
+          'marke:marke_id(id, markenname, logo_url)'
+        ].join(',\n            ');
 
-      // Filter anwenden (einfache Implementierung - kann erweitert werden)
-      if (filters.kategorie) {
-        query = query.eq('kategorie', filters.kategorie);
-      }
-      if (filters.auftrag_id) {
-        query = query.eq('auftrag_id', filters.auftrag_id);
-      }
+        let query = window.supabase
+          .from('auftrag_details')
+          .select(`
+            *,
+            auftrag:auftrag_id(
+              ${auftragFields}
+            )
+          `, { count: 'exact' });
+        
+        // Filtere nach erlaubten Aufträgen für Nicht-Admins
+        if (!isAdmin && allowedAuftragIds !== null && allowedAuftragIds.length > 0) {
+          query = query.in('auftrag_id', allowedAuftragIds);
+        }
 
-      // Sortierung
-      query = query.order('created_at', { ascending: false });
+        // Filter anwenden (einfache Implementierung - kann erweitert werden)
+        if (filters.kategorie) {
+          query = query.eq('kategorie', filters.kategorie);
+        }
+        if (filters.auftrag_id) {
+          query = query.eq('auftrag_id', filters.auftrag_id);
+        }
 
-      // Nur ohne Suchbegriff serverseitig paginieren
-      if (!this.searchQuery) {
-        query = query.range(from, to);
+        // Sortierung
+        query = query.order('created_at', { ascending: false });
+
+        // Nur ohne Suchbegriff serverseitig paginieren
+        if (!this.searchQuery) {
+          query = query.range(from, to);
+        }
+
+        return query;
+      };
+
+      let { data, error, count } = await buildAndRunQuery(this._supportsAuftragKurzbeschreibung);
+
+      // Graceful fallback fuer Deploy-Reihenfolge: App-Code vor DB-Migration
+      if (error && this._supportsAuftragKurzbeschreibung && this.isKurzbeschreibungMissingError(error)) {
+        this._supportsAuftragKurzbeschreibung = false;
+        if (!this._kurzbeschreibungFallbackLogged) {
+          console.warn('⚠️ `auftrag.kurzbeschreibung` noch nicht in DB verfuegbar, falle auf `auftrag.notiz` zurueck.');
+          this._kurzbeschreibungFallbackLogged = true;
+        }
+        ({ data, error, count } = await buildAndRunQuery(false));
       }
-
-      const { data, error, count } = await query;
 
       if (error) {
         console.error('❌ Fehler beim Laden der Auftragsdetails mit Beziehungen:', error);
@@ -352,7 +381,9 @@ export class AuftragsdetailsList {
         const search = this.searchQuery.toLowerCase();
         filteredData = filteredData.filter(d => {
           const auftrag = d.auftrag;
+          const kurzbeschreibungText = (auftrag?.kurzbeschreibung ?? auftrag?.notiz ?? '').toLowerCase();
           return (auftrag?.auftragsname?.toLowerCase().includes(search)) ||
+                 kurzbeschreibungText.includes(search) ||
                  (auftrag?.unternehmen?.firmenname?.toLowerCase().includes(search)) ||
                  (auftrag?.marke?.markenname?.toLowerCase().includes(search)) ||
                  (auftrag?.po?.toLowerCase().includes(search));
@@ -641,7 +672,7 @@ export class AuftragsdetailsList {
       if (!details || details.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="${isAdmin ? '8' : '7'}" class="no-data">
+            <td colspan="${isAdmin ? '11' : '10'}" class="no-data">
               <div style="text-align: center; padding: 40px 20px;">
                 <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📄</div>
                 <h3 style="color: #666; margin-bottom: 8px;">Keine Auftragsdetails vorhanden</h3>
@@ -666,6 +697,7 @@ export class AuftragsdetailsList {
 
       tbody.innerHTML = details.map(detail => {
         const auftrag = detail.auftrag || {};
+        const kurzbeschreibung = auftrag.kurzbeschreibung ?? auftrag.notiz ?? '-';
         
         // Unternehmen Bubble
         const unternehmenHtml = auftrag.unternehmen
@@ -700,6 +732,7 @@ export class AuftragsdetailsList {
                 ${window.validatorSystem?.sanitizeHtml(auftrag.auftragsname || 'Unbekannter Auftrag') || 'Unbekannter Auftrag'}
               </a>
             </td>
+            <td>${window.validatorSystem?.sanitizeHtml(kurzbeschreibung) || kurzbeschreibung}</td>
             <td>${window.validatorSystem?.sanitizeHtml(auftrag.po) || auftrag.po || '-'}</td>
             <td>${formatDate(auftrag.start)}</td>
             <td>${formatDate(auftrag.ende)}</td>

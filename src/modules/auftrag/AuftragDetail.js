@@ -4,10 +4,12 @@
 import { KAMPAGNENARTEN_MAPPING } from './logic/KampagnenartenMapping.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
-import { getTabIcon } from '../../core/TabUtils.js';
+import { renderTabButton } from '../../core/TabUtils.js';
+import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 
-export class AuftragDetail {
+export class AuftragDetail extends PersonDetailBase {
   constructor() {
+    super();
     this.auftragId = null;
     this.auftrag = null;
     this.notizen = [];
@@ -24,6 +26,13 @@ export class AuftragDetail {
     this.kampagnen = [];
     this.kooperationen = [];
     this.videos = [];
+    this.activeMainTab = 'uebersicht';
+    this._eventsBound = false;
+    this._isLoading = false;
+
+    this._handleDocumentClick = this._handleDocumentClick.bind(this);
+    this._handleEntityUpdated = this._handleEntityUpdated.bind(this);
+    this._handleSoftRefresh = this._handleSoftRefresh.bind(this);
   }
 
   // Initialisiere Auftrags-Detailseite
@@ -32,6 +41,9 @@ export class AuftragDetail {
     
     try {
       this.auftragId = auftragId;
+      this.activeMainTab = 'uebersicht';
+      this._finanzenLoaded = false;
+      tabDataCache.invalidate('auftrag', auftragId);
       await this.loadCriticalData();
       
       // Breadcrumb aktualisieren mit Edit-Button
@@ -48,12 +60,78 @@ export class AuftragDetail {
       
       this.render();
       this.bindEvents();
-      this.setupCacheInvalidation();
       console.log('✅ AUFTRAGDETAIL: Initialisierung abgeschlossen');
     } catch (error) {
       console.error('❌ AUFTRAGDETAIL: Fehler bei der Initialisierung:', error);
       window.ErrorHandler.handle(error, 'AuftragDetail.init');
     }
+  }
+
+  async _handleDocumentClick(e) {
+    const tabBtn = e.target.closest('.tab-button');
+    if (tabBtn) {
+      e.preventDefault();
+      const tabName = tabBtn.dataset.tab;
+      if (!tabName) return;
+      this.switchTab(tabName);
+      return;
+    }
+
+    if (e.target.closest('#btn-edit-auftrag')) {
+      this.showEditForm();
+      return;
+    }
+
+    const link = e.target.closest('.table-link');
+    if (link && link.dataset.table && link.dataset.id) {
+      e.preventDefault();
+      window.navigateTo(`/${link.dataset.table}/${link.dataset.id}`);
+    }
+  }
+
+  async _refreshDetailView() {
+    if (this._isLoading || !this.auftragId) return;
+    this._isLoading = true;
+
+    try {
+      await this.loadCriticalData();
+      this.render();
+      await this.loadTabData(this.activeMainTab);
+    } finally {
+      this._isLoading = false;
+    }
+  }
+
+  _handleEntityUpdated(e) {
+    if (e.type === 'notizenUpdated' || e.type === 'bewertungenUpdated') {
+      this._refreshDetailView();
+      return;
+    }
+
+    const entity = e.detail?.entity;
+    const isRelevantAuftrag = entity === 'auftrag' && e.detail?.id === this.auftragId;
+    const isRelevantDetails = entity === 'auftrag_details' && e.detail?.auftrag_id === this.auftragId;
+
+    if (!isRelevantAuftrag && !isRelevantDetails) return;
+
+    console.log('🔄 AUFTRAGDETAIL: Entity updated - invalidiere Cache');
+    tabDataCache.invalidate('auftrag', this.auftragId);
+    this._refreshDetailView();
+  }
+
+  async _handleSoftRefresh() {
+    const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
+    if (hasActiveForm) {
+      console.log('⏸️ AUFTRAGDETAIL: Formular aktiv - Soft-Refresh übersprungen');
+      return;
+    }
+
+    if (!this.auftragId || !location.pathname.includes('/auftrag/')) {
+      return;
+    }
+
+    console.log('🔄 AUFTRAGDETAIL: Soft-Refresh - lade Daten neu');
+    await this._refreshDetailView();
   }
 
   // Lade kritische Daten parallel
@@ -314,11 +392,14 @@ export class AuftragDetail {
   
   // Lade Tab-Daten lazy (Rechnungen & Kooperationen-Summaries)
   async loadTabData(tabName) {
-    return await tabDataCache.load('auftrag', this.auftragId, tabName, async () => {
-      console.log(`🔄 Lade Tab: ${tabName}`);
+    if (!tabName || tabName === 'informationen') return null;
+
+    const cacheKey = tabName === 'finanzen' ? 'rechnungen' : tabName;
+    return await tabDataCache.load('auftrag', this.auftragId, cacheKey, async () => {
+      console.log(`🔄 Lade Tab: ${cacheKey}`);
       
       try {
-        switch(tabName) {
+        switch(cacheKey) {
           case 'rechnungen':
             const { data: rechnungen } = await window.supabase
               .from('rechnung')
@@ -339,10 +420,13 @@ export class AuftragDetail {
             await this.calculateRealCounts();
             
             this.updateRechnungenTab();
+            this._finanzenLoaded = true;
             return rechnungen;
+          default:
+            return null;
         }
       } catch (error) {
-        console.error(`❌ Fehler beim Laden von Tab ${tabName}:`, error);
+        console.error(`❌ Fehler beim Laden von Tab ${cacheKey}:`, error);
         return null;
       }
     });
@@ -374,9 +458,9 @@ export class AuftragDetail {
   
   // Tab-Update-Methoden
   updateRechnungenTab() {
-    const container = document.querySelector('#tab-rechnungen');
+    const container = document.querySelector('#tab-finanzen');
     if (container) {
-      container.innerHTML = this.renderRechnungenTab();
+      container.innerHTML = this.renderFinanzenTab();
     }
   }
   
@@ -454,59 +538,95 @@ export class AuftragDetail {
   // Rendere Auftrags-Detailseite
   render() {
     window.setHeadline(`${this.auftrag?.auftragsname || 'Auftrag'} - Details`);
-    
-    const html = `
-      <div class="content-section">
-        <!-- Tab-Navigation -->
-        <div class="tab-navigation">
-          <button class="tab-button active" data-tab="uebersicht">
-            Übersicht
-          </button>
-          <button class="tab-button" data-tab="finanzen">
-            Finanzen
-          </button>
-          <button class="tab-button" data-tab="auftragsdetails">
-            Auftragsdetails
-          </button>
-          <button class="tab-button" data-tab="notizen">
-            Notizen
-          </button>
-          <button class="tab-button" data-tab="bewertungen">
-            Bewertungen
-          </button>
-        </div>
 
-        <!-- Tab-Content -->
-        <div class="tab-content">
-          <!-- Übersicht Tab -->
-          <div class="tab-pane active" id="tab-uebersicht">
-            ${this.renderUebersicht()}
-          </div>
-          
-          <!-- Finanzen Tab -->
-          <div class="tab-pane" id="tab-finanzen">
-            ${this.renderFinanzenTab()}
-          </div>
-          
-          <!-- Auftragsdetails Tab -->
-          <div class="tab-pane" id="tab-auftragsdetails">
-            ${this.renderAuftragsdetails()}
-          </div>
-          
-          <!-- Notizen Tab -->
-          <div class="tab-pane" id="tab-notizen">
-            ${this.renderNotizen()}
-          </div>
-          
-          <!-- Bewertungen Tab -->
-          <div class="tab-pane" id="tab-bewertungen">
-            ${this.renderRatings()}
-          </div>
+    const html = this.renderTwoColumnLayout({
+      person: this.getPersonConfig(),
+      stats: [],
+      quickActions: [],
+      sidebarInfo: this.getSidebarInfo(),
+      tabNavigation: this.renderTabNavigation(),
+      mainContent: this.renderMainContent()
+    });
+
+    window.setContentSafely(window.content, html);
+  }
+
+  getPersonConfig() {
+    return {
+      name: this.auftrag?.auftragsname || 'Auftrag',
+      subtitle: this.auftrag?.unternehmen?.firmenname || 'Auftrag',
+      avatarOnly: false
+    };
+  }
+
+  getSidebarInfo() {
+    const status = this.auftrag?.status || '-';
+    return this.renderInfoItems([
+      { icon: 'tag', label: 'Status', value: status },
+      { icon: 'building', label: 'Unternehmen', value: this.auftrag?.unternehmen?.firmenname || '-' },
+      { icon: 'marken', label: 'Marke', value: this.auftrag?.marke?.markenname || '-' },
+      { icon: 'currency', label: 'Nettobetrag', value: this.formatCurrency(this.auftrag?.nettobetrag) },
+      { icon: 'calendar', label: 'Start', value: this.formatDate(this.auftrag?.start) },
+      { icon: 'calendar', label: 'Ende', value: this.formatDate(this.auftrag?.ende) },
+      { icon: 'clock', label: 'Aktualisiert', value: this.formatDate(this.auftrag?.updated_at) }
+    ]);
+  }
+
+  getTabsConfig() {
+    return [
+      { tab: 'uebersicht', label: 'Übersicht', isActive: this.activeMainTab === 'uebersicht' },
+      { tab: 'finanzen', label: 'Finanzen', isActive: this.activeMainTab === 'finanzen' },
+      { tab: 'auftragsdetails', label: 'Auftragsdetails', isActive: this.activeMainTab === 'auftragsdetails' }
+    ];
+  }
+
+  renderTabNavigation() {
+    const tabs = this.getTabsConfig();
+    return `<div class="tabs-header-container" style="--tab-count: ${tabs.length}"><div class="tabs-left">${tabs.map((tab) => renderTabButton({ ...tab, showIcon: true })).join('')}</div></div>`;
+  }
+
+  renderMainContent() {
+    return `
+      <div class="tab-content">
+        <div class="tab-pane ${this.activeMainTab === 'uebersicht' ? 'active' : ''}" id="tab-uebersicht">
+          ${this.renderUebersicht()}
+        </div>
+        <div class="tab-pane ${this.activeMainTab === 'finanzen' ? 'active' : ''}" id="tab-finanzen">
+          ${this.renderFinanzenTab()}
+        </div>
+        <div class="tab-pane ${this.activeMainTab === 'auftragsdetails' ? 'active' : ''}" id="tab-auftragsdetails">
+          ${this.renderAuftragsdetails()}
         </div>
       </div>
     `;
+  }
 
-    window.setContentSafely(window.content, html);
+  formatDate(dateValue) {
+    return dateValue ? new Date(dateValue).toLocaleDateString('de-DE') : '-';
+  }
+
+  formatCurrency(value) {
+    return value || value === 0
+      ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value)
+      : '-';
+  }
+
+  renderDetailItem({ icon = 'info', label, value }) {
+    const hasValue = value !== null && value !== undefined && value !== '';
+    const resolvedValue = hasValue ? value : '-';
+    const isHtmlValue = typeof resolvedValue === 'string' && /<[^>]+>/.test(resolvedValue);
+    const valueHtml = isHtmlValue ? resolvedValue : this.sanitize(String(resolvedValue));
+    const iconHtml = this.getInfoIcon(icon) || this.getInfoIcon('info');
+
+    return `
+      <div class="detail-item">
+        <div class="detail-item-label">
+          <span class="detail-item-icon">${iconHtml}</span>
+          <label>${this.sanitize(label)}</label>
+        </div>
+        <span class="detail-item-value">${valueHtml}</span>
+      </div>
+    `;
   }
 
   // Rendere Budget-Tab
@@ -526,37 +646,37 @@ export class AuftragDetail {
         <div class="detail-grid">
           <div class="detail-card">
             <h3 class="section-title">Einnahmen (Auftrag)</h3>
-            <div class="detail-item"><label>Netto:</label><span>${fmt(a.nettobetrag)}</span></div>
-            <div class="detail-item"><label>USt (%):</label><span>${num(ustProzent)}</span></div>
-            <div class="detail-item"><label>USt Betrag:</label><span>${fmt(ustBetrag)}</span></div>
-            <div class="detail-item"><label>Brutto Gesamtbudget:</label><span>${fmt(a.bruttobetrag)}</span></div>
+            ${this.renderDetailItem({ icon: 'currency', label: 'Netto:', value: fmt(a.nettobetrag) })}
+            ${this.renderDetailItem({ icon: 'info', label: 'USt (%):', value: num(ustProzent) })}
+            ${this.renderDetailItem({ icon: 'currency', label: 'USt Betrag:', value: fmt(ustBetrag) })}
+            ${this.renderDetailItem({ icon: 'currency', label: 'Brutto Gesamtbudget:', value: fmt(a.bruttobetrag) })}
           </div>
           <div class="detail-card">
             <h3 class="section-title">Planwerte</h3>
-            <div class="detail-item"><label>Geplanter Deckungsbeitrag (%):</label><span>${num(dbProzent)}</span></div>
-            <div class="detail-item"><label>Geplanter Deckungsbeitrag (Betrag):</label><span>${fmt(dbBetrag)}</span></div>
-            <div class="detail-item"><label>KSK (5% von Netto):</label><span>${fmt(a.ksk_betrag)}</span></div>
-            <div class="detail-item"><label>Creator Budget:</label><span>${fmt(a.creator_budget)}</span></div>
+            ${this.renderDetailItem({ icon: 'info', label: 'Geplanter Deckungsbeitrag (%):', value: num(dbProzent) })}
+            ${this.renderDetailItem({ icon: 'currency', label: 'Geplanter Deckungsbeitrag (Betrag):', value: fmt(dbBetrag) })}
+            ${this.renderDetailItem({ icon: 'currency', label: 'KSK (5% von Netto):', value: fmt(a.ksk_betrag) })}
+            ${this.renderDetailItem({ icon: 'currency', label: 'Creator Budget:', value: fmt(a.creator_budget) })}
           </div>
           <div class="detail-card">
             <h3 class="section-title">Preisaufbau (Netto)</h3>
-            <div class="detail-item"><label>Influencer:</label><span>${num(a.influencer)} × ${fmt(a.influencer_preis)}</span></div>
-            <div class="detail-item"><label>UGC Video:</label><span>${num(a.ugc)} × ${fmt(a.ugc_preis)}</span></div>
-            <div class="detail-item"><label>Vor Ort Produktion:</label><span>${num(a.vor_ort_produktion)} × ${fmt(a.vor_ort_preis)}</span></div>
-            <div class="detail-item"><label>Summe Positionen (Netto):</label><span>${fmt(itemsNetto)}</span></div>
+            ${this.renderDetailItem({ icon: 'user', label: 'Influencer:', value: `${num(a.influencer)} × ${fmt(a.influencer_preis)}` })}
+            ${this.renderDetailItem({ icon: 'video', label: 'UGC Video:', value: `${num(a.ugc)} × ${fmt(a.ugc_preis)}` })}
+            ${this.renderDetailItem({ icon: 'video', label: 'Vor Ort Produktion:', value: `${num(a.vor_ort_produktion)} × ${fmt(a.vor_ort_preis)}` })}
+            ${this.renderDetailItem({ icon: 'currency', label: 'Summe Positionen (Netto):', value: fmt(itemsNetto) })}
           </div>
           <div class="detail-card">
             <h3 class="section-title">Rechnungen</h3>
-            <div class="detail-item"><label>Anzahl:</label><span>${num(this.rechnungSummary.count)}</span></div>
-            <div class="detail-item"><label>Summe Netto:</label><span>${fmt(this.rechnungSummary.sumNetto)}</span></div>
-            <div class="detail-item"><label>Summe Brutto:</label><span>${fmt(this.rechnungSummary.sumBrutto)}</span></div>
-            <div class="detail-item"><label>Bezahlt / Offen:</label><span>${num(this.rechnungSummary.paidCount)} / ${num(this.rechnungSummary.openCount)}</span></div>
+            ${this.renderDetailItem({ icon: 'info', label: 'Anzahl:', value: num(this.rechnungSummary.count) })}
+            ${this.renderDetailItem({ icon: 'currency', label: 'Summe Netto:', value: fmt(this.rechnungSummary.sumNetto) })}
+            ${this.renderDetailItem({ icon: 'currency', label: 'Summe Brutto:', value: fmt(this.rechnungSummary.sumBrutto) })}
+            ${this.renderDetailItem({ icon: 'check', label: 'Bezahlt / Offen:', value: `${num(this.rechnungSummary.paidCount)} / ${num(this.rechnungSummary.openCount)}` })}
           </div>
           <div class="detail-card">
             <h3 class="section-title">Ausgaben (Kooperationen)</h3>
-            <div class="detail-item"><label>Anzahl Kooperationen:</label><span>${num(this.koopSummary.count)}</span></div>
-            <div class="detail-item"><label>Summe Nettokosten:</label><span>${fmt(this.koopSummary.sumNetto)}</span></div>
-            <div class="detail-item"><label>Summe Gesamtkosten:</label><span>${fmt(this.koopSummary.sumGesamt)}</span></div>
+            ${this.renderDetailItem({ icon: 'kooperation', label: 'Anzahl Kooperationen:', value: num(this.koopSummary.count) })}
+            ${this.renderDetailItem({ icon: 'currency', label: 'Summe Nettokosten:', value: fmt(this.koopSummary.sumNetto) })}
+            ${this.renderDetailItem({ icon: 'currency', label: 'Summe Gesamtkosten:', value: fmt(this.koopSummary.sumGesamt) })}
           </div>
         </div>
       </div>
@@ -589,79 +709,87 @@ export class AuftragDetail {
           <!-- Auftrags-Eckdaten -->
           <div class="detail-card">
             <h3 class="section-title">Auftrags-Eckdaten</h3>
-            <div class="detail-item">
-              <label>Status:</label>
-              <span class="status-badge status-${(a.status?.toLowerCase() || 'unknown').replace(/\s+/g, '-')}">
-                ${a.status || 'Unbekannt'}
-              </span>
-            </div>
-            <div class="detail-item"><label>PO-Nummer:</label><span>${a.po || '-'}</span></div>
-            <div class="detail-item"><label>RE-Nummer:</label><span>${a.re_nr || '-'}</span></div>
-            <div class="detail-item"><label>RE-Fälligkeit:</label><span>${formatDate(a.re_faelligkeit)}</span></div>
-            <div class="detail-item"><label>Zahlungsziel:</label><span>${a.zahlungsziel_tage != null ? `${a.zahlungsziel_tage} Tage` : '-'}</span></div>
-            <div class="detail-item"><label>Start:</label><span>${formatDate(a.start)}</span></div>
-            <div class="detail-item"><label>Ende:</label><span>${formatDate(a.ende)}</span></div>
-            <div class="detail-item"><label>Kampagnenarten:</label><span>${kampagnenarten}</span></div>
+            ${this.renderDetailItem({
+              icon: 'tag',
+              label: 'Status:',
+              value: `<span class="status-badge status-${(a.status?.toLowerCase() || 'unknown').replace(/\s+/g, '-')}">${a.status || 'Unbekannt'}</span>`
+            })}
+            ${this.renderDetailItem({ icon: 'info', label: 'PO-Nummer:', value: a.po || '-' })}
+            ${this.renderDetailItem({ icon: 'info', label: 'RE-Nummer:', value: a.re_nr || '-' })}
+            ${this.renderDetailItem({ icon: 'calendar', label: 'RE-Fälligkeit:', value: formatDate(a.re_faelligkeit) })}
+            ${this.renderDetailItem({ icon: 'clock', label: 'Zahlungsziel:', value: a.zahlungsziel_tage != null ? `${a.zahlungsziel_tage} Tage` : '-' })}
+            ${this.renderDetailItem({ icon: 'calendar', label: 'Start:', value: formatDate(a.start) })}
+            ${this.renderDetailItem({ icon: 'calendar', label: 'Ende:', value: formatDate(a.ende) })}
+            ${this.renderDetailItem({ icon: 'tag', label: 'Kampagnenarten:', value: kampagnenarten })}
           </div>
           
           <!-- Unternehmen & Marke -->
           <div class="detail-card">
             <h3 class="section-title">Kunde</h3>
-            <div class="detail-item">
-              <label>Unternehmen:</label>
-              <span>${a.unternehmen?.firmenname 
-                ? `<a href="#" class="table-link" data-table="unternehmen" data-id="${a.unternehmen_id}">${a.unternehmen.firmenname}</a>` 
-                : '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Marke:</label>
-              <span>${a.marke?.markenname 
-                ? `<a href="#" class="table-link" data-table="marke" data-id="${a.marke_id}">${a.marke.markenname}</a>` 
-                : '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Ansprechpartner:</label>
-              <span>${a.ansprechpartner_id 
-                ? `<a href="#" class="table-link" data-table="ansprechpartner" data-id="${a.ansprechpartner_id}">${ansprechpartner}</a>` 
-                : '-'}</span>
-            </div>
-            <div class="detail-item"><label>E-Mail:</label><span>${ansprechpartnerEmail !== '-' ? `<a href="mailto:${ansprechpartnerEmail}">${ansprechpartnerEmail}</a>` : '-'}</span></div>
+            ${this.renderDetailItem({
+              icon: 'building',
+              label: 'Unternehmen:',
+              value: a.unternehmen?.firmenname
+                ? `<a href="#" class="table-link" data-table="unternehmen" data-id="${a.unternehmen_id}">${a.unternehmen.firmenname}</a>`
+                : '-'
+            })}
+            ${this.renderDetailItem({
+              icon: 'marken',
+              label: 'Marke:',
+              value: a.marke?.markenname
+                ? `<a href="#" class="table-link" data-table="marke" data-id="${a.marke_id}">${a.marke.markenname}</a>`
+                : '-'
+            })}
+            ${this.renderDetailItem({
+              icon: 'user',
+              label: 'Ansprechpartner:',
+              value: a.ansprechpartner_id
+                ? `<a href="#" class="table-link" data-table="ansprechpartner" data-id="${a.ansprechpartner_id}">${ansprechpartner}</a>`
+                : '-'
+            })}
+            ${this.renderDetailItem({
+              icon: 'mail',
+              label: 'E-Mail:',
+              value: ansprechpartnerEmail !== '-' ? `<a href="mailto:${ansprechpartnerEmail}">${ansprechpartnerEmail}</a>` : '-'
+            })}
           </div>
           
           <!-- Team -->
           <div class="detail-card">
             <h3 class="section-title">Team</h3>
-            <div class="detail-item"><label>Projektleitung:</label><span>${mitarbeiterNamen}</span></div>
-            <div class="detail-item"><label>Cutter:</label><span>${cutterNamen}</span></div>
-            <div class="detail-item"><label>Copywriter:</label><span>${copywriterNamen}</span></div>
+            ${this.renderDetailItem({ icon: 'user', label: 'Projektleitung:', value: mitarbeiterNamen })}
+            ${this.renderDetailItem({ icon: 'user', label: 'Cutter:', value: cutterNamen })}
+            ${this.renderDetailItem({ icon: 'user', label: 'Copywriter:', value: copywriterNamen })}
           </div>
           
           <!-- Quick-Finanzen -->
           <div class="detail-card">
             <h3 class="section-title">Budget (Übersicht)</h3>
-            <div class="detail-item"><label>Nettobetrag:</label><span>${fmt(a.nettobetrag)}</span></div>
-            <div class="detail-item"><label>Bruttobetrag:</label><span>${fmt(a.bruttobetrag)}</span></div>
-            <div class="detail-item"><label>Creator-Budget:</label><span>${fmt(a.creator_budget)}</span></div>
-            <div class="detail-item">
-              <label>Rechnung gestellt:</label>
-              <span>${a.rechnung_gestellt 
-                ? '<span class="status-badge status-erfolg">Ja</span>' 
-                : '<span class="status-badge status-offen">Nein</span>'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Überwiesen:</label>
-              <span>${a.ueberwiesen 
-                ? '<span class="status-badge status-erfolg">Ja</span>' 
-                : '<span class="status-badge status-offen">Nein</span>'}</span>
-            </div>
-            ${a.ueberwiesen_am ? `<div class="detail-item"><label>Überwiesen am:</label><span>${formatDate(a.ueberwiesen_am)}</span></div>` : ''}
+            ${this.renderDetailItem({ icon: 'currency', label: 'Nettobetrag:', value: fmt(a.nettobetrag) })}
+            ${this.renderDetailItem({ icon: 'currency', label: 'Bruttobetrag:', value: fmt(a.bruttobetrag) })}
+            ${this.renderDetailItem({ icon: 'currency', label: 'Creator-Budget:', value: fmt(a.creator_budget) })}
+            ${this.renderDetailItem({
+              icon: 'check',
+              label: 'Rechnung gestellt:',
+              value: a.rechnung_gestellt
+                ? '<span class="status-badge status-erfolg">Ja</span>'
+                : '<span class="status-badge status-offen">Nein</span>'
+            })}
+            ${this.renderDetailItem({
+              icon: 'check',
+              label: 'Überwiesen:',
+              value: a.ueberwiesen
+                ? '<span class="status-badge status-erfolg">Ja</span>'
+                : '<span class="status-badge status-offen">Nein</span>'
+            })}
+            ${a.ueberwiesen_am ? this.renderDetailItem({ icon: 'calendar', label: 'Überwiesen am:', value: formatDate(a.ueberwiesen_am) }) : ''}
           </div>
           
           <!-- Zeitstempel -->
           <div class="detail-card">
             <h3 class="section-title">Protokoll</h3>
-            <div class="detail-item"><label>Erstellt am:</label><span>${formatDate(a.created_at)}</span></div>
-            <div class="detail-item"><label>Aktualisiert am:</label><span>${formatDate(a.updated_at)}</span></div>
+            ${this.renderDetailItem({ icon: 'clock', label: 'Erstellt am:', value: formatDate(a.created_at) })}
+            ${this.renderDetailItem({ icon: 'clock', label: 'Aktualisiert am:', value: formatDate(a.updated_at) })}
           </div>
         </div>
       </div>
@@ -674,7 +802,7 @@ export class AuftragDetail {
       <div class="detail-section">
         ${this.renderBudget()}
         
-        <div style="margin-top: 32px;">
+        <div class="auftrag-section-spacer">
           <h3>Rechnungen</h3>
           ${this.renderRechnungen()}
         </div>
@@ -852,7 +980,7 @@ export class AuftragDetail {
         </div>
 
         <!-- Kooperationen & Videos Tabelle -->
-        <div style="margin-top: 32px;">
+        <div class="auftrag-section-spacer">
           <h3>Kooperationen & Videos</h3>
           ${this.renderKooperationenVideosTable()}
         </div>
@@ -919,6 +1047,10 @@ export class AuftragDetail {
             <div class="detail-item">
               <label>Typ:</label>
               <span>${this.auftrag?.auftragtype || '-'}</span>
+            </div>
+            <div class="detail-item">
+              <label>Kurzbeschreibung:</label>
+              <span>${this.auftrag?.kurzbeschreibung || '-'}</span>
             </div>
             <div class="detail-item">
               <label>Budget:</label>
@@ -1040,74 +1172,21 @@ export class AuftragDetail {
 
   // Binde Events
   bindEvents() {
-    // Tab-Navigation
-    document.addEventListener('click', (e) => {
-      if (e.target.classList.contains('tab-button')) {
-        const tabName = e.target.dataset.tab;
-        this.switchTab(tabName);
-      }
-    });
+    if (this._eventsBound) return;
 
-    // Auftrag bearbeiten Button
-    document.addEventListener('click', (e) => {
-      if (e.target.closest('#btn-edit-auftrag')) {
-        this.showEditForm();
-      }
-    });
-    
-    // Table-Links (Unternehmen, Marke, Ansprechpartner, Creator etc.)
-    document.addEventListener('click', (e) => {
-      const link = e.target.closest('.table-link');
-      if (link && link.dataset.table && link.dataset.id) {
-        e.preventDefault();
-        window.navigateTo(`/${link.dataset.table}/${link.dataset.id}`);
-      }
-    });
+    document.addEventListener('click', this._handleDocumentClick);
+    document.addEventListener('entityUpdated', this._handleEntityUpdated);
+    document.addEventListener('notizenUpdated', this._handleEntityUpdated);
+    document.addEventListener('bewertungenUpdated', this._handleEntityUpdated);
+    window.addEventListener('softRefresh', this._handleSoftRefresh);
 
-    // Notizen und Bewertungen Events
-    document.addEventListener('notizenUpdated', () => {
-      this.loadAuftragData().then(() => {
-        this.render();
-        this.bindEvents();
-      });
-    });
-
-    document.addEventListener('bewertungenUpdated', () => {
-      this.loadAuftragData().then(() => {
-        this.render();
-        this.bindEvents();
-      });
-    });
-
-    // Auftragsdetails Updated Event
-    document.addEventListener('entityUpdated', (e) => {
-      if (e.detail.entity === 'auftrag_details' && e.detail.auftrag_id == this.auftragId) {
-        this.loadAuftragData().then(() => {
-          this.render();
-          this.bindEvents();
-        });
-      }
-    });
-
-    // Soft-Refresh bei Realtime-Updates (nur wenn kein Formular aktiv)
-    window.addEventListener('softRefresh', async (e) => {
-      const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
-      if (hasActiveForm) {
-        console.log('⏸️ AUFTRAGDETAIL: Formular aktiv - Soft-Refresh übersprungen');
-        return;
-      }
-      if (!this.auftragId || !location.pathname.includes('/auftrag/')) {
-        return;
-      }
-      console.log('🔄 AUFTRAGDETAIL: Soft-Refresh - lade Daten neu');
-      await this.loadAuftragData();
-      this.render();
-      this.bindEvents();
-    });
+    this._eventsBound = true;
   }
 
   // Tab wechseln
   switchTab(tabName) {
+    this.activeMainTab = tabName;
+
     // Alle Tab-Buttons deaktivieren
     document.querySelectorAll('.tab-button').forEach(btn => {
       btn.classList.remove('active');
@@ -1125,16 +1204,7 @@ export class AuftragDetail {
     if (selectedButton) selectedButton.classList.add('active');
     if (selectedPane) selectedPane.classList.add('active');
     
-    // Lazy-Loading für Finanzen-Tab (Rechnungen)
-    if (tabName === 'finanzen' && !this._finanzenLoaded) {
-      this._finanzenLoaded = true;
-      this.loadTabData('rechnungen').then(() => {
-        const finanzenPane = document.getElementById('tab-finanzen');
-        if (finanzenPane) {
-          finanzenPane.innerHTML = this.renderFinanzenTab();
-        }
-      });
-    }
+    this.loadTabData(tabName);
   }
 
   // Bearbeitungsformular anzeigen
@@ -1355,9 +1425,8 @@ export class AuftragDetail {
         
         // Daten neu laden und zur Detailseite zurückkehren
         setTimeout(async () => {
-          await this.loadCriticalData();
-          this.render();
-          this.bindEvents();
+          tabDataCache.invalidate('auftrag', this.auftragId);
+          await this._refreshDetailView();
         }, 1500);
       } else {
         throw new Error(result.error || 'Unbekannter Fehler');
@@ -1619,6 +1688,13 @@ export class AuftragDetail {
   // Cleanup
   destroy() {
     console.log('AuftragDetail: Cleaning up...');
+    document.removeEventListener('click', this._handleDocumentClick);
+    document.removeEventListener('entityUpdated', this._handleEntityUpdated);
+    document.removeEventListener('notizenUpdated', this._handleEntityUpdated);
+    document.removeEventListener('bewertungenUpdated', this._handleEntityUpdated);
+    window.removeEventListener('softRefresh', this._handleSoftRefresh);
+    this._eventsBound = false;
+    tabDataCache.invalidate('auftrag', this.auftragId);
   }
 
   showDetailsForm(auftragId) {

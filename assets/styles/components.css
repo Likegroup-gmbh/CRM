@@ -1309,6 +1309,10 @@ button.is-submit-locked,
   padding-left: var(--space-md);
 }
 
+.auftrag-section-spacer {
+  margin-top: 2rem;
+}
+
 .detail-grid {
   display: flex;
   flex-direction: column;
@@ -1344,6 +1348,14 @@ h3.section-title,
   margin-bottom: 0;
 }
 
+/* Erster Card-Header im Grid ohne zusätzlichen Top-Abschluss */
+.detail-grid > .detail-card:first-child > .section-title,
+.detail-grid > .detail-card:first-child > h3.section-title {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
+}
+
 
 .detail-item {
   display: flex;
@@ -1364,6 +1376,28 @@ h3.section-title,
   min-width: var(--min-width-sm);
 }
 
+.detail-item .detail-item-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.detail-item .detail-item-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--gray-500);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.detail-item .detail-item-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.detail-item .detail-item-value,
 .detail-item span {
   color: #333;
   text-align: right;
@@ -1727,6 +1761,13 @@ h3.section-title,
 
 #tab-koops-videos .detail-section {
   overflow-x: auto !important; /* Erlaubt horizontales Scrollen für breite Tabellen */
+}
+
+.koops-videos-toolbar {
+  padding: var(--space-sm);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
 }
 
 
@@ -2474,6 +2515,8 @@ h3.section-title,
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  contain: layout paint;
+  will-change: transform;
 }
 
 /* Breitere Drawer-Variante für Tabellen/Listen */
@@ -2504,6 +2547,45 @@ h3.section-title,
   overflow-y: auto;
   padding: var(--space-md);
   
+}
+
+/* Schlanke Tabelle nur für den Sichtbarkeits-Drawer */
+.video-visibility-table-wrap {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  overflow: auto;
+}
+
+.video-visibility-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.video-visibility-table thead th {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--gray-200);
+  padding: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.video-visibility-table td {
+  border-bottom: 1px solid var(--gray-100);
+  padding: 10px 12px;
+}
+
+.video-visibility-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.video-visibility-table__cell-left {
+  text-align: left;
+}
+
+.video-visibility-table__cell-right {
+  text-align: right;
+  width: 110px;
 }
 
 

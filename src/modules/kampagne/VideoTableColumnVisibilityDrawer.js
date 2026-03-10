@@ -6,6 +6,8 @@ export class VideoTableColumnVisibilityDrawer {
     this.kampagneId = kampagneId;
     this.hiddenColumns = [];
     this.drawerId = 'video-column-visibility-drawer';
+    this._settingsLoaded = false;
+    this._openRequestId = 0;
     
     // Alle konfigurierbaren Spalten in exakt derselben Reihenfolge wie im Tabellen-Header
     // (Nr und Creator sind nicht konfigurierbar und daher hier nicht enthalten)
@@ -38,7 +40,9 @@ export class VideoTableColumnVisibilityDrawer {
   }
 
   // Lade die aktuellen Sichtbarkeits-Einstellungen
-  async loadSettings() {
+  async loadSettings(forceReload = false) {
+    if (this._settingsLoaded && !forceReload) return;
+
     try {
       const { data, error } = await window.supabase
         .from('kampagne')
@@ -49,8 +53,10 @@ export class VideoTableColumnVisibilityDrawer {
       if (error) throw error;
 
       this.hiddenColumns = data?.video_table_hidden_columns || [];
+      this._settingsLoaded = true;
     } catch (error) {
       this.hiddenColumns = [];
+      this._settingsLoaded = false;
     }
   }
 
@@ -76,11 +82,10 @@ export class VideoTableColumnVisibilityDrawer {
 
   // Öffne den Drawer
   async open() {
+    const openRequestId = ++this._openRequestId;
+
     // Entferne existierenden Drawer
     this.removeDrawer();
-
-    // Lade Settings
-    await this.loadSettings();
 
     // Erstelle Overlay
     const overlay = document.createElement('div');
@@ -144,6 +149,18 @@ export class VideoTableColumnVisibilityDrawer {
     });
 
     this.bindEvents();
+
+    // Settings im Hintergrund laden, damit der Drawer sofort sichtbar ist
+    this.loadSettings()
+      .then(() => {
+        // Nur aktualisieren, wenn dieser Drawer-Open noch aktuell ist
+        if (openRequestId !== this._openRequestId) return;
+        if (!document.getElementById(this.drawerId)) return;
+        this.syncToggleStatesInDom();
+      })
+      .catch(() => {
+        // stiller Fallback: Drawer bleibt bedienbar mit aktuellem State
+      });
   }
 
   // Entferne Drawer
@@ -156,6 +173,7 @@ export class VideoTableColumnVisibilityDrawer {
 
   // Schließe den Drawer
   close() {
+    this._openRequestId += 1;
     const panel = document.getElementById(this.drawerId);
     const overlay = document.getElementById(`${this.drawerId}-overlay`);
     
@@ -173,8 +191,8 @@ export class VideoTableColumnVisibilityDrawer {
       const isVisible = !this.hiddenColumns.includes(col.className);
       return `
         <tr>
-          <td style="text-align: left;">${col.label}</td>
-          <td style="text-align: right;">
+          <td class="video-visibility-table__cell-left">${col.label}</td>
+          <td class="video-visibility-table__cell-right">
             <label class="toggle-switch">
               <input 
                 type="checkbox" 
@@ -190,12 +208,12 @@ export class VideoTableColumnVisibilityDrawer {
     }).join('');
 
     return `
-      <div class="data-table-container">
-        <table class="data-table">
+      <div class="video-visibility-table-wrap">
+        <table class="video-visibility-table">
           <thead>
             <tr>
-              <th style="text-align: left;">Spalte</th>
-              <th style="text-align: right;">Sichtbar</th>
+              <th class="video-visibility-table__cell-left">Spalte</th>
+              <th class="video-visibility-table__cell-right">Sichtbar</th>
             </tr>
           </thead>
           <tbody>
@@ -216,10 +234,23 @@ export class VideoTableColumnVisibilityDrawer {
     const body = document.getElementById(`${this.drawerId}-body`);
     if (!body) return;
 
-    // Spalten-Toggles
+    // Event-Delegation minimiert Listener-Overhead
+    body.addEventListener('change', (e) => {
+      const toggle = e.target.closest('.column-visibility-toggle');
+      if (!toggle) return;
+      this.handleToggle(e);
+    });
+  }
+
+  // Synce Toggle-Zustände im bereits gerenderten DOM (nach async load)
+  syncToggleStatesInDom() {
+    const body = document.getElementById(`${this.drawerId}-body`);
+    if (!body) return;
+
     const toggles = body.querySelectorAll('.column-visibility-toggle');
-    toggles.forEach(toggle => {
-      toggle.addEventListener('change', (e) => this.handleToggle(e));
+    toggles.forEach((toggle) => {
+      const columnClass = toggle.dataset.column;
+      toggle.checked = !this.hiddenColumns.includes(columnClass);
     });
   }
 
