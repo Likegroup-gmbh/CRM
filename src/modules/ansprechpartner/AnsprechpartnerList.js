@@ -50,6 +50,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
     
     // Erlaubte IDs für Nicht-Admins (gecacht)
     this._allowedAnsprechpartnerIds = null;
+    this._newsletterUpdateInFlight = new Set();
   }
   
   // ══════════════════════════════════════════════════════════════════════════
@@ -192,15 +193,30 @@ export class AnsprechpartnerList extends BasePaginatedList {
   /**
    * Rendert eine einzelne Ansprechpartner-Zeile
    */
-  renderEinwilligungBadge(erlaubt) {
-    if (erlaubt) {
-      return '<span class="status-badge success">✓</span>';
-    }
-    return '<span class="status-badge danger">✗</span>';
+  renderNewsletterToggle(ap, canEdit) {
+    const sanitize = this.sanitize.bind(this);
+    const fullName = `${sanitize(ap.vorname || '')} ${sanitize(ap.nachname || '')}`.trim() || 'Ansprechpartner';
+    const checked = ap.erlaubt_newsletter ? 'checked' : '';
+    const disabled = canEdit ? '' : 'disabled';
+
+    return `
+      <label class="toggle-switch ansprechpartner-newsletter-toggle-wrapper">
+        <input
+          type="checkbox"
+          class="ansprechpartner-newsletter-toggle"
+          data-id="${ap.id}"
+          aria-label="Newsletter für ${fullName}"
+          ${checked}
+          ${disabled}
+        >
+        <span class="toggle-slider"></span>
+      </label>
+    `;
   }
 
   renderSingleRow(ap) {
     const isAdmin = this.isAdmin;
+    const canEdit = this.canEdit;
     const sanitize = this.sanitize.bind(this);
     
     return `
@@ -239,7 +255,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
           ap.telefonnummer
         )}</td>
         <td class="table-cell-center">${this.renderLinkedInLink(ap.linkedin)}</td>
-        <td class="table-cell-center">${this.renderEinwilligungBadge(ap.erlaubt_newsletter)}</td>
+        <td class="table-cell-center">${this.renderNewsletterToggle(ap, canEdit)}</td>
         <td class="col-actions table-cell-center">
           ${actionBuilder.create('ansprechpartner', ap.id)}
         </td>
@@ -351,6 +367,49 @@ export class AnsprechpartnerList extends BasePaginatedList {
       if (e.target.id === 'btn-delete-selected') {
         e.preventDefault();
         this.showDeleteSelectedConfirmation();
+      }
+    }, { signal });
+
+    // Newsletter-Toggle direkt in der Tabelle speichern
+    document.addEventListener('change', async (e) => {
+      const target = e.target;
+      if (!target || !target.classList?.contains('ansprechpartner-newsletter-toggle')) return;
+
+      const id = target.dataset.id;
+      if (!id || this._newsletterUpdateInFlight.has(id)) return;
+
+      const checked = target.checked;
+      this._newsletterUpdateInFlight.add(id);
+      target.disabled = true;
+
+      try {
+        const result = await window.dataService.updateEntity('ansprechpartner', id, {
+          erlaubt_newsletter: checked
+        });
+
+        if (!result?.success) {
+          throw new Error(result?.error || 'Unbekannter Fehler beim Speichern');
+        }
+
+        window.dispatchEvent(new CustomEvent('entityUpdated', {
+          detail: {
+            entity: 'ansprechpartner',
+            id,
+            action: 'newsletter-updated'
+          }
+        }));
+      } catch (error) {
+        target.checked = !checked;
+        console.error('❌ ANSPRECHPARTNERLIST: Newsletter-Update fehlgeschlagen:', error);
+
+        if (window.toastSystem?.show) {
+          window.toastSystem.show('error', `Newsletter konnte nicht gespeichert werden: ${error.message}`);
+        } else {
+          alert(`❌ Newsletter konnte nicht gespeichert werden: ${error.message}`);
+        }
+      } finally {
+        this._newsletterUpdateInFlight.delete(id);
+        target.disabled = !this.canEdit;
       }
     }, { signal });
   }

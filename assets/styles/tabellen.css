@@ -93,12 +93,8 @@
   background: var(--gray-50);
 }
 
-/* Zebra-Striping für fixierte Actions-Spalte */
-.kooperation-video-grid tbody tr:nth-child(even) td.col-actions {
-  background: var(--gray-50);
-}
-
-.kooperation-video-grid tbody tr:nth-child(odd) td.col-actions {
+/* Einheitliches Tabellenverhalten: keine Zebra-Streifen auf der Actions-Spalte */
+.kooperation-video-grid tbody td.col-actions {
   background: white;
 }
 
@@ -172,7 +168,6 @@
   position: sticky !important;
   left: 0 !important;
   z-index: 20;
-  background: var(--gray-50);
   border-right: none !important;
   /* Borders als Box-Shadow für permanente Sichtbarkeit */
   box-shadow: 
@@ -181,13 +176,20 @@
     inset 1px 0 0 0 var(--gray-300);     /* left */
 }
 
+.kooperation-video-grid thead th:nth-child(1) {
+  background: var(--gray-50);
+}
+
+.kooperation-video-grid tbody td:nth-child(1) {
+  background: white;
+}
+
 /* Zweite Spalte (Creator) fixieren */
 .kooperation-video-grid thead th:nth-child(2),
 .kooperation-video-grid tbody td:nth-child(2) {
   position: sticky !important;
   left: 50px !important; /* Breite der ersten Spalte */
   z-index: 20;
-  background: var(--gray-50);
   border-left: none !important; /* Kein Border zur ersten Spalte */
   /* Borders als inset Box-Shadow */
   box-shadow: 
@@ -195,6 +197,14 @@
     inset -2px 0 0 0 var(--gray-400),       /* right - dickerer Border */
     inset 0 -1px 0 0 var(--gray-300),       /* bottom */
     inset 1px 0 0 0 var(--gray-300);        /* left - Border zwischen Spalte 1 und 2 */
+}
+
+.kooperation-video-grid thead th:nth-child(2) {
+  background: var(--gray-50);
+}
+
+.kooperation-video-grid tbody td:nth-child(2) {
+  background: white;
 }
 
 /* Schatten rechts von der zweiten Spalte (außerhalb, über den scrollenden Spalten) */
@@ -230,28 +240,17 @@
   background: white;
 }
 
-/* Zebra-Striping für Zeilen - jede gerade Zeile bekommt grauen Hintergrund */
-.kooperation-video-grid tbody tr:nth-child(even) td {
-  background: var(--gray-50);
-}
-
-.kooperation-video-grid tbody tr:nth-child(odd) td {
+/* Einheitliches Tabellenverhalten: weiße Rows, Hover hebt komplette Zeile hervor */
+.kooperation-video-grid tbody tr td {
   background: white;
 }
 
-/* Erste zwei Spalten (sticky) behalten das Zebra-Muster */
-.kooperation-video-grid tbody tr:nth-child(even) td:nth-child(1),
-.kooperation-video-grid tbody tr:nth-child(even) td:nth-child(2) {
+.kooperation-video-grid tbody tr:hover td {
   background: var(--gray-50);
-}
-
-.kooperation-video-grid tbody tr:nth-child(odd) td:nth-child(1),
-.kooperation-video-grid tbody tr:nth-child(odd) td:nth-child(2) {
-  background: white;
 }
 
 .kooperation-row {
-  background-color: var(--gray-50);
+  background-color: white;
   border-top: 2px solid var(--gray-400);
 }
 
@@ -259,6 +258,7 @@
   background-color: white;
 }
 
+.kooperation-row:hover .grid-cell,
 .video-row:hover .grid-cell {
   background-color: var(--gray-50);
 }
@@ -900,6 +900,11 @@ td.col-produkt .stacked-video-input,
   font-size: var(--text-sm);
   min-width: 100%;
   background: white;
+}
+
+/* Einheitliches Hover-Verhalten für Grid-Tabellen */
+.grid-table tbody tr:hover td {
+  background: var(--gray-50);
 }
 
 /* Header Cells */
@@ -2236,4 +2241,15 @@ width: 18em;
 .external-link-icon {
   width: 18px;
   height: 18px;
+}
+
+/* Ansprechpartner-Liste: Newsletter-Toggle in Tabellenzelle */
+.ansprechpartner-newsletter-toggle-wrapper {
+  margin-left: 0;
+  vertical-align: middle;
+}
+
+.ansprechpartner-newsletter-toggle-wrapper input:disabled + .toggle-slider {
+  opacity: 0.65;
+  cursor: not-allowed;
 }

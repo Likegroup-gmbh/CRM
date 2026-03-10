@@ -5164,8 +5164,8 @@ h3.section-title,
 }
 
 .toggle-text {
-  font-weight: 500;
-  color: var(--text-primary);
+  font-weight: 400;
+  color: var(--gray-700);
   flex: 1;
 }
 
@@ -5826,13 +5826,22 @@ width: 100%;
   overflow-y: auto;
 }
 
+.mitarbeiter-quick-filter-body {
+  max-height: none;
+}
+
+.mitarbeiter-quick-filter-list {
+  max-height: none;
+  overflow: visible;
+}
+
 .filter-checkbox-option {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  padding: var(--space-xs) 0;
+  padding: var(--space-xxs) 0;
   cursor: pointer;
-  font-size: var(--text-sm);
+  font-size: var(--text-xsm);
   color: var(--gray-700);
 }
 
@@ -7801,6 +7810,10 @@ width: 100%;
 .profile-avatar-wrapper {
   border-bottom: 1px solid var(--gray-100);
   padding: var(--space-md);
+
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-sm);
 }
 
 /* Avatar Section */
@@ -7809,6 +7822,7 @@ width: 100%;
   flex-direction: row;
   align-items: center;
   gap: var(--space-md);
+  width: 100%;
 }
 
 .profile-avatar-section .profile-avatar-large {
@@ -9404,16 +9418,16 @@ input.readonly-field {
 }
 
 .idea-row:hover {
-  background: var(--amber-100);
+  background: var(--gray-50);
 }
 
-/* Strategie-Tabelle: Kein Hover auf normalen Zeilen */
+/* Strategie-Tabelle: Einheitliches Hover-Verhalten wie andere data-table Varianten */
 .strategie-items-table tbody tr.item-row:hover {
-  background-color: transparent;
+  background-color: var(--gray-50);
 }
 
 .strategie-items-table tbody tr.idea-row:hover {
-  background: var(--amber-50);
+  background: var(--gray-50);
 }
 
 /* ============================================

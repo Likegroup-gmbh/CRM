@@ -2476,9 +2476,86 @@ export class DataService {
         }
       }
 
+      // Creator M:N-Filter über Junction-Tabellen anwenden (Pagination)
+      if (entityType === 'creator') {
+        try {
+          const idSets = [];
+          const getIdFromFilter = (val) => {
+            if (val == null) return null;
+            if (typeof val === 'string') return val;
+            if (typeof val === 'object') return val.value || val.id || null;
+            return String(val);
+          };
+
+          // Sprache
+          if (filters.sprache_id) {
+            const selectedId = getIdFromFilter(filters.sprache_id);
+            const { data: links, error: lerr } = await window.supabase
+              .from('creator_sprachen')
+              .select('creator_id')
+              .eq('sprache_id', selectedId);
+            if (!lerr) {
+              idSets.push(new Set((links || []).map(r => r.creator_id)));
+            }
+            delete filters.sprache_id;
+          }
+
+          // Branche
+          if (filters.branche_id || filters.branche) {
+            const selectedId = getIdFromFilter(filters.branche_id || filters.branche);
+            const { data: links, error: lerr } = await window.supabase
+              .from('creator_branchen')
+              .select('creator_id')
+              .eq('branche_id', selectedId);
+            if (!lerr) {
+              idSets.push(new Set((links || []).map(r => r.creator_id)));
+            }
+            delete filters.branche_id;
+            delete filters.branche;
+          }
+
+          // Creator-Typ
+          if (filters.creator_type_id) {
+            const selectedId = getIdFromFilter(filters.creator_type_id);
+            const { data: links, error: lerr } = await window.supabase
+              .from('creator_creator_type')
+              .select('creator_id')
+              .eq('creator_type_id', selectedId);
+            if (!lerr) {
+              idSets.push(new Set((links || []).map(r => r.creator_id)));
+            }
+            delete filters.creator_type_id;
+          }
+
+          // Schnittmenge bilden und auf Creator-IDs einschränken
+          if (idSets.length > 0) {
+            let intersection = idSets[0];
+            for (let i = 1; i < idSets.length; i++) {
+              intersection = new Set([...intersection].filter(x => idSets[i].has(x)));
+            }
+
+            const ids = [...intersection];
+            if (ids.length === 0) {
+              return {
+                data: [],
+                total: 0,
+                page,
+                limit
+              };
+            }
+            query = query.in('id', ids);
+          }
+        } catch (error) {
+          console.warn('⚠️ Konnte Creator-Junction-Filter (Pagination) nicht anwenden:', error);
+        }
+      }
+
       // Andere Filter anwenden (ohne branche_id und interne Sort-Parameter)
       const filtersToApply = {...filters};
       delete filtersToApply.branche_id;
+      delete filtersToApply.branche;
+      delete filtersToApply.sprache_id;
+      delete filtersToApply.creator_type_id;
       delete filtersToApply._sortBy;
       delete filtersToApply._sortOrder;
       delete filtersToApply._allowedIds; // wurde bereits oben behandelt

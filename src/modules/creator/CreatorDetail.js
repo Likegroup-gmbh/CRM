@@ -24,6 +24,10 @@ export class CreatorDetail extends PersonDetailBase {
     this.vertraege = [];
     this.unternehmen = [];
     this.creatorAdressen = [];
+    this.profileCounts = {
+      kooperationen: 0,
+      videos: 0
+    };
     this.eventsBound = false;
     this._cacheInvalidationBound = false;
     this.activeMainTab = 'informationen';
@@ -44,6 +48,8 @@ export class CreatorDetail extends PersonDetailBase {
     
     try {
       await this.loadCriticalData();
+      await this.loadKooperationen();
+      await this.loadProfileCounts();
       
       if (window.breadcrumbSystem && this.creator) {
         const creatorName = [this.creator.vorname, this.creator.nachname].filter(Boolean).join(' ') || 'Details';
@@ -278,7 +284,38 @@ export class CreatorDetail extends PersonDetailBase {
       this.kooperationen = [];
     }
   }
-  
+
+  async loadProfileCounts() {
+    const kooperationen = this.kooperationen || [];
+    const koopIds = kooperationen.map(k => k.id).filter(Boolean);
+    const kooperationenCount = kooperationen.length;
+
+    if (koopIds.length === 0) {
+      this.profileCounts = { kooperationen: kooperationenCount, videos: 0 };
+      return;
+    }
+
+    try {
+      const { count, error } = await window.supabase
+        .from('kooperation_videos')
+        .select('id', { count: 'exact', head: true })
+        .in('kooperation_id', koopIds);
+
+      if (error) throw error;
+
+      this.profileCounts = {
+        kooperationen: kooperationenCount,
+        videos: count || 0
+      };
+    } catch (error) {
+      console.warn('⚠️ CREATORDETAIL: Videoanzahl konnte nicht geladen werden', error);
+      this.profileCounts = {
+        kooperationen: kooperationenCount,
+        videos: 0
+      };
+    }
+  }
+
   async loadRechnungen() {
     try {
       if (!this.kooperationen || this.kooperationen.length === 0) {
@@ -537,23 +574,32 @@ export class CreatorDetail extends PersonDetailBase {
       ? sanitizeUrl(tiktokHandle.startsWith('http') ? tiktokHandle : `https://tiktok.com/@${tiktokHandle.replace('@', '')}`)
       : null;
 
-    const items = [];
+    const kpiItems = [];
+    const detailItems = [];
+    const kooperationenCount = this.profileCounts?.kooperationen || 0;
+    const videosCount = this.profileCounts?.videos || 0;
 
-    // Social Media als Info-Items
+    // Sektion 1: Kennzahlen
+    kpiItems.push(
+      { icon: 'kooperation', label: 'Kooperationen', value: kooperationenCount.toLocaleString('de-DE') },
+      { icon: 'video', label: 'Videos', value: videosCount.toLocaleString('de-DE') }
+    );
+
+    // Sektion 2: Profildetails
     if (instagramUrl) {
-      items.push({ icon: 'instagram', label: 'Instagram', rawHtml: `<a href="${instagramUrl}" target="_blank" rel="noopener noreferrer">@${this.sanitize(instagramHandle.replace('@', ''))}</a>` });
+      detailItems.push({ icon: 'instagram', label: 'Instagram', rawHtml: `<a href="${instagramUrl}" target="_blank" rel="noopener noreferrer">@${this.sanitize(instagramHandle.replace('@', ''))}</a>` });
       if (this.creator.instagram_follower) {
-        items.push({ icon: 'instagram', label: 'IG Follower', value: this.formatNumber(this.creator.instagram_follower) });
+        detailItems.push({ icon: 'instagram', label: 'IG Follower', value: this.formatNumber(this.creator.instagram_follower) });
       }
     }
     if (tiktokUrl) {
-      items.push({ icon: 'tiktok', label: 'TikTok', rawHtml: `<a href="${tiktokUrl}" target="_blank" rel="noopener noreferrer">@${this.sanitize(tiktokHandle.replace('@', ''))}</a>` });
+      detailItems.push({ icon: 'tiktok', label: 'TikTok', rawHtml: `<a href="${tiktokUrl}" target="_blank" rel="noopener noreferrer">@${this.sanitize(tiktokHandle.replace('@', ''))}</a>` });
       if (this.creator.tiktok_follower) {
-        items.push({ icon: 'tiktok', label: 'TT Follower', value: this.formatNumber(this.creator.tiktok_follower) });
+        detailItems.push({ icon: 'tiktok', label: 'TT Follower', value: this.formatNumber(this.creator.tiktok_follower) });
       }
     }
 
-    items.push(
+    detailItems.push(
       { icon: 'mail', label: 'E-Mail', value: this.creator.mail || '-', mailto: true },
       { icon: 'phone', label: 'Telefon', value: this.creator.telefonnummer || '-' },
       { icon: 'city', label: 'Stadt', value: this.creator.lieferadresse_stadt || '-' },
@@ -561,40 +607,49 @@ export class CreatorDetail extends PersonDetailBase {
     );
 
     if (this.creator.sprachen && this.creator.sprachen.length > 0) {
-      items.push({ icon: 'language', label: 'Sprachen', value: this.creator.sprachen.map(s => s.name), tags: true });
+      detailItems.push({ icon: 'language', label: 'Sprachen', value: this.creator.sprachen.map(s => s.name), tags: true });
     }
     if (this.creator.branchen && this.creator.branchen.length > 0) {
-      items.push({ icon: 'tag', label: 'Branchen', value: this.creator.branchen.map(b => b.name), tags: true });
+      detailItems.push({ icon: 'tag', label: 'Branchen', value: this.creator.branchen.map(b => b.name), tags: true });
     }
     if (this.creator.creator_types && this.creator.creator_types.length > 0) {
       const types = this.creator.creator_types.map(t => typeof t === 'string' ? t : t.name).filter(Boolean);
-      if (types.length > 0) items.push({ icon: 'user', label: 'Typen', value: types, tags: true });
+      if (types.length > 0) detailItems.push({ icon: 'user', label: 'Typen', value: types, tags: true });
     }
     if (this.creator.geschlecht) {
-      items.push({ icon: 'user', label: 'Geschlecht', value: this.creator.geschlecht });
+      detailItems.push({ icon: 'user', label: 'Geschlecht', value: this.creator.geschlecht });
     }
     if (this.creator.alter_min || this.creator.alter_max || this.creator.alter_jahre) {
-      items.push({ icon: 'calendar', label: 'Alter', value: this.formatAgeRange(this.creator.alter_min, this.creator.alter_max, this.creator.alter_jahre) });
+      detailItems.push({ icon: 'calendar', label: 'Alter', value: this.formatAgeRange(this.creator.alter_min, this.creator.alter_max, this.creator.alter_jahre) });
     }
     if (this.creator.portfolio_link) {
-      items.push({ icon: 'link', label: 'Portfolio', rawHtml: `<a href="${this.creator.portfolio_link}" target="_blank" rel="noopener">Link</a>` });
+      detailItems.push({ icon: 'link', label: 'Portfolio', rawHtml: `<a href="${this.creator.portfolio_link}" target="_blank" rel="noopener">Link</a>` });
     }
     if (this.creator.hat_haustier) {
-      items.push({ icon: 'info', label: 'Haustier', value: this.creator.haustier_beschreibung || 'Ja' });
+      detailItems.push({ icon: 'info', label: 'Haustier', value: this.creator.haustier_beschreibung || 'Ja' });
     }
     if (this.creator.agentur_vertreten) {
-      items.push({ icon: 'building', label: 'Agentur', value: this.creator.agentur_name || 'Ja' });
+      detailItems.push({ icon: 'building', label: 'Agentur', value: this.creator.agentur_name || 'Ja' });
       if (this.creator.agentur_vertretung) {
-        items.push({ icon: 'user', label: 'Vertreten durch', value: this.creator.agentur_vertretung });
+        detailItems.push({ icon: 'user', label: 'Vertreten durch', value: this.creator.agentur_vertretung });
       }
     }
     if (this.creator.budget_letzte_buchung) {
-      items.push({ icon: 'currency', label: 'Letztes Budget', value: this.formatCurrency(this.creator.budget_letzte_buchung) });
+      detailItems.push({ icon: 'currency', label: 'Letztes Budget', value: this.formatCurrency(this.creator.budget_letzte_buchung) });
     }
-    items.push({ icon: 'check', label: 'USt-pflichtig', value: this.creator.umsatzsteuerpflichtig ? 'Ja' : 'Nein' });
-    items.push({ icon: 'clock', label: 'Erstellt', value: this.formatDate(this.creator.created_at) });
+    detailItems.push({ icon: 'check', label: 'USt-pflichtig', value: this.creator.umsatzsteuerpflichtig ? 'Ja' : 'Nein' });
+    detailItems.push({ icon: 'clock', label: 'Erstellt', value: this.formatDate(this.creator.created_at) });
 
-    return this.renderInfoItems(items);
+    return `
+      <div class="detail-card">
+        <h3 class="section-title">Kennzahlen</h3>
+        ${this.renderInfoItems(kpiItems)}
+      </div>
+      <div class="detail-card">
+        <h3 class="section-title">Kontakt & Profil</h3>
+        ${this.renderInfoItems(detailItems)}
+      </div>
+    `;
   }
 
   getTabsConfig() {

@@ -99,6 +99,13 @@ export class CreatorFilterLogic {
           };
           break;
 
+        case 'sprache_id':
+        case 'branche_id':
+        case 'branche':
+        case 'creator_type_id':
+          // M:N-Filter werden in DataService über Junction-Tabellen aufgelöst
+          break;
+
         default:
           // Standard-Filter (Select, etc.)
           processedFilters[key] = {

@@ -34,6 +34,14 @@ export class UnternehmenFilterLogic {
           };
           break;
 
+        case 'mitarbeiter_ids':
+          // Mitarbeiter-Filter (Many-to-Many über Junction Table)
+          processedFilters[key] = {
+            type: 'mitarbeiter_filter',
+            value: Array.isArray(value) ? value.filter(Boolean) : []
+          };
+          break;
+
         case 'status':
           // Exakte Übereinstimmung für Status
           processedFilters[key] = {
@@ -114,6 +122,12 @@ export class UnternehmenFilterLogic {
           // Wir markieren ihn zur späteren Verarbeitung
           console.log('⚠️ Branche-Filter erfordert spezielle Behandlung:', filter.value);
           // Wird in DataService speziell behandelt oder als Post-Filter angewendet
+          break;
+
+        case 'mitarbeiter_filter':
+          // Mitarbeiter-Filter erfordert Junction-Query auf mitarbeiter_unternehmen
+          // und wird im listen-spezifischen Loader behandelt.
+          console.log('⚠️ Mitarbeiter-Filter erfordert spezielle Behandlung:', filter.value);
           break;
 
         case 'equals':
@@ -203,6 +217,19 @@ export class UnternehmenFilterLogic {
                 return false;
               }
             } else if (unternehmen.branche_id !== filter.value) {
+              return false;
+            }
+            break;
+
+          case 'mitarbeiter_filter':
+            // Lokaler Fallback: verwende bereits geladene Mitarbeiterdaten falls vorhanden
+            if (!Array.isArray(filter.value) || filter.value.length === 0) {
+              break;
+            }
+            if (!Array.isArray(unternehmen._mitarbeiter) || unternehmen._mitarbeiter.length === 0) {
+              return false;
+            }
+            if (!unternehmen._mitarbeiter.some(m => filter.value.includes(m?.id))) {
               return false;
             }
             break;
