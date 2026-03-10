@@ -603,22 +603,15 @@ export class KampagneKooperationenVideoTable {
     }
   }
 
-  // Prüfe ob eine Spalte für Kunden sichtbar ist
+  // Prüfe ob eine Spalte sichtbar ist (rollenabhängig)
   isColumnVisibleForCustomer(columnClass) {
-    const userRole = this.getCurrentUserRole();
-    
-    // Admin/Mitarbeiter sehen immer alles
-    if (userRole === 'admin' || userRole === 'mitarbeiter') {
-      return true;
-    }
-    
     // Nr und Creator sind IMMER sichtbar für alle (essentiell)
     if (columnClass === 'col-nr' || columnClass === 'col-creator') {
       return true;
     }
     
-    // EK-Spalten für Kunden IMMER ausblenden (Einkaufspreise!)
-    if (columnClass === 'col-kosten' || columnClass === 'col-ek-video') {
+    // EK-Spalten nur für Kunden IMMER ausblenden (Einkaufspreise!)
+    if ((columnClass === 'col-kosten' || columnClass === 'col-ek-video') && this.isKundeRole()) {
       return false;
     }
 
@@ -627,7 +620,7 @@ export class KampagneKooperationenVideoTable {
       return false;
     }
     
-    // Kunden sehen nur nicht-versteckte Spalten
+    // Für alle Rollen gilt die konfigurierte Sichtbarkeit
     const isVisible = !this.hiddenColumns.includes(columnClass);
     
     return isVisible;
@@ -1637,15 +1630,13 @@ export class KampagneKooperationenVideoTable {
       this.bindEvents();
       console.log('🎬 Events gebunden');
       
-      // Event-Listener für Spalten-Sichtbarkeits-Änderungen (nur für Kunden refreshen)
+      // Event-Listener für Spalten-Sichtbarkeits-Änderungen
       if (!this._visibilityEventBound) {
         window.addEventListener('video-column-visibility-changed', (e) => {
           if (e.detail.kampagneId === this.kampagneId) {
             this.hiddenColumns = e.detail.hiddenColumns;
-            // Nur refreshen wenn der User ein Kunde ist
-            if (this.isKundeRole()) {
-              this.refresh();
-            }
+            // Für alle Rollen direkt neu rendern
+            this.refresh();
           }
         });
         this._visibilityEventBound = true;

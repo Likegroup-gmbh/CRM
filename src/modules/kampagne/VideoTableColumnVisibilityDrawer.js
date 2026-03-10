@@ -7,11 +7,9 @@ export class VideoTableColumnVisibilityDrawer {
     this.hiddenColumns = [];
     this.drawerId = 'video-column-visibility-drawer';
     
-    // Alle verfügbaren Spalten mit benutzerfreundlichen Namen
-    // Nr und Creator sind immer sichtbar und können nicht deaktiviert werden
+    // Alle konfigurierbaren Spalten in exakt derselben Reihenfolge wie im Tabellen-Header
+    // (Nr und Creator sind nicht konfigurierbar und daher hier nicht enthalten)
     this.columns = [
-      { className: 'col-typ', label: 'Typ' },
-      { className: 'col-organic-paid', label: 'Content/Art' },
       { className: 'col-vertrag', label: 'Vertrag' },
       { className: 'col-nutzungsrechte', label: 'Nutzungsrechte' },
       { className: 'col-start-datum', label: 'Erstellt' },
@@ -19,20 +17,23 @@ export class VideoTableColumnVisibilityDrawer {
       { className: 'col-end-datum', label: 'Content Deadline' },
       { className: 'col-videoanzahl', label: 'Videos' },
       { className: 'col-video-nr', label: 'Video-Nr' },
+      { className: 'col-vk-video', label: 'Kosten' },
+      { className: 'col-video-typ', label: 'Typ' },
       { className: 'col-thema', label: 'Thema' },
-      { className: 'col-link-skript', label: 'Link Skript / Briefing' },
-      { className: 'col-skript-freigegeben', label: 'Skript freigegeben' },
+      { className: 'col-organic-paid', label: 'Content/Art' },
       { className: 'col-produkt', label: 'Produkte' },
       { className: 'col-lieferadresse', label: 'Lieferadresse' },
       { className: 'col-paket-tracking', label: 'Tracking' },
       { className: 'col-drehort', label: 'Drehort' },
+      { className: 'col-link-skript', label: 'Link Skript / Briefing' },
+      { className: 'col-skript-freigegeben', label: 'Skript freigegeben' },
       { className: 'col-link-content', label: 'Link Content' },
       { className: 'col-feedback-cj', label: 'Feedback CJ' },
       { className: 'col-feedback-kunde', label: 'Feedback Kunde' },
       { className: 'col-freigabe', label: 'Freigabe' },
       { className: 'col-caption', label: 'Caption' },
       { className: 'col-posting-datum', label: 'Posting Datum' },
-      { className: 'col-kosten', label: 'Kosten' }
+      { className: 'col-actions', label: 'Aktionen' }
     ];
   }
 
@@ -99,11 +100,11 @@ export class VideoTableColumnVisibilityDrawer {
     const headerLeft = document.createElement('div');
     const title = document.createElement('span');
     title.className = 'drawer-title';
-    title.textContent = 'Spalten-Sichtbarkeit für Kunden';
+    title.textContent = 'Spalten-Sichtbarkeit';
     
     const subtitle = document.createElement('p');
     subtitle.className = 'drawer-subtitle';
-    subtitle.textContent = 'Deaktivierte Spalten werden nur für Kunden ausgeblendet';
+    subtitle.textContent = 'Deaktivierte Spalten werden gemäß Tabellenansicht ausgeblendet';
     
     headerLeft.appendChild(title);
     headerLeft.appendChild(subtitle);
