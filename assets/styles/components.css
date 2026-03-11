@@ -9508,6 +9508,10 @@ input.readonly-field {
   background-color: var(--gray-50);
 }
 
+.strategie-items-table tbody tr.item-row.item-gebucht:hover {
+  background-color: var(--green-50, #f0fdf4);
+}
+
 .strategie-items-table tbody tr.idea-row:hover {
   background: var(--gray-50);
 }
@@ -10536,6 +10540,10 @@ table:has(#kampagnen-table-body) tbody tr:hover td.col-name {
 }
 
 /* Item-Zeilen-Zustände */
+.strategie-items-table .item-gebucht {
+  background: var(--green-50, #f0fdf4);
+}
+
 .strategie-items-table .item-nicht-umsetzen {
   opacity: 0.5;
   background: var(--gray-100);
@@ -10649,6 +10657,20 @@ table:has(#kampagnen-table-body) tbody tr:hover td.col-name {
 .creator-pool-table tbody tr:hover td.col-sticky-2,
 .creator-pool-table tbody tr:hover td.col-sticky-3 {
   background: var(--gray-50);
+}
+
+/* Item-Gebucht für sticky Spalten */
+.creator-pool-table .item-gebucht td.col-sticky-1,
+.creator-pool-table .item-gebucht td.col-sticky-2,
+.creator-pool-table .item-gebucht td.col-sticky-3 {
+  background: var(--green-50, #f0fdf4);
+}
+
+/* Hover auf gebuchte Zeilen bleibt grün */
+.creator-pool-table tbody tr.item-row.item-gebucht:hover td.col-sticky-1,
+.creator-pool-table tbody tr.item-row.item-gebucht:hover td.col-sticky-2,
+.creator-pool-table tbody tr.item-row.item-gebucht:hover td.col-sticky-3 {
+  background: var(--green-50, #f0fdf4);
 }
 
 /* Item-Nicht-Umsetzen für sticky Spalten */
@@ -12712,6 +12734,19 @@ table:has(#kampagnen-table-body) tbody tr:hover td.col-name {
 
 .progress-actions button svg {
   flex-shrink: 0;
+}
+
+.contract-language-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+}
+
+.contract-language-switch__label {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .progress-steps {

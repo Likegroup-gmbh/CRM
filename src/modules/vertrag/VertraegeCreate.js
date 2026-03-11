@@ -2,6 +2,239 @@
 // Multistep-Formular zur Vertragserstellung (mit DB-Draft Support)
 
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import CONFIG from '../../core/ConfigSystem.js';
+
+const CONTRACT_TEXT_TRANSLATIONS = {
+  en: {
+    'Seite': 'Page',
+    'Seite ': 'Page ',
+    'Seite 1 von 1': 'Page 1 of 1',
+    'LikeGroup GmbH | Jakob-Latscha-Str. 3 | 60314 Frankfurt am Main | Deutschland': 'LikeGroup GmbH | Jakob-Latscha-Str. 3 | 60314 Frankfurt am Main | Germany',
+    'Ja': 'Yes',
+    'Nein': 'No',
+    'Ja (3% bei Zahlung innerhalb 7 Tage)': 'Yes (3% for payment within 7 days)',
+    'Skonto:': 'Cash discount:',
+    'Sonstige': 'Other',
+    'Deutschland': 'Germany',
+    'UGC-PRODUKTIONSVERTRAG': 'UGC PRODUCTION AGREEMENT',
+    'INFLUENCER-KOOPERATIONSVERTRAG': 'INFLUENCER COOPERATION AGREEMENT',
+    'VIDEOGRAFEN- & FOTOGRAFEN-PRODUKTIONSVERTRAG': 'VIDEOGRAPHER & PHOTOGRAPHER PRODUCTION AGREEMENT',
+    'Agenturdaten': 'Agency details',
+    'Kundendaten': 'Client details',
+    'Creatordaten': 'Creator details',
+    'Influencer-Vertretung': 'Influencer representation',
+    'Influencer / Vertretung': 'Influencer / representation',
+    'Influencer-Daten': 'Influencer details',
+    'PO / Auftragsnummer': 'PO / order number',
+    'Ohne Name': 'Untitled',
+    'Wird der Influencer durch eine Agentur vertreten?': 'Is the influencer represented by an agency?',
+    'Zwingend auf der Rechnung anzugeben. Ohne Angabe ist keine Zahlung möglich.': 'Mandatory on the invoice. Payment is not possible without it.',
+    'Fertiges Skript vom Auftraggeber': 'Final script provided by client',
+    'Briefing vom Auftraggeber, direkter Dreh ohne Skript': 'Client briefing, direct shoot without script',
+    'Briefing vom Auftraggeber, Skript durch Creator': 'Client briefing, script prepared by creator',
+    'Eigenständige Konzeption durch Creator': 'Independent concept by creator',
+    'Fertig geschnittenes Video': 'Final edited video',
+    'Raw Cut (Szenen aneinandergeschnitten)': 'Raw cut (scenes stitched together)',
+    'Rohmaterial (ungeschnittene Clips)': 'Raw footage (unedited clips)',
+    'Organische Nutzung': 'Organic usage',
+    'Paid Ads Nutzung': 'Paid ads usage',
+    'Organisch & Paid Ads': 'Organic & paid ads',
+    'Unbegrenzt': 'Unlimited',
+    '12 Monate': '12 months',
+    '6 Monate': '6 months',
+    '3 Monate': '3 months',
+    'Jahre': 'years',
+    'Monate': 'months',
+    'Wochen': 'weeks',
+    'Tage': 'days',
+    '30 Tage': '30 days',
+    '45 Tage': '45 days',
+    '60 Tage': '60 days',
+    '14 Tage': '14 days',
+    '7 Tage': '7 days',
+    'Social Media': 'Social media',
+    'Website': 'Website',
+    '§1 Vertragsgegenstand': '§1 Subject of agreement',
+    '§2 Leistungsumfang': '§2 Scope of services',
+    '§3 Output & Lieferumfang': '§3 Output & delivery scope',
+    '§4 Nutzungsrechte': '§4 Usage rights',
+    '§5 Vergütung': '§5 Compensation',
+    '§6 Deadlines & Korrekturen': '§6 Deadlines & revisions',
+    '§7 Rechte Dritter': '§7 Third-party rights',
+    '§8 Verschwiegenheit': '§8 Confidentiality',
+    '§9 Qualitätsrichtlinien & Briefings': '§9 Quality guidelines & briefings',
+    '§10 Neudreh, Anpassungen & Rücktrittsrecht': '§10 Reshoot, adjustments & right of withdrawal',
+    '§11 Agenturbeauftragung & Stellvertretung': '§11 Agency mandate & representation',
+    '§12 Schlussbestimmungen': '§12 Final provisions',
+    '§13 Vertragsschluss': '§13 Conclusion of agreement',
+    '§14 Weitere Bestimmungen': '§14 Additional provisions',
+    '§2 Plattformen & Inhalte': '§2 Platforms & content',
+    '§3 Konzept, Freigabe & Veröffentlichungsplan': '§3 Concept, approval & publication plan',
+    '§4 Werbekennzeichnung': '§4 Ad labeling',
+    '§5 Nutzungsrechte & Media Buyout': '§5 Usage rights & media buyout',
+    '§6 Vergütung': '§6 Compensation',
+    '§7 Qualitätsanforderungen': '§7 Quality requirements',
+    '§8 Anpassungen': '§8 Adjustments',
+    '§9 Neuerstellung (Neudreh)': '§9 Reproduction (reshoot)',
+    '§10 Reichweiten-Garantie': '§10 Reach guarantee',
+    '§11 Mindest-Online-Dauer': '§11 Minimum online duration',
+    '§12 Rechte Dritter': '§12 Third-party rights',
+    '§8 Rechte Dritter': '§8 Third-party rights',
+    '§13 Künstlersozialkasse': '§13 Artists social fund',
+    '§14 Rücktritt': '§14 Withdrawal',
+    '§15 Vertragsschluss': '§15 Conclusion of agreement',
+    '§16 Weitere Bestimmungen': '§16 Additional provisions',
+    '§3 Output, Abgabe & Versionierung': '§3 Output, delivery & versioning',
+    '§4 Qualitätsanforderungen': '§4 Quality requirements',
+    '§5 Nachbesserung & Neuerstellung': '§5 Rework & reproduction',
+    '§7 Nutzungsrechte': '§7 Usage rights',
+    '§9 Vergütung': '§9 Compensation',
+    '§10 Verschwiegenheit': '§10 Confidentiality',
+    '§11 Rücktritt': '§11 Withdrawal',
+    '§12 Vertragsschluss': '§12 Conclusion of agreement',
+    '§13 Weitere Bestimmungen': '§13 Additional provisions',
+    'Der Auftraggeber beauftragt den Creator mit der Erstellung von User Generated Content (UGC)': 'The client commissions the creator to produce user generated content (UGC).',
+    'zu Marketingzwecken. Es handelt sich um einen einmaligen Produktionsauftrag.': 'The content is created for marketing purposes as a one-time production assignment.',
+    'Die Vergütung versteht sich zzgl. gesetzlicher Umsatzsteuer, sofern diese anfällt.': 'Compensation is exclusive of statutory VAT if applicable.',
+    'Bei Skonto gilt: Bei Zahlung innerhalb von 7 Kalendertagen ab Rechnungsdatum gewährt der': 'Cash discount rule: for payment within 7 calendar days from invoice date, the',
+    'Creator 3% Skonto auf den Nettorechnungsbetrag. Der Skonto-Hinweis ist auf der Rechnung auszuweisen.': 'creator grants a 3% discount on the net invoice amount. The discount must be stated on the invoice.',
+    'Sofern vereinbart, gelten folgende Unterlagen als verbindlicher Bestandteil dieses Vertrags:': 'If agreed, the following documents are binding parts of this agreement:',
+    "• Do's & Don'ts": "• Do's & don'ts",
+    '• Externe Briefings': '• External briefings',
+    '• Kampagnen-Guidelines': '• Campaign guidelines',
+    '• Zusätzliche schriftliche Vorgaben des Auftraggebers oder der Agentur': '• Additional written requirements from the client or agency',
+    'Diese Unterlagen konkretisieren die qualitativen und inhaltlichen Anforderungen an den Content.': 'These documents specify the qualitative and content requirements for the content.',
+    'Ein Anspruch auf Neudreh besteht insbesondere bei:': 'A claim for reshoot exists in particular in the following cases:',
+    '• Abweichung vom Skript oder Briefing': '• Deviation from script or briefing',
+    '• Unzureichender Tonqualität': '• Insufficient audio quality',
+    '• Schlechter Beleuchtung oder Bildqualität': '• Poor lighting or image quality',
+    '• Unnatürlicher oder stark werblicher Darstellung': '• Unnatural or overly promotional presentation',
+    '• Unpassendem oder unaufgeräumtem Hintergrund': '• Inappropriate or cluttered background',
+    '• Fehlender Kreativität, Dynamik oder Energie': '• Lack of creativity, dynamics, or energy',
+    '• Missachtung der Qualitätsrichtlinien, Rechtsverstößen, unangemessenen Inhalten': '• Disregard of quality guidelines, legal violations, or inappropriate content',
+    '• Inhaltlich oder qualitativ nicht verwertbarem Content': '• Content unusable in terms of quality or substance',
+    'Als Anpassungen gelten insbesondere:': 'Adjustments include in particular:',
+    '• Schnittgeschwindigkeit, Optimierung des Einstiegs (Hook)': '• Editing speed, optimization of opening hook',
+    '• Kürzen, Straffen oder Umstellen von Szenen': '• Trimming, tightening, or rearranging scenes',
+    '• Anpassung der Dramaturgie, Zoom-/Bewegungseffekte, Untertitel': '• Storyline adjustments, zoom/motion effects, subtitles',
+    '• Nachfilmen einzelner Szenen, allgemeiner Performance-Feinschliff': '• Re-shooting specific scenes, general performance polishing',
+    'Änderungen bedürfen der Schriftform. Sollten einzelne Bestimmungen unwirksam sein, bleibt der': 'Changes must be in writing. If individual provisions are invalid, the',
+    'Vertrag im Übrigen wirksam.': 'agreement remains valid in all other respects.',
+    'Dieser Vertrag wird mit der Unterschrift des Creators wirksam.': 'This agreement becomes effective upon signature by the creator.',
+    'Eine zusätzliche Unterschrift der LikeGroup GmbH ist nicht erforderlich.': 'An additional signature by LikeGroup GmbH is not required.',
+    'Ort, Datum: ___________________________': 'Place, date: ___________________________',
+    'Creator: ______________________________': 'Creator: ______________________________',
+    'Keine Exklusivität': 'No exclusivity',
+    'Keine Zusatzkosten': 'No additional costs',
+    'Zusatzkosten vereinbart': 'Additional costs agreed',
+    '2.1 Content-Art und Anzahl': '2.1 Content type and quantity',
+    '2.2 Art der Content-Erstellung': '2.2 Type of content creation',
+    '3.1 Art der Lieferung': '3.1 Type of delivery',
+    '3.2 Rohmaterial enthalten': '3.2 Raw footage included',
+    '3.3 Untertitel': '3.3 Subtitles',
+    '4.1 Nutzungsart': '4.1 Usage type',
+    '4.2 Medien': '4.2 Media',
+    '4.3 Nutzungsdauer': '4.3 Usage duration',
+    '4.4 Exklusivität': '4.4 Exclusivity',
+    '5.1 Vergütung': '5.1 Compensation',
+    '5.2 Zahlungsbedingungen': '5.2 Payment terms',
+    '6.1 Content-Deadline': '6.1 Content deadline',
+    '6.2 Korrekturschleifen': '6.2 Revision rounds',
+    '10.1 Anspruch auf Neudreh': '10.1 Right to reshoot',
+    '10.2 Anpassungen (Korrekturschleifen)': '10.2 Adjustments (revision rounds)',
+    '10.3 Rücktrittsrecht': '10.3 Right of withdrawal',
+    '2.1 Plattformen': '2.1 Platforms',
+    '2.2 Inhalte': '2.2 Content',
+    '3.1 Korrekturschleifen': '3.1 Revision rounds',
+    '3.2 Veröffentlichungsplan': '3.2 Publication plan',
+    'Videos / Reels:': 'Videos / reels:',
+    'Feed-Posts:': 'Feed posts:',
+    '5.1 Organische Veröffentlichung': '5.1 Organic publication',
+    '5.2 Zusätzliche Nutzung für Werbung (Media Buyout)': '5.2 Additional usage for advertising (media buyout)',
+    '5.3 Exklusivität': '5.3 Exclusivity',
+    'Kostenfreie Anpassungen umfassen u.a.:': 'Free adjustments include, among others:',
+    'Keine Garantie': 'No guarantee',
+    'Auftragnehmer (Videograf / Fotograf)': 'Contractor (videographer / photographer)',
+    '2.1 Art der Leistung': '2.1 Type of service',
+    '2.2 Produktionsart': '2.2 Production type',
+    '2.3 Drehtage & Produktionsorte': '2.3 Shooting days & production locations',
+    '3.1 Lieferumfang': '3.1 Delivery scope',
+    '3.2 Abgabe der ersten Version (V1)': '3.2 Delivery of first version (V1)',
+    '3.3 Korrekturschleifen': '3.3 Revision rounds',
+    '3.4 Abgabe der finalen Version': '3.4 Delivery of final version',
+    '9.1 Vergütung': '9.1 Compensation',
+    '9.2 Zahlungsbedingungen': '9.2 Payment terms',
+    '5.1 Nachbesserung (Korrekturen)': '5.1 Rework (revisions)',
+    '5.2 Neuerstellung (Neudreh)': '5.2 Reproduction (reshoot)',
+    'Produktion nach Briefing': 'Production based on briefing',
+    'Produktion nach Skript / Shotlist': 'Production based on script / shot list',
+    'Eigenständige Umsetzung nach Zielvorgabe': 'Independent execution based on objective',
+    'Farbkorrektur / Grading enthalten': 'Color correction / grading included',
+    'Sounddesign enthalten': 'Sound design included',
+    'Rohmaterial (alle Clips)': 'Raw footage (all clips)',
+    'Projektdateien (z.B. Premiere / Final Cut)': 'Project files (e.g. Premiere / Final Cut)',
+    'Paid Ads': 'Paid ads',
+    'Alle Medien (Social Media, Website, OTV, Print)': 'All media (social media, website, OTV, print)',
+    'Schnitt & Tempo': 'Editing & pace',
+    'Hook / Einstieg': 'Hook / opening',
+    'Szenenreihenfolge': 'Scene order',
+    'Effekte / Zooms': 'Effects / zooms',
+    'Untertitel': 'Subtitles',
+    'Nachfilmen einzelner Szenen': 'Re-shooting individual scenes',
+    'Co-Autoren-Post / Collab': 'Co-author post / collab',
+    'Zusätzliche Veröffentlichung durch Unternehmen/Kunden': 'Additional publication by company/client',
+    'Keine zusätzliche Veröffentlichung durch Unternehmen/Kunden': 'No additional publication by company/client',
+    'Ort: ': 'Location: ',
+    'Keine Drehtage angegeben': 'No shooting days specified',
+    'Eine Korrekturschleife umfasst jeweils eine überarbeitete Version nach Feedback.': 'One revision round includes one revised version after feedback.',
+    'Eine Urheberbenennung ist nicht erforderlich, sofern nicht ausdrücklich vereinbart.': 'Author credit is not required unless explicitly agreed.',
+    'Auftragnehmer: ___________________________': 'Contractor: ___________________________',
+    'Influencer / Vertreter: ___________________________': 'Influencer / representative: ___________________________',
+    'Der Creator garantiert, dass der Content frei von Rechten Dritter ist. Insbesondere dürfen keine': 'The creator guarantees that the content is free of third-party rights. In particular, no',
+    'fremden Marken, Logos, Musikstücke, geschützten Inhalte oder Personen ohne entsprechende Rechte': 'third-party brands, logos, music tracks, protected content, or persons without appropriate rights',
+    'oder Einwilligungen verwendet werden. Der Creator haftet für sämtliche daraus entstehenden': 'or consents may be used. The creator is liable for all resulting',
+    'Rechtsverletzungen.': 'legal infringements.',
+    'Der Creator verpflichtet sich zur vollständigen Verschwiegenheit über Inhalt, Ablauf und Ergebnisse': 'The creator commits to complete confidentiality regarding content, process, and results',
+    'dieses Auftrags. Eine Veröffentlichung, Weitergabe oder Erwähnung des Contents vor der offiziellen': 'of this assignment. Publication, forwarding, or mention of the content prior to official',
+    'Nutzung durch den Auftraggeber ist untersagt. Bei Verstoß kann eine angemessene Vertragsstrafe': 'use by the client is prohibited. In case of breach, an appropriate contractual penalty may be',
+    'geltend gemacht werden.': 'claimed.',
+    'Erfüllt der Creator die vereinbarten Anforderungen auch nach Nachbesserung oder Neudreh wiederholt': 'If the creator repeatedly fails to meet agreed requirements even after rework or reshoot,',
+    'nicht, ist der Auftraggeber berechtigt, vom Vertrag zurückzutreten und bereits gezahlte Vergütungen': 'the client is entitled to withdraw from the agreement and reclaim compensation already paid',
+    'anteilig oder vollständig zurückzufordern.': 'in part or in full.',
+    '• Die Agentur handelt im Namen und auf Rechnung des Kunden.': '• The agency acts in the name and on behalf of the client.',
+    '• Vertragspartner des Creators ist ausschließlich der Kunde.': '• The creator\'s contractual partner is exclusively the client.',
+    '• Sämtliche Nutzungsrechte gehen unmittelbar auf den Kunden über.': '• All usage rights transfer directly to the client.',
+    '• Weisungen und Abnahmen der Agentur gelten als verbindlich.': '• Agency instructions and approvals are binding.',
+    '• Die Agentur übernimmt keine Haftung für Inhalt oder Rechtskonformität.': '• The agency assumes no liability for content or legal compliance.',
+    'Der Influencer verpflichtet sich zur Erstellung und Veröffentlichung werblicher Inhalte zugunsten des Auftraggebers bzw. eines von der LikeGroup GmbH betreuten Kunden.': 'The influencer commits to creating and publishing promotional content for the client or a customer managed by LikeGroup GmbH.',
+    'Der Content ist der LikeGroup GmbH vor Veröffentlichung zur Freigabe vorzulegen. Produktion und Veröffentlichung dürfen erst nach Freigabe erfolgen.': 'The content must be submitted to LikeGroup GmbH for approval before publication. Production and publication may only occur after approval.',
+    'Der Influencer verpflichtet sich zur vollständigen, gesetzeskonformen Kennzeichnung der Inhalte (z.B. „Werbung", „Anzeige", „Paid Partnership").': 'The influencer commits to full, legally compliant labeling of content (e.g. "advertisement", "ad", "paid partnership").',
+    'Der Content muss insbesondere: technisch sauber (Ton, Licht, Bild), natürlich und nicht übermäßig werblich, markenkonform, visuell hochwertig, kreativ, lebendig und mit ästhetisch geeignetem Hintergrund umgesetzt sein.': 'The content must in particular be technically clean (audio, lighting, image), natural and not overly promotional, on-brand, visually high-quality, creative, vivid, and produced with an aesthetically suitable background.',
+    'Weicht der Content erheblich vom Briefing oder den Qualitätsanforderungen ab und ist nicht anpassbar, ist er vor Veröffentlichung kostenfrei neu zu erstellen.': 'If the content significantly deviates from the briefing or quality requirements and cannot be adjusted, it must be recreated free of charge before publication.',
+    'Der Influencer garantiert, dass der Content frei von Rechten Dritter ist und haftet für Rechtsverletzungen.': 'The influencer guarantees that the content is free of third-party rights and is liable for legal infringements.',
+    'Die KSK-Abgabe wird – sofern relevant – vom Auftraggeber abgeführt und nicht gesondert auf der Rechnung des Influencers ausgewiesen.': 'The KSK levy, where applicable, is paid by the client and is not listed separately on the influencer invoice.',
+    'Bei Nichterfüllung, wiederholter Qualitätsabweichung oder Nichtveröffentlichung ist ein Rücktritt zulässig. Ein Vergütungsanspruch besteht dann nicht.': 'In case of non-performance, repeated quality deviations, or non-publication, withdrawal is permitted. There is then no entitlement to compensation.',
+    'Der Vertrag wird mit Unterschrift des Influencers oder seines Vertretungsberechtigten wirksam. Eine Gegenzeichnung der LikeGroup GmbH ist nicht erforderlich.': 'The agreement becomes effective upon signature by the influencer or authorized representative. A countersignature by LikeGroup GmbH is not required.',
+    'Der Auftragnehmer verpflichtet sich zur professionellen Erstellung von Foto- und/oder Videomaterial zu Marketing- und Kommunikationszwecken des Auftraggebers bzw. eines von der LikeGroup GmbH betreuten Kunden. Es handelt sich um einen einmaligen Produktionsauftrag.': 'The contractor commits to professionally producing photo and/or video material for the client\'s marketing and communication purposes or for a customer managed by LikeGroup GmbH. This is a one-time production assignment.',
+    'Der Auftragnehmer verpflichtet sich, zum vereinbarten Zeitpunkt vollständig einsatzbereit zu erscheinen und die Produktion fachgerecht durchzuführen.': 'The contractor commits to appearing fully ready at the agreed time and carrying out the production professionally.',
+    'Der Auftragnehmer verpflichtet sich zu professioneller handwerklicher Qualität. Insbesondere muss das Material:': 'The contractor commits to professional workmanship quality. In particular, the material must:',
+    '• korrekt belichtet und scharf sein': '• be correctly exposed and sharp',
+    '• eine saubere Bildkomposition aufweisen': '• show clean composition',
+    '• ruhig und professionell geführt sein': '• be stable and professionally executed',
+    '• bei Video über klar verständlichen, sauberen Ton verfügen': '• for video, include clearly understandable and clean audio',
+    '• sauber farbkorrigiert bzw. bearbeitet sein': '• be cleanly color-corrected and edited',
+    '• markenkonform gemäß Briefing umgesetzt sein': '• be executed in line with brand guidelines and briefing',
+    'Technisch oder inhaltlich nicht verwertbares Material gilt als nicht vertragsgemäß.': 'Material unusable technically or in substance is deemed non-compliant with contract.',
+    'Als Nachbesserungen gelten insbesondere: Schnittanpassungen, Farbkorrekturen, Tonanpassungen, Austausch einzelner Szenen, Bildauswahl bei Fotos, kleinere inhaltliche Anpassungen. Diese sind im Rahmen der vereinbarten Korrekturschleifen kostenfrei vorzunehmen.': 'Rework includes in particular: edit adjustments, color correction, audio adjustments, replacement of individual scenes, image selection for photos, and minor content adjustments. These are free of charge within the agreed revision rounds.',
+    'Ein Anspruch auf kostenfreie Neuerstellung (Neudreh) besteht insbesondere bei: erheblichen technischen Mängeln, unbrauchbarem Bild- oder Tonmaterial, grober Abweichung vom Briefing, Missachtung professioneller Standards. Sofern die Mängel nicht durch Nachbesserung behoben werden können, ist der Auftragnehmer verpflichtet, die Leistung neu zu erbringen. Wenn es sich hierbei um ein einmaliges Event gehandelt hat, entfällt die Vergütung.': 'A claim for free reproduction (reshoot) exists in particular in cases of significant technical defects, unusable image or audio material, major deviation from briefing, or disregard of professional standards. If defects cannot be remedied by rework, the contractor must provide the service again. If this concerned a one-time event, compensation is forfeited.',
+    'Der Auftragnehmer überträgt dem Auftraggeber ausschließliche, zeitlich und räumlich unbegrenzte Nutzungsrechte an sämtlichen erstellten Inhalten.': 'The contractor grants the client exclusive, unlimited usage rights in time and territory for all created content.',
+    'Der Auftragnehmer garantiert, dass sämtliche Inhalte frei von Rechten Dritter sind. Er haftet für alle daraus resultierenden Rechtsverletzungen.': 'The contractor guarantees that all content is free from third-party rights. The contractor is liable for all resulting legal infringements.',
+    'Die Zahlung erfolgt durch die LikeGroup GmbH im Auftrag des Kunden. Die Rechnungsstellung erfolgt nach finaler Abnahme.': 'Payment is made by LikeGroup GmbH on behalf of the client. Invoicing occurs after final approval.',
+    'Der Auftragnehmer verpflichtet sich zur vollständigen Verschwiegenheit über Inhalte, Material und Ergebnisse dieses Auftrags. Eine Eigenverwendung oder Veröffentlichung ist nur mit vorheriger schriftlicher Zustimmung zulässig.': 'The contractor commits to complete confidentiality regarding content, material, and results of this assignment. Personal use or publication is only permitted with prior written consent.',
+    'Erfüllt der Auftragnehmer die vereinbarten Leistungen auch nach Nachbesserung oder Neuerstellung nicht, ist der Auftraggeber berechtigt, vom Vertrag zurückzutreten. Bereits gezahlte Vergütungen können anteilig oder vollständig zurückgefordert werden.': 'If the contractor fails to provide the agreed services even after rework or reproduction, the client is entitled to withdraw from the agreement. Compensation already paid may be reclaimed in part or in full.',
+    'Dieser Vertrag wird mit der Unterschrift des Auftragnehmers wirksam. Eine zusätzliche Unterschrift der LikeGroup GmbH ist nicht erforderlich.': 'This agreement becomes effective upon signature by the contractor. An additional signature by LikeGroup GmbH is not required.'
+  }
+};
 
 export class VertraegeCreate {
   constructor() {
@@ -21,6 +254,114 @@ export class VertraegeCreate {
     this._isRendering = false; // Lock um Flackern während des Renderns zu verhindern
     this._isInitializing = false; // Flag um Change-Events während Initialisierung zu ignorieren
     this.creatorAddressMissing = false; // Flag: Creator hat keine gültige Adresse
+  }
+
+  getContractLanguage(vertrag = {}) {
+    const source = vertrag.vertragssprache
+      || this.formData.vertragssprache
+      || CONFIG?.CONTRACTS?.DEFAULT_LANGUAGE
+      || CONFIG?.UI?.LANGUAGE
+      || 'de';
+    return source === 'en' ? 'en' : 'de';
+  }
+
+  getContractLocale(lang) {
+    return lang === 'en' ? 'en-GB' : 'de-DE';
+  }
+
+  formatContractDate(dateValue, lang, options) {
+    if (!dateValue) return '-';
+    return new Date(dateValue).toLocaleDateString(this.getContractLocale(lang), options);
+  }
+
+  localizeContractText(text, lang) {
+    if (lang !== 'en' || typeof text !== 'string') return text;
+
+    const directMap = CONTRACT_TEXT_TRANSLATIONS.en;
+    if (directMap[text]) return directMap[text];
+
+    const leadingWhitespace = text.match(/^\s*/)?.[0] || '';
+    const trimmedText = text.trimStart();
+
+    if (directMap[trimmedText]) {
+      return `${leadingWhitespace}${directMap[trimmedText]}`;
+    }
+
+    const prefixMap = [
+      ['Firmenname: ', 'Company name: '],
+      ['Name / Firma: ', 'Name / Company: '],
+      ['Name: ', 'Name: '],
+      ['Agenturname: ', 'Agency name: '],
+      ['Adresse: ', 'Address: '],
+      ['Vertreten durch: ', 'Represented by: '],
+      ['Profil(e): ', 'Profile(s): '],
+      ['Sonstige: ', 'Other: '],
+      ['Nutzungsdauer: ', 'Usage period: '],
+      ['Medien: ', 'Media: '],
+      ['Fixvergütung: ', 'Fixed compensation: '],
+      ['Zusatzkosten vereinbart: ', 'Additional costs agreed: '],
+      ['Bei Zusatzkosten: ', 'Additional costs: '],
+      ['Zahlungsziel: ', 'Payment term: '],
+      ['Die erste inhaltliche Version (Preview / V1) ist spätestens bis: ', 'The first content version (preview / V1) must be delivered no later than: '],
+      ['Die finale Version ist spätestens ', 'The final version must be delivered no later than '],
+      ['Lieferdatum: ', 'Delivery date: '],
+      ['Exklusivität für ', 'Exclusivity for '],
+      ['Videos: ', 'Videos: '],
+      ['Fotos: ', 'Photos: '],
+      ['Storys: ', 'Stories: '],
+      ['Storys:', 'Stories:'],
+      ['Videos / Reels: ', 'Videos / reels: '],
+      ['Feed-Posts: ', 'Feed posts: '],
+      ['Story-Slides: ', 'Story slides: '],
+      ['• Drehtag ', '• Shooting day '],
+      ['Video ', 'Video '],
+      ['Feed-Post ', 'Feed post '],
+      ['Story ', 'Story '],
+      ['Mindestreichweite: ', 'Minimum reach: '],
+      ['Steuer-ID / USt-ID: ', 'Tax ID / VAT ID: '],
+      ['Rechtsform: ', 'Legal form: '],
+      ['Anzahl Videos: ', 'Number of videos: '],
+      ['Anzahl Fotos: ', 'Number of photos: '],
+      ['Skonto: ', 'Cash discount: '],
+      ['Seite ', 'Page ']
+    ];
+
+    for (const [dePrefix, enPrefix] of prefixMap) {
+      if (trimmedText.startsWith(dePrefix)) {
+        const suffix = trimmedText.slice(dePrefix.length);
+        return `${leadingWhitespace}${enPrefix}${this.localizeContractText(suffix, lang)}`;
+      }
+    }
+
+    if (trimmedText.startsWith('Seite ') && trimmedText.includes(' von ')) {
+      return `${leadingWhitespace}${trimmedText.replace(/^Seite\s+/, 'Page ').replace(' von ', ' of ')}`;
+    }
+
+    const localizedText = trimmedText
+      .replace(' – Veröffentlichung am: ', ' - published on: ')
+      .replace(' – ', ' - ')
+      .replace(' digital zur Verfügung zu stellen.', ' and must be provided digitally.')
+      .replace(' nach Abschluss der letzten Korrekturschleife bereitzustellen.', ' after completion of the last revision round.')
+      .replace(' Werktage ', ' business days ')
+      .replace(' Korrekturschleife(n)', ' revision round(s)')
+      .replace(' zzgl. USt.', ' excl. VAT.')
+      .replace(' € netto', ' EUR net');
+
+    return `${leadingWhitespace}${localizedText}`;
+  }
+
+  localizeDocText(doc, lang) {
+    if (lang !== 'en') return;
+    const originalText = doc.text.bind(doc);
+    doc.text = (text, ...args) => {
+      if (typeof text === 'string') {
+        return originalText(this.localizeContractText(text, lang), ...args);
+      }
+      if (Array.isArray(text)) {
+        return originalText(text.map((line) => this.localizeContractText(line, lang)), ...args);
+      }
+      return originalText(text, ...args);
+    };
   }
 
   // Initialisiere Vertrags-Erstellung (oder Draft-Bearbeitung)
@@ -76,6 +417,7 @@ export class VertraegeCreate {
       if (draft) {
         this.formData = {
           typ: draft.typ,
+          vertragssprache: draft.vertragssprache || this.getContractLanguage(draft),
           name: draft.name,
           kunde_unternehmen_id: draft.kunde_unternehmen_id,
           kampagne_id: draft.kampagne_id,
@@ -350,6 +692,7 @@ export class VertraegeCreate {
     ];
     
     const isEdit = !!this.editId;
+    const selectedLanguage = this.getContractLanguage(this.formData);
 
     return `
       <div class="progress-steps">
@@ -380,6 +723,17 @@ export class VertraegeCreate {
             </svg>
             Zurück
           </button>
+        ` : ''}
+        ${this.currentStep === this.totalSteps ? `
+          <div class="contract-language-switch" role="group" aria-label="Vertragssprache">
+            <span class="contract-language-switch__label">Sprache:</span>
+            <button type="button" class="secondary-btn ${selectedLanguage === 'de' ? 'btn-active' : ''}" data-contract-lang="de">
+              Deutsch
+            </button>
+            <button type="button" class="secondary-btn ${selectedLanguage === 'en' ? 'btn-active' : ''}" data-contract-lang="en">
+              English
+            </button>
+          </div>
         ` : ''}
         ${this.currentStep < this.totalSteps ? `
           <button type="button" id="btn-next" class="primary-btn">
@@ -1949,6 +2303,7 @@ export class VertraegeCreate {
     const nextBtn = document.getElementById('btn-next');
     const submitBtn = document.getElementById('btn-submit');
     const saveDraftBtn = document.getElementById('btn-save-draft');
+    const languageButtons = document.querySelectorAll('[data-contract-lang]');
 
     // Abbrechen
     if (cancelBtn) {
@@ -2003,6 +2358,18 @@ export class VertraegeCreate {
           this.saveCurrentStepData();
           await this.handleSubmit(null, true); // true = startNewAfter
         }
+      });
+    }
+
+    if (languageButtons.length > 0) {
+      languageButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const lang = btn.dataset.contractLang === 'en' ? 'en' : 'de';
+          this.formData.vertragssprache = lang;
+          languageButtons.forEach((otherBtn) => {
+            otherBtn.classList.toggle('btn-active', otherBtn.dataset.contractLang === lang);
+          });
+        });
       });
     }
 
@@ -2097,7 +2464,8 @@ export class VertraegeCreate {
       skonto: this.formData.skonto === true || this.formData.skonto === 'true',
       korrekturschleifen: parseInt(this.formData.korrekturschleifen) || null,
       weitere_bestimmungen: this.formData.weitere_bestimmungen || null,
-      kunde_po_nummer: this.formData.kunde_po_nummer || null
+      kunde_po_nummer: this.formData.kunde_po_nummer || null,
+      vertragssprache: this.getContractLanguage(this.formData)
     };
 
     if (typ === 'Influencer Kooperation') {
@@ -3203,6 +3571,8 @@ export class VertraegeCreate {
 
   // PDF generieren mit jsPDF
   async generatePDF(vertrag) {
+    const lang = this.getContractLanguage(vertrag);
+
     // Dynamisch jsPDF laden falls nicht vorhanden
     if (!window.jspdf) {
       try {
@@ -3223,17 +3593,18 @@ export class VertraegeCreate {
 
     // Je nach Vertragstyp unterschiedliche PDF generieren
     if (vertrag.typ === 'Influencer Kooperation') {
-      return this.generateInfluencerPDF(vertrag);
+      return this.generateInfluencerPDF(vertrag, lang);
     }
     
     if (vertrag.typ === 'Videograph') {
-      return this.generateVideografPDF(vertrag);
+      return this.generateVideografPDF(vertrag, lang);
     }
 
     // Standard: UGC-PDF
     try {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
+      this.localizeDocText(doc, lang);
 
       // Font auf Helvetica setzen (ähnlich Arial, in jsPDF eingebaut)
       doc.setFont('helvetica');
@@ -3343,7 +3714,7 @@ export class VertraegeCreate {
       };
 
       // Helper: Datum formatieren
-      const formatDate = (d) => d ? new Date(d).toLocaleDateString('de-DE') : '-';
+      const formatDate = (d) => this.formatContractDate(d, lang);
 
       // Helper: Checkbox zeichnen (echte Rechtecke mit X)
       const drawCheckbox = (x, yPos, checked, label) => {
@@ -3601,6 +3972,7 @@ export class VertraegeCreate {
       } else {
         y += 8;
       }
+      doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.text('5.2 Zahlungsbedingungen', 14, y);
       doc.setFont('helvetica', 'normal');
@@ -3871,7 +4243,8 @@ export class VertraegeCreate {
 
       // PDF als Blob generieren
       const pdfBlob = doc.output('blob');
-      const fileName = `Vertrag_${vertrag.name || 'UGC'}_${new Date().toISOString().split('T')[0]}.pdf`;
+      const filePrefix = lang === 'en' ? 'EN_Contract' : 'Vertrag';
+      const fileName = `${filePrefix}_${vertrag.name || 'UGC'}_${new Date().toISOString().split('T')[0]}.pdf`;
       // Speichere in Unternehmens-Ordner: unternehmen/{unternehmen_id}/{vertrag_id}/{filename}
       const filePath = vertrag.kunde_unternehmen_id 
         ? `unternehmen/${vertrag.kunde_unternehmen_id}/${vertrag.id}/${fileName}`
@@ -3923,11 +4296,12 @@ export class VertraegeCreate {
   // ============================================
   // INFLUENCER-KOOPERATIONSVERTRAG PDF
   // ============================================
-  async generateInfluencerPDF(vertrag) {
+  async generateInfluencerPDF(vertrag, lang = this.getContractLanguage(vertrag)) {
     try {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
       doc.setFont('helvetica');
+      this.localizeDocText(doc, lang);
 
       // Konstanten für Fußzeile (gesperrter Bereich)
       const FOOTER_Y = 285;
@@ -3995,7 +4369,7 @@ export class VertraegeCreate {
       const creator = this.creators.find(c => c.id === vertrag.creator_id);
 
       // Helper: Datum formatieren
-      const formatDate = (d) => d ? new Date(d).toLocaleDateString('de-DE') : '-';
+      const formatDate = (d) => this.formatContractDate(d, lang);
 
       // Helper: Checkbox zeichnen
       const drawCheckbox = (x, yPos, checked, label) => {
@@ -4015,7 +4389,8 @@ export class VertraegeCreate {
 
       // Helper: Text mit Umbruch
       const addWrappedText = (text, x, yStart, maxWidth) => {
-        const lines = doc.splitTextToSize(text, maxWidth);
+        const localizedText = this.localizeContractText(text, lang);
+        const lines = doc.splitTextToSize(localizedText, maxWidth);
         doc.text(lines, x, yStart);
         return yStart + (lines.length * 5);
       };
@@ -4502,7 +4877,8 @@ export class VertraegeCreate {
 
       // PDF speichern
       const pdfBlob = doc.output('blob');
-      const fileName = `Vertrag_Influencer_${vertrag.name || 'Kooperation'}_${new Date().toISOString().split('T')[0]}.pdf`;
+      const filePrefix = lang === 'en' ? 'EN_Contract_Influencer' : 'Vertrag_Influencer';
+      const fileName = `${filePrefix}_${vertrag.name || 'Kooperation'}_${new Date().toISOString().split('T')[0]}.pdf`;
       // Speichere in Unternehmens-Ordner: unternehmen/{unternehmen_id}/{vertrag_id}/{filename}
       const filePath = vertrag.kunde_unternehmen_id 
         ? `unternehmen/${vertrag.kunde_unternehmen_id}/${vertrag.id}/${fileName}`
@@ -4550,10 +4926,11 @@ export class VertraegeCreate {
   // ============================================
   // VIDEOGRAFEN-PRODUKTIONSVERTRAG PDF
   // ============================================
-  async generateVideografPDF(vertrag) {
+  async generateVideografPDF(vertrag, lang = this.getContractLanguage(vertrag)) {
     try {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
+      this.localizeDocText(doc, lang);
 
       // Font auf Helvetica setzen
       doc.setFont('helvetica');
@@ -4668,7 +5045,8 @@ export class VertraegeCreate {
 
       // Helper für Textumbruch
       const addWrappedText = (text, x, y, maxWidth) => {
-        const lines = doc.splitTextToSize(text, maxWidth);
+        const localizedText = this.localizeContractText(text, lang);
+        const lines = doc.splitTextToSize(localizedText, maxWidth);
         lines.forEach(line => {
           if (y > MAX_CONTENT_Y) {
             addFooter();
@@ -4837,7 +5215,9 @@ export class VertraegeCreate {
       const produktionsplan = vertrag.videograf_produktionsplan || [];
       if (produktionsplan.length > 0) {
         produktionsplan.forEach((item, idx) => {
-          const datumFormatted = item.datum ? new Date(item.datum).toLocaleDateString('de-DE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '-';
+          const datumFormatted = item.datum
+            ? this.formatContractDate(item.datum, lang, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+            : '-';
           doc.text(`• Drehtag ${idx + 1}: ${datumFormatted}`, 14, y);
           y += 5;
           doc.text(`  Ort: ${item.ort || '-'}`, 14, y);
@@ -4888,7 +5268,7 @@ export class VertraegeCreate {
       doc.text('3.2 Abgabe der ersten Version (V1)', 14, y);
       doc.setFont('helvetica', 'normal');
       y += 6;
-      const v1Deadline = vertrag.videograf_v1_deadline ? new Date(vertrag.videograf_v1_deadline).toLocaleDateString('de-DE') : '-';
+      const v1Deadline = this.formatContractDate(vertrag.videograf_v1_deadline, lang);
       y = addWrappedText(`Die erste inhaltliche Version (Preview / V1) ist spätestens bis: ${v1Deadline} digital zur Verfügung zu stellen.`, 14, y, 180);
 
       // 3.3 Korrekturschleifen
@@ -5109,7 +5489,8 @@ export class VertraegeCreate {
 
       // PDF speichern
       const pdfBlob = doc.output('blob');
-      const fileName = `Vertrag_Videograf_${vertrag.name || 'Produktion'}_${new Date().toISOString().split('T')[0]}.pdf`;
+      const filePrefix = lang === 'en' ? 'EN_Contract_Videograf' : 'Vertrag_Videograf';
+      const fileName = `${filePrefix}_${vertrag.name || 'Produktion'}_${new Date().toISOString().split('T')[0]}.pdf`;
       // Speichere in Unternehmens-Ordner: unternehmen/{unternehmen_id}/{vertrag_id}/{filename}
       const filePath = vertrag.kunde_unternehmen_id 
         ? `unternehmen/${vertrag.kunde_unternehmen_id}/${vertrag.id}/${fileName}`

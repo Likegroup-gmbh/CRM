@@ -21,6 +21,9 @@ export const CONFIG = {
     THEME: 'light',
     LANGUAGE: 'de',
     ANIMATIONS: true
+  },
+  CONTRACTS: {
+    DEFAULT_LANGUAGE: 'de'
   }
 };
 
