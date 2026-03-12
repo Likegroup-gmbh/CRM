@@ -785,8 +785,8 @@ export class DataService {
           kampagne: { table: 'kampagne', foreignKey: 'kampagne_id', displayField: 'kampagnenname' }
         },
         filters: ['rechnung_nr', 'kooperation_id', 'kampagne_id', 'unternehmen_id', 'auftrag_id', 'status', 'gestellt_am', 'zahlungsziel', 'bezahlt_am', 'nettobetrag', 'land'],
-        sortBy: 'created_at',
-        sortOrder: 'desc'
+        sortBy: 'zahlungsziel',
+        sortOrder: 'asc'
       }
       ,
       creator_list: {
@@ -1292,6 +1292,7 @@ export class DataService {
                     name
                   )
                 `)
+                .order('zahlungsziel', { ascending: true, nullsFirst: false })
                 .order('created_at', { ascending: false });
             } else if (entityType === 'unternehmen') {
               // Unternehmen mit Many-to-Many JOIN für Branchen

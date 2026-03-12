@@ -812,6 +812,7 @@ export class AuftragList {
           unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
           marke:marke_id(id, markenname, logo_url),
           ansprechpartner:ansprechpartner_id(id, vorname, nachname, email, profile_image_url),
+          auftrag_details(id),
           kampagne_arten:auftrag_kampagne_art(art:kampagne_art_id(id, name))
         `, { count: 'exact' });
 
@@ -830,9 +831,28 @@ export class AuftragList {
         throw error;
       }
 
+      const auftragIds = (data || []).map(auftrag => auftrag.id).filter(Boolean);
+      let detailsIdSet = new Set();
+      if (auftragIds.length > 0) {
+        const { data: detailsRows, error: detailsError } = await window.supabase
+          .from('auftrag_details')
+          .select('auftrag_id')
+          .in('auftrag_id', auftragIds);
+
+        if (detailsError) {
+          console.warn('⚠️ Auftragsdetails-IDs konnten nicht separat geladen werden:', detailsError);
+        } else {
+          detailsIdSet = new Set((detailsRows || []).map(row => row.auftrag_id).filter(Boolean));
+        }
+      }
+
       // Daten für Kompatibilität formatieren
       const formattedData = data.map(auftrag => ({
         ...auftrag,
+        has_auftragsdetails:
+          detailsIdSet.has(auftrag.id) ||
+          (Array.isArray(auftrag.auftrag_details) && auftrag.auftrag_details.length > 0) ||
+          Boolean(auftrag.auftrag_details && typeof auftrag.auftrag_details === 'object' && auftrag.auftrag_details.id),
         unternehmen: auftrag.unternehmen ? { 
           id: auftrag.unternehmen.id,
           firmenname: auftrag.unternehmen.firmenname,
@@ -1125,9 +1145,11 @@ export class AuftragList {
 
     // Entity Updated Event Handler
     this._entityUpdatedHandler = (e) => {
-      if (e.detail.entity !== 'auftrag') return;
+      const entity = e?.detail?.entity;
+      if (entity !== 'auftrag' && entity !== 'auftrag_details' && entity !== 'auftragsdetails') return;
 
       const isInlineBillingUpdate =
+        entity === 'auftrag' &&
         e.detail.action === 'updated' &&
         (e.detail.field === 'rechnung_gestellt_am' || e.detail.field === 'ueberwiesen_am') &&
         e.detail.id;
@@ -1214,13 +1236,15 @@ export class AuftragList {
 
       tbody.innerHTML = auftraege.map(auftrag => {
         // Farbklasse basierend auf Zahlungsstatus: Überwiesen > Rechnung gestellt
-        const statusClass = auftrag.ueberwiesen
+        const paymentStatusClass = auftrag.ueberwiesen
           ? 'auftrag-row--ueberwiesen'
           : auftrag.rechnung_gestellt
             ? 'auftrag-row--rechnung-gestellt'
             : '';
+        const detailsStatusClass = auftrag.has_auftragsdetails ? 'auftrag-row--has-details' : '';
+        const rowClasses = [paymentStatusClass, detailsStatusClass].filter(Boolean).join(' ');
         return `
-        <tr data-id="${auftrag.id}" class="${statusClass}" data-rechnung-gestellt="${Boolean(auftrag.rechnung_gestellt)}" data-ueberwiesen="${Boolean(auftrag.ueberwiesen)}">
+        <tr data-id="${auftrag.id}" class="${rowClasses}" data-rechnung-gestellt="${Boolean(auftrag.rechnung_gestellt)}" data-ueberwiesen="${Boolean(auftrag.ueberwiesen)}">
           ${this.isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
           <td>${window.validatorSystem.sanitizeHtml(auftrag.angebotsnummer || '-')}</td>
           <td>${window.validatorSystem.sanitizeHtml(auftrag.re_nr || '-')}</td>

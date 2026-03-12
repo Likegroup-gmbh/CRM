@@ -157,6 +157,63 @@ export class RechnungDetail {
     }
   }
 
+  async validateVertragForKooperation(kooperationId) {
+    if (!kooperationId || !window.supabase) {
+      return { ok: false, message: 'Bitte zuerst eine gueltige Kooperation auswaehlen.' };
+    }
+
+    const { data: koop, error: koopError } = await window.supabase
+      .from('kooperationen')
+      .select('id, creator_id, kampagne_id')
+      .eq('id', kooperationId)
+      .single();
+
+    if (koopError || !koop) {
+      return { ok: false, message: 'Die ausgewaehlte Kooperation konnte nicht geladen werden.' };
+    }
+
+    if (!koop.creator_id || !koop.kampagne_id) {
+      return { ok: false, message: 'Die Kooperation ist unvollstaendig (Creator oder Kampagne fehlt).' };
+    }
+
+    const { data: vertraege, error: vertragError } = await window.supabase
+      .from('vertraege')
+      .select('id')
+      .eq('creator_id', koop.creator_id)
+      .eq('kampagne_id', koop.kampagne_id)
+      .eq('is_draft', false)
+      .limit(1);
+
+    if (vertragError) {
+      return { ok: false, message: 'Vertrag konnte nicht geprueft werden. Bitte erneut versuchen.' };
+    }
+
+    if (!vertraege || vertraege.length === 0) {
+      return { ok: false, message: 'Vor der Rechnung muss ein finaler Vertrag angelegt werden.' };
+    }
+
+    return { ok: true };
+  }
+
+  mapRechnungCreateError(errorMessage) {
+    const msg = String(errorMessage || '').trim();
+    if (!msg) return 'Unbekannter Fehler beim Erstellen der Rechnung.';
+
+    if (msg.includes('RECHNUNG_VERTRAG_REQUIRED')) {
+      return 'Vor der Rechnung muss ein finaler Vertrag zur Kooperation vorhanden sein.';
+    }
+
+    if (msg.includes('duplicate key') && msg.includes('kooperation_id')) {
+      return 'Fuer diese Kooperation existiert bereits eine Rechnung.';
+    }
+
+    if (msg.includes('rechnung_kooperation_id_fkey')) {
+      return 'Die ausgewaehlte Kooperation ist nicht mehr gueltig.';
+    }
+
+    return msg;
+  }
+
   async handleCreateSubmit() {
     try {
       const form = document.getElementById('rechnung-form');
@@ -191,6 +248,12 @@ export class RechnungDetail {
       
       if (missingFields.length > 0) {
         alert(`Bitte füllen Sie alle Pflichtfelder aus: ${missingFields.join(', ')}`);
+        return;
+      }
+
+      const vertragCheck = await this.validateVertragForKooperation(submitData.kooperation_id);
+      if (!vertragCheck.ok) {
+        alert(vertragCheck.message);
         return;
       }
 
@@ -295,10 +358,10 @@ export class RechnungDetail {
         alert('Rechnung erstellt');
         window.navigateTo(`/rechnung/${result.id}`);
       } else {
-        throw new Error(result.error || 'Unbekannter Fehler');
+        throw new Error(this.mapRechnungCreateError(result.error || 'Unbekannter Fehler'));
       }
     } catch (e) {
-      alert(`Fehler: ${e.message}`);
+      alert(`Fehler: ${this.mapRechnungCreateError(e?.message)}`);
     }
   }
 

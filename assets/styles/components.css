@@ -4243,14 +4243,18 @@ h3.section-title,
    Auftrag Zeilen-Farbkodierung (Zahlungsstatus)
    ============================================ */
 
-/* Rechnung gestellt → Orange-Indikator (links) */
-.data-table tr.auftrag-row--rechnung-gestellt {
-  border-left: 4px solid #f59e0b;
+/* Linker Status-Indikator direkt in der ersten Zelle (zuverlässig sichtbar) */
+.data-table tr.auftrag-row--rechnung-gestellt td:first-child {
+  box-shadow: inset 4px 0 0 #f59e0b;
 }
 
-/* Überwiesen → Grüner Indikator (links) */
-.data-table tr.auftrag-row--ueberwiesen {
-  border-left: 4px solid var(--color-success);
+.data-table tr.auftrag-row--ueberwiesen td:first-child {
+  box-shadow: inset 4px 0 0 var(--color-success);
+}
+
+/* Auftragsdetails vorhanden → Lila priorisiert */
+.data-table tr.auftrag-row--has-details td:first-child {
+  box-shadow: inset 4px 0 0 #8b5cf6;
 }
 
 

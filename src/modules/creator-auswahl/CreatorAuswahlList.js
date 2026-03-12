@@ -258,6 +258,8 @@ export class CreatorAuswahlList {
     const rolle = window.currentUser?.rolle?.toLowerCase();
     const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
     const canCreate = !isKunde && (rolle === 'admin' || window.currentUser?.permissions?.kampagne?.can_edit);
+    const showBrandsSection = !isKunde || this.brandFolders.length > 0;
+    const showCompanyOnlySection = !isKunde || this.companyOnlyItems.length > 0;
 
     return `
       <div class="list-container">
@@ -277,35 +279,39 @@ export class CreatorAuswahlList {
           </div>
         </div>
 
-        <div class="table-container">
-          <h3 class="table-section-title">Marken</h3>
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Marke</th>
-                <th>Sourcing-Listen</th>
-              </tr>
-            </thead>
-            <tbody id="brands-table-body"></tbody>
-          </table>
-        </div>
+        ${showBrandsSection ? `
+          <div class="table-container">
+            <h3 class="table-section-title">Sourcing-Listen mit Marke</h3>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Marke</th>
+                  <th>Sourcing-Listen</th>
+                </tr>
+              </thead>
+              <tbody id="brands-table-body"></tbody>
+            </table>
+          </div>
+        ` : ''}
 
-        <div class="table-container table-container--spaced">
-          <h3 class="table-section-title">Ohne Marke</h3>
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Kampagne</th>
-                <th>Creator</th>
-                <th>Erstellt von</th>
-                <th>Erstellt am</th>
-                <th>Aktionen</th>
-              </tr>
-            </thead>
-            <tbody id="company-only-table-body"></tbody>
-          </table>
-        </div>
+        ${showCompanyOnlySection ? `
+          <div class="table-container table-container--spaced">
+            <h3 class="table-section-title">Sourcing-Listen ohne Marke (nur Unternehmen)</h3>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Kampagne</th>
+                  <th>Creator</th>
+                  <th>Erstellt von</th>
+                  <th>Erstellt am</th>
+                  <th>Aktionen</th>
+                </tr>
+              </thead>
+              <tbody id="company-only-table-body"></tbody>
+            </table>
+          </div>
+        ` : ''}
       </div>
     `;
   }

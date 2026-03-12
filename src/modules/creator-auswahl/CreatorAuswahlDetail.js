@@ -519,7 +519,7 @@ export class CreatorAuswahlDetail {
               <th class="cp-col-follower-tt" ${!this.isColumnVisibleForCustomer('cp-col-follower-tt') ? 'style="display:none;"' : ''}>Follower ${tiktokIcon}</th>
               <th class="cp-col-location" ${!this.isColumnVisibleForCustomer('cp-col-location') ? 'style="display:none;"' : ''}>Location</th>
               <th class="cp-col-feedback" ${!this.isColumnVisibleForCustomer('cp-col-feedback') ? 'style="display:none;"' : ''}>Rückmeldung Kunde</th>
-              <th class="cp-col-prio1" ${!this.isColumnVisibleForCustomer('cp-col-prio1') ? 'style="display:none;"' : ''}>Prio 1</th>
+              <th class="cp-col-prio1" ${!this.isColumnVisibleForCustomer('cp-col-prio1') ? 'style="display:none;"' : ''}>Buchen</th>
               <th class="cp-col-prio2" ${!this.isColumnVisibleForCustomer('cp-col-prio2') ? 'style="display:none;"' : ''}>Prio 2</th>
               <th class="cp-col-nicht" ${!this.isColumnVisibleForCustomer('cp-col-nicht') ? 'style="display:none;"' : ''}>Nicht buchen</th>
               <th class="cp-col-check" ${!this.isColumnVisibleForCustomer('cp-col-check') ? 'style="display:none;"' : ''}>Rückmeldung</th>
@@ -648,8 +648,9 @@ export class CreatorAuswahlDetail {
       .map((typ) => `<option value="${typ}" ${item.typ === typ ? 'selected' : ''}>${typ}</option>`)
       .join('');
 
+    const isBooked = !!item.prio_1 && !item.nicht_umsetzen;
     return `
-      <tr class="item-row ${!this.isKunde ? 'draggable' : ''} ${item.nicht_umsetzen ? 'item-nicht-umsetzen' : ''}" data-item-id="${item.id}" draggable="${!this.isKunde}">
+      <tr class="item-row ${!this.isKunde ? 'draggable' : ''} ${isBooked ? 'item-gebucht' : ''} ${item.nicht_umsetzen ? 'item-nicht-umsetzen' : ''}" data-item-id="${item.id}" draggable="${!this.isKunde}">
         ${!this.isKunde ? `
           <td class="col-drag drag-handle col-sticky-1">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="drag-icon" style="width: 16px; height: 16px;">
@@ -1053,10 +1054,55 @@ export class CreatorAuswahlDetail {
       if (item) {
         item[field] = value;
       }
+
+      if (field === 'prio_1' && value === true) {
+        const reorderedItems = this.promoteBookedItemWithinCategory(itemId);
+        await creatorAuswahlService.updateItemsSortierungWithKategorie(reorderedItems);
+        this.items = reorderedItems.map((entry, index) => ({ ...entry, sortierung: index }));
+        this.rerenderTable();
+      }
     } catch (error) {
       console.error('Fehler beim Aktualisieren:', error);
       window.toastSystem?.show('Fehler beim Speichern', 'error');
     }
+  }
+
+  /**
+   * Verschiebt ein gebuchtes Item innerhalb der aktuellen Kategorie nach oben
+   */
+  promoteBookedItemWithinCategory(itemId) {
+    const item = this.items.find((entry) => entry.id === itemId);
+    if (!item) return this.items;
+
+    const getKategorieKey = (entry) => entry.kategorie || '__OHNE_KATEGORIE__';
+    const targetKategorieKey = getKategorieKey(item);
+
+    const categoryIndexes = [];
+    const categoryItems = [];
+
+    this.items.forEach((entry, index) => {
+      if (getKategorieKey(entry) === targetKategorieKey) {
+        categoryIndexes.push(index);
+        categoryItems.push(entry);
+      }
+    });
+
+    if (categoryItems.length <= 1) {
+      return this.items.map((entry, index) => ({ ...entry, sortierung: index }));
+    }
+
+    const targetItem = categoryItems.find((entry) => entry.id === itemId);
+    const remainingItems = categoryItems.filter((entry) => entry.id !== itemId);
+    const bookedItems = remainingItems.filter((entry) => entry.prio_1);
+    const nonBookedItems = remainingItems.filter((entry) => !entry.prio_1);
+    const reorderedCategoryItems = [targetItem, ...bookedItems, ...nonBookedItems];
+
+    const reorderedItems = [...this.items];
+    categoryIndexes.forEach((index, slot) => {
+      reorderedItems[index] = reorderedCategoryItems[slot];
+    });
+
+    return reorderedItems.map((entry, index) => ({ ...entry, sortierung: index }));
   }
 
   /**
