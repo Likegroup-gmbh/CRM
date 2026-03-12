@@ -272,8 +272,12 @@ export class RechnungDetail {
       let pdf_path = null;
       if (pdfUploaderRoot && pdfUploaderRoot.__uploaderInstance && pdfUploaderRoot.__uploaderInstance.files.length && window.supabase) {
         const file = pdfUploaderRoot.__uploaderInstance.files[0];
+        const sanitizedName = file.name
+          .replace(/[^a-zA-Z0-9._-]/g, '_')
+          .replace(/\.{2,}/g, '_')
+          .substring(0, 200);
         const bucket = 'rechnungen';
-        const path = `${submitData.unternehmen_id || 'unknown'}/${Date.now()}_${file.name}`;
+        const path = `${submitData.unternehmen_id || 'unknown'}/${Date.now()}_${sanitizedName}`;
         const { error: upErr } = await window.supabase.storage.from(bucket).upload(path, file, {
           cacheControl: '3600',
           upsert: false,
@@ -329,8 +333,12 @@ export class RechnungDetail {
             const rechnungId = result.id;
             const files = Array.from(belegeUploaderRoot.__uploaderInstance.files);
             for (const file of files) {
+              const belegeSanitizedName = file.name
+                .replace(/[^a-zA-Z0-9._-]/g, '_')
+                .replace(/\.{2,}/g, '_')
+                .substring(0, 200);
               const belegeBucket = 'rechnung-belege';
-              const belegePath = `${rechnungId}/${Date.now()}_${Math.random().toString(36).slice(2)}_${file.name}`;
+              const belegePath = `${rechnungId}/${Date.now()}_${Math.random().toString(36).slice(2)}_${belegeSanitizedName}`;
               const { error: upErr } = await window.supabase.storage.from(belegeBucket).upload(belegePath, file, {
                 cacheControl: '3600',
                 upsert: false,
