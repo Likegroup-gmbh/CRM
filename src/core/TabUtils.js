@@ -22,7 +22,7 @@ export const TAB_PERMISSION_MAP = {
   'sourcing': 'sourcing',
   'creators': 'creator',
   'creator': 'creator',
-  'vertraege': 'briefing', // nutzt briefing-Berechtigung (wie Navigation)
+  'vertraege': 'vertraege',
   'videos': 'briefing',    // nutzt briefing-Berechtigung (wie Navigation)
   'marken': 'marke',
   'ansprechpartner': 'ansprechpartner',

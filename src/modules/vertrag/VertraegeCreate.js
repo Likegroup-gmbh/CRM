@@ -568,12 +568,12 @@ export class VertraegeCreate {
   getVertragPermissions() {
     const role = String(window.currentUser?.rolle || '').trim().toLowerCase();
     const isAdmin = role === 'admin';
-    const entityPermissions = window.permissionSystem?.getEntityPermissions?.('vertraege')
-      || window.currentUser?.permissions?.vertraege
-      || {};
-    const canEdit = isAdmin || entityPermissions?.can_edit === true || window.checkUserPermission?.('vertraege', 'edit') === true;
-    const canView = isAdmin || entityPermissions?.can_view === true || window.checkUserPermission?.('vertraege', 'view') === true;
-    return { isAdmin, canEdit, canView };
+    const perms = window.currentUser?.permissions?.vertraege || {};
+    return {
+      isAdmin,
+      canEdit: isAdmin || perms.can_edit === true,
+      canView: isAdmin || perms.can_view === true
+    };
   }
 
   // Initialisiere Vertrags-Erstellung (oder Draft-Bearbeitung)

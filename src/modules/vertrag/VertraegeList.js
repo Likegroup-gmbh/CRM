@@ -31,18 +31,12 @@ export class VertraegeList {
   getVertragPermissions() {
     const role = String(window.currentUser?.rolle || '').trim().toLowerCase();
     const isAdmin = role === 'admin';
-    const canViewPage = window.canViewPage?.('vertraege');
-    const entityPermissions = window.permissionSystem?.getEntityPermissions?.('vertraege')
-      || window.currentUser?.permissions?.vertraege
-      || {};
-
-    let canView = isAdmin || entityPermissions?.can_view === true || window.checkUserPermission?.('vertraege', 'view') === true || canViewPage === true;
-    if (!isAdmin && canViewPage === false) {
-      canView = false;
-    }
-
-    const canEdit = canView && (isAdmin || entityPermissions?.can_edit === true || window.checkUserPermission?.('vertraege', 'edit') === true);
-    return { isAdmin, canView, canEdit };
+    const perms = window.currentUser?.permissions?.vertraege || {};
+    return {
+      isAdmin,
+      canView: isAdmin || perms.can_view === true,
+      canEdit: isAdmin || perms.can_edit === true
+    };
   }
 
   // Initialisiere Verträge-Liste
