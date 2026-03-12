@@ -28,6 +28,23 @@ export class VertraegeList {
     this.listViewMode = 'grid'; // 'grid' (Ordner) oder 'list' (Tabelle)
   }
 
+  getVertragPermissions() {
+    const role = String(window.currentUser?.rolle || '').trim().toLowerCase();
+    const isAdmin = role === 'admin';
+    const canViewPage = window.canViewPage?.('vertraege');
+    const entityPermissions = window.permissionSystem?.getEntityPermissions?.('vertraege')
+      || window.currentUser?.permissions?.vertraege
+      || {};
+
+    let canView = isAdmin || entityPermissions?.can_view === true || window.checkUserPermission?.('vertraege', 'view') === true || canViewPage === true;
+    if (!isAdmin && canViewPage === false) {
+      canView = false;
+    }
+
+    const canEdit = canView && (isAdmin || entityPermissions?.can_edit === true || window.checkUserPermission?.('vertraege', 'edit') === true);
+    return { isAdmin, canView, canEdit };
+  }
+
   // Initialisiere Verträge-Liste
   async init(unternehmenId = null) {
     // Prüfe ob ein Unternehmen direkt angesteuert wird
@@ -47,10 +64,9 @@ export class VertraegeList {
     // Breadcrumb
     this.updateBreadcrumb();
     
-    // Berechtigungsprüfung
-    const canView = window.currentUser?.rolle === 'admin' || 
-                    window.currentUser?.rolle === 'mitarbeiter';
-    
+    // Berechtigungsprüfung (einheitlich über PermissionSystem + Overrides)
+    const { canView } = this.getVertragPermissions();
+
     if (!canView) {
       window.content.innerHTML = `
         <div class="error-message">
@@ -245,8 +261,7 @@ export class VertraegeList {
 
   // Rendere Ordner-Ansicht (mit View-Toggle)
   renderFoldersView() {
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-    const canEdit = isAdmin || window.currentUser?.rolle === 'mitarbeiter';
+    const { canEdit } = this.getVertragPermissions();
     const viewToggleHtml = ViewModeToggle.render([
       { buttonId: 'btn-view-list', label: 'Liste', icon: 'list', active: this.listViewMode === 'list' },
       { buttonId: 'btn-view-grid', label: 'Grid', icon: 'grid', active: this.listViewMode === 'grid' }
@@ -525,8 +540,7 @@ export class VertraegeList {
 
   // Rendere Verträge-Ansicht (Strategie-ähnlich)
   renderVertraegeView() {
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-    const canEdit = isAdmin || window.currentUser?.rolle === 'mitarbeiter';
+    const { isAdmin, canEdit } = this.getVertragPermissions();
 
     return `
       <div class="list-container">
@@ -585,7 +599,7 @@ export class VertraegeList {
     const tbody = document.getElementById('vertraege-table-body');
     if (!tbody) return;
 
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    const { isAdmin, canEdit } = this.getVertragPermissions();
 
     if (!vertraege || vertraege.length === 0) {
       tbody.innerHTML = `
@@ -630,7 +644,6 @@ export class VertraegeList {
         : '<span class="text-muted">—</span>';
 
       // Unterschriebener Vertrag Icon (externes Link-Icon, Bearbeiten im Aktionsmenü)
-      const canEdit = isAdmin || window.currentUser?.rolle === 'mitarbeiter';
       const unterschriebenHtml = vertrag.unterschriebener_vertrag_url
         ? `<a href="${escapeHtml(vertrag.unterschriebener_vertrag_url)}" target="_blank" class="signed-link" title="Unterschriebenen Vertrag öffnen">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
@@ -649,7 +662,7 @@ export class VertraegeList {
         ? '<span class="status-badge status-draft">Entwurf</span>'
         : '<span class="status-badge status-final">Finalisiert</span>';
 
-      const actionsHtml = this.renderVertragActions(vertrag, isAdmin);
+      const actionsHtml = this.renderVertragActions(vertrag, isAdmin, canEdit);
 
       return `
         <tr class="table-row-clickable" data-vertrag-id="${vertrag.id}">
@@ -699,7 +712,7 @@ export class VertraegeList {
   }
 
   // Rendere Aktionen basierend auf Draft-Status
-  renderVertragActions(vertrag, isAdmin) {
+  renderVertragActions(vertrag, isAdmin, canEdit) {
     const isDraft = vertrag.is_draft;
     
     // HTML-Escape-Funktion für URLs mit Sonderzeichen
@@ -733,10 +746,11 @@ export class VertraegeList {
 
     if (isDraft) {
       actions = `
+        ${canEdit ? `
         <a href="#" class="action-item" data-action="continue" data-id="${vertrag.id}">
           ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
           Weiter bearbeiten
-        </a>
+        </a>` : ''}
         <a href="#" class="action-item" data-action="view" data-id="${vertrag.id}">
           ${window.ActionsDropdown?.getHeroIcon('view') || ''}
           Details anzeigen
@@ -749,10 +763,11 @@ export class VertraegeList {
           ${window.ActionsDropdown?.getHeroIcon('view') || ''}
           Details anzeigen
         </a>
+        ${canEdit ? `
         <a href="#" class="action-item" data-action="edit" data-id="${vertrag.id}">
           ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
           Bearbeiten
-        </a>
+        </a>` : ''}
         ${vertrag.datei_url ? `
           <a href="#" class="action-item" data-action="download" data-id="${vertrag.id}">
             ${window.ActionsDropdown?.getHeroIcon('download') || ''}
@@ -1060,6 +1075,10 @@ export class VertraegeList {
             break;
           case 'edit':
           case 'continue':
+            if (!this.getVertragPermissions().canEdit) {
+              window.toastSystem?.show('Sie haben keine Berechtigung, Vertragsentwürfe zu bearbeiten.', 'warning');
+              break;
+            }
             window.navigateTo(`/vertraege/${id}/edit`);
             break;
           case 'download':

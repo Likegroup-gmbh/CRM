@@ -30,6 +30,12 @@ export class StrategieList {
 
   async init() {
     this._forceReload = true;
+    this.viewMode = 'companies';
+    this.currentUnternehmenId = null;
+    this.currentUnternehmenName = null;
+    this.currentMarkeId = null;
+    this.currentMarkeName = null;
+
     const canView = window.currentUser?.rolle === 'admin' || window.currentUser?.permissions?.strategie?.can_view;
     if (!canView) {
       window.content.innerHTML = `

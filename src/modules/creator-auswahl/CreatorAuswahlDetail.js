@@ -580,8 +580,10 @@ export class CreatorAuswahlDetail {
       html += `
         <tr class="kategorie-header-row" data-kategorie="${kategorie}">
           <td colspan="${colCount}" class="kategorie-header">
-            <span class="kategorie-label">${kategorie}</span>
-            <span class="kategorie-count">(${items.length})</span>
+            <div class="kategorie-header-content">
+              <span class="kategorie-label">${kategorie}</span>
+              <span class="kategorie-count">(${items.length})</span>
+            </div>
           </td>
         </tr>
       `;
@@ -598,8 +600,10 @@ export class CreatorAuswahlDetail {
       html += `
         <tr class="kategorie-header-row" data-kategorie="Ohne Kategorie">
           <td colspan="${colCount}" class="kategorie-header kategorie-header--default">
-            <span class="kategorie-label">Ohne Kategorie</span>
-            <span class="kategorie-count">(${ohneKategorie.length})</span>
+            <div class="kategorie-header-content">
+              <span class="kategorie-label">Ohne Kategorie</span>
+              <span class="kategorie-count">(${ohneKategorie.length})</span>
+            </div>
           </td>
         </tr>
       `;
@@ -617,8 +621,10 @@ export class CreatorAuswahlDetail {
       html += `
         <tr class="kategorie-header-row kategorie-header-row--rejected" data-kategorie="${NICHT_UMSETZEN_KATEGORIE}">
           <td colspan="${colCount}" class="kategorie-header kategorie-header--rejected">
-            <span class="kategorie-label">${nichtUmsetzenIcon} ${NICHT_UMSETZEN_KATEGORIE}</span>
-            <span class="kategorie-count">(${nichtUmsetzenItems.length})</span>
+            <div class="kategorie-header-content">
+              <span class="kategorie-label">${nichtUmsetzenIcon} ${NICHT_UMSETZEN_KATEGORIE}</span>
+              <span class="kategorie-count">(${nichtUmsetzenItems.length})</span>
+            </div>
           </td>
         </tr>
       `;

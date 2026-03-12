@@ -1,5 +1,7 @@
 export const KUNDE_ALLOWED_SLUGS = [
-  'erste-schritte-nach-ihrem-magic-link'
+  'erste-schritte-nach-ihrem-magic-link',
+  'video-sourcing-content-strategy-framework',
+  'video-sourcing-fuer-paid-ads'
 ];
 
 export const ARTICLE_DISPLAY_OVERRIDES = {

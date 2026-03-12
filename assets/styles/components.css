@@ -9433,14 +9433,23 @@ input.readonly-field {
 
 .kategorie-header-row td {
   border: none !important;
+  border-bottom: 1px solid var(--gray-300) !important;
+  padding: 0 !important;
 }
 
 .kategorie-header {
-  padding: var(--space-sm) var(--space-md) !important;
+  padding: 0 !important;
   font-weight: 600;
   font-size: var(--text-sm);
   color: var(--gray-700);
   cursor: default;
+}
+
+.kategorie-header .kategorie-header-content {
+  position: sticky;
+  left: 0;
+  display: inline-block;
+  padding: var(--space-sm) var(--space-md);
 }
 
 .kategorie-header--default {
@@ -10574,13 +10583,25 @@ table:has(#kampagnen-table-body) tbody tr:hover td.col-name {
 .creator-pool-table {
   border-collapse: separate;
   border-spacing: 0;
+  border-left: 1px solid var(--gray-200);
+  border-top: 1px solid var(--gray-200);
 }
 
-/* Alle Zellen - normale Borders */
+/* Alle Zellen - nur rechts+unten, mit !important um geerbte data-table Regeln zu überschreiben */
 .creator-pool-table th,
 .creator-pool-table td {
-  border: 1px solid var(--gray-200);
+  border-right: 1px solid var(--gray-200) !important;
+  border-bottom: 1px solid var(--gray-200) !important;
+  border-left: none !important;
+  border-top: none !important;
 }
+
+/* Checkbox-Zellen: .data-table td:has(input[type="checkbox"]) entfernt border-right – hier wiederherstellen */
+.creator-pool-table td:has(input[type="checkbox"]) {
+  border-right: 1px solid var(--gray-200) !important;
+}
+
+/* Sticky-Spalten: Echte Borders werden durch box-shadow ersetzt (bleiben beim Scrollen sichtbar) */
 
 /* Erste Spalte (Drag) - Sticky */
 .creator-pool-table th.col-sticky-1,
@@ -10592,12 +10613,12 @@ table:has(#kampagnen-table-body) tbody tr:hover td.col-name {
   min-width: 32px;
   width: 32px;
   padding: 0 var(--space-xs) !important;
-  border-right: none !important;
-  /* Borders als Box-Shadow für permanente Sichtbarkeit */
+  border: none !important;
   box-shadow: 
-    inset 0 1px 0 0 var(--gray-200),     /* top */
-    inset 0 -1px 0 0 var(--gray-200),    /* bottom */
-    inset 1px 0 0 0 var(--gray-200);     /* left */
+    inset 0 -1px 0 0 var(--gray-200),
+    inset 0 1px 0 0 var(--gray-200),
+    inset 1px 0 0 0 var(--gray-200),
+    inset -1px 0 0 0 var(--gray-200);
 }
 
 /* Zweite Spalte (Name) - Sticky */
@@ -10608,16 +10629,15 @@ table:has(#kampagnen-table-body) tbody tr:hover td.col-name {
   z-index: 20;
   background: white;
   min-width: 140px;
-  border-left: none !important;
-  border-right: none !important;
-  /* Borders als Box-Shadow */
+  border: none !important;
   box-shadow: 
-    inset 0 1px 0 0 var(--gray-200),     /* top */
-    inset 0 -1px 0 0 var(--gray-200),    /* bottom */
-    inset 1px 0 0 0 var(--gray-200);     /* left - Border zwischen Spalte 1 und 2 */
+    inset 0 -1px 0 0 var(--gray-200),
+    inset 0 1px 0 0 var(--gray-200),
+    inset 1px 0 0 0 var(--gray-200),
+    inset -1px 0 0 0 var(--gray-200);
 }
 
-/* Dritte Spalte (Creator Art) - Sticky mit rechtem Border */
+/* Dritte Spalte (Creator Art) - Sticky mit dickerer rechter Kante */
 .creator-pool-table th.col-sticky-3,
 .creator-pool-table td.col-sticky-3 {
   position: sticky !important;
@@ -10625,13 +10645,12 @@ table:has(#kampagnen-table-body) tbody tr:hover td.col-name {
   z-index: 20;
   background: white;
   min-width: 130px;
-  border-left: none !important;
-  /* Borders als Box-Shadow */
+  border: none !important;
   box-shadow: 
-    inset 0 1px 0 0 var(--gray-200),        /* top */
-    inset -2px 0 0 0 var(--gray-300),       /* right - dickerer Border */
-    inset 0 -1px 0 0 var(--gray-200),       /* bottom */
-    inset 1px 0 0 0 var(--gray-200);        /* left - Border zwischen Spalte 2 und 3 */
+    inset 0 -1px 0 0 var(--gray-200),
+    inset 0 1px 0 0 var(--gray-200),
+    inset 1px 0 0 0 var(--gray-200),
+    inset -2px 0 0 0 var(--gray-300);
 }
 
 /* Header der fixierten Spalten höherer z-index */
@@ -10755,7 +10774,7 @@ table:has(#kampagnen-table-body) tbody tr:hover td.col-name {
 .creator-pool-table td.cp-col-prio2,
 .creator-pool-table td.cp-col-nicht,
 .creator-pool-table td.cp-col-check {
-  padding: var(--space-sm) !important;
+  padding: var(--space-xs) var(--space-sm) !important;
   vertical-align: top;
 }
 
@@ -10785,13 +10804,24 @@ table:has(#kampagnen-table-body) tbody tr:hover td.col-name {
   min-width: 70px;
 }
 
+/* Kompakte Zeilenhöhe für Creator-Pool-Tabelle */
+.creator-pool-table .strategie-textarea {
+  min-height: 3.9em;
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.creator-pool-table .cell-text-readonly {
+  min-height: 0;
+  padding: var(--space-xs) var(--space-sm);
+}
+
 /* Link-Zellen mit Icon */
 .creator-pool-table .link-cell-wrapper {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 40px;
+  min-height: 0;
 }
 
 .creator-pool-table .link-icon-btn {

@@ -232,7 +232,134 @@ const CONTRACT_TEXT_TRANSLATIONS = {
     'Die Zahlung erfolgt durch die LikeGroup GmbH im Auftrag des Kunden. Die Rechnungsstellung erfolgt nach finaler Abnahme.': 'Payment is made by LikeGroup GmbH on behalf of the client. Invoicing occurs after final approval.',
     'Der Auftragnehmer verpflichtet sich zur vollständigen Verschwiegenheit über Inhalte, Material und Ergebnisse dieses Auftrags. Eine Eigenverwendung oder Veröffentlichung ist nur mit vorheriger schriftlicher Zustimmung zulässig.': 'The contractor commits to complete confidentiality regarding content, material, and results of this assignment. Personal use or publication is only permitted with prior written consent.',
     'Erfüllt der Auftragnehmer die vereinbarten Leistungen auch nach Nachbesserung oder Neuerstellung nicht, ist der Auftraggeber berechtigt, vom Vertrag zurückzutreten. Bereits gezahlte Vergütungen können anteilig oder vollständig zurückgefordert werden.': 'If the contractor fails to provide the agreed services even after rework or reproduction, the client is entitled to withdraw from the agreement. Compensation already paid may be reclaimed in part or in full.',
-    'Dieser Vertrag wird mit der Unterschrift des Auftragnehmers wirksam. Eine zusätzliche Unterschrift der LikeGroup GmbH ist nicht erforderlich.': 'This agreement becomes effective upon signature by the contractor. An additional signature by LikeGroup GmbH is not required.'
+    'Dieser Vertrag wird mit der Unterschrift des Auftragnehmers wirksam. Eine zusätzliche Unterschrift der LikeGroup GmbH ist nicht erforderlich.': 'This agreement becomes effective upon signature by the contractor. An additional signature by LikeGroup GmbH is not required.',
+
+    // === MODEL-VERTRAG ===
+    'MODELVERTRAG': 'MODEL AGREEMENT',
+    'Auftraggeber': 'Client',
+    'Model': 'Model',
+
+    // §1
+    '§1 Vertragsgegenstand': '§1 Subject of agreement',
+    'Der Auftraggeber beauftragt das Model mit der Mitwirkung an einer Foto- und/oder Videoproduktion': 'The client commissions the model to participate in a photo and/or video production',
+    'gemäß den nachfolgenden Bestimmungen.': 'in accordance with the following provisions.',
+    'Die Produktion dient der Erstellung von Bild- und/oder Bewegtbildmaterial für die vertraglich': 'The production serves to create image and/or moving image material for the contractually',
+    'definierte Nutzung.': 'defined usage.',
+
+    // §2
+    '§2 Produktion & Einsatz': '§2 Production & deployment',
+    '2.1 Produktionsart': '2.1 Production type',
+    'Fotoshooting': 'Photo shoot',
+    'Videoshooting': 'Video shoot',
+    'Kombiniert (Foto & Video)': 'Combined (photo & video)',
+    '2.2 Produktionszeitraum': '2.2 Production period',
+    'Shooting von:': 'Shooting from:',
+    'Shooting bis:': 'Shooting until:',
+    '2.3 Tagesstruktur': '2.3 Daily schedule',
+    'Call Time (Ankunft):': 'Call time (arrival):',
+    'Geplanter Drehbeginn:': 'Planned start of shooting:',
+    'Geplantes Produktionsende:': 'Planned end of production:',
+    'Maximale tägliche Einsatzdauer:': 'Maximum daily working hours:',
+    'Stunden': 'hours',
+    '2.4 Einsatzort': '2.4 Location',
+    'Studio': 'Studio',
+    'Outdoor': 'Outdoor',
+    'On-Location': 'On-location',
+    'Ausland': 'Abroad',
+    'Adresse / Ort:': 'Address / location:',
+    '2.5 Optionstage': '2.5 Option days',
+    'Keine Optionstage vereinbart': 'No option days agreed',
+    'Die Buchung eines Optionstages bedarf der rechtzeitigen Bestätigung durch den Auftraggeber.': 'Booking an option day requires timely confirmation by the client.',
+
+    // §3
+    '§3 Produktionsrahmen': '§3 Production framework',
+    '3.1 Geplanter Output (unverbindliche Zielgröße)': '3.1 Planned output (non-binding target)',
+    'Anzahl Foto-Motive (ca.):': 'Number of photo motifs (approx.):',
+    'Anzahl Video-Sequenzen (ca.):': 'Number of video sequences (approx.):',
+    'Die tatsächliche Anzahl der finalen Assets liegt im Ermessen des Auftraggebers und stellt keinen': 'The actual number of final assets is at the discretion of the client and does not constitute',
+    'Anspruch auf eine bestimmte Veröffentlichungsmenge dar.': 'a claim to a specific publication volume.',
+    '3.2 Rolle des Models': '3.2 Role of the model',
+    'Reines Posing': 'Posing only',
+    'Acting / Performance': 'Acting / performance',
+    'Mit Sprechrolle': 'With speaking role',
+    'Moderation': 'Hosting / moderation',
+    'Sportliche Performance': 'Athletic performance',
+    '3.3 Styling': '3.3 Styling',
+    'Styling wird vom Auftraggeber gestellt': 'Styling provided by the client',
+    'Model bringt eigene Outfits mit': 'Model brings own outfits',
+    'Fitting-Termin vereinbart': 'Fitting appointment scheduled',
+    'Fitting-Termin vereinbart am:': 'Fitting appointment scheduled for:',
+
+    // §4
+    '§4 Nutzungsrechte': '§4 Usage rights',
+    '4.1 Nutzungsarten': '4.1 Types of usage',
+    'Das im Rahmen der Produktion entstandene Material darf für folgende Zwecke genutzt werden:': 'Material produced during the production may be used for the following purposes:',
+    'E-Commerce': 'E-commerce',
+    'Social Media (organisch)': 'Social media (organic)',
+    'OOH': 'OOH (out of home)',
+    'Print': 'Print',
+    'TV / CTV': 'TV / CTV',
+    'POS': 'POS',
+    'PR': 'PR',
+    'Kampagne': 'Campaign',
+    '4.2 Territorium': '4.2 Territory',
+    'DACH': 'DACH',
+    'EU': 'EU',
+    'Weltweit': 'Worldwide',
+    '4.3 Nutzungsdauer': '4.3 Usage duration',
+    '24 Monate': '24 months',
+    '4.4 Exklusivität': '4.4 Exclusivity',
+    'Branchenexklusivität': 'Industry exclusivity',
+    'Wettbewerber-Exklusivität': 'Competitor exclusivity',
+    '4.5 Bearbeitung & Anpassung': '4.5 Editing & adaptation',
+    'Der Auftraggeber ist berechtigt, das Bild- und Videomaterial im Rahmen des Vertragszwecks zu': 'The client is entitled to edit, shorten, graphically alter or combine the image and video',
+    'bearbeiten, zu kürzen, grafisch zu verändern oder mit anderen Inhalten zu kombinieren.': 'material with other content within the scope of the contractual purpose.',
+    '4.6 KI- und digitale Weiterverarbeitung': '4.6 AI and digital processing',
+    'Nutzung für KI-gestützte Weiterverarbeitung erlaubt': 'Usage for AI-supported processing permitted',
+    'Nutzung für Trainingsdaten ausgeschlossen': 'Usage for training data excluded',
+    'Keine Deepfake-Nutzung': 'No deepfake usage',
+    'Nutzung ausschließlich im Rahmen der vereinbarten Kampagne': 'Usage exclusively within the scope of the agreed campaign',
+
+    // §5
+    '5.1 Honorar': '5.1 Fee',
+    'Tagesgage': 'Day rate',
+    'Halbtagesgage': 'Half-day rate',
+    'Pauschalhonorar': 'Flat fee',
+    'Stundenhonorar': 'Hourly rate',
+    '5.2 Buyout': '5.2 Buyout',
+    'Buyout im Honorar enthalten': 'Buyout included in fee',
+    'Zusätzliches Buyout-Honorar:': 'Additional buyout fee:',
+    '5.3 Reise- und Nebenkosten': '5.3 Travel and ancillary costs',
+    'Inklusive': 'Included',
+    'Werden gegen Nachweis erstattet': 'Reimbursed upon receipt',
+    '5.4 Zahlungsziel': '5.4 Payment term',
+    'Rechnungsstellung durch das Model nach Abschluss der Produktion.': 'Invoicing by the model upon completion of the production.',
+
+    // §6
+    '§6 Absage & Ausfall': '§6 Cancellation & default',
+    '6.1 Wetterabhängigkeit': '6.1 Weather dependency',
+    'Produktion ist wetterabhängig': 'Production is weather-dependent',
+    'Produktion ist nicht wetterabhängig': 'Production is not weather-dependent',
+    '6.2 Absagebedingungen': '6.2 Cancellation terms',
+    'Bei Absage durch den Auftraggeber gelten folgende Regelungen:': 'In case of cancellation by the client, the following rules apply:',
+    '100 % Honorar bei Absage < 24 Stunden': '100% fee for cancellation < 24 hours',
+    '50 % Honorar bei Absage < 48 Stunden': '50% fee for cancellation < 48 hours',
+    'Individuelle Regelung': 'Individual arrangement',
+
+    // §7
+    '§7 Persönlichkeitsrechte': '§7 Personality rights',
+    'Das Model stimmt der Veröffentlichung der im Rahmen der Produktion entstandenen Aufnahmen': 'The model expressly consents to the publication of the recordings produced during the',
+    'gemäß den vertraglich vereinbarten Nutzungsrechten ausdrücklich zu.': 'production in accordance with the contractually agreed usage rights.',
+
+    // §8
+    '§8 Schlussbestimmungen': '§8 Final provisions',
+    'Änderungen oder Ergänzungen dieses Vertrags bedürfen der Schriftform.': 'Amendments or additions to this agreement must be in writing.',
+    'Sollten einzelne Bestimmungen dieses Vertrags unwirksam sein oder werden, bleibt die Wirksamkeit': 'Should individual provisions of this agreement be or become invalid, the validity',
+    'der übrigen Regelungen unberührt.': 'of the remaining provisions shall remain unaffected.',
+
+    // Unterschriften
+    'Unterschrift Auftraggeber: ___________________________': 'Signature client: ___________________________',
+    'Model: ___________________________': 'Model: ___________________________'
   }
 };
 
@@ -272,6 +399,64 @@ export class VertraegeCreate {
   formatContractDate(dateValue, lang, options) {
     if (!dateValue) return '-';
     return new Date(dateValue).toLocaleDateString(this.getContractLocale(lang), options);
+  }
+
+  parseCurrencyInput(value) {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : null;
+    }
+
+    let str = String(value).trim();
+    if (!str) return null;
+
+    str = str.replace(/\s+/g, '').replace(/[€$]/g, '');
+
+    const hasComma = str.includes(',');
+    const hasDot = str.includes('.');
+
+    if (hasComma && hasDot) {
+      const lastComma = str.lastIndexOf(',');
+      const lastDot = str.lastIndexOf('.');
+      const decimalSep = lastComma > lastDot ? ',' : '.';
+      const thousandSep = decimalSep === ',' ? '.' : ',';
+      str = str.split(thousandSep).join('');
+      str = decimalSep === ',' ? str.replace(',', '.') : str;
+    } else if (hasComma) {
+      const parts = str.split(',');
+      if (parts.length > 2) {
+        str = parts.join('');
+      } else {
+        const decimalPart = parts[1] || '';
+        const likelyThousands = decimalPart.length === 3 && parts[0].length > 0;
+        str = likelyThousands ? parts.join('') : `${parts[0]}.${decimalPart}`;
+      }
+    } else if (hasDot) {
+      const parts = str.split('.');
+      if (parts.length > 2) {
+        str = parts.join('');
+      } else {
+        const decimalPart = parts[1] || '';
+        const likelyThousands = decimalPart.length === 3 && parts[0].length > 0;
+        str = likelyThousands ? parts.join('') : `${parts[0]}.${decimalPart}`;
+      }
+    }
+
+    str = str.replace(/[^0-9.-]/g, '');
+    if (!str || str === '-' || str === '.') return null;
+
+    const parsed = Number(str);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  formatContractMoney(value, lang, options = {}) {
+    const { emptyValue = '-' } = options;
+    const numeric = this.parseCurrencyInput(value);
+    if (numeric === null) return emptyValue;
+    return new Intl.NumberFormat(this.getContractLocale(lang), {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(numeric);
   }
 
   localizeContractText(text, lang) {
@@ -319,10 +504,26 @@ export class VertraegeCreate {
       ['Story ', 'Story '],
       ['Mindestreichweite: ', 'Minimum reach: '],
       ['Steuer-ID / USt-ID: ', 'Tax ID / VAT ID: '],
+      ['Steuer-ID: ', 'Tax ID: '],
       ['Rechtsform: ', 'Legal form: '],
       ['Anzahl Videos: ', 'Number of videos: '],
       ['Anzahl Fotos: ', 'Number of photos: '],
       ['Skonto: ', 'Cash discount: '],
+      ['Shooting von: ', 'Shooting from: '],
+      ['Shooting bis: ', 'Shooting until: '],
+      ['Call Time (Ankunft): ', 'Call time (arrival): '],
+      ['Geplanter Drehbeginn: ', 'Planned start of shooting: '],
+      ['Geplantes Produktionsende: ', 'Planned end of production: '],
+      ['Maximale tägliche Einsatzdauer: ', 'Maximum daily working hours: '],
+      ['Adresse / Ort: ', 'Address / location: '],
+      ['Optionstag(e): ', 'Option day(s): '],
+      ['Anzahl Foto-Motive (ca.): ', 'Number of photo motifs (approx.): '],
+      ['Anzahl Video-Sequenzen (ca.): ', 'Number of video sequences (approx.): '],
+      ['Fitting-Termin vereinbart am: ', 'Fitting appointment scheduled for: '],
+      ['Beginn der Nutzungsdauer: ', 'Start of usage period: '],
+      ['Zusätzliches Buyout-Honorar: ', 'Additional buyout fee: '],
+      ['Zahlungsziel: ', 'Payment term: '],
+      ['€ ', '€ '],
       ['Seite ', 'Page ']
     ];
 
@@ -364,6 +565,17 @@ export class VertraegeCreate {
     };
   }
 
+  getVertragPermissions() {
+    const role = String(window.currentUser?.rolle || '').trim().toLowerCase();
+    const isAdmin = role === 'admin';
+    const entityPermissions = window.permissionSystem?.getEntityPermissions?.('vertraege')
+      || window.currentUser?.permissions?.vertraege
+      || {};
+    const canEdit = isAdmin || entityPermissions?.can_edit === true || window.checkUserPermission?.('vertraege', 'edit') === true;
+    const canView = isAdmin || entityPermissions?.can_view === true || window.checkUserPermission?.('vertraege', 'view') === true;
+    return { isAdmin, canEdit, canView };
+  }
+
   // Initialisiere Vertrags-Erstellung (oder Draft-Bearbeitung)
   async init(draftId = null) {
     this.editId = draftId;
@@ -378,14 +590,13 @@ export class VertraegeCreate {
       ]);
     }
     
-    // Berechtigungsprüfung
-    const canCreate = window.currentUser?.rolle === 'admin' || 
-                      window.currentUser?.rolle === 'mitarbeiter';
-    
-    if (!canCreate) {
+    // Berechtigungsprüfung (einheitlich über PermissionSystem + Overrides)
+    const { canEdit } = this.getVertragPermissions();
+
+    if (!canEdit) {
       window.content.innerHTML = `
         <div class="error-message">
-          <p>Sie haben keine Berechtigung, Verträge zu erstellen.</p>
+          <p>Sie haben keine Berechtigung, Verträge zu ${draftId ? 'bearbeiten' : 'erstellen'}.</p>
         </div>
       `;
       return;
@@ -597,6 +808,7 @@ export class VertraegeCreate {
               <option value="UGC">UGC-Produktionsvertrag</option>
               <option value="Influencer Kooperation">Influencer Kooperation</option>
               <option value="Videograph">Videograph</option>
+              <option value="Model">Modelvertrag</option>
             </select>
           </div>
           
@@ -801,6 +1013,17 @@ export class VertraegeCreate {
         case 3: return this.renderVideografStep3(); // Leistungsumfang & Produktion
         case 4: return this.renderVideografStep4(); // Output & Korrektur
         case 5: return this.renderVideografStep5(); // Nutzungsrechte & Vergütung
+        default: return '';
+      }
+    }
+
+    // Model-Vertrag
+    if (this.selectedTyp === 'Model') {
+      switch (this.currentStep) {
+        case 2: return this.renderModelStep2(); // Parteien
+        case 3: return this.renderModelStep3(); // Produktion & Einsatz
+        case 4: return this.renderModelStep4(); // Nutzungsrechte
+        case 5: return this.renderModelStep5(); // Vergütung & Absage
         default: return '';
       }
     }
@@ -2296,6 +2519,672 @@ export class VertraegeCreate {
     `;
   }
 
+  // ============================================
+  // MODEL-VERTRAG: FORMULAR-STEPS
+  // ============================================
+
+  // Model Step 2: Vertragsparteien
+  renderModelStep2() {
+    if (!this._filtersInitialized) {
+      this.updateFilteredKampagnen();
+    }
+
+    return `
+      <div class="step-section">
+        <h3>Vertragsparteien</h3>
+        <p class="step-description">Vertragstyp: <strong>Modelvertrag</strong></p>
+
+        <!-- Auftraggeber (Unternehmen) -->
+        <div class="form-field">
+          <label for="kunde_unternehmen_id">Auftraggeber (Unternehmen) <span class="required">*</span></label>
+          <select id="kunde_unternehmen_id" name="kunde_unternehmen_id" required data-searchable="true">
+            <option value="">Unternehmen auswählen...</option>
+            ${this.unternehmen.map(u => `
+              <option value="${u.id}" ${this.formData.kunde_unternehmen_id === u.id ? 'selected' : ''}>
+                ${u.firmenname}
+              </option>
+            `).join('')}
+          </select>
+          <div id="kunde-adresse" class="address-preview"></div>
+        </div>
+
+        <!-- Kampagne -->
+        <div class="form-field">
+          <label for="kampagne_id">Kampagne <span class="required">*</span></label>
+          <select id="kampagne_id" name="kampagne_id" required ${!this.formData.kunde_unternehmen_id ? 'disabled' : ''} data-searchable="true">
+            <option value="">${this.formData.kunde_unternehmen_id ? 'Kampagne auswählen...' : 'Bitte zuerst Kunde wählen...'}</option>
+            ${this.filteredKampagnen.map(k => `
+              <option value="${k.id}" ${this.formData.kampagne_id === k.id ? 'selected' : ''}>
+                ${KampagneUtils.getDisplayName(k)}
+              </option>
+            `).join('')}
+          </select>
+        </div>
+
+        <h3 class="mt-section">Model</h3>
+
+        <!-- Model (Creator) -->
+        <div class="form-field">
+          <label for="creator_id">Model <span class="required">*</span></label>
+          <select id="creator_id" name="creator_id" required ${!this.formData.kampagne_id ? 'disabled' : ''} data-searchable="true">
+            <option value="">${this.formData.kampagne_id ? 'Model auswählen...' : 'Bitte zuerst Kampagne wählen...'}</option>
+            ${this.filteredCreators.map(c => `
+              <option value="${c.id}" ${this.formData.creator_id === c.id ? 'selected' : ''}>
+                ${c.vorname} ${c.nachname}
+              </option>
+            `).join('')}
+          </select>
+          <div id="creator-adresse" class="address-preview"></div>
+        </div>
+
+        <div class="form-two-col">
+          <div class="form-field">
+            <label for="influencer_steuer_id">Steuer-ID / USt-ID</label>
+            <input type="text" id="influencer_steuer_id" name="influencer_steuer_id"
+                   placeholder="z.B. DE123456789"
+                   value="${this.formData.influencer_steuer_id || ''}">
+          </div>
+          <div class="form-field">
+            <label for="influencer_land">Land</label>
+            <select id="influencer_land" name="influencer_land">
+              <option value="Deutschland" ${this.formData.influencer_land === 'Deutschland' || !this.formData.influencer_land ? 'selected' : ''}>Deutschland</option>
+              <option value="Österreich" ${this.formData.influencer_land === 'Österreich' ? 'selected' : ''}>Österreich</option>
+              <option value="Schweiz" ${this.formData.influencer_land === 'Schweiz' ? 'selected' : ''}>Schweiz</option>
+              <option value="Andere" ${this.formData.influencer_land === 'Andere' ? 'selected' : ''}>Andere</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- PO / Auftragsnummer -->
+        <div class="form-field">
+          <label for="kunde_po_nummer">PO / Auftragsnummer</label>
+          <select id="kunde_po_nummer" name="kunde_po_nummer" data-searchable="true">
+            <option value="">Keine PO-Nummer</option>
+            ${this.kundeAuftraegePo.map(po => `
+              <option value="${po}" ${this.formData.kunde_po_nummer === po ? 'selected' : ''}>
+                ${po}
+              </option>
+            `).join('')}
+          </select>
+        </div>
+
+        <!-- Vertragsname -->
+        <div class="form-field">
+          <label for="name">Vertragsname</label>
+          <input type="text" id="name" name="name" 
+                 placeholder="Wird automatisch generiert"
+                 value="${this.formData.name || ''}">
+          <p class="form-hint">Leer lassen für automatische Benennung.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  // Model Step 3: Produktion & Einsatz
+  renderModelStep3() {
+    const einsatzortArt = this.formData.model_einsatzort_art || [];
+    const rolle = this.formData.model_rolle || [];
+
+    return `
+      <div class="step-section">
+        <h3>§2 Produktion & Einsatz</h3>
+
+        <h4>2.1 Produktionsart</h4>
+        <div class="form-field">
+          <label>Was wird produziert? <span class="required">*</span></label>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input type="radio" name="model_produktionsart" value="foto"
+                     ${this.formData.model_produktionsart === 'foto' ? 'checked' : ''} required>
+              <span>Fotoshooting</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="model_produktionsart" value="video"
+                     ${this.formData.model_produktionsart === 'video' ? 'checked' : ''}>
+              <span>Videoshooting</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="model_produktionsart" value="kombiniert"
+                     ${this.formData.model_produktionsart === 'kombiniert' ? 'checked' : ''}>
+              <span>Kombiniert (Foto & Video)</span>
+            </label>
+          </div>
+        </div>
+
+        <h4 class="mt-subsection">2.2 Produktionszeitraum</h4>
+        <div class="form-two-col">
+          <div class="form-field">
+            <label for="model_shooting_von">Shooting von <span class="required">*</span></label>
+            <input type="date" id="model_shooting_von" name="model_shooting_von"
+                   value="${this.formData.model_shooting_von || ''}" required>
+          </div>
+          <div class="form-field">
+            <label for="model_shooting_bis">Shooting bis <span class="required">*</span></label>
+            <input type="date" id="model_shooting_bis" name="model_shooting_bis"
+                   value="${this.formData.model_shooting_bis || ''}" required>
+          </div>
+        </div>
+
+        <h4 class="mt-subsection">2.3 Tagesstruktur</h4>
+        <div class="form-two-col">
+          <div class="form-field">
+            <label for="model_call_time">Call Time (Ankunft)</label>
+            <input type="time" id="model_call_time" name="model_call_time"
+                   value="${this.formData.model_call_time || ''}">
+          </div>
+          <div class="form-field">
+            <label for="model_drehbeginn">Geplanter Drehbeginn</label>
+            <input type="time" id="model_drehbeginn" name="model_drehbeginn"
+                   value="${this.formData.model_drehbeginn || ''}">
+          </div>
+        </div>
+        <div class="form-two-col">
+          <div class="form-field">
+            <label for="model_produktionsende">Geplantes Produktionsende</label>
+            <input type="time" id="model_produktionsende" name="model_produktionsende"
+                   value="${this.formData.model_produktionsende || ''}">
+          </div>
+          <div class="form-field">
+            <label for="model_max_tagesstunden">Max. tägliche Einsatzdauer (Stunden)</label>
+            <input type="number" id="model_max_tagesstunden" name="model_max_tagesstunden"
+                   min="1" max="24" step="0.5"
+                   value="${this.formData.model_max_tagesstunden || ''}">
+          </div>
+        </div>
+
+        <h4 class="mt-subsection">2.4 Einsatzort</h4>
+        <div class="form-field">
+          <label>Art des Einsatzortes</label>
+          <div class="checkbox-group checkbox-group-multi">
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_einsatzort_art" value="studio"
+                     ${einsatzortArt.includes('studio') ? 'checked' : ''}>
+              <span>Studio</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_einsatzort_art" value="outdoor"
+                     ${einsatzortArt.includes('outdoor') ? 'checked' : ''}>
+              <span>Outdoor</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_einsatzort_art" value="on_location"
+                     ${einsatzortArt.includes('on_location') ? 'checked' : ''}>
+              <span>On-Location</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_einsatzort_art" value="ausland"
+                     ${einsatzortArt.includes('ausland') ? 'checked' : ''}>
+              <span>Ausland</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-field">
+          <label for="model_einsatzort_adresse">Adresse / genauer Ort</label>
+          <input type="text" id="model_einsatzort_adresse" name="model_einsatzort_adresse"
+                 placeholder="z.B. Studio XY, Musterstraße 1, 60314 Frankfurt"
+                 value="${this.formData.model_einsatzort_adresse || ''}">
+        </div>
+
+        <h4 class="mt-subsection">2.5 Optionstage</h4>
+        <div class="form-field">
+          <label for="model_optionstage">Optionstage (optional)</label>
+          <input type="text" id="model_optionstage" name="model_optionstage"
+                 placeholder="z.B. 15.04.2026 – 16.04.2026 oder 'Keine'"
+                 value="${this.formData.model_optionstage || ''}">
+          <p class="form-hint">Die Buchung eines Optionstages bedarf der rechtzeitigen Bestätigung durch den Auftraggeber.</p>
+        </div>
+
+        <h3 class="mt-section">§3 Produktionsrahmen</h3>
+
+        <h4>3.1 Geplanter Output</h4>
+        <div class="form-two-col">
+          <div class="form-field">
+            <label for="model_anzahl_foto_motive">Anzahl Foto-Motive (ca.)</label>
+            <input type="number" id="model_anzahl_foto_motive" name="model_anzahl_foto_motive"
+                   min="0" value="${this.formData.model_anzahl_foto_motive || 0}">
+          </div>
+          <div class="form-field">
+            <label for="model_anzahl_video_sequenzen">Anzahl Video-Sequenzen (ca.)</label>
+            <input type="number" id="model_anzahl_video_sequenzen" name="model_anzahl_video_sequenzen"
+                   min="0" value="${this.formData.model_anzahl_video_sequenzen || 0}">
+          </div>
+        </div>
+        <p class="form-hint">Die tatsächliche Anzahl der finalen Assets liegt im Ermessen des Auftraggebers.</p>
+
+        <h4 class="mt-subsection">3.2 Rolle des Models</h4>
+        <div class="form-field">
+          <label>Rolle <span class="required">*</span></label>
+          <div class="checkbox-group checkbox-group-multi">
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_rolle" value="posing"
+                     ${rolle.includes('posing') ? 'checked' : ''}>
+              <span>Reines Posing</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_rolle" value="acting"
+                     ${rolle.includes('acting') ? 'checked' : ''}>
+              <span>Acting / Performance</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_rolle" value="sprechrolle"
+                     ${rolle.includes('sprechrolle') ? 'checked' : ''}>
+              <span>Mit Sprechrolle</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_rolle" value="moderation"
+                     ${rolle.includes('moderation') ? 'checked' : ''}>
+              <span>Moderation</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_rolle" value="sport"
+                     ${rolle.includes('sport') ? 'checked' : ''}>
+              <span>Sportliche Performance</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_rolle" value="sonstiges"
+                     ${rolle.includes('sonstiges') ? 'checked' : ''}>
+              <span>Sonstiges</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-field ${rolle.includes('sonstiges') ? '' : 'hidden'}" id="model-rolle-sonstiges-wrapper">
+          <label for="model_rolle_sonstiges">Sonstiges (Beschreibung)</label>
+          <input type="text" id="model_rolle_sonstiges" name="model_rolle_sonstiges"
+                 value="${this.formData.model_rolle_sonstiges || ''}">
+        </div>
+
+        <h4 class="mt-subsection">3.3 Styling</h4>
+        <div class="form-field">
+          <label>Styling <span class="required">*</span></label>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input type="radio" name="model_styling" value="auftraggeber"
+                     ${this.formData.model_styling === 'auftraggeber' ? 'checked' : ''} required>
+              <span>Styling wird vom Auftraggeber gestellt</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="model_styling" value="eigene"
+                     ${this.formData.model_styling === 'eigene' ? 'checked' : ''}>
+              <span>Model bringt eigene Outfits mit</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="model_styling" value="fitting"
+                     ${this.formData.model_styling === 'fitting' ? 'checked' : ''}>
+              <span>Fitting-Termin vereinbart</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-field ${this.formData.model_styling === 'fitting' ? '' : 'hidden'}" id="model-fitting-datum-wrapper">
+          <label for="model_fitting_datum">Fitting-Termin</label>
+          <input type="date" id="model_fitting_datum" name="model_fitting_datum"
+                 value="${this.formData.model_fitting_datum || ''}">
+        </div>
+      </div>
+    `;
+  }
+
+  // Model Step 4: Nutzungsrechte
+  renderModelStep4() {
+    const nutzungsarten = this.formData.model_nutzungsarten || [];
+    const kiNutzung = this.formData.model_ki_nutzung || [];
+
+    return `
+      <div class="step-section">
+        <h3>§4 Nutzungsrechte</h3>
+
+        <h4>4.1 Nutzungsarten</h4>
+        <div class="form-field">
+          <label>Wofür darf das Material genutzt werden? <span class="required">*</span></label>
+          <div class="checkbox-group checkbox-group-multi">
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_nutzungsarten" value="ecommerce"
+                     ${nutzungsarten.includes('ecommerce') ? 'checked' : ''}>
+              <span>E-Commerce</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_nutzungsarten" value="social_media"
+                     ${nutzungsarten.includes('social_media') ? 'checked' : ''}>
+              <span>Social Media (organisch)</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_nutzungsarten" value="paid_ads"
+                     ${nutzungsarten.includes('paid_ads') ? 'checked' : ''}>
+              <span>Paid Ads</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_nutzungsarten" value="website"
+                     ${nutzungsarten.includes('website') ? 'checked' : ''}>
+              <span>Website</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_nutzungsarten" value="ooh"
+                     ${nutzungsarten.includes('ooh') ? 'checked' : ''}>
+              <span>OOH (Out of Home)</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_nutzungsarten" value="print"
+                     ${nutzungsarten.includes('print') ? 'checked' : ''}>
+              <span>Print</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_nutzungsarten" value="tv_ctv"
+                     ${nutzungsarten.includes('tv_ctv') ? 'checked' : ''}>
+              <span>TV / CTV</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_nutzungsarten" value="pos"
+                     ${nutzungsarten.includes('pos') ? 'checked' : ''}>
+              <span>POS</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_nutzungsarten" value="pr"
+                     ${nutzungsarten.includes('pr') ? 'checked' : ''}>
+              <span>PR</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_nutzungsarten" value="kampagne"
+                     ${nutzungsarten.includes('kampagne') ? 'checked' : ''}>
+              <span>Kampagne</span>
+            </label>
+          </div>
+        </div>
+
+        <h4 class="mt-subsection">4.2 Territorium</h4>
+        <div class="form-field">
+          <label>Territorium <span class="required">*</span></label>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input type="radio" name="model_territorium" value="dach"
+                     ${this.formData.model_territorium === 'dach' ? 'checked' : ''} required>
+              <span>DACH</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="model_territorium" value="eu"
+                     ${this.formData.model_territorium === 'eu' ? 'checked' : ''}>
+              <span>EU</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="model_territorium" value="weltweit"
+                     ${this.formData.model_territorium === 'weltweit' ? 'checked' : ''}>
+              <span>Weltweit</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="model_territorium" value="beschraenkt"
+                     ${this.formData.model_territorium === 'beschraenkt' ? 'checked' : ''}>
+              <span>Beschränkt auf...</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-field ${this.formData.model_territorium === 'beschraenkt' ? '' : 'hidden'}" id="model-territorium-beschraenkt-wrapper">
+          <label for="model_territorium_beschraenkt">Land / Region</label>
+          <input type="text" id="model_territorium_beschraenkt" name="model_territorium_beschraenkt"
+                 placeholder="z.B. Frankreich, Benelux"
+                 value="${this.formData.model_territorium_beschraenkt || ''}">
+        </div>
+
+        <h4 class="mt-subsection">4.3 Nutzungsdauer</h4>
+        <div class="form-field">
+          <label>Nutzungsdauer <span class="required">*</span></label>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input type="radio" name="model_nutzungsdauer" value="3_monate"
+                     ${this.formData.model_nutzungsdauer === '3_monate' ? 'checked' : ''} required>
+              <span>3 Monate</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="model_nutzungsdauer" value="6_monate"
+                     ${this.formData.model_nutzungsdauer === '6_monate' ? 'checked' : ''}>
+              <span>6 Monate</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="model_nutzungsdauer" value="12_monate"
+                     ${this.formData.model_nutzungsdauer === '12_monate' ? 'checked' : ''}>
+              <span>12 Monate</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="model_nutzungsdauer" value="24_monate"
+                     ${this.formData.model_nutzungsdauer === '24_monate' ? 'checked' : ''}>
+              <span>24 Monate</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="model_nutzungsdauer" value="unbegrenzt"
+                     ${this.formData.model_nutzungsdauer === 'unbegrenzt' ? 'checked' : ''}>
+              <span>Unbegrenzt</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-field">
+          <label for="model_nutzungsbeginn">Beginn der Nutzungsdauer</label>
+          <input type="date" id="model_nutzungsbeginn" name="model_nutzungsbeginn"
+                 value="${this.formData.model_nutzungsbeginn || ''}">
+        </div>
+
+        <h4 class="mt-subsection">4.4 Exklusivität</h4>
+        <div class="form-field">
+          <label>Exklusivität</label>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input type="radio" name="model_exklusivitaet_art" value="keine"
+                     ${this.formData.model_exklusivitaet_art === 'keine' || !this.formData.model_exklusivitaet_art ? 'checked' : ''}>
+              <span>Keine Exklusivität</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="model_exklusivitaet_art" value="branche"
+                     ${this.formData.model_exklusivitaet_art === 'branche' ? 'checked' : ''}>
+              <span>Branchenexklusivität</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="model_exklusivitaet_art" value="wettbewerber"
+                     ${this.formData.model_exklusivitaet_art === 'wettbewerber' ? 'checked' : ''}>
+              <span>Wettbewerber-Exklusivität</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-field ${this.formData.model_exklusivitaet_art && this.formData.model_exklusivitaet_art !== 'keine' ? '' : 'hidden'}" id="model-exklusivitaet-dauer-wrapper">
+          <label for="model_exklusivitaet_dauer">Dauer der Exklusivität (Monate)</label>
+          <input type="number" id="model_exklusivitaet_dauer" name="model_exklusivitaet_dauer"
+                 min="1" value="${this.formData.model_exklusivitaet_dauer || ''}">
+        </div>
+
+        <h4 class="mt-subsection">4.5 Bearbeitung & Anpassung</h4>
+        <p class="form-hint">Der Auftraggeber ist berechtigt, das Bild- und Videomaterial im Rahmen des Vertragszwecks zu bearbeiten, zu kürzen, grafisch zu verändern oder mit anderen Inhalten zu kombinieren.</p>
+
+        <h4 class="mt-subsection">4.6 KI- und digitale Weiterverarbeitung</h4>
+        <div class="form-field">
+          <label>KI-Nutzung</label>
+          <div class="checkbox-group checkbox-group-multi">
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_ki_nutzung" value="ki_erlaubt"
+                     ${kiNutzung.includes('ki_erlaubt') ? 'checked' : ''}>
+              <span>Nutzung für KI-gestützte Weiterverarbeitung erlaubt</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_ki_nutzung" value="training_ausgeschlossen"
+                     ${kiNutzung.includes('training_ausgeschlossen') ? 'checked' : ''}>
+              <span>Nutzung für Trainingsdaten ausgeschlossen</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_ki_nutzung" value="deepfake_nein"
+                     ${kiNutzung.includes('deepfake_nein') ? 'checked' : ''}>
+              <span>Keine Deepfake-Nutzung</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_ki_nutzung" value="nur_kampagne"
+                     ${kiNutzung.includes('nur_kampagne') ? 'checked' : ''}>
+              <span>Nutzung ausschließlich im Rahmen der vereinbarten Kampagne</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Model Step 5: Vergütung & Absage
+  renderModelStep5() {
+    const absageRegelung = this.formData.model_absage_regelung || [];
+
+    return `
+      <div class="step-section">
+        <h3>§5 Vergütung</h3>
+
+        <h4>5.1 Honorar</h4>
+        <div class="form-two-col">
+          <div class="form-field">
+            <label for="verguetung_netto">Honorar (netto) <span class="required">*</span></label>
+            <div class="input-with-suffix">
+              <input type="number" id="verguetung_netto" name="verguetung_netto"
+                     step="0.01" min="0" required
+                     value="${this.formData.verguetung_netto || ''}">
+              <span class="input-suffix">€</span>
+            </div>
+          </div>
+          <div class="form-field">
+            <label>Honorar-Art <span class="required">*</span></label>
+            <div class="radio-group">
+              <label class="radio-option">
+                <input type="radio" name="model_honorar_art" value="tagesgage"
+                       ${this.formData.model_honorar_art === 'tagesgage' ? 'checked' : ''} required>
+                <span>Tagesgage</span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="model_honorar_art" value="halbtagesgage"
+                       ${this.formData.model_honorar_art === 'halbtagesgage' ? 'checked' : ''}>
+                <span>Halbtagesgage</span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="model_honorar_art" value="pauschal"
+                       ${this.formData.model_honorar_art === 'pauschal' ? 'checked' : ''}>
+                <span>Pauschalhonorar</span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="model_honorar_art" value="stunde"
+                       ${this.formData.model_honorar_art === 'stunde' ? 'checked' : ''}>
+                <span>Stundenhonorar</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <h4 class="mt-subsection">5.2 Buyout</h4>
+        <div class="form-field">
+          <label class="checkbox-label">
+            <input type="checkbox" id="model_buyout_inklusiv" name="model_buyout_inklusiv" value="true"
+                   ${this.formData.model_buyout_inklusiv ? 'checked' : ''}>
+            <span>Buyout im Honorar enthalten</span>
+          </label>
+        </div>
+        <div class="form-field ${this.formData.model_buyout_inklusiv ? 'hidden' : ''}" id="model-buyout-betrag-wrapper">
+          <label for="model_buyout_betrag">Zusätzliches Buyout-Honorar (netto)</label>
+          <div class="input-with-suffix">
+            <input type="number" id="model_buyout_betrag" name="model_buyout_betrag"
+                   step="0.01" min="0"
+                   value="${this.formData.model_buyout_betrag || ''}">
+            <span class="input-suffix">€</span>
+          </div>
+        </div>
+
+        <h4 class="mt-subsection">5.3 Reise- und Nebenkosten</h4>
+        <div class="form-field">
+          <label>Reisekosten</label>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input type="radio" name="model_reisekosten" value="inklusive"
+                     ${this.formData.model_reisekosten === 'inklusive' ? 'checked' : ''}>
+              <span>Inklusive</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="model_reisekosten" value="nachweis"
+                     ${this.formData.model_reisekosten === 'nachweis' ? 'checked' : ''}>
+              <span>Werden gegen Nachweis erstattet</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="model_reisekosten" value="pauschale"
+                     ${this.formData.model_reisekosten === 'pauschale' ? 'checked' : ''}>
+              <span>Reisepauschale</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-field ${this.formData.model_reisekosten === 'pauschale' ? '' : 'hidden'}" id="model-reisepauschale-wrapper">
+          <label for="model_reisepauschale">Reisepauschale (netto)</label>
+          <div class="input-with-suffix">
+            <input type="number" id="model_reisepauschale" name="model_reisepauschale"
+                   step="0.01" min="0"
+                   value="${this.formData.model_reisepauschale || ''}">
+            <span class="input-suffix">€</span>
+          </div>
+        </div>
+
+        <h4 class="mt-subsection">5.4 Zahlungsziel</h4>
+        <div class="form-field">
+          <label>Zahlungsziel</label>
+          <div class="radio-group radio-group-inline">
+            <label class="radio-option">
+              <input type="radio" name="zahlungsziel" value="7_tage"
+                     ${this.formData.zahlungsziel === '7_tage' ? 'checked' : ''}>
+              <span>7 Tage</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="zahlungsziel" value="14_tage"
+                     ${this.formData.zahlungsziel === '14_tage' ? 'checked' : ''}>
+              <span>14 Tage</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="zahlungsziel" value="30_tage"
+                     ${this.formData.zahlungsziel === '30_tage' ? 'checked' : ''}>
+              <span>30 Tage</span>
+            </label>
+          </div>
+        </div>
+        <p class="form-hint">Rechnungsstellung durch das Model nach Abschluss der Produktion.</p>
+
+        <h3 class="mt-section">§6 Absage & Ausfall</h3>
+
+        <h4>6.1 Wetterabhängigkeit</h4>
+        <div class="form-field">
+          <label class="checkbox-label">
+            <input type="checkbox" id="model_wetterabhaengig" name="model_wetterabhaengig" value="true"
+                   ${this.formData.model_wetterabhaengig ? 'checked' : ''}>
+            <span>Produktion ist wetterabhängig</span>
+          </label>
+        </div>
+
+        <h4 class="mt-subsection">6.2 Absagebedingungen</h4>
+        <div class="form-field">
+          <label>Absageregelung bei Absage durch den Auftraggeber</label>
+          <div class="checkbox-group checkbox-group-multi">
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_absage_regelung" value="100_24h"
+                     ${absageRegelung.includes('100_24h') ? 'checked' : ''}>
+              <span>100 % Honorar bei Absage < 24 Stunden</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_absage_regelung" value="50_48h"
+                     ${absageRegelung.includes('50_48h') ? 'checked' : ''}>
+              <span>50 % Honorar bei Absage < 48 Stunden</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="model_absage_regelung" value="individuell"
+                     ${absageRegelung.includes('individuell') ? 'checked' : ''}>
+              <span>Individuelle Regelung</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-field ${absageRegelung.includes('individuell') ? '' : 'hidden'}" id="model-absage-individuell-wrapper">
+          <label for="model_absage_individuell">Individuelle Absageregelung</label>
+          <textarea id="model_absage_individuell" name="model_absage_individuell" rows="3"
+                    placeholder="Beschreibung der individuellen Regelung...">${this.formData.model_absage_individuell || ''}</textarea>
+        </div>
+
+        <h3 class="mt-section">Weitere Bestimmungen</h3>
+        <div class="form-field">
+          <label for="weitere_bestimmungen">Zusätzliche Vereinbarungen (optional)</label>
+          <textarea id="weitere_bestimmungen" name="weitere_bestimmungen" rows="4"
+                    placeholder="z.B. besondere Vereinbarungen, Sonderkonditionen...">${this.formData.weitere_bestimmungen || ''}</textarea>
+        </div>
+      </div>
+    `;
+  }
+
   // Events für Multistep (Buttons sind jetzt im Progress Container)
   bindMultistepEvents() {
     const cancelBtn = document.getElementById('btn-cancel');
@@ -2457,9 +3346,9 @@ export class VertraegeCreate {
       exklusivitaet: this.formData.exklusivitaet || false,
       exklusivitaet_monate: this.formData.exklusivitaet ? parseInt(this.formData.exklusivitaet_monate) || null : null,
       exklusivitaet_einheit: this.formData.exklusivitaet ? (this.formData.exklusivitaet_einheit || 'monate') : null,
-      verguetung_netto: parseFloat(this.formData.verguetung_netto) || null,
+      verguetung_netto: this.parseCurrencyInput(this.formData.verguetung_netto),
       zusatzkosten: this.formData.zusatzkosten || false,
-      zusatzkosten_betrag: this.formData.zusatzkosten ? parseFloat(this.formData.zusatzkosten_betrag) || null : null,
+      zusatzkosten_betrag: this.formData.zusatzkosten ? this.parseCurrencyInput(this.formData.zusatzkosten_betrag) : null,
       zahlungsziel: this.formData.zahlungsziel || null,
       skonto: this.formData.skonto === true || this.formData.skonto === 'true',
       korrekturschleifen: parseInt(this.formData.korrekturschleifen) || null,
@@ -2524,6 +3413,49 @@ export class VertraegeCreate {
         videograf_v1_deadline: this.formData.videograf_v1_deadline || null,
         videograf_finale_werktage: parseInt(this.formData.videograf_finale_werktage) || 5,
         videograf_nutzungsart: this.formData.videograf_nutzungsart || []
+      });
+    } else if (typ === 'Model') {
+      // Model-spezifische Felder
+      Object.assign(data, {
+        influencer_steuer_id: this.formData.influencer_steuer_id || null,
+        influencer_land: this.formData.influencer_land || 'Deutschland',
+
+        model_produktionsart: this.formData.model_produktionsart || null,
+        model_shooting_von: this.formData.model_shooting_von || null,
+        model_shooting_bis: this.formData.model_shooting_bis || null,
+        model_call_time: this.formData.model_call_time || null,
+        model_drehbeginn: this.formData.model_drehbeginn || null,
+        model_produktionsende: this.formData.model_produktionsende || null,
+        model_max_tagesstunden: this.formData.model_max_tagesstunden ? parseFloat(this.formData.model_max_tagesstunden) : null,
+        model_einsatzort_art: this.formData.model_einsatzort_art || [],
+        model_einsatzort_adresse: this.formData.model_einsatzort_adresse || null,
+        model_optionstage: this.formData.model_optionstage || null,
+
+        model_anzahl_foto_motive: parseInt(this.formData.model_anzahl_foto_motive) || 0,
+        model_anzahl_video_sequenzen: parseInt(this.formData.model_anzahl_video_sequenzen) || 0,
+        model_rolle: this.formData.model_rolle || [],
+        model_rolle_sonstiges: (this.formData.model_rolle || []).includes('sonstiges') ? this.formData.model_rolle_sonstiges || null : null,
+        model_styling: this.formData.model_styling || null,
+        model_fitting_datum: this.formData.model_styling === 'fitting' ? this.formData.model_fitting_datum || null : null,
+
+        model_nutzungsarten: this.formData.model_nutzungsarten || [],
+        model_territorium: this.formData.model_territorium || null,
+        model_territorium_beschraenkt: this.formData.model_territorium === 'beschraenkt' ? this.formData.model_territorium_beschraenkt || null : null,
+        model_nutzungsdauer: this.formData.model_nutzungsdauer || null,
+        model_nutzungsbeginn: this.formData.model_nutzungsbeginn || null,
+        model_exklusivitaet_art: this.formData.model_exklusivitaet_art || 'keine',
+        model_exklusivitaet_dauer: this.formData.model_exklusivitaet_art && this.formData.model_exklusivitaet_art !== 'keine' ? parseInt(this.formData.model_exklusivitaet_dauer) || null : null,
+        model_ki_nutzung: this.formData.model_ki_nutzung || [],
+
+        model_honorar_art: this.formData.model_honorar_art || null,
+        model_buyout_inklusiv: this.formData.model_buyout_inklusiv === true || this.formData.model_buyout_inklusiv === 'true',
+        model_buyout_betrag: !(this.formData.model_buyout_inklusiv === true || this.formData.model_buyout_inklusiv === 'true') ? this.parseCurrencyInput(this.formData.model_buyout_betrag) : null,
+        model_reisekosten: this.formData.model_reisekosten || null,
+        model_reisepauschale: this.formData.model_reisekosten === 'pauschale' ? this.parseCurrencyInput(this.formData.model_reisepauschale) : null,
+
+        model_wetterabhaengig: this.formData.model_wetterabhaengig === true || this.formData.model_wetterabhaengig === 'true',
+        model_absage_regelung: this.formData.model_absage_regelung || [],
+        model_absage_individuell: (this.formData.model_absage_regelung || []).includes('individuell') ? this.formData.model_absage_individuell || null : null
       });
     } else {
       // UGC-spezifische Felder
@@ -2693,6 +3625,85 @@ export class VertraegeCreate {
           const idx = parseInt(btn.dataset.index, 10);
           this.removeDrehtag(idx);
         }
+      });
+    }
+
+    // === MODEL-SPEZIFISCHE EVENTS ===
+
+    // Rolle "Sonstiges" Toggle
+    const rolleCheckboxes = document.querySelectorAll('input[name="model_rolle"]');
+    const rolleSonstigesWrapper = document.getElementById('model-rolle-sonstiges-wrapper');
+    if (rolleCheckboxes.length > 0 && rolleSonstigesWrapper) {
+      rolleCheckboxes.forEach(cb => {
+        cb.addEventListener('change', () => {
+          const sonstigesChecked = document.querySelector('input[name="model_rolle"][value="sonstiges"]:checked');
+          rolleSonstigesWrapper.classList.toggle('hidden', !sonstigesChecked);
+        });
+      });
+    }
+
+    // Styling "Fitting" Toggle
+    const stylingRadios = document.querySelectorAll('input[name="model_styling"]');
+    const fittingWrapper = document.getElementById('model-fitting-datum-wrapper');
+    if (stylingRadios.length > 0 && fittingWrapper) {
+      stylingRadios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+          fittingWrapper.classList.toggle('hidden', e.target.value !== 'fitting');
+        });
+      });
+    }
+
+    // Territorium "beschränkt" Toggle
+    const territoriumRadios = document.querySelectorAll('input[name="model_territorium"]');
+    const territoriumWrapper = document.getElementById('model-territorium-beschraenkt-wrapper');
+    if (territoriumRadios.length > 0 && territoriumWrapper) {
+      territoriumRadios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+          territoriumWrapper.classList.toggle('hidden', e.target.value !== 'beschraenkt');
+        });
+      });
+    }
+
+    // Exklusivität Dauer Toggle (Model)
+    const modelExklRadios = document.querySelectorAll('input[name="model_exklusivitaet_art"]');
+    const modelExklDauerWrapper = document.getElementById('model-exklusivitaet-dauer-wrapper');
+    if (modelExklRadios.length > 0 && modelExklDauerWrapper) {
+      modelExklRadios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+          modelExklDauerWrapper.classList.toggle('hidden', e.target.value === 'keine');
+        });
+      });
+    }
+
+    // Buyout inklusiv Toggle
+    const buyoutInklusivCheckbox = document.getElementById('model_buyout_inklusiv');
+    const buyoutBetragWrapper = document.getElementById('model-buyout-betrag-wrapper');
+    if (buyoutInklusivCheckbox && buyoutBetragWrapper) {
+      buyoutInklusivCheckbox.addEventListener('change', (e) => {
+        buyoutBetragWrapper.classList.toggle('hidden', e.target.checked);
+      });
+    }
+
+    // Reisepauschale Toggle
+    const reisekostenRadios = document.querySelectorAll('input[name="model_reisekosten"]');
+    const reisepauschaleWrapper = document.getElementById('model-reisepauschale-wrapper');
+    if (reisekostenRadios.length > 0 && reisepauschaleWrapper) {
+      reisekostenRadios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+          reisepauschaleWrapper.classList.toggle('hidden', e.target.value !== 'pauschale');
+        });
+      });
+    }
+
+    // Absage individuell Toggle
+    const absageCheckboxes = document.querySelectorAll('input[name="model_absage_regelung"]');
+    const absageIndividuellWrapper = document.getElementById('model-absage-individuell-wrapper');
+    if (absageCheckboxes.length > 0 && absageIndividuellWrapper) {
+      absageCheckboxes.forEach(cb => {
+        cb.addEventListener('change', () => {
+          const individuellChecked = document.querySelector('input[name="model_absage_regelung"][value="individuell"]:checked');
+          absageIndividuellWrapper.classList.toggle('hidden', !individuellChecked);
+        });
       });
     }
   }
@@ -3385,7 +4396,7 @@ export class VertraegeCreate {
     console.log('📋 FormData Einträge:', Array.from(formData.entries()));
     
     // Array-Felder die speziell behandelt werden müssen
-    const arrayFields = ['medien', 'plattformen', 'anpassungen', 'videograf_lieferumfang', 'videograf_nutzungsart'];
+    const arrayFields = ['medien', 'plattformen', 'anpassungen', 'videograf_lieferumfang', 'videograf_nutzungsart', 'model_einsatzort_art', 'model_rolle', 'model_nutzungsarten', 'model_ki_nutzung', 'model_absage_regelung'];
     
     // Normale Felder (Array-Felder werden separat gesammelt)
     for (const [key, value] of formData.entries()) {
@@ -3600,6 +4611,10 @@ export class VertraegeCreate {
       return this.generateVideografPDF(vertrag, lang);
     }
 
+    if (vertrag.typ === 'Model') {
+      return this.generateModelPDF(vertrag, lang);
+    }
+
     // Standard: UGC-PDF
     try {
       const { jsPDF } = window.jspdf;
@@ -3715,6 +4730,7 @@ export class VertraegeCreate {
 
       // Helper: Datum formatieren
       const formatDate = (d) => this.formatContractDate(d, lang);
+      const formatMoney = (v, emptyValue = '0,00') => this.formatContractMoney(v, lang, { emptyValue });
 
       // Helper: Checkbox zeichnen (echte Rechtecke mit X)
       const drawCheckbox = (x, yPos, checked, label) => {
@@ -3952,7 +4968,7 @@ export class VertraegeCreate {
       doc.text('5.1 Vergütung', 14, y);
       doc.setFont('helvetica', 'normal');
       y += 6;
-      doc.text(`Fixvergütung: ${vertrag.verguetung_netto || 0} € netto`, 14, y);
+      doc.text(`Fixvergütung: ${formatMoney(vertrag.verguetung_netto)} € netto`, 14, y);
       y += 5;
       doc.text('Die Vergütung versteht sich zzgl. gesetzlicher Umsatzsteuer, sofern diese anfällt.', 14, y);
       y += 8;
@@ -3960,9 +4976,9 @@ export class VertraegeCreate {
       drawCheckbox(14, y, vertrag.zusatzkosten === true, 'Zusatzkosten vereinbart');
       y += 5;
       drawCheckbox(14, y, !vertrag.zusatzkosten, 'Keine Zusatzkosten');
-      if (vertrag.zusatzkosten && vertrag.zusatzkosten_betrag) {
+      if (vertrag.zusatzkosten && vertrag.zusatzkosten_betrag !== null && vertrag.zusatzkosten_betrag !== undefined) {
         y += 6;
-        doc.text(`Bei Zusatzkosten: ${vertrag.zusatzkosten_betrag} € netto`, 14, y);
+        doc.text(`Bei Zusatzkosten: ${formatMoney(vertrag.zusatzkosten_betrag)} € netto`, 14, y);
       }
       // 5.2 Zahlungsbedingungen - benötigt ~30mm, daher Seitenumbruch wenn nötig
       if (y > 220) {
@@ -4370,6 +5386,7 @@ export class VertraegeCreate {
 
       // Helper: Datum formatieren
       const formatDate = (d) => this.formatContractDate(d, lang);
+      const formatMoney = (v, emptyValue = '0,00') => this.formatContractMoney(v, lang, { emptyValue });
 
       // Helper: Checkbox zeichnen
       const drawCheckbox = (x, yPos, checked, label) => {
@@ -4722,9 +5739,9 @@ export class VertraegeCreate {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
       y += 8;
-      doc.text(`Fixvergütung: ${vertrag.verguetung_netto || 0} € netto zzgl. USt.`, 14, y);
+      doc.text(`Fixvergütung: ${formatMoney(vertrag.verguetung_netto)} € netto zzgl. USt.`, 14, y);
       y += 6;
-      drawCheckbox(14, y, vertrag.zusatzkosten, `Zusatzkosten vereinbart: ${vertrag.zusatzkosten_betrag || '-'} € netto`);
+      drawCheckbox(14, y, vertrag.zusatzkosten, `Zusatzkosten vereinbart: ${vertrag.zusatzkosten_betrag !== null && vertrag.zusatzkosten_betrag !== undefined ? formatMoney(vertrag.zusatzkosten_betrag, '-') : '-'} € netto`);
       y += 5;
       drawCheckbox(14, y, !vertrag.zusatzkosten, 'Keine Zusatzkosten');
       y += 8;
@@ -5398,13 +6415,13 @@ export class VertraegeCreate {
       doc.text('9.1 Vergütung', 14, y);
       doc.setFont('helvetica', 'normal');
       y += 6;
-      const verguetung = vertrag.verguetung_netto ? parseFloat(vertrag.verguetung_netto).toFixed(2) : '0.00';
+      const verguetung = formatMoney(vertrag.verguetung_netto);
       doc.text(`Fixvergütung: ${verguetung} € netto zzgl. gesetzlicher Umsatzsteuer.`, 14, y);
       y += 6;
       if (vertrag.zusatzkosten) {
         drawCheckbox(14, y, true, 'Zusatzkosten vereinbart');
         y += 6;
-        const zusatzkosten = vertrag.zusatzkosten_betrag ? parseFloat(vertrag.zusatzkosten_betrag).toFixed(2) : '0.00';
+        const zusatzkosten = formatMoney(vertrag.zusatzkosten_betrag);
         doc.text(`Zusatzkosten (z.B. Reisekosten, Requisiten): ${zusatzkosten} € netto`, 14, y);
       } else {
         drawCheckbox(14, y, true, 'Keine Zusatzkosten');
@@ -5531,6 +6548,700 @@ export class VertraegeCreate {
 
     } catch (error) {
       console.error('❌ Fehler bei Videograf-PDF-Generierung:', error);
+      window.toastSystem?.show('PDF konnte nicht generiert werden', 'warning');
+    }
+  }
+
+  // ============================================
+  // MODELVERTRAG PDF
+  // ============================================
+  async generateModelPDF(vertrag, lang = this.getContractLanguage(vertrag)) {
+    try {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      this.localizeDocText(doc, lang);
+
+      doc.setFont('helvetica');
+
+      const FOOTER_Y = 285;
+      const MAX_CONTENT_Y = 265;
+
+      const logoSvg = `<svg width="120" height="66" viewBox="0 0 120 66" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_4719_236)">
+<path d="M65.7855 50.1389V47.153H64.2168V60.8863H65.7855V53.7794C65.7855 50.6035 67.8717 48.5575 71.1445 48.5575H71.4975V46.9418H71.1445C68.7105 46.9418 66.8153 48.1536 65.7855 50.1468V50.1415V50.1389Z" fill="#0D0D0D"/>
+<path d="M79.4557 46.8257C75.2885 46.8257 72.1484 49.9224 72.1484 54.0144C72.1484 58.1064 75.3176 61.2031 79.4557 61.2031C83.5937 61.2031 86.739 58.1064 86.739 54.0144C86.739 49.9224 83.6282 46.8257 79.4557 46.8257ZM85.1119 54.017C85.1119 57.2458 82.7019 59.6983 79.4557 59.6983C76.2095 59.6983 73.7702 57.2484 73.7702 54.017C73.7702 50.7857 76.2042 48.3358 79.4557 48.3358C82.7072 48.3358 85.1119 50.7857 85.1119 54.017Z" fill="#0D0D0D"/>
+<path d="M100.293 55.1998C100.293 57.8926 98.3151 59.6957 95.6343 59.6957C92.9535 59.6957 91.1937 57.919 91.1937 55.2526V47.1504H89.625V55.6855C89.625 59.0278 91.844 61.2058 95.1751 61.2058C97.4764 61.2058 99.26 60.2078 100.293 58.4866V60.8837H101.861V47.1504H100.293V55.2024V55.1971V55.1998Z" fill="#0D0D0D"/>
+<path d="M112.96 46.8257C110.335 46.8257 108.169 48.1694 107.004 50.2999V47.1478H105.436V66H107.004V57.7342C108.164 59.8594 110.33 61.2084 112.96 61.2084C116.995 61.2084 120 58.1117 120 54.0197C120 49.9277 116.998 46.831 112.96 46.831V46.8257ZM112.692 59.6983C109.441 59.6983 107.007 57.2484 107.007 54.017C107.007 50.7857 109.441 48.3358 112.692 48.3358C115.944 48.3358 118.378 50.7857 118.378 54.017C118.378 57.2484 115.944 59.6983 112.692 59.6983Z" fill="#0D0D0D"/>
+<path d="M48.8391 48.6869H59.8119C59.419 55.007 54.2883 59.6006 47.7349 59.6006C40.6719 59.6006 35.3421 54.2626 35.3421 47.1926C35.3421 47.0158 35.3474 46.8389 35.3553 46.6594H33.6168C33.6115 46.8362 33.6035 47.0105 33.6035 47.1926C33.6035 55.1628 39.6792 61.2084 47.7376 61.2084C55.796 61.2084 61.5531 55.4374 61.5531 47.7022V47.153H48.8417V48.6842H48.8364H48.8391V48.6869Z" fill="#0D0D0D"/>
+<path d="M28.7462 15.3067H23.1191V41.5879H28.7462V15.3067Z" fill="#0D0D0D"/>
+<path d="M5.58991 0H0V41.448H18.2535V36.4531H5.59257L5.58991 0Z" fill="#0D0D0D"/>
+<path d="M82.6114 35.9753C81.0347 37.2636 78.9777 38.0503 76.6233 38.0503C71.8589 38.0503 68.4667 34.9642 67.6041 30.7402H91.3838C91.6784 28.3114 91.3838 26.1703 91.3838 26.1703C90.3513 19.4885 84.3207 14.1715 76.6233 14.1715C68.0633 14.1715 61.7461 20.6844 61.7461 28.4513C61.7461 36.2182 68.0659 42.731 76.6233 42.731C82.2477 42.731 86.8423 39.9538 89.3851 35.9753H82.6114ZM76.618 18.8522C81.3825 18.8522 84.9472 22.0519 85.7514 26.1624H67.6041C68.5251 21.8777 72.0261 18.8522 76.6233 18.8522H76.618Z" fill="#0D0D0D"/>
+<path d="M62.0331 41.4525C61.6187 40.1351 61.0132 38.8889 60.2323 37.748C57.5524 33.817 53.1035 31.4694 48.3254 31.4694C45.927 31.4694 43.595 32.078 41.5286 33.1767L59.2071 15.2815H52.3678L39.7225 28.3367V0H34.0918V41.5052H39.4251C40.8248 38.3356 44.0147 36.1171 47.7251 36.1171C51.4356 36.1171 54.6254 38.3329 56.0252 41.5052H62.0463C62.0463 41.5052 62.041 41.4893 62.0384 41.4683C62.0384 41.4683 62.0384 41.4604 62.0331 41.4525Z" fill="#0D0D0D"/>
+</g>
+<defs>
+<clipPath id="clip0_4719_236">
+<rect width="120" height="66" fill="white"/>
+</clipPath>
+</defs>
+</svg>`;
+
+      const svgToPngDataUrl = async (svgString, width, height) => {
+        return new Promise((resolve, reject) => {
+          const svgBase64 = btoa(unescape(encodeURIComponent(svgString)));
+          const dataUrl = `data:image/svg+xml;base64,${svgBase64}`;
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = width * 2;
+            canvas.height = height * 2;
+            const ctx = canvas.getContext('2d');
+            ctx.scale(2, 2);
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/png'));
+          };
+          img.onerror = reject;
+          img.src = dataUrl;
+        });
+      };
+
+      const logoBase64 = await svgToPngDataUrl(logoSvg, 120, 66);
+
+      let pageNumber = 1;
+
+      const addFooter = () => {
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100);
+        doc.text('LikeGroup GmbH | Jakob-Latscha-Str. 3 | 60314 Frankfurt am Main | Deutschland', 14, FOOTER_Y);
+        doc.text(`Seite ${pageNumber}`, 196, FOOTER_Y, { align: 'right' });
+        doc.setTextColor(0);
+        pageNumber++;
+      };
+
+      const checkPageBreak = (neededSpace = 20) => {
+        if (y > MAX_CONTENT_Y - neededSpace) {
+          addFooter();
+          doc.addPage();
+          y = 20;
+        }
+      };
+
+      const drawCheckbox = (x, yPos, checked, label) => {
+        doc.rect(x, yPos - 2.5, 3, 3);
+        if (checked) {
+          doc.line(x + 0.5, yPos - 2, x + 2.5, yPos);
+          doc.line(x + 0.5, yPos, x + 2.5, yPos - 2);
+        }
+        doc.text(label, x + 5, yPos);
+      };
+
+      const kunde = this.unternehmen.find(u => u.id === vertrag.kunde_unternehmen_id);
+      const creator = this.creators.find(c => c.id === vertrag.creator_id);
+
+      const formatDate = (d) => this.formatContractDate(d, lang);
+      const formatMoney = (v, emptyValue = '0,00') => this.formatContractMoney(v, lang, { emptyValue });
+
+      // Label-Maps
+      const produktionsartLabels = {
+        'foto': 'Fotoshooting',
+        'video': 'Videoshooting',
+        'kombiniert': 'Kombiniert (Foto & Video)'
+      };
+
+      const einsatzortLabels = {
+        'studio': 'Studio',
+        'outdoor': 'Outdoor',
+        'on_location': 'On-Location',
+        'ausland': 'Ausland'
+      };
+
+      const rolleLabels = {
+        'posing': 'Reines Posing',
+        'acting': 'Acting / Performance',
+        'sprechrolle': 'Mit Sprechrolle',
+        'moderation': 'Moderation',
+        'sport': 'Sportliche Performance',
+        'sonstiges': 'Sonstiges'
+      };
+
+      const stylingLabels = {
+        'auftraggeber': 'Styling wird vom Auftraggeber gestellt',
+        'eigene': 'Model bringt eigene Outfits mit',
+        'fitting': 'Fitting-Termin vereinbart'
+      };
+
+      const nutzungsartenLabels = {
+        'ecommerce': 'E-Commerce',
+        'social_media': 'Social Media (organisch)',
+        'paid_ads': 'Paid Ads',
+        'website': 'Website',
+        'ooh': 'OOH',
+        'print': 'Print',
+        'tv_ctv': 'TV / CTV',
+        'pos': 'POS',
+        'pr': 'PR',
+        'kampagne': 'Kampagne'
+      };
+
+      const territoriumLabels = {
+        'dach': 'DACH',
+        'eu': 'EU',
+        'weltweit': 'Weltweit',
+        'beschraenkt': `Beschränkt auf: ${vertrag.model_territorium_beschraenkt || '-'}`
+      };
+
+      const nutzungsdauerLabels = {
+        '3_monate': '3 Monate',
+        '6_monate': '6 Monate',
+        '12_monate': '12 Monate',
+        '24_monate': '24 Monate',
+        'unbegrenzt': 'Unbegrenzt'
+      };
+
+      const exklLabels = {
+        'keine': 'Keine Exklusivität',
+        'branche': 'Branchenexklusivität',
+        'wettbewerber': 'Wettbewerber-Exklusivität'
+      };
+
+      const kiLabels = {
+        'ki_erlaubt': 'Nutzung für KI-gestützte Weiterverarbeitung erlaubt',
+        'training_ausgeschlossen': 'Nutzung für Trainingsdaten ausgeschlossen',
+        'deepfake_nein': 'Keine Deepfake-Nutzung',
+        'nur_kampagne': 'Nutzung ausschließlich im Rahmen der vereinbarten Kampagne'
+      };
+
+      const honorarArtLabels = {
+        'tagesgage': 'Tagesgage',
+        'halbtagesgage': 'Halbtagesgage',
+        'pauschal': 'Pauschalhonorar',
+        'stunde': 'Stundenhonorar'
+      };
+
+      const reisekostenLabels = {
+        'inklusive': 'Inklusive',
+        'nachweis': 'Werden gegen Nachweis erstattet',
+        'pauschale': `Reisepauschale: € ${formatMoney(vertrag.model_reisepauschale)} netto`
+      };
+
+      const zahlungszielLabels = {
+        '7_tage': '7 Tage',
+        '14_tage': '14 Tage',
+        '30_tage': '30 Tage',
+        '45_tage': '45 Tage',
+        '60_tage': '60 Tage'
+      };
+
+      // ============================================
+      // SEITE 1: Titel + Parteien (ZENTRIERT)
+      // ============================================
+
+      doc.addImage(logoBase64, 'PNG', 93.6, 10, 22.75, 12.6);
+
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('MODELVERTRAG', 105, 36, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+
+      doc.setFontSize(10);
+      doc.text(`${vertrag.name || 'Ohne Name'}`, 105, 46, { align: 'center' });
+
+      let y = 62;
+
+      // Agenturdaten
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Agenturdaten', 105, y, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+      doc.text('LikeGroup GmbH', 105, y, { align: 'center' });
+      y += 5;
+      doc.text('Jakob-Latscha-Str. 3', 105, y, { align: 'center' });
+      y += 5;
+      doc.text('60314 Frankfurt am Main', 105, y, { align: 'center' });
+
+      // Auftraggeber
+      y += 18;
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Auftraggeber', 105, y, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+      doc.text(`Firmenname: ${kunde?.firmenname || '-'}`, 105, y, { align: 'center' });
+      y += 5;
+      doc.text(`${kunde?.rechnungsadresse_strasse || ''} ${kunde?.rechnungsadresse_hausnummer || ''}`, 105, y, { align: 'center' });
+      y += 5;
+      doc.text(`${kunde?.rechnungsadresse_plz || ''} ${kunde?.rechnungsadresse_stadt || ''}`, 105, y, { align: 'center' });
+
+      // Model-Daten
+      y += 18;
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Model', 105, y, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+      doc.text(`Name: ${creator?.vorname || ''} ${creator?.nachname || ''}`, 105, y, { align: 'center' });
+      y += 5;
+      doc.text(`${creator?.lieferadresse_strasse || ''} ${creator?.lieferadresse_hausnummer || ''}`, 105, y, { align: 'center' });
+      y += 5;
+      doc.text(`${creator?.lieferadresse_plz || ''} ${creator?.lieferadresse_stadt || ''}`, 105, y, { align: 'center' });
+      y += 5;
+      doc.text(`${vertrag.influencer_land || 'Deutschland'}`, 105, y, { align: 'center' });
+      if (vertrag.influencer_steuer_id) {
+        y += 5;
+        doc.text(`Steuer-ID: ${vertrag.influencer_steuer_id}`, 105, y, { align: 'center' });
+      }
+
+      // PO / Auftragsnummer
+      y += 15;
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('PO / Auftragsnummer', 105, y, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      y += 8;
+      doc.text(`${vertrag.kunde_po_nummer || '_______________________________'}`, 105, y, { align: 'center' });
+      doc.setFontSize(9);
+      y += 7;
+      doc.text('Zwingend auf der Rechnung anzugeben. Ohne Angabe ist keine Zahlung möglich.', 105, y, { align: 'center' });
+      doc.setFontSize(10);
+
+      addFooter();
+
+      // ============================================
+      // SEITE 2: Vertragsinhalte (linksbündig)
+      // ============================================
+      doc.addPage();
+      y = 20;
+
+      // §1 Vertragsgegenstand
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('§1 Vertragsgegenstand', 14, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+      doc.text('Der Auftraggeber beauftragt das Model mit der Mitwirkung an einer Foto- und/oder Videoproduktion', 14, y);
+      y += 5;
+      doc.text('gemäß den nachfolgenden Bestimmungen.', 14, y);
+      y += 7;
+      doc.text('Die Produktion dient der Erstellung von Bild- und/oder Bewegtbildmaterial für die vertraglich', 14, y);
+      y += 5;
+      doc.text('definierte Nutzung.', 14, y);
+
+      // §2 Produktion & Einsatz
+      y += 14;
+      checkPageBreak(60);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('§2 Produktion & Einsatz', 14, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+
+      y += 8;
+      doc.setFont('helvetica', 'bold');
+      doc.text('2.1 Produktionsart', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      const prodArtOptions = ['foto', 'video', 'kombiniert'];
+      prodArtOptions.forEach(opt => {
+        drawCheckbox(18, y, vertrag.model_produktionsart === opt, produktionsartLabels[opt]);
+        y += 6;
+      });
+
+      y += 4;
+      checkPageBreak(30);
+      doc.setFont('helvetica', 'bold');
+      doc.text('2.2 Produktionszeitraum', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      doc.text(`Shooting von: ${formatDate(vertrag.model_shooting_von)}`, 14, y);
+      y += 5;
+      doc.text(`Shooting bis: ${formatDate(vertrag.model_shooting_bis)}`, 14, y);
+
+      y += 8;
+      checkPageBreak(30);
+      doc.setFont('helvetica', 'bold');
+      doc.text('2.3 Tagesstruktur', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      doc.text(`Call Time (Ankunft): ${vertrag.model_call_time || '-'}`, 14, y);
+      y += 5;
+      doc.text(`Geplanter Drehbeginn: ${vertrag.model_drehbeginn || '-'}`, 14, y);
+      y += 5;
+      doc.text(`Geplantes Produktionsende: ${vertrag.model_produktionsende || '-'}`, 14, y);
+      y += 5;
+      doc.text(`Maximale tägliche Einsatzdauer: ${vertrag.model_max_tagesstunden || '-'} Stunden`, 14, y);
+
+      y += 8;
+      checkPageBreak(30);
+      doc.setFont('helvetica', 'bold');
+      doc.text('2.4 Einsatzort', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      const einsatzortArt = vertrag.model_einsatzort_art || [];
+      Object.entries(einsatzortLabels).forEach(([key, label]) => {
+        drawCheckbox(18, y, einsatzortArt.includes(key), label);
+        y += 6;
+      });
+      y += 2;
+      doc.text(`Adresse / Ort: ${vertrag.model_einsatzort_adresse || '-'}`, 14, y);
+
+      y += 8;
+      checkPageBreak(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('2.5 Optionstage', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      if (vertrag.model_optionstage) {
+        doc.text(`Optionstag(e): ${vertrag.model_optionstage}`, 14, y);
+        y += 5;
+        doc.text('Die Buchung eines Optionstages bedarf der rechtzeitigen Bestätigung durch den Auftraggeber.', 14, y);
+      } else {
+        drawCheckbox(18, y, true, 'Keine Optionstage vereinbart');
+      }
+
+      // §3 Produktionsrahmen
+      y += 14;
+      checkPageBreak(60);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('§3 Produktionsrahmen', 14, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+
+      y += 8;
+      doc.setFont('helvetica', 'bold');
+      doc.text('3.1 Geplanter Output (unverbindliche Zielgröße)', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      doc.text(`Anzahl Foto-Motive (ca.): ${vertrag.model_anzahl_foto_motive || 0}`, 14, y);
+      y += 5;
+      doc.text(`Anzahl Video-Sequenzen (ca.): ${vertrag.model_anzahl_video_sequenzen || 0}`, 14, y);
+      y += 5;
+      doc.text('Die tatsächliche Anzahl der finalen Assets liegt im Ermessen des Auftraggebers und stellt keinen', 14, y);
+      y += 5;
+      doc.text('Anspruch auf eine bestimmte Veröffentlichungsmenge dar.', 14, y);
+
+      y += 8;
+      checkPageBreak(40);
+      doc.setFont('helvetica', 'bold');
+      doc.text('3.2 Rolle des Models', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      const rolle = vertrag.model_rolle || [];
+      Object.entries(rolleLabels).forEach(([key, label]) => {
+        let displayLabel = label;
+        if (key === 'sonstiges' && rolle.includes('sonstiges') && vertrag.model_rolle_sonstiges) {
+          displayLabel = `Sonstiges: ${vertrag.model_rolle_sonstiges}`;
+        }
+        drawCheckbox(18, y, rolle.includes(key), displayLabel);
+        y += 6;
+      });
+
+      y += 4;
+      checkPageBreak(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('3.3 Styling', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      Object.entries(stylingLabels).forEach(([key, label]) => {
+        let displayLabel = label;
+        if (key === 'fitting' && vertrag.model_styling === 'fitting' && vertrag.model_fitting_datum) {
+          displayLabel = `Fitting-Termin vereinbart am: ${formatDate(vertrag.model_fitting_datum)}`;
+        }
+        drawCheckbox(18, y, vertrag.model_styling === key, displayLabel);
+        y += 6;
+      });
+
+      addFooter();
+
+      // ============================================
+      // SEITE 3: Nutzungsrechte
+      // ============================================
+      doc.addPage();
+      y = 20;
+
+      // §4 Nutzungsrechte
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('§4 Nutzungsrechte', 14, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+
+      y += 8;
+      doc.setFont('helvetica', 'bold');
+      doc.text('4.1 Nutzungsarten', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      doc.text('Das im Rahmen der Produktion entstandene Material darf für folgende Zwecke genutzt werden:', 14, y);
+      y += 6;
+      const nutzungsarten = vertrag.model_nutzungsarten || [];
+      Object.entries(nutzungsartenLabels).forEach(([key, label]) => {
+        drawCheckbox(18, y, nutzungsarten.includes(key), label);
+        y += 6;
+      });
+
+      y += 4;
+      checkPageBreak(30);
+      doc.setFont('helvetica', 'bold');
+      doc.text('4.2 Territorium', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      Object.entries(territoriumLabels).forEach(([key, label]) => {
+        drawCheckbox(18, y, vertrag.model_territorium === key, label);
+        y += 6;
+      });
+
+      y += 4;
+      checkPageBreak(30);
+      doc.setFont('helvetica', 'bold');
+      doc.text('4.3 Nutzungsdauer', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      Object.entries(nutzungsdauerLabels).forEach(([key, label]) => {
+        drawCheckbox(18, y, vertrag.model_nutzungsdauer === key, label);
+        y += 6;
+      });
+      y += 2;
+      doc.text(`Beginn der Nutzungsdauer: ${formatDate(vertrag.model_nutzungsbeginn)}`, 14, y);
+
+      y += 8;
+      checkPageBreak(30);
+      doc.setFont('helvetica', 'bold');
+      doc.text('4.4 Exklusivität', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      Object.entries(exklLabels).forEach(([key, label]) => {
+        let displayLabel = label;
+        if (key !== 'keine' && vertrag.model_exklusivitaet_art === key && vertrag.model_exklusivitaet_dauer) {
+          displayLabel = `${label} – Dauer: ${vertrag.model_exklusivitaet_dauer} Monate`;
+        }
+        drawCheckbox(18, y, vertrag.model_exklusivitaet_art === key, displayLabel);
+        y += 6;
+      });
+
+      y += 4;
+      checkPageBreak(15);
+      doc.setFont('helvetica', 'bold');
+      doc.text('4.5 Bearbeitung & Anpassung', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      doc.text('Der Auftraggeber ist berechtigt, das Bild- und Videomaterial im Rahmen des Vertragszwecks zu', 14, y);
+      y += 5;
+      doc.text('bearbeiten, zu kürzen, grafisch zu verändern oder mit anderen Inhalten zu kombinieren.', 14, y);
+
+      y += 8;
+      checkPageBreak(30);
+      doc.setFont('helvetica', 'bold');
+      doc.text('4.6 KI- und digitale Weiterverarbeitung', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      const kiNutzung = vertrag.model_ki_nutzung || [];
+      Object.entries(kiLabels).forEach(([key, label]) => {
+        drawCheckbox(18, y, kiNutzung.includes(key), label);
+        y += 6;
+      });
+
+      addFooter();
+
+      // ============================================
+      // SEITE 4: Vergütung, Absage, Schluss
+      // ============================================
+      doc.addPage();
+      y = 20;
+
+      // §5 Vergütung
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('§5 Vergütung', 14, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+
+      y += 8;
+      doc.setFont('helvetica', 'bold');
+      doc.text('5.1 Honorar', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      doc.text(`€ ${formatMoney(vertrag.verguetung_netto)} netto`, 14, y);
+      y += 6;
+      Object.entries(honorarArtLabels).forEach(([key, label]) => {
+        drawCheckbox(18, y, vertrag.model_honorar_art === key, label);
+        y += 6;
+      });
+
+      y += 4;
+      checkPageBreak(25);
+      doc.setFont('helvetica', 'bold');
+      doc.text('5.2 Buyout', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      drawCheckbox(18, y, vertrag.model_buyout_inklusiv, 'Buyout im Honorar enthalten');
+      y += 6;
+      if (!vertrag.model_buyout_inklusiv && vertrag.model_buyout_betrag !== null && vertrag.model_buyout_betrag !== undefined) {
+        doc.text(`Zusätzliches Buyout-Honorar: € ${formatMoney(vertrag.model_buyout_betrag)} netto`, 18, y);
+        y += 6;
+      }
+
+      y += 4;
+      checkPageBreak(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('5.3 Reise- und Nebenkosten', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      Object.entries(reisekostenLabels).forEach(([key, label]) => {
+        drawCheckbox(18, y, vertrag.model_reisekosten === key, label);
+        y += 6;
+      });
+
+      y += 4;
+      checkPageBreak(15);
+      doc.setFont('helvetica', 'bold');
+      doc.text('5.4 Zahlungsziel', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      doc.text(`Zahlungsziel: ${zahlungszielLabels[vertrag.zahlungsziel] || '-'}`, 14, y);
+      y += 5;
+      doc.text('Rechnungsstellung durch das Model nach Abschluss der Produktion.', 14, y);
+
+      // §6 Absage & Ausfall
+      y += 14;
+      checkPageBreak(40);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('§6 Absage & Ausfall', 14, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+
+      y += 8;
+      doc.setFont('helvetica', 'bold');
+      doc.text('6.1 Wetterabhängigkeit', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      drawCheckbox(18, y, vertrag.model_wetterabhaengig, 'Produktion ist wetterabhängig');
+      y += 6;
+      drawCheckbox(18, y, !vertrag.model_wetterabhaengig, 'Produktion ist nicht wetterabhängig');
+
+      y += 8;
+      checkPageBreak(30);
+      doc.setFont('helvetica', 'bold');
+      doc.text('6.2 Absagebedingungen', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      doc.text('Bei Absage durch den Auftraggeber gelten folgende Regelungen:', 14, y);
+      y += 6;
+      const absageRegelung = vertrag.model_absage_regelung || [];
+      drawCheckbox(18, y, absageRegelung.includes('100_24h'), '100 % Honorar bei Absage < 24 Stunden');
+      y += 6;
+      drawCheckbox(18, y, absageRegelung.includes('50_48h'), '50 % Honorar bei Absage < 48 Stunden');
+      y += 6;
+      drawCheckbox(18, y, absageRegelung.includes('individuell'), 'Individuelle Regelung');
+      if (absageRegelung.includes('individuell') && vertrag.model_absage_individuell) {
+        y += 6;
+        doc.text(`   ${vertrag.model_absage_individuell}`, 18, y);
+      }
+
+      // §7 Persönlichkeitsrechte
+      y += 14;
+      checkPageBreak(25);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('§7 Persönlichkeitsrechte', 14, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+      doc.text('Das Model stimmt der Veröffentlichung der im Rahmen der Produktion entstandenen Aufnahmen', 14, y);
+      y += 5;
+      doc.text('gemäß den vertraglich vereinbarten Nutzungsrechten ausdrücklich zu.', 14, y);
+
+      // §8 Schlussbestimmungen
+      y += 14;
+      checkPageBreak(50);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('§8 Schlussbestimmungen', 14, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      y += 8;
+      doc.text('Änderungen oder Ergänzungen dieses Vertrags bedürfen der Schriftform.', 14, y);
+      y += 7;
+      doc.text('Sollten einzelne Bestimmungen dieses Vertrags unwirksam sein oder werden, bleibt die Wirksamkeit', 14, y);
+      y += 5;
+      doc.text('der übrigen Regelungen unberührt.', 14, y);
+
+      // Weitere Bestimmungen
+      if (vertrag.weitere_bestimmungen) {
+        y += 14;
+        checkPageBreak(30);
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Weitere Bestimmungen', 14, y);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        y += 8;
+        const lines = doc.splitTextToSize(vertrag.weitere_bestimmungen, 180);
+        lines.forEach(line => {
+          checkPageBreak(8);
+          doc.text(line, 14, y);
+          y += 5;
+        });
+      }
+
+      // Unterschriften
+      y += 20;
+      checkPageBreak(40);
+      doc.text('Ort, Datum: ___________________________', 14, y);
+      y += 15;
+      doc.text('Unterschrift Auftraggeber: ___________________________', 14, y);
+      y += 15;
+      doc.text('Model: ___________________________', 14, y);
+
+      addFooter();
+
+      // ============================================
+      // PDF speichern und hochladen
+      // ============================================
+      const pdfBlob = doc.output('blob');
+      const filePrefix = lang === 'en' ? 'EN_Contract_Model' : 'Vertrag_Model';
+      const fileName = `${filePrefix}_${vertrag.name || 'Model'}_${new Date().toISOString().split('T')[0]}.pdf`;
+      const filePath = vertrag.kunde_unternehmen_id
+        ? `unternehmen/${vertrag.kunde_unternehmen_id}/${vertrag.id}/${fileName}`
+        : `${vertrag.id}/${fileName}`;
+
+      const { error: uploadError } = await window.supabase.storage
+        .from('vertraege')
+        .upload(filePath, pdfBlob, { contentType: 'application/pdf', upsert: true });
+
+      if (uploadError) {
+        console.warn('⚠️ PDF-Upload fehlgeschlagen:', uploadError);
+        doc.save(fileName);
+      } else {
+        const { data: urlData } = window.supabase.storage
+          .from('vertraege')
+          .getPublicUrl(filePath);
+
+        if (urlData?.publicUrl) {
+          await window.supabase
+            .from('vertraege')
+            .update({
+              datei_url: urlData.publicUrl,
+              datei_path: filePath
+            })
+            .eq('id', vertrag.id);
+
+          console.log('✅ Model-PDF hochgeladen und URL gespeichert');
+        }
+
+        doc.save(fileName);
+      }
+
+      console.log('✅ Model-PDF generiert');
+
+    } catch (error) {
+      console.error('❌ Fehler bei Model-PDF-Generierung:', error);
       window.toastSystem?.show('PDF konnte nicht generiert werden', 'warning');
     }
   }

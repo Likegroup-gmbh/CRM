@@ -8,7 +8,8 @@ export const VERTRAG_FILTERS = [
     options: [
       { value: 'UGC', label: 'UGC-Produktionsvertrag' },
       { value: 'Influencer Kooperation', label: 'Influencer Kooperation' },
-      { value: 'Videograph', label: 'Videograf/Fotograf' }
+      { value: 'Videograph', label: 'Videograf/Fotograf' },
+      { value: 'Model', label: 'Modelvertrag' }
     ]
   }),
   createFilterConfig('select', {
