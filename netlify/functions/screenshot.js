@@ -603,6 +603,14 @@ exports.handler = async (event, context) => {
         console.log('⚠️ Instagram: Video/Bild nicht bereit nach 3s');
       }
       
+      // Instagram: Screenshot SOFORT machen (jede DOM-Manipulation danach stört)
+      console.log('📸 Instagram: Viewport-Screenshot...');
+      const igScreenshot = await page.screenshot({
+        type: 'jpeg',
+        quality: 85,
+        fullPage: false
+      });
+      
       // Debug-Modus: Fullpage-Screenshot + DOM-Analyse
       if (debug) {
         console.log('🔍 Instagram DEBUG: DOM-Analyse + Fullpage-Screenshot...');
@@ -794,7 +802,7 @@ exports.handler = async (event, context) => {
     // Versuche Element-Screenshot (nur Content, nicht ganze Seite)
     console.log('📸 Taking screenshot...');
     
-    // TikTok/YouTube: Modale und Overlays entfernen (Instagram überspringen - Content lebt in [role="dialog"]!)
+    // TikTok/YouTube: Modale und Overlays entfernen (Instagram macht Screenshot oben direkt nach Video-Wait)
     if (platform !== 'instagram') {
       await new Promise(r => setTimeout(r, 1500));
       
@@ -808,51 +816,14 @@ exports.handler = async (event, context) => {
         style.textContent = '[role="dialog"],[class*="tux-base-dialog"],[class*="Modal"],[class*="DivModalMask"],[class*="overlay"],[class*="backdrop"],[type="top"],[class*="DivFixedWrapper"],[class*="TopBanner"]{display:none!important;visibility:hidden!important;}';
         document.head.appendChild(style);
       });
-    } else {
-      // Instagram: Nur den "Registriere dich" Footer und Header-Banner entfernen
-      await page.evaluate(() => {
-        document.querySelectorAll('[class*="RnEpo"], [class*="HpNGH"]').forEach(el => el.remove());
-        const bottomBar = document.querySelector('[class*="x1n2onr6"][class*="x1vjfegm"]');
-        if (bottomBar && bottomBar.textContent?.includes('Registriere')) bottomBar.remove();
-      });
-    }
-    
-    // Instagram: Verzögertes "Sieh dir dieses Reel" Popup per CSS ausblenden
-    // NICHT den X-Button klicken - das schließt den gesamten Reel-Viewer!
-    if (platform === 'instagram') {
-      const popupResult = await page.evaluate(() => {
-        let hidden = false;
-        document.querySelectorAll('[role="dialog"]').forEach(el => {
-          if (el.textContent?.includes('Instagram öffnen') || 
-              el.textContent?.includes('Open Instagram') ||
-              el.textContent?.includes('Sieh dir dieses Reel') ||
-              el.textContent?.includes('View this reel') ||
-              el.textContent?.includes('Registrieren')) {
-            el.style.display = 'none';
-            hidden = true;
-          }
-        });
-        document.querySelectorAll('[class*="x1n2onr6"][style*="opacity"]').forEach(el => {
-          el.style.display = 'none';
-        });
-        return hidden ? 'popup-hidden' : 'no-popup';
-      });
-      console.log(`📷 Instagram Popup-Check: ${popupResult}`);
-      if (popupResult !== 'no-popup') {
-        await new Promise(r => setTimeout(r, 300));
-      }
     }
     
     let screenshotBuffer;
     
     if (platform === 'instagram') {
-      // Instagram: Viewport-Screenshot (wie Debug-Flow - funktioniert zuverlässig)
-      screenshotBuffer = await page.screenshot({
-        type: 'jpeg',
-        quality: 85,
-        clip: { x: 0, y: 0, width: 430, height: 820 }
-      });
-      console.log('✅ Instagram viewport screenshot taken');
+      // Screenshot wurde bereits oben direkt nach Video-Wait gemacht (igScreenshot)
+      screenshotBuffer = igScreenshot;
+      console.log('✅ Instagram viewport screenshot (aus frühem Capture)');
     } else {
       // TikTok/YouTube: Element-Selektor-basierter Screenshot
       const selector = PLATFORM_SELECTORS[platform];
