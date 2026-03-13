@@ -597,12 +597,11 @@ exports.handler = async (event, context) => {
           const img = document.querySelector('article img[src*="instagram"], [role="presentation"] img');
           if (img && img.complete && img.naturalHeight > 0) return true;
           return false;
-        }, { timeout: 8000 });
+        }, { timeout: 3000 });
         console.log('✅ Instagram: Video/Bild bereit');
       } catch (e) {
-        console.log('⚠️ Instagram: Video/Bild nicht bereit nach 8s');
+        console.log('⚠️ Instagram: Video/Bild nicht bereit nach 3s');
       }
-      await new Promise(r => setTimeout(r, 1500));
       
       // Debug-Modus: Fullpage-Screenshot + DOM-Analyse
       if (debug) {
