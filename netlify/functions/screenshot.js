@@ -583,6 +583,7 @@ exports.handler = async (event, context) => {
     });
 
     // Plattform-spezifisches Popup/Banner Handling
+    let igScreenshot = null;
     if (platform === 'tiktok') {
       await handleTikTokPopups(page);
     } else if (platform === 'instagram') {
@@ -605,7 +606,7 @@ exports.handler = async (event, context) => {
       
       // Instagram: Screenshot SOFORT machen (jede DOM-Manipulation danach stört)
       console.log('📸 Instagram: Viewport-Screenshot...');
-      const igScreenshot = await page.screenshot({
+      igScreenshot = await page.screenshot({
         type: 'jpeg',
         quality: 85,
         fullPage: false
