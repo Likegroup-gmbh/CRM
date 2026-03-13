@@ -174,6 +174,7 @@ export class VideoList {
           kooperation:kooperation_id (
             kampagne:kampagne_id (
               id,
+              unternehmen:unternehmen_id (id, firmenname, logo_url),
               marke:marke_id (
                 unternehmen:unternehmen_id (id, firmenname, logo_url)
               )
@@ -188,7 +189,7 @@ export class VideoList {
       const unternehmenMap = new Map();
       (data || []).forEach(video => {
         const kampagne = video.kooperation?.kampagne;
-        const unternehmen = kampagne?.marke?.unternehmen;
+        const unternehmen = kampagne?.marke?.unternehmen || kampagne?.unternehmen;
         if (!unternehmen?.id) return;
         if (allowedKampagneIds !== null && !allowedKampagneIds.includes(kampagne.id)) return;
 
@@ -233,6 +234,7 @@ export class VideoList {
               id,
               kampagnenname,
               eigener_name,
+              unternehmen:unternehmen_id (id),
               marke:marke_id (
                 unternehmen:unternehmen_id (id)
               )
@@ -247,7 +249,7 @@ export class VideoList {
       const kampagnenMap = new Map();
       (data || []).forEach(video => {
         const kampagne = video.kooperation?.kampagne;
-        const unternehmenId = kampagne?.marke?.unternehmen?.id;
+        const unternehmenId = kampagne?.marke?.unternehmen?.id || kampagne?.unternehmen?.id;
         if (!kampagne?.id || unternehmenId !== this.currentUnternehmenId) return;
         if (allowedKampagneIds !== null && !allowedKampagneIds.includes(kampagne.id)) return;
 
@@ -340,7 +342,7 @@ export class VideoList {
       const koopJoin = this.currentKampagneId ? '!inner' : '';
 
       const selectFields = `
-        id, kooperation_id, position, titel, content_art, status, posting_datum, thema,
+        id, kooperation_id, position, titel, content_art, status, posting_datum, thema, link_content, asset_url,
         strategie_item:strategie_item_id (id, screenshot_url),
         kooperation:kooperation_id${koopJoin} (
           id, name, kampagne_id,
@@ -701,6 +703,7 @@ export class VideoList {
           <thead>
             <tr>
               <th class="col-name">Thema</th>
+              <th>Content</th>
               <th>Kooperation</th>
               <th>Creator</th>
               <th>Content Art</th>
@@ -709,7 +712,7 @@ export class VideoList {
             </tr>
           </thead>
           <tbody id="videos-table-body">
-            <tr><td colspan="6" class="loading">Lade Videos...</td></tr>
+            <tr><td colspan="7" class="loading">Lade Videos...</td></tr>
           </tbody>
         </table>
       </div>
@@ -723,7 +726,7 @@ export class VideoList {
 
     if (!videos || videos.length === 0) {
       tbody.innerHTML = `
-        <tr><td colspan="6" class="empty-state">
+        <tr><td colspan="7" class="empty-state">
           <div class="empty-icon">🎬</div>
           <h3>Keine Videos vorhanden</h3>
           <p>Es wurden noch keine Videos erstellt.</p>
@@ -759,9 +762,19 @@ export class VideoList {
         ? `<div class="tags tags-compact"><span class="tag tag--type">${esc(video.content_art)}</span></div>`
         : '-';
 
+      const videoUrl = video.link_content || video.asset_url || '';
+      const contentLinkHtml = videoUrl
+        ? `<a href="${esc(videoUrl)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Link in neuem Tab öffnen">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+            </svg>
+          </a>`
+        : '–';
+
       return `
         <tr data-id="${video.id}">
           <td class="col-name video-thema-cell">${themaHtml}</td>
+          <td>${contentLinkHtml}</td>
           <td>
             ${kooperation.id ? `<a href="#" class="table-link" data-table="kooperation" data-id="${kooperation.id}">${esc(kooperation.name || '—')}</a>` : '-'}
           </td>

@@ -232,7 +232,7 @@ export const kooperationVideoDetail = {
     // Video + Basisdaten
     const { data: video, error } = await window.supabase
       .from('kooperation_videos')
-      .select('id, kooperation_id, titel, content_art, asset_url, kommentar, status, position, created_at')
+      .select('id, kooperation_id, titel, content_art, asset_url, link_content, kommentar, status, position, created_at')
       .eq('id', this.videoId)
       .single();
     if (error) throw error;
@@ -294,7 +294,7 @@ export const kooperationVideoDetail = {
     const currentAsset = this.assets.find(a => a.is_current) || this.assets[0];
     
     // Player/Preview für aktuelle Version
-    const url = currentAsset?.file_url || v.asset_url || '';
+    const url = currentAsset?.file_url || v.link_content || v.asset_url || '';
     const isVideo = /\.(mp4|webm|ogg)(\?|$)/i.test(url);
     const mediaHtml = url
       ? (isVideo
