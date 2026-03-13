@@ -241,8 +241,8 @@ async function handleInstagramPopups(page) {
       const header = document.querySelector('div._ab16');
       if (header) header.remove();
       
-      // App-Banner und Overlays
-      document.querySelectorAll('[class*="HpNGH"], [class*="RnEpo"], [role="dialog"], [class*="overlay"]').forEach(el => {
+      // App-Banner entfernen (NICHT [role="dialog"] - darin lebt der Reel-Content!)
+      document.querySelectorAll('[class*="HpNGH"], [class*="RnEpo"]').forEach(el => {
         el.remove();
       });
     });
@@ -794,27 +794,28 @@ exports.handler = async (event, context) => {
     // Versuche Element-Screenshot (nur Content, nicht ganze Seite)
     console.log('📸 Taking screenshot...');
     
-    // WICHTIG: Warte bis Modal erscheint, dann ENTFERNEN (nicht nur ausblenden!)
-    await new Promise(r => setTimeout(r, 1500));
-    
-    await page.evaluate(() => {
-      // Modal komplett aus DOM ENTFERNEN
-      document.querySelectorAll('[role="dialog"], [class*="tux-base-dialog"]').forEach(el => el.remove());
+    // TikTok/YouTube: Modale und Overlays entfernen (Instagram überspringen - Content lebt in [role="dialog"]!)
+    if (platform !== 'instagram') {
+      await new Promise(r => setTimeout(r, 1500));
       
-      // Overlay/Backdrop entfernen
-      document.querySelectorAll('[class*="DivModalMask"], [class*="overlay"], [class*="Overlay"], [class*="backdrop"]').forEach(el => el.remove());
-      
-      // TOP-BAR entfernen (TikTok Logo, Open app, Unmute)
-      document.querySelectorAll('[type="top"], [class*="DivFixedWrapper"], [class*="DivTopBannerAB"], [class*="TopBanner"], [class*="DivHeaderContainer"]').forEach(el => el.remove());
-      
-      // Bottom-Bar entfernen (Today's top videos)
-      document.querySelectorAll('[class*="DivTabContainer"], [class*="TabBar"], footer').forEach(el => el.remove());
-      
-      // CSS Injection für alles was noch kommt
-      const style = document.createElement('style');
-      style.textContent = '[role="dialog"],[class*="tux-base-dialog"],[class*="Modal"],[class*="DivModalMask"],[class*="overlay"],[class*="backdrop"],[type="top"],[class*="DivFixedWrapper"],[class*="TopBanner"]{display:none!important;visibility:hidden!important;}';
-      document.head.appendChild(style);
-    });
+      await page.evaluate(() => {
+        document.querySelectorAll('[role="dialog"], [class*="tux-base-dialog"]').forEach(el => el.remove());
+        document.querySelectorAll('[class*="DivModalMask"], [class*="overlay"], [class*="Overlay"], [class*="backdrop"]').forEach(el => el.remove());
+        document.querySelectorAll('[type="top"], [class*="DivFixedWrapper"], [class*="DivTopBannerAB"], [class*="TopBanner"], [class*="DivHeaderContainer"]').forEach(el => el.remove());
+        document.querySelectorAll('[class*="DivTabContainer"], [class*="TabBar"], footer').forEach(el => el.remove());
+        
+        const style = document.createElement('style');
+        style.textContent = '[role="dialog"],[class*="tux-base-dialog"],[class*="Modal"],[class*="DivModalMask"],[class*="overlay"],[class*="backdrop"],[type="top"],[class*="DivFixedWrapper"],[class*="TopBanner"]{display:none!important;visibility:hidden!important;}';
+        document.head.appendChild(style);
+      });
+    } else {
+      // Instagram: Nur den "Registriere dich" Footer und Header-Banner entfernen
+      await page.evaluate(() => {
+        document.querySelectorAll('[class*="RnEpo"], [class*="HpNGH"]').forEach(el => el.remove());
+        const bottomBar = document.querySelector('[class*="x1n2onr6"][class*="x1vjfegm"]');
+        if (bottomBar && bottomBar.textContent?.includes('Registriere')) bottomBar.remove();
+      });
+    }
     
     let screenshotBuffer;
     
