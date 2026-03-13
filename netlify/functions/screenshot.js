@@ -817,6 +817,31 @@ exports.handler = async (event, context) => {
       });
     }
     
+    // Instagram: Verzögertes "Sieh dir dieses Reel in der App an" Popup schließen
+    if (platform === 'instagram') {
+      const popupClosed = await page.evaluate(() => {
+        const closeBtn = document.querySelector('svg[aria-label="Schließen"], svg[aria-label="Close"]');
+        if (closeBtn) {
+          const btn = closeBtn.closest('button') || closeBtn.closest('[role="button"]');
+          if (btn) { btn.click(); return 'x-button'; }
+        }
+        let hidden = false;
+        document.querySelectorAll('[role="dialog"]').forEach(el => {
+          if (el.textContent?.includes('Instagram öffnen') || 
+              el.textContent?.includes('Open Instagram') ||
+              el.textContent?.includes('Sieh dir dieses Reel')) {
+            el.style.display = 'none';
+            hidden = true;
+          }
+        });
+        return hidden ? 'dialog-hidden' : 'no-popup';
+      });
+      console.log(`📷 Instagram Popup-Check: ${popupClosed}`);
+      if (popupClosed !== 'no-popup') {
+        await new Promise(r => setTimeout(r, 500));
+      }
+    }
+    
     let screenshotBuffer;
     
     const selector = PLATFORM_SELECTORS[platform];
