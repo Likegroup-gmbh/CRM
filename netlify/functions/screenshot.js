@@ -817,77 +817,81 @@ exports.handler = async (event, context) => {
       });
     }
     
-    // Instagram: Verzögertes "Sieh dir dieses Reel in der App an" Popup schließen
+    // Instagram: Verzögertes "Sieh dir dieses Reel" Popup per CSS ausblenden
+    // NICHT den X-Button klicken - das schließt den gesamten Reel-Viewer!
     if (platform === 'instagram') {
-      const popupClosed = await page.evaluate(() => {
-        const closeBtn = document.querySelector('svg[aria-label="Schließen"], svg[aria-label="Close"]');
-        if (closeBtn) {
-          const btn = closeBtn.closest('button') || closeBtn.closest('[role="button"]');
-          if (btn) { btn.click(); return 'x-button'; }
-        }
+      const popupResult = await page.evaluate(() => {
         let hidden = false;
         document.querySelectorAll('[role="dialog"]').forEach(el => {
           if (el.textContent?.includes('Instagram öffnen') || 
               el.textContent?.includes('Open Instagram') ||
-              el.textContent?.includes('Sieh dir dieses Reel')) {
+              el.textContent?.includes('Sieh dir dieses Reel') ||
+              el.textContent?.includes('View this reel') ||
+              el.textContent?.includes('Registrieren')) {
             el.style.display = 'none';
             hidden = true;
           }
         });
-        return hidden ? 'dialog-hidden' : 'no-popup';
+        document.querySelectorAll('[class*="x1n2onr6"][style*="opacity"]').forEach(el => {
+          el.style.display = 'none';
+        });
+        return hidden ? 'popup-hidden' : 'no-popup';
       });
-      console.log(`📷 Instagram Popup-Check: ${popupClosed}`);
-      if (popupClosed !== 'no-popup') {
-        await new Promise(r => setTimeout(r, 500));
+      console.log(`📷 Instagram Popup-Check: ${popupResult}`);
+      if (popupResult !== 'no-popup') {
+        await new Promise(r => setTimeout(r, 300));
       }
     }
     
     let screenshotBuffer;
     
-    const selector = PLATFORM_SELECTORS[platform];
-    const maxHeight = platform === 'instagram' ? 820 : 645;
-    
-    try {
-      // Warte auf Content-Element
-      await page.waitForSelector(selector, { timeout: 5000 });
-      const element = await page.$(selector);
-      
-      if (element) {
-        // Element-Screenshot mit max Höhe
-        const box = await element.boundingBox();
-        if (box) {
-          screenshotBuffer = await page.screenshot({
-            type: 'jpeg',
-            quality: 85,
-            clip: {
-              x: box.x,
-              y: box.y,
-              width: box.width,
-              height: Math.min(box.height, maxHeight)
-            }
-          });
-          console.log(`✅ Element screenshot taken (max ${maxHeight}px height)`);
-        } else {
-          throw new Error('Element bounding box not found');
-        }
-      } else {
-        throw new Error('Element not found');
-      }
-    } catch (e) {
-      // Fallback: Viewport-Screenshot (Desktop für YouTube, Mobile für andere)
-      console.log('⚠️ Fallback to viewport screenshot:', e.message);
-      const fallbackWidth = platform === 'youtube' ? 1920 : 430;
-      const fallbackHeight = platform === 'youtube' ? 1080 : maxHeight;
+    if (platform === 'instagram') {
+      // Instagram: Viewport-Screenshot (wie Debug-Flow - funktioniert zuverlässig)
       screenshotBuffer = await page.screenshot({
         type: 'jpeg',
         quality: 85,
-        clip: {
-          x: 0,
-          y: 0,
-          width: fallbackWidth,
-          height: fallbackHeight
-        }
+        clip: { x: 0, y: 0, width: 430, height: 820 }
       });
+      console.log('✅ Instagram viewport screenshot taken');
+    } else {
+      // TikTok/YouTube: Element-Selektor-basierter Screenshot
+      const selector = PLATFORM_SELECTORS[platform];
+      const maxHeight = 645;
+      
+      try {
+        await page.waitForSelector(selector, { timeout: 5000 });
+        const element = await page.$(selector);
+        
+        if (element) {
+          const box = await element.boundingBox();
+          if (box) {
+            screenshotBuffer = await page.screenshot({
+              type: 'jpeg',
+              quality: 85,
+              clip: {
+                x: box.x,
+                y: box.y,
+                width: box.width,
+                height: Math.min(box.height, maxHeight)
+              }
+            });
+            console.log(`✅ Element screenshot taken (max ${maxHeight}px height)`);
+          } else {
+            throw new Error('Element bounding box not found');
+          }
+        } else {
+          throw new Error('Element not found');
+        }
+      } catch (e) {
+        console.log('⚠️ Fallback to viewport screenshot:', e.message);
+        const fallbackWidth = platform === 'youtube' ? 1920 : 430;
+        const fallbackHeight = platform === 'youtube' ? 1080 : maxHeight;
+        screenshotBuffer = await page.screenshot({
+          type: 'jpeg',
+          quality: 85,
+          clip: { x: 0, y: 0, width: fallbackWidth, height: fallbackHeight }
+        });
+      }
     }
 
     // Zu Supabase hochladen
