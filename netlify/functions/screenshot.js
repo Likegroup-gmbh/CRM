@@ -356,28 +356,67 @@ async function handleYouTubePopups(page) {
 }
 
 /**
+ * CORS-Origin anhand von Netlify-Umgebung ermitteln
+ */
+function getAllowedOrigin(requestOrigin) {
+  const siteUrl = process.env.URL || '';
+  const deployPrimeUrl = process.env.DEPLOY_PRIME_URL || '';
+  const allowed = [siteUrl, deployPrimeUrl].filter(Boolean);
+  if (allowed.includes(requestOrigin)) return requestOrigin;
+  // Fallback: Netlify deploy previews (*.netlify.app)
+  if (requestOrigin && /^https:\/\/[a-z0-9-]+--[a-z0-9-]+\.netlify\.app$/.test(requestOrigin)) return requestOrigin;
+  return siteUrl || 'null';
+}
+
+/**
+ * JWT aus Authorization-Header verifizieren
+ */
+async function verifyAuth(event) {
+  const authHeader = (event.headers || {}).authorization || (event.headers || {}).Authorization || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '');
+  if (!token) return null;
+
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+  if (!supabaseUrl || !supabaseKey) return null;
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  if (error || !user) return null;
+  return user;
+}
+
+/**
  * Netlify Function Handler
  */
 exports.handler = async (event, context) => {
+  const requestOrigin = (event.headers || {}).origin || '';
+  const origin = getAllowedOrigin(requestOrigin);
   const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Vary': 'Origin',
     'Content-Type': 'application/json'
   };
 
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers, body: '' };
+    return { statusCode: 204, headers, body: '' };
   }
 
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'POST only' }) };
   }
 
+  const user = await verifyAuth(event);
+  if (!user) {
+    return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
+  }
+
   let browser;
   
   try {
-    const { url } = JSON.parse(event.body || '{}');
+    const { url, debug } = JSON.parse(event.body || '{}');
     if (!url) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'URL required' }) };
     }
@@ -548,6 +587,83 @@ exports.handler = async (event, context) => {
       await handleTikTokPopups(page);
     } else if (platform === 'instagram') {
       await handleInstagramPopups(page);
+      
+      // Warte auf Video/Bild-Content (analog zu YouTube readyState-Waiting)
+      console.log('📷 Instagram: Warte auf Video/Bild...');
+      try {
+        await page.waitForFunction(() => {
+          const video = document.querySelector('article video, [role="presentation"] video, video');
+          if (video && video.readyState >= 2) return true;
+          const img = document.querySelector('article img[src*="instagram"], [role="presentation"] img');
+          if (img && img.complete && img.naturalHeight > 0) return true;
+          return false;
+        }, { timeout: 8000 });
+        console.log('✅ Instagram: Video/Bild bereit');
+      } catch (e) {
+        console.log('⚠️ Instagram: Video/Bild nicht bereit nach 8s');
+      }
+      await new Promise(r => setTimeout(r, 1500));
+      
+      // Debug-Modus: Fullpage-Screenshot + DOM-Analyse
+      if (debug) {
+        console.log('🔍 Instagram DEBUG: DOM-Analyse + Fullpage-Screenshot...');
+        
+        const debugInfo = await page.evaluate(() => ({
+          currentUrl: window.location.href,
+          title: document.title,
+          hasArticle: !!document.querySelector('article'),
+          hasVideo: !!document.querySelector('article video'),
+          videoReadyState: document.querySelector('video')?.readyState ?? 'no video',
+          hasImg: !!document.querySelector('article img'),
+          hasPresentation: !!document.querySelector('[role="presentation"]'),
+          hasMainArticle: !!document.querySelector('main article'),
+          hasLoginWall: !!(document.body?.textContent?.includes('Anmelden') || document.body?.textContent?.includes('Log in')),
+          allSelectors: {
+            'article video': !!document.querySelector('article video'),
+            'article img': !!document.querySelector('article img'),
+            '[role="presentation"] video': !!document.querySelector('[role="presentation"] video'),
+            'main article': !!document.querySelector('main article'),
+            'video': !!document.querySelector('video'),
+            '[role="dialog"]': !!document.querySelector('[role="dialog"]')
+          },
+          bodySnippet: document.body?.innerHTML?.substring(0, 800) || 'NO BODY'
+        }));
+        
+        console.log('🔍 DEBUG Info:', JSON.stringify(debugInfo, null, 2));
+        
+        const debugScreenshot = await page.screenshot({
+          type: 'jpeg',
+          quality: 80,
+          fullPage: false
+        });
+        
+        const debugFileName = `debug-instagram-${Date.now()}.jpg`;
+        const { error: debugUploadError } = await supabase.storage
+          .from('strategie-screenshots')
+          .upload(`screenshots/${debugFileName}`, debugScreenshot, {
+            contentType: 'image/jpeg',
+            upsert: true
+          });
+        
+        let debugScreenshotUrl = null;
+        if (!debugUploadError) {
+          debugScreenshotUrl = `${supabaseUrl}/storage/v1/object/public/strategie-screenshots/screenshots/${debugFileName}`;
+          console.log('🔍 DEBUG Screenshot:', debugScreenshotUrl);
+        }
+        
+        // Im Debug-Modus: Sofort mit Debug-Infos antworten
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            success: true,
+            debug: true,
+            debug_screenshot_url: debugScreenshotUrl,
+            debug_info: debugInfo,
+            platform
+          })
+        };
+      }
     } else if (platform === 'youtube') {
       // YouTube: Menschliches Verhalten simulieren
       console.log('🔍 YouTube: Simuliere menschliches Verhalten...');
