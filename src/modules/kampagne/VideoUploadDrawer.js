@@ -245,58 +245,52 @@ export class VideoUploadDrawer {
     if (progressContainer) progressContainer.style.display = 'block';
     this.hideError();
 
-    const formData = new FormData();
-    formData.append('file', this._selectedFile);
-    formData.append('unternehmen', this.metadaten.unternehmen || '');
-    formData.append('marke', this.metadaten.marke || '');
-    formData.append('kampagne', this.metadaten.kampagne || '');
-    formData.append('kooperation', this.metadaten.kooperationName || '');
-    formData.append('videoTitel', this.metadaten.videoTitel || 'Video');
-    formData.append('versionNumber', '1');
-
     const description = document.getElementById('video-upload-description')?.value || '';
 
     try {
-      const result = await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', '/.netlify/functions/dropbox-upload');
-
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            const pct = Math.round((e.loaded / e.total) * 100);
-            if (progressFill) progressFill.style.width = `${pct}%`;
-            if (progressText) progressText.textContent = `Wird hochgeladen... ${pct}%`;
-          }
-        });
-
-        xhr.addEventListener('load', () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            try { resolve(JSON.parse(xhr.responseText)); }
-            catch { reject(new Error('Ungültige Server-Antwort')); }
-          } else {
-            try {
-              const err = JSON.parse(xhr.responseText);
-              reject(new Error(err.error || `Upload fehlgeschlagen (${xhr.status})`));
-            } catch { reject(new Error(`Upload fehlgeschlagen (${xhr.status})`)); }
-          }
-        });
-
-        xhr.addEventListener('error', () => reject(new Error('Netzwerkfehler beim Upload')));
-        xhr.addEventListener('timeout', () => reject(new Error('Upload Timeout')));
-        xhr.timeout = 300000;
-        xhr.send(formData);
+      // Schritt 1: Token + Pfad von Netlify Function holen (kein File, nur JSON)
+      if (progressText) progressText.textContent = 'Verbinde mit Dropbox...';
+      const tokenResp = await fetch('/.netlify/functions/dropbox-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          unternehmen: this.metadaten.unternehmen || '',
+          marke: this.metadaten.marke || '',
+          kampagne: this.metadaten.kampagne || '',
+          kooperation: this.metadaten.kooperationName || '',
+          videoTitel: this.metadaten.videoTitel || 'Video',
+          versionNumber: '1',
+          fileName: this._selectedFile.name
+        })
       });
 
+      if (!tokenResp.ok) {
+        const errData = await tokenResp.json().catch(() => ({}));
+        throw new Error(errData.error || `Token-Abruf fehlgeschlagen (${tokenResp.status})`);
+      }
+
+      const { token, dropboxPath } = await tokenResp.json();
+
+      // Schritt 2: Direkt-Upload an Dropbox API (kein Size-Limit)
+      if (progressText) progressText.textContent = 'Lade hoch nach Dropbox...';
+      const uploadResult = await this._uploadToDropbox(token, dropboxPath, progressFill, progressText);
+
+      // Schritt 3: Shared Link erstellen
+      if (progressFill) progressFill.style.width = '95%';
+      if (progressText) progressText.textContent = 'Erstelle Link...';
+      const sharedLink = await this._createSharedLink(token, uploadResult.path_display || dropboxPath);
+
+      // Schritt 4: In Supabase speichern
       if (progressFill) progressFill.style.width = '100%';
       if (progressText) progressText.textContent = 'Speichere in Datenbank...';
 
-      await this.saveAssetVersion(result.shared_link || result.path, result.path, description);
+      const fileUrl = sharedLink || uploadResult.path_display || dropboxPath;
+      await this.saveAssetVersion(fileUrl, uploadResult.path_display || dropboxPath, description);
 
       if (progressText) progressText.textContent = 'Upload abgeschlossen!';
 
-      const fileUrl = result.shared_link || result.path;
       if (typeof this.onSuccess === 'function') {
-        this.onSuccess(fileUrl, result.path);
+        this.onSuccess(fileUrl, uploadResult.path_display || dropboxPath);
       }
 
       setTimeout(() => this.close(), 800);
@@ -308,6 +302,77 @@ export class VideoUploadDrawer {
       if (cancelBtn) cancelBtn.disabled = false;
       this._isUploading = false;
     }
+  }
+
+  _uploadToDropbox(token, dropboxPath, progressFill, progressText) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', 'https://content.dropboxapi.com/2/files/upload');
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+      xhr.setRequestHeader('Dropbox-API-Arg', JSON.stringify({
+        path: dropboxPath,
+        mode: 'overwrite',
+        autorename: true,
+        mute: false
+      }));
+
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 90);
+          if (progressFill) progressFill.style.width = `${pct}%`;
+          if (progressText) progressText.textContent = `Lade hoch... ${Math.round((e.loaded / e.total) * 100)}%`;
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try { resolve(JSON.parse(xhr.responseText)); }
+          catch { reject(new Error('Ungültige Dropbox-Antwort')); }
+        } else {
+          reject(new Error(`Dropbox Upload fehlgeschlagen (${xhr.status})`));
+        }
+      });
+
+      xhr.addEventListener('error', () => reject(new Error('Netzwerkfehler beim Dropbox-Upload')));
+      xhr.addEventListener('timeout', () => reject(new Error('Dropbox Upload Timeout')));
+      xhr.timeout = 600000;
+      xhr.send(this._selectedFile);
+    });
+  }
+
+  async _createSharedLink(token, dropboxPath) {
+    const resp = await fetch('https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        path: dropboxPath,
+        settings: { requested_visibility: 'public', audience: 'public', access: 'viewer' }
+      })
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      return data.url?.replace('?dl=0', '?raw=1') || null;
+    }
+
+    // 409 = Link existiert bereits
+    if (resp.status === 409) {
+      const listResp = await fetch('https://api.dropboxapi.com/2/sharing/list_shared_links', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: dropboxPath, direct_only: true })
+      });
+      if (listResp.ok) {
+        const listData = await listResp.json();
+        if (listData.links?.length > 0) return listData.links[0].url.replace('?dl=0', '?raw=1');
+      }
+    }
+
+    return null;
   }
 
   async saveAssetVersion(fileUrl, filePath, description) {
