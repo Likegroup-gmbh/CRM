@@ -459,6 +459,13 @@ export class FormSystem {
       }
     });
 
+    // Leere Strings bei UUID-Feldern (_id) zu null konvertieren (Supabase erwartet UUID oder null, nicht "")
+    Object.keys(submitData).forEach(key => {
+      if (key.endsWith('_id') && submitData[key] === '') {
+        submitData[key] = null;
+      }
+    });
+
     return submitData;
   }
 
@@ -530,59 +537,167 @@ export class FormSystem {
     });
   }
 
-  // Kooperation: Videos-Repeater speichern
+  // Kooperation: Videos automatisch anlegen/synchronisieren basierend auf videoanzahl
   async handleKooperationVideos(kooperationId, form) {
     try {
       if (!window.supabase) return;
-      const list = form.querySelector('.videos-list');
-      if (!list) return;
 
-      const items = Array.from(list.querySelectorAll('.video-item'));
-      const rows = items.map((el, idx) => {
-        const id = el.getAttribute('data-video-id');
-        const contentArt = form.querySelector(`select[name="video_content_art_${id}"]`)?.value || null;
-        const kampagnenart = form.querySelector(`select[name="video_kampagnenart_${id}"]`)?.value || null;
-        const ekRaw = form.querySelector(`input[name="video_ek_netto_${id}"]`)?.value;
-        const einkaufspreis = (ekRaw !== null && ekRaw !== undefined && ekRaw !== '') ? parseFloat(ekRaw) : 0;
-        const vkRaw = form.querySelector(`input[name="video_vk_netto_${id}"]`)?.value;
-        const verkaufspreis = (vkRaw !== null && vkRaw !== undefined && vkRaw !== '') ? parseFloat(vkRaw) : 0;
-        return {
-          kooperation_id: kooperationId,
-          content_art: contentArt,
-          kampagnenart: kampagnenart,
-          einkaufspreis_netto: einkaufspreis,
-          verkaufspreis_netto: verkaufspreis,
-          titel: null,
-          asset_url: null,
-          kommentar: null,
-          position: idx + 1,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-      }).filter(r => r.content_art || r.kampagnenart || r.einkaufspreis_netto > 0);
+      const videoanzahl = parseInt(form.querySelector('[name="videoanzahl"]')?.value || '0', 10);
+      if (videoanzahl <= 0) return;
 
-      // Bestehende Videos löschen und neu schreiben
-      await window.supabase
-        .from('kooperation_videos')
-        .delete()
-        .eq('kooperation_id', kooperationId);
+      const contentArtFallback = form.querySelector('[name="content_art"]')?.value || null;
+      const isEditMode = !!form.dataset.entityId;
 
-      if (rows.length > 0) {
-        const { data: inserted, error } = await window.supabase
-          .from('kooperation_videos')
-          .insert(rows)
-          .select('id, content_art, position');
-        if (error) {
-          console.error('❌ Fehler beim Speichern der Kooperation-Videos:', error);
-        } else {
-          console.log(`✅ ${inserted?.length || 0} Videos für Kooperation ${kooperationId} gespeichert`, inserted);
-          if (!inserted || inserted.length === 0) {
-            console.warn('⚠️ Insert meldete Erfolg, aber keine Zeilen wurden zurückgegeben. Prüfe RLS/Policies für kooperation_videos.');
-          }
-        }
+      const manualRows = this._collectStepperVideos(kooperationId, form);
+
+      if (isEditMode) {
+        await this._mergeKooperationVideos(kooperationId, videoanzahl, manualRows, contentArtFallback);
+      } else {
+        await this._createKooperationVideos(kooperationId, videoanzahl, manualRows, contentArtFallback);
       }
     } catch (error) {
       console.error('❌ Fehler in handleKooperationVideos:', error);
+    }
+  }
+
+  // Stepper-Daten aus dem Formular auslesen
+  _collectStepperVideos(kooperationId, form) {
+    const list = form.querySelector('.videos-list');
+    if (!list) return [];
+
+    return Array.from(list.querySelectorAll('.video-item')).map((el, idx) => {
+      const id = el.getAttribute('data-video-id');
+      const contentArt = form.querySelector(`select[name="video_content_art_${id}"]`)?.value || null;
+      const kampagnenart = form.querySelector(`select[name="video_kampagnenart_${id}"]`)?.value || null;
+      const ekRaw = form.querySelector(`input[name="video_ek_netto_${id}"]`)?.value;
+      const einkaufspreis = (ekRaw !== null && ekRaw !== undefined && ekRaw !== '') ? parseFloat(ekRaw) : 0;
+      const vkRaw = form.querySelector(`input[name="video_vk_netto_${id}"]`)?.value;
+      const verkaufspreis = (vkRaw !== null && vkRaw !== undefined && vkRaw !== '') ? parseFloat(vkRaw) : 0;
+      return {
+        kooperation_id: kooperationId,
+        content_art: contentArt,
+        kampagnenart: kampagnenart,
+        einkaufspreis_netto: einkaufspreis,
+        verkaufspreis_netto: verkaufspreis,
+        position: idx + 1
+      };
+    });
+  }
+
+  // Create-Mode: Alle Videos frisch anlegen
+  async _createKooperationVideos(kooperationId, videoanzahl, manualRows, contentArtFallback) {
+    const rows = [];
+    for (let i = 0; i < videoanzahl; i++) {
+      const manual = manualRows[i];
+      rows.push({
+        kooperation_id: kooperationId,
+        content_art: manual?.content_art || contentArtFallback,
+        kampagnenart: manual?.kampagnenart || null,
+        einkaufspreis_netto: manual?.einkaufspreis_netto || 0,
+        verkaufspreis_netto: manual?.verkaufspreis_netto || 0,
+        titel: null,
+        asset_url: null,
+        kommentar: null,
+        position: i + 1
+      });
+    }
+
+    const { data: inserted, error } = await window.supabase
+      .from('kooperation_videos')
+      .insert(rows)
+      .select('id, content_art, position');
+
+    if (error) {
+      console.error('❌ Fehler beim Erstellen der Videos:', error);
+    } else {
+      console.log(`✅ ${inserted?.length || 0} Videos für Kooperation ${kooperationId} erstellt`);
+    }
+  }
+
+  // Edit-Mode: Smart-Merge -- bestehende Videos erhalten, fehlende hinzufügen, überzählige entfernen
+  async _mergeKooperationVideos(kooperationId, videoanzahl, manualRows, contentArtFallback) {
+    const { data: existing, error: loadErr } = await window.supabase
+      .from('kooperation_videos')
+      .select('id, position, content_art, kampagnenart, einkaufspreis_netto, verkaufspreis_netto')
+      .eq('kooperation_id', kooperationId)
+      .order('position', { ascending: true });
+
+    if (loadErr) {
+      console.error('❌ Fehler beim Laden bestehender Videos:', loadErr);
+      return;
+    }
+
+    const existingVideos = existing || [];
+    const currentCount = existingVideos.length;
+
+    // Bestehende Videos mit Stepper-Daten updaten
+    const updatePromises = existingVideos.slice(0, videoanzahl).map((video, idx) => {
+      const manual = manualRows[idx];
+      if (!manual) return null;
+
+      const updates = {};
+      if (manual.content_art) updates.content_art = manual.content_art;
+      if (manual.kampagnenart) updates.kampagnenart = manual.kampagnenart;
+      if (manual.einkaufspreis_netto > 0) updates.einkaufspreis_netto = manual.einkaufspreis_netto;
+      if (manual.verkaufspreis_netto > 0) updates.verkaufspreis_netto = manual.verkaufspreis_netto;
+      updates.position = idx + 1;
+
+      if (Object.keys(updates).length === 1 && updates.position === video.position) return null;
+
+      return window.supabase
+        .from('kooperation_videos')
+        .update(updates)
+        .eq('id', video.id);
+    }).filter(Boolean);
+
+    if (updatePromises.length > 0) {
+      await Promise.all(updatePromises);
+      console.log(`✅ ${updatePromises.length} bestehende Videos aktualisiert`);
+    }
+
+    // Überzählige Videos von hinten entfernen
+    if (currentCount > videoanzahl) {
+      const toRemove = existingVideos.slice(videoanzahl).map(v => v.id);
+      const { error: delErr } = await window.supabase
+        .from('kooperation_videos')
+        .delete()
+        .in('id', toRemove);
+
+      if (delErr) {
+        console.error('❌ Fehler beim Entfernen überzähliger Videos:', delErr);
+      } else {
+        console.log(`✅ ${toRemove.length} überzählige Videos entfernt`);
+      }
+    }
+
+    // Fehlende Videos hinzufügen
+    if (videoanzahl > currentCount) {
+      const newRows = [];
+      for (let i = currentCount; i < videoanzahl; i++) {
+        const manual = manualRows[i];
+        newRows.push({
+          kooperation_id: kooperationId,
+          content_art: manual?.content_art || contentArtFallback,
+          kampagnenart: manual?.kampagnenart || null,
+          einkaufspreis_netto: manual?.einkaufspreis_netto || 0,
+          verkaufspreis_netto: manual?.verkaufspreis_netto || 0,
+          titel: null,
+          asset_url: null,
+          kommentar: null,
+          position: i + 1
+        });
+      }
+
+      const { error: insErr } = await window.supabase
+        .from('kooperation_videos')
+        .insert(newRows)
+        .select('id, content_art, position');
+
+      if (insErr) {
+        console.error('❌ Fehler beim Hinzufügen neuer Videos:', insErr);
+      } else {
+        console.log(`✅ ${newRows.length} neue Videos hinzugefügt (Position ${currentCount + 1}-${videoanzahl})`);
+      }
     }
   }
 
@@ -662,8 +777,9 @@ export class FormSystem {
       existingContainer.remove();
     }
 
-    // Prüfe ob es ein Phone-Field ist
+    // Prüfe ob es ein Phone-Field oder Country-Field ist
     const isPhoneField = selectElement.dataset.phoneField === 'true';
+    const isCountryField = selectElement.dataset.countryField === 'true';
     
     // Prüfe ob das Feld readonly ist (data-readonly="true" oder disabled)
     const isReadonly = selectElement.getAttribute('data-readonly') === 'true' || 
@@ -738,12 +854,12 @@ export class FormSystem {
       // Für Phone-Fields: Flagge + Vorwahl + Ländername anzeigen
       if (isPhoneField && selectedOption.isoCode) {
         const flagEmoji = this.isoToFlagEmoji(selectedOption.isoCode);
-        // Vorwahl aus den Options holen (z.B. "+49")
         const vorwahl = selectedOption.vorwahl || '';
-        // Ländername ohne Vorwahl (falls die Vorwahl im Label enthalten ist)
         const countryName = selectedOption.label.replace(/^\+\d+\s*/, '').trim();
-        // Format: 🇩🇪 +49 Deutschland
         input.value = `${flagEmoji} ${vorwahl} ${countryName}`.trim();
+      } else if (isCountryField && selectedOption.isoCode) {
+        const flagEmoji = this.isoToFlagEmoji(selectedOption.isoCode);
+        input.value = `${flagEmoji} ${selectedOption.label}`.trim();
       } else {
         input.value = selectedOption.label;
       }
@@ -875,9 +991,10 @@ export class FormSystem {
       option.label.toLowerCase().includes(cleanFilterText.toLowerCase())
     );
 
-    // Prüfe ob es ein Phone-Field ist
+    // Prüfe ob es ein Phone-Field oder Country-Field ist
     const selectElement = dropdown.parentNode.parentNode.querySelector('select');
     const isPhoneField = selectElement?.dataset?.phoneField === 'true';
+    const isCountryField = selectElement?.dataset?.countryField === 'true';
 
     // Prüfe ob exakter Match existiert (case-insensitive)
     const exactMatch = options.some(opt => 
@@ -888,8 +1005,8 @@ export class FormSystem {
       const item = document.createElement('div');
       item.className = 'searchable-select-item';
       
-      // Spezielle Behandlung für Phone-Fields mit Flag-Emojis
-      if (isPhoneField && option.isoCode) {
+      // Spezielle Behandlung für Phone-Fields und Country-Fields mit Flag-Emojis
+      if ((isPhoneField || isCountryField) && option.isoCode) {
         const flagEmoji = this.isoToFlagEmoji(option.isoCode);
         item.textContent = `${flagEmoji} ${option.label}`;
       } else {
@@ -929,12 +1046,12 @@ export class FormSystem {
         // Für Phone-Fields: Flagge + Vorwahl + Ländername anzeigen
         if (isPhoneField && option.isoCode) {
           const flagEmoji = this.isoToFlagEmoji(option.isoCode);
-          // Vorwahl aus den Options holen (z.B. "+49")
           const vorwahl = option.vorwahl || '';
-          // Ländername ohne Vorwahl (falls die Vorwahl im Label enthalten ist)
           const countryName = option.label.replace(/^\+\d+\s*/, '').trim();
-          // Format: 🇩🇪 +49 Deutschland
           input.value = `${flagEmoji} ${vorwahl} ${countryName}`.trim();
+        } else if (isCountryField && option.isoCode) {
+          const flagEmoji = this.isoToFlagEmoji(option.isoCode);
+          input.value = `${flagEmoji} ${option.label}`.trim();
         } else {
           input.value = option.label;
         }

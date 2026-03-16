@@ -1,10 +1,19 @@
 import { ValidatorSystem } from '../ValidatorSystem.js';
 import { UploaderField } from './fields/UploaderField.js';
 import { PhoneNumberField } from './fields/PhoneNumberField.js';
+import { CountryField } from './fields/CountryField.js';
 
 export class FormRenderer {
   constructor() {
     this.validator = new ValidatorSystem();
+  }
+
+  normalizeDateValue(val) {
+    if (!val || val === 'null' || val === 'undefined') return '';
+    const s = String(val);
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
   }
 
   // Hilfsmethode: Field-Label aus dependsOn ermitteln
@@ -113,6 +122,9 @@ export class FormRenderer {
         closeSection();
         if (field.section) {
           parts.push(`<div class="form-section form-section--${field.section}">`);
+          if (field.sectionTitle) {
+            parts.push(`<h3>${this.validator.sanitizeHtml(field.sectionTitle)}</h3>`);
+          }
           currentSection = field.section;
         }
       }
@@ -140,7 +152,7 @@ export class FormRenderer {
         // Toggle + Datum inline rendern
         const dateField = fields.find(f => f.name === dateFieldName);
         if (dateField) {
-          const dateValue = data ? data[dateFieldName] : '';
+          const dateValue = data ? this.normalizeDateValue(data[dateFieldName]) : '';
           processedFields.add(dateFieldName);
           
           const toggleHtml = this.renderField(field, value);
@@ -236,6 +248,7 @@ export class FormRenderer {
 
   // Einzelnes Feld rendern
   renderField(field, value = '') {
+    if (value === null || value === undefined) value = '';
     const fieldId = `field-${field.name}`;
     const required = field.required ? 'required' : '';
     const requiredMark = field.required ? '<span class="required">*</span>' : '';
@@ -322,7 +335,7 @@ export class FormRenderer {
         return `
           <div class="form-field ${dateHiddenClass} ${dateInlineClass}" ${dateDependsOn} ${dateShowWhen}>
             <label for="${fieldId}">${field.label} ${requiredMark}</label>
-            <input type="date" id="${fieldId}" name="${field.name}" value="${value}" ${required}>
+            <input type="date" id="${fieldId}" name="${field.name}" value="${this.normalizeDateValue(value)}" ${required}>
           </div>
         `;
 
@@ -354,10 +367,10 @@ export class FormRenderer {
           options += field.options.map(option => {
             // Unterstütze sowohl String- als auch Objekt-Optionen
             if (typeof option === 'string') {
-              const selected = value === option ? 'selected' : '';
+              const selected = String(value) === option ? 'selected' : '';
               return `<option value="${option}" ${selected}>${option}</option>`;
             } else if (option && typeof option === 'object' && option.value !== undefined) {
-              const selected = value === option.value ? 'selected' : '';
+              const selected = String(value) === String(option.value) ? 'selected' : '';
               return `<option value="${option.value}" ${selected}>${option.label || option.value}</option>`;
             }
             return '';
@@ -481,6 +494,10 @@ export class FormRenderer {
       case 'phone':
         const phoneField = new PhoneNumberField(field, value);
         return phoneField.render();
+
+      case 'country':
+        const countryField = new CountryField(field, value);
+        return countryField.render();
 
       case 'custom':
         if (field.customType === 'addresses') {

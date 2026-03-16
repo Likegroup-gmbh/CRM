@@ -399,17 +399,6 @@ export class KooperationList {
       }
     });
 
-    // ActionsDropdown: Video hochladen Direkt-Navigation
-    document.addEventListener('click', (e) => {
-      const item = e.target.closest && e.target.closest('.action-item');
-      if (!item) return;
-      if (item.dataset.action === 'video-create' && item.dataset.id) {
-        e.preventDefault();
-        const koopId = item.dataset.id;
-        window.navigateTo(`/video/new?kooperation=${koopId}`);
-      }
-    });
-
     // Entity Updated Event
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail.entity === 'kooperation') {
@@ -812,11 +801,15 @@ export class KooperationList {
       }
     }
     
-    // Formular direkt in content rendern
+    // Formular direkt in content rendern (form-split Layout für kompaktere Darstellung)
     const formHtml = window.formSystem.renderFormOnly('kooperation', formData);
     window.content.innerHTML = `
-      <div class="form-page">
-        ${formHtml}
+      <div class="form-split-container">
+        <div class="form-split-left">
+          <div class="form-page">
+            ${formHtml}
+          </div>
+        </div>
       </div>
     `;
 

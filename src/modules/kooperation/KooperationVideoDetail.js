@@ -1,7 +1,5 @@
 // Kooperation Video Detail – lädt Video, Kommentare (Runde 1/2), Assets und erlaubt Statuswechsel + Kommentare
-import { getTabIcon } from '../../core/TabUtils.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
-import { CONTENT_ART_OPTIONS } from './contentArtOptions.js';
 
 export const kooperationVideoDetail = {
   videoId: null,
@@ -9,89 +7,14 @@ export const kooperationVideoDetail = {
   kooperation: null,
   comments: [],
   assets: [],
-  _eventsBound: false, // Flag um doppelte Event-Listener zu vermeiden
+  _eventsBound: false,
 
   async init(id) {
     try {
-      const url = new URL(window.location.href);
-      const koopId = url.searchParams.get('kooperation');
       this.videoId = (id && id !== 'new') ? id : null;
-      const mode = (!this.videoId) ? 'new' : 'detail';
-      if (!this.videoId && mode === 'new') {
-        // Seite: Neues Video anlegen
-        window.setHeadline('Neues Video');
-        const canEdit = window.currentUser?.permissions?.kooperation?.can_edit || window.currentUser?.rolle === 'admin';
-        if (!canEdit) {
-          window.content.innerHTML = '<p class="empty-state">Keine Berechtigung.</p>';
-          return;
-        }
-        const koopInfo = koopId ? await this.fetchKooperationInfo(koopId) : null;
-        
-        // Breadcrumb für "Neues Video" Seite
-        if (window.breadcrumbSystem && koopInfo) {
-          window.breadcrumbSystem.updateBreadcrumb([
-            { label: 'Kooperation', url: '/kooperation', clickable: true },
-            { label: koopInfo.name || 'Details', url: `/kooperation/${koopId}`, clickable: true },
-            { label: 'Neues Video', url: '#', clickable: false }
-          ]);
-        }
-        
-        const videoLimit = parseInt(koopInfo?.videoanzahl, 10) || 0;
-        const { data: existing } = koopId ? await window.supabase
-          .from('kooperation_videos')
-          .select('id')
-          .eq('kooperation_id', koopId) : { data: [] };
-        const uploaded = (existing || []).length;
-        const limitReached = videoLimit > 0 && uploaded >= videoLimit;
-        const koopName = koopInfo?.name || '-';
-        const kampName = KampagneUtils.getDisplayName(koopInfo?.kampagne);
-        const contentArtOptionsHtml = CONTENT_ART_OPTIONS
-          .map(option => `<option value="${option}">${option}</option>`)
-          .join('');
-        const formHtml = `
-          <div class="form-page">
-            ${limitReached ? `<div class=\"alert alert-danger\">Videolimit erreicht (${uploaded}/${videoLimit}). Es können keine weiteren Videos angelegt werden.</div>` : ''}
-            <form id="video-create-form" class="entity-form" data-entity="kooperation_videos">
-              <div class="form-grid">
-                <div class="form-field">
-                  <label>Titel</label>
-                  <input type="text" name="titel" class="form-input" placeholder="z. B. Hook/Intro" required />
-                </div>
-                <div class="form-field">
-                  <label>Content Art</label>
-                  <select name="content_art" class="form-input">
-                    <option value="">– bitte wählen –</option>
-                    ${contentArtOptionsHtml}
-                  </select>
-                </div>
-                <div class="form-field">
-                  <label>Asset URL</label>
-                  <input type="url" name="asset_url" class="form-input" placeholder="https://..." />
-                </div>
-                <input type="hidden" name="kooperation_id" value="${koopId || ''}" />
-              </div>
-              <div class="form-actions">
-                ${koopId ? `<button type="button" id="btn-cancel-create" class="mdc-btn mdc-btn--cancel">
-                  <span class="mdc-btn__icon" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
-                    </svg>
-                  </span>
-                  <span class="mdc-btn__label">Abbrechen</span>
-                </button>` : ''}
-                <button type="submit" class="mdc-btn mdc-btn--create" data-default-text="Video anlegen" data-success-text="Video angelegt" ${limitReached ? 'disabled' : ''}>
-                  <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                      <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
-                    </svg>
-                  </span>
-                  <span class="mdc-btn__label">Video anlegen</span>
-                </button>
-              </div>
-            </form>
-          </div>`;
-        window.setContentSafely(window.content, formHtml);
-        this.bindCreateEvents(koopId);
+      if (!this.videoId) {
+        window.setHeadline('Video');
+        window.content.innerHTML = '<p class="empty-state">Videos werden automatisch über die Kooperation erstellt.</p>';
         return;
       }
 
@@ -111,120 +34,6 @@ export const kooperationVideoDetail = {
     } catch (error) {
       console.error('KooperationVideoDetail init error:', error);
       window.notificationSystem?.error?.('Video-Detail konnte nicht geladen werden.');
-    }
-  },
-
-  async fetchKooperationInfo(koopId) {
-    try {
-      const { data } = await window.supabase
-        .from('kooperationen')
-        .select('id, name, kampagne:kampagne_id(id, kampagnenname, eigener_name)')
-        .eq('id', koopId)
-        .single();
-      return data || null;
-    } catch (_) { return null; }
-  },
-
-  bindCreateEvents(koopId) {
-    document.getElementById('btn-back-to-kooperation')?.addEventListener('click', (e) => {
-      e.preventDefault();
-      if (koopId) window.navigateTo(`/kooperation/${koopId}`);
-    });
-    document.getElementById('btn-cancel-create')?.addEventListener('click', (e) => {
-      e.preventDefault();
-      if (koopId) window.navigateTo(`/kooperation/${koopId}`);
-    });
-    const form = document.getElementById('video-create-form');
-    if (form) {
-      // Hidden Koop-ID sicherstellen
-      const hiddenKoop = form.querySelector('input[name="kooperation_id"]');
-      if (hiddenKoop && !hiddenKoop.value && koopId) hiddenKoop.value = koopId;
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const btn = form.querySelector('.mdc-btn');
-        const fd = new FormData(form);
-        const payload = {
-          kooperation_id: fd.get('kooperation_id') || koopId || null,
-          titel: String(fd.get('titel') || '').trim() || null,
-          content_art: String(fd.get('content_art') || '').trim() || null,
-          asset_url: String(fd.get('asset_url') || '').trim() || null,
-          status: 'produktion'
-        };
-        if (!payload.kooperation_id || !payload.titel) {
-          alert('Bitte Kooperation und Titel angeben.');
-          return;
-        }
-        try {
-          // Micro-Animation aktivieren
-          if (btn) {
-            btn.disabled = true;
-            btn.classList.add('is-loading');
-          }
-          // Nächste Position ermitteln (max(position)+1)
-          let nextPos = 1;
-          try {
-            const { data: last } = await window.supabase
-              .from('kooperation_videos')
-              .select('position')
-              .eq('kooperation_id', koopId)
-              .order('position', { ascending: false })
-              .limit(1);
-            nextPos = ((last && last[0] && parseInt(last[0].position, 10)) || 0) + 1;
-          } catch (err) {
-            console.warn('⚠️ Fehler beim Ermitteln der nächsten Video-Position:', err?.message);
-          }
-          const { data: insertedVideo, error } = await window.supabase
-            .from('kooperation_videos')
-            .insert({ ...payload, position: nextPos })
-            .select('id')
-            .single();
-          if (error) throw error;
-          
-          // Asset mit Version 1 anlegen, wenn asset_url vorhanden ist
-          if (insertedVideo && insertedVideo.id && payload.asset_url) {
-            try {
-              await window.supabase
-                .from('kooperation_video_asset')
-                .insert({
-                  video_id: insertedVideo.id,
-                  file_url: payload.asset_url,
-                  file_path: payload.asset_url,
-                  version_number: 1,
-                  is_current: true,
-                  description: 'Initiales Video',
-                  uploaded_by: window.currentUser?.id || null,
-                  created_at: new Date().toISOString()
-                });
-              console.log('✅ Initiales Asset (V1) erstellt für Video:', insertedVideo.id);
-            } catch (assetError) {
-              console.warn('⚠️ Asset V1 konnte nicht erstellt werden:', assetError);
-            }
-          }
-          
-          // Benachrichtigungen an Kunden senden
-          try {
-            await this.sendVideoUploadNotifications(insertedVideo.id, false);
-          } catch (notifErr) {
-            console.warn('⚠️ Video-Upload-Benachrichtigung konnte nicht versendet werden:', notifErr);
-          }
-          
-          if (btn) {
-            btn.classList.remove('is-loading');
-            btn.classList.add('is-success');
-            btn.textContent = btn.dataset.successText || 'Angelegt';
-          }
-          setTimeout(() => {
-            window.navigateTo(`/kooperation/${koopId}`);
-          }, 400);
-        } catch (err) {
-          console.error('Video anlegen fehlgeschlagen', err);
-          if (btn) {
-            btn.classList.remove('is-loading');
-            btn.disabled = false;
-          }
-          alert('Video konnte nicht angelegt werden.');
-        }
-      });
     }
   },
 

@@ -1713,6 +1713,37 @@ h3.section-title,
   background: var(--gray-200);
 }
 
+.tab-deadline {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--gray-500);
+  white-space: nowrap;
+}
+
+.tab-deadline--soon {
+  color: var(--orange-600, #ea580c);
+}
+
+.tab-deadline--overdue {
+  color: var(--red-600, #dc2626);
+  font-weight: 600;
+}
+
+.tab-button.active .tab-deadline {
+  color: var(--gray-600);
+}
+
+.tab-button.active .tab-deadline--soon {
+  color: var(--orange-600, #ea580c);
+}
+
+.tab-button.active .tab-deadline--overdue {
+  color: var(--red-600, #dc2626);
+}
+
 /* Active Tab Indicator Line */
 
 
@@ -2545,8 +2576,8 @@ h3.section-title,
 .drawer-body {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: var(--space-md);
-  
 }
 
 /* Schlanke Tabelle nur für den Sichtbarkeits-Drawer */
@@ -2824,12 +2855,6 @@ h3.section-title,
   margin-top: 8px;
 }
 
-.video-limit-info {
-  margin-top: 8px;
-  font-size: var(--text-sm);
-  color: var(--gray-600);
-}
-
 .dropdown-item-title {
   font-weight: 500;
 }
@@ -2839,66 +2864,6 @@ h3.section-title,
   color: var(--gray-600);
 }
 
-.selected-kooperation-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-  padding: var(--space-xxs) var(--space-xs);
-  background: var(--gray-50);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--space-lg);
-  font-size: var(--text-xs);
-}
-
-.selected-kooperation-badge .badge-name {
-  font-weight: 500;
-}
-
-.selected-kooperation-badge .badge-separator {
-  color: var(--gray-600);
-}
-
-.selected-kooperation-badge .badge-creator {
-  color: var(--gray-600);
-}
-
-.selected-kooperation-badge .badge-remove-btn {
-  background: none;
-  border: none;
-  color: var(--gray-900);
-  cursor: pointer;
-  padding: 0;
-  font-size: var(--text-sm);
-  line-height: 1;
-  transition: opacity 0.2s ease;
-}
-
-.selected-kooperation-badge .badge-remove-btn:hover {
-  opacity: 0.7;
-}
-
-.video-limit-message {
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
-  font-size: var(--text-sm);
-}
-
-.video-limit-message.video-limit-error {
-  color: #dc3545;
-  background: #f8d7da;
-  font-weight: 500;
-}
-
-.video-limit-message.video-limit-success {
-  color: var(--color-success);
-  background: var(--color-success-light);
-  border: 1px solid var(--color-success);
-}
-
-.video-limit-message.video-limit-muted {
-  color: var(--gray-600);
-  background: var(--gray-100);
-}
 
 .drawer-loading-state {
   padding: 24px;
@@ -4194,10 +4159,10 @@ h3.section-title,
     inset 0 -1px 0 0 var(--gray-100);
 }
 
-/* Header-Zellen höherer z-index */
+/* Header-Zellen höherer z-index (muss über sticky-top z-index:10 der scrollenden th liegen) */
 .auftrag-table thead th:nth-child(1),
 .auftrag-table thead th:nth-child(2) {
-  z-index: 25;
+  z-index: 30 !important;
   background: white !important;
 }
 
@@ -4250,11 +4215,6 @@ h3.section-title,
 
 .data-table tr.auftrag-row--ueberwiesen td:first-child {
   box-shadow: inset 4px 0 0 var(--color-success);
-}
-
-/* Auftragsdetails vorhanden → Lila priorisiert */
-.data-table tr.auftrag-row--has-details td:first-child {
-  box-shadow: inset 4px 0 0 #8b5cf6;
 }
 
 
@@ -5681,6 +5641,24 @@ width: 100%;
   color: var(--text-muted);
   margin-top: var(--space-xs);
   font-style: italic;
+}
+
+/* Status Dot (rot/grüne Lampe für Like Base etc.) */
+.status-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.status-dot--active {
+  background-color: var(--color-success-dark, #16a34a);
+  box-shadow: 0 0 4px rgba(22, 163, 74, 0.4);
+}
+
+.status-dot--inactive {
+  background-color: var(--color-danger-dark, #dc2626);
+  box-shadow: 0 0 4px rgba(220, 38, 38, 0.3);
 }
 
 /* Actions Dropdown Styles */
@@ -9757,25 +9735,6 @@ input.readonly-field {
   width: fit-content;
 }
 
-/* Toggle für Modus-Auswahl */
-/* Add-to-Video Toggle nutzt view-toggle aus layout.css */
-.add-to-video-toggle {
-  margin-bottom: var(--space-lg);
-}
-
-.add-to-video-toggle .secondary-btn {
-  flex: 1;
-  justify-content: center;
-}
-
-/* Sections */
-.add-to-video-section {
-  display: none;
-}
-
-.add-to-video-section.active {
-  display: block;
-}
 
 .add-to-video-empty {
   text-align: center;
@@ -9836,32 +9795,6 @@ input.readonly-field {
 
 .selected-item-badge .badge-remove-btn:hover {
   color: var(--color-error);
-}
-
-/* Video Limit Info */
-.video-limit-info {
-  margin-top: var(--space-xs);
-}
-
-.video-limit-message {
-  font-size: var(--text-xs);
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-sm);
-}
-
-.video-limit-success {
-  background: var(--green-50);
-  color: var(--green-700);
-}
-
-.video-limit-error {
-  background: var(--red-50);
-  color: var(--red-700);
-}
-
-.video-limit-muted {
-  background: var(--gray-100);
-  color: var(--text-muted);
 }
 
 /* Warning Action Style (für Unlink) */
@@ -11771,6 +11704,7 @@ table:has(#kampagnen-table-body) tbody tr:hover td.col-name {
 .category-option {
   flex: 1;
   cursor: pointer;
+  position: relative;
 }
 
 .category-option input[type="radio"] {

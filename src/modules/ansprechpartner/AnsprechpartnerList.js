@@ -10,6 +10,7 @@ import { SearchInput } from '../../core/components/SearchInput.js';
 import { ansprechpartnerCreate } from './AnsprechpartnerCreate.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
+import { CountryDisplay } from '../../core/components/CountryDisplay.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 
 // Sprach-Mapping für Abkürzungen
@@ -30,6 +31,8 @@ function getSprachKuerzel(name) {
 
 const LINK_ICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="tag--verknuepft-icon"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></svg>';
 
+const MAIL_ICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" /></svg>';
+
 export class AnsprechpartnerList extends BasePaginatedList {
   constructor() {
     super('ansprechpartner', {
@@ -40,7 +43,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
       sortAscending: true,
       paginationContainerId: 'pagination-ansprechpartner',
       tbodySelector: '.data-table tbody',
-      tableColspan: 12, // Mit Admin-Checkbox + Newsletter-Spalte
+      tableColspan: 14, // Mit Admin-Checkbox, Vorname/Nachname Split, Like Base
       checkboxClass: 'ansprechpartner-check',
       selectAllId: 'select-all-ansprechpartner'
     });
@@ -227,12 +230,16 @@ export class AnsprechpartnerList extends BasePaginatedList {
             ? `<img src="${ap.profile_image_url}" class="table-logo" width="24" height="24" alt="" />` 
             : `<span class="table-avatar">${(ap.vorname || '?')[0].toUpperCase()}</span>`}
           <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
-            ${sanitize(ap.vorname || '')} ${sanitize(ap.nachname || '')}
+            ${sanitize(ap.vorname || '')}
           </a>
-          ${ap.ist_verknuepft ? `<span class="tag tag--verknuepft" title="verknüpft">${LINK_ICON_SVG}</span>` : ''}
+        </td>
+        <td>
+          <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
+            ${sanitize(ap.nachname || '')}
+          </a>
         </td>
         <td>${this.renderUnternehmen(ap)}</td>
-        <td>
+        <td class="ap-col-marke">
           ${(ap.marken && ap.marken.length > 0)
             ? avatarBubbles.renderBubbles(ap.marken.map(m => ({
                 name: m.markenname,
@@ -243,19 +250,20 @@ export class AnsprechpartnerList extends BasePaginatedList {
               })))
             : '-'}
         </td>
-        <td>${ap.stadt || '-'}</td>
-        <td>${ap.land || '-'}</td>
+        <td class="ap-col-nowrap">${ap.stadt || '-'}</td>
+        <td class="ap-col-nowrap">${CountryDisplay.render(ap.land?.iso_code, ap.land?.name_de)}</td>
         <td>
           ${ap.positionen?.name ? `<div class="tag-list"><span class="tag tag--position">${sanitize(ap.positionen.name)}</span></div>` : '-'}
         </td>
-        <td>${ap.email ? `<a href="mailto:${ap.email}" class="table-link email-link">${ap.email}</a>` : '-'}</td>
-        <td>${PhoneDisplay.render(
+        <td class="table-cell-center">${ap.email ? `<a href="mailto:${ap.email}" class="external-link-btn" title="${sanitize(ap.email)}">${MAIL_ICON_SVG}</a>` : '-'}</td>
+        <td class="ap-col-nowrap">${PhoneDisplay.render(
           ap.telefonnummer_land?.iso_code,
           ap.telefonnummer_land?.vorwahl,
           ap.telefonnummer
         )}</td>
         <td class="table-cell-center">${this.renderLinkedInLink(ap.linkedin)}</td>
         <td class="table-cell-center">${this.renderNewsletterToggle(ap, canEdit)}</td>
+        <td class="table-cell-center"><span class="status-dot ${ap.ist_verknuepft ? 'status-dot--active' : 'status-dot--inactive'}" title="${ap.ist_verknuepft ? 'Kunde aktiv auf Plattform' : 'Kein aktiver Kunde'}"></span></td>
         <td class="col-actions table-cell-center">
           ${actionBuilder.create('ansprechpartner', ap.id)}
         </td>
@@ -296,22 +304,24 @@ export class AnsprechpartnerList extends BasePaginatedList {
           <thead>
             <tr>
               ${isAdmin ? `<th class="col-checkbox"><input type="checkbox" id="select-all-ansprechpartner"></th>` : ''}
-              <th class="col-name">Name</th>
+              <th class="col-name">Vorname</th>
+              <th>Nachname</th>
               <th>Unternehmen</th>
-              <th>Marke</th>
-              <th>Stadt</th>
-              <th>Land</th>
+              <th class="ap-col-marke">Marke</th>
+              <th class="ap-col-nowrap">Stadt</th>
+              <th class="ap-col-nowrap">Land</th>
               <th>Position</th>
-              <th>Mail</th>
-              <th>Telefon Mobil</th>
+              <th class="table-cell-center">Mail</th>
+              <th class="ap-col-nowrap">Telefon Mobil</th>
               <th class="table-cell-center">LinkedIn</th>
               <th class="table-cell-center">Newsletter</th>
+              <th class="table-cell-center ap-col-nowrap">Kunde aktiv</th>
               <th class="col-actions table-cell-center">Aktionen</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td colspan="${isAdmin ? '12' : '11'}" class="no-data">Lade Ansprechpartner...</td>
+              <td colspan="${isAdmin ? '14' : '13'}" class="no-data">Lade Ansprechpartner...</td>
             </tr>
           </tbody>
         </table>

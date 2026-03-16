@@ -604,48 +604,42 @@ export class FormConfig {
       kooperation: {
         title: 'Neue Kooperation anlegen',
         fields: [
-          { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...' },
-          { name: 'marke_id', label: 'Marke', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Marke auswählen (optional)...', dependsOn: 'unternehmen_id' },
-          { name: 'kampagne_id', label: 'Kampagne', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Kampagne suchen und auswählen...', dependsOn: 'unternehmen_id' },
-          { name: 'briefing_id', label: 'Briefing', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Briefing wählen...', dependsOn: 'kampagne_id', table: 'briefings', displayField: 'product_service_offer', valueField: 'id' },
-          { name: 'creator_id', label: 'Creator', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Creator suchen und auswählen...', dependsOn: 'kampagne_id' },
-          { 
-            name: 'name', 
-            label: 'Name', 
-            type: 'text', 
-            required: true, 
-            validation: { type: 'text', minLength: 2 },
-            autoGenerate: true,
-            readonly: true,
-            placeholder: 'Wird automatisch generiert...'
-          },
-          { name: 'skript_autor', label: 'Skript schreibt', type: 'select', required: false, options: ['Brand', 'Creator', 'Agentur'] },
-          
-          { name: 'videoanzahl', label: 'Video Anzahl', type: 'number', required: false, validation: { type: 'number', min: 1 } },
-          { name: 'videos', label: 'Videos', type: 'custom', customType: 'videos', options: CONTENT_ART_OPTIONS },
+          // Sektion 1: Zuordnung
+          { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...', section: 'zuordnung', sectionTitle: 'Zuordnung' },
+          { name: 'marke_id', label: 'Marke', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Marke auswählen (optional)...', dependsOn: 'unternehmen_id', section: 'zuordnung' },
+          { name: 'kampagne_id', label: 'Kampagne', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Kampagne suchen und auswählen...', dependsOn: 'unternehmen_id', section: 'zuordnung' },
+          { name: 'briefing_id', label: 'Briefing', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Briefing wählen...', dependsOn: 'kampagne_id', table: 'briefings', displayField: 'product_service_offer', valueField: 'id', section: 'zuordnung' },
+          { name: 'creator_id', label: 'Creator', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Creator suchen und auswählen...', dependsOn: 'kampagne_id', section: 'zuordnung' },
+          { name: 'name', label: 'Name', type: 'text', required: true, validation: { type: 'text', minLength: 2 }, autoGenerate: true, readonly: true, placeholder: 'Wird automatisch generiert...', section: 'zuordnung' },
 
-          // Einkaufspreis
-          { name: 'einkaufspreis_netto', label: 'Einkaufspreis Netto', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, placeholder: 'Wird aus Video-Preisen berechnet' },
-          { name: 'einkaufspreis_zusatzkosten', label: 'Einkaufspreis Zusatzkosten', type: 'number', required: false, validation: { type: 'number', min: 0 } },
-          { name: 'einkaufspreis_ust_prozent', type: 'hidden', defaultValue: 19 },
-          { name: 'einkaufspreis_ust', label: 'Einkaufspreis USt (19%)', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['einkaufspreis_netto', 'einkaufspreis_zusatzkosten', 'einkaufspreis_ust_prozent'] },
-          { name: 'einkaufspreis_gesamt', label: 'Einkaufspreis Gesamt', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['einkaufspreis_netto', 'einkaufspreis_zusatzkosten', 'einkaufspreis_ust'] },
-          
-          // Verkaufspreis
-          { name: 'verkaufspreis_netto', label: 'Verkaufspreis Netto', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, placeholder: 'Wird aus Video-Preisen berechnet' },
-          { name: 'verkaufspreis_zusatzkosten', label: 'Verkaufspreis Zusatzkosten', type: 'number', required: false, validation: { type: 'number', min: 0 } },
-          { name: 'verkaufspreis_ust', label: 'Verkaufspreis USt (19%)', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['verkaufspreis_netto', 'verkaufspreis_zusatzkosten'] },
-          { name: 'verkaufspreis_gesamt', label: 'Verkaufspreis Gesamt', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['verkaufspreis_netto', 'verkaufspreis_zusatzkosten', 'verkaufspreis_ust'] },
-          
-          { name: 'vertrag_unterschrieben', label: 'Vertrag unterschrieben', type: 'checkbox', required: false },
-          { name: 'vertrag_link', label: 'Vertrag Link', type: 'url', required: false, validation: { type: 'url' } },
-          { name: 'skript_deadline', label: 'Skript Deadline', type: 'date', required: false },
-          { name: 'skript_link', label: 'Skript Link', type: 'url', required: false, validation: { type: 'url' } },
-          { name: 'content_deadline', label: 'Content Deadline', type: 'date', required: false },
-          { name: 'content_art', label: 'Content Art', type: 'select', required: true, options: CONTENT_ART_OPTIONS },
-          
-          { name: 'status', label: 'Status', type: 'select', required: true, options: ['Todo', 'In progress', 'Done'] }
-                ]
+          // Sektion 2: Content
+          { name: 'content_art', label: 'Content Art', type: 'select', required: true, options: CONTENT_ART_OPTIONS, section: 'content', sectionTitle: 'Content' },
+          { name: 'skript_autor', label: 'Skript schreibt', type: 'select', required: false, options: ['Brand', 'Creator', 'Agentur'], section: 'content' },
+          { name: 'videoanzahl', label: 'Video Anzahl', type: 'number', required: false, validation: { type: 'number', min: 1 }, section: 'content' },
+          { name: 'videos', label: 'Videos', type: 'custom', customType: 'videos', options: CONTENT_ART_OPTIONS, section: 'content' },
+
+          // Sektion 3: Preise -- Einkauf
+          { name: 'einkaufspreis_netto', label: 'EK Netto', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, placeholder: 'Aus Videos', row: 'ek1', colSize: 'grow', section: 'preise', sectionTitle: 'Preise' },
+          { name: 'einkaufspreis_zusatzkosten', label: 'EK Zusatzkosten', type: 'number', required: false, validation: { type: 'number', min: 0 }, row: 'ek1', colSize: 'grow', section: 'preise' },
+          { name: 'einkaufspreis_ust_prozent', type: 'hidden', defaultValue: 19, section: 'preise' },
+          { name: 'einkaufspreis_ust', label: 'EK USt (19%)', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['einkaufspreis_netto', 'einkaufspreis_zusatzkosten', 'einkaufspreis_ust_prozent'], row: 'ek2', colSize: 'grow', section: 'preise' },
+          { name: 'einkaufspreis_gesamt', label: 'EK Gesamt', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['einkaufspreis_netto', 'einkaufspreis_zusatzkosten', 'einkaufspreis_ust'], row: 'ek2', colSize: 'grow', section: 'preise' },
+          // Sektion 3: Preise -- Verkauf
+          { name: 'verkaufspreis_netto', label: 'VK Netto', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, placeholder: 'Aus Videos', row: 'vk1', colSize: 'grow', section: 'preise' },
+          { name: 'verkaufspreis_zusatzkosten', label: 'VK Zusatzkosten', type: 'number', required: false, validation: { type: 'number', min: 0 }, row: 'vk1', colSize: 'grow', section: 'preise' },
+          { name: 'verkaufspreis_ust', label: 'VK USt (19%)', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['verkaufspreis_netto', 'verkaufspreis_zusatzkosten'], row: 'vk2', colSize: 'grow', section: 'preise' },
+          { name: 'verkaufspreis_gesamt', label: 'VK Gesamt', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['verkaufspreis_netto', 'verkaufspreis_zusatzkosten', 'verkaufspreis_ust'], row: 'vk2', colSize: 'grow', section: 'preise' },
+
+          // Sektion 4: Vertrag & Deadlines
+          { name: 'vertrag_unterschrieben', label: 'Vertrag unterschrieben', type: 'checkbox', required: false, section: 'vertrag', sectionTitle: 'Vertrag & Deadlines' },
+          { name: 'vertrag_link', label: 'Vertrag Link', type: 'url', required: false, validation: { type: 'url' }, section: 'vertrag' },
+          { name: 'skript_deadline', label: 'Skript Deadline', type: 'date', required: false, section: 'vertrag' },
+          { name: 'skript_link', label: 'Skript Link', type: 'url', required: false, validation: { type: 'url' }, section: 'vertrag' },
+          { name: 'content_deadline', label: 'Content Deadline', type: 'date', required: false, section: 'vertrag' },
+
+          // Sektion 5: Status
+          { name: 'status', label: 'Status', type: 'select', required: true, options: ['Todo', 'In progress', 'Done'], section: 'status', sectionTitle: 'Status' }
+        ]
       },
       ansprechpartner: {
         title: 'Neuen Ansprechpartner anlegen',
@@ -754,7 +748,14 @@ export class FormConfig {
           },
           { name: 'linkedin', label: 'LinkedIn Profil', type: 'url', required: false, validation: { type: 'url' }, section: 'kontakt' },
           { name: 'stadt', label: 'Stadt', type: 'text', required: false, row: 'ort', colSize: 'grow', section: 'kontakt' },
-          { name: 'land', label: 'Land', type: 'text', required: false, row: 'ort', section: 'kontakt' },
+          { 
+            name: 'land_id', label: 'Land', type: 'country', 
+            required: false, row: 'ort', section: 'kontakt',
+            table: 'eu_laender', displayField: 'name_de,iso_code', 
+            valueField: 'id', dynamic: true, searchable: true,
+            placeholder: 'Land wählen...',
+            defaultCountry: 'Deutschland'
+          },
           // Ohne Section (am Ende) - Einwilligungen, Notizen
           { name: 'erlaubt_newsletter', label: 'Newsletter (1x/Monat)', type: 'toggle', required: false },
           { name: 'notiz', label: 'Notizen', type: 'textarea', required: false, rows: 4 }

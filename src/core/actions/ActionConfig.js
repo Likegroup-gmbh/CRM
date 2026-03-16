@@ -59,13 +59,6 @@ export const ActionConfigs = {
       { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
       { 
-        id: 'video-create', 
-        icon: 'video', 
-        label: 'Video hochladen',
-        entityTypeCheck: 'kooperation',
-        roles: ['admin', 'mitarbeiter']
-      },
-      { 
         id: 'task-create', 
         icon: 'tasks', 
         label: 'Aufgabe erstellen',

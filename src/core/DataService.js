@@ -81,7 +81,7 @@ export class DataService {
           telefonnummer_office_land_id: 'uuid',
           linkedin: 'string',
           stadt: 'string',
-          land: 'string',
+          land_id: 'uuid',
           geburtsdatum: 'date',
           sprache_id: 'uuid',
           notiz: 'string',
@@ -94,7 +94,8 @@ export class DataService {
           sprache: { table: 'sprachen', foreignKey: 'sprache_id', displayField: 'name' },
           position: { table: 'positionen', foreignKey: 'position_id', displayField: 'name' },
           telefonnummer_land: { table: 'eu_laender', foreignKey: 'telefonnummer_land_id', displayField: 'name_de' },
-          telefonnummer_office_land: { table: 'eu_laender', foreignKey: 'telefonnummer_office_land_id', displayField: 'name_de' }
+          telefonnummer_office_land: { table: 'eu_laender', foreignKey: 'telefonnummer_office_land_id', displayField: 'name_de' },
+          land: { table: 'eu_laender', foreignKey: 'land_id', displayField: 'name_de' }
         },
         manyToMany: {
           unternehmen: {
@@ -2008,7 +2009,7 @@ export class DataService {
         field === 'plattform_ids' || field === 'format_ids' ||
         field.startsWith('adressname_') || field.startsWith('strasse_') ||
         field.startsWith('hausnummer_') || field.startsWith('plz_') ||
-        field.startsWith('stadt_') || field.startsWith('land_') ||
+        field.startsWith('stadt_') || (field.startsWith('land_') && field !== 'land_id') ||
         field.startsWith('notiz_') ||
         // Auftragsformular: berechnetes Formularfeld, existiert nicht als Kolumne
         field === 'brutto_gesamt_budget'
@@ -2416,6 +2417,11 @@ export class DataService {
             name_de,
             iso_code,
             vorwahl
+          ),
+          land:eu_laender!land_id (
+            id,
+            name_de,
+            iso_code
           ),
           ansprechpartner_marke (
             marke:marke_id (

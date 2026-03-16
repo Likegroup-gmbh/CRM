@@ -76,31 +76,22 @@
 .kooperation-video-grid .col-kosten { width: 100px; min-width: 100px; }
 .kooperation-video-grid .col-actions { width: 70px; min-width: 70px; }
 
-/* Aktions-Spalte rechts fixieren */
+/* Aktions-Spalte: sticky rechts */
 .kooperation-video-grid thead th.col-actions,
 .kooperation-video-grid tbody td.col-actions {
   position: sticky !important;
   right: 0 !important;
-  z-index: 20;
+  z-index: 10;
   background: white;
-  box-shadow: -4px 0 8px rgba(0, 0, 0, 0.04);
-  overflow: visible;
-}
-
-/* Header der fixierten Actions-Spalte soll über allem liegen */
-.kooperation-video-grid thead th.col-actions {
-  z-index: 25;
-  background: var(--gray-50);
-}
-
-/* Einheitliches Tabellenverhalten: keine Zebra-Streifen auf der Actions-Spalte */
-.kooperation-video-grid tbody td.col-actions {
-  background: white;
-}
-
-/* Dropdown in Kooperation-Tabelle: Overflow visible für alle Parent-Container */
-.kooperation-video-grid td.col-actions {
+  border-right: none !important;
+  border-left: none !important;
+  box-shadow: inset 1px 0 0 0 var(--gray-300), -4px 0 8px rgba(0, 0, 0, 0.04);
   overflow: visible !important;
+}
+
+.kooperation-video-grid thead th.col-actions {
+  z-index: 30;
+  background: var(--gray-50);
 }
 
 .kooperation-video-grid td.col-actions .actions-dropdown-container {
@@ -151,64 +142,61 @@
   overflow: visible !important;
 }
 
+/* --- BORDER-SYSTEM (separate + right/bottom Pattern) --- */
+/* Basis: jede Zelle hat nur border-right + border-bottom */
+.kooperation-video-grid thead th,
+.kooperation-video-grid tbody td {
+  border: none;
+  border-right: 1px solid var(--gray-300);
+  border-bottom: 1px solid var(--gray-300);
+}
+
+/* Header: zusaetzlich border-top */
 .kooperation-video-grid .col-header {
-  border: 1px solid var(--gray-300);
+  border-top: 1px solid var(--gray-300);
   padding: var(--space-xs) var(--space-sm);
   color: var(--text-secondary);
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 20;
   white-space: nowrap;
   font-weight: 400;
+  background: var(--gray-50);
 }
 
-/* Erste Spalte (Nr) fixieren */
-.kooperation-video-grid thead th:nth-child(1),
+/* Erste Spalte (Nr): sticky links */
 .kooperation-video-grid tbody td:nth-child(1) {
   position: sticky !important;
   left: 0 !important;
-  z-index: 20;
-  border-right: none !important;
-  /* Borders als Box-Shadow für permanente Sichtbarkeit */
-  box-shadow: 
-    inset 0 1px 0 0 var(--gray-300),     /* top */
-    inset 0 -1px 0 0 var(--gray-300),    /* bottom */
-    inset 1px 0 0 0 var(--gray-300);     /* left */
-}
-
-.kooperation-video-grid thead th:nth-child(1) {
-  background: var(--gray-50);
-}
-
-.kooperation-video-grid tbody td:nth-child(1) {
+  z-index: 10;
   background: white;
 }
 
-/* Zweite Spalte (Creator) fixieren */
-.kooperation-video-grid thead th:nth-child(2),
+/* Zweite Spalte (Creator): sticky links */
 .kooperation-video-grid tbody td:nth-child(2) {
   position: sticky !important;
-  left: 50px !important; /* Breite der ersten Spalte */
-  z-index: 20;
-  border-left: none !important; /* Kein Border zur ersten Spalte */
-  /* Borders als inset Box-Shadow */
-  box-shadow: 
-    inset 0 1px 0 0 var(--gray-300),        /* top */
-    inset -2px 0 0 0 var(--gray-400),       /* right - dickerer Border */
-    inset 0 -1px 0 0 var(--gray-300),       /* bottom */
-    inset 1px 0 0 0 var(--gray-300);        /* left - Border zwischen Spalte 1 und 2 */
-}
-
-.kooperation-video-grid thead th:nth-child(2) {
-  background: var(--gray-50);
-}
-
-.kooperation-video-grid tbody td:nth-child(2) {
+  left: 50px !important;
+  z-index: 10;
   background: white;
 }
 
-/* Schatten rechts von der zweiten Spalte (außerhalb, über den scrollenden Spalten) */
-.kooperation-video-grid thead th:nth-child(2)::after,
+/* Header Nr + Creator: sticky links UND oben, ueber allen anderen Headern */
+.kooperation-video-grid thead th.col-header.col-nr {
+  position: sticky !important;
+  left: 0 !important;
+  z-index: 40 !important;
+  background: var(--gray-50);
+}
+
+.kooperation-video-grid thead th.col-header.col-creator {
+  position: sticky !important;
+  left: 50px !important;
+  z-index: 40 !important;
+  background: var(--gray-50);
+}
+
+/* Schatten rechts von der zweiten Spalte */
+.kooperation-video-grid thead th.col-creator::after,
 .kooperation-video-grid tbody td:nth-child(2)::after {
   content: '';
   position: absolute;
@@ -217,21 +205,8 @@
   bottom: 0;
   width: 10px;
   pointer-events: none;
-  z-index: 1; /* Über den scrollenden Spalten */
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.1), transparent);
-}
-
-/* Header der fixierten Spalten soll über allem liegen */
-.kooperation-video-grid thead th:nth-child(1),
-.kooperation-video-grid thead th:nth-child(2) {
-  z-index: 25;
-  background: var(--gray-50);
-}
-
-/* Alle anderen Zellen */
-.kooperation-video-grid thead th,
-.kooperation-video-grid tbody td {
-  border: 1px solid var(--gray-300);
+  z-index: 1;
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.06), transparent);
 }
 
 .kooperation-video-grid .grid-cell {
@@ -251,7 +226,6 @@
 
 .kooperation-row {
   background-color: white;
-  border-top: 2px solid var(--gray-400);
 }
 
 .video-row {
@@ -933,7 +907,7 @@ td.col-produkt .stacked-video-input,
 .grid-table thead th.col-header[data-col="0"] {
   position: sticky !important;
 
-  z-index: 15 !important; /* Über normalen Spalten */
+  z-index: 999 !important; /* Über normalen Spalten */
 
   border: 1px solid var(--gray-300) !important; /* Alle Borders */
 }
@@ -942,7 +916,7 @@ td.col-produkt .stacked-video-input,
 .grid-table thead th.col-header[data-col="1"] {
   position: sticky !important;
   left: 180px; /* Initial-Wert, wird per JS überschrieben */
-  z-index: 15 !important;
+  z-index: 999 !important;
  
   border: 1px solid var(--gray-300) !important; /* Normale Borders */
   border-right: 2px solid var(--gray-400) !important; /* Dickere rechte Border für Trennung */
@@ -1663,6 +1637,22 @@ width: 18em;
 .data-table td.col-name {
   width: 18em;
  
+}
+
+/* Ansprechpartner: Vorname-Spalte schmaler (Name ist auf 2 Spalten aufgeteilt) */
+#ansprechpartner-table th.col-name,
+#ansprechpartner-table td.col-name {
+  width: 12em;
+}
+
+/* Ansprechpartner: Kein Umbruch für Stadt, Land, Telefon, Status */
+#ansprechpartner-table .ap-col-nowrap {
+  white-space: nowrap;
+}
+
+/* Ansprechpartner: Marke-Spalte etwas kompakter */
+#ansprechpartner-table .ap-col-marke {
+  max-width: 10em;
 }
 
 /* Stadt-Spalte (Unternehmensliste) - Breite anpassbar */

@@ -245,6 +245,10 @@ export class AuftragsdetailsDetail {
     });
     this.budgetSummary.totalCreators = uniqueCreatorIds.size;
 
+    this.budgetSummary.avgCostPerCreator = this.budgetSummary.totalCreators > 0
+      ? this.budgetSummary.usedBudget / this.budgetSummary.totalCreators
+      : 0;
+
     console.log('✅ AUFTRAGSDETAILSDETAIL: Budget-Zusammenfassung berechnet:', this.budgetSummary);
   }
 
@@ -270,6 +274,7 @@ export class AuftragsdetailsDetail {
     };
 
     const auftragtype = this.auftrag?.auftragtype || '-';
+    const sanitize = (v) => window.validatorSystem?.sanitizeHtml(v) || v || '';
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
 
     return `
@@ -278,25 +283,29 @@ export class AuftragsdetailsDetail {
         <div class="auftragsdetails-summary">
           <div class="summary-cards">
             <div class="summary-card">
-              <div class="summary-value">${window.validatorSystem?.sanitizeHtml(auftragtype) || auftragtype}</div>
               <div class="summary-label">Art des Auftrages</div>
+              <div class="summary-value">${sanitize(auftragtype)}</div>
             </div>
             <div class="summary-card">
-              <div class="summary-value">${num(this.budgetSummary.totalVideos)}</div>
               <div class="summary-label">Gebuchte Videos</div>
+              <div class="summary-value">${num(this.budgetSummary.totalVideos)}</div>
             </div>
             <div class="summary-card">
-              <div class="summary-value">${num(this.budgetSummary.totalCreators)}</div>
               <div class="summary-label">Gebuchte Creator</div>
+              <div class="summary-value">${num(this.budgetSummary.totalCreators)}</div>
             </div>
             <div class="summary-card">
-              <div class="summary-value">${window.validatorSystem?.sanitizeHtml(this.auftrag?.po) || this.auftrag?.po || '-'}</div>
               <div class="summary-label">PO intern</div>
+              <div class="summary-value">${sanitize(this.auftrag?.po) || '-'}</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">Durchschn. Kosten / Creator</div>
+              <div class="summary-value">${formatCurrency(this.budgetSummary.avgCostPerCreator)}</div>
             </div>
             ${isAdmin ? `
             <div class="summary-card">
-              <div class="summary-value">${formatCurrency(this.budgetSummary.usedBudget)} von ${formatCurrency(this.budgetSummary.totalBudget)}</div>
               <div class="summary-label">Budget verbraucht (Netto)</div>
+              <div class="summary-value">${formatCurrency(this.budgetSummary.usedBudget)} von ${formatCurrency(this.budgetSummary.totalBudget)}</div>
               <div class="summary-progress">
                 <div class="summary-progress-fill ${this.getBudgetProgressColorClass()}" 
                      style="width: ${this.getBudgetProgressPercentage()}%">
@@ -542,8 +551,9 @@ export class AuftragsdetailsDetail {
       // Videos für diese Kooperation
       const koopVideos = this.videos.filter(v => v.kooperation_id === koop.id);
       
+      const kampagne = koop.kampagne;
+
       if (koopVideos.length === 0) {
-        // Wenn keine Videos vorhanden, zeige trotzdem die Kooperation mit Creator
         videoRows.push({
           creatorName,
           creatorId,
@@ -551,10 +561,11 @@ export class AuftragsdetailsDetail {
           videoTitel: '-',
           videoLink: null,
           kooperationId: koop.id,
-          kooperationName: koop.name || 'Kooperation'
+          kooperationName: koop.name || 'Kooperation',
+          kampagneId: kampagne?.id,
+          kampagneName: kampagne?.kampagnenname || '-'
         });
       } else {
-        // Für jedes Video eine Zeile erstellen
         koopVideos.forEach(video => {
           const videoLink = video.link_content || video.asset_url || null;
           videoRows.push({
@@ -565,7 +576,9 @@ export class AuftragsdetailsDetail {
             videoLink,
             kooperationId: koop.id,
             kooperationName: koop.name || 'Kooperation',
-            videoId: video.id
+            videoId: video.id,
+            kampagneId: kampagne?.id,
+            kampagneName: kampagne?.kampagnenname || '-'
           });
         });
       }
@@ -602,9 +615,14 @@ export class AuftragsdetailsDetail {
            </a>`
         : window.validatorSystem.sanitizeHtml(row.videoTitel);
 
+      const kampagneLinkHtml = row.kampagneId
+        ? `<a href="#" class="table-link" data-table="kampagne" data-id="${row.kampagneId}">${window.validatorSystem.sanitizeHtml(row.kampagneName)}</a>`
+        : window.validatorSystem.sanitizeHtml(row.kampagneName);
+
       return `
         <tr>
           <td>${creatorLinkHtml}</td>
+          <td>${kampagneLinkHtml}</td>
           <td>${window.validatorSystem.sanitizeHtml(row.kategorie)}</td>
           <td>${videoTitelHtml}</td>
           <td>${videoLinkHtml}</td>
@@ -620,6 +638,7 @@ export class AuftragsdetailsDetail {
             <thead>
               <tr>
                 <th>Creator</th>
+                <th>Kampagne</th>
                 <th>Kategorie</th>
                 <th>Video</th>
                 <th>Link</th>

@@ -744,6 +744,7 @@ export class AuftragList {
                   <input type="checkbox" id="select-all-auftraege">
                 </th>` : ''}
                 <th>Angebotsnummer</th>
+                <th class="table-cell-center">Details</th>
                 <th>Rechnungsnummer</th>
                 <th>Company</th>
                 <th>Brand</th>
@@ -764,7 +765,7 @@ export class AuftragList {
             </thead>
             <tbody id="auftraege-table-body">
               <tr>
-                <td colspan="19" class="loading">Lade Aufträge...</td>
+                <td colspan="20" class="loading">Lade Aufträge...</td>
               </tr>
             </tbody>
           </table>
@@ -832,27 +833,38 @@ export class AuftragList {
       }
 
       const auftragIds = (data || []).map(auftrag => auftrag.id).filter(Boolean);
-      let detailsIdSet = new Set();
+      let detailsMap = new Map();
       if (auftragIds.length > 0) {
         const { data: detailsRows, error: detailsError } = await window.supabase
           .from('auftrag_details')
-          .select('auftrag_id')
+          .select('id, auftrag_id')
           .in('auftrag_id', auftragIds);
 
         if (detailsError) {
           console.warn('⚠️ Auftragsdetails-IDs konnten nicht separat geladen werden:', detailsError);
         } else {
-          detailsIdSet = new Set((detailsRows || []).map(row => row.auftrag_id).filter(Boolean));
+          (detailsRows || []).forEach(row => {
+            if (row.auftrag_id) detailsMap.set(row.auftrag_id, row.id);
+          });
         }
       }
 
       // Daten für Kompatibilität formatieren
-      const formattedData = data.map(auftrag => ({
+      const formattedData = data.map(auftrag => {
+        const inlineDetails = auftrag.auftrag_details;
+        const inlineId = Array.isArray(inlineDetails) && inlineDetails.length > 0
+          ? inlineDetails[0].id
+          : (inlineDetails && typeof inlineDetails === 'object' && inlineDetails.id)
+            ? inlineDetails.id
+            : null;
+
+        return {
         ...auftrag,
         has_auftragsdetails:
-          detailsIdSet.has(auftrag.id) ||
+          detailsMap.has(auftrag.id) ||
           (Array.isArray(auftrag.auftrag_details) && auftrag.auftrag_details.length > 0) ||
           Boolean(auftrag.auftrag_details && typeof auftrag.auftrag_details === 'object' && auftrag.auftrag_details.id),
+        auftragsdetails_id: detailsMap.get(auftrag.id) || inlineId || null,
         unternehmen: auftrag.unternehmen ? { 
           id: auftrag.unternehmen.id,
           firmenname: auftrag.unternehmen.firmenname,
@@ -867,7 +879,8 @@ export class AuftragList {
         art_der_kampagne: (auftrag.kampagne_arten || [])
           .map(ka => ka.art?.name)
           .filter(Boolean)
-      }));
+      };
+      });
 
       return { data: formattedData, count: count || 0 };
 
@@ -1241,12 +1254,14 @@ export class AuftragList {
           : auftrag.rechnung_gestellt
             ? 'auftrag-row--rechnung-gestellt'
             : '';
-        const detailsStatusClass = auftrag.has_auftragsdetails ? 'auftrag-row--has-details' : '';
-        const rowClasses = [paymentStatusClass, detailsStatusClass].filter(Boolean).join(' ');
+        const rowClasses = paymentStatusClass;
         return `
         <tr data-id="${auftrag.id}" class="${rowClasses}" data-rechnung-gestellt="${Boolean(auftrag.rechnung_gestellt)}" data-ueberwiesen="${Boolean(auftrag.ueberwiesen)}">
           ${this.isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
           <td>${window.validatorSystem.sanitizeHtml(auftrag.angebotsnummer || '-')}</td>
+          <td class="table-cell-center">${auftrag.auftragsdetails_id
+            ? `<a href="#" onclick="event.preventDefault(); window.navigateTo('/auftragsdetails/${auftrag.auftragsdetails_id}')" class="details-link" title="Auftragsdetails anzeigen"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>`
+            : '-'}</td>
           <td>${window.validatorSystem.sanitizeHtml(auftrag.re_nr || '-')}</td>
           <td>${this.formatUnternehmenTag(auftrag.unternehmen)}</td>
           <td>${this.formatMarkeTag(auftrag.marke)}</td>

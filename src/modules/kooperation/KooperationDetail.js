@@ -666,22 +666,8 @@ export class KooperationDetail extends PersonDetailBase {
   }
 
   renderVideos() {
-    const canEdit = window.currentUser?.permissions?.kooperation?.can_edit || window.currentUser?.rolle === 'admin';
-    const canUpload = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle === 'mitarbeiter';
-    const plannedForKoop = parseInt(this.kooperation?.videoanzahl, 10) || 0;
-    const uploadedForKoop = (this.videos || []).length;
-    const canAddMore = plannedForKoop === 0 || uploadedForKoop < plannedForKoop;
-
-    const actionsHtml = canEdit && canUpload ? `
-      <div class="table-actions" style="margin-bottom: 8px;">
-        <div class="table-actions-left"></div>
-        <div class="table-actions-right">
-          ${canAddMore ? `<button id="btn-goto-video-create" class="primary-btn">Video hinzufügen</button>` : `<button class="secondary-btn" disabled title="Limit erreicht">Limit erreicht</button>`}
-        </div>
-      </div>` : '';
-
     if (!this.videos || this.videos.length === 0) {
-      return `${actionsHtml}<p class="empty-state">Keine Videos angelegt.</p>`;
+      return `<p class="empty-state">Keine Videos angelegt. Videos werden automatisch beim Erstellen/Bearbeiten der Kooperation generiert.</p>`;
     }
 
     const isKundeRole = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
@@ -925,13 +911,6 @@ export class KooperationDetail extends PersonDetailBase {
     if (e.target.closest('#btn-edit-kooperation')) {
       e.preventDefault();
       this.showEditForm();
-      return;
-    }
-
-    // Video create
-    if (e.target.closest('#btn-goto-video-create')) {
-      e.preventDefault();
-      window.navigateTo(`/video/new?kooperation=${this.kooperationId}`);
       return;
     }
 

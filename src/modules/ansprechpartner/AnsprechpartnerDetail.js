@@ -4,6 +4,7 @@
 
 import { ansprechpartnerCreate } from './AnsprechpartnerCreate.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
+import { CountryDisplay } from '../../core/components/CountryDisplay.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
@@ -95,7 +96,8 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
             ansprechpartner_unternehmen (unternehmen:unternehmen_id (id, firmenname, logo_url)),
             ansprechpartner_sprache (sprache:sprache_id (id, name)),
             telefonnummer_land:eu_laender!telefonnummer_land_id (id, name, name_de, iso_code, vorwahl),
-            telefonnummer_office_land:eu_laender!telefonnummer_office_land_id (id, name, name_de, iso_code, vorwahl)
+            telefonnummer_office_land:eu_laender!telefonnummer_office_land_id (id, name, name_de, iso_code, vorwahl),
+            land:eu_laender!land_id (id, name_de, iso_code)
           `)
           .eq('id', this.ansprechpartnerId)
           .single(),
@@ -289,7 +291,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       { icon: 'position', label: 'Position', value: this.ansprechpartner?.position || '-' },
       { icon: 'building', label: 'Unternehmen', value: this.ansprechpartner?.unternehmen?.firmenname || '-' },
       { icon: 'city', label: 'Stadt', value: this.ansprechpartner?.stadt || '-' },
-      { icon: 'globe', label: 'Land', value: this.ansprechpartner?.land || '-' },
+      { icon: 'globe', label: 'Land', rawHtml: this.ansprechpartner?.land ? CountryDisplay.render(this.ansprechpartner.land.iso_code, this.ansprechpartner.land.name_de) : '-' },
       { icon: 'language', label: 'Sprache', value: this.getSprachenDisplay() },
       { icon: 'calendar', label: 'Geburtsdatum', value: this.ansprechpartner?.geburtsdatum ? this.formatDate(this.ansprechpartner.geburtsdatum) : '-' },
       { icon: 'clock', label: 'Erstellt', value: this.formatDate(this.ansprechpartner?.created_at) }
@@ -833,6 +835,8 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       // Telefonnummer-Länder (für Phone-Fields im Edit-Modus)
       formData.telefonnummer_land_id = this.ansprechpartner?.telefonnummer_land_id || this.ansprechpartner?.telefonnummer_land?.id || null;
       formData.telefonnummer_office_land_id = this.ansprechpartner?.telefonnummer_office_land_id || this.ansprechpartner?.telefonnummer_office_land?.id || null;
+      // Land (für Country-Field im Edit-Modus)
+      formData.land_id = this.ansprechpartner?.land_id || this.ansprechpartner?.land?.id || null;
       console.log('📱 ANSPRECHPARTNERDETAIL: Telefonnummer-Länder:', {
         mobil: formData.telefonnummer_land_id,
         buero: formData.telefonnummer_office_land_id

@@ -818,14 +818,6 @@ export class ActionsDropdown {
       case 'kampagnen':
         window.navigateTo(`/auftrag/${entityId}/kampagnen`);
         break;
-      case 'video-create':
-        // Direkt zum Video-Formular für die Kooperation navigieren
-        if (entityType === 'kooperation') {
-          window.navigateTo(`/video/new?kooperation=${entityId}`);
-        } else {
-          console.warn('video-create nur im Kontext kooperation unterstützt');
-        }
-        break;
       case 'task-create':
         // Task-Modal öffnen mit vorausgefüllter Kooperation
         if (entityType === 'kooperation' && window.taskDetailDrawer) {

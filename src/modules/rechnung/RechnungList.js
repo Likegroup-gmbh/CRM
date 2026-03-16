@@ -286,16 +286,20 @@ export class RechnungList {
       }
 
       let rechnungen;
-      // Für Mitarbeiter: Filtere nach zugewiesenen Kampagnen/Kooperationen/Unternehmen
-      // Für Kunden: RLS-Policies filtern automatisch
-      if (!isAdmin && window.currentUser?.rolle !== 'kunde' && (allowedKampagneIds.length || allowedKoopIds.length || allowedUnternehmenIds.length)) {
-        const baseFilters = { ...currentFilters };
-        rechnungen = await window.dataService.loadEntities('rechnung', baseFilters);
-        rechnungen = (rechnungen || []).filter(r => {
-          return (r.kampagne_id && allowedKampagneIds.includes(r.kampagne_id)) || 
-                 (r.kooperation_id && allowedKoopIds.includes(r.kooperation_id)) ||
-                 (r.unternehmen_id && allowedUnternehmenIds.includes(r.unternehmen_id));
-        });
+      const isMitarbeiter = !isAdmin && window.currentUser?.rolle !== 'kunde' && window.currentUser?.rolle !== 'kunde_editor';
+      if (isMitarbeiter) {
+        if (allowedKampagneIds.length || allowedKoopIds.length || allowedUnternehmenIds.length) {
+          const baseFilters = { ...currentFilters };
+          rechnungen = await window.dataService.loadEntities('rechnung', baseFilters);
+          rechnungen = (rechnungen || []).filter(r => {
+            return (r.kampagne_id && allowedKampagneIds.includes(r.kampagne_id)) || 
+                   (r.kooperation_id && allowedKoopIds.includes(r.kooperation_id)) ||
+                   (r.unternehmen_id && allowedUnternehmenIds.includes(r.unternehmen_id));
+          });
+        } else {
+          console.log('ℹ️ Mitarbeiter ohne Zuordnungen – keine Rechnungen sichtbar');
+          rechnungen = [];
+        }
       } else {
         rechnungen = await window.dataService.loadEntities('rechnung', currentFilters);
       }

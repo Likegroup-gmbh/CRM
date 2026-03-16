@@ -2,7 +2,7 @@
 // Kampagnen-Detail-Ansicht
 import { renderCreatorTable } from '../creator/CreatorTable.js';
 import { KampagneKooperationenVideoTable } from './KampagneKooperationenVideoTable.js';
-import { VideoCreateDrawer } from './VideoCreateDrawer.js';
+
 import { VideoTableColumnVisibilityDrawer } from './VideoTableColumnVisibilityDrawer.js';
 import { getTabIcon } from '../../core/TabUtils.js';
 import { KampagneUtils } from './KampagneUtils.js';
@@ -27,7 +27,7 @@ export class KampagneDetail {
     this.koopHistory = [];
     this.koopHistoryCount = 0;
     this.kooperationenVideoTable = null;
-    this.videoCreateDrawer = null;
+    
     this.videoColumnVisibilityDrawer = null;
     this.strategien = [];
     this.briefings = [];
@@ -611,8 +611,8 @@ export class KampagneDetail {
         this.kampagneData.kampagne_art_typen = kampagneArten || [];
       }
       
-      // Notizen, Ratings, Strategien & Briefings parallel laden (nur Counts für Tabs)
-      const [notizenResult, ratingsResult, strategienResult, briefingsResult] = await Promise.all([
+      // Notizen, Ratings, Strategien, Briefings & Tab-Counts parallel laden
+      const [notizenResult, ratingsResult, strategienResult, briefingsResult, sourcingCountResult, vertraegeCountResult, rechnungenCountResult] = await Promise.all([
         window.notizenSystem ? window.notizenSystem.loadNotizen('kampagne', this.kampagneId) : [],
         window.bewertungsSystem ? window.bewertungsSystem.loadBewertungen('kampagne', this.kampagneId) : [],
         window.supabase
@@ -629,19 +629,33 @@ export class KampagneDetail {
           .from('briefings')
           .select('id, product_service_offer, deadline, status, created_at, kooperation_id, assignee_id')
           .eq('kampagne_id', this.kampagneId)
-          .order('created_at', { ascending: false })
+          .order('created_at', { ascending: false }),
+        window.supabase
+          .from('creator_auswahl')
+          .select('*', { count: 'exact', head: true })
+          .eq('kampagne_id', this.kampagneId),
+        window.supabase
+          .from('vertraege')
+          .select('*', { count: 'exact', head: true })
+          .eq('kampagne_id', this.kampagneId),
+        window.supabase
+          .from('rechnung')
+          .select('*', { count: 'exact', head: true })
+          .eq('kampagne_id', this.kampagneId)
       ]);
       
       this.notizen = notizenResult || [];
       this.ratings = ratingsResult || [];
       this.strategien = strategienResult.data || [];
       
-      // Debug: Briefings laden mit Error-Handling
       if (briefingsResult.error) {
         console.error('❌ KAMPAGNEDETAIL: Fehler beim Laden der Briefings:', briefingsResult.error);
       }
       this.briefings = briefingsResult.data || [];
-      console.log('📋 KAMPAGNEDETAIL: Briefings geladen:', this.briefings.length, this.briefings);
+
+      this.sourcingListenCount = sourcingCountResult.count || 0;
+      this.vertraegeCount = vertraegeCountResult.count || 0;
+      this.rechnungenCount = rechnungenCountResult.count || 0;
       
       const loadTime = (performance.now() - startTime).toFixed(0);
       console.log(`✅ KAMPAGNEDETAIL: Kritische Daten geladen in ${loadTime}ms`);
@@ -897,7 +911,7 @@ export class KampagneDetail {
     const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
     const canDelete = window.currentUser?.permissions?.kampagne?.can_delete || false;
     const canCreateKooperation = window.currentUser?.permissions?.kooperation?.can_edit || false;
-    const canCreateVideo = window.currentUser?.permissions?.kooperation?.can_edit || false;
+    
     
     // Hilfsfunktionen für Formatierung
     const formatDate = (date) => {
@@ -919,13 +933,11 @@ export class KampagneDetail {
     const rolle = String(window.currentUser?.rolle || '').trim().toLowerCase();
     const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
 
-    const showPageHeader = canCreateKooperation || canCreateVideo;
     const html = `
-      ${showPageHeader ? `
+      ${canCreateKooperation ? `
       <div class="page-header">
         <div class="page-header-right">
-          ${canCreateKooperation ? `<button id="btn-new-kooperation" class="primary-btn">Kooperation anlegen</button>` : ''}
-          ${canCreateVideo ? `<button id="btn-new-video" class="primary-btn">Video anlegen</button>` : ''}
+          <button id="btn-new-kooperation" class="primary-btn">Kooperation anlegen</button>
         </div>
       </div>
       ` : ''}
@@ -944,13 +956,16 @@ export class KampagneDetail {
             Informationen
           </button>`}
           <button class="tab-button" data-tab="strategien">
-            Strategien
+            Strategien <span class="tab-count">${this.strategien?.length || 0}</span>
+            ${this.formatDeadlineBadge(this.kampagneData.deadline_strategie)}
           </button>
           <button class="tab-button" data-tab="sourcing-listen">
-            Sourcing
+            Sourcing <span class="tab-count">${this.sourcingListenCount || 0}</span>
+            ${this.formatDeadlineBadge(this.kampagneData.deadline_creator_sourcing)}
           </button>
           <button class="tab-button" data-tab="briefings">
-            Briefings
+            Briefings <span class="tab-count">${this.briefings?.length || 0}</span>
+            ${this.formatDeadlineBadge(this.kampagneData.deadline_briefing)}
           </button>
           ${!isKunde && window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? `
           <button class="tab-button" data-tab="info">
@@ -958,11 +973,11 @@ export class KampagneDetail {
           </button>` : ''}
           ${!isKunde && window.canViewTable && window.canViewTable('kampagne','rechnungen') !== false ? `
           <button class="tab-button" data-tab="rechnungen">
-            Rechnungen
+            Rechnungen <span class="tab-count">${this.rechnungenCount || 0}</span>
           </button>` : ''}
           ${!isKunde ? `
           <button class="tab-button" data-tab="vertraege">
-            Verträge
+            Verträge <span class="tab-count">${this.vertraegeCount || 0}</span>
           </button>` : ''}
           ${!isKunde && window.canViewTable && window.canViewTable('kampagne','notizen') !== false ? `
           <button class="tab-button" data-tab="notizen">
@@ -1253,6 +1268,19 @@ export class KampagneDetail {
     `;
 
     window.setContentSafely(window.content, html);
+  }
+
+  formatDeadlineBadge(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const diffDays = Math.ceil((d - now) / (1000 * 60 * 60 * 24));
+    let cls = 'tab-deadline';
+    if (diffDays < 0) cls += ' tab-deadline--overdue';
+    else if (diffDays <= 7) cls += ' tab-deadline--soon';
+    const label = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+    return `<span class="${cls}">bis ${label}</span>`;
   }
 
   // Rendere Summary-Kacheln
@@ -1783,28 +1811,7 @@ export class KampagneDetail {
       });
     }
 
-    // Video anlegen Button
-    const btnNewVideo = document.getElementById('btn-new-video');
-    if (btnNewVideo) {
-      btnNewVideo.addEventListener('click', (e) => {
-        e.preventDefault();
-        console.log('🎯 Video anlegen Button geklickt, kampagneId:', this.kampagneId);
-        if (!this.videoCreateDrawer) {
-          this.videoCreateDrawer = new VideoCreateDrawer();
-        }
-        this.videoCreateDrawer.open(this.kampagneId);
-      });
-    }
-
-    // Event-Listener für videoCreated Event (Live-Update der Tabelle)
-    window.addEventListener('videoCreated', async (event) => {
-      console.log('🎬 Video erstellt Event empfangen:', event.detail);
-      // Reload der Tabelle ohne Seitenneuladung
-      if (this.kooperationenVideoTable) {
-        await this.kooperationenVideoTable.refresh();
-        console.log('✅ Tabelle nach Video-Erstellung aktualisiert');
-      }
-    });
+    
 
     // Bearbeiten Button
     document.addEventListener('click', (e) => {
@@ -2312,6 +2319,8 @@ export class KampagneDetail {
     const container = document.querySelector('#tab-sourcing-listen .detail-section');
     if (container) {
       container.innerHTML = this.renderSourcingListen();
+      const btn = document.querySelector('.tab-button[data-tab="sourcing-listen"] .tab-count');
+      if (btn) btn.textContent = String(this.sourcingListen?.length || 0);
     }
   }
 

@@ -27,3 +27,9 @@
   to = "/index.html"
   status = 200
 
+# Anti-Indexierung: Suchmaschinen dürfen nichts cachen/listen
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow, noarchive, nosnippet"
+

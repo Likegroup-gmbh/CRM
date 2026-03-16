@@ -548,22 +548,60 @@ async function captureProfileImage_ORIGINAL(page, platform, supabase, supabaseUr
 }
 
 /**
+ * CORS-Origin anhand von Netlify-Umgebung ermitteln
+ */
+function getAllowedOrigin(requestOrigin) {
+  const siteUrl = process.env.URL || '';
+  const deployPrimeUrl = process.env.DEPLOY_PRIME_URL || '';
+  const allowed = [siteUrl, deployPrimeUrl].filter(Boolean);
+  if (allowed.includes(requestOrigin)) return requestOrigin;
+  if (requestOrigin && /^https:\/\/[a-z0-9-]+--[a-z0-9-]+\.netlify\.app$/.test(requestOrigin)) return requestOrigin;
+  return siteUrl || 'null';
+}
+
+/**
+ * JWT aus Authorization-Header verifizieren
+ */
+async function verifyAuth(event) {
+  const authHeader = (event.headers || {}).authorization || (event.headers || {}).Authorization || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '');
+  if (!token) return null;
+
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+  if (!supabaseUrl || !supabaseKey) return null;
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  if (error || !user) return null;
+  return user;
+}
+
+/**
  * Netlify Function Handler
  */
 exports.handler = async (event, context) => {
+  const requestOrigin = (event.headers || {}).origin || '';
+  const origin = getAllowedOrigin(requestOrigin);
   const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Vary': 'Origin',
     'Content-Type': 'application/json'
   };
 
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers, body: '' };
+    return { statusCode: 204, headers, body: '' };
   }
 
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'POST only' }) };
+  }
+
+  const user = await verifyAuth(event);
+  if (!user) {
+    return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
   }
 
   let browser;

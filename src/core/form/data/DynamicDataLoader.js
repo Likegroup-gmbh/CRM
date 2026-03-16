@@ -33,8 +33,9 @@ export class DynamicDataLoader {
         }
       }
       
-      // Phone-Fields auch parallel laden
+      // Phone-Fields und Country-Fields auch parallel laden
       loadPromises.push(this.loadPhoneFieldCountries(form));
+      loadPromises.push(this.loadCountryFieldCountries(form));
       
       // Alle parallel laden
       console.log(`🚀 Lade ${loadPromises.length} Felder parallel...`);
@@ -304,15 +305,100 @@ export class DynamicDataLoader {
     return vorwahl;
   }
 
+  // Lade Länder für Country-Fields (Länder-Dropdown ohne Telefonnummer)
+  async loadCountryFieldCountries(form) {
+    try {
+      const countrySelects = form.querySelectorAll('select[data-country-field="true"]');
+      
+      if (countrySelects.length === 0) {
+        return;
+      }
+
+      console.log(`🌍 Lade Länder für ${countrySelects.length} Country-Fields`);
+
+      const countries = await this.cache.get('eu_laender', '*', 'sort_order');
+
+      if (!countries || countries.length === 0) {
+        console.error('❌ Keine Länder geladen für Country-Fields');
+        return;
+      }
+
+      console.log(`✅ ${countries.length} Länder geladen für Country-Fields (aus Cache)`);
+
+      countrySelects.forEach(select => {
+        while (select.options.length > 1) {
+          select.remove(1);
+        }
+
+        countries.forEach(country => {
+          const option = document.createElement('option');
+          option.value = country.id;
+          option.textContent = country.name_de;
+          option.dataset.isoCode = country.iso_code;
+          select.appendChild(option);
+        });
+      });
+
+      countrySelects.forEach(select => {
+        // Im Edit-Modus: Gespeichertes Land setzen
+        if (form.dataset.isEditMode === 'true' && form.dataset.editModeData) {
+          try {
+            const editData = JSON.parse(form.dataset.editModeData);
+            const savedCountryId = editData[select.name];
+            
+            if (savedCountryId) {
+              const savedOption = Array.from(select.options).find(opt => opt.value === savedCountryId);
+              if (savedOption) {
+                savedOption.selected = true;
+                select.value = savedCountryId;
+                console.log(`🌍 Edit-Modus: Land vorausgewählt für ${select.name}:`, savedOption.textContent);
+              }
+            }
+          } catch (e) {
+            console.warn('⚠️ Fehler beim Setzen des gespeicherten Country-Feldes:', e);
+          }
+        }
+        // Standard: Deutschland vorauswählen (nur im Create-Mode)
+        else if (!select.value) {
+          const deutschlandOption = Array.from(select.options).find(opt => opt.dataset.isoCode === 'de');
+          if (deutschlandOption) {
+            deutschlandOption.selected = true;
+            select.value = deutschlandOption.value;
+          }
+        }
+
+        const options = Array.from(select.options).slice(1).map(option => ({
+          value: option.value,
+          label: option.textContent,
+          isoCode: option.dataset.isoCode,
+          selected: option.selected || option.value === select.value
+        }));
+
+        if (this.createSearchableSelect) {
+          this.createSearchableSelect(select, options, {
+            placeholder: select.dataset.placeholder || 'Land wählen...',
+            type: 'country'
+          });
+        }
+      });
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Country-Field-Länder:', error);
+    }
+  }
+
   // Feldoptionen laden
   async loadFieldOptions(entity, field, form) {
     try {
       // DEBUG: Zeige field.type für Debugging
       console.log(`🔍 LOADFIELDOPTIONS DEBUG: field.name=${field.name}, field.type=${field.type}`);
       
-      // WICHTIG: Phone-Fields überspringen - diese werden von loadPhoneFieldCountries behandelt
+      // WICHTIG: Phone-Fields und Country-Fields überspringen - werden von eigenen Loadern behandelt
       if (field.type === 'phone') {
         console.log(`⏭️ Überspringe Phone-Field ${field.name} in loadFieldOptions - wird von loadPhoneFieldCountries behandelt`);
+        return;
+      }
+      if (field.type === 'country') {
+        console.log(`⏭️ Überspringe Country-Field ${field.name} in loadFieldOptions - wird von loadCountryFieldCountries behandelt`);
         return;
       }
       

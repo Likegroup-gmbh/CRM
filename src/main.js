@@ -291,12 +291,6 @@ class ModuleRegistry {
       module = this.modules.get(moduleKey);
       console.log(`🎯 Video-Details erkannt, verwende Modul: ${moduleKey}`);
     }
-    // Route: /video/new?kooperation=:id → Neues Video anlegen
-    if (segment === 'video' && (!idCleanForVideo || idCleanForVideo === 'new')) {
-      moduleKey = 'kooperation-video-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Video-Neuanlage erkannt, verwende Modul: ${moduleKey}`);
-    }
     
     // Spezielle Behandlung für Kampagnen-Details (aber nicht für 'new')
     if (id && segment === 'kampagne' && id !== 'new') {

@@ -434,9 +434,14 @@ export class CreatorAuswahlService {
    */
   async scrapeCreator(url) {
     try {
+      const session = await window.supabase.auth.getSession();
+      const token = session?.data?.session?.access_token || '';
       const response = await fetch('/.netlify/functions/creator-scrape', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ url })
       });
 
