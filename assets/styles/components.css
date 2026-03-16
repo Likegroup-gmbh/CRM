@@ -1852,7 +1852,7 @@ h3.section-title,
   display: none;
   align-items: center;
   justify-content: center;
-  z-index: 1050;
+  z-index: 12000;
 }
 
 .modal.show {
@@ -1868,6 +1868,7 @@ h3.section-title,
   max-height: 90vh;
   overflow-y: auto;
   position: relative;
+  z-index: 12001;
 }
 
 .modal-large .modal-content {
