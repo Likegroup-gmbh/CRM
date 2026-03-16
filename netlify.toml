@@ -15,6 +15,10 @@
 [functions."screenshot"]
   timeout = 60
 
+# Dropbox Upload Function – Videos können groß sein
+[functions."dropbox-upload"]
+  timeout = 300
+
 # Auth-Seiten direkt ausliefern (NICHT auf index.html umleiten)
 [[redirects]]
   from = "/src/auth/*"

@@ -155,12 +155,12 @@ export class AuftragsdetailsList {
                 </th>` : ''}
                 <th class="col-ad-unternehmen">Unternehmen</th>
                 <th class="col-ad-marke">Marke</th>
+                <th>PO intern</th>
+                <th>Status</th>
                 <th class="col-ad-auftrag">Auftrag</th>
                 <th>Kurzbeschreibung</th>
-                <th>PO intern</th>
                 <th>Start</th>
                 <th>Ende</th>
-                <th>Status</th>
                 <th>Erstellt am</th>
                 <th class="col-actions">Aktionen</th>
               </tr>
@@ -727,20 +727,20 @@ export class AuftragsdetailsList {
             ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="auftragsdetails-check" data-id="${detail.id}"></td>` : ''}
             <td class="col-ad-unternehmen">${unternehmenHtml}</td>
             <td class="col-ad-marke">${markeHtml}</td>
+            <td>${window.validatorSystem?.sanitizeHtml(auftrag.po) || auftrag.po || '-'}</td>
+            <td>
+              <span class="status-badge status-${(auftrag.status?.toLowerCase() || 'unknown').replace(/\s+/g, '-')}">
+                ${auftrag.status || '-'}
+              </span>
+            </td>
             <td class="col-ad-auftrag">
               <a href="#" class="table-link" data-table="auftragsdetails" data-id="${detail.id}">
                 ${window.validatorSystem?.sanitizeHtml(auftrag.auftragsname || 'Unbekannter Auftrag') || 'Unbekannter Auftrag'}
               </a>
             </td>
             <td>${window.validatorSystem?.sanitizeHtml(kurzbeschreibung) || kurzbeschreibung}</td>
-            <td>${window.validatorSystem?.sanitizeHtml(auftrag.po) || auftrag.po || '-'}</td>
             <td>${formatDate(auftrag.start)}</td>
             <td>${formatDate(auftrag.ende)}</td>
-            <td>
-              <span class="status-badge status-${(auftrag.status?.toLowerCase() || 'unknown').replace(/\s+/g, '-')}">
-                ${auftrag.status || '-'}
-              </span>
-            </td>
             <td>${formatDate(detail.created_at)}</td>
             <td class="col-actions">
               ${actionBuilder.create('auftragsdetails', detail.id)}

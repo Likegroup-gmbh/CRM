@@ -8,6 +8,7 @@ export const kooperationVideoDetail = {
   comments: [],
   assets: [],
   _eventsBound: false,
+  _selectedFile: null,
 
   async init(id) {
     try {
@@ -47,11 +48,11 @@ export const kooperationVideoDetail = {
     if (error) throw error;
     this.video = video;
 
-    // Kooperation für Zurück-Link / Titel
+    // Kooperation + Kampagne + Unternehmen + Marke (für Breadcrumb und Dropbox-Pfad)
     try {
       const { data: koop } = await window.supabase
         .from('kooperationen')
-        .select('id, name, kampagne:kampagne_id(id, kampagnenname, eigener_name)')
+        .select(`id, name, kampagne:kampagne_id(id, kampagnenname, eigener_name, unternehmen:unternehmen_id(id, firmenname), marke:marke_id(id, markenname))`)
         .eq('id', video.kooperation_id)
         .single();
       this.kooperation = koop || null;
@@ -168,18 +169,51 @@ export const kooperationVideoDetail = {
             ${canUpload ? `
             <div class="asset-upload-section" style="margin-top:var(--space-md);padding-top:var(--space-md);border-top:var(--border-xs) solid var(--border-primary);">
               <h4 style="margin:0 0 var(--space-sm) 0;">Neue Video-Version hochladen</h4>
+              <div style="margin-bottom:var(--space-xs);">
+                <label style="display:inline-flex;align-items:center;gap:var(--space-xxs);cursor:pointer;font-size:var(--font-size-sm);color:var(--text-secondary);">
+                  <input type="checkbox" id="toggle-upload-mode" />
+                  Stattdessen URL eingeben
+                </label>
+              </div>
               <form id="asset-upload-form">
-                <div class="detail-grid-2">
-                  <div class="form-field" style="grid-column: span 2;">
-                    <label>Asset URL</label>
-                    <input type="url" name="file_url" class="form-input" placeholder="https://..." required />
+                <!-- Datei-Upload (Standard) -->
+                <div id="file-upload-section">
+                  <div class="dropzone" id="video-dropzone" style="border:2px dashed var(--border-primary);border-radius:var(--radius-md);padding:var(--space-lg);text-align:center;cursor:pointer;transition:all 0.2s ease;background:var(--bg-secondary);">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="40" height="40" style="margin:0 auto var(--space-xs);display:block;color:var(--text-tertiary);">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                    </svg>
+                    <p style="margin:0;color:var(--text-secondary);font-size:var(--font-size-sm);">Video hierher ziehen oder <strong>klicken</strong> zum Auswählen</p>
+                    <p style="margin:var(--space-xxs) 0 0;color:var(--text-tertiary);font-size:var(--font-size-xs);">MP4, WebM, MOV – max. 500 MB</p>
+                    <input type="file" id="video-file-input" accept="video/*,.mov,.mp4,.webm,.avi" style="display:none;" />
                   </div>
-                  <div class="form-field" style="grid-column: span 2;">
-                    <label>Beschreibung (optional)</label>
-                    <textarea name="description" class="form-input" rows="2" placeholder="z.B. Feedback aus Runde 1 eingearbeitet"></textarea>
+                  <div id="file-preview" style="display:none;margin-top:var(--space-xs);padding:var(--space-xs) var(--space-sm);background:var(--bg-tertiary);border-radius:var(--radius-sm);font-size:var(--font-size-sm);display:none;align-items:center;gap:var(--space-xs);">
+                    <span id="file-name" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+                    <span id="file-size" style="color:var(--text-tertiary);flex-shrink:0;"></span>
+                    <button type="button" id="file-remove" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);padding:2px;" title="Entfernen">✕</button>
                   </div>
                 </div>
-                <button type="submit" class="primary-btn" style="margin-top:var(--space-xs);">Version hochladen</button>
+                <!-- URL-Fallback (hidden by default) -->
+                <div id="url-upload-section" style="display:none;">
+                  <div class="form-field">
+                    <label>Asset URL</label>
+                    <input type="url" name="file_url" class="form-input" placeholder="https://..." />
+                  </div>
+                </div>
+                <div class="form-field" style="margin-top:var(--space-xs);">
+                  <label>Beschreibung (optional)</label>
+                  <textarea name="description" class="form-input" rows="2" placeholder="z.B. Feedback aus Runde 1 eingearbeitet"></textarea>
+                </div>
+                <!-- Progress Bar -->
+                <div id="upload-progress-container" style="display:none;margin-top:var(--space-xs);">
+                  <div style="display:flex;justify-content:space-between;font-size:var(--font-size-xs);color:var(--text-secondary);margin-bottom:var(--space-xxs);">
+                    <span id="upload-progress-label">Wird hochgeladen...</span>
+                    <span id="upload-progress-percent">0%</span>
+                  </div>
+                  <div style="width:100%;height:6px;background:var(--bg-tertiary);border-radius:3px;overflow:hidden;">
+                    <div id="upload-progress-bar" style="width:0%;height:100%;background:var(--color-primary);border-radius:3px;transition:width 0.3s ease;"></div>
+                  </div>
+                </div>
+                <button type="submit" id="asset-upload-btn" class="primary-btn" style="margin-top:var(--space-sm);" disabled>Version hochladen</button>
               </form>
             </div>` : ''}
           </div>
@@ -717,79 +751,242 @@ export const kooperationVideoDetail = {
   bindAssetUploadEvents() {
     const form = document.getElementById('asset-upload-form');
     if (!form) return;
-    
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const fd = new FormData(form);
-      const fileUrl = String(fd.get('file_url') || '').trim();
-      
-      if (!fileUrl) {
-        alert('Bitte Asset-URL angeben.');
+
+    const dropzone = document.getElementById('video-dropzone');
+    const fileInput = document.getElementById('video-file-input');
+    const filePreview = document.getElementById('file-preview');
+    const fileNameEl = document.getElementById('file-name');
+    const fileSizeEl = document.getElementById('file-size');
+    const fileRemoveBtn = document.getElementById('file-remove');
+    const submitBtn = document.getElementById('asset-upload-btn');
+    const toggleMode = document.getElementById('toggle-upload-mode');
+    const fileSection = document.getElementById('file-upload-section');
+    const urlSection = document.getElementById('url-upload-section');
+
+    const formatSize = (bytes) => {
+      if (bytes >= 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+      return (bytes / 1024).toFixed(0) + ' KB';
+    };
+
+    const setFile = (file) => {
+      if (!file) return;
+      if (file.size > 500 * 1024 * 1024) {
+        alert('Datei zu groß (max. 500 MB)');
         return;
       }
-      
-      try {
-        const submitBtn = form.querySelector('button[type="submit"]');
-        if (submitBtn) {
-          submitBtn.disabled = true;
-          submitBtn.textContent = 'Wird hochgeladen...';
+      this._selectedFile = file;
+      if (fileNameEl) fileNameEl.textContent = file.name;
+      if (fileSizeEl) fileSizeEl.textContent = formatSize(file.size);
+      if (filePreview) filePreview.style.display = 'flex';
+      if (dropzone) dropzone.style.display = 'none';
+      if (submitBtn) submitBtn.disabled = false;
+    };
+
+    const clearFile = () => {
+      this._selectedFile = null;
+      if (fileInput) fileInput.value = '';
+      if (filePreview) filePreview.style.display = 'none';
+      if (dropzone) dropzone.style.display = 'block';
+      if (submitBtn && !toggleMode?.checked) submitBtn.disabled = true;
+    };
+
+    // Toggle between file upload and URL input
+    if (toggleMode) {
+      toggleMode.addEventListener('change', () => {
+        const urlMode = toggleMode.checked;
+        if (fileSection) fileSection.style.display = urlMode ? 'none' : 'block';
+        if (urlSection) urlSection.style.display = urlMode ? 'block' : 'none';
+        if (urlMode) {
+          clearFile();
+          if (submitBtn) submitBtn.disabled = false;
+        } else {
+          if (submitBtn) submitBtn.disabled = !this._selectedFile;
         }
-        
-        // Nächste Versionsnummer ermitteln
-        const maxVersion = this.assets.length > 0 
-          ? Math.max(...this.assets.map(a => a.version_number || 0))
-          : 0;
-        const nextVersion = maxVersion + 1;
-        
-        // Alle bisherigen als nicht-aktuell markieren
-        await window.supabase
-          .from('kooperation_video_asset')
-          .update({ is_current: false })
-          .eq('video_id', this.videoId);
-        
-        // Neue Version einfügen
-        const { error } = await window.supabase
-          .from('kooperation_video_asset')
-          .insert({
-            video_id: this.videoId,
-            file_url: fileUrl,
-            file_path: fileUrl,
-            version_number: nextVersion,
-            is_current: true,
-            description: fd.get('description') || null,
-            uploaded_by: window.currentUser?.id || null,
-            created_at: new Date().toISOString()
-          });
-        
-        if (error) throw error;
-        
-        // Benachrichtigungen an Kunden senden (neue Version)
-        try {
-          await this.sendVideoUploadNotifications(this.videoId, true);
-        } catch (notifErr) {
-          console.warn('⚠️ Video-Version-Benachrichtigung konnte nicht versendet werden:', notifErr);
-        }
-        
-        // UI aktualisieren
-        await this.loadData();
-        this.render();
-        this.bindLocalEvents();
-        if (window.ActionsDropdown) {
-          window.ActionsDropdown.init();
-        }
-        
-        window.notificationSystem?.success?.(`Version ${nextVersion} erfolgreich hochgeladen.`);
-      } catch (err) {
-        console.error('Asset-Upload fehlgeschlagen', err);
-        alert('Asset konnte nicht hochgeladen werden: ' + (err.message || ''));
-        
-        const submitBtn = form.querySelector('button[type="submit"]');
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.textContent = 'Version hochladen';
-        }
+      });
+    }
+
+    // Dropzone click → open file picker
+    if (dropzone && fileInput) {
+      dropzone.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', () => {
+        if (fileInput.files?.[0]) setFile(fileInput.files[0]);
+      });
+    }
+
+    // Drag & Drop
+    if (dropzone) {
+      ['dragenter', 'dragover'].forEach(evt => {
+        dropzone.addEventListener(evt, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.style.borderColor = 'var(--color-primary)';
+          dropzone.style.background = 'var(--bg-primary)';
+        });
+      });
+      ['dragleave', 'drop'].forEach(evt => {
+        dropzone.addEventListener(evt, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.style.borderColor = 'var(--border-primary)';
+          dropzone.style.background = 'var(--bg-secondary)';
+        });
+      });
+      dropzone.addEventListener('drop', (e) => {
+        const file = e.dataTransfer?.files?.[0];
+        if (file) setFile(file);
+      });
+    }
+
+    // Remove file
+    if (fileRemoveBtn) {
+      fileRemoveBtn.addEventListener('click', clearFile);
+    }
+
+    // Form submit
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const isUrlMode = toggleMode?.checked;
+      const fd = new FormData(form);
+
+      if (isUrlMode) {
+        const fileUrl = String(fd.get('file_url') || '').trim();
+        if (!fileUrl) { alert('Bitte Asset-URL angeben.'); return; }
+        await this._saveAssetVersion({ fileUrl, filePath: fileUrl, description: fd.get('description') || null });
+      } else {
+        if (!this._selectedFile) { alert('Bitte Videodatei auswählen.'); return; }
+        await this._uploadToDropbox(this._selectedFile, fd.get('description') || null);
       }
     });
+  },
+
+  async _uploadToDropbox(file, description) {
+    const submitBtn = document.getElementById('asset-upload-btn');
+    const progressContainer = document.getElementById('upload-progress-container');
+    const progressBar = document.getElementById('upload-progress-bar');
+    const progressPercent = document.getElementById('upload-progress-percent');
+    const progressLabel = document.getElementById('upload-progress-label');
+
+    try {
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Wird hochgeladen...'; }
+      if (progressContainer) progressContainer.style.display = 'block';
+
+      const maxVersion = this.assets.length > 0
+        ? Math.max(...this.assets.map(a => a.version_number || 0))
+        : 0;
+      const nextVersion = maxVersion + 1;
+
+      const kampagne = this.kooperation?.kampagne;
+      const unternehmen = kampagne?.unternehmen?.firmenname || '';
+      const marke = kampagne?.marke?.markenname || '';
+      const kampagneName = KampagneUtils.getDisplayName(kampagne) || kampagne?.kampagnenname || '';
+      const kooperationName = this.kooperation?.name || '';
+      const videoTitel = this.video?.titel || `Video_${this.videoId}`;
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('unternehmen', unternehmen);
+      formData.append('marke', marke);
+      formData.append('kampagne', kampagneName);
+      formData.append('kooperation', kooperationName);
+      formData.append('videoTitel', videoTitel);
+      formData.append('versionNumber', String(nextVersion));
+
+      const result = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/.netlify/functions/dropbox-upload');
+
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const pct = Math.round((e.loaded / e.total) * 100);
+            if (progressBar) progressBar.style.width = pct + '%';
+            if (progressPercent) progressPercent.textContent = pct + '%';
+            if (progressLabel) {
+              progressLabel.textContent = pct < 100
+                ? `Wird hochgeladen... (${(e.loaded / 1024 / 1024).toFixed(1)} / ${(e.total / 1024 / 1024).toFixed(1)} MB)`
+                : 'Wird in Dropbox gespeichert...';
+            }
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { resolve(JSON.parse(xhr.responseText)); }
+            catch { reject(new Error('Ungültige Server-Antwort')); }
+          } else {
+            try {
+              const err = JSON.parse(xhr.responseText);
+              reject(new Error(err.error || `Upload fehlgeschlagen (${xhr.status})`));
+            } catch {
+              reject(new Error(`Upload fehlgeschlagen (${xhr.status})`));
+            }
+          }
+        });
+
+        xhr.addEventListener('error', () => reject(new Error('Netzwerkfehler beim Upload')));
+        xhr.addEventListener('timeout', () => reject(new Error('Upload-Timeout')));
+        xhr.timeout = 600000; // 10 min
+
+        xhr.send(formData);
+      });
+
+      const fileUrl = result.shared_link || result.path;
+      const filePath = result.path;
+
+      await this._saveAssetVersion({ fileUrl, filePath, description });
+    } catch (err) {
+      console.error('Dropbox-Upload fehlgeschlagen', err);
+      alert('Upload fehlgeschlagen: ' + (err.message || ''));
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Version hochladen'; }
+      if (progressContainer) progressContainer.style.display = 'none';
+    }
+  },
+
+  async _saveAssetVersion({ fileUrl, filePath, description }) {
+    try {
+      const maxVersion = this.assets.length > 0
+        ? Math.max(...this.assets.map(a => a.version_number || 0))
+        : 0;
+      const nextVersion = maxVersion + 1;
+
+      await window.supabase
+        .from('kooperation_video_asset')
+        .update({ is_current: false })
+        .eq('video_id', this.videoId);
+
+      const { error } = await window.supabase
+        .from('kooperation_video_asset')
+        .insert({
+          video_id: this.videoId,
+          file_url: fileUrl,
+          file_path: filePath,
+          version_number: nextVersion,
+          is_current: true,
+          description: description || null,
+          uploaded_by: window.currentUser?.id || null,
+          created_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+
+      try {
+        await this.sendVideoUploadNotifications(this.videoId, true);
+      } catch (notifErr) {
+        console.warn('Video-Version-Benachrichtigung konnte nicht versendet werden:', notifErr);
+      }
+
+      this._selectedFile = null;
+      await this.loadData();
+      this.render();
+      this.bindLocalEvents();
+      if (window.ActionsDropdown) window.ActionsDropdown.init();
+
+      window.notificationSystem?.success?.(`Version ${nextVersion} erfolgreich hochgeladen.`);
+    } catch (err) {
+      console.error('Asset-Version speichern fehlgeschlagen', err);
+      alert('Asset konnte nicht gespeichert werden: ' + (err.message || ''));
+      const submitBtn = document.getElementById('asset-upload-btn');
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Version hochladen'; }
+    }
   },
 
   // Tab wechseln

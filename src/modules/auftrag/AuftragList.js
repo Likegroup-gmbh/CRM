@@ -743,19 +743,19 @@ export class AuftragList {
                 ${this.isAdmin ? `<th class="col-checkbox">
                   <input type="checkbox" id="select-all-auftraege">
                 </th>` : ''}
+                <th>Unternehmen</th>
+                <th>Marke</th>
+                <th>Interne PO</th>
+                <th>Status</th>
                 <th>Angebotsnummer</th>
                 <th class="table-cell-center">Details</th>
                 <th>Rechnungsnummer</th>
-                <th>Company</th>
-                <th>Brand</th>
-                <th>Interne PO</th>
                 <th class="col-rechnung-gestellt">Rechnungsdatum</th>
                 <th>Zahlungsziel</th>
                 <th class="col-re-faelligkeit">Rechnungsfälligkeit</th>
                 <th>Betrag netto</th>
                 <th>Umsatzsteuer</th>
                 <th>Betrag brutto</th>
-                <th>Rechnungsart</th>
                 <th class="table-cell-center">Rechnung gestellt</th>
                 <th class="table-cell-center">Überwiesen</th>
                 <th class="col-ueberwiesen">Bezahlt am</th>
@@ -1258,21 +1258,21 @@ export class AuftragList {
         return `
         <tr data-id="${auftrag.id}" class="${rowClasses}" data-rechnung-gestellt="${Boolean(auftrag.rechnung_gestellt)}" data-ueberwiesen="${Boolean(auftrag.ueberwiesen)}">
           ${this.isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
+          <td>${this.formatUnternehmenTag(auftrag.unternehmen)}</td>
+          <td>${this.formatMarkeTag(auftrag.marke)}</td>
+          <td>${window.validatorSystem.sanitizeHtml(auftrag.po || '-')}</td>
+          <td>${window.validatorSystem.sanitizeHtml(auftrag.status || '-')}</td>
           <td>${window.validatorSystem.sanitizeHtml(auftrag.angebotsnummer || '-')}</td>
           <td class="table-cell-center">${auftrag.auftragsdetails_id
             ? `<a href="#" onclick="event.preventDefault(); window.navigateTo('/auftragsdetails/${auftrag.auftragsdetails_id}')" class="details-link" title="Auftragsdetails anzeigen"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>`
             : '-'}</td>
           <td>${window.validatorSystem.sanitizeHtml(auftrag.re_nr || '-')}</td>
-          <td>${this.formatUnternehmenTag(auftrag.unternehmen)}</td>
-          <td>${this.formatMarkeTag(auftrag.marke)}</td>
-          <td>${window.validatorSystem.sanitizeHtml(auftrag.po || '-')}</td>
           <td class="col-rechnung-gestellt">${this.formatDate(auftrag.rechnung_gestellt_am)}</td>
           <td>${this.formatZahlungsziel(auftrag.zahlungsziel_tage)}</td>
           <td>${this.formatDate(auftrag.re_faelligkeit)}</td>
           <td>${this.formatCurrency(auftrag.nettobetrag)}</td>
           <td>${this.formatCurrency(auftrag.ust_betrag)}</td>
           <td>${this.formatCurrency(auftrag.bruttobetrag)}</td>
-          <td>${window.validatorSystem.sanitizeHtml(auftrag.status || '-')}</td>
           <td class="table-cell-center">${this.renderBillingDateCell(auftrag, 'rechnung_gestellt', 'rechnung_gestellt_am')}</td>
           <td class="table-cell-center">${this.renderBillingDateCell(auftrag, 'ueberwiesen', 'ueberwiesen_am')}</td>
           <td class="col-ueberwiesen">${this.formatDate(auftrag.ueberwiesen_am)}</td>

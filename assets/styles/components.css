@@ -14515,3 +14515,93 @@ table.vertraege-unternehmen-table td:last-child {
 .table-container--spaced {
   margin-top: var(--space-lg);
 }
+
+/* --- Video Upload Drawer --- */
+.video-upload-drawer-content { display: flex; flex-direction: column; gap: 16px; }
+
+.dropbox-path-info {
+  background: var(--gray-50, #f9fafb);
+  border: 1px solid var(--gray-200, #e5e7eb);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+.dropbox-path-info .label { font-weight: 600; color: var(--gray-600, #4b5563); margin-right: 6px; }
+.dropbox-path-info .path { color: var(--gray-800, #1f2937); font-family: monospace; word-break: break-all; }
+
+.upload-dropzone {
+  border: 2px dashed var(--gray-300, #d1d5db);
+  border-radius: 12px;
+  padding: 32px 16px;
+  text-align: center;
+  transition: border-color 0.2s, background 0.2s;
+  cursor: pointer;
+}
+.upload-dropzone.dragover,
+.upload-dropzone:hover {
+  border-color: var(--primary, #2563eb);
+  background: var(--primary-50, #eff6ff);
+}
+.dropzone-content { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.dropzone-text { font-size: 14px; color: var(--gray-600, #4b5563); margin: 0; }
+.dropzone-hint { font-size: 12px; color: var(--gray-400, #9ca3af); margin: 0; }
+.dropzone-browse-btn {
+  background: none; border: none; color: var(--primary, #2563eb); cursor: pointer;
+  font-weight: 600; text-decoration: underline; font-size: inherit; padding: 0;
+}
+
+.upload-file-preview {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--gray-50, #f9fafb); border: 1px solid var(--gray-200, #e5e7eb);
+  border-radius: 8px; padding: 10px 14px;
+}
+.upload-file-preview .file-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.upload-file-preview .file-name { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.upload-file-preview .file-size { font-size: 12px; color: var(--gray-500, #6b7280); }
+.file-remove-btn {
+  background: none; border: none; cursor: pointer; font-size: 20px; color: var(--gray-400, #9ca3af);
+  line-height: 1; padding: 4px;
+}
+.file-remove-btn:hover { color: var(--danger, #ef4444); }
+
+.upload-description-field label {
+  display: block; font-size: 13px; font-weight: 500; color: var(--gray-600, #4b5563); margin-bottom: 4px;
+}
+
+.upload-progress-container { margin-top: 4px; }
+.upload-progress-bar {
+  height: 6px; background: var(--gray-200, #e5e7eb); border-radius: 3px; overflow: hidden;
+}
+.upload-progress-fill {
+  height: 100%; background: var(--primary, #2563eb); border-radius: 3px;
+  transition: width 0.3s ease;
+}
+.upload-progress-text { font-size: 12px; color: var(--gray-600, #4b5563); margin-top: 6px; }
+
+.upload-error-msg {
+  background: var(--danger-light, #fef2f2); color: var(--danger, #ef4444);
+  border: 1px solid var(--danger, #ef4444); border-radius: 8px;
+  padding: 10px 14px; font-size: 13px;
+}
+
+/* Upload-Button in der Link-Content Spalte */
+.video-upload-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--primary, #2563eb); color: white;
+  border: none; border-radius: 6px; padding: 4px 10px;
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  transition: background 0.15s;
+}
+.video-upload-btn:hover { background: var(--primary-dark, #1d4ed8); }
+.video-upload-btn svg { width: 14px; height: 14px; }
+
+.video-reupload-btn {
+  display: inline-flex; align-items: center;
+  background: none; border: 1px solid var(--gray-300, #d1d5db); color: var(--gray-600, #4b5563);
+  border-radius: 6px; padding: 3px 8px;
+  font-size: 11px; cursor: pointer; margin-left: 6px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.video-reupload-btn:hover { border-color: var(--primary, #2563eb); color: var(--primary, #2563eb); }
+
+.content-cell-actions { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
