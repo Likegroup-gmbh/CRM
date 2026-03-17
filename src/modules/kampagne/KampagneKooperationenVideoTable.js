@@ -1030,6 +1030,10 @@ export class KampagneKooperationenVideoTable {
       kampagne: this.kampagneInfo?.name || ''
     };
 
+    console.log('[Dropbox] kampagneInfo:', this.kampagneInfo);
+    console.log('[Dropbox] koop.name:', koop?.name);
+    console.log('[Dropbox] metadaten:', metadaten);
+
     this._uploadDrawer.open(videoId, metadaten, (fileUrl) => {
       this._updateContentCellAfterUpload(videoId, kooperationId, fileUrl);
     });

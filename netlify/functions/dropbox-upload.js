@@ -73,6 +73,8 @@ exports.handler = async (event) => {
   try {
     const fields = JSON.parse(event.body || '{}');
 
+    console.log('dropbox-upload fields:', JSON.stringify(fields));
+
     const token = await getAccessToken();
 
     const dropboxPath = buildDropboxPath({
@@ -84,6 +86,8 @@ exports.handler = async (event) => {
       versionNumber: fields.versionNumber,
       fileName: fields.fileName,
     });
+
+    console.log('dropbox-upload path:', dropboxPath);
 
     return {
       statusCode: 200,
