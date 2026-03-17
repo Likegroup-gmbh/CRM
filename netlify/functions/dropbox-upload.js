@@ -8,8 +8,8 @@ const DROPBOX_TOKEN_URL = 'https://api.dropboxapi.com/oauth2/token';
 function sanitizePath(str) {
   if (!str) return '';
   return str
-    .replace(/[<>:"|?*\\]/g, '_')
-    .replace(/\/{2,}/g, '/')
+    .replace(/[<>:"|?*\\/]/g, '-')
+    .replace(/-{2,}/g, '-')
     .trim();
 }
 
