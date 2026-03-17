@@ -14604,4 +14604,14 @@ table.vertraege-unternehmen-table td:last-child {
 }
 .video-reupload-btn:hover { border-color: var(--primary, #2563eb); color: var(--primary, #2563eb); }
 
+.video-delete-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 1px solid var(--gray-300, #d1d5db); color: var(--gray-500, #6b7280);
+  border-radius: 6px; padding: 3px 7px;
+  font-size: 11px; line-height: 1; cursor: pointer; margin-left: 4px;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.video-delete-btn:hover { border-color: #ef4444; color: #ef4444; background: rgba(239,68,68,0.06); }
+.video-delete-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 .content-cell-actions { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
