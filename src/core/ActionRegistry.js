@@ -44,7 +44,9 @@ export class ActionRegistry {
       // Verträge: Unterschriebener Vertrag
       'add-signed', 'edit-signed',
       // Strategie Actions
-      'view-strategie', 'edit-strategie', 'delete-strategie'
+      'view-strategie', 'edit-strategie', 'delete-strategie',
+      // Verträge: Entwurf weiter bearbeiten
+      'continue'
     ];
 
     if (legacyActions.includes(action)) {

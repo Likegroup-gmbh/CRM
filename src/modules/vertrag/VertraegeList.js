@@ -659,7 +659,7 @@ export class VertraegeList {
       const actionsHtml = this.renderVertragActions(vertrag, isAdmin, canEdit);
 
       return `
-        <tr class="table-row-clickable" data-vertrag-id="${vertrag.id}">
+        <tr class="table-row-clickable" data-vertrag-id="${vertrag.id}" data-vertrag-draft="${vertrag.is_draft ? '1' : '0'}">
           ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="vertraege-check" data-id="${vertrag.id}"></td>` : ''}
           <td class="col-name">
             <a href="#" class="table-link" data-table="vertrag" data-id="${vertrag.id}">
@@ -703,6 +703,12 @@ export class VertraegeList {
 
     // Signed Contract Event Handlers binden
     this.bindSignedContractEvents();
+
+    // Action- und Selection-Events auf die neuen DOM-Elemente binden
+    if (this.viewMode === 'vertraege') {
+      this.bindSelectionEvents();
+      this.bindActionEvents();
+    }
   }
 
   // Rendere Aktionen basierend auf Draft-Status
@@ -893,7 +899,13 @@ export class VertraegeList {
       if (e.target.classList.contains('table-link') && e.target.dataset.table === 'vertrag') {
         e.preventDefault();
         const vertragId = e.target.dataset.id;
-        window.navigateTo(`/vertraege/${vertragId}`);
+        const row = e.target.closest('tr[data-vertrag-draft]');
+        const isDraft = row?.dataset?.vertragDraft === '1';
+        if (isDraft) {
+          window.navigateTo(`/vertraege/${vertragId}/edit`);
+        } else {
+          window.navigateTo(`/vertraege/${vertragId}`);
+        }
       }
     });
 
@@ -935,18 +947,17 @@ export class VertraegeList {
         
         const vertragId = row.dataset.vertragId;
         if (vertragId) {
-          window.navigateTo(`/vertraege/${vertragId}`);
+          const isDraft = row.dataset.vertragDraft === '1';
+          if (isDraft) {
+            window.navigateTo(`/vertraege/${vertragId}/edit`);
+          } else {
+            window.navigateTo(`/vertraege/${vertragId}`);
+          }
         }
       };
       row.addEventListener('click', handler);
       this._boundEventListeners.add(() => row.removeEventListener('click', handler));
     });
-
-    // Selection Events (nur in Vertragsansicht)
-    if (this.viewMode === 'vertraege') {
-      this.bindSelectionEvents();
-      this.bindActionEvents();
-    }
 
     // Event-Listener für Signed-Contract Actions vom ActionsDropdown
     const signedActionHandler = async (e) => {
@@ -1064,9 +1075,16 @@ export class VertraegeList {
         const id = item.dataset.id;
         
         switch (action) {
-          case 'view':
-            window.navigateTo(`/vertraege/${id}`);
+          case 'view': {
+            const row = item.closest('tr[data-vertrag-draft]');
+            const isDraft = row?.dataset?.vertragDraft === '1';
+            if (isDraft) {
+              window.navigateTo(`/vertraege/${id}/edit`);
+            } else {
+              window.navigateTo(`/vertraege/${id}`);
+            }
             break;
+          }
           case 'edit':
           case 'continue':
             if (!this.getVertragPermissions().canEdit) {

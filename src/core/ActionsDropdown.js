@@ -231,7 +231,7 @@ export class ActionsDropdown {
 
       // Custom Actions die nicht vom ActionsDropdown gehandhabt werden
       // (z.B. comment-delete, remove-zuordnung) sollen durch Event-Delegation behandelt werden
-      const customActions = ['comment-delete', 'video-view', 'video-edit', 'video-delete', 'remove-zuordnung', 'continue'];
+      const customActions = ['comment-delete', 'video-view', 'video-edit', 'video-delete', 'remove-zuordnung'];
       if (customActions.includes(action)) {
         // Lasse Event weiterlaufen für custom Handler
         return;
@@ -743,6 +743,10 @@ export class ActionsDropdown {
             : `/${entityType}/${entityId}/edit`;
           window.navigateTo(editRoute);
         }
+        break;
+      
+      case 'continue':
+        window.navigateTo(`/vertraege/${entityId}/edit`);
         break;
       
       case 'delete':
