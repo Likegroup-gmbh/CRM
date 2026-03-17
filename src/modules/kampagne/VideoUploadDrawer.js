@@ -305,6 +305,10 @@ export class VideoUploadDrawer {
   }
 
   _uploadToDropbox(token, dropboxPath, progressFill, progressText) {
+    console.log('[Dropbox Upload] Path:', dropboxPath);
+    console.log('[Dropbox Upload] Token prefix:', token?.substring(0, 10) + '...');
+    console.log('[Dropbox Upload] File size:', this._selectedFile?.size, 'bytes');
+
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', 'https://content.dropboxapi.com/2/files/upload');
@@ -330,7 +334,9 @@ export class VideoUploadDrawer {
           try { resolve(JSON.parse(xhr.responseText)); }
           catch { reject(new Error('Ungültige Dropbox-Antwort')); }
         } else {
-          reject(new Error(`Dropbox Upload fehlgeschlagen (${xhr.status})`));
+          const errBody = xhr.responseText || '(kein Response-Body)';
+          console.error(`Dropbox Upload Fehler ${xhr.status}:`, errBody);
+          reject(new Error(`Dropbox Upload fehlgeschlagen (${xhr.status}): ${errBody}`));
         }
       });
 
