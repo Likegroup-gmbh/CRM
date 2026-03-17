@@ -1023,8 +1023,8 @@ export class KampagneKooperationenVideoTable {
 
     const metadaten = {
       kooperationId,
-      kooperationName: koop?.name || koop?.creator?.vorname || 'Kooperation',
-      videoTitel: video?.titel || video?.thema || `Video`,
+      kooperationName: koop?.name || 'Kooperation',
+      videoTitel: video?.thema || 'Video',
       unternehmen: this.kampagneInfo?.unternehmen || '',
       marke: this.kampagneInfo?.marke || '',
       kampagne: this.kampagneInfo?.name || ''
@@ -1036,7 +1036,6 @@ export class KampagneKooperationenVideoTable {
   }
 
   _updateContentCellAfterUpload(videoId, kooperationId, fileUrl) {
-    // Lokale Daten updaten
     const videos = this.videos[kooperationId];
     if (videos) {
       const v = videos.find(vid => vid.id === videoId);
@@ -1045,14 +1044,7 @@ export class KampagneKooperationenVideoTable {
         v.link_content = fileUrl;
       }
     }
-
-    // DOM-Zelle live updaten
-    const wrapper = document.querySelector(`.video-field-wrapper[data-video-id="${videoId}"]`);
-    const cell = wrapper?.closest('td.video-stack-cell');
-    if (cell && cell.closest('td')?.querySelector('[data-field="link_content"], .video-upload-btn')) {
-      // Re-render nur diese Zelle - einfach refresh aufrufen
-      this.refresh();
-    }
+    this.refresh();
   }
   
   // Auto-resize für Textareas initialisieren

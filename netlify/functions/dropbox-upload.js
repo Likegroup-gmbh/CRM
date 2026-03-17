@@ -49,9 +49,7 @@ function buildDropboxPath({ unternehmen, marke, kampagne, kooperation, videoTite
   if (kampagne) parts.push(sanitizePath(kampagne));
   if (kooperation) parts.push(sanitizePath(kooperation));
 
-  const origExt = fileName ? fileName.split('.').pop().toLowerCase() : 'mp4';
-  const ext = ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(origExt) ? origExt : 'mp4';
-  const name = `V${versionNumber || 1}_${sanitizePath(videoTitel || 'Video')}.${ext}`;
+  const name = sanitizePath(fileName) || `V${versionNumber || 1}_${sanitizePath(videoTitel || 'Video')}.mp4`;
   parts.push(name);
 
   return parts.join('/');
