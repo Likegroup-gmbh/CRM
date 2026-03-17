@@ -288,6 +288,7 @@ export class VideoUploadDrawer {
       await this.saveAssetVersion(fileUrl, uploadResult.path_display || dropboxPath, description);
 
       if (progressText) progressText.textContent = 'Upload abgeschlossen!';
+      this._isUploading = false;
 
       if (typeof this.onSuccess === 'function') {
         this.onSuccess(fileUrl, uploadResult.path_display || dropboxPath);

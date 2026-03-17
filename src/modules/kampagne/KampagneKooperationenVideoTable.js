@@ -1392,7 +1392,7 @@ export class KampagneKooperationenVideoTable {
       return;
     }
     
-    // Daten neu laden
+    this._dataLoaded = false;
     await this.loadData();
     
     // Tabelle neu rendern
