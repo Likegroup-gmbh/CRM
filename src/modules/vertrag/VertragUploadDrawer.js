@@ -1,3 +1,5 @@
+import { syncVertragCheckbox } from '../../core/VertragSyncHelper.js';
+
 export class VertragUploadDrawer {
   constructor() {
     this.drawerId = 'vertrag-upload-drawer';
@@ -353,6 +355,11 @@ export class VertragUploadDrawer {
       .eq('id', this.vertragId);
 
     if (error) throw error;
+
+    // Vertrag-Checkbox auf Kooperation synchronisieren
+    if (this.kooperationId) {
+      await syncVertragCheckbox(this.kooperationId, true);
+    }
   }
 
   _updateSubmitState() {

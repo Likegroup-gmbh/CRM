@@ -14773,3 +14773,8 @@ table.vertraege-unternehmen-table td:last-child {
   color: var(--warning, #e37400);
   border: 1px solid var(--warning, #e37400);
 }
+.vertrag-cell-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

@@ -10,6 +10,7 @@ import { modularFilterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { UploaderField } from '../../core/form/fields/UploaderField.js';
 import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
+import { syncVertragCheckbox } from '../../core/VertragSyncHelper.js';
 
 export class VertraegeList {
   constructor() {
@@ -1285,6 +1286,12 @@ export class VertraegeList {
 
       if (error) throw error;
 
+      // Vertrag-Checkbox auf Kooperation synchronisieren (nur wenn signed)
+      const hadSigned = vertrag?.unterschriebener_vertrag_url || vertrag?.dropbox_file_url;
+      if (hadSigned && vertrag?.kooperation_id) {
+        await syncVertragCheckbox(vertrag.kooperation_id, false);
+      }
+
       window.toastSystem?.show('Vertrag gelöscht', 'success');
       await this.loadAndRender();
 
@@ -1535,6 +1542,12 @@ export class VertraegeList {
         throw dbError;
       }
 
+      // Vertrag-Checkbox auf Kooperation synchronisieren
+      const vertrag = this.vertraege.find(v => v.id === vertragId);
+      if (vertrag?.kooperation_id) {
+        await syncVertragCheckbox(vertrag.kooperation_id, true);
+      }
+
       console.log('✅ Unterschriebener Vertrag hochgeladen:', path);
       window.toastSystem?.show('Vertrag hochgeladen', 'success');
       await this.reloadData();
@@ -1602,6 +1615,12 @@ export class VertraegeList {
         .eq('id', vertragId);
 
       if (error) throw error;
+
+      // Vertrag-Checkbox auf Kooperation synchronisieren
+      const vertrag = this.vertraege.find(v => v.id === vertragId);
+      if (vertrag?.kooperation_id) {
+        await syncVertragCheckbox(vertrag.kooperation_id, false);
+      }
 
       console.log('✅ Unterschriebener Vertrag entfernt');
       window.toastSystem?.show('Vertrag entfernt', 'success');
