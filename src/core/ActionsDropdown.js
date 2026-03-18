@@ -5,6 +5,7 @@ import { actionRegistry } from './ActionRegistry.js';
 import { iconRegistry } from './actions/IconRegistry.js';
 import { actionBuilder } from './actions/ActionBuilder.js';
 import { KampagneUtils } from '../modules/kampagne/KampagneUtils.js';
+import { deleteVideoFull } from './VideoDeleteHelper.js';
 
 export class ActionsDropdown {
   constructor() {
@@ -1041,9 +1042,26 @@ export class ActionsDropdown {
       case 'video-edit':
         window.navigateTo(`/video/${entityId}`);
         break;
-      case 'video-delete':
-        this.confirmDelete(entityId, 'kooperation_videos');
+      case 'video-delete': {
+        const entityName = 'dieses Video';
+        const message = `Möchten Sie wirklich ${entityName} löschen? Diese Aktion kann nicht rückgängig gemacht werden.`;
+        let proceed = false;
+        if (window.confirmationModal) {
+          const res = await window.confirmationModal.open({ title: 'Löschvorgang bestätigen', message, confirmText: 'Endgültig löschen', cancelText: 'Abbrechen', danger: true });
+          proceed = !!res?.confirmed;
+        } else {
+          proceed = confirm(message);
+        }
+        if (!proceed) break;
+        const result = await deleteVideoFull(entityId);
+        if (result?.success) {
+          window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'kooperation_videos', action: 'deleted', id: entityId } }));
+        } else {
+          console.error('Video-Löschung fehlgeschlagen:', result?.error);
+          alert('Video konnte nicht gelöscht werden: ' + (result?.error || 'Unbekannter Fehler'));
+        }
         break;
+      }
       case 'details':
       case 'auftrag-details':
         console.log('🎯 ACTIONSDROPDOWN: Details-Action wird verarbeitet');

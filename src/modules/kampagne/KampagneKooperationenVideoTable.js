@@ -5,6 +5,7 @@ import { VideoTableRealtimeHandler } from './VideoTableRealtimeHandler.js';
 import { VideoTableUIHelpers } from './VideoTableUIHelpers.js';
 import { VideoUploadDrawer } from './VideoUploadDrawer.js';
 import { VideoSettingsDrawer } from './VideoSettingsDrawer.js';
+import { deleteVideoFile } from '../../core/VideoDeleteHelper.js';
 
 export class KampagneKooperationenVideoTable {
   constructor(kampagneId) {
@@ -86,7 +87,7 @@ export class KampagneKooperationenVideoTable {
       const readOnlyFieldsForKunden = {
         'kooperation': ['vertrag_unterschrieben', 'typ', 'nutzungsrechte'],
         'versand': ['versendet', 'tracking_nummer', 'produkt_name', 'produkt_link'],
-        'video': ['thema', 'link_produkte', 'link_skript', 'skript_freigegeben', 'feedback_creatorjobs', 'caption', 'posting_datum', 'drehort', 'content_art']
+        'video': ['thema', 'link_produkte', 'link_skript', 'skript_freigegeben', 'feedback_creatorjobs', 'caption', 'posting_datum', 'drehort', 'content_art', 'video_name']
       };
       
       return !readOnlyFieldsForKunden[entity]?.includes(field);
@@ -229,17 +230,22 @@ export class KampagneKooperationenVideoTable {
       this._startPerformanceTracking('Query: kooperation_videos');
       this._startPerformanceTracking('Query: creator');
 
-      const [videosResult, creatorsResult] = await Promise.allSettled([
+      const [videosResult, creatorsResult, vertraegeResult] = await Promise.allSettled([
         window.supabase
           .from('kooperation_videos')
-          .select('id, kooperation_id, position, asset_url, content_art, caption, feedback_creatorjobs, feedback_ritzenhoff, freigabe, link_content, link_produkte, thema, link_skript, skript_freigegeben, drehort, posting_datum, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id)')
+          .select('id, kooperation_id, position, asset_url, content_art, caption, feedback_creatorjobs, feedback_ritzenhoff, freigabe, link_content, link_produkte, thema, link_skript, skript_freigegeben, drehort, video_name, posting_datum, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id)')
           .in('kooperation_id', koopIds)
           .order('position', { ascending: true }),
         
         window.supabase
           .from('creator')
           .select('id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt')
-          .in('id', creatorIds)
+          .in('id', creatorIds),
+
+        window.supabase
+          .from('vertraege')
+          .select('id, name, typ, kooperation_id, datei_url, dropbox_file_url, unterschriebener_vertrag_url, is_draft')
+          .in('kooperation_id', koopIds)
       ]);
 
       this._endPerformanceTracking('Query: kooperation_videos', videosResult.status === 'fulfilled', videosResult.reason);
@@ -247,6 +253,7 @@ export class KampagneKooperationenVideoTable {
 
       const allVideos = videosResult.status === 'fulfilled' ? (videosResult.value.data || []) : [];
       const creators = creatorsResult.status === 'fulfilled' ? (creatorsResult.value.data || []) : [];
+      const vertraege = vertraegeResult.status === 'fulfilled' ? (vertraegeResult.value.data || []) : [];
 
       // Creator-Cache aufbauen
       this.creators.clear();
@@ -257,6 +264,7 @@ export class KampagneKooperationenVideoTable {
         if (koop.creator_id) {
           koop.creator = this.creators.get(koop.creator_id) || null;
         }
+        koop._vertraege = vertraege.filter(v => v.kooperation_id === koop.id);
       });
 
       const videoIds = allVideos.map(v => v.id);
@@ -617,6 +625,10 @@ export class KampagneKooperationenVideoTable {
                 Skript freigegeben
                 <div class="resize-handle resize-handle-col" data-col="18"></div>
               </th>
+              <th class="col-header col-video-name" ${!this.isColumnVisibleForCustomer('col-video-name') ? 'style="display:none;"' : ''} data-col="18b">
+                Video-Name
+                <div class="resize-handle resize-handle-col" data-col="18b"></div>
+              </th>
               <th class="col-header col-link-content" ${!this.isColumnVisibleForCustomer('col-link-content') ? 'style="display:none;"' : ''} data-col="19">
                 Content
                 <div class="resize-handle resize-handle-col" data-col="19"></div>
@@ -691,15 +703,7 @@ export class KampagneKooperationenVideoTable {
         </td>
         <!-- col-kosten entfernt -->
         <td class="grid-cell cell-centered" ${!this.isColumnVisibleForCustomer('col-vertrag') ? 'style="display:none;"' : ''}>
-          <input 
-            type="checkbox" 
-            class="grid-checkbox" 
-            data-entity="kooperation" 
-            data-id="${koop.id}" 
-            data-field="vertrag_unterschrieben"
-            ${!this.isFieldEditableForUser('kooperation', 'vertrag_unterschrieben') ? 'disabled' : ''}
-            ${koop.vertrag_unterschrieben ? 'checked' : ''}
-          />
+          ${this._renderVertragCell(koop)}
         </td>
         <td class="grid-cell" ${!this.isColumnVisibleForCustomer('col-nutzungsrechte') ? 'style="display:none;"' : ''}>
           <input 
@@ -843,6 +847,14 @@ export class KampagneKooperationenVideoTable {
             </div>
           `)}
         </td>
+        <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-video-name') ? 'style="display:none;"' : ''}>
+          ${this.renderVideoFieldStack(videos, (video) => `
+            <input type="text" class="grid-input stacked-video-input"
+              data-entity="video" data-id="${video.id}" data-field="video_name"
+              ${!this.isFieldEditableForUser('video', 'video_name') ? 'readonly' : ''}
+              value="${this.escapeHtml(video.video_name || '')}" placeholder="Video-Name"/>
+          `)}
+        </td>
         <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-link-content') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => {
             const videoUrl = video.file_url || video.link_content || video.asset_url;
@@ -970,6 +982,44 @@ export class KampagneKooperationenVideoTable {
     }).join('')}</div>`;
   }
 
+  _renderVertragCell(koop) {
+    const vertraege = koop._vertraege || [];
+    const signed = vertraege.find(v => v.dropbox_file_url || v.unterschriebener_vertrag_url);
+    const draft = vertraege.find(v => v.is_draft);
+    const generated = vertraege.find(v => v.datei_url && !v.is_draft);
+
+    if (signed) {
+      const url = signed.dropbox_file_url || signed.unterschriebener_vertrag_url;
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="vertrag-badge vertrag-badge--signed" title="${this.escapeHtml(signed.name || 'Vertrag')}">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+        </svg>
+        Unterschrieben
+      </a>`;
+    }
+
+    if (generated) {
+      return `<span class="vertrag-badge vertrag-badge--created" title="${this.escapeHtml(generated.name || 'Vertrag')}">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/>
+        </svg>
+        Erstellt
+      </span>`;
+    }
+
+    if (draft) {
+      return `<span class="vertrag-badge vertrag-badge--draft">Entwurf</span>`;
+    }
+
+    if (koop.vertrag_unterschrieben) {
+      return `<input type="checkbox" class="grid-checkbox" data-entity="kooperation" data-id="${koop.id}" data-field="vertrag_unterschrieben"
+        ${!this.isFieldEditableForUser('kooperation', 'vertrag_unterschrieben') ? 'disabled' : ''} checked/>`;
+    }
+
+    return `<input type="checkbox" class="grid-checkbox" data-entity="kooperation" data-id="${koop.id}" data-field="vertrag_unterschrieben"
+      ${!this.isFieldEditableForUser('kooperation', 'vertrag_unterschrieben') ? 'disabled' : ''}/>`;
+  }
+
   // Hilfsfunktion
   escapeHtml(text) {
     if (!text) return '';
@@ -1045,6 +1095,7 @@ export class KampagneKooperationenVideoTable {
       kooperationId,
       kooperationName: koop?.name || 'Kooperation',
       videoTitel: video?.thema || 'Video',
+      videoName: video?.video_name || '',
       unternehmen: this.kampagneInfo?.unternehmen || '',
       marke: this.kampagneInfo?.marke || '',
       kampagne: this.kampagneInfo?.name || ''
@@ -1054,18 +1105,21 @@ export class KampagneKooperationenVideoTable {
     console.log('[Dropbox] koop.name:', koop?.name);
     console.log('[Dropbox] metadaten:', metadaten);
 
-    this._uploadDrawer.open(videoId, metadaten, (fileUrl) => {
-      this._updateContentCellAfterUpload(videoId, kooperationId, fileUrl);
+    this._uploadDrawer.open(videoId, metadaten, (fileUrl, filePath, videoName) => {
+      this._updateContentCellAfterUpload(videoId, kooperationId, fileUrl, videoName);
     });
   }
 
-  _updateContentCellAfterUpload(videoId, kooperationId, fileUrl) {
+  _updateContentCellAfterUpload(videoId, kooperationId, fileUrl, videoName) {
     const videos = this.videos[kooperationId];
     if (videos) {
       const v = videos.find(vid => vid.id === videoId);
       if (v) {
         v.file_url = fileUrl;
         v.link_content = fileUrl;
+        if (videoName !== undefined) {
+          v.video_name = videoName;
+        }
       }
     }
     this.refresh();
@@ -1087,46 +1141,25 @@ export class KampagneKooperationenVideoTable {
       videoUrl,
       filePath,
       videoTitel: video?.thema || 'Video',
+      videoName: video?.video_name || '',
       onReupload: () => {
         this._openUploadDrawer(videoId, kooperationId);
       },
-      onDelete: () => this._executeVideoDelete(videoId, kooperationId, filePath),
+      onDelete: () => this._executeVideoDelete(videoId, kooperationId),
+      onNameUpdated: (newVideoName) => {
+        const targetVideos = this.videos[kooperationId];
+        if (!targetVideos) return;
+        const targetVideo = targetVideos.find(v => v.id === videoId);
+        if (!targetVideo) return;
+        targetVideo.video_name = newVideoName;
+        this.refresh();
+      },
     });
   }
 
-  async _executeVideoDelete(videoId, kooperationId, filePath) {
-    // 1. Dropbox-Datei löschen (über Netlify Function)
-    if (filePath) {
-      const resp = await fetch('/.netlify/functions/dropbox-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath }),
-      });
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(err.error || `Dropbox delete failed (${resp.status})`);
-      }
-      console.log('✅ Dropbox-Datei gelöscht:', filePath);
-    }
+  async _executeVideoDelete(videoId, kooperationId) {
+    await deleteVideoFile(videoId);
 
-    // 2. Asset-Eintrag in Supabase löschen (is_current = true)
-    const { error: assetErr } = await window.supabase
-      .from('kooperation_video_asset')
-      .delete()
-      .eq('video_id', videoId)
-      .eq('is_current', true);
-    if (assetErr) console.warn('Asset-Delete fehlgeschlagen:', assetErr);
-
-    // 3. file_url und link_content im Video auf null setzen
-    const { error: videoErr } = await window.supabase
-      .from('kooperation_videos')
-      .update({ file_url: null, link_content: null })
-      .eq('id', videoId);
-    if (videoErr) throw videoErr;
-
-    console.log('✅ Video-Eintrag bereinigt:', videoId);
-
-    // 4. Lokalen State updaten + Tabelle neu rendern
     const videos = this.videos[kooperationId];
     if (videos) {
       const v = videos.find(vid => vid.id === videoId);

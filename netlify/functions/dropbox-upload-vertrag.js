@@ -1,13 +1,13 @@
 const { getAccessToken, sanitizePath } = require('./_shared/dropbox');
 
-function buildDropboxPath({ unternehmen, marke, kampagne, kooperation, videoTitel, versionNumber, fileName }) {
-  const parts = ['/Videos'];
+function buildVertragPath({ unternehmen, kampagne, creator, vertragstyp, fileName }) {
+  const parts = ['/Vertraege'];
   if (unternehmen) parts.push(sanitizePath(unternehmen));
-  if (marke) parts.push(sanitizePath(marke));
   if (kampagne) parts.push(sanitizePath(kampagne));
-  if (kooperation) parts.push(sanitizePath(kooperation));
+  if (creator) parts.push(sanitizePath(creator));
+  if (vertragstyp) parts.push(sanitizePath(vertragstyp));
 
-  const name = sanitizePath(fileName) || `V${versionNumber || 1}_${sanitizePath(videoTitel || 'Video')}.mp4`;
+  const name = sanitizePath(fileName) || `Vertrag_${Date.now()}.pdf`;
   parts.push(name);
 
   return parts.join('/');
@@ -31,21 +31,19 @@ exports.handler = async (event) => {
   try {
     const fields = JSON.parse(event.body || '{}');
 
-    console.log('dropbox-upload fields:', JSON.stringify(fields));
+    console.log('dropbox-upload-vertrag fields:', JSON.stringify(fields));
 
     const token = await getAccessToken();
 
-    const dropboxPath = buildDropboxPath({
+    const dropboxPath = buildVertragPath({
       unternehmen: fields.unternehmen,
-      marke: fields.marke,
       kampagne: fields.kampagne,
-      kooperation: fields.kooperation,
-      videoTitel: fields.videoTitel,
-      versionNumber: fields.versionNumber,
+      creator: fields.creator,
+      vertragstyp: fields.vertragstyp,
       fileName: fields.fileName,
     });
 
-    console.log('dropbox-upload path:', dropboxPath);
+    console.log('dropbox-upload-vertrag path:', dropboxPath);
 
     return {
       statusCode: 200,
@@ -53,7 +51,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({ token, dropboxPath }),
     };
   } catch (err) {
-    console.error('dropbox-upload error:', err);
+    console.error('dropbox-upload-vertrag error:', err);
     return {
       statusCode: 500,
       headers: { ...headers, 'Content-Type': 'application/json' },

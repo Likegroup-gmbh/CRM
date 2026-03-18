@@ -374,6 +374,7 @@ export class VertraegeCreate {
     this.filteredKampagnen = [];  // Gefiltert nach Kunde
     this.creators = [];
     this.filteredCreators = [];   // Gefiltert nach Kampagne (via Kooperationen)
+    this.filteredKooperationen = []; // Kooperationen der gewählten Kampagne
     this.kundeAuftraegePo = [];   // PO-Nummern aus Aufträgen des Kunden
     this.isGenerated = false;
     this.editId = null; // ID wenn Draft bearbeitet wird
@@ -722,6 +723,7 @@ export class VertraegeCreate {
     this.formData = {};
     this.filteredKampagnen = [];
     this.filteredCreators = [];
+    this.filteredKooperationen = [];
     this.kundeAuftraegePo = [];
     this.isGenerated = false;
     this.editId = null;
@@ -1093,6 +1095,8 @@ export class VertraegeCreate {
           <div id="creator-adresse" class="address-preview"></div>
         </div>
 
+        ${this.renderKooperationSelect()}
+
         <h3 class="mt-section">Influencer-Vertretung</h3>
         
         <div class="form-field">
@@ -1231,6 +1235,56 @@ export class VertraegeCreate {
     }
   }
 
+  updateKooperationField() {
+    const field = document.getElementById('kooperation-field');
+    const select = document.getElementById('kooperation_id');
+    if (!field || !select) return;
+
+    this.formData.kooperation_id = null;
+
+    const koopForCreator = this.filteredKooperationen.filter(
+      k => k.creator_id === this.formData.creator_id
+    );
+
+    if (!this.formData.creator_id || koopForCreator.length === 0) {
+      field.style.display = 'none';
+      select.innerHTML = '<option value="">Kooperation auswählen (optional)...</option>';
+      return;
+    }
+
+    field.style.display = '';
+    select.innerHTML = `
+      <option value="">Kooperation auswählen (optional)...</option>
+      ${koopForCreator.map(k => `<option value="${k.id}">${k.name || k.id}</option>`).join('')}
+    `;
+
+    if (koopForCreator.length === 1) {
+      select.value = koopForCreator[0].id;
+      this.formData.kooperation_id = koopForCreator[0].id;
+    }
+  }
+
+  renderKooperationSelect() {
+    const koopForCreator = this.filteredKooperationen.filter(
+      k => k.creator_id === this.formData.creator_id
+    );
+    const showField = this.formData.creator_id && koopForCreator.length > 0;
+
+    return `
+      <div class="form-field" id="kooperation-field" style="${showField ? '' : 'display:none'}">
+        <label for="kooperation_id">Kooperation</label>
+        <select id="kooperation_id" name="kooperation_id">
+          <option value="">Kooperation auswählen (optional)...</option>
+          ${koopForCreator.map(k => `
+            <option value="${k.id}" ${this.formData.kooperation_id === k.id ? 'selected' : ''}>
+              ${k.name || k.id}
+            </option>
+          `).join('')}
+        </select>
+      </div>
+    `;
+  }
+
   // Vertragsname automatisch generieren: Typ + Kampagne + Creator
   generateVertragName() {
     const typ = this.formData.typ || this.selectedTyp || '';
@@ -1269,15 +1323,17 @@ export class VertraegeCreate {
   async updateFilteredCreators() {
     if (!this.formData.kampagne_id) {
       this.filteredCreators = [];
+      this.filteredKooperationen = [];
       return;
     }
 
     try {
-      // Lade Creator die über kooperationen mit der Kampagne verknüpft sind
       const { data: kooperationen } = await window.supabase
         .from('kooperationen')
-        .select('creator_id')
+        .select('id, creator_id, name')
         .eq('kampagne_id', this.formData.kampagne_id);
+
+      this.filteredKooperationen = kooperationen || [];
 
       if (kooperationen && kooperationen.length > 0) {
         const creatorIds = [...new Set(kooperationen.map(k => k.creator_id))];
@@ -1288,6 +1344,7 @@ export class VertraegeCreate {
     } catch (error) {
       console.error('❌ Fehler beim Filtern der Creator:', error);
       this.filteredCreators = [];
+      this.filteredKooperationen = [];
     }
   }
 
@@ -1621,6 +1678,8 @@ export class VertraegeCreate {
           </select>
           <div id="creator-adresse" class="address-preview"></div>
         </div>
+
+        ${this.renderKooperationSelect()}
 
         <h3 class="mt-section">Influencer-Vertretung</h3>
         
@@ -2193,6 +2252,8 @@ export class VertraegeCreate {
           <div id="creator-adresse" class="address-preview"></div>
         </div>
 
+        ${this.renderKooperationSelect()}
+
         <div class="form-two-col">
           <div class="form-field">
             <label for="influencer_steuer_id">Steuer-ID / USt-ID</label>
@@ -2576,6 +2637,8 @@ export class VertraegeCreate {
           </select>
           <div id="creator-adresse" class="address-preview"></div>
         </div>
+
+        ${this.renderKooperationSelect()}
 
         <div class="form-two-col">
           <div class="form-field">
@@ -3338,6 +3401,7 @@ export class VertraegeCreate {
       kunde_unternehmen_id: this.formData.kunde_unternehmen_id || null,
       kampagne_id: this.formData.kampagne_id || null,
       creator_id: this.formData.creator_id || null,
+      kooperation_id: this.formData.kooperation_id || null,
       anzahl_storys: parseInt(this.formData.anzahl_storys) || 0,
       medien: this.formData.medien || [],
       nutzungsdauer: this.formData.nutzungsdauer || null,
@@ -3483,6 +3547,13 @@ export class VertraegeCreate {
 
   // Dynamische Feld-Events (Exklusivität, Zusatzkosten Toggle, Influencer-spezifisch)
   bindDynamicFieldEvents() {
+    const kooperationSelect = document.getElementById('kooperation_id');
+    if (kooperationSelect) {
+      kooperationSelect.addEventListener('change', (e) => {
+        this.formData.kooperation_id = e.target.value || null;
+      });
+    }
+
     // Exklusivität Toggle
     const exklusivitaetCheckbox = document.getElementById('exklusivitaet');
     const exklusivitaetWrapper = document.getElementById('exklusivitaet-monate-wrapper');
@@ -4078,6 +4149,8 @@ export class VertraegeCreate {
           // Profile zurücksetzen wenn kein Creator
           this.formData.influencer_profile = [];
         }
+
+        this.updateKooperationField();
         
         // Vertragsname automatisch generieren
         this.generateVertragName();
@@ -4269,6 +4342,8 @@ export class VertraegeCreate {
         // Profile zurücksetzen wenn kein Creator
         this.formData.influencer_profile = [];
       }
+
+      this.updateKooperationField();
     });
   }
 

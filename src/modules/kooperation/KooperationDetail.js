@@ -8,6 +8,7 @@ import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
+import { deleteVideoFull } from '../../core/VideoDeleteHelper.js';
 
 export class KooperationDetail extends PersonDetailBase {
   constructor() {
@@ -930,11 +931,8 @@ export class KooperationDetail extends PersonDetailBase {
         e.preventDefault();
         if (!confirm('Video wirklich löschen?')) return;
         try {
-          const { error } = await window.supabase
-            .from('kooperation_videos')
-            .delete()
-            .eq('id', videoId);
-          if (error) throw error;
+          const result = await deleteVideoFull(videoId);
+          if (!result.success) throw new Error(result.error);
           tabDataCache.invalidate('kooperation', this.kooperationId);
           await this.loadVideos();
           this.updateVideosTab();

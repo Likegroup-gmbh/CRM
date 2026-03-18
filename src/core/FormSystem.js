@@ -10,6 +10,7 @@ import { DynamicDataLoader } from './form/data/DynamicDataLoader.js';
 import { OptionsManager } from './form/data/OptionsManager.js';
 // Neue Architektur
 import { SmartFormInitializer } from './form/initialization/SmartFormInitializer.js';
+import { deleteVideoFull } from './VideoDeleteHelper.js';
 
 export class FormSystem {
   constructor() {
@@ -655,18 +656,16 @@ export class FormSystem {
       console.log(`✅ ${updatePromises.length} bestehende Videos aktualisiert`);
     }
 
-    // Überzählige Videos von hinten entfernen
     if (currentCount > videoanzahl) {
       const toRemove = existingVideos.slice(videoanzahl).map(v => v.id);
-      const { error: delErr } = await window.supabase
-        .from('kooperation_videos')
-        .delete()
-        .in('id', toRemove);
-
-      if (delErr) {
-        console.error('❌ Fehler beim Entfernen überzähliger Videos:', delErr);
+      const results = await Promise.allSettled(
+        toRemove.map(id => deleteVideoFull(id))
+      );
+      const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value?.success));
+      if (failed.length > 0) {
+        console.error(`❌ ${failed.length} von ${toRemove.length} Videos konnten nicht vollständig gelöscht werden`);
       } else {
-        console.log(`✅ ${toRemove.length} überzählige Videos entfernt`);
+        console.log(`✅ ${toRemove.length} überzählige Videos entfernt (inkl. Dropbox + Assets)`);
       }
     }
 

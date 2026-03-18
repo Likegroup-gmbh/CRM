@@ -14582,12 +14582,16 @@ table.vertraege-unternehmen-table td:last-child {
 }
 .file-remove-btn:hover { color: var(--text-muted); }
 
-.upload-description-field label {
-  display: block;
-  font-size: var(--text-13);
-  font-weight: 500;
-  color: var(--text-secondary);
-  margin-bottom: var(--space-xxs);
+.video-upload-name-field {
+  gap: var(--space-xs);
+}
+
+.video-upload-name-input {
+  width: 100%;
+}
+
+.video-settings-name-input {
+  width: 100%;
 }
 
 .upload-progress-container { margin-top: var(--space-xxs); }
@@ -14622,14 +14626,14 @@ table.vertraege-unternehmen-table td:last-child {
 
 /* Upload-Button in der Link-Content Spalte */
 .video-upload-btn {
-  display: inline-flex; align-items: center; gap: 4px;
-  background: var(--primary, #2563eb); color: white;
-  border: none; border-radius: 6px; padding: 4px 10px;
-  font-size: 12px; font-weight: 500; cursor: pointer;
+  display: inline-flex; align-items: center; gap: var(--space-xs);
+  background: var(--gray-900); color: var(--gray-100);
+  border: none; border-radius: var(--radius-xl); padding: var(--space-xs);
+  font-size: var(--text-sm); font-weight: 500; cursor: pointer;
   transition: background 0.15s;
 }
-.video-upload-btn:hover { background: var(--primary-dark, #1d4ed8); }
-.video-upload-btn svg { width: 14px; height: 14px; }
+.video-upload-btn:hover { background: var(--gray-800); }
+.video-upload-btn svg { width: var(--icon-xs); height: var(--icon-xs); }
 
 .video-reupload-btn {
   display: inline-flex; align-items: center;
@@ -14736,4 +14740,36 @@ table.vertraege-unternehmen-table td:last-child {
   .video-settings-actions {
     flex-direction: column;
   }
+}
+
+/* === Vertrag Badges (Kooperationen-Tabelle) === */
+.vertrag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm, 4px);
+  font-size: var(--text-12, 12px);
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.vertrag-badge--signed {
+  background: var(--success-bg, #e6f9f0);
+  color: var(--success, #0a8754);
+  border: 1px solid var(--success, #0a8754);
+}
+.vertrag-badge--signed:hover {
+  background: var(--success, #0a8754);
+  color: #fff;
+}
+.vertrag-badge--created {
+  background: var(--info-bg, #e8f0fe);
+  color: var(--info, #1a73e8);
+  border: 1px solid var(--info, #1a73e8);
+}
+.vertrag-badge--draft {
+  background: var(--warning-bg, #fef7e0);
+  color: var(--warning, #e37400);
+  border: 1px solid var(--warning, #e37400);
 }

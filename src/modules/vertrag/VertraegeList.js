@@ -482,6 +482,9 @@ export class VertraegeList {
           datei_path,
           unterschriebener_vertrag_url,
           unterschriebener_vertrag_path,
+          dropbox_file_url,
+          dropbox_file_path,
+          kooperation_id,
           created_at,
           kunde_unternehmen_id,
           kampagne_id,
@@ -637,20 +640,31 @@ export class VertraegeList {
           </a>`
         : '<span class="text-muted">—</span>';
 
-      // Unterschriebener Vertrag Icon (externes Link-Icon, Bearbeiten im Aktionsmenü)
-      const unterschriebenHtml = vertrag.unterschriebener_vertrag_url
-        ? `<a href="${escapeHtml(vertrag.unterschriebener_vertrag_url)}" target="_blank" class="signed-link" title="Unterschriebenen Vertrag öffnen">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+      const signedUrl = vertrag.dropbox_file_url || vertrag.unterschriebener_vertrag_url;
+      let unterschriebenHtml;
+      if (signedUrl) {
+        unterschriebenHtml = `<a href="${escapeHtml(signedUrl)}" target="_blank" class="vertrag-badge vertrag-badge--signed" title="Unterschriebenen Vertrag öffnen">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
             </svg>
-          </a>`
-        : (canEdit 
-          ? `<button class="btn-add-signed" data-id="${vertrag.id}" title="Link hinzufügen">
+            Öffnen
+          </a>`;
+      } else if (canEdit && vertrag.datei_url && !vertrag.is_draft) {
+        unterschriebenHtml = `<button class="btn-upload-signed" data-id="${vertrag.id}" title="Unterschriebenen Vertrag hochladen">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/>
+              </svg>
+              Hochladen
+            </button>`;
+      } else if (canEdit) {
+        unterschriebenHtml = `<button class="btn-add-signed" data-id="${vertrag.id}" title="Link hinzufügen">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
               </svg>
-            </button>`
-          : '<span class="text-muted">—</span>');
+            </button>`;
+      } else {
+        unterschriebenHtml = '<span class="text-muted">—</span>';
+      }
 
       const statusBadge = vertrag.is_draft
         ? '<span class="status-badge status-draft">Entwurf</span>'
@@ -1239,10 +1253,29 @@ export class VertraegeList {
 
     try {
       const vertrag = this.vertraege.find(v => v.id === id);
+
       if (vertrag?.datei_path) {
         await window.supabase.storage
           .from('vertraege')
           .remove([vertrag.datei_path]);
+      }
+
+      if (vertrag?.unterschriebener_vertrag_path) {
+        await window.supabase.storage
+          .from('unterschriebene-vertraege')
+          .remove([vertrag.unterschriebener_vertrag_path]);
+      }
+
+      if (vertrag?.dropbox_file_path) {
+        try {
+          await fetch('/.netlify/functions/dropbox-delete-vertrag', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filePath: vertrag.dropbox_file_path })
+          });
+        } catch (dbxErr) {
+          console.warn('Dropbox-Löschung fehlgeschlagen (wird ignoriert):', dbxErr);
+        }
       }
 
       const { error } = await window.supabase
@@ -1530,16 +1563,13 @@ export class VertraegeList {
         throw new Error('Supabase nicht verfügbar');
       }
 
-      // Zuerst Storage-Pfad aus DB holen
       const { data } = await window.supabase
         .from('vertraege')
-        .select('unterschriebener_vertrag_path')
+        .select('unterschriebener_vertrag_path, dropbox_file_path')
         .eq('id', vertragId)
         .single();
 
-      // Datei aus Storage löschen
       if (data?.unterschriebener_vertrag_path) {
-        console.log('🗑️ Lösche Datei aus Storage:', data.unterschriebener_vertrag_path);
         const { error: storageError } = await window.supabase.storage
           .from('unterschriebene-vertraege')
           .remove([data.unterschriebener_vertrag_path]);
@@ -1549,12 +1579,25 @@ export class VertraegeList {
         }
       }
 
-      // DB-Felder leeren
+      if (data?.dropbox_file_path) {
+        try {
+          await fetch('/.netlify/functions/dropbox-delete-vertrag', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filePath: data.dropbox_file_path })
+          });
+        } catch (dbxErr) {
+          console.warn('Dropbox-Löschung fehlgeschlagen (wird ignoriert):', dbxErr);
+        }
+      }
+
       const { error } = await window.supabase
         .from('vertraege')
         .update({ 
           unterschriebener_vertrag_url: null,
-          unterschriebener_vertrag_path: null 
+          unterschriebener_vertrag_path: null,
+          dropbox_file_url: null,
+          dropbox_file_path: null
         })
         .eq('id', vertragId);
 
@@ -1582,6 +1625,31 @@ export class VertraegeList {
         if (result.action === 'save' && result.file) {
           await this.saveSignedContract(vertragId, result.file);
         }
+      };
+      btn.addEventListener('click', handler);
+      this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
+    });
+
+    document.querySelectorAll('.btn-upload-signed').forEach(btn => {
+      const handler = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const vertragId = btn.dataset.id;
+        const vertrag = this.vertraege?.find(v => v.id === vertragId);
+        if (!vertrag) return;
+
+        const { VertragUploadDrawer } = await import('./VertragUploadDrawer.js');
+        const drawer = new VertragUploadDrawer();
+        drawer.open(vertragId, {
+          kooperationId: vertrag.kooperation_id,
+          unternehmen: vertrag.kunde?.firmenname || this.currentUnternehmenName || '',
+          kampagne: vertrag.kampagne?.kampagnenname || vertrag.kampagne?.eigener_name || '',
+          creator: vertrag.creator ? `${vertrag.creator.vorname || ''} ${vertrag.creator.nachname || ''}`.trim() : '',
+          vertragstyp: vertrag.typ || ''
+        }, () => {
+          window.toastSystem?.show('Vertrag erfolgreich hochgeladen', 'success');
+          this.reloadData();
+        });
       };
       btn.addEventListener('click', handler);
       this._boundEventListeners.add(() => btn.removeEventListener('click', handler));

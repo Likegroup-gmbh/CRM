@@ -1,11 +1,7 @@
-// VideoUploadDrawer.js
-// Drawer zum Upload von Videos nach Dropbox (Netlify Function)
-// Nutzt bestehendes Drawer-Pattern (overlay + panel + header + body)
-
-export class VideoUploadDrawer {
+export class VertragUploadDrawer {
   constructor() {
-    this.drawerId = 'video-upload-drawer';
-    this.videoId = null;
+    this.drawerId = 'vertrag-upload-drawer';
+    this.vertragId = null;
     this.kooperationId = null;
     this.metadaten = null;
     this.onSuccess = null;
@@ -14,14 +10,14 @@ export class VideoUploadDrawer {
   }
 
   /**
-   * @param {string} videoId - ID des kooperation_videos Eintrags
-   * @param {object} metadaten - { kooperationId, kooperationName, videoTitel, videoName, unternehmen, marke, kampagne }
-   * @param {function} onSuccess - Callback nach erfolgreichem Upload (fileUrl, filePath, videoName)
+   * @param {string} vertragId - ID des Vertrags in der vertraege-Tabelle
+   * @param {object} metadaten - { kooperationId, unternehmen, kampagne, creator, vertragstyp }
+   * @param {function} onSuccess - Callback (fileUrl, filePath)
    */
-  open(videoId, metadaten, onSuccess) {
-    this.videoId = videoId;
-    this.kooperationId = metadaten.kooperationId;
-    this.metadaten = metadaten;
+  open(vertragId, metadaten, onSuccess) {
+    this.vertragId = vertragId;
+    this.kooperationId = metadaten?.kooperationId || null;
+    this.metadaten = metadaten || {};
     this.onSuccess = onSuccess;
     this._selectedFile = null;
     this._isUploading = false;
@@ -49,8 +45,7 @@ export class VideoUploadDrawer {
     const headerLeft = document.createElement('div');
     const title = document.createElement('span');
     title.className = 'drawer-title';
-    title.textContent = 'Video hochladen';
-
+    title.textContent = 'Unterschriebenen Vertrag hochladen';
     headerLeft.appendChild(title);
 
     const headerRight = document.createElement('div');
@@ -74,9 +69,7 @@ export class VideoUploadDrawer {
     document.body.appendChild(overlay);
     document.body.appendChild(panel);
 
-    requestAnimationFrame(() => {
-      panel.classList.add('show');
-    });
+    requestAnimationFrame(() => panel.classList.add('show'));
   }
 
   renderForm() {
@@ -85,42 +78,37 @@ export class VideoUploadDrawer {
 
     body.innerHTML = `
       <div class="video-upload-drawer-content">
-        <div class="upload-dropzone" id="video-upload-dropzone">
+        <div class="upload-dropzone" id="vertrag-upload-dropzone">
           <div class="dropzone-content">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="40" height="40" class="upload-dropzone-icon">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/>
             </svg>
-            <p class="dropzone-text">Video hierher ziehen oder <button type="button" class="dropzone-browse-btn">Datei auswählen</button></p>
-            <p class="dropzone-hint">MP4, MOV, AVI, MKV – max. 500 MB</p>
+            <p class="dropzone-text">PDF hierher ziehen oder <button type="button" class="dropzone-browse-btn">Datei auswählen</button></p>
+            <p class="dropzone-hint">PDF – max. 25 MB</p>
           </div>
-          <input type="file" id="video-upload-file-input" accept="video/*,.mp4,.mov,.avi,.mkv,.webm" style="display:none"/>
+          <input type="file" id="vertrag-upload-file-input" accept=".pdf,application/pdf" style="display:none"/>
         </div>
 
-        <div class="upload-file-preview" id="video-upload-preview" style="display:none;">
+        <div class="upload-file-preview" id="vertrag-upload-preview" style="display:none;">
           <div class="file-info">
-            <span class="file-name" id="video-upload-filename"></span>
-            <span class="file-size" id="video-upload-filesize"></span>
+            <span class="file-name" id="vertrag-upload-filename"></span>
+            <span class="file-size" id="vertrag-upload-filesize"></span>
           </div>
-          <button type="button" class="file-remove-btn" id="video-upload-remove" title="Datei entfernen">&times;</button>
+          <button type="button" class="file-remove-btn" id="vertrag-upload-remove" title="Datei entfernen">&times;</button>
         </div>
 
-        <div class="upload-progress-container" id="video-upload-progress" style="display:none;">
+        <div class="upload-progress-container" id="vertrag-upload-progress" style="display:none;">
           <div class="upload-progress-bar">
-            <div class="upload-progress-fill" id="video-upload-progress-fill" style="width:0%"></div>
+            <div class="upload-progress-fill" id="vertrag-upload-progress-fill" style="width:0%"></div>
           </div>
-          <div class="upload-progress-text" id="video-upload-progress-text">Wird hochgeladen... 0%</div>
+          <div class="upload-progress-text" id="vertrag-upload-progress-text">Wird hochgeladen... 0%</div>
         </div>
 
-        <div class="video-settings-section video-upload-name-field">
-          <label class="video-settings-label" for="video-upload-name">Video-Name</label>
-          <input type="text" id="video-upload-name" class="form-input video-upload-name-input" value="${this.escapeHtml(this.metadaten?.videoName || '')}" placeholder="Video-Name" maxlength="255"/>
-        </div>
-
-        <div class="upload-error-msg" id="video-upload-error" style="display:none;"></div>
+        <div class="upload-error-msg" id="vertrag-upload-error" style="display:none;"></div>
 
         <div class="drawer-footer video-upload-drawer-footer">
-          <button type="button" class="mdc-btn mdc-btn--cancel" id="video-upload-cancel-btn">Abbrechen</button>
-          <button type="button" class="mdc-btn mdc-btn--primary" id="video-upload-submit-btn" disabled>
+          <button type="button" class="mdc-btn mdc-btn--cancel" id="vertrag-upload-cancel-btn">Abbrechen</button>
+          <button type="button" class="mdc-btn mdc-btn--primary" id="vertrag-upload-submit-btn" disabled>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/>
             </svg>
@@ -135,13 +123,12 @@ export class VideoUploadDrawer {
     const overlay = document.getElementById(`${this.drawerId}-overlay`);
     const panel = document.getElementById(this.drawerId);
     const closeBtn = panel?.querySelector('.drawer-close-btn');
-    const cancelBtn = document.getElementById('video-upload-cancel-btn');
-    const submitBtn = document.getElementById('video-upload-submit-btn');
-    const dropzone = document.getElementById('video-upload-dropzone');
-    const fileInput = document.getElementById('video-upload-file-input');
+    const cancelBtn = document.getElementById('vertrag-upload-cancel-btn');
+    const submitBtn = document.getElementById('vertrag-upload-submit-btn');
+    const dropzone = document.getElementById('vertrag-upload-dropzone');
+    const fileInput = document.getElementById('vertrag-upload-file-input');
     const browseBtn = panel?.querySelector('.dropzone-browse-btn');
-    const removeBtn = document.getElementById('video-upload-remove');
-    const nameInput = document.getElementById('video-upload-name');
+    const removeBtn = document.getElementById('vertrag-upload-remove');
 
     overlay?.addEventListener('click', () => this.close());
     closeBtn?.addEventListener('click', () => this.close());
@@ -156,15 +143,12 @@ export class VideoUploadDrawer {
       if (e.target.files?.[0]) this.selectFile(e.target.files[0]);
     });
     removeBtn?.addEventListener('click', () => this.clearFile());
-    nameInput?.addEventListener('input', () => this._updateSubmitButtonState());
 
     dropzone?.addEventListener('dragover', (e) => {
       e.preventDefault();
       dropzone.classList.add('dragover');
     });
-    dropzone?.addEventListener('dragleave', () => {
-      dropzone.classList.remove('dragover');
-    });
+    dropzone?.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
     dropzone?.addEventListener('drop', (e) => {
       e.preventDefault();
       dropzone.classList.remove('dragover');
@@ -172,86 +156,73 @@ export class VideoUploadDrawer {
       if (file) this.selectFile(file);
     });
 
-    this._updateSubmitButtonState();
+    this._updateSubmitState();
   }
 
   selectFile(file) {
-    const maxSize = 500 * 1024 * 1024;
+    const maxSize = 25 * 1024 * 1024;
     if (file.size > maxSize) {
-      this.showError(`Datei zu groß (${(file.size / 1024 / 1024).toFixed(1)} MB). Max. 500 MB.`);
+      this.showError(`Datei zu groß (${(file.size / 1024 / 1024).toFixed(1)} MB). Max. 25 MB.`);
       return;
     }
 
-    const allowed = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska', 'video/webm'];
-    if (!allowed.includes(file.type) && !file.name.match(/\.(mp4|mov|avi|mkv|webm)$/i)) {
-      this.showError('Bitte eine Videodatei auswählen (MP4, MOV, AVI, MKV, WebM).');
+    if (file.type !== 'application/pdf' && !file.name.match(/\.pdf$/i)) {
+      this.showError('Bitte eine PDF-Datei auswählen.');
       return;
     }
 
     this._selectedFile = file;
     this.hideError();
 
-    const dropzone = document.getElementById('video-upload-dropzone');
-    const preview = document.getElementById('video-upload-preview');
-    const nameEl = document.getElementById('video-upload-filename');
-    const sizeEl = document.getElementById('video-upload-filesize');
+    const dropzone = document.getElementById('vertrag-upload-dropzone');
+    const preview = document.getElementById('vertrag-upload-preview');
+    const nameEl = document.getElementById('vertrag-upload-filename');
+    const sizeEl = document.getElementById('vertrag-upload-filesize');
+
     if (dropzone) dropzone.style.display = 'none';
     if (preview) preview.style.display = 'flex';
     if (nameEl) nameEl.textContent = file.name;
     if (sizeEl) sizeEl.textContent = `${(file.size / 1024 / 1024).toFixed(1)} MB`;
-    this._updateSubmitButtonState();
+    this._updateSubmitState();
   }
 
   clearFile() {
     this._selectedFile = null;
-    const dropzone = document.getElementById('video-upload-dropzone');
-    const preview = document.getElementById('video-upload-preview');
-    const fileInput = document.getElementById('video-upload-file-input');
+    const dropzone = document.getElementById('vertrag-upload-dropzone');
+    const preview = document.getElementById('vertrag-upload-preview');
+    const fileInput = document.getElementById('vertrag-upload-file-input');
 
     if (dropzone) dropzone.style.display = '';
     if (preview) preview.style.display = 'none';
     if (fileInput) fileInput.value = '';
-    this._updateSubmitButtonState();
+    this._updateSubmitState();
   }
 
   async handleUpload() {
     if (!this._selectedFile || this._isUploading) return;
     this._isUploading = true;
 
-    const submitBtn = document.getElementById('video-upload-submit-btn');
-    const cancelBtn = document.getElementById('video-upload-cancel-btn');
-    const progressContainer = document.getElementById('video-upload-progress');
-    const progressFill = document.getElementById('video-upload-progress-fill');
-    const progressText = document.getElementById('video-upload-progress-text');
+    const submitBtn = document.getElementById('vertrag-upload-submit-btn');
+    const cancelBtn = document.getElementById('vertrag-upload-cancel-btn');
+    const progressContainer = document.getElementById('vertrag-upload-progress');
+    const progressFill = document.getElementById('vertrag-upload-progress-fill');
+    const progressText = document.getElementById('vertrag-upload-progress-text');
 
     if (submitBtn) submitBtn.disabled = true;
     if (cancelBtn) cancelBtn.disabled = true;
     if (progressContainer) progressContainer.style.display = 'block';
     this.hideError();
 
-    const videoName = (document.getElementById('video-upload-name')?.value || '').trim();
-    if (!videoName) {
-      this.showError('Bitte gib einen Video-Namen ein.');
-      if (submitBtn) submitBtn.disabled = false;
-      if (cancelBtn) cancelBtn.disabled = false;
-      if (progressContainer) progressContainer.style.display = 'none';
-      this._isUploading = false;
-      return;
-    }
-
     try {
-      // Schritt 1: Token + Pfad von Netlify Function holen (kein File, nur JSON)
       if (progressText) progressText.textContent = 'Verbinde mit Dropbox...';
-      const tokenResp = await fetch('/.netlify/functions/dropbox-upload', {
+      const tokenResp = await fetch('/.netlify/functions/dropbox-upload-vertrag', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           unternehmen: this.metadaten.unternehmen || '',
-          marke: this.metadaten.marke || '',
           kampagne: this.metadaten.kampagne || '',
-          kooperation: this.metadaten.kooperationName || '',
-          videoTitel: this.metadaten.videoTitel || 'Video',
-          versionNumber: '1',
+          creator: this.metadaten.creator || '',
+          vertragstyp: this.metadaten.vertragstyp || '',
           fileName: this._selectedFile.name
         })
       });
@@ -263,33 +234,32 @@ export class VideoUploadDrawer {
 
       const { token, dropboxPath } = await tokenResp.json();
 
-      // Schritt 2: Direkt-Upload an Dropbox API (kein Size-Limit)
       if (progressText) progressText.textContent = 'Lade hoch nach Dropbox...';
       const uploadResult = await this._uploadToDropbox(token, dropboxPath, progressFill, progressText);
 
-      // Schritt 3: Shared Link erstellen
       if (progressFill) progressFill.style.width = '95%';
       if (progressText) progressText.textContent = 'Erstelle Link...';
       const sharedLink = await this._createSharedLink(token, uploadResult.path_display || dropboxPath);
 
-      // Schritt 4: In Supabase speichern
       if (progressFill) progressFill.style.width = '100%';
       if (progressText) progressText.textContent = 'Speichere in Datenbank...';
 
       const fileUrl = sharedLink || uploadResult.path_display || dropboxPath;
-      await this.saveAssetVersion(fileUrl, uploadResult.path_display || dropboxPath, videoName);
+      const filePath = uploadResult.path_display || dropboxPath;
+
+      await this._saveToDb(fileUrl, filePath);
 
       if (progressText) progressText.textContent = 'Upload abgeschlossen!';
       this._isUploading = false;
 
       if (typeof this.onSuccess === 'function') {
-        this.onSuccess(fileUrl, uploadResult.path_display || dropboxPath, videoName);
+        this.onSuccess(fileUrl, filePath);
       }
 
       setTimeout(() => this.close(), 800);
 
     } catch (err) {
-      console.error('Video-Upload fehlgeschlagen:', err);
+      console.error('Vertrag-Upload fehlgeschlagen:', err);
       this.showError(err.message || 'Upload fehlgeschlagen');
       if (submitBtn) submitBtn.disabled = false;
       if (cancelBtn) cancelBtn.disabled = false;
@@ -298,10 +268,6 @@ export class VideoUploadDrawer {
   }
 
   _uploadToDropbox(token, dropboxPath, progressFill, progressText) {
-    console.log('[Dropbox Upload] Path:', dropboxPath);
-    console.log('[Dropbox Upload] Token prefix:', token?.substring(0, 10) + '...');
-    console.log('[Dropbox Upload] File size:', this._selectedFile?.size, 'bytes');
-
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', 'https://content.dropboxapi.com/2/files/upload');
@@ -327,15 +293,13 @@ export class VideoUploadDrawer {
           try { resolve(JSON.parse(xhr.responseText)); }
           catch { reject(new Error('Ungültige Dropbox-Antwort')); }
         } else {
-          const errBody = xhr.responseText || '(kein Response-Body)';
-          console.error(`Dropbox Upload Fehler ${xhr.status}:`, errBody);
-          reject(new Error(`Dropbox Upload fehlgeschlagen (${xhr.status}): ${errBody}`));
+          reject(new Error(`Dropbox Upload fehlgeschlagen (${xhr.status})`));
         }
       });
 
       xhr.addEventListener('error', () => reject(new Error('Netzwerkfehler beim Dropbox-Upload')));
       xhr.addEventListener('timeout', () => reject(new Error('Dropbox Upload Timeout')));
-      xhr.timeout = 600000;
+      xhr.timeout = 300000;
       xhr.send(this._selectedFile);
     });
   }
@@ -358,7 +322,6 @@ export class VideoUploadDrawer {
       return data.url?.replace('?dl=0', '?raw=1') || null;
     }
 
-    // 409 = Link existiert bereits
     if (resp.status === 409) {
       const listResp = await fetch('https://api.dropboxapi.com/2/sharing/list_shared_links', {
         method: 'POST',
@@ -374,69 +337,45 @@ export class VideoUploadDrawer {
     return null;
   }
 
-  async saveAssetVersion(fileUrl, filePath, videoName) {
-    // Alte Versionen als nicht-aktuell markieren
-    await window.supabase
-      .from('kooperation_video_asset')
-      .update({ is_current: false })
-      .eq('video_id', this.videoId);
+  async _saveToDb(fileUrl, filePath) {
+    const updateData = {
+      dropbox_file_url: fileUrl,
+      dropbox_file_path: filePath
+    };
+
+    if (this.kooperationId) {
+      updateData.kooperation_id = this.kooperationId;
+    }
 
     const { error } = await window.supabase
-      .from('kooperation_video_asset')
-      .insert({
-        video_id: this.videoId,
-        file_url: fileUrl,
-        file_path: filePath,
-        version_number: 1,
-        is_current: true,
-        description: null,
-        uploaded_by: window.currentUser?.id || null,
-        created_at: new Date().toISOString()
-      });
+      .from('vertraege')
+      .update(updateData)
+      .eq('id', this.vertragId);
+
     if (error) throw error;
-
-    await window.supabase
-      .from('kooperation_videos')
-      .update({ link_content: fileUrl, video_name: videoName || null })
-      .eq('id', this.videoId);
   }
 
-  escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str || '';
-    return div.innerHTML;
-  }
-
-  _updateSubmitButtonState() {
-    const submitBtn = document.getElementById('video-upload-submit-btn');
-    const nameInput = document.getElementById('video-upload-name');
-    if (!submitBtn) return;
-    const hasFile = Boolean(this._selectedFile);
-    const hasVideoName = Boolean(nameInput?.value?.trim());
-    submitBtn.disabled = this._isUploading || !hasFile || !hasVideoName;
-  }
-
-  showError(msg) {
-    const el = document.getElementById('video-upload-error');
-    if (el) {
-      el.textContent = msg;
-      el.style.display = 'block';
+  _updateSubmitState() {
+    const submitBtn = document.getElementById('vertrag-upload-submit-btn');
+    if (submitBtn) {
+      submitBtn.disabled = this._isUploading || !this._selectedFile;
     }
   }
 
+  showError(msg) {
+    const el = document.getElementById('vertrag-upload-error');
+    if (el) { el.textContent = msg; el.style.display = 'block'; }
+  }
+
   hideError() {
-    const el = document.getElementById('video-upload-error');
+    const el = document.getElementById('vertrag-upload-error');
     if (el) el.style.display = 'none';
   }
 
   close() {
     if (this._isUploading) return;
-
-    const overlay = document.getElementById(`${this.drawerId}-overlay`);
     const panel = document.getElementById(this.drawerId);
-
     panel?.classList.remove('show');
-
     setTimeout(() => this.removeDrawer(), 300);
   }
 

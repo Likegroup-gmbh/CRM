@@ -28,7 +28,7 @@ exports.handler = async (event) => {
       };
     }
 
-    console.log('dropbox-delete filePath:', filePath);
+    console.log('dropbox-delete-vertrag filePath:', filePath);
 
     const token = await getAccessToken();
 
@@ -44,7 +44,7 @@ exports.handler = async (event) => {
     if (!resp.ok) {
       const text = await resp.text();
       if (resp.status === 409 && text.includes('not_found')) {
-        console.log('dropbox-delete: file already gone, treating as success');
+        console.log('dropbox-delete-vertrag: file already gone, treating as success');
         return {
           statusCode: 200,
           headers: { ...headers, 'Content-Type': 'application/json' },
@@ -60,7 +60,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({ success: true }),
     };
   } catch (err) {
-    console.error('dropbox-delete error:', err);
+    console.error('dropbox-delete-vertrag error:', err);
     return {
       statusCode: 500,
       headers: { ...headers, 'Content-Type': 'application/json' },

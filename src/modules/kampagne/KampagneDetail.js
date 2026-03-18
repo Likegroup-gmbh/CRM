@@ -353,22 +353,37 @@ export class KampagneDetail {
     }
 
     const fDate = (d) => d ? new Date(d).toLocaleDateString('de-DE') : '-';
-    const getStatusLabel = (isDraft) => isDraft ? 'Entwurf' : 'Final';
-    const getStatusClass = (isDraft) => isDraft ? 'draft' : 'aktiv';
     const canViewViaPage = window.canViewPage?.('creator');
     const canViewViaPerm = window.currentUser?.permissions?.creator?.can_view;
     const canViewCreator = canViewViaPage !== false && canViewViaPerm !== false;
 
+    const getVertragStatus = (v) => {
+      if (v.dropbox_file_url || v.unterschriebener_vertrag_url) return { label: 'Unterschrieben', cls: 'signed' };
+      if (v.is_draft) return { label: 'Entwurf', cls: 'draft' };
+      if (v.datei_url) return { label: 'Erstellt', cls: 'aktiv' };
+      return { label: 'Kein Vertrag', cls: 'inactive' };
+    };
+
     const rows = this.vertraege.map(v => {
       const creatorName = v.creator ? `${v.creator.vorname || ''} ${v.creator.nachname || ''}`.trim() : '-';
+      const status = getVertragStatus(v);
+      const signedUrl = v.dropbox_file_url || v.unterschriebener_vertrag_url;
+      const koopName = v.kooperation?.name || '-';
       
       return `
         <tr>
           <td><a href="/vertraege/${v.id}" onclick="event.preventDefault(); window.navigateTo('/vertraege/${v.id}')">${window.validatorSystem.sanitizeHtml(v.name || '—')}</a></td>
           <td>${window.validatorSystem.sanitizeHtml(v.typ || '-')}</td>
-          <td><span class="status-badge status-${getStatusClass(v.is_draft)}">${getStatusLabel(v.is_draft)}</span></td>
+          <td><span class="status-badge status-${status.cls}">${status.label}</span></td>
           <td>${v.creator ? (canViewCreator ? `<a href="/creator/${v.creator.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${v.creator.id}')">${window.validatorSystem.sanitizeHtml(creatorName)}</a>` : window.validatorSystem.sanitizeHtml(creatorName)) : '-'}</td>
+          <td>${window.validatorSystem.sanitizeHtml(koopName)}</td>
           <td>${v.datei_url ? `<a href="${v.datei_url}" target="_blank" rel="noopener">PDF</a>` : '-'}</td>
+          <td>${signedUrl
+            ? `<a href="${signedUrl}" target="_blank" rel="noopener" class="vertrag-badge vertrag-badge--signed">Öffnen</a>`
+            : (v.datei_url && !v.is_draft
+              ? `<button class="mdc-btn mdc-btn--small vertrag-upload-btn" data-vertrag-id="${v.id}">Hochladen</button>`
+              : '-')
+          }</td>
           <td>${fDate(v.created_at)}</td>
         </tr>
       `;
@@ -383,7 +398,9 @@ export class KampagneDetail {
               <th>Typ</th>
               <th>Status</th>
               <th>Creator</th>
-              <th>Datei</th>
+              <th>Kooperation</th>
+              <th>Generiert</th>
+              <th>Unterschrieben</th>
               <th>Erstellt am</th>
             </tr>
           </thead>
@@ -853,8 +870,11 @@ export class KampagneDetail {
             const { data } = await window.supabase
               .from('vertraege')
               .select(`
-                id, name, typ, is_draft, datei_url, datei_path, created_at,
-                creator:creator_id(id, vorname, nachname)
+                id, name, typ, is_draft, datei_url, datei_path,
+                dropbox_file_url, dropbox_file_path, kooperation_id,
+                unterschriebener_vertrag_url, created_at,
+                creator:creator_id(id, vorname, nachname),
+                kooperation:kooperation_id(id, name)
               `)
               .eq('kampagne_id', this.kampagneId)
               .order('created_at', { ascending: false });
@@ -2348,9 +2368,30 @@ export class KampagneDetail {
     const container = document.querySelector('#tab-vertraege .detail-section');
     if (container) {
       container.innerHTML = this.renderVertraege();
-      // Tab-Count aktualisieren
       const btn = document.querySelector('.tab-button[data-tab="vertraege"] .tab-count');
       if (btn) btn.textContent = String(this.vertraege.length);
+
+      container.querySelectorAll('.vertrag-upload-btn').forEach(uploadBtn => {
+        uploadBtn.addEventListener('click', async () => {
+          const vertragId = uploadBtn.dataset.vertragId;
+          const vertrag = this.vertraege.find(v => v.id === vertragId);
+          if (!vertrag) return;
+
+          const { VertragUploadDrawer } = await import('../vertrag/VertragUploadDrawer.js');
+          const drawer = new VertragUploadDrawer();
+          drawer.open(vertragId, {
+            kooperationId: vertrag.kooperation_id,
+            unternehmen: this.kampagneData?.unternehmen?.firmenname || '',
+            kampagne: this.kampagneData?.kampagnenname || this.kampagneData?.eigener_name || '',
+            creator: vertrag.creator ? `${vertrag.creator.vorname || ''} ${vertrag.creator.nachname || ''}`.trim() : '',
+            vertragstyp: vertrag.typ || ''
+          }, () => {
+            this.vertraege = null;
+            this.loadTabData('vertraege');
+            window.toastSystem?.show('Vertrag erfolgreich hochgeladen', 'success');
+          });
+        });
+      });
     }
   }
 
