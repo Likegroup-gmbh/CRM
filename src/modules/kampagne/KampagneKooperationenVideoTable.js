@@ -4,6 +4,7 @@ import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { VideoTableRealtimeHandler } from './VideoTableRealtimeHandler.js';
 import { VideoTableUIHelpers } from './VideoTableUIHelpers.js';
 import { VideoUploadDrawer } from './VideoUploadDrawer.js';
+import { VideoSettingsDrawer } from './VideoSettingsDrawer.js';
 
 export class KampagneKooperationenVideoTable {
   constructor(kampagneId) {
@@ -47,6 +48,7 @@ export class KampagneKooperationenVideoTable {
     this.realtimeHandler = new VideoTableRealtimeHandler(this);
     this.uiHelpers = new VideoTableUIHelpers(this);
     this._uploadDrawer = new VideoUploadDrawer();
+    this._settingsDrawer = new VideoSettingsDrawer();
   }
 
   getCurrentUserRole() {
@@ -844,6 +846,7 @@ export class KampagneKooperationenVideoTable {
         <td class="grid-cell video-stack-cell" ${!this.isColumnVisibleForCustomer('col-link-content') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => {
             const videoUrl = video.file_url || video.link_content || video.asset_url;
+            const isKunde = this.isKundeRole();
             if (videoUrl) {
               return `<div class="content-cell-actions">
                 <a href="${videoUrl}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Video in neuem Tab öffnen">
@@ -851,10 +854,17 @@ export class KampagneKooperationenVideoTable {
                     <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
                   </svg>
                 </a>
-                <button type="button" class="video-reupload-btn video-upload-btn" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Neues Video hochladen">↑</button>
-                <button type="button" class="video-delete-btn" data-video-id="${video.id}" data-kooperation-id="${koop.id}" data-file-path="${video.currentAsset?.file_path || ''}" title="Video löschen">✕</button>
+                ${!isKunde ? `<button type="button" class="video-settings-btn" data-video-id="${video.id}" data-kooperation-id="${koop.id}" data-file-path="${video.currentAsset?.file_path || ''}" data-video-url="${videoUrl}" title="Video verwalten">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281Z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                  </svg>
+                </button>` : ''}
               </div>`;
             } else {
+              if (isKunde) {
+                return `<span class="no-content-placeholder">—</span>`;
+              }
               return `<button type="button" class="video-upload-btn" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Video hochladen">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/></svg>
                 Upload
@@ -1010,12 +1020,12 @@ export class KampagneKooperationenVideoTable {
       }
     });
 
-    // Video-Delete-Button Click
+    // Video-Settings-Button Click (Gear-Icon)
     container.addEventListener('click', (e) => {
-      const deleteBtn = e.target.closest('.video-delete-btn');
-      if (deleteBtn) {
+      const settingsBtn = e.target.closest('.video-settings-btn');
+      if (settingsBtn) {
         e.preventDefault();
-        this._handleVideoDelete(deleteBtn);
+        this._openSettingsDrawer(settingsBtn);
       }
     });
 
@@ -1061,66 +1071,72 @@ export class KampagneKooperationenVideoTable {
     this.refresh();
   }
 
-  async _handleVideoDelete(btn) {
+  _openSettingsDrawer(btn) {
     const videoId = btn.dataset.videoId;
     const kooperationId = btn.dataset.kooperationId;
-    const filePath = btn.dataset.filePath;
+    const filePath = btn.dataset.filePath || '';
+    const videoUrl = btn.dataset.videoUrl || '';
 
-    if (!confirm('Video wirklich löschen? Die Datei wird aus Dropbox und der Datenbank entfernt.')) return;
+    const koop = this.kooperationen.find(k => k.id === kooperationId);
+    const videos = this.videos[kooperationId] || [];
+    const video = videos.find(v => v.id === videoId);
 
-    btn.disabled = true;
-    btn.textContent = '…';
+    this._settingsDrawer.open({
+      videoId,
+      kooperationId,
+      videoUrl,
+      filePath,
+      videoTitel: video?.thema || 'Video',
+      onReupload: () => {
+        this._openUploadDrawer(videoId, kooperationId);
+      },
+      onDelete: () => this._executeVideoDelete(videoId, kooperationId, filePath),
+    });
+  }
 
-    try {
-      // 1. Dropbox-Datei löschen (über Netlify Function)
-      if (filePath) {
-        const resp = await fetch('/.netlify/functions/dropbox-delete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filePath }),
-        });
-        if (!resp.ok) {
-          const err = await resp.json().catch(() => ({}));
-          throw new Error(err.error || `Dropbox delete failed (${resp.status})`);
-        }
-        console.log('✅ Dropbox-Datei gelöscht:', filePath);
+  async _executeVideoDelete(videoId, kooperationId, filePath) {
+    // 1. Dropbox-Datei löschen (über Netlify Function)
+    if (filePath) {
+      const resp = await fetch('/.netlify/functions/dropbox-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || `Dropbox delete failed (${resp.status})`);
       }
-
-      // 2. Asset-Eintrag in Supabase löschen (is_current = true)
-      const { error: assetErr } = await window.supabase
-        .from('kooperation_video_asset')
-        .delete()
-        .eq('video_id', videoId)
-        .eq('is_current', true);
-      if (assetErr) console.warn('Asset-Delete fehlgeschlagen:', assetErr);
-
-      // 3. file_url und link_content im Video auf null setzen
-      const { error: videoErr } = await window.supabase
-        .from('kooperation_videos')
-        .update({ file_url: null, link_content: null })
-        .eq('id', videoId);
-      if (videoErr) throw videoErr;
-
-      console.log('✅ Video-Eintrag bereinigt:', videoId);
-
-      // 4. Lokalen State updaten + Tabelle neu rendern
-      const videos = this.videos[kooperationId];
-      if (videos) {
-        const v = videos.find(vid => vid.id === videoId);
-        if (v) {
-          v.file_url = null;
-          v.link_content = null;
-          v.currentAsset = null;
-        }
-      }
-      this.refresh();
-
-    } catch (err) {
-      console.error('Video-Delete fehlgeschlagen:', err);
-      alert('Löschen fehlgeschlagen: ' + (err.message || 'Unbekannter Fehler'));
-      btn.disabled = false;
-      btn.textContent = '✕';
+      console.log('✅ Dropbox-Datei gelöscht:', filePath);
     }
+
+    // 2. Asset-Eintrag in Supabase löschen (is_current = true)
+    const { error: assetErr } = await window.supabase
+      .from('kooperation_video_asset')
+      .delete()
+      .eq('video_id', videoId)
+      .eq('is_current', true);
+    if (assetErr) console.warn('Asset-Delete fehlgeschlagen:', assetErr);
+
+    // 3. file_url und link_content im Video auf null setzen
+    const { error: videoErr } = await window.supabase
+      .from('kooperation_videos')
+      .update({ file_url: null, link_content: null })
+      .eq('id', videoId);
+    if (videoErr) throw videoErr;
+
+    console.log('✅ Video-Eintrag bereinigt:', videoId);
+
+    // 4. Lokalen State updaten + Tabelle neu rendern
+    const videos = this.videos[kooperationId];
+    if (videos) {
+      const v = videos.find(vid => vid.id === videoId);
+      if (v) {
+        v.file_url = null;
+        v.link_content = null;
+        v.currentAsset = null;
+      }
+    }
+    this.refresh();
   }
 
   // Auto-resize für Textareas initialisieren

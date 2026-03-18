@@ -51,12 +51,7 @@ export class VideoUploadDrawer {
     title.className = 'drawer-title';
     title.textContent = 'Video hochladen';
 
-    const subtitle = document.createElement('p');
-    subtitle.className = 'drawer-subtitle';
-    subtitle.textContent = this.metadaten.videoTitel || 'Datei nach Dropbox hochladen';
-
     headerLeft.appendChild(title);
-    headerLeft.appendChild(subtitle);
 
     const headerRight = document.createElement('div');
     const closeBtn = document.createElement('button');
@@ -88,23 +83,11 @@ export class VideoUploadDrawer {
     const body = document.getElementById(`${this.drawerId}-body`);
     if (!body) return;
 
-    const pfadSegmente = [
-      this.metadaten.unternehmen,
-      this.metadaten.marke,
-      this.metadaten.kampagne,
-      this.metadaten.kooperationName
-    ].filter(Boolean);
-
     body.innerHTML = `
       <div class="video-upload-drawer-content">
-        <div class="dropbox-path-info">
-          <span class="label">Dropbox-Pfad:</span>
-          <span class="path">Videos/${pfadSegmente.join('/')}/</span>
-        </div>
-
         <div class="upload-dropzone" id="video-upload-dropzone">
           <div class="dropzone-content">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="40" height="40" style="color:#6b7280;">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="40" height="40" class="upload-dropzone-icon">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/>
             </svg>
             <p class="dropzone-text">Video hierher ziehen oder <button type="button" class="dropzone-browse-btn">Datei auswählen</button></p>
@@ -121,11 +104,6 @@ export class VideoUploadDrawer {
           <button type="button" class="file-remove-btn" id="video-upload-remove" title="Datei entfernen">&times;</button>
         </div>
 
-        <div class="upload-description-field">
-          <label for="video-upload-description">Beschreibung (optional)</label>
-          <input type="text" id="video-upload-description" class="grid-input" placeholder="z.B. Version 2, mit Musik"/>
-        </div>
-
         <div class="upload-progress-container" id="video-upload-progress" style="display:none;">
           <div class="upload-progress-bar">
             <div class="upload-progress-fill" id="video-upload-progress-fill" style="width:0%"></div>
@@ -135,7 +113,7 @@ export class VideoUploadDrawer {
 
         <div class="upload-error-msg" id="video-upload-error" style="display:none;"></div>
 
-        <div class="drawer-footer" style="padding:16px 0 0;">
+        <div class="drawer-footer video-upload-drawer-footer">
           <button type="button" class="mdc-btn mdc-btn--cancel" id="video-upload-cancel-btn">Abbrechen</button>
           <button type="button" class="mdc-btn mdc-btn--primary" id="video-upload-submit-btn" disabled>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
