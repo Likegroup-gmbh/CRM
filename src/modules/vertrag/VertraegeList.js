@@ -644,21 +644,21 @@ export class VertraegeList {
       const signedUrl = vertrag.dropbox_file_url || vertrag.unterschriebener_vertrag_url;
       let unterschriebenHtml;
       if (signedUrl) {
-        unterschriebenHtml = `<a href="${escapeHtml(signedUrl)}" target="_blank" class="vertrag-badge vertrag-badge--signed" title="Unterschriebenen Vertrag öffnen">
+        unterschriebenHtml = `<a href="${escapeHtml(signedUrl)}" target="_blank" class="contract-signed-action contract-signed-action--open" title="Unterschriebenen Vertrag öffnen">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
             </svg>
             Öffnen
           </a>`;
       } else if (canEdit && vertrag.datei_url && !vertrag.is_draft) {
-        unterschriebenHtml = `<button class="btn-upload-signed" data-id="${vertrag.id}" title="Unterschriebenen Vertrag hochladen">
+        unterschriebenHtml = `<button type="button" class="contract-signed-action contract-signed-action--upload" data-id="${vertrag.id}" title="Unterschriebenen Vertrag hochladen">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/>
               </svg>
               Hochladen
             </button>`;
       } else if (canEdit) {
-        unterschriebenHtml = `<button class="btn-add-signed" data-id="${vertrag.id}" title="Link hinzufügen">
+        unterschriebenHtml = `<button type="button" class="contract-signed-action contract-signed-action--add" data-id="${vertrag.id}" title="Link hinzufügen">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
               </svg>
@@ -1635,7 +1635,7 @@ export class VertraegeList {
 
   // Event Handler für Signed Contract Buttons (nur Add-Button in der Tabelle)
   bindSignedContractEvents() {
-    document.querySelectorAll('.btn-add-signed').forEach(btn => {
+    document.querySelectorAll('.contract-signed-action--add').forEach(btn => {
       const handler = async (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -1649,7 +1649,7 @@ export class VertraegeList {
       this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
     });
 
-    document.querySelectorAll('.btn-upload-signed').forEach(btn => {
+    document.querySelectorAll('.contract-signed-action--upload').forEach(btn => {
       const handler = async (e) => {
         e.preventDefault();
         e.stopPropagation();

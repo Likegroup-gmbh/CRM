@@ -379,9 +379,9 @@ export class KampagneDetail {
           <td>${window.validatorSystem.sanitizeHtml(koopName)}</td>
           <td>${v.datei_url ? `<a href="${v.datei_url}" target="_blank" rel="noopener">PDF</a>` : '-'}</td>
           <td>${signedUrl
-            ? `<a href="${signedUrl}" target="_blank" rel="noopener" class="vertrag-badge vertrag-badge--signed">Öffnen</a>`
+            ? `<a href="${signedUrl}" target="_blank" rel="noopener" class="contract-signed-action contract-signed-action--open"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>Öffnen</a>`
             : (v.datei_url && !v.is_draft
-              ? `<button class="mdc-btn mdc-btn--small vertrag-upload-btn" data-vertrag-id="${v.id}">Hochladen</button>`
+              ? `<button type="button" class="contract-signed-action contract-signed-action--upload" data-vertrag-id="${v.id}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/></svg>Hochladen</button>`
               : '-')
           }</td>
           <td>${fDate(v.created_at)}</td>
@@ -2371,7 +2371,7 @@ export class KampagneDetail {
       const btn = document.querySelector('.tab-button[data-tab="vertraege"] .tab-count');
       if (btn) btn.textContent = String(this.vertraege.length);
 
-      container.querySelectorAll('.vertrag-upload-btn').forEach(uploadBtn => {
+      container.querySelectorAll('.contract-signed-action--upload').forEach(uploadBtn => {
         uploadBtn.addEventListener('click', async () => {
           const vertragId = uploadBtn.dataset.vertragId;
           const vertrag = this.vertraege.find(v => v.id === vertragId);

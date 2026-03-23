@@ -104,7 +104,7 @@ describe('VertragSyncHelper', () => {
       expect(html).toContain('disabled');
       expect(html).toContain('checked');
       expect(html).toContain('href="https://dropbox.com/signed.pdf"');
-      expect(html).toContain('vertrag-badge--signed');
+      expect(html).toContain('contract-signed-action--open');
     });
 
     it('rendert nur leere disabled Checkbox ohne Badge wenn kein Vertrag existiert', () => {
