@@ -32,7 +32,7 @@ export class KundenKooperationDetail {
   async load() {
     try {
       const [{ data: koop }, { data: uploads }, { data: videos }] = await Promise.all([
-        window.supabase.from('kooperationen').select('id, name, status, kampagne:kampagne_id(kampagnenname, eigener_name)').eq('id', this.koopId).single(),
+        window.supabase.from('kooperationen').select('id, name, kampagne:kampagne_id(kampagnenname, eigener_name)').eq('id', this.koopId).single(),
         window.supabase.from('kooperation_uploads').select('id, filename, filetype, filesize, created_at, storage_path').eq('kooperation_id', this.koopId).order('created_at', { ascending: false }),
         window.supabase.from('kooperation_videos').select('id, titel, content_art, status, position, created_at').eq('kooperation_id', this.koopId).order('position', { ascending: true })
       ]);

@@ -168,11 +168,11 @@ export class AuftragsdetailsDetail {
         .select(`
           id,
           name,
-          status,
           videoanzahl,
           einkaufspreis_netto,
           einkaufspreis_gesamt,
-          content_art,
+          verkaufspreis_netto,
+          verkaufspreis_gesamt,
           kampagne_id,
           creator:creator_id (
             id,
@@ -197,7 +197,7 @@ export class AuftragsdetailsDetail {
         const koopIds = this.kooperationen.map(k => k.id);
         const { data: videos, error: videoError } = await window.supabase
           .from('kooperation_videos')
-          .select('id, titel, thema, content_art, kooperation_id, link_content, asset_url')
+          .select('id, titel, thema, content_art, kooperation_id, link_content, asset_url, einkaufspreis_netto, verkaufspreis_netto')
           .in('kooperation_id', koopIds);
 
         if (videoError) throw videoError;
@@ -226,9 +226,9 @@ export class AuftragsdetailsDetail {
       0
     );
     
-    // Verbrauchtes Budget = Summe aller einkaufspreis_netto
-    this.budgetSummary.usedBudget = this.kooperationen.reduce((sum, koop) => {
-      return sum + (parseFloat(koop.einkaufspreis_netto) || 0);
+    // Verbrauchtes Budget = Summe aller Video-EK-Netto
+    this.budgetSummary.usedBudget = (this.videos || []).reduce((sum, v) => {
+      return sum + (parseFloat(v.einkaufspreis_netto) || 0);
     }, 0);
     
     // Gesamtanzahl Videos = Summe aller videoanzahl aus Kooperationen
@@ -248,6 +248,10 @@ export class AuftragsdetailsDetail {
     this.budgetSummary.avgCostPerCreator = this.budgetSummary.totalCreators > 0
       ? this.budgetSummary.usedBudget / this.budgetSummary.totalCreators
       : 0;
+
+    this.budgetSummary.usedVkBudget = (this.videos || []).reduce((sum, v) => {
+      return sum + (parseFloat(v.verkaufspreis_netto) || 0);
+    }, 0);
 
     console.log('✅ AUFTRAGSDETAILSDETAIL: Budget-Zusammenfassung berechnet:', this.budgetSummary);
   }
@@ -298,19 +302,23 @@ export class AuftragsdetailsDetail {
               <div class="summary-label">PO intern</div>
               <div class="summary-value">${sanitize(this.auftrag?.po) || '-'}</div>
             </div>
+            ${isAdmin ? `
             <div class="summary-card">
               <div class="summary-label">Durchschn. Kosten / Creator</div>
               <div class="summary-value">${formatCurrency(this.budgetSummary.avgCostPerCreator)}</div>
             </div>
-            ${isAdmin ? `
             <div class="summary-card">
-              <div class="summary-label">Budget verbraucht (Netto)</div>
-              <div class="summary-value">${formatCurrency(this.budgetSummary.usedBudget)} von ${formatCurrency(this.budgetSummary.totalBudget)}</div>
+              <div class="summary-label">VK Netto / Budget</div>
+              <div class="summary-value">${formatCurrency(this.budgetSummary.usedVkBudget)} von ${formatCurrency(this.budgetSummary.totalBudget)}</div>
               <div class="summary-progress">
                 <div class="summary-progress-fill ${this.getBudgetProgressColorClass()}" 
                      style="width: ${this.getBudgetProgressPercentage()}%">
                 </div>
               </div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">Marge</div>
+              <div class="summary-value">${formatCurrency(this.budgetSummary.totalBudget - this.budgetSummary.usedVkBudget)}</div>
             </div>
             ` : ''}
           </div>
@@ -557,13 +565,15 @@ export class AuftragsdetailsDetail {
         videoRows.push({
           creatorName,
           creatorId,
-          kategorie: koop.content_art || '-',
+          kategorie: '-',
           videoTitel: '-',
           videoLink: null,
           kooperationId: koop.id,
           kooperationName: koop.name || 'Kooperation',
           kampagneId: kampagne?.id,
-          kampagneName: kampagne?.kampagnenname || '-'
+          kampagneName: kampagne?.kampagnenname || '-',
+          ekNetto: koop.einkaufspreis_netto,
+          vkNetto: koop.verkaufspreis_netto
         });
       } else {
         koopVideos.forEach(video => {
@@ -571,14 +581,16 @@ export class AuftragsdetailsDetail {
           videoRows.push({
             creatorName,
             creatorId,
-            kategorie: video.content_art || koop.content_art || '-',
+            kategorie: video.content_art || '-',
             videoTitel: video.titel || video.thema || 'Video',
             videoLink,
             kooperationId: koop.id,
             kooperationName: koop.name || 'Kooperation',
             videoId: video.id,
             kampagneId: kampagne?.id,
-            kampagneName: kampagne?.kampagnenname || '-'
+            kampagneName: kampagne?.kampagnenname || '-',
+            ekNetto: video.einkaufspreis_netto,
+            vkNetto: video.verkaufspreis_netto
           });
         });
       }
@@ -595,6 +607,11 @@ export class AuftragsdetailsDetail {
         </div>
       `;
     }
+
+    const formatCurrency = (v) => {
+      if (v === null || v === undefined) return '-';
+      return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v);
+    };
 
     const rowsHtml = videoRows.map(row => {
       const videoLinkHtml = row.videoLink 
@@ -624,6 +641,8 @@ export class AuftragsdetailsDetail {
           <td>${creatorLinkHtml}</td>
           <td>${kampagneLinkHtml}</td>
           <td>${window.validatorSystem.sanitizeHtml(row.kategorie)}</td>
+          <td class="text-right">${formatCurrency(row.ekNetto)}</td>
+          <td class="text-right">${formatCurrency(row.vkNetto)}</td>
           <td>${videoTitelHtml}</td>
           <td>${videoLinkHtml}</td>
         </tr>
@@ -640,6 +659,8 @@ export class AuftragsdetailsDetail {
                 <th>Creator</th>
                 <th>Kampagne</th>
                 <th>Kategorie</th>
+                <th class="text-right">EK Netto</th>
+                <th class="text-right">VK Netto</th>
                 <th>Video</th>
                 <th>Link</th>
               </tr>
@@ -680,7 +701,7 @@ export class AuftragsdetailsDetail {
   // Berechne Budget Progress-Prozentsatz
   getBudgetProgressPercentage() {
     if (this.budgetSummary.totalBudget <= 0) return 0;
-    return Math.min(100, Math.round((this.budgetSummary.usedBudget / this.budgetSummary.totalBudget) * 100));
+    return Math.min(100, Math.round((this.budgetSummary.usedVkBudget / this.budgetSummary.totalBudget) * 100));
   }
 
   // Bestimme Farbe für Budget Progress-Bar

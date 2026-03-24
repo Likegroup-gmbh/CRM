@@ -613,9 +613,7 @@ export class FormConfig {
           { name: 'name', label: 'Name', type: 'text', required: true, validation: { type: 'text', minLength: 2 }, autoGenerate: true, readonly: true, placeholder: 'Wird automatisch generiert...', section: 'zuordnung' },
 
           // Sektion 2: Content
-          { name: 'content_art', label: 'Content Art', type: 'select', required: true, options: CONTENT_ART_OPTIONS, section: 'content', sectionTitle: 'Content' },
-          { name: 'skript_autor', label: 'Skript schreibt', type: 'select', required: false, options: ['Brand', 'Creator', 'Agentur'], section: 'content' },
-          { name: 'videoanzahl', label: 'Video Anzahl', type: 'number', required: false, validation: { type: 'number', min: 1 }, section: 'content' },
+          { name: 'videoanzahl', label: 'Video Anzahl', type: 'number', required: false, validation: { type: 'number', min: 1 }, section: 'content', sectionTitle: 'Content' },
           { name: 'videos', label: 'Videos', type: 'custom', customType: 'videos', options: CONTENT_ART_OPTIONS, section: 'content' },
 
           // Sektion 3: Preise -- Einkauf
@@ -630,15 +628,9 @@ export class FormConfig {
           { name: 'verkaufspreis_ust', label: 'VK USt (19%)', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['verkaufspreis_netto', 'verkaufspreis_zusatzkosten'], row: 'vk2', colSize: 'grow', section: 'preise' },
           { name: 'verkaufspreis_gesamt', label: 'VK Gesamt', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['verkaufspreis_netto', 'verkaufspreis_zusatzkosten', 'verkaufspreis_ust'], row: 'vk2', colSize: 'grow', section: 'preise' },
 
-          // Sektion 4: Vertrag & Deadlines
-          { name: 'vertrag_unterschrieben', label: 'Vertrag unterschrieben', type: 'checkbox', required: false, section: 'vertrag', sectionTitle: 'Vertrag & Deadlines' },
-          { name: 'vertrag_link', label: 'Vertrag Link', type: 'url', required: false, validation: { type: 'url' }, section: 'vertrag' },
-          { name: 'skript_deadline', label: 'Skript Deadline', type: 'date', required: false, section: 'vertrag' },
-          { name: 'skript_link', label: 'Skript Link', type: 'url', required: false, validation: { type: 'url' }, section: 'vertrag' },
-          { name: 'content_deadline', label: 'Content Deadline', type: 'date', required: false, section: 'vertrag' },
-
-          // Sektion 5: Status
-          { name: 'status', label: 'Status', type: 'select', required: true, options: ['Todo', 'In progress', 'Done'], section: 'status', sectionTitle: 'Status' }
+          // Sektion 4: Deadlines
+          { name: 'skript_deadline', label: 'Skript Deadline', type: 'date', required: false, section: 'vertrag', sectionTitle: 'Deadlines' },
+          { name: 'content_deadline', label: 'Content Deadline', type: 'date', required: false, section: 'vertrag' }
         ]
       },
       ansprechpartner: {

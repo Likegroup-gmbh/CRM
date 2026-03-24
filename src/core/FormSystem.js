@@ -546,7 +546,7 @@ export class FormSystem {
       const videoanzahl = parseInt(form.querySelector('[name="videoanzahl"]')?.value || '0', 10);
       if (videoanzahl <= 0) return;
 
-      const contentArtFallback = form.querySelector('[name="content_art"]')?.value || null;
+      const contentArtFallback = null;
       const isEditMode = !!form.dataset.entityId;
 
       const manualRows = this._collectStepperVideos(kooperationId, form);

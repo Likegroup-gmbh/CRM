@@ -6,6 +6,7 @@ import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
+import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 
 export class RechnungList {
   constructor() {
@@ -66,14 +67,15 @@ export class RechnungList {
       }
     });
     
-    // Kampagne-Link in Tabelle
+    // Tabellen-Links in Rechnungstabelle
     document.addEventListener('click', (e) => {
-      const link = e.target.closest('.table-link[data-table="kampagne"]');
+      const link = e.target.closest('.table-link[data-table][data-id]');
       if (!link) return;
       e.preventDefault();
-      const kampagneId = link.dataset.id;
-      if (kampagneId) {
-        window.navigateTo(`/kampagne/${kampagneId}`);
+      const table = link.dataset.table;
+      const id = link.dataset.id;
+      if (table && id) {
+        window.navigateTo(`/${table}/${id}`);
       }
     });
   }
@@ -331,6 +333,18 @@ export class RechnungList {
     }
   }
 
+  renderCreatedBy(user) {
+    if (!user || !user.name) return '-';
+    const items = [{
+      name: user.name,
+      type: 'person',
+      id: user.id,
+      entityType: 'mitarbeiter',
+      profile_image_url: user.profile_image_url
+    }];
+    return avatarBubbles.renderBubbles(items);
+  }
+
   async render() {
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
     
@@ -355,32 +369,33 @@ export class RechnungList {
       </div>
 
       <div class="data-table-container rechnung-table-container">
-        <table class="data-table">
+        <table class="data-table data-table--nowrap data-table--rechnung">
           <thead>
             <tr>
               ${isAdmin ? `<th class="col-checkbox"><input type="checkbox" id="select-all-rechnungen"></th>` : ''}
               <th class="col-name">Rechnungsname</th>
-              <th>PO-Nummer</th>
-              <th>Erstellt am</th>
-              <th>Unternehmen</th>
-              <th>Auftrag</th>
-              <th>Kampagne</th>
-              <th>Land</th>
-              <th>Creator</th>
-              <th>Gestellt am</th>
-              <th>Zahlungsziel</th>
-              <th>Nettobetrag</th>
-              <th>Videos</th>
-              <th>Preis/Video</th>
-              <th>Bruttobetrag</th>
-              <th>Beleg</th>
-              <th>Status</th>
+              <th class="col-auftrag">Auftrag</th>
+              <th class="col-po">PO-Nummer</th>
+              <th class="col-created-at">Erstellt am</th>
+              <th class="col-unternehmen">Unternehmen</th>
+              <th class="col-kampagne">Kampagne</th>
+              <th class="col-land">Land</th>
+              <th class="col-creator">Creator</th>
+              <th class="col-gestellt-am">Gestellt am</th>
+              <th class="col-zahlungsziel">Zahlungsziel</th>
+              <th class="col-netto">Nettobetrag</th>
+              <th class="col-videos">Videos</th>
+              <th class="col-preis-video">Preis/Video</th>
+              <th class="col-brutto">Bruttobetrag</th>
+              <th class="col-beleg">Beleg</th>
+              <th class="col-status">Status</th>
+              <th class="col-erstellt-von">Erstellt von</th>
               <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody id="rechnungen-table-body">
             <tr>
-              <td colspan="${isAdmin ? '18' : '17'}" class="loading">Lade Rechnungen...</td>
+              <td colspan="${isAdmin ? '19' : '18'}" class="loading">Lade Rechnungen...</td>
             </tr>
           </tbody>
         </table>
@@ -447,21 +462,22 @@ export class RechnungList {
         <tr data-id="${r.id}" class="${getRowClass(r)}">
           ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="rechnung-check" data-id="${r.id}"></td>` : ''}
           <td class="col-name">${r.rechnung_nr || '-'}</td>
-          <td>${r.po_nummer || '-'}</td>
-          <td>${formatDate(r.created_at)}</td>
-          <td>${r.unternehmen?.firmenname || '-'}</td>
-          <td>${r.auftrag?.auftragsname || '-'}</td>
-          <td>${r.kampagne_id ? `<a href="#" class="table-link" data-table="kampagne" data-id="${r.kampagne_id}">${r.kampagne?.eigener_name || r.kampagne?.kampagnenname || '-'}</a>` : '-'}</td>
-          <td>${r.land || '-'}</td>
-          <td>${[r.creator?.vorname, r.creator?.nachname].filter(Boolean).join(' ') || '-'}</td>
-          <td>${formatDate(r.gestellt_am)}</td>
-          <td>${formatDate(r.zahlungsziel)}</td>
-          <td>${formatCurrency(r.nettobetrag)}</td>
-          <td>${r.videoanzahl || '-'}</td>
-          <td>${r.videoanzahl && r.nettobetrag ? formatCurrency(r.nettobetrag / r.videoanzahl) : '-'}</td>
-          <td>${formatCurrency(r.bruttobetrag)}</td>
-          <td>${r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener noreferrer">PDF</a>` : '-'}</td>
-          <td data-col="status">${r.status || '-'}</td>
+          <td class="col-auftrag">${r.auftrag_id ? `<a href="#" class="table-link" data-table="auftrag" data-id="${r.auftrag_id}">${r.auftrag?.auftragsname || '-'}</a>` : '-'}</td>
+          <td class="col-po">${r.po_nummer || '-'}</td>
+          <td class="col-created-at">${formatDate(r.created_at)}</td>
+          <td class="col-unternehmen">${r.unternehmen?.firmenname || '-'}</td>
+          <td class="col-kampagne">${r.kampagne_id ? `<a href="#" class="table-link" data-table="kampagne" data-id="${r.kampagne_id}">${r.kampagne?.eigener_name || r.kampagne?.kampagnenname || '-'}</a>` : '-'}</td>
+          <td class="col-land">${r.land || '-'}</td>
+          <td class="col-creator">${[r.creator?.vorname, r.creator?.nachname].filter(Boolean).join(' ') || '-'}</td>
+          <td class="col-gestellt-am">${formatDate(r.gestellt_am)}</td>
+          <td class="col-zahlungsziel">${formatDate(r.zahlungsziel)}</td>
+          <td class="col-netto">${formatCurrency(r.nettobetrag)}</td>
+          <td class="col-videos">${r.videoanzahl || '-'}</td>
+          <td class="col-preis-video">${r.videoanzahl && r.nettobetrag ? formatCurrency(r.nettobetrag / r.videoanzahl) : '-'}</td>
+          <td class="col-brutto">${formatCurrency(r.bruttobetrag)}</td>
+          <td class="col-beleg">${r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener noreferrer">PDF</a>` : '-'}</td>
+          <td class="col-status" data-col="status">${r.status || '-'}</td>
+          <td class="col-erstellt-von">${this.renderCreatedBy(r.created_by)}</td>
           <td class="col-actions">
             ${actionBuilder.create('rechnung', r.id, window.currentUser, { 
               statusOptions: this.statusOptions, 

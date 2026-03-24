@@ -46,16 +46,6 @@ export const ActionConfigs = {
   // Kooperationen Actions
   kooperation: {
     actions: [
-      { 
-        id: 'status', 
-        type: 'submenu', 
-        icon: 'invoice',
-        label: 'Status ändern',
-        dynamicOptions: 'kampagne_status',
-        handler: 'setField',
-        updateFields: ['status_id', 'status'],
-        roles: ['admin', 'mitarbeiter']
-      },
       { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
       { 

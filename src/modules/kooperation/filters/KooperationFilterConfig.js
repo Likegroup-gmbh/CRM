@@ -33,20 +33,6 @@ export const KOOPERATION_FILTERS = [
     priority: 2
   }),
 
-  // Status Filter
-  createFilterConfig('select', {
-    id: 'status',
-    label: 'Status',
-    options: [
-      { value: 'Angefragt', label: 'Angefragt' },
-      { value: 'Bestätigt', label: 'Bestätigt' },
-      { value: 'In Bearbeitung', label: 'In Bearbeitung' },
-      { value: 'Abgeschlossen', label: 'Abgeschlossen' },
-      { value: 'Abgelehnt', label: 'Abgelehnt' }
-    ],
-    priority: 3
-  }),
-
   // Budget Filter
   createFilterConfig('numberRange', {
     id: 'budget',

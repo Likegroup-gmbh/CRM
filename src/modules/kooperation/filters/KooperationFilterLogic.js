@@ -28,19 +28,6 @@ export class KooperationFilterLogic {
       };
     }
     
-    // Status Filter
-    if (filters.status && Array.isArray(filters.status) && filters.status.length > 0) {
-      processedFilters.status = {
-        type: 'in',
-        value: filters.status
-      };
-    } else if (filters.status && typeof filters.status === 'string') {
-      processedFilters.status = {
-        type: 'equals',
-        value: filters.status
-      };
-    }
-    
     // Budget Range Filter
     if (filters.budget) {
       const min = filters.budget.min ?? null;
@@ -198,7 +185,7 @@ export class KooperationFilterLogic {
     // is_paid Filter
     if (processedFilters.is_paid) {
       filtered = filtered.filter(k => {
-        const isPaid = k.bezahlt === true || k.status === 'Abgeschlossen';
+        const isPaid = k.bezahlt === true;
         return processedFilters.is_paid.value ? isPaid : !isPaid;
       });
     }

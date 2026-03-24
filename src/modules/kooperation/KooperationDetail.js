@@ -108,9 +108,9 @@ export class KooperationDetail extends PersonDetailBase {
       () => window.supabase
         .from('kooperationen')
         .select(`
-          id, name, status, einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_ust, einkaufspreis_gesamt,
+          id, name, einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_ust, einkaufspreis_gesamt,
           verkaufspreis_netto, verkaufspreis_zusatzkosten, verkaufspreis_ust, verkaufspreis_gesamt,
-          skript_deadline, content_deadline, videoanzahl, content_art, skript_autor,
+          skript_deadline, content_deadline, videoanzahl,
           creator_id, kampagne_id, unternehmen_id, briefing_id,
           creator:creator_id (
             id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, mail,
@@ -400,13 +400,11 @@ export class KooperationDetail extends PersonDetailBase {
     ];
     const items = [
       ...campaignItems,
-      ...(!isKunde ? [{ icon: 'tag', label: 'Status', value: this.kooperation?.status || '-', badge: true, badgeType: (this.kooperation?.status || 'unknown').toLowerCase() }] : []),
       ...(!isKunde ? [{ icon: 'currency', label: 'EK Gesamt', value: this.formatCurrency(this.kooperation?.einkaufspreis_gesamt) }] : []),
       ...(!isKunde ? [{ icon: 'currency', label: 'VK Gesamt', value: this.formatCurrency(this.kooperation?.verkaufspreis_gesamt) }] : []),
       { icon: 'calendar', label: 'Skript-Deadline', value: this.formatDate(this.kooperation?.skript_deadline) },
       { icon: 'calendar', label: 'Content-Deadline', value: this.formatDate(this.kooperation?.content_deadline) },
-      { icon: 'info', label: 'Videoanzahl', value: this.kooperation?.videoanzahl || '-' },
-      { icon: 'info', label: 'Content Art', value: this.kooperation?.content_art || '-' }
+      { icon: 'info', label: 'Videoanzahl', value: this.kooperation?.videoanzahl || '-' }
     ];
     return this.renderInfoItems(items);
   }
@@ -504,7 +502,6 @@ export class KooperationDetail extends PersonDetailBase {
   renderInfoDetails() {
     const isKunde = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
     const allgemeinItems = this.renderInfoItems([
-      { icon: 'tag', label: 'Status', value: this.kooperation.status || '-', badge: true, badgeType: (this.kooperation.status || 'unknown').toLowerCase() },
       ...(!isKunde ? [{ icon: 'currency', label: 'Einkaufspreis', value: this.formatCurrency(this.kooperation.einkaufspreis_gesamt) }] : []),
       { icon: 'currency', label: 'Verkaufspreis', value: this.formatCurrency(this.kooperation.verkaufspreis_gesamt) },
       { icon: 'calendar', label: 'Skript-Deadline', value: this.formatDate(this.kooperation.skript_deadline) },
@@ -1060,9 +1057,6 @@ export class KooperationDetail extends PersonDetailBase {
     if (this.kooperation.kampagne?.marke?.id) formData.marke_id = this.kooperation.kampagne.marke.id;
     if (this.kooperation.briefing_id) formData.briefing_id = this.kooperation.briefing_id;
     if (this.kooperation.creator_id) formData.creator_id = this.kooperation.creator_id;
-    if (this.kooperation.content_art) formData.content_art = this.kooperation.content_art;
-    if (this.kooperation.skript_autor) formData.skript_autor = this.kooperation.skript_autor;
-
     const formHtml = window.formSystem.renderFormOnly('kooperation', formData);
     window.content.innerHTML = `<div class="form-page">${formHtml}</div>`;
     window.formSystem.bindFormEvents('kooperation', formData);

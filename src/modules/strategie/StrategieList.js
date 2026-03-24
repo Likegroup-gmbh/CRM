@@ -622,7 +622,7 @@ export class StrategieList {
       const editBtn = e.target.closest('[data-action="edit-strategie"]');
       if (editBtn) {
         e.preventDefault();
-        window.navigateTo(`/strategie/${editBtn.dataset.id}/edit`);
+        this.openEditDrawer(editBtn.dataset.id);
         return;
       }
 
@@ -801,6 +801,281 @@ export class StrategieList {
     }
   }
 
+  async openEditDrawer(strategieId) {
+    this.closeEditDrawer();
+
+    try {
+      const strategie = await strategieService.getStrategieById(strategieId);
+      if (!strategie) throw new Error('Strategie nicht gefunden');
+
+      const overlay = document.createElement('div');
+      overlay.className = 'drawer-overlay';
+      overlay.id = 'strategie-edit-drawer-overlay';
+
+      const panel = document.createElement('div');
+      panel.setAttribute('role', 'dialog');
+      panel.className = 'drawer-panel';
+      panel.id = 'strategie-edit-drawer';
+
+      const header = document.createElement('div');
+      header.className = 'drawer-header';
+      header.innerHTML = `
+        <div>
+          <span class="drawer-title">Strategie bearbeiten</span>
+          <p class="drawer-subtitle">Zuordnungen ändern – der Name wird automatisch angepasst</p>
+        </div>
+        <div>
+          <button type="button" class="drawer-close-btn" aria-label="Schließen">&times;</button>
+        </div>
+      `;
+
+      const body = document.createElement('div');
+      body.className = 'drawer-body';
+      body.innerHTML = `
+        <form id="strategie-edit-form" class="mdc-form" novalidate>
+          <input type="hidden" name="strategie_id" value="${strategie.id}" />
+
+          <div class="mdc-field">
+            <label class="mdc-label" for="edit-strategie-name">Name (auto-generiert)</label>
+            <input type="text" id="edit-strategie-name" class="mdc-input" value="${this.sanitize(strategie.name || '')}" readonly disabled />
+          </div>
+
+          <div class="mdc-field">
+            <label class="mdc-label" for="edit-strategie-unternehmen">Unternehmen <span class="required">*</span></label>
+            <select id="edit-strategie-unternehmen" name="unternehmen_id" class="mdc-select" required>
+              <option value="">Wird geladen...</option>
+            </select>
+          </div>
+
+          <div class="mdc-field">
+            <label class="mdc-label" for="edit-strategie-marke">Marke</label>
+            <select id="edit-strategie-marke" name="marke_id" class="mdc-select">
+              <option value="">Wird geladen...</option>
+            </select>
+          </div>
+
+          <div class="mdc-field">
+            <label class="mdc-label" for="edit-strategie-kampagne">Kampagne <span class="required">*</span></label>
+            <select id="edit-strategie-kampagne" name="kampagne_id" class="mdc-select" required>
+              <option value="">Wird geladen...</option>
+            </select>
+          </div>
+
+          <div class="mdc-form-actions">
+            <button type="button" class="mdc-btn mdc-btn--cancel">Abbrechen</button>
+            <button type="submit" class="mdc-btn mdc-btn--primary">Speichern</button>
+          </div>
+        </form>
+      `;
+
+      panel.appendChild(header);
+      panel.appendChild(body);
+
+      overlay.addEventListener('click', () => this.closeEditDrawer());
+      header.querySelector('.drawer-close-btn').addEventListener('click', () => this.closeEditDrawer());
+
+      document.body.appendChild(overlay);
+      document.body.appendChild(panel);
+
+      requestAnimationFrame(() => {
+        panel.classList.add('show');
+      });
+
+      await this._populateEditSelects(strategie);
+      this._bindEditSelectCascades(strategie);
+
+      const form = panel.querySelector('#strategie-edit-form');
+      if (form) {
+        form.onsubmit = async (e) => {
+          e.preventDefault();
+          await this.handleEditFormSubmit(strategie.id, form);
+        };
+        const cancelBtn = form.querySelector('.mdc-btn--cancel');
+        if (cancelBtn) {
+          cancelBtn.onclick = (e) => {
+            e.preventDefault();
+            this.closeEditDrawer();
+          };
+        }
+      }
+
+    } catch (error) {
+      console.error('Fehler beim Öffnen des Edit-Drawers:', error);
+      window.toastSystem?.show('Fehler beim Laden der Strategie', 'error');
+    }
+  }
+
+  closeEditDrawer() {
+    const overlay = document.getElementById('strategie-edit-drawer-overlay');
+    const panel = document.getElementById('strategie-edit-drawer');
+
+    if (panel) {
+      panel.classList.remove('show');
+      setTimeout(() => {
+        overlay?.remove();
+        panel?.remove();
+      }, 300);
+    } else {
+      overlay?.remove();
+    }
+  }
+
+  async _populateEditSelects(strategie) {
+    const unternehmenSelect = document.getElementById('edit-strategie-unternehmen');
+    const markeSelect = document.getElementById('edit-strategie-marke');
+    const kampagneSelect = document.getElementById('edit-strategie-kampagne');
+
+    const unternehmen = await strategieService.getAllUnternehmen();
+    unternehmenSelect.innerHTML = '<option value="">-- Unternehmen wählen --</option>' +
+      unternehmen.map(u => `<option value="${u.id}" ${u.id === strategie.unternehmen_id ? 'selected' : ''}>${this.sanitize(u.firmenname)}</option>`).join('');
+
+    if (strategie.unternehmen_id) {
+      const marken = await strategieService.getAllMarken(strategie.unternehmen_id);
+      markeSelect.innerHTML = '<option value="">-- Keine Marke --</option>' +
+        marken.map(m => `<option value="${m.id}" ${m.id === strategie.marke_id ? 'selected' : ''}>${this.sanitize(m.markenname)}</option>`).join('');
+
+      const kampagneFilter = strategie.marke_id || null;
+      let kampagnen;
+      if (kampagneFilter) {
+        kampagnen = await strategieService.getAllKampagnen(kampagneFilter);
+      } else {
+        const { data } = await window.supabase
+          .from('kampagne')
+          .select('id, kampagnenname')
+          .eq('unternehmen_id', strategie.unternehmen_id)
+          .order('kampagnenname');
+        kampagnen = data || [];
+      }
+      kampagneSelect.innerHTML = '<option value="">-- Kampagne wählen --</option>' +
+        kampagnen.map(k => `<option value="${k.id}" ${k.id === strategie.kampagne_id ? 'selected' : ''}>${this.sanitize(k.kampagnenname)}</option>`).join('');
+    } else {
+      markeSelect.innerHTML = '<option value="">-- Zuerst Unternehmen wählen --</option>';
+      kampagneSelect.innerHTML = '<option value="">-- Zuerst Unternehmen wählen --</option>';
+    }
+  }
+
+  _bindEditSelectCascades() {
+    const unternehmenSelect = document.getElementById('edit-strategie-unternehmen');
+    const markeSelect = document.getElementById('edit-strategie-marke');
+    const kampagneSelect = document.getElementById('edit-strategie-kampagne');
+    const nameInput = document.getElementById('edit-strategie-name');
+
+    if (!unternehmenSelect || !markeSelect || !kampagneSelect) return;
+
+    unternehmenSelect.addEventListener('change', async () => {
+      const unternehmenId = unternehmenSelect.value;
+      markeSelect.innerHTML = '<option value="">Wird geladen...</option>';
+      kampagneSelect.innerHTML = '<option value="">-- Zuerst Unternehmen/Marke wählen --</option>';
+
+      if (!unternehmenId) {
+        markeSelect.innerHTML = '<option value="">-- Zuerst Unternehmen wählen --</option>';
+        return;
+      }
+
+      const marken = await strategieService.getAllMarken(unternehmenId);
+      markeSelect.innerHTML = '<option value="">-- Keine Marke --</option>' +
+        marken.map(m => `<option value="${m.id}">${this.sanitize(m.markenname)}</option>`).join('');
+
+      const { data: kampagnen } = await window.supabase
+        .from('kampagne')
+        .select('id, kampagnenname')
+        .eq('unternehmen_id', unternehmenId)
+        .order('kampagnenname');
+      kampagneSelect.innerHTML = '<option value="">-- Kampagne wählen --</option>' +
+        (kampagnen || []).map(k => `<option value="${k.id}">${this.sanitize(k.kampagnenname)}</option>`).join('');
+    });
+
+    markeSelect.addEventListener('change', async () => {
+      const markeId = markeSelect.value;
+      const unternehmenId = unternehmenSelect.value;
+      kampagneSelect.innerHTML = '<option value="">Wird geladen...</option>';
+
+      let kampagnen;
+      if (markeId) {
+        kampagnen = await strategieService.getAllKampagnen(markeId);
+      } else if (unternehmenId) {
+        const { data } = await window.supabase
+          .from('kampagne')
+          .select('id, kampagnenname')
+          .eq('unternehmen_id', unternehmenId)
+          .order('kampagnenname');
+        kampagnen = data || [];
+      } else {
+        kampagnen = [];
+      }
+
+      kampagneSelect.innerHTML = '<option value="">-- Kampagne wählen --</option>' +
+        kampagnen.map(k => `<option value="${k.id}">${this.sanitize(k.kampagnenname)}</option>`).join('');
+    });
+
+    kampagneSelect.addEventListener('change', async () => {
+      const kampagneId = kampagneSelect.value;
+      if (!kampagneId || !nameInput) return;
+      const generatedName = await this.autoGeneration.autoGenerateStrategieName(
+        kampagneId,
+        markeSelect.value || null,
+        unternehmenSelect.value || null
+      );
+      if (generatedName) {
+        nameInput.value = generatedName;
+      }
+    });
+  }
+
+  async handleEditFormSubmit(strategieId, form) {
+    const submitBtn = form.querySelector('.mdc-btn--primary');
+    const originalText = submitBtn?.textContent;
+    try {
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Speichern...';
+      }
+
+      const unternehmenId = form.querySelector('[name="unternehmen_id"]').value;
+      const markeId = form.querySelector('[name="marke_id"]').value || null;
+      const kampagneId = form.querySelector('[name="kampagne_id"]').value;
+
+      if (!unternehmenId) {
+        window.toastSystem?.show('Bitte wählen Sie ein Unternehmen aus', 'error');
+        return;
+      }
+      if (!kampagneId) {
+        window.toastSystem?.show('Bitte wählen Sie eine Kampagne aus', 'error');
+        return;
+      }
+
+      const generatedName = await this.autoGeneration.autoGenerateStrategieName(
+        kampagneId, markeId, unternehmenId
+      );
+
+      const updates = {
+        unternehmen_id: unternehmenId,
+        marke_id: markeId,
+        kampagne_id: kampagneId
+      };
+      if (generatedName) {
+        updates.name = generatedName;
+      }
+
+      await strategieService.updateStrategie(strategieId, updates);
+
+      window.toastSystem?.show('Strategie erfolgreich aktualisiert', 'success');
+      this.closeEditDrawer();
+      this._forceReload = true;
+      this.strategien = [];
+      await this.loadAndRender();
+
+    } catch (error) {
+      console.error('Fehler beim Aktualisieren:', error);
+      window.toastSystem?.show(`Fehler beim Aktualisieren: ${error.message}`, 'error');
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+      }
+    }
+  }
+
   showCreateForm() {
     if (window.location.pathname !== '/strategie') {
       window.navigateTo('/strategie');
@@ -814,6 +1089,7 @@ export class StrategieList {
     this._boundEventListeners.forEach((cleanup) => cleanup());
     this._boundEventListeners.clear();
     this.closeCreateDrawer();
+    this.closeEditDrawer();
     this.strategien = [];
     this.companyFolders = [];
     this.brandFolders = [];

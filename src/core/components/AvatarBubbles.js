@@ -19,13 +19,10 @@ export class AvatarBubbles {
       // Personen: Erster Buchstabe des Vornamens
       const parts = cleanName.split(/\s+/).filter(Boolean);
       return parts[0][0].toUpperCase();
-    } else {
-      // Organisationen: Erster Buchstabe des ersten Wortes
-      const words = cleanName.split(/\s+/).filter(Boolean);
-      return words[0][0].toUpperCase();
     }
-    
-    return cleanName[0].toUpperCase();
+    // Organisationen: Erster Buchstabe des ersten Wortes
+    const words = cleanName.split(/\s+/).filter(Boolean);
+    return words[0][0].toUpperCase();
   }
 
   /**

@@ -1607,6 +1607,84 @@ td.col-produkt .stacked-video-input,
 /* === SPALTENBREITEN FÜR BESSERE LESBARKEIT === */
 /* table-layout: auto ermöglicht natürliche, lesbare Breiten */
 
+/* Generisches No-Wrap Verhalten für breite Tabellen */
+.data-table.data-table--nowrap th,
+.data-table.data-table--nowrap td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Rechnung: No-Wrap + em-basierte Spaltenkalibrierung */
+.data-table.data-table--rechnung th.col-name,
+.data-table.data-table--rechnung td.col-name { min-width: 18em; }
+
+.data-table.data-table--rechnung th.col-auftrag,
+.data-table.data-table--rechnung td.col-auftrag { min-width: 18em; }
+
+/* Sticky-Spalten brauchen exakt fixierte Breiten (width + min + max) */
+.rechnung-table-container .data-table.data-table--rechnung th.col-name,
+.rechnung-table-container .data-table.data-table--rechnung td.col-name {
+  width: var(--rechnung-col-name-width);
+  min-width: var(--rechnung-col-name-width);
+  max-width: var(--rechnung-col-name-width);
+}
+
+.rechnung-table-container .data-table.data-table--rechnung th.col-auftrag,
+.rechnung-table-container .data-table.data-table--rechnung td.col-auftrag {
+  width: var(--rechnung-col-auftrag-width);
+  min-width: var(--rechnung-col-auftrag-width);
+  max-width: var(--rechnung-col-auftrag-width);
+}
+
+.data-table.data-table--rechnung th.col-po,
+.data-table.data-table--rechnung td.col-po { min-width: 10em; }
+
+.data-table.data-table--rechnung th.col-created-at,
+.data-table.data-table--rechnung td.col-created-at { min-width: 7em; }
+
+.data-table.data-table--rechnung th.col-unternehmen,
+.data-table.data-table--rechnung td.col-unternehmen { min-width: 12em; }
+
+.data-table.data-table--rechnung th.col-kampagne,
+.data-table.data-table--rechnung td.col-kampagne { min-width: 14em; }
+
+.data-table.data-table--rechnung th.col-land,
+.data-table.data-table--rechnung td.col-land { min-width: 8em; }
+
+.data-table.data-table--rechnung th.col-creator,
+.data-table.data-table--rechnung td.col-creator { min-width: 10em; }
+
+.data-table.data-table--rechnung th.col-gestellt-am,
+.data-table.data-table--rechnung td.col-gestellt-am { min-width: 7em; }
+
+.data-table.data-table--rechnung th.col-zahlungsziel,
+.data-table.data-table--rechnung td.col-zahlungsziel { min-width: 7em; }
+
+.data-table.data-table--rechnung th.col-netto,
+.data-table.data-table--rechnung td.col-netto { min-width: 8em; }
+
+.data-table.data-table--rechnung th.col-videos,
+.data-table.data-table--rechnung td.col-videos { min-width: 5em; }
+
+.data-table.data-table--rechnung th.col-preis-video,
+.data-table.data-table--rechnung td.col-preis-video { min-width: 8em; }
+
+.data-table.data-table--rechnung th.col-brutto,
+.data-table.data-table--rechnung td.col-brutto { min-width: 8em; }
+
+.data-table.data-table--rechnung th.col-beleg,
+.data-table.data-table--rechnung td.col-beleg { min-width: 5em; }
+
+.data-table.data-table--rechnung th.col-status,
+.data-table.data-table--rechnung td.col-status { min-width: 8em; }
+
+.data-table.data-table--rechnung th.col-erstellt-von,
+.data-table.data-table--rechnung td.col-erstellt-von { min-width: 4em; }
+
+.data-table.data-table--rechnung th.col-actions,
+.data-table.data-table--rechnung td.col-actions { min-width: 5em; }
+
 /* === EXPLIZITE SPALTEN-KLASSEN (statt :first-child/:nth-child) === */
 
 /* Erste sichtbare Spalte: kein linker Border (egal ob Checkbox oder Name) */

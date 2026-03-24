@@ -335,7 +335,6 @@ export class AuftragDetail extends PersonDetailBase {
         .select(`
           id,
           name,
-          status,
           typ,
           videoanzahl,
           einkaufspreis_netto,
@@ -1648,11 +1647,6 @@ export class AuftragDetail extends PersonDetailBase {
             </a>
           </td>
           <td class="text-center">${koop.videoanzahl || 0}</td>
-          <td>
-            <span class="status-badge status-${koop.status?.toLowerCase() || 'unknown'}">
-              ${koop.status || '-'}
-            </span>
-          </td>
           <td class="budget-cell">
             ${budgetInfo !== '-' ? `<div class="budget-info">${window.validatorSystem.sanitizeHtml(budgetInfo)}</div>` : '-'}
           </td>
@@ -1670,7 +1664,6 @@ export class AuftragDetail extends PersonDetailBase {
             <tr>
               <th>Creator</th>
               <th class="text-center">Anzahl Videos</th>
-              <th>Status</th>
               <th>Budget & Informationen</th>
               ${!isKunde ? '<th class="text-right">Kosten (Einkauf)</th>' : ''}
               <th>Video Titel</th>

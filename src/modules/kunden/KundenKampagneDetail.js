@@ -30,7 +30,7 @@ export class KundenKampagneDetail {
     try {
       const [{ data: kampagne }, { data: koops }] = await Promise.all([
         window.supabase.from('kampagne').select('id, kampagnenname, eigener_name, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname)').eq('id', this.kampagneId).single(),
-        window.supabase.from('kooperationen').select('id, name, status').eq('kampagne_id', this.kampagneId).order('created_at', { ascending: false })
+        window.supabase.from('kooperationen').select('id, name').eq('kampagne_id', this.kampagneId).order('created_at', { ascending: false })
       ]);
       this.kampagne = kampagne || null;
       this.koops = koops || [];
@@ -45,15 +45,14 @@ export class KundenKampagneDetail {
     const rows = (this.koops || []).map(r => `
       <tr>
         <td><a href="/kunden-kooperation/${r.id}" onclick="event.preventDefault(); window.navigateTo('/kunden-kooperation/${r.id}')">${window.validatorSystem.sanitizeHtml(r.name || r.id)}</a></td>
-        <td><span class="status-badge status-${(r.status||'').toLowerCase().replace(/\s+/g,'-')}">${window.validatorSystem.sanitizeHtml(r.status || '—')}</span></td>
       </tr>
     `).join('');
 
     const html = `
       <div class="data-table-container">
         <table class="data-table">
-          <thead><tr><th>Kooperation</th><th>Status</th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="2" class="loading">Keine Kooperationen</td></tr>'}</tbody>
+          <thead><tr><th>Kooperation</th></tr></thead>
+          <tbody>${rows || '<tr><td class="loading">Keine Kooperationen</td></tr>'}</tbody>
         </table>
       </div>
     `;

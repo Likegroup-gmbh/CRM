@@ -183,8 +183,8 @@ export class KampagneKooperationenVideoTable {
       const isKunde = this.isKundeRole();
       const kampagneJoin = 'kampagne:kampagne_id (id, kampagnenname, eigener_name, unternehmen:unternehmen_id(id, firmenname), marke:marke_id(id, markenname))';
       const koopSelect = isKunde
-        ? `id, name, status, content_art, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, skript_deadline, content_deadline, created_at, creator_id, ${kampagneJoin}`
-        : `id, name, status, einkaufspreis_netto, einkaufspreis_gesamt, content_art, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, skript_deadline, content_deadline, created_at, creator_id, ${kampagneJoin}`;
+        ? `id, name, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, skript_deadline, content_deadline, created_at, creator_id, ${kampagneJoin}`
+        : `id, name, einkaufspreis_netto, einkaufspreis_gesamt, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, skript_deadline, content_deadline, created_at, creator_id, ${kampagneJoin}`;
 
       const kooperationenResult = await window.supabase
         .from('kooperationen')

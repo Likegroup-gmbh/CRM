@@ -356,13 +356,6 @@ export class KampagneFilterLogic {
     
     if (deadline > now) return false;
 
-    // Prüfe Kooperationen
-    if (kampagne.kooperationen && kampagne.kooperationen.length > 0) {
-      return kampagne.kooperationen.every(koop => 
-        koop.status === 'Abgeschlossen'
-      );
-    }
-
     return true;
   }
 

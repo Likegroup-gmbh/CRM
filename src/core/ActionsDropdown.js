@@ -200,15 +200,6 @@ export class ActionsDropdown {
             // Optional: Event für UI-Refresh
             window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'kampagne', action: 'updated', id: entityId, field: 'status_id', value: fieldValue } }));
             console.log('✅ Status (id+name) aktualisiert');
-          } else if (entityType === 'kooperation' && fieldName === 'status_id') {
-            const statusName = submenuItem.dataset.statusName || '';
-            const { error } = await window.supabase
-              .from('kooperationen')
-              .update({ status_id: fieldValue, status: statusName, updated_at: new Date().toISOString() })
-              .eq('id', entityId);
-            if (error) throw error;
-            window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'kooperation', action: 'updated', id: entityId, field: 'status_id', value: fieldValue } }));
-            console.log('✅ Kooperation-Status (id+name) aktualisiert');
           } else {
             await this.setField(entityType, entityId, fieldName, fieldValue);
             console.log('✅ setField abgeschlossen');

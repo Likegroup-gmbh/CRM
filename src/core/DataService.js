@@ -252,10 +252,6 @@ export class DataService {
           kampagne_id: 'uuid',
           briefing_id: 'uuid',
           unternehmen_id: 'uuid',
-          status: 'string',
-          status_id: 'uuid',
-          content_art: 'string',
-          skript_autor: 'string',
           einkaufspreis_netto: 'number',
           einkaufspreis_zusatzkosten: 'number',
           einkaufspreis_ust: 'number',
@@ -265,10 +261,8 @@ export class DataService {
           verkaufspreis_ust: 'number',
           verkaufspreis_gesamt: 'number',
           vertrag_unterschrieben: 'boolean',
-          vertrag_link: 'string',
           videoanzahl: 'number',
           skript_deadline: 'date',
-          skript_link: 'string',
           content_deadline: 'date',
           content_link: 'string',
           bewertung: 'number',
@@ -282,7 +276,7 @@ export class DataService {
           kampagne: { table: 'kampagne', foreignKey: 'kampagne_id', displayField: 'name' },
           briefing: { table: 'briefings', foreignKey: 'briefing_id', displayField: 'product_service_offer' }
         },
-        filters: ['creator_id', 'kampagne_id', 'status', 'budget', 'start_datum', 'end_datum'],
+        filters: ['creator_id', 'kampagne_id', 'budget', 'start_datum', 'end_datum'],
         sortBy: 'created_at',
         sortOrder: 'desc'
       },
@@ -775,6 +769,7 @@ export class DataService {
           land: 'string',
           pdf_url: 'string',
           pdf_path: 'string',
+          created_by_id: 'uuid',
           created_at: 'date',
           updated_at: 'date'
         },
@@ -783,7 +778,8 @@ export class DataService {
           auftrag: { table: 'auftrag', foreignKey: 'auftrag_id', displayField: 'auftragsname' },
           kooperation: { table: 'kooperationen', foreignKey: 'kooperation_id', displayField: 'name' },
           creator: { table: 'creator', foreignKey: 'creator_id', displayField: 'vorname' },
-          kampagne: { table: 'kampagne', foreignKey: 'kampagne_id', displayField: 'kampagnenname' }
+          kampagne: { table: 'kampagne', foreignKey: 'kampagne_id', displayField: 'kampagnenname' },
+          created_by: { table: 'benutzer', foreignKey: 'created_by_id', displayField: 'name' }
         },
         filters: ['rechnung_nr', 'kooperation_id', 'kampagne_id', 'unternehmen_id', 'auftrag_id', 'status', 'gestellt_am', 'zahlungsziel', 'bezahlt_am', 'nettobetrag', 'land'],
         sortBy: 'zahlungsziel',
@@ -1291,6 +1287,11 @@ export class DataService {
                   kooperation:kooperation_id (
                     id,
                     name
+                  ),
+                  created_by:created_by_id (
+                    id,
+                    name,
+                    profile_image_url
                   )
                 `)
                 .order('zahlungsziel', { ascending: true, nullsFirst: false })

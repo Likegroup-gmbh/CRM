@@ -12,8 +12,6 @@ export class KooperationList {
   constructor() {
     this.selectedKooperation = new Set();
     this._boundEventListeners = new Set();
-    this.statusOptions = [];
-    
     // Drag-to-Scroll State
     this.isDragging = false;
     this.startX = 0;
@@ -84,19 +82,6 @@ export class KooperationList {
       if (!window.supabase) {
         console.warn('⚠️ Supabase nicht verfügbar - verwende Mock-Daten');
         return await window.dataService.loadEntities('kooperation');
-      }
-
-      // Status-Optionen dynamisch laden (wie Kampagnen)
-      try {
-        const { data: statusRows } = await window.supabase
-          .from('kampagne_status')
-          .select('id, name, sort_order')
-          .order('sort_order', { ascending: true })
-          .order('name', { ascending: true });
-        this.statusOptions = statusRows || [];
-      } catch (e) {
-        console.warn('⚠️ Konnte Status-Optionen nicht laden', e);
-        this.statusOptions = [];
       }
 
       // Sichtbarkeit: Nicht-Admins nur eigene (assignee_id) ODER solche aus zugewiesenen Kampagnen/Marken/Unternehmen
@@ -178,7 +163,7 @@ export class KooperationList {
 
       let coopQuery = window.supabase
         .from('kooperationen')
-        .select('id, name, status, status_id, videoanzahl, einkaufspreis_gesamt, verkaufspreis_gesamt, kampagne_id, creator_id, assignee_id, skript_deadline, content_deadline, created_at')
+        .select('id, name, videoanzahl, einkaufspreis_gesamt, verkaufspreis_gesamt, kampagne_id, creator_id, assignee_id, skript_deadline, content_deadline, created_at')
         .order('created_at', { ascending: false });
 
       // Für Mitarbeiter: Filtere nach zugewiesenen Kampagnen
@@ -296,7 +281,6 @@ export class KooperationList {
               <th>Kampagne</th>
               <th>Creator</th>
               <th>Videos</th>
-              <th>Status</th>
               <th>Einkaufspreis</th>
               <th>Verkaufspreis</th>
               <th>Erstellt</th>
@@ -515,21 +499,13 @@ export class KooperationList {
             ${window.validatorSystem.sanitizeHtml(kooperation.creator ? `${kooperation.creator.vorname} ${kooperation.creator.nachname}` : (this._creatorMap?.[kooperation.creator_id] ? `${this._creatorMap[kooperation.creator_id].vorname} ${this._creatorMap[kooperation.creator_id].nachname}` : 'Unbekannt'))}
           </td>
           <td>${kooperation.videoanzahl || 0}</td>
-          <td>
-            <span class="status-badge status-${(kooperation.status || (this.statusOptions.find(s=>s.id===kooperation.status_id)?.name) || 'unknown').toLowerCase()}">
-              ${kooperation.status || (this.statusOptions.find(s=>s.id===kooperation.status_id)?.name) || '-'}
-            </span>
-          </td>
           <td>${formatCurrency(kooperation.einkaufspreis_gesamt)}</td>
           <td>${formatCurrency(kooperation.verkaufspreis_gesamt)}</td>
           <td>${formatDate(kooperation.created_at)}</td>
           <td>${formatDate(kooperation.skript_deadline)}</td>
           <td>${formatDate(kooperation.content_deadline)}</td>
           <td class="col-actions">
-            ${actionBuilder.create('kooperation', kooperation.id, window.currentUser, { 
-              statusOptions: this.statusOptions, 
-              currentStatus: { id: kooperation.status_id, name: kooperation.status } 
-            })}
+            ${actionBuilder.create('kooperation', kooperation.id, window.currentUser)}
           </td>
         </tr>
       `;

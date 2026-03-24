@@ -1237,24 +1237,6 @@ export class DynamicDataLoader {
               }
             }
             
-            if (field.name === 'content_art' && editData.content_art) {
-              options.forEach(option => {
-                if (option.value === editData.content_art) {
-                  option.selected = true;
-                }
-              });
-              console.log(`✅ DYNAMICDATALOADER: Kooperation ${field.name} vorausgewählt:`, editData.content_art);
-            }
-            
-            if (field.name === 'skript_autor' && editData.skript_autor) {
-              options.forEach(option => {
-                if (option.value === editData.skript_autor) {
-                  option.selected = true;
-                }
-              });
-              console.log(`✅ DYNAMICDATALOADER: Kooperation ${field.name} vorausgewählt:`, editData.skript_autor);
-            }
-            
             // Rechnung-spezifische Single-Select Felder
             if (field.name === 'kooperation_id' && editData.kooperation_id) {
               options.forEach(option => {

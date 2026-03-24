@@ -67,7 +67,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
           .from('kampagne_mitarbeiter')
           .select('kampagne:kampagne_id(id, kampagnenname, eigener_name)')
           .eq('mitarbeiter_id', this.userId),
-        window.supabase.from('kooperationen').select('id, name, status, kampagne:kampagne_id(kampagnenname, eigener_name), einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_gesamt').eq('assignee_id', this.userId),
+        window.supabase.from('kooperationen').select('id, name, kampagne:kampagne_id(kampagnenname, eigener_name), einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_gesamt').eq('assignee_id', this.userId),
         window.supabase.from('briefings').select('id, product_service_offer, status').eq('assignee_id', this.userId),
         window.supabase.from('kampagne_status').select('id, name, sort_order').order('sort_order', { ascending: true }).order('name', { ascending: true }),
         window.supabase
@@ -592,14 +592,13 @@ export class MitarbeiterDetail extends PersonDetailBase {
       <tr>
         <td><a href="/kooperation/${r.id}" onclick="event.preventDefault(); window.navigateTo('/kooperation/${r.id}')">${window.validatorSystem.sanitizeHtml(r.name || r.id)}</a></td>
         <td>${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(r.kampagne))}</td>
-        <td><span class="status-badge status-${(r.status||'').toLowerCase().replace(/\s+/g,'-')}">${r.status || '-'}</span></td>
       </tr>
     `).join('');
     if (!rows) return '<div class="empty-state"><p>Keine Kooperationen zugewiesen</p></div>';
     return `
       <div class="data-table-container">
         <table class="data-table">
-          <thead><tr><th>Name</th><th>Kampagne</th><th>Status</th></tr></thead>
+          <thead><tr><th>Name</th><th>Kampagne</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
