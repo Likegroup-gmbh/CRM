@@ -36,7 +36,7 @@ export class RechnungDetail {
       .from('rechnung')
       .select(`*,
         unternehmen:unternehmen!rechnung_unternehmen_id_fkey(id, firmenname),
-        auftrag:auftrag!rechnung_auftrag_id_fkey(id, auftragsname),
+        auftrag:auftrag!rechnung_auftrag_id_fkey(id, auftragsname, auftrag_details(id)),
         kampagne:kampagne!rechnung_kampagne_id_fkey(id, kampagnenname),
         kooperation:kooperationen!rechnung_kooperation_id_fkey(id, name),
         creator:creator!rechnung_creator_id_fkey(id, vorname, nachname),
@@ -85,7 +85,7 @@ export class RechnungDetail {
             <div class="detail-item"><label>Interne PO-Nummer</label><span>${this.data?.po_nummer || '-'}</span></div>
             <div class="detail-item"><label>Externe Angebotsnummer</label><span>${this.data?.externe_angebotsnummer || '-'}</span></div>
             <div class="detail-item"><label>Unternehmen</label><span>${this.data?.unternehmen?.firmenname || '-'}</span></div>
-            <div class="detail-item"><label>Auftrag</label><span>${this.data?.auftrag?.auftragsname || '-'}</span></div>
+            <div class="detail-item"><label>Auftrag</label><span>${this.data?.auftrag ? `<a href="#" class="table-link" data-table="auftragsdetails" data-id="${this.data.auftrag.auftrag_details?.[0]?.id || this.data.auftrag.id}">${this.data.auftrag.auftragsname || '-'}</a>` : '-'}</span></div>
             <div class="detail-item"><label>Status</label><span>${this.data?.status || '-'}</span></div>
             <div class="detail-item"><label>Erstellt von</label><span>${this.data?.created_by?.name || '-'}</span></div>
             <div class="detail-item"><label>Gestellt am</label><span>${formatDate(this.data?.gestellt_am)}</span></div>
@@ -394,6 +394,13 @@ export class RechnungDetail {
     document.addEventListener('click', (e) => {
       if (e.target.closest('#btn-edit-rechnung')) {
         this.showEditForm();
+      }
+      const link = e.target.closest('.table-link[data-table][data-id]');
+      if (link) {
+        e.preventDefault();
+        const table = link.dataset.table;
+        const id = link.dataset.id;
+        if (table && id) window.navigateTo(`/${table}/${id}`);
       }
     });
   }

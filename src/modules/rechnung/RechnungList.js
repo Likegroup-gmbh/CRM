@@ -503,7 +503,7 @@ export class RechnungList {
         <tr data-id="${r.id}" class="${getRowClass(r)}">
           ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="rechnung-check" data-id="${r.id}"></td>` : ''}
           <td class="col-name">${r.rechnung_nr || '-'}</td>
-          <td class="col-auftrag">${r.auftrag_id ? `<a href="#" class="table-link" data-table="auftrag" data-id="${r.auftrag_id}">${r.auftrag?.auftragsname || '-'}</a>` : '-'}</td>
+          <td class="col-auftrag">${r.auftrag_id ? `<a href="#" class="table-link" data-table="auftragsdetails" data-id="${r.auftrag?.auftrag_details?.[0]?.id || r.auftrag_id}">${r.auftrag?.auftragsname || '-'}</a>` : '-'}</td>
           <td class="col-po">${r.po_nummer || '-'}</td>
           <td class="col-created-at">${formatDate(r.created_at)}</td>
           <td class="col-unternehmen">${r.unternehmen?.firmenname || '-'}</td>

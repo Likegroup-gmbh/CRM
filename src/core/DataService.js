@@ -1279,7 +1279,8 @@ export class DataService {
                   ),
                   auftrag:auftrag_id (
                     id,
-                    auftragsname
+                    auftragsname,
+                    auftrag_details (id)
                   ),
                   creator:creator_id (
                     id,
