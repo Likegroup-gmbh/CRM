@@ -127,6 +127,13 @@ export class KampagneList {
       window.navigateTo(`/kampagne/${kampagneId}`);
       return;
     }
+
+    // Auftrag Detail Link
+    if (e.target.classList.contains('table-link') && e.target.dataset.table === 'auftrag') {
+      e.preventDefault();
+      window.navigateTo(`/auftrag/${e.target.dataset.id}`);
+      return;
+    }
     
     // Filter-Tag X-Buttons
     if (e.target.classList.contains('tag-x')) {
@@ -366,7 +373,7 @@ export class KampagneList {
           *,
           unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
           marke:marke_id(id, markenname, logo_url),
-          auftrag:auftrag_id(auftragsname),
+          auftrag:auftrag_id(id, auftragsname),
           status_ref:status_id(id, name)
         `)
         .order('created_at', { ascending: false });
@@ -575,6 +582,7 @@ export class KampagneList {
               <th class="col-name">Kampagnenname</th>
               <th>Unternehmen</th>
               <th>Marke</th>
+              <th>Auftrag</th>
               <th>Art der Kampagne</th>
               <th>Status</th>
               <th>Start</th>
@@ -593,7 +601,7 @@ export class KampagneList {
           </thead>
           <tbody id="kampagnen-table-body">
             <tr>
-              <td colspan="${isKunde ? '18' : '19'}" class="loading">Lade Kampagnen...</td>
+              <td colspan="${isKunde ? '19' : '20'}" class="loading">Lade Kampagnen...</td>
             </tr>
           </tbody>
         </table>
@@ -910,6 +918,7 @@ export class KampagneList {
           </td>
           <td>${this.renderUnternehmen(kampagne.unternehmen)}</td>
           <td>${this.renderMarke(kampagne.marke)}</td>
+          <td>${kampagne.auftrag_id && kampagne.auftrag?.auftragsname ? `<a href="#" class="table-link" data-table="auftrag" data-id="${kampagne.auftrag_id}">${window.validatorSystem.sanitizeHtml(kampagne.auftrag.auftragsname)}</a>` : '-'}</td>
           <td>${this.renderArtTags(kampagne.art_der_kampagne_display || kampagne.art_der_kampagne)}</td>
           <td>${this.renderStatusBadge(kampagne.status_name)}</td>
           <td>${formatDate(kampagne.start)}</td>
