@@ -20,15 +20,15 @@ export class AuftragsdetailsList {
     this._eventsBound = false;
     this._reloadTimer = null;
     this._loadRequestId = 0;
-    this._supportsAuftragKurzbeschreibung = true;
-    this._kurzbeschreibungFallbackLogged = false;
+    this._supportsAuftragTitel = true;
+    this._titelFallbackLogged = false;
   }
 
-  isKurzbeschreibungMissingError(error) {
+  isTitelMissingError(error) {
     const text = `${error?.message || ''} ${error?.details || ''} ${error?.hint || ''}`.toLowerCase();
-    const mentionsKurzbeschreibung = text.includes('kurzbeschreibung');
+    const mentionsTitel = text.includes('titel');
     const looksLikeMissingColumn = text.includes('column') || text.includes('schema cache') || error?.code === '42703' || error?.code === 'PGRST204';
-    return mentionsKurzbeschreibung && looksLikeMissingColumn;
+    return mentionsTitel && looksLikeMissingColumn;
   }
 
   // Initialisiere Auftragsdetails-Liste
@@ -158,7 +158,7 @@ export class AuftragsdetailsList {
                 <th>PO intern</th>
                 <th>Status</th>
                 <th class="col-ad-auftrag">Auftrag</th>
-                <th>Kurzbeschreibung</th>
+                <th>Titel</th>
                 <th>Start</th>
                 <th>Ende</th>
                 <th>Erstellt am</th>
@@ -309,11 +309,11 @@ export class AuftragsdetailsList {
       const from = (page - 1) * limit;
       const to = from + limit - 1;
 
-      const buildAndRunQuery = async (includeKurzbeschreibung) => {
+      const buildAndRunQuery = async (includeTitel) => {
         const auftragFields = [
           'id',
           'auftragsname',
-          ...(includeKurzbeschreibung ? ['kurzbeschreibung'] : []),
+          ...(includeTitel ? ['titel'] : []),
           'notiz',
           'status',
           'po',
@@ -356,14 +356,14 @@ export class AuftragsdetailsList {
         return query;
       };
 
-      let { data, error, count } = await buildAndRunQuery(this._supportsAuftragKurzbeschreibung);
+      let { data, error, count } = await buildAndRunQuery(this._supportsAuftragTitel);
 
       // Graceful fallback fuer Deploy-Reihenfolge: App-Code vor DB-Migration
-      if (error && this._supportsAuftragKurzbeschreibung && this.isKurzbeschreibungMissingError(error)) {
-        this._supportsAuftragKurzbeschreibung = false;
-        if (!this._kurzbeschreibungFallbackLogged) {
-          console.warn('⚠️ `auftrag.kurzbeschreibung` noch nicht in DB verfuegbar, falle auf `auftrag.notiz` zurueck.');
-          this._kurzbeschreibungFallbackLogged = true;
+      if (error && this._supportsAuftragTitel && this.isTitelMissingError(error)) {
+        this._supportsAuftragTitel = false;
+        if (!this._titelFallbackLogged) {
+          console.warn('⚠️ `auftrag.titel` noch nicht in DB verfuegbar, falle auf `auftrag.notiz` zurueck.');
+          this._titelFallbackLogged = true;
         }
         ({ data, error, count } = await buildAndRunQuery(false));
       }
@@ -381,9 +381,9 @@ export class AuftragsdetailsList {
         const search = this.searchQuery.toLowerCase();
         filteredData = filteredData.filter(d => {
           const auftrag = d.auftrag;
-          const kurzbeschreibungText = (auftrag?.kurzbeschreibung ?? auftrag?.notiz ?? '').toLowerCase();
+          const titelText = (auftrag?.titel ?? auftrag?.notiz ?? '').toLowerCase();
           return (auftrag?.auftragsname?.toLowerCase().includes(search)) ||
-                 kurzbeschreibungText.includes(search) ||
+                 titelText.includes(search) ||
                  (auftrag?.unternehmen?.firmenname?.toLowerCase().includes(search)) ||
                  (auftrag?.marke?.markenname?.toLowerCase().includes(search)) ||
                  (auftrag?.po?.toLowerCase().includes(search));
@@ -697,7 +697,7 @@ export class AuftragsdetailsList {
 
       tbody.innerHTML = details.map(detail => {
         const auftrag = detail.auftrag || {};
-        const kurzbeschreibung = auftrag.kurzbeschreibung ?? auftrag.notiz ?? '-';
+        const titel = auftrag.titel ?? auftrag.notiz ?? '-';
         
         // Unternehmen Bubble
         const unternehmenHtml = auftrag.unternehmen
@@ -738,7 +738,7 @@ export class AuftragsdetailsList {
                 ${window.validatorSystem?.sanitizeHtml(auftrag.auftragsname || 'Unbekannter Auftrag') || 'Unbekannter Auftrag'}
               </a>
             </td>
-            <td>${window.validatorSystem?.sanitizeHtml(kurzbeschreibung) || kurzbeschreibung}</td>
+            <td>${window.validatorSystem?.sanitizeHtml(titel) || titel}</td>
             <td>${formatDate(auftrag.start)}</td>
             <td>${formatDate(auftrag.ende)}</td>
             <td>${formatDate(detail.created_at)}</td>

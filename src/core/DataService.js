@@ -521,7 +521,7 @@ export class DataService {
           status: 'string',
           ansprechpartner_id: 'uuid',
           auftragtype: 'string',
-          kurzbeschreibung: 'string',
+          titel: 'string',
           notiz: 'string',
           angebotsnummer: 'string',
           po: 'string',

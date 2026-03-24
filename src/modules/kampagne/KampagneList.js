@@ -572,36 +572,28 @@ export class KampagneList {
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
     
     return `
-      <div class="data-table-container">
-        <table class="data-table">
+      <div class="data-table-container kampagne-table-container">
+        <table class="data-table data-table--nowrap data-table--kampagne">
           <thead>
             <tr>
               ${!isKunde && isAdmin ? `<th class="col-checkbox">
                 <input type="checkbox" id="select-all-kampagnen">
               </th>` : ''}
               <th class="col-name">Kampagnenname</th>
-              <th>Unternehmen</th>
-              <th>Marke</th>
-              <th>Auftrag</th>
-              <th>Art der Kampagne</th>
-              <th>Status</th>
-              <th>Start</th>
-              <th>Briefing</th>
-              <th>Strategie</th>
-              <th>Skripte</th>
-              <th>Sourcing</th>
-              <th>Video</th>
-              <th>Post</th>
-              <th>Creator Anzahl</th>
-              <th>Video Anzahl</th>
-              <th>Ansprechpartner</th>
-              <th>Mitarbeiter</th>
+              <th class="col-unternehmen">Unternehmen</th>
+              <th class="col-marke">Marke</th>
+              <th class="col-auftrag">Auftrag</th>
+              <th class="col-art">Art der Kampagne</th>
+              <th class="col-creator-anzahl">Creator Anzahl</th>
+              <th class="col-video-anzahl">Video Anzahl</th>
+              <th class="col-ansprechpartner">Ansprechpartner</th>
+              <th class="col-mitarbeiter">Mitarbeiter</th>
               <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody id="kampagnen-table-body">
             <tr>
-              <td colspan="${isKunde ? '19' : '20'}" class="loading">Lade Kampagnen...</td>
+              <td colspan="${isKunde ? '11' : '12'}" class="loading">Lade Kampagnen...</td>
             </tr>
           </tbody>
         </table>
@@ -916,22 +908,14 @@ export class KampagneList {
               ${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(kampagne))}
             </a>
           </td>
-          <td>${this.renderUnternehmen(kampagne.unternehmen)}</td>
-          <td>${this.renderMarke(kampagne.marke)}</td>
-          <td>${kampagne.auftrag_id && kampagne.auftrag?.auftragsname ? `<a href="#" class="table-link" data-table="auftrag" data-id="${kampagne.auftrag_id}">${window.validatorSystem.sanitizeHtml(kampagne.auftrag.auftragsname)}</a>` : '-'}</td>
-          <td>${this.renderArtTags(kampagne.art_der_kampagne_display || kampagne.art_der_kampagne)}</td>
-          <td>${this.renderStatusBadge(kampagne.status_name)}</td>
-          <td>${formatDate(kampagne.start)}</td>
-          <td>${formatDate(kampagne.deadline_briefing)}</td>
-          <td>${formatDate(kampagne.deadline_strategie)}</td>
-          <td>${formatDate(kampagne.deadline_skripte)}</td>
-          <td>${formatDate(kampagne.deadline_creator_sourcing)}</td>
-          <td>${formatDate(kampagne.deadline_video_produktion)}</td>
-          <td>${formatDate(kampagne.deadline_post_produktion)}</td>
-          <td>${kampagne.creatoranzahl || 0}</td>
-          <td>${kampagne.videoanzahl || 0}</td>
-          <td>${this.renderAnsprechpartner(kampagne.ansprechpartner)}</td>
-          <td>${this.renderMitarbeiter(kampagne.mitarbeiter)}</td>
+          <td class="col-unternehmen">${this.renderUnternehmen(kampagne.unternehmen)}</td>
+          <td class="col-marke">${this.renderMarke(kampagne.marke)}</td>
+          <td class="col-auftrag">${kampagne.auftrag_id && kampagne.auftrag?.auftragsname ? `<a href="#" class="table-link" data-table="auftrag" data-id="${kampagne.auftrag_id}">${window.validatorSystem.sanitizeHtml(kampagne.auftrag.auftragsname)}</a>` : '-'}</td>
+          <td class="col-art">${this.renderArtTags(kampagne.art_der_kampagne_display || kampagne.art_der_kampagne)}</td>
+          <td class="col-creator-anzahl">${kampagne.creatoranzahl || 0}</td>
+          <td class="col-video-anzahl">${kampagne.videoanzahl || 0}</td>
+          <td class="col-ansprechpartner">${this.renderAnsprechpartner(kampagne.ansprechpartner)}</td>
+          <td class="col-mitarbeiter">${this.renderMitarbeiter(kampagne.mitarbeiter)}</td>
           <td class="col-actions">
             ${actionBuilder.create('kampagne', kampagne.id, window.currentUser, { 
               statusOptions: this.statusOptions, 

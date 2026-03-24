@@ -1048,8 +1048,8 @@ export class AuftragDetail extends PersonDetailBase {
               <span>${this.auftrag?.auftragtype || '-'}</span>
             </div>
             <div class="detail-item">
-              <label>Kurzbeschreibung:</label>
-              <span>${this.auftrag?.kurzbeschreibung || '-'}</span>
+              <label>Titel:</label>
+              <span>${this.auftrag?.titel || '-'}</span>
             </div>
             <div class="detail-item">
               <label>Budget:</label>

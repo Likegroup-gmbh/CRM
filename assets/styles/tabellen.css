@@ -1685,6 +1685,45 @@ td.col-produkt .stacked-video-input,
 .data-table.data-table--rechnung th.col-actions,
 .data-table.data-table--rechnung td.col-actions { min-width: 5em; }
 
+/* Kampagne: No-Wrap + em-basierte Spaltenkalibrierung */
+.data-table.data-table--kampagne th.col-name,
+.data-table.data-table--kampagne td.col-name { min-width: 18em; }
+
+.data-table.data-table--kampagne th.col-unternehmen,
+.data-table.data-table--kampagne td.col-unternehmen { min-width: 12em; }
+
+.data-table.data-table--kampagne th.col-marke,
+.data-table.data-table--kampagne td.col-marke { min-width: 10em; }
+
+.data-table.data-table--kampagne th.col-auftrag,
+.data-table.data-table--kampagne td.col-auftrag { min-width: 14em; }
+
+.data-table.data-table--kampagne th.col-art,
+.data-table.data-table--kampagne td.col-art { min-width: 12em; }
+
+.data-table.data-table--kampagne th.col-creator-anzahl,
+.data-table.data-table--kampagne td.col-creator-anzahl { min-width: 5em; }
+
+.data-table.data-table--kampagne th.col-video-anzahl,
+.data-table.data-table--kampagne td.col-video-anzahl { min-width: 5em; }
+
+.data-table.data-table--kampagne th.col-ansprechpartner,
+.data-table.data-table--kampagne td.col-ansprechpartner { min-width: 10em; }
+
+.data-table.data-table--kampagne th.col-mitarbeiter,
+.data-table.data-table--kampagne td.col-mitarbeiter { min-width: 10em; }
+
+.data-table.data-table--kampagne th.col-actions,
+.data-table.data-table--kampagne td.col-actions { min-width: 5em; }
+
+/* Sticky-Spalten brauchen exakt fixierte Breiten (width + min + max) */
+.kampagne-table-container .data-table.data-table--kampagne th.col-name,
+.kampagne-table-container .data-table.data-table--kampagne td.col-name {
+  width: var(--kampagne-col-name-width);
+  min-width: var(--kampagne-col-name-width);
+  max-width: var(--kampagne-col-name-width);
+}
+
 /* === EXPLIZITE SPALTEN-KLASSEN (statt :first-child/:nth-child) === */
 
 /* Erste sichtbare Spalte: kein linker Border (egal ob Checkbox oder Name) */
