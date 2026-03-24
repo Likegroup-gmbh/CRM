@@ -921,10 +921,16 @@ export class DynamicDataLoader {
         console.log(`🔍 ${field.name}: Filtere nach ${field.filterBy} = ${parentValue}`);
         
         // Lade gefilterte Daten
-        const { data: filteredData, error } = await window.supabase
+        let filteredQuery = window.supabase
           .from(field.table)
           .select('*')
-          .eq(field.filterBy, parentValue)
+          .eq(field.filterBy, parentValue);
+
+        if (field.table === 'vertraege') {
+          filteredQuery = filteredQuery.eq('is_draft', false);
+        }
+
+        const { data: filteredData, error } = await filteredQuery
           .order(field.displayField || 'name', { ascending: true });
         
         if (error) {

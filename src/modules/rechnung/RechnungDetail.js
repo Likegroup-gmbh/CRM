@@ -1,4 +1,5 @@
 // RechnungDetail.js (ES6-Modul)
+import { findSignedVertragForKooperation } from './RechnungVertragZuordnung.js';
 
 export class RechnungDetail {
   constructor() {
@@ -159,40 +160,9 @@ export class RechnungDetail {
 
   async validateVertragForKooperation(kooperationId) {
     if (!kooperationId || !window.supabase) {
-      return { ok: false, message: 'Bitte zuerst eine gueltige Kooperation auswaehlen.' };
+      return { ok: false, message: 'Bitte zuerst eine gueltige Kooperation auswaehlen.', vertragId: null };
     }
-
-    const { data: koop, error: koopError } = await window.supabase
-      .from('kooperationen')
-      .select('id, creator_id, kampagne_id')
-      .eq('id', kooperationId)
-      .single();
-
-    if (koopError || !koop) {
-      return { ok: false, message: 'Die ausgewaehlte Kooperation konnte nicht geladen werden.' };
-    }
-
-    if (!koop.creator_id || !koop.kampagne_id) {
-      return { ok: false, message: 'Die Kooperation ist unvollstaendig (Creator oder Kampagne fehlt).' };
-    }
-
-    const { data: vertraege, error: vertragError } = await window.supabase
-      .from('vertraege')
-      .select('id')
-      .eq('creator_id', koop.creator_id)
-      .eq('kampagne_id', koop.kampagne_id)
-      .eq('is_draft', false)
-      .limit(1);
-
-    if (vertragError) {
-      return { ok: false, message: 'Vertrag konnte nicht geprueft werden. Bitte erneut versuchen.' };
-    }
-
-    if (!vertraege || vertraege.length === 0) {
-      return { ok: false, message: 'Vor der Rechnung muss ein finaler Vertrag angelegt werden.' };
-    }
-
-    return { ok: true };
+    return findSignedVertragForKooperation(kooperationId);
   }
 
   mapRechnungCreateError(errorMessage) {
@@ -255,6 +225,10 @@ export class RechnungDetail {
       if (!vertragCheck.ok) {
         alert(vertragCheck.message);
         return;
+      }
+
+      if (vertragCheck.vertragId) {
+        submitData.vertrag_id = vertragCheck.vertragId;
       }
 
       // Rechnungs-Name dynamisch generieren aus Kooperationsname

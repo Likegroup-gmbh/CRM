@@ -7,12 +7,14 @@ import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
+import { renderVertragCell } from './RechnungVertragColumn.js';
+import { renderBezahltToggle } from './RechnungBezahltToggle.js';
 
 export class RechnungList {
   constructor() {
     this.selectedRechnungen = new Set();
-    this.rechnungen = []; // Speichert geladene Rechnungen für Download-Zugriff
-    // Statische Status-Optionen für Rechnungen
+    this.rechnungen = [];
+    this._bezahltUpdateInFlight = new Set();
     this.statusOptions = [
       { id: 'Offen', name: 'Offen' },
       { id: 'Rückfrage', name: 'Rückfrage' },
@@ -67,6 +69,36 @@ export class RechnungList {
       }
     });
     
+    // Bezahlt-Toggle direkt in der Tabelle
+    document.addEventListener('change', async (e) => {
+      const target = e.target;
+      if (!target?.classList?.contains('rechnung-bezahlt-toggle')) return;
+
+      const id = target.dataset.id;
+      if (!id || this._bezahltUpdateInFlight.has(id)) return;
+
+      const newStatus = target.checked ? 'Bezahlt' : 'Offen';
+      this._bezahltUpdateInFlight.add(id);
+      target.disabled = true;
+
+      try {
+        const result = await window.dataService.updateEntity('rechnung', id, { status: newStatus });
+        if (result?.error) throw new Error(result.error);
+
+        window.dispatchEvent(new CustomEvent('entityUpdated', {
+          detail: { entity: 'rechnung', id, action: 'updated', field: 'status', value: newStatus }
+        }));
+      } catch (err) {
+        target.checked = !target.checked;
+        window.toastSystem?.show?.('Fehler beim Ändern des Status', 'error');
+        console.error('❌ Bezahlt-Toggle Fehler:', err);
+      } finally {
+        this._bezahltUpdateInFlight.delete(id);
+        const canEdit = window.currentUser?.rolle !== 'kunde' && window.currentUser?.rolle !== 'kunde_editor';
+        target.disabled = !canEdit;
+      }
+    });
+
     // Tabellen-Links in Rechnungstabelle
     document.addEventListener('click', (e) => {
       const link = e.target.closest('.table-link[data-table][data-id]');
@@ -155,7 +187,13 @@ export class RechnungList {
       }
     }
 
-    // 5. Actions-Dropdown aktualisieren (currentStatus für Checkmark)
+    // 5. Bezahlt-Toggle synchronisieren
+    const toggle = row.querySelector('.rechnung-bezahlt-toggle');
+    if (toggle) {
+      toggle.checked = (newStatus === 'Bezahlt');
+    }
+
+    // 6. Actions-Dropdown aktualisieren (currentStatus für Checkmark)
     const actionsCell = row.cells[row.cells.length - 1];
     if (actionsCell && rechnung) {
       actionsCell.innerHTML = actionBuilder.create('rechnung', id, window.currentUser, {
@@ -388,14 +426,16 @@ export class RechnungList {
               <th class="col-preis-video">Preis/Video</th>
               <th class="col-brutto">Bruttobetrag</th>
               <th class="col-beleg">Beleg</th>
+              <th class="col-vertrag">Vertrag</th>
               <th class="col-status">Status</th>
               <th class="col-erstellt-von">Erstellt von</th>
+              <th class="table-cell-center col-bezahlt">Bezahlt</th>
               <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody id="rechnungen-table-body">
             <tr>
-              <td colspan="${isAdmin ? '19' : '18'}" class="loading">Lade Rechnungen...</td>
+              <td colspan="${isAdmin ? '21' : '20'}" class="loading">Lade Rechnungen...</td>
             </tr>
           </tbody>
         </table>
@@ -435,6 +475,7 @@ export class RechnungList {
     if (!tbody) return;
 
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    const canEdit = window.currentUser?.rolle !== 'kunde' && window.currentUser?.rolle !== 'kunde_editor';
     const formatCurrency = (v) => v == null ? '-' : new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v);
     const formatDate = (v) => v ? new Intl.DateTimeFormat('de-DE').format(new Date(v)) : '-';
 
@@ -476,8 +517,10 @@ export class RechnungList {
           <td class="col-preis-video">${r.videoanzahl && r.nettobetrag ? formatCurrency(r.nettobetrag / r.videoanzahl) : '-'}</td>
           <td class="col-brutto">${formatCurrency(r.bruttobetrag)}</td>
           <td class="col-beleg">${r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener noreferrer">PDF</a>` : '-'}</td>
+          <td class="col-vertrag">${renderVertragCell(r)}</td>
           <td class="col-status" data-col="status">${r.status || '-'}</td>
           <td class="col-erstellt-von">${this.renderCreatedBy(r.created_by)}</td>
+          <td class="table-cell-center col-bezahlt">${renderBezahltToggle(r, canEdit)}</td>
           <td class="col-actions">
             ${actionBuilder.create('rechnung', r.id, window.currentUser, { 
               statusOptions: this.statusOptions, 

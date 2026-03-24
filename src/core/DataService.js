@@ -769,6 +769,7 @@ export class DataService {
           land: 'string',
           pdf_url: 'string',
           pdf_path: 'string',
+          vertrag_id: 'uuid',
           created_by_id: 'uuid',
           created_at: 'date',
           updated_at: 'date'
@@ -779,7 +780,8 @@ export class DataService {
           kooperation: { table: 'kooperationen', foreignKey: 'kooperation_id', displayField: 'name' },
           creator: { table: 'creator', foreignKey: 'creator_id', displayField: 'vorname' },
           kampagne: { table: 'kampagne', foreignKey: 'kampagne_id', displayField: 'kampagnenname' },
-          created_by: { table: 'benutzer', foreignKey: 'created_by_id', displayField: 'name' }
+          created_by: { table: 'benutzer', foreignKey: 'created_by_id', displayField: 'name' },
+          vertrag: { table: 'vertraege', foreignKey: 'vertrag_id', displayField: 'name' }
         },
         filters: ['rechnung_nr', 'kooperation_id', 'kampagne_id', 'unternehmen_id', 'auftrag_id', 'status', 'gestellt_am', 'zahlungsziel', 'bezahlt_am', 'nettobetrag', 'land'],
         sortBy: 'zahlungsziel',
@@ -1292,6 +1294,13 @@ export class DataService {
                     id,
                     name,
                     profile_image_url
+                  ),
+                  vertrag:vertrag_id (
+                    id,
+                    name,
+                    unterschriebener_vertrag_url,
+                    dropbox_file_url,
+                    datei_url
                   )
                 `)
                 .order('zahlungsziel', { ascending: true, nullsFirst: false })
@@ -1439,7 +1448,24 @@ export class DataService {
       }
 
       console.log(`✅ ${entityType} aus Supabase geladen:`, data?.length || 0);
-      
+
+      // Bezahlte Rechnungen nach unten sortieren, offene weiterhin nach zahlungsziel ASC
+      if (entityType === 'rechnung' && data) {
+        data.sort((a, b) => {
+          const aPaid = a.status === 'Bezahlt' ? 1 : 0;
+          const bPaid = b.status === 'Bezahlt' ? 1 : 0;
+          if (aPaid !== bPaid) return aPaid - bPaid;
+
+          const aDate = a.zahlungsziel ? new Date(a.zahlungsziel) : new Date('9999-12-31');
+          const bDate = b.zahlungsziel ? new Date(b.zahlungsziel) : new Date('9999-12-31');
+          if (aDate.getTime() !== bDate.getTime()) return aDate - bDate;
+
+          const aCreated = a.created_at ? new Date(a.created_at) : new Date(0);
+          const bCreated = b.created_at ? new Date(b.created_at) : new Date(0);
+          return bCreated - aCreated;
+        });
+      }
+
       // Spezielle Verarbeitung für Unternehmen: Many-to-Many Branchen vereinfachen
       if (entityType === 'unternehmen' && data) {
         data.forEach(unternehmen => {

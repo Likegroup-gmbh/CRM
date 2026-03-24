@@ -862,6 +862,7 @@ export class FormConfig {
           { name: 'auftrag_id', label: 'Auftrag', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Auftrag wird automatisch gesetzt', readonly: true, table: 'auftrag', displayField: 'auftragsname', valueField: 'id' },
           { name: 'kampagne_id', label: 'Kampagne', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Kampagne wird automatisch gesetzt', readonly: true, table: 'kampagne', displayField: 'kampagnenname', valueField: 'id' },
           { name: 'creator_id', label: 'Creator', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Creator wird automatisch gesetzt', readonly: true, table: 'creator', displayField: 'vorname', valueField: 'id' },
+          { name: 'vertrag_id', label: 'Vertrag', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Vertrag wählen...', editOnly: true, dependsOn: 'kooperation_id', filterBy: 'kooperation_id', table: 'vertraege', displayField: 'name', valueField: 'id' },
           { name: 'videoanzahl', label: 'Video Anzahl (aus Kooperation)', type: 'number', required: false, validation: { type: 'number', min: 0 } },
           { name: 'status', label: 'Status', type: 'select', required: true, options: ['Offen', 'Rückfrage', 'Bezahlt', 'An Qonto gesendet'] },
           { name: 'geprueft', label: 'Geprüft', type: 'toggle', required: false },

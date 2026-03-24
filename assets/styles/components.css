@@ -5728,6 +5728,11 @@ width: 100%;
   box-shadow: 0 0 4px rgba(220, 38, 38, 0.3);
 }
 
+.status-dot--warning {
+  background-color: var(--color-warning, #f59e0b);
+  box-shadow: 0 0 4px rgba(245, 158, 11, 0.4);
+}
+
 /* Actions Dropdown Styles */
 .actions-dropdown-container {
   position: relative;

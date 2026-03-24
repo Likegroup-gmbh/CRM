@@ -2360,3 +2360,14 @@ width: 18em;
   opacity: 0.65;
   cursor: not-allowed;
 }
+
+/* Rechnungs-Liste: Bezahlt-Toggle in Tabellenzelle */
+.rechnung-bezahlt-toggle-wrapper {
+  margin-left: 0;
+  vertical-align: middle;
+}
+
+.rechnung-bezahlt-toggle-wrapper input:disabled + .toggle-slider {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
