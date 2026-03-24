@@ -454,8 +454,8 @@ export class KampagneKooperationenVideoTable {
       return false;
     }
 
-    // Kunden sehen kein Aktionsmenü in der Kooperations-/Video-Tabelle
-    if (columnClass === 'col-actions' && this.isKundeRole()) {
+    // Kunden sehen keine Verträge und kein Aktionsmenü
+    if ((columnClass === 'col-actions' || columnClass === 'col-vertrag') && this.isKundeRole()) {
       return false;
     }
     
