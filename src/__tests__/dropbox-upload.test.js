@@ -43,7 +43,7 @@ describe('buildDropboxPath', () => {
     expect(path).toBe('/Videos/FirmaX/MarkeY/Sommer2025/CreatorZ/Video_3/Version_1/video.mp4');
   });
 
-  it('nutzt Fallback-Dateiname wenn fileName leer ist', () => {
+  it('nutzt Fallback-Dateiname wenn fileName leer ist, videoTitel beeinflusst nur Dateiname nicht Ordner', () => {
     const path = buildDropboxPath({
       unternehmen: 'FirmaX',
       marke: 'MarkeY',
@@ -54,7 +54,7 @@ describe('buildDropboxPath', () => {
       versionNumber: '3'
     });
 
-    expect(path).toBe('/Videos/FirmaX/MarkeY/Sommer2025/CreatorZ/Video_1_Unboxing/Version_3/V3_Unboxing.mp4');
+    expect(path).toBe('/Videos/FirmaX/MarkeY/Sommer2025/CreatorZ/Video_1/Version_3/V3_Unboxing.mp4');
   });
 
   it('sanitized Sonderzeichen in Pfadteilen inkl. videoThema', () => {

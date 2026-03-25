@@ -7,7 +7,7 @@ function buildDropboxPath({ unternehmen, marke, kampagne, kooperation, videoPosi
   if (kampagne) parts.push(sanitizePath(kampagne));
   if (kooperation) parts.push(sanitizePath(kooperation));
 
-  const thema = sanitizePath(videoThema || videoTitel || '');
+  const thema = sanitizePath(videoThema || '');
   const pos = videoPosition || 1;
   parts.push(thema ? `Video_${pos}_${thema}` : `Video_${pos}`);
 
