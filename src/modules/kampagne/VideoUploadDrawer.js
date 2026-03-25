@@ -9,6 +9,7 @@ export class VideoUploadDrawer {
     this.onSuccess = null;
     this._selectedFile = null;
     this._isUploading = false;
+    this._existingVersions = [];
     this._availableVersions = [];
     this._selectedVersion = null;
   }
@@ -26,11 +27,11 @@ export class VideoUploadDrawer {
     this._selectedFile = null;
     this._isUploading = false;
 
-    const existingVersions = await this._loadExistingVersions();
-    console.log('[VideoUploadDrawer] videoId:', this.videoId, 'existingVersions:', existingVersions);
-    this._availableVersions = getAvailableVersions(existingVersions, MAX_VERSIONS);
+    this._existingVersions = await this._loadExistingVersions();
+    console.log('[VideoUploadDrawer] videoId:', this.videoId, 'existingVersions:', this._existingVersions);
+    this._availableVersions = getAvailableVersions(this._existingVersions, MAX_VERSIONS);
     console.log('[VideoUploadDrawer] availableVersions:', this._availableVersions);
-    this._selectedVersion = this._availableVersions[0] || null;
+    this._selectedVersion = this._availableVersions[0] || 1;
 
     this.createDrawer();
     this.renderForm();
@@ -109,17 +110,15 @@ export class VideoUploadDrawer {
   }
 
   _renderVersionSection() {
-    if (this._availableVersions.length === 0) {
-      return `
-        <div class="video-settings-section">
-          <label class="video-settings-label">Version (Runde)</label>
-          <p id="video-upload-version-hint" class="upload-version-hint">Alle ${MAX_VERSIONS} Versionen wurden bereits hochgeladen.</p>
-        </div>
-      `;
-    }
+    const allVersions = Array.from({ length: MAX_VERSIONS }, (_, i) => i + 1);
 
-    const options = this._availableVersions
-      .map(v => `<option value="${v}">Version ${v}</option>`)
+    const options = allVersions
+      .map(v => {
+        const exists = !this._availableVersions.includes(v);
+        const label = exists ? `Version ${v} (ersetzen)` : `Version ${v}`;
+        const selected = v === this._selectedVersion ? ' selected' : '';
+        return `<option value="${v}"${selected}>${label}</option>`;
+      })
       .join('');
 
     return `
@@ -486,13 +485,22 @@ export class VideoUploadDrawer {
       .update({ is_current: false })
       .eq('video_id', this.videoId);
 
+    const version = this._selectedVersion || 1;
+    if (this._existingVersions?.includes(version)) {
+      await window.supabase
+        .from('kooperation_video_asset')
+        .delete()
+        .eq('video_id', this.videoId)
+        .eq('version_number', version);
+    }
+
     const { error } = await window.supabase
       .from('kooperation_video_asset')
       .insert({
         video_id: this.videoId,
         file_url: fileUrl,
         file_path: filePath,
-        version_number: this._selectedVersion || 1,
+        version_number: version,
         is_current: true,
         description: null,
         uploaded_by: window.currentUser?.id || null,
@@ -523,8 +531,7 @@ export class VideoUploadDrawer {
     if (!submitBtn) return;
     const hasFile = Boolean(this._selectedFile);
     const hasVideoName = Boolean(nameInput?.value?.trim());
-    const hasVersion = this._availableVersions.length > 0;
-    submitBtn.disabled = this._isUploading || !hasFile || !hasVideoName || !hasVersion;
+    submitBtn.disabled = this._isUploading || !hasFile || !hasVideoName;
   }
 
   showError(msg) {

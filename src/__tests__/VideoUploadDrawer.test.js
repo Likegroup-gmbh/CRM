@@ -32,6 +32,14 @@ function createTrackingSupabase(assets = []) {
         log.push({ op: 'insert', table, data });
         return Promise.resolve({ error: null });
       }),
+      delete: vi.fn(() => {
+        log.push({ op: 'delete', table });
+        return {
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => Promise.resolve({ error: null })),
+          })),
+        };
+      }),
     })),
     _log: log,
   };
@@ -77,18 +85,21 @@ describe('VideoUploadDrawer', () => {
       expect(select.options[2].value).toBe('3');
     });
 
-    it('zeigt nur verfügbare Versionen wenn V1 bereits existiert', async () => {
+    it('zeigt alle Versionen auch wenn V1 bereits existiert, markiert belegte mit (ersetzen)', async () => {
       window.supabase = createMockSupabase([{ version_number: 1 }]);
       await drawer.open('video-1', defaultMetadaten, vi.fn());
 
       const select = document.getElementById('video-upload-version');
       expect(select).not.toBeNull();
-      expect(select.options.length).toBe(2);
-      expect(select.options[0].value).toBe('2');
-      expect(select.options[1].value).toBe('3');
+      expect(select.options.length).toBe(3);
+      expect(select.options[0].value).toBe('1');
+      expect(select.options[0].textContent).toContain('ersetzen');
+      expect(select.options[1].value).toBe('2');
+      expect(select.options[1].textContent).not.toContain('ersetzen');
+      expect(select.options[2].value).toBe('3');
     });
 
-    it('erste verfügbare Version ist vorausgewählt', async () => {
+    it('erste nicht-belegte Version ist vorausgewählt', async () => {
       window.supabase = createMockSupabase([{ version_number: 1 }]);
       await drawer.open('video-1', defaultMetadaten, vi.fn());
 
@@ -97,8 +108,22 @@ describe('VideoUploadDrawer', () => {
     });
   });
 
-  describe('Max Versionen erreicht', () => {
-    it('deaktiviert Upload-Button wenn alle Versionen belegt', async () => {
+  describe('Alle Versionen belegt', () => {
+    it('zeigt trotzdem Dropdown mit allen Versionen als (ersetzen)', async () => {
+      window.supabase = createMockSupabase([
+        { version_number: 1 }, { version_number: 2 }, { version_number: 3 }
+      ]);
+      await drawer.open('video-1', defaultMetadaten, vi.fn());
+
+      const select = document.getElementById('video-upload-version');
+      expect(select).not.toBeNull();
+      expect(select.options.length).toBe(3);
+      for (const opt of select.options) {
+        expect(opt.textContent).toContain('ersetzen');
+      }
+    });
+
+    it('Upload-Button bleibt aktivierbar wenn alle belegt aber Datei+Name vorhanden', async () => {
       window.supabase = createMockSupabase([
         { version_number: 1 }, { version_number: 2 }, { version_number: 3 }
       ]);
@@ -106,20 +131,11 @@ describe('VideoUploadDrawer', () => {
 
       const submitBtn = document.getElementById('video-upload-submit-btn');
       expect(submitBtn.disabled).toBe(true);
-    });
 
-    it('zeigt Hinweistext wenn alle Versionen belegt', async () => {
-      window.supabase = createMockSupabase([
-        { version_number: 1 }, { version_number: 2 }, { version_number: 3 }
-      ]);
-      await drawer.open('video-1', defaultMetadaten, vi.fn());
-
-      const select = document.getElementById('video-upload-version');
-      expect(select).toBeNull();
-
-      const hint = document.getElementById('video-upload-version-hint');
-      expect(hint).not.toBeNull();
-      expect(hint.textContent).toContain('3');
+      drawer._selectedFile = new File(['x'], 'test.mp4', { type: 'video/mp4' });
+      document.getElementById('video-upload-name').value = 'Test';
+      drawer._updateSubmitButtonState();
+      expect(submitBtn.disabled).toBe(false);
     });
   });
 
@@ -148,6 +164,22 @@ describe('VideoUploadDrawer', () => {
       const videoUpdate = sb._log.find(e => e.op === 'update' && e.table === 'kooperation_videos');
       expect(videoUpdate).toBeDefined();
       expect(videoUpdate.data.folder_url).toBe('https://new-folder.url');
+    });
+
+    it('löscht alten Asset-Eintrag wenn Version bereits existiert', async () => {
+      const sb = createTrackingSupabase([{ version_number: 1 }]);
+      window.supabase = sb;
+
+      await drawer.open('video-1', defaultMetadaten, vi.fn());
+      drawer._selectedVersion = 1;
+      await drawer.saveAssetVersion('https://new.url', '/new/path', 'name', 'https://folder.url');
+
+      const deleteOps = sb._log.filter(e => e.op === 'delete' && e.table === 'kooperation_video_asset');
+      expect(deleteOps.length).toBe(1);
+
+      const assetInsert = sb._log.find(e => e.op === 'insert' && e.table === 'kooperation_video_asset');
+      expect(assetInsert).toBeDefined();
+      expect(assetInsert.data.version_number).toBe(1);
     });
   });
 });
