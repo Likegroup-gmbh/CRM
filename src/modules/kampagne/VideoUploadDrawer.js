@@ -1,6 +1,4 @@
-// VideoUploadDrawer.js
-// Drawer zum Upload von Videos nach Dropbox (Netlify Function)
-// Nutzt bestehendes Drawer-Pattern (overlay + panel + header + body)
+import { getAvailableVersions, buildVersionedFileName, MAX_VERSIONS } from '../../core/VideoUploadUtils.js';
 
 export class VideoUploadDrawer {
   constructor() {
@@ -11,14 +9,16 @@ export class VideoUploadDrawer {
     this.onSuccess = null;
     this._selectedFile = null;
     this._isUploading = false;
+    this._availableVersions = [];
+    this._selectedVersion = null;
   }
 
   /**
    * @param {string} videoId - ID des kooperation_videos Eintrags
-   * @param {object} metadaten - { kooperationId, kooperationName, videoTitel, videoName, unternehmen, marke, kampagne }
-   * @param {function} onSuccess - Callback nach erfolgreichem Upload (fileUrl, filePath, videoName)
+   * @param {object} metadaten - { kooperationId, kooperationName, videoTitel, videoName, unternehmen, marke, kampagne, creatorName }
+   * @param {function} onSuccess - Callback nach erfolgreichem Upload (fileUrl, filePath, videoName, folderUrl)
    */
-  open(videoId, metadaten, onSuccess) {
+  async open(videoId, metadaten, onSuccess) {
     this.videoId = videoId;
     this.kooperationId = metadaten.kooperationId;
     this.metadaten = metadaten;
@@ -26,9 +26,25 @@ export class VideoUploadDrawer {
     this._selectedFile = null;
     this._isUploading = false;
 
+    const existingVersions = await this._loadExistingVersions();
+    this._availableVersions = getAvailableVersions(existingVersions, MAX_VERSIONS);
+    this._selectedVersion = this._availableVersions[0] || null;
+
     this.createDrawer();
     this.renderForm();
     this.bindEvents();
+  }
+
+  async _loadExistingVersions() {
+    try {
+      const { data } = await window.supabase
+        .from('kooperation_video_asset')
+        .select('version_number')
+        .eq('video_id', this.videoId);
+      return (data || []).map(a => a.version_number);
+    } catch (_) {
+      return [];
+    }
   }
 
   createDrawer() {
@@ -79,6 +95,28 @@ export class VideoUploadDrawer {
     });
   }
 
+  _renderVersionSection() {
+    if (this._availableVersions.length === 0) {
+      return `
+        <div class="video-settings-section">
+          <label class="video-settings-label">Version (Runde)</label>
+          <p id="video-upload-version-hint" class="upload-version-hint">Alle ${MAX_VERSIONS} Versionen wurden bereits hochgeladen.</p>
+        </div>
+      `;
+    }
+
+    const options = this._availableVersions
+      .map(v => `<option value="${v}">Version ${v}</option>`)
+      .join('');
+
+    return `
+      <div class="video-settings-section">
+        <label class="video-settings-label" for="video-upload-version">Version (Runde)</label>
+        <select id="video-upload-version" class="form-input">${options}</select>
+      </div>
+    `;
+  }
+
   renderForm() {
     const body = document.getElementById(`${this.drawerId}-body`);
     if (!body) return;
@@ -111,6 +149,8 @@ export class VideoUploadDrawer {
           <div class="upload-progress-text" id="video-upload-progress-text">Wird hochgeladen... 0%</div>
         </div>
 
+        ${this._renderVersionSection()}
+
         <div class="video-settings-section video-upload-name-field">
           <label class="video-settings-label" for="video-upload-name">Video-Name</label>
           <input type="text" id="video-upload-name" class="form-input video-upload-name-input" value="${this.escapeHtml(this.metadaten?.videoName || '')}" placeholder="Video-Name" maxlength="255"/>
@@ -142,6 +182,7 @@ export class VideoUploadDrawer {
     const browseBtn = panel?.querySelector('.dropzone-browse-btn');
     const removeBtn = document.getElementById('video-upload-remove');
     const nameInput = document.getElementById('video-upload-name');
+    const versionSelect = document.getElementById('video-upload-version');
 
     overlay?.addEventListener('click', () => this.close());
     closeBtn?.addEventListener('click', () => this.close());
@@ -157,6 +198,11 @@ export class VideoUploadDrawer {
     });
     removeBtn?.addEventListener('click', () => this.clearFile());
     nameInput?.addEventListener('input', () => this._updateSubmitButtonState());
+
+    versionSelect?.addEventListener('change', () => {
+      this._selectedVersion = parseInt(versionSelect.value, 10);
+      this._updateSubmitButtonState();
+    });
 
     dropzone?.addEventListener('dragover', (e) => {
       e.preventDefault();
@@ -214,6 +260,18 @@ export class VideoUploadDrawer {
     this._updateSubmitButtonState();
   }
 
+  _getVersionedFileName() {
+    if (!this._selectedFile) return null;
+    const ext = this._selectedFile.name.split('.').pop() || 'mp4';
+    return buildVersionedFileName(
+      this.metadaten?.creatorName || '',
+      this.metadaten?.unternehmen || '',
+      this.metadaten?.kampagne || '',
+      this._selectedVersion,
+      ext
+    );
+  }
+
   async handleUpload() {
     if (!this._selectedFile || this._isUploading) return;
     this._isUploading = true;
@@ -239,8 +297,10 @@ export class VideoUploadDrawer {
       return;
     }
 
+    const versionNumber = String(this._selectedVersion || 1);
+    const fileName = this._getVersionedFileName() || this._selectedFile.name;
+
     try {
-      // Schritt 1: Token + Pfad von Netlify Function holen (kein File, nur JSON)
       if (progressText) progressText.textContent = 'Verbinde mit Dropbox...';
       const tokenResp = await fetch('/.netlify/functions/dropbox-upload', {
         method: 'POST',
@@ -251,8 +311,8 @@ export class VideoUploadDrawer {
           kampagne: this.metadaten.kampagne || '',
           kooperation: this.metadaten.kooperationName || '',
           videoTitel: this.metadaten.videoTitel || 'Video',
-          versionNumber: '1',
-          fileName: this._selectedFile.name
+          versionNumber,
+          fileName
         })
       });
 
@@ -261,22 +321,21 @@ export class VideoUploadDrawer {
         throw new Error(errData.error || `Token-Abruf fehlgeschlagen (${tokenResp.status})`);
       }
 
-      const { token, dropboxPath } = await tokenResp.json();
+      const { token, dropboxPath, folderPath } = await tokenResp.json();
 
-      // Schritt 2: Direkt-Upload an Dropbox API (kein Size-Limit)
       if (progressText) progressText.textContent = 'Lade hoch nach Dropbox...';
       const uploadResult = await this._uploadToDropbox(token, dropboxPath, progressFill, progressText);
 
-      // Schritt 3: Shared Links erstellen (Datei + Ordner)
       if (progressFill) progressFill.style.width = '90%';
       if (progressText) progressText.textContent = 'Erstelle Links...';
       const actualPath = uploadResult.path_display || dropboxPath;
       const sharedLink = await this._createSharedLink(token, actualPath);
 
-      const folderPath = actualPath.substring(0, actualPath.lastIndexOf('/'));
-      const folderUrl = await this._createFolderSharedLink(token, folderPath);
+      const kooperationFolderPath = folderPath
+        ? folderPath.substring(0, folderPath.lastIndexOf('/'))
+        : actualPath.substring(0, actualPath.lastIndexOf('/'));
+      const folderUrl = await this._createFolderSharedLink(token, kooperationFolderPath);
 
-      // Schritt 4: In Supabase speichern
       if (progressFill) progressFill.style.width = '100%';
       if (progressText) progressText.textContent = 'Speichere in Datenbank...';
 
@@ -302,10 +361,6 @@ export class VideoUploadDrawer {
   }
 
   _uploadToDropbox(token, dropboxPath, progressFill, progressText) {
-    console.log('[Dropbox Upload] Path:', dropboxPath);
-    console.log('[Dropbox Upload] Token prefix:', token?.substring(0, 10) + '...');
-    console.log('[Dropbox Upload] File size:', this._selectedFile?.size, 'bytes');
-
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', 'https://content.dropboxapi.com/2/files/upload');
@@ -362,7 +417,6 @@ export class VideoUploadDrawer {
       return data.url?.replace('?dl=0', '?raw=1') || null;
     }
 
-    // 409 = Link existiert bereits
     if (resp.status === 409) {
       const listResp = await fetch('https://api.dropboxapi.com/2/sharing/list_shared_links', {
         method: 'POST',
@@ -415,7 +469,6 @@ export class VideoUploadDrawer {
   }
 
   async saveAssetVersion(fileUrl, filePath, videoName, folderUrl) {
-    // Alte Versionen als nicht-aktuell markieren
     await window.supabase
       .from('kooperation_video_asset')
       .update({ is_current: false })
@@ -427,7 +480,7 @@ export class VideoUploadDrawer {
         video_id: this.videoId,
         file_url: fileUrl,
         file_path: filePath,
-        version_number: 1,
+        version_number: this._selectedVersion || 1,
         is_current: true,
         description: null,
         uploaded_by: window.currentUser?.id || null,
@@ -437,14 +490,7 @@ export class VideoUploadDrawer {
 
     const updateData = { link_content: fileUrl, video_name: videoName || null };
     if (folderUrl) {
-      const { data: existing } = await window.supabase
-        .from('kooperation_videos')
-        .select('folder_url')
-        .eq('id', this.videoId)
-        .single();
-      if (!existing?.folder_url) {
-        updateData.folder_url = folderUrl;
-      }
+      updateData.folder_url = folderUrl;
     }
 
     await window.supabase
@@ -465,7 +511,8 @@ export class VideoUploadDrawer {
     if (!submitBtn) return;
     const hasFile = Boolean(this._selectedFile);
     const hasVideoName = Boolean(nameInput?.value?.trim());
-    submitBtn.disabled = this._isUploading || !hasFile || !hasVideoName;
+    const hasVersion = this._availableVersions.length > 0;
+    submitBtn.disabled = this._isUploading || !hasFile || !hasVideoName || !hasVersion;
   }
 
   showError(msg) {

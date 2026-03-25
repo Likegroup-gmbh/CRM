@@ -1059,6 +1059,9 @@ export class KampagneKooperationenVideoTable {
     const videos = this.videos[kooperationId] || [];
     const video = videos.find(v => v.id === videoId);
 
+    const creator = koop?.creator;
+    const creatorName = `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim();
+
     const metadaten = {
       kooperationId,
       kooperationName: koop?.name || 'Kooperation',
@@ -1066,7 +1069,8 @@ export class KampagneKooperationenVideoTable {
       videoName: video?.video_name || '',
       unternehmen: this.kampagneInfo?.unternehmen || '',
       marke: this.kampagneInfo?.marke || '',
-      kampagne: this.kampagneInfo?.name || ''
+      kampagne: this.kampagneInfo?.name || '',
+      creatorName
     };
 
     console.log('[Dropbox] kampagneInfo:', this.kampagneInfo);

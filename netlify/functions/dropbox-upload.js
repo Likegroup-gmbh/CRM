@@ -7,11 +7,15 @@ function buildDropboxPath({ unternehmen, marke, kampagne, kooperation, videoTite
   if (kampagne) parts.push(sanitizePath(kampagne));
   if (kooperation) parts.push(sanitizePath(kooperation));
 
+  parts.push(`Version_${versionNumber || 1}`);
+
   const name = sanitizePath(fileName) || `V${versionNumber || 1}_${sanitizePath(videoTitel || 'Video')}.mp4`;
   parts.push(name);
 
   return parts.join('/');
 }
+
+exports.buildDropboxPath = buildDropboxPath;
 
 exports.handler = async (event) => {
   const headers = {
@@ -47,10 +51,20 @@ exports.handler = async (event) => {
 
     console.log('dropbox-upload path:', dropboxPath);
 
+    const folderPath = dropboxPath.substring(0, dropboxPath.lastIndexOf('/'));
+
+    try {
+      await fetch('https://api.dropboxapi.com/2/files/create_folder_v2', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: folderPath, autorename: false }),
+      });
+    } catch (_) { /* Ordner existiert evtl. schon – 409 ist okay */ }
+
     return {
       statusCode: 200,
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, dropboxPath }),
+      body: JSON.stringify({ token, dropboxPath, folderPath }),
     };
   } catch (err) {
     console.error('dropbox-upload error:', err);

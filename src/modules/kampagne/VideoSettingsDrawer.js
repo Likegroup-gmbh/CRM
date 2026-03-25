@@ -103,9 +103,15 @@ export class VideoSettingsDrawer {
     const body = document.getElementById(`${this.drawerId}-body`);
     if (!body) return;
 
-    const displayPath = this.filePath
-      ? this.filePath.split('/').pop()
-      : new URL(this.videoUrl).pathname.split('/').pop() || 'Video';
+    let displayPath = 'Video';
+    if (this.filePath) {
+      displayPath = this.filePath.split('/').pop();
+    } else if (this.videoUrl) {
+      try { displayPath = new URL(this.videoUrl).pathname.split('/').pop() || 'Video'; }
+      catch { displayPath = 'Video'; }
+    }
+
+    const hasFile = Boolean(this.videoUrl || this.filePath);
 
     body.innerHTML = `
       <div class="video-settings-drawer-content">
@@ -116,6 +122,7 @@ export class VideoSettingsDrawer {
 
         <div class="video-settings-section">
           <label class="video-settings-label">Aktuelle Datei</label>
+          ${hasFile ? `
           <a href="${this.videoUrl}" target="_blank" rel="noopener noreferrer" class="video-settings-file-link">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
               <path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
@@ -126,6 +133,7 @@ export class VideoSettingsDrawer {
             </svg>
           </a>
           ${this.filePath ? `<span class="video-settings-path">${this._escapeHtml(this.filePath)}</span>` : ''}
+          ` : `<p class="video-settings-no-file">Noch kein Video hochgeladen</p>`}
         </div>
 
         <div class="video-settings-actions">
