@@ -57,7 +57,7 @@ export class VertraegeList {
     window.setHeadline('Verträge');
     
     // Breadcrumb
-    this.updateBreadcrumb();
+    this.updateBreadcrumbDisplay();
     
     // Berechtigungsprüfung (einheitlich über PermissionSystem + Overrides)
     const { canView } = this.getVertragPermissions();
@@ -104,20 +104,15 @@ export class VertraegeList {
     }
   }
 
-  // Breadcrumb aktualisieren
-  updateBreadcrumb() {
+  updateBreadcrumbDisplay() {
     if (!window.breadcrumbSystem) return;
 
     if (this.viewMode === 'folders') {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Verträge', url: '/vertraege', clickable: false }
-      ]);
-    } else {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Verträge', url: '/vertraege', clickable: true },
-        { label: this.currentUnternehmenName || 'Unternehmen', url: `/vertraege?unternehmen=${this.currentUnternehmenId}`, clickable: false }
-      ]);
+      // Base view - router handles breadcrumb
+      return;
     }
+
+    window.breadcrumbSystem.updateDetailLabel(this.currentUnternehmenName || 'Unternehmen');
   }
 
   // Seitenwechsel Handler
@@ -1150,7 +1145,7 @@ export class VertraegeList {
     this.currentUnternehmenName = null;
     this.selectedVertraege.clear();
     
-    this.updateBreadcrumb();
+    this.updateBreadcrumbDisplay();
     this.loadAndRender();
   }
 
@@ -1164,7 +1159,7 @@ export class VertraegeList {
     // Pagination zurücksetzen
     this.pagination.currentPage = 1;
     
-    this.updateBreadcrumb();
+    this.updateBreadcrumbDisplay();
     this.loadAndRender();
   }
 

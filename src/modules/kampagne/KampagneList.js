@@ -246,13 +246,6 @@ export class KampagneList {
     
     window.setHeadline('Kampagnen Übersicht');
     
-    // Breadcrumb für Listen-Seite
-    if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Kampagne', url: '/kampagne', clickable: false }
-      ]);
-    }
-    
     // Verstecke Bulk-Actions für Kunden
     if (window.bulkActionSystem) {
       window.bulkActionSystem.hideForKunden();
@@ -1005,10 +998,7 @@ export class KampagneList {
     
     // Breadcrumb aktualisieren
     if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Kampagne', url: '/kampagne', clickable: true },
-        { label: 'Neue Kampagne', url: '/kampagne/new', clickable: false }
-      ]);
+      window.breadcrumbSystem.updateDetailLabel('Neue Kampagne');
     }
     
     // Formular direkt in content rendern

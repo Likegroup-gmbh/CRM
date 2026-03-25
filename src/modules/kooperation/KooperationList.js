@@ -23,12 +23,6 @@ export class KooperationList {
   async init() {
     window.setHeadline('Kooperationen Übersicht');
     
-    // Breadcrumb für Listen-Seite
-    if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Kooperation', url: '/kooperation', clickable: false }
-      ]);
-    }
     
     // Verstecke Bulk-Actions für Kunden
     if (window.bulkActionSystem) {
@@ -736,13 +730,8 @@ export class KooperationList {
       
       // Wenn Kampagne verfügbar, formData erstellen
       if (kampagne) {
-        // Breadcrumb mit 3 Ebenen: Kampagne > Kampagnenname > Neue Kooperation
         if (window.breadcrumbSystem) {
-          window.breadcrumbSystem.updateBreadcrumb([
-            { label: 'Kampagne', url: '/kampagne', clickable: true },
-            { label: KampagneUtils.getDisplayName(kampagne), url: `/kampagne/${kampagneId}`, clickable: true },
-            { label: 'Neue Kooperation', url: '/kooperation/new', clickable: false }
-          ]);
+          window.breadcrumbSystem.updateDetailLabel('Neue Kooperation');
         }
         
         // formData mit allen Prefill-Daten erstellen
@@ -759,21 +748,13 @@ export class KooperationList {
         
         console.log('📦 KOOPERATION-PREFILL: formData erstellt:', formData);
       } else {
-        // Fallback: Standard-Breadcrumb
         if (window.breadcrumbSystem) {
-          window.breadcrumbSystem.updateBreadcrumb([
-            { label: 'Kooperation', url: '/kooperation', clickable: true },
-            { label: 'Neue Kooperation', url: '/kooperation/new', clickable: false }
-          ]);
+          window.breadcrumbSystem.updateDetailLabel('Neue Kooperation');
         }
       }
     } else {
-      // Kein Kampagne-Kontext: Standard-Breadcrumb
       if (window.breadcrumbSystem) {
-        window.breadcrumbSystem.updateBreadcrumb([
-          { label: 'Kooperation', url: '/kooperation', clickable: true },
-          { label: 'Neue Kooperation', url: '/kooperation/new', clickable: false }
-        ]);
+        window.breadcrumbSystem.updateDetailLabel('Neue Kooperation');
       }
     }
     

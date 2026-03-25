@@ -773,10 +773,7 @@ export class UnternehmenList extends BasePaginatedList {
     window.setHeadline('Neues Unternehmen anlegen');
     
     if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Unternehmen', url: '/unternehmen', clickable: true },
-        { label: 'Neues Unternehmen', url: '/unternehmen/new', clickable: false }
-      ]);
+      window.breadcrumbSystem.updateDetailLabel('Neues Unternehmen');
     }
     
     const formHtml = window.formSystem.renderFormOnly('unternehmen');

@@ -356,10 +356,7 @@ export class CreatorList extends BasePaginatedList {
     window.setHeadline('Neuen Creator anlegen');
     
     if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Creator', url: '/creator', clickable: true },
-        { label: 'Neuer Creator', url: '/creator/new', clickable: false }
-      ]);
+      window.breadcrumbSystem.updateDetailLabel('Neuer Creator');
     }
     
     const formHtml = window.formSystem.renderFormOnly('creator');

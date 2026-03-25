@@ -13,13 +13,6 @@ export class KundenLanding {
   async init() {
     window.setHeadline('Übersicht');
     
-    // Breadcrumb für Kunden-Landing
-    if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Übersicht', url: '/kunden', clickable: false }
-      ]);
-    }
-    
     await this.load();
     await this.render();
     this.bind();

@@ -34,15 +34,11 @@ export class ProfileDetailV2 extends PersonDetailBase {
 
     await this.loadAllData();
     
-    // Breadcrumb für Profil aktualisieren: "Profil" → "Username" → [Bearbeiten-Button]
     if (window.breadcrumbSystem && this.user) {
       const userName = this.user.name || 'Unbekannt';
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Profil', url: '/profil', clickable: false },
-        { label: userName, url: '/profil', clickable: false }
-      ], {
+      window.breadcrumbSystem.updateDetailLabel(userName, {
         id: 'btn-edit-profile',
-        canEdit: true  // User kann sein eigenes Profil immer bearbeiten
+        canEdit: true
       });
     }
     
@@ -1122,12 +1118,8 @@ export class ProfileDetailV2 extends PersonDetailBase {
       await this.render();
       this.bind();
       
-      // Breadcrumb aktualisieren
       if (window.breadcrumbSystem) {
-        window.breadcrumbSystem.updateBreadcrumb([
-          { label: 'Profil', url: '/profil', clickable: false },
-          { label: this.user.name, url: '/profil', clickable: false }
-        ], {
+        window.breadcrumbSystem.updateDetailLabel(this.user.name, {
           id: 'btn-edit-profile',
           canEdit: true
         });

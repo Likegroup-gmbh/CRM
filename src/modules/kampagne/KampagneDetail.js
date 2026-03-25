@@ -89,12 +89,7 @@ export class KampagneDetail {
       // Breadcrumb aktualisieren mit Edit-Button
       if (window.breadcrumbSystem && this.kampagneData) {
         const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
-        const rolle = window.currentUser?.rolle?.toLowerCase();
-        const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
-        window.breadcrumbSystem.updateBreadcrumb([
-          { label: isKunde ? 'Meine Kampagnen' : 'Kampagne', url: isKunde ? '/kunden' : '/kampagne', clickable: true },
-          { label: KampagneUtils.getDisplayName(this.kampagneData), url: `/kampagne/${this.kampagneId}`, clickable: false }
-        ], {
+        window.breadcrumbSystem.updateDetailLabel(KampagneUtils.getDisplayName(this.kampagneData), {
           id: 'btn-edit-kampagne',
           canEdit: canEdit
         });

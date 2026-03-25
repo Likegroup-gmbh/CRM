@@ -54,10 +54,7 @@ export class CreatorDetail extends PersonDetailBase {
       if (window.breadcrumbSystem && this.creator) {
         const creatorName = [this.creator.vorname, this.creator.nachname].filter(Boolean).join(' ') || 'Details';
         const canEdit = window.currentUser?.permissions?.creator?.can_edit !== false;
-        window.breadcrumbSystem.updateBreadcrumb([
-          { label: 'Creator', url: '/creator', clickable: true },
-          { label: creatorName, url: `/creator/${this.creatorId}`, clickable: false }
-        ], {
+        window.breadcrumbSystem.updateDetailLabel(creatorName, {
           id: 'btn-edit-creator',
           canEdit: canEdit
         });

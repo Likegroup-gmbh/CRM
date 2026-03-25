@@ -14,13 +14,7 @@ export const educationPage = {
   async init() {
     console.log('📚 EducationPage: init()');
     
-    // Headline & Breadcrumb
     window.setHeadline('Education');
-    if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Education', url: '/education', clickable: false }
-      ]);
-    }
     
     // Daten laden
     await this.loadData();

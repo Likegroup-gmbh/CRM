@@ -47,7 +47,7 @@ export class StrategieList {
     }
 
     window.setHeadline('Strategien');
-    this.updateBreadcrumb();
+    this.updateBreadcrumbDisplay();
     await this.loadAndRender();
   }
 
@@ -81,28 +81,20 @@ export class StrategieList {
     }
   }
 
-  updateBreadcrumb() {
+  updateBreadcrumbDisplay() {
     if (!window.breadcrumbSystem) return;
+
     if (this.viewMode === 'companies') {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Strategien', url: '/strategie', clickable: false }
-      ]);
+      // Base view - router handles breadcrumb
       return;
     }
 
     if (this.viewMode === 'brands') {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Strategien', url: '/strategie', clickable: true },
-        { label: this.currentUnternehmenName || 'Unternehmen', url: '#', clickable: false }
-      ]);
+      window.breadcrumbSystem.updateDetailLabel(this.currentUnternehmenName || 'Unternehmen');
       return;
     }
 
-    window.breadcrumbSystem.updateBreadcrumb([
-      { label: 'Strategien', url: '/strategie', clickable: true },
-      { label: this.currentUnternehmenName || 'Unternehmen', url: '#', clickable: false },
-      { label: this.currentMarkeName || 'Marke', url: '#', clickable: false }
-    ]);
+    window.breadcrumbSystem.updateDetailLabel(this.currentMarkeName || 'Marke');
   }
 
   sanitize(value) {
@@ -466,7 +458,7 @@ export class StrategieList {
   }
 
   render() {
-    this.updateBreadcrumb();
+    this.updateBreadcrumbDisplay();
     let html = '';
     if (this.viewMode === 'companies') {
       html = this.renderCompaniesView();

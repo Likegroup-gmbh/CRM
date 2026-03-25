@@ -154,10 +154,7 @@ export class MarkeDetail extends PersonDetailBase {
       // Breadcrumb aktualisieren mit Edit-Button
       if (window.breadcrumbSystem && this.marke) {
         const canEdit = window.currentUser?.permissions?.marke?.can_edit !== false;
-        window.breadcrumbSystem.updateBreadcrumb([
-          { label: 'Marke', url: '/marke', clickable: true },
-          { label: this.marke.markenname || 'Details', url: `/marke/${this.markeId}`, clickable: false }
-        ], {
+        window.breadcrumbSystem.updateDetailLabel(this.marke.markenname || 'Details', {
           id: 'btn-edit-marke',
           canEdit: canEdit
         });

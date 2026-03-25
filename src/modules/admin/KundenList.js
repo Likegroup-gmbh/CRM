@@ -16,13 +16,6 @@ export class KundenList {
   async init() {
     window.setHeadline('Kunden');
     
-    // Breadcrumb für Kunden-Liste
-    if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Kunden', url: '/admin/kunden', clickable: false }
-      ]);
-    }
-    
     const isAdmin = window.currentUser?.rolle === 'admin' || window.canViewPage?.('mitarbeiter');
     if (!isAdmin) {
       window.content.innerHTML = `
@@ -301,12 +294,8 @@ export class KundenList {
       return;
     }
     
-    // Breadcrumb aktualisieren
     if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Kunden', url: '/admin/kunden', clickable: true },
-        { label: 'Neuer Kunde', url: '/admin/kunden/new', clickable: false }
-      ]);
+      window.breadcrumbSystem.updateDetailLabel('Neuer Kunde');
     }
 
     const html = `

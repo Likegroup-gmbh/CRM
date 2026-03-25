@@ -224,10 +224,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       
       console.log('🔄 ANSPRECHPARTNERDETAIL: Breadcrumb wird gesetzt', { name, canEdit, id: this.ansprechpartnerId });
       
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Ansprechpartner', url: '/ansprechpartner', clickable: true },
-        { label: name, url: `/ansprechpartner/${this.ansprechpartnerId}`, clickable: false }
-      ], {
+      window.breadcrumbSystem.updateDetailLabel(name, {
         id: 'btn-edit-ansprechpartner',
         canEdit: canEdit
       });

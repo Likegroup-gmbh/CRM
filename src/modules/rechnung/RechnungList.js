@@ -25,13 +25,6 @@ export class RechnungList {
 
   async init() {
     window.setHeadline('Rechnungen');
-    
-    // Breadcrumb für Listen-Seite
-    if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Rechnung', url: '/rechnung', clickable: false }
-      ]);
-    }
 
     // Registriere beim BulkActionSystem für konsistente Bulk-Löschung
     if (window.bulkActionSystem) {

@@ -55,13 +55,6 @@ export class DashboardModule {
   async init() {
     window.setHeadline('Dashboard');
     
-    // Breadcrumb für Dashboard
-    if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Dashboard', url: '/dashboard', clickable: false }
-      ]);
-    }
-    
     // Für Kunden: Spezielle Dashboard-Ansicht
     if (window.currentUser?.rolle === 'kunde') {
       await this.renderKundenDashboard();

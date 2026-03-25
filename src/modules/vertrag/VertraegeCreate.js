@@ -583,12 +583,8 @@ export class VertraegeCreate {
     
     window.setHeadline(draftId ? 'Vertrag bearbeiten' : 'Neuer Vertrag');
     
-    // Breadcrumb
     if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Verträge', url: '/vertraege', clickable: true },
-        { label: draftId ? 'Bearbeiten' : 'Neuer Vertrag', url: draftId ? `/vertraege/${draftId}/edit` : '/vertraege/new', clickable: false }
-      ]);
+      window.breadcrumbSystem.updateDetailLabel(draftId ? 'Bearbeiten' : 'Neuer Vertrag');
     }
     
     // Berechtigungsprüfung (einheitlich über PermissionSystem + Overrides)

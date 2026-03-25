@@ -44,11 +44,8 @@ export class CreatorAuswahlDetail {
       this.liste = await creatorAuswahlService.getListeById(listeId);
       this.items = await creatorAuswahlService.getItems(listeId);
 
-      if (window.breadcrumbSystem) {
-        window.breadcrumbSystem.updateBreadcrumb([
-          { label: 'Sourcing', url: '/sourcing', clickable: true },
-          { label: this.liste.name, url: `/sourcing/${listeId}`, clickable: false }
-        ]);
+      if (window.breadcrumbSystem && this.liste) {
+        window.breadcrumbSystem.updateDetailLabel(this.liste.name);
       }
 
       // Bei leerer Liste automatisch eine Zeile vorbereiten (nur für Nicht-Kunden)

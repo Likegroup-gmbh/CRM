@@ -17,12 +17,8 @@ export class ProduktCreate {
     console.log('🎯 PRODUKTCREATE: Zeige Produkt-Erstellungsformular mit FormSystem');
     window.setHeadline('Neues Produkt anlegen');
     
-    // Breadcrumb aktualisieren
     if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Produkte', url: '/produkt', clickable: true },
-        { label: 'Neues Produkt', url: '/produkt/new', clickable: false }
-      ]);
+      window.breadcrumbSystem.updateDetailLabel('Neues Produkt');
     }
     
     // Formular direkt in content rendern

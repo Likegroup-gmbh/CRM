@@ -54,20 +54,9 @@ export class UnternehmenDetail extends PersonDetailBase {
       this.unternehmenId = unternehmenId;
       await this.loadUnternehmenData();
       
-      // Breadcrumb aktualisieren mit Edit-Button
       if (window.breadcrumbSystem && this.unternehmen) {
         const canEdit = window.currentUser?.permissions?.unternehmen?.can_edit !== false;
-        const canNavigateToUnternehmenList = window.canViewPage
-          ? window.canViewPage('unternehmen') !== false
-          : true;
-        window.breadcrumbSystem.updateBreadcrumb([
-          {
-            label: 'Unternehmen',
-            url: canNavigateToUnternehmenList ? '/unternehmen' : null,
-            clickable: canNavigateToUnternehmenList
-          },
-          { label: this.unternehmen.firmenname || 'Details', url: `/unternehmen/${this.unternehmenId}`, clickable: false }
-        ], {
+        window.breadcrumbSystem.updateDetailLabel(this.unternehmen.firmenname || 'Details', {
           id: 'btn-edit-unternehmen',
           canEdit: canEdit
         });
@@ -1356,13 +1345,8 @@ export class UnternehmenDetail extends PersonDetailBase {
     console.log('🔧 UNTERNEHMENDETAIL: Öffne Edit-Formular für Unternehmen:', this.unternehmenId);
     
     try {
-      // Breadcrumb aktualisieren
       if (window.breadcrumbSystem && this.unternehmen) {
-        window.breadcrumbSystem.updateBreadcrumb([
-          { label: 'Unternehmen', url: '/unternehmen', clickable: true },
-          { label: this.unternehmen.firmenname || 'Details', url: `/unternehmen/${this.unternehmenId}`, clickable: true },
-          { label: 'Bearbeiten', url: `/unternehmen/${this.unternehmenId}/edit`, clickable: false }
-        ]);
+        window.breadcrumbSystem.updateDetailLabel('Bearbeiten');
       }
 
       // Formular-Daten vorbereiten

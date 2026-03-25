@@ -71,12 +71,8 @@ export class KickOffPage {
     
     window.setHeadline('Brand Kick-Off');
     
-    // Breadcrumb
     if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Marken', url: '/marke', clickable: true },
-        { label: 'Brand Kick-Off', url: '/kickoff', clickable: false }
-      ]);
+      window.breadcrumbSystem.updateDetailLabel('Brand Kick-Off');
     }
 
     await this.loadMarkenwerte();

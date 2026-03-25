@@ -16,10 +16,7 @@ export class KundenKampagneDetail {
     
     // Breadcrumb aktualisieren
     if (window.breadcrumbSystem && this.kampagne) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Meine Kampagnen', url: '/kunden', clickable: true },
-        { label: KampagneUtils.getDisplayName(this.kampagne), url: `/kunden-kampagne/${this.kampagneId}`, clickable: false }
-      ]);
+      window.breadcrumbSystem.updateDetailLabel(KampagneUtils.getDisplayName(this.kampagne));
     }
     
     await this.render();

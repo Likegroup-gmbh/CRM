@@ -27,10 +27,7 @@ export class ProduktDetail extends PersonDetailBase {
       // Breadcrumb aktualisieren mit Edit-Button
       if (window.breadcrumbSystem && this.produkt) {
         const canEdit = window.currentUser?.permissions?.produkt?.can_edit !== false;
-        window.breadcrumbSystem.updateBreadcrumb([
-          { label: 'Produkte', url: '/produkt', clickable: true },
-          { label: this.produkt.name || 'Details', url: `/produkt/${this.produktId}`, clickable: false }
-        ], {
+        window.breadcrumbSystem.updateDetailLabel(this.produkt.name || 'Details', {
           id: 'btn-edit-produkt',
           canEdit: canEdit
         });

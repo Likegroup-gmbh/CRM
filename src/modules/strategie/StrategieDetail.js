@@ -27,11 +27,8 @@ export class StrategieDetail {
       this.items = await strategieService.getStrategieItems(strategieId);
 
       // Breadcrumb
-      if (window.breadcrumbSystem) {
-        window.breadcrumbSystem.updateBreadcrumb([
-          { label: 'Strategien', url: '/strategie', clickable: true },
-          { label: this.strategie.name, url: `/strategie/${strategieId}`, clickable: false }
-        ]);
+      if (window.breadcrumbSystem && this.strategie) {
+        window.breadcrumbSystem.updateDetailLabel(this.strategie.name);
       }
 
       window.setHeadline(''); // Name wird bereits in Breadcrumb angezeigt

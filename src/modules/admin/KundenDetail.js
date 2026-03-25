@@ -21,10 +21,7 @@ export class KundenDetail extends PersonDetailBase {
     // Breadcrumb aktualisieren
     if (window.breadcrumbSystem && this.user) {
       const userName = this.user.name || 'Details';
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Kunden', url: '/admin/kunden', clickable: true },
-        { label: userName, url: `/admin/kunden/${this.userId}`, clickable: false }
-      ]);
+      window.breadcrumbSystem.updateDetailLabel(userName);
     }
     
     await this.loadActivities();

@@ -267,23 +267,27 @@ export class VideoUploadDrawer {
       if (progressText) progressText.textContent = 'Lade hoch nach Dropbox...';
       const uploadResult = await this._uploadToDropbox(token, dropboxPath, progressFill, progressText);
 
-      // Schritt 3: Shared Link erstellen
-      if (progressFill) progressFill.style.width = '95%';
-      if (progressText) progressText.textContent = 'Erstelle Link...';
-      const sharedLink = await this._createSharedLink(token, uploadResult.path_display || dropboxPath);
+      // Schritt 3: Shared Links erstellen (Datei + Ordner)
+      if (progressFill) progressFill.style.width = '90%';
+      if (progressText) progressText.textContent = 'Erstelle Links...';
+      const actualPath = uploadResult.path_display || dropboxPath;
+      const sharedLink = await this._createSharedLink(token, actualPath);
+
+      const folderPath = actualPath.substring(0, actualPath.lastIndexOf('/'));
+      const folderUrl = await this._createFolderSharedLink(token, folderPath);
 
       // Schritt 4: In Supabase speichern
       if (progressFill) progressFill.style.width = '100%';
       if (progressText) progressText.textContent = 'Speichere in Datenbank...';
 
-      const fileUrl = sharedLink || uploadResult.path_display || dropboxPath;
-      await this.saveAssetVersion(fileUrl, uploadResult.path_display || dropboxPath, videoName);
+      const fileUrl = sharedLink || actualPath;
+      await this.saveAssetVersion(fileUrl, actualPath, videoName, folderUrl);
 
       if (progressText) progressText.textContent = 'Upload abgeschlossen!';
       this._isUploading = false;
 
       if (typeof this.onSuccess === 'function') {
-        this.onSuccess(fileUrl, uploadResult.path_display || dropboxPath, videoName);
+        this.onSuccess(fileUrl, uploadResult.path_display || dropboxPath, videoName, folderUrl);
       }
 
       setTimeout(() => this.close(), 800);
@@ -374,7 +378,43 @@ export class VideoUploadDrawer {
     return null;
   }
 
-  async saveAssetVersion(fileUrl, filePath, videoName) {
+  async _createFolderSharedLink(token, folderPath) {
+    try {
+      const resp = await fetch('https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          path: folderPath,
+          settings: { requested_visibility: 'public', audience: 'public', access: 'viewer' }
+        })
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        return data.url || null;
+      }
+
+      if (resp.status === 409) {
+        const listResp = await fetch('https://api.dropboxapi.com/2/sharing/list_shared_links', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: folderPath, direct_only: true })
+        });
+        if (listResp.ok) {
+          const listData = await listResp.json();
+          if (listData.links?.length > 0) return listData.links[0].url;
+        }
+      }
+    } catch (err) {
+      console.warn('Ordner-Link konnte nicht erstellt werden:', err);
+    }
+    return null;
+  }
+
+  async saveAssetVersion(fileUrl, filePath, videoName, folderUrl) {
     // Alte Versionen als nicht-aktuell markieren
     await window.supabase
       .from('kooperation_video_asset')
@@ -395,9 +435,21 @@ export class VideoUploadDrawer {
       });
     if (error) throw error;
 
+    const updateData = { link_content: fileUrl, video_name: videoName || null };
+    if (folderUrl) {
+      const { data: existing } = await window.supabase
+        .from('kooperation_videos')
+        .select('folder_url')
+        .eq('id', this.videoId)
+        .single();
+      if (!existing?.folder_url) {
+        updateData.folder_url = folderUrl;
+      }
+    }
+
     await window.supabase
       .from('kooperation_videos')
-      .update({ link_content: fileUrl, video_name: videoName || null })
+      .update(updateData)
       .eq('id', this.videoId);
   }
 

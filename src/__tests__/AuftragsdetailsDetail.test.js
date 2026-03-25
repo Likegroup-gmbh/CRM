@@ -48,8 +48,8 @@ describe('AuftragsdetailsDetail', () => {
       })
     };
 
-    const updateBreadcrumb = vi.fn();
-    window.breadcrumbSystem = { updateBreadcrumb };
+    const updateDetailLabel = vi.fn();
+    window.breadcrumbSystem = { updateDetailLabel, setFromRoute: vi.fn() };
     window.currentUser = {
       rolle: 'mitarbeiter',
       permissions: {
@@ -61,7 +61,7 @@ describe('AuftragsdetailsDetail', () => {
     const instance = new AuftragsdetailsDetail();
     await instance.init('d1');
 
-    const breadcrumbArgs = updateBreadcrumb.mock.calls[0][1];
-    expect(breadcrumbArgs.canEdit).toBe(false);
+    const editButton = updateDetailLabel.mock.calls[0][1];
+    expect(editButton.canEdit).toBe(false);
   });
 });

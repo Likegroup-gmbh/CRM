@@ -29,13 +29,6 @@ export class TabellenModule {
       // Listen-Ansicht
       window.setHeadline('Tabellen');
       
-      // Breadcrumb
-      if (window.breadcrumbSystem) {
-        window.breadcrumbSystem.updateBreadcrumb([
-          { label: 'Tabellen', url: '/tabellen', clickable: false }
-        ]);
-      }
-      
       await this.renderList();
     }
   }
@@ -280,10 +273,7 @@ export class TabellenModule {
       window.setHeadline(data.name);
       
       if (window.breadcrumbSystem) {
-        window.breadcrumbSystem.updateBreadcrumb([
-          { label: 'Tabellen', url: '/tabellen', clickable: true },
-          { label: data.name, url: `/tabellen/${documentId}`, clickable: false }
-        ]);
+        window.breadcrumbSystem.updateDetailLabel(data.name);
       }
 
       // Erstelle und initialisiere Editor

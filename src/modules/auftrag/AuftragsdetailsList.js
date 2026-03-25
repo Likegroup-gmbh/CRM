@@ -35,13 +35,6 @@ export class AuftragsdetailsList {
   async init() {
     console.log('📋 AUFTRAGSDETAILSLIST: Initialisiere Auftragsdetails-Liste');
     
-    // Breadcrumb für Listen-Seite
-    if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Auftragsdetails', url: '/auftragsdetails', clickable: false }
-      ]);
-    }
-    
     // Pagination initialisieren mit dynamicResize für animiertes Entfernen
     this.pagination.init('pagination-auftragsdetails', {
       itemsPerPage: 25,
@@ -799,12 +792,8 @@ export class AuftragsdetailsList {
     console.log('🎯 Zeige Auftragsdetails-Erstellungsformular');
     window.setHeadline('Neue Auftragsdetails anlegen');
     
-    // Breadcrumb aktualisieren
     if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Auftragsdetails', url: '/auftragsdetails', clickable: true },
-        { label: 'Neue Auftragsdetails', url: '/auftragsdetails/new', clickable: false }
-      ]);
+      window.breadcrumbSystem.updateDetailLabel('Neue Auftragsdetails');
     }
 
     window.navigateTo('/auftragsdetails/new');

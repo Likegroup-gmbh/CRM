@@ -297,12 +297,6 @@ export class AuftragList {
 
   // Initialisiere Auftrags-Liste
   async init() {
-    // Breadcrumb für Listen-Seite
-    if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Auftrag', url: '/auftrag', clickable: false }
-      ]);
-    }
     
     // Pagination initialisieren mit dynamicResize für animiertes Entfernen
     this.pagination.init('pagination-auftrag', {
@@ -1347,12 +1341,8 @@ export class AuftragList {
   showCreateForm() {
     window.setHeadline('Neuen Auftrag anlegen');
     
-    // Breadcrumb aktualisieren
     if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Aufträge', url: '/auftrag', clickable: true },
-        { label: 'Neuer Auftrag', url: '/auftrag/new', clickable: false }
-      ]);
+      window.breadcrumbSystem.updateDetailLabel('Neuer Auftrag');
     }
 
     const formHtml = window.formSystem.renderFormOnly('auftrag');

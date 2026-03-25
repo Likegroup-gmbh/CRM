@@ -2,12 +2,14 @@
 // Zentrale Breadcrumb-Navigation für das CRM
 
 import { navigationSystem } from '../modules/navigation/NavigationSystem.js';
+import { getRouteConfig } from './breadcrumbRoutes.js';
 
 export class BreadcrumbSystem {
   constructor() {
     this.container = null;
     this.currentBreadcrumbs = [];
     this.editButton = null;
+    this.navigationId = 0;
   }
 
   // Edit-Icon SVG
@@ -65,6 +67,45 @@ export class BreadcrumbSystem {
     if (this.container) {
       this.container.innerHTML = '';
     }
+  }
+
+  // Breadcrumb zentral aus Route setzen (aufgerufen vom Router)
+  setFromRoute(segment, id, options = {}) {
+    if (!this.container) return;
+
+    this.navigationId++;
+    this.editButton = null;
+
+    const rolle = options.rolle || window.currentUser?.rolle?.toLowerCase();
+    const config = getRouteConfig(segment, rolle);
+    const url = `/${segment}`;
+
+    if (id) {
+      this.currentBreadcrumbs = [
+        { label: config.label, url, clickable: true },
+        { label: '...', url: `${url}/${id}`, clickable: false },
+      ];
+    } else {
+      this.currentBreadcrumbs = [
+        { label: config.label, url, clickable: false },
+      ];
+    }
+
+    this.render();
+  }
+
+  // Detail-Label aktualisieren (Platzhalter ersetzen)
+  updateDetailLabel(label, editButton = null, navId) {
+    if (!this.container) return;
+
+    if (navId !== undefined && navId !== this.navigationId) return;
+
+    if (this.currentBreadcrumbs.length >= 2) {
+      this.currentBreadcrumbs[this.currentBreadcrumbs.length - 1].label = label;
+    }
+
+    this.editButton = editButton;
+    this.render();
   }
 
   // Breadcrumb rendern

@@ -20,12 +20,8 @@ export class MarkeCreate {
     console.log('🎯 MARKECREATE: Zeige Marke-Erstellungsformular mit FormSystem');
     window.setHeadline('Neue Marke anlegen');
     
-    // Breadcrumb aktualisieren
     if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Marken', url: '/marke', clickable: true },
-        { label: 'Neue Marke', url: '/marke/new', clickable: false }
-      ]);
+      window.breadcrumbSystem.updateDetailLabel('Neue Marke');
     }
     
     // Formular direkt in content rendern

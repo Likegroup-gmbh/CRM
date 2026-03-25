@@ -63,13 +63,7 @@ export const feedbackPage = {
   async init() {
     console.log('💬 FeedbackPage: init()');
     
-    // Headline & Breadcrumb
     window.setHeadline('Feedback');
-    if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Feedback', url: '/feedback', clickable: false }
-      ]);
-    }
     
     // Berechtigungsprüfung (nutzt berechnete Permissions statt rohe zugriffsrechte)
     if (window.currentUser?.rolle !== 'admin') {

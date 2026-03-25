@@ -59,21 +59,7 @@ export class KooperationDetail extends PersonDetailBase {
 
       if (window.breadcrumbSystem && this.kooperation) {
         const canEdit = window.currentUser?.permissions?.kooperation?.can_edit || false;
-        const breadcrumbItems = [];
-
-        if (this.kampagne) {
-          breadcrumbItems.push({ label: 'Kampagnen', url: '/kampagne', clickable: true });
-          breadcrumbItems.push({
-            label: this.kampagne.eigener_name || this.kampagne.kampagnenname || 'Kampagne',
-            url: `/kampagne/${this.kampagne.id}`,
-            clickable: true
-          });
-        }
-
-        breadcrumbItems.push({ label: 'Kooperation', url: null, clickable: false });
-        breadcrumbItems.push({ label: this.kooperation.name || 'Details', url: `/kooperation/${this.kooperationId}`, clickable: false });
-
-        window.breadcrumbSystem.updateBreadcrumb(breadcrumbItems, {
+        window.breadcrumbSystem.updateDetailLabel(this.kooperation.name || 'Details', {
           id: 'btn-edit-kooperation',
           canEdit: canEdit
         });
@@ -192,7 +178,7 @@ export class KooperationDetail extends PersonDetailBase {
     try {
       const { data: videos } = await window.supabase
         .from('kooperation_videos')
-        .select('id, content_art, kampagnenart, einkaufspreis_netto, verkaufspreis_netto, titel, asset_url, kommentar, status, position, created_at')
+        .select('id, content_art, kampagnenart, einkaufspreis_netto, verkaufspreis_netto, titel, asset_url, folder_url, kommentar, status, position, created_at')
         .eq('kooperation_id', this.kooperationId)
         .order('position', { ascending: true });
 
@@ -749,8 +735,9 @@ export class KooperationDetail extends PersonDetailBase {
           <td class="text-right">${vkFormatted}</td>
           ${!isKundeRole ? `<td class="text-right">${ekFormatted}</td>` : ''}
           <td>
-            ${v.titel ? `<a href="/video/${v.id}" class="table-link" data-table="video" data-id="${v.id}">${this.sanitize(v.titel)}</a>`
-            : (v.asset_url ? `<a href="${v.asset_url}" target="_blank" rel="noopener">Link</a>` : '-')}
+            ${v.folder_url
+              ? `<a href="${v.folder_url}" target="_blank" rel="noopener">Ordner öffnen</a>`
+              : (v.titel ? `<a href="/video/${v.id}" class="table-link" data-table="video" data-id="${v.id}">${this.sanitize(v.titel)}</a>` : '-')}
             ${v.currentAsset ? `<span class="version-badge" style="margin-left:8px;">V${v.currentAsset.version_number || 1}</span>` : ''}
           </td>
           <td class="feedback-cell">${formatList(v.feedback1)}</td>
@@ -1033,19 +1020,7 @@ export class KooperationDetail extends PersonDetailBase {
     window.setHeadline('Kooperation bearbeiten');
 
     if (window.breadcrumbSystem && this.kooperation) {
-      const breadcrumbItems = [];
-      if (this.kampagne) {
-        breadcrumbItems.push({ label: 'Kampagnen', url: '/kampagne', clickable: true });
-        breadcrumbItems.push({
-          label: this.kampagne.eigener_name || this.kampagne.kampagnenname || 'Kampagne',
-          url: `/kampagne/${this.kampagne.id}`,
-          clickable: true
-        });
-      }
-      breadcrumbItems.push({ label: 'Kooperation', url: null, clickable: false });
-      breadcrumbItems.push({ label: this.kooperation.name || 'Details', url: `/kooperation/${this.kooperationId}`, clickable: true });
-      breadcrumbItems.push({ label: 'Bearbeiten', url: null, clickable: false });
-      window.breadcrumbSystem.updateBreadcrumb(breadcrumbItems, { canEdit: false });
+      window.breadcrumbSystem.updateDetailLabel('Bearbeiten', { canEdit: false });
     }
 
     const formData = { ...this.kooperation };

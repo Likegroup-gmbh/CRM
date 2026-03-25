@@ -62,7 +62,7 @@ export class VideoList {
     this.currentKampagneId = null;
     this.currentKampagneName = null;
 
-    this.updateBreadcrumb();
+    this.updateBreadcrumbDisplay();
 
     this.pagination.init('pagination-videos', {
       itemsPerPage: 25,
@@ -75,24 +75,16 @@ export class VideoList {
     await this.loadAndRender();
   }
 
-  updateBreadcrumb() {
+  updateBreadcrumbDisplay() {
     if (!window.breadcrumbSystem) return;
 
     if (this.viewMode === 'unternehmen') {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Videos', url: '/videos', clickable: false }
-      ]);
+      // Base view - router handles breadcrumb
+      return;
     } else if (this.viewMode === 'kampagnen') {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Videos', url: '/videos', clickable: true },
-        { label: this.currentUnternehmenName || 'Unternehmen', clickable: false }
-      ]);
+      window.breadcrumbSystem.updateDetailLabel(this.currentUnternehmenName || 'Unternehmen');
     } else {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Videos', url: '/videos', clickable: true },
-        { label: this.currentUnternehmenName || 'Unternehmen', clickable: false },
-        { label: this.currentKampagneName || 'Kampagne', clickable: false }
-      ]);
+      window.breadcrumbSystem.updateDetailLabel(this.currentKampagneName || 'Kampagne');
     }
   }
 
@@ -342,7 +334,7 @@ export class VideoList {
       const koopJoin = this.currentKampagneId ? '!inner' : '';
 
       const selectFields = `
-        id, kooperation_id, position, titel, content_art, status, posting_datum, thema, link_content, asset_url,
+        id, kooperation_id, position, titel, content_art, status, posting_datum, thema, link_content, asset_url, folder_url,
         strategie_item:strategie_item_id (id, screenshot_url),
         kooperation:kooperation_id${koopJoin} (
           id, name, kampagne_id,
@@ -762,11 +754,11 @@ export class VideoList {
         ? `<div class="tags tags-compact"><span class="tag tag--type">${esc(video.content_art)}</span></div>`
         : '-';
 
-      const videoUrl = video.link_content || video.asset_url || '';
-      const contentLinkHtml = videoUrl
-        ? `<a href="${esc(videoUrl)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Link in neuem Tab öffnen">
+      const folderUrl = video.folder_url || '';
+      const contentLinkHtml = folderUrl
+        ? `<a href="${esc(folderUrl)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Ordner öffnen">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
             </svg>
           </a>`
         : '–';
@@ -828,7 +820,7 @@ export class VideoList {
     this.currentUnternehmenName = null;
     this.currentKampagneId = null;
     this.currentKampagneName = null;
-    this.updateBreadcrumb();
+    this.updateBreadcrumbDisplay();
     this.loadAndRender();
   }
 
@@ -838,7 +830,7 @@ export class VideoList {
     this.currentUnternehmenName = unternehmenName;
     this.currentKampagneId = null;
     this.currentKampagneName = null;
-    this.updateBreadcrumb();
+    this.updateBreadcrumbDisplay();
     this.loadAndRender();
   }
 
@@ -847,7 +839,7 @@ export class VideoList {
     this.currentKampagneId = kampagneId;
     this.currentKampagneName = kampagneName;
     this.pagination.currentPage = 1;
-    this.updateBreadcrumb();
+    this.updateBreadcrumbDisplay();
     this.loadAndRender();
   }
 

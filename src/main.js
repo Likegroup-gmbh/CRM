@@ -89,6 +89,8 @@ import './core/ConfirmationModal.js';
 import { DuplicateChecker } from './core/validation/DuplicateChecker.js';
 // SubmitGuard für globalen Doppelklick-Schutz + Navigation
 import { submitGuard } from './core/SubmitGuard.js';
+// App Service Locator
+import App from './core/App.js';
 // main.js - Haupt-Einstiegspunkt für ES6-Module
 
 // Zentrale Modul-Registry (Event-basiert)
@@ -174,6 +176,11 @@ class ModuleRegistry {
       console.log(`🗑️ Zerstöre aktuelles Modul:`, this.currentModule.constructor.name);
       this.currentModule.destroy();
       this.currentModule = null;
+    }
+
+    // Zentraler Breadcrumb: sofort setzen basierend auf Route-Segment
+    if (window.breadcrumbSystem?.setFromRoute) {
+      window.breadcrumbSystem.setFromRoute(segment, id || null);
     }
 
     // Neues Modul laden
@@ -557,6 +564,31 @@ window.ansprechpartnerCreate = ansprechpartnerCreate;
 window.dashboardModule = dashboardModule;
 window.breadcrumbSystem = breadcrumbSystem;
 
+// ═══════════════════════════════════════════════════════════════════
+// App Service Locator Bridge: Alle Services parallel in App registrieren
+// Ermöglicht inkrementelle Migration von window.* zu App.get()
+// ═══════════════════════════════════════════════════════════════════
+App.set('moduleRegistry', moduleRegistry);
+App.set('filterSystem', filterSystem);
+App.set('navigationSystem', navigationSystem);
+App.set('permissionSystem', permissionSystem);
+App.set('dataService', dataService);
+App.set('validatorSystem', validatorSystem);
+App.set('formSystem', formSystem);
+App.set('notizenSystem', notizenSystem);
+App.set('bewertungsSystem', bewertungsSystem);
+App.set('toastSystem', toastSystem);
+App.set('breadcrumbSystem', breadcrumbSystem);
+App.set('bulkActionSystem', bulkActionSystem);
+App.set('notificationSystem', notificationSystem);
+App.set('submitGuard', submitGuard);
+App.set('ActionsDropdown', actionsDropdown);
+App.set('actionRegistry', actionRegistry);
+App.set('creatorUtils', creatorUtils);
+App.set('kampagneUtils', kampagneUtils);
+App.set('authService', authService);
+App.set('authUtils', authUtils);
+
 // Profile-System importieren
 import { ProfileDetailV2 } from './modules/admin/ProfileDetailV2.js';
 
@@ -595,6 +627,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.content = document.getElementById('dashboard-content');
   window.nav = document.getElementById('main-nav');
 
+  // App Bridge: DOM-Refs registrieren
+  App.set('content', window.content);
+  App.set('appRoot', window.appRoot);
+  App.set('navigateTo', (route, skip) => moduleRegistry.navigateTo(route, skip));
+
   // Supabase initialisieren
   if (window.supabase && window.CONFIG?.SUPABASE?.URL && window.CONFIG?.SUPABASE?.KEY) {
     try {
@@ -603,6 +640,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.CONFIG.SUPABASE.URL,
         window.CONFIG.SUPABASE.KEY
       );
+      App.set('supabase', window.supabase);
       console.log('✅ Supabase initialisiert');
     } catch (error) {
       console.error('❌ Supabase-Initialisierung fehlgeschlagen:', error);

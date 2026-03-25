@@ -23,11 +23,7 @@ export const kooperationVideoDetail = {
       
       // Breadcrumb aktualisieren
       if (window.breadcrumbSystem && this.video && this.kooperation) {
-        window.breadcrumbSystem.updateBreadcrumb([
-          { label: 'Kooperation', url: '/kooperation', clickable: true },
-          { label: this.kooperation.name || 'Details', url: `/kooperation/${this.kooperation.id}`, clickable: true },
-          { label: this.video.titel || 'Video', url: `/video/${this.videoId}`, clickable: false }
-        ]);
+        window.breadcrumbSystem.updateDetailLabel(this.video.titel || 'Video');
       }
       
       this.render();
@@ -42,7 +38,7 @@ export const kooperationVideoDetail = {
     // Video + Basisdaten
     const { data: video, error } = await window.supabase
       .from('kooperation_videos')
-      .select('id, kooperation_id, titel, content_art, asset_url, link_content, kommentar, status, position, created_at')
+      .select('id, kooperation_id, titel, content_art, asset_url, link_content, folder_url, kommentar, status, position, created_at')
       .eq('id', this.videoId)
       .single();
     if (error) throw error;
@@ -100,17 +96,11 @@ export const kooperationVideoDetail = {
     const canEdit = window.currentUser?.permissions?.kooperation?.can_edit || window.currentUser?.rolle === 'admin';
     const canUpload = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle === 'mitarbeiter';
 
-    // Aktuelle Version ermitteln
-    const currentAsset = this.assets.find(a => a.is_current) || this.assets[0];
-    
-    // Player/Preview für aktuelle Version
-    const url = currentAsset?.file_url || v.link_content || v.asset_url || '';
-    const isVideo = /\.(mp4|webm|ogg)(\?|$)/i.test(url);
-    const mediaHtml = url
-      ? (isVideo
-          ? `<video src="${url}" controls style="width:100%;max-height:60vh;border-radius:8px;"></video>`
-          : `<a href="${url}" target="_blank" rel="noopener" class="primary-btn">Asset öffnen</a>`)
-      : '<p class="empty-state">Kein Asset hinterlegt.</p>';
+    // Ordner-Link anzeigen statt Video-Player
+    const folderUrl = v.folder_url || '';
+    const mediaHtml = folderUrl
+      ? `<a href="${folderUrl}" target="_blank" rel="noopener" class="primary-btn">Ordner öffnen</a>`
+      : '<p class="empty-state">Kein Ordner hinterlegt.</p>';
 
     const grouped = { r1: [], r2: [] };
     (this.comments || []).forEach(c => {
@@ -882,18 +872,31 @@ export const kooperationVideoDetail = {
       const kooperationName = this.kooperation?.name || '';
       const videoTitel = this.video?.titel || `Video_${this.videoId}`;
 
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('unternehmen', unternehmen);
-      formData.append('marke', marke);
-      formData.append('kampagne', kampagneName);
-      formData.append('kooperation', kooperationName);
-      formData.append('videoTitel', videoTitel);
-      formData.append('versionNumber', String(nextVersion));
+      if (progressLabel) progressLabel.textContent = 'Verbinde mit Dropbox...';
+      const tokenResp = await fetch('/.netlify/functions/dropbox-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          unternehmen, marke, kampagne: kampagneName,
+          kooperation: kooperationName, videoTitel,
+          versionNumber: String(nextVersion), fileName: file.name
+        })
+      });
+      if (!tokenResp.ok) {
+        const errData = await tokenResp.json().catch(() => ({}));
+        throw new Error(errData.error || `Token-Abruf fehlgeschlagen (${tokenResp.status})`);
+      }
+      const { token, dropboxPath } = await tokenResp.json();
 
-      const result = await new Promise((resolve, reject) => {
+      if (progressLabel) progressLabel.textContent = 'Lade hoch nach Dropbox...';
+      const uploadResult = await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', '/.netlify/functions/dropbox-upload');
+        xhr.open('POST', 'https://content.dropboxapi.com/2/files/upload');
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+        xhr.setRequestHeader('Dropbox-API-Arg', JSON.stringify({
+          path: dropboxPath, mode: 'overwrite', autorename: true, mute: false
+        }));
 
         xhr.upload.addEventListener('progress', (e) => {
           if (e.lengthComputable) {
@@ -913,26 +916,25 @@ export const kooperationVideoDetail = {
             try { resolve(JSON.parse(xhr.responseText)); }
             catch { reject(new Error('Ungültige Server-Antwort')); }
           } else {
-            try {
-              const err = JSON.parse(xhr.responseText);
-              reject(new Error(err.error || `Upload fehlgeschlagen (${xhr.status})`));
-            } catch {
-              reject(new Error(`Upload fehlgeschlagen (${xhr.status})`));
-            }
+            reject(new Error(`Upload fehlgeschlagen (${xhr.status})`));
           }
         });
 
         xhr.addEventListener('error', () => reject(new Error('Netzwerkfehler beim Upload')));
         xhr.addEventListener('timeout', () => reject(new Error('Upload-Timeout')));
-        xhr.timeout = 600000; // 10 min
-
-        xhr.send(formData);
+        xhr.timeout = 600000;
+        xhr.send(file);
       });
 
-      const fileUrl = result.shared_link || result.path;
-      const filePath = result.path;
+      const actualPath = uploadResult.path_display || dropboxPath;
+      if (progressLabel) progressLabel.textContent = 'Erstelle Links...';
+      const sharedLink = await this._createSharedLink(token, actualPath);
 
-      await this._saveAssetVersion({ fileUrl, filePath, description });
+      const folderPath = actualPath.substring(0, actualPath.lastIndexOf('/'));
+      const folderUrl = await this._createFolderSharedLink(token, folderPath);
+
+      const fileUrl = sharedLink || actualPath;
+      await this._saveAssetVersion({ fileUrl, filePath: actualPath, description, folderUrl });
     } catch (err) {
       console.error('Dropbox-Upload fehlgeschlagen', err);
       alert('Upload fehlgeschlagen: ' + (err.message || ''));
@@ -941,7 +943,59 @@ export const kooperationVideoDetail = {
     }
   },
 
-  async _saveAssetVersion({ fileUrl, filePath, description }) {
+  async _createSharedLink(token, dropboxPath) {
+    const resp = await fetch('https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: dropboxPath, settings: { requested_visibility: 'public', audience: 'public', access: 'viewer' } })
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      return data.url?.replace('?dl=0', '?raw=1') || null;
+    }
+    if (resp.status === 409) {
+      const listResp = await fetch('https://api.dropboxapi.com/2/sharing/list_shared_links', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: dropboxPath, direct_only: true })
+      });
+      if (listResp.ok) {
+        const listData = await listResp.json();
+        if (listData.links?.length > 0) return listData.links[0].url.replace('?dl=0', '?raw=1');
+      }
+    }
+    return null;
+  },
+
+  async _createFolderSharedLink(token, folderPath) {
+    try {
+      const resp = await fetch('https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: folderPath, settings: { requested_visibility: 'public', audience: 'public', access: 'viewer' } })
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        return data.url || null;
+      }
+      if (resp.status === 409) {
+        const listResp = await fetch('https://api.dropboxapi.com/2/sharing/list_shared_links', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: folderPath, direct_only: true })
+        });
+        if (listResp.ok) {
+          const listData = await listResp.json();
+          if (listData.links?.length > 0) return listData.links[0].url;
+        }
+      }
+    } catch (err) {
+      console.warn('Ordner-Link konnte nicht erstellt werden:', err);
+    }
+    return null;
+  },
+
+  async _saveAssetVersion({ fileUrl, filePath, description, folderUrl }) {
     try {
       const maxVersion = this.assets.length > 0
         ? Math.max(...this.assets.map(a => a.version_number || 0))
@@ -967,6 +1021,20 @@ export const kooperationVideoDetail = {
         });
 
       if (error) throw error;
+
+      if (folderUrl) {
+        const { data: existing } = await window.supabase
+          .from('kooperation_videos')
+          .select('folder_url')
+          .eq('id', this.videoId)
+          .single();
+        if (!existing?.folder_url) {
+          await window.supabase
+            .from('kooperation_videos')
+            .update({ folder_url: folderUrl })
+            .eq('id', this.videoId);
+        }
+      }
 
       try {
         await this.sendVideoUploadNotifications(this.videoId, true);

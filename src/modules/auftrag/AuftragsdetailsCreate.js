@@ -109,24 +109,16 @@ export class AuftragsdetailsCreateController {
     
     // Headline und Breadcrumb basierend auf Mode
     if (this.isEditMode) {
-      const detailsName = this.existingDetails?.auftrag?.auftragsname || 'Auftragsdetails';
       window.setHeadline('Auftragsdetails bearbeiten');
       
       if (window.breadcrumbSystem) {
-        window.breadcrumbSystem.updateBreadcrumb([
-          { label: 'Auftragsdetails', url: '/auftragsdetails', clickable: true },
-          { label: detailsName, url: `/auftragsdetails/${this.editDetailsId}`, clickable: true },
-          { label: 'Bearbeiten', url: `/auftragsdetails/${this.editDetailsId}/edit`, clickable: false }
-        ]);
+        window.breadcrumbSystem.updateDetailLabel('Bearbeiten');
       }
     } else {
       window.setHeadline('Neue Auftragsdetails anlegen');
       
       if (window.breadcrumbSystem) {
-        window.breadcrumbSystem.updateBreadcrumb([
-          { label: 'Auftragsdetails', url: '/auftragsdetails', clickable: true },
-          { label: 'Neue Auftragsdetails', url: '/auftragsdetails/new', clickable: false }
-        ]);
+        window.breadcrumbSystem.updateDetailLabel('Neu anlegen');
       }
     }
     

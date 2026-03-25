@@ -44,13 +44,9 @@ export class AuftragsdetailsDetail {
       this.detailsId = detailsId;
       await this.loadDetailsData();
       
-      // Breadcrumb aktualisieren mit Edit-Button
       if (window.breadcrumbSystem && this.auftrag) {
         const canEdit = window.currentUser?.permissions?.auftragsdetails?.can_edit !== false;
-        window.breadcrumbSystem.updateBreadcrumb([
-          { label: 'Auftragsdetails', url: '/auftragsdetails', clickable: true },
-          { label: this.auftrag.auftragsname || 'Details', url: `/auftragsdetails/${this.detailsId}`, clickable: false }
-        ], {
+        window.breadcrumbSystem.updateDetailLabel(this.auftrag.auftragsname || 'Details', {
           id: 'btn-edit-details',
           canEdit: canEdit
         });

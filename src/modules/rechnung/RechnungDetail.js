@@ -18,10 +18,7 @@ export class RechnungDetail {
     // Breadcrumb aktualisieren mit Edit-Button
     if (window.breadcrumbSystem && this.data) {
       const canEdit = window.currentUser?.permissions?.rechnung?.can_edit !== false;
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Rechnung', url: '/rechnung', clickable: true },
-        { label: this.data.rechnung_nr || 'Details', url: `/rechnung/${this.id}`, clickable: false }
-      ], {
+      window.breadcrumbSystem.updateDetailLabel(this.data.rechnung_nr || 'Details', {
         id: 'btn-edit-rechnung',
         canEdit: canEdit
       });
@@ -138,10 +135,7 @@ export class RechnungDetail {
     
     // Breadcrumb aktualisieren
     if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Rechnung', url: '/rechnung', clickable: true },
-        { label: 'Neue Rechnung', url: '/rechnung/new', clickable: false }
-      ]);
+      window.breadcrumbSystem.updateDetailLabel('Neue Rechnung');
     }
     
     const formHtml = window.formSystem.renderFormOnly('rechnung');

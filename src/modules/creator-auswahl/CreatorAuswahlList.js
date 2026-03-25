@@ -93,25 +93,15 @@ export class CreatorAuswahlList {
   updateBreadcrumb() {
     if (!window.breadcrumbSystem) return;
     if (this.viewMode === 'companies') {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Sourcing', url: '/sourcing', clickable: false }
-      ]);
       return;
     }
 
     if (this.viewMode === 'brands') {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Sourcing', url: '/sourcing', clickable: true },
-        { label: this.currentUnternehmenName || 'Unternehmen', url: '#', clickable: false }
-      ]);
+      window.breadcrumbSystem.updateDetailLabel(this.currentUnternehmenName || 'Unternehmen');
       return;
     }
 
-    window.breadcrumbSystem.updateBreadcrumb([
-      { label: 'Sourcing', url: '/sourcing', clickable: true },
-      { label: this.currentUnternehmenName || 'Unternehmen', url: '#', clickable: false },
-      { label: this.currentMarkeName || 'Marke', url: '#', clickable: false }
-    ]);
+    window.breadcrumbSystem.updateDetailLabel(this.currentMarkeName || 'Marke');
   }
 
   sanitize(value) {

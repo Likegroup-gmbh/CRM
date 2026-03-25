@@ -26,10 +26,7 @@ export class BriefingDetail {
       // Breadcrumb aktualisieren mit Edit-Button
       if (window.breadcrumbSystem && this.briefing) {
         const canEdit = window.currentUser?.permissions?.briefing?.can_edit || false;
-        window.breadcrumbSystem.updateBreadcrumb([
-          { label: 'Briefing', url: '/briefing', clickable: true },
-          { label: this.briefing.product_service_offer || 'Details', url: `/briefing/${this.briefingId}`, clickable: false }
-        ], {
+        window.breadcrumbSystem.updateDetailLabel(this.briefing.product_service_offer || 'Details', {
           id: 'btn-edit-briefing',
           canEdit: canEdit
         });

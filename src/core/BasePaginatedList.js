@@ -244,13 +244,6 @@ export class BasePaginatedList {
       window.setHeadline(this.options.headline);
     }
     
-    // Breadcrumb setzen
-    if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: this.options.breadcrumbLabel, url: `/${this.entityType}`, clickable: false }
-      ]);
-    }
-    
     // Berechtigungsprüfung
     const canView = await this.checkViewPermission();
     if (!canView) {

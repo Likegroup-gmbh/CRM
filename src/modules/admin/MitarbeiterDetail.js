@@ -25,13 +25,9 @@ export class MitarbeiterDetail extends PersonDetailBase {
     this.userId = id;
     await this.load();
     
-    // Breadcrumb aktualisieren
     if (window.breadcrumbSystem && this.user) {
       const userName = this.getDisplayName();
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Mitarbeiter', url: '/mitarbeiter', clickable: true },
-        { label: userName, url: `/mitarbeiter/${this.userId}`, clickable: false }
-      ]);
+      window.breadcrumbSystem.updateDetailLabel(userName);
     }
     
     await this.loadActivities();

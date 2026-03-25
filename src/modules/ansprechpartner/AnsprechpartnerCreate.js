@@ -18,12 +18,8 @@ export class AnsprechpartnerCreate {
   showCreateForm() {
     window.setHeadline('Neuen Ansprechpartner anlegen');
     
-    // Breadcrumb aktualisieren
     if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Ansprechpartner', url: '/ansprechpartner', clickable: true },
-        { label: 'Neuer Ansprechpartner', url: '/ansprechpartner/new', clickable: false }
-      ]);
+      window.breadcrumbSystem.updateDetailLabel('Neuer Ansprechpartner');
     }
     
     // Formular direkt in content rendern

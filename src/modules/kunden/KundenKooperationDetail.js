@@ -1,8 +1,6 @@
 // KundenKooperationDetail.js (ES6-Modul)
 // Kunden-Portal: Kooperation-Detail (Uploads read-only)
 
-import { KampagneUtils } from '../kampagne/KampagneUtils.js';
-
 export class KundenKooperationDetail {
   constructor() {
     this.koopId = null;
@@ -17,12 +15,7 @@ export class KundenKooperationDetail {
     
     // Breadcrumb aktualisieren
     if (window.breadcrumbSystem && this.koop) {
-      const kampagnenname = KampagneUtils.getDisplayName(this.koop.kampagne);
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Meine Kampagnen', url: '/kunden', clickable: true },
-        { label: kampagnenname, url: '#', clickable: false },
-        { label: this.koop.name || 'Kooperation', url: `/kunden-kooperation/${this.koopId}`, clickable: false }
-      ]);
+      window.breadcrumbSystem.updateDetailLabel(this.koop.name || 'Kooperation');
     }
     
     await this.render();
@@ -34,7 +27,7 @@ export class KundenKooperationDetail {
       const [{ data: koop }, { data: uploads }, { data: videos }] = await Promise.all([
         window.supabase.from('kooperationen').select('id, name, kampagne:kampagne_id(kampagnenname, eigener_name)').eq('id', this.koopId).single(),
         window.supabase.from('kooperation_uploads').select('id, filename, filetype, filesize, created_at, storage_path').eq('kooperation_id', this.koopId).order('created_at', { ascending: false }),
-        window.supabase.from('kooperation_videos').select('id, titel, content_art, status, position, created_at').eq('kooperation_id', this.koopId).order('position', { ascending: true })
+        window.supabase.from('kooperation_videos').select('id, titel, content_art, status, position, folder_url, created_at').eq('kooperation_id', this.koopId).order('position', { ascending: true })
       ]);
       this.koop = koop || null;
       this.uploads = uploads || [];
@@ -113,9 +106,6 @@ export class KundenKooperationDetail {
   }
 
   renderVideoSection(video, safe, fmtDateTime) {
-    const assets = video.assets || [];
-    const currentAsset = assets.find(a => a.is_current) || assets[0];
-    
     return `
       <div class="video-section" style="margin-bottom:24px;padding-bottom:24px;border-bottom:1px solid var(--border-primary);">
         <h3>${safe(video.titel || 'Video #' + video.id)}</h3>
@@ -124,7 +114,9 @@ export class KundenKooperationDetail {
           ${video.content_art ? `<span class="badge">${safe(video.content_art)}</span>` : ''}
         </div>
         
-        ${assets.length > 0 ? this.renderAssetVersionsTimeline(assets, safe, fmtDateTime) : '<p class="empty-state">Keine Assets vorhanden.</p>'}
+        ${video.folder_url
+          ? `<a href="${video.folder_url}" target="_blank" rel="noopener" class="link-btn">Ordner öffnen</a>`
+          : '<p class="empty-state">Kein Ordner hinterlegt.</p>'}
       </div>
     `;
   }

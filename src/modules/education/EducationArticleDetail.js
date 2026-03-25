@@ -46,10 +46,7 @@ export const educationArticleDetail = {
     // Headline & Breadcrumb
     window.setHeadline(this.article.title);
     if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Education', url: '/education', clickable: !this.isKundeRole() },
-        { label: this.article.title, url: `/education/${slug}`, clickable: false }
-      ]);
+      window.breadcrumbSystem.updateDetailLabel(this.article.title);
     }
     
     // View-Count erhöhen
