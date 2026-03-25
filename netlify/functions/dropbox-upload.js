@@ -1,11 +1,15 @@
 const { getAccessToken, sanitizePath } = require('./_shared/dropbox');
 
-function buildDropboxPath({ unternehmen, marke, kampagne, kooperation, videoTitel, versionNumber, fileName }) {
+function buildDropboxPath({ unternehmen, marke, kampagne, kooperation, videoPosition, videoThema, videoTitel, versionNumber, fileName }) {
   const parts = ['/Videos'];
   if (unternehmen) parts.push(sanitizePath(unternehmen));
   if (marke) parts.push(sanitizePath(marke));
   if (kampagne) parts.push(sanitizePath(kampagne));
   if (kooperation) parts.push(sanitizePath(kooperation));
+
+  const thema = sanitizePath(videoThema || videoTitel || '');
+  const pos = videoPosition || 1;
+  parts.push(thema ? `Video_${pos}_${thema}` : `Video_${pos}`);
 
   parts.push(`Version_${versionNumber || 1}`);
 
@@ -44,6 +48,8 @@ exports.handler = async (event) => {
       marke: fields.marke,
       kampagne: fields.kampagne,
       kooperation: fields.kooperation,
+      videoPosition: fields.videoPosition,
+      videoThema: fields.videoThema,
       videoTitel: fields.videoTitel,
       versionNumber: fields.versionNumber,
       fileName: fields.fileName,
@@ -61,10 +67,12 @@ exports.handler = async (event) => {
       });
     } catch (_) { /* Ordner existiert evtl. schon – 409 ist okay */ }
 
+    const kooperationFolderPath = folderPath.substring(0, folderPath.lastIndexOf('/'));
+
     return {
       statusCode: 200,
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, dropboxPath, folderPath }),
+      body: JSON.stringify({ token, dropboxPath, folderPath, kooperationFolderPath }),
     };
   } catch (err) {
     console.error('dropbox-upload error:', err);

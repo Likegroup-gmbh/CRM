@@ -1067,6 +1067,8 @@ export class KampagneKooperationenVideoTable {
       kooperationName: koop?.name || 'Kooperation',
       videoTitel: video?.thema || 'Video',
       videoName: video?.video_name || '',
+      videoPosition: video?.position || 1,
+      videoThema: video?.thema || '',
       unternehmen: this.kampagneInfo?.unternehmen || '',
       marke: this.kampagneInfo?.marke || '',
       kampagne: this.kampagneInfo?.name || '',

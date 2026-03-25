@@ -27,7 +27,9 @@ export class VideoUploadDrawer {
     this._isUploading = false;
 
     const existingVersions = await this._loadExistingVersions();
+    console.log('[VideoUploadDrawer] videoId:', this.videoId, 'existingVersions:', existingVersions);
     this._availableVersions = getAvailableVersions(existingVersions, MAX_VERSIONS);
+    console.log('[VideoUploadDrawer] availableVersions:', this._availableVersions);
     this._selectedVersion = this._availableVersions[0] || null;
 
     this.createDrawer();
@@ -36,13 +38,24 @@ export class VideoUploadDrawer {
   }
 
   async _loadExistingVersions() {
+    if (!this.videoId) {
+      console.warn('[VideoUploadDrawer] _loadExistingVersions: videoId ist leer, gebe [] zurück');
+      return [];
+    }
     try {
-      const { data } = await window.supabase
+      const { data, error } = await window.supabase
         .from('kooperation_video_asset')
         .select('version_number')
         .eq('video_id', this.videoId);
-      return (data || []).map(a => a.version_number);
-    } catch (_) {
+      if (error) {
+        console.error('[VideoUploadDrawer] _loadExistingVersions Fehler:', error);
+        return [];
+      }
+      const versions = (data || []).map(a => a.version_number).filter(v => typeof v === 'number');
+      console.log('[VideoUploadDrawer] _loadExistingVersions result:', { videoId: this.videoId, versions });
+      return versions;
+    } catch (err) {
+      console.error('[VideoUploadDrawer] _loadExistingVersions Exception:', err);
       return [];
     }
   }
@@ -310,6 +323,8 @@ export class VideoUploadDrawer {
           marke: this.metadaten.marke || '',
           kampagne: this.metadaten.kampagne || '',
           kooperation: this.metadaten.kooperationName || '',
+          videoPosition: this.metadaten.videoPosition || 1,
+          videoThema: this.metadaten.videoThema || '',
           videoTitel: this.metadaten.videoTitel || 'Video',
           versionNumber,
           fileName
@@ -321,7 +336,7 @@ export class VideoUploadDrawer {
         throw new Error(errData.error || `Token-Abruf fehlgeschlagen (${tokenResp.status})`);
       }
 
-      const { token, dropboxPath, folderPath } = await tokenResp.json();
+      const { token, dropboxPath, kooperationFolderPath } = await tokenResp.json();
 
       if (progressText) progressText.textContent = 'Lade hoch nach Dropbox...';
       const uploadResult = await this._uploadToDropbox(token, dropboxPath, progressFill, progressText);
@@ -331,9 +346,6 @@ export class VideoUploadDrawer {
       const actualPath = uploadResult.path_display || dropboxPath;
       const sharedLink = await this._createSharedLink(token, actualPath);
 
-      const kooperationFolderPath = folderPath
-        ? folderPath.substring(0, folderPath.lastIndexOf('/'))
-        : actualPath.substring(0, actualPath.lastIndexOf('/'));
       const folderUrl = await this._createFolderSharedLink(token, kooperationFolderPath);
 
       if (progressFill) progressFill.style.width = '100%';
