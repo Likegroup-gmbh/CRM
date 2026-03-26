@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { deleteUnternehmenCascade, collectDependentIds } from '../modules/unternehmen/services/UnternehmenDeleteService.js';
+import { deleteUnternehmenCascade, collectDependentIds, persistDeleteErrors } from '../modules/unternehmen/services/UnternehmenDeleteService.js';
 
 function createTrackingSupabase(config = {}) {
   const log = [];
@@ -271,6 +271,125 @@ describe('UnternehmenDeleteService', () => {
       expect(progressLog).toContainEqual({ step: 'unternehmen', count: 1 });
 
       expect(progressLog.some(p => p.step === 'vertraege')).toBe(false);
+    });
+  });
+
+  describe('persistDeleteErrors', () => {
+
+    function createInsertTrackingSupabase(insertConfig = {}) {
+      const log = [];
+      return {
+        from: vi.fn((table) => ({
+          insert: vi.fn((rows) => {
+            log.push({ op: 'insert', table, rows });
+            return Promise.resolve({ error: insertConfig.insertError || null });
+          }),
+        })),
+        _log: log,
+      };
+    }
+
+    it('schreibt Fehler in delete_logs Tabelle', async () => {
+      const sb = createInsertTrackingSupabase();
+      const errors = [
+        { step: 'kampagne', error: 'FK violation' },
+        { step: 'storage_logos', error: 'Bucket not found' },
+      ];
+
+      await persistDeleteErrors('u1', errors, { supabase: sb, userId: 'user-1' });
+
+      const inserts = sb._log.filter(e => e.op === 'insert' && e.table === 'delete_logs');
+      expect(inserts).toHaveLength(1);
+
+      const rows = inserts[0].rows;
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toMatchObject({
+        deleted_entity_type: 'unternehmen',
+        deleted_entity_id: 'u1',
+        failed_step: 'kampagne',
+        error_message: 'FK violation',
+        created_by: 'user-1',
+      });
+      expect(rows[1]).toMatchObject({
+        failed_step: 'storage_logos',
+        error_message: 'Bucket not found',
+      });
+    });
+
+    it('macht nichts wenn errors leer ist', async () => {
+      const sb = createInsertTrackingSupabase();
+
+      await persistDeleteErrors('u1', [], { supabase: sb });
+
+      const inserts = sb._log.filter(e => e.op === 'insert');
+      expect(inserts).toHaveLength(0);
+    });
+
+    it('fängt DB-Insert-Fehler ab und loggt in Console statt zu crashen', async () => {
+      const sb = createInsertTrackingSupabase({ insertError: { message: 'RLS denied' } });
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      await persistDeleteErrors('u1', [{ step: 'kampagne', error: 'test' }], { supabase: sb });
+
+      expect(consoleSpy).toHaveBeenCalled();
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('deleteUnternehmenCascade mit Error-Logging', () => {
+
+    it('ruft persistDeleteErrors auf wenn Fehler aufgetreten sind', async () => {
+      const log = [];
+      const sb = {
+        from: vi.fn((table) => ({
+          select: vi.fn(() => ({
+            eq: vi.fn(() => {
+              if (table === 'kampagne') return Promise.resolve({ data: [{ id: 'k1' }], error: null });
+              return Promise.resolve({ data: [], error: null });
+            }),
+          })),
+          delete: vi.fn(() => ({
+            in: vi.fn(() => {
+              if (table === 'kampagne') return Promise.resolve({ error: { message: 'oops' } });
+              return Promise.resolve({ error: null });
+            }),
+            eq: vi.fn(() => Promise.resolve({ error: null })),
+          })),
+          insert: vi.fn((rows) => {
+            log.push({ table, rows });
+            return Promise.resolve({ error: null });
+          }),
+        })),
+      };
+
+      await deleteUnternehmenCascade('u1', { supabase: sb, userId: 'admin-1' });
+
+      const logInserts = log.filter(e => e.table === 'delete_logs');
+      expect(logInserts).toHaveLength(1);
+      expect(logInserts[0].rows[0].failed_step).toBe('kampagne');
+    });
+
+    it('ruft persistDeleteErrors NICHT auf wenn keine Fehler', async () => {
+      const log = [];
+      const sb = {
+        from: vi.fn((table) => ({
+          select: vi.fn(() => ({
+            eq: vi.fn(() => Promise.resolve({ data: [], error: null })),
+          })),
+          delete: vi.fn(() => ({
+            eq: vi.fn(() => Promise.resolve({ error: null })),
+          })),
+          insert: vi.fn((rows) => {
+            log.push({ table, rows });
+            return Promise.resolve({ error: null });
+          }),
+        })),
+      };
+
+      await deleteUnternehmenCascade('u1', { supabase: sb });
+
+      const logInserts = log.filter(e => e.table === 'delete_logs');
+      expect(logInserts).toHaveLength(0);
     });
   });
 });

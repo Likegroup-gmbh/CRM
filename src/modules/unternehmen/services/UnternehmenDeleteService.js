@@ -23,7 +23,30 @@ export async function collectDependentIds(unternehmenId, { supabase } = {}) {
   return deps;
 }
 
-export async function deleteUnternehmenCascade(unternehmenId, { supabase, onProgress } = {}) {
+export async function persistDeleteErrors(unternehmenId, errors, { supabase, userId } = {}) {
+  if (!errors || errors.length === 0) return;
+
+  const sb = supabase || window.supabase;
+  const rows = errors.map(e => ({
+    deleted_entity_type: 'unternehmen',
+    deleted_entity_id: unternehmenId,
+    failed_step: e.step,
+    failed_entity_id: e.entityId || null,
+    error_message: e.error,
+    created_by: userId || null,
+  }));
+
+  try {
+    const { error } = await sb.from('delete_logs').insert(rows);
+    if (error) {
+      console.error('delete_logs Insert fehlgeschlagen, Fallback Console:', error, rows);
+    }
+  } catch (err) {
+    console.error('delete_logs Insert Exception, Fallback Console:', err, rows);
+  }
+}
+
+export async function deleteUnternehmenCascade(unternehmenId, { supabase, onProgress, userId } = {}) {
   const sb = supabase || window.supabase;
   const progress = onProgress || (() => {});
   const result = { success: true, deleted: {}, errors: [] };
@@ -62,6 +85,8 @@ export async function deleteUnternehmenCascade(unternehmenId, { supabase, onProg
     result.success = false;
     result.errors.push({ step: 'unternehmen', error: err.message || String(err) });
   }
+
+  await persistDeleteErrors(unternehmenId, result.errors, { supabase: sb, userId });
 
   return result;
 }
