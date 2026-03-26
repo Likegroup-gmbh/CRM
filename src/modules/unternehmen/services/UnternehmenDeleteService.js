@@ -78,7 +78,46 @@ export async function cleanupStorage(unternehmenId, { supabase } = {}) {
   return { errors };
 }
 
-export async function deleteUnternehmenCascade(unternehmenId, { supabase, onProgress, userId } = {}) {
+export async function cleanupDropbox(kampagneIds, kooperationIds, { fetch: fetchFn } = {}) {
+  const _fetch = fetchFn || globalThis.fetch;
+  const errors = [];
+
+  for (const id of kampagneIds) {
+    try {
+      const resp = await _fetch('/.netlify/functions/dropbox-delete-cascade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityType: 'kampagne', entityId: id }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        errors.push({ step: `dropbox_kampagne_${id}`, error: err.error || `HTTP ${resp.status}` });
+      }
+    } catch (err) {
+      errors.push({ step: `dropbox_kampagne_${id}`, error: err.message || String(err) });
+    }
+  }
+
+  for (const id of kooperationIds) {
+    try {
+      const resp = await _fetch('/.netlify/functions/dropbox-delete-cascade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityType: 'kooperation', entityId: id }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        errors.push({ step: `dropbox_kooperation_${id}`, error: err.error || `HTTP ${resp.status}` });
+      }
+    } catch (err) {
+      errors.push({ step: `dropbox_kooperation_${id}`, error: err.message || String(err) });
+    }
+  }
+
+  return { errors };
+}
+
+export async function deleteUnternehmenCascade(unternehmenId, { supabase, onProgress, userId, fetch: fetchFn } = {}) {
   const sb = supabase || window.supabase;
   const progress = onProgress || (() => {});
   const result = { success: true, deleted: {}, errors: [] };
@@ -101,6 +140,14 @@ export async function deleteUnternehmenCascade(unternehmenId, { supabase, onProg
     } catch (err) {
       result.errors.push({ step: table, error: err.message || String(err) });
     }
+  }
+
+  const kampagneIds = deps.kampagne || [];
+  const kooperationIds = (deps._kooperationen || []);
+  if (kampagneIds.length > 0 || kooperationIds.length > 0) {
+    progress({ step: 'dropbox', count: kampagneIds.length + kooperationIds.length });
+    const dropboxResult = await cleanupDropbox(kampagneIds, kooperationIds, { fetch: fetchFn });
+    result.errors.push(...dropboxResult.errors);
   }
 
   progress({ step: 'storage', count: STORAGE_PATHS.length });
