@@ -6,6 +6,7 @@ import { iconRegistry } from './actions/IconRegistry.js';
 import { actionBuilder } from './actions/ActionBuilder.js';
 import { KampagneUtils } from '../modules/kampagne/KampagneUtils.js';
 import { deleteVideoFull, deleteDropboxCascade } from './VideoDeleteHelper.js';
+import { deleteUnternehmenCascade, collectDependentIds } from '../modules/unternehmen/services/UnternehmenDeleteService.js';
 
 export class ActionsDropdown {
   constructor() {
@@ -3051,6 +3052,10 @@ export class ActionsDropdown {
 
   // Bestätigungsdialog für Löschen
   async confirmDelete(entityId, entityType) {
+    if (entityType === 'unternehmen') {
+      return this._confirmDeleteUnternehmen(entityId);
+    }
+
     const entityName = this.getEntityDisplayName(entityType);
     const message = `Möchten Sie wirklich ${entityName} löschen? Diese Aktion kann nicht rückgängig gemacht werden.`;
     let proceed = false;
@@ -3073,6 +3078,109 @@ export class ActionsDropdown {
     if (result?.success) {
       window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: entityType, action: 'deleted', id: entityId } }));
     }
+  }
+
+  async _confirmDeleteUnternehmen(entityId) {
+    const LABELS = {
+      vertraege: 'Verträge', briefings: 'Briefings', kampagne: 'Kampagnen',
+      auftrag: 'Aufträge', produkt: 'Produkte', marke: 'Marken',
+    };
+
+    const deps = await collectDependentIds(entityId);
+    const lines = Object.entries(deps)
+      .filter(([, ids]) => ids.length > 0)
+      .map(([table, ids]) => `• ${ids.length} ${LABELS[table] || table}`);
+
+    const summary = lines.length > 0
+      ? `Folgende zugehörige Daten werden unwiderruflich entfernt:\n\n${lines.join('\n')}\n\nInklusive aller Dropbox-Dateien und Storage-Dateien.`
+      : 'Dieses Unternehmen hat keine zugehörigen Daten.';
+
+    const message = `Möchten Sie wirklich das Unternehmen löschen?\n\n${summary}\n\nDiese Aktion kann nicht rückgängig gemacht werden.`;
+
+    let proceed = false;
+    if (window.confirmationModal) {
+      const res = await window.confirmationModal.open({
+        title: 'Unternehmen vollständig löschen',
+        message,
+        confirmText: 'Endgültig löschen',
+        cancelText: 'Abbrechen',
+        danger: true,
+      });
+      proceed = !!res?.confirmed;
+    } else {
+      proceed = confirm(message);
+    }
+    if (!proceed) return;
+
+    const progressModal = this._createProgressModal();
+
+    const result = await deleteUnternehmenCascade(entityId, {
+      userId: window.currentUser?.id,
+      onProgress: ({ step, count }) => {
+        const stepLabels = { ...LABELS, storage: 'Storage-Dateien', dropbox: 'Dropbox-Dateien', unternehmen: 'Unternehmen' };
+        progressModal.update(`Lösche ${stepLabels[step] || step} (${count})...`);
+      },
+    });
+
+    progressModal.close();
+
+    const deletedLines = Object.entries(result.deleted)
+      .map(([table, count]) => `✓ ${count} ${LABELS[table] || table}`);
+    const errorLines = result.errors
+      .map(e => `✗ ${e.step}: ${e.error}`);
+
+    const resultMessage = [
+      result.success ? 'Unternehmen wurde erfolgreich gelöscht.' : 'Unternehmen konnte nicht vollständig gelöscht werden.',
+      '',
+      ...deletedLines,
+      ...(errorLines.length > 0 ? ['', 'Fehlgeschlagen:', ...errorLines] : []),
+    ].join('\n');
+
+    if (window.confirmationModal) {
+      await window.confirmationModal.open({
+        title: result.success ? 'Löschung abgeschlossen' : 'Löschung mit Fehlern',
+        message: resultMessage,
+        confirmText: 'OK',
+        cancelText: 'Schließen',
+        danger: !result.success,
+      });
+    } else {
+      alert(resultMessage);
+    }
+
+    if (result.success) {
+      window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'unternehmen', action: 'deleted', id: entityId } }));
+    }
+  }
+
+  _createProgressModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal overlay-modal';
+    modal.innerHTML = `
+      <div class="modal-dialog">
+        <div class="modal-header"><h3>Löschvorgang läuft...</h3></div>
+        <div class="modal-body">
+          <p class="delete-progress-text">Vorbereitung...</p>
+          <div class="progress-bar-container" style="width:100%;height:4px;background:var(--border-color,#e0e0e0);border-radius:2px;margin-top:12px;overflow:hidden">
+            <div class="progress-bar-fill" style="width:0%;height:100%;background:var(--primary-color,#3b82f6);transition:width 0.3s"></div>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    let stepCount = 0;
+    return {
+      update(text) {
+        stepCount++;
+        const textEl = modal.querySelector('.delete-progress-text');
+        const barEl = modal.querySelector('.progress-bar-fill');
+        if (textEl) textEl.textContent = text;
+        if (barEl) barEl.style.width = `${Math.min(stepCount * 14, 95)}%`;
+      },
+      close() {
+        modal.remove();
+      },
+    };
   }
 
   // Modal für Notizen öffnen

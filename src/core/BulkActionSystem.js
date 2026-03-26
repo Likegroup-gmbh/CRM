@@ -1,6 +1,8 @@
 // BulkActionSystem.js (ES6-Modul)
 // Generisches System für Bulk-Aktionen in allen Listen
 
+import { deleteUnternehmenCascade } from '../modules/unternehmen/services/UnternehmenDeleteService.js';
+
 export class BulkActionSystem {
   constructor() {
     this.currentEntityType = null;
@@ -220,6 +222,25 @@ export class BulkActionSystem {
     });
 
     try {
+      if (entityType === 'unternehmen') {
+        let totalDeleted = 0;
+        const allErrors = [];
+        for (const id of selectedIds) {
+          const r = await deleteUnternehmenCascade(id, { userId: window.currentUser?.id });
+          if (r.deleted.unternehmen) totalDeleted++;
+          allErrors.push(...r.errors);
+        }
+        if (totalDeleted > 0) {
+          selectedIds.forEach(id => document.querySelector(`tr[data-id="${id}"]`)?.remove());
+          alert(`✅ ${totalDeleted} Unternehmen erfolgreich gelöscht.${allErrors.length > 0 ? ` (${allErrors.length} Fehler in delete_logs protokolliert)` : ''}`);
+          this.genericDeselectAll();
+          window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'unternehmen', action: 'bulk-deleted', count: totalDeleted } }));
+        } else {
+          alert('❌ Keines der Unternehmen konnte gelöscht werden. Siehe delete_logs.');
+        }
+        return;
+      }
+
       // Batch-Delete für bessere Performance
       const result = await window.dataService.deleteEntities(entityType, selectedIds);
       
