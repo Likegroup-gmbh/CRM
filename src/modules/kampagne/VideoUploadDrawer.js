@@ -1,4 +1,5 @@
 import { getAvailableVersions, buildVersionedFileName, MAX_VERSIONS } from '../../core/VideoUploadUtils.js';
+import { deleteSingleDropboxFile } from '../../core/VideoDeleteHelper.js';
 
 export class VideoUploadDrawer {
   constructor() {
@@ -487,6 +488,19 @@ export class VideoUploadDrawer {
 
     const version = this._selectedVersion || 1;
     if (this._existingVersions?.includes(version)) {
+      const { data: oldAsset } = await window.supabase
+        .from('kooperation_video_asset')
+        .select('file_path')
+        .eq('video_id', this.videoId)
+        .eq('version_number', version)
+        .maybeSingle();
+
+      if (oldAsset?.file_path) {
+        await deleteSingleDropboxFile(oldAsset.file_path).catch(err =>
+          console.warn('Alte Dropbox-Datei konnte nicht gelöscht werden:', err)
+        );
+      }
+
       await window.supabase
         .from('kooperation_video_asset')
         .delete()

@@ -5,7 +5,7 @@ import { actionRegistry } from './ActionRegistry.js';
 import { iconRegistry } from './actions/IconRegistry.js';
 import { actionBuilder } from './actions/ActionBuilder.js';
 import { KampagneUtils } from '../modules/kampagne/KampagneUtils.js';
-import { deleteVideoFull } from './VideoDeleteHelper.js';
+import { deleteVideoFull, deleteDropboxCascade } from './VideoDeleteHelper.js';
 
 export class ActionsDropdown {
   constructor() {
@@ -3062,6 +3062,13 @@ export class ActionsDropdown {
     }
     if (!proceed) return;
     console.log(`🗑️ Lösche ${entityType} ${entityId}`);
+
+    if (entityType === 'kampagne' || entityType === 'kooperation') {
+      await deleteDropboxCascade(entityType, entityId).catch(err =>
+        console.warn('Dropbox-Cascade Warnung:', err)
+      );
+    }
+
     const result = await window.dataService.deleteEntity(entityType, entityId);
     if (result?.success) {
       window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: entityType, action: 'deleted', id: entityId } }));

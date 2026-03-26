@@ -1348,6 +1348,10 @@ h3.section-title,
   margin-bottom: 0;
 }
 
+.section-title--spaced {
+  margin-top: var(--space-xxxl);
+}
+
 /* Erster Card-Header im Grid ohne zusätzlichen Top-Abschluss */
 .detail-grid > .detail-card:first-child > .section-title,
 .detail-grid > .detail-card:first-child > h3.section-title {
@@ -10634,22 +10638,30 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table {
   border-collapse: separate;
   border-spacing: 0;
-  border-left: 1px solid var(--gray-200);
-  border-top: 1px solid var(--gray-200);
 }
 
 /* Alle Zellen - nur rechts+unten, mit !important um geerbte data-table Regeln zu überschreiben */
 .creator-pool-table th,
 .creator-pool-table td {
-  border-right: 1px solid var(--gray-200) !important;
-  border-bottom: 1px solid var(--gray-200) !important;
+  border-right: 1px solid var(--gray-100) !important;
+  border-bottom: 1px solid var(--gray-100) !important;
   border-left: none !important;
   border-top: none !important;
 }
 
+.creator-pool-table thead th {
+  border-top: 1px solid var(--gray-100) !important;
+  border-bottom: 1px solid var(--gray-200) !important;
+}
+
+.creator-pool-table th:last-child,
+.creator-pool-table td:last-child {
+  border-right: none !important;
+}
+
 /* Checkbox-Zellen: .data-table td:has(input[type="checkbox"]) entfernt border-right – hier wiederherstellen */
 .creator-pool-table td:has(input[type="checkbox"]) {
-  border-right: 1px solid var(--gray-200) !important;
+  border-right: 1px solid var(--gray-100) !important;
 }
 
 /* Sticky-Spalten: Echte Borders werden durch box-shadow ersetzt (bleiben beim Scrollen sichtbar) */
@@ -10666,10 +10678,9 @@ table:has(#strategien-table-body) td.col-actions {
   padding: 0 var(--space-xs) !important;
   border: none !important;
   box-shadow: 
-    inset 0 -1px 0 0 var(--gray-200),
-    inset 0 1px 0 0 var(--gray-200),
-    inset 1px 0 0 0 var(--gray-200),
-    inset -1px 0 0 0 var(--gray-200);
+    inset 0 -1px 0 0 var(--gray-100),
+    inset 0 1px 0 0 var(--gray-100),
+    inset -1px 0 0 0 var(--gray-100);
 }
 
 /* Zweite Spalte (Name) - Sticky */
@@ -10682,13 +10693,13 @@ table:has(#strategien-table-body) td.col-actions {
   min-width: 140px;
   border: none !important;
   box-shadow: 
-    inset 0 -1px 0 0 var(--gray-200),
-    inset 0 1px 0 0 var(--gray-200),
-    inset 1px 0 0 0 var(--gray-200),
-    inset -1px 0 0 0 var(--gray-200);
+    inset 0 -1px 0 0 var(--gray-100),
+    inset 0 1px 0 0 var(--gray-100),
+    inset 1px 0 0 0 var(--gray-100),
+    inset -1px 0 0 0 var(--gray-100);
 }
 
-/* Dritte Spalte (Creator Art) - Sticky mit dickerer rechter Kante */
+/* Dritte Spalte (Creator Art) - Sticky mit rechter Trennkante */
 .creator-pool-table th.col-sticky-3,
 .creator-pool-table td.col-sticky-3 {
   position: sticky !important;
@@ -10698,33 +10709,44 @@ table:has(#strategien-table-body) td.col-actions {
   min-width: 130px;
   border: none !important;
   box-shadow: 
-    inset 0 -1px 0 0 var(--gray-200),
-    inset 0 1px 0 0 var(--gray-200),
-    inset 1px 0 0 0 var(--gray-200),
-    inset -2px 0 0 0 var(--gray-300);
+    inset 0 -1px 0 0 var(--gray-100),
+    inset 0 1px 0 0 var(--gray-100),
+    inset 1px 0 0 0 var(--gray-100),
+    inset -1px 0 0 0 var(--gray-200);
 }
 
-/* Header der fixierten Spalten höherer z-index */
+/* Header der fixierten Spalten höherer z-index + konsistente Borders */
 .creator-pool-table thead th.col-sticky-1,
 .creator-pool-table thead th.col-sticky-2,
 .creator-pool-table thead th.col-sticky-3 {
   z-index: 25;
-  background: var(--gray-50);
+  background: white;
 }
 
-/* Schatten rechts von der dritten Spalte */
-.creator-pool-table th.col-sticky-3::after,
-.creator-pool-table td.col-sticky-3::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: -10px;
-  bottom: 0;
-  width: 10px;
-  pointer-events: none;
-  z-index: 1;
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.1), transparent);
+.creator-pool-table thead th.col-sticky-1 {
+  box-shadow: 
+    inset 0 -1px 0 0 var(--gray-200),
+    inset 0 1px 0 0 var(--gray-100),
+    inset -1px 0 0 0 var(--gray-100);
 }
+
+.creator-pool-table thead th.col-sticky-2 {
+  box-shadow: 
+    inset 0 -1px 0 0 var(--gray-200),
+    inset 0 1px 0 0 var(--gray-100),
+    inset 1px 0 0 0 var(--gray-100),
+    inset -1px 0 0 0 var(--gray-100);
+}
+
+.creator-pool-table thead th.col-sticky-3 {
+  box-shadow: 
+    inset 0 -1px 0 0 var(--gray-200),
+    inset 0 1px 0 0 var(--gray-100),
+    inset 1px 0 0 0 var(--gray-100),
+    inset -1px 0 0 0 var(--gray-200);
+}
+
+/* Schatten rechts von der dritten Spalte – entfernt für saubere Optik */
 
 /* Hover-Zustand für sticky Spalten */
 .creator-pool-table tbody tr:hover td.col-sticky-1,
@@ -10925,6 +10947,8 @@ table:has(#strategien-table-body) td.col-actions {
 
 /* Plus-Button am Tabellen-Ende */
 .creator-pool-table tfoot .add-row-footer td {
+  text-align: center;
+  padding: var(--space-sm);
   background: var(--gray-50);
   border-top: 2px dashed var(--gray-300);
 }
@@ -10933,8 +10957,8 @@ table:has(#strategien-table-body) td.col-actions {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: var(--space-xl);
+  height: var(--space-xl);
   background: var(--color-primary);
   color: white;
   border: none;
@@ -10943,8 +10967,13 @@ table:has(#strategien-table-body) td.col-actions {
   transition: all 0.15s ease;
 }
 
+.creator-pool-table .add-row-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
 .creator-pool-table .add-row-btn:hover {
-  background: var(--primary-700);
+  
   transform: scale(1.1);
 }
 
@@ -14926,4 +14955,100 @@ table.vertraege-unternehmen-table td:last-child {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+/* ============================================
+   ANSPRECHPARTNER TABELLE - STICKY SPALTEN
+   ============================================ */
+
+.ansprechpartner-table-container {
+  --ap-col-checkbox-width: 2.5em;
+  --ap-col-vorname-width: 10em;
+  --ap-col-nachname-width: 10em;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+/* Checkbox-Spalte fixieren */
+.ansprechpartner-table-container .data-table th.col-checkbox,
+.ansprechpartner-table-container .data-table td.col-checkbox {
+  position: sticky !important;
+  left: 0 !important;
+  z-index: 22;
+  background: white !important;
+  width: var(--ap-col-checkbox-width) !important;
+  min-width: var(--ap-col-checkbox-width) !important;
+  max-width: var(--ap-col-checkbox-width) !important;
+  text-align: center;
+  padding: var(--space-xs) !important;
+  border: none !important;
+  box-shadow:
+    inset 0 1px 0 0 var(--gray-100),
+    inset 0 -1px 0 0 var(--gray-100);
+}
+
+/* Vorname-Spalte -- z-index 21 */
+.ansprechpartner-table-container .data-table th.col-vorname,
+.ansprechpartner-table-container .data-table td.col-vorname {
+  position: sticky !important;
+  left: 0 !important;
+  z-index: 21;
+  background: white !important;
+  width: var(--ap-col-vorname-width);
+  min-width: var(--ap-col-vorname-width);
+  max-width: var(--ap-col-vorname-width);
+  border: none !important;
+  box-shadow:
+    inset 0 1px 0 0 var(--gray-100),
+    inset -1px 0 0 0 var(--gray-100),
+    inset 0 -1px 0 0 var(--gray-100);
+}
+
+/* Nachname-Spalte -- z-index 20 */
+.ansprechpartner-table-container .data-table th.col-nachname,
+.ansprechpartner-table-container .data-table td.col-nachname {
+  position: sticky !important;
+  left: var(--ap-col-vorname-width) !important;
+  z-index: 20;
+  background: white !important;
+  width: var(--ap-col-nachname-width);
+  min-width: var(--ap-col-nachname-width);
+  max-width: var(--ap-col-nachname-width);
+  border: none !important;
+  box-shadow:
+    inset 0 1px 0 0 var(--gray-100),
+    inset -1px 0 0 0 var(--gray-200),
+    inset 0 -1px 0 0 var(--gray-100);
+}
+
+/* Wenn Checkbox-Spalte vorhanden: Vorname als zweite, Nachname als dritte fixe Spalte */
+.ansprechpartner-table-container .data-table:has(th.col-checkbox) th.col-vorname,
+.ansprechpartner-table-container .data-table:has(th.col-checkbox) td.col-vorname {
+  left: var(--ap-col-checkbox-width) !important;
+}
+
+.ansprechpartner-table-container .data-table:has(th.col-checkbox) th.col-nachname,
+.ansprechpartner-table-container .data-table:has(th.col-checkbox) td.col-nachname {
+  left: calc(var(--ap-col-checkbox-width) + var(--ap-col-vorname-width)) !important;
+}
+
+/* Header über Body-Zellen halten (gestaffelt) */
+.ansprechpartner-table-container .data-table thead th.col-checkbox {
+  z-index: 27;
+  background: white !important;
+}
+.ansprechpartner-table-container .data-table thead th.col-vorname {
+  z-index: 26;
+  background: white !important;
+}
+.ansprechpartner-table-container .data-table thead th.col-nachname {
+  z-index: 25;
+  background: white !important;
+}
+
+/* Hover-Zustand für fixierte Spalten */
+.ansprechpartner-table-container .data-table tbody tr:hover td.col-checkbox,
+.ansprechpartner-table-container .data-table tbody tr:hover td.col-vorname,
+.ansprechpartner-table-container .data-table tbody tr:hover td.col-nachname {
+  background: var(--gray-50) !important;
 }

@@ -44,6 +44,9 @@ export class VideoList {
   async init() {
     window.setHeadline('Videos');
 
+    this.isAdmin = KampagneUtils.isUserAdmin();
+    this.isKunde = KampagneUtils.isUserKunde();
+
     const canView = (window.canViewPage && window.canViewPage('videos')) ||
                     await window.checkUserPermission('videos', 'can_view');
 
@@ -56,7 +59,7 @@ export class VideoList {
       return;
     }
 
-    this.viewMode = 'unternehmen';
+    this.viewMode = this.isKunde ? 'kampagnen' : 'unternehmen';
     this.currentUnternehmenId = null;
     this.currentUnternehmenName = null;
     this.currentKampagneId = null;
@@ -213,9 +216,44 @@ export class VideoList {
   // DATA LOADING: Kampagnen Folders
   // ============================================
 
+  async _getCustomerAllowedKampagneIds() {
+    const userId = window.currentUser?.id;
+    if (!userId) return [];
+
+    const [unternehmenRes, markenRes] = await Promise.all([
+      window.supabase.from('kunde_unternehmen').select('unternehmen_id').eq('kunde_id', userId),
+      window.supabase.from('kunde_marke').select('marke_id').eq('kunde_id', userId)
+    ]);
+
+    const unternehmenIds = (unternehmenRes.data || []).map(r => r.unternehmen_id).filter(Boolean);
+    const directMarkeIds = (markenRes.data || []).map(r => r.marke_id).filter(Boolean);
+
+    let unternehmenMarkeIds = [];
+    if (unternehmenIds.length > 0) {
+      const { data: markenByUnternehmen } = await window.supabase
+        .from('marke').select('id').in('unternehmen_id', unternehmenIds);
+      unternehmenMarkeIds = (markenByUnternehmen || []).map(m => m.id).filter(Boolean);
+    }
+
+    const allMarkeIds = [...new Set([...directMarkeIds, ...unternehmenMarkeIds])];
+    const kampagneIds = new Set();
+
+    if (unternehmenIds.length > 0) {
+      const { data } = await window.supabase.from('kampagne').select('id').in('unternehmen_id', unternehmenIds);
+      (data || []).forEach(k => kampagneIds.add(k.id));
+    }
+    if (allMarkeIds.length > 0) {
+      const { data } = await window.supabase.from('kampagne').select('id').in('marke_id', allMarkeIds);
+      (data || []).forEach(k => kampagneIds.add(k.id));
+    }
+
+    return Array.from(kampagneIds);
+  }
+
   async loadKampagnenFolders() {
     try {
-      if (!window.supabase || !this.currentUnternehmenId) return [];
+      if (!window.supabase) return [];
+      if (!this.isKunde && !this.currentUnternehmenId) return [];
 
       const { data, error } = await window.supabase
         .from('kooperation_videos')
@@ -236,14 +274,25 @@ export class VideoList {
 
       if (error) throw error;
 
-      const allowedKampagneIds = await KampagneUtils.loadAllowedKampagneIds();
+      let allowedKampagneIds;
+      if (this.isKunde) {
+        allowedKampagneIds = await this._getCustomerAllowedKampagneIds();
+      } else {
+        allowedKampagneIds = await KampagneUtils.loadAllowedKampagneIds();
+      }
 
       const kampagnenMap = new Map();
       (data || []).forEach(video => {
         const kampagne = video.kooperation?.kampagne;
-        const unternehmenId = kampagne?.marke?.unternehmen?.id || kampagne?.unternehmen?.id;
-        if (!kampagne?.id || unternehmenId !== this.currentUnternehmenId) return;
-        if (allowedKampagneIds !== null && !allowedKampagneIds.includes(kampagne.id)) return;
+        if (!kampagne?.id) return;
+
+        if (this.isKunde) {
+          if (!allowedKampagneIds.includes(kampagne.id)) return;
+        } else {
+          const unternehmenId = kampagne?.marke?.unternehmen?.id || kampagne?.unternehmen?.id;
+          if (unternehmenId !== this.currentUnternehmenId) return;
+          if (allowedKampagneIds !== null && !allowedKampagneIds.includes(kampagne.id)) return;
+        }
 
         const existing = kampagnenMap.get(kampagne.id);
         if (existing) {
@@ -281,7 +330,13 @@ export class VideoList {
       const userId = window.currentUser?.id;
 
       let allowedKampagneIds = [];
-      if (!isAdmin && isMitarbeiter && userId) {
+      if (this.isKunde && userId) {
+        try {
+          allowedKampagneIds = await this._getCustomerAllowedKampagneIds();
+        } catch (error) {
+          console.error('❌ Fehler beim Laden der Kunden-Kampagnen-Zuordnungen:', error);
+        }
+      } else if (!isAdmin && isMitarbeiter && userId) {
         try {
           const [kampagnenRes, markenRes, unternehmenRes] = await Promise.all([
             window.supabase.from('kampagne_mitarbeiter').select('kampagne_id').eq('mitarbeiter_id', userId),
@@ -381,7 +436,7 @@ export class VideoList {
       if (!videos || videos.length === 0) return [];
 
       let filteredVideos = videos;
-      if (!isAdmin && isMitarbeiter && allowedKampagneIds.length > 0) {
+      if (!isAdmin && allowedKampagneIds.length > 0) {
         filteredVideos = videos.filter(v =>
           v.kooperation?.kampagne_id && allowedKampagneIds.includes(v.kooperation.kampagne_id)
         );
@@ -556,12 +611,16 @@ export class VideoList {
       <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
     </svg>`;
 
+    const backBtnHtml = this.isKunde
+      ? ''
+      : `<button id="btn-back-to-unternehmen" class="secondary-btn">${backSvg} Zurück</button>`;
+
     return `
       <div class="list-container">
         <div class="table-filter-wrapper">
           <div class="filter-bar">
             <div class="filter-left">
-              <button id="btn-back-to-unternehmen" class="secondary-btn">${backSvg} Zurück</button>
+              ${backBtnHtml}
               ${viewToggleHtml}
             </div>
           </div>
@@ -678,6 +737,8 @@ export class VideoList {
       <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
     </svg>`;
 
+    const colCount = this.isKunde ? 7 : 8;
+
     return `
       <div class="page-header">
         <div class="page-header-right"></div>
@@ -696,7 +757,8 @@ export class VideoList {
             <tr>
               <th class="col-name">Thema</th>
               <th>Content</th>
-              <th>Kooperation</th>
+              ${this.isKunde ? '' : '<th>Kooperation</th>'}
+              <th>Kampagne</th>
               <th>Creator</th>
               <th>Content Art</th>
               <th>Status</th>
@@ -704,7 +766,7 @@ export class VideoList {
             </tr>
           </thead>
           <tbody id="videos-table-body">
-            <tr><td colspan="7" class="loading">Lade Videos...</td></tr>
+            <tr><td colspan="${colCount}" class="loading">Lade Videos...</td></tr>
           </tbody>
         </table>
       </div>
@@ -716,9 +778,11 @@ export class VideoList {
     const tbody = document.getElementById('videos-table-body');
     if (!tbody) return;
 
+    const colCount = this.isKunde ? 7 : 8;
+
     if (!videos || videos.length === 0) {
       tbody.innerHTML = `
-        <tr><td colspan="7" class="empty-state">
+        <tr><td colspan="${colCount}" class="empty-state">
           <div class="empty-icon">🎬</div>
           <h3>Keine Videos vorhanden</h3>
           <p>Es wurden noch keine Videos erstellt.</p>
@@ -733,6 +797,7 @@ export class VideoList {
     const rowsHtml = videos.map(video => {
       const kooperation = video.kooperation || {};
       const creator = kooperation.creator || {};
+      const kampagne = kooperation.kampagne || {};
       const strategieItem = video.strategie_item || {};
 
       let themaHtml = '-';
@@ -763,16 +828,26 @@ export class VideoList {
           </a>`
         : '–';
 
+      const kampagneName = KampagneUtils.getDisplayName(kampagne) || '-';
+      const kampagneHtml = kampagne.id
+        ? `<a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">${esc(kampagneName)}</a>`
+        : '-';
+
+      const kooperationTd = this.isKunde
+        ? ''
+        : `<td>${kooperation.id ? `<a href="#" class="table-link" data-table="kooperation" data-id="${kooperation.id}">${esc(kooperation.name || '—')}</a>` : '-'}</td>`;
+
+      const creatorTd = this.isKunde
+        ? `<td>${creatorName}</td>`
+        : `<td>${creator.id ? `<a href="#" class="table-link" data-table="creator" data-id="${creator.id}">${creatorName}</a>` : '-'}</td>`;
+
       return `
         <tr data-id="${video.id}">
           <td class="col-name video-thema-cell">${themaHtml}</td>
           <td>${contentLinkHtml}</td>
-          <td>
-            ${kooperation.id ? `<a href="#" class="table-link" data-table="kooperation" data-id="${kooperation.id}">${esc(kooperation.name || '—')}</a>` : '-'}
-          </td>
-          <td>
-            ${creator.id ? `<a href="#" class="table-link" data-table="creator" data-id="${creator.id}">${creatorName}</a>` : '-'}
-          </td>
+          ${kooperationTd}
+          <td>${kampagneHtml}</td>
+          ${creatorTd}
           <td>${contentArtHtml}</td>
           <td><span class="status-badge ${statusClass}">${esc(video.status) || 'produktion'}</span></td>
           <td>${formatDate(video.posting_datum)}</td>

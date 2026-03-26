@@ -6,6 +6,7 @@ import { KampagneKooperationenVideoTable } from './KampagneKooperationenVideoTab
 import { VideoTableColumnVisibilityDrawer } from './VideoTableColumnVisibilityDrawer.js';
 import { getTabIcon } from '../../core/TabUtils.js';
 import { KampagneUtils } from './KampagneUtils.js';
+import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
 
 export class KampagneDetail {
   constructor() {
@@ -2288,6 +2289,11 @@ export class KampagneDetail {
   // Lösche Kampagne
   async deleteKampagne() {
     try {
+      const cascade = await deleteDropboxCascade('kampagne', this.kampagneId);
+      if (cascade.failed > 0) {
+        console.warn('Dropbox-Cascade: Einige Dateien konnten nicht gelöscht werden:', cascade.failures);
+      }
+
       const { error } = await window.supabase
         .from('kampagne')
         .delete()
@@ -2297,12 +2303,10 @@ export class KampagneDetail {
         throw error;
       }
 
-      // Event auslösen für Listen-Update
       window.dispatchEvent(new CustomEvent('entityUpdated', {
         detail: { entity: 'kampagne', action: 'deleted', id: this.kampagneId }
       }));
       
-      // Zurück zur Liste
       window.navigateTo('/kampagne');
     } catch (error) {
       console.error('❌ Fehler beim Löschen der Kampagne:', error);

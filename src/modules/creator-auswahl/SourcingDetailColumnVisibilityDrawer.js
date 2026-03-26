@@ -11,12 +11,12 @@ export class SourcingDetailColumnVisibilityDrawer {
     // Name und Aktionen sind immer sichtbar und können nicht deaktiviert werden
     this.columns = [
       { className: 'cp-col-typ', label: 'Creator Art' },
-      { className: 'cp-col-notiz', label: 'Kurzbeschreibung' },
       { className: 'cp-col-link-ig', label: 'Link Instagram' },
       { className: 'cp-col-follower-ig', label: 'Follower Instagram' },
       { className: 'cp-col-link-tt', label: 'Link TikTok' },
       { className: 'cp-col-follower-tt', label: 'Follower TikTok' },
       { className: 'cp-col-location', label: 'Location' },
+      { className: 'cp-col-notiz', label: 'Kurzbeschreibung' },
       { className: 'cp-col-feedback', label: 'Rückmeldung Kunde' },
       { className: 'cp-col-prio1', label: 'Buchen' },
       { className: 'cp-col-prio2', label: 'Prio 2' },

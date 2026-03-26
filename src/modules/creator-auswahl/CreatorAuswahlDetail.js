@@ -137,8 +137,8 @@ export class CreatorAuswahlDetail {
    */
   getVisibleColumnCount() {
     const allColumns = [
-      'cp-col-drag', 'cp-col-name', 'cp-col-typ', 'cp-col-notiz', 'cp-col-link-ig', 'cp-col-follower-ig',
-      'cp-col-link-tt', 'cp-col-follower-tt', 'cp-col-location', 'cp-col-feedback',
+      'cp-col-drag', 'cp-col-name', 'cp-col-typ', 'cp-col-link-ig', 'cp-col-follower-ig',
+      'cp-col-link-tt', 'cp-col-follower-tt', 'cp-col-location', 'cp-col-notiz', 'cp-col-feedback',
       'cp-col-prio1', 'cp-col-prio2', 'cp-col-nicht', 'cp-col-check', 'cp-col-pricing', 'cp-col-actions'
     ];
     
@@ -509,12 +509,12 @@ export class CreatorAuswahlDetail {
               ${!this.isKunde ? '<th class="col-drag col-sticky-1 cp-col-drag"></th>' : ''}
               <th class="${this.isKunde ? 'col-sticky-1' : 'col-sticky-2'} cp-col-name">Name</th>
               <th class="${this.isKunde ? 'col-sticky-2' : 'col-sticky-3'} cp-col-typ" ${!this.isColumnVisibleForCustomer('cp-col-typ') ? 'style="display:none;"' : ''}>Creator Art</th>
-              <th class="cp-col-notiz" ${!this.isColumnVisibleForCustomer('cp-col-notiz') ? 'style="display:none;"' : ''}>Kurzbeschreibung</th>
               <th class="cp-col-link-ig" ${!this.isColumnVisibleForCustomer('cp-col-link-ig') ? 'style="display:none;"' : ''}>Link ${instagramIcon}</th>
               <th class="cp-col-follower-ig" ${!this.isColumnVisibleForCustomer('cp-col-follower-ig') ? 'style="display:none;"' : ''}>Follower ${instagramIcon}</th>
               <th class="cp-col-link-tt" ${!this.isColumnVisibleForCustomer('cp-col-link-tt') ? 'style="display:none;"' : ''}>Link ${tiktokIcon}</th>
               <th class="cp-col-follower-tt" ${!this.isColumnVisibleForCustomer('cp-col-follower-tt') ? 'style="display:none;"' : ''}>Follower ${tiktokIcon}</th>
               <th class="cp-col-location" ${!this.isColumnVisibleForCustomer('cp-col-location') ? 'style="display:none;"' : ''}>Location</th>
+              <th class="cp-col-notiz" ${!this.isColumnVisibleForCustomer('cp-col-notiz') ? 'style="display:none;"' : ''}>Kurzbeschreibung</th>
               <th class="cp-col-feedback" ${!this.isColumnVisibleForCustomer('cp-col-feedback') ? 'style="display:none;"' : ''}>Rückmeldung Kunde</th>
               <th class="cp-col-prio1" ${!this.isColumnVisibleForCustomer('cp-col-prio1') ? 'style="display:none;"' : ''}>Buchen</th>
               <th class="cp-col-prio2" ${!this.isColumnVisibleForCustomer('cp-col-prio2') ? 'style="display:none;"' : ''}>Prio 2</th>
@@ -530,9 +530,9 @@ export class CreatorAuswahlDetail {
           ${!this.isKunde ? `
           <tfoot>
             <tr class="add-row-footer">
-              <td colspan="${visibleColCount}" style="text-align: center; padding: var(--space-sm);">
+              <td colspan="${visibleColCount}">
                 <button type="button" class="add-row-btn" id="btn-add-empty-row" title="Neue Zeile hinzufügen">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px;">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                   </svg>
                 </button>
@@ -679,11 +679,6 @@ export class CreatorAuswahlDetail {
             </select>
           ` : `<div class="cell-text-readonly">${item.typ || '-'}</div>`}
         </td>
-        <td class="cell-textarea cp-col-notiz" ${!this.isColumnVisibleForCustomer('cp-col-notiz') ? 'style="display:none;"' : ''}>
-          ${!this.isKunde ? `
-            <textarea class="strategie-textarea" data-field="notiz" data-item-id="${item.id}" placeholder="Kurzbeschreibung...">${item.notiz || ''}</textarea>
-          ` : `<div class="cell-text-readonly">${item.notiz || '-'}</div>`}
-        </td>
         <td class="cell-textarea cp-col-link-ig" style="text-align: center;${!this.isColumnVisibleForCustomer('cp-col-link-ig') ? ' display:none;' : ''}">
           ${!this.isKunde ? `
             <div class="link-cell-wrapper">
@@ -714,6 +709,11 @@ export class CreatorAuswahlDetail {
           ${!this.isKunde ? `
             <textarea class="strategie-textarea" data-field="wohnort" data-item-id="${item.id}" placeholder="Location...">${item.wohnort || ''}</textarea>
           ` : `<div class="cell-text-readonly">${item.wohnort || '-'}</div>`}
+        </td>
+        <td class="cell-textarea cp-col-notiz" ${!this.isColumnVisibleForCustomer('cp-col-notiz') ? 'style="display:none;"' : ''}>
+          ${!this.isKunde ? `
+            <textarea class="strategie-textarea" data-field="notiz" data-item-id="${item.id}" placeholder="Kurzbeschreibung...">${item.notiz || ''}</textarea>
+          ` : `<div class="cell-text-readonly">${item.notiz || '-'}</div>`}
         </td>
         <td class="cell-textarea cp-col-feedback" ${!this.isColumnVisibleForCustomer('cp-col-feedback') ? 'style="display:none;"' : ''}>
           <textarea 

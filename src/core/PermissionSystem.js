@@ -66,6 +66,7 @@ export class PermissionSystem {
         dashboard: { can_view: true, can_edit: true, can_delete: true },
         tasks: { can_view: true, can_edit: true, can_delete: true },
         strategie: { can_view: true, can_edit: true, can_delete: true },
+        kickoff: { can_view: true, can_edit: true, can_delete: true },
         sourcing: { can_view: true, can_edit: true, can_delete: true },
         feedback: { can_view: true, can_edit: true, can_delete: true },
         mitarbeiter: { can_view: true, can_edit: true, can_delete: true },
@@ -89,6 +90,7 @@ export class PermissionSystem {
         dashboard: { can_view: true, can_edit: false, can_delete: false },
         tasks: { can_view: true, can_edit: false, can_delete: false },
         strategie: { can_view: true, can_edit: true, can_delete: true },
+        kickoff: { can_view: true, can_edit: true, can_delete: false },
         sourcing: { can_view: true, can_edit: true, can_delete: true },
         feedback: { can_view: true, can_edit: true, can_delete: true },
         mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
@@ -107,12 +109,13 @@ export class PermissionSystem {
         kampagne: { can_view: true, can_edit: false, can_delete: false },
         kooperation: { can_view: true, can_edit: false, can_delete: false },
         briefing: { can_view: true, can_edit: false, can_delete: false },
-        videos: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Videos NICHT sehen
+        videos: { can_view: true, can_edit: false, can_delete: false },
         rechnung: { can_view: false, can_edit: false, can_delete: false },
         ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
         dashboard: { can_view: true, can_edit: false, can_delete: false },
         tasks: { can_view: true, can_edit: true, can_delete: false },
         strategie: { can_view: true, can_edit: true, can_delete: false },
+        kickoff: { can_view: true, can_edit: false, can_delete: false },
         sourcing: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Sourcing sehen
         feedback: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Feedback NICHT sehen
         mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
@@ -131,12 +134,13 @@ export class PermissionSystem {
         kampagne: { can_view: true, can_edit: false, can_delete: false },
         kooperation: { can_view: true, can_edit: false, can_delete: false },
         briefing: { can_view: true, can_edit: false, can_delete: false },
-        videos: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Videos NICHT sehen
+        videos: { can_view: true, can_edit: false, can_delete: false },
         rechnung: { can_view: false, can_edit: false, can_delete: false },
         ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
         dashboard: { can_view: true, can_edit: false, can_delete: false },
         tasks: { can_view: true, can_edit: true, can_delete: false },
         strategie: { can_view: true, can_edit: true, can_delete: false },
+        kickoff: { can_view: true, can_edit: false, can_delete: false },
         sourcing: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Sourcing sehen
         feedback: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Feedback NICHT sehen
         mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
@@ -163,6 +167,7 @@ export class PermissionSystem {
       ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
       dashboard: { can_view: true, can_edit: false, can_delete: false },
       strategie: { can_view: false, can_edit: false, can_delete: false },
+      kickoff: { can_view: false, can_edit: false, can_delete: false },
       sourcing: { can_view: false, can_edit: false, can_delete: false },
       feedback: { can_view: true, can_edit: false, can_delete: false },
       mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
@@ -187,6 +192,7 @@ export class PermissionSystem {
       dashboard: { can_view: true, can_edit: false, can_delete: false },
       tasks: { can_view: false, can_edit: false, can_delete: false },
       strategie: { can_view: false, can_edit: false, can_delete: false },
+      kickoff: { can_view: false, can_edit: false, can_delete: false },
       sourcing: { can_view: false, can_edit: false, can_delete: false },
       feedback: { can_view: false, can_edit: false, can_delete: false },
       mitarbeiter: { can_view: false, can_edit: false, can_delete: false },

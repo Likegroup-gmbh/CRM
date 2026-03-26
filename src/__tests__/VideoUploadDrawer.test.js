@@ -15,13 +15,23 @@ function createMockSupabase(assets = []) {
   };
 }
 
-function createTrackingSupabase(assets = []) {
+function createTrackingSupabase(assets = [], opts = {}) {
   const log = [];
+
+  function makeSelectChain(data) {
+    const result = Promise.resolve({ data, error: null });
+    const chain = {
+      eq: vi.fn(() => chain),
+      maybeSingle: vi.fn(() => Promise.resolve({ data: data?.[0] || null, error: null })),
+      single: vi.fn(() => Promise.resolve({ data: data?.[0] || null, error: null })),
+      then: result.then.bind(result),
+    };
+    return chain;
+  }
+
   return {
     from: vi.fn((table) => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => Promise.resolve({ data: assets, error: null })),
-      })),
+      select: vi.fn(() => makeSelectChain(assets)),
       update: vi.fn((data) => {
         log.push({ op: 'update', table, data });
         return {
@@ -180,6 +190,51 @@ describe('VideoUploadDrawer', () => {
       const assetInsert = sb._log.find(e => e.op === 'insert' && e.table === 'kooperation_video_asset');
       expect(assetInsert).toBeDefined();
       expect(assetInsert.data.version_number).toBe(1);
+    });
+
+    it('löscht alte Dropbox-Datei beim Versions-Overwrite', async () => {
+      const fetchLog = [];
+      const origFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn(async (url, opts) => {
+        fetchLog.push({ url, body: opts?.body ? JSON.parse(opts.body) : null });
+        return { ok: true, status: 200, json: async () => ({ success: true }) };
+      });
+
+      const sb = createTrackingSupabase([
+        { version_number: 1, file_path: '/Videos/Firma/old-video.mp4' },
+      ]);
+      window.supabase = sb;
+
+      await drawer.open('video-1', defaultMetadaten, vi.fn());
+      drawer._selectedVersion = 1;
+      await drawer.saveAssetVersion('https://new.url', '/new/path', 'newname', null);
+
+      const dropboxCall = fetchLog.find(l => l.url === '/.netlify/functions/dropbox-delete');
+      expect(dropboxCall).toBeDefined();
+      expect(dropboxCall.body.filePath).toBe('/Videos/Firma/old-video.mp4');
+
+      globalThis.fetch = origFetch;
+    });
+
+    it('Version-Overwrite funktioniert auch wenn alte Datei kein file_path hat', async () => {
+      const fetchLog = [];
+      const origFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn(async (url, opts) => {
+        fetchLog.push({ url });
+        return { ok: true, status: 200, json: async () => ({ success: true }) };
+      });
+
+      const sb = createTrackingSupabase([{ version_number: 1, file_path: null }]);
+      window.supabase = sb;
+
+      await drawer.open('video-1', defaultMetadaten, vi.fn());
+      drawer._selectedVersion = 1;
+      await drawer.saveAssetVersion('https://new.url', '/new/path', 'name', null);
+
+      const dropboxCalls = fetchLog.filter(l => l.url === '/.netlify/functions/dropbox-delete');
+      expect(dropboxCalls.length).toBe(0);
+
+      globalThis.fetch = origFetch;
     });
   });
 });

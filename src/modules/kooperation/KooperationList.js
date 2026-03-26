@@ -7,6 +7,7 @@ import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { KooperationFilterLogic } from './filters/KooperationFilterLogic.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
 
 export class KooperationList {
   constructor() {
@@ -620,11 +621,13 @@ export class KooperationList {
     });
 
     try {
-      // Batch-Delete für bessere Performance
+      await Promise.allSettled(
+        selectedIds.map(id => deleteDropboxCascade('kooperation', id))
+      );
+
       const result = await window.dataService.deleteEntities('kooperation', selectedIds);
       
       if (result.success) {
-        // Entferne Zeilen aus DOM
         selectedIds.forEach(id => {
           document.querySelector(`tr[data-id="${id}"]`)?.remove();
         });
@@ -634,7 +637,6 @@ export class KooperationList {
         this.selectedKooperation.clear();
         this.updateSelection();
         
-        // Nur neu laden wenn Liste leer ist
         const tbody = document.querySelector('#kooperationen-table-body');
         if (tbody && tbody.children.length === 0) {
           await this.loadAndRender();
@@ -647,7 +649,6 @@ export class KooperationList {
         throw new Error(result.error || 'Löschen fehlgeschlagen');
       }
     } catch (error) {
-      // Bei Fehler: Zeilen wiederherstellen
       selectedIds.forEach(id => {
         const row = document.querySelector(`tr[data-id="${id}"]`);
         if (row) row.style.opacity = '1';

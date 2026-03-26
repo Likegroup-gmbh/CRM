@@ -82,6 +82,8 @@ import { videoList } from './modules/video/VideoList.js';
 import { vertraegeList } from './modules/vertrag/VertraegeList.js';
 import { vertraegeCreate } from './modules/vertrag/VertraegeCreate.js';
 import { kickOffPage } from './modules/marke/KickOffPage.js';
+import { kickOffList } from './modules/kickoff/KickOffList.js';
+import { kickOffDetail } from './modules/kickoff/KickOffDetail.js';
 import { globalSearch } from './core/components/GlobalSearch.js';
 // Zentrales Bestätigungs-Modal (side-effect Import, hängt window.confirmationModal an)
 import './core/ConfirmationModal.js';
@@ -327,6 +329,13 @@ class ModuleRegistry {
       console.log(`🎯 Strategie-Details erkannt, verwende Modul: ${moduleKey}`);
     }
     
+    // Spezielle Behandlung für Kick-Off-Details
+    if (id && segment === 'kickoff' && id !== 'new') {
+      moduleKey = 'kickoff-detail';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Kick-Off-Details erkannt, verwende Modul: ${moduleKey}`);
+    }
+    
     // Spezielle Behandlung für Sourcing-Details (aber nicht für 'new')
     if (id && segment === 'sourcing' && id !== 'new') {
       moduleKey = 'sourcing-detail';
@@ -454,7 +463,9 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('marke', markeList);
   moduleRegistry.register('marke-detail', markeDetail);
   moduleRegistry.register('marke-create', markeCreate);
-  moduleRegistry.register('kickoff', kickOffPage);
+  moduleRegistry.register('kickoff', kickOffList);
+  moduleRegistry.register('kickoff-detail', kickOffDetail);
+  moduleRegistry.register('kickoff-create', kickOffPage);
   moduleRegistry.register('produkt', produktList);
   moduleRegistry.register('produkt-detail', produktDetail);
   moduleRegistry.register('produkt-create', produktCreate);
@@ -826,7 +837,7 @@ window.setupHeaderUI = () => {
         kickoffBtn.dataset.bound = 'true';
         kickoffBtn.addEventListener('click', (e) => {
           e.preventDefault();
-          moduleRegistry.navigateTo('/kickoff');
+          moduleRegistry.navigateTo('/kickoff-create');
         });
       }
     }

@@ -13,6 +13,7 @@ import { KampagneFilterLogic } from './filters/KampagneFilterLogic.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { KampagneUtils } from './KampagneUtils.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
+import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
 
 // Debug-Flag für Logging (Production: false)
 const DEBUG_KAMPAGNE = false;
@@ -128,10 +129,10 @@ export class KampagneList {
       return;
     }
 
-    // Auftrag Detail Link
-    if (e.target.classList.contains('table-link') && e.target.dataset.table === 'auftrag') {
+    // Auftragsdetails Detail Link
+    if (e.target.classList.contains('table-link') && e.target.dataset.table === 'auftragsdetails') {
       e.preventDefault();
-      window.navigateTo(`/auftrag/${e.target.dataset.id}`);
+      window.navigateTo(`/auftragsdetails/${e.target.dataset.id}`);
       return;
     }
     
@@ -366,7 +367,7 @@ export class KampagneList {
           *,
           unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
           marke:marke_id(id, markenname, logo_url),
-          auftrag:auftrag_id(id, auftragsname),
+          auftrag:auftrag_id(id, auftragsname, auftrag_details(id)),
           status_ref:status_id(id, name)
         `)
         .order('created_at', { ascending: false });
@@ -408,7 +409,10 @@ export class KampagneList {
             markenname: k.marke.markenname, 
             logo_url: k.marke.logo_url 
           } : null,
-          auftrag: k.auftrag ? { auftragsname: k.auftrag.auftragsname } : null,
+          auftrag: k.auftrag ? { 
+            auftragsname: k.auftrag.auftragsname,
+            details_id: k.auftrag.auftrag_details?.[0]?.id || null
+          } : null,
           status_name: k.status_ref?.name || k.status || null
         };
       });
@@ -575,7 +579,7 @@ export class KampagneList {
               <th class="col-name">Kampagnenname</th>
               <th class="col-unternehmen">Unternehmen</th>
               <th class="col-marke">Marke</th>
-              <th class="col-auftrag">Auftrag</th>
+              <th class="col-auftrag">Auftragsdetails</th>
               <th class="col-art">Art der Kampagne</th>
               <th class="col-creator-anzahl">Creator Anzahl</th>
               <th class="col-video-anzahl">Video Anzahl</th>
@@ -903,7 +907,7 @@ export class KampagneList {
           </td>
           <td class="col-unternehmen">${this.renderUnternehmen(kampagne.unternehmen)}</td>
           <td class="col-marke">${this.renderMarke(kampagne.marke)}</td>
-          <td class="col-auftrag">${kampagne.auftrag_id && kampagne.auftrag?.auftragsname ? `<a href="#" class="table-link" data-table="auftrag" data-id="${kampagne.auftrag_id}">${window.validatorSystem.sanitizeHtml(kampagne.auftrag.auftragsname)}</a>` : '-'}</td>
+          <td class="col-auftrag">${kampagne.auftrag?.details_id ? `<a href="#" class="table-link" data-table="auftragsdetails" data-id="${kampagne.auftrag.details_id}">${window.validatorSystem.sanitizeHtml(kampagne.auftrag.auftragsname)}</a>` : '-'}</td>
           <td class="col-art">${this.renderArtTags(kampagne.art_der_kampagne_display || kampagne.art_der_kampagne)}</td>
           <td class="col-creator-anzahl">${kampagne.creatoranzahl || 0}</td>
           <td class="col-video-anzahl">${kampagne.videoanzahl || 0}</td>
@@ -1626,11 +1630,13 @@ export class KampagneList {
     });
 
     try {
-      // Batch-Delete für bessere Performance
+      await Promise.allSettled(
+        selectedIds.map(id => deleteDropboxCascade('kampagne', id))
+      );
+
       const result = await window.dataService.deleteEntities('kampagne', selectedIds);
       
       if (result.success) {
-        // Entferne Zeilen aus DOM
         selectedIds.forEach(id => {
           document.querySelector(`tr[data-id="${id}"]`)?.remove();
         });
@@ -1639,7 +1645,6 @@ export class KampagneList {
         
         this.deselectAll();
         
-        // Nur neu laden wenn Liste leer ist
         const tbody = document.querySelector('#kampagnen-table-body');
         if (tbody && tbody.children.length === 0) {
           await this.loadAndRender();
@@ -1652,7 +1657,6 @@ export class KampagneList {
         throw new Error(result.error || 'Löschen fehlgeschlagen');
       }
     } catch (error) {
-      // Bei Fehler: Zeilen wiederherstellen
       selectedIds.forEach(id => {
         const row = document.querySelector(`tr[data-id="${id}"]`);
         if (row) row.style.opacity = '1';

@@ -91,3 +91,42 @@ export async function deleteVideoFull(videoId, { supabase: sb, fetch: fetchFn } 
     return { success: false, error: err.message || String(err) };
   }
 }
+
+/**
+ * Cascade-Delete: Ruft den serverseitigen Orchestrator auf, der alle Dropbox-Dateien
+ * für eine Kampagne/Kooperation/Video löscht, BEVOR die DB-Zeile entfernt wird.
+ * Gibt ein Summary-Objekt zurück.
+ */
+export async function deleteDropboxCascade(entityType, entityId, { fetch: fetchFn } = {}) {
+  const _fetch = fetchFn || globalThis.fetch;
+
+  try {
+    const resp = await _fetch('/.netlify/functions/dropbox-delete-cascade', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entityType, entityId }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      console.error('dropbox-delete-cascade fehlgeschlagen:', err);
+      return { success: false, error: err.error || `HTTP ${resp.status}` };
+    }
+
+    const result = await resp.json();
+    console.log(`Dropbox-Cascade für ${entityType} ${entityId}:`, result);
+    return result;
+  } catch (err) {
+    console.error('dropbox-delete-cascade Fehler:', err);
+    return { success: false, error: err.message || String(err) };
+  }
+}
+
+/**
+ * Löscht eine einzelne Dropbox-Datei über den filePath.
+ * Exportiert für Nutzung in VideoUploadDrawer beim Versions-Overwrite.
+ */
+export async function deleteSingleDropboxFile(filePath, { fetch: fetchFn } = {}) {
+  const _fetch = fetchFn || globalThis.fetch;
+  await dropboxDelete(filePath, _fetch);
+}

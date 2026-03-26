@@ -25,7 +25,8 @@ export class KampagneUtils {
    * @returns {boolean}
    */
   static isUserKunde() {
-    return window.currentUser?.rolle === 'kunde';
+    const rolle = window.currentUser?.rolle;
+    return rolle === 'kunde' || rolle === 'kunde_editor';
   }
 
   /**

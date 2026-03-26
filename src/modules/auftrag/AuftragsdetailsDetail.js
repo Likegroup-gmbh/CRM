@@ -193,7 +193,7 @@ export class AuftragsdetailsDetail {
         const koopIds = this.kooperationen.map(k => k.id);
         const { data: videos, error: videoError } = await window.supabase
           .from('kooperation_videos')
-          .select('id, titel, thema, content_art, kooperation_id, link_content, asset_url, einkaufspreis_netto, verkaufspreis_netto')
+          .select('id, titel, thema, content_art, kooperation_id, link_content, asset_url, folder_url, video_name, einkaufspreis_netto, verkaufspreis_netto')
           .in('kooperation_id', koopIds);
 
         if (videoError) throw videoError;
@@ -324,8 +324,8 @@ export class AuftragsdetailsDetail {
         ${this.renderKategorienTable()}
 
         <!-- Kooperationen & Videos -->
-        <div style="margin-top: 32px;">
-          <h3>Kooperationen & Videos</h3>
+        <div class="detail-section">
+          <h3 class="section-title section-title--spaced">Kooperationen & Videos</h3>
           ${this.renderCreatorVideosTable()}
         </div>
       </div>
@@ -534,12 +534,9 @@ export class AuftragsdetailsDetail {
   renderCreatorVideosTable() {
     if (!this.kooperationen || this.kooperationen.length === 0) {
       return `
-        <div style="margin-top: var(--space-xl);">
-          <h3 style="margin-bottom: var(--space-md);">Creator & Videos Übersicht</h3>
-          <div class="empty-state">
-            <h3>Keine Kooperationen vorhanden</h3>
-            <p>Für diesen Auftrag wurden noch keine Kooperationen mit Creator und Videos angelegt.</p>
-          </div>
+        <div class="empty-state">
+          <h3>Keine Kooperationen vorhanden</h3>
+          <p>Für diesen Auftrag wurden noch keine Kooperationen mit Creator und Videos angelegt.</p>
         </div>
       `;
     }
@@ -578,8 +575,9 @@ export class AuftragsdetailsDetail {
             creatorName,
             creatorId,
             kategorie: video.content_art || '-',
-            videoTitel: video.titel || video.thema || 'Video',
+            videoTitel: video.titel || video.thema || '-',
             videoLink,
+            videoName: video.video_name || null,
             kooperationId: koop.id,
             kooperationName: koop.name || 'Kooperation',
             videoId: video.id,
@@ -610,44 +608,40 @@ export class AuftragsdetailsDetail {
     };
 
     const rowsHtml = videoRows.map(row => {
-      const videoLinkHtml = row.videoLink 
-        ? `<a href="${window.validatorSystem.sanitizeHtml(row.videoLink)}" target="_blank" rel="noopener noreferrer" class="table-link">
-             ${window.validatorSystem.sanitizeHtml(row.videoLink)}
+      const sanitize = (v) => window.validatorSystem.sanitizeHtml(v);
+      const videoDisplayName = row.videoName || row.videoTitel;
+      const videoHtml = row.videoLink
+        ? `<a href="${sanitize(row.videoLink)}" target="_blank" rel="noopener noreferrer" class="table-link">
+             ${sanitize(videoDisplayName)}
+             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14" style="vertical-align: middle; margin-left: 4px;">
+               <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+             </svg>
            </a>`
-        : '-';
+        : (videoDisplayName && videoDisplayName !== '-' ? sanitize(videoDisplayName) : '-');
       
       const creatorLinkHtml = row.creatorId
         ? `<a href="#" class="table-link" data-table="creator" data-id="${row.creatorId}">
-             ${window.validatorSystem.sanitizeHtml(row.creatorName)}
+             ${sanitize(row.creatorName)}
            </a>`
-        : window.validatorSystem.sanitizeHtml(row.creatorName);
-
-      const videoTitelHtml = row.videoId
-        ? `<a href="#" class="table-link" data-table="video" data-id="${row.videoId}">
-             ${window.validatorSystem.sanitizeHtml(row.videoTitel)}
-           </a>`
-        : window.validatorSystem.sanitizeHtml(row.videoTitel);
+        : sanitize(row.creatorName);
 
       const kampagneLinkHtml = row.kampagneId
-        ? `<a href="#" class="table-link" data-table="kampagne" data-id="${row.kampagneId}">${window.validatorSystem.sanitizeHtml(row.kampagneName)}</a>`
-        : window.validatorSystem.sanitizeHtml(row.kampagneName);
+        ? `<a href="#" class="table-link" data-table="kampagne" data-id="${row.kampagneId}">${sanitize(row.kampagneName)}</a>`
+        : sanitize(row.kampagneName);
 
       return `
         <tr>
           <td>${creatorLinkHtml}</td>
           <td>${kampagneLinkHtml}</td>
-          <td>${window.validatorSystem.sanitizeHtml(row.kategorie)}</td>
+          <td>${sanitize(row.kategorie)}</td>
           <td class="text-right">${formatCurrency(row.ekNetto)}</td>
           <td class="text-right">${formatCurrency(row.vkNetto)}</td>
-          <td>${videoTitelHtml}</td>
-          <td>${videoLinkHtml}</td>
+          <td>${videoHtml}</td>
         </tr>
       `;
     }).join('');
 
     return `
-      <div style="margin-top: var(--space-xl);">
-        <h3 style="margin-bottom: var(--space-md);">Creator & Videos Übersicht</h3>
         <div class="data-table-container">
           <table class="data-table">
             <thead>
@@ -658,7 +652,6 @@ export class AuftragsdetailsDetail {
                 <th class="text-right">EK Netto</th>
                 <th class="text-right">VK Netto</th>
                 <th>Video</th>
-                <th>Link</th>
               </tr>
             </thead>
             <tbody>
@@ -666,7 +659,6 @@ export class AuftragsdetailsDetail {
             </tbody>
           </table>
         </div>
-      </div>
     `;
   }
 
@@ -721,13 +713,13 @@ export class AuftragsdetailsDetail {
         this.showEditForm();
       }
 
-      // Table-Links
+      // Table-Links (nur interne Links mit data-table/data-id abfangen)
       const link = e.target.closest('.table-link');
       if (link) {
-        e.preventDefault();
         const table = link.dataset.table;
         const id = link.dataset.id;
         if (table && id) {
+          e.preventDefault();
           window.navigateTo(`/${table}/${id}`);
         }
       }

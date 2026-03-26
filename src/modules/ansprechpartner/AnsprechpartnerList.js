@@ -43,17 +43,20 @@ export class AnsprechpartnerList extends BasePaginatedList {
       sortAscending: true,
       paginationContainerId: 'pagination-ansprechpartner',
       tbodySelector: '.data-table tbody',
-      tableColspan: 14, // Mit Admin-Checkbox, Vorname/Nachname Split, Like Base
+      tableColspan: 14,
       checkboxClass: 'ansprechpartner-check',
       selectAllId: 'select-all-ansprechpartner'
     });
     
-    // Alias für Kompatibilität
     this.selectedAnsprechpartner = this.selectedItems;
-    
-    // Erlaubte IDs für Nicht-Admins (gecacht)
     this._allowedAnsprechpartnerIds = null;
     this._newsletterUpdateInFlight = new Set();
+
+    // Drag-to-Scroll State
+    this.isDragging = false;
+    this.startX = 0;
+    this.scrollLeft = 0;
+    this.dragScrollContainer = null;
   }
   
   // ══════════════════════════════════════════════════════════════════════════
@@ -225,7 +228,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
     return `
       <tr data-id="${ap.id}">
         ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="ansprechpartner-check" data-id="${ap.id}"></td>` : ''}
-        <td class="col-name col-name-with-icon">
+        <td class="col-vorname col-name col-name-with-icon">
           ${ap.profile_image_url 
             ? `<img src="${ap.profile_image_url}" class="table-logo" width="24" height="24" alt="" />` 
             : `<span class="table-avatar">${(ap.vorname || '?')[0].toUpperCase()}</span>`}
@@ -233,7 +236,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
             ${sanitize(ap.vorname || '')}
           </a>
         </td>
-        <td>
+        <td class="col-nachname">
           <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
             ${sanitize(ap.nachname || '')}
           </a>
@@ -299,13 +302,13 @@ export class AnsprechpartnerList extends BasePaginatedList {
         </div>
       </div>
 
-      <div class="table-container">
-        <table class="data-table" id="ansprechpartner-table">
+      <div class="data-table-container ansprechpartner-table-container">
+        <table class="data-table data-table--nowrap" id="ansprechpartner-table">
           <thead>
             <tr>
               ${isAdmin ? `<th class="col-checkbox"><input type="checkbox" id="select-all-ansprechpartner"></th>` : ''}
-              <th class="col-name">Vorname</th>
-              <th>Nachname</th>
+              <th class="col-vorname col-name">Vorname</th>
+              <th class="col-nachname">Nachname</th>
               <th>Unternehmen</th>
               <th class="ap-col-marke">Marke</th>
               <th class="ap-col-nowrap">Stadt</th>
@@ -361,7 +364,8 @@ export class AnsprechpartnerList extends BasePaginatedList {
    * Zusätzliche Events binden
    */
   bindAdditionalEvents(signal) {
-    // Suchfeld Events über globale Komponente
+    this.bindDragToScroll();
+
     SearchInput.bind('ansprechpartner', (value) => this.handleSearch(value), signal);
     
     // Neuen Ansprechpartner anlegen Button
@@ -424,11 +428,67 @@ export class AnsprechpartnerList extends BasePaginatedList {
     }, { signal });
   }
   
-  /**
-   * Cache invalidieren bei Destroy
-   */
+  bindDragToScroll() {
+    const container = document.querySelector('.ansprechpartner-table-container');
+    if (!container) return;
+
+    this.dragScrollContainer = container;
+    container.classList.add('drag-scroll-enabled');
+
+    if (this._dragMouseDown) {
+      container.removeEventListener('mousedown', this._dragMouseDown);
+      container.removeEventListener('mousemove', this._dragMouseMove);
+      container.removeEventListener('mouseup', this._dragMouseUp);
+      container.removeEventListener('mouseleave', this._dragMouseUp);
+    }
+
+    this._dragMouseDown = (e) => {
+      if (
+        e.target.tagName === 'INPUT' ||
+        e.target.tagName === 'BUTTON' ||
+        e.target.closest('a') ||
+        e.target.closest('button') ||
+        e.target.closest('.actions-dropdown-container')
+      ) return;
+
+      this.isDragging = true;
+      this.startX = e.pageX - container.offsetLeft;
+      this.scrollLeft = container.scrollLeft;
+      container.style.cursor = 'grabbing';
+      container.style.userSelect = 'none';
+      e.preventDefault();
+    };
+
+    this._dragMouseMove = (e) => {
+      if (!this.isDragging) return;
+      e.preventDefault();
+      const x = e.pageX - container.offsetLeft;
+      const walk = (x - this.startX) * 1.5;
+      container.scrollLeft = this.scrollLeft - walk;
+    };
+
+    this._dragMouseUp = () => {
+      if (this.isDragging) {
+        this.isDragging = false;
+        container.style.cursor = 'grab';
+        container.style.userSelect = '';
+      }
+    };
+
+    container.addEventListener('mousedown', this._dragMouseDown);
+    container.addEventListener('mousemove', this._dragMouseMove);
+    container.addEventListener('mouseup', this._dragMouseUp);
+    container.addEventListener('mouseleave', this._dragMouseUp);
+    container.style.cursor = 'grab';
+  }
+
   destroy() {
     this._allowedAnsprechpartnerIds = null;
+    if (this.dragScrollContainer) {
+      this.dragScrollContainer.classList.remove('is-dragging');
+      this.isDragging = false;
+      this.dragScrollContainer = null;
+    }
     super.destroy();
   }
   
