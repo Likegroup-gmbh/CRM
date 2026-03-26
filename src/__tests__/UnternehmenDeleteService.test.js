@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { deleteUnternehmenCascade, collectDependentIds, persistDeleteErrors } from '../modules/unternehmen/services/UnternehmenDeleteService.js';
+import { deleteUnternehmenCascade, collectDependentIds, persistDeleteErrors, cleanupStorage } from '../modules/unternehmen/services/UnternehmenDeleteService.js';
 
 function createTrackingSupabase(config = {}) {
   const log = [];
@@ -26,9 +26,19 @@ function createTrackingSupabase(config = {}) {
             return Promise.resolve({ error: errors[table] || null });
           }),
         })),
+        insert: vi.fn((rows) => {
+          log.push({ op: 'insert', table, rows });
+          return Promise.resolve({ error: null });
+        }),
       };
       return tableApi;
     }),
+    storage: {
+      from: vi.fn(() => ({
+        list: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        remove: vi.fn(() => Promise.resolve({ error: null })),
+      })),
+    },
     _log: log,
   };
   return mock;
@@ -384,12 +394,141 @@ describe('UnternehmenDeleteService', () => {
             return Promise.resolve({ error: null });
           }),
         })),
+        storage: {
+          from: vi.fn(() => ({
+            list: vi.fn(() => Promise.resolve({ data: [], error: null })),
+            remove: vi.fn(() => Promise.resolve({ error: null })),
+          })),
+        },
       };
 
       await deleteUnternehmenCascade('u1', { supabase: sb });
 
       const logInserts = log.filter(e => e.table === 'delete_logs');
       expect(logInserts).toHaveLength(0);
+    });
+  });
+
+  describe('cleanupStorage', () => {
+
+    function createStorageTrackingSupabase() {
+      const log = [];
+      return {
+        storage: {
+          from: vi.fn((bucket) => ({
+            list: vi.fn((path) => {
+              log.push({ op: 'list', bucket, path });
+              if (bucket === 'logos' && path === 'unternehmen/u1') {
+                return Promise.resolve({ data: [{ name: 'logo.png' }], error: null });
+              }
+              if (bucket === 'vertraege' && path === 'unternehmen/u1') {
+                return Promise.resolve({ data: [{ name: 'vertrag1.pdf' }, { name: 'vertrag2.pdf' }], error: null });
+              }
+              return Promise.resolve({ data: [], error: null });
+            }),
+            remove: vi.fn((paths) => {
+              log.push({ op: 'remove', bucket, paths });
+              return Promise.resolve({ error: null });
+            }),
+          })),
+        },
+        _log: log,
+      };
+    }
+
+    it('löscht Logo-Dateien aus dem logos-Bucket', async () => {
+      const sb = createStorageTrackingSupabase();
+
+      const result = await cleanupStorage('u1', { supabase: sb });
+
+      const removeOps = sb._log.filter(e => e.op === 'remove' && e.bucket === 'logos');
+      expect(removeOps).toHaveLength(1);
+      expect(removeOps[0].paths).toEqual(['unternehmen/u1/logo.png']);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('löscht Vertrags-Dateien aus dem vertraege-Bucket', async () => {
+      const sb = createStorageTrackingSupabase();
+
+      await cleanupStorage('u1', { supabase: sb });
+
+      const removeOps = sb._log.filter(e => e.op === 'remove' && e.bucket === 'vertraege');
+      expect(removeOps).toHaveLength(1);
+      expect(removeOps[0].paths).toEqual(['unternehmen/u1/vertrag1.pdf', 'unternehmen/u1/vertrag2.pdf']);
+    });
+
+    it('macht nichts wenn Buckets leer sind', async () => {
+      const log = [];
+      const sb = {
+        storage: {
+          from: vi.fn(() => ({
+            list: vi.fn(() => {
+              return Promise.resolve({ data: [], error: null });
+            }),
+            remove: vi.fn((paths) => {
+              log.push(paths);
+              return Promise.resolve({ error: null });
+            }),
+          })),
+        },
+      };
+
+      const result = await cleanupStorage('u1', { supabase: sb });
+
+      expect(log).toHaveLength(0);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('wird von deleteUnternehmenCascade aufgerufen', async () => {
+      const log = [];
+      const sb = {
+        from: vi.fn((table) => ({
+          select: vi.fn(() => ({
+            eq: vi.fn(() => Promise.resolve({ data: [], error: null })),
+          })),
+          delete: vi.fn(() => ({
+            eq: vi.fn(() => Promise.resolve({ error: null })),
+          })),
+          insert: vi.fn(() => Promise.resolve({ error: null })),
+        })),
+        storage: {
+          from: vi.fn((bucket) => ({
+            list: vi.fn((path) => {
+              log.push({ op: 'storage.list', bucket, path });
+              if (bucket === 'logos') {
+                return Promise.resolve({ data: [{ name: 'logo.png' }], error: null });
+              }
+              return Promise.resolve({ data: [], error: null });
+            }),
+            remove: vi.fn((paths) => {
+              log.push({ op: 'storage.remove', bucket, paths });
+              return Promise.resolve({ error: null });
+            }),
+          })),
+        },
+      };
+
+      await deleteUnternehmenCascade('u1', { supabase: sb });
+
+      const storageOps = log.filter(e => e.op === 'storage.remove');
+      expect(storageOps.length).toBeGreaterThan(0);
+      expect(storageOps[0].bucket).toBe('logos');
+    });
+
+    it('sammelt Fehler statt zu crashen bei Storage-Problemen', async () => {
+      const sb = {
+        storage: {
+          from: vi.fn(() => ({
+            list: vi.fn(() => Promise.resolve({ data: null, error: { message: 'bucket not found' } })),
+            remove: vi.fn(),
+          })),
+        },
+      };
+
+      const result = await cleanupStorage('u1', { supabase: sb });
+
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0].step).toContain('storage');
     });
   });
 });

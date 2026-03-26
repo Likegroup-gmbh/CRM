@@ -46,6 +46,38 @@ export async function persistDeleteErrors(unternehmenId, errors, { supabase, use
   }
 }
 
+const STORAGE_PATHS = [
+  { bucket: 'logos', prefix: 'unternehmen' },
+  { bucket: 'vertraege', prefix: 'unternehmen' },
+];
+
+export async function cleanupStorage(unternehmenId, { supabase } = {}) {
+  const sb = supabase || window.supabase;
+  const errors = [];
+
+  for (const { bucket, prefix } of STORAGE_PATHS) {
+    const path = `${prefix}/${unternehmenId}`;
+    try {
+      const { data: files, error: listError } = await sb.storage.from(bucket).list(path);
+      if (listError) {
+        errors.push({ step: `storage_${bucket}`, error: listError.message || String(listError) });
+        continue;
+      }
+      if (files && files.length > 0) {
+        const filePaths = files.map(f => `${path}/${f.name}`);
+        const { error: removeError } = await sb.storage.from(bucket).remove(filePaths);
+        if (removeError) {
+          errors.push({ step: `storage_${bucket}`, error: removeError.message || String(removeError) });
+        }
+      }
+    } catch (err) {
+      errors.push({ step: `storage_${bucket}`, error: err.message || String(err) });
+    }
+  }
+
+  return { errors };
+}
+
 export async function deleteUnternehmenCascade(unternehmenId, { supabase, onProgress, userId } = {}) {
   const sb = supabase || window.supabase;
   const progress = onProgress || (() => {});
@@ -70,6 +102,10 @@ export async function deleteUnternehmenCascade(unternehmenId, { supabase, onProg
       result.errors.push({ step: table, error: err.message || String(err) });
     }
   }
+
+  progress({ step: 'storage', count: STORAGE_PATHS.length });
+  const storageResult = await cleanupStorage(unternehmenId, { supabase: sb });
+  result.errors.push(...storageResult.errors);
 
   progress({ step: 'unternehmen', count: 1 });
 
