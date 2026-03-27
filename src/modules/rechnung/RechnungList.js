@@ -9,17 +9,26 @@ import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { renderVertragCell } from './RechnungVertragColumn.js';
 import { renderBezahltToggle } from './RechnungBezahltToggle.js';
+import { renderTabButton } from '../../core/TabUtils.js';
 
 export class RechnungList {
   constructor() {
     this.selectedRechnungen = new Set();
     this.rechnungen = [];
     this._bezahltUpdateInFlight = new Set();
+    this.activeStatusTab = 'alle';
     this.statusOptions = [
       { id: 'Offen', name: 'Offen' },
       { id: 'Rückfrage', name: 'Rückfrage' },
       { id: 'Bezahlt', name: 'Bezahlt' },
       { id: 'An Qonto gesendet', name: 'An Qonto gesendet' }
+    ];
+    this.statusTabs = [
+      { id: 'alle', label: 'Alle' },
+      { id: 'Offen', label: 'Offen' },
+      { id: 'Rückfrage', label: 'Rückfrage' },
+      { id: 'Bezahlt', label: 'Bezahlt' },
+      { id: 'An Qonto gesendet', label: 'An Qonto gesendet' }
     ];
   }
 
@@ -92,6 +101,20 @@ export class RechnungList {
       }
     });
 
+    // Status-Tab Klicks
+    document.addEventListener('click', (e) => {
+      const tabBtn = e.target.closest('.rechnung-status-tabs .tab-button');
+      if (!tabBtn) return;
+      e.preventDefault();
+      const tab = tabBtn.dataset.tab;
+      if (tab && tab !== this.activeStatusTab) {
+        this.activeStatusTab = tab;
+        document.querySelectorAll('.rechnung-status-tabs .tab-button').forEach(b => b.classList.remove('active'));
+        tabBtn.classList.add('active');
+        this.updateTable(this.getFilteredRechnungen());
+      }
+    });
+
     // Tabellen-Links in Rechnungstabelle
     document.addEventListener('click', (e) => {
       const link = e.target.closest('.table-link[data-table][data-id]');
@@ -102,6 +125,47 @@ export class RechnungList {
       if (table && id) {
         window.navigateTo(`/${table}/${id}`);
       }
+    });
+
+    // Unternehmen-Quickfilter: Toggle, Reset, Click-Outside
+    document.addEventListener('click', (e) => {
+      const container = document.getElementById('rechnung-unternehmen-filter-container');
+      const dropdown = document.getElementById('rechnung-unternehmen-filter-dropdown');
+      const toggleButton = document.getElementById('rechnung-unternehmen-filter-toggle');
+      if (!container || !dropdown || !toggleButton) return;
+
+      const clickedToggle = e.target.closest('#rechnung-unternehmen-filter-toggle');
+      if (clickedToggle) {
+        e.preventDefault();
+        e.stopPropagation();
+        const willOpen = !dropdown.classList.contains('show');
+        dropdown.classList.toggle('show', willOpen);
+        toggleButton.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+        return;
+      }
+
+      const clickedReset = e.target.closest('#rechnung-unternehmen-filter-reset');
+      if (clickedReset) {
+        e.preventDefault();
+        this.applyUnternehmenQuickFilter([]);
+        return;
+      }
+
+      if (!e.target.closest('#rechnung-unternehmen-filter-container')) {
+        dropdown.classList.remove('show');
+        toggleButton.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    // Unternehmen-Quickfilter: Checkbox-Toggles
+    document.addEventListener('change', (e) => {
+      if (!e.target.classList.contains('rechnung-unternehmen-filter-toggle-input')) return;
+
+      const selectedIds = Array.from(
+        document.querySelectorAll('.rechnung-unternehmen-filter-toggle-input:checked')
+      ).map(input => input.value).filter(Boolean);
+
+      this.applyUnternehmenQuickFilter(selectedIds);
     });
   }
   
@@ -195,6 +259,12 @@ export class RechnungList {
       });
     }
 
+    // 7. Tab-Counts aktualisieren + Zeile ggf. ausblenden wenn Tab aktiv
+    this.updateStatusTabCounts();
+    if (this.activeStatusTab !== 'alle' && newStatus !== this.activeStatusTab) {
+      row.remove();
+    }
+
     console.log(`✅ Zeile ${id} inline aktualisiert: Status → ${newStatus}`);
   }
 
@@ -205,7 +275,8 @@ export class RechnungList {
 
       await this.initializeFilterBar();
 
-      const currentFilters = filterSystem.getFilters('rechnung');
+      const rawFilters = filterSystem.getFilters('rechnung');
+      const { unternehmen_ids: _uqf, ...currentFilters } = rawFilters;
       // Sichtbarkeit: Nicht-Admins nur Rechnungen aus ihren Kampagnen/Koops/Marken
       // Neue Logik: Marken-Zuordnung als Zusatzfilter
       // - Nur Unternehmen zugeordnet → Sieht ALLES vom Unternehmen
@@ -336,9 +407,16 @@ export class RechnungList {
       } else {
         rechnungen = await window.dataService.loadEntities('rechnung', currentFilters);
       }
-      this.rechnungen = rechnungen; // Speichern für Download-Zugriff
+      // Unternehmen-Quickfilter clientseitig anwenden
+      const quickFilterIds = this.getSelectedUnternehmenFilterIds();
+      if (quickFilterIds.length > 0) {
+        rechnungen = (rechnungen || []).filter(r => quickFilterIds.includes(r.unternehmen_id));
+      }
+
+      this.rechnungen = rechnungen;
       await this.enrichKampagnenNames(rechnungen);
-      await this.updateTable(rechnungen);
+      this.updateStatusTabCounts();
+      await this.updateTable(this.getFilteredRechnungen());
     } catch (error) {
       window.ErrorHandler?.handle?.(error, 'RechnungList.loadAndRender');
     }
@@ -383,6 +461,7 @@ export class RechnungList {
       <div class="table-filter-wrapper">
         <div class="filter-bar">
           <div id="filter-dropdown-container"></div>
+          <div id="rechnung-unternehmen-filter-container"></div>
         </div>
         <div class="table-actions">
           ${isAdmin ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
@@ -398,6 +477,8 @@ export class RechnungList {
           ${window.currentUser?.permissions?.rechnung?.can_edit ? '<button id="btn-rechnung-new" class="primary-btn">Neue Rechnung anlegen</button>' : ''}
         </div>
       </div>
+
+      ${this.renderStatusTabs()}
 
       <div class="data-table-container rechnung-table-container">
         <table class="data-table data-table--nowrap data-table--rechnung">
@@ -438,24 +519,60 @@ export class RechnungList {
     window.setContentSafely(window.content, html);
   }
 
+  renderStatusTabs() {
+    const tabs = this.statusTabs.map(t => renderTabButton({
+      tab: t.id,
+      label: `${t.label}<span class="tab-count" data-status-count="${t.id}">0</span>`,
+      isActive: t.id === this.activeStatusTab,
+      skipPermissionCheck: true
+    })).join('');
+    return `<div class="tab-navigation rechnung-status-tabs">${tabs}</div>`;
+  }
+
+  getFilteredRechnungen() {
+    if (this.activeStatusTab === 'alle') return this.rechnungen;
+    return this.rechnungen.filter(r => r.status === this.activeStatusTab);
+  }
+
+  updateStatusTabCounts() {
+    const counts = { alle: this.rechnungen.length };
+    this.statusTabs.forEach(t => {
+      if (t.id !== 'alle') {
+        counts[t.id] = this.rechnungen.filter(r => r.status === t.id).length;
+      }
+    });
+    this.statusTabs.forEach(t => {
+      const el = document.querySelector(`[data-status-count="${t.id}"]`);
+      if (el) el.textContent = counts[t.id] || 0;
+    });
+  }
+
   async initializeFilterBar() {
     const container = document.getElementById('filter-dropdown-container');
     if (!container) return;
-    // Nutze das neue Filter-Dropdown System
     await filterDropdown.init('rechnung', container, {
       onFilterApply: (filters) => this.onFiltersApplied(filters),
       onFilterReset: () => this.onFiltersReset()
     });
+
+    await this.initializeUnternehmenQuickFilter();
   }
 
   onFiltersApplied(filters) {
-    filterSystem.applyFilters('rechnung', filters);
+    const selectedUnternehmenIds = this.getSelectedUnternehmenFilterIds();
+    const mergedFilters = { ...(filters || {}) };
+    if (selectedUnternehmenIds.length > 0) {
+      mergedFilters.unternehmen_ids = selectedUnternehmenIds;
+    }
+    filterSystem.applyFilters('rechnung', mergedFilters);
     this.loadAndRender();
+    this.syncUnternehmenQuickFilterUI();
   }
 
   onFiltersReset() {
     filterSystem.resetFilters('rechnung');
     this.loadAndRender();
+    this.syncUnternehmenQuickFilterUI();
   }
 
   hasActiveFilters() {
@@ -812,6 +929,156 @@ export class RechnungList {
   // Erstellungsformular aus der Liste heraus
   showCreateForm() {
     window.navigateTo('/rechnung/new');
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // UNTERNEHMEN-QUICKFILTER
+  // ══════════════════════════════════════════════════════════════════════════
+
+  async initializeUnternehmenQuickFilter() {
+    const container = document.getElementById('rechnung-unternehmen-filter-container');
+    if (!container) return;
+
+    this._unternehmenQuickFilterOptions = await this.loadUnternehmenQuickFilterOptions();
+    container.innerHTML = this.renderUnternehmenQuickFilterHtml();
+  }
+
+  async loadUnternehmenQuickFilterOptions() {
+    try {
+      const { data, error } = await window.supabase
+        .from('unternehmen')
+        .select('id, firmenname')
+        .order('firmenname');
+
+      if (error) {
+        console.warn('⚠️ RECHNUNGLIST: Unternehmen-Quickfilter konnte nicht geladen werden:', error);
+        return [];
+      }
+
+      return (data || [])
+        .filter(u => u?.id && u?.firmenname)
+        .map(u => ({ id: u.id, name: u.firmenname }));
+    } catch (error) {
+      console.warn('⚠️ RECHNUNGLIST: Fehler bei Unternehmen-Quickfilter-Optionen:', error);
+      return [];
+    }
+  }
+
+  getSelectedUnternehmenFilterIds() {
+    const currentFilters = filterSystem.getFilters('rechnung');
+    const ids = currentFilters?.unternehmen_ids;
+    if (!Array.isArray(ids)) return [];
+    return ids.map(id => String(id).trim()).filter(Boolean);
+  }
+
+  renderUnternehmenQuickFilterHtml() {
+    const selectedIds = this.getSelectedUnternehmenFilterIds();
+    const selectedSet = new Set(selectedIds);
+    const selectedCount = selectedIds.length;
+    const hasOptions = this._unternehmenQuickFilterOptions?.length > 0;
+    const optionsHtml = hasOptions
+      ? this._unternehmenQuickFilterOptions.map((u, index) => {
+          const inputId = `rechnung-unternehmen-filter-${index}`;
+          const checked = selectedSet.has(u.id) ? 'checked' : '';
+          const safeLabel = u.name.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+          return `
+            <label class="filter-checkbox-option" for="${inputId}">
+              <span class="toggle-text">${safeLabel}</span>
+              <span class="toggle-switch">
+                <input type="checkbox"
+                       id="${inputId}"
+                       class="rechnung-unternehmen-filter-toggle-input"
+                       value="${u.id}"
+                       aria-label="${safeLabel}"
+                       ${checked}>
+                <span class="toggle-slider"></span>
+              </span>
+            </label>
+          `;
+        }).join('')
+      : '<div class="filter-dropdown-empty">Keine Unternehmen gefunden</div>';
+
+    return `
+      <div class="filter-dropdown-container">
+        <button id="rechnung-unternehmen-filter-toggle"
+                class="filter-dropdown-toggle"
+                aria-expanded="false"
+                aria-label="Unternehmen filtern">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/>
+            <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/>
+            <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/>
+            <path d="M10 6h4"/>
+            <path d="M10 10h4"/>
+            <path d="M10 14h4"/>
+            <path d="M10 18h4"/>
+          </svg>
+          <span>Unternehmen</span>
+          ${selectedCount > 0 ? `<span class="filter-count-badge">${selectedCount}</span>` : ''}
+        </button>
+
+        <div id="rechnung-unternehmen-filter-dropdown" class="filter-dropdown">
+          <div class="filter-dropdown-header">
+            <span class="filter-dropdown-title">Unternehmen filtern</span>
+            <button id="rechnung-unternehmen-filter-reset" class="secondary-btn" ${selectedCount === 0 ? 'disabled' : ''}>
+              Zurücksetzen
+            </button>
+          </div>
+          <div class="filter-submenu-body">
+            <div class="filter-submenu-checkboxes">
+              ${optionsHtml}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  applyUnternehmenQuickFilter(selectedIds) {
+    const normalizedIds = Array.isArray(selectedIds)
+      ? selectedIds.map(id => String(id).trim()).filter(Boolean)
+      : [];
+
+    const currentFilters = filterSystem.getFilters('rechnung') || {};
+    const nextFilters = { ...currentFilters };
+
+    if (normalizedIds.length > 0) {
+      nextFilters.unternehmen_ids = normalizedIds;
+    } else {
+      delete nextFilters.unternehmen_ids;
+    }
+
+    filterSystem.applyFilters('rechnung', nextFilters);
+    this.loadAndRender();
+    this.updateUnternehmenQuickFilterMeta(normalizedIds.length);
+  }
+
+  syncUnternehmenQuickFilterUI() {
+    const container = document.getElementById('rechnung-unternehmen-filter-container');
+    if (!container) return;
+    container.innerHTML = this.renderUnternehmenQuickFilterHtml();
+  }
+
+  updateUnternehmenQuickFilterMeta(selectedCount) {
+    const toggleButton = document.getElementById('rechnung-unternehmen-filter-toggle');
+    const resetButton = document.getElementById('rechnung-unternehmen-filter-reset');
+    if (!toggleButton) return;
+
+    let badge = toggleButton.querySelector('.filter-count-badge');
+    if (selectedCount > 0) {
+      if (!badge) {
+        toggleButton.insertAdjacentHTML('beforeend', `<span class="filter-count-badge">${selectedCount}</span>`);
+      } else {
+        badge.textContent = String(selectedCount);
+      }
+    } else if (badge) {
+      badge.remove();
+    }
+
+    if (resetButton) {
+      resetButton.disabled = selectedCount === 0;
+    }
   }
 
   destroy() {

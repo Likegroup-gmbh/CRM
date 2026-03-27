@@ -155,12 +155,13 @@ export class AuftragsdetailsList {
                 <th>Start</th>
                 <th>Ende</th>
                 <th>Erstellt am</th>
+                <th class="col-erstellt-von">Erstellt von</th>
                 <th class="col-actions">Aktionen</th>
               </tr>
             </thead>
             <tbody id="auftragsdetails-table-body">
               <tr>
-                <td colspan="${isAdmin ? '11' : '10'}" class="loading">Lade Auftragsdetails...</td>
+                <td colspan="${isAdmin ? '12' : '11'}" class="loading">Lade Auftragsdetails...</td>
               </tr>
             </tbody>
           </table>
@@ -322,7 +323,8 @@ export class AuftragsdetailsList {
             *,
             auftrag:auftrag_id(
               ${auftragFields}
-            )
+            ),
+            created_by:created_by_id(id, name, profile_image_url)
           `, { count: 'exact' });
         
         // Filtere nach erlaubten Aufträgen für Nicht-Admins
@@ -735,6 +737,7 @@ export class AuftragsdetailsList {
             <td>${formatDate(auftrag.start)}</td>
             <td>${formatDate(auftrag.ende)}</td>
             <td>${formatDate(detail.created_at)}</td>
+            <td class="col-erstellt-von">${this.renderCreatedBy(detail.created_by)}</td>
             <td class="col-actions">
               ${actionBuilder.create('auftragsdetails', detail.id)}
             </td>
@@ -742,6 +745,18 @@ export class AuftragsdetailsList {
         `;
       }).join('');
     });
+  }
+
+  renderCreatedBy(user) {
+    if (!user || !user.name) return '-';
+    const items = [{
+      name: user.name,
+      type: 'person',
+      id: user.id,
+      entityType: 'mitarbeiter',
+      profile_image_url: user.profile_image_url
+    }];
+    return avatarBubbles.renderBubbles(items);
   }
 
   // Cleanup

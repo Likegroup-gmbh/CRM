@@ -17,6 +17,7 @@ export class SourcingDetailColumnVisibilityDrawer {
       { className: 'cp-col-follower-tt', label: 'Follower TikTok' },
       { className: 'cp-col-location', label: 'Location' },
       { className: 'cp-col-notiz', label: 'Kurzbeschreibung' },
+      { className: 'cp-col-angefragt', label: 'Angefragt' },
       { className: 'cp-col-feedback', label: 'Rückmeldung Kunde' },
       { className: 'cp-col-prio1', label: 'Buchen' },
       { className: 'cp-col-prio2', label: 'Prio 2' },

@@ -1689,7 +1689,7 @@ h3.section-title,
 .tab-button.active::after {
   content: '';
   position: absolute;
-  bottom: calc(-1.6 * var(--space-xxs));
+  bottom: calc(-2.5 * var(--space-xxs));
   left: 0;
   right: 0;
   height: 1px;
@@ -1770,6 +1770,47 @@ h3.section-title,
 .tab-pane.active {
   display: block !important;
   
+}
+
+/* Rechnung Status-Tabs (Listenansicht) */
+.rechnung-status-tabs {
+  border-bottom: none;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--color-white);
+ 
+  border-top: none;
+  gap: var(--space-sm);
+}
+
+.rechnung-status-tabs .tab-button {
+  gap: var(--space-xxs);
+  padding: var(--space-xxs) var(--space-xs);
+  border-radius: var(--radius-sm, 4px);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.rechnung-status-tabs .tab-button:hover {
+  background: var(--gray-50);
+}
+
+.rechnung-status-tabs .tab-button.active {
+  color: var(--gray-900);
+  font-weight: 500;
+}
+
+.rechnung-status-tabs .tab-button.active::after {
+  background-color: var(--gray-900);
+  height: 2px;
+}
+
+.rechnung-status-tabs .tab-count {
+  font-size: 0.7rem;
+  min-width: 20px;
+}
+
+.rechnung-status-tabs .tab-button.active .tab-count {
+  color: var(--gray-800);
+  background: var(--gray-200);
 }
 
 #informationen {
@@ -10043,6 +10084,14 @@ input.readonly-field {
   padding: var(--space-xs);
   position: sticky;
   left: 0;
+  top: 0;
+  z-index: 15;
+  background: var(--bg-primary, #fff);
+}
+
+.add-item-section--compact + .table-container .strategie-items-table thead th {
+  top: var(--sticky-add-section-height, 0);
+  z-index: 14;
 }
 
 .add-item-actions-right {
@@ -10831,6 +10880,28 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table .cp-col-notiz {
   width: 260px;
   min-width: 260px;
+}
+
+.creator-pool-table .cp-col-angefragt {
+  width: 140px;
+  min-width: 140px;
+}
+
+.creator-pool-table td.cp-col-angefragt {
+  padding: var(--space-xs) var(--space-sm) !important;
+  vertical-align: top;
+}
+
+.angefragt-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.angefragt-datum {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
 }
 
 .creator-pool-table .cp-col-prio {

@@ -138,8 +138,8 @@ export class CreatorAuswahlDetail {
   getVisibleColumnCount() {
     const allColumns = [
       'cp-col-drag', 'cp-col-name', 'cp-col-typ', 'cp-col-link-ig', 'cp-col-follower-ig',
-      'cp-col-link-tt', 'cp-col-follower-tt', 'cp-col-location', 'cp-col-notiz', 'cp-col-feedback',
-      'cp-col-prio1', 'cp-col-prio2', 'cp-col-nicht', 'cp-col-check', 'cp-col-pricing', 'cp-col-actions'
+      'cp-col-link-tt', 'cp-col-follower-tt', 'cp-col-location', 'cp-col-notiz', 'cp-col-angefragt',
+      'cp-col-feedback', 'cp-col-prio1', 'cp-col-prio2', 'cp-col-nicht', 'cp-col-check', 'cp-col-pricing', 'cp-col-actions'
     ];
     
     let count = 0;
@@ -515,6 +515,7 @@ export class CreatorAuswahlDetail {
               <th class="cp-col-follower-tt" ${!this.isColumnVisibleForCustomer('cp-col-follower-tt') ? 'style="display:none;"' : ''}>Follower ${tiktokIcon}</th>
               <th class="cp-col-location" ${!this.isColumnVisibleForCustomer('cp-col-location') ? 'style="display:none;"' : ''}>Location</th>
               <th class="cp-col-notiz" ${!this.isColumnVisibleForCustomer('cp-col-notiz') ? 'style="display:none;"' : ''}>Kurzbeschreibung</th>
+              <th class="cp-col-angefragt" ${!this.isColumnVisibleForCustomer('cp-col-angefragt') ? 'style="display:none;"' : ''}>Angefragt</th>
               <th class="cp-col-feedback" ${!this.isColumnVisibleForCustomer('cp-col-feedback') ? 'style="display:none;"' : ''}>Rückmeldung Kunde</th>
               <th class="cp-col-prio1" ${!this.isColumnVisibleForCustomer('cp-col-prio1') ? 'style="display:none;"' : ''}>Buchen</th>
               <th class="cp-col-prio2" ${!this.isColumnVisibleForCustomer('cp-col-prio2') ? 'style="display:none;"' : ''}>Prio 2</th>
@@ -714,6 +715,19 @@ export class CreatorAuswahlDetail {
           ${!this.isKunde ? `
             <textarea class="strategie-textarea" data-field="notiz" data-item-id="${item.id}" placeholder="Kurzbeschreibung...">${item.notiz || ''}</textarea>
           ` : `<div class="cell-text-readonly">${item.notiz || '-'}</div>`}
+        </td>
+        <td class="cp-col-angefragt" ${!this.isColumnVisibleForCustomer('cp-col-angefragt') ? 'style="display:none;"' : ''}>
+          <div class="angefragt-cell">
+            <input
+              type="checkbox"
+              ${item.angefragt ? 'checked' : ''}
+              data-field="angefragt"
+              data-item-id="${item.id}"
+              class="cp-checkbox${this.isKunde ? ' cp-checkbox--readonly' : ''}"
+              ${this.isKunde ? 'disabled' : ''}
+            >
+            ${item.angefragt_am ? `<span class="angefragt-datum">${new Date(item.angefragt_am).toLocaleDateString('de-DE')}</span>` : ''}
+          </div>
         </td>
         <td class="cell-textarea cp-col-feedback" ${!this.isColumnVisibleForCustomer('cp-col-feedback') ? 'style="display:none;"' : ''}>
           <textarea 
@@ -1045,6 +1059,21 @@ export class CreatorAuswahlDetail {
     }
 
     try {
+      if (field === 'angefragt') {
+        const updates = { angefragt: value };
+        if (value) {
+          updates.angefragt_am = new Date().toISOString();
+        }
+        await creatorAuswahlService.updateItem(itemId, updates);
+        const item = this.items.find(i => i.id === itemId);
+        if (item) {
+          item.angefragt = value;
+          if (value) item.angefragt_am = updates.angefragt_am;
+        }
+        this.rerenderTable();
+        return;
+      }
+
       // Spezialfall: "Nicht umsetzen" - Creator in separate Kategorie verschieben
       if (field === 'nicht_umsetzen') {
         await this.handleNichtUmsetzenChange(itemId, value);

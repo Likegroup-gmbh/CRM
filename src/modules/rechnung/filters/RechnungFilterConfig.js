@@ -14,14 +14,6 @@ export const RECHNUNG_FILTERS = [
     field: 'gestellt_am'
   },
   createFilterConfig('select', {
-    id: 'unternehmen_id',
-    label: 'Unternehmen',
-    table: 'unternehmen',
-    displayField: 'firmenname',
-    valueField: 'id',
-    dynamic: true
-  }),
-  createFilterConfig('select', {
     id: 'auftrag_id',
     label: 'Auftrag',
     table: 'auftrag',

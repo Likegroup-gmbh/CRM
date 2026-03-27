@@ -523,6 +523,8 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       `;
     }
 
+    const renderZuordnungTag = (label) => `<span class="tag tag--branche">${this.sanitize(label)}</span>`;
+
     const renderRow = (kampagne, source) => `
       <tr>
         <td>
@@ -537,18 +539,18 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     const rows = [];
 
     explicitKampagnen.forEach(k => {
-      rows.push(renderRow(k, '<span class="badge badge--direkt">Direkt zugeordnet</span>'));
+      rows.push(renderRow(k, renderZuordnungTag('Direkt zugeordnet')));
     });
 
     indirectOnly.forEach(k => {
       const sources = [];
       if (k.unternehmen_id && unternehmenMap.has(k.unternehmen_id)) {
-        sources.push(`<span class="badge badge--unternehmen">via ${unternehmenMap.get(k.unternehmen_id)}</span>`);
+        sources.push(renderZuordnungTag(`via ${unternehmenMap.get(k.unternehmen_id)}`));
       }
       if (k.marke_id && markenMap.has(k.marke_id)) {
-        sources.push(`<span class="badge badge--marke">via ${markenMap.get(k.marke_id)}</span>`);
+        sources.push(renderZuordnungTag(`via ${markenMap.get(k.marke_id)}`));
       }
-      rows.push(renderRow(k, sources.join(' ') || '<span class="badge badge--indirekt">via Unternehmen/Marke</span>'));
+      rows.push(renderRow(k, sources.join(' ') || renderZuordnungTag('via Unternehmen/Marke')));
     });
 
     return `

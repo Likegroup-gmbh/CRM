@@ -726,6 +726,18 @@ export class AuftragList {
     }
   }
 
+  renderCreatedBy(user) {
+    if (!user || !user.name) return '-';
+    const items = [{
+      name: user.name,
+      type: 'person',
+      id: user.id,
+      entityType: 'mitarbeiter',
+      profile_image_url: user.profile_image_url
+    }];
+    return avatarBubbles.renderBubbles(items);
+  }
+
   // Rendere List-View HTML
   renderListView() {
     return `
@@ -754,6 +766,7 @@ export class AuftragList {
                 <th class="table-cell-center">Überwiesen</th>
                 <th class="col-ueberwiesen">Bezahlt am</th>
                 <th>Ansprechpartner</th>
+                <th class="col-erstellt-von">Erstellt von</th>
                 <th class="col-actions">Aktionen</th>
               </tr>
             </thead>
@@ -807,6 +820,7 @@ export class AuftragList {
           unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
           marke:marke_id(id, markenname, logo_url),
           ansprechpartner:ansprechpartner_id(id, vorname, nachname, email, profile_image_url),
+          created_by:created_by_id(id, name, profile_image_url),
           auftrag_details(id),
           kampagne_arten:auftrag_kampagne_art(art:kampagne_art_id(id, name))
         `, { count: 'exact' });
@@ -1271,6 +1285,7 @@ export class AuftragList {
           <td class="table-cell-center">${this.renderBillingDateCell(auftrag, 'ueberwiesen', 'ueberwiesen_am')}</td>
           <td class="col-ueberwiesen">${this.formatDate(auftrag.ueberwiesen_am)}</td>
           <td>${this.formatAnsprechpartner(auftrag.ansprechpartner)}</td>
+          <td class="col-erstellt-von">${this.renderCreatedBy(auftrag.created_by)}</td>
           <td class="col-actions">
             ${actionBuilder.create('auftrag', auftrag.id)}
           </td>
@@ -2049,6 +2064,8 @@ export class AuftragList {
       }
       submitData.po = poResult.poNummer;
       console.log('📋 Generierte PO-Nummer:', poResult.poNummer);
+
+      submitData.created_by_id = window.currentUser?.id || null;
 
       // Erstelle Auftrag
       const result = await window.dataService.createEntity('auftrag', submitData);

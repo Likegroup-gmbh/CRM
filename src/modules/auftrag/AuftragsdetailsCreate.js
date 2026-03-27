@@ -966,6 +966,8 @@ export class AuftragsdetailsCreateController {
         return;
       }
 
+      data.created_by_id = window.currentUser?.id || null;
+
       // Idempotent und race-safe speichern
       const result = await this.repository.upsertAuftragsdetails(data);
       console.log('✅ Auftragsdetails erfolgreich gespeichert');

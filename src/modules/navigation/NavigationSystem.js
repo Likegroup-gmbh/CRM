@@ -18,7 +18,6 @@ export class NavigationSystem {
           { id: 'unternehmen', label: 'Unternehmen', icon: 'icon-building', url: '/unternehmen' },
           { id: 'marke', label: 'Marken', icon: 'icon-tag', url: '/marke' },
           { id: 'ansprechpartner', label: 'Ansprechpartner', icon: 'icon-user-circle', url: '/ansprechpartner' },
-          { id: 'produkt', label: 'Produkte', icon: 'icon-cube', url: '/produkt' },
           { id: 'creator', label: 'Creator', icon: 'icon-users', url: '/creator' }
         ]
       },
@@ -34,6 +33,7 @@ export class NavigationSystem {
         title: 'Content & Strategie',
         items: [
           { id: 'kickoff', label: 'Kick-Off', icon: 'icon-kick-off', url: '/kickoff' },
+          { id: 'produkt', label: 'Produkte', icon: 'icon-cube', url: '/produkt' },
           { id: 'strategie', label: 'Strategie', icon: 'icon-lightbulb', url: '/strategie' },
           { id: 'sourcing', label: 'Sourcing', icon: 'icon-users', url: '/sourcing' },
           { id: 'vertraege', label: 'Verträge', icon: 'icon-contract', url: '/vertraege' },

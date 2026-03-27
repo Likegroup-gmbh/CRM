@@ -540,12 +540,14 @@ export class DataService {
           rechnung_gestellt: 'boolean',
           rechnung_gestellt_am: 'date',
           ueberwiesen: 'boolean',
-          ueberwiesen_am: 'date'
+          ueberwiesen_am: 'date',
+          created_by_id: 'uuid'
         },
         relations: {
           unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' },
           marke: { table: 'marke', foreignKey: 'marke_id', displayField: 'markenname' },
-          ansprechpartner: { table: 'ansprechpartner', foreignKey: 'ansprechpartner_id', displayField: 'vorname' }
+          ansprechpartner: { table: 'ansprechpartner', foreignKey: 'ansprechpartner_id', displayField: 'vorname' },
+          created_by: { table: 'benutzer', foreignKey: 'created_by_id', displayField: 'name' }
         },
         manyToMany: {
           mitarbeiter: {
@@ -653,10 +655,12 @@ export class DataService {
           vor_ort_mitarbeiter_verkaufspreis_netto_bis: 'number',
           // Gesamt
           gesamt_videos: 'number',
-          gesamt_creator: 'number'
+          gesamt_creator: 'number',
+          created_by_id: 'uuid'
         },
         relations: {
-          auftrag: { table: 'auftrag', foreignKey: 'auftrag_id', displayField: 'auftragsname' }
+          auftrag: { table: 'auftrag', foreignKey: 'auftrag_id', displayField: 'auftragsname' },
+          created_by: { table: 'benutzer', foreignKey: 'created_by_id', displayField: 'name' }
         },
         filters: ['auftrag_id', 'kampagnenanzahl', 'gesamt_videos', 'gesamt_creator', 'created_at'],
         sortBy: 'created_at',
@@ -734,10 +738,12 @@ export class DataService {
           vor_ort_mitarbeiter_verkaufspreis_netto_von: 'number',
           vor_ort_mitarbeiter_verkaufspreis_netto_bis: 'number',
           gesamt_videos: 'number',
-          gesamt_creator: 'number'
+          gesamt_creator: 'number',
+          created_by_id: 'uuid'
         },
         relations: {
-          auftrag: { table: 'auftrag', foreignKey: 'auftrag_id', displayField: 'auftragsname' }
+          auftrag: { table: 'auftrag', foreignKey: 'auftrag_id', displayField: 'auftragsname' },
+          created_by: { table: 'benutzer', foreignKey: 'created_by_id', displayField: 'name' }
         },
         filters: ['auftrag_id', 'kampagnenanzahl', 'gesamt_videos', 'gesamt_creator', 'created_at'],
         sortBy: 'created_at',

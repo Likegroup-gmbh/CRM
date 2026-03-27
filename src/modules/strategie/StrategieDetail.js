@@ -62,6 +62,12 @@ export class StrategieDetail {
     `;
 
     window.content.innerHTML = html;
+
+    const addSection = window.content.querySelector('.add-item-section--compact');
+    if (addSection) {
+      const h = addSection.offsetHeight;
+      window.content.style.setProperty('--sticky-add-section-height', h + 'px');
+    }
   }
 
   /**
