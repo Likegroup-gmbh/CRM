@@ -75,19 +75,30 @@ export class KampagneDetail {
       return;
     }
     
-    // Speichere Promise für Guard
+    this._showSkeleton();
+
     this._initPromise = (async () => {
     try {
-      // Lade kritische Daten (PARALLEL statt sequentiell!)
       await this.loadCriticalData();
       
-      // Prüfe Mount-Status vor DOM-Updates
       if (!this._isMounted) {
         console.log('⚠️ KAMPAGNEDETAIL: Nicht mehr gemounted nach Laden');
         return;
       }
       
-      // Breadcrumb aktualisieren mit Edit-Button
+      // VideoTable-Daten VOR render() laden (kein eigenes UI/Skeleton)
+      const canViewKoops = window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false;
+      if (canViewKoops) {
+        this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId);
+        await Promise.all([
+          this.kooperationenVideoTable.loadData(),
+          this.kooperationenVideoTable.loadColumnVisibilitySettings(),
+          Promise.resolve(this.kooperationenVideoTable.loadApprovedFilterState())
+        ]);
+      }
+      
+      if (!this._isMounted) return;
+      
       if (window.breadcrumbSystem && this.kampagneData) {
         const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
         window.breadcrumbSystem.updateDetailLabel(KampagneUtils.getDisplayName(this.kampagneData), {
@@ -96,17 +107,44 @@ export class KampagneDetail {
         });
       }
       
-      // Rendere die Seite
       await this.render();
       
-      // Binde Events
       this.bindEvents();
       this.bindAnsprechpartnerEvents();
       
-      // Lade initialen Tab mit Promise-basierter Logik (statt setTimeout)
-      if (window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false) {
-        // Warte bis DOM gerendert ist (requestAnimationFrame ist zuverlässiger als setTimeout)
-        await this._initVideoTableSafe();
+      // VideoTable DOM rendern (Daten sind schon da)
+      if (this.kooperationenVideoTable) {
+        this.kooperationenVideoTable.containerId = 'kooperationen-videos-container';
+        const vtContainer = document.getElementById('kooperationen-videos-container');
+        if (vtContainer) {
+          vtContainer.innerHTML = this.kooperationenVideoTable.render();
+          this.kooperationenVideoTable.bindEvents();
+          this.kooperationenVideoTable.initFloatingScrollbar();
+          this.kooperationenVideoTable.initRealtimeSubscription();
+          this.kooperationenVideoTable.loadColumnWidths();
+          
+          if (!this.kooperationenVideoTable._visibilityEventBound) {
+            window.addEventListener('video-column-visibility-changed', (e) => {
+              if (e.detail.kampagneId === this.kampagneId) {
+                this.kooperationenVideoTable.hiddenColumns = e.detail.hiddenColumns;
+                this.kooperationenVideoTable.refresh();
+              }
+            });
+            this.kooperationenVideoTable._visibilityEventBound = true;
+          }
+          
+          if (!this.kooperationenVideoTable._entityUpdatedHandler) {
+            this.kooperationenVideoTable._entityUpdatedHandler = async (e) => {
+              const detail = e.detail || {};
+              if (detail.entity === 'kooperation' && detail.action === 'deleted' && detail.id) {
+                await this.kooperationenVideoTable.handleKooperationDeletedById(detail.id, 'entityUpdated');
+              }
+            };
+            window.addEventListener('entityUpdated', this.kooperationenVideoTable._entityUpdatedHandler);
+          }
+          
+          this.updateToggleApprovedButton();
+        }
       }
       
       console.log('✅ KAMPAGNEDETAIL: Initialisierung abgeschlossen');
@@ -412,12 +450,11 @@ export class KampagneDetail {
     const startTime = performance.now();
     
     try {
-      // ALLE kritischen Queries PARALLEL ausführen
+      // Kritische Queries PARALLEL ausführen (Kooperationen werden von VideoTable geladen)
       const [
         kampagneResult,
         ansprechpartnerResult,
-        mitarbeiterResult,
-        kooperationenResult
+        mitarbeiterResult
       ] = await Promise.all([
         // 1. Kampagne mit Relations (für Header & Info-Tab)
         window.supabase
@@ -447,22 +484,7 @@ export class KampagneDetail {
         window.supabase
           .from('v_kampagne_mitarbeiter_aggregated')
           .select('mitarbeiter_id, name, rolle, profile_image_url, zuordnungsart')
-          .eq('kampagne_id', this.kampagneId),
-        
-        // 4. Kooperationen mit Creator (für Tab-Count & koops-videos)
-        // Kunden: einkaufspreis_* nicht laden (Datenschutz)
-        (() => {
-          const rolle = window.currentUser?.rolle?.toLowerCase();
-          const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
-          const koopFields = isKunde
-            ? 'id, name, status, verkaufspreis_gesamt, videoanzahl'
-            : 'id, name, status, einkaufspreis_gesamt, verkaufspreis_gesamt, videoanzahl';
-          return window.supabase
-            .from('kooperationen')
-            .select(`${koopFields}, creator:creator_id(id, vorname, nachname)`)
-            .eq('kampagne_id', this.kampagneId)
-            .order('created_at', { ascending: false });
-        })()
+          .eq('kampagne_id', this.kampagneId)
       ]);
       
       // Fehler-Handling
@@ -493,26 +515,6 @@ export class KampagneDetail {
       this.kampagneData.strategie = [];
       this.kampagneData.creator_sourcing = [];
       
-      // Kooperationen (Creator bereits gejoined)
-      this.kooperationen = kooperationenResult.data || [];
-      this.koopBudgetSum = this.kooperationen.reduce(
-        (sum, k) => sum + (parseFloat(k.einkaufspreis_gesamt) || 0), 
-        0
-      );
-      this.koopVideosUsed = this.kooperationen.reduce(
-        (sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 
-        0
-      );
-      
-      // Anzahl einzigartiger Creator berechnen
-      const uniqueCreatorIds = new Set();
-      this.kooperationen.forEach(koop => {
-        if (koop.creator?.id) {
-          uniqueCreatorIds.add(koop.creator.id);
-        }
-      });
-      this.koopCreatorsUsed = uniqueCreatorIds.size;
-      
       // Plattformen & Formate parallel laden (für Info-Tab)
       const [plattformResult, formatResult] = await Promise.all([
         window.supabase
@@ -540,35 +542,17 @@ export class KampagneDetail {
         this.kampagneData.format_ids = this.kampagneData.formate.map(f => f.id);
       }
       
-      // Mitarbeiter nach Rollen laden (für Edit-Formular)
+      // Mitarbeiter nach Rollen + Ziele parallel laden (1 Query statt 4 für Rollen)
       const [
-        cutterResult, 
-        copywriterResult, 
-        strategieResult, 
-        creatorSourcingResult,
+        rollenResult,
         paidZieleResult,
         organicZieleResult
       ] = await Promise.all([
         window.supabase
           .from('kampagne_mitarbeiter')
-          .select('mitarbeiter:mitarbeiter_id(id, name)')
+          .select('role, mitarbeiter:mitarbeiter_id(id, name)')
           .eq('kampagne_id', this.kampagneId)
-          .eq('role', 'cutter'),
-        window.supabase
-          .from('kampagne_mitarbeiter')
-          .select('mitarbeiter:mitarbeiter_id(id, name)')
-          .eq('kampagne_id', this.kampagneId)
-          .eq('role', 'copywriter'),
-        window.supabase
-          .from('kampagne_mitarbeiter')
-          .select('mitarbeiter:mitarbeiter_id(id, name)')
-          .eq('kampagne_id', this.kampagneId)
-          .eq('role', 'strategie'),
-        window.supabase
-          .from('kampagne_mitarbeiter')
-          .select('mitarbeiter:mitarbeiter_id(id, name)')
-          .eq('kampagne_id', this.kampagneId)
-          .eq('role', 'creator_sourcing'),
+          .in('role', ['cutter', 'copywriter', 'strategie', 'creator_sourcing']),
         window.supabase
           .from('kampagne_paid_ziele')
           .select('ziel:ziel_id(id, name)')
@@ -579,28 +563,22 @@ export class KampagneDetail {
           .eq('kampagne_id', this.kampagneId)
       ]);
       
-      // Cutter
-      if (cutterResult.data) {
-        this.kampagneData.cutter = cutterResult.data.map(item => item.mitarbeiter).filter(Boolean);
-        this.kampagneData.cutter_ids = this.kampagneData.cutter.map(c => c.id);
-      }
-      
-      // Copywriter
-      if (copywriterResult.data) {
-        this.kampagneData.copywriter = copywriterResult.data.map(item => item.mitarbeiter).filter(Boolean);
-        this.kampagneData.copywriter_ids = this.kampagneData.copywriter.map(c => c.id);
-      }
-      
-      // Strategie
-      if (strategieResult.data) {
-        this.kampagneData.strategie = strategieResult.data.map(item => item.mitarbeiter).filter(Boolean);
-        this.kampagneData.strategie_ids = this.kampagneData.strategie.map(s => s.id);
-      }
-      
-      // Sourcing
-      if (creatorSourcingResult.data) {
-        this.kampagneData.creator_sourcing = creatorSourcingResult.data.map(item => item.mitarbeiter).filter(Boolean);
-        this.kampagneData.creator_sourcing_ids = this.kampagneData.creator_sourcing.map(c => c.id);
+      // Mitarbeiter nach Rolle gruppieren
+      if (rollenResult.data) {
+        const byRole = { cutter: [], copywriter: [], strategie: [], creator_sourcing: [] };
+        for (const row of rollenResult.data) {
+          if (row.mitarbeiter && byRole[row.role]) {
+            byRole[row.role].push(row.mitarbeiter);
+          }
+        }
+        this.kampagneData.cutter = byRole.cutter;
+        this.kampagneData.cutter_ids = byRole.cutter.map(c => c.id);
+        this.kampagneData.copywriter = byRole.copywriter;
+        this.kampagneData.copywriter_ids = byRole.copywriter.map(c => c.id);
+        this.kampagneData.strategie = byRole.strategie;
+        this.kampagneData.strategie_ids = byRole.strategie.map(s => s.id);
+        this.kampagneData.creator_sourcing = byRole.creator_sourcing;
+        this.kampagneData.creator_sourcing_ids = byRole.creator_sourcing.map(c => c.id);
       }
       
       // Paid-Ziele
@@ -914,7 +892,33 @@ export class KampagneDetail {
     }
   }
 
-  // Rendere Kampagnen-Detail
+  _showSkeleton() {
+    if (!window.content) return;
+    window.content.innerHTML = `
+      <div class="skeleton-wrapper">
+        <div class="auftragsdetails-summary" style="margin-bottom: var(--space-xl);">
+          <div class="summary-cards">
+            <div class="summary-card"><div class="skeleton skeleton-text--medium" style="height:28px;margin-bottom:8px"></div><div class="skeleton skeleton-text--short" style="height:14px"></div><div class="skeleton" style="height:6px;margin-top:8px;border-radius:3px"></div></div>
+            <div class="summary-card"><div class="skeleton skeleton-text--medium" style="height:28px;margin-bottom:8px"></div><div class="skeleton skeleton-text--short" style="height:14px"></div><div class="skeleton" style="height:6px;margin-top:8px;border-radius:3px"></div></div>
+            <div class="summary-card"><div class="skeleton skeleton-text--medium" style="height:28px;margin-bottom:8px"></div><div class="skeleton skeleton-text--short" style="height:14px"></div><div class="skeleton" style="height:6px;margin-top:8px;border-radius:3px"></div></div>
+          </div>
+        </div>
+        <div class="tab-navigation" style="margin-bottom: var(--space-lg);">
+          <div class="skeleton" style="display:inline-block;width:180px;height:36px;border-radius:var(--radius-md);margin-right:8px"></div>
+          <div class="skeleton" style="display:inline-block;width:120px;height:36px;border-radius:var(--radius-md);margin-right:8px"></div>
+          <div class="skeleton" style="display:inline-block;width:100px;height:36px;border-radius:var(--radius-md);margin-right:8px"></div>
+          <div class="skeleton" style="display:inline-block;width:130px;height:36px;border-radius:var(--radius-md)"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:var(--space-md);">
+          <div class="skeleton" style="height:48px;width:100%;border-radius:var(--radius-md)"></div>
+          <div class="skeleton" style="height:48px;width:100%;border-radius:var(--radius-md)"></div>
+          <div class="skeleton" style="height:48px;width:100%;border-radius:var(--radius-md)"></div>
+          <div class="skeleton" style="height:48px;width:95%;border-radius:var(--radius-md)"></div>
+        </div>
+      </div>
+    `;
+  }
+
   async render() {
     if (!this.kampagneData) {
       this.showNotFound();
@@ -1350,6 +1354,16 @@ export class KampagneDetail {
     return `
       <div class="auftragsdetails-summary" style="margin-bottom: var(--space-xl);">
         <div class="summary-cards">
+          ${window.currentUser?.rolle === 'admin' ? `
+          <div class="summary-card">
+            <div class="summary-value">${formatCurrency(usedBudget)}</div>
+            <div class="summary-label">Budget verbraucht (netto)</div>
+            <div class="summary-progress">
+              <div class="summary-progress-fill ${getBudgetProgressColorClass()}" 
+                   style="width: ${getProgressPercentage(usedBudget, totalBudget)}%">
+              </div>
+            </div>
+          </div>` : ''}
           <div class="summary-card">
             <div class="summary-value">${num(usedVideos)} von ${num(totalVideos)}</div>
             <div class="summary-label">Aktuell gebuchte Videos</div>
@@ -1368,16 +1382,6 @@ export class KampagneDetail {
               </div>
             </div>
           </div>
-          ${window.currentUser?.rolle === 'admin' ? `
-          <div class="summary-card">
-            <div class="summary-value">${formatCurrency(usedBudget)} von ${formatCurrency(totalBudget)}</div>
-            <div class="summary-label">Budget verbraucht</div>
-            <div class="summary-progress">
-              <div class="summary-progress-fill ${getBudgetProgressColorClass()}" 
-                   style="width: ${getProgressPercentage(usedBudget, totalBudget)}%">
-              </div>
-            </div>
-          </div>` : ''}
         </div>
       </div>
     `;
@@ -1973,7 +1977,7 @@ export class KampagneDetail {
     // Refresh bei Kooperations-Status-Änderungen (History updaten)
     window.addEventListener('entityUpdated', async (e) => {
       if (e.detail?.entity === 'kooperation') {
-        await this.loadKampagneData();
+        await this.loadCriticalData();
         const pane = document.querySelector('#tab-history .detail-section');
         if (pane) pane.innerHTML = `${this.renderHistory()}`;
         const btn = document.querySelector('.tab-button[data-tab="history"] .tab-count');
@@ -1997,7 +2001,7 @@ export class KampagneDetail {
       }
       
       console.log('🔄 KAMPAGNEDETAIL: Soft-Refresh - lade Daten neu');
-      await this.loadKampagneData();
+      await this.loadCriticalData();
       this.render();
       this.bindEvents();
     });
@@ -2472,7 +2476,7 @@ export class KampagneDetail {
     // Event-Listener für automatische Aktualisierung
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail.entity === 'ansprechpartner' && e.detail.action === 'added' && e.detail.kampagneId === this.kampagneId) {
-        this.loadKampagneData().then(() => {
+        this.loadCriticalData().then(() => {
           this.render();
         });
       }

@@ -8,12 +8,12 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { KampagneKanbanBoard } from './KampagneKanbanBoard.js';
 import { KampagneCalendarView } from './KampagneCalendarView.js';
-import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { KampagneFilterLogic } from './filters/KampagneFilterLogic.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { KampagneUtils } from './KampagneUtils.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
+import { PaginationSystem } from '../../core/PaginationSystem.js';
 
 // Debug-Flag für Logging (Production: false)
 const DEBUG_KAMPAGNE = false;
@@ -96,6 +96,9 @@ export class KampagneList {
       entityUpdated: this._handleEntityUpdated.bind(this),
       kampagneUpdated: this._handleKampagneUpdated.bind(this)
     };
+    
+    // Pagination
+    this.pagination = new PaginationSystem();
     
     // Suchfeld
     this.searchQuery = '';
@@ -252,6 +255,15 @@ export class KampagneList {
       window.bulkActionSystem.hideForKunden();
     }
     
+    // Pagination initialisieren
+    this.pagination.init('pagination-kampagne', {
+      itemsPerPage: 25,
+      onPageChange: (page) => this.handlePageChange(page),
+      onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page),
+      dynamicResize: true,
+      tbodySelector: '.data-table tbody'
+    });
+    
     // Prüfe Berechtigungen (Page-scope zuerst)
     const canView = (window.canViewPage && window.canViewPage('kampagne')) || await window.checkUserPermission('kampagne', 'can_view');
     if (!canView) {
@@ -289,14 +301,18 @@ export class KampagneList {
         // Guard nach initializeFilterBar()
         if (!checkMounted()) return;
         
-        // Lade gefilterte Kampagnen für die Anzeige
-        const filteredKampagnen = await this.loadKampagnenWithRelations();
+        const result = await this.loadKampagnenWithRelations(
+          this.pagination.currentPage,
+          this.pagination.itemsPerPage
+        );
+        const filteredKampagnen = result?.data ?? result ?? [];
+        const totalCount = result?.count ?? filteredKampagnen.length;
         
-        // Guard nach loadKampagnenWithRelations()
         if (!checkMounted()) return;
         
-        // Aktualisiere nur die Tabelle mit gefilterten Daten
+        this.pagination.updateTotal(totalCount);
         await this.updateTable(filteredKampagnen);
+        this.pagination.render();
       }
       // Für Kanban-View: Kanban Board lädt seine eigenen Daten
       
@@ -307,8 +323,7 @@ export class KampagneList {
     }
   }
 
-  // Lade Kampagnen mit Beziehungen
-  async loadKampagnenWithRelations() {
+  async loadKampagnenWithRelations(page = 1, limit = 25) {
     const startTime = performance.now();
     
     try {
@@ -326,7 +341,7 @@ export class KampagneList {
         activeFilters.kampagnenname = this.searchQuery;
       }
       
-      const cacheKey = JSON.stringify(activeFilters);
+      const cacheKey = JSON.stringify({ ...activeFilters, _page: page, _limit: limit });
       const cachedData = kampagnenCache.get(cacheKey);
       if (cachedData) {
         return cachedData;
@@ -360,17 +375,36 @@ export class KampagneList {
         return [];
       }
 
-      // Haupt-Query
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+
       let query = window.supabase
         .from('kampagne')
         .select(`
-          *,
+          id,
+          kampagnenname,
+          eigener_name,
+          start,
+          deadline_strategie,
+          deadline_creator_sourcing,
+          deadline_video_produktion,
+          deadline_post_produktion,
+          status_id,
+          creatoranzahl,
+          videoanzahl,
+          art_der_kampagne,
+          kampagne_typ,
+          created_at,
+          unternehmen_id,
+          marke_id,
+          auftrag_id,
           unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
           marke:marke_id(id, markenname, logo_url),
-          auftrag:auftrag_id(id, auftragsname, auftrag_details(id)),
+          auftrag:auftrag_id(id, auftragsname),
           status_ref:status_id(id, name)
-        `)
-        .order('created_at', { ascending: false });
+        `, { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
       // Permission-Filterung anwenden (nur wenn allowedIds ein Array ist)
       if (allowedIds !== null && allowedIds.length > 0) {
@@ -381,7 +415,7 @@ export class KampagneList {
       debugLog('🔍 KAMPAGNELIST: Wende Filter an:', activeFilters);
       query = KampagneFilterLogic.buildSupabaseQuery(query, activeFilters);
 
-      const { data, error } = await query;
+      const { data, error, count } = await query;
 
       if (error) {
         console.error('❌ Fehler beim Laden der Kampagnen mit Beziehungen:', error);
@@ -466,10 +500,10 @@ export class KampagneList {
       const loadTime = (performance.now() - startTime).toFixed(0);
       debugLog(`✅ KAMPAGNELIST: ${filtered.length} Kampagnen geladen (von ${formattedData.length} nach Filter) in ${loadTime}ms`);
       
-      // Cache speichern
-      kampagnenCache.set(filtered, cacheKey);
+      const result = { data: filtered, count: count || filtered.length };
+      kampagnenCache.set(result, cacheKey);
       
-      return filtered;
+      return result;
 
     } catch (error) {
       console.error('❌ Fehler beim Laden der Kampagnen mit Beziehungen:', error);
@@ -595,6 +629,9 @@ export class KampagneList {
           </tbody>
         </table>
       </div>
+
+      <!-- Pagination -->
+      <div class="pagination-container" id="pagination-kampagne"></div>
     `;
   }
 
@@ -648,10 +685,9 @@ export class KampagneList {
     }
   }
 
-  // Filter angewendet (mit Debouncing)
   onFiltersApplied(filters) {
     filterSystem.applyFilters('kampagne', filters);
-    // Debounced: Verhindert multiple API-Calls bei schnellen Filter-Änderungen
+    this.pagination.currentPage = 1;
     this._debouncedLoadAndRender();
   }
 
@@ -659,6 +695,15 @@ export class KampagneList {
   onFiltersReset() {
     debugLog('🔄 KampagneList: Filter zurückgesetzt');
     filterSystem.resetFilters('kampagne');
+    this.pagination.currentPage = 1;
+    this.loadAndRender();
+  }
+
+  handlePageChange(page) {
+    this.loadAndRender();
+  }
+
+  handleItemsPerPageChange(limit, page) {
     this.loadAndRender();
   }
 
@@ -699,6 +744,7 @@ export class KampagneList {
       
       // Für List-View: Server-seitige Filterung
       kampagnenCache.invalidate();
+      this.pagination.currentPage = 1;
       this.loadAndRender();
     }, 300);
   }

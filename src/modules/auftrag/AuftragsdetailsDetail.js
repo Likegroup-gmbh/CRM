@@ -286,6 +286,12 @@ export class AuftragsdetailsDetail {
               <div class="summary-label">Art des Auftrages</div>
               <div class="summary-value">${sanitize(auftragtype)}</div>
             </div>
+            ${isAdmin ? `
+            <div class="summary-card">
+              <div class="summary-label">Offenes Budget</div>
+              <div class="summary-value">${formatCurrency(this.budgetSummary.totalBudget - this.budgetSummary.usedVkBudget)}</div>
+            </div>
+            ` : ''}
             <div class="summary-card">
               <div class="summary-label">Gebuchte Videos</div>
               <div class="summary-value">${num(this.budgetSummary.totalVideos)}</div>
@@ -312,10 +318,6 @@ export class AuftragsdetailsDetail {
                 </div>
               </div>
             </div>
-            <div class="summary-card">
-              <div class="summary-label">Marge</div>
-              <div class="summary-value">${formatCurrency(this.budgetSummary.totalBudget - this.budgetSummary.usedVkBudget)}</div>
-            </div>
             ` : ''}
           </div>
         </div>
@@ -323,10 +325,104 @@ export class AuftragsdetailsDetail {
         <!-- Kategorien-Übersicht Tabelle -->
         ${this.renderKategorienTable()}
 
+        <!-- Kampagnen-Übersicht -->
+        ${this.renderKampagnenTable()}
+
         <!-- Kooperationen & Videos -->
         <div class="detail-section">
           <h3 class="section-title section-title--spaced">Kooperationen & Videos</h3>
           ${this.renderCreatorVideosTable()}
+        </div>
+      </div>
+    `;
+  }
+
+  // Rendere Kampagnen-Übersichtstabelle mit aggregierten Kosten
+  renderKampagnenTable() {
+    if (!this.kampagnen || this.kampagnen.length === 0) {
+      return `
+        <div class="detail-section" style="margin-top: var(--space-lg);">
+          <h3 class="section-title section-title--spaced">Kampagnen</h3>
+          <div class="empty-state">
+            <h3>Keine Kampagnen vorhanden</h3>
+            <p>Für diesen Auftrag wurden noch keine Kampagnen angelegt.</p>
+          </div>
+        </div>
+      `;
+    }
+
+    const formatCurrency = (v) => {
+      if (v === null || v === undefined) return '-';
+      return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v);
+    };
+    const sanitize = (v) => window.validatorSystem?.sanitizeHtml(v) || v || '';
+    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+
+    let totalEk = 0;
+    let totalVk = 0;
+    let totalKoops = 0;
+    let totalVideos = 0;
+
+    const rowsHtml = this.kampagnen.map(kampagne => {
+      const koops = this.kooperationen.filter(k => k.kampagne_id === kampagne.id);
+      const koopCount = koops.length;
+      const videoCount = koops.reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
+      const ekGesamt = koops.reduce((sum, k) => sum + (parseFloat(k.einkaufspreis_gesamt) || 0), 0);
+      const vkGesamt = koops.reduce((sum, k) => sum + (parseFloat(k.verkaufspreis_gesamt) || 0), 0);
+
+      totalEk += ekGesamt;
+      totalVk += vkGesamt;
+      totalKoops += koopCount;
+      totalVideos += videoCount;
+
+      return `
+        <tr>
+          <td>
+            <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
+              ${sanitize(kampagne.kampagnenname || 'Ohne Name')}
+            </a>
+          </td>
+          <td class="text-center">${koopCount}</td>
+          <td class="text-center">${videoCount}</td>
+          ${isAdmin ? `
+          <td class="text-right">${formatCurrency(ekGesamt)}</td>
+          <td class="text-right">${formatCurrency(vkGesamt)}</td>
+          ` : ''}
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div class="detail-section" style="margin-top: var(--space-lg);">
+        <h3 class="section-title section-title--spaced">Kampagnen</h3>
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Kampagnenname</th>
+                <th class="text-center">Kooperationen</th>
+                <th class="text-center">Videos</th>
+                ${isAdmin ? `
+                <th class="text-right">EK Gesamt</th>
+                <th class="text-right">VK Gesamt</th>
+                ` : ''}
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+            <tfoot>
+              <tr style="font-weight: 600;">
+                <td>Gesamt</td>
+                <td class="text-center">${totalKoops}</td>
+                <td class="text-center">${totalVideos}</td>
+                ${isAdmin ? `
+                <td class="text-right">${formatCurrency(totalEk)}</td>
+                <td class="text-right">${formatCurrency(totalVk)}</td>
+                ` : ''}
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </div>
     `;

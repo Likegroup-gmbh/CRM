@@ -1,6 +1,5 @@
 // KampagneKooperationenVideoTable.js (ES6-Modul)
 // Kombinierte Kooperations-Video-Tabelle für Kampagnendetails
-import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { VideoTableRealtimeHandler } from './VideoTableRealtimeHandler.js';
 import { VideoTableUIHelpers } from './VideoTableUIHelpers.js';
 import { VideoUploadDrawer } from './VideoUploadDrawer.js';
@@ -172,33 +171,32 @@ export class KampagneKooperationenVideoTable {
     this.performanceMetrics.errors = [];
 
     try {
-      // UI-Progress anzeigen
       this._updateLoadingProgress('Lade Kooperationen...', 10);
 
       // ========================================
-      // STUFE 1: Kooperationen laden (ohne Creator-Join)
-      // Kunden: einkaufspreis_* nicht laden (Datenschutz)
+      // STUFE 1: Kooperationen laden (skip wenn vorab gesetzt)
       // ========================================
-      this._startPerformanceTracking('Query: kooperationen');
-      const isKunde = this.isKundeRole();
-      const kampagneJoin = 'kampagne:kampagne_id (id, kampagnenname, eigener_name, unternehmen:unternehmen_id(id, firmenname), marke:marke_id(id, markenname))';
-      const koopSelect = isKunde
-        ? `id, name, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, skript_deadline, content_deadline, created_at, creator_id, ${kampagneJoin}`
-        : `id, name, einkaufspreis_netto, einkaufspreis_gesamt, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, skript_deadline, content_deadline, created_at, creator_id, ${kampagneJoin}`;
+      if (this.kooperationen.length === 0) {
+        this._startPerformanceTracking('Query: kooperationen');
+        const isKunde = this.isKundeRole();
+        const kampagneJoin = 'kampagne:kampagne_id (id, kampagnenname, eigener_name, unternehmen:unternehmen_id(id, firmenname), marke:marke_id(id, markenname))';
+        const koopSelect = isKunde
+          ? `id, name, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, skript_deadline, content_deadline, created_at, creator_id, ${kampagneJoin}`
+          : `id, name, einkaufspreis_netto, einkaufspreis_gesamt, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, skript_deadline, content_deadline, created_at, creator_id, ${kampagneJoin}`;
 
-      const kooperationenResult = await window.supabase
-        .from('kooperationen')
-        .select(koopSelect)
-        .eq('kampagne_id', this.kampagneId)
-        .order('created_at', { ascending: false });
+        const kooperationenResult = await window.supabase
+          .from('kooperationen')
+          .select(koopSelect)
+          .eq('kampagne_id', this.kampagneId)
+          .order('created_at', { ascending: false });
 
-      this._endPerformanceTracking('Query: kooperationen', !kooperationenResult.error, kooperationenResult.error);
+        this._endPerformanceTracking('Query: kooperationen', !kooperationenResult.error, kooperationenResult.error);
 
-      if (kooperationenResult.error) throw kooperationenResult.error;
-      
-      this.kooperationen = kooperationenResult.data || [];
+        if (kooperationenResult.error) throw kooperationenResult.error;
+        
+        this.kooperationen = kooperationenResult.data || [];
+      }
 
-      // Kampagne-Info fuer Dropbox-Pfad ableiten (aus erster Kooperation mit kampagne-Join)
       const firstKamp = this.kooperationen.find(k => k.kampagne)?.kampagne;
       if (firstKamp) {
         this.kampagneInfo = {
@@ -209,7 +207,6 @@ export class KampagneKooperationenVideoTable {
         };
       }
       
-      // Leeres Ergebnis: Early Return
       if (this.kooperationen.length === 0) {
         this.videos = {};
         this.videoComments = {};
@@ -226,12 +223,13 @@ export class KampagneKooperationenVideoTable {
       this._updateLoadingProgress('Lade Videos & Creator...', 30);
 
       // ========================================
-      // STUFE 2: Videos + Creator parallel laden
+      // STUFE 2: Videos + Creator + Verträge + Versand parallel
       // ========================================
       this._startPerformanceTracking('Query: kooperation_videos');
       this._startPerformanceTracking('Query: creator');
+      this._startPerformanceTracking('Query: kooperation_versand');
 
-      const [videosResult, creatorsResult, vertraegeResult] = await Promise.allSettled([
+      const [videosResult, creatorsResult, vertraegeResult, versandResult] = await Promise.allSettled([
         window.supabase
           .from('kooperation_videos')
           .select('id, kooperation_id, position, asset_url, content_art, caption, feedback_creatorjobs, feedback_ritzenhoff, freigabe, link_content, folder_url, link_produkte, thema, link_skript, skript_freigegeben, drehort, video_name, posting_datum, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id)')
@@ -246,21 +244,26 @@ export class KampagneKooperationenVideoTable {
         window.supabase
           .from('vertraege')
           .select('id, name, typ, kooperation_id, datei_url, dropbox_file_url, unterschriebener_vertrag_url, is_draft')
+          .in('kooperation_id', koopIds),
+
+        window.supabase
+          .from('kooperation_versand')
+          .select('id, kooperation_id, video_id, versendet, tracking_nummer, produkt_name, produkt_link, strasse, hausnummer, plz, stadt')
           .in('kooperation_id', koopIds)
       ]);
 
       this._endPerformanceTracking('Query: kooperation_videos', videosResult.status === 'fulfilled', videosResult.reason);
       this._endPerformanceTracking('Query: creator', creatorsResult.status === 'fulfilled', creatorsResult.reason);
+      this._endPerformanceTracking('Query: kooperation_versand', versandResult.status === 'fulfilled', versandResult.reason);
 
       const allVideos = videosResult.status === 'fulfilled' ? (videosResult.value.data || []) : [];
       const creators = creatorsResult.status === 'fulfilled' ? (creatorsResult.value.data || []) : [];
       const vertraege = vertraegeResult.status === 'fulfilled' ? (vertraegeResult.value.data || []) : [];
+      const versandInfos = versandResult.status === 'fulfilled' ? (versandResult.value.data || []) : [];
 
-      // Creator-Cache aufbauen
       this.creators.clear();
       creators.forEach(c => this.creators.set(c.id, c));
 
-      // Creator-Daten an Kooperationen anhängen (client-side)
       this.kooperationen.forEach(koop => {
         if (koop.creator_id) {
           koop.creator = this.creators.get(koop.creator_id) || null;
@@ -273,58 +276,36 @@ export class KampagneKooperationenVideoTable {
       this._updateLoadingProgress('Lade Zusatzdaten...', 60);
 
       // ========================================
-      // STUFE 3: Versand, Assets, Comments parallel mit Timeout (Fix 1)
+      // STUFE 3: Assets + Comments (brauchen videoIds)
       // ========================================
-      let versandInfos = [];
       let assets = [];
       let comments = [];
       
       if (videoIds.length > 0) {
-        this._startPerformanceTracking('Query: kooperation_versand');
         this._startPerformanceTracking('Query: kooperation_video_asset');
         this._startPerformanceTracking('Query: kooperation_video_comment');
 
-        const [versandResult, assetsResult, commentsResult] = await Promise.allSettled([
+        const [assetsResult, commentsResult] = await Promise.allSettled([
           window.supabase
-            .from('kooperation_versand')
-            .select('id, kooperation_id, video_id, versendet, tracking_nummer, produkt_name, produkt_link, strasse, hausnummer, plz, stadt')
-            .in('kooperation_id', koopIds),
+            .from('kooperation_video_asset')
+            .select('id, video_id, file_url, file_path, is_current')
+            .in('video_id', videoIds)
+            .eq('is_current', true),
           
-          // Timeout für Assets (500-Error-Workaround)
-          Promise.race([
-            window.supabase
-              .from('kooperation_video_asset')
-              .select('id, video_id, file_url, file_path, is_current')
-              .in('video_id', videoIds)
-              .eq('is_current', true),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Assets-Query Timeout nach 3s')), 3000)
-            )
-          ]),
-          
-          // Timeout für Comments (500-Error-Workaround)
-          Promise.race([
-            window.supabase
-              .from('kooperation_video_comment')
-              .select('id, video_id, text, runde, author_name, created_at')
-              .in('video_id', videoIds)
-              .is('deleted_at', null)
-              .order('created_at', { ascending: true }),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Comments-Query Timeout nach 3s')), 3000)
-            )
-          ])
+          window.supabase
+            .from('kooperation_video_comment')
+            .select('id, video_id, text, runde, author_name, created_at')
+            .in('video_id', videoIds)
+            .is('deleted_at', null)
+            .order('created_at', { ascending: true })
         ]);
 
-        this._endPerformanceTracking('Query: kooperation_versand', versandResult.status === 'fulfilled', versandResult.reason);
         this._endPerformanceTracking('Query: kooperation_video_asset', assetsResult.status === 'fulfilled', assetsResult.reason);
         this._endPerformanceTracking('Query: kooperation_video_comment', commentsResult.status === 'fulfilled', commentsResult.reason);
 
-        versandInfos = versandResult.status === 'fulfilled' ? (versandResult.value.data || []) : [];
         assets = assetsResult.status === 'fulfilled' ? (assetsResult.value.data || []) : [];
         comments = commentsResult.status === 'fulfilled' ? (commentsResult.value.data || []) : [];
 
-        // User-Feedback bei fehlgeschlagenen Daten-Loads
         const failedLoads = [];
         if (assetsResult.status === 'rejected') {
           console.warn('⚠️ Assets konnten nicht geladen werden:', assetsResult.reason);
@@ -339,7 +320,6 @@ export class KampagneKooperationenVideoTable {
           failedLoads.push('Versand-Infos');
         }
         
-        // Zeige User-Benachrichtigung bei Fehlern
         if (failedLoads.length > 0 && window.notificationSystem?.warning) {
           window.notificationSystem.warning(`Einige Daten (${failedLoads.join(', ')}) konnten nicht vollständig geladen werden.`);
         }
