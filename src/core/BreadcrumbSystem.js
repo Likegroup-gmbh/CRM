@@ -6,10 +6,17 @@ import { getRouteConfig } from './breadcrumbRoutes.js';
 
 export class BreadcrumbSystem {
   constructor() {
-    this.container = null;
+    this._container = null;
     this.currentBreadcrumbs = [];
     this.editButton = null;
     this.navigationId = 0;
+  }
+
+  get container() {
+    if (!this._container || !this._container.isConnected) {
+      this._container = document.getElementById('breadcrumb-container');
+    }
+    return this._container;
   }
 
   // Edit-Icon SVG
@@ -37,10 +44,9 @@ export class BreadcrumbSystem {
     return null;
   }
 
-  // Initialisiere Breadcrumb-System
   init() {
-    this.container = document.getElementById('breadcrumb-container');
-    if (!this.container) {
+    this._container = document.getElementById('breadcrumb-container');
+    if (!this._container) {
       console.warn('⚠️ BreadcrumbSystem: Container nicht gefunden');
       return;
     }

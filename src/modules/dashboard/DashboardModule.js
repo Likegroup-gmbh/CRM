@@ -660,7 +660,7 @@ export class DashboardModule {
           .order('created_at', { ascending: false }),
         window.supabase
           .from('kooperationen')
-          .select('id, name, kampagne:kampagne_id(kampagnenname, eigener_name), status, creator:creator_id(vorname, nachname)')
+          .select('id, name, kampagne_id, kampagne:kampagne_id(kampagnenname, eigener_name), status, creator:creator_id(vorname, nachname)')
           .order('created_at', { ascending: false })
       ]);
       
@@ -675,10 +675,9 @@ export class DashboardModule {
       
       const koopRows = (kooperationen || []).map(k => `
         <tr>
-          <td><a href="/kooperation/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kooperation/${k.id}')">${window.validatorSystem.sanitizeHtml(k.name || k.id)}</a></td>
-          <td>${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(k.kampagne))}</td>
+          <td>${window.validatorSystem.sanitizeHtml(k.name || k.id)}</td>
+          <td><a href="/kampagne/${k.kampagne_id}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${k.kampagne_id}')">${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(k.kampagne))}</a></td>
           <td>${window.validatorSystem.sanitizeHtml(k.creator ? `${k.creator.vorname || ''} ${k.creator.nachname || ''}`.trim() : '—')}</td>
-          <td><span class="status-badge status-${(k.status||'').toLowerCase().replace(/\s+/g,'-')}">${window.validatorSystem.sanitizeHtml(k.status || '—')}</span></td>
         </tr>
       `).join('');
       
@@ -751,10 +750,9 @@ export class DashboardModule {
                     <th>Kooperation</th>
                     <th>Kampagne</th>
                     <th>Creator</th>
-                    <th>Status</th>
                   </tr>
                 </thead>
-                <tbody>${koopRows || '<tr><td colspan="4" class="loading">Keine Kooperationen</td></tr>'}</tbody>
+                <tbody>${koopRows || '<tr><td colspan="3" class="loading">Keine Kooperationen</td></tr>'}</tbody>
               </table>
             </div>
           </div>

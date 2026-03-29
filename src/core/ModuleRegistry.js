@@ -295,6 +295,10 @@ export class ModuleRegistry {
   }
 
   loadDashboard() {
+    if (window.breadcrumbSystem?.setFromRoute) {
+      window.breadcrumbSystem.setFromRoute('dashboard');
+    }
+
     const dashboardModule = this.modules.get('dashboard');
     if (dashboardModule) {
       this.currentModule = dashboardModule;

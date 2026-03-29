@@ -45,35 +45,31 @@ function escapeHtml(text) {
 
 /**
  * Pure rendering function für die Vertrag-Zelle in der Kampagnen-Tabelle.
- * Checkbox ist IMMER disabled. Badge-Link wenn signed Vertrag existiert.
+ * Zeigt ausschließlich Status-Badges (keine Checkbox).
  */
 export function renderVertragCell(koop) {
   const vertraege = koop._vertraege || [];
   const signed = vertraege.find(v => v.dropbox_file_url || v.unterschriebener_vertrag_url);
-  const isChecked = !!koop.vertrag_unterschrieben;
-
-  const checkbox = `<input type="checkbox" class="grid-checkbox" disabled ${isChecked ? 'checked' : ''}/>`;
 
   if (signed) {
     const url = signed.dropbox_file_url || signed.unterschriebener_vertrag_url;
-    const badge = `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="contract-signed-action contract-signed-action--open" title="${escapeHtml(signed.name || 'Vertrag')}">
+    return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="contract-signed-action contract-signed-action--open" title="${escapeHtml(signed.name || 'Vertrag')}">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
       </svg>
       Unterschrieben
     </a>`;
-    return `<div class="vertrag-cell-wrapper">${checkbox}${badge}</div>`;
   }
 
   const draft = vertraege.find(v => v.is_draft);
   if (draft) {
-    return `<div class="vertrag-cell-wrapper">${checkbox}<span class="vertrag-badge vertrag-badge--draft">Entwurf</span></div>`;
+    return `<span class="vertrag-badge vertrag-badge--draft">Entwurf</span>`;
   }
 
   const generated = vertraege.find(v => v.datei_url && !v.is_draft);
   if (generated) {
-    return `<div class="vertrag-cell-wrapper">${checkbox}<span class="vertrag-badge vertrag-badge--created" title="${escapeHtml(generated.name || 'Vertrag')}">Erstellt</span></div>`;
+    return `<span class="vertrag-badge vertrag-badge--created" title="${escapeHtml(generated.name || 'Vertrag')}">Erstellt</span>`;
   }
 
-  return checkbox;
+  return `<span class="vertrag-badge vertrag-badge--none">Noch nicht erstellt</span>`;
 }

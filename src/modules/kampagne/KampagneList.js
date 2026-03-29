@@ -72,6 +72,7 @@ const kampagnenCache = {
 window.addEventListener('entityUpdated', (e) => {
   if (e.detail.entity === 'kampagne') {
     kampagnenCache.invalidate();
+    KampagneUtils.invalidatePermissionCache();
   }
 });
 

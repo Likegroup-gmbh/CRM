@@ -32,11 +32,9 @@ export class KampagneKanbanBoard {
 
   async init(containerElement) {
     this.container = containerElement;
-    await this.loadStatusOptions();
-    await this.loadKampagnen();
+    await Promise.all([this.loadStatusOptions(), this.loadKampagnen()]);
     this.render();
     this.bindEvents();
-    // Warte bis DOM gerendert ist, dann initialisiere Floating Scrollbar
     setTimeout(() => this.initFloatingScrollbar(), 100);
   }
 
@@ -77,7 +75,12 @@ export class KampagneKanbanBoard {
       let query = window.supabase
         .from('kampagne')
         .select(`
-          *,
+          id,
+          kampagnenname,
+          eigener_name,
+          status_id,
+          deadline_post_produktion,
+          created_at,
           unternehmen:unternehmen_id(id, firmenname, logo_url),
           marke:marke_id(id, markenname, logo_url),
           status_ref:status_id(id, name, sort_order)

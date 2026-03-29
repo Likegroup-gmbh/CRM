@@ -157,9 +157,31 @@ export class KampagneKooperationenVideoTable {
   // DATEN-LOADING
   // ========================================
 
+  static _batchInQuery(supabaseFrom, selectStr, column, ids, extraFilters) {
+    const BATCH_SIZE = 200;
+    if (ids.length <= BATCH_SIZE) {
+      let q = supabaseFrom.select(selectStr).in(column, ids);
+      if (extraFilters) q = extraFilters(q);
+      return q.then(r => r);
+    }
+    const batches = [];
+    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+      let q = supabaseFrom.select(selectStr).in(column, ids.slice(i, i + BATCH_SIZE));
+      if (extraFilters) q = extraFilters(q);
+      batches.push(q);
+    }
+    return Promise.all(batches).then(results => {
+      const merged = { data: [], error: null };
+      for (const r of results) {
+        if (r.error) { merged.error = r.error; break; }
+        if (r.data) merged.data.push(...r.data);
+      }
+      return merged;
+    });
+  }
+
   // Lade alle Daten für die Tabelle
   async loadData() {
-    // Verhindere doppeltes Laden (Fix 3)
     if (this._isLoading || this._dataLoaded) {
       console.log('⚠️ LoadData bereits in Arbeit oder abgeschlossen, überspringe...');
       return;
@@ -223,33 +245,40 @@ export class KampagneKooperationenVideoTable {
       this._updateLoadingProgress('Lade Videos & Creator...', 30);
 
       // ========================================
-      // STUFE 2: Videos + Creator + Verträge + Versand parallel
+      // STUFE 2: Videos + Creator + Verträge + Versand parallel (mit Batching)
       // ========================================
       this._startPerformanceTracking('Query: kooperation_videos');
       this._startPerformanceTracking('Query: creator');
       this._startPerformanceTracking('Query: kooperation_versand');
 
+      const batchIn = KampagneKooperationenVideoTable._batchInQuery;
+      const sb = window.supabase;
+
       const [videosResult, creatorsResult, vertraegeResult, versandResult] = await Promise.allSettled([
-        window.supabase
-          .from('kooperation_videos')
-          .select('id, kooperation_id, position, asset_url, content_art, caption, feedback_creatorjobs, feedback_ritzenhoff, freigabe, link_content, folder_url, link_produkte, thema, link_skript, skript_freigegeben, drehort, video_name, posting_datum, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id)')
-          .in('kooperation_id', koopIds)
-          .order('position', { ascending: true }),
+        batchIn(
+          sb.from('kooperation_videos'),
+          'id, kooperation_id, position, asset_url, content_art, caption, feedback_creatorjobs, feedback_ritzenhoff, freigabe, link_content, folder_url, link_produkte, thema, link_skript, skript_freigegeben, drehort, video_name, posting_datum, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id)',
+          'kooperation_id', koopIds,
+          q => q.order('position', { ascending: true })
+        ),
         
-        window.supabase
-          .from('creator')
-          .select('id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt')
-          .in('id', creatorIds),
+        batchIn(
+          sb.from('creator'),
+          'id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt',
+          'id', creatorIds
+        ),
 
-        window.supabase
-          .from('vertraege')
-          .select('id, name, typ, kooperation_id, datei_url, dropbox_file_url, unterschriebener_vertrag_url, is_draft')
-          .in('kooperation_id', koopIds),
+        batchIn(
+          sb.from('vertraege'),
+          'id, name, typ, kooperation_id, datei_url, dropbox_file_url, unterschriebener_vertrag_url, is_draft',
+          'kooperation_id', koopIds
+        ),
 
-        window.supabase
-          .from('kooperation_versand')
-          .select('id, kooperation_id, video_id, versendet, tracking_nummer, produkt_name, produkt_link, strasse, hausnummer, plz, stadt')
-          .in('kooperation_id', koopIds)
+        batchIn(
+          sb.from('kooperation_versand'),
+          'id, kooperation_id, video_id, versendet, tracking_nummer, produkt_name, produkt_link, strasse, hausnummer, plz, stadt',
+          'kooperation_id', koopIds
+        )
       ]);
 
       this._endPerformanceTracking('Query: kooperation_videos', videosResult.status === 'fulfilled', videosResult.reason);
@@ -271,88 +300,101 @@ export class KampagneKooperationenVideoTable {
         koop._vertraege = vertraege.filter(v => v.kooperation_id === koop.id);
       });
 
-      const videoIds = allVideos.map(v => v.id);
-
-      this._updateLoadingProgress('Lade Zusatzdaten...', 60);
-
-      // ========================================
-      // STUFE 3: Assets + Comments (brauchen videoIds)
-      // ========================================
-      let assets = [];
-      let comments = [];
-      
-      if (videoIds.length > 0) {
-        this._startPerformanceTracking('Query: kooperation_video_asset');
-        this._startPerformanceTracking('Query: kooperation_video_comment');
-
-        const [assetsResult, commentsResult] = await Promise.allSettled([
-          window.supabase
-            .from('kooperation_video_asset')
-            .select('id, video_id, file_url, file_path, is_current')
-            .in('video_id', videoIds)
-            .eq('is_current', true),
-          
-          window.supabase
-            .from('kooperation_video_comment')
-            .select('id, video_id, text, runde, author_name, created_at')
-            .in('video_id', videoIds)
-            .is('deleted_at', null)
-            .order('created_at', { ascending: true })
-        ]);
-
-        this._endPerformanceTracking('Query: kooperation_video_asset', assetsResult.status === 'fulfilled', assetsResult.reason);
-        this._endPerformanceTracking('Query: kooperation_video_comment', commentsResult.status === 'fulfilled', commentsResult.reason);
-
-        assets = assetsResult.status === 'fulfilled' ? (assetsResult.value.data || []) : [];
-        comments = commentsResult.status === 'fulfilled' ? (commentsResult.value.data || []) : [];
-
-        const failedLoads = [];
-        if (assetsResult.status === 'rejected') {
-          console.warn('⚠️ Assets konnten nicht geladen werden:', assetsResult.reason);
-          failedLoads.push('Assets');
-        }
-        if (commentsResult.status === 'rejected') {
-          console.warn('⚠️ Comments konnten nicht geladen werden:', commentsResult.reason);
-          failedLoads.push('Kommentare');
-        }
-        if (versandResult.status === 'rejected') {
-          console.warn('⚠️ Versand-Infos konnten nicht geladen werden:', versandResult.reason);
-          failedLoads.push('Versand-Infos');
-        }
-        
-        if (failedLoads.length > 0 && window.notificationSystem?.warning) {
-          window.notificationSystem.warning(`Einige Daten (${failedLoads.join(', ')}) konnten nicht vollständig geladen werden.`);
-        }
-      }
-
-      this._updateLoadingProgress('Verarbeite Daten...', 80);
-
-      // ========================================
-      // STUFE 4: Client-Side Mapping (Fix 2: Map statt find)
-      // ========================================
-      this._startPerformanceTracking('Client-Side: Mapping');
-
-      // Map für O(1) Lookups erstellen
-      const assetsByVideoId = new Map(assets.map(a => [a.video_id, a]));
-
-      // Videos mit Assets anreichern und nach Kooperation gruppieren
+      // Videos ohne Assets/Comments sofort mappen (Tabelle wird renderbar)
       this.videos = {};
       allVideos.forEach(video => {
-        const currentAsset = assetsByVideoId.get(video.id);
         const enrichedVideo = {
           ...video,
-          currentAsset,
-          file_url: currentAsset?.file_url || video.asset_url || null
+          currentAsset: null,
+          file_url: video.asset_url || null
         };
-        
         if (!this.videos[video.kooperation_id]) {
           this.videos[video.kooperation_id] = [];
         }
         this.videos[video.kooperation_id].push(enrichedVideo);
       });
 
-      // Kommentare nach Video und Runde gruppieren
       this.videoComments = {};
+      this.versandInfos = {};
+      versandInfos.forEach(info => {
+        if (info.video_id) {
+          this.versandInfos[info.video_id] = info;
+        }
+      });
+
+      this._dataLoaded = true;
+      this._logPerformanceSummary();
+      this._updateLoadingProgress('Fertig!', 100);
+      setTimeout(() => this._removeLoadingProgress(), 300);
+
+      // ========================================
+      // STUFE 3: Assets + Comments nachträglich laden (non-blocking)
+      // ========================================
+      const videoIds = allVideos.map(v => v.id);
+      if (videoIds.length > 0) {
+        this._loadAssetsAndComments(videoIds);
+      }
+
+    } catch (error) {
+      console.error('❌ Kritischer Fehler beim Laden:', error);
+      this._endPerformanceTracking('CRITICAL_ERROR', false, error);
+      this._logPerformanceSummary();
+      this._removeLoadingProgress();
+      window.ErrorHandler.handle(error, 'KampagneKooperationenVideoTable.loadData');
+    } finally {
+      this._isLoading = false;
+    }
+  }
+
+  async _loadAssetsAndComments(videoIds) {
+    try {
+      this._startPerformanceTracking('Query: kooperation_video_asset');
+      this._startPerformanceTracking('Query: kooperation_video_comment');
+
+      const batchIn = KampagneKooperationenVideoTable._batchInQuery;
+      const sb = window.supabase;
+
+      const [assetsResult, commentsResult] = await Promise.allSettled([
+        batchIn(
+          sb.from('kooperation_video_asset'),
+          'id, video_id, file_url, file_path, is_current',
+          'video_id', videoIds,
+          q => q.eq('is_current', true)
+        ),
+        batchIn(
+          sb.from('kooperation_video_comment'),
+          'id, video_id, text, runde, author_name, created_at',
+          'video_id', videoIds,
+          q => q.is('deleted_at', null).order('created_at', { ascending: true })
+        )
+      ]);
+
+      this._endPerformanceTracking('Query: kooperation_video_asset', assetsResult.status === 'fulfilled', assetsResult.reason);
+      this._endPerformanceTracking('Query: kooperation_video_comment', commentsResult.status === 'fulfilled', commentsResult.reason);
+
+      const assets = assetsResult.status === 'fulfilled' ? (assetsResult.value.data || []) : [];
+      const comments = commentsResult.status === 'fulfilled' ? (commentsResult.value.data || []) : [];
+
+      if (assetsResult.status === 'rejected') {
+        console.warn('⚠️ Assets konnten nicht geladen werden:', assetsResult.reason);
+      }
+      if (commentsResult.status === 'rejected') {
+        console.warn('⚠️ Comments konnten nicht geladen werden:', commentsResult.reason);
+      }
+
+      // Assets in bestehende Video-Objekte einpflegen
+      const assetsByVideoId = new Map(assets.map(a => [a.video_id, a]));
+      for (const koopVideos of Object.values(this.videos)) {
+        for (const video of koopVideos) {
+          const asset = assetsByVideoId.get(video.id);
+          if (asset) {
+            video.currentAsset = asset;
+            video.file_url = asset.file_url || video.asset_url || null;
+          }
+        }
+      }
+
+      // Kommentare einpflegen
       comments.forEach(comment => {
         if (!this.videoComments[comment.video_id]) {
           this.videoComments[comment.video_id] = { r1: [], r2: [] };
@@ -364,37 +406,34 @@ export class KampagneKooperationenVideoTable {
         }
       });
 
-      // Versand-Infos nach Video gruppieren
-      this.versandInfos = {};
-      versandInfos.forEach(info => {
-        if (info.video_id) {
-          this.versandInfos[info.video_id] = info;
-        }
-      });
+      // DOM-Update: Asset-URLs und Kommentare in bestehende Zellen patchen
+      if (assets.length > 0 || comments.length > 0) {
+        this._patchRenderedAssetsAndComments(assetsByVideoId);
+      }
 
-      this._endPerformanceTracking('Client-Side: Mapping');
-
-      this._updateLoadingProgress('Fertig!', 100);
-
-      // ========================================
-      // Performance-Summary ausgeben
-      // ========================================
-      this._logPerformanceSummary();
-      
-      // Daten erfolgreich geladen
-      this._dataLoaded = true;
-
-      // UI-Progress entfernen
-      setTimeout(() => this._removeLoadingProgress(), 500);
-
+      console.log(`✅ Assets (${assets.length}) + Comments (${comments.length}) nachgeladen`);
     } catch (error) {
-      console.error('❌ Kritischer Fehler beim Laden:', error);
-      this._endPerformanceTracking('CRITICAL_ERROR', false, error);
-      this._logPerformanceSummary();
-      this._removeLoadingProgress();
-      window.ErrorHandler.handle(error, 'KampagneKooperationenVideoTable.loadData');
-    } finally {
-      this._isLoading = false;
+      console.error('❌ Fehler beim Nachladen von Assets/Comments:', error);
+    }
+  }
+
+  _patchRenderedAssetsAndComments(assetsByVideoId) {
+    const container = this.containerId ? document.getElementById(this.containerId) : null;
+    if (!container) return;
+
+    for (const [videoId, asset] of assetsByVideoId) {
+      const thumbnail = container.querySelector(`[data-video-id="${videoId}"] .video-thumbnail-img`);
+      if (thumbnail && asset.file_url) {
+        thumbnail.src = asset.file_url;
+        thumbnail.closest('.video-thumbnail')?.classList.remove('no-asset');
+      }
+    }
+
+    for (const [videoId, rounds] of Object.entries(this.videoComments)) {
+      const r1Cell = container.querySelector(`[data-video-id="${videoId}"] .col-feedback-r1 .comment-count`);
+      const r2Cell = container.querySelector(`[data-video-id="${videoId}"] .col-feedback-r2 .comment-count`);
+      if (r1Cell) r1Cell.textContent = rounds.r1.length || '';
+      if (r2Cell) r2Cell.textContent = rounds.r2.length || '';
     }
   }
 
@@ -1080,7 +1119,7 @@ export class KampagneKooperationenVideoTable {
     this.refresh();
   }
 
-  _openSettingsDrawer(btn) {
+  async _openSettingsDrawer(btn) {
     const videoId = btn.dataset.videoId;
     const kooperationId = btn.dataset.kooperationId;
     const filePath = btn.dataset.filePath || '';
@@ -1090,7 +1129,7 @@ export class KampagneKooperationenVideoTable {
     const videos = this.videos[kooperationId] || [];
     const video = videos.find(v => v.id === videoId);
 
-    this._settingsDrawer.open({
+    await this._settingsDrawer.open({
       videoId,
       kooperationId,
       videoUrl,

@@ -168,7 +168,37 @@ describe('BreadcrumbSystem Rework', () => {
     });
   });
 
-  describe('Zyklus 7: getRouteConfig Unknown Segment', () => {
+  describe('Zyklus 7: Container-Recovery nach DOM-Verlust', () => {
+    it('re-acquiriert Container wenn alter Node disconnected ist', async () => {
+      const system = await createBreadcrumbSystem();
+      system.setFromRoute('kampagne');
+      expect(container.querySelector('nav.breadcrumb')).not.toBeNull();
+
+      // Container aus DOM entfernen und neu einfügen (simuliert Edge-Case)
+      document.body.removeChild(container);
+      const newContainer = document.createElement('div');
+      newContainer.id = 'breadcrumb-container';
+      document.body.appendChild(newContainer);
+
+      system.setFromRoute('auftrag');
+      const nav = newContainer.querySelector('nav.breadcrumb');
+      expect(nav).not.toBeNull();
+      expect(newContainer.querySelector('.breadcrumb-item').textContent).toContain('Aufträge');
+    });
+
+    it('funktioniert auch ohne vorheriges init() wenn Container im DOM existiert', async () => {
+      const mod = await import('../core/BreadcrumbSystem.js');
+      const system = new mod.BreadcrumbSystem();
+      // kein init() – Container wird trotzdem über Getter gefunden
+      system.setFromRoute('creator');
+
+      const items = container.querySelectorAll('.breadcrumb-item');
+      expect(items).toHaveLength(1);
+      expect(items[0].textContent).toContain('Creator');
+    });
+  });
+
+  describe('Zyklus 8: getRouteConfig Unknown Segment', () => {
     it('gibt kapitalisierten Fallback für unbekanntes Segment', async () => {
       const { getRouteConfig } = await import('../core/breadcrumbRoutes.js');
       const config = getRouteConfig('gibts-nicht');

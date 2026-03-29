@@ -4,6 +4,8 @@
 // Debug-Flag für Logging (Production: false)
 const DEBUG_PERMISSIONS = false;
 
+const _permissionCache = { userId: null, data: null, timestamp: 0, TTL: 30000 };
+
 export class KampagneUtils {
   
   // ========================================
@@ -43,6 +45,12 @@ export class KampagneUtils {
    * 
    * @returns {Promise<string[]|null>} Array von Kampagnen-IDs oder null (= keine Filterung)
    */
+  static invalidatePermissionCache() {
+    _permissionCache.userId = null;
+    _permissionCache.data = null;
+    _permissionCache.timestamp = 0;
+  }
+
   static async loadAllowedKampagneIds() {
     try {
       const userId = window.currentUser?.id;
@@ -58,6 +66,13 @@ export class KampagneUtils {
       if (this.isUserKunde()) {
         if (DEBUG_PERMISSIONS) console.log('🔓 PERMISSIONS: Kunde - RLS filtert');
         return null;
+      }
+
+      // Memoized: Ergebnis 30s lang cachen pro User
+      const now = Date.now();
+      if (_permissionCache.userId === userId && _permissionCache.data !== null && (now - _permissionCache.timestamp) < _permissionCache.TTL) {
+        if (DEBUG_PERMISSIONS) console.log('🔓 PERMISSIONS: Cache-Hit');
+        return _permissionCache.data;
       }
       
       // STUFE 1: Alle Basis-Permission-Queries PARALLEL ausführen
@@ -194,6 +209,10 @@ export class KampagneUtils {
         });
       }
       
+      _permissionCache.userId = userId;
+      _permissionCache.data = allKampagnenIds;
+      _permissionCache.timestamp = Date.now();
+
       return allKampagnenIds;
       
     } catch (error) {

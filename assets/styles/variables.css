@@ -25,6 +25,8 @@ input:-webkit-autofill:focus {
   --space-xl: 2rem;        /* 32px */
   --space-xxl: 3rem;       /* 48px */
   --space-xxxl: 4rem;      /* 64px */
+  --space-xxxxl: 5rem;     /* 80px */
+  --space-xxxxx: 6rem;     /* 96px */
 
   /* Zusätzliche Spacings */
   --space-10: 0.625rem;    /* 10px */

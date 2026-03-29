@@ -78,6 +78,7 @@ export class KampagneDetail {
     this._showSkeleton();
 
     this._initPromise = (async () => {
+    const _initStart = performance.now();
     try {
       await this.loadCriticalData();
       
@@ -85,19 +86,6 @@ export class KampagneDetail {
         console.log('⚠️ KAMPAGNEDETAIL: Nicht mehr gemounted nach Laden');
         return;
       }
-      
-      // VideoTable-Daten VOR render() laden (kein eigenes UI/Skeleton)
-      const canViewKoops = window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false;
-      if (canViewKoops) {
-        this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId);
-        await Promise.all([
-          this.kooperationenVideoTable.loadData(),
-          this.kooperationenVideoTable.loadColumnVisibilitySettings(),
-          Promise.resolve(this.kooperationenVideoTable.loadApprovedFilterState())
-        ]);
-      }
-      
-      if (!this._isMounted) return;
       
       if (window.breadcrumbSystem && this.kampagneData) {
         const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
@@ -112,42 +100,16 @@ export class KampagneDetail {
       this.bindEvents();
       this.bindAnsprechpartnerEvents();
       
-      // VideoTable DOM rendern (Daten sind schon da)
-      if (this.kooperationenVideoTable) {
-        this.kooperationenVideoTable.containerId = 'kooperationen-videos-container';
-        const vtContainer = document.getElementById('kooperationen-videos-container');
-        if (vtContainer) {
-          vtContainer.innerHTML = this.kooperationenVideoTable.render();
-          this.kooperationenVideoTable.bindEvents();
-          this.kooperationenVideoTable.initFloatingScrollbar();
-          this.kooperationenVideoTable.initRealtimeSubscription();
-          this.kooperationenVideoTable.loadColumnWidths();
-          
-          if (!this.kooperationenVideoTable._visibilityEventBound) {
-            window.addEventListener('video-column-visibility-changed', (e) => {
-              if (e.detail.kampagneId === this.kampagneId) {
-                this.kooperationenVideoTable.hiddenColumns = e.detail.hiddenColumns;
-                this.kooperationenVideoTable.refresh();
-              }
-            });
-            this.kooperationenVideoTable._visibilityEventBound = true;
-          }
-          
-          if (!this.kooperationenVideoTable._entityUpdatedHandler) {
-            this.kooperationenVideoTable._entityUpdatedHandler = async (e) => {
-              const detail = e.detail || {};
-              if (detail.entity === 'kooperation' && detail.action === 'deleted' && detail.id) {
-                await this.kooperationenVideoTable.handleKooperationDeletedById(detail.id, 'entityUpdated');
-              }
-            };
-            window.addEventListener('entityUpdated', this.kooperationenVideoTable._entityUpdatedHandler);
-          }
-          
-          this.updateToggleApprovedButton();
-        }
+      const _firstRenderTime = performance.now() - _initStart;
+      console.log(`✅ KAMPAGNEDETAIL: First Render in ${_firstRenderTime.toFixed(0)}ms`);
+      
+      // VideoTable NACH First Paint asynchron laden (Skeleton im Container sichtbar)
+      const canViewKoops = window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false;
+      if (canViewKoops && this._isMounted) {
+        this._loadVideoTableAsync();
       }
       
-      console.log('✅ KAMPAGNEDETAIL: Initialisierung abgeschlossen');
+      console.log(`✅ KAMPAGNEDETAIL: Initialisierung abgeschlossen in ${(performance.now() - _initStart).toFixed(0)}ms`);
       
     } catch (error) {
       console.error('❌ KAMPAGNEDETAIL: Fehler bei der Initialisierung:', error);
@@ -214,6 +176,62 @@ export class KampagneDetail {
     }
   }
 
+  async _loadVideoTableAsync() {
+    const _vtStart = performance.now();
+    try {
+      this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId);
+      
+      const hiddenCols = this.kampagneData?.video_table_hidden_columns;
+      if (hiddenCols) {
+        this.kooperationenVideoTable.hiddenColumns = hiddenCols;
+      }
+
+      await Promise.all([
+        this.kooperationenVideoTable.loadData(),
+        hiddenCols ? Promise.resolve() : this.kooperationenVideoTable.loadColumnVisibilitySettings(),
+        Promise.resolve(this.kooperationenVideoTable.loadApprovedFilterState())
+      ]);
+
+      if (!this._isMounted) return;
+
+      this.kooperationenVideoTable.containerId = 'kooperationen-videos-container';
+      const vtContainer = document.getElementById('kooperationen-videos-container');
+      if (vtContainer) {
+        vtContainer.innerHTML = this.kooperationenVideoTable.render();
+        this.kooperationenVideoTable.bindEvents();
+        this.kooperationenVideoTable.initFloatingScrollbar();
+        this.kooperationenVideoTable.initRealtimeSubscription();
+        this.kooperationenVideoTable.loadColumnWidths();
+
+        if (!this.kooperationenVideoTable._visibilityEventBound) {
+          window.addEventListener('video-column-visibility-changed', (e) => {
+            if (e.detail.kampagneId === this.kampagneId) {
+              this.kooperationenVideoTable.hiddenColumns = e.detail.hiddenColumns;
+              this.kooperationenVideoTable.refresh();
+            }
+          });
+          this.kooperationenVideoTable._visibilityEventBound = true;
+        }
+
+        if (!this.kooperationenVideoTable._entityUpdatedHandler) {
+          this.kooperationenVideoTable._entityUpdatedHandler = async (e) => {
+            const detail = e.detail || {};
+            if (detail.entity === 'kooperation' && detail.action === 'deleted' && detail.id) {
+              await this.kooperationenVideoTable.handleKooperationDeletedById(detail.id, 'entityUpdated');
+            }
+          };
+          window.addEventListener('entityUpdated', this.kooperationenVideoTable._entityUpdatedHandler);
+        }
+
+        this.updateToggleApprovedButton();
+      }
+
+      console.log(`✅ KAMPAGNEDETAIL: VideoTable async geladen in ${(performance.now() - _vtStart).toFixed(0)}ms`);
+    } catch (error) {
+      console.error('❌ KAMPAGNEDETAIL: Fehler beim async Laden der VideoTable:', error);
+    }
+  }
+
   // Kooperationen-Tab rendern mit Budget-Progress
   renderKooperationen() {
     const formatCurrency = (v) => v ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v) : '-';
@@ -257,7 +275,7 @@ export class KampagneDetail {
         ${progressHtml}
         <div class="empty-state">
           <p>Keine Kooperationen verknüpft</p>
-          ${!isKunde ? `<button class="primary-btn" onclick="window.navigateTo('/kooperation/new')">Kooperation anlegen</button>` : ''}
+          ${!isKunde ? `<button class="primary-btn" onclick="window.navigateTo('/kooperation/new?kampagne_id=${this.kampagneId}')">Kooperation anlegen</button>` : ''}
         </div>
       `;
     }
@@ -623,15 +641,15 @@ export class KampagneDetail {
           .order('created_at', { ascending: false }),
         window.supabase
           .from('creator_auswahl')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true })
           .eq('kampagne_id', this.kampagneId),
         window.supabase
           .from('vertraege')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true })
           .eq('kampagne_id', this.kampagneId),
         window.supabase
           .from('rechnung')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true })
           .eq('kampagne_id', this.kampagneId)
       ]);
       
@@ -1186,7 +1204,12 @@ export class KampagneDetail {
                   Sichtbarkeit anpassen
                 </button>` : ''}
               </div>
-              <div id="kooperationen-videos-container"></div>
+              <div id="kooperationen-videos-container">
+                <div class="skeleton-table">
+                  <div class="skeleton-row skeleton-header"><div class="skeleton-cell" style="width:5%"></div><div class="skeleton-cell" style="width:20%"></div><div class="skeleton-cell" style="width:15%"></div><div class="skeleton-cell" style="width:15%"></div><div class="skeleton-cell" style="width:15%"></div><div class="skeleton-cell" style="width:15%"></div><div class="skeleton-cell" style="width:15%"></div></div>
+                  ${Array.from({length: 5}, () => '<div class="skeleton-row"><div class="skeleton-cell" style="width:5%"></div><div class="skeleton-cell" style="width:20%"></div><div class="skeleton-cell" style="width:15%"></div><div class="skeleton-cell" style="width:15%"></div><div class="skeleton-cell" style="width:15%"></div><div class="skeleton-cell" style="width:15%"></div><div class="skeleton-cell" style="width:15%"></div></div>').join('')}
+                </div>
+              </div>
             </div>
           </div>` : ''}
 
