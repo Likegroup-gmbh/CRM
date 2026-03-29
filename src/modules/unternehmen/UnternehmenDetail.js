@@ -62,7 +62,6 @@ export class UnternehmenDetail extends PersonDetailBase {
         });
       }
       
-      await this.loadActivities();
       this.render(true); // force=true für initiales Render
       
       // Events nur einmal binden
@@ -77,17 +76,6 @@ export class UnternehmenDetail extends PersonDetailBase {
       this._isLoading = false;
       console.error('❌ UNTERNEHMENDETAIL: Fehler bei der Initialisierung:', error);
       window.ErrorHandler.handle(error, 'UnternehmenDetail.init');
-    }
-  }
-
-  // Lade Aktivitäten für Timeline
-  async loadActivities() {
-    try {
-      // Für Unternehmen gibt es keine History-Tabelle, daher leere Aktivitäten
-      this.activities = [];
-    } catch (error) {
-      console.error('❌ Fehler beim Laden der Activities:', error);
-      this.activities = [];
     }
   }
 

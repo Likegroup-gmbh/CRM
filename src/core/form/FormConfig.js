@@ -377,7 +377,8 @@ export class FormConfig {
             table: 'kampagne_status',
             displayField: 'name',
             valueField: 'id',
-            directQuery: true
+            directQuery: true,
+            defaultValue: '4806a9d3-6e65-410d-928b-6ccbbe335d33'
           },
           {
             name: 'plattform_ids',

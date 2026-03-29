@@ -22,8 +22,6 @@ export class KooperationDetail extends PersonDetailBase {
     this.kampagne = null;
     this.rechnungen = [];
     this.videos = [];
-    this.history = [];
-    this.historyCount = 0;
     this.versandDaten = null;
     this.taskKanbanBoard = null;
     this.tasksCount = 0;
@@ -160,10 +158,6 @@ export class KooperationDetail extends PersonDetailBase {
             await this.loadRechnungen();
             this.updateRechnungenTab();
             break;
-          case 'history':
-            await this.loadHistory();
-            this.updateHistoryTab();
-            break;
         }
 
         const loadTime = (performance.now() - startTime).toFixed(0);
@@ -257,28 +251,6 @@ export class KooperationDetail extends PersonDetailBase {
     }
   }
 
-  async loadHistory() {
-    try {
-      const { data: hist } = await window.supabase
-        .from('kooperation_history')
-        .select('id, old_status, new_status, comment, created_at, benutzer:changed_by(name)')
-        .eq('kooperation_id', this.kooperationId)
-        .order('created_at', { ascending: false });
-      this.history = (hist || []).map(h => ({
-        id: h.id,
-        old_status: h.old_status || null,
-        new_status: h.new_status || null,
-        comment: h.comment || '',
-        created_at: h.created_at,
-        user_name: h.benutzer?.name || '-'
-      }));
-      this.historyCount = this.history.length;
-    } catch (_) {
-      this.history = [];
-      this.historyCount = 0;
-    }
-  }
-
   async loadTasksCount() {
     try {
       const { count, error } = await window.supabase
@@ -310,13 +282,6 @@ export class KooperationDetail extends PersonDetailBase {
     const container = document.querySelector('#tab-rechnungen .detail-section');
     if (container) {
       container.innerHTML = this.renderRechnungen();
-    }
-  }
-
-  updateHistoryTab() {
-    const container = document.querySelector('#tab-history .detail-section');
-    if (container) {
-      container.innerHTML = this.renderHistory();
     }
   }
 
@@ -409,7 +374,6 @@ export class KooperationDetail extends PersonDetailBase {
     if (!isKundeRole) {
       tabs.push({ tab: 'notizen', label: 'Notizen', isActive: this.activeMainTab === 'notizen' });
       tabs.push({ tab: 'ratings', label: 'Bewertungen', isActive: this.activeMainTab === 'ratings' });
-      tabs.push({ tab: 'history', label: 'History', isActive: this.activeMainTab === 'history' });
       tabs.push({ tab: 'tasks', label: 'Aufgaben', isActive: this.activeMainTab === 'tasks' });
     }
 
@@ -462,12 +426,6 @@ export class KooperationDetail extends PersonDetailBase {
         <div class="tab-pane ${this.activeMainTab === 'ratings' ? 'active' : ''}" id="tab-ratings">
           <div class="detail-section">
             ${this.renderRatings()}
-          </div>
-        </div>
-
-        <div class="tab-pane ${this.activeMainTab === 'history' ? 'active' : ''}" id="tab-history">
-          <div class="detail-section">
-            ${this.renderHistory()}
           </div>
         </div>
 
@@ -596,30 +554,6 @@ export class KooperationDetail extends PersonDetailBase {
       return '<div class="empty-state"><p>Keine Bewertungen vorhanden.</p></div>';
     }
     return '';
-  }
-
-  renderHistory() {
-    if (!this.history || this.history.length === 0) {
-      return '<div class="empty-state"><p>Keine Historie vorhanden</p></div>';
-    }
-    const fDateTime = (d) => d ? new Date(d).toLocaleString('de-DE') : '-';
-    const rows = this.history.map(h => `
-      <tr>
-        <td>${fDateTime(h.created_at)}</td>
-        <td>${this.sanitize(h.user_name || '-')}</td>
-        <td>${this.sanitize(h.old_status || '-')}</td>
-        <td>${this.sanitize(h.new_status || '-')}</td>
-        <td>${this.sanitize(h.comment || '')}</td>
-      </tr>
-    `).join('');
-    return `
-      <div class="data-table-container">
-        <table class="data-table">
-          <thead><tr><th>Zeitpunkt</th><th>User</th><th>Alt</th><th>Neu</th><th>Kommentar</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-    `;
   }
 
   renderRechnungen() {

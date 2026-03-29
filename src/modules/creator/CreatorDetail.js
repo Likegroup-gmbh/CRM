@@ -39,6 +39,18 @@ export class CreatorDetail extends PersonDetailBase {
   async init(creatorId) {
     console.log('🎯 CREATORDETAIL: Initialisiere Creator-Detailseite für ID:', creatorId);
     
+    const canView = window.currentUser?.permissions?.creator?.can_view;
+    if (canView === false) {
+      window.setHeadline('Zugriff verweigert');
+      window.content.innerHTML = `
+        <div class="error-state">
+          <h2>Zugriff verweigert</h2>
+          <p>Sie haben keine Berechtigung, diese Seite zu sehen.</p>
+        </div>
+      `;
+      return;
+    }
+
     this.creatorId = creatorId;
     
     if (window.moduleRegistry?.currentModule !== this) {
@@ -60,7 +72,6 @@ export class CreatorDetail extends PersonDetailBase {
         });
       }
       
-      await this.loadActivitiesData();
       await this.render();
       
       if (!this.eventsBound) {
@@ -159,38 +170,6 @@ export class CreatorDetail extends PersonDetailBase {
     console.log(`✅ CREATORDETAIL: Kritische Daten geladen in ${loadTime}ms`);
   }
 
-  async loadActivitiesData() {
-    try {
-      const allActivities = [];
-
-      // Kooperationen-History für diesen Creator
-      const { data: koopHistory } = await window.supabase
-        .from('kooperation_history')
-        .select('id, old_status, new_status, comment, created_at, kooperation:kooperation_id(name)')
-        .in('kooperation_id', (this.kooperationen || []).map(k => k.id).filter(Boolean))
-        .order('created_at', { ascending: false })
-        .limit(15);
-
-      if (koopHistory) {
-        allActivities.push(...koopHistory.map(h => ({
-          ...h,
-          type: 'kooperation',
-          title: 'Kooperation',
-          entity_name: h.kooperation?.name || 'Unbekannt',
-          action: h.old_status && h.new_status ? `Status: ${h.old_status} → ${h.new_status}` : 'Status geändert'
-        })));
-      }
-
-      this.activities = allActivities
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-        .slice(0, 15);
-
-    } catch (error) {
-      console.error('❌ Fehler beim Laden der Activities:', error);
-      this.activities = [];
-    }
-  }
-  
   async loadTabData(tabName) {
     return await tabDataCache.load('creator', this.creatorId, tabName, async () => {
       console.log(`🔄 CREATORDETAIL: Lade Tab-Daten für "${tabName}"`);

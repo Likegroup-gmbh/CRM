@@ -1677,19 +1677,24 @@ export class DynamicDataLoader {
       }
     }
     
+    // Create-Mode: defaultValue aus FormConfig berücksichtigen
+    const isCreateMode = !form || form.dataset.isEditMode !== 'true';
+    const defaultValue = isCreateMode && field.defaultValue !== undefined ? field.defaultValue : null;
+    
     // Optionen hinzufügen
     options.forEach(option => {
       const optionElement = document.createElement('option');
       optionElement.value = option.value;
       optionElement.textContent = option.label;
       
-      // Selected-Status: Entweder aus options oder aus Edit-Mode
-      if (option.selected || (editModeValue && option.value === editModeValue)) {
+      // Selected-Status: Entweder aus options, Edit-Mode oder defaultValue
+      if (option.selected || (editModeValue && option.value === editModeValue) || (defaultValue && option.value === String(defaultValue))) {
         optionElement.selected = true;
-        // WICHTIG: Auch im options-Array setzen für Searchable Selects
         option.selected = true;
         if (editModeValue && option.value === editModeValue) {
           console.log(`✅ DYNAMICDATALOADER: Statisches Feld ${field.name} vorausgewählt:`, editModeValue);
+        } else if (defaultValue && option.value === String(defaultValue)) {
+          console.log(`✅ DYNAMICDATALOADER: Default-Wert für ${field.name} gesetzt:`, defaultValue);
         }
       }
       selectElement.appendChild(optionElement);

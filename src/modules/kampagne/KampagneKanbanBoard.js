@@ -136,6 +136,7 @@ export class KampagneKanbanBoard {
 
     // Gruppiere Kampagnen nach Status
     const kampagnenByStatus = {};
+    const noStatusKampagnen = [];
     
     // Initialisiere alle Status-Spalten (auch leere)
     this.statusOptions.forEach(status => {
@@ -148,14 +149,21 @@ export class KampagneKanbanBoard {
     // Verteile gefilterte Kampagnen auf die Status-Spalten
     filteredKampagnen.forEach(kampagne => {
       const statusId = kampagne.status_id;
-      if (kampagnenByStatus[statusId]) {
+      if (statusId && kampagnenByStatus[statusId]) {
         kampagnenByStatus[statusId].kampagnen.push(kampagne);
+      } else if (!statusId) {
+        noStatusKampagnen.push(kampagne);
       }
     });
+
+    const noStatusColumn = noStatusKampagnen.length > 0
+      ? this.renderColumn('__no_status__', 'Kein Status', noStatusKampagnen)
+      : '';
 
     const html = `
       <div class="kanban-board-wrapper">
         <div class="kanban-board kampagne-kanban-board">
+          ${noStatusColumn}
           ${this.statusOptions.map(status => 
             this.renderColumn(
               status.id, 

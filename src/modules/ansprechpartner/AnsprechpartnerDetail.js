@@ -53,7 +53,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
         ansprechpartnerId: this.ansprechpartnerId
       });
 
-      await Promise.all([this.loadActivities(), this.loadIndirectKampagnen()]);
+      await this.loadIndirectKampagnen();
       if (window.moduleRegistry?.currentModule !== this) return;
 
       await this.render();
@@ -200,17 +200,6 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     }
   }
 
-  // Lade Aktivitäten für Timeline
-  async loadActivities() {
-    try {
-      // Für Ansprechpartner gibt es keine History-Tabelle, daher leere Aktivitäten
-      this.activities = [];
-    } catch (error) {
-      console.error('❌ Fehler beim Laden der Activities:', error);
-      this.activities = [];
-    }
-  }
-  
   // Breadcrumb aktualisieren (wiederverwendbar)
   updateBreadcrumb() {
     console.log('🔄 ANSPRECHPARTNERDETAIL: updateBreadcrumb() aufgerufen', {

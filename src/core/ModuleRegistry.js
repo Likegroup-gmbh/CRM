@@ -72,6 +72,26 @@ export class ModuleRegistry {
       }
     }
 
+    if (segment === 'marke' && id && id !== 'new') {
+      const canViewViaPage = window.canViewPage?.('marke');
+      const canViewViaPerm = window.currentUser?.permissions?.marke?.can_view;
+      if (canViewViaPage === false || canViewViaPerm === false) {
+        console.log('🚫 Navigation blockiert: Keine Berechtigung für Marken-Seiten');
+        window.toastSystem?.show('Sie haben keine Berechtigung, Marken-Seiten anzuzeigen.', 'warning');
+        return;
+      }
+    }
+
+    if (segment === 'auftragsdetails' && id && id !== 'new') {
+      const canViewViaPage = window.canViewPage?.('auftragsdetails');
+      const canViewViaPerm = window.currentUser?.permissions?.auftragsdetails?.can_view;
+      if (canViewViaPage === false || canViewViaPerm === false) {
+        console.log('🚫 Navigation blockiert: Keine Berechtigung für Auftragsdetails');
+        window.toastSystem?.show('Sie haben keine Berechtigung, Auftragsdetails anzuzeigen.', 'warning');
+        return;
+      }
+    }
+
     if (import.meta.env.DEV) {
       console.log(`🧭 Navigation zu: ${segment}${id ? ` (ID: ${id})` : ''}${action ? ` (Action: ${action})` : ''}`);
       console.log(`🔍 Verfügbare Module:`, Array.from(this.modules.keys()));

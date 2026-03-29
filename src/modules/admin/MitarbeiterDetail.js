@@ -30,7 +30,6 @@ export class MitarbeiterDetail extends PersonDetailBase {
       window.breadcrumbSystem.updateDetailLabel(userName);
     }
     
-    await this.loadActivities();
     await this.render();
     this.bind();
   }
@@ -217,57 +216,6 @@ export class MitarbeiterDetail extends PersonDetailBase {
       }
     } catch (e) {
       console.error('❌ Fehler beim Laden Mitarbeiter-Details:', e);
-    }
-  }
-
-  async loadActivities() {
-    try {
-      // Lade relevante History-Einträge für diesen Mitarbeiter
-      const allActivities = [];
-
-      // Kampagne Status-Änderungen
-      const { data: kampagneHistory } = await window.supabase
-        .from('kampagne_history')
-        .select('id, old_status, new_status, comment, created_at, kampagne:kampagne_id(kampagnenname, eigener_name)')
-        .eq('changed_by', this.userId)
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      if (kampagneHistory) {
-        allActivities.push(...kampagneHistory.map(h => ({
-          ...h,
-          type: 'kampagne',
-          title: 'Kampagne',
-          entity_name: KampagneUtils.getDisplayName(h.kampagne),
-          action: h.old_status && h.new_status ? `Status: ${h.old_status} → ${h.new_status}` : 'Status geändert'
-        })));
-      }
-
-      // Kooperation Status-Änderungen
-      const { data: koopHistory } = await window.supabase
-        .from('kooperation_history')
-        .select('id, old_status, new_status, comment, created_at, kooperation:kooperation_id(name)')
-        .eq('changed_by', this.userId)
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      if (koopHistory) {
-        allActivities.push(...koopHistory.map(h => ({
-          ...h,
-          type: 'kooperation',
-          title: 'Kooperation',
-          entity_name: h.kooperation?.name || 'Unbekannt',
-          action: h.old_status && h.new_status ? `Status: ${h.old_status} → ${h.new_status}` : 'Status geändert'
-        })));
-      }
-
-      this.activities = allActivities
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-        .slice(0, 15);
-
-    } catch (error) {
-      console.error('❌ Fehler beim Laden der Activities:', error);
-      this.activities = [];
     }
   }
 

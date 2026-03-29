@@ -27,9 +27,8 @@ export class AuftragsdetailsDetail {
   async init(detailsId) {
     console.log('🎯 AUFTRAGSDETAILSDETAIL: Initialisiere Auftragsdetails-Detailseite für ID:', detailsId);
     
-    // Security: Nur Mitarbeiter haben Zugriff (Kunden nicht)
-    const isKunde = window.currentUser?.rolle === 'kunde';
-    if (isKunde) {
+    const canView = window.currentUser?.permissions?.auftragsdetails?.can_view;
+    if (canView === false) {
       window.setHeadline('Zugriff verweigert');
       window.content.innerHTML = `
         <div class="error-state">

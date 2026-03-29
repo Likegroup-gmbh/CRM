@@ -121,33 +121,6 @@ export class KundenKooperationDetail {
     `;
   }
 
-  renderAssetVersionsTimeline(assets, safe, fmtDateTime) {
-    const sortedAssets = [...assets].sort((a, b) => 
-      (b.version_number || 0) - (a.version_number || 0)
-    );
-    
-    return `
-      <div class="asset-versions-timeline">
-        ${sortedAssets.map(asset => `
-          <div class="timeline-item ${asset.is_current ? 'is-current' : ''}">
-            <div class="timeline-marker">${asset.version_number || 1}</div>
-            <div class="timeline-content">
-              <h5>
-                Version ${asset.version_number || 1}
-                ${asset.is_current ? '<span style="padding:2px 8px;border-radius:4px;font-size:11px;background:var(--color-success-light);color:var(--color-success-dark);font-weight:600;">Aktuell</span>' : ''}
-              </h5>
-              ${asset.description ? `<p>${safe(asset.description)}</p>` : ''}
-              <small>${fmtDateTime(asset.created_at)}</small>
-              <a href="${asset.file_url}" target="_blank" rel="noopener" class="link-btn">
-                Video ansehen
-              </a>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
   bind() {
     document.addEventListener('click', async (e) => {
       if (e.target && e.target.id === 'btn-back-kampagne') {

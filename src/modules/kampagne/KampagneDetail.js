@@ -4,7 +4,6 @@ import { renderCreatorTable } from '../creator/CreatorTable.js';
 import { KampagneKooperationenVideoTable } from './KampagneKooperationenVideoTable.js';
 
 import { VideoTableColumnVisibilityDrawer } from './VideoTableColumnVisibilityDrawer.js';
-import { getTabIcon } from '../../core/TabUtils.js';
 import { KampagneUtils } from './KampagneUtils.js';
 import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
 
@@ -23,10 +22,6 @@ export class KampagneDetail {
     this.favoriten = [];
     this.rechnungen = [];
     this.vertraege = [];
-    this.history = [];
-    this.historyCount = 0;
-    this.koopHistory = [];
-    this.koopHistoryCount = 0;
     this.kooperationenVideoTable = null;
     
     this.videoColumnVisibilityDrawer = null;
@@ -224,6 +219,15 @@ export class KampagneDetail {
         }
 
         this.updateToggleApprovedButton();
+      }
+
+      // Summary Cards mit VideoTable-Daten aktualisieren (genauere Daten)
+      if (this.kooperationenVideoTable) {
+        const vtKoops = this.kooperationenVideoTable.kooperationen || [];
+        const vtVideosMap = this.kooperationenVideoTable.videos || {};
+        const allVideos = Object.values(vtVideosMap).flat();
+        this.calculateSummaryCards(vtKoops, allVideos);
+        this.updateSummaryCardsDOM();
       }
 
       console.log(`✅ KAMPAGNEDETAIL: VideoTable async geladen in ${(performance.now() - _vtStart).toFixed(0)}ms`);
@@ -468,11 +472,12 @@ export class KampagneDetail {
     const startTime = performance.now();
     
     try {
-      // Kritische Queries PARALLEL ausführen (Kooperationen werden von VideoTable geladen)
+      // Kritische Queries PARALLEL ausführen
       const [
         kampagneResult,
         ansprechpartnerResult,
-        mitarbeiterResult
+        mitarbeiterResult,
+        summaryKoopResult
       ] = await Promise.all([
         // 1. Kampagne mit Relations (für Header & Info-Tab)
         window.supabase
@@ -502,6 +507,12 @@ export class KampagneDetail {
         window.supabase
           .from('v_kampagne_mitarbeiter_aggregated')
           .select('mitarbeiter_id, name, rolle, profile_image_url, zuordnungsart')
+          .eq('kampagne_id', this.kampagneId),
+
+        // 4. Kooperationen für Summary Cards (Budget/Videos/Creator)
+        window.supabase
+          .from('kooperationen')
+          .select('id, videoanzahl, einkaufspreis_netto, creator_id')
           .eq('kampagne_id', this.kampagneId)
       ]);
       
@@ -628,7 +639,7 @@ export class KampagneDetail {
           .from('strategie')
           .select(`
             id, name, beschreibung, created_at,
-            unternehmen:unternehmen_id(id, firmenname, logo_url),
+            unternehmen:unternehmen_id(id, firmenname, logo_url, internes_kuerzel),
             marke:marke_id(id, markenname, logo_url),
             created_by_user:created_by(id, name, profile_image_url)
           `)
@@ -666,74 +677,23 @@ export class KampagneDetail {
       this.vertraegeCount = vertraegeCountResult.count || 0;
       this.rechnungenCount = rechnungenCountResult.count || 0;
       
+      // Summary Cards: Kooperationen auswerten + Videos nachladen
+      const summaryKoops = summaryKoopResult.data || [];
+      if (summaryKoops.length > 0) {
+        const koopIds = summaryKoops.map(k => k.id);
+        const { data: summaryVideos } = await window.supabase
+          .from('kooperation_videos')
+          .select('einkaufspreis_netto, kooperation_id')
+          .in('kooperation_id', koopIds);
+        this.calculateSummaryCards(summaryKoops, summaryVideos || []);
+      }
+
       const loadTime = (performance.now() - startTime).toFixed(0);
       console.log(`✅ KAMPAGNEDETAIL: Kritische Daten geladen in ${loadTime}ms`);
       
     } catch (error) {
       console.error('❌ KAMPAGNEDETAIL: Fehler beim Laden der kritischen Daten:', error);
       throw error;
-    }
-  }
-
-  // Lade History für Lazy Loading (Performance-optimiert)
-  async loadHistory() {
-    try {
-      // Kampagnen-History laden
-      const { data: hist } = await window.supabase
-        .from('kampagne_history')
-        .select('id, old_status, new_status, comment, created_at, benutzer:changed_by(name)')
-        .eq('kampagne_id', this.kampagneId)
-        .order('created_at', { ascending: false });
-      
-      this.history = (hist || []).map(h => ({
-        id: h.id,
-        old_status: h.old_status || null,
-        new_status: h.new_status || null,
-        comment: h.comment || '',
-        created_at: h.created_at,
-        user_name: h.benutzer?.name || '-'
-      }));
-      this.historyCount = this.history.length;
-      
-      // Kooperationen-History laden
-      const koopIds = (this.kooperationen || []).map(k => k.id).filter(Boolean);
-      if (koopIds.length > 0) {
-        const koopMap = (this.kooperationen || []).reduce((acc, k) => { 
-          acc[k.id] = k; 
-          return acc; 
-        }, {});
-        
-        const { data: khist } = await window.supabase
-          .from('kooperation_history')
-          .select('id, kooperation_id, old_status, new_status, comment, created_at, benutzer:changed_by(name)')
-          .in('kooperation_id', koopIds)
-          .order('created_at', { ascending: false });
-        
-        this.koopHistory = (khist || []).map(h => ({
-          id: h.id,
-          kooperation_id: h.kooperation_id,
-          kooperation_name: koopMap[h.kooperation_id]?.name || h.kooperation_id,
-          old_status: h.old_status || null,
-          new_status: h.new_status || null,
-          comment: h.comment || '',
-          created_at: h.created_at,
-          user_name: h.benutzer?.name || '-'
-        }));
-        this.koopHistoryCount = this.koopHistory.length;
-      } else {
-        this.koopHistory = [];
-        this.koopHistoryCount = 0;
-      }
-      
-      // Tab updaten
-      this.updateHistoryTab();
-      
-    } catch (e) {
-      console.error('❌ KAMPAGNEDETAIL: Fehler beim Laden der History:', e);
-      this.history = [];
-      this.koopHistory = [];
-      this.historyCount = 0;
-      this.koopHistoryCount = 0;
     }
   }
 
@@ -875,13 +835,6 @@ export class KampagneDetail {
           }
           break;
           
-        case 'history':
-          if ((!this.history || this.history.length === 0) && 
-              (!this.koopHistory || this.koopHistory.length === 0)) {
-            await this.loadHistory();
-          }
-          break;
-
         case 'sourcing-listen':
           if (!this.sourcingListen || this.sourcingListen.length === 0) {
             const { data } = await window.supabase
@@ -889,7 +842,7 @@ export class KampagneDetail {
               .select(`
                 id, name, created_at,
                 kampagne:kampagne_id(id, kampagnenname),
-                unternehmen:unternehmen_id(id, firmenname, logo_url),
+                unternehmen:unternehmen_id(id, firmenname, logo_url, internes_kuerzel),
                 marke:marke_id(id, markenname, logo_url),
                 created_by_user:created_by(id, name, profile_image_url)
               `)
@@ -970,6 +923,7 @@ export class KampagneDetail {
 
     const rolle = String(window.currentUser?.rolle || '').trim().toLowerCase();
     const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+    this.isKunde = isKunde;
 
     const html = `
       ${canCreateKooperation ? `
@@ -1001,10 +955,10 @@ export class KampagneDetail {
             Sourcing <span class="tab-count">${this.sourcingListenCount || 0}</span>
             ${this.formatDeadlineBadge(this.kampagneData.deadline_creator_sourcing)}
           </button>
-          <button class="tab-button" data-tab="briefings">
+          ${!isKunde ? `<button class="tab-button" data-tab="briefings">
             Briefings <span class="tab-count">${this.briefings?.length || 0}</span>
             ${this.formatDeadlineBadge(this.kampagneData.deadline_briefing)}
-          </button>
+          </button>` : ''}
           ${!isKunde && window.canViewTable && window.canViewTable('kampagne','kooperationen') !== false ? `
           <button class="tab-button" data-tab="info">
             Informationen
@@ -1020,10 +974,6 @@ export class KampagneDetail {
           ${!isKunde && window.canViewTable && window.canViewTable('kampagne','notizen') !== false ? `
           <button class="tab-button" data-tab="notizen">
             Notizen
-          </button>` : ''}
-          ${!isKunde && window.canViewTable && window.canViewTable('kampagne','history') !== false ? `
-          <button class="tab-button" data-tab="history">
-            History
           </button>` : ''}
           ${!isKunde ? `
           <button class="tab-button" data-tab="mitarbeiter">
@@ -1289,15 +1239,6 @@ export class KampagneDetail {
             </div>
           </div>
 
-          <!-- History Tab -->
-          ${!isKunde ? `
-          <div class="tab-pane" id="tab-history">
-            <div class="detail-section">
-              ${this.renderHistory()}
-            </div>
-          </div>
-          ` : ''}
-
           <!-- Mitarbeiter Tab -->
           <div class="tab-pane" id="tab-mitarbeiter">
             <div class="detail-section">
@@ -1324,6 +1265,77 @@ export class KampagneDetail {
     else if (diffDays <= 7) cls += ' tab-deadline--soon';
     const label = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
     return `<span class="${cls}">bis ${label}</span>`;
+  }
+
+  // Berechne Summary-Card-Werte aus Kooperationen + Videos
+  calculateSummaryCards(kooperationen, videos) {
+    this.koopBudgetSum = (videos || []).reduce((sum, v) => {
+      return sum + (parseFloat(v.einkaufspreis_netto) || 0);
+    }, 0);
+
+    this.koopVideosUsed = (kooperationen || []).reduce((sum, koop) => {
+      return sum + (parseInt(koop.videoanzahl, 10) || 0);
+    }, 0);
+
+    const uniqueCreatorIds = new Set();
+    (kooperationen || []).forEach(koop => {
+      if (koop.creator_id) uniqueCreatorIds.add(koop.creator_id);
+    });
+    this.koopCreatorsUsed = uniqueCreatorIds.size;
+
+    console.log('✅ KAMPAGNEDETAIL: Summary Cards berechnet:', {
+      budget: this.koopBudgetSum,
+      videos: this.koopVideosUsed,
+      creators: this.koopCreatorsUsed
+    });
+  }
+
+  // DOM-Update der Summary Cards ohne Re-Render
+  updateSummaryCardsDOM() {
+    const num = (v) => v || v === 0 ? new Intl.NumberFormat('de-DE').format(v) : '-';
+    const formatCurrency = (v) => {
+      if (v === null || v === undefined) return '-';
+      return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v);
+    };
+    const getProgressPercentage = (current, total) => {
+      if (!total || total <= 0) return 0;
+      return Math.min(100, Math.round((current / total) * 100));
+    };
+
+    const totalBudget = parseFloat(
+      this.kampagneData?.auftrag?.creator_budget ||
+      this.kampagneData?.auftrag?.gesamt_budget ||
+      this.kampagneData?.auftrag?.bruttobetrag ||
+      this.kampagneData?.auftrag?.nettobetrag ||
+      0
+    );
+    const totalVideos = this.kampagneData?.videoanzahl || 0;
+    const totalCreators = this.kampagneData?.creatoranzahl || 0;
+
+    const updates = [
+      { key: 'budget', value: formatCurrency(this.koopBudgetSum || 0), current: this.koopBudgetSum || 0, total: totalBudget },
+      { key: 'videos', value: `${num(this.koopVideosUsed || 0)} von ${num(totalVideos)}`, current: this.koopVideosUsed || 0, total: totalVideos },
+      { key: 'creators', value: `${num(this.koopCreatorsUsed || 0)} von ${num(totalCreators)}`, current: this.koopCreatorsUsed || 0, total: totalCreators }
+    ];
+
+    for (const { key, value, current, total } of updates) {
+      const valueEl = document.querySelector(`[data-summary-value="${key}"]`);
+      if (valueEl) valueEl.textContent = value;
+
+      const progressEl = document.querySelector(`[data-summary-progress="${key}"]`);
+      if (progressEl) {
+        const pct = getProgressPercentage(current, total);
+        progressEl.style.width = `${pct}%`;
+        progressEl.className = 'summary-progress-fill';
+        if (key === 'budget') {
+          if (pct >= 90) progressEl.classList.add('summary-progress-fill--danger');
+          else if (pct >= 75) progressEl.classList.add('summary-progress-fill--warning');
+        } else {
+          if (pct >= 100) progressEl.classList.add('summary-progress-fill--success');
+          else if (pct >= 75) progressEl.classList.add('summary-progress-fill--warning');
+        }
+      }
+    }
   }
 
   // Rendere Summary-Kacheln
@@ -1378,29 +1390,29 @@ export class KampagneDetail {
       <div class="auftragsdetails-summary" style="margin-bottom: var(--space-xl);">
         <div class="summary-cards">
           ${window.currentUser?.rolle === 'admin' ? `
-          <div class="summary-card">
-            <div class="summary-value">${formatCurrency(usedBudget)}</div>
+          <div class="summary-card" data-summary-card="budget">
+            <div class="summary-value" data-summary-value="budget">${formatCurrency(usedBudget)}</div>
             <div class="summary-label">Budget verbraucht (netto)</div>
             <div class="summary-progress">
-              <div class="summary-progress-fill ${getBudgetProgressColorClass()}" 
+              <div class="summary-progress-fill ${getBudgetProgressColorClass()}" data-summary-progress="budget"
                    style="width: ${getProgressPercentage(usedBudget, totalBudget)}%">
               </div>
             </div>
           </div>` : ''}
-          <div class="summary-card">
-            <div class="summary-value">${num(usedVideos)} von ${num(totalVideos)}</div>
+          <div class="summary-card" data-summary-card="videos">
+            <div class="summary-value" data-summary-value="videos">${num(usedVideos)} von ${num(totalVideos)}</div>
             <div class="summary-label">Aktuell gebuchte Videos</div>
             <div class="summary-progress">
-              <div class="summary-progress-fill ${getProgressColorClass(usedVideos, totalVideos)}" 
+              <div class="summary-progress-fill ${getProgressColorClass(usedVideos, totalVideos)}" data-summary-progress="videos"
                    style="width: ${getProgressPercentage(usedVideos, totalVideos)}%">
               </div>
             </div>
           </div>
-          <div class="summary-card">
-            <div class="summary-value">${num(usedCreators)} von ${num(totalCreators)}</div>
+          <div class="summary-card" data-summary-card="creators">
+            <div class="summary-value" data-summary-value="creators">${num(usedCreators)} von ${num(totalCreators)}</div>
             <div class="summary-label">Aktuell gebuchte Creator</div>
             <div class="summary-progress">
-              <div class="summary-progress-fill ${getProgressColorClass(usedCreators, totalCreators)}" 
+              <div class="summary-progress-fill ${getProgressColorClass(usedCreators, totalCreators)}" data-summary-progress="creators"
                    style="width: ${getProgressPercentage(usedCreators, totalCreators)}%">
               </div>
             </div>
@@ -1490,7 +1502,8 @@ export class KampagneDetail {
       return new Date(dateStr).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
     };
 
-    // Avatar-Bubble Rendering
+    const isKunde = this.isKunde;
+
     const renderBubble = (item, type) => {
       if (!item) return '-';
       const name = type === 'unternehmen' ? item.firmenname : 
@@ -1498,13 +1511,23 @@ export class KampagneDetail {
                    item.name;
       const logoUrl = item.logo_url || item.profile_image_url;
       const initials = name ? name.substring(0, 2).toUpperCase() : '??';
-      
-      if (logoUrl) {
-        return `<span class="avatar-bubble" title="${name || ''}">
-          <img src="${logoUrl}" alt="${name || ''}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
-        </span>`;
+      const isUnternehmen = type === 'unternehmen';
+      const clickable = isUnternehmen && !isKunde && item.id;
+      const clickClass = clickable ? 'avatar-bubble--clickable' : '';
+      const dataAttrs = clickable ? `data-entity="unternehmen" data-id="${item.id}"` : '';
+
+      const bubbleHtml = logoUrl
+        ? `<span class="avatar-bubble ${clickClass}" title="${name || ''}" ${dataAttrs}>
+            <img src="${logoUrl}" alt="${name || ''}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+          </span>`
+        : `<span class="avatar-bubble ${clickClass}" title="${name || ''}" ${dataAttrs}>${initials}</span>`;
+
+      if (isUnternehmen) {
+        const label = item.internes_kuerzel || item.firmenname || '';
+        const labelClickClass = clickable ? 'avatar-bubble-label--clickable' : '';
+        return `<div class="avatar-bubbles avatar-bubbles--labeled"><div class="avatar-bubble-item avatar-bubble-item--labeled" ${dataAttrs}>${bubbleHtml}<span class="avatar-bubble-label ${labelClickClass}" ${dataAttrs}>${window.validatorSystem?.sanitizeHtml?.(label) || label}</span></div></div>`;
       }
-      return `<span class="avatar-bubble" title="${name || ''}">${initials}</span>`;
+      return bubbleHtml;
     };
 
     const rows = this.strategien.map(strategie => `
@@ -1512,7 +1535,7 @@ export class KampagneDetail {
         <td><strong>${window.validatorSystem.sanitizeHtml(strategie.name || 'Ohne Namen')}</strong></td>
         <td>${strategie.unternehmen ? renderBubble(strategie.unternehmen, 'unternehmen') : '-'}</td>
         <td>${strategie.marke ? renderBubble(strategie.marke, 'marke') : '-'}</td>
-        <td>${strategie.created_by_user ? renderBubble(strategie.created_by_user, 'benutzer') : '-'}</td>
+        ${!isKunde ? `<td>${strategie.created_by_user ? renderBubble(strategie.created_by_user, 'benutzer') : '-'}</td>` : ''}
         <td>${formatDate(strategie.created_at)}</td>
       </tr>
     `).join('');
@@ -1525,7 +1548,7 @@ export class KampagneDetail {
               <th>Name</th>
               <th>Unternehmen</th>
               <th>Marke</th>
-              <th>Erstellt von</th>
+              ${!isKunde ? '<th>Erstellt von</th>' : ''}
               <th>Erstellt am</th>
             </tr>
           </thead>
@@ -1549,6 +1572,8 @@ export class KampagneDetail {
       return new Date(dateStr).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
     };
 
+    const isKunde = this.isKunde;
+
     const renderBubble = (item, type) => {
       if (!item) return '-';
       const name = type === 'unternehmen' ? item.firmenname :
@@ -1556,12 +1581,23 @@ export class KampagneDetail {
                    item.name;
       const logoUrl = item.logo_url || item.profile_image_url;
       const initials = name ? name.substring(0, 2).toUpperCase() : '??';
-      if (logoUrl) {
-        return `<span class="avatar-bubble" title="${name || ''}">
-          <img src="${logoUrl}" alt="${name || ''}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
-        </span>`;
+      const isUnternehmen = type === 'unternehmen';
+      const clickable = isUnternehmen && !isKunde && item.id;
+      const clickClass = clickable ? 'avatar-bubble--clickable' : '';
+      const dataAttrs = clickable ? `data-entity="unternehmen" data-id="${item.id}"` : '';
+
+      const bubbleHtml = logoUrl
+        ? `<span class="avatar-bubble ${clickClass}" title="${name || ''}" ${dataAttrs}>
+            <img src="${logoUrl}" alt="${name || ''}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+          </span>`
+        : `<span class="avatar-bubble ${clickClass}" title="${name || ''}" ${dataAttrs}>${initials}</span>`;
+
+      if (isUnternehmen) {
+        const label = item.internes_kuerzel || item.firmenname || '';
+        const labelClickClass = clickable ? 'avatar-bubble-label--clickable' : '';
+        return `<div class="avatar-bubbles avatar-bubbles--labeled"><div class="avatar-bubble-item avatar-bubble-item--labeled" ${dataAttrs}>${bubbleHtml}<span class="avatar-bubble-label ${labelClickClass}" ${dataAttrs}>${window.validatorSystem?.sanitizeHtml?.(label) || label}</span></div></div>`;
       }
-      return `<span class="avatar-bubble" title="${name || ''}">${initials}</span>`;
+      return bubbleHtml;
     };
 
     const rows = this.sourcingListen.map(liste => `
@@ -1569,7 +1605,7 @@ export class KampagneDetail {
         <td><strong>${window.validatorSystem.sanitizeHtml(liste.name || 'Ohne Namen')}</strong></td>
         <td>${liste.unternehmen ? renderBubble(liste.unternehmen, 'unternehmen') : '-'}</td>
         <td>${liste.marke ? renderBubble(liste.marke, 'marke') : '-'}</td>
-        <td>${liste.created_by_user ? renderBubble(liste.created_by_user, 'benutzer') : '-'}</td>
+        ${!isKunde ? `<td>${liste.created_by_user ? renderBubble(liste.created_by_user, 'benutzer') : '-'}</td>` : ''}
         <td>${formatDate(liste.created_at)}</td>
       </tr>
     `).join('');
@@ -1582,7 +1618,7 @@ export class KampagneDetail {
               <th>Name</th>
               <th>Unternehmen</th>
               <th>Marke</th>
-              <th>Erstellt von</th>
+              ${!isKunde ? '<th>Erstellt von</th>' : ''}
               <th>Erstellt am</th>
             </tr>
           </thead>
@@ -1673,75 +1709,6 @@ export class KampagneDetail {
         <button id="btn-add-rating" class="primary-btn">Bewertung hinzufügen</button>
       </div>
     `;
-  }
-
-  // Rendere History (Status-Änderungen)
-  renderHistory() {
-    if (!this.history || this.history.length === 0) {
-      return `
-        <div class="empty-state">
-          <p>Keine Historie vorhanden</p>
-        </div>
-      `;
-    }
-
-    const fDateTime = (d) => d ? new Date(d).toLocaleString('de-DE') : '-';
-    const rows = this.history.map(h => `
-      <tr>
-        <td>${fDateTime(h.created_at)}</td>
-        <td>${window.validatorSystem.sanitizeHtml(h.user_name || '-')}</td>
-        <td>${window.validatorSystem.sanitizeHtml(h.old_status || '-')}</td>
-        <td>${window.validatorSystem.sanitizeHtml(h.new_status || '-')}</td>
-        <td>${window.validatorSystem.sanitizeHtml(h.comment || '')}</td>
-      </tr>
-    `).join('');
-    const kampagneSection = `
-      <div class="data-table-container">
-        <h3 style="margin:8px 0;">Kampagne</h3>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Zeitpunkt</th>
-              <th>User</th>
-              <th>Alt</th>
-              <th>Neu</th>
-              <th>Kommentar</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`;
-
-    const koopRows = (this.koopHistory || []).map(h => `
-      <tr>
-        <td>${fDateTime(h.created_at)}</td>
-        <td>${window.validatorSystem.sanitizeHtml(h.user_name || '-')}</td>
-        <td><a href="/kooperation/${h.kooperation_id}" onclick="event.preventDefault(); window.navigateTo('/kooperation/${h.kooperation_id}')">${window.validatorSystem.sanitizeHtml(h.kooperation_name || '—')}</a></td>
-        <td>${window.validatorSystem.sanitizeHtml(h.old_status || '-')}</td>
-        <td>${window.validatorSystem.sanitizeHtml(h.new_status || '-')}</td>
-        <td>${window.validatorSystem.sanitizeHtml(h.comment || '')}</td>
-      </tr>
-    `).join('');
-
-    const koopSection = `
-      <div class="data-table-container" style="margin-top:16px;">
-        <h3 style="margin:8px 0;">Kooperationen</h3>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Zeitpunkt</th>
-              <th>User</th>
-              <th>Kooperation</th>
-              <th>Alt</th>
-              <th>Neu</th>
-              <th>Kommentar</th>
-            </tr>
-          </thead>
-          <tbody>${koopRows}</tbody>
-        </table>
-      </div>`;
-
-    return `${kampagneSection}${koopSection}`;
   }
 
   // Rendere Mitarbeiter-Tab
@@ -1994,17 +1961,6 @@ export class KampagneDetail {
         console.log('🔄 KAMPAGNEDETAIL: Bewertungen wurden aktualisiert, lade neu...');
         this.ratings = await window.bewertungsSystem.loadBewertungen('kampagne', this.kampagneId);
         this.renderRatings();
-      }
-    });
-
-    // Refresh bei Kooperations-Status-Änderungen (History updaten)
-    window.addEventListener('entityUpdated', async (e) => {
-      if (e.detail?.entity === 'kooperation') {
-        await this.loadCriticalData();
-        const pane = document.querySelector('#tab-history .detail-section');
-        if (pane) pane.innerHTML = `${this.renderHistory()}`;
-        const btn = document.querySelector('.tab-button[data-tab="history"] .tab-count');
-        if (btn) btn.textContent = String(this.historyCount + this.koopHistoryCount);
       }
     });
 
@@ -2418,16 +2374,6 @@ export class KampagneDetail {
           });
         });
       });
-    }
-  }
-
-  updateHistoryTab() {
-    const container = document.querySelector('#tab-history .detail-section');
-    if (container) {
-      container.innerHTML = this.renderHistory();
-      // Tab-Count aktualisieren
-      const btn = document.querySelector('.tab-button[data-tab="history"] .tab-count');
-      if (btn) btn.textContent = String(this.historyCount + this.koopHistoryCount);
     }
   }
 

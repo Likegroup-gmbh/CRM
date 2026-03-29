@@ -24,7 +24,6 @@ export class KundenDetail extends PersonDetailBase {
       window.breadcrumbSystem.updateDetailLabel(userName);
     }
     
-    await this.loadActivities();
     await this.render();
     this.bind();
   }
@@ -97,42 +96,6 @@ export class KundenDetail extends PersonDetailBase {
       });
     } catch (e) {
       console.error('❌ Fehler beim Laden Kunden-Details:', e);
-    }
-  }
-
-  async loadActivities() {
-    try {
-      const allActivities = [];
-
-      // Kooperation Status-Änderungen für die Kampagnen dieses Kunden
-      const kampagnenIds = this.assignments.kampagnen.map(k => k.id).filter(Boolean);
-      
-      if (kampagnenIds.length > 0) {
-        const { data: koopHistory } = await window.supabase
-          .from('kooperation_history')
-          .select('id, old_status, new_status, comment, created_at, kooperation:kooperation_id(name, kampagne:kampagne_id(kampagnenname, eigener_name))')
-          .in('kooperation_id', this.assignments.kooperationen.map(k => k.id))
-          .order('created_at', { ascending: false })
-          .limit(15);
-
-        if (koopHistory) {
-          allActivities.push(...koopHistory.map(h => ({
-            ...h,
-            type: 'kooperation',
-            title: 'Kooperation',
-            entity_name: h.kooperation?.name || 'Unbekannt',
-            action: h.old_status && h.new_status ? `Status: ${h.old_status} → ${h.new_status}` : 'Status geändert'
-          })));
-        }
-      }
-
-      this.activities = allActivities
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-        .slice(0, 15);
-
-    } catch (error) {
-      console.error('❌ Fehler beim Laden der Activities:', error);
-      this.activities = [];
     }
   }
 

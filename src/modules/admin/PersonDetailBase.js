@@ -6,7 +6,6 @@ import { getTabIcon } from '../../core/TabUtils.js';
 export class PersonDetailBase {
   constructor() {
     this.activeSidebarTab = 'info';
-    this.activities = [];
     this._sidebarTabsBound = false;
   }
 
@@ -191,34 +190,6 @@ export class PersonDetailBase {
         ${cards}
       </div>
     `;
-  }
-
-  /**
-   * Rendert die Activities-Timeline in der Sidebar
-   */
-  renderActivitiesTimeline() {
-    if (!this.activities || this.activities.length === 0) {
-      return '<div class="empty-state"><p>Keine Aktivitäten vorhanden.</p></div>';
-    }
-
-    const entries = this.activities.map(activity => `
-      <div class="timeline-entry">
-        <div class="timeline-icon ${activity.type ? `timeline-icon-${activity.type}` : ''}"></div>
-        <div class="timeline-content">
-          <div class="timeline-header">
-            <strong>${this.sanitize(activity.title || activity.type || 'Aktivität')}</strong>
-            <span class="timeline-date">${this.formatDateTime(activity.created_at)}</span>
-          </div>
-          <div class="timeline-body">
-            ${activity.entity_name ? `<div class="timeline-entity">${this.sanitize(activity.entity_name)}</div>` : ''}
-            ${activity.action ? `<div class="timeline-action">${this.sanitize(activity.action)}</div>` : ''}
-            ${activity.comment ? `<div class="timeline-comment">${this.sanitize(activity.comment)}</div>` : ''}
-          </div>
-        </div>
-      </div>
-    `).join('');
-
-    return `<div class="timeline">${entries}</div>`;
   }
 
   /**

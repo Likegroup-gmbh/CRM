@@ -50,7 +50,6 @@ export class ProfileDetailV2 extends PersonDetailBase {
     await this.loadUserData();
     await this.loadEuLaender();
     await this.loadAssignedEntities();
-    await this.loadActivitiesData();
   }
 
   async loadUserData() {
@@ -354,85 +353,6 @@ export class ProfileDetailV2 extends PersonDetailBase {
       kooperationen: this.kooperationen.length,
       videos: this.videos.length
     });
-  }
-
-  async loadActivitiesData() {
-    try {
-      const allActivities = [];
-
-      const { data: kampagneHistory } = await window.supabase
-        .from('kampagne_history')
-        .select('id, old_status, new_status, comment, created_at, kampagne:kampagne_id(kampagnenname, eigener_name)')
-        .eq('changed_by', this.userId)
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (kampagneHistory) {
-        allActivities.push(...kampagneHistory.map(h => ({
-          ...h,
-          type: 'kampagne',
-          title: 'Kampagne',
-          entity_name: KampagneUtils.getDisplayName(h.kampagne),
-          action: h.old_status && h.new_status ? `Status: ${h.old_status} → ${h.new_status}` : 'Status geändert'
-        })));
-      }
-
-      const { data: kooperationHistory } = await window.supabase
-        .from('kooperation_history')
-        .select('id, old_status, new_status, comment, created_at, kooperation:kooperation_id(name)')
-        .eq('changed_by', this.userId)
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (kooperationHistory) {
-        allActivities.push(...kooperationHistory.map(h => ({
-          ...h,
-          type: 'kooperation',
-          title: 'Kooperation',
-          entity_name: h.kooperation?.name || 'Unbekannt',
-          action: h.old_status && h.new_status ? `Status: ${h.old_status} → ${h.new_status}` : 'Status geändert'
-        })));
-      }
-
-      const { data: taskHistory } = await window.supabase
-        .from('kooperation_task_history')
-        .select('id, change_type, old_value, new_value, created_at, task:task_id(title)')
-        .eq('changed_by', this.userId)
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (taskHistory) {
-        allActivities.push(...taskHistory.map(h => ({
-          ...h,
-          type: 'task',
-          title: 'Aufgabe',
-          entity_name: h.task?.title || 'Unbekannt',
-          action: this.getActionLabel(h.change_type, h.old_value, h.new_value)
-        })));
-      }
-
-      this.activities = allActivities.sort((a, b) => 
-        new Date(b.created_at) - new Date(a.created_at)
-      ).slice(0, 30);
-
-    } catch (error) {
-      console.error('❌ Fehler beim Laden der Activities:', error);
-      this.activities = [];
-    }
-  }
-
-  getActionLabel(changeType, oldValue, newValue) {
-    const labels = {
-      status_changed: `Status geändert${oldValue && newValue ? ` von "${oldValue}" zu "${newValue}"` : ''}`,
-      created: 'Erstellt',
-      assigned: 'Zugewiesen',
-      commented: 'Kommentiert',
-      attachment_added: 'Anhang hinzugefügt',
-      priority_changed: 'Priorität geändert',
-      due_date_changed: 'Fälligkeitsdatum geändert',
-      updated: 'Aktualisiert'
-    };
-    return labels[changeType] || changeType;
   }
 
   async render() {

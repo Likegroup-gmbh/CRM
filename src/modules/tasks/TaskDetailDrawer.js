@@ -1,7 +1,5 @@
 // TaskDetailDrawer.js - Drawer für Task-Details mit Tabs
 // Basiert auf VersandManager.js Pattern
-import { getTabIcon } from '../../core/TabUtils.js';
-
 export class TaskDetailDrawer {
   constructor() {
     this.drawerId = 'task-detail-drawer';
@@ -9,7 +7,6 @@ export class TaskDetailDrawer {
     this.task = null;
     this.comments = [];
     this.attachments = [];
-    this.history = [];
     this.availableMitarbeiter = [];
     this.availableKunden = [];
     this.categories = [];
@@ -37,7 +34,6 @@ export class TaskDetailDrawer {
         this.loadTaskData(),
         this.loadComments(),
         this.loadAttachments(),
-        this.loadHistory(),
         this.loadCategories()
       ]);
 
@@ -74,7 +70,7 @@ export class TaskDetailDrawer {
     
     const subtitle = document.createElement('p');
     subtitle.className = 'drawer-subtitle';
-    subtitle.textContent = 'Details, Kommentare und Verlauf';
+    subtitle.textContent = 'Details und Kommentare';
     subtitle.id = `${this.drawerId}-subtitle`;
     
     headerLeft.appendChild(title);
@@ -160,16 +156,6 @@ export class TaskDetailDrawer {
       .order('created_at', { ascending: false });
     
     if (!error) this.attachments = data || [];
-  }
-
-  async loadHistory() {
-    const { data, error } = await window.supabase
-      .from('kooperation_task_history')
-      .select('*, changed_by_user:changed_by(name)')
-      .eq('task_id', this.taskId)
-      .order('created_at', { ascending: false });
-    
-    if (!error) this.history = data || [];
   }
 
   async loadCategories() {
@@ -353,9 +339,6 @@ export class TaskDetailDrawer {
         <button class="tab-button" data-tab="attachments">
           Anhänge
         </button>
-        <button class="tab-button" data-tab="history">
-          Verlauf
-        </button>
       </div>
 
       <div class="tab-content">
@@ -397,12 +380,6 @@ export class TaskDetailDrawer {
           </div>
         </div>
 
-        <!-- Tab: Verlauf -->
-        <div class="tab-pane" id="tab-history">
-          <div class="detail-section">
-            ${this.renderHistory()}
-          </div>
-        </div>
       </div>
     `;
 
@@ -682,47 +659,6 @@ export class TaskDetailDrawer {
             `).join('')}
           </tbody>
         </table>
-      </div>
-    `;
-  }
-
-  renderHistory() {
-    if (this.history.length === 0) {
-      return '<p class="empty-state">Kein Verlauf vorhanden.</p>';
-    }
-
-    const safe = (str) => window.validatorSystem?.sanitizeHtml?.(str) ?? str;
-    const formatDateTime = (date) => date ? new Date(date).toLocaleString('de-DE') : '-';
-
-    const changeTypeLabels = {
-      created: 'Erstellt',
-      status_changed: 'Status geändert',
-      assigned: 'Zugewiesen',
-      commented: 'Kommentiert',
-      attachment_added: 'Anhang hinzugefügt',
-      priority_changed: 'Priorität geändert',
-      due_date_changed: 'Fälligkeitsdatum geändert',
-      updated: 'Aktualisiert'
-    };
-
-    return `
-      <div class="timeline">
-        ${this.history.map(entry => `
-          <div class="timeline-entry">
-            <div class="timeline-icon"></div>
-            <div class="timeline-content">
-              <div class="timeline-header">
-                <strong>${safe(changeTypeLabels[entry.change_type] || entry.change_type)}</strong>
-                <span class="timeline-date">${formatDateTime(entry.created_at)}</span>
-              </div>
-              <div class="timeline-body">
-                ${entry.changed_by_user ? `von ${safe(entry.changed_by_user.name)}` : ''}
-                ${entry.old_value && entry.new_value ? `<br>von "${safe(entry.old_value)}" zu "${safe(entry.new_value)}"` : ''}
-                ${entry.new_value && !entry.old_value ? `<br>${safe(entry.new_value)}` : ''}
-              </div>
-            </div>
-          </div>
-        `).join('')}
       </div>
     `;
   }

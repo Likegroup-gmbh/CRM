@@ -143,6 +143,18 @@ export class MarkeDetail extends PersonDetailBase {
   async init(markeId) {
     console.log('🎯 MARKENDETAIL: Initialisiere Marken-Detailseite für ID:', markeId);
     
+    const canView = window.currentUser?.permissions?.marke?.can_view;
+    if (canView === false) {
+      window.setHeadline('Zugriff verweigert');
+      window.content.innerHTML = `
+        <div class="error-state">
+          <h2>Zugriff verweigert</h2>
+          <p>Sie haben keine Berechtigung, diese Seite zu sehen.</p>
+        </div>
+      `;
+      return;
+    }
+
     try {
       this.markeId = markeId;
       this.kickoffsByType = { paid: null, organic: null };
@@ -160,7 +172,6 @@ export class MarkeDetail extends PersonDetailBase {
         });
       }
       
-      await this.loadActivities();
       this.render();
       this.bindEvents();
       this.setupCacheInvalidation();
@@ -276,17 +287,6 @@ export class MarkeDetail extends PersonDetailBase {
     }
   }
 
-  // Lade Aktivitäten für Timeline
-  async loadActivities() {
-    try {
-      // Für Marken gibt es keine History-Tabelle, daher leere Aktivitäten
-      this.activities = [];
-    } catch (error) {
-      console.error('❌ Fehler beim Laden der Activities:', error);
-      this.activities = [];
-    }
-  }
-  
   // Lade Tab-Daten lazy mit Race-Condition-Schutz
   async loadTabData(tabName) {
     // Generiere eindeutige Request-ID für diesen Tab-Load
