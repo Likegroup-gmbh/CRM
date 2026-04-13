@@ -16,6 +16,14 @@ function jsonResponse(statusCode, body) {
   };
 }
 
+// Dropbox verlangt \uXXXX-Escaping fuer alle Non-ASCII-Zeichen im Dropbox-API-Arg Header
+// https://www.dropbox.com/developers/reference/json-encoding
+function httpHeaderSafeJson(obj) {
+  return JSON.stringify(obj).replace(/[\u007f-\uffff]/g, (c) =>
+    '\\u' + ('0000' + c.charCodeAt(0).toString(16)).slice(-4)
+  );
+}
+
 function logHeaders(resp, label) {
   if (!DEBUG) return;
   const h = {};
@@ -29,7 +37,7 @@ async function handleUploadSmall(token, dropboxPath, fileBuffer) {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/octet-stream',
-      'Dropbox-API-Arg': JSON.stringify({
+      'Dropbox-API-Arg': httpHeaderSafeJson({
         path: dropboxPath, mode: 'overwrite', autorename: true, mute: false,
       }),
     },
@@ -49,7 +57,7 @@ async function handleSessionStart(token, chunkBuffer) {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/octet-stream',
-      'Dropbox-API-Arg': JSON.stringify({ close: false }),
+      'Dropbox-API-Arg': httpHeaderSafeJson({ close: false }),
     },
     body: chunkBuffer,
   });
@@ -67,7 +75,7 @@ async function handleSessionAppend(token, sessionId, offset, chunkBuffer) {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/octet-stream',
-      'Dropbox-API-Arg': JSON.stringify({
+      'Dropbox-API-Arg': httpHeaderSafeJson({
         cursor: { session_id: sessionId, offset },
         close: false,
       }),
@@ -89,7 +97,7 @@ async function handleSessionFinish(token, sessionId, offset, dropboxPath, chunkB
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/octet-stream',
-      'Dropbox-API-Arg': JSON.stringify({
+      'Dropbox-API-Arg': httpHeaderSafeJson({
         cursor: { session_id: sessionId, offset },
         commit: { path: dropboxPath, mode: 'overwrite', autorename: true, mute: false },
       }),
