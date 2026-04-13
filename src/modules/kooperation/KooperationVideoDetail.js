@@ -909,7 +909,7 @@ export const kooperationVideoDetail = {
   },
 
   async _uploadFileViaProxy(file, dropboxPath, progressBar, progressPercent, progressLabel) {
-    const CHUNK_SIZE = 3.5 * 1024 * 1024;
+    const CHUNK_SIZE = 2 * 1024 * 1024;
     const totalSize = file.size;
 
     const readChunkAsBase64 = (start, end) => {

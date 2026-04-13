@@ -374,7 +374,7 @@ export class VideoUploadDrawer {
 
   async _uploadToDropbox(token, dropboxPath, progressFill, progressText) {
     const file = this._selectedFile;
-    const CHUNK_SIZE = 3.5 * 1024 * 1024;
+    const CHUNK_SIZE = 2 * 1024 * 1024;
     const totalSize = file.size;
 
     const readChunkAsBase64 = (start, end) => {

@@ -116,13 +116,21 @@ exports.handler = async (event) => {
   }
 
   try {
-    const body = JSON.parse(event.body || '{}');
+    const rawBody = event.isBase64Encoded
+      ? Buffer.from(event.body, 'base64').toString('utf-8')
+      : event.body;
+
+    const body = JSON.parse(rawBody || '{}');
     const { action } = body;
+
+    const tokenSource = body.token ? 'client' : 'refresh';
     const token = body.token || await getAccessToken();
+    console.log(`[dropbox-proxy] action=${action} tokenSource=${tokenSource} isBase64Encoded=${event.isBase64Encoded} bodyLen=${(rawBody || '').length} hasToken=${!!body.token}`);
 
     switch (action) {
       case 'upload-small': {
         const buf = Buffer.from(body.chunk, 'base64');
+        console.log(`[dropbox-proxy] upload-small chunkSize=${buf.length} path=${body.dropboxPath}`);
         const result = await handleUploadSmall(token, body.dropboxPath, buf);
         return jsonResponse(200, result);
       }
@@ -130,18 +138,21 @@ exports.handler = async (event) => {
       case 'session-start': {
         const freshToken = await getAccessToken();
         const buf = Buffer.from(body.chunk, 'base64');
+        console.log(`[dropbox-proxy] session-start chunkSize=${buf.length} tokenPrefix=${freshToken.substring(0, 15)}...`);
         const { session_id } = await handleSessionStart(freshToken, buf);
         return jsonResponse(200, { session_id, token: freshToken });
       }
 
       case 'session-append': {
         const buf = Buffer.from(body.chunk, 'base64');
+        console.log(`[dropbox-proxy] session-append chunkSize=${buf.length} offset=${body.offset} sessionId=${body.sessionId} tokenPrefix=${token.substring(0, 15)}...`);
         await handleSessionAppend(token, body.sessionId, body.offset, buf);
         return jsonResponse(200, { ok: true });
       }
 
       case 'session-finish': {
         const buf = body.chunk ? Buffer.from(body.chunk, 'base64') : Buffer.alloc(0);
+        console.log(`[dropbox-proxy] session-finish chunkSize=${buf.length} offset=${body.offset} sessionId=${body.sessionId} path=${body.dropboxPath} tokenPrefix=${token.substring(0, 15)}...`);
         const result = await handleSessionFinish(token, body.sessionId, body.offset, body.dropboxPath, buf);
         return jsonResponse(200, result);
       }
