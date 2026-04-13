@@ -372,105 +372,94 @@ export class VideoUploadDrawer {
     }
   }
 
-  _uploadToDropbox(token, dropboxPath, progressFill, progressText) {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      const apiArg = JSON.stringify({ path: dropboxPath, mode: 'overwrite', autorename: true, mute: false });
-      const url = `https://content.dropboxapi.com/2/files/upload?reject_cors_preflight=true&authorization=${encodeURIComponent('Bearer ' + token)}&arg=${encodeURIComponent(apiArg)}`;
-      xhr.open('POST', url);
-      xhr.setRequestHeader('Content-Type', 'text/plain; charset=dropbox-cors-hack');
+  async _uploadToDropbox(token, dropboxPath, progressFill, progressText) {
+    const file = this._selectedFile;
+    const CHUNK_SIZE = 3.5 * 1024 * 1024;
+    const totalSize = file.size;
 
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-          const pct = Math.round((e.loaded / e.total) * 90);
-          if (progressFill) progressFill.style.width = `${pct}%`;
-          if (progressText) progressText.textContent = `Lade hoch... ${Math.round((e.loaded / e.total) * 100)}%`;
-        }
+    const readChunkAsBase64 = (start, end) => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = () => reject(new Error('Datei konnte nicht gelesen werden'));
+        reader.readAsDataURL(file.slice(start, end));
       });
+    };
 
-      xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try { resolve(JSON.parse(xhr.responseText)); }
-          catch { reject(new Error('Ungültige Dropbox-Antwort')); }
-        } else {
-          const errBody = xhr.responseText || '(kein Response-Body)';
-          console.error(`Dropbox Upload Fehler ${xhr.status}:`, errBody);
-          reject(new Error(`Dropbox Upload fehlgeschlagen (${xhr.status}): ${errBody}`));
-        }
+    const proxyPost = async (body) => {
+      const resp = await fetch('/.netlify/functions/dropbox-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || `Proxy-Fehler (${resp.status})`);
+      }
+      return resp.json();
+    };
 
-      xhr.addEventListener('error', () => reject(new Error('Netzwerkfehler beim Dropbox-Upload')));
-      xhr.addEventListener('timeout', () => reject(new Error('Dropbox Upload Timeout')));
-      xhr.timeout = 600000;
-      xhr.send(this._selectedFile);
-    });
-  }
+    if (totalSize <= CHUNK_SIZE) {
+      if (progressFill) progressFill.style.width = '50%';
+      if (progressText) progressText.textContent = 'Lade hoch...';
+      const chunk = await readChunkAsBase64(0, totalSize);
+      const result = await proxyPost({ action: 'upload-small', dropboxPath, chunk });
+      if (progressFill) progressFill.style.width = '90%';
+      return result;
+    }
 
-  _dropboxRpcUrl(endpoint, token) {
-    return `https://api.dropboxapi.com/2/${endpoint}?reject_cors_preflight=true&authorization=${encodeURIComponent('Bearer ' + token)}`;
+    const totalChunks = Math.ceil(totalSize / CHUNK_SIZE);
+    let offset = 0;
+
+    const firstChunk = await readChunkAsBase64(0, CHUNK_SIZE);
+    if (progressText) progressText.textContent = `Lade hoch... 1/${totalChunks}`;
+    const { session_id } = await proxyPost({ action: 'session-start', chunk: firstChunk });
+    offset = CHUNK_SIZE;
+
+    let chunkIdx = 2;
+    while (offset + CHUNK_SIZE < totalSize) {
+      const chunk = await readChunkAsBase64(offset, offset + CHUNK_SIZE);
+      const pct = Math.round((offset / totalSize) * 90);
+      if (progressFill) progressFill.style.width = `${pct}%`;
+      if (progressText) progressText.textContent = `Lade hoch... ${chunkIdx}/${totalChunks} (${Math.round(offset / 1024 / 1024)} MB)`;
+      await proxyPost({ action: 'session-append', sessionId: session_id, offset, chunk });
+      offset += CHUNK_SIZE;
+      chunkIdx++;
+    }
+
+    const lastChunk = await readChunkAsBase64(offset, totalSize);
+    if (progressFill) progressFill.style.width = '85%';
+    if (progressText) progressText.textContent = `Lade hoch... ${totalChunks}/${totalChunks}`;
+    const result = await proxyPost({ action: 'session-finish', sessionId: session_id, offset, dropboxPath, chunk: lastChunk });
+    if (progressFill) progressFill.style.width = '90%';
+    return result;
   }
 
   async _createSharedLink(token, dropboxPath) {
-    const resp = await fetch(this._dropboxRpcUrl('sharing/create_shared_link_with_settings', token), {
+    const resp = await fetch('/.netlify/functions/dropbox-proxy', {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain; charset=dropbox-cors-hack' },
-      body: JSON.stringify({
-        path: dropboxPath,
-        settings: { requested_visibility: 'public', audience: 'public', access: 'viewer' }
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'shared-link', path: dropboxPath }),
     });
-
-    if (resp.ok) {
-      const data = await resp.json();
-      return data.url?.replace('?dl=0', '?raw=1') || null;
-    }
-
-    if (resp.status === 409) {
-      const listResp = await fetch(this._dropboxRpcUrl('sharing/list_shared_links', token), {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain; charset=dropbox-cors-hack' },
-        body: JSON.stringify({ path: dropboxPath, direct_only: true })
-      });
-      if (listResp.ok) {
-        const listData = await listResp.json();
-        if (listData.links?.length > 0) return listData.links[0].url.replace('?dl=0', '?raw=1');
-      }
-    }
-
-    return null;
+    if (!resp.ok) return null;
+    const { url } = await resp.json();
+    return url?.replace('?dl=0', '?raw=1') || null;
   }
 
   async _createFolderSharedLink(token, folderPath) {
     try {
-      const resp = await fetch(this._dropboxRpcUrl('sharing/create_shared_link_with_settings', token), {
+      const resp = await fetch('/.netlify/functions/dropbox-proxy', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain; charset=dropbox-cors-hack' },
-        body: JSON.stringify({
-          path: folderPath,
-          settings: { requested_visibility: 'public', audience: 'public', access: 'viewer' }
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'shared-link', path: folderPath }),
       });
-
-      if (resp.ok) {
-        const data = await resp.json();
-        return data.url || null;
-      }
-
-      if (resp.status === 409) {
-        const listResp = await fetch(this._dropboxRpcUrl('sharing/list_shared_links', token), {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain; charset=dropbox-cors-hack' },
-          body: JSON.stringify({ path: folderPath, direct_only: true })
-        });
-        if (listResp.ok) {
-          const listData = await listResp.json();
-          if (listData.links?.length > 0) return listData.links[0].url;
-        }
-      }
+      if (!resp.ok) return null;
+      const { url } = await resp.json();
+      return url || null;
     } catch (err) {
       console.warn('Ordner-Link konnte nicht erstellt werden:', err);
+      return null;
     }
-    return null;
   }
 
   async saveAssetVersion(fileUrl, filePath, videoName, folderUrl) {

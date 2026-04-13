@@ -19,6 +19,10 @@
 [functions."dropbox-upload"]
   timeout = 300
 
+# Dropbox Proxy – chunked upload + shared links
+[functions."dropbox-proxy"]
+  timeout = 300
+
 # Auth-Seiten direkt ausliefern (NICHT auf index.html umleiten)
 [[redirects]]
   from = "/src/auth/*"
