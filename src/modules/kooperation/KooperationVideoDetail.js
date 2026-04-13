@@ -950,7 +950,9 @@ export const kooperationVideoDetail = {
 
     const firstChunk = await readChunkAsBase64(0, CHUNK_SIZE);
     if (progressLabel) progressLabel.textContent = `Wird hochgeladen... 1/${totalChunks}`;
-    const { session_id } = await proxyPost({ action: 'session-start', chunk: firstChunk });
+    const startResp = await proxyPost({ action: 'session-start', chunk: firstChunk });
+    const { session_id } = startResp;
+    this._proxyToken = startResp.token;
     offset = CHUNK_SIZE;
 
     let chunkIdx = 2;
@@ -960,7 +962,7 @@ export const kooperationVideoDetail = {
       if (progressBar) progressBar.style.width = pct + '%';
       if (progressPercent) progressPercent.textContent = pct + '%';
       if (progressLabel) progressLabel.textContent = `Wird hochgeladen... ${chunkIdx}/${totalChunks} (${Math.round(offset / 1024 / 1024)} MB)`;
-      await proxyPost({ action: 'session-append', sessionId: session_id, offset, chunk });
+      await proxyPost({ action: 'session-append', sessionId: session_id, offset, chunk, token: this._proxyToken });
       offset += CHUNK_SIZE;
       chunkIdx++;
     }
@@ -969,7 +971,7 @@ export const kooperationVideoDetail = {
     if (progressBar) progressBar.style.width = '90%';
     if (progressPercent) progressPercent.textContent = '90%';
     if (progressLabel) progressLabel.textContent = `Wird hochgeladen... ${totalChunks}/${totalChunks}`;
-    const result = await proxyPost({ action: 'session-finish', sessionId: session_id, offset, dropboxPath, chunk: lastChunk });
+    const result = await proxyPost({ action: 'session-finish', sessionId: session_id, offset, dropboxPath, chunk: lastChunk, token: this._proxyToken });
     return result;
   },
 
@@ -977,7 +979,7 @@ export const kooperationVideoDetail = {
     const resp = await fetch('/.netlify/functions/dropbox-proxy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'shared-link', path: dropboxPath }),
+      body: JSON.stringify({ action: 'shared-link', path: dropboxPath, token: this._proxyToken || undefined }),
     });
     if (!resp.ok) return null;
     const { url } = await resp.json();
@@ -989,7 +991,7 @@ export const kooperationVideoDetail = {
       const resp = await fetch('/.netlify/functions/dropbox-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'shared-link', path: folderPath }),
+        body: JSON.stringify({ action: 'shared-link', path: folderPath, token: this._proxyToken || undefined }),
       });
       if (!resp.ok) return null;
       const { url } = await resp.json();

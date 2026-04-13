@@ -118,7 +118,7 @@ exports.handler = async (event) => {
   try {
     const body = JSON.parse(event.body || '{}');
     const { action } = body;
-    const token = await getAccessToken();
+    const token = body.token || await getAccessToken();
 
     switch (action) {
       case 'upload-small': {
@@ -128,9 +128,10 @@ exports.handler = async (event) => {
       }
 
       case 'session-start': {
+        const freshToken = await getAccessToken();
         const buf = Buffer.from(body.chunk, 'base64');
-        const { session_id } = await handleSessionStart(token, buf);
-        return jsonResponse(200, { session_id });
+        const { session_id } = await handleSessionStart(freshToken, buf);
+        return jsonResponse(200, { session_id, token: freshToken });
       }
 
       case 'session-append': {

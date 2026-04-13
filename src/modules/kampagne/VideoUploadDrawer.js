@@ -413,7 +413,9 @@ export class VideoUploadDrawer {
 
     const firstChunk = await readChunkAsBase64(0, CHUNK_SIZE);
     if (progressText) progressText.textContent = `Lade hoch... 1/${totalChunks}`;
-    const { session_id } = await proxyPost({ action: 'session-start', chunk: firstChunk });
+    const startResp = await proxyPost({ action: 'session-start', chunk: firstChunk });
+    const { session_id } = startResp;
+    this._proxyToken = startResp.token;
     offset = CHUNK_SIZE;
 
     let chunkIdx = 2;
@@ -422,7 +424,7 @@ export class VideoUploadDrawer {
       const pct = Math.round((offset / totalSize) * 90);
       if (progressFill) progressFill.style.width = `${pct}%`;
       if (progressText) progressText.textContent = `Lade hoch... ${chunkIdx}/${totalChunks} (${Math.round(offset / 1024 / 1024)} MB)`;
-      await proxyPost({ action: 'session-append', sessionId: session_id, offset, chunk });
+      await proxyPost({ action: 'session-append', sessionId: session_id, offset, chunk, token: this._proxyToken });
       offset += CHUNK_SIZE;
       chunkIdx++;
     }
@@ -430,7 +432,7 @@ export class VideoUploadDrawer {
     const lastChunk = await readChunkAsBase64(offset, totalSize);
     if (progressFill) progressFill.style.width = '85%';
     if (progressText) progressText.textContent = `Lade hoch... ${totalChunks}/${totalChunks}`;
-    const result = await proxyPost({ action: 'session-finish', sessionId: session_id, offset, dropboxPath, chunk: lastChunk });
+    const result = await proxyPost({ action: 'session-finish', sessionId: session_id, offset, dropboxPath, chunk: lastChunk, token: this._proxyToken });
     if (progressFill) progressFill.style.width = '90%';
     return result;
   }
@@ -439,7 +441,7 @@ export class VideoUploadDrawer {
     const resp = await fetch('/.netlify/functions/dropbox-proxy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'shared-link', path: dropboxPath }),
+      body: JSON.stringify({ action: 'shared-link', path: dropboxPath, token: this._proxyToken || undefined }),
     });
     if (!resp.ok) return null;
     const { url } = await resp.json();
@@ -451,7 +453,7 @@ export class VideoUploadDrawer {
       const resp = await fetch('/.netlify/functions/dropbox-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'shared-link', path: folderPath }),
+        body: JSON.stringify({ action: 'shared-link', path: folderPath, token: this._proxyToken || undefined }),
       });
       if (!resp.ok) return null;
       const { url } = await resp.json();
