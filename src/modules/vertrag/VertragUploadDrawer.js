@@ -1,5 +1,7 @@
 import { syncVertragCheckbox } from '../../core/VertragSyncHelper.js';
 
+const DEBUG_UPLOAD = true;
+
 export class VertragUploadDrawer {
   constructor() {
     this.drawerId = 'vertrag-upload-drawer';
@@ -284,16 +286,29 @@ export class VertragUploadDrawer {
     };
 
     const proxyPost = async (body) => {
+      const payloadSize = JSON.stringify(body).length;
+      const hasToken = !!body.token;
+      const tokenPrefix = body.token ? body.token.substring(0, 20) : 'N/A';
+      if (DEBUG_UPLOAD) console.log(`[VertragUpload] proxyPost action=${body.action} payloadSize=${payloadSize} hasToken=${hasToken} tokenPrefix=${tokenPrefix}...`);
+
       const resp = await fetch('/.netlify/functions/dropbox-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
+
+      if (DEBUG_UPLOAD) console.log(`[VertragUpload] proxyPost response: status=${resp.status} ok=${resp.ok}`);
+
       if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(err.error || `Proxy-Fehler (${resp.status})`);
+        const errText = await resp.text();
+        if (DEBUG_UPLOAD) console.error(`[VertragUpload] proxyPost FAILED: status=${resp.status} body=${errText}`);
+        let errObj = {};
+        try { errObj = JSON.parse(errText); } catch (_) {}
+        throw new Error(errObj.error || `Proxy-Fehler (${resp.status})`);
       }
-      return resp.json();
+      const json = await resp.json();
+      if (DEBUG_UPLOAD) console.log(`[VertragUpload] proxyPost OK: action=${body.action} responseKeys=${Object.keys(json)} hasTokenInResp=${!!json.token}`);
+      return json;
     };
 
     if (totalSize <= CHUNK_SIZE) {
@@ -313,6 +328,7 @@ export class VertragUploadDrawer {
     const startResp = await proxyPost({ action: 'session-start', chunk: firstChunk });
     const { session_id } = startResp;
     this._proxyToken = startResp.token;
+    if (DEBUG_UPLOAD) console.log(`[VertragUpload] session-start OK: sessionId=${session_id} tokenLen=${this._proxyToken?.length} tokenPrefix=${this._proxyToken?.substring(0, 20)}...`);
     offset = CHUNK_SIZE;
 
     let chunkIdx = 2;
@@ -329,6 +345,10 @@ export class VertragUploadDrawer {
     const lastChunk = await readChunkAsBase64(offset, totalSize);
     if (progressFill) progressFill.style.width = '85%';
     if (progressText) progressText.textContent = `Lade hoch... ${totalChunks}/${totalChunks}`;
+    if (DEBUG_UPLOAD) {
+      const finishTokenPrefix = this._proxyToken?.substring(0, 20) || 'N/A';
+      console.log(`[VertragUpload] session-finish SENDING: sessionId=${session_id} offset=${offset} tokenPrefix=${finishTokenPrefix}... path=${dropboxPath}`);
+    }
     const result = await proxyPost({ action: 'session-finish', sessionId: session_id, offset, dropboxPath, chunk: lastChunk, token: this._proxyToken });
     if (progressFill) progressFill.style.width = '90%';
     return result;

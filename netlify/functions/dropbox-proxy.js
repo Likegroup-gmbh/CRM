@@ -1,5 +1,7 @@
 const { getAccessToken } = require('./_shared/dropbox');
 
+const DEBUG = true;
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type',
@@ -14,6 +16,13 @@ function jsonResponse(statusCode, body) {
   };
 }
 
+function logHeaders(resp, label) {
+  if (!DEBUG) return;
+  const h = {};
+  resp.headers.forEach((v, k) => { h[k] = v; });
+  console.log(`[dropbox-proxy] ${label} response-headers:`, JSON.stringify(h));
+}
+
 async function handleUploadSmall(token, dropboxPath, fileBuffer) {
   const resp = await fetch('https://content.dropboxapi.com/2/files/upload', {
     method: 'POST',
@@ -26,7 +35,11 @@ async function handleUploadSmall(token, dropboxPath, fileBuffer) {
     },
     body: fileBuffer,
   });
-  if (!resp.ok) throw new Error(`Dropbox upload failed (${resp.status}): ${await resp.text()}`);
+  if (!resp.ok) {
+    const text = await resp.text();
+    logHeaders(resp, 'upload-small-FAIL');
+    throw new Error(`Dropbox upload failed (${resp.status}): ${text}`);
+  }
   return resp.json();
 }
 
@@ -40,7 +53,11 @@ async function handleSessionStart(token, chunkBuffer) {
     },
     body: chunkBuffer,
   });
-  if (!resp.ok) throw new Error(`Session start failed (${resp.status}): ${await resp.text()}`);
+  if (!resp.ok) {
+    const text = await resp.text();
+    logHeaders(resp, 'session-start-FAIL');
+    throw new Error(`Session start failed (${resp.status}): ${text}`);
+  }
   return resp.json();
 }
 
@@ -57,10 +74,16 @@ async function handleSessionAppend(token, sessionId, offset, chunkBuffer) {
     },
     body: chunkBuffer,
   });
-  if (!resp.ok) throw new Error(`Session append failed (${resp.status}): ${await resp.text()}`);
+  if (!resp.ok) {
+    const text = await resp.text();
+    logHeaders(resp, 'session-append-FAIL');
+    throw new Error(`Session append failed (${resp.status}): ${text}`);
+  }
 }
 
 async function handleSessionFinish(token, sessionId, offset, dropboxPath, chunkBuffer) {
+  if (DEBUG) console.log(`[dropbox-proxy] session-finish SENDING: tokenLen=${token.length} tokenPrefix=${token.substring(0, 20)}... sessionId=${sessionId} offset=${offset} path=${dropboxPath} chunkLen=${chunkBuffer.length}`);
+
   const resp = await fetch('https://content.dropboxapi.com/2/files/upload_session/finish', {
     method: 'POST',
     headers: {
@@ -73,7 +96,12 @@ async function handleSessionFinish(token, sessionId, offset, dropboxPath, chunkB
     },
     body: chunkBuffer,
   });
-  if (!resp.ok) throw new Error(`Session finish failed (${resp.status}): ${await resp.text()}`);
+  if (!resp.ok) {
+    const text = await resp.text();
+    logHeaders(resp, 'session-finish-FAIL');
+    console.error(`[dropbox-proxy] session-finish FAILED: status=${resp.status} body="${text}" tokenLen=${token.length} tokenPrefix=${token.substring(0, 20)}...`);
+    throw new Error(`Session finish failed (${resp.status}): ${text}`);
+  }
   return resp.json();
 }
 
@@ -107,6 +135,29 @@ async function handleSharedLink(token, path) {
   return null;
 }
 
+async function handleDiagnose() {
+  const result = { timestamp: new Date().toISOString() };
+  try {
+    const token = await getAccessToken();
+    result.tokenOk = true;
+    result.tokenLen = token.length;
+    result.tokenPrefix = token.substring(0, 20) + '...';
+
+    const checkResp = await fetch('https://api.dropboxapi.com/2/check/user', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: 'diagnose' }),
+    });
+    result.checkStatus = checkResp.status;
+    result.checkBody = await checkResp.text();
+    result.checkOk = checkResp.ok;
+  } catch (err) {
+    result.tokenOk = false;
+    result.error = err.message;
+  }
+  return result;
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: CORS_HEADERS, body: '' };
@@ -123,14 +174,27 @@ exports.handler = async (event) => {
     const body = JSON.parse(rawBody || '{}');
     const { action } = body;
 
+    if (DEBUG) {
+      const tokenType = body.token ? typeof body.token : 'none';
+      const tokenLen = body.token ? body.token.length : 0;
+      const tokenPre = body.token ? body.token.substring(0, 20) : 'N/A';
+      console.log(`[dropbox-proxy] action=${action} isBase64Encoded=${event.isBase64Encoded} bodyLen=${(rawBody || '').length} body.token: type=${tokenType} len=${tokenLen} prefix=${tokenPre}...`);
+    }
+
     const tokenSource = body.token ? 'client' : 'refresh';
     const token = body.token || await getAccessToken();
-    console.log(`[dropbox-proxy] action=${action} tokenSource=${tokenSource} isBase64Encoded=${event.isBase64Encoded} bodyLen=${(rawBody || '').length} hasToken=${!!body.token}`);
+
+    if (DEBUG) console.log(`[dropbox-proxy] tokenSource=${tokenSource} finalTokenLen=${token.length} finalTokenPrefix=${token.substring(0, 20)}...`);
 
     switch (action) {
+      case 'diagnose': {
+        const diag = await handleDiagnose();
+        return jsonResponse(200, diag);
+      }
+
       case 'upload-small': {
         const buf = Buffer.from(body.chunk, 'base64');
-        console.log(`[dropbox-proxy] upload-small chunkSize=${buf.length} path=${body.dropboxPath}`);
+        if (DEBUG) console.log(`[dropbox-proxy] upload-small chunkSize=${buf.length} path=${body.dropboxPath}`);
         const result = await handleUploadSmall(token, body.dropboxPath, buf);
         return jsonResponse(200, result);
       }
@@ -138,21 +202,22 @@ exports.handler = async (event) => {
       case 'session-start': {
         const freshToken = await getAccessToken();
         const buf = Buffer.from(body.chunk, 'base64');
-        console.log(`[dropbox-proxy] session-start chunkSize=${buf.length} tokenPrefix=${freshToken.substring(0, 15)}...`);
+        if (DEBUG) console.log(`[dropbox-proxy] session-start chunkSize=${buf.length} tokenLen=${freshToken.length} tokenPrefix=${freshToken.substring(0, 20)}...`);
         const { session_id } = await handleSessionStart(freshToken, buf);
+        if (DEBUG) console.log(`[dropbox-proxy] session-start OK: sessionId=${session_id}`);
         return jsonResponse(200, { session_id, token: freshToken });
       }
 
       case 'session-append': {
         const buf = Buffer.from(body.chunk, 'base64');
-        console.log(`[dropbox-proxy] session-append chunkSize=${buf.length} offset=${body.offset} sessionId=${body.sessionId} tokenPrefix=${token.substring(0, 15)}...`);
+        if (DEBUG) console.log(`[dropbox-proxy] session-append chunkSize=${buf.length} offset=${body.offset} sessionId=${body.sessionId}`);
         await handleSessionAppend(token, body.sessionId, body.offset, buf);
         return jsonResponse(200, { ok: true });
       }
 
       case 'session-finish': {
         const buf = body.chunk ? Buffer.from(body.chunk, 'base64') : Buffer.alloc(0);
-        console.log(`[dropbox-proxy] session-finish chunkSize=${buf.length} offset=${body.offset} sessionId=${body.sessionId} path=${body.dropboxPath} tokenPrefix=${token.substring(0, 15)}...`);
+        if (DEBUG) console.log(`[dropbox-proxy] session-finish chunkSize=${buf.length} offset=${body.offset} sessionId=${body.sessionId} path=${body.dropboxPath}`);
         const result = await handleSessionFinish(token, body.sessionId, body.offset, body.dropboxPath, buf);
         return jsonResponse(200, result);
       }
@@ -166,7 +231,7 @@ exports.handler = async (event) => {
         return jsonResponse(400, { error: `Unknown action: ${action}` });
     }
   } catch (err) {
-    console.error('dropbox-proxy error:', err);
+    console.error('[dropbox-proxy] ERROR:', err.message, err.stack);
     return jsonResponse(500, { error: err.message || 'Internal error' });
   }
 };
