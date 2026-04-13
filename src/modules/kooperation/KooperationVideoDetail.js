@@ -891,12 +891,10 @@ export const kooperationVideoDetail = {
       if (progressLabel) progressLabel.textContent = 'Lade hoch nach Dropbox...';
       const uploadResult = await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', 'https://content.dropboxapi.com/2/files/upload');
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-        xhr.setRequestHeader('Dropbox-API-Arg', JSON.stringify({
-          path: dropboxPath, mode: 'overwrite', autorename: true, mute: false
-        }));
+        const apiArg = JSON.stringify({ path: dropboxPath, mode: 'overwrite', autorename: true, mute: false });
+        const uploadUrl = `https://content.dropboxapi.com/2/files/upload?reject_cors_preflight=true&authorization=${encodeURIComponent('Bearer ' + token)}&arg=${encodeURIComponent(apiArg)}`;
+        xhr.open('POST', uploadUrl);
+        xhr.setRequestHeader('Content-Type', 'text/plain; charset=dropbox-cors-hack');
 
         xhr.upload.addEventListener('progress', (e) => {
           if (e.lengthComputable) {
@@ -943,10 +941,14 @@ export const kooperationVideoDetail = {
     }
   },
 
+  _dropboxRpcUrl(endpoint, token) {
+    return `https://api.dropboxapi.com/2/${endpoint}?reject_cors_preflight=true&authorization=${encodeURIComponent('Bearer ' + token)}`;
+  },
+
   async _createSharedLink(token, dropboxPath) {
-    const resp = await fetch('https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings', {
+    const resp = await fetch(this._dropboxRpcUrl('sharing/create_shared_link_with_settings', token), {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain; charset=dropbox-cors-hack' },
       body: JSON.stringify({ path: dropboxPath, settings: { requested_visibility: 'public', audience: 'public', access: 'viewer' } })
     });
     if (resp.ok) {
@@ -954,9 +956,9 @@ export const kooperationVideoDetail = {
       return data.url?.replace('?dl=0', '?raw=1') || null;
     }
     if (resp.status === 409) {
-      const listResp = await fetch('https://api.dropboxapi.com/2/sharing/list_shared_links', {
+      const listResp = await fetch(this._dropboxRpcUrl('sharing/list_shared_links', token), {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain; charset=dropbox-cors-hack' },
         body: JSON.stringify({ path: dropboxPath, direct_only: true })
       });
       if (listResp.ok) {
@@ -969,9 +971,9 @@ export const kooperationVideoDetail = {
 
   async _createFolderSharedLink(token, folderPath) {
     try {
-      const resp = await fetch('https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings', {
+      const resp = await fetch(this._dropboxRpcUrl('sharing/create_shared_link_with_settings', token), {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain; charset=dropbox-cors-hack' },
         body: JSON.stringify({ path: folderPath, settings: { requested_visibility: 'public', audience: 'public', access: 'viewer' } })
       });
       if (resp.ok) {
@@ -979,9 +981,9 @@ export const kooperationVideoDetail = {
         return data.url || null;
       }
       if (resp.status === 409) {
-        const listResp = await fetch('https://api.dropboxapi.com/2/sharing/list_shared_links', {
+        const listResp = await fetch(this._dropboxRpcUrl('sharing/list_shared_links', token), {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'text/plain; charset=dropbox-cors-hack' },
           body: JSON.stringify({ path: folderPath, direct_only: true })
         });
         if (listResp.ok) {

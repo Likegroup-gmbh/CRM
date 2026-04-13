@@ -272,15 +272,10 @@ export class VertragUploadDrawer {
   _uploadToDropbox(token, dropboxPath, progressFill, progressText) {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      xhr.open('POST', 'https://content.dropboxapi.com/2/files/upload');
-      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-      xhr.setRequestHeader('Dropbox-API-Arg', JSON.stringify({
-        path: dropboxPath,
-        mode: 'overwrite',
-        autorename: true,
-        mute: false
-      }));
+      const apiArg = JSON.stringify({ path: dropboxPath, mode: 'overwrite', autorename: true, mute: false });
+      const url = `https://content.dropboxapi.com/2/files/upload?reject_cors_preflight=true&authorization=${encodeURIComponent('Bearer ' + token)}&arg=${encodeURIComponent(apiArg)}`;
+      xhr.open('POST', url);
+      xhr.setRequestHeader('Content-Type', 'text/plain; charset=dropbox-cors-hack');
 
       xhr.upload.addEventListener('progress', (e) => {
         if (e.lengthComputable) {
@@ -306,13 +301,14 @@ export class VertragUploadDrawer {
     });
   }
 
+  _dropboxRpcUrl(endpoint, token) {
+    return `https://api.dropboxapi.com/2/${endpoint}?reject_cors_preflight=true&authorization=${encodeURIComponent('Bearer ' + token)}`;
+  }
+
   async _createSharedLink(token, dropboxPath) {
-    const resp = await fetch('https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings', {
+    const resp = await fetch(this._dropboxRpcUrl('sharing/create_shared_link_with_settings', token), {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'text/plain; charset=dropbox-cors-hack' },
       body: JSON.stringify({
         path: dropboxPath,
         settings: { requested_visibility: 'public', audience: 'public', access: 'viewer' }
@@ -325,9 +321,9 @@ export class VertragUploadDrawer {
     }
 
     if (resp.status === 409) {
-      const listResp = await fetch('https://api.dropboxapi.com/2/sharing/list_shared_links', {
+      const listResp = await fetch(this._dropboxRpcUrl('sharing/list_shared_links', token), {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain; charset=dropbox-cors-hack' },
         body: JSON.stringify({ path: dropboxPath, direct_only: true })
       });
       if (listResp.ok) {
