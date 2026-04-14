@@ -328,11 +328,11 @@ export class KampagneKooperationenVideoTable {
       setTimeout(() => this._removeLoadingProgress(), 300);
 
       // ========================================
-      // STUFE 3: Assets + Comments nachträglich laden (non-blocking)
+      // STUFE 3: Assets + Comments laden (awaited, damit render() die Daten hat)
       // ========================================
       const videoIds = allVideos.map(v => v.id);
       if (videoIds.length > 0) {
-        this._loadAssetsAndComments(videoIds);
+        await this._loadAssetsAndComments(videoIds);
       }
 
     } catch (error) {
@@ -429,12 +429,6 @@ export class KampagneKooperationenVideoTable {
       }
     }
 
-    for (const [videoId, rounds] of Object.entries(this.videoComments)) {
-      const r1Cell = container.querySelector(`[data-video-id="${videoId}"] .col-feedback-r1 .comment-count`);
-      const r2Cell = container.querySelector(`[data-video-id="${videoId}"] .col-feedback-r2 .comment-count`);
-      if (r1Cell) r1Cell.textContent = rounds.r1.length || '';
-      if (r2Cell) r2Cell.textContent = rounds.r2.length || '';
-    }
   }
 
   // Helper: Hole Versand-Info für ein spezifisches Video
