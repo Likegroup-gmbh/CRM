@@ -4158,12 +4158,6 @@ h3.section-title,
   min-width: 105px;
 }
 
-/* Zentriere Inhalte in den Spalten via nth-child (16. und 17. Spalte mit Checkbox) */
-.auftrag-table td:nth-child(16),
-.auftrag-table td:nth-child(17) {
-  text-align: center;
-}
-
 /* Auftrags-Tabelle Basis */
 .auftrag-table {
   border-collapse: separate !important;
@@ -4177,9 +4171,8 @@ h3.section-title,
   border-right: 1px solid var(--gray-100);
 }
 
-/* Auftrags-Tabelle: Erste Spalte (Checkbox) fixieren */
-.auftrag-table thead th:nth-child(1),
-.auftrag-table tbody td:nth-child(1) {
+/* Auftrags-Tabelle: Checkbox-Spalte fixieren (via Klasse statt nth-child) */
+.auftrag-table .col-checkbox {
   position: sticky !important;
   left: 0 !important;
   z-index: 20;
@@ -4195,9 +4188,8 @@ h3.section-title,
     inset 0 -1px 0 0 var(--gray-100);
 }
 
-/* Auftrags-Tabelle: Zweite Spalte (Auftragsname) fixieren */
-.auftrag-table thead th:nth-child(2),
-.auftrag-table tbody td:nth-child(2) {
+/* Auftrags-Tabelle: Unternehmen-Spalte fixieren (via Klasse statt nth-child) */
+.auftrag-table .col-unternehmen {
   position: sticky !important;
   left: 40px !important;
   z-index: 20;
@@ -4211,16 +4203,16 @@ h3.section-title,
     inset 0 -1px 0 0 var(--gray-100);
 }
 
-/* Header-Zellen höherer z-index (muss über sticky-top z-index:10 der scrollenden th liegen) */
-.auftrag-table thead th:nth-child(1),
-.auftrag-table thead th:nth-child(2) {
+/* Header-Zellen höherer z-index */
+.auftrag-table thead .col-checkbox,
+.auftrag-table thead .col-unternehmen {
   z-index: 30 !important;
   background: white !important;
 }
 
-/* Hover-Zustand für Body-Zeilen */
-.auftrag-table tbody tr:hover td:nth-child(1),
-.auftrag-table tbody tr:hover td:nth-child(2) {
+/* Hover-Zustand für sticky Spalten */
+.auftrag-table tbody tr:hover .col-checkbox,
+.auftrag-table tbody tr:hover .col-unternehmen {
   background: var(--gray-50) !important;
 }
 
@@ -4277,23 +4269,31 @@ h3.section-title,
 }
 
 .auftragsdetails-summary {
+  background: var(--gray-50);
   margin-bottom: 2rem;
-  padding: 12px 12px 0 12px;
+  border-bottom: 1px solid var(--gray-100);
+  padding: var(--space-sm);
 }
 
 .summary-cards {
   display: flex;
-  grid-template-columns: 1fr 1fr;
+  
   gap: var(--space-sm);
+  
 }
 
 .summary-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
   width: 100%;
   border: 1px solid var(--gray-200);
   position: relative;
   padding: var(--space-lg);
   border-radius: var(--radius-lg);
   text-align: left;
+  background: #fff;
+
 }
 
 .summary-card:nth-child(2) {
@@ -4359,7 +4359,7 @@ h3.section-title,
 /* Größere Budget-Info Anzeige für Auftragsdetails */
 .budget-info-large {
   padding: var(--space-xs);
-  font-size: var(--text-sm);
+  font-size: var(--text-xsm);
   color: var(--gray-700);
   line-height: 1.6;
   white-space: pre-wrap;
@@ -14634,6 +14634,203 @@ table.vertraege-unternehmen-table td:last-child {
 
 .video-upload-drawer-content .mdc-btn:hover {
   transform: none;
+}
+
+/* ============================================
+   DRAWER TAB NAVIGATION (Upload-Drawer)
+   ============================================ */
+
+.drawer-tab-nav {
+  display: flex;
+  gap: 0;
+  border-bottom: var(--border-xs) solid var(--border-primary);
+  margin-bottom: var(--space-md);
+}
+
+.drawer-tab-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: var(--space-10) var(--space-sm);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  text-align: center;
+}
+
+.drawer-tab-btn:hover {
+  color: var(--text-secondary);
+}
+
+.drawer-tab-btn.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ============================================
+   BILDER UPLOAD TAB
+   ============================================ */
+
+.bilder-upload-drawer-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.bilder-upload-drawer-content .mdc-btn:hover {
+  transform: none;
+}
+
+.bilder-upload-drawer-footer {
+  padding: var(--space-md) 0 0;
+}
+
+/* Multi-file preview list */
+.upload-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-6);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.upload-file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-secondary);
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.upload-file-item .file-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-2);
+  min-width: 0;
+  flex: 1;
+}
+
+.upload-file-item .file-name {
+  font-weight: 500;
+  font-size: var(--text-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-file-item .file-size {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.bilder-file-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: var(--text-lg);
+  color: var(--text-muted);
+  line-height: 1;
+  padding: var(--space-xxs);
+  flex-shrink: 0;
+}
+
+.bilder-file-remove:hover {
+  color: var(--danger);
+}
+
+/* Existing images section */
+.existing-images-section {
+  border-top: var(--border-xs) solid var(--border-primary);
+  padding-top: var(--space-md);
+}
+
+.existing-images-header {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-6);
+  margin-bottom: var(--space-xs);
+}
+
+.existing-images-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.existing-images-count {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.existing-images-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-4);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.existing-images-loading,
+.existing-images-empty {
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+  padding: var(--space-sm) 0;
+}
+
+.existing-image-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  transition: opacity 0.2s;
+}
+
+.existing-image-info {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-8);
+  min-width: 0;
+  flex: 1;
+}
+
+.existing-image-name {
+  font-size: var(--text-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.existing-image-size {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.existing-image-delete {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: var(--space-xxs);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+
+.existing-image-delete:hover {
+  color: var(--danger);
+  background: var(--danger-bg);
 }
 
 /* Upload-Button in der Link-Content Spalte */

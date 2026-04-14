@@ -6,6 +6,7 @@ import { VideoUploadDrawer } from './VideoUploadDrawer.js';
 import { VideoSettingsDrawer } from './VideoSettingsDrawer.js';
 import { deleteVideoFile } from '../../core/VideoDeleteHelper.js';
 import { renderVertragCell } from '../../core/VertragSyncHelper.js';
+import { errorHandler } from '../../core/ErrorSystem.js';
 
 export class KampagneKooperationenVideoTable {
   constructor(kampagneId) {
@@ -203,8 +204,8 @@ export class KampagneKooperationenVideoTable {
         const isKunde = this.isKundeRole();
         const kampagneJoin = 'kampagne:kampagne_id (id, kampagnenname, eigener_name, unternehmen:unternehmen_id(id, firmenname), marke:marke_id(id, markenname))';
         const koopSelect = isKunde
-          ? `id, name, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, skript_deadline, content_deadline, created_at, creator_id, ${kampagneJoin}`
-          : `id, name, einkaufspreis_netto, einkaufspreis_gesamt, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, skript_deadline, content_deadline, created_at, creator_id, ${kampagneJoin}`;
+          ? `id, name, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, skript_deadline, content_deadline, created_at, creator_id, bilder_folder_url, ${kampagneJoin}`
+          : `id, name, einkaufspreis_netto, einkaufspreis_gesamt, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, skript_deadline, content_deadline, created_at, creator_id, bilder_folder_url, ${kampagneJoin}`;
 
         const kooperationenResult = await window.supabase
           .from('kooperationen')
@@ -340,7 +341,7 @@ export class KampagneKooperationenVideoTable {
       this._endPerformanceTracking('CRITICAL_ERROR', false, error);
       this._logPerformanceSummary();
       this._removeLoadingProgress();
-      window.ErrorHandler.handle(error, 'KampagneKooperationenVideoTable.loadData');
+      window.ErrorHandler?.handle(error, 'KampagneKooperationenVideoTable.loadData');
     } finally {
       this._isLoading = false;
     }
@@ -470,6 +471,11 @@ export class KampagneKooperationenVideoTable {
     // Kunden sehen keine Verträge und kein Aktionsmenü
     if ((columnClass === 'col-actions' || columnClass === 'col-vertrag') && this.isKundeRole()) {
       return false;
+    }
+
+    // Aktionen-Spalte für Nicht-Kunden immer sichtbar (nicht konfigurierbar)
+    if (columnClass === 'col-actions') {
+      return true;
     }
     
     // Für alle Rollen gilt die konfigurierte Sichtbarkeit
@@ -1085,7 +1091,8 @@ export class KampagneKooperationenVideoTable {
       unternehmen: this.kampagneInfo?.unternehmen || '',
       marke: this.kampagneInfo?.marke || '',
       kampagne: this.kampagneInfo?.name || '',
-      creatorName
+      creatorName,
+      bilderFolderUrl: koop?.bilder_folder_url || null
     };
 
     console.log('[Dropbox] kampagneInfo:', this.kampagneInfo);
@@ -1094,6 +1101,8 @@ export class KampagneKooperationenVideoTable {
 
     this._uploadDrawer.open(videoId, metadaten, (fileUrl, filePath, videoName, folderUrl) => {
       this._updateContentCellAfterUpload(videoId, kooperationId, fileUrl, videoName, folderUrl);
+    }, (bilderFolderUrl) => {
+      if (koop) koop.bilder_folder_url = bilderFolderUrl;
     });
   }
 
@@ -1220,10 +1229,7 @@ export class KampagneKooperationenVideoTable {
           // Bestehende Versand-Info aktualisieren
           const { error } = await window.supabase
             .from('kooperation_versand')
-            .update({ 
-              [fieldName]: value,
-              updated_at: new Date().toISOString()
-            })
+            .update({ [fieldName]: value })
             .eq('id', id);
 
           if (error) throw error;
@@ -1301,10 +1307,7 @@ export class KampagneKooperationenVideoTable {
         
         const { error } = await window.supabase
           .from(tableName)
-          .update({ 
-            [fieldName]: value,
-            updated_at: new Date().toISOString()
-          })
+          .update({ [fieldName]: value })
           .eq('id', id);
 
         if (error) throw error;
@@ -1324,7 +1327,7 @@ export class KampagneKooperationenVideoTable {
       field.classList.add('save-error');
       setTimeout(() => field.classList.remove('save-error'), 2000);
       
-      window.ErrorHandler.handle(error, 'KampagneKooperationenVideoTable.handleFieldUpdate');
+      window.ErrorHandler?.handle(error, 'KampagneKooperationenVideoTable.handleFieldUpdate');
     }
   }
 
