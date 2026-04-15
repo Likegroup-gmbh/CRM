@@ -24,6 +24,18 @@ export const ActionConfigs = {
   // Kampagnen Actions
   kampagne: {
     actions: [
+      { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
+      { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
+      { id: 'notiz', icon: 'notiz', label: 'Notiz hinzufügen', roles: ['admin', 'mitarbeiter'] },
+      { id: 'separator' },
+      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
+    ],
+    kundenActions: ['view']
+  },
+
+  // Kooperationen Actions
+  kooperation: {
+    actions: [
       { 
         id: 'status', 
         type: 'submenu', 
@@ -34,18 +46,6 @@ export const ActionConfigs = {
         updateFields: ['status_id', 'status'],
         roles: ['admin', 'mitarbeiter']
       },
-      { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
-      { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
-      { id: 'notiz', icon: 'notiz', label: 'Notiz hinzufügen', roles: ['admin', 'mitarbeiter'] },
-      { id: 'separator' },
-      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
-    ],
-    kundenActions: ['view'] // Kunden dürfen nur Details ansehen
-  },
-
-  // Kooperationen Actions
-  kooperation: {
-    actions: [
       { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
       { 
@@ -112,7 +112,7 @@ export const ActionConfigs = {
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
     ],
-    kundenActions: ['view', 'rechnung']
+    kundenActions: []
   },
 
   // Ansprechpartner Actions

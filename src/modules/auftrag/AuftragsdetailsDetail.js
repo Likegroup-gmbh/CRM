@@ -287,8 +287,21 @@ export class AuftragsdetailsDetail {
             </div>
             ${isAdmin ? `
             <div class="summary-card">
+              <div class="summary-label">VK Netto / Budget</div>
+              <div class="summary-value">${formatCurrency(this.budgetSummary.usedVkBudget)} von ${formatCurrency(this.budgetSummary.totalBudget)}</div>
+              <div class="summary-progress">
+                <div class="summary-progress-fill ${this.getBudgetProgressColorClass()}" 
+                     style="width: ${this.getBudgetProgressPercentage()}%">
+                </div>
+              </div>
+            </div>
+            <div class="summary-card">
               <div class="summary-label">Offenes Budget</div>
               <div class="summary-value">${formatCurrency(this.budgetSummary.totalBudget - this.budgetSummary.usedVkBudget)}</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">Durchschn. Kosten / Creator</div>
+              <div class="summary-value">${formatCurrency(this.budgetSummary.avgCostPerCreator)}</div>
             </div>
             ` : ''}
             <div class="summary-card">
@@ -303,21 +316,6 @@ export class AuftragsdetailsDetail {
               <div class="summary-label">PO intern</div>
               <div class="summary-value">${sanitize(this.auftrag?.po) || '-'}</div>
             </div>
-            ${isAdmin ? `
-            <div class="summary-card">
-              <div class="summary-label">Durchschn. Kosten / Creator</div>
-              <div class="summary-value">${formatCurrency(this.budgetSummary.avgCostPerCreator)}</div>
-            </div>
-            <div class="summary-card">
-              <div class="summary-label">VK Netto / Budget</div>
-              <div class="summary-value">${formatCurrency(this.budgetSummary.usedVkBudget)} von ${formatCurrency(this.budgetSummary.totalBudget)}</div>
-              <div class="summary-progress">
-                <div class="summary-progress-fill ${this.getBudgetProgressColorClass()}" 
-                     style="width: ${this.getBudgetProgressPercentage()}%">
-                </div>
-              </div>
-            </div>
-            ` : ''}
           </div>
         </div>
 
@@ -356,6 +354,7 @@ export class AuftragsdetailsDetail {
     };
     const sanitize = (v) => window.validatorSystem?.sanitizeHtml(v) || v || '';
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    const isKunde = ['kunde', 'kunde_editor'].includes(window.currentUser?.rolle?.toLowerCase());
 
     let totalEk = 0;
     let totalVk = 0;
@@ -366,21 +365,23 @@ export class AuftragsdetailsDetail {
       const koops = this.kooperationen.filter(k => k.kampagne_id === kampagne.id);
       const koopCount = koops.length;
       const videoCount = koops.reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
-      const ekGesamt = koops.reduce((sum, k) => sum + (parseFloat(k.einkaufspreis_gesamt) || 0), 0);
-      const vkGesamt = koops.reduce((sum, k) => sum + (parseFloat(k.verkaufspreis_gesamt) || 0), 0);
+      const ekGesamt = koops.reduce((sum, k) => sum + (parseFloat(k.einkaufspreis_netto) || 0), 0);
+      const vkGesamt = koops.reduce((sum, k) => sum + (parseFloat(k.verkaufspreis_netto) || 0), 0);
 
       totalEk += ekGesamt;
       totalVk += vkGesamt;
       totalKoops += koopCount;
       totalVideos += videoCount;
 
+      const kampagneNameHtml = isKunde
+        ? sanitize(kampagne.kampagnenname || 'Ohne Name')
+        : `<a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
+              ${sanitize(kampagne.kampagnenname || 'Ohne Name')}
+            </a>`;
+
       return `
         <tr>
-          <td>
-            <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
-              ${sanitize(kampagne.kampagnenname || 'Ohne Name')}
-            </a>
-          </td>
+          <td>${kampagneNameHtml}</td>
           <td class="text-center">${koopCount}</td>
           <td class="text-center">${videoCount}</td>
           ${isAdmin ? `
@@ -402,8 +403,8 @@ export class AuftragsdetailsDetail {
                 <th class="text-center">Kooperationen</th>
                 <th class="text-center">Videos</th>
                 ${isAdmin ? `
-                <th class="text-right">EK Gesamt</th>
-                <th class="text-right">VK Gesamt</th>
+                <th class="text-right">EK Netto</th>
+                <th class="text-right">VK Netto</th>
                 ` : ''}
               </tr>
             </thead>
@@ -432,6 +433,7 @@ export class AuftragsdetailsDetail {
     const details = this.details;
     if (!details) return '';
 
+    const isKunde = ['kunde', 'kunde_editor'].includes(window.currentUser?.rolle?.toLowerCase());
     const num = (v) => v || v === 0 ? new Intl.NumberFormat('de-DE').format(v) : '-';
     const formatCurrency = (v) => {
       if (v === null || v === undefined || v === '') return '-';
@@ -554,8 +556,8 @@ export class AuftragsdetailsDetail {
           <td class="budget-cell">${budgetInfo ? `<div class="budget-info-large">${window.validatorSystem.sanitizeHtml(budgetInfo)}</div>` : '-'}</td>
           <td class="text-center">${auftragStart}</td>
           <td class="text-center">${auftragEnde}</td>
-          <td class="text-right">${formatCurrency(einkaufspreisVon)}</td>
-          <td class="text-right">${formatCurrency(einkaufspreisBis)}</td>
+          ${!isKunde ? `<td class="text-right">${formatCurrency(einkaufspreisVon)}</td>` : ''}
+          ${!isKunde ? `<td class="text-right">${formatCurrency(einkaufspreisBis)}</td>` : ''}
           <td class="text-right">${formatCurrency(verkaufspreisVon)}</td>
           <td class="text-right">${formatCurrency(verkaufspreisBis)}</td>
           <td class="text-center">${num(videoAnzahl)}</td>
@@ -566,29 +568,31 @@ export class AuftragsdetailsDetail {
       `;
     }).filter(row => row).join('');
 
+    const kategorienHeader = `
+              <th>Kategorie</th>
+              <th>Budget & Informationen</th>
+              <th class="text-center">Start</th>
+              <th class="text-center">Ende</th>
+              ${!isKunde ? '<th class="text-right">EK von</th>' : ''}
+              ${!isKunde ? '<th class="text-right">EK bis</th>' : ''}
+              <th class="text-right">VK von</th>
+              <th class="text-right">VK bis</th>
+              <th class="text-center">Videos</th>
+              <th class="text-center">Bilder</th>
+              <th class="text-center">Creator</th>
+              <th class="text-center">Videographen</th>`;
+    const kategorienColspan = isKunde ? 10 : 12;
+
     if (!tableRows) {
       return `
         <div class="data-table-container" style="margin-top: var(--space-lg);">
           <table class="data-table auftragsdetails-table">
             <thead>
-              <tr>
-                <th>Kategorie</th>
-                <th>Budget & Informationen</th>
-                <th class="text-center">Start</th>
-                <th class="text-center">Ende</th>
-                <th class="text-right">EK von</th>
-                <th class="text-right">EK bis</th>
-                <th class="text-right">VK von</th>
-                <th class="text-right">VK bis</th>
-                <th class="text-center">Videos</th>
-                <th class="text-center">Bilder</th>
-                <th class="text-center">Creator</th>
-                <th class="text-center">Videographen</th>
-              </tr>
+              <tr>${kategorienHeader}</tr>
             </thead>
             <tbody>
               <tr>
-                <td colspan="12" class="no-data">
+                <td colspan="${kategorienColspan}" class="no-data">
                   Keine Produktionsdetails vorhanden
                 </td>
               </tr>
@@ -602,20 +606,7 @@ export class AuftragsdetailsDetail {
       <div class="data-table-container" style="margin-top: var(--space-lg);">
         <table class="data-table auftragsdetails-table">
           <thead>
-            <tr>
-              <th>Kategorie</th>
-              <th>Budget & Informationen</th>
-              <th class="text-center">Start</th>
-              <th class="text-center">Ende</th>
-              <th class="text-right">EK von</th>
-              <th class="text-right">EK bis</th>
-              <th class="text-right">VK von</th>
-              <th class="text-right">VK bis</th>
-              <th class="text-center">Videos</th>
-              <th class="text-center">Bilder</th>
-              <th class="text-center">Creator</th>
-              <th class="text-center">Videographen</th>
-            </tr>
+            <tr>${kategorienHeader}</tr>
           </thead>
           <tbody>
             ${tableRows}
@@ -697,6 +688,7 @@ export class AuftragsdetailsDetail {
       `;
     }
 
+    const isKunde = ['kunde', 'kunde_editor'].includes(window.currentUser?.rolle?.toLowerCase());
     const formatCurrency = (v) => {
       if (v === null || v === undefined) return '-';
       return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v);
@@ -714,22 +706,26 @@ export class AuftragsdetailsDetail {
            </a>`
         : (videoDisplayName && videoDisplayName !== '-' ? sanitize(videoDisplayName) : '-');
       
-      const creatorLinkHtml = row.creatorId
-        ? `<a href="#" class="table-link" data-table="creator" data-id="${row.creatorId}">
-             ${sanitize(row.creatorName)}
-           </a>`
-        : sanitize(row.creatorName);
+      const creatorLinkHtml = isKunde
+        ? sanitize(row.creatorName)
+        : (row.creatorId
+          ? `<a href="#" class="table-link" data-table="creator" data-id="${row.creatorId}">
+               ${sanitize(row.creatorName)}
+             </a>`
+          : sanitize(row.creatorName));
 
-      const kampagneLinkHtml = row.kampagneId
-        ? `<a href="#" class="table-link" data-table="kampagne" data-id="${row.kampagneId}">${sanitize(row.kampagneName)}</a>`
-        : sanitize(row.kampagneName);
+      const kampagneLinkHtml = isKunde
+        ? sanitize(row.kampagneName)
+        : (row.kampagneId
+          ? `<a href="#" class="table-link" data-table="kampagne" data-id="${row.kampagneId}">${sanitize(row.kampagneName)}</a>`
+          : sanitize(row.kampagneName));
 
       return `
         <tr>
           <td>${creatorLinkHtml}</td>
           <td>${kampagneLinkHtml}</td>
-          <td>${sanitize(row.kategorie)}</td>
-          <td class="text-right">${formatCurrency(row.ekNetto)}</td>
+          ${!isKunde ? `<td>${sanitize(row.kategorie)}</td>` : ''}
+          ${!isKunde ? `<td class="text-right">${formatCurrency(row.ekNetto)}</td>` : ''}
           <td class="text-right">${formatCurrency(row.vkNetto)}</td>
           <td>${videoHtml}</td>
         </tr>
@@ -743,8 +739,8 @@ export class AuftragsdetailsDetail {
               <tr>
                 <th>Creator</th>
                 <th>Kampagne</th>
-                <th>Kategorie</th>
-                <th class="text-right">EK Netto</th>
+                ${!isKunde ? '<th>Kategorie</th>' : ''}
+                ${!isKunde ? '<th class="text-right">EK Netto</th>' : ''}
                 <th class="text-right">VK Netto</th>
                 <th>Video</th>
               </tr>
@@ -801,14 +797,17 @@ export class AuftragsdetailsDetail {
     if (this._eventsBound) return;
     this._eventsBound = true;
 
+    const isKunde = ['kunde', 'kunde_editor'].includes(window.currentUser?.rolle?.toLowerCase());
+
     // Edit-Button + Table-Links
     this._docClickHandler = (e) => {
-      if (e.target.id === 'btn-edit-details' || e.target.closest('#btn-edit-details')) {
+      if (!isKunde && (e.target.id === 'btn-edit-details' || e.target.closest('#btn-edit-details'))) {
         e.preventDefault();
         this.showEditForm();
       }
 
-      // Table-Links (nur interne Links mit data-table/data-id abfangen)
+      // Table-Links (nur interne Links mit data-table/data-id abfangen) -- Kunden duerfen nicht navigieren
+      if (isKunde) return;
       const link = e.target.closest('.table-link');
       if (link) {
         const table = link.dataset.table;

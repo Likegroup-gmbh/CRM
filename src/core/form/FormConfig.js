@@ -366,21 +366,6 @@ export class FormConfig {
             showWhen: 'Vor Ort Produktion'
           },
           {
-            name: 'status_id',
-            label: 'Status',
-            type: 'select',
-            required: false,
-            options: [],
-            dynamic: true,
-            searchable: true,
-            placeholder: 'Status auswählen...',
-            table: 'kampagne_status',
-            displayField: 'name',
-            valueField: 'id',
-            directQuery: true,
-            defaultValue: '4806a9d3-6e65-410d-928b-6ccbbe335d33'
-          },
-          {
             name: 'plattform_ids',
             label: 'Plattformen',
             type: 'multiselect',

@@ -83,10 +83,8 @@ export class KampagneCalendarView {
           deadline_creator_sourcing,
           deadline_video_produktion,
           deadline_post_produktion,
-          status_id,
           unternehmen:unternehmen_id(id, firmenname, logo_url),
-          marke:marke_id(id, markenname, logo_url),
-          status_ref:status_id(id, name)
+          marke:marke_id(id, markenname, logo_url)
         `)
         .order('created_at', { ascending: false });
 

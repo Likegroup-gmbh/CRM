@@ -122,7 +122,6 @@ export class KampagnePreviewDrawer {
     }) : '–';
 
     const k = this.kampagne;
-    const statusName = k.status_ref?.name || 'Unbekannt';
     const orgName = k.marke?.markenname || k.unternehmen?.firmenname || '–';
     const orgLogo = k.marke?.logo_url || k.unternehmen?.logo_url;
 
@@ -138,11 +137,6 @@ export class KampagnePreviewDrawer {
             <div class="preview-org-name">${safe(orgName)}</div>
             <div class="preview-org-type">${k.marke ? 'Marke' : 'Unternehmen'}</div>
           </div>
-        </div>
-
-        <!-- Status Badge -->
-        <div class="preview-status-row">
-          <span class="preview-status-badge">${safe(statusName)}</span>
         </div>
 
         <!-- Quick Stats -->

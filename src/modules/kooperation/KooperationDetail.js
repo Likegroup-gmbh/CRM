@@ -478,7 +478,6 @@ export class KooperationDetail extends PersonDetailBase {
         <h3 class="section-title">Kampagne</h3>
         ${this.renderInfoItems([
           { icon: 'info', label: 'Name', value: KampagneUtils.getDisplayName(this.kampagne) },
-          { icon: 'tag', label: 'Status', value: this.kampagne.status || '-', badge: true, badgeType: (this.kampagne.status || 'unknown').toLowerCase() },
           { icon: 'building', label: 'Unternehmen', value: this.kampagne.unternehmen?.firmenname || '-' },
           { icon: 'tag', label: 'Marke', value: this.kampagne.marke?.markenname || '-' }
         ])}

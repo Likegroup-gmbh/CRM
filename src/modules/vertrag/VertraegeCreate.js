@@ -630,6 +630,7 @@ export class VertraegeCreate {
           kunde_unternehmen_id: draft.kunde_unternehmen_id,
           kampagne_id: draft.kampagne_id,
           creator_id: draft.creator_id,
+          kooperation_id: draft.kooperation_id,
           // UGC-spezifische Felder
           anzahl_videos: draft.anzahl_videos || 0,
           anzahl_fotos: draft.anzahl_fotos || 0,
@@ -1244,19 +1245,20 @@ export class VertraegeCreate {
 
     if (!this.formData.creator_id || koopForCreator.length === 0) {
       field.style.display = 'none';
-      select.innerHTML = '<option value="">Kooperation auswählen (optional)...</option>';
+      select.innerHTML = '<option value="">Kooperation auswählen...</option>';
       return;
     }
 
     field.style.display = '';
     select.innerHTML = `
-      <option value="">Kooperation auswählen (optional)...</option>
+      <option value="">Kooperation auswählen...</option>
       ${koopForCreator.map(k => `<option value="${k.id}">${k.name || k.id}</option>`).join('')}
     `;
 
     if (koopForCreator.length === 1) {
       select.value = koopForCreator[0].id;
       this.formData.kooperation_id = koopForCreator[0].id;
+      this.applyKooperationVerguetung(koopForCreator[0].id);
     }
   }
 
@@ -1268,9 +1270,9 @@ export class VertraegeCreate {
 
     return `
       <div class="form-field" id="kooperation-field" style="${showField ? '' : 'display:none'}">
-        <label for="kooperation_id">Kooperation</label>
-        <select id="kooperation_id" name="kooperation_id">
-          <option value="">Kooperation auswählen (optional)...</option>
+        <label for="kooperation_id">Kooperation <span class="required">*</span></label>
+        <select id="kooperation_id" name="kooperation_id" required>
+          <option value="">Kooperation auswählen...</option>
           ${koopForCreator.map(k => `
             <option value="${k.id}" ${this.formData.kooperation_id === k.id ? 'selected' : ''}>
               ${k.name || k.id}
@@ -1279,6 +1281,32 @@ export class VertraegeCreate {
         </select>
       </div>
     `;
+  }
+
+  applyKooperationVerguetung(kooperationId) {
+    if (!kooperationId) return;
+
+    const koop = this.filteredKooperationen.find(k => k.id === kooperationId);
+    if (!koop) return;
+
+    const ekNetto = parseFloat(koop.einkaufspreis_netto) || 0;
+    const ekZusatz = parseFloat(koop.einkaufspreis_zusatzkosten) || 0;
+
+    this.formData.verguetung_netto = ekNetto || '';
+    this.formData.zusatzkosten = ekZusatz > 0;
+    this.formData.zusatzkosten_betrag = ekZusatz > 0 ? ekZusatz : '';
+
+    const verguetungInput = document.getElementById('verguetung_netto');
+    if (verguetungInput) verguetungInput.value = this.formData.verguetung_netto;
+
+    const zusatzkostenCheckbox = document.getElementById('zusatzkosten');
+    if (zusatzkostenCheckbox) zusatzkostenCheckbox.checked = this.formData.zusatzkosten;
+
+    const zusatzkostenWrapper = document.getElementById('zusatzkosten-wrapper');
+    if (zusatzkostenWrapper) zusatzkostenWrapper.classList.toggle('hidden', !this.formData.zusatzkosten);
+
+    const zusatzkostenInput = document.getElementById('zusatzkosten_betrag');
+    if (zusatzkostenInput) zusatzkostenInput.value = this.formData.zusatzkosten_betrag;
   }
 
   // Vertragsname automatisch generieren: Typ + Kampagne + Creator
@@ -1326,7 +1354,7 @@ export class VertraegeCreate {
     try {
       const { data: kooperationen } = await window.supabase
         .from('kooperationen')
-        .select('id, creator_id, name')
+        .select('id, creator_id, name, einkaufspreis_netto, einkaufspreis_zusatzkosten')
         .eq('kampagne_id', this.formData.kampagne_id);
 
       this.filteredKooperationen = kooperationen || [];
@@ -3547,6 +3575,7 @@ export class VertraegeCreate {
     if (kooperationSelect) {
       kooperationSelect.addEventListener('change', (e) => {
         this.formData.kooperation_id = e.target.value || null;
+        this.applyKooperationVerguetung(e.target.value);
       });
     }
 

@@ -10,7 +10,7 @@ export class KampagneUtils {
   
   // ========================================
   // ZENTRALISIERTE PERMISSION-LOGIK
-  // Wird von KampagneList, KampagneKanbanBoard und KampagneCalendarView verwendet
+  // Wird von KampagneList und KampagneCalendarView verwendet
   // ========================================
 
   /**
@@ -293,20 +293,6 @@ export class KampagneUtils {
     return kampagne?.eigener_name || kampagne?.kampagnenname || 'Unbenannte Kampagne';
   }
 
-  // Formatiere Kampagnen-Status
-  static formatStatus(status) {
-    const statusMap = {
-      'active': 'Aktiv',
-      'inactive': 'Inaktiv',
-      'completed': 'Abgeschlossen',
-      'cancelled': 'Storniert',
-      'draft': 'Entwurf',
-      'pending': 'Ausstehend'
-    };
-    
-    return statusMap[status] || status || 'Unbekannt';
-  }
-
   // Formatiere Kampagnen-Art
   static formatKampagnenArt(art) {
     if (!art) return '-';
@@ -394,34 +380,44 @@ export class KampagneUtils {
     return diffDays;
   }
 
-  // Formatiere Budget
-  static formatBudget(budget) {
-    if (!budget) {
-      return '-';
-    }
-
-    return new Intl.NumberFormat('de-DE', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(budget);
+  static formatCurrency(value) {
+    if (value === null || value === undefined || value === '') return '-';
+    return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value);
   }
 
-  // Formatiere Datum
-  static formatDate(date) {
-    if (!date) {
-      return '-';
-    }
+  static formatBudget(budget) {
+    return this.formatCurrency(budget);
+  }
 
+  static num(value) {
+    if (value === null || value === undefined) return '-';
+    return new Intl.NumberFormat('de-DE').format(value);
+  }
+
+  static formatDate(date) {
+    if (!date) return '-';
     return new Date(date).toLocaleDateString('de-DE');
   }
 
-  // Formatiere Datum mit Zeit
-  static formatDateTime(date) {
-    if (!date) {
-      return '-';
-    }
+  static formatDateFull(dateStr) {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
 
+  static formatDateTime(date) {
+    if (!date) return '-';
     return new Date(date).toLocaleString('de-DE');
+  }
+
+  static formatArray(array) {
+    if (!array) return '-';
+    if (Array.isArray(array)) return array.map(item => item.name || item).join(', ');
+    return String(array);
+  }
+
+  static getProgressPercentage(current, total) {
+    if (!total || total <= 0) return 0;
+    return Math.min(100, Math.round((current / total) * 100));
   }
 
   // Validiere Kampagnen-Daten
@@ -516,7 +512,7 @@ export class KampagneUtils {
   static createExportData(kampagnen) {
     return kampagnen.map(kampagne => ({
       'Kampagnenname': this.getDisplayName(kampagne),
-      'Status': this.formatStatus(kampagne.status),
+      'Status': kampagne.status || '-',
       'Art der Kampagne': this.formatKampagnenArt(kampagne.art_der_kampagne),
       'Start': this.formatDate(kampagne.start),
       'Deadline': this.formatDate(kampagne.deadline),

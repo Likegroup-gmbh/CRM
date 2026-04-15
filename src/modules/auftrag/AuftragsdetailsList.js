@@ -22,6 +22,16 @@ export class AuftragsdetailsList {
     this._loadRequestId = 0;
     this._supportsAuftragTitel = true;
     this._titelFallbackLogged = false;
+    this._isKunde = null;
+  }
+
+  get isKunde() {
+    if (this._isKunde === null) {
+      this._isKunde = ['kunde', 'kunde_editor'].includes(
+        window.currentUser?.rolle?.toLowerCase()
+      );
+    }
+    return this._isKunde;
   }
 
   isTitelMissingError(error) {
@@ -126,7 +136,7 @@ export class AuftragsdetailsList {
               placeholder: 'Auftragsdetails suchen...', 
               currentValue: this.searchQuery 
             })}
-            <div id="filter-dropdown-container"></div>
+            ${!this.isKunde ? '<div id="filter-dropdown-container"></div>' : ''}
           </div>
         </div>
         <div class="table-actions">
@@ -134,7 +144,7 @@ export class AuftragsdetailsList {
           ${isAdmin ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
           ${isAdmin ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
-          <button id="btn-auftragsdetails-new" class="primary-btn">Neue Auftragsdetails anlegen</button>
+          ${!this.isKunde ? '<button id="btn-auftragsdetails-new" class="primary-btn">Neue Auftragsdetails anlegen</button>' : ''}
         </div>
       </div>
 
@@ -146,8 +156,8 @@ export class AuftragsdetailsList {
                 ${isAdmin ? `<th class="col-checkbox">
                   <input type="checkbox" id="select-all-auftragsdetails">
                 </th>` : ''}
-                <th class="col-ad-unternehmen">Unternehmen</th>
-                <th class="col-ad-marke">Marke</th>
+                ${!this.isKunde ? '<th class="col-ad-unternehmen">Unternehmen</th>' : ''}
+                ${!this.isKunde ? '<th class="col-ad-marke">Marke</th>' : ''}
                 <th>PO intern</th>
                 <th>Status</th>
                 <th class="col-ad-auftrag">Auftrag</th>
@@ -155,13 +165,13 @@ export class AuftragsdetailsList {
                 <th>Start</th>
                 <th>Ende</th>
                 <th>Erstellt am</th>
-                <th class="col-erstellt-von">Erstellt von</th>
-                <th class="col-actions">Aktionen</th>
+                ${!this.isKunde ? '<th class="col-erstellt-von">Erstellt von</th>' : ''}
+                ${!this.isKunde ? '<th class="col-actions">Aktionen</th>' : ''}
               </tr>
             </thead>
             <tbody id="auftragsdetails-table-body">
               <tr>
-                <td colspan="${isAdmin ? '12' : '11'}" class="loading">Lade Auftragsdetails...</td>
+                <td colspan="${this.isKunde ? '7' : isAdmin ? '12' : '11'}" class="loading">Lade Auftragsdetails...</td>
               </tr>
             </tbody>
           </table>
@@ -400,6 +410,7 @@ export class AuftragsdetailsList {
 
   // Initialisiere Filterbar
   async initializeFilterBar() {
+    if (this.isKunde) return;
     const filterContainer = document.getElementById('filter-dropdown-container');
     if (filterContainer) {
       // Nutze das neue Filter-Dropdown System
@@ -667,7 +678,7 @@ export class AuftragsdetailsList {
       if (!details || details.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="${isAdmin ? '11' : '10'}" class="no-data">
+            <td colspan="${this.isKunde ? '7' : isAdmin ? '11' : '10'}" class="no-data">
               <div style="text-align: center; padding: 40px 20px;">
                 <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📄</div>
                 <h3 style="color: #666; margin-bottom: 8px;">Keine Auftragsdetails vorhanden</h3>
@@ -720,8 +731,8 @@ export class AuftragsdetailsList {
         return `
           <tr data-id="${detail.id}">
             ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="auftragsdetails-check" data-id="${detail.id}"></td>` : ''}
-            <td class="col-ad-unternehmen">${unternehmenHtml}</td>
-            <td class="col-ad-marke">${markeHtml}</td>
+            ${!this.isKunde ? `<td class="col-ad-unternehmen">${unternehmenHtml}</td>` : ''}
+            ${!this.isKunde ? `<td class="col-ad-marke">${markeHtml}</td>` : ''}
             <td>${window.validatorSystem?.sanitizeHtml(auftrag.po) || auftrag.po || '-'}</td>
             <td>
               <span class="status-badge status-${(auftrag.status?.toLowerCase() || 'unknown').replace(/\s+/g, '-')}">
@@ -737,10 +748,8 @@ export class AuftragsdetailsList {
             <td>${formatDate(auftrag.start)}</td>
             <td>${formatDate(auftrag.ende)}</td>
             <td>${formatDate(detail.created_at)}</td>
-            <td class="col-erstellt-von">${this.renderCreatedBy(detail.created_by)}</td>
-            <td class="col-actions">
-              ${actionBuilder.create('auftragsdetails', detail.id)}
-            </td>
+            ${!this.isKunde ? `<td class="col-erstellt-von">${this.renderCreatedBy(detail.created_by)}</td>` : ''}
+            ${!this.isKunde ? `<td class="col-actions">${actionBuilder.create('auftragsdetails', detail.id)}</td>` : ''}
           </tr>
         `;
       }).join('');

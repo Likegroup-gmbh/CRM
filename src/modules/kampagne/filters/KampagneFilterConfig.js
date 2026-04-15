@@ -41,17 +41,6 @@ export const KAMPAGNE_FILTERS = [
     priority: 3
   }),
 
-  // Status Filter
-  createFilterConfig('select', {
-    id: 'status_id',
-    label: 'Status',
-    table: 'kampagne_status',
-    displayField: 'name',
-    valueField: 'id',
-    dynamic: true,
-    priority: 4
-  }),
-
   // Art der Kampagne Filter
   createFilterConfig('multiSelect', {
     id: 'art_der_kampagne',
@@ -139,7 +128,7 @@ export const KAMPAGNE_FILTER_GROUPS = [
   {
     id: 'basic',
     label: 'Grundlagen',
-    filters: ['kampagnenname', 'unternehmen_id', 'marke_id', 'status_id'],
+    filters: ['kampagnenname', 'unternehmen_id', 'marke_id'],
     expanded: true
   },
   {
@@ -169,9 +158,8 @@ export const KAMPAGNE_FILTER_PRESETS = [
   {
     id: 'active_campaigns',
     label: 'Aktive Kampagnen',
-    description: 'Laufende Kampagnen mit aktivem Status',
+    description: 'Laufende Kampagnen (Startdatum erreicht, Deadline offen)',
     filters: {
-      status_id: 'active',
       start: { to: new Date().toISOString().split('T')[0] },
       deadline_post_produktion: { from: new Date().toISOString().split('T')[0] }
     }

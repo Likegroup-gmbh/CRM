@@ -86,14 +86,18 @@ export class VideoTableRealtimeHandler {
     if (this._isOwnUpdate()) return;
 
     const updatedVideo = payload.new;
-    for (const koopId in this.table.videos) {
-      const idx = this.table.videos[koopId].findIndex(v => v.id === updatedVideo.id);
-      if (idx !== -1) {
-        this.table.videos[koopId][idx] = { ...this.table.videos[koopId][idx], ...updatedVideo };
-        await this.updateVideoRow(updatedVideo.id);
-        break;
+    if (this.table.store) {
+      this.table.store.updateVideo(updatedVideo.id, updatedVideo);
+    } else {
+      for (const koopId in this.table.videos) {
+        const idx = this.table.videos[koopId].findIndex(v => v.id === updatedVideo.id);
+        if (idx !== -1) {
+          this.table.videos[koopId][idx] = { ...this.table.videos[koopId][idx], ...updatedVideo };
+          break;
+        }
       }
     }
+    await this.updateVideoRow(updatedVideo.id);
   }
 
   async handleNewVideo(payload) {
@@ -101,28 +105,41 @@ export class VideoTableRealtimeHandler {
 
     const newVideo = payload.new;
     const koopId = newVideo.kooperation_id;
-    if (!this.table.videos[koopId]) this.table.videos[koopId] = [];
-    this.table.videos[koopId].push(newVideo);
-    await this.table.refresh();
+    if (this.table.store) {
+      this.table.store.addVideo(koopId, newVideo);
+    } else {
+      if (!this.table.videos[koopId]) this.table.videos[koopId] = [];
+      this.table.videos[koopId].push(newVideo);
+    }
+    this.table.refilter();
   }
 
   async handleNewKooperation() {
     if (this._isOwnUpdate()) return;
-    await this.table.refresh();
+    this.table.refilter();
   }
 
   async handleKooperationUpdate(payload) {
     if (this._isOwnUpdate()) return;
 
     const updated = payload.new;
-    const idx = this.table.kooperationen.findIndex(k => k.id === updated.id);
-    if (idx !== -1) {
-      this.table.kooperationen[idx] = {
-        ...this.table.kooperationen[idx],
+    if (this.table.store) {
+      const existing = this.table.store.kooperationen.find(k => k.id === updated.id);
+      this.table.store.updateKooperation(updated.id, {
         ...updated,
-        creator: this.table.kooperationen[idx].creator,
-        kampagne: this.table.kooperationen[idx].kampagne
-      };
+        creator: existing?.creator,
+        kampagne: existing?.kampagne
+      });
+    } else {
+      const idx = this.table.kooperationen.findIndex(k => k.id === updated.id);
+      if (idx !== -1) {
+        this.table.kooperationen[idx] = {
+          ...this.table.kooperationen[idx],
+          ...updated,
+          creator: this.table.kooperationen[idx].creator,
+          kampagne: this.table.kooperationen[idx].kampagne
+        };
+      }
     }
   }
 
@@ -135,18 +152,21 @@ export class VideoTableRealtimeHandler {
     if (!kooperationId) return;
     if (!this.table.kooperationen.some(k => k.id === kooperationId)) return;
 
-    const deletedVideos = this.table.videos[kooperationId] || [];
-    const deletedVideoIds = deletedVideos.map(v => v.id);
-
-    this.table.kooperationen = this.table.kooperationen.filter(k => k.id !== kooperationId);
-    delete this.table.videos[kooperationId];
-    deletedVideoIds.forEach(videoId => {
-      delete this.table.videoComments[videoId];
-      delete this.table.versandInfos[videoId];
-    });
+    if (this.table.store) {
+      this.table.store.removeKooperation(kooperationId);
+    } else {
+      const deletedVideos = this.table.videos[kooperationId] || [];
+      const deletedVideoIds = deletedVideos.map(v => v.id);
+      this.table.kooperationen = this.table.kooperationen.filter(k => k.id !== kooperationId);
+      delete this.table.videos[kooperationId];
+      deletedVideoIds.forEach(videoId => {
+        delete this.table.videoComments[videoId];
+        delete this.table.versandInfos[videoId];
+      });
+    }
 
     console.log(`Kooperation ${kooperationId} lokal entfernt (Quelle: ${source})`);
-    await this.table.refresh();
+    this.table.refilter();
   }
 
   async handleCommentChange(payload) {
@@ -163,11 +183,18 @@ export class VideoTableRealtimeHandler {
       .is('deleted_at', null)
       .order('created_at', { ascending: true });
 
-    if (!this.table.videoComments[videoId]) {
-      this.table.videoComments[videoId] = { r1: [], r2: [] };
+    const r1 = (comments || []).filter(c => c.runde === 1);
+    const r2 = (comments || []).filter(c => c.runde === 2);
+
+    if (this.table.store) {
+      this.table.store.updateVideoComments(videoId, r1, r2);
+    } else {
+      if (!this.table.videoComments[videoId]) {
+        this.table.videoComments[videoId] = { r1: [], r2: [] };
+      }
+      this.table.videoComments[videoId].r1 = r1;
+      this.table.videoComments[videoId].r2 = r2;
     }
-    this.table.videoComments[videoId].r1 = (comments || []).filter(c => c.runde === 1);
-    this.table.videoComments[videoId].r2 = (comments || []).filter(c => c.runde === 2);
 
     this.updateVideoFeedbackFields(videoId);
   }

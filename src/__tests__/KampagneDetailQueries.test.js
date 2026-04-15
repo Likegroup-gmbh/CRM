@@ -20,7 +20,6 @@ function setupSupabaseMock(mitarbeiterByRoleData = []) {
   const kampagneData = {
     id: 'k1',
     kampagnenname: 'Test-Kampagne',
-    status_id: 's1',
     unternehmen_id: 'u1',
     marke_id: 'm1',
     auftrag_id: 'a1',
@@ -105,12 +104,12 @@ describe('KampagneDetail – Mitarbeiter-Rollen Query-Konsolidierung', () => {
     expect(detail.kampagneData.creator_sourcing_ids).toEqual(['cs1']);
   });
 
-  it('lädt Kooperationen NICHT in loadCriticalData', async () => {
+  it('lädt Kooperationen-Summary in loadCriticalData (für Summary Cards)', async () => {
     const fromCalls = setupSupabaseMock([]);
 
     await detail.loadCriticalData();
 
-    expect(fromCalls['kooperationen']).toBeUndefined();
+    expect(fromCalls['kooperationen']).toBe(1);
   });
 
   it('referenziert kein nicht-existierendes loadKampagneData in Event-Handlern', async () => {

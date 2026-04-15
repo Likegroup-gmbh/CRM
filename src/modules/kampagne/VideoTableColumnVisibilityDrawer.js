@@ -12,6 +12,7 @@ export class VideoTableColumnVisibilityDrawer {
     // Alle konfigurierbaren Spalten in exakt derselben Reihenfolge wie im Tabellen-Header
     // (Nr und Creator sind nicht konfigurierbar und daher hier nicht enthalten)
     this.columns = [
+      { className: 'col-status', label: 'Status' },
       { className: 'col-vertrag', label: 'Vertrag' },
       { className: 'col-nutzungsrechte', label: 'Nutzungsrechte' },
       { className: 'col-start-datum', label: 'Erstellt' },
@@ -34,8 +35,7 @@ export class VideoTableColumnVisibilityDrawer {
       { className: 'col-feedback-kunde', label: 'Feedback Kunde' },
       { className: 'col-freigabe', label: 'Freigabe' },
       { className: 'col-caption', label: 'Caption' },
-      { className: 'col-posting-datum', label: 'Posting Datum' },
-      { className: 'col-actions', label: 'Aktionen' }
+      { className: 'col-posting-datum', label: 'Posting Datum' }
     ];
   }
 

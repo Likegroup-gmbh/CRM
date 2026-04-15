@@ -700,7 +700,6 @@ export class MarkeDetail extends PersonDetailBase {
             ${this.sanitize(KampagneUtils.getDisplayName(kampagne))}
           </a>
         </td>
-        <td><span class="status-badge status-${kampagne.status?.toLowerCase() || 'unknown'}">${kampagne.status || 'Unbekannt'}</span></td>
         <td>${this.formatDate(kampagne.start)}</td>
         <td>${this.formatDate(kampagne.deadline)}</td>
         <td>${kampagne.creatoranzahl || 0}</td>
@@ -717,7 +716,6 @@ export class MarkeDetail extends PersonDetailBase {
           <thead>
             <tr>
               <th>Kampagnenname</th>
-              <th>Status</th>
               <th>Start</th>
               <th>Deadline</th>
               <th>Creator</th>

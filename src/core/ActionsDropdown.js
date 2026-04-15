@@ -190,17 +190,15 @@ export class ActionsDropdown {
 
       if (submenuItem.dataset.action === 'set-field') {
         try {
-          if (entityType === 'kampagne' && fieldName === 'status_id') {
+          if (entityType === 'kooperation' && fieldName === 'status_id') {
             const statusName = submenuItem.dataset.statusName || '';
-            // Kombiniertes Update: status_id + status setzen, damit Trigger sicher feuert
             const { error } = await window.supabase
-              .from('kampagne')
+              .from('kooperationen')
               .update({ status_id: fieldValue, status: statusName, updated_at: new Date().toISOString() })
               .eq('id', entityId);
             if (error) throw error;
-            // Optional: Event für UI-Refresh
-            window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'kampagne', action: 'updated', id: entityId, field: 'status_id', value: fieldValue } }));
-            console.log('✅ Status (id+name) aktualisiert');
+            window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'kooperation', action: 'updated', id: entityId, field: 'status_id', value: fieldValue } }));
+            window.dispatchEvent(new CustomEvent('kooperationStatusChanged', { detail: { kooperationId: entityId, statusId: fieldValue, statusName } }));
           } else {
             await this.setField(entityType, entityId, fieldName, fieldValue);
             console.log('✅ setField abgeschlossen');

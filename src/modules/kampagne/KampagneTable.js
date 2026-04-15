@@ -16,7 +16,6 @@ export function renderKampagnenTable(kampagnen, options = {}) {
     const unternehmen = k.unternehmen?.firmenname || '-';
     const marke = k.marke?.markenname || '-';
     const artDerKampagne = formatArray(k.art_der_kampagne);
-    const status = k.status || '-';
     const start = formatDate(k.start);
     const creatorAnzahl = k.creatoranzahl ?? '-';
     const videoAnzahl = k.videoanzahl ?? '-';
@@ -29,7 +28,6 @@ export function renderKampagnenTable(kampagnen, options = {}) {
         <td>${unternehmen}</td>
         <td>${marke}</td>
         <td>${artDerKampagne}</td>
-        <td><span class="status-badge status-${String(status).toLowerCase()}">${status}</span></td>
         <td>${start}</td>
         <td>${creatorAnzahl}</td>
         <td>${videoAnzahl}</td>
@@ -47,7 +45,6 @@ export function renderKampagnenTable(kampagnen, options = {}) {
             <th>Unternehmen</th>
             <th>Marke</th>
             <th>Art der Kampagne</th>
-            <th>Status</th>
             <th>Start</th>
             <th>Creator Anzahl</th>
             <th>Video Anzahl</th>

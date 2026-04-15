@@ -190,7 +190,6 @@ export class DataService {
           kampagnen_nummer: 'number',
           drehort_typ_id: 'uuid',
           drehort_beschreibung: 'string',
-          status_id: 'uuid',
           creatoranzahl: 'number',
           videoanzahl: 'number',
           budget_info: 'string',
@@ -219,8 +218,7 @@ export class DataService {
           unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' },
           marke: { table: 'marke', foreignKey: 'marke_id', displayField: 'markenname' },
           auftrag: { table: 'auftrag', foreignKey: 'auftrag_id', displayField: 'auftragsname' },
-          drehort_typ: { table: 'drehort_typen', foreignKey: 'drehort_typ_id', displayField: 'name' },
-          status: { table: 'kampagne_status', foreignKey: 'status_id', displayField: 'name' }
+          drehort_typ: { table: 'drehort_typen', foreignKey: 'drehort_typ_id', displayField: 'name' }
         },
         manyToMany: {
           ansprechpartner: {
@@ -239,7 +237,7 @@ export class DataService {
             displayField: 'name,profile_image_url'
           }
         },
-        filters: ['kampagnenname', 'unternehmen_id', 'marke_id', 'status_id', 'art_der_kampagne', 'start', 'deadline_post_produktion'],
+        filters: ['kampagnenname', 'unternehmen_id', 'marke_id', 'art_der_kampagne', 'start', 'deadline_post_produktion'],
         sortBy: 'created_at',
         sortOrder: 'desc'
       },

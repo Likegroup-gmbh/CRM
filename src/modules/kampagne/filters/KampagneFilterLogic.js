@@ -341,22 +341,12 @@ export class KampagneFilterLogic {
    * Prüfe ob Kampagne abgeschlossen ist
    */
   static isKampagneCompleted(kampagne) {
-    // Kampagne ist abgeschlossen wenn:
-    // 1. Status ist "abgeschlossen" ODER
-    // 2. Deadline Post Produktion ist in der Vergangenheit UND alle Kooperationen sind abgeschlossen
-    
-    if (kampagne.status?.name === 'Abgeschlossen') {
-      return true;
-    }
-
     if (!kampagne.deadline_post_produktion) return false;
     
     const now = new Date();
     const deadline = new Date(kampagne.deadline_post_produktion);
     
-    if (deadline > now) return false;
-
-    return true;
+    return deadline <= now;
   }
 
   /**

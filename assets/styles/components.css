@@ -3077,29 +3077,6 @@ h3.section-title,
   }
 }
 
-/* Kampagnen-Kanban mit 11 Spalten und horizontalem Scrolling */
-.kampagne-kanban-board {
-  flex: none !important;
-  overflow-x: auto;
-  overflow-y: hidden;
-  height: calc(100vh - 250px);
-  min-height: 600px;
-  padding-bottom: var(--space-md);
-  /* Verstecke Inline-Scrollbar, da Floating-Scrollbar verwendet wird */
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE/Edge */
-}
-
-/* Verstecke Webkit-Scrollbar */
-.kampagne-kanban-board::-webkit-scrollbar {
-  display: none;
-}
-
-.kampagne-kanban-board .kanban-column {
-  min-width: 280px;
-  max-width: 320px;
-  flex-shrink: 0;
-}
 
 .kanban-column {
   min-width: 24.875em;
@@ -3124,11 +3101,6 @@ h3.section-title,
 @media (max-width: 1200px) {
   .kanban-board {
     flex-direction: column;
-  }
-  
-  .kampagne-kanban-board {
-    height: auto;
-    overflow-x: auto;
   }
   
   .kanban-column {
@@ -3285,30 +3257,6 @@ h3.section-title,
   justify-content: flex-end;
 }
 
-.kampagne-card-drag-handle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  color: var(--gray-500);
-  border-radius: var(--radius-sm);
-  cursor: grab;
-  user-select: none;
-}
-
-.kampagne-card-drag-handle:hover {
-  background: var(--gray-100);
-  color: var(--gray-700);
-}
-
-.kampagne-card-drag-handle:active {
-  cursor: grabbing;
-}
-
-.kampagne-card.dragging .kampagne-card-drag-handle {
-  cursor: grabbing;
-}
 
 .task-description {
   margin: 0;
@@ -3946,8 +3894,12 @@ h3.section-title,
   }
 
   .summary-cards {
-    grid-template-columns: 1fr;
-    gap: 1rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .summary-cards .summary-card {
+    min-width: calc(50% - 0.75rem);
   }
 }
 
@@ -4286,14 +4238,14 @@ h3.section-title,
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  width: 100%;
+  flex: 1 1 0%;
+  min-width: 0;
   border: 1px solid var(--gray-200);
   position: relative;
   padding: var(--space-lg);
   border-radius: var(--radius-lg);
   text-align: left;
   background: #fff;
-
 }
 
 .summary-card:nth-child(2) {
@@ -5686,6 +5638,71 @@ width: 100%;
 .status-badge.status-pending {
   background-color: #fef3c7;
   color: #d97706;
+}
+
+/* Kooperations-Status Badges (kampagne_status Tabelle) */
+.status-badge.status-kick-off {
+  background-color: #ede9fe;
+  color: #7c3aed;
+}
+.status-badge.status-strategie {
+  background-color: #e0f2fe;
+  color: #0369a1;
+}
+.status-badge.status-creator-sourcing {
+  background-color: #fef3c7;
+  color: #d97706;
+}
+.status-badge.status-creator-briefing {
+  background-color: #fef3c7;
+  color: #b45309;
+}
+.status-badge.status-verträge {
+  background-color: #fce7f3;
+  color: #be185d;
+}
+.status-badge.status-script-erstellung {
+  background-color: #e0e7ff;
+  color: #4338ca;
+}
+.status-badge.status-video-produktion {
+  background-color: var(--color-info-light);
+  color: var(--color-info-dark);
+}
+.status-badge.status-post-produktion {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+.status-badge.status-rechnungen {
+  background-color: #dcfce7;
+  color: #15803d;
+}
+.status-badge.status-besprechung {
+  background-color: #f0fdf4;
+  color: #166534;
+}
+
+.col-status {
+  min-width: 120px;
+}
+
+/* Budget Progress in Kampagnenliste */
+.col-budget { min-width: 120px; }
+.budget-progress-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+.budget-progress-cell .summary-progress {
+  flex: 1;
+  margin-top: 0;
+}
+.budget-progress-label {
+  font-size: var(--text-xs);
+  font-weight: 400;
+  white-space: nowrap;
+  min-width: 32px;
+  text-align: right;
 }
 
 .status-hint {

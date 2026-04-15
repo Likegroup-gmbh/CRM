@@ -24,7 +24,7 @@ describe('KampagneDetail – Einheitlicher Skeleton', () => {
     callOrder = [];
 
     const kampagneData = {
-      id: 'k1', kampagnenname: 'Test', status_id: 's1',
+      id: 'k1', kampagnenname: 'Test',
       unternehmen_id: 'u1', marke_id: 'm1', auftrag_id: 'a1',
       art_der_kampagne: [],
       unternehmen: { firmenname: 'GmbH' },
@@ -32,6 +32,7 @@ describe('KampagneDetail – Einheitlicher Skeleton', () => {
       auftrag: { auftragsname: 'A1', status: 'aktiv', gesamt_budget: 1000, creator_budget: 500, bruttobetrag: 1190, nettobetrag: 1000 },
     };
 
+    let kooperationenCallCount = 0;
     window.supabase = {
       from: vi.fn((table) => {
         if (table === 'kampagne') {
@@ -40,7 +41,11 @@ describe('KampagneDetail – Einheitlicher Skeleton', () => {
           return q;
         }
         if (table === 'kooperationen') {
-          callOrder.push('videoTable.loadData');
+          kooperationenCallCount++;
+          // First call is summary in loadCriticalData; subsequent calls are VideoTable
+          if (kooperationenCallCount > 1) {
+            callOrder.push('videoTable.loadData');
+          }
           return createQueryMock({ data: [], error: null });
         }
         if (table === 'creator_auswahl' || table === 'vertraege' || table === 'rechnungen') {
@@ -61,6 +66,8 @@ describe('KampagneDetail – Einheitlicher Skeleton', () => {
     window.breadcrumbSystem = { updateDetailLabel: vi.fn() };
     window.ErrorHandler = { handle: vi.fn() };
     window.dataService = { entities: {} };
+    window.validatorSystem = { sanitizeHtml: vi.fn((s) => s || '') };
+    window.canViewPage = vi.fn(() => true);
 
     detail = new KampagneDetail();
     detail.kampagneId = 'k1';

@@ -54,6 +54,7 @@ export class AuftragList {
     this._globalEventsBound = false;
     this._inlineDatePickerCleanup = null;
     this._isAdmin = null; // Gecachter Admin-Status
+    this._isKunde = null; // Gecachter Kunden-Status
     this.isDragging = false;
     this.startX = 0;
     this.scrollLeft = 0;
@@ -63,23 +64,6 @@ export class AuftragList {
     // Suchfeld
     this.searchQuery = '';
     this._searchDebounceTimer = null;
-    
-    // Finanzdaten
-    this.monthlyRevenue = { total: 0, auftraege: [] };
-    this.monthlyExpenses = { total: 0, rechnungen: [] };
-    this.financialsHidden = localStorage.getItem('auftrag-financials-hidden') === 'true';
-    
-    // Farben für Umsatz-Balken
-    this.revenueColors = [
-      '#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444',
-      '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#6366f1'
-    ];
-    
-    // Farben für Ausgaben-Balken
-    this.expenseColors = [
-      '#ef4444', '#f97316', '#f59e0b', '#dc2626', '#ea580c',
-      '#d97706', '#b91c1c', '#c2410c', '#b45309', '#991b1b'
-    ];
   }
 
   // Gecachte Admin-Prüfung
@@ -91,9 +75,20 @@ export class AuftragList {
     return this._isAdmin;
   }
 
+  // Gecachte Kunden-Prüfung
+  get isKunde() {
+    if (this._isKunde === null) {
+      this._isKunde = ['kunde', 'kunde_editor'].includes(
+        window.currentUser?.rolle?.toLowerCase()
+      );
+    }
+    return this._isKunde;
+  }
+
   // Admin-Cache invalidieren (z.B. bei User-Wechsel)
   invalidateAdminCache() {
     this._isAdmin = null;
+    this._isKunde = null;
   }
 
   // Formatierungs-Hilfsmethoden (einmalig definiert)
@@ -251,26 +246,32 @@ export class AuftragList {
   formatUnternehmenTag(unternehmen) {
     if (!unternehmen?.firmenname) return '-';
     
-    return avatarBubbles.renderBubbles([{
+    const bubbleData = {
       name: unternehmen.firmenname,
       label: unternehmen.internes_kuerzel || unternehmen.firmenname,
       type: 'org',
-      id: unternehmen.id,
-      entityType: 'unternehmen',
       logo_url: unternehmen.logo_url || null
-    }], { showLabel: true });
+    };
+    if (!this.isKunde) {
+      bubbleData.id = unternehmen.id;
+      bubbleData.entityType = 'unternehmen';
+    }
+    return avatarBubbles.renderBubbles([bubbleData], { showLabel: true });
   }
 
   formatMarkeTag(marke) {
     if (!marke?.markenname) return '-';
     
-    return avatarBubbles.renderBubbles([{
+    const bubbleData = {
       name: marke.markenname,
       type: 'org',
-      id: marke.id,
-      entityType: 'marke',
       logo_url: marke.logo_url || null
-    }], { showLabel: true });
+    };
+    if (!this.isKunde) {
+      bubbleData.id = marke.id;
+      bubbleData.entityType = 'marke';
+    }
+    return avatarBubbles.renderBubbles([bubbleData], { showLabel: true });
   }
 
   formatMitarbeiterTags(entries) {
@@ -311,7 +312,17 @@ export class AuftragList {
     try {
       // BulkActionSystem für Auftrag registrieren
       window.bulkActionSystem?.registerList('auftrag', this);
-      
+
+      if (this.isKunde && window.supabase) {
+        const { count } = await window.supabase
+          .from('kunde_marke')
+          .select('*', { count: 'exact', head: true })
+          .eq('kunde_id', window.currentUser.id);
+        this._kundeHasMultipleMarken = (count || 0) > 1;
+      } else {
+        this._kundeHasMultipleMarken = false;
+      }
+
       await this.loadAndRender();
       this.bindEvents();
     } catch (error) {
@@ -323,14 +334,6 @@ export class AuftragList {
   // Lade und rendere Aufträge
   async loadAndRender() {
     try {
-      // Finanzdaten für Admins laden
-      if (this.isAdmin) {
-        await Promise.all([
-          this.loadMonthlyRevenue(),
-          this.loadMonthlyExpenses()
-        ]);
-      }
-      
       // Seite rendern (ersetzt HTML komplett)
       await this.render();
       
@@ -378,94 +381,6 @@ export class AuftragList {
     }
   }
 
-  // Lade Monatsumsatz
-  async loadMonthlyRevenue() {
-    try {
-      if (!window.supabase) {
-        this.monthlyRevenue = { total: 0, auftraege: [] };
-        return;
-      }
-
-      const now = new Date();
-      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-      
-      const firstDayStr = firstDayOfMonth.toISOString().split('T')[0];
-      const lastDayStr = lastDayOfMonth.toISOString().split('T')[0];
-
-      const { data: auftraege, error } = await window.supabase
-        .from('auftrag')
-        .select(`
-          id, auftragsname, nettobetrag, ueberwiesen_am,
-          unternehmen:unternehmen_id(firmenname),
-          marke:marke_id(markenname)
-        `)
-        .not('ueberwiesen_am', 'is', null)
-        .gte('ueberwiesen_am', firstDayStr)
-        .lte('ueberwiesen_am', lastDayStr)
-        .order('nettobetrag', { ascending: false });
-
-      if (error) {
-        this.monthlyRevenue = { total: 0, auftraege: [] };
-        return;
-      }
-
-      const total = (auftraege || []).reduce((sum, a) => sum + (parseFloat(a.nettobetrag) || 0), 0);
-      this.monthlyRevenue = {
-        total,
-        auftraege: auftraege || [],
-        month: now.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
-      };
-    } catch (error) {
-      console.error('❌ Fehler beim Laden des Monatsumsatzes:', error);
-      this.monthlyRevenue = { total: 0, auftraege: [] };
-    }
-  }
-
-  // Lade Monatsausgaben
-  async loadMonthlyExpenses() {
-    try {
-      if (!window.supabase) {
-        this.monthlyExpenses = { total: 0, rechnungen: [] };
-        return;
-      }
-
-      const now = new Date();
-      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-      
-      const firstDayStr = firstDayOfMonth.toISOString().split('T')[0];
-      const lastDayStr = lastDayOfMonth.toISOString().split('T')[0];
-
-      const { data: rechnungen, error } = await window.supabase
-        .from('rechnung')
-        .select(`
-          id, rechnung_nr, nettobetrag, bruttobetrag, bezahlt_am,
-          creator:creator_id(vorname, nachname),
-          kooperation:kooperation_id(name)
-        `)
-        .not('bezahlt_am', 'is', null)
-        .gte('bezahlt_am', firstDayStr)
-        .lte('bezahlt_am', lastDayStr)
-        .order('nettobetrag', { ascending: false });
-
-      if (error) {
-        this.monthlyExpenses = { total: 0, rechnungen: [] };
-        return;
-      }
-
-      const total = (rechnungen || []).reduce((sum, r) => sum + (parseFloat(r.nettobetrag) || 0), 0);
-      this.monthlyExpenses = {
-        total,
-        rechnungen: rechnungen || [],
-        month: now.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
-      };
-    } catch (error) {
-      console.error('❌ Fehler beim Laden der Monatsausgaben:', error);
-      this.monthlyExpenses = { total: 0, rechnungen: [] };
-    }
-  }
-
   // Handler für Seiten-Wechsel
   handlePageChange(page) {
     this.loadAndRender();
@@ -492,7 +407,7 @@ export class AuftragList {
                 placeholder: 'Auftrag suchen...', 
                 currentValue: this.searchQuery 
               })}
-              <div id="filter-dropdown-container"></div>
+              ${!this.isKunde ? '<div id="filter-dropdown-container"></div>' : ''}
             </div>
           </div>
           <div class="table-actions">
@@ -500,18 +415,13 @@ export class AuftragList {
             ${this.isAdmin ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
             <span id="selected-count" style="display:none;">0 ausgewählt</span>
             ${this.isAdmin ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
-            <button id="btn-auftrag-new" class="primary-btn">Neuen Auftrag anlegen</button>
+            ${!this.isKunde ? '<button id="btn-auftrag-new" class="primary-btn">Neuen Auftrag anlegen</button>' : ''}
           </div>
         </div>
       `;
     }
     
-    // Finanzkacheln nur für Admins
-    const financialsHtml = this.isAdmin ? this.renderFinancialsSection() : '';
-    
     const html = `
-      ${financialsHtml}
-
       <div class="page-header">
         <div class="page-header-right">
           <div class="view-toggle">
@@ -547,185 +457,6 @@ export class AuftragList {
     }
   }
 
-  // Render Finanzkacheln mit Toggle
-  renderFinancialsSection() {
-    const eyeOpenIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>`;
-    const eyeClosedIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" /></svg>`;
-
-    return `
-      <div class="auftrag-financials-section">
-        <div class="auftrag-financials-header">
-          <button id="btn-toggle-financials" class="icon-btn" title="${this.financialsHidden ? 'Zahlen anzeigen' : 'Zahlen verbergen'}">
-            ${this.financialsHidden ? eyeClosedIcon : eyeOpenIcon}
-          </button>
-        </div>
-        <div class="auftrag-financials-cards">
-          ${this.renderRevenueCard()}
-          ${this.renderExpensesCard()}
-        </div>
-      </div>
-    `;
-  }
-
-  // Render Umsatz-Kachel
-  renderRevenueCard() {
-    const revenue = this.monthlyRevenue;
-    const total = revenue.total || 0;
-    const auftraege = revenue.auftraege || [];
-    const month = revenue.month || new Date().toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
-    const hiddenValue = '• • •';
-    
-    let barsHtml = '';
-    let legendHtml = '';
-    
-    if (auftraege.length > 0 && total > 0) {
-      auftraege.forEach((auftrag, index) => {
-        const betrag = parseFloat(auftrag.nettobetrag) || 0;
-        const percentage = (betrag / total) * 100;
-        const color = this.revenueColors[index % this.revenueColors.length];
-        const name = auftrag.auftragsname || auftrag.marke?.markenname || auftrag.unternehmen?.firmenname || 'Auftrag';
-        
-        if (percentage > 0.5) {
-          barsHtml += `<div class="revenue-bar" style="width: ${percentage}%; background-color: ${color};" title="${this.financialsHidden ? '' : name + ': ' + this.formatCurrency(betrag)}"></div>`;
-        }
-        
-        if (index < 5) {
-          legendHtml += `
-            <div class="revenue-legend-item">
-              <span class="revenue-legend-color" style="background-color: ${color};"></span>
-              <span class="revenue-legend-value">${this.financialsHidden ? hiddenValue : this.formatCurrency(betrag)}</span>
-              <span class="revenue-legend-name">${name.length > 20 ? name.substring(0, 20) + '...' : name}</span>
-            </div>
-          `;
-        }
-      });
-      
-      if (auftraege.length > 5) {
-        const weitereAnzahl = auftraege.length - 5;
-        const weitereBetrag = auftraege.slice(5).reduce((sum, a) => sum + (parseFloat(a.nettobetrag) || 0), 0);
-        legendHtml += `
-          <div class="revenue-legend-item revenue-legend-item--more">
-            <span class="revenue-legend-color" style="background-color: var(--gray-400);"></span>
-            <span class="revenue-legend-value">${this.financialsHidden ? hiddenValue : this.formatCurrency(weitereBetrag)}</span>
-            <span class="revenue-legend-name">+${weitereAnzahl} weitere</span>
-          </div>
-        `;
-      }
-    } else {
-      barsHtml = '<div class="revenue-bar revenue-bar--empty"></div>';
-      legendHtml = '<div class="revenue-legend-empty">Keine Umsätze in diesem Monat</div>';
-    }
-
-    return `
-      <div class="stats-card stats-card--revenue">
-        <div class="revenue-content">
-          <span class="revenue-title">Umsatz ${month}</span>
-          <div class="revenue-total">
-            <span class="revenue-currency">€</span>
-            <span class="revenue-amount">${this.financialsHidden ? hiddenValue : this.formatNumber(total)}</span>
-          </div>
-          <div class="revenue-bars">
-            ${barsHtml}
-          </div>
-          <div class="revenue-legend">
-            ${legendHtml}
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  // Render Ausgaben-Kachel
-  renderExpensesCard() {
-    const expenses = this.monthlyExpenses;
-    const total = expenses.total || 0;
-    const rechnungen = expenses.rechnungen || [];
-    const month = expenses.month || new Date().toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
-    const hiddenValue = '• • •';
-    
-    let barsHtml = '';
-    let legendHtml = '';
-    
-    if (rechnungen.length > 0 && total > 0) {
-      rechnungen.forEach((rechnung, index) => {
-        const betrag = parseFloat(rechnung.nettobetrag) || 0;
-        const percentage = (betrag / total) * 100;
-        const color = this.expenseColors[index % this.expenseColors.length];
-        const creatorName = rechnung.creator ? `${rechnung.creator.vorname || ''} ${rechnung.creator.nachname || ''}`.trim() : null;
-        const name = creatorName || rechnung.kooperation?.name || rechnung.rechnung_nr || 'Rechnung';
-        
-        if (percentage > 0.5) {
-          barsHtml += `<div class="expense-bar" style="width: ${percentage}%; background-color: ${color};" title="${this.financialsHidden ? '' : name + ': ' + this.formatCurrency(betrag)}"></div>`;
-        }
-        
-        if (index < 5) {
-          legendHtml += `
-            <div class="expense-legend-item">
-              <span class="expense-legend-color" style="background-color: ${color};"></span>
-              <span class="expense-legend-value">${this.financialsHidden ? hiddenValue : this.formatCurrency(betrag)}</span>
-              <span class="expense-legend-name">${name.length > 20 ? name.substring(0, 20) + '...' : name}</span>
-            </div>
-          `;
-        }
-      });
-      
-      if (rechnungen.length > 5) {
-        const weitereAnzahl = rechnungen.length - 5;
-        const weitereBetrag = rechnungen.slice(5).reduce((sum, r) => sum + (parseFloat(r.nettobetrag) || 0), 0);
-        legendHtml += `
-          <div class="expense-legend-item expense-legend-item--more">
-            <span class="expense-legend-color" style="background-color: var(--gray-400);"></span>
-            <span class="expense-legend-value">${this.financialsHidden ? hiddenValue : this.formatCurrency(weitereBetrag)}</span>
-            <span class="expense-legend-name">+${weitereAnzahl} weitere</span>
-          </div>
-        `;
-      }
-    } else {
-      barsHtml = '<div class="expense-bar expense-bar--empty"></div>';
-      legendHtml = '<div class="expense-legend-empty">Keine Ausgaben in diesem Monat</div>';
-    }
-
-    return `
-      <div class="stats-card stats-card--expenses">
-        <div class="expense-content">
-          <span class="expense-title">Ausgaben ${month}</span>
-          <div class="expense-total">
-            <span class="expense-currency">€</span>
-            <span class="expense-amount">${this.financialsHidden ? hiddenValue : this.formatNumber(total)}</span>
-          </div>
-          <div class="expense-bars">
-            ${barsHtml}
-          </div>
-          <div class="expense-legend">
-            ${legendHtml}
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  // Toggle Finanzen anzeigen/verbergen
-  toggleFinancials() {
-    this.financialsHidden = !this.financialsHidden;
-    localStorage.setItem('auftrag-financials-hidden', this.financialsHidden.toString());
-    
-    // Nur die Finanzkacheln neu rendern
-    const financialsSection = document.querySelector('.auftrag-financials-section');
-    if (financialsSection) {
-      financialsSection.outerHTML = this.renderFinancialsSection();
-      // Toggle-Button Event neu binden
-      this.bindFinancialsToggle();
-    }
-  }
-
-  // Bind Toggle Event
-  bindFinancialsToggle() {
-    const toggleBtn = document.getElementById('btn-toggle-financials');
-    if (toggleBtn) {
-      toggleBtn.addEventListener('click', () => this.toggleFinancials());
-    }
-  }
-
   renderCreatedBy(user) {
     if (!user || !user.name) return '-';
     const items = [{
@@ -749,8 +480,8 @@ export class AuftragList {
                 ${this.isAdmin ? `<th class="col-checkbox">
                   <input type="checkbox" id="select-all-auftraege">
                 </th>` : ''}
-                <th>Unternehmen</th>
-                <th>Marke</th>
+                ${!this.isKunde ? '<th class="col-unternehmen">Unternehmen</th>' : ''}
+                ${!this.isKunde || this._kundeHasMultipleMarken ? '<th>Marke</th>' : ''}
                 <th>Interne PO</th>
                 <th>Status</th>
                 <th>Angebotsnummer</th>
@@ -765,14 +496,14 @@ export class AuftragList {
                 <th class="table-cell-center">Rechnung gestellt</th>
                 <th class="table-cell-center">Überwiesen</th>
                 <th class="col-ueberwiesen">Bezahlt am</th>
-                <th>Ansprechpartner</th>
+                ${!this.isKunde ? '<th>Ansprechpartner</th>' : ''}
                 <th class="col-erstellt-von">Erstellt von</th>
-                <th class="col-actions">Aktionen</th>
+                ${!this.isKunde ? '<th class="col-actions">Aktionen</th>' : ''}
               </tr>
             </thead>
             <tbody id="auftraege-table-body">
               <tr>
-                <td colspan="20" class="loading">Lade Aufträge...</td>
+                <td colspan="${this.isKunde ? '14' : '20'}" class="loading">Lade Aufträge...</td>
               </tr>
             </tbody>
           </table>
@@ -900,6 +631,7 @@ export class AuftragList {
 
   // Initialisiere Filterbar mit neuem Filtersystem
   async initializeFilterBar() {
+    if (this.isKunde) return;
     const filterContainer = document.getElementById('filter-dropdown-container');
     if (filterContainer) {
       await filterDropdown.init('auftrag', filterContainer, {
@@ -938,9 +670,6 @@ export class AuftragList {
 
   // Binde Events
   bindEvents() {
-    // Finanzen Toggle Event
-    this.bindFinancialsToggle();
-
     // Suchfeld Events über globale Komponente (nur in List-View)
     if (this.currentView === 'list') {
       SearchInput.bind('auftrag', (value) => this.handleSearch(value));
@@ -1231,7 +960,7 @@ export class AuftragList {
       if (!auftraege || auftraege.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="19" class="no-data">
+            <td colspan="${this.isKunde ? '13' : '19'}" class="no-data">
               <div style="text-align: center; padding: 40px 20px;">
                 <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📋</div>
                 <h3 style="color: #666; margin-bottom: 8px;">Keine Aufträge vorhanden</h3>
@@ -1266,8 +995,8 @@ export class AuftragList {
         return `
         <tr data-id="${auftrag.id}" class="${rowClasses}" data-rechnung-gestellt="${Boolean(auftrag.rechnung_gestellt)}" data-ueberwiesen="${Boolean(auftrag.ueberwiesen)}">
           ${this.isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
-          <td>${this.formatUnternehmenTag(auftrag.unternehmen)}</td>
-          <td>${this.formatMarkeTag(auftrag.marke)}</td>
+          ${!this.isKunde ? `<td class="col-unternehmen">${this.formatUnternehmenTag(auftrag.unternehmen)}</td>` : ''}
+          ${!this.isKunde || this._kundeHasMultipleMarken ? `<td>${this.formatMarkeTag(auftrag.marke)}</td>` : ''}
           <td>${window.validatorSystem.sanitizeHtml(auftrag.po || '-')}</td>
           <td>${window.validatorSystem.sanitizeHtml(auftrag.status || '-')}</td>
           <td>${window.validatorSystem.sanitizeHtml(auftrag.angebotsnummer || '-')}</td>
@@ -1284,11 +1013,9 @@ export class AuftragList {
           <td class="table-cell-center">${this.renderBillingDateCell(auftrag, 'rechnung_gestellt', 'rechnung_gestellt_am')}</td>
           <td class="table-cell-center">${this.renderBillingDateCell(auftrag, 'ueberwiesen', 'ueberwiesen_am')}</td>
           <td class="col-ueberwiesen">${this.formatDate(auftrag.ueberwiesen_am)}</td>
-          <td>${this.formatAnsprechpartner(auftrag.ansprechpartner)}</td>
+          ${!this.isKunde ? `<td>${this.formatAnsprechpartner(auftrag.ansprechpartner)}</td>` : ''}
           <td class="col-erstellt-von">${this.renderCreatedBy(auftrag.created_by)}</td>
-          <td class="col-actions">
-            ${actionBuilder.create('auftrag', auftrag.id)}
-          </td>
+          ${!this.isKunde ? `<td class="col-actions">${actionBuilder.create('auftrag', auftrag.id)}</td>` : ''}
         </tr>
       `}).join('');
     });

@@ -1,7 +1,6 @@
 // DashboardModule.js (ES6-Modul)
 // Hauptdashboard für CRM-Mitarbeiter
 
-import { KampagneKanbanBoard } from '../kampagne/KampagneKanbanBoard.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { KUNDE_ALLOWED_SLUGS, ARTICLE_DISPLAY_OVERRIDES } from '../education/EducationConstants.js';
 
@@ -19,8 +18,7 @@ export class DashboardModule {
       monthlyExpenses: { total: 0, rechnungen: [] }
     };
     this.refreshInterval = null;
-    this.kampagnenView = 'kanban'; // 'list' oder 'kanban' - Standard: kanban
-    this.kanbanBoard = null;
+    this.kampagnenView = 'list';
     this.kampagnen = [];
     
     // Farben für Umsatz-Balken (verschiedene Farben pro Auftrag)
@@ -209,10 +207,9 @@ export class DashboardModule {
         return;
       }
 
-      // Kampagnen mit Status-Name laden
       const { data: kampagnen, error } = await window.supabase
         .from('kampagne')
-        .select('id, deadline, status:status_id(id, name)');
+        .select('id, deadline');
 
       if (error) {
         console.error('❌ Fehler beim Laden der Kampagnen:', error);
@@ -221,9 +218,7 @@ export class DashboardModule {
       }
 
       // "Aktiv" = alle die NICHT "Abgeschlossen" sind
-      const aktiveKampagnen = (kampagnen || []).filter(k => 
-        k.status?.name !== 'Abgeschlossen'
-      );
+      const aktiveKampagnen = kampagnen || [];
       
       // Überfällig = Deadline in der Vergangenheit UND nicht abgeschlossen
       const ueberfaelligeKampagnen = aktiveKampagnen.filter(k => 
@@ -516,8 +511,7 @@ export class DashboardModule {
       const { data: overdueKampagnen } = await window.supabase
         .from('kampagne')
         .select('id, kampagnenname, eigener_name, deadline')
-        .lt('deadline', now.toISOString())
-        .neq('status_id', 'completed');
+        .lt('deadline', now.toISOString());
 
       overdueKampagnen?.forEach(k => {
         alerts.push({
@@ -583,26 +577,9 @@ export class DashboardModule {
         <div class="content-section">
           <div class="section-header">
             <h2>Meine Kampagnen</h2>
-            <div class="section-header-right">
-              <div class="view-toggle">
-                <button id="dashboard-btn-view-list" class="secondary-btn ${this.kampagnenView === 'list' ? 'active' : ''}">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 1.5v-1.5m0 0c0-.621.504-1.125 1.125-1.125m0 0h7.5" />
-                  </svg>
-                  Liste
-                </button>
-                <button id="dashboard-btn-view-kanban" class="secondary-btn ${this.kampagnenView === 'kanban' ? 'active' : ''}">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
-                  </svg>
-                  Kanban
-                </button>
-              </div>
-            </div>
           </div>
           <div id="dashboard-kampagnen-content" class="dashboard-kampagnen-section">
-            <div id="dashboard-kanban-container" class="${this.kampagnenView === 'kanban' ? '' : 'hidden'}"></div>
-            <div id="dashboard-kampagnen-table" class="${this.kampagnenView === 'list' ? '' : 'hidden'}"></div>
+            <div id="dashboard-kampagnen-table"></div>
           </div>
         </div>
         ` : ''}
@@ -611,10 +588,7 @@ export class DashboardModule {
 
     window.setContentSafely(window.content, html);
     
-    // Initialisiere Kanban Board für Mitarbeiter/Admins wenn nicht pending
-    if (!isPending && this.kampagnenView === 'kanban') {
-      await this.initDashboardKanbanBoard();
-    } else if (!isPending && this.kampagnenView === 'list') {
+    if (!isPending) {
       await this.loadKampagnenTable();
     }
   }
@@ -656,7 +630,7 @@ export class DashboardModule {
       const [{ data: kampagnen }, { data: kooperationen }] = await Promise.all([
         window.supabase
           .from('kampagne')
-          .select('id, kampagnenname, eigener_name, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname), status:status_id(name), status_id')
+          .select('id, kampagnenname, eigener_name, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname)')
           .order('created_at', { ascending: false }),
         window.supabase
           .from('kooperationen')
@@ -669,7 +643,6 @@ export class DashboardModule {
           <td><a href="/kampagne/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${k.id}')">${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(k))}</a></td>
           <td>${window.validatorSystem.sanitizeHtml(k.unternehmen?.firmenname || '—')}</td>
           <td>${window.validatorSystem.sanitizeHtml(k.marke?.markenname || '—')}</td>
-          <td><span class="status-badge">${window.validatorSystem.sanitizeHtml(k.status?.name || '—')}</span></td>
         </tr>
       `).join('');
       
@@ -702,26 +675,9 @@ export class DashboardModule {
           <div class="content-section">
             <div class="section-header">
               <h2>Meine Kampagnen</h2>
-              <div class="section-header-right">
-                <div class="view-toggle">
-                  <button id="dashboard-kunden-btn-view-list" class="secondary-btn ${this.kampagnenView === 'list' ? 'active' : ''}">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 1.5v-1.5m0 0c0-.621.504-1.125 1.125-1.125m0 0h7.5" />
-                    </svg>
-                    Liste
-                  </button>
-                  <button id="dashboard-kunden-btn-view-kanban" class="secondary-btn ${this.kampagnenView === 'kanban' ? 'active' : ''}">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
-                    </svg>
-                    Kanban
-                  </button>
-                </div>
-              </div>
             </div>
             <div id="dashboard-kunden-kampagnen-content" class="dashboard-kampagnen-section">
-              <div id="dashboard-kunden-kanban-container" class="${this.kampagnenView === 'kanban' ? '' : 'hidden'}"></div>
-              <div id="dashboard-kunden-kampagnen-table" class="${this.kampagnenView === 'list' ? '' : 'hidden'}">
+              <div id="dashboard-kunden-kampagnen-table"
                 <div class="data-table-container">
                   <table class="data-table">
                     <thead>
@@ -729,10 +685,9 @@ export class DashboardModule {
                         <th>Kampagne</th>
                         <th>Unternehmen</th>
                         <th>Marke</th>
-                        <th>Status</th>
                       </tr>
                     </thead>
-                    <tbody>${kampagnenRows || '<tr><td colspan="4" class="loading">Keine Kampagnen</td></tr>'}</tbody>
+                    <tbody>${kampagnenRows || '<tr><td colspan="3" class="loading">Keine Kampagnen</td></tr>'}</tbody>
                   </table>
                 </div>
               </div>
@@ -761,10 +716,6 @@ export class DashboardModule {
       
       window.setContentSafely(window.content, html);
       
-      // Initialisiere Kanban Board für Kunden wenn View = kanban
-      if (this.kampagnenView === 'kanban') {
-        await this.initDashboardKanbanBoard('dashboard-kunden-kanban-container');
-      }
     } catch (error) {
       console.error('❌ Fehler beim Laden des Kunden-Dashboards:', error);
       window.setContentSafely(window.content, '<p class="error">Fehler beim Laden der Daten.</p>');
@@ -1243,121 +1194,13 @@ export class DashboardModule {
       refreshBtn.addEventListener('click', () => this.refresh());
     }
 
-    // View Toggle Buttons für Mitarbeiter/Admins
-    const listBtn = document.getElementById('dashboard-btn-view-list');
-    const kanbanBtn = document.getElementById('dashboard-btn-view-kanban');
-
-    if (listBtn) {
-      listBtn.addEventListener('click', async () => {
-        console.log('🔄 Dashboard: Wechsel zu List-View');
-        if (this.kampagnenView === 'list') return; // Bereits in List-View
-        
-        this.kampagnenView = 'list';
-        
-        // Cleanup Kanban Board
-        if (this.kanbanBoard) {
-          this.kanbanBoard.destroy();
-          this.kanbanBoard = null;
-        }
-        
-        // Toggle Display via CSS-Klassen
-        const kanbanContainer = document.getElementById('dashboard-kanban-container');
-        const tableContainer = document.getElementById('dashboard-kampagnen-table');
-        if (kanbanContainer) kanbanContainer.classList.add('hidden');
-        if (tableContainer) tableContainer.classList.remove('hidden');
-        
-        // Toggle Button States
-        listBtn.classList.add('active');
-        kanbanBtn.classList.remove('active');
-        
-        // Lade Tabelle
-        await this.loadKampagnenTable();
-      });
-    }
-
-    if (kanbanBtn) {
-      kanbanBtn.addEventListener('click', async () => {
-        console.log('🔄 Dashboard: Wechsel zu Kanban-View');
-        if (this.kampagnenView === 'kanban') return; // Bereits in Kanban-View
-        
-        this.kampagnenView = 'kanban';
-        
-        // Toggle Display via CSS-Klassen
-        const kanbanContainer = document.getElementById('dashboard-kanban-container');
-        const tableContainer = document.getElementById('dashboard-kampagnen-table');
-        if (kanbanContainer) kanbanContainer.classList.remove('hidden');
-        if (tableContainer) tableContainer.classList.add('hidden');
-        
-        // Toggle Button States
-        kanbanBtn.classList.add('active');
-        listBtn.classList.remove('active');
-        
-        // Initialisiere Kanban Board
-        await this.initDashboardKanbanBoard();
-      });
-    }
-
-    // View Toggle Buttons für Kunden
-    const kundenListBtn = document.getElementById('dashboard-kunden-btn-view-list');
-    const kundenKanbanBtn = document.getElementById('dashboard-kunden-btn-view-kanban');
-
-    if (kundenListBtn) {
-      kundenListBtn.addEventListener('click', async () => {
-        console.log('🔄 Kunden Dashboard: Wechsel zu List-View');
-        if (this.kampagnenView === 'list') return;
-        
-        this.kampagnenView = 'list';
-        
-        // Cleanup Kanban Board
-        if (this.kanbanBoard) {
-          this.kanbanBoard.destroy();
-          this.kanbanBoard = null;
-        }
-        
-        // Toggle Display via CSS-Klassen
-        const kanbanContainer = document.getElementById('dashboard-kunden-kanban-container');
-        const tableContainer = document.getElementById('dashboard-kunden-kampagnen-table');
-        if (kanbanContainer) kanbanContainer.classList.add('hidden');
-        if (tableContainer) tableContainer.classList.remove('hidden');
-        
-        // Toggle Button States
-        kundenListBtn.classList.add('active');
-        kundenKanbanBtn.classList.remove('active');
-      });
-    }
-
-    if (kundenKanbanBtn) {
-      kundenKanbanBtn.addEventListener('click', async () => {
-        console.log('🔄 Kunden Dashboard: Wechsel zu Kanban-View');
-        if (this.kampagnenView === 'kanban') return;
-        
-        this.kampagnenView = 'kanban';
-        
-        // Toggle Display via CSS-Klassen
-        const kanbanContainer = document.getElementById('dashboard-kunden-kanban-container');
-        const tableContainer = document.getElementById('dashboard-kunden-kampagnen-table');
-        if (kanbanContainer) kanbanContainer.classList.remove('hidden');
-        if (tableContainer) tableContainer.classList.add('hidden');
-        
-        // Toggle Button States
-        kundenKanbanBtn.classList.add('active');
-        kundenListBtn.classList.remove('active');
-        
-        // Initialisiere Kanban Board
-        await this.initDashboardKanbanBoard('dashboard-kunden-kanban-container');
-      });
-    }
   }
 
   setupKampagneEventListeners() {
     // Event-Listener für Kampagnen-Updates (bidirektionale Sync)
     this.kampagneUpdatedHandler = (e) => {
       console.log('📢 Dashboard: Kampagne Updated Event empfangen', e.detail);
-      if (this.kampagnenView === 'kanban' && this.kanbanBoard) {
-        this.kanbanBoard.refresh();
-      } else if (this.kampagnenView === 'list') {
-        this.loadKampagnenTable();
-      }
+      this.loadKampagnenTable();
     };
     
     window.addEventListener('kampagneUpdated', this.kampagneUpdatedHandler);
@@ -1366,35 +1209,13 @@ export class DashboardModule {
     this.entityUpdatedHandler = (e) => {
       if (e.detail.entity === 'kampagne') {
         console.log('📢 Dashboard: Entity Updated Event (kampagne) empfangen', e.detail);
-        if (this.kampagnenView === 'kanban' && this.kanbanBoard) {
-          this.kanbanBoard.refresh();
-        } else if (this.kampagnenView === 'list') {
-          this.loadKampagnenTable();
-        }
+        this.loadKampagnenTable();
       }
     };
     
     window.addEventListener('entityUpdated', this.entityUpdatedHandler);
     
     console.log('✅ Dashboard: Kampagnen Event-Listener eingerichtet');
-  }
-
-  async initDashboardKanbanBoard(containerId = 'dashboard-kanban-container') {
-    const container = document.getElementById(containerId);
-    if (!container) {
-      console.warn(`⚠️ Dashboard Kanban Container '${containerId}' nicht gefunden`);
-      return;
-    }
-
-    // Cleanup old board
-    if (this.kanbanBoard) {
-      this.kanbanBoard.destroy();
-    }
-
-    // Neue Board-Instanz
-    this.kanbanBoard = new KampagneKanbanBoard();
-    await this.kanbanBoard.init(container);
-    console.log('✅ Dashboard Kanban Board initialisiert');
   }
 
   async loadKampagnenTable() {
@@ -1445,7 +1266,7 @@ export class DashboardModule {
       // Query mit Sichtbarkeits-Filterung
       let kampagnenQuery = window.supabase
         .from('kampagne')
-        .select('id, kampagnenname, eigener_name, unternehmen:unternehmen_id(id, firmenname, logo_url), marke:marke_id(id, markenname, logo_url), status_ref:status_id(id, name)')
+        .select('id, kampagnenname, eigener_name, unternehmen:unternehmen_id(id, firmenname, logo_url), marke:marke_id(id, markenname, logo_url)')
         .order('created_at', { ascending: false });
       
       // Nicht-Admin Filterung anwenden
@@ -1469,7 +1290,6 @@ export class DashboardModule {
           <td>${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(k))}</td>
           <td>${window.validatorSystem.sanitizeHtml(k.unternehmen?.firmenname || '—')}</td>
           <td>${window.validatorSystem.sanitizeHtml(k.marke?.markenname || '—')}</td>
-          <td><span class="status-badge">${window.validatorSystem.sanitizeHtml(k.status_ref?.name || '—')}</span></td>
         </tr>
       `).join('');
 
@@ -1481,10 +1301,9 @@ export class DashboardModule {
                 <th>Kampagne</th>
                 <th>Unternehmen</th>
                 <th>Marke</th>
-                <th>Status</th>
               </tr>
             </thead>
-            <tbody>${kampagnenRows || '<tr><td colspan="4" class="loading">Keine Kampagnen</td></tr>'}</tbody>
+            <tbody>${kampagnenRows || '<tr><td colspan="3" class="loading">Keine Kampagnen</td></tr>'}</tbody>
           </table>
         </div>
       `;
@@ -1503,13 +1322,6 @@ export class DashboardModule {
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);
       this.refreshInterval = null;
-    }
-    
-    // Cleanup Kanban Board
-    if (this.kanbanBoard) {
-      console.log('🗑️ Dashboard: Cleanup Kanban Board');
-      this.kanbanBoard.destroy();
-      this.kanbanBoard = null;
     }
     
     // Cleanup Event-Listener

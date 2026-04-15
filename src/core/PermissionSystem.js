@@ -104,8 +104,8 @@ export class PermissionSystem {
         unternehmen: { can_view: false, can_edit: false, can_delete: false },
         marke: { can_view: false, can_edit: false, can_delete: false },
         produkt: { can_view: true, can_edit: false, can_delete: false },
-        auftrag: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Aufträge NICHT sehen
-        auftragsdetails: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Auftragsdetails NICHT sehen (Einkaufspreise!)
+        auftrag: { can_view: false, can_edit: false, can_delete: false }, // TEMPORÄR AUSGEBLENDET – zum Einblenden: can_view: true
+        auftragsdetails: { can_view: false, can_edit: false, can_delete: false }, // TEMPORÄR AUSGEBLENDET – zum Einblenden: can_view: true
         kampagne: { can_view: true, can_edit: false, can_delete: false },
         kooperation: { can_view: true, can_edit: false, can_delete: false },
         briefing: { can_view: true, can_edit: false, can_delete: false },
@@ -129,8 +129,8 @@ export class PermissionSystem {
         unternehmen: { can_view: false, can_edit: false, can_delete: false },
         marke: { can_view: false, can_edit: false, can_delete: false },
         produkt: { can_view: true, can_edit: false, can_delete: false },
-        auftrag: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Aufträge NICHT sehen
-        auftragsdetails: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Auftragsdetails NICHT sehen (Einkaufspreise!)
+        auftrag: { can_view: false, can_edit: false, can_delete: false }, // TEMPORÄR AUSGEBLENDET – zum Einblenden: can_view: true
+        auftragsdetails: { can_view: false, can_edit: false, can_delete: false }, // TEMPORÄR AUSGEBLENDET – zum Einblenden: can_view: true
         kampagne: { can_view: true, can_edit: false, can_delete: false },
         kooperation: { can_view: true, can_edit: false, can_delete: false },
         briefing: { can_view: true, can_edit: false, can_delete: false },

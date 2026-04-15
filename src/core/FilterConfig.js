@@ -132,15 +132,6 @@ export const FILTER_CONFIGS = {
       valueField: 'id'
     },
     {
-      id: 'status_id',
-      label: 'Status',
-      type: 'select',
-      multiple: false,
-      table: 'kampagne_status',
-      displayField: 'name',
-      valueField: 'id'
-    },
-    {
       id: 'art_der_kampagne',
       label: 'Art der Kampagne',
       type: 'select',

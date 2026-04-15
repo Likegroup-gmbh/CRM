@@ -7,7 +7,6 @@ vi.mock('../../core/filters/FilterDropdown.js', () => ({ filterDropdown: {} }));
 vi.mock('../../core/ActionsDropdown.js', () => ({ actionsDropdown: {} }));
 vi.mock('../../core/actions/ActionBuilder.js', () => ({ actionBuilder: {} }));
 vi.mock('../../core/components/AvatarBubbles.js', () => ({ avatarBubbles: {} }));
-vi.mock('./KampagneKanbanBoard.js', () => ({ KampagneKanbanBoard: class {} }));
 vi.mock('./KampagneCalendarView.js', () => ({ KampagneCalendarView: class {} }));
 vi.mock('../../core/loaders/ParallelQueryHelper.js', () => ({ parallelLoad: vi.fn() }));
 vi.mock('./filters/KampagneFilterLogic.js', () => ({
