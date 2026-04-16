@@ -142,7 +142,7 @@ describe('VideoUploadDrawer', () => {
       const submitBtn = document.getElementById('video-upload-submit-btn');
       expect(submitBtn.disabled).toBe(true);
 
-      drawer._selectedFile = new File(['x'], 'test.mp4', { type: 'video/mp4' });
+      drawer.videoTab._selectedFile = new File(['x'], 'test.mp4', { type: 'video/mp4' });
       document.getElementById('video-upload-name').value = 'Test';
       drawer._updateSubmitButtonState();
       expect(submitBtn.disabled).toBe(false);
@@ -155,7 +155,7 @@ describe('VideoUploadDrawer', () => {
       window.supabase = sb;
 
       await drawer.open('video-1', defaultMetadaten, vi.fn());
-      drawer._selectedVersion = 2;
+      drawer.videoTab._selectedVersion = 2;
       await drawer.saveAssetVersion('https://file.url', '/path/to/file', 'videoname', 'https://folder.url');
 
       const assetInsert = sb._log.find(e => e.op === 'insert' && e.table === 'kooperation_video_asset');
@@ -168,7 +168,7 @@ describe('VideoUploadDrawer', () => {
       window.supabase = sb;
 
       await drawer.open('video-1', defaultMetadaten, vi.fn());
-      drawer._selectedVersion = 1;
+      drawer.videoTab._selectedVersion = 1;
       await drawer.saveAssetVersion('https://file.url', '/path', 'name', 'https://new-folder.url');
 
       const videoUpdate = sb._log.find(e => e.op === 'update' && e.table === 'kooperation_videos');
@@ -181,7 +181,7 @@ describe('VideoUploadDrawer', () => {
       window.supabase = sb;
 
       await drawer.open('video-1', defaultMetadaten, vi.fn());
-      drawer._selectedVersion = 1;
+      drawer.videoTab._selectedVersion = 1;
       await drawer.saveAssetVersion('https://new.url', '/new/path', 'name', 'https://folder.url');
 
       const deleteOps = sb._log.filter(e => e.op === 'delete' && e.table === 'kooperation_video_asset');
@@ -206,7 +206,7 @@ describe('VideoUploadDrawer', () => {
       window.supabase = sb;
 
       await drawer.open('video-1', defaultMetadaten, vi.fn());
-      drawer._selectedVersion = 1;
+      drawer.videoTab._selectedVersion = 1;
       await drawer.saveAssetVersion('https://new.url', '/new/path', 'newname', null);
 
       const dropboxCall = fetchLog.find(l => l.url === '/.netlify/functions/dropbox-delete');
@@ -228,7 +228,7 @@ describe('VideoUploadDrawer', () => {
       window.supabase = sb;
 
       await drawer.open('video-1', defaultMetadaten, vi.fn());
-      drawer._selectedVersion = 1;
+      drawer.videoTab._selectedVersion = 1;
       await drawer.saveAssetVersion('https://new.url', '/new/path', 'name', null);
 
       const dropboxCalls = fetchLog.filter(l => l.url === '/.netlify/functions/dropbox-delete');

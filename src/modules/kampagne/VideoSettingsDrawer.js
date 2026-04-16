@@ -1,8 +1,12 @@
-// VideoSettingsDrawer.js
-// Drawer zum Verwalten von Videos (Anschauen, Neu hochladen, Löschen)
-// Nutzt bestehendes Drawer-Pattern (overlay + panel + header + body)
-
 import { deleteSingleDropboxFile } from '../../core/VideoDeleteHelper.js';
+
+const DELETE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="15" height="15">
+  <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+</svg>`;
+
+const LINK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+  <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+</svg>`;
 
 export class VideoSettingsDrawer {
   constructor() {
@@ -17,20 +21,9 @@ export class VideoSettingsDrawer {
     this.onDelete = null;
     this.onNameUpdated = null;
     this._isSavingName = false;
+    this._activeTab = 'videos';
   }
 
-  /**
-   * @param {object} params
-   * @param {string} params.videoId
-   * @param {string} params.kooperationId
-   * @param {string} params.videoUrl - Aktuelle Video-URL
-   * @param {string} params.filePath - Dropbox-Dateipfad
-   * @param {string} params.videoTitel - Titel/Thema des Videos
-   * @param {string} params.videoName - Anzeigename des Videos
-   * @param {function} params.onReupload - Callback: wird aufgerufen wenn "Neu hochladen" geklickt wird
-   * @param {function} params.onDelete - Callback: wird aufgerufen wenn "Löschen" bestätigt wird
-   * @param {function} params.onNameUpdated - Callback: wird nach erfolgreichem Namensupdate aufgerufen
-   */
   async open({ videoId, kooperationId, videoUrl, filePath, videoTitel, videoName, onReupload, onDelete, onNameUpdated }) {
     this.videoId = videoId;
     this.kooperationId = kooperationId;
@@ -42,18 +35,39 @@ export class VideoSettingsDrawer {
     this.onDelete = onDelete;
     this.onNameUpdated = onNameUpdated;
     this._isSavingName = false;
+    this._activeTab = 'videos';
     this.assets = [];
+    this.storyAssets = [];
+    this.bilderAssets = [];
 
     this.createDrawer();
     this._renderLoading();
 
     try {
-      const { data } = await window.supabase
-        .from('kooperation_video_asset')
-        .select('id, file_url, file_path, version_number, is_current, created_at')
-        .eq('video_id', this.videoId)
-        .order('version_number', { ascending: true });
-      this.assets = data || [];
+      const [videoResult, storyResult, bilderResult] = await Promise.allSettled([
+        window.supabase
+          .from('kooperation_video_asset')
+          .select('id, file_url, file_path, version_number, is_current, created_at')
+          .eq('video_id', this.videoId)
+          .order('version_number', { ascending: true }),
+        window.supabase
+          .from('kooperation_story_asset')
+          .select('id, file_url, file_path, file_name, file_size, version_number, is_current, created_at')
+          .eq('video_id', this.videoId)
+          .order('version_number', { ascending: true })
+          .order('file_name', { ascending: true }),
+        this.kooperationId
+          ? window.supabase
+              .from('kooperation_bilder_asset')
+              .select('id, file_url, file_path, file_name, file_size, created_at')
+              .eq('kooperation_id', this.kooperationId)
+              .order('file_name', { ascending: true })
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      this.assets = videoResult.status === 'fulfilled' ? (videoResult.value.data || []) : [];
+      this.storyAssets = storyResult.status === 'fulfilled' ? (storyResult.value.data || []) : [];
+      this.bilderAssets = bilderResult.status === 'fulfilled' ? (bilderResult.value.data || []) : [];
     } catch (err) {
       console.warn('Assets konnten nicht geladen werden:', err);
     }
@@ -98,7 +112,7 @@ export class VideoSettingsDrawer {
     const headerLeft = document.createElement('div');
     const title = document.createElement('span');
     title.className = 'drawer-title';
-    title.textContent = 'Video verwalten';
+    title.textContent = 'Content verwalten';
 
     const subtitle = document.createElement('p');
     subtitle.className = 'drawer-subtitle';
@@ -133,10 +147,38 @@ export class VideoSettingsDrawer {
     });
   }
 
-  renderContent() {
-    const body = document.getElementById(`${this.drawerId}-body`);
-    if (!body) return;
+  // ─── Tab Navigation ─────────────────────────────────────────
 
+  _renderTabNav() {
+    const videoCount = this.assets.length;
+    const storyCount = this.storyAssets.length;
+    const bilderCount = this.bilderAssets.length;
+    return `
+      <div class="drawer-tab-nav">
+        <button type="button" class="drawer-tab-btn ${this._activeTab === 'videos' ? 'active' : ''}" data-settings-tab="videos">Videos${videoCount ? ` (${videoCount})` : ''}</button>
+        <button type="button" class="drawer-tab-btn ${this._activeTab === 'storys' ? 'active' : ''}" data-settings-tab="storys">Storys${storyCount ? ` (${storyCount})` : ''}</button>
+        <button type="button" class="drawer-tab-btn ${this._activeTab === 'bilder' ? 'active' : ''}" data-settings-tab="bilder">Bilder${bilderCount ? ` (${bilderCount})` : ''}</button>
+      </div>
+    `;
+  }
+
+  _switchTab(tabName) {
+    this._activeTab = tabName;
+    const panel = document.getElementById(this.drawerId);
+    panel?.querySelectorAll('.drawer-tab-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.settingsTab === tabName);
+    });
+    const videosPane = document.getElementById('settings-tab-videos');
+    const storysPane = document.getElementById('settings-tab-storys');
+    const bilderPane = document.getElementById('settings-tab-bilder');
+    if (videosPane) videosPane.style.display = tabName === 'videos' ? '' : 'none';
+    if (storysPane) storysPane.style.display = tabName === 'storys' ? '' : 'none';
+    if (bilderPane) bilderPane.style.display = tabName === 'bilder' ? '' : 'none';
+  }
+
+  // ─── Videos Tab ─────────────────────────────────────────────
+
+  _renderVideosTab() {
     const hasAssets = this.assets.length > 0;
     const uploadBtnText = hasAssets ? 'Weiteres Video hochladen' : 'Neues Video hochladen';
 
@@ -145,15 +187,9 @@ export class VideoSettingsDrawer {
       const rows = this.assets.map(asset => {
         const url = asset.file_url || '';
         const vLabel = `Version ${asset.version_number || '?'}`;
-        const currentBadge = asset.is_current
-          ? ' <span class="video-version-current">Aktuell</span>'
-          : '';
+        const currentBadge = asset.is_current ? ' <span class="video-version-current">Aktuell</span>' : '';
         const linkIcon = url
-          ? `<a href="${url}" target="_blank" rel="noopener noreferrer" class="video-version-link-icon" title="Video öffnen">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-              </svg>
-            </a>`
+          ? `<a href="${url}" target="_blank" rel="noopener noreferrer" class="video-version-link-icon" title="Video öffnen">${LINK_ICON}</a>`
           : '<span class="video-version-nofile">–</span>';
         const uploadDate = asset.created_at
           ? new Date(asset.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -163,35 +199,28 @@ export class VideoSettingsDrawer {
           <td style="text-align:center;">${linkIcon}</td>
           <td>${uploadDate}</td>
           <td style="text-align:center;">
-            <button type="button" class="video-version-delete-btn" data-asset-id="${asset.id}" data-file-path="${this._escapeHtml(asset.file_path || '')}" title="Version löschen">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="15" height="15">
-                <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-              </svg>
-            </button>
+            <button type="button" class="video-version-delete-btn" data-asset-id="${asset.id}" data-file-path="${this._escapeHtml(asset.file_path || '')}" title="Version löschen">${DELETE_ICON}</button>
           </td>
         </tr>`;
       }).join('');
       versionsHtml = `
         <table class="data-table video-versions-table">
-          <thead><tr><th>Video</th><th>Link</th><th>Upload</th><th>Aktion</th></tr></thead>
+          <thead><tr><th>Video</th><th>Link</th><th>Upload</th><th></th></tr></thead>
           <tbody>${rows}</tbody>
         </table>`;
     } else {
       versionsHtml = '<p class="video-settings-no-file">Noch kein Video hochgeladen</p>';
     }
 
-    body.innerHTML = `
-      <div class="video-settings-drawer-content">
+    return `
+      <div id="settings-tab-videos" style="${this._activeTab !== 'videos' ? 'display:none' : ''}">
         <div class="video-settings-section">
           <label class="video-settings-label" for="video-settings-name-input">Video-Name</label>
           <input type="text" id="video-settings-name-input" class="form-input video-settings-name-input" value="${this._escapeHtml(this.videoName)}" placeholder="Video-Name"/>
         </div>
-
         <div class="video-settings-section">
-          <label class="video-settings-label">Videos</label>
           ${versionsHtml}
         </div>
-
         <div class="video-settings-actions">
           <button type="button" class="mdc-btn mdc-btn--primary" id="video-settings-reupload-btn">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
@@ -200,13 +229,131 @@ export class VideoSettingsDrawer {
             ${uploadBtnText}
           </button>
         </div>
+      </div>
+    `;
+  }
 
+  // ─── Storys Tab ─────────────────────────────────────────────
+
+  _renderStorysTab() {
+    let contentHtml;
+
+    if (this.storyAssets.length === 0) {
+      contentHtml = '<p class="video-settings-no-file">Keine Storys hochgeladen</p>';
+    } else {
+      const grouped = {};
+      for (const asset of this.storyAssets) {
+        const v = asset.version_number || 1;
+        if (!grouped[v]) grouped[v] = [];
+        grouped[v].push(asset);
+      }
+
+      let tableRows = '';
+      for (const [version, assets] of Object.entries(grouped)) {
+        const isCurrent = assets.some(a => a.is_current);
+        const badge = isCurrent ? ' <span class="video-version-current">Aktuell</span>' : '';
+        tableRows += `<tr class="settings-version-header-row"><td colspan="4"><strong>Version ${version}</strong>${badge} <span style="color:var(--text-tertiary);font-weight:400;">(${assets.length} Datei${assets.length !== 1 ? 'en' : ''})</span></td></tr>`;
+        for (const asset of assets) {
+          const url = asset.file_url || '';
+          const name = asset.file_name || asset.file_path?.split('/').pop() || '?';
+          const linkIcon = url
+            ? `<a href="${url}" target="_blank" rel="noopener noreferrer" class="video-version-link-icon" title="Öffnen">${LINK_ICON}</a>`
+            : '<span class="video-version-nofile">–</span>';
+          const uploadDate = asset.created_at
+            ? new Date(asset.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+            : '–';
+          tableRows += `<tr>
+            <td class="settings-asset-name">${this._escapeHtml(name)}</td>
+            <td style="text-align:center;">${linkIcon}</td>
+            <td>${uploadDate}</td>
+            <td style="text-align:center;">
+              <button type="button" class="story-asset-delete-btn" data-asset-id="${asset.id}" data-file-path="${this._escapeHtml(asset.file_path || '')}" title="Löschen">${DELETE_ICON}</button>
+            </td>
+          </tr>`;
+        }
+      }
+
+      contentHtml = `
+        <table class="data-table video-versions-table">
+          <thead><tr><th>Datei</th><th>Link</th><th>Upload</th><th></th></tr></thead>
+          <tbody>${tableRows}</tbody>
+        </table>`;
+    }
+
+    return `
+      <div id="settings-tab-storys" style="${this._activeTab !== 'storys' ? 'display:none' : ''}">
+        <div class="video-settings-section">
+          ${contentHtml}
+        </div>
+      </div>
+    `;
+  }
+
+  // ─── Bilder Tab ─────────────────────────────────────────────
+
+  _renderBilderTab() {
+    let contentHtml;
+
+    if (this.bilderAssets.length === 0) {
+      contentHtml = '<p class="video-settings-no-file">Keine Bilder hochgeladen</p>';
+    } else {
+      const rows = this.bilderAssets.map(asset => {
+        const url = asset.file_url || '';
+        const name = asset.file_name || asset.file_path?.split('/').pop() || '?';
+        const sizeMB = asset.file_size ? `${(asset.file_size / 1024 / 1024).toFixed(1)} MB` : '';
+        const linkIcon = url
+          ? `<a href="${url}" target="_blank" rel="noopener noreferrer" class="video-version-link-icon" title="Öffnen">${LINK_ICON}</a>`
+          : '<span class="video-version-nofile">–</span>';
+        const uploadDate = asset.created_at
+          ? new Date(asset.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+          : '–';
+        return `<tr>
+          <td class="settings-asset-name">${this._escapeHtml(name)}</td>
+          <td>${sizeMB}</td>
+          <td style="text-align:center;">${linkIcon}</td>
+          <td>${uploadDate}</td>
+          <td style="text-align:center;">
+            <button type="button" class="bilder-asset-delete-btn" data-asset-id="${asset.id}" data-file-path="${this._escapeHtml(asset.file_path || '')}" title="Löschen">${DELETE_ICON}</button>
+          </td>
+        </tr>`;
+      }).join('');
+
+      contentHtml = `
+        <table class="data-table video-versions-table">
+          <thead><tr><th>Datei</th><th>Größe</th><th>Link</th><th>Upload</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+    }
+
+    return `
+      <div id="settings-tab-bilder" style="${this._activeTab !== 'bilder' ? 'display:none' : ''}">
+        <div class="video-settings-section">
+          ${contentHtml}
+        </div>
+      </div>
+    `;
+  }
+
+  // ─── Main Render ────────────────────────────────────────────
+
+  renderContent() {
+    const body = document.getElementById(`${this.drawerId}-body`);
+    if (!body) return;
+
+    body.innerHTML = `
+      <div class="video-settings-drawer-content">
+        ${this._renderTabNav()}
+        ${this._renderVideosTab()}
+        ${this._renderStorysTab()}
+        ${this._renderBilderTab()}
         <div class="drawer-footer" style="padding:16px 0 0;">
           <button type="button" class="mdc-btn mdc-btn--cancel" id="video-settings-close-btn">Schließen</button>
         </div>
       </div>
     `;
   }
+
+  // ─── Events ─────────────────────────────────────────────────
 
   bindEvents() {
     const overlay = document.getElementById(`${this.drawerId}-overlay`);
@@ -220,6 +367,12 @@ export class VideoSettingsDrawer {
     closeBtn?.addEventListener('click', () => this.close());
     closeBtnFooter?.addEventListener('click', () => this.close());
 
+    // Tab switching
+    panel?.querySelectorAll('.drawer-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => this._switchTab(btn.dataset.settingsTab));
+    });
+
+    // Video name save on blur
     nameInput?.addEventListener('blur', async () => {
       if (this._isSavingName) return;
       const currentName = this.videoName || '';
@@ -248,6 +401,7 @@ export class VideoSettingsDrawer {
       }
     });
 
+    // Re-upload button
     reuploadBtn?.addEventListener('click', () => {
       this.close();
       if (typeof this.onReupload === 'function') {
@@ -255,17 +409,18 @@ export class VideoSettingsDrawer {
       }
     });
 
+    // Video version delete
     document.querySelectorAll('.video-version-delete-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const assetId = btn.dataset.assetId;
-        const filePath = btn.dataset.filePath || '';
+        const fp = btn.dataset.filePath || '';
         if (!confirm('Diese Version wirklich löschen?')) return;
 
         btn.disabled = true;
         const row = btn.closest('tr');
         try {
-          if (filePath) {
-            await deleteSingleDropboxFile(filePath).catch(err =>
+          if (fp) {
+            await deleteSingleDropboxFile(fp).catch(err =>
               console.warn('Dropbox-Löschung fehlgeschlagen:', err)
             );
           }
@@ -277,20 +432,78 @@ export class VideoSettingsDrawer {
           if (error) throw error;
 
           this.assets = this.assets.filter(a => a.id !== assetId);
-
           if (row) row.remove();
 
+          if (typeof this.onDelete === 'function') {
+            await this.onDelete();
+          }
+
           if (this.assets.length === 0) {
-            if (typeof this.onDelete === 'function') {
-              await this.onDelete();
-            }
             this.renderContent();
             this.bindEvents();
-          } else {
-            if (typeof this.onDelete === 'function') {
-              await this.onDelete();
-            }
           }
+        } catch (err) {
+          alert('Löschen fehlgeschlagen: ' + (err.message || 'Unbekannter Fehler'));
+          btn.disabled = false;
+        }
+      });
+    });
+
+    // Story asset delete
+    document.querySelectorAll('.story-asset-delete-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const assetId = btn.dataset.assetId;
+        const fp = btn.dataset.filePath || '';
+        if (!confirm('Diese Story-Datei wirklich löschen?')) return;
+
+        btn.disabled = true;
+        const row = btn.closest('tr');
+        try {
+          if (fp) {
+            await fetch('/.netlify/functions/dropbox-delete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filePath: fp }),
+            }).catch(err => console.warn('Dropbox-Löschung fehlgeschlagen:', err));
+          }
+
+          await window.supabase.from('kooperation_story_asset').delete().eq('id', assetId);
+          this.storyAssets = this.storyAssets.filter(a => a.id !== assetId);
+
+          // Re-render storys tab
+          this.renderContent();
+          this.bindEvents();
+        } catch (err) {
+          alert('Löschen fehlgeschlagen: ' + (err.message || 'Unbekannter Fehler'));
+          btn.disabled = false;
+        }
+      });
+    });
+
+    // Bilder asset delete
+    document.querySelectorAll('.bilder-asset-delete-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const assetId = btn.dataset.assetId;
+        const fp = btn.dataset.filePath || '';
+        if (!confirm('Dieses Bild wirklich löschen?')) return;
+
+        btn.disabled = true;
+        const row = btn.closest('tr');
+        try {
+          if (fp) {
+            await fetch('/.netlify/functions/dropbox-delete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filePath: fp }),
+            }).catch(err => console.warn('Dropbox-Löschung fehlgeschlagen:', err));
+          }
+
+          await window.supabase.from('kooperation_bilder_asset').delete().eq('id', assetId);
+          this.bilderAssets = this.bilderAssets.filter(a => a.id !== assetId);
+
+          // Re-render bilder tab
+          this.renderContent();
+          this.bindEvents();
         } catch (err) {
           alert('Löschen fehlgeschlagen: ' + (err.message || 'Unbekannter Fehler'));
           btn.disabled = false;

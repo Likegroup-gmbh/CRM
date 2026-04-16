@@ -295,11 +295,11 @@ export class KampagneKooperationenVideoTable {
     }, (bilderFolderUrl) => {
       if (koop) koop.bilder_folder_url = bilderFolderUrl;
     }, (storysFolderUrl) => {
-      const patch = { folder_url: storysFolderUrl };
+      const patch = { story_folder_url: storysFolderUrl };
       if (this.store) {
         this.store.updateVideo(videoId, patch);
       } else {
-        if (video) video.folder_url = storysFolderUrl;
+        if (video) video.story_folder_url = storysFolderUrl;
       }
       this.refilter();
     });

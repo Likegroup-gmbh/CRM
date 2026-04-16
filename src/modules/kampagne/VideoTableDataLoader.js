@@ -99,7 +99,7 @@ export class VideoTableDataLoader {
       const [videosResult, creatorsResult, vertraegeResult, versandResult, statusResult] = await Promise.allSettled([
         batchIn(
           sb.from('kooperation_videos'),
-          'id, kooperation_id, position, asset_url, content_art, caption, feedback_creatorjobs, feedback_ritzenhoff, freigabe, link_content, folder_url, link_produkte, thema, link_skript, skript_freigegeben, drehort, video_name, posting_datum, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id)',
+          'id, kooperation_id, position, asset_url, content_art, caption, feedback_creatorjobs, feedback_ritzenhoff, freigabe, link_content, folder_url, story_folder_url, link_produkte, thema, link_skript, skript_freigegeben, drehort, video_name, posting_datum, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id)',
           'kooperation_id', koopIds,
           q => q.order('position', { ascending: true })
         ),

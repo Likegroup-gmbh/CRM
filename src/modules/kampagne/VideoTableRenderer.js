@@ -321,15 +321,21 @@ export class VideoTableRenderer {
         <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-link-content') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => {
             const folderUrl = video.folder_url;
+            const storyFolderUrl = video.story_folder_url;
             const videoUrl = video.file_url || video.link_content || video.asset_url;
             const isKunde = t.isKundeRole();
-            if (folderUrl) {
+            if (folderUrl || storyFolderUrl) {
               return `<div class="content-cell-actions">
-                <a href="${folderUrl}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Ordner öffnen">
+                ${folderUrl ? `<a href="${folderUrl}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Ordner öffnen">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
                   </svg>
-                </a>
+                </a>` : ''}
+                ${storyFolderUrl ? `<a href="${storyFolderUrl}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Storys-Ordner öffnen">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h1.5C5.496 19.5 6 18.996 6 18.375m-2.625 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-1.5A1.125 1.125 0 0 1 18 18.375M20.625 4.5H3.375m17.25 0c.621 0 1.125.504 1.125 1.125M20.625 4.5h-1.5C18.504 4.5 18 5.004 18 5.625m3.75 0v1.5c0 .621-.504 1.125-1.125 1.125M3.375 4.5c-.621 0-1.125.504-1.125 1.125M3.375 4.5h1.5C5.496 4.5 6 5.004 6 5.625m-2.625 0v1.5c0 .621.504 1.125 1.125 1.125m0 0h12m-12 0a1.125 1.125 0 0 1-1.125-1.125m0 0V5.625m0 1.5a1.125 1.125 0 0 1 1.125 1.125m0 0h12m0 0a1.125 1.125 0 0 1 1.125-1.125m0 0a1.125 1.125 0 0 1 1.125 1.125m-1.125-1.125h1.5m0 0a1.125 1.125 0 0 1 1.125 1.125M6 8.25v7.5m0-7.5h12m-12 0a1.125 1.125 0 0 0-1.125 1.125v5.25A1.125 1.125 0 0 0 6 15.75m12-7.5v7.5m0-7.5a1.125 1.125 0 0 1 1.125 1.125v5.25A1.125 1.125 0 0 1 18 15.75m-12 0h12" />
+                  </svg>
+                </a>` : ''}
                 ${koop.bilder_folder_url ? `<a href="${koop.bilder_folder_url}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Bilder-Ordner öffnen">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z" />
