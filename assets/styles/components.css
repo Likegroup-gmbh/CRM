@@ -5682,6 +5682,41 @@ width: 100%;
   color: #166534;
 }
 
+/* Auftrags-Ampelsystem */
+.auftrag-ampel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.auftrag-ampel__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.auftrag-ampel--beauftragt {
+  background-color: rgba(34, 197, 94, 0.1);
+  color: #15803d;
+}
+
+.auftrag-ampel--abgeschlossen {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+.auftrag-ampel--storniert {
+  background-color: rgba(156, 163, 175, 0.15);
+  color: #6b7280;
+}
+
 .col-status {
   min-width: 120px;
 }

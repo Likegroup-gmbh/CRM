@@ -408,7 +408,7 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
     ),
     batchIn(
       sb.from('kooperation_versand'),
-      'id, kooperation_id, video_id, versendet, tracking_nummer, produkt_name, produkt_link, strasse, hausnummer, plz, stadt',
+      'id, kooperation_id, video_id, versendet, tracking_nummer, produkt_name, produkt_link, strasse, hausnummer, plz, stadt, creator_adresse_id',
       'kooperation_id', koopIds
     ),
     sb.from('kampagne_status')
@@ -451,10 +451,26 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
     if (info.video_id) versandMap[info.video_id] = info;
   });
 
+  const adresseIds = [...new Set(versandInfos.map(v => v.creator_adresse_id).filter(Boolean))];
+  const creatorAdressenMap = {};
+  if (adresseIds.length > 0) {
+    try {
+      const adressenResult = await batchIn(
+        sb.from('creator_adressen'),
+        'id, strasse, hausnummer, plz, stadt, adressname',
+        'id', adresseIds
+      );
+      (adressenResult.data || []).forEach(a => { creatorAdressenMap[a.id] = a; });
+    } catch (e) {
+      console.warn('⚠️ KAMPAGNEDETAIL: Creator-Adressen konnten nicht geladen werden:', e);
+    }
+  }
+
   store.setKooperationen(kooperationen);
   store.setVideos(videosByKoopId);
   store.setVideoComments({});
   store.setVersandInfos(versandMap);
+  store.setCreatorAdressen(creatorAdressenMap);
 
   console.log(`✅ KAMPAGNEDETAIL: Tabellendaten geladen in ${(performance.now() - startTime).toFixed(0)}ms (${kooperationen.length} Koops, ${allVideos.length} Videos)`);
   return { videoIds: allVideos.map(v => v.id), statusOptions };

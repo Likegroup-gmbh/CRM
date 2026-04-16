@@ -165,7 +165,7 @@ export class FormConfig {
           { name: 'rechnungsadresse_land', label: 'Land', type: 'text', required: false, defaultValue: 'Deutschland', section: 'stammdaten' },
           // Section: Online - Webseite, Logo
           { name: 'webseite', label: 'Webseite', type: 'url', required: false, placeholder: 'https://...', section: 'online' },
-          { name: 'logo_file', label: 'Logo', type: 'custom', customType: 'uploader', accept: 'image/png,image/jpeg', multiple: false, required: false, maxFileSize: 200 * 1024, section: 'online' },
+          { name: 'logo_file', label: 'Logo', type: 'custom', customType: 'uploader', accept: 'image/png,image/jpeg,image/webp', multiple: false, required: false, maxFileSize: 200 * 1024, section: 'online' },
           // Section: Team - Branchen, Management, Lead-Mitarbeiter, Mitarbeiter
           { name: 'branche_id', label: 'Branchen', type: 'multiselect', required: false, dynamic: true, searchable: true, tagBased: true, placeholder: 'Branche suchen und hinzufügen...', table: 'branchen', displayField: 'name', valueField: 'id', relationTable: 'unternehmen_branchen', relationField: 'branche_id', section: 'team' },
           {
@@ -419,7 +419,7 @@ export class FormConfig {
           // 2. Unternehmen in eigener Section
           { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...', table: 'unternehmen', displayField: 'firmenname', valueField: 'id', section: 'unternehmen' },
           // 3. Logo und Webseite in Section
-          { name: 'logo_file', label: 'Logo', type: 'custom', customType: 'uploader', accept: 'image/png,image/jpeg', multiple: false, required: false, maxFileSize: 200 * 1024, section: 'online' },
+          { name: 'logo_file', label: 'Logo', type: 'custom', customType: 'uploader', accept: 'image/png,image/jpeg,image/webp', multiple: false, required: false, maxFileSize: 200 * 1024, section: 'online' },
           { name: 'webseite', label: 'Webseite', type: 'url', required: false, validation: { type: 'url' }, section: 'online' },
           // 4. Branchen + Mitarbeiter (letzte Inhalte, keine Section nötig)
           { name: 'branche_id', label: 'Branchen', type: 'multiselect', required: false, dynamic: true, searchable: true, tagBased: true, placeholder: 'Branchen suchen und hinzufügen...', table: 'branchen', displayField: 'name', valueField: 'id', relationTable: 'marke_branchen', relationField: 'branche_id' },
@@ -625,7 +625,7 @@ export class FormConfig {
           // Section: Person - Persönliche Daten
           { name: 'vorname', label: 'Vorname', type: 'text', required: true, validation: { type: 'text', minLength: 2 }, row: 'name', section: 'person' },
           { name: 'nachname', label: 'Nachname', type: 'text', required: true, validation: { type: 'text', minLength: 2 }, row: 'name', section: 'person' },
-          { name: 'profile_image_file', label: 'Profilbild', type: 'custom', customType: 'uploader', accept: 'image/png,image/jpeg', multiple: false, required: false, maxFileSize: 500 * 1024, section: 'person' },
+          { name: 'profile_image_file', label: 'Profilbild', type: 'custom', customType: 'uploader', accept: 'image/png,image/jpeg,image/webp', multiple: false, required: false, maxFileSize: 500 * 1024, section: 'person' },
           { name: 'geburtsdatum', label: 'Geburtsdatum', type: 'date', required: false, section: 'person' },
           // Section: Zuordnung - Unternehmen/Marke/Position
           { 

@@ -9,6 +9,7 @@ import { renderTabButton } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { UnternehmenService } from './services/UnternehmenService.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { renderAuftragAmpel } from '../auftrag/logic/AuftragStatusUtils.js';
 
 export class UnternehmenDetail extends PersonDetailBase {
   constructor() {
@@ -556,7 +557,7 @@ export class UnternehmenDetail extends PersonDetailBase {
             ${this.sanitize(auftrag.auftragsname) || 'Unbekannter Auftrag'}
           </a>
         </td>
-        <td><span class="status-badge status-${auftrag.status?.toLowerCase() || 'unknown'}">${auftrag.status || 'Unbekannt'}</span></td>
+        <td>${renderAuftragAmpel(auftrag.status)}</td>
         <td>${this.sanitize(auftrag.auftragtype) || '-'}</td>
         <td>${this.sanitize(auftrag.marke?.markenname) || '-'}</td>
         <td>${this.formatCurrency(auftrag.gesamt_budget)}</td>
@@ -607,7 +608,7 @@ export class UnternehmenDetail extends PersonDetailBase {
             ${this.sanitize(detail.auftrag?.auftragsname) || 'Unbekannter Auftrag'}
           </a>
         </td>
-        <td><span class="status-badge status-${detail.auftrag?.status?.toLowerCase() || 'unknown'}">${detail.auftrag?.status || '-'}</span></td>
+        <td>${renderAuftragAmpel(detail.auftrag?.status)}</td>
         <td>${this.sanitize(detail.kategorie) || '-'}</td>
         <td>${this.sanitize(detail.beschreibung) || '-'}</td>
         <td>${this.formatDate(detail.created_at)}</td>

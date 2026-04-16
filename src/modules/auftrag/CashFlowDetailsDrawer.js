@@ -2,6 +2,8 @@
  * CashFlowDetailsDrawer - Zeigt Details zu Aufträgen eines bestimmten Monats
  * Wird geöffnet beim Klick auf eine Zelle im Cash Flow Kalender
  */
+import { renderAuftragAmpel } from './logic/AuftragStatusUtils.js';
+
 export class CashFlowDetailsDrawer {
   constructor() {
     this.drawer = null;
@@ -117,7 +119,7 @@ export class CashFlowDetailsDrawer {
    * Rendert eine einzelne Auftrags-Zeile
    */
   renderAuftragRow(auftrag) {
-    const statusBadge = this.getStatusBadge(auftrag.status);
+    const statusBadge = renderAuftragAmpel(auftrag.status);
     const rechnungGestellt = auftrag.rechnung_gestellt 
       ? `<span class="status-badge status-success">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">

@@ -8,6 +8,7 @@ import { UploaderField } from '../../core/form/fields/UploaderField.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
+import { compressImage } from '../../core/ImageCompressor.js';
 
 export class ProfileDetailV2 extends PersonDetailBase {
   constructor() {
@@ -903,7 +904,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     if (uploaderRoot) {
       this._profileUploader = new UploaderField({
         multiple: false,
-        accept: 'image/png, image/jpeg, image/jpg',
+        accept: 'image/png, image/jpeg, image/jpg, image/webp',
         maxFileSize: 200 * 1024, // 200 KB
         onFilesChanged: () => {
           // #region agent log
@@ -969,14 +970,14 @@ export class ProfileDetailV2 extends PersonDetailBase {
         const file = uploaderRoot.__uploaderInstance.files[0];
         console.log('🔄 handleProfileSave: Bild gefunden:', file.name, file.size, file.type);
         
-        // Validierung
-        const MAX_FILE_SIZE = 200 * 1024; // 200 KB
-        const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
+        // Grobe Validierung vor Komprimierung (großzügiger, da WebP danach kleiner wird)
+        const MAX_INPUT_SIZE = 2 * 1024 * 1024; // 2 MB Eingangsgröße
+        const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
         
-        if (file.size > MAX_FILE_SIZE) {
-          const sizeKB = (file.size / 1024).toFixed(0);
-          console.log(`❌ handleProfileSave: Bild zu groß! ${sizeKB} KB > 200 KB`);
-          window.showToast?.(`Bild ist zu groß (max. 200 KB). Dein Bild: ${sizeKB} KB`, 'error');
+        if (file.size > MAX_INPUT_SIZE) {
+          const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+          console.log(`❌ handleProfileSave: Bild zu groß! ${sizeMB} MB > 2 MB`);
+          window.showToast?.(`Bild ist zu groß (max. 2 MB). Dein Bild: ${sizeMB} MB`, 'error');
           if (saveBtn) {
             saveBtn.classList.remove('mdc-btn--loading');
             saveBtn.disabled = false;
@@ -986,7 +987,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
         
         if (!ALLOWED_TYPES.includes(file.type)) {
           console.log(`❌ handleProfileSave: Falscher Dateityp! ${file.type}`);
-          window.showToast?.('Nur PNG und JPG Dateien sind erlaubt', 'error');
+          window.showToast?.('Nur PNG, JPG und WebP Dateien sind erlaubt', 'error');
           if (saveBtn) {
             saveBtn.classList.remove('mdc-btn--loading');
             saveBtn.disabled = false;
@@ -994,8 +995,8 @@ export class ProfileDetailV2 extends PersonDetailBase {
           return;
         }
         
-        // Bild hochladen
-        console.log('🔄 handleProfileSave: Starte Bild-Upload...');
+        // Bild hochladen (wird dort zu WebP komprimiert)
+        console.log('🔄 handleProfileSave: Starte Bild-Upload mit WebP-Komprimierung...');
         await this.uploadProfileImage(file);
         console.log('✅ handleProfileSave: Bild-Upload fertig');
       }
@@ -1073,9 +1074,17 @@ export class ProfileDetailV2 extends PersonDetailBase {
     }
     const authUserId = user.id;
 
+    // WebP-Komprimierung
+    try {
+      const originalSize = file.size;
+      file = await compressImage(file);
+      console.log(`🖼️ Profilbild komprimiert: ${Math.round(originalSize / 1024)}KB → ${Math.round(file.size / 1024)}KB (WebP)`);
+    } catch (compressError) {
+      console.warn('⚠️ Komprimierung fehlgeschlagen, nutze Original:', compressError);
+    }
+
     const bucket = 'profile-images';
-    const ext = file.name.split('.').pop().toLowerCase();
-    const path = `${authUserId}/profile.${ext}`;
+    const path = `${authUserId}/profile.webp`;
 
     console.log(`📤 Uploading Profilbild: ${file.name} -> ${path}`);
 
@@ -1101,7 +1110,8 @@ export class ProfileDetailV2 extends PersonDetailBase {
       .from(bucket)
       .upload(path, file, {
         cacheControl: '3600',
-        upsert: true
+        upsert: true,
+        contentType: 'image/webp'
       });
 
     if (uploadError) {

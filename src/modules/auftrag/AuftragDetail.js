@@ -2,6 +2,7 @@
 // Auftrags-Detailseite mit Tabs für Informationen, Notizen, Bewertungen und Creator
 
 import { KAMPAGNENARTEN_MAPPING } from './logic/KampagnenartenMapping.js';
+import { renderAuftragAmpel } from './logic/AuftragStatusUtils.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { renderTabButton } from '../../core/TabUtils.js';
@@ -76,6 +77,16 @@ export class AuftragDetail extends PersonDetailBase {
 
     if (e.target.closest('#btn-edit-auftrag')) {
       this.showEditForm();
+      return;
+    }
+
+    if (e.target.closest('#btn-auftrag-stornieren')) {
+      this._handleStornieren();
+      return;
+    }
+
+    if (e.target.closest('#btn-auftrag-reaktivieren')) {
+      this._handleReaktivieren();
       return;
     }
 
@@ -556,16 +567,20 @@ export class AuftragDetail extends PersonDetailBase {
   }
 
   getSidebarInfo() {
-    const status = this.auftrag?.status || '-';
+    const status = this.auftrag?.status;
+    const stornierButton = status !== 'Storniert'
+      ? `<button class="btn-stornieren" id="btn-auftrag-stornieren" style="margin-top:12px;width:100%;padding:8px 12px;border:1px solid #ef4444;color:#ef4444;background:transparent;border-radius:6px;cursor:pointer;font-size:13px;transition:all 0.2s;">Auftrag stornieren</button>`
+      : `<button class="btn-stornieren" id="btn-auftrag-reaktivieren" style="margin-top:12px;width:100%;padding:8px 12px;border:1px solid #22c55e;color:#22c55e;background:transparent;border-radius:6px;cursor:pointer;font-size:13px;transition:all 0.2s;">Stornierung aufheben</button>`;
+
     return this.renderInfoItems([
-      { icon: 'tag', label: 'Status', value: status },
+      { icon: 'tag', label: 'Status', value: renderAuftragAmpel(status) },
       { icon: 'building', label: 'Unternehmen', value: this.auftrag?.unternehmen?.firmenname || '-' },
       { icon: 'marken', label: 'Marke', value: this.auftrag?.marke?.markenname || '-' },
       { icon: 'currency', label: 'Nettobetrag', value: this.formatCurrency(this.auftrag?.nettobetrag) },
       { icon: 'calendar', label: 'Start', value: this.formatDate(this.auftrag?.start) },
       { icon: 'calendar', label: 'Ende', value: this.formatDate(this.auftrag?.ende) },
       { icon: 'clock', label: 'Aktualisiert', value: this.formatDate(this.auftrag?.updated_at) }
-    ]);
+    ]) + stornierButton;
   }
 
   getTabsConfig() {
@@ -708,7 +723,7 @@ export class AuftragDetail extends PersonDetailBase {
             ${this.renderDetailItem({
               icon: 'tag',
               label: 'Status:',
-              value: `<span class="status-badge status-${(a.status?.toLowerCase() || 'unknown').replace(/\s+/g, '-')}">${a.status || 'Unbekannt'}</span>`
+              value: renderAuftragAmpel(a.status)
             })}
             ${this.renderDetailItem({ icon: 'info', label: 'PO-Nummer:', value: a.po || '-' })}
             ${this.renderDetailItem({ icon: 'info', label: 'RE-Nummer:', value: a.re_nr || '-' })}
@@ -1036,9 +1051,7 @@ export class AuftragDetail extends PersonDetailBase {
             </div>
             <div class="detail-item">
               <label>Status:</label>
-              <span class="status-${this.auftrag?.status?.toLowerCase() || 'unknown'}">
-                ${this.auftrag?.status || 'Unbekannt'}
-              </span>
+              ${renderAuftragAmpel(this.auftrag?.status)}
             </div>
             <div class="detail-item">
               <label>Typ:</label>
@@ -1673,6 +1686,42 @@ export class AuftragDetail extends PersonDetailBase {
         </table>
       </div>
     `;
+  }
+
+  async _handleStornieren() {
+    if (!confirm('Auftrag wirklich stornieren? Der Auftrag wird als inaktiv markiert.')) return;
+    try {
+      const { error } = await window.supabase
+        .from('auftrag')
+        .update({ status: 'Storniert' })
+        .eq('id', this.auftragId);
+      if (error) throw error;
+      this.auftrag.status = 'Storniert';
+      this.render();
+      this.bindEvents();
+      window.toastSystem?.show('Auftrag wurde storniert', 'success');
+    } catch (err) {
+      console.error('❌ Stornierung fehlgeschlagen:', err);
+      window.toastSystem?.show('Stornierung fehlgeschlagen', 'error');
+    }
+  }
+
+  async _handleReaktivieren() {
+    if (!confirm('Stornierung aufheben und Auftrag wieder aktivieren?')) return;
+    try {
+      const { error } = await window.supabase
+        .from('auftrag')
+        .update({ status: 'Beauftragt' })
+        .eq('id', this.auftragId);
+      if (error) throw error;
+      this.auftrag.status = 'Beauftragt';
+      this.render();
+      this.bindEvents();
+      window.toastSystem?.show('Auftrag wurde reaktiviert', 'success');
+    } catch (err) {
+      console.error('❌ Reaktivierung fehlgeschlagen:', err);
+      window.toastSystem?.show('Reaktivierung fehlgeschlagen', 'error');
+    }
   }
 
   // Cleanup

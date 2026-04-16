@@ -11,6 +11,7 @@ export class KampagneDetailStore {
     this.videoComments = {};
     this.versandInfos = {};
     this.creators = new Map();
+    this.creatorAdressen = {};
     this.kampagneInfo = null;
 
     this._loadedAssetVideoIds = new Set();
@@ -63,6 +64,14 @@ export class KampagneDetailStore {
     this.creators = creatorsMap instanceof Map ? creatorsMap : new Map();
   }
 
+  setCreatorAdressen(map) {
+    this.creatorAdressen = map || {};
+  }
+
+  getCreatorAdresse(id) {
+    return this.creatorAdressen[id] || null;
+  }
+
   setKampagneInfo(info) {
     this.kampagneInfo = info;
   }
@@ -105,7 +114,7 @@ export class KampagneDetailStore {
 
   calculateSummary() {
     const allVideos = Object.values(this.videos).flat();
-    const koopBudgetSum = allVideos.reduce((sum, v) => sum + (parseFloat(v.einkaufspreis_netto) || 0), 0);
+    const koopBudgetSum = allVideos.reduce((sum, v) => sum + (parseFloat(v.verkaufspreis_netto) || 0), 0);
     const koopVideosUsed = this.kooperationen.reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
     const uniqueCreatorIds = new Set();
     this.kooperationen.forEach(k => { if (k.creator_id) uniqueCreatorIds.add(k.creator_id); });
@@ -221,6 +230,7 @@ export class KampagneDetailStore {
     this.videos = {};
     this.videoComments = {};
     this.versandInfos = {};
+    this.creatorAdressen = {};
     this.creators.clear();
     this._loadedAssetVideoIds.clear();
   }

@@ -166,12 +166,12 @@ export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQ
     if (kampagneIds.length > 0) {
       const { data: koopData } = await window.supabase
         .from('kooperationen')
-        .select('kampagne_id, kooperation_videos(einkaufspreis_netto)')
+        .select('kampagne_id, kooperation_videos(verkaufspreis_netto)')
         .in('kampagne_id', kampagneIds);
 
       (koopData || []).forEach(koop => {
         const sum = (koop.kooperation_videos || [])
-          .reduce((s, v) => s + (parseFloat(v.einkaufspreis_netto) || 0), 0);
+          .reduce((s, v) => s + (parseFloat(v.verkaufspreis_netto) || 0), 0);
         budgetUsedMap[koop.kampagne_id] = (budgetUsedMap[koop.kampagne_id] || 0) + sum;
       });
     }

@@ -6,6 +6,7 @@ import { PersonDetailBase } from './PersonDetailBase.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
+import { renderAuftragAmpel } from '../auftrag/logic/AuftragStatusUtils.js';
 
 export class MitarbeiterDetail extends PersonDetailBase {
   constructor() {
@@ -577,7 +578,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
             ${window.validatorSystem.sanitizeHtml(detail.auftrag?.auftragsname || 'Unbekannter Auftrag')}
           </a>
         </td>
-        <td><span class="status-badge status-${(detail.auftrag?.status||'').toLowerCase().replace(/\s+/g,'-')}">${detail.auftrag?.status || '-'}</span></td>
+        <td>${renderAuftragAmpel(detail.auftrag?.status)}</td>
         <td>${window.validatorSystem.sanitizeHtml(detail.kategorie || '-')}</td>
         <td>${window.validatorSystem.sanitizeHtml(detail.beschreibung || '-')}</td>
         <td>${formatDate(detail.created_at)}</td>

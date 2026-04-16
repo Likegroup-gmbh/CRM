@@ -1,9 +1,26 @@
 // VideoTableRealtimeHandler.js
 // Realtime-Subscriptions und Live-DOM-Updates fuer die Kampagnen-Video-Tabelle
 
+import { checkAuftragBudgetStatus } from '../auftrag/logic/AuftragStatusUtils.js';
+
 export class VideoTableRealtimeHandler {
   constructor(table) {
     this.table = table;
+  }
+
+  async _triggerBudgetCheck() {
+    try {
+      const { data } = await window.supabase
+        .from('kampagne')
+        .select('auftrag_id')
+        .eq('id', this.table.kampagneId)
+        .single();
+      if (data?.auftrag_id) {
+        checkAuftragBudgetStatus(data.auftrag_id);
+      }
+    } catch (e) {
+      console.warn('⚠️ Budget-Check Trigger fehlgeschlagen:', e);
+    }
   }
 
   initRealtimeSubscription() {
@@ -98,6 +115,9 @@ export class VideoTableRealtimeHandler {
       }
     }
     await this.updateVideoRow(updatedVideo.id);
+    if ('verkaufspreis_netto' in updatedVideo) {
+      this._triggerBudgetCheck();
+    }
   }
 
   async handleNewVideo(payload) {
@@ -167,6 +187,7 @@ export class VideoTableRealtimeHandler {
 
     console.log(`Kooperation ${kooperationId} lokal entfernt (Quelle: ${source})`);
     this.table.refilter();
+    this._triggerBudgetCheck();
   }
 
   async handleCommentChange(payload) {

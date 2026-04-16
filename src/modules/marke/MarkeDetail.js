@@ -12,6 +12,7 @@ import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { MarkeService } from './services/MarkeService.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { FormSubmitHelper } from '../../core/form/FormSubmitHelper.js';
+import { renderAuftragAmpel } from '../auftrag/logic/AuftragStatusUtils.js';
 
 export class MarkeDetail extends PersonDetailBase {
   constructor() {
@@ -749,7 +750,7 @@ export class MarkeDetail extends PersonDetailBase {
             ${this.sanitize(auftrag.auftragsname) || 'Unbekannter Auftrag'}
           </a>
         </td>
-        <td><span class="status-badge status-${auftrag.status?.toLowerCase() || 'unknown'}">${auftrag.status || 'Unbekannt'}</span></td>
+        <td>${renderAuftragAmpel(auftrag.status)}</td>
         <td>${auftrag.auftragtype || '-'}</td>
         <td>${this.formatCurrency(auftrag.gesamt_budget)}</td>
         <td>${this.formatDate(auftrag.created_at)}</td>

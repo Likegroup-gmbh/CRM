@@ -1,6 +1,8 @@
 // ImageUploadHelper.js
 // Wiederverwendbare Bild-Upload-Logik für alle Entitäten (Logos, Profilbilder, etc.)
 
+import { compressImage } from './ImageCompressor.js';
+
 /**
  * Konfiguration für verschiedene Bildtypen
  */
@@ -23,7 +25,7 @@ const IMAGE_CONFIG = {
   }
 };
 
-const ALLOWED_TYPES = ['image/png', 'image/jpeg'];
+const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
 export class ImageUploadHelper {
   /**
@@ -64,9 +66,26 @@ export class ImageUploadHelper {
       }
 
       const files = uploaderRoot.__uploaderInstance.files;
-      const file = files[0];
+      let file = files[0];
 
-      // Validierung: Dateigröße
+      // Validierung: Dateityp (vor Komprimierung)
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        return { 
+          success: false, 
+          error: 'Nur PNG, JPG und WebP Dateien sind erlaubt' 
+        };
+      }
+
+      // WebP-Komprimierung
+      try {
+        const originalSize = file.size;
+        file = await compressImage(file);
+        console.log(`🖼️ Bild komprimiert: ${Math.round(originalSize / 1024)}KB → ${Math.round(file.size / 1024)}KB (WebP)`);
+      } catch (compressError) {
+        console.warn('⚠️ Komprimierung fehlgeschlagen, nutze Original:', compressError);
+      }
+
+      // Validierung: Dateigröße (nach Komprimierung)
       if (file.size > maxSize) {
         const maxSizeKB = Math.round(maxSize / 1024);
         return { 
@@ -75,17 +94,7 @@ export class ImageUploadHelper {
         };
       }
 
-      // Validierung: Dateityp
-      if (!ALLOWED_TYPES.includes(file.type)) {
-        return { 
-          success: false, 
-          error: 'Nur PNG und JPG Dateien sind erlaubt' 
-        };
-      }
-
-      // Pfad erstellen
-      const ext = file.name.split('.').pop().toLowerCase();
-      const path = `${entityId}/${fileName}.${ext}`;
+      const path = `${entityId}/${fileName}.webp`;
 
       // Alte Dateien löschen
       await this._deleteExistingFiles(finalBucket, entityId);
@@ -96,7 +105,7 @@ export class ImageUploadHelper {
         .upload(path, file, {
           cacheControl: '3600',
           upsert: true,
-          contentType: file.type
+          contentType: 'image/webp'
         });
 
       if (uploadError) {

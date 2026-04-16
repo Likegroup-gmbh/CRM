@@ -6,39 +6,9 @@ export class VideoTableRenderer {
   }
 
   renderSkeletonLoading() {
-    const rows = [];
-    
-    for (let i = 0; i < 4; i++) {
-      rows.push(`
-        <div class="skeleton-video-table-row">
-          <div class="skeleton-video-cell"><div class="skeleton skeleton-text" style="width: 30px;"></div></div>
-          <div class="skeleton-video-cell"><div class="skeleton skeleton-text skeleton-text--medium"></div></div>
-          <div class="skeleton-video-cell"><div class="skeleton skeleton-badge"></div></div>
-          <div class="skeleton-video-cell"><div class="skeleton skeleton-text skeleton-text--short"></div></div>
-          <div class="skeleton-video-cell"><div class="skeleton skeleton-text skeleton-text--short"></div></div>
-          <div class="skeleton-video-cell"><div class="skeleton skeleton-text skeleton-text--medium"></div></div>
-          <div class="skeleton-video-cell"><div class="skeleton skeleton-text skeleton-text--medium"></div></div>
-          <div class="skeleton-video-cell"><div class="skeleton skeleton-text skeleton-text--short"></div></div>
-          <div class="skeleton-video-cell"><div class="skeleton skeleton-text skeleton-text--long"></div></div>
-        </div>
-      `);
-    }
-    
     return `
-      <div class="skeleton-wrapper skeleton-video-table">
-        <div class="skeleton-video-table-row" style="background: var(--gray-100); margin-bottom: var(--space-sm);">
-          <div class="skeleton-video-cell"><div class="skeleton skeleton-header-cell" style="width: 30px;"></div></div>
-          <div class="skeleton-video-cell"><div class="skeleton skeleton-header-cell" style="width: 120px;"></div></div>
-          <div class="skeleton-video-cell"><div class="skeleton skeleton-header-cell" style="width: 50px;"></div></div>
-          <div class="skeleton-video-cell"><div class="skeleton skeleton-header-cell" style="width: 80px;"></div></div>
-          <div class="skeleton-video-cell"><div class="skeleton skeleton-header-cell" style="width: 60px;"></div></div>
-          <div class="skeleton-video-cell"><div class="skeleton skeleton-header-cell" style="width: 60px;"></div></div>
-          <div class="skeleton-video-cell"><div class="skeleton skeleton-header-cell" style="width: 100px;"></div></div>
-          <div class="skeleton-video-cell"><div class="skeleton skeleton-header-cell" style="width: 100px;"></div></div>
-          <div class="skeleton-video-cell"><div class="skeleton skeleton-header-cell" style="width: 60px;"></div></div>
-          <div class="skeleton-video-cell"><div class="skeleton skeleton-header-cell" style="width: 150px;"></div></div>
-        </div>
-        ${rows.join('')}
+      <div class="table-loading-container">
+        <div class="table-loading-spinner"></div>
       </div>
     `;
   }
@@ -277,9 +247,24 @@ export class VideoTableRenderer {
         <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-lieferadresse') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => {
             const versandForVideo = t.getVersandForVideo(video.id);
-            const adresse = versandForVideo ? 
-              [versandForVideo.strasse, versandForVideo.hausnummer, versandForVideo.plz, versandForVideo.stadt]
-                .filter(Boolean).join(', ') : '';
+            let adresse = '';
+
+            if (versandForVideo?.creator_adresse_id) {
+              const ca = (t.store || t).creatorAdressen?.[versandForVideo.creator_adresse_id];
+              if (ca) {
+                adresse = [ca.strasse, ca.hausnummer, ca.plz, ca.stadt].filter(Boolean).join(', ');
+              }
+            } else if (versandForVideo?.strasse) {
+              adresse = [versandForVideo.strasse, versandForVideo.hausnummer, versandForVideo.plz, versandForVideo.stadt]
+                .filter(Boolean).join(', ');
+            }
+
+            if (!adresse && koop.creator) {
+              adresse = [koop.creator.lieferadresse_strasse, koop.creator.lieferadresse_hausnummer,
+                         koop.creator.lieferadresse_plz, koop.creator.lieferadresse_stadt]
+                .filter(Boolean).join(', ');
+            }
+
             return `<div class="small-text address-text">${this.escapeHtml(adresse || '-')}</div>`;
           })}
         </td>

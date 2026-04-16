@@ -11,6 +11,7 @@ import { OptionsManager } from './form/data/OptionsManager.js';
 // Neue Architektur
 import { SmartFormInitializer } from './form/initialization/SmartFormInitializer.js';
 import { deleteVideoFull } from './VideoDeleteHelper.js';
+import { compressImage } from './ImageCompressor.js';
 
 export class FormSystem {
   constructor() {
@@ -1301,12 +1302,29 @@ export class FormSystem {
       }
 
       const files = uploaderRoot.__uploaderInstance.files;
-      const file = files[0];
+      let file = files[0];
       const bucket = 'ansprechpartner-images';
       
-      // Validierung
+      // Validierung: Dateityp (vor Komprimierung)
+      const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+      
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        console.warn(`⚠️ Nicht erlaubter Dateityp: ${file.type}`);
+        alert(`Nur PNG, JPG und WebP Dateien sind erlaubt`);
+        return;
+      }
+
+      // WebP-Komprimierung
+      try {
+        const originalSize = file.size;
+        file = await compressImage(file);
+        console.log(`🖼️ Profilbild komprimiert: ${Math.round(originalSize / 1024)}KB → ${Math.round(file.size / 1024)}KB (WebP)`);
+      } catch (compressError) {
+        console.warn('⚠️ Komprimierung fehlgeschlagen, nutze Original:', compressError);
+      }
+
+      // Validierung: Dateigröße (nach Komprimierung)
       const MAX_FILE_SIZE = 500 * 1024; // 500 KB
-      const ALLOWED_TYPES = ['image/png', 'image/jpeg'];
       
       if (file.size > MAX_FILE_SIZE) {
         console.warn(`⚠️ Profilbild zu groß: ${(file.size / 1024).toFixed(2)} KB`);
@@ -1314,14 +1332,7 @@ export class FormSystem {
         return;
       }
 
-      if (!ALLOWED_TYPES.includes(file.type)) {
-        console.warn(`⚠️ Nicht erlaubter Dateityp: ${file.type}`);
-        alert(`Nur PNG und JPG Dateien sind erlaubt`);
-        return;
-      }
-
-      const ext = file.name.split('.').pop().toLowerCase();
-      const path = `${ansprechpartnerId}/profile.${ext}`;
+      const path = `${ansprechpartnerId}/profile.webp`;
       
       console.log(`📤 Uploading Profilbild: ${file.name} -> ${path}`);
       
@@ -1348,7 +1359,7 @@ export class FormSystem {
         .upload(path, file, {
           cacheControl: '3600',
           upsert: true,
-          contentType: file.type
+          contentType: 'image/webp'
         });
       
       if (upErr) {

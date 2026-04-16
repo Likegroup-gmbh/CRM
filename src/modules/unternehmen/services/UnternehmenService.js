@@ -2,6 +2,8 @@
 // Gemeinsame Business-Logic für Unternehmen-Module
 // Vermeidet Code-Duplizierung zwischen UnternehmenDetail, UnternehmenList und UnternehmenCreate
 
+import { compressImage } from '../../../core/ImageCompressor.js';
+
 export class UnternehmenService {
   
   /**
@@ -151,12 +153,29 @@ export class UnternehmenService {
       }
 
       const files = uploaderRoot.__uploaderInstance.files;
-      const file = files[0];
+      let file = files[0];
       const bucket = 'logos';
       const MAX_FILE_SIZE = 200 * 1024; // 200 KB
-      const ALLOWED_TYPES = ['image/png', 'image/jpeg'];
+      const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
       
-      // Validierung
+      // Validierung: Dateityp (vor Komprimierung)
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        const error = new Error(`Nur PNG, JPG und WebP Dateien sind erlaubt`);
+        alert(error.message);
+        if (options.throwOnError) throw error;
+        return null;
+      }
+
+      // WebP-Komprimierung
+      try {
+        const originalSize = file.size;
+        file = await compressImage(file);
+        console.log(`🖼️ Logo komprimiert: ${Math.round(originalSize / 1024)}KB → ${Math.round(file.size / 1024)}KB (WebP)`);
+      } catch (compressError) {
+        console.warn('⚠️ Komprimierung fehlgeschlagen, nutze Original:', compressError);
+      }
+
+      // Validierung: Dateigröße (nach Komprimierung)
       if (file.size > MAX_FILE_SIZE) {
         const error = new Error(`Logo ist zu groß (max. 200 KB)`);
         alert(error.message);
@@ -164,15 +183,7 @@ export class UnternehmenService {
         return null;
       }
 
-      if (!ALLOWED_TYPES.includes(file.type)) {
-        const error = new Error(`Nur PNG und JPG Dateien sind erlaubt`);
-        alert(error.message);
-        if (options.throwOnError) throw error;
-        return null;
-      }
-
-      const ext = file.name.split('.').pop().toLowerCase();
-      const path = `unternehmen/${unternehmenId}/logo.${ext}`;
+      const path = `unternehmen/${unternehmenId}/logo.webp`;
       
       console.log(`📤 Uploading Logo: ${file.name} -> ${path}`);
       
@@ -199,7 +210,7 @@ export class UnternehmenService {
         .upload(path, file, {
           cacheControl: '3600',
           upsert: true,
-          contentType: file.type
+          contentType: 'image/webp'
         });
       
       if (upErr) {

@@ -5,7 +5,7 @@
 import { KampagneKooperationenVideoTable } from './KampagneKooperationenVideoTable.js';
 import { KampagneUtils } from './KampagneUtils.js';
 import { loadCriticalData as _loadCriticalData, loadFullTableData } from './KampagneDetailDataLoader.js';
-import { renderSkeleton, renderNotFound, renderMainPage } from './KampagneDetailMainRenderer.js';
+import { renderPageLoading, renderNotFound, renderMainPage } from './KampagneDetailMainRenderer.js';
 import { updateSummaryCardsDOM } from './KampagneDetailSummaryCards.js';
 import { setupEvents, teardownEvents } from './KampagneDetailEvents.js';
 import { showEditForm as _showEditForm } from './KampagneDetailEditHandler.js';
@@ -69,12 +69,18 @@ export class KampagneDetail {
 
     this.store = new KampagneDetailStore(kampagneId);
 
-    this._showSkeleton();
+    this._showLoading();
 
     this._initPromise = (async () => {
       const _initStart = performance.now();
       try {
-        await this.loadCriticalData();
+        const rolle = String(window.currentUser?.rolle || '').trim().toLowerCase();
+        const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+
+        const [, tableData] = await Promise.all([
+          this.loadCriticalData(),
+          loadFullTableData(this.kampagneId, this.store, isKunde)
+        ]);
 
         if (!this._isMounted) return;
 
@@ -86,18 +92,16 @@ export class KampagneDetail {
           });
         }
 
+        this._prepareVideoTable(tableData, isKunde);
+
         await this.render();
 
         setupEvents(this);
 
-        const _firstRenderTime = performance.now() - _initStart;
-        console.log(`✅ KAMPAGNEDETAIL: First Render in ${_firstRenderTime.toFixed(0)}ms`);
+        this._mountVideoTable();
 
-        if (this._isMounted) {
-          this._loadVideoTableAsync();
-        }
-
-        console.log(`✅ KAMPAGNEDETAIL: Initialisierung abgeschlossen in ${(performance.now() - _initStart).toFixed(0)}ms`);
+        const _renderTime = performance.now() - _initStart;
+        console.log(`✅ KAMPAGNEDETAIL: Komplett geladen und gerendert in ${_renderTime.toFixed(0)}ms`);
       } catch (error) {
         console.error('❌ KAMPAGNEDETAIL: Fehler bei der Initialisierung:', error);
         window.ErrorHandler.handle(error, 'KampagneDetail.init');
@@ -109,9 +113,9 @@ export class KampagneDetail {
     return this._initPromise;
   }
 
-  _showSkeleton() {
+  _showLoading() {
     if (!window.content) return;
-    window.content.innerHTML = renderSkeleton();
+    window.content.innerHTML = renderPageLoading();
   }
 
   async loadCriticalData() {
@@ -160,89 +164,69 @@ export class KampagneDetail {
     window.setContentSafely(window.content, html);
   }
 
-  async _loadVideoTableAsync() {
-    const _vtStart = performance.now();
-    try {
-      const rolle = String(window.currentUser?.rolle || '').trim().toLowerCase();
-      const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+  _prepareVideoTable(tableData, isKunde) {
+    this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId, this.store);
+    this.kooperationenVideoTable.statusOptions = tableData?.statusOptions || [];
 
-      const hiddenCols = this.kampagneData?.video_table_hidden_columns;
-
-      const [tableData] = await Promise.all([
-        loadFullTableData(this.kampagneId, this.store, isKunde),
-        hiddenCols ? Promise.resolve() : (async () => {
-          const { data } = await window.supabase
-            .from('kampagne')
-            .select('video_table_hidden_columns')
-            .eq('id', this.kampagneId)
-            .single();
-          this._loadedHiddenColumns = data?.video_table_hidden_columns || [];
-        })()
-      ]);
-
-      if (!this._isMounted) return;
-
-      this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId, this.store);
-      this.kooperationenVideoTable.statusOptions = tableData?.statusOptions || [];
-
-      if (hiddenCols) {
-        this.kooperationenVideoTable.hiddenColumns = hiddenCols;
-      } else if (this._loadedHiddenColumns) {
-        this.kooperationenVideoTable.hiddenColumns = this._loadedHiddenColumns;
-      }
-
-      this.kooperationenVideoTable._dataLoaded = true;
-
-      const mainContent = document.querySelector('.main-content');
-      mainContent?.classList.add('kampagne-detail-grid-active');
-
-      this.kooperationenVideoTable.containerId = 'kooperationen-videos-container';
-      const vtContainer = document.getElementById('kooperationen-videos-container');
-      if (vtContainer) {
-        vtContainer.innerHTML = this.kooperationenVideoTable.render();
-        this.kooperationenVideoTable.bindEvents();
-        this.kooperationenVideoTable.initFloatingScrollbar();
-        this.kooperationenVideoTable.initRealtimeSubscription();
-        this.kooperationenVideoTable.loadColumnWidths();
-
-        if (!this.kooperationenVideoTable._visibilityEventBound) {
-          window.addEventListener('video-column-visibility-changed', (e) => {
-            if (e.detail.kampagneId === this.kampagneId) {
-              this.kooperationenVideoTable.hiddenColumns = e.detail.hiddenColumns;
-              this.kooperationenVideoTable.refilter();
-            }
-          });
-          this.kooperationenVideoTable._visibilityEventBound = true;
-        }
-
-        if (!this.kooperationenVideoTable._entityUpdatedHandler) {
-          this.kooperationenVideoTable._entityUpdatedHandler = async (e) => {
-            const evtDetail = e.detail || {};
-            if (evtDetail.entity === 'kooperation' && evtDetail.action === 'deleted' && evtDetail.id) {
-              await this.kooperationenVideoTable.handleKooperationDeletedById(evtDetail.id, 'entityUpdated');
-            }
-          };
-          window.addEventListener('entityUpdated', this.kooperationenVideoTable._entityUpdatedHandler);
-        }
-
-        this.kooperationenVideoTable.updateTabCounts();
-      }
-
-      const summary = this.store.calculateSummary();
-      this.koopBudgetSum = summary.koopBudgetSum;
-      this.koopVideosUsed = summary.koopVideosUsed;
-      this.koopCreatorsUsed = summary.koopCreatorsUsed;
-      updateSummaryCardsDOM(this.kampagneData, this.koopBudgetSum, this.koopVideosUsed, this.koopCreatorsUsed);
-
-      const videoIds = tableData?.videoIds;
-      if (videoIds && videoIds.length > 0) {
-        this.kooperationenVideoTable.loadAssetsAndCommentsForVisible();
-      }
-
-      console.log(`✅ KAMPAGNEDETAIL: VideoTable async geladen in ${(performance.now() - _vtStart).toFixed(0)}ms`);
-    } catch (error) {
-      console.error('❌ KAMPAGNEDETAIL: Fehler beim async Laden der VideoTable:', error);
+    const hiddenCols = this.kampagneData?.video_table_hidden_columns;
+    if (hiddenCols) {
+      this.kooperationenVideoTable.hiddenColumns = hiddenCols;
     }
+
+    this.kooperationenVideoTable._dataLoaded = true;
+    this._pendingTableData = tableData;
+
+    const summary = this.store.calculateSummary();
+    this.koopBudgetSum = summary.koopBudgetSum;
+    this.koopVideosUsed = summary.koopVideosUsed;
+    this.koopCreatorsUsed = summary.koopCreatorsUsed;
+  }
+
+  _mountVideoTable() {
+    if (!this.kooperationenVideoTable) return;
+
+    const mainContent = document.querySelector('.main-content');
+    mainContent?.classList.add('kampagne-detail-grid-active');
+
+    this.kooperationenVideoTable.containerId = 'kooperationen-videos-container';
+    const vtContainer = document.getElementById('kooperationen-videos-container');
+    if (vtContainer) {
+      vtContainer.innerHTML = this.kooperationenVideoTable.render();
+      this.kooperationenVideoTable.bindEvents();
+      this.kooperationenVideoTable.initFloatingScrollbar();
+      this.kooperationenVideoTable.initRealtimeSubscription();
+      this.kooperationenVideoTable.loadColumnWidths();
+
+      if (!this.kooperationenVideoTable._visibilityEventBound) {
+        window.addEventListener('video-column-visibility-changed', (e) => {
+          if (e.detail.kampagneId === this.kampagneId) {
+            this.kooperationenVideoTable.hiddenColumns = e.detail.hiddenColumns;
+            this.kooperationenVideoTable.refilter();
+          }
+        });
+        this.kooperationenVideoTable._visibilityEventBound = true;
+      }
+
+      if (!this.kooperationenVideoTable._entityUpdatedHandler) {
+        this.kooperationenVideoTable._entityUpdatedHandler = async (e) => {
+          const evtDetail = e.detail || {};
+          if (evtDetail.entity === 'kooperation' && evtDetail.action === 'deleted' && evtDetail.id) {
+            await this.kooperationenVideoTable.handleKooperationDeletedById(evtDetail.id, 'entityUpdated');
+          }
+        };
+        window.addEventListener('entityUpdated', this.kooperationenVideoTable._entityUpdatedHandler);
+      }
+
+      this.kooperationenVideoTable.updateTabCounts();
+    }
+
+    updateSummaryCardsDOM(this.kampagneData, this.koopBudgetSum, this.koopVideosUsed, this.koopCreatorsUsed);
+
+    const videoIds = this._pendingTableData?.videoIds;
+    if (videoIds && videoIds.length > 0) {
+      this.kooperationenVideoTable.loadAssetsAndCommentsForVisible();
+    }
+    this._pendingTableData = null;
   }
 
   switchTab(tabName) {

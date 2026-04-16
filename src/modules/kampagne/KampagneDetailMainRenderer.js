@@ -4,31 +4,12 @@
 import { KampagneUtils } from './KampagneUtils.js';
 import { renderSummaryCards } from './KampagneDetailSummaryCards.js';
 import { renderAnsprechpartner } from './KampagneDetailTabRenderers.js';
+import { renderAuftragAmpel } from '../auftrag/logic/AuftragStatusUtils.js';
 
-export function renderSkeleton() {
+export function renderPageLoading() {
   return `
-    <div class="skeleton-wrapper">
-      <div class="auftragsdetails-summary" style="margin-bottom: var(--space-xl);">
-        <div class="summary-cards">
-          <div class="summary-card"><div class="skeleton skeleton-text--medium" style="height:28px;margin-bottom:8px"></div><div class="skeleton skeleton-text--short" style="height:14px"></div><div class="skeleton" style="height:6px;margin-top:8px;border-radius:3px"></div></div>
-          <div class="summary-card"><div class="skeleton skeleton-text--medium" style="height:28px;margin-bottom:8px"></div><div class="skeleton skeleton-text--short" style="height:14px"></div><div class="skeleton" style="height:6px;margin-top:8px;border-radius:3px"></div></div>
-          <div class="summary-card"><div class="skeleton skeleton-text--medium" style="height:28px;margin-bottom:8px"></div><div class="skeleton skeleton-text--short" style="height:14px"></div><div class="skeleton" style="height:6px;margin-top:8px;border-radius:3px"></div></div>
-          <div class="summary-card"><div class="skeleton skeleton-text--medium" style="height:28px;margin-bottom:8px"></div><div class="skeleton skeleton-text--short" style="height:14px"></div></div>
-          <div class="summary-card"><div class="skeleton skeleton-text--medium" style="height:28px;margin-bottom:8px"></div><div class="skeleton skeleton-text--short" style="height:14px"></div></div>
-        </div>
-      </div>
-      <div class="tab-navigation" style="margin-bottom: var(--space-lg);">
-        <div class="skeleton" style="display:inline-block;width:180px;height:36px;border-radius:var(--radius-md);margin-right:8px"></div>
-        <div class="skeleton" style="display:inline-block;width:120px;height:36px;border-radius:var(--radius-md);margin-right:8px"></div>
-        <div class="skeleton" style="display:inline-block;width:100px;height:36px;border-radius:var(--radius-md);margin-right:8px"></div>
-        <div class="skeleton" style="display:inline-block;width:130px;height:36px;border-radius:var(--radius-md)"></div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:var(--space-md);">
-        <div class="skeleton" style="height:48px;width:100%;border-radius:var(--radius-md)"></div>
-        <div class="skeleton" style="height:48px;width:100%;border-radius:var(--radius-md)"></div>
-        <div class="skeleton" style="height:48px;width:100%;border-radius:var(--radius-md)"></div>
-        <div class="skeleton" style="height:48px;width:95%;border-radius:var(--radius-md)"></div>
-      </div>
+    <div class="table-loading-container" style="min-height: 300px;">
+      <div class="table-loading-spinner"></div>
     </div>
   `;
 }
@@ -90,22 +71,15 @@ export function renderMainPage(state) {
         <button class="tab-button" data-tab="alle">
           Alle <span class="tab-count" id="tab-count-alle"></span>
         </button>
+        ${!isKunde ? `
+        <button id="btn-column-visibility" class="secondary-btn" style="margin-left: auto;">
+          Sichtbarkeit anpassen
+        </button>` : ''}
       </div>
 
       <div class="tab-content">
         <div class="detail-section">
-          <div class="koops-videos-toolbar">
-            ${!isKunde ? `
-            <button id="btn-column-visibility" class="secondary-btn">
-              Sichtbarkeit anpassen
-            </button>` : ''}
-          </div>
-          <div id="kooperationen-videos-container">
-            <div class="skeleton-table">
-              <div class="skeleton-row skeleton-header"><div class="skeleton-cell" style="width:5%"></div><div class="skeleton-cell" style="width:20%"></div><div class="skeleton-cell" style="width:15%"></div><div class="skeleton-cell" style="width:15%"></div><div class="skeleton-cell" style="width:15%"></div><div class="skeleton-cell" style="width:15%"></div><div class="skeleton-cell" style="width:15%"></div></div>
-              ${Array.from({length: 5}, () => '<div class="skeleton-row"><div class="skeleton-cell" style="width:5%"></div><div class="skeleton-cell" style="width:20%"></div><div class="skeleton-cell" style="width:15%"></div><div class="skeleton-cell" style="width:15%"></div><div class="skeleton-cell" style="width:15%"></div><div class="skeleton-cell" style="width:15%"></div><div class="skeleton-cell" style="width:15%"></div></div>').join('')}
-            </div>
-          </div>
+          <div id="kooperationen-videos-container"></div>
         </div>
       </div>
     </div>
@@ -189,7 +163,7 @@ function renderInfoCards(kampagneData, koopBudgetSum, isKunde) {
     <div class="detail-card">
       <h3 class="section-title">Auftrag</h3>
       <div class="detail-item"><label>Auftragsname:</label><span>${window.validatorSystem.sanitizeHtml(kampagneData.auftrag?.auftragsname || 'Unbekannt')}</span></div>
-      <div class="detail-item"><label>Status:</label><span class="status-badge status-${kampagneData.auftrag?.status?.toLowerCase() || 'unknown'}">${kampagneData.auftrag?.status || '-'}</span></div>
+      <div class="detail-item"><label>Status:</label><span>${renderAuftragAmpel(kampagneData.auftrag?.status)}</span></div>
       <div class="detail-item"><label>Gesamt Budget:</label><span>${KampagneUtils.formatCurrency(kampagneData.auftrag?.gesamt_budget)}${koopBudgetSum ? ` (aufgebraucht: ${KampagneUtils.formatCurrency(koopBudgetSum)})` : ''}</span></div>
       <div class="detail-item"><label>Creator Budget:</label><span>${KampagneUtils.formatCurrency(kampagneData.auftrag?.creator_budget)}${koopBudgetSum ? ` (aufgebraucht: ${KampagneUtils.formatCurrency(koopBudgetSum)})` : ''}</span></div>
     </div>

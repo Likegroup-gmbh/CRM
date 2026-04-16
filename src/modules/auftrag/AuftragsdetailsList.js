@@ -8,6 +8,7 @@ import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
+import { renderAuftragAmpel } from './logic/AuftragStatusUtils.js';
 
 export class AuftragsdetailsList {
   constructor() {
@@ -734,11 +735,7 @@ export class AuftragsdetailsList {
             ${!this.isKunde ? `<td class="col-ad-unternehmen">${unternehmenHtml}</td>` : ''}
             ${!this.isKunde ? `<td class="col-ad-marke">${markeHtml}</td>` : ''}
             <td>${window.validatorSystem?.sanitizeHtml(auftrag.po) || auftrag.po || '-'}</td>
-            <td>
-              <span class="status-badge status-${(auftrag.status?.toLowerCase() || 'unknown').replace(/\s+/g, '-')}">
-                ${auftrag.status || '-'}
-              </span>
-            </td>
+            <td>${renderAuftragAmpel(auftrag.status)}</td>
             <td class="col-ad-auftrag">
               <a href="#" class="table-link" data-table="auftragsdetails" data-id="${detail.id}">
                 ${window.validatorSystem?.sanitizeHtml(auftrag.auftragsname || 'Unbekannter Auftrag') || 'Unbekannter Auftrag'}

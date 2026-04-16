@@ -368,12 +368,12 @@
 }
 
 .table-loading-spinner {
-  margin: 0 auto var(--space-md);
+  margin: 0 auto;
   border: 3px solid var(--gray-200);
-  border-top-color: var(--primary-600);
+  border-top-color: var(--color-primary);
   border-radius: 50%;
-  width: 2.5rem; /* 40px */
-  height: 2.5rem; /* 40px */
+  width: 2.5rem;
+  height: 2.5rem;
   animation: spin 0.8s linear infinite;
 }
 
@@ -850,6 +850,7 @@ td.col-produkt .stacked-video-input,
   visibility: visible !important;
   overflow-x: auto !important; /* Eigener Scrollbalken für die Tabelle */
   overflow-y: visible !important;
+  padding-top: var(--space-md) !important;
 }
 
 .grid-wrapper {

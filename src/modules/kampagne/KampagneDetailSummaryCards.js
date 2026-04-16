@@ -4,7 +4,7 @@
 import { KampagneUtils } from './KampagneUtils.js';
 
 export function calculateSummaryCards(kooperationen, videos) {
-  const koopBudgetSum = (videos || []).reduce((sum, v) => sum + (parseFloat(v.einkaufspreis_netto) || 0), 0);
+  const koopBudgetSum = (videos || []).reduce((sum, v) => sum + (parseFloat(v.verkaufspreis_netto) || 0), 0);
   const koopVideosUsed = (kooperationen || []).reduce((sum, koop) => sum + (parseInt(koop.videoanzahl, 10) || 0), 0);
   const uniqueCreatorIds = new Set();
   (kooperationen || []).forEach(koop => {

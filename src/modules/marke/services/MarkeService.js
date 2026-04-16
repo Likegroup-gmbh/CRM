@@ -2,14 +2,16 @@
 // Gemeinsame Business-Logic für Marke-Module
 // Vermeidet Code-Duplizierung zwischen MarkeDetail, MarkeList und MarkeCreate
 
+import { compressImage } from '../../../core/ImageCompressor.js';
+
 /**
  * Logo-Konfiguration
  */
 export const LOGO_CONFIG = {
   MAX_SIZE_KB: 200,
   MAX_SIZE_BYTES: 200 * 1024,
-  ALLOWED_MIME_TYPES: ['image/png', 'image/jpeg'],
-  ALLOWED_EXTENSIONS: ['png', 'jpg', 'jpeg'],
+  ALLOWED_MIME_TYPES: ['image/png', 'image/jpeg', 'image/webp'],
+  ALLOWED_EXTENSIONS: ['png', 'jpg', 'jpeg', 'webp'],
   BUCKET: 'logos'
 };
 
@@ -179,9 +181,28 @@ export class MarkeService {
       }
 
       const files = uploaderRoot.__uploaderInstance.files;
-      const file = files[0]; // Nur ein Logo erlaubt
+      let file = files[0];
       
-      // Validierung: Dateigröße
+      // Validierung: Content-Type (vor Komprimierung)
+      if (!LOGO_CONFIG.ALLOWED_MIME_TYPES.includes(file.type)) {
+        const message = 'Nur PNG, JPG und WebP Dateien sind erlaubt';
+        console.warn(`⚠️ ${message}: ${file.name} (${file.type})`);
+        if (window.toastSystem) {
+          window.toastSystem.show(message, 'error');
+        }
+        return null;
+      }
+
+      // WebP-Komprimierung
+      try {
+        const originalSize = file.size;
+        file = await compressImage(file);
+        console.log(`🖼️ Logo komprimiert: ${Math.round(originalSize / 1024)}KB → ${Math.round(file.size / 1024)}KB (WebP)`);
+      } catch (compressError) {
+        console.warn('⚠️ Komprimierung fehlgeschlagen, nutze Original:', compressError);
+      }
+
+      // Validierung: Dateigröße (nach Komprimierung)
       if (file.size > LOGO_CONFIG.MAX_SIZE_BYTES) {
         const message = `Logo ist zu groß (max. ${LOGO_CONFIG.MAX_SIZE_KB} KB)`;
         console.warn(`⚠️ ${message}: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
@@ -191,19 +212,7 @@ export class MarkeService {
         return null;
       }
 
-      // Validierung: Content-Type
-      if (!LOGO_CONFIG.ALLOWED_MIME_TYPES.includes(file.type)) {
-        const message = 'Nur PNG und JPG Dateien sind erlaubt';
-        console.warn(`⚠️ ${message}: ${file.name} (${file.type})`);
-        if (window.toastSystem) {
-          window.toastSystem.show(message, 'error');
-        }
-        return null;
-      }
-
-      // Dateiendung extrahieren
-      const ext = file.name.split('.').pop().toLowerCase();
-      const path = `marke/${markeId}/logo.${ext}`;
+      const path = `marke/${markeId}/logo.webp`;
       
       console.log(`📤 Uploading Logo: ${file.name} -> ${path}`);
       
@@ -230,7 +239,7 @@ export class MarkeService {
         .upload(path, file, {
           cacheControl: '3600',
           upsert: true,
-          contentType: file.type
+          contentType: 'image/webp'
         });
       
       if (upErr) {

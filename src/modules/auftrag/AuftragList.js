@@ -12,6 +12,7 @@ import { AuftragFilterLogic } from './filters/AuftragFilterLogic.js';
 import { AuftragCashFlowCalendar } from './AuftragCashFlowCalendar.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
+import { renderAuftragAmpel } from './logic/AuftragStatusUtils.js';
 
 // Statische Formatter (einmalig definiert, nicht bei jedem Render)
 const currencyFormatter = new Intl.NumberFormat('de-DE', { 
@@ -998,7 +999,7 @@ export class AuftragList {
           ${!this.isKunde ? `<td class="col-unternehmen">${this.formatUnternehmenTag(auftrag.unternehmen)}</td>` : ''}
           ${!this.isKunde || this._kundeHasMultipleMarken ? `<td>${this.formatMarkeTag(auftrag.marke)}</td>` : ''}
           <td>${window.validatorSystem.sanitizeHtml(auftrag.po || '-')}</td>
-          <td>${window.validatorSystem.sanitizeHtml(auftrag.status || '-')}</td>
+          <td>${renderAuftragAmpel(auftrag.status)}</td>
           <td>${window.validatorSystem.sanitizeHtml(auftrag.angebotsnummer || '-')}</td>
           <td class="table-cell-center">${auftrag.auftragsdetails_id
             ? `<a href="#" onclick="event.preventDefault(); window.navigateTo('/auftragsdetails/${auftrag.auftragsdetails_id}')" class="details-link" title="Auftragsdetails anzeigen"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>`
@@ -1793,6 +1794,7 @@ export class AuftragList {
       console.log('📋 Generierte PO-Nummer:', poResult.poNummer);
 
       submitData.created_by_id = window.currentUser?.id || null;
+      if (!submitData.status) submitData.status = 'Beauftragt';
 
       // Erstelle Auftrag
       const result = await window.dataService.createEntity('auftrag', submitData);

@@ -104,8 +104,8 @@ export class PermissionSystem {
         unternehmen: { can_view: false, can_edit: false, can_delete: false },
         marke: { can_view: false, can_edit: false, can_delete: false },
         produkt: { can_view: true, can_edit: false, can_delete: false },
-        auftrag: { can_view: false, can_edit: false, can_delete: false }, // TEMPORÄR AUSGEBLENDET – zum Einblenden: can_view: true
-        auftragsdetails: { can_view: false, can_edit: false, can_delete: false }, // TEMPORÄR AUSGEBLENDET – zum Einblenden: can_view: true
+        auftrag: { can_view: true, can_edit: false, can_delete: false },
+        auftragsdetails: { can_view: false, can_edit: false, can_delete: false },
         kampagne: { can_view: true, can_edit: false, can_delete: false },
         kooperation: { can_view: true, can_edit: false, can_delete: false },
         briefing: { can_view: true, can_edit: false, can_delete: false },
@@ -116,8 +116,8 @@ export class PermissionSystem {
         tasks: { can_view: true, can_edit: true, can_delete: false },
         strategie: { can_view: true, can_edit: true, can_delete: false },
         kickoff: { can_view: true, can_edit: false, can_delete: false },
-        sourcing: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Sourcing sehen
-        feedback: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Feedback NICHT sehen
+        sourcing: { can_view: true, can_edit: false, can_delete: false },
+        feedback: { can_view: false, can_edit: false, can_delete: false },
         mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
         vertraege: { can_view: false, can_edit: false, can_delete: false },
         'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
@@ -129,8 +129,8 @@ export class PermissionSystem {
         unternehmen: { can_view: false, can_edit: false, can_delete: false },
         marke: { can_view: false, can_edit: false, can_delete: false },
         produkt: { can_view: true, can_edit: false, can_delete: false },
-        auftrag: { can_view: false, can_edit: false, can_delete: false }, // TEMPORÄR AUSGEBLENDET – zum Einblenden: can_view: true
-        auftragsdetails: { can_view: false, can_edit: false, can_delete: false }, // TEMPORÄR AUSGEBLENDET – zum Einblenden: can_view: true
+        auftrag: { can_view: true, can_edit: false, can_delete: false },
+        auftragsdetails: { can_view: false, can_edit: false, can_delete: false },
         kampagne: { can_view: true, can_edit: false, can_delete: false },
         kooperation: { can_view: true, can_edit: false, can_delete: false },
         briefing: { can_view: true, can_edit: false, can_delete: false },

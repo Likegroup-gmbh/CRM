@@ -118,7 +118,7 @@ export class VideoTableDataLoader {
 
         batchIn(
           sb.from('kooperation_versand'),
-          'id, kooperation_id, video_id, versendet, tracking_nummer, produkt_name, produkt_link, strasse, hausnummer, plz, stadt',
+          'id, kooperation_id, video_id, versendet, tracking_nummer, produkt_name, produkt_link, strasse, hausnummer, plz, stadt, creator_adresse_id',
           'kooperation_id', koopIds
         ),
 
@@ -168,6 +168,21 @@ export class VideoTableDataLoader {
           t.versandInfos[info.video_id] = info;
         }
       });
+
+      const adresseIds = [...new Set(versandInfos.map(v => v.creator_adresse_id).filter(Boolean))];
+      t.creatorAdressen = {};
+      if (adresseIds.length > 0) {
+        try {
+          const adressenResult = await batchIn(
+            sb.from('creator_adressen'),
+            'id, strasse, hausnummer, plz, stadt, adressname',
+            'id', adresseIds
+          );
+          (adressenResult.data || []).forEach(a => { t.creatorAdressen[a.id] = a; });
+        } catch (e) {
+          console.warn('⚠️ Creator-Adressen konnten nicht geladen werden:', e);
+        }
+      }
 
       t._dataLoaded = true;
       t._logPerformanceSummary();
@@ -271,6 +286,18 @@ export class VideoTableDataLoader {
         thumbnail.src = asset.file_url;
         thumbnail.closest('.video-thumbnail')?.classList.remove('no-asset');
       }
+    }
+
+    const commentsSource = this.table.store?.videoComments || this.table.videoComments || {};
+    for (const [videoId, comments] of Object.entries(commentsSource)) {
+      const r1Value = (comments.r1 || []).map(c => c.text).join('\n\n---\n\n');
+      const r2Value = (comments.r2 || []).map(c => c.text).join('\n\n---\n\n');
+
+      const feedbackCJ = container.querySelector(`[data-entity="video"][data-id="${videoId}"][data-field="feedback_creatorjobs"]`);
+      if (feedbackCJ && !feedbackCJ.value) feedbackCJ.value = r1Value;
+
+      const feedbackKunde = container.querySelector(`[data-entity="video"][data-id="${videoId}"][data-field="feedback_ritzenhoff"]`);
+      if (feedbackKunde && !feedbackKunde.value) feedbackKunde.value = r2Value;
     }
   }
 

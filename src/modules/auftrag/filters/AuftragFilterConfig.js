@@ -42,15 +42,14 @@ export const AUFTRAG_FILTERS = [
     priority: 3
   }),
 
-  // Status Filter
+  // Status Filter (Ampelsystem)
   createFilterConfig('select', {
     id: 'status',
     label: 'Status',
     options: [
-      { value: 'Beauftragt', label: 'Beauftragt' },
-      { value: 'in Produktion', label: 'In Produktion' },
-      { value: 'Abgeschlossen', label: 'Abgeschlossen' },
-      { value: 'Storniert', label: 'Storniert' }
+      { value: 'Beauftragt', label: 'Aktiv (Grün)' },
+      { value: 'Abgeschlossen', label: 'Abgeschlossen (Rot)' },
+      { value: 'Storniert', label: 'Storniert (Grau)' }
     ],
     priority: 4
   }),
