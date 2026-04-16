@@ -332,9 +332,7 @@ export class VideoTableRenderer {
                   </svg>
                 </a>` : ''}
                 ${storyFolderUrl ? `<a href="${storyFolderUrl}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Storys-Ordner öffnen">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h1.5C5.496 19.5 6 18.996 6 18.375m-2.625 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-1.5A1.125 1.125 0 0 1 18 18.375M20.625 4.5H3.375m17.25 0c.621 0 1.125.504 1.125 1.125M20.625 4.5h-1.5C18.504 4.5 18 5.004 18 5.625m3.75 0v1.5c0 .621-.504 1.125-1.125 1.125M3.375 4.5c-.621 0-1.125.504-1.125 1.125M3.375 4.5h1.5C5.496 4.5 6 5.004 6 5.625m-2.625 0v1.5c0 .621.504 1.125 1.125 1.125m0 0h12m-12 0a1.125 1.125 0 0 1-1.125-1.125m0 0V5.625m0 1.5a1.125 1.125 0 0 1 1.125 1.125m0 0h12m0 0a1.125 1.125 0 0 1 1.125-1.125m0 0a1.125 1.125 0 0 1 1.125 1.125m-1.125-1.125h1.5m0 0a1.125 1.125 0 0 1 1.125 1.125M6 8.25v7.5m0-7.5h12m-12 0a1.125 1.125 0 0 0-1.125 1.125v5.25A1.125 1.125 0 0 0 6 15.75m12-7.5v7.5m0-7.5a1.125 1.125 0 0 1 1.125 1.125v5.25A1.125 1.125 0 0 1 18 15.75m-12 0h12" />
-                  </svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
                 </a>` : ''}
                 ${koop.bilder_folder_url ? `<a href="${koop.bilder_folder_url}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Bilder-Ordner öffnen">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">

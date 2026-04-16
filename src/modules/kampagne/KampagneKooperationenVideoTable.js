@@ -269,7 +269,7 @@ export class KampagneKooperationenVideoTable {
   // UPLOAD / SETTINGS / DELETE
   // ========================================
 
-  _openUploadDrawer(videoId, kooperationId) {
+  _openUploadDrawer(videoId, kooperationId, { initialTab = 'video' } = {}) {
     const koop = this.kooperationen.find(k => k.id === kooperationId);
     const videos = this.videos[kooperationId] || [];
     const video = videos.find(v => v.id === videoId);
@@ -302,7 +302,7 @@ export class KampagneKooperationenVideoTable {
         if (video) video.story_folder_url = storysFolderUrl;
       }
       this.refilter();
-    });
+    }, { initialTab });
   }
 
   _updateContentCellAfterUpload(videoId, kooperationId, fileUrl, videoName, folderUrl) {
@@ -339,6 +339,8 @@ export class KampagneKooperationenVideoTable {
       videoTitel: video?.thema || 'Video',
       videoName: video?.video_name || '',
       onReupload: () => this._openUploadDrawer(videoId, kooperationId),
+      onStorysReupload: () => this._openUploadDrawer(videoId, kooperationId, { initialTab: 'storys' }),
+      onBilderReupload: () => this._openUploadDrawer(videoId, kooperationId, { initialTab: 'bilder' }),
       onDelete: () => this._executeVideoDelete(videoId, kooperationId),
       onNameUpdated: (newVideoName) => {
         if (this.store) {

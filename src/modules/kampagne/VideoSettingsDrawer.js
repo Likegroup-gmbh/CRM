@@ -8,6 +8,10 @@ const LINK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="
   <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
 </svg>`;
 
+const STORY_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>`;
+
+const IMAGE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z"/></svg>`;
+
 export class VideoSettingsDrawer {
   constructor() {
     this.drawerId = 'video-settings-drawer';
@@ -18,13 +22,15 @@ export class VideoSettingsDrawer {
     this.videoTitel = null;
     this.videoName = '';
     this.onReupload = null;
+    this.onStorysReupload = null;
+    this.onBilderReupload = null;
     this.onDelete = null;
     this.onNameUpdated = null;
     this._isSavingName = false;
     this._activeTab = 'videos';
   }
 
-  async open({ videoId, kooperationId, videoUrl, filePath, videoTitel, videoName, onReupload, onDelete, onNameUpdated }) {
+  async open({ videoId, kooperationId, videoUrl, filePath, videoTitel, videoName, onReupload, onStorysReupload, onBilderReupload, onDelete, onNameUpdated }) {
     this.videoId = videoId;
     this.kooperationId = kooperationId;
     this.videoUrl = videoUrl;
@@ -32,6 +38,8 @@ export class VideoSettingsDrawer {
     this.videoTitel = videoTitel || 'Video';
     this.videoName = videoName || '';
     this.onReupload = onReupload;
+    this.onStorysReupload = onStorysReupload;
+    this.onBilderReupload = onBilderReupload;
     this.onDelete = onDelete;
     this.onNameUpdated = onNameUpdated;
     this._isSavingName = false;
@@ -179,6 +187,16 @@ export class VideoSettingsDrawer {
   // ─── Videos Tab ─────────────────────────────────────────────
 
   _renderVideosTab() {
+    const videoLocked = this.storyAssets.length > 0;
+
+    if (videoLocked) {
+      return `
+        <div id="settings-tab-videos" style="${this._activeTab !== 'videos' ? 'display:none' : ''}">
+          <p class="video-settings-hint">Video-Upload nicht verfügbar – es wurden bereits Storys hochgeladen</p>
+        </div>
+      `;
+    }
+
     const hasAssets = this.assets.length > 0;
     const uploadBtnText = hasAssets ? 'Weiteres Video hochladen' : 'Neues Video hochladen';
 
@@ -236,6 +254,16 @@ export class VideoSettingsDrawer {
   // ─── Storys Tab ─────────────────────────────────────────────
 
   _renderStorysTab() {
+    const storysLocked = this.assets.length > 0;
+
+    if (storysLocked) {
+      return `
+        <div id="settings-tab-storys" style="${this._activeTab !== 'storys' ? 'display:none' : ''}">
+          <p class="video-settings-hint">Storys-Upload nicht verfügbar – es wurden bereits Videos hochgeladen</p>
+        </div>
+      `;
+    }
+
     let contentHtml;
 
     if (this.storyAssets.length === 0) {
@@ -280,10 +308,19 @@ export class VideoSettingsDrawer {
         </table>`;
     }
 
+    const hasStorys = this.storyAssets.length > 0;
+    const storysUploadText = hasStorys ? 'Weitere Storys hochladen' : 'Neue Storys hochladen';
+
     return `
       <div id="settings-tab-storys" style="${this._activeTab !== 'storys' ? 'display:none' : ''}">
         <div class="video-settings-section">
           ${contentHtml}
+        </div>
+        <div class="video-settings-actions">
+          <button type="button" class="mdc-btn mdc-btn--primary" id="storys-settings-reupload-btn">
+            ${STORY_ICON}
+            ${storysUploadText}
+          </button>
         </div>
       </div>
     `;
@@ -325,10 +362,19 @@ export class VideoSettingsDrawer {
         </table>`;
     }
 
+    const hasBilder = this.bilderAssets.length > 0;
+    const bilderUploadText = hasBilder ? 'Weitere Bilder hochladen' : 'Neue Bilder hochladen';
+
     return `
       <div id="settings-tab-bilder" style="${this._activeTab !== 'bilder' ? 'display:none' : ''}">
         <div class="video-settings-section">
           ${contentHtml}
+        </div>
+        <div class="video-settings-actions">
+          <button type="button" class="mdc-btn mdc-btn--primary" id="bilder-settings-reupload-btn">
+            ${IMAGE_ICON}
+            ${bilderUploadText}
+          </button>
         </div>
       </div>
     `;
@@ -401,11 +447,27 @@ export class VideoSettingsDrawer {
       }
     });
 
-    // Re-upload button
+    // Re-upload buttons
     reuploadBtn?.addEventListener('click', () => {
       this.close();
       if (typeof this.onReupload === 'function') {
         setTimeout(() => this.onReupload(), 350);
+      }
+    });
+
+    const storysReuploadBtn = document.getElementById('storys-settings-reupload-btn');
+    storysReuploadBtn?.addEventListener('click', () => {
+      this.close();
+      if (typeof this.onStorysReupload === 'function') {
+        setTimeout(() => this.onStorysReupload(), 350);
+      }
+    });
+
+    const bilderReuploadBtn = document.getElementById('bilder-settings-reupload-btn');
+    bilderReuploadBtn?.addEventListener('click', () => {
+      this.close();
+      if (typeof this.onBilderReupload === 'function') {
+        setTimeout(() => this.onBilderReupload(), 350);
       }
     });
 

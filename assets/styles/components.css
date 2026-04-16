@@ -14723,6 +14723,23 @@ table.vertraege-unternehmen-table td:last-child {
   font-weight: 600;
 }
 
+.drawer-tab-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.drawer-tab-btn:disabled:hover {
+  color: inherit;
+}
+
+.upload-tab-disabled-hint,
+.video-settings-hint {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  padding: 8px 0;
+  margin: 0;
+}
+
 /* ============================================
    BILDER UPLOAD TAB
    ============================================ */
