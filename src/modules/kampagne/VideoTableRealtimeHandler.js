@@ -143,6 +143,16 @@ export class VideoTableRealtimeHandler {
     if (this._isOwnUpdate()) return;
 
     const updated = payload.new;
+    const linkFields = ['bilder_folder_url', 'folder_url', 'story_folder_url'];
+
+    let oldKoop = null;
+    if (this.table.store) {
+      oldKoop = this.table.store.kooperationen.find(k => k.id === updated.id);
+    } else {
+      oldKoop = this.table.kooperationen.find(k => k.id === updated.id);
+    }
+    const linkChanged = linkFields.some(f => (oldKoop?.[f] ?? null) !== (updated[f] ?? null));
+
     if (this.table.store) {
       const existing = this.table.store.kooperationen.find(k => k.id === updated.id);
       this.table.store.updateKooperation(updated.id, {
@@ -161,6 +171,8 @@ export class VideoTableRealtimeHandler {
         };
       }
     }
+
+    if (linkChanged) this.table.refilter();
   }
 
   async handleKooperationDelete(payload) {

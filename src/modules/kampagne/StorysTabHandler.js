@@ -534,6 +534,28 @@ export class StorysTabHandler {
         .delete()
         .eq('id', assetId);
 
+      const videoId = this.drawer.videoId;
+      const { count } = await window.supabase
+        .from('kooperation_story_asset')
+        .select('id', { count: 'exact', head: true })
+        .eq('video_id', videoId);
+
+      if ((count ?? 0) === 0) {
+        if (filePath) {
+          const folderPath = filePath.substring(0, filePath.lastIndexOf('/'));
+          fetch('/.netlify/functions/dropbox-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filePath: folderPath }),
+          }).catch(() => {});
+        }
+        await window.supabase
+          .from('kooperation_videos')
+          .update({ story_folder_url: null })
+          .eq('id', videoId);
+        this.drawer.onStorysCleared?.();
+      }
+
       this._storyExistingVersions = await this._loadExistingStoryVersions();
       this._storyAvailableVersions = getAvailableVersions(this._storyExistingVersions, MAX_VERSIONS);
       this._selectedStoryVersion = this._storyAvailableVersions[0] || 1;

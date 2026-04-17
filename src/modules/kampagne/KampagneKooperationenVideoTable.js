@@ -294,6 +294,7 @@ export class KampagneKooperationenVideoTable {
       this._updateContentCellAfterUpload(videoId, kooperationId, fileUrl, videoName, folderUrl);
     }, (bilderFolderUrl) => {
       if (koop) koop.bilder_folder_url = bilderFolderUrl;
+      this.refilter();
     }, (storysFolderUrl) => {
       const patch = { story_folder_url: storysFolderUrl };
       if (this.store) {
@@ -302,7 +303,17 @@ export class KampagneKooperationenVideoTable {
         if (video) video.story_folder_url = storysFolderUrl;
       }
       this.refilter();
-    }, { initialTab });
+    }, { initialTab,
+      onBilderCleared: () => {
+        if (koop) koop.bilder_folder_url = null;
+        this.refilter();
+      },
+      onStorysCleared: () => {
+        if (this.store) this.store.updateVideo(videoId, { story_folder_url: null });
+        else if (video) video.story_folder_url = null;
+        this.refilter();
+      },
+    });
   }
 
   _updateContentCellAfterUpload(videoId, kooperationId, fileUrl, videoName, folderUrl) {
@@ -358,14 +369,16 @@ export class KampagneKooperationenVideoTable {
   }
 
   async _executeVideoDelete(videoId, kooperationId) {
-    await deleteVideoFile(videoId);
+    const { hasRemainingAssets } = await deleteVideoFile(videoId);
+    const patch = { file_url: null, link_content: null, currentAsset: null };
+    if (!hasRemainingAssets) patch.folder_url = null;
     if (this.store) {
-      this.store.updateVideo(videoId, { file_url: null, link_content: null, currentAsset: null });
+      this.store.updateVideo(videoId, patch);
     } else {
       const videos = this.videos[kooperationId];
       if (videos) {
         const v = videos.find(vid => vid.id === videoId);
-        if (v) { v.file_url = null; v.link_content = null; v.currentAsset = null; }
+        if (v) Object.assign(v, patch);
       }
     }
     this.refilter();
@@ -479,11 +492,27 @@ export class KampagneKooperationenVideoTable {
     const container = this.containerId ? document.getElementById(this.containerId) : null;
     if (!container) return;
 
+    const scrollY = window.scrollY;
+    const containerScrollTop = container.scrollTop;
+    const gridWrapper = container.querySelector('.grid-wrapper');
+    const gridScrollLeft = gridWrapper?.scrollLeft ?? 0;
+    const floatingBar = document.getElementById('floating-scrollbar-kampagne');
+    const floatingLeft = floatingBar?.scrollLeft ?? 0;
+
     container.innerHTML = this.render();
     this.bindEvents();
     this.initFloatingScrollbar();
     this.loadColumnWidths();
     this.updateTabCounts();
+
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: scrollY, behavior: 'instant' });
+      container.scrollTop = containerScrollTop;
+      const newGrid = container.querySelector('.grid-wrapper');
+      if (newGrid) newGrid.scrollLeft = gridScrollLeft;
+      const newBar = document.getElementById('floating-scrollbar-kampagne');
+      if (newBar) newBar.scrollLeft = floatingLeft;
+    });
 
     this.loadAssetsAndCommentsForVisible();
   }

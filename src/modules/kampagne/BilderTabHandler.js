@@ -412,6 +412,28 @@ export class BilderTabHandler {
         .delete()
         .eq('id', assetId);
 
+      const koopId = this.drawer.kooperationId;
+      const { count } = await window.supabase
+        .from('kooperation_bilder_asset')
+        .select('id', { count: 'exact', head: true })
+        .eq('kooperation_id', koopId);
+
+      if ((count ?? 0) === 0) {
+        if (filePath) {
+          const folderPath = filePath.substring(0, filePath.lastIndexOf('/'));
+          fetch('/.netlify/functions/dropbox-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filePath: folderPath }),
+          }).catch(() => {});
+        }
+        await window.supabase
+          .from('kooperationen')
+          .update({ bilder_folder_url: null })
+          .eq('id', koopId);
+        this.drawer.onBilderCleared?.();
+      }
+
       await this._loadExistingImages();
 
     } catch (err) {

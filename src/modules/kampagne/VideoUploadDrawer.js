@@ -29,13 +29,15 @@ export class VideoUploadDrawer {
    * @param {function} [onBilderSuccess]
    * @param {function} [onStorysSuccess]
    */
-  async open(videoId, metadaten, onSuccess, onBilderSuccess, onStorysSuccess, { initialTab = 'video' } = {}) {
+  async open(videoId, metadaten, onSuccess, onBilderSuccess, onStorysSuccess, { initialTab = 'video', onBilderCleared, onStorysCleared } = {}) {
     this.videoId = videoId;
     this.kooperationId = metadaten.kooperationId;
     this.metadaten = metadaten;
     this.onSuccess = onSuccess;
     this.onBilderSuccess = onBilderSuccess || null;
     this.onStorysSuccess = onStorysSuccess || null;
+    this.onBilderCleared = onBilderCleared || null;
+    this.onStorysCleared = onStorysCleared || null;
 
     this.videoTab.reset();
     this.storysTab.reset();

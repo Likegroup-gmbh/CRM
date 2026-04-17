@@ -47,12 +47,32 @@ export async function deleteVideoFile(videoId, { supabase: sb, fetch: fetchFn } 
       .eq('is_current', true);
   }
 
+  const { count } = await supabase
+    .from('kooperation_video_asset')
+    .select('id', { count: 'exact', head: true })
+    .eq('video_id', videoId);
+
+  const hasRemainingAssets = (count ?? 0) > 0;
+
+  const updatePatch = { link_content: null };
+  if (!hasRemainingAssets) {
+    updatePatch.folder_url = null;
+    if (currentAsset?.file_path) {
+      const folderPath = currentAsset.file_path.substring(0, currentAsset.file_path.lastIndexOf('/'));
+      await _fetch('/.netlify/functions/dropbox-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath: folderPath }),
+      }).catch(() => {});
+    }
+  }
+
   await supabase
     .from('kooperation_videos')
-    .update({ link_content: null })
+    .update(updatePatch)
     .eq('id', videoId);
 
-  return { success: true };
+  return { success: true, hasRemainingAssets };
 }
 
 /**
