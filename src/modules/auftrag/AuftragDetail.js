@@ -24,6 +24,10 @@ export class AuftragDetail extends PersonDetailBase {
     this.auftragsDetails = null;
     this.realVideoCount = 0;
     this.realCreatorCount = 0;
+    this.usedBudget = 0;
+    this.usedVideoCount = 0;
+    this.targetVideoCount = 0;
+    this.targetCreatorCount = 0;
     this.kampagnen = [];
     this.kooperationen = [];
     this.videos = [];
@@ -323,10 +327,12 @@ export class AuftragDetail extends PersonDetailBase {
       // Lade alle Kampagnen des Auftrags
       const { data: kampagnen } = await window.supabase
         .from('kampagne')
-        .select('id, kampagnenname')
+        .select('id, kampagnenname, videoanzahl, creatoranzahl')
         .eq('auftrag_id', this.auftragId);
       
       this.kampagnen = kampagnen || [];
+      this.targetVideoCount = this.kampagnen.reduce((sum, k) => sum + (k.videoanzahl || 0), 0);
+      this.targetCreatorCount = this.kampagnen.reduce((sum, k) => sum + (k.creatoranzahl || 0), 0);
       const kampagneIds = this.kampagnen.map(k => k.id);
       
       if (kampagneIds.length === 0) {
@@ -334,6 +340,8 @@ export class AuftragDetail extends PersonDetailBase {
         this.videos = [];
         this.realVideoCount = 0;
         this.realCreatorCount = 0;
+        this.usedBudget = 0;
+        this.usedVideoCount = 0;
         return;
       }
       
@@ -387,6 +395,9 @@ export class AuftragDetail extends PersonDetailBase {
       });
       this.realCreatorCount = uniqueCreatorIds.size;
       
+      this.usedBudget = this.kooperationen.reduce((sum, koop) => sum + (parseFloat(koop.einkaufspreis_netto) || 0), 0);
+      this.usedVideoCount = this.kooperationen.reduce((sum, koop) => sum + (parseInt(koop.videoanzahl, 10) || 0), 0);
+      
       console.log(`✅ AUFTRAGDETAIL: ${this.kooperationen.length} Kooperationen, ${this.realCreatorCount} Creator und ${this.realVideoCount} Videos geladen`);
     } catch (error) {
       console.error('❌ AUFTRAGDETAIL: Fehler beim Laden von Kooperationen/Videos:', error);
@@ -394,6 +405,10 @@ export class AuftragDetail extends PersonDetailBase {
       this.videos = [];
       this.realVideoCount = 0;
       this.realCreatorCount = 0;
+      this.usedBudget = 0;
+      this.usedVideoCount = 0;
+      this.targetVideoCount = 0;
+      this.targetCreatorCount = 0;
     }
   }
   
@@ -598,6 +613,7 @@ export class AuftragDetail extends PersonDetailBase {
 
   renderMainContent() {
     return `
+      ${this.renderAuftragSummaryCards()}
       <div class="tab-content">
         <div class="tab-pane ${this.activeMainTab === 'uebersicht' ? 'active' : ''}" id="tab-uebersicht">
           ${this.renderUebersicht()}
@@ -636,6 +652,79 @@ export class AuftragDetail extends PersonDetailBase {
           <label>${this.sanitize(label)}</label>
         </div>
         <span class="detail-item-value">${valueHtml}</span>
+      </div>
+    `;
+  }
+
+  renderAuftragSummaryCards() {
+    const totalBudget = parseFloat(
+      this.auftrag?.creator_budget ||
+      this.auftrag?.gesamt_budget ||
+      this.auftrag?.nettobetrag || 0
+    );
+    const usedBudget = this.usedBudget || 0;
+    const openBudget = Math.max(0, totalBudget - usedBudget);
+
+    const fmt = (v) => v || v === 0
+      ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v) : '-';
+    const num = (v) => v || v === 0
+      ? new Intl.NumberFormat('de-DE').format(v) : '-';
+
+    const budgetPct = totalBudget > 0 ? Math.min(100, Math.round((usedBudget / totalBudget) * 100)) : 0;
+    const openPct = totalBudget > 0 ? Math.max(0, 100 - budgetPct) : 0;
+
+    const getBudgetColorClass = (pct) => {
+      if (pct >= 90) return 'summary-progress-fill--danger';
+      if (pct >= 75) return 'summary-progress-fill--warning';
+      return '';
+    };
+    const getOpenBudgetColorClass = (pct) => {
+      if (pct <= 10) return 'summary-progress-fill--danger';
+      if (pct <= 25) return 'summary-progress-fill--warning';
+      return 'summary-progress-fill--success';
+    };
+
+    const isAdmin = window.currentUser?.rolle === 'admin';
+
+    return `
+      <div class="auftragsdetails-summary" style="margin-bottom: var(--space-xl);">
+        <div class="summary-cards">
+          ${isAdmin ? `
+          <div class="summary-card" data-summary-card="total-budget">
+            <div class="summary-value">${fmt(totalBudget)}</div>
+            <div class="summary-label">Gesamtbudget (netto)</div>
+          </div>
+          <div class="summary-card" data-summary-card="spent-budget">
+            <div class="summary-value">${fmt(usedBudget)}</div>
+            <div class="summary-label">Verbrauchtes Budget</div>
+            <div class="summary-progress">
+              <div class="summary-progress-fill ${getBudgetColorClass(budgetPct)}"
+                   style="width: ${budgetPct}%">
+              </div>
+            </div>
+          </div>
+          <div class="summary-card" data-summary-card="open-budget">
+            <div class="summary-value">${fmt(openBudget)}</div>
+            <div class="summary-label">Offenes Budget</div>
+            <div class="summary-progress">
+              <div class="summary-progress-fill ${getOpenBudgetColorClass(openPct)}"
+                   style="width: ${openPct}%">
+              </div>
+            </div>
+          </div>` : ''}
+          <div class="summary-card" data-summary-card="creators">
+            <div class="summary-value">${num(this.realCreatorCount)} von ${num(this.targetCreatorCount)}</div>
+            <div class="summary-label">Gebuchte Creator</div>
+          </div>
+          <div class="summary-card" data-summary-card="videos">
+            <div class="summary-value">${num(this.usedVideoCount)} von ${num(this.targetVideoCount)}</div>
+            <div class="summary-label">Gebuchte Videos</div>
+          </div>
+          <div class="summary-card" data-summary-card="po-intern">
+            <div class="summary-value">${this.auftrag?.po || '-'}</div>
+            <div class="summary-label">PO intern</div>
+          </div>
+        </div>
       </div>
     `;
   }

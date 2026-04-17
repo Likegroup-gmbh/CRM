@@ -598,6 +598,9 @@ export class FormConfig {
           { name: 'creator_id', label: 'Creator', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Creator suchen und auswählen...', dependsOn: 'kampagne_id', section: 'zuordnung' },
           { name: 'name', label: 'Name', type: 'text', required: true, validation: { type: 'text', minLength: 2 }, autoGenerate: true, readonly: true, placeholder: 'Wird automatisch generiert...', section: 'zuordnung' },
 
+          // Tags
+          { name: 'tags', label: 'Tags', type: 'custom', customType: 'koopTagInput', required: false, max: 7, section: 'zuordnung' },
+
           // Sektion 2: Content
           { name: 'videoanzahl', label: 'Video Anzahl', type: 'number', required: false, validation: { type: 'number', min: 1 }, section: 'content', sectionTitle: 'Content' },
           { name: 'videos', label: 'Videos', type: 'custom', customType: 'videos', options: CONTENT_ART_OPTIONS, section: 'content' },

@@ -13,6 +13,8 @@ export class VideoTableColumnVisibilityDrawer {
     // (Nr und Creator sind nicht konfigurierbar und daher hier nicht enthalten)
     this.columns = [
       { className: 'col-status', label: 'Status' },
+      { className: 'col-tags', label: 'Tags' },
+      { className: 'col-extra-kosten', label: 'Extra Kosten' },
       { className: 'col-vertrag', label: 'Vertrag' },
       { className: 'col-nutzungsrechte', label: 'Nutzungsrechte' },
       { className: 'col-start-datum', label: 'Erstellt' },

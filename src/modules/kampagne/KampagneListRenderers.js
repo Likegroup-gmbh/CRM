@@ -73,7 +73,6 @@ export function renderTableWrapper() {
             <th class="col-name">Kampagnenname</th>
             <th class="col-unternehmen">Unternehmen</th>
             <th class="col-marke">Marke</th>
-            <th class="col-auftrag">Auftragsdetails</th>
             <th class="col-art">Art der Kampagne</th>
             <th class="col-budget">Budget</th>
             <th class="col-creator-anzahl">Creator Anzahl</th>
@@ -85,7 +84,7 @@ export function renderTableWrapper() {
         </thead>
         <tbody id="kampagnen-table-body">
           <tr>
-            <td colspan="${isKunde ? '8' : '13'}" class="loading">Lade Kampagnen...</td>
+            <td colspan="${isKunde ? '7' : '12'}" class="loading">Lade Kampagnen...</td>
           </tr>
         </tbody>
       </table>
@@ -120,7 +119,6 @@ export async function updateTable(kampagnen, { bindDragToScroll }) {
         </td>
         <td class="col-unternehmen">${renderUnternehmen(kampagne.unternehmen)}</td>
         <td class="col-marke">${renderMarke(kampagne.marke)}</td>
-        <td class="col-auftrag">${kampagne.auftrag?.details_id ? `<a href="#" class="table-link" data-table="auftragsdetails" data-id="${kampagne.auftrag.details_id}">${window.validatorSystem.sanitizeHtml(kampagne.auftrag.auftragsname)}</a>` : '-'}</td>
         <td class="col-art">${renderArtTags(kampagne.art_der_kampagne_display || kampagne.art_der_kampagne)}</td>
         <td class="col-budget">${renderBudgetProgress(kampagne)}</td>
         <td class="col-creator-anzahl">${kampagne.creatoranzahl || 0}</td>

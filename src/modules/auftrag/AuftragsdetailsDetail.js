@@ -140,7 +140,7 @@ export class AuftragsdetailsDetail {
       // Lade alle Kampagnen des Auftrags
       const { data: kampagnen, error: kampagnenError } = await window.supabase
         .from('kampagne')
-        .select('id, kampagnenname')
+        .select('id, kampagnenname, videoanzahl, creatoranzahl')
         .eq('auftrag_id', auftragId);
 
       if (kampagnenError) throw kampagnenError;
@@ -168,6 +168,7 @@ export class AuftragsdetailsDetail {
           einkaufspreis_gesamt,
           verkaufspreis_netto,
           verkaufspreis_gesamt,
+          verkaufspreis_zusatzkosten,
           kampagne_id,
           creator:creator_id (
             id,
@@ -248,6 +249,13 @@ export class AuftragsdetailsDetail {
       return sum + (parseFloat(v.verkaufspreis_netto) || 0);
     }, 0);
 
+    this.budgetSummary.extraKostenVkSum = (this.kooperationen || []).reduce((sum, k) => {
+      return sum + (parseFloat(k.verkaufspreis_zusatzkosten) || 0);
+    }, 0);
+
+    this.budgetSummary.targetVideos = (this.kampagnen || []).reduce((sum, k) => sum + (k.videoanzahl || 0), 0);
+    this.budgetSummary.targetCreators = (this.kampagnen || []).reduce((sum, k) => sum + (k.creatoranzahl || 0), 0);
+
     console.log('✅ AUFTRAGSDETAILSDETAIL: Budget-Zusammenfassung berechnet:', this.budgetSummary);
   }
 
@@ -276,45 +284,67 @@ export class AuftragsdetailsDetail {
     const sanitize = (v) => window.validatorSystem?.sanitizeHtml(v) || v || '';
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
 
+    const totalBudget = this.budgetSummary.totalBudget;
+    const usedBudget = this.budgetSummary.usedVkBudget || 0;
+    const openBudget = Math.max(0, totalBudget - usedBudget);
+    const budgetPct = totalBudget > 0 ? Math.min(100, Math.round((usedBudget / totalBudget) * 100)) : 0;
+    const openPct = totalBudget > 0 ? Math.max(0, 100 - budgetPct) : 0;
+
+    const getBudgetColorClass = (pct) => {
+      if (pct >= 90) return 'summary-progress-fill--danger';
+      if (pct >= 75) return 'summary-progress-fill--warning';
+      return '';
+    };
+    const getOpenBudgetColorClass = (pct) => {
+      if (pct <= 10) return 'summary-progress-fill--danger';
+      if (pct <= 25) return 'summary-progress-fill--warning';
+      return 'summary-progress-fill--success';
+    };
+
     return `
       <div class="detail-section">
         <!-- Budget-Kacheln -->
         <div class="auftragsdetails-summary">
           <div class="summary-cards">
-            <div class="summary-card">
-              <div class="summary-label">Art des Auftrages</div>
-              <div class="summary-value">${sanitize(auftragtype)}</div>
-            </div>
             ${isAdmin ? `
             <div class="summary-card">
-              <div class="summary-label">VK Netto / Budget</div>
-              <div class="summary-value">${formatCurrency(this.budgetSummary.usedVkBudget)} von ${formatCurrency(this.budgetSummary.totalBudget)}</div>
+              <div class="summary-value">${formatCurrency(totalBudget)}</div>
+              <div class="summary-label">Gesamtbudget (netto)</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-value">${formatCurrency(usedBudget)}</div>
+              <div class="summary-label">Verbrauchtes Budget</div>
               <div class="summary-progress">
-                <div class="summary-progress-fill ${this.getBudgetProgressColorClass()}" 
-                     style="width: ${this.getBudgetProgressPercentage()}%">
+                <div class="summary-progress-fill ${getBudgetColorClass(budgetPct)}" 
+                     style="width: ${budgetPct}%">
                 </div>
               </div>
             </div>
             <div class="summary-card">
+              <div class="summary-value">${formatCurrency(openBudget)}</div>
               <div class="summary-label">Offenes Budget</div>
-              <div class="summary-value">${formatCurrency(this.budgetSummary.totalBudget - this.budgetSummary.usedVkBudget)}</div>
+              <div class="summary-progress">
+                <div class="summary-progress-fill ${getOpenBudgetColorClass(openPct)}" 
+                     style="width: ${openPct}%">
+                </div>
+              </div>
             </div>
             <div class="summary-card">
-              <div class="summary-label">Durchschn. Kosten / Creator</div>
-              <div class="summary-value">${formatCurrency(this.budgetSummary.avgCostPerCreator)}</div>
+              <div class="summary-value">${formatCurrency(this.budgetSummary.extraKostenVkSum || 0)}</div>
+              <div class="summary-label">Extra Kosten</div>
             </div>
             ` : ''}
             <div class="summary-card">
-              <div class="summary-label">Gebuchte Videos</div>
-              <div class="summary-value">${num(this.budgetSummary.totalVideos)}</div>
-            </div>
-            <div class="summary-card">
+              <div class="summary-value">${num(this.budgetSummary.totalCreators)} von ${num(this.budgetSummary.targetCreators)}</div>
               <div class="summary-label">Gebuchte Creator</div>
-              <div class="summary-value">${num(this.budgetSummary.totalCreators)}</div>
             </div>
             <div class="summary-card">
-              <div class="summary-label">PO intern</div>
+              <div class="summary-value">${num(this.budgetSummary.totalVideos)} von ${num(this.budgetSummary.targetVideos)}</div>
+              <div class="summary-label">Gebuchte Videos</div>
+            </div>
+            <div class="summary-card">
               <div class="summary-value">${sanitize(this.auftrag?.po) || '-'}</div>
+              <div class="summary-label">PO intern</div>
             </div>
           </div>
         </div>
@@ -652,7 +682,8 @@ export class AuftragsdetailsDetail {
           kampagneId: kampagne?.id,
           kampagneName: kampagne?.kampagnenname || '-',
           ekNetto: koop.einkaufspreis_netto,
-          vkNetto: koop.verkaufspreis_netto
+          vkNetto: koop.verkaufspreis_netto,
+          extraKostenVk: koop.verkaufspreis_zusatzkosten
         });
       } else {
         koopVideos.forEach(video => {
@@ -670,7 +701,8 @@ export class AuftragsdetailsDetail {
             kampagneId: kampagne?.id,
             kampagneName: kampagne?.kampagnenname || '-',
             ekNetto: video.einkaufspreis_netto,
-            vkNetto: video.verkaufspreis_netto
+            vkNetto: video.verkaufspreis_netto,
+            extraKostenVk: koop.verkaufspreis_zusatzkosten
           });
         });
       }
@@ -727,6 +759,7 @@ export class AuftragsdetailsDetail {
           ${!isKunde ? `<td>${sanitize(row.kategorie)}</td>` : ''}
           ${!isKunde ? `<td class="text-right">${formatCurrency(row.ekNetto)}</td>` : ''}
           <td class="text-right">${formatCurrency(row.vkNetto)}</td>
+          ${!isKunde ? `<td class="text-right">${formatCurrency(row.extraKostenVk)}</td>` : ''}
           <td>${videoHtml}</td>
         </tr>
       `;
@@ -742,6 +775,7 @@ export class AuftragsdetailsDetail {
                 ${!isKunde ? '<th>Kategorie</th>' : ''}
                 ${!isKunde ? '<th class="text-right">EK Netto</th>' : ''}
                 <th class="text-right">VK Netto</th>
+                ${!isKunde ? '<th class="text-right">Extra Kosten (VK)</th>' : ''}
                 <th>Video</th>
               </tr>
             </thead>

@@ -848,16 +848,15 @@ td.col-produkt .stacked-video-input,
   min-height: 200px !important;
   display: block !important;
   visibility: visible !important;
-  overflow-x: auto !important; /* Eigener Scrollbalken für die Tabelle */
-  overflow-y: visible !important;
+  overflow: visible !important;
   padding-top: var(--space-md) !important;
 }
 
 .grid-wrapper {
   width: 100%;
   min-height: 200px;
-  overflow-x: auto; /* Horizontales Scrollen innerhalb der Tabelle */
-  overflow-y: visible;
+  overflow-x: auto;
+  overflow-y: clip;
   background: white;
   display: block;
   /* Verstecke die inline Scrollbar, da wir die Floating-Scrollbar nutzen */

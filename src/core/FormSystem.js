@@ -353,6 +353,7 @@ export class FormSystem {
         // Spezielle Behandlung: Kooperation → Videos-Repeater speichern
         if (entity === 'kooperation') {
           await this.handleKooperationVideos(result.id, form);
+          await this.handleKooperationTags(result.id, form);
         }
 
         // File-Upload für Ansprechpartner Profilbild
@@ -559,6 +560,32 @@ export class FormSystem {
       }
     } catch (error) {
       console.error('❌ Fehler in handleKooperationVideos:', error);
+    }
+  }
+
+  async handleKooperationTags(kooperationId, form) {
+    try {
+      if (!window.supabase) return;
+      const hiddenInputs = form.querySelectorAll('input[name="koop_tag_ids[]"]');
+      const tagIds = Array.from(hiddenInputs).map(i => i.value).filter(Boolean);
+      console.log('🏷️ handleKooperationTags:', kooperationId, 'tagIds:', tagIds);
+
+      const { error: delError } = await window.supabase
+        .from('kooperation_tags')
+        .delete()
+        .eq('kooperation_id', kooperationId);
+      if (delError) console.error('❌ Fehler beim Löschen alter Koop-Tags:', delError);
+
+      if (tagIds.length > 0) {
+        const rows = tagIds.map(id => ({ kooperation_id: kooperationId, tag_id: id }));
+        const { error } = await window.supabase
+          .from('kooperation_tags')
+          .upsert(rows, { onConflict: 'kooperation_id,tag_id', ignoreDuplicates: true });
+        if (error) throw error;
+        console.log('✅ Koop-Tags gespeichert:', tagIds.length);
+      }
+    } catch (error) {
+      console.error('❌ Fehler in handleKooperationTags:', error);
     }
   }
 

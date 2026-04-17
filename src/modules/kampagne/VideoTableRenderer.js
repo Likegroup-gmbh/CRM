@@ -104,6 +104,8 @@ export class VideoTableRenderer {
       h('col-nr', 'Nr', '0'),
       h('col-creator', 'Creator', '1'),
       h('col-status', 'Status', '1b'),
+      h('col-tags', 'Tags', '1c'),
+      h('col-extra-kosten', 'Extra Kosten', '1d'),
       h('col-vertrag', 'Vertrag', '4'),
       h('col-nutzungsrechte', 'Nutzungsrechte', '5'),
       h('col-start-datum', 'Erstellt', '6'),
@@ -154,6 +156,16 @@ export class VideoTableRenderer {
         </td>
         <td class="grid-cell cell-centered col-status" ${!t.isColumnVisibleForCustomer('col-status') ? 'style="display:none;"' : ''}>
           ${this.renderStatusBadge(koop)}
+        </td>
+        <td class="grid-cell col-tags" ${!t.isColumnVisibleForCustomer('col-tags') ? 'style="display:none;"' : ''}>
+          ${(koop._tags || []).length > 0
+            ? `<div class="tags tags-compact">${koop._tags.map(name => `<span class="tag tag--branche">${this.escapeHtml(name)}</span>`).join('')}</div>`
+            : '<span class="text-muted">-</span>'}
+        </td>
+        <td class="grid-cell read-only" ${!t.isColumnVisibleForCustomer('col-extra-kosten') ? 'style="display:none;"' : ''}>
+          ${koop.verkaufspreis_zusatzkosten != null && parseFloat(koop.verkaufspreis_zusatzkosten) !== 0
+            ? parseFloat(koop.verkaufspreis_zusatzkosten).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })
+            : '—'}
         </td>
         <td class="grid-cell cell-centered" ${!t.isColumnVisibleForCustomer('col-vertrag') ? 'style="display:none;"' : ''}>
           ${renderVertragCell(koop)}

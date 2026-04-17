@@ -158,7 +158,7 @@ export class KooperationList {
 
       let coopQuery = window.supabase
         .from('kooperationen')
-        .select('id, name, videoanzahl, einkaufspreis_gesamt, verkaufspreis_gesamt, kampagne_id, creator_id, assignee_id, skript_deadline, content_deadline, created_at')
+        .select('id, name, videoanzahl, einkaufspreis_gesamt, verkaufspreis_gesamt, verkaufspreis_zusatzkosten, kampagne_id, creator_id, assignee_id, skript_deadline, content_deadline, created_at')
         .order('created_at', { ascending: false });
 
       // Für Mitarbeiter: Filtere nach zugewiesenen Kampagnen
@@ -278,6 +278,7 @@ export class KooperationList {
               <th>Videos</th>
               <th>Einkaufspreis</th>
               <th>Verkaufspreis</th>
+              <th>Extra Kosten (VK)</th>
               <th>Erstellt</th>
               <th>Script Deadline</th>
               <th>Content Deadline</th>
@@ -286,7 +287,7 @@ export class KooperationList {
           </thead>
           <tbody id="kooperationen-table-body">
             <tr>
-              <td colspan="12" class="loading">Lade Kooperationen...</td>
+              <td colspan="13" class="loading">Lade Kooperationen...</td>
             </tr>
           </tbody>
         </table>
@@ -496,6 +497,7 @@ export class KooperationList {
           <td>${kooperation.videoanzahl || 0}</td>
           <td>${formatCurrency(kooperation.einkaufspreis_gesamt)}</td>
           <td>${formatCurrency(kooperation.verkaufspreis_gesamt)}</td>
+          <td>${formatCurrency(kooperation.verkaufspreis_zusatzkosten)}</td>
           <td>${formatDate(kooperation.created_at)}</td>
           <td>${formatDate(kooperation.skript_deadline)}</td>
           <td>${formatDate(kooperation.content_deadline)}</td>
@@ -837,6 +839,7 @@ export class KooperationList {
       // Speichere Video-Items in Verknüpfungstabelle
       if (result.success && window.formSystem) {
         await window.formSystem.handleKooperationVideos(result.id, form);
+        await window.formSystem.handleKooperationTags(result.id, form);
       }
       
       if (result.success) {

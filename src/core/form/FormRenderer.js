@@ -541,6 +541,20 @@ export class FormRenderer {
         if (field.customType === 'kampagnenart-felder') {
           return `<div id="kampagnenart-felder-container" class="kampagnenart-felder-container"></div>`;
         }
+        if (field.customType === 'koopTagInput') {
+          return `
+            <div class="form-field">
+              <label>${field.label}</label>
+              <div class="tag-input-container" id="koop-tag-container">
+                <div class="tag-input-wrapper">
+                  <div class="selected-tags" id="selected_koop_tags"></div>
+                  <input type="text" class="tag-input" id="koop_tag_input" placeholder="Tag eingeben..." autocomplete="off">
+                </div>
+                <div class="tag-suggestions" id="koop_tag_suggestions" style="display:none;"></div>
+              </div>
+            </div>
+          `;
+        }
         return `<div class="form-field">Unbekannter Feldtyp: ${field.customType}</div>`;
 
       default:

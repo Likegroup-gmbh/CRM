@@ -350,7 +350,7 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
   const kampagneJoin = 'kampagne:kampagne_id (id, kampagnenname, eigener_name, unternehmen:unternehmen_id(id, firmenname), marke:marke_id(id, markenname))';
   const koopSelect = isKunde
     ? `id, name, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, skript_deadline, content_deadline, created_at, creator_id, bilder_folder_url, status_id, status, status_ref:status_id(id, name), ${kampagneJoin}`
-    : `id, name, einkaufspreis_netto, einkaufspreis_gesamt, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, skript_deadline, content_deadline, created_at, creator_id, bilder_folder_url, status_id, status, status_ref:status_id(id, name), ${kampagneJoin}`;
+    : `id, name, einkaufspreis_netto, einkaufspreis_gesamt, verkaufspreis_zusatzkosten, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, skript_deadline, content_deadline, created_at, creator_id, bilder_folder_url, status_id, status, status_ref:status_id(id, name), ${kampagneJoin}`;
 
   const kooperationenResult = await window.supabase
     .from('kooperationen')
@@ -389,7 +389,7 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
   const batchIn = VideoTableDataLoader.batchInQuery;
   const sb = window.supabase;
 
-  const [videosResult, creatorsResult, vertraegeResult, versandResult, statusResult] = await Promise.allSettled([
+  const [videosResult, creatorsResult, vertraegeResult, versandResult, statusResult, tagsResult] = await Promise.allSettled([
     batchIn(
       sb.from('kooperation_videos'),
       'id, kooperation_id, position, asset_url, content_art, caption, feedback_creatorjobs, feedback_ritzenhoff, freigabe, link_content, folder_url, story_folder_url, link_produkte, thema, link_skript, skript_freigegeben, drehort, video_name, posting_datum, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id)',
@@ -413,7 +413,12 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
     ),
     sb.from('kampagne_status')
       .select('id, name, sort_order')
-      .order('sort_order', { ascending: true })
+      .order('sort_order', { ascending: true }),
+    batchIn(
+      sb.from('kooperation_tags'),
+      'kooperation_id, tag_id, kooperation_tag_typen(id, name)',
+      'kooperation_id', koopIds
+    )
   ]);
 
   const allVideos = videosResult.status === 'fulfilled' ? (videosResult.value.data || []) : [];
@@ -421,6 +426,7 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
   const vertraege = vertraegeResult.status === 'fulfilled' ? (vertraegeResult.value.data || []) : [];
   const versandInfos = versandResult.status === 'fulfilled' ? (versandResult.value.data || []) : [];
   const statusOptions = statusResult.status === 'fulfilled' ? (statusResult.value.data || []) : [];
+  const allTags = tagsResult.status === 'fulfilled' ? (tagsResult.value.data || []) : [];
 
   const creatorsMap = new Map();
   creators.forEach(c => creatorsMap.set(c.id, c));
@@ -432,6 +438,10 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
     }
     koop._vertraege = vertraege.filter(v => v.kooperation_id === koop.id);
     koop.status_name = koop.status_ref?.name || koop.status || '';
+    koop._tags = allTags
+      .filter(tag => tag.kooperation_id === koop.id)
+      .map(tag => tag.kooperation_tag_typen?.name || '')
+      .filter(Boolean);
   });
 
   const videosByKoopId = {};

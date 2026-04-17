@@ -116,9 +116,10 @@ export class KampagneDetailStore {
     const allVideos = Object.values(this.videos).flat();
     const koopBudgetSum = allVideos.reduce((sum, v) => sum + (parseFloat(v.verkaufspreis_netto) || 0), 0);
     const koopVideosUsed = this.kooperationen.reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
+    const extraKostenVkSum = this.kooperationen.reduce((sum, k) => sum + (parseFloat(k.verkaufspreis_zusatzkosten) || 0), 0);
     const uniqueCreatorIds = new Set();
     this.kooperationen.forEach(k => { if (k.creator_id) uniqueCreatorIds.add(k.creator_id); });
-    return { koopBudgetSum, koopVideosUsed, koopCreatorsUsed: uniqueCreatorIds.size };
+    return { koopBudgetSum, koopVideosUsed, koopCreatorsUsed: uniqueCreatorIds.size, extraKostenVkSum };
   }
 
   // ========================================

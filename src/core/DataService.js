@@ -274,6 +274,15 @@ export class DataService {
           kampagne: { table: 'kampagne', foreignKey: 'kampagne_id', displayField: 'name' },
           briefing: { table: 'briefings', foreignKey: 'briefing_id', displayField: 'product_service_offer' }
         },
+        manyToMany: {
+          tags: {
+            table: 'kooperation_tag_typen',
+            junctionTable: 'kooperation_tags',
+            localKey: 'kooperation_id',
+            foreignKey: 'tag_id',
+            displayField: 'name'
+          }
+        },
         filters: ['creator_id', 'kampagne_id', 'budget', 'start_datum', 'end_datum'],
         sortBy: 'created_at',
         sortOrder: 'desc'
@@ -810,6 +819,19 @@ export class DataService {
       // Brand Kick-Off Feature
       markenwert_typen: {
         table: 'markenwert_typen',
+        displayField: 'name',
+        fields: {
+          name: 'string',
+          created_at: 'date'
+        },
+        relations: {},
+        filters: ['name'],
+        sortBy: 'name',
+        sortOrder: 'asc'
+      },
+      // Kooperation Tags
+      kooperation_tag_typen: {
+        table: 'kooperation_tag_typen',
         displayField: 'name',
         fields: {
           name: 'string',

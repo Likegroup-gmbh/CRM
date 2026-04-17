@@ -6,17 +6,18 @@ import { KampagneUtils } from './KampagneUtils.js';
 export function calculateSummaryCards(kooperationen, videos) {
   const koopBudgetSum = (videos || []).reduce((sum, v) => sum + (parseFloat(v.verkaufspreis_netto) || 0), 0);
   const koopVideosUsed = (kooperationen || []).reduce((sum, koop) => sum + (parseInt(koop.videoanzahl, 10) || 0), 0);
+  const extraKostenVkSum = (kooperationen || []).reduce((sum, koop) => sum + (parseFloat(koop.verkaufspreis_zusatzkosten) || 0), 0);
   const uniqueCreatorIds = new Set();
   (kooperationen || []).forEach(koop => {
     if (koop.creator_id) uniqueCreatorIds.add(koop.creator_id);
   });
   const koopCreatorsUsed = uniqueCreatorIds.size;
 
-  console.log('✅ KAMPAGNEDETAIL: Summary Cards berechnet:', { budget: koopBudgetSum, videos: koopVideosUsed, creators: koopCreatorsUsed });
-  return { koopBudgetSum, koopVideosUsed, koopCreatorsUsed };
+  console.log('✅ KAMPAGNEDETAIL: Summary Cards berechnet:', { budget: koopBudgetSum, videos: koopVideosUsed, creators: koopCreatorsUsed, extraKosten: extraKostenVkSum });
+  return { koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum };
 }
 
-export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed) {
+export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum) {
   const totalBudget = parseFloat(
     kampagneData?.auftrag?.creator_budget ||
     kampagneData?.auftrag?.gesamt_budget ||
@@ -64,9 +65,12 @@ export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUse
 
   const videosVal = document.querySelector('[data-summary-value="videos"]');
   if (videosVal) videosVal.textContent = `${KampagneUtils.num(koopVideosUsed || 0)} von ${KampagneUtils.num(totalVideos)}`;
+
+  const extraKostenVal = document.querySelector('[data-summary-value="extra-kosten-vk"]');
+  if (extraKostenVal) extraKostenVal.textContent = KampagneUtils.formatCurrency(extraKostenVkSum || 0);
 }
 
-export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed) {
+export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum) {
   const totalBudget = parseFloat(
     kampagneData?.auftrag?.creator_budget ||
     kampagneData?.auftrag?.gesamt_budget ||
@@ -121,6 +125,10 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
                  style="width: ${openPct}%">
             </div>
           </div>
+        </div>
+        <div class="summary-card" data-summary-card="extra-kosten-vk">
+          <div class="summary-value" data-summary-value="extra-kosten-vk">${KampagneUtils.formatCurrency(extraKostenVkSum || 0)}</div>
+          <div class="summary-label">Extra Kosten</div>
         </div>` : ''}
         <div class="summary-card" data-summary-card="creators">
           <div class="summary-value" data-summary-value="creators">${KampagneUtils.num(usedCreators)} von ${KampagneUtils.num(totalCreators)}</div>

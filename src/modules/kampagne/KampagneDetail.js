@@ -23,6 +23,7 @@ export class KampagneDetail {
     this.koopBudgetSum = 0;
     this.koopVideosUsed = 0;
     this.koopCreatorsUsed = 0;
+    this.extraKostenVkSum = 0;
     this.sourcingCreators = [];
     this.favoriten = [];
     this.rechnungen = [];
@@ -157,6 +158,7 @@ export class KampagneDetail {
       koopBudgetSum: this.koopBudgetSum,
       koopVideosUsed: this.koopVideosUsed,
       koopCreatorsUsed: this.koopCreatorsUsed,
+      extraKostenVkSum: this.extraKostenVkSum,
       isKunde: this.isKunde,
       kampagneId: this.kampagneId
     });
@@ -180,6 +182,7 @@ export class KampagneDetail {
     this.koopBudgetSum = summary.koopBudgetSum;
     this.koopVideosUsed = summary.koopVideosUsed;
     this.koopCreatorsUsed = summary.koopCreatorsUsed;
+    this.extraKostenVkSum = summary.extraKostenVkSum;
   }
 
   _mountVideoTable() {
@@ -220,7 +223,7 @@ export class KampagneDetail {
       this.kooperationenVideoTable.updateTabCounts();
     }
 
-    updateSummaryCardsDOM(this.kampagneData, this.koopBudgetSum, this.koopVideosUsed, this.koopCreatorsUsed);
+    updateSummaryCardsDOM(this.kampagneData, this.koopBudgetSum, this.koopVideosUsed, this.koopCreatorsUsed, this.extraKostenVkSum);
 
     const videoIds = this._pendingTableData?.videoIds;
     if (videoIds && videoIds.length > 0) {

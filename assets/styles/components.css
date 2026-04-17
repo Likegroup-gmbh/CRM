@@ -1848,21 +1848,7 @@ h3.section-title,
 
 
 /* Overflow-Kontrolle für Kampagne-Detail mit Grid-Tabelle */
-.main-content.kampagne-detail-grid-active {
-  overflow-x: auto; /* Erlaubt horizontales Scrollen für Grid-Tabelle */
-}
-
-.kampagne-detail-grid-active .main-wrapper {
-  overflow-x: auto; /* Erlaubt horizontales Scrollen für Grid-Tabelle */
-}
-
-.kampagne-detail-grid-active .content-section {
-  overflow-x: auto; /* Erlaubt horizontales Scrollen für Grid-Tabelle */
-}
-
-.kampagne-detail-grid-active .page-header {
-  overflow-x: visible; /* Page Header bleibt sichtbar */
-}
+/* Horizontales Scrollen passiert lokal in .grid-wrapper */
 
 /* Responsive Tab Design */
 @media (max-width: 768px) {
@@ -14185,6 +14171,16 @@ table.vertraege-unternehmen-table td:last-child {
   font-size: var(--text-xs);
   font-weight: 500;
   
+}
+
+.tag-item--small {
+  font-size: 11px;
+  padding: 1px 6px;
+  margin: 1px;
+}
+
+.col-tags {
+  min-width: 120px;
 }
 
 .tag-remove {

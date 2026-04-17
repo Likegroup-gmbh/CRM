@@ -87,7 +87,8 @@ export class KooperationDetail extends PersonDetailBase {
       kooperationResult,
       notizenResult,
       ratingsResult,
-      versandResult
+      versandResult,
+      tagsResult
     ] = await parallelLoad([
       () => window.supabase
         .from('kooperationen')
@@ -125,7 +126,11 @@ export class KooperationDetail extends PersonDetailBase {
           )
         `)
         .eq('kooperation_id', this.kooperationId)
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: false }),
+      () => window.supabase
+        .from('kooperation_tags')
+        .select('tag_id, kooperation_tag_typen(id, name)')
+        .eq('kooperation_id', this.kooperationId)
     ]);
 
     if (kooperationResult.error) {
@@ -138,6 +143,7 @@ export class KooperationDetail extends PersonDetailBase {
     this.notizen = notizenResult || [];
     this.ratings = ratingsResult || [];
     this.versandDaten = versandResult.data || [];
+    this.kooperationTags = (tagsResult?.data || []).map(r => ({ id: r.tag_id, name: r.kooperation_tag_typen?.name || '' }));
 
     const loadTime = (performance.now() - startTime).toFixed(0);
     console.log(`✅ KOOPERATIONDETAIL: Kritische Daten geladen in ${loadTime}ms`);
@@ -494,6 +500,15 @@ export class KooperationDetail extends PersonDetailBase {
       </div>
     ` : '';
 
+    const tagsHtml = (this.kooperationTags && this.kooperationTags.length > 0) ? `
+      <div class="detail-card">
+        <h3 class="section-title">Tags</h3>
+        <div class="selected-tags" style="padding: 8px 0;">
+          ${this.kooperationTags.map(t => `<span class="tag-item">${t.name}</span>`).join('')}
+        </div>
+      </div>
+    ` : '';
+
     return `
       <div class="detail-section">
         ${!isKunde ? '<h2>Kooperations-Informationen</h2>' : ''}
@@ -501,6 +516,7 @@ export class KooperationDetail extends PersonDetailBase {
           ${creatorHtml}
           ${kampagneHtml}
           ${allgemeinHtml}
+          ${tagsHtml}
         </div>
       </div>
     `;
@@ -828,7 +844,7 @@ export class KooperationDetail extends PersonDetailBase {
     // Edit button
     if (e.target.closest('#btn-edit-kooperation')) {
       e.preventDefault();
-      this.showEditForm();
+      await this.showEditForm();
       return;
     }
 
@@ -948,7 +964,7 @@ export class KooperationDetail extends PersonDetailBase {
   // EDIT FORM
   // ============================================
 
-  showEditForm() {
+  async showEditForm() {
     console.log('🎯 KOOPERATIONDETAIL: Zeige Bearbeitungsformular');
     window.setHeadline('Kooperation bearbeiten');
 
@@ -967,7 +983,7 @@ export class KooperationDetail extends PersonDetailBase {
     if (this.kooperation.creator_id) formData.creator_id = this.kooperation.creator_id;
     const formHtml = window.formSystem.renderFormOnly('kooperation', formData);
     window.content.innerHTML = `<div class="form-page">${formHtml}</div>`;
-    window.formSystem.bindFormEvents('kooperation', formData);
+    await window.formSystem.bindFormEvents('kooperation', formData);
 
     const form = document.getElementById('kooperation-form');
     if (form) {
@@ -1013,6 +1029,7 @@ export class KooperationDetail extends PersonDetailBase {
       if (result.success) {
         if (window.formSystem) {
           await window.formSystem.handleKooperationVideos(this.kooperationId, form);
+          await window.formSystem.handleKooperationTags(this.kooperationId, form);
         }
 
         this.showSuccessMessage('Kooperation erfolgreich aktualisiert!');
