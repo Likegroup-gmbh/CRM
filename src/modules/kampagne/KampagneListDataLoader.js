@@ -185,7 +185,6 @@ export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQ
       kampagne._budgetTotal = parseFloat(
         kampagne.auftrag?.creator_budget ||
         kampagne.auftrag?.gesamt_budget ||
-        kampagne.auftrag?.bruttobetrag ||
         kampagne.auftrag?.nettobetrag || 0
       );
     });

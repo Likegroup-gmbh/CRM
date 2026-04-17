@@ -20,7 +20,6 @@ export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUse
   const totalBudget = parseFloat(
     kampagneData?.auftrag?.creator_budget ||
     kampagneData?.auftrag?.gesamt_budget ||
-    kampagneData?.auftrag?.bruttobetrag ||
     kampagneData?.auftrag?.nettobetrag || 0
   );
   const usedBudget = koopBudgetSum || 0;
@@ -37,11 +36,9 @@ export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUse
     else if (pct >= 75) el.classList.add('summary-progress-fill--warning');
   };
 
-  // Gesamtbudget
+  // Gesamtbudget (nur Netto-Gesamtwert)
   const totalBudgetVal = document.querySelector('[data-summary-value="total-budget"]');
-  if (totalBudgetVal) totalBudgetVal.textContent = `${KampagneUtils.formatCurrency(usedBudget)} / ${KampagneUtils.formatCurrency(totalBudget)}`;
-  const totalBudgetProg = document.querySelector('[data-summary-progress="total-budget"]');
-  if (totalBudgetProg) { totalBudgetProg.style.width = `${budgetPct}%`; setBudgetColor(totalBudgetProg, budgetPct); }
+  if (totalBudgetVal) totalBudgetVal.textContent = KampagneUtils.formatCurrency(totalBudget);
 
   // Verbrauchtes Budget
   const spentVal = document.querySelector('[data-summary-value="spent-budget"]');
@@ -73,7 +70,6 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
   const totalBudget = parseFloat(
     kampagneData?.auftrag?.creator_budget ||
     kampagneData?.auftrag?.gesamt_budget ||
-    kampagneData?.auftrag?.bruttobetrag ||
     kampagneData?.auftrag?.nettobetrag || 0
   );
   const usedBudget = koopBudgetSum || 0;
@@ -105,13 +101,8 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
       <div class="summary-cards">
         ${isAdmin ? `
         <div class="summary-card" data-summary-card="total-budget">
-          <div class="summary-value" data-summary-value="total-budget">${KampagneUtils.formatCurrency(usedBudget)} / ${KampagneUtils.formatCurrency(totalBudget)}</div>
-          <div class="summary-label">Gesamtbudget</div>
-          <div class="summary-progress">
-            <div class="summary-progress-fill ${getBudgetColorClass(budgetPct)}" data-summary-progress="total-budget"
-                 style="width: ${budgetPct}%">
-            </div>
-          </div>
+          <div class="summary-value" data-summary-value="total-budget">${KampagneUtils.formatCurrency(totalBudget)}</div>
+          <div class="summary-label">Gesamtbudget (netto)</div>
         </div>
         <div class="summary-card" data-summary-card="spent-budget">
           <div class="summary-value" data-summary-value="spent-budget">${KampagneUtils.formatCurrency(usedBudget)}</div>

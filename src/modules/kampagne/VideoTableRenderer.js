@@ -293,12 +293,19 @@ export class VideoTableRenderer {
           `)}
         </td>
         <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-link-skript') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => `
-            <input type="text" class="grid-input stacked-video-input" 
-              data-entity="video" data-id="${video.id}" data-field="link_skript"
-              ${!t.isFieldEditableForUser('video', 'link_skript') ? 'readonly' : ''}
-              value="${this.escapeHtml(video.link_skript || '')}" placeholder="Link"/>
-          `)}
+          ${this.renderVideoFieldStack(videos, (video) => {
+            if (t.isKundeRole()) {
+              const url = video.link_skript || '';
+              return url
+                ? `<a href="${this.escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="external-link-btn stacked-video-link-btn" title="Skript öffnen">Link öffnen</a>`
+                : `<span class="stacked-video-empty">-</span>`;
+            }
+            return `
+              <input type="text" class="grid-input stacked-video-input" 
+                data-entity="video" data-id="${video.id}" data-field="link_skript"
+                value="${this.escapeHtml(video.link_skript || '')}" placeholder="Link"/>
+            `;
+          })}
         </td>
         <td class="grid-cell video-stack-cell checkbox-stack" ${!t.isColumnVisibleForCustomer('col-skript-freigegeben') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => `
