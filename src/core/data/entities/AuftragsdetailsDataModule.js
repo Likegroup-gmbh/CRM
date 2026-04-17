@@ -80,7 +80,8 @@ export default {
 auftrag:auftrag_id(id, auftragsname, unternehmen_id, marke_id)`;
   },
 
-  async applyJunctionFilters(query, filters, supabase) {
+  async applyJunctionFilters(query, filters, supabase, context = 'list') {
+    if (context !== 'list') return { query, filters, shortCircuit: false };
     try {
       if (filters && filters.auftragsname) {
         const auftragsname = filters.auftragsname;

@@ -1,6 +1,29 @@
 // Entity-Registry: Zentrale Konfiguration aller Entitäten
 // Jede Entität definiert table, fields, relations, manyToMany, filters, sortBy, sortOrder
 
+import CreatorDataModule from './CreatorDataModule.js';
+import AnsprechpartnerDataModule from './AnsprechpartnerDataModule.js';
+import UnternehmenDataModule from './UnternehmenDataModule.js';
+import MarkeDataModule from './MarkeDataModule.js';
+import RechnungDataModule from './RechnungDataModule.js';
+import AuftragDataModule from './AuftragDataModule.js';
+import AuftragsdetailsDataModule from './AuftragsdetailsDataModule.js';
+import KooperationDataModule from './KooperationDataModule.js';
+import KampagneDataModule from './KampagneDataModule.js';
+
+export const EntityModules = {
+  creator: CreatorDataModule,
+  ansprechpartner: AnsprechpartnerDataModule,
+  unternehmen: UnternehmenDataModule,
+  marke: MarkeDataModule,
+  rechnung: RechnungDataModule,
+  auftrag: AuftragDataModule,
+  auftrag_details: AuftragsdetailsDataModule,
+  auftragsdetails: AuftragsdetailsDataModule,
+  kooperation: KooperationDataModule,
+  kampagne: KampagneDataModule,
+};
+
 export const EntityRegistry = {
   creator: {
     table: 'creator',

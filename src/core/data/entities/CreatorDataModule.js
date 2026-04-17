@@ -142,7 +142,7 @@ creator_branchen(branche_id(id,name))`;
     return { query, filters, shortCircuit: false };
   },
 
-  transformResult(data) {
+  finalizeResult(data) {
     if (!data) return data;
     data.forEach(c => {
       c.sprachen = c.sprachen || [];

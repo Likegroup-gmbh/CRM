@@ -84,11 +84,13 @@ kunde_ansprechpartner (kunde_id)`;
   return '*';
 }
 
-async function applyJunctionFilters(query, filters, supabase) {
+async function applyJunctionFilters(query, filters, supabase, context = 'list') {
   if (filters && filters._allowedIds && Array.isArray(filters._allowedIds)) {
     query = query.in('id', filters._allowedIds);
     delete filters._allowedIds;
   }
+
+  if (context !== 'list') return { query, filters, shortCircuit: false };
 
   if (filters && filters.sprache_id) {
     const selectedLanguageId = String(filters.sprache_id);

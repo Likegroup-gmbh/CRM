@@ -126,23 +126,25 @@ function skipFieldForSupabase(field, value, entities) {
 }
 
 async function transformFieldForSupabase(field, value, supabaseData, supabase) {
-  if (field === 'branche_id' && value) {
-    supabaseData.branche_id = value;
-    console.log(`✅ branche_id gesetzt: ${value}`);
+  if (field === 'branche_id') {
+    if (value) {
+      supabaseData.branche_id = value;
+      console.log(`✅ branche_id gesetzt: ${value}`);
 
-    try {
-      const { data: branche, error } = await supabase
-        .from('branchen')
-        .select('id, name')
-        .eq('id', value)
-        .single();
+      try {
+        const { data: branche, error } = await supabase
+          .from('branchen')
+          .select('id, name')
+          .eq('id', value)
+          .single();
 
-      if (!error && branche) {
-        supabaseData.branche = branche.name;
-        console.log(`✅ branche Namen gesetzt: ${supabaseData.branche}`);
+        if (!error && branche) {
+          supabaseData.branche = branche.name;
+          console.log(`✅ branche Namen gesetzt: ${supabaseData.branche}`);
+        }
+      } catch (error) {
+        console.error('❌ Fehler beim Laden der Branche-Namen:', error);
       }
-    } catch (error) {
-      console.error('❌ Fehler beim Laden der Branche-Namen:', error);
     }
     return true;
   }
