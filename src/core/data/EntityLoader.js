@@ -8,6 +8,135 @@ export class EntityLoader {
     this.relationManager = relationManager;
   }
 
+  async _load(entityType, filters, pagination) {
+    const isPaginated = pagination !== null;
+    const context = isPaginated ? 'pagination' : 'list';
+
+    const entityConfig = this.entities[entityType];
+    if (!entityConfig) {
+      throw new Error(`Unbekannte Entität: ${entityType}`);
+    }
+
+    const mod = EntityModules[entityType];
+
+    // Query aufbauen
+    const selectClause = mod?.buildSelectClause?.(context) || '*';
+    let query = isPaginated
+      ? window.supabase.from(entityConfig.table).select(selectClause, { count: 'exact' })
+      : window.supabase.from(entityConfig.table).select(selectClause);
+
+    // Sortierung (nur für loadEntities — Pagination sortiert nach Filter-Phase)
+    if (!isPaginated) {
+      if (mod?.customOrder) {
+        query = mod.customOrder(query);
+      } else {
+        query = query.order('created_at', { ascending: false });
+      }
+    }
+
+    // _allowedIds generisch behandeln
+    if (filters._allowedIds && Array.isArray(filters._allowedIds)) {
+      query = query.in('id', filters._allowedIds);
+      delete filters._allowedIds;
+    }
+
+    // Junction-Filter aus Entity-Modul
+    if (mod?.applyJunctionFilters) {
+      const result = await mod.applyJunctionFilters(query, filters, window.supabase, context);
+      query = result.query;
+      filters = result.filters;
+      if (result.shortCircuit) {
+        return isPaginated ? { data: [], total: 0, page: pagination.page, limit: pagination.limit } : [];
+      }
+    }
+
+    // Generische Filter anwenden
+    let filtersToApply = filters;
+    if (isPaginated) {
+      filtersToApply = {...filters};
+      delete filtersToApply.branche_id;
+      delete filtersToApply.branche;
+      delete filtersToApply.sprache_id;
+      delete filtersToApply.creator_type_id;
+      delete filtersToApply._sortBy;
+      delete filtersToApply._sortOrder;
+      delete filtersToApply._allowedIds;
+    }
+
+    if (window.filterSystem) {
+      const logic = await window.filterSystem.loadEntityLogic(entityType);
+      if (logic?.buildSupabaseQuery) {
+        const suffix = isPaginated ? ' (Pagination)' : '';
+        console.log(`🔧 Nutze spezifische FilterLogic für ${entityType}${suffix}`);
+        query = logic.buildSupabaseQuery(query, filtersToApply);
+      } else {
+        query = this.filterApplier.applyFilters(query, filtersToApply, entityConfig.fields, entityType);
+      }
+    } else {
+      query = this.filterApplier.applyFilters(query, filtersToApply, entityConfig.fields, entityType);
+    }
+
+    // Pagination: Sortierung + Range
+    if (isPaginated) {
+      const sortBy = filters._sortBy || entityConfig.sortBy;
+      const sortOrder = filters._sortOrder !== undefined ? filters._sortOrder : entityConfig.sortOrder;
+      if (sortBy) {
+        query = query.order(sortBy, { ascending: sortOrder === 'asc' });
+      }
+      query = query.range(pagination.from, pagination.to);
+    }
+
+    // Query ausführen
+    const { data, error, count } = await query;
+
+    if (error) {
+      console.error(`❌ Supabase Fehler beim Laden von ${entityType}:`, error);
+      if (isPaginated) throw error;
+      return [];
+    }
+
+    if (isPaginated) {
+      console.log(`✅ ${entityType} geladen:`, {
+        items: data?.length || 0,
+        total: count,
+        page: pagination.page,
+        limit: pagination.limit,
+        from: pagination.from,
+        to: pagination.to
+      });
+    } else {
+      console.log(`✅ ${entityType} aus Supabase geladen:`, data?.length || 0);
+    }
+
+    // Vor-M:N-Transformation (nur loadEntities)
+    if (!isPaginated && data && mod?.transformResult) {
+      mod.transformResult(data);
+    }
+
+    // M:N-Beziehungen laden
+    const shouldLoadM2M = isPaginated
+      ? (data && data.length > 0 && entityConfig.manyToMany)
+      : (data && entityConfig.manyToMany);
+
+    if (shouldLoadM2M) {
+      const prefix = isPaginated ? 'DATASERVICE PAGINATION' : 'DATASERVICE';
+      console.log(`🔗 ${prefix}: Lade Many-to-Many für ${entityType}, Config:`, Object.keys(entityConfig.manyToMany));
+      await this.relationManager.loadManyToManyRelations(data, entityType, entityConfig.manyToMany);
+    }
+
+    // Nach-M:N-Transformation
+    if (!isPaginated && data && mod?.finalizeResult) {
+      mod.finalizeResult(data);
+    }
+    if (isPaginated && data && mod?.transformPaginationResult) {
+      mod.transformPaginationResult(data);
+    }
+
+    return isPaginated
+      ? { data: data || [], total: count || 0, page: pagination.page, limit: pagination.limit }
+      : (data || []);
+  }
+
   async loadEntities(entityType, filters = {}) {
     try {
       if (!window.supabase || !window.supabase.auth) {
@@ -22,65 +151,7 @@ export class EntityLoader {
         return getMockData(entityType);
       }
 
-      const entityConfig = this.entities[entityType];
-      if (!entityConfig) {
-        throw new Error(`Unbekannte Entität: ${entityType}`);
-      }
-
-      const mod = EntityModules[entityType];
-
-      const selectClause = mod?.buildSelectClause?.('list') || '*';
-      let query = window.supabase.from(entityConfig.table).select(selectClause);
-
-      if (mod?.customOrder) {
-        query = mod.customOrder(query);
-      } else {
-        query = query.order('created_at', { ascending: false });
-      }
-
-      if (mod?.applyJunctionFilters) {
-        const result = await mod.applyJunctionFilters(query, filters, window.supabase, 'list');
-        query = result.query;
-        filters = result.filters;
-        if (result.shortCircuit) return [];
-      }
-
-      // Filter anwenden (priorisiere FilterLogic wenn vorhanden)
-      if (window.filterSystem) {
-        const logic = await window.filterSystem.loadEntityLogic(entityType);
-        if (logic && logic.buildSupabaseQuery) {
-          console.log(`🔧 Nutze spezifische FilterLogic für ${entityType}`);
-          query = logic.buildSupabaseQuery(query, filters);
-        } else {
-          query = this.filterApplier.applyFilters(query, filters, entityConfig.fields, entityType);
-        }
-      } else {
-        query = this.filterApplier.applyFilters(query, filters, entityConfig.fields, entityType);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error(`❌ Supabase Fehler beim Laden von ${entityType}:`, error);
-        return [];
-      }
-
-      console.log(`✅ ${entityType} aus Supabase geladen:`, data?.length || 0);
-
-      if (data && mod?.transformResult) {
-        mod.transformResult(data);
-      }
-
-      if (data && entityConfig.manyToMany) {
-        console.log(`🔗 DATASERVICE: Lade Many-to-Many für ${entityType}, Config:`, Object.keys(entityConfig.manyToMany));
-        await this.relationManager.loadManyToManyRelations(data, entityType, entityConfig.manyToMany);
-      }
-
-      if (data && mod?.finalizeResult) {
-        mod.finalizeResult(data);
-      }
-      
-      return data || [];
+      return await this._load(entityType, filters, null);
       
     } catch (error) {
       console.error(`❌ Fehler beim Laden von ${entityType}:`, error);
@@ -147,91 +218,10 @@ export class EntityLoader {
         };
       }
 
-      const entityConfig = this.entities[entityType];
-      if (!entityConfig) {
-        throw new Error(`Unbekannte Entität: ${entityType}`);
-      }
-
-      const mod = EntityModules[entityType];
-
       const from = (page - 1) * limit;
       const to = from + limit - 1;
 
-      const selectClause = mod?.buildSelectClause?.('pagination') || '*';
-      let query = window.supabase.from(entityConfig.table).select(selectClause, { count: 'exact' });
-
-      if (filters._allowedIds && Array.isArray(filters._allowedIds)) {
-        query = query.in('id', filters._allowedIds);
-        delete filters._allowedIds;
-      }
-
-      if (mod?.applyJunctionFilters) {
-        const result = await mod.applyJunctionFilters(query, filters, window.supabase, 'pagination');
-        query = result.query;
-        filters = result.filters;
-        if (result.shortCircuit) return { data: [], total: 0, page, limit };
-      }
-
-      const filtersToApply = {...filters};
-      delete filtersToApply.branche_id;
-      delete filtersToApply.branche;
-      delete filtersToApply.sprache_id;
-      delete filtersToApply.creator_type_id;
-      delete filtersToApply._sortBy;
-      delete filtersToApply._sortOrder;
-      delete filtersToApply._allowedIds;
-      
-      if (window.filterSystem) {
-        const logic = await window.filterSystem.loadEntityLogic(entityType);
-        if (logic && logic.buildSupabaseQuery) {
-          console.log(`🔧 Nutze spezifische FilterLogic für ${entityType} (Pagination)`);
-          query = logic.buildSupabaseQuery(query, filtersToApply);
-        } else {
-          query = this.filterApplier.applyFilters(query, filtersToApply, entityConfig.fields, entityType);
-        }
-      } else {
-        query = this.filterApplier.applyFilters(query, filtersToApply, entityConfig.fields, entityType);
-      }
-
-      const sortBy = filters._sortBy || entityConfig.sortBy;
-      const sortOrder = filters._sortOrder !== undefined ? filters._sortOrder : entityConfig.sortOrder;
-      if (sortBy) {
-        query = query.order(sortBy, { ascending: sortOrder === 'asc' });
-      }
-
-      query = query.range(from, to);
-
-      const { data, error, count } = await query;
-
-      if (error) {
-        console.error(`❌ Supabase Fehler beim Laden von ${entityType}:`, error);
-        throw error;
-      }
-
-      console.log(`✅ ${entityType} geladen:`, {
-        items: data?.length || 0,
-        total: count,
-        page,
-        limit,
-        from,
-        to
-      });
-
-      if (data && data.length > 0 && entityConfig.manyToMany) {
-        console.log(`🔗 DATASERVICE PAGINATION: Lade Many-to-Many für ${entityType}, Config:`, Object.keys(entityConfig.manyToMany));
-        await this.relationManager.loadManyToManyRelations(data, entityType, entityConfig.manyToMany);
-      }
-
-      if (data && mod?.transformPaginationResult) {
-        mod.transformPaginationResult(data);
-      }
-
-      return {
-        data: data || [],
-        total: count || 0,
-        page,
-        limit
-      };
+      return await this._load(entityType, filters, { page, limit, from, to });
 
     } catch (error) {
       console.error(`❌ Fehler beim Laden von ${entityType} mit Pagination:`, error);
