@@ -486,7 +486,7 @@ export class AuftragList {
                 <th>Interne PO</th>
                 <th>Status</th>
                 <th>Angebotsnummer</th>
-                <th class="table-cell-center">Details</th>
+                ${!this.isKunde ? '<th class="table-cell-center">Details</th>' : ''}
                 <th>Rechnungsnummer</th>
                 <th class="col-rechnung-gestellt">Rechnungsdatum</th>
                 <th>Zahlungsziel</th>
@@ -961,7 +961,7 @@ export class AuftragList {
       if (!auftraege || auftraege.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="${this.isKunde ? '13' : '19'}" class="no-data">
+            <td colspan="${this.isKunde ? '12' : '19'}" class="no-data">
               <div style="text-align: center; padding: 40px 20px;">
                 <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📋</div>
                 <h3 style="color: #666; margin-bottom: 8px;">Keine Aufträge vorhanden</h3>
@@ -1001,9 +1001,9 @@ export class AuftragList {
           <td>${window.validatorSystem.sanitizeHtml(auftrag.po || '-')}</td>
           <td>${renderAuftragAmpel(auftrag.status)}</td>
           <td>${window.validatorSystem.sanitizeHtml(auftrag.angebotsnummer || '-')}</td>
-          <td class="table-cell-center">${auftrag.auftragsdetails_id
+          ${!this.isKunde ? `<td class="table-cell-center">${auftrag.auftragsdetails_id
             ? `<a href="#" onclick="event.preventDefault(); window.navigateTo('/auftragsdetails/${auftrag.auftragsdetails_id}')" class="details-link" title="Auftragsdetails anzeigen"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>`
-            : '-'}</td>
+            : '-'}</td>` : ''}
           <td>${window.validatorSystem.sanitizeHtml(auftrag.re_nr || '-')}</td>
           <td class="col-rechnung-gestellt">${this.formatDate(auftrag.rechnung_gestellt_am)}</td>
           <td>${this.formatZahlungsziel(auftrag.zahlungsziel_tage)}</td>
