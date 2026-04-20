@@ -399,8 +399,7 @@ export class RechnungDetail {
     });
   }
 
-  showEditForm() {
-    // Edit-Mode Flags setzen für FormSystem
+  async showEditForm() {
     const editData = {
       ...this.data,
       _isEditMode: true,
@@ -423,7 +422,32 @@ export class RechnungDetail {
       </div>
       <div class="form-page">${formHtml}</div>
     `;
-    window.formSystem.bindFormEvents('rechnung', editData);
+    await window.formSystem.bindFormEvents('rechnung', editData);
+
+    // Uploader werden per setTimeout(0) gemountet – kurz warten
+    await new Promise(r => setTimeout(r, 50));
+
+    const belegeUploader = document.querySelector('.uploader[data-name="belege_files"]')?.__uploaderInstance;
+    if (belegeUploader && this.belege.length > 0) {
+      belegeUploader.setExistingFiles(this.belege.map(b => ({
+        id: b.id,
+        name: b.file_name,
+        url: b.open_url,
+        path: b.file_path,
+        size: b.size
+      })));
+    }
+
+    const pdfUploader = document.querySelector('.uploader[data-name="pdf_file"]')?.__uploaderInstance;
+    if (pdfUploader && this.data?.pdf_url) {
+      pdfUploader.setExistingFiles([{
+        id: 'pdf',
+        name: this.data.pdf_path?.split('/').pop() || 'Rechnung.pdf',
+        url: this.data.pdf_url,
+        path: this.data.pdf_path,
+        size: null
+      }]);
+    }
   }
 }
 

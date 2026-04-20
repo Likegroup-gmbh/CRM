@@ -137,10 +137,6 @@
   overflow: visible !important;
 }
 
-/* Main-Wrapper: overflow visible wenn Dropdown in Kooperation-Tabelle offen */
-.main-wrapper:has(.kooperation-video-grid .actions-dropdown.show) {
-  overflow: visible !important;
-}
 
 /* --- BORDER-SYSTEM (separate + right/bottom Pattern) --- */
 /* Basis: jede Zelle hat nur border-right + border-bottom */

@@ -268,6 +268,13 @@ export class ActionsDropdown {
         this.closeAllDropdowns();
       }
     });
+
+    // Scroll schließt offene Dropdowns (capture: true für interne Container)
+    window.addEventListener('scroll', () => {
+      if (document.querySelector('.actions-dropdown.show')) {
+        this.closeAllDropdowns();
+      }
+    }, true);
   }
 
   // Entity-Type aus dem Kontext ermitteln
@@ -363,7 +370,7 @@ export class ActionsDropdown {
       const needsFlip = spaceBelow < dropdownHeight && buttonRect.top > dropdownHeight;
 
       // Container mit overflow: hidden/auto schneiden das Dropdown ab → fixed positioning
-      const scrollContainer = toggleButton.closest('.data-table-container, .auftrag-table, [style*="overflow"]');
+      const scrollContainer = toggleButton.closest('.data-table-container, .auftrag-table, .grid-wrapper, .main-wrapper, [style*="overflow"]');
       if (scrollContainer) {
         dropdown.style.position = 'fixed';
         dropdown.style.right = (window.innerWidth - buttonRect.right) + 'px';

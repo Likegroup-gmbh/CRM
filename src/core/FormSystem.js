@@ -361,6 +361,11 @@ export class FormSystem {
           await this.handleAnsprechpartnerProfileImage(result.id, form);
         }
 
+        // Rechnungs-Dateien (Belege + PDF) beim Edit verarbeiten
+        if (entity === 'rechnung') {
+          await this.handleRechnungFiles(result.id, form);
+        }
+
         this.validator.showSuccessMessage(data ? 'Erfolgreich aktualisiert!' : 'Erfolgreich erstellt!');
 
         // Micro-Animation greifen lassen, dann schließen (falls Button-Flow aktiv)
@@ -1419,6 +1424,116 @@ export class FormSystem {
     } catch (error) {
       console.error('❌ Profilbild-Upload fehlgeschlagen:', error);
       // Nicht werfen - Update war erfolgreich
+    }
+  }
+
+  async handleRechnungFiles(rechnungId, form) {
+    if (!window.supabase || !rechnungId) return;
+
+    try {
+      // --- Belege ---
+      const belegeUploader = form.querySelector('.uploader[data-name="belege_files"]')?.__uploaderInstance;
+      if (belegeUploader) {
+        // Gelöschte Belege entfernen
+        const deletedIds = belegeUploader.getDeletedFileIds().filter(id => id !== 'pdf');
+        for (const belegId of deletedIds) {
+          try {
+            const { data: row } = await window.supabase
+              .from('rechnung_belege')
+              .select('file_path')
+              .eq('id', belegId)
+              .single();
+            if (row?.file_path) {
+              await window.supabase.storage.from('rechnung-belege').remove([row.file_path]);
+            }
+            await window.supabase.from('rechnung_belege').delete().eq('id', belegId);
+          } catch (err) {
+            console.warn('⚠️ Fehler beim Löschen eines Belegs:', err?.message);
+          }
+        }
+
+        // Neue Belege hochladen
+        const newFiles = belegeUploader.files || [];
+        for (const file of newFiles) {
+          const sanitizedName = file.name
+            .replace(/[^a-zA-Z0-9._-]/g, '_')
+            .replace(/\.{2,}/g, '_')
+            .substring(0, 200);
+          const belegePath = `${rechnungId}/${Date.now()}_${Math.random().toString(36).slice(2)}_${sanitizedName}`;
+          const { error: upErr } = await window.supabase.storage.from('rechnung-belege').upload(belegePath, file, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: file.type
+          });
+          if (upErr) {
+            console.warn('⚠️ Beleg-Upload fehlgeschlagen:', upErr.message);
+            continue;
+          }
+          const { data: urlData } = window.supabase.storage.from('rechnung-belege').getPublicUrl(belegePath);
+          await window.supabase.from('rechnung_belege').insert({
+            rechnung_id: rechnungId,
+            file_name: file.name,
+            file_path: belegePath,
+            file_url: urlData?.publicUrl || '',
+            content_type: file.type,
+            size: file.size,
+            uploaded_by: window.currentUser?.id || null
+          });
+        }
+      }
+
+      // --- PDF ---
+      const pdfUploader = form.querySelector('.uploader[data-name="pdf_file"]')?.__uploaderInstance;
+      if (pdfUploader) {
+        const pdfDeleted = pdfUploader.getDeletedFileIds().includes('pdf');
+        const hasNewPdf = pdfUploader.files && pdfUploader.files.length > 0;
+
+        // Bestehende PDF löschen (wenn markiert oder neue hochgeladen wird)
+        if (pdfDeleted || hasNewPdf) {
+          const { data: rechnung } = await window.supabase
+            .from('rechnung')
+            .select('pdf_path')
+            .eq('id', rechnungId)
+            .single();
+          if (rechnung?.pdf_path) {
+            await window.supabase.storage.from('rechnungen').remove([rechnung.pdf_path]);
+          }
+          if (!hasNewPdf) {
+            await window.supabase.from('rechnung').update({ pdf_url: null, pdf_path: null }).eq('id', rechnungId);
+          }
+        }
+
+        // Neue PDF hochladen
+        if (hasNewPdf) {
+          const file = pdfUploader.files[0];
+          const sanitizedName = file.name
+            .replace(/[^a-zA-Z0-9._-]/g, '_')
+            .replace(/\.{2,}/g, '_')
+            .substring(0, 200);
+          const { data: rechnungRow } = await window.supabase
+            .from('rechnung')
+            .select('unternehmen_id')
+            .eq('id', rechnungId)
+            .single();
+          const pdfPath = `${rechnungRow?.unternehmen_id || 'unknown'}/${Date.now()}_${sanitizedName}`;
+          const { error: upErr } = await window.supabase.storage.from('rechnungen').upload(pdfPath, file, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: file.type
+          });
+          if (!upErr) {
+            const { data: urlData } = window.supabase.storage.from('rechnungen').getPublicUrl(pdfPath);
+            await window.supabase.from('rechnung').update({
+              pdf_url: urlData?.publicUrl || '',
+              pdf_path: pdfPath
+            }).eq('id', rechnungId);
+          } else {
+            console.warn('⚠️ PDF-Upload fehlgeschlagen:', upErr.message);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Fehler bei Rechnungs-Dateien:', error);
     }
   }
 

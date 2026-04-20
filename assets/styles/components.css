@@ -2266,22 +2266,6 @@ h3.section-title,
   cursor: not-allowed;
 }
 
-.contract-signed-action--add {
-  padding: var(--space-xxs);
-  min-width: 2rem;
-  min-height: 2rem;
-  background: var(--bg-primary);
-  color: var(--text-muted);
-  border: var(--border-xs) solid var(--border-primary);
-  border-radius: var(--radius-md);
-}
-
-.contract-signed-action--add:hover {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  border-color: var(--gray-300);
-}
-
 .signed-link {
   display: inline-flex;
   align-items: center;

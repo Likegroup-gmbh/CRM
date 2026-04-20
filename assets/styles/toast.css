@@ -186,7 +186,7 @@
 }
 
 /* Hover-Effekt: Pause Auto-Dismiss */
-.toast:hover {
+.toast:not(.toast-hide):hover {
   box-shadow: var(--shadow-xl);
   transform: translateX(-4px);
 }

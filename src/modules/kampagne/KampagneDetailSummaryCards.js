@@ -98,12 +98,9 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
     return 'summary-progress-fill--success';
   };
 
-  const isAdmin = window.currentUser?.rolle === 'admin';
-
   return `
     <div class="auftragsdetails-summary" style="margin-bottom: var(--space-xl);">
       <div class="summary-cards">
-        ${isAdmin ? `
         <div class="summary-card" data-summary-card="total-budget">
           <div class="summary-value" data-summary-value="total-budget">${KampagneUtils.formatCurrency(totalBudget)}</div>
           <div class="summary-label">Gesamtbudget (netto)</div>
@@ -129,7 +126,7 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
         <div class="summary-card" data-summary-card="extra-kosten-vk">
           <div class="summary-value" data-summary-value="extra-kosten-vk">${KampagneUtils.formatCurrency(extraKostenVkSum || 0)}</div>
           <div class="summary-label">Extra Kosten</div>
-        </div>` : ''}
+        </div>
         <div class="summary-card" data-summary-card="creators">
           <div class="summary-value" data-summary-value="creators">${KampagneUtils.num(usedCreators)} von ${KampagneUtils.num(totalCreators)}</div>
           <div class="summary-label">Gebuchte Creator</div>

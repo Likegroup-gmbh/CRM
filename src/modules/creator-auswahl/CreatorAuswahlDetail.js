@@ -863,12 +863,17 @@ export class CreatorAuswahlDetail {
     // Feld-Updates (Input/Textarea/Select)
     document.querySelectorAll('input[data-field], textarea[data-field], select[data-field]').forEach(el => {
       const handler = () => this.handleFieldUpdate(el);
-      el.addEventListener('blur', handler);
-      el.addEventListener('change', handler);
-      this._boundEventListeners.add(() => {
-        el.removeEventListener('blur', handler);
-        el.removeEventListener('change', handler);
-      });
+      if (el.type === 'checkbox') {
+        el.addEventListener('change', handler);
+        this._boundEventListeners.add(() => el.removeEventListener('change', handler));
+      } else {
+        el.addEventListener('blur', handler);
+        el.addEventListener('change', handler);
+        this._boundEventListeners.add(() => {
+          el.removeEventListener('blur', handler);
+          el.removeEventListener('change', handler);
+        });
+      }
     });
 
     // Actions Dropdown

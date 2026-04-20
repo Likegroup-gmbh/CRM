@@ -100,26 +100,23 @@ export class ToastSystem {
 
   // Toast entfernen
   removeToast(id) {
-    const index = this.toasts.findIndex(t => t.id === id);
-    if (index === -1) return;
+    const toast = this.toasts.find(t => t.id === id);
+    if (!toast || toast._removing) return;
+    toast._removing = true;
 
-    const toast = this.toasts[index];
-    
-    // Timer löschen
     if (toast.timer) {
       clearTimeout(toast.timer);
     }
 
-    // Fade-out Animation
     toast.element.classList.remove('toast-show');
     toast.element.classList.add('toast-hide');
 
-    // Nach Animation aus DOM entfernen
     setTimeout(() => {
       if (toast.element.parentNode) {
         toast.element.parentNode.removeChild(toast.element);
       }
-      this.toasts.splice(index, 1);
+      const idx = this.toasts.findIndex(t => t.id === id);
+      if (idx !== -1) this.toasts.splice(idx, 1);
     }, 300);
   }
 

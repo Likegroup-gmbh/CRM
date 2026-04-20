@@ -1,13 +1,12 @@
-// UploaderField.js (ES6-Modul)
-// Wiederverwendbarer Drag&Drop Uploader für Single- und Multi-Upload
-
 export class UploaderField {
   constructor({ multiple = false, accept = '*/*', maxFileSize = null, onFilesChanged = () => {} } = {}) {
     this.multiple = multiple;
     this.accept = accept;
-    this.maxFileSize = maxFileSize; // in Bytes, null = unbegrenzt
+    this.maxFileSize = maxFileSize;
     this.onFilesChanged = onFilesChanged;
     this.files = [];
+    this.existingFiles = [];
+    this.deletedFileIds = [];
     this.root = null;
     this.input = null;
     this.listEl = null;
@@ -16,11 +15,7 @@ export class UploaderField {
     this.errorMessage = null;
   }
 
-  // Mount in bestehendes Root-Element (das bereits in den DOM eingefügt wurde)
   mount(root) {
-    // #region agent log
-    console.log('[DEBUG-A] UploaderField mount called', {rootExists:!!root,rootDataName:root?.dataset?.name,timestamp:Date.now()});
-    // #endregion
     if (!root) return;
     this.root = root;
     const id = `uploader-input-${Math.random().toString(36).slice(2)}`;
@@ -40,21 +35,14 @@ export class UploaderField {
     this.errorEl = this.root.querySelector('.uploader-error');
     this.dropEl = this.root.querySelector('.uploader-drop');
     this.bind();
-    // Exponiere Instanz am Root
     this.root.__uploaderInstance = this;
-    // #region agent log
-    console.log('[DEBUG-A] UploaderField mount complete', {instanceSet:!!this.root.__uploaderInstance,filesCount:this.files.length,timestamp:Date.now()});
-    // #endregion
-    // Initial leere Liste anzeigen
     this.renderList();
   }
 
   bind() {
     const drop = this.dropEl;
     
-    // Ganze Zone klickbar machen (nicht nur den Button)
     drop.addEventListener('click', (e) => {
-      // Nicht triggern wenn "Entfernen"-Button geklickt wurde
       if (e.target.closest('.uploader-remove')) return;
       this.input.click();
     });
@@ -72,10 +60,8 @@ export class UploaderField {
     drop.addEventListener('drop', (e) => {
       const dt = e.dataTransfer;
       if (!dt) return;
-      const files = dt.files;
-      this.handleFiles(files);
+      this.handleFiles(dt.files);
     });
-    // Verhindere Browser-Default für Drag&Drop auch auf Formular-Ebene
     const form = this.root.closest('form');
     if (form) {
       ['dragover','drop'].forEach(ev => form.addEventListener(ev, (e) => {
@@ -85,48 +71,34 @@ export class UploaderField {
   }
 
   handleFiles(fileList) {
-    // #region agent log
-    console.log('[DEBUG-B] handleFiles called', {fileListLength:fileList?.length,fileListNames:fileList?Array.from(fileList).map(f=>f.name):null,currentFilesCount:this.files.length,timestamp:Date.now()});
-    // #endregion
-    // Fehler zurücksetzen bei neuem Upload-Versuch
     this.clearError();
-    
     if (!fileList || fileList.length === 0) return;
     
     const errors = [];
     const validFiles = [];
     
     for (const file of Array.from(fileList)) {
-      // Dateityp prüfen
       if (!this.isAcceptedType(file)) {
         errors.push(`"${file.name}": Dateityp nicht erlaubt`);
         continue;
       }
-      
-      // Dateigröße prüfen
       if (this.maxFileSize && file.size > this.maxFileSize) {
         errors.push(`"${file.name}": Datei zu groß (max. ${this.formatSize(this.maxFileSize)})`);
         continue;
       }
-      
       validFiles.push(file);
     }
     
-    // Fehler anzeigen wenn vorhanden
     if (errors.length > 0) {
       this.setError(errors.join(', '));
     }
     
-    // Valide Dateien hinzufügen
     if (validFiles.length > 0) {
       if (!this.multiple) {
         this.files = [validFiles[0]];
       } else {
         this.files = [...this.files, ...validFiles];
       }
-      // #region agent log
-      console.log('[DEBUG-B] Files set successfully', {filesCount:this.files.length,fileNames:this.files.map(f=>f.name),timestamp:Date.now()});
-      // #endregion
       this.renderList();
       this.onFilesChanged(this.files);
     }
@@ -165,30 +137,98 @@ export class UploaderField {
     }
   }
 
+  // --- Existing Files Support (Edit-Mode) ---
+
+  setExistingFiles(files) {
+    this.existingFiles = files || [];
+    this.deletedFileIds = [];
+    this.renderList();
+  }
+
+  getDeletedFileIds() {
+    return [...this.deletedFileIds];
+  }
+
+  getKeptExistingFiles() {
+    return this.existingFiles.filter(f => !this.deletedFileIds.includes(f.id));
+  }
+
+  removeExistingFile(fileId) {
+    if (!this.deletedFileIds.includes(fileId)) {
+      this.deletedFileIds.push(fileId);
+    }
+    this.renderList();
+    this.onFilesChanged(this.files);
+  }
+
+  // --- Render ---
+
   renderList() {
     if (!this.listEl) return;
-    if (!this.files.length) {
+    
+    const keptExisting = this.existingFiles.filter(f => !this.deletedFileIds.includes(f.id));
+    
+    if (!keptExisting.length && !this.files.length) {
       this.listEl.innerHTML = '<div class="uploader-empty">Keine Dateien ausgewählt</div>';
       return;
     }
-    const items = this.files.map((f, idx) => `
-      <div class="uploader-item">
-        <div class="uploader-meta">
-          <span class="uploader-name">${f.name}</span>
-          <span class="uploader-size">${this.formatSize(f.size)}</span>
+
+    let html = '';
+
+    // Existing files (already uploaded)
+    keptExisting.forEach(f => {
+      const sizeStr = f.size != null ? this.formatSize(f.size) : '';
+      const linkHtml = f.url
+        ? `<a href="${f.url}" target="_blank" rel="noopener noreferrer" class="uploader-name uploader-name--link">${this.escapeHtml(f.name)}</a>`
+        : `<span class="uploader-name">${this.escapeHtml(f.name)}</span>`;
+      html += `
+        <div class="uploader-item uploader-item--existing">
+          <div class="uploader-meta">
+            ${linkHtml}
+            ${sizeStr ? `<span class="uploader-size">${sizeStr}</span>` : ''}
+            <span class="uploader-badge">Gespeichert</span>
+          </div>
+          <button type="button" class="uploader-remove" data-existing-id="${f.id}">Entfernen</button>
         </div>
-        <button type="button" class="uploader-remove" data-index="${idx}">Entfernen</button>
-      </div>
-    `).join('');
-    this.listEl.innerHTML = items;
+      `;
+    });
+
+    // New files (pending upload)
+    this.files.forEach((f, idx) => {
+      html += `
+        <div class="uploader-item">
+          <div class="uploader-meta">
+            <span class="uploader-name">${f.name}</span>
+            <span class="uploader-size">${this.formatSize(f.size)}</span>
+            <span class="uploader-badge uploader-badge--new">Neu</span>
+          </div>
+          <button type="button" class="uploader-remove" data-index="${idx}">Entfernen</button>
+        </div>
+      `;
+    });
+
+    this.listEl.innerHTML = html;
+    
     this.listEl.querySelectorAll('.uploader-remove').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const i = parseInt(btn.dataset.index, 10);
-        this.files.splice(i, 1);
-        this.renderList();
-        this.onFilesChanged(this.files);
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const existingId = btn.dataset.existingId;
+        if (existingId) {
+          this.removeExistingFile(existingId);
+        } else {
+          const i = parseInt(btn.dataset.index, 10);
+          this.files.splice(i, 1);
+          this.renderList();
+          this.onFilesChanged(this.files);
+        }
       });
     });
+  }
+
+  escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str || '';
+    return div.innerHTML;
   }
 
   formatSize(bytes) {
