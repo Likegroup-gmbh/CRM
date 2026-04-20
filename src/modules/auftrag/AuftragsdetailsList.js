@@ -128,6 +128,7 @@ export class AuftragsdetailsList {
     window.setHeadline('Auftragsdetails');
     
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    const canBulkDelete = isAdmin || window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
 
     const html = `
       <div class="table-filter-wrapper">
@@ -141,10 +142,10 @@ export class AuftragsdetailsList {
           </div>
         </div>
         <div class="table-actions">
-          ${isAdmin ? '<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>' : ''}
-          ${isAdmin ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
+          ${canBulkDelete ? '<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>' : ''}
+          ${canBulkDelete ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
-          ${isAdmin ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
+          ${canBulkDelete ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
           ${!this.isKunde ? '<button id="btn-auftragsdetails-new" class="primary-btn">Neue Auftragsdetails anlegen</button>' : ''}
         </div>
       </div>
@@ -154,12 +155,12 @@ export class AuftragsdetailsList {
           <table class="data-table">
             <thead>
               <tr>
-                ${isAdmin ? `<th class="col-checkbox">
+                ${canBulkDelete ? `<th class="col-checkbox">
                   <input type="checkbox" id="select-all-auftragsdetails">
                 </th>` : ''}
-                ${!this.isKunde ? '<th class="col-ad-unternehmen">Unternehmen</th>' : ''}
-                ${!this.isKunde ? '<th class="col-ad-marke">Marke</th>' : ''}
-                <th>PO intern</th>
+                <th class="col-ad-unternehmen">Unternehmen</th>
+                <th class="col-ad-marke">Marke</th>
+                <th>${this.isKunde ? 'PO extern' : 'PO intern'}</th>
                 <th>Status</th>
                 <th class="col-ad-auftrag">Auftrag</th>
                 <th>Titel</th>
@@ -172,7 +173,7 @@ export class AuftragsdetailsList {
             </thead>
             <tbody id="auftragsdetails-table-body">
               <tr>
-                <td colspan="${this.isKunde ? '7' : isAdmin ? '12' : '11'}" class="loading">Lade Auftragsdetails...</td>
+                <td colspan="${this.isKunde ? '9' : canBulkDelete ? '12' : '11'}" class="loading">Lade Auftragsdetails...</td>
               </tr>
             </tbody>
           </table>
@@ -322,6 +323,7 @@ export class AuftragsdetailsList {
           'notiz',
           'status',
           'po',
+          'externe_po',
           'start',
           'ende',
           'unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url)',
@@ -392,7 +394,8 @@ export class AuftragsdetailsList {
                  titelText.includes(search) ||
                  (auftrag?.unternehmen?.firmenname?.toLowerCase().includes(search)) ||
                  (auftrag?.marke?.markenname?.toLowerCase().includes(search)) ||
-                 (auftrag?.po?.toLowerCase().includes(search));
+                 (auftrag?.po?.toLowerCase().includes(search)) ||
+                 (auftrag?.externe_po?.toLowerCase().includes(search));
         });
       }
 
@@ -595,7 +598,7 @@ export class AuftragsdetailsList {
 
   // Ausgewählte Auftragsdetails löschen
   async showDeleteSelectedConfirmation() {
-    if (window.currentUser?.rolle !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'admin') return;
+    if (window.currentUser?.rolle !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'mitarbeiter') return;
     
     const selectedIds = Array.from(this.selectedDetails);
     if (selectedIds.length === 0) {
@@ -673,13 +676,14 @@ export class AuftragsdetailsList {
     if (!tbody) return;
 
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    const canBulkDelete = isAdmin || window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
     const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
 
     await TableAnimationHelper.animatedUpdate(tbody, () => {
       if (!details || details.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="${this.isKunde ? '7' : isAdmin ? '11' : '10'}" class="no-data">
+            <td colspan="${this.isKunde ? '9' : canBulkDelete ? '11' : '10'}" class="no-data">
               <div style="text-align: center; padding: 40px 20px;">
                 <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📄</div>
                 <h3 style="color: #666; margin-bottom: 8px;">Keine Auftragsdetails vorhanden</h3>
@@ -731,10 +735,10 @@ export class AuftragsdetailsList {
         
         return `
           <tr data-id="${detail.id}">
-            ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="auftragsdetails-check" data-id="${detail.id}"></td>` : ''}
-            ${!this.isKunde ? `<td class="col-ad-unternehmen">${unternehmenHtml}</td>` : ''}
-            ${!this.isKunde ? `<td class="col-ad-marke">${markeHtml}</td>` : ''}
-            <td>${window.validatorSystem?.sanitizeHtml(auftrag.po) || auftrag.po || '-'}</td>
+            ${canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="auftragsdetails-check" data-id="${detail.id}"></td>` : ''}
+            <td class="col-ad-unternehmen">${unternehmenHtml}</td>
+            <td class="col-ad-marke">${markeHtml}</td>
+            <td>${window.validatorSystem?.sanitizeHtml(this.isKunde ? auftrag.externe_po : auftrag.po) || (this.isKunde ? auftrag.externe_po : auftrag.po) || '-'}</td>
             <td>${renderAuftragAmpel(auftrag.status)}</td>
             <td class="col-ad-auftrag">
               <a href="#" class="table-link" data-table="auftragsdetails" data-id="${detail.id}">

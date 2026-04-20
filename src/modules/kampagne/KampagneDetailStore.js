@@ -13,6 +13,7 @@ export class KampagneDetailStore {
     this.creators = new Map();
     this.creatorAdressen = {};
     this.kampagneInfo = null;
+    this.statusOptions = [];
 
     this._loadedAssetVideoIds = new Set();
     this._listeners = new Map();
@@ -74,6 +75,10 @@ export class KampagneDetailStore {
 
   setKampagneInfo(info) {
     this.kampagneInfo = info;
+  }
+
+  setStatusOptions(options) {
+    this.statusOptions = options || [];
   }
 
   // ========================================
@@ -233,6 +238,7 @@ export class KampagneDetailStore {
     this.versandInfos = {};
     this.creatorAdressen = {};
     this.creators.clear();
+    this.statusOptions = [];
     this._loadedAssetVideoIds.clear();
   }
 }

@@ -148,7 +148,7 @@ export class MarkeList extends BasePaginatedList {
    * Rendert eine einzelne Marken-Zeile
    */
   renderSingleRow(marke) {
-    const isAdmin = this.isAdmin;
+    const canBulkDelete = this.canBulkDelete;
     const sanitize = this.sanitize.bind(this);
     
     const allMitarbeiter = marke._mitarbeiter || [];
@@ -158,7 +158,7 @@ export class MarkeList extends BasePaginatedList {
     
     return `
       <tr data-id="${marke.id}">
-        ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="marke-check" data-id="${marke.id}"></td>` : ''}
+        ${canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="marke-check" data-id="${marke.id}"></td>` : ''}
         <td class="col-name col-name-with-icon">
           ${marke.logo_url 
             ? `<img src="${marke.logo_url}" class="table-logo" width="24" height="24" alt="" />` 
@@ -185,7 +185,7 @@ export class MarkeList extends BasePaginatedList {
    * Rendert den Shell-Content (Struktur ohne Daten)
    */
   renderShellContent() {
-    const isAdmin = this.isAdmin;
+    const canBulkDelete = this.canBulkDelete;
     const canEdit = this.canEdit;
     
     return `
@@ -201,7 +201,7 @@ export class MarkeList extends BasePaginatedList {
           </div>
         </div>
         <div class="table-actions">
-          ${isAdmin ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
+          ${canBulkDelete ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>` : ''}
           ${canEdit ? '<button id="btn-marke-new" class="primary-btn">Neue Marke anlegen</button>' : ''}
@@ -212,7 +212,7 @@ export class MarkeList extends BasePaginatedList {
         <table class="data-table">
           <thead>
             <tr>
-              ${isAdmin ? `<th class="col-checkbox"><input type="checkbox" id="select-all-marken"></th>` : ''}
+              ${canBulkDelete ? `<th class="col-checkbox"><input type="checkbox" id="select-all-marken"></th>` : ''}
               <th class="col-name">Markenname</th>
               <th>Unternehmen</th>
               <th>Ansprechpartner</th>
@@ -226,7 +226,7 @@ export class MarkeList extends BasePaginatedList {
           </thead>
           <tbody>
             <tr>
-              <td colspan="${isAdmin ? '10' : '9'}" class="no-data">Lade Marken...</td>
+              <td colspan="${canBulkDelete ? '10' : '9'}" class="no-data">Lade Marken...</td>
             </tr>
           </tbody>
         </table>

@@ -14,6 +14,7 @@ export function renderPageHtml({ currentView, searchQuery }) {
   const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
   const isKunde = window.currentUser?.rolle === 'kunde';
   const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+  const canBulkDelete = isAdmin || window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
 
   return `
     <div class="table-filter-wrapper">
@@ -41,10 +42,10 @@ export function renderPageHtml({ currentView, searchQuery }) {
         </div>
       </div>
       ${!isKunde ? `<div class="table-actions">
-        ${currentView === 'list' && isAdmin ? '<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>' : ''}
-        ${currentView === 'list' && isAdmin ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
-        ${currentView === 'list' && isAdmin ? '<span id="selected-count" style="display:none;">0 ausgewählt</span>' : ''}
-        ${currentView === 'list' && isAdmin ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
+        ${currentView === 'list' && canBulkDelete ? '<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>' : ''}
+        ${currentView === 'list' && canBulkDelete ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
+        ${currentView === 'list' && canBulkDelete ? '<span id="selected-count" style="display:none;">0 ausgewählt</span>' : ''}
+        ${currentView === 'list' && canBulkDelete ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
         ${canEdit ? '<button id="btn-kampagne-new" class="primary-btn">Neue Kampagne anlegen</button>' : ''}
       </div>` : ''}
     </div>
@@ -61,13 +62,14 @@ export function renderPageHtml({ currentView, searchQuery }) {
 export function renderTableWrapper() {
   const isKunde = window.currentUser?.rolle === 'kunde';
   const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+  const canBulkDelete = isAdmin || window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
   
   return `
     <div class="data-table-container kampagne-table-container">
       <table class="data-table data-table--nowrap data-table--kampagne">
         <thead>
           <tr>
-            ${!isKunde && isAdmin ? `<th class="col-checkbox">
+            ${!isKunde && canBulkDelete ? `<th class="col-checkbox">
               <input type="checkbox" id="select-all-kampagnen">
             </th>` : ''}
             <th class="col-name">Kampagnenname</th>
@@ -101,6 +103,7 @@ export async function updateTable(kampagnen, { bindDragToScroll }) {
 
   const isKunde = window.currentUser?.rolle === 'kunde';
   const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+  const canBulkDelete = isAdmin || window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
 
   await TableAnimationHelper.animatedUpdate(tbody, async () => {
     if (!kampagnen || kampagnen.length === 0) {
@@ -111,7 +114,7 @@ export async function updateTable(kampagnen, { bindDragToScroll }) {
 
     tbody.innerHTML = kampagnen.map(kampagne => `
       <tr data-id="${kampagne.id}">
-        ${!isKunde && isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="kampagne-check" data-id="${kampagne.id}"></td>` : ''}
+        ${!isKunde && canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="kampagne-check" data-id="${kampagne.id}"></td>` : ''}
         <td class="col-name">
           <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
             ${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(kampagne))}
@@ -230,8 +233,6 @@ export function renderMitarbeiter(users) {
     return '-';
   }
   
-  console.log('🔍 KampagneList renderMitarbeiter:', users); // Debug
-  
   const items = users
     .filter(u => u && (u.name || u.email))
     .map(u => ({
@@ -241,8 +242,6 @@ export function renderMitarbeiter(users) {
       entityType: 'mitarbeiter',
       profile_image_url: u.profile_image_url
     }));
-  
-  console.log('🔍 KampagneList mitarbeiter items:', items); // Debug
   
   return avatarBubbles.renderBubbles(items);
 }

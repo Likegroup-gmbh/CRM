@@ -3140,6 +3140,136 @@ h3.section-title,
   border-radius: var(--radius-md);
 }
 
+/* Kooperationen Kanban Cards */
+.kooperation-card {
+  cursor: grab;
+}
+
+.kooperation-card[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.kanban-readonly .kooperation-card {
+  cursor: default;
+}
+
+.kanban-readonly .kooperation-card:hover {
+  transform: none;
+  box-shadow: var(--shadow-xs);
+}
+
+.kooperation-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-xs);
+}
+
+.kooperation-card-creator {
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kooperation-card-status {
+  font-size: var(--text-xs);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--gray-100);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.kooperation-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: var(--space-xs);
+}
+
+.kooperation-card-tag {
+  font-size: var(--text-xs);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--primary-50);
+  color: var(--primary-700);
+}
+
+.kooperation-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+.kooperation-card-meta-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.kooperation-card-meta-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.kooperation-card-datum {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.kooperation-card-kosten {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.kooperation-card-skript-link {
+  display: inline-flex;
+  align-items: center;
+  color: var(--primary-600);
+  transition: color 0.2s;
+}
+
+.kooperation-card-skript-link:hover {
+  color: var(--primary-800);
+}
+
+/* Kooperationen Kanban – Horizontal Scrolling */
+.kooperationen-kanban-wrapper {
+  max-width: 100%;
+  overflow: visible;
+}
+
+.kooperationen-kanban-board {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  scroll-behavior: auto;
+}
+
+.kooperationen-kanban-board::-webkit-scrollbar {
+  height: 8px;
+}
+
+.kooperationen-kanban-board::-webkit-scrollbar-thumb {
+  background: var(--gray-300);
+  border-radius: 4px;
+}
+
+.kooperationen-kanban-board::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-400);
+}
+
 /* Task Cards */
 .task-card {
   background: white;

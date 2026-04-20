@@ -28,7 +28,7 @@ export const ActionConfigs = {
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
       { id: 'notiz', icon: 'notiz', label: 'Notiz hinzufügen', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
-      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
+      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],
     kundenActions: ['view']
   },
@@ -58,7 +58,7 @@ export const ActionConfigs = {
       { id: 'notiz', icon: 'notiz', label: 'Notiz hinzufügen', roles: ['admin', 'mitarbeiter'] },
       { id: 'quickview', icon: 'quickview', label: 'Schnellansicht öffnen', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
-      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
+      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],
     kundenActions: ['view']
   },
@@ -82,7 +82,7 @@ export const ActionConfigs = {
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
       { id: 'add_ansprechpartner_unternehmen', icon: 'add-ansprechpartner', label: 'Ansprechpartner hinzufügen', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
-      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
+      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],
     kundenActions: ['view']
   },
@@ -96,7 +96,7 @@ export const ActionConfigs = {
       { id: 'add_ansprechpartner', icon: 'add-ansprechpartner', label: 'Ansprechpartner hinzufügen', roles: ['admin', 'mitarbeiter'] },
       { id: 'assign_staff', icon: 'add-ansprechpartner', label: 'Mitarbeiter zuordnen', roles: ['admin'] },
       { id: 'separator' },
-      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
+      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],
     kundenActions: ['view']
   },
@@ -110,7 +110,7 @@ export const ActionConfigs = {
       { id: 'rechnung', icon: 'rechnung-create', label: 'Rechnung anlegen', roles: ['admin', 'mitarbeiter'] },
       { id: 'rechnung_anpassen', icon: 'edit', label: 'Rechnung anpassen', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
-      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
+      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],
     kundenActions: []
   },
@@ -122,7 +122,7 @@ export const ActionConfigs = {
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
       { id: 'notiz', icon: 'notiz', label: 'Notiz hinzufügen', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
-      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
+      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],
     kundenActions: ['view']
   },
@@ -132,7 +132,7 @@ export const ActionConfigs = {
     actions: [
       { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
       { id: 'separator' },
-      { id: 'remove_ansprechpartner_link', icon: 'delete', label: 'Verknüpfung entfernen', danger: true, roles: ['admin'] }
+      { id: 'remove_ansprechpartner_link', icon: 'delete', label: 'Verknüpfung entfernen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],
     kundenActions: ['view']
   },
@@ -143,7 +143,7 @@ export const ActionConfigs = {
       { id: 'edit_creator_adresse', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
       { id: 'set_standard_adresse', icon: 'favorite', label: 'Als Standard festlegen', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
-      { id: 'delete_creator_adresse', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
+      { id: 'delete_creator_adresse', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],
     kundenActions: []
   },
@@ -163,7 +163,7 @@ export const ActionConfigs = {
       { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
-      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
+      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],
     kundenActions: ['view']
   },
@@ -179,7 +179,7 @@ export const ActionConfigs = {
         staticOptions: true,
         handler: 'setField',
         updateFields: ['status'],
-        roles: ['admin']
+        roles: ['admin', 'mitarbeiter']
       },
       { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
@@ -227,7 +227,7 @@ export const ActionConfigs = {
       { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['admin', 'mitarbeiter'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
-      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
+      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ]
   },
 
@@ -238,7 +238,7 @@ export const ActionConfigs = {
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
       { id: 'download', icon: 'download', label: 'PDF herunterladen', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
-      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
+      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],
     kundenActions: ['view', 'download']
   }

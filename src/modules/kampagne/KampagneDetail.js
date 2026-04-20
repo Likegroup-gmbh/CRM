@@ -3,6 +3,7 @@
 // Delegiert an: DataLoader, MainRenderer, TabRenderers, SummaryCards, Events, EditHandler
 
 import { KampagneKooperationenVideoTable } from './KampagneKooperationenVideoTable.js';
+import { KooperationenKanbanBoard } from './KooperationenKanbanBoard.js';
 import { KampagneUtils } from './KampagneUtils.js';
 import { loadCriticalData as _loadCriticalData, loadFullTableData } from './KampagneDetailDataLoader.js';
 import { renderPageLoading, renderNotFound, renderMainPage } from './KampagneDetailMainRenderer.js';
@@ -29,6 +30,8 @@ export class KampagneDetail {
     this.rechnungen = [];
     this.vertraege = [];
     this.kooperationenVideoTable = null;
+    this.kanbanBoard = null;
+    this.currentView = 'table';
     this.videoColumnVisibilityDrawer = null;
     this.strategien = [];
     this.briefings = [];
@@ -57,6 +60,12 @@ export class KampagneDetail {
       }
       this.kooperationenVideoTable = null;
     }
+
+    if (this.kanbanBoard) {
+      this.kanbanBoard.destroy();
+      this.kanbanBoard = null;
+    }
+    this.currentView = 'table';
 
     if (this.store) {
       this.store.destroy();
@@ -239,10 +248,84 @@ export class KampagneDetail {
     const activeButton = document.querySelector(`[data-tab="${tabName}"]`);
     if (activeButton) activeButton.classList.add('active');
 
-    if (this.kooperationenVideoTable) {
+    if (this.currentView === 'table' && this.kooperationenVideoTable) {
       this.kooperationenVideoTable.setFilterTab(tabName);
       this.kooperationenVideoTable.updateTabCounts();
+    } else if (this.currentView === 'kanban' && this.kanbanBoard) {
+      this.kanbanBoard.setFilterTab(tabName);
+      this.kanbanBoard.updateTabCounts();
     }
+  }
+
+  switchView(view) {
+    if (view === this.currentView) return;
+    this.currentView = view;
+
+    const btnTable = document.getElementById('btn-view-table');
+    const btnKanban = document.getElementById('btn-view-kanban');
+    const btnVisibility = document.getElementById('btn-column-visibility');
+
+    if (btnTable) btnTable.classList.toggle('active', view === 'table');
+    if (btnKanban) btnKanban.classList.toggle('active', view === 'kanban');
+    if (btnVisibility) btnVisibility.style.display = view === 'table' ? '' : 'none';
+
+    if (view === 'kanban') {
+      this._unmountVideoTable();
+      this._mountKanban();
+    } else {
+      this._unmountKanban();
+      this._remountVideoTable();
+    }
+  }
+
+  _unmountVideoTable() {
+    if (this.kooperationenVideoTable && typeof this.kooperationenVideoTable.destroy === 'function') {
+      this.kooperationenVideoTable.destroy();
+      this.kooperationenVideoTable = null;
+    }
+    const container = document.getElementById('kooperationen-videos-container');
+    if (container) container.innerHTML = '';
+  }
+
+  _unmountKanban() {
+    if (this.kanbanBoard) {
+      this.kanbanBoard.destroy();
+      this.kanbanBoard = null;
+    }
+    const container = document.getElementById('kooperationen-videos-container');
+    if (container) container.innerHTML = '';
+  }
+
+  _mountKanban() {
+    const container = document.getElementById('kooperationen-videos-container');
+    if (!container) return;
+
+    this.kanbanBoard = new KooperationenKanbanBoard({
+      isKunde: this.isKunde,
+      store: this.store,
+      kampagneId: this.kampagneId
+    });
+
+    const activeTab = document.querySelector('.tab-button.active');
+    const tabName = activeTab?.dataset?.tab || 'offen';
+    this.kanbanBoard.activeFilterTab = tabName;
+
+    this.kanbanBoard.init(container);
+    this.kanbanBoard.updateTabCounts();
+  }
+
+  _remountVideoTable() {
+    if (!this.store) return;
+    this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId, this.store);
+    this.kooperationenVideoTable.statusOptions = this.store.statusOptions || [];
+
+    const hiddenCols = this.kampagneData?.video_table_hidden_columns;
+    if (hiddenCols) {
+      this.kooperationenVideoTable.hiddenColumns = hiddenCols;
+    }
+    this.kooperationenVideoTable._dataLoaded = true;
+
+    this._mountVideoTable();
   }
 
   showEditForm() {
@@ -260,6 +343,11 @@ export class KampagneDetail {
     if (this.kooperationenVideoTable && typeof this.kooperationenVideoTable.destroy === 'function') {
       this.kooperationenVideoTable.destroy();
       this.kooperationenVideoTable = null;
+    }
+
+    if (this.kanbanBoard) {
+      this.kanbanBoard.destroy();
+      this.kanbanBoard = null;
     }
 
     if (this.store) {

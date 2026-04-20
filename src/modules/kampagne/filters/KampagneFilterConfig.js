@@ -3,8 +3,7 @@
 
 import { 
   createFilterConfig, 
-  COMMON_FILTER_OPTIONS,
-  BASE_FORMATTERS 
+  COMMON_FILTER_OPTIONS
 } from '../../../core/filters/BaseFilterConfig.js';
 
 /**
@@ -47,17 +46,6 @@ export const KAMPAGNE_FILTERS = [
     label: 'Art der Kampagne',
     options: COMMON_FILTER_OPTIONS.campaignTypes,
     priority: 5
-  }),
-
-  // Budget Range Filter
-  createFilterConfig('numberRange', {
-    id: 'budget',
-    label: 'Budget',
-    min: 0,
-    max: 1000000,
-    step: 100,
-    formatter: BASE_FORMATTERS.currency,
-    priority: 6
   }),
 
   // Startdatum Filter
@@ -134,7 +122,7 @@ export const KAMPAGNE_FILTER_GROUPS = [
   {
     id: 'campaign_details',
     label: 'Kampagnen-Details',
-    filters: ['art_der_kampagne', 'budget', 'creator_count'],
+    filters: ['art_der_kampagne', 'creator_count'],
     expanded: false
   },
   {
@@ -184,14 +172,6 @@ export const KAMPAGNE_FILTER_PRESETS = [
     }
   },
   {
-    id: 'high_budget_campaigns',
-    label: 'High-Budget Kampagnen',
-    description: 'Kampagnen mit Budget über 50.000€',
-    filters: {
-      budget: { min: 50000 }
-    }
-  },
-  {
     id: 'ugc_campaigns',
     label: 'UGC Kampagnen (Pro/Video)',
     description: 'UGC Pro und UGC Video Kampagnen (Paid/Organic)',
@@ -222,9 +202,7 @@ export const KAMPAGNE_SORT_OPTIONS = [
   { value: 'start', label: 'Startdatum (neu zuerst)', direction: 'desc' },
   { value: 'start', label: 'Startdatum (alt zuerst)', direction: 'asc' },
   { value: 'deadline_post_produktion', label: 'Deadline Post Produktion (nah zuerst)', direction: 'asc' },
-  { value: 'deadline_post_produktion', label: 'Deadline Post Produktion (fern zuerst)', direction: 'desc' },
-  { value: 'budget', label: 'Budget (hoch zuerst)', direction: 'desc' },
-  { value: 'budget', label: 'Budget (niedrig zuerst)', direction: 'asc' }
+  { value: 'deadline_post_produktion', label: 'Deadline Post Produktion (fern zuerst)', direction: 'desc' }
 ];
 
 /**

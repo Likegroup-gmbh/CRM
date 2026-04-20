@@ -173,6 +173,10 @@ export class VideoTableRealtimeHandler {
     }
 
     if (linkChanged) this.table.refilter();
+
+    window.dispatchEvent(new CustomEvent('kooperationen-updated', {
+      detail: { kampagneId: this.table.kampagneId }
+    }));
   }
 
   async handleKooperationDelete(payload) {

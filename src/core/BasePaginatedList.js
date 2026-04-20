@@ -751,6 +751,13 @@ export class BasePaginatedList {
     }
     return this._isAdmin;
   }
+
+  /**
+   * Gecachter Bulk-Delete-Check (Admin oder Mitarbeiter)
+   */
+  get canBulkDelete() {
+    return this.isAdmin || window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
+  }
   
   /**
    * Gecachter Edit-Permission Check

@@ -107,12 +107,12 @@ export class ProduktList extends BasePaginatedList {
    * Rendert eine einzelne Produkt-Zeile
    */
   renderSingleRow(produkt) {
-    const isAdmin = this.isAdmin;
+    const canBulkDelete = this.canBulkDelete;
     const sanitize = this.sanitize.bind(this);
     
     return `
       <tr data-id="${produkt.id}">
-        ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="produkt-check" data-id="${produkt.id}"></td>` : ''}
+        ${canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="produkt-check" data-id="${produkt.id}"></td>` : ''}
         <td class="col-name">
           <a href="#" class="table-link" data-table="produkt" data-id="${produkt.id}">
             ${sanitize(produkt.name || '')}
@@ -134,7 +134,7 @@ export class ProduktList extends BasePaginatedList {
    * Rendert den Shell-Content (Struktur ohne Daten)
    */
   renderShellContent() {
-    const isAdmin = this.isAdmin;
+    const canBulkDelete = this.canBulkDelete;
     const canEdit = this.canEdit;
     
     return `
@@ -145,7 +145,7 @@ export class ProduktList extends BasePaginatedList {
           </div>
         </div>
         <div class="table-actions">
-          ${isAdmin ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
+          ${canBulkDelete ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>` : ''}
           ${canEdit ? '<button id="btn-produkt-new" class="primary-btn">Neues Produkt anlegen</button>' : ''}
@@ -156,7 +156,7 @@ export class ProduktList extends BasePaginatedList {
         <table class="data-table">
           <thead>
             <tr>
-              ${isAdmin ? `<th class="col-checkbox"><input type="checkbox" id="select-all-produkte"></th>` : ''}
+              ${canBulkDelete ? `<th class="col-checkbox"><input type="checkbox" id="select-all-produkte"></th>` : ''}
               <th class="col-name">Produkt-Name</th>
               <th>Marke</th>
               <th>Unternehmen</th>

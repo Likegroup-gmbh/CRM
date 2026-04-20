@@ -249,6 +249,7 @@ export class KooperationList {
     </div>`;
 
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    const canBulkDelete = isAdmin || window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
     
     // Haupt-HTML
     let html = `
@@ -261,9 +262,9 @@ export class KooperationList {
       <div class="table-filter-wrapper">
         ${filterHtml}
         <div class="table-actions">
-          ${isAdmin ? '<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>' : ''}
-          ${isAdmin ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
-          ${isAdmin ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
+          ${canBulkDelete ? '<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>' : ''}
+          ${canBulkDelete ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
+          ${canBulkDelete ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
         </div>
       </div>
 
@@ -271,7 +272,7 @@ export class KooperationList {
         <table class="data-table">
           <thead>
             <tr>
-              ${isAdmin ? '<th class="col-checkbox"><input type="checkbox" id="select-all-kooperationen"></th>' : ''}
+              ${canBulkDelete ? '<th class="col-checkbox"><input type="checkbox" id="select-all-kooperationen"></th>' : ''}
               <th class="col-name">Name</th>
               <th>Kampagne</th>
               <th>Creator</th>
@@ -481,10 +482,11 @@ export class KooperationList {
       };
 
       const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+      const canBulkDelete = isAdmin || window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
 
       return `
         <tr data-id="${kooperation.id}">
-          ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="kooperation-check" data-id="${kooperation.id}"></td>` : ''}
+          ${canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="kooperation-check" data-id="${kooperation.id}"></td>` : ''}
           <td class="col-name">
             <a href="#" class="table-link" data-table="kooperation" data-id="${kooperation.id}">
               ${window.validatorSystem.sanitizeHtml(kooperation.name || '—')}
@@ -609,7 +611,7 @@ export class KooperationList {
 
   // Ausgewählte Kooperationen löschen
   async deleteSelectedKooperationen() {
-    if (window.currentUser?.rolle !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'admin') return;
+    if (window.currentUser?.rolle !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'mitarbeiter') return;
     
     const selectedIds = Array.from(this.selectedKooperation);
     const totalCount = selectedIds.length;

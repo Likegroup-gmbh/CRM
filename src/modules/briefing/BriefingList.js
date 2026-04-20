@@ -280,6 +280,7 @@ export class BriefingList {
     const canEdit = window.currentUser?.permissions?.briefing?.can_edit || false;
     const isKunde = window.currentUser?.rolle === 'kunde';
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    const canBulkDelete = isAdmin || window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
 
     const filterHtml = !isKunde ? `<div class="filter-bar">
       <div class="filter-left">
@@ -292,7 +293,7 @@ export class BriefingList {
       ${!isKunde ? `<div class="table-filter-wrapper">
         ${filterHtml}
         <div class="table-actions">
-          ${isAdmin ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
+          ${canBulkDelete ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
           <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>` : ''}
@@ -304,7 +305,7 @@ export class BriefingList {
         <table class="data-table">
           <thead>
             <tr>
-              ${!isKunde && isAdmin ? `<th class="col-checkbox"><input type="checkbox" id="select-all-briefings"></th>` : ''}
+              ${!isKunde && canBulkDelete ? `<th class="col-checkbox"><input type="checkbox" id="select-all-briefings"></th>` : ''}
               <th class="col-name">Produkt/Angebot</th>
               <th>Unternehmen</th>
               <th>Marke</th>
@@ -315,7 +316,7 @@ export class BriefingList {
           </thead>
           <tbody id="briefings-table-body">
             <tr>
-              <td colspan="${!isKunde && isAdmin ? '7' : '6'}" class="loading">Lade Briefings...</td>
+              <td colspan="${!isKunde && canBulkDelete ? '7' : '6'}" class="loading">Lade Briefings...</td>
             </tr>
           </tbody>
         </table>
@@ -457,7 +458,7 @@ export class BriefingList {
 
   // Ausgewählte Briefings löschen
   async deleteSelectedBriefings() {
-    if (window.currentUser?.rolle !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'admin') return;
+    if (window.currentUser?.rolle !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'mitarbeiter') return;
     
     const selectedIds = Array.from(this.selectedBriefings);
     const totalCount = selectedIds.length;
@@ -597,6 +598,7 @@ export class BriefingList {
 
     const isKunde = window.currentUser?.rolle === 'kunde';
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    const canBulkDelete = isAdmin || window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
     const escapeHtml = (s) => window.validatorSystem.sanitizeHtml(s || '—');
 
     await TableAnimationHelper.animatedUpdate(tbody, async () => {
@@ -608,7 +610,7 @@ export class BriefingList {
 
       tbody.innerHTML = items.map(b => `
         <tr data-id="${b.id}">
-          ${!isKunde && isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="briefing-check" data-id="${b.id}"></td>` : ''}
+          ${!isKunde && canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="briefing-check" data-id="${b.id}"></td>` : ''}
           <td class="col-name">
             <a href="#" class="table-link" data-table="briefing" data-id="${b.id}">
               ${escapeHtml((b.product_service_offer || '').toString().slice(0, 80))}

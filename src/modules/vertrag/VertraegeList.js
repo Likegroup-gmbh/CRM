@@ -35,6 +35,7 @@ export class VertraegeList {
     const perms = window.currentUser?.permissions?.vertraege || {};
     return {
       isAdmin,
+      canBulkDelete: isAdmin || role === 'mitarbeiter',
       canView: isAdmin || perms.can_view === true,
       canEdit: isAdmin || perms.can_edit === true
     };
@@ -533,7 +534,7 @@ export class VertraegeList {
 
   // Rendere Verträge-Ansicht (Strategie-ähnlich)
   renderVertraegeView() {
-    const { isAdmin, canEdit } = this.getVertragPermissions();
+    const { isAdmin, canBulkDelete, canEdit } = this.getVertragPermissions();
 
     return `
       <div class="list-container">
@@ -550,7 +551,7 @@ export class VertraegeList {
             </div>
           </div>
           <div class="table-actions">
-            ${isAdmin ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
+            ${canBulkDelete ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
             <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
             <span id="selected-count" style="display:none;">0 ausgewählt</span>
             <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>` : ''}
@@ -562,7 +563,7 @@ export class VertraegeList {
           <table class="data-table">
             <thead>
               <tr>
-                ${isAdmin ? `<th class="col-checkbox"><input type="checkbox" id="select-all-vertraege"></th>` : ''}
+                ${canBulkDelete ? `<th class="col-checkbox"><input type="checkbox" id="select-all-vertraege"></th>` : ''}
                 <th class="col-name">Name</th>
                 <th>Status</th>
                 <th>Typ</th>
@@ -592,12 +593,12 @@ export class VertraegeList {
     const tbody = document.getElementById('vertraege-table-body');
     if (!tbody) return;
 
-    const { isAdmin, canEdit } = this.getVertragPermissions();
+    const { isAdmin, canBulkDelete, canEdit } = this.getVertragPermissions();
 
     if (!vertraege || vertraege.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="${isAdmin ? '10' : '9'}" class="no-data">
+          <td colspan="${canBulkDelete ? '10' : '9'}" class="no-data">
             <div class="empty-state">
               <div class="empty-icon">📄</div>
               <h3>Keine Verträge vorhanden</h3>
@@ -670,7 +671,7 @@ export class VertraegeList {
 
       return `
         <tr class="table-row-clickable" data-vertrag-id="${vertrag.id}" data-vertrag-draft="${vertrag.is_draft ? '1' : '0'}">
-          ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="vertraege-check" data-id="${vertrag.id}"></td>` : ''}
+          ${canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="vertraege-check" data-id="${vertrag.id}"></td>` : ''}
           <td class="col-name">
             <a href="#" class="table-link" data-table="vertrag" data-id="${vertrag.id}">
               ${escapeHtml(vertrag.name) || '—'}
@@ -993,7 +994,8 @@ export class VertraegeList {
   // Selection Events binden
   bindSelectionEvents() {
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-    if (!isAdmin) return;
+    const canBulkDelete = isAdmin || window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
+    if (!canBulkDelete) return;
 
     // Alle auswählen Button
     const selectAllBtn = document.getElementById('btn-select-all');
@@ -1317,7 +1319,8 @@ export class VertraegeList {
   }
 
   async deleteSelected() {
-    if (window.currentUser?.rolle !== 'admin') return;
+    const role = window.currentUser?.rolle?.toLowerCase();
+    if (role !== 'admin' && role !== 'mitarbeiter') return;
     
     const selectedIds = Array.from(this.selectedVertraege);
     const totalCount = selectedIds.length;

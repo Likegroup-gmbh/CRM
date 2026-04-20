@@ -7,7 +7,7 @@ import { KampagneCalendarView } from './KampagneCalendarView.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 
-import { debugLog, debounce, kampagnenCache, bindDragToScroll, destroyDragToScroll } from './KampagneListUtils.js';
+import { debugLog, debounce, bindDragToScroll, destroyDragToScroll } from './KampagneListUtils.js';
 import { loadKampagnenWithRelations, loadUserPermissions } from './KampagneListDataLoader.js';
 import { renderPageHtml, updateTable } from './KampagneListRenderers.js';
 import { KampagneCreateHandler } from './KampagneCreateHandler.js';
@@ -353,7 +353,6 @@ export class KampagneList {
         return;
       }
       
-      kampagnenCache.invalidate();
       this.pagination.currentPage = 1;
       this.loadAndRender();
     }, 300);
@@ -384,7 +383,6 @@ export class KampagneList {
     document.getElementById('btn-view-calendar')?.addEventListener('click', () => switchView('calendar'));
 
     if (this.currentView === 'list') {
-      this.initializeFilterBar();
       if (window.bulkActionSystem) {
         window.bulkActionSystem.registerList('kampagne', this);
       }

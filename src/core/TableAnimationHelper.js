@@ -43,22 +43,17 @@ export const TableAnimationHelper = {
   async animatedUpdate(tbody, updateFn) {
     if (!tbody) return;
     
-    // Prüfen ob Loading-Overlay aktiv ist (von Pagination-Wechsel)
-    // Wenn ja: KEIN extra Fade-Out - das Overlay hat bereits die Tabelle gedimmt
     const hasOverlay = tbody.classList.contains('table-loading-overlay');
+    const isInitialLoad = tbody.querySelector('.loading') !== null;
     
-    if (!hasOverlay) {
-      // Normaler Flow: Fade-Out Animation
+    if (!hasOverlay && !isInitialLoad) {
       await this.fadeOut(tbody);
     }
     
-    // Content aktualisieren
     await updateFn();
     
-    // Overlay entfernen falls vorhanden (vor dem Fade-In)
     tbody.classList.remove('table-loading-overlay');
     
-    // Smooth einblenden
     this.fadeIn(tbody);
   },
 

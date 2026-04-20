@@ -221,13 +221,13 @@ export class AnsprechpartnerList extends BasePaginatedList {
   }
 
   renderSingleRow(ap) {
-    const isAdmin = this.isAdmin;
+    const canBulkDelete = this.canBulkDelete;
     const canEdit = this.canEdit;
     const sanitize = this.sanitize.bind(this);
     
     return `
       <tr data-id="${ap.id}">
-        ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="ansprechpartner-check" data-id="${ap.id}"></td>` : ''}
+        ${canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="ansprechpartner-check" data-id="${ap.id}"></td>` : ''}
         <td class="col-vorname col-name col-name-with-icon">
           ${ap.profile_image_url 
             ? `<img src="${ap.profile_image_url}" class="table-logo" width="24" height="24" alt="" />` 
@@ -278,7 +278,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
    * Rendert den Shell-Content (Struktur ohne Daten)
    */
   renderShellContent() {
-    const isAdmin = this.isAdmin;
+    const canBulkDelete = this.canBulkDelete;
     const canEdit = this.canEdit;
     
     return `
@@ -294,7 +294,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
           </div>
         </div>
         <div class="table-actions">
-          ${isAdmin ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
+          ${canBulkDelete ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
           <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>` : ''}
@@ -306,7 +306,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
         <table class="data-table data-table--nowrap" id="ansprechpartner-table">
           <thead>
             <tr>
-              ${isAdmin ? `<th class="col-checkbox"><input type="checkbox" id="select-all-ansprechpartner"></th>` : ''}
+              ${canBulkDelete ? `<th class="col-checkbox"><input type="checkbox" id="select-all-ansprechpartner"></th>` : ''}
               <th class="col-vorname col-name">Vorname</th>
               <th class="col-nachname">Nachname</th>
               <th>Unternehmen</th>
@@ -324,7 +324,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
           </thead>
           <tbody>
             <tr>
-              <td colspan="${isAdmin ? '14' : '13'}" class="no-data">Lade Ansprechpartner...</td>
+              <td colspan="${canBulkDelete ? '14' : '13'}" class="no-data">Lade Ansprechpartner...</td>
             </tr>
           </tbody>
         </table>

@@ -55,7 +55,7 @@ export class CreatorList extends BasePaginatedList {
    * Rendert eine einzelne Creator-Zeile
    */
   renderSingleRow(creator) {
-    const isAdmin = this.isAdmin;
+    const canBulkDelete = this.canBulkDelete;
     const sanitize = this.sanitize.bind(this);
     
     const externalLinkIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="external-link-icon"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>`;
@@ -69,7 +69,7 @@ export class CreatorList extends BasePaginatedList {
     
     return `
       <tr data-id="${creator.id}">
-        ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="creator-check" data-id="${creator.id}"></td>` : ''}
+        ${canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="creator-check" data-id="${creator.id}"></td>` : ''}
         <td class="col-name col-name-with-icon">
           <span class="table-avatar">${(creator.vorname || '?')[0].toUpperCase()}</span>
           <a href="#" class="table-link" data-table="creator" data-id="${creator.id}">
@@ -99,7 +99,7 @@ export class CreatorList extends BasePaginatedList {
    */
   renderShellContent() {
     const canEdit = this.canEdit;
-    const isAdmin = this.isAdmin;
+    const canBulkDelete = this.canBulkDelete;
     
     const filterHtml = `<div class="filter-bar">
       <div class="filter-left">
@@ -116,7 +116,7 @@ export class CreatorList extends BasePaginatedList {
       <div class="table-filter-wrapper">
         ${filterHtml}
         <div class="table-actions">
-          ${isAdmin ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
+          ${canBulkDelete ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
           <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>` : ''}
@@ -128,7 +128,7 @@ export class CreatorList extends BasePaginatedList {
         <table class="data-table">
           <thead>
             <tr>
-              ${isAdmin ? `<th class="col-checkbox"><input type="checkbox" id="select-all-creators"></th>` : ''}
+              ${canBulkDelete ? `<th class="col-checkbox"><input type="checkbox" id="select-all-creators"></th>` : ''}
               <th class="col-name">Name</th>
               <th>Stadt</th>
               <th>Land</th>
@@ -146,7 +146,7 @@ export class CreatorList extends BasePaginatedList {
           </thead>
           <tbody>
             <tr>
-              <td colspan="${isAdmin ? '14' : '13'}" class="no-data">Lade Creator...</td>
+              <td colspan="${canBulkDelete ? '14' : '13'}" class="no-data">Lade Creator...</td>
             </tr>
           </tbody>
         </table>

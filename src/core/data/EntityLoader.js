@@ -171,6 +171,18 @@ export class EntityLoader {
         throw new Error(`Unbekannte Entität: ${entityType}`);
       }
 
+      const mod = EntityModules[entityType];
+
+      // Wenn das Modul eine eigene loadFilterData hat, diese nutzen (RPC-basiert)
+      if (mod?.loadFilterDataOverride) {
+        const filterOptions = await mod.loadFilterDataOverride(window.supabase);
+        if (mod?.loadExtraFilterData) {
+          await mod.loadExtraFilterData(filterOptions, window.supabase);
+        }
+        console.log(`✅ Filter-Daten für ${entityType} geladen (optimiert):`, filterOptions);
+        return filterOptions;
+      }
+
       let query = window.supabase.from(entityConfig.table).select('*');
       const { data, error } = await query;
 
@@ -178,8 +190,6 @@ export class EntityLoader {
         console.error(`❌ Supabase Fehler beim Laden der Filter-Daten für ${entityType}:`, error);
         return getMockFilterData(entityType);
       }
-
-      const mod = EntityModules[entityType];
 
       let filterOptions;
       if (mod?.extractFilterOptions) {

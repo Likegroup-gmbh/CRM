@@ -51,10 +51,21 @@ export function setupEvents(detail) {
 
   // Spalten-Sichtbarkeit
   document.addEventListener('click', (e) => {
-    if (e.target.id === 'btn-column-visibility') {
+    if (e.target.closest('#btn-column-visibility')) {
       e.preventDefault();
       e.stopImmediatePropagation();
       showColumnVisibilityDrawer(detail);
+    }
+  }, { signal });
+
+  // View-Switch (Tabelle / Kanban)
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('#btn-view-table')) {
+      e.preventDefault();
+      detail.switchView('table');
+    } else if (e.target.closest('#btn-view-kanban')) {
+      e.preventDefault();
+      detail.switchView('kanban');
     }
   }, { signal });
 

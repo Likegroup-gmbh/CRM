@@ -206,11 +206,13 @@ export class VideoTableRenderer {
         <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-thema') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => {
             if (video.strategie_item && video.strategie_item.screenshot_url) {
-              const strategieId = video.strategie_item.strategie_id;
+              const videoLink = video.strategie_item.video_link;
               const screenshotUrl = video.strategie_item.screenshot_url;
               const beschreibung = video.strategie_item.beschreibung || 'Strategie-Idee';
+              const href = videoLink || `/strategie/${video.strategie_item.strategie_id}`;
+              const targetAttr = videoLink ? ' target="_blank" rel="noopener noreferrer"' : '';
               return `
-                <a href="/strategie/${strategieId}" class="thema-thumbnail-link" title="${this.escapeHtml(beschreibung)}">
+                <a href="${href}" class="thema-thumbnail-link" title="${this.escapeHtml(beschreibung)}"${targetAttr}>
                   <img src="${screenshotUrl}" alt="Thema" class="thema-thumbnail" />
                 </a>
               `;

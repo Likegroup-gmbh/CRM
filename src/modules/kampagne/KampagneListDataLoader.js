@@ -1,102 +1,120 @@
 // KampagneListDataLoader.js
-// Daten-Laden für KampagneList: Supabase-Queries, Permissions, Formatierung
+// Daten-Laden für KampagneList via Supabase RPC (single-roundtrip)
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { KampagneFilterLogic } from './filters/KampagneFilterLogic.js';
-import { KampagneUtils } from './KampagneUtils.js';
-import { kampagnenCache, debugLog } from './KampagneListUtils.js';
+import { debugLog } from './KampagneListUtils.js';
 
 /**
- * Lädt Kampagnen mit allen Relationen (Supabase-optimiert mit Pagination).
- * Gibt { data, count, statusOptions, kampagneArtMap } zurück.
+ * Konvertiert UI-Filter in das JSONB-Format der get_kampagnen_list RPC.
+ */
+function buildRpcFilters(activeFilters) {
+  const rpcFilters = {};
+
+  for (const [key, value] of Object.entries(activeFilters)) {
+    if (!value) continue;
+
+    switch (key) {
+      case 'kampagnenname':
+        // Suche wird separat als p_search übergeben, nicht als Filter
+        break;
+
+      case 'unternehmen_id':
+        rpcFilters.unternehmen_id = value;
+        break;
+
+      case 'marke_id':
+        rpcFilters.marke_id = value;
+        break;
+
+      case 'art_der_kampagne':
+        if (Array.isArray(value) && value.length > 0) {
+          rpcFilters.art_der_kampagne = value;
+        }
+        break;
+
+      case 'start':
+        if (typeof value === 'object') {
+          if (value.from) rpcFilters.start_from = value.from;
+          if (value.to) rpcFilters.start_to = value.to;
+        }
+        break;
+
+      case 'deadline_post_produktion':
+        if (typeof value === 'object') {
+          if (value.from) rpcFilters.deadline_from = value.from;
+          if (value.to) rpcFilters.deadline_to = value.to;
+        }
+        break;
+
+      case 'has_briefing':
+        rpcFilters.has_briefing = !!value;
+        break;
+
+      case 'is_overdue':
+        rpcFilters.is_overdue = !!value;
+        break;
+
+      // Virtual filters (creator_count, duration_days, is_completed) are applied client-side
+    }
+  }
+
+  return rpcFilters;
+}
+
+/**
+ * Lädt Kampagnen mit allen Relationen über eine einzige RPC.
+ * Gibt { data, count, kampagneArtMap } zurück.
  */
 export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQuery = '' } = {}) {
   const startTime = performance.now();
-  
+
   try {
     if (!window.supabase) {
       console.warn('⚠️ Supabase nicht verfügbar - verwende Mock-Daten');
       const data = await window.dataService.loadEntities('kampagne');
       return { data, count: data.length, kampagneArtMap: new Map() };
     }
-    
-    // Cache-Check: Prüfe ob Daten im Cache sind
+
     const activeFilters = filterSystem.getFilters('kampagne');
-    
-    // Suchbegriff VOR Cache-Key hinzufügen, damit der Cache
-    // unterschiedliche Suchergebnisse korrekt unterscheidet
-    if (searchQuery) {
-      activeFilters.kampagnenname = searchQuery;
-    }
-    
-    const cacheKey = JSON.stringify({ ...activeFilters, _page: page, _limit: limit });
-    const cachedData = kampagnenCache.get(cacheKey);
-    if (cachedData) {
-      return cachedData;
-    }
 
-    const [artResult, allowedIds] = await Promise.all([
-      window.supabase
-        .from('kampagne_art_typen')
-        .select('id, name'),
-      
-      KampagneUtils.loadAllowedKampagneIds()
-    ]);
-    
-    const kampagneArtMap = new Map((artResult.data || []).map(r => [r.id, r.name]));
-    
-    // Permissions verarbeiten: null = keine Filterung, [] = kein Zugriff, [...ids] = gefiltert
-    if (allowedIds !== null && allowedIds.length === 0) {
-      return { data: [], count: 0, kampagneArtMap };
-    }
+    const rpcFilters = buildRpcFilters(activeFilters);
+    const searchParam = searchQuery || activeFilters.kampagnenname || null;
 
-    const from = (page - 1) * limit;
-    const to = from + limit - 1;
+    debugLog('🔍 KAMPAGNELIST: RPC-Call mit filters:', rpcFilters, 'search:', searchParam);
 
-    let query = window.supabase
-      .from('kampagne')
-      .select(`
-        id,
-        kampagnenname,
-        eigener_name,
-        start,
-        deadline_strategie,
-        deadline_creator_sourcing,
-        deadline_video_produktion,
-        deadline_post_produktion,
-        creatoranzahl,
-        videoanzahl,
-        art_der_kampagne,
-        kampagne_typ,
-        created_at,
-        unternehmen_id,
-        marke_id,
-        auftrag_id,
-        unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
-        marke:marke_id(id, markenname, logo_url),
-        auftrag:auftrag_id(id, auftragsname, creator_budget, gesamt_budget, bruttobetrag, nettobetrag)
-      `, { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(from, to);
-
-    // Permission-Filterung anwenden (nur wenn allowedIds ein Array ist)
-    if (allowedIds !== null && allowedIds.length > 0) {
-      query = query.in('id', allowedIds);
-    }
-
-    // Filter aus FilterSystem anwenden
-    debugLog('🔍 KAMPAGNELIST: Wende Filter an:', activeFilters);
-    query = KampagneFilterLogic.buildSupabaseQuery(query, activeFilters);
-
-    const { data, error, count } = await query;
+    const { data: result, error } = await window.supabase.rpc('get_kampagnen_list', {
+      p_page: page,
+      p_limit: limit,
+      p_search: searchParam,
+      p_filters: rpcFilters
+    });
 
     if (error) {
-      console.error('❌ Fehler beim Laden der Kampagnen mit Beziehungen:', error);
+      console.error('❌ Fehler beim RPC get_kampagnen_list:', error);
       throw error;
     }
 
-    // Daten für Kompatibilität formatieren
-    const formattedData = data.map(k => {
+    const rows = result?.rows || [];
+    const totalCount = result?.total_count || 0;
+
+    // art_der_kampagne Typ-Map laden (leichtgewichtiger Call, parallel möglich)
+    const kampagneArtMap = new Map();
+    const artTypen = result?.art_typen;
+    if (artTypen) {
+      artTypen.forEach(t => kampagneArtMap.set(t.id, t.name));
+    }
+
+    // Falls art_typen nicht in RPC enthalten, separat laden
+    if (kampagneArtMap.size === 0) {
+      const { data: artData } = await window.supabase
+        .from('kampagne_art_typen')
+        .select('id, name');
+      (artData || []).forEach(r => kampagneArtMap.set(r.id, r.name));
+    }
+
+    // Daten für Kompatibilität mit bestehendem Renderer formatieren
+    const formattedData = rows.map(k => {
       const arr = Array.isArray(k.art_der_kampagne) ? k.art_der_kampagne : [];
       const artDisplay = arr.map(v => {
         const fullName = kampagneArtMap.get(v) || v;
@@ -105,113 +123,42 @@ export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQ
       return {
         ...k,
         art_der_kampagne_display: artDisplay,
-        unternehmen: k.unternehmen ? { 
-          id: k.unternehmen.id, 
-          firmenname: k.unternehmen.firmenname, 
-          logo_url: k.unternehmen.logo_url 
-        } : null,
-        marke: k.marke ? { 
-          id: k.marke.id, 
-          markenname: k.marke.markenname, 
-          logo_url: k.marke.logo_url 
-        } : null,
-        auftrag: k.auftrag ? { 
+        unternehmen: k.unternehmen || null,
+        marke: k.marke || null,
+        auftrag: k.auftrag ? {
           auftragsname: k.auftrag.auftragsname,
-          details_id: k.auftrag.auftrag_details?.[0]?.id || null,
+          details_id: null,
           creator_budget: k.auftrag.creator_budget,
           gesamt_budget: k.auftrag.gesamt_budget,
           bruttobetrag: k.auftrag.bruttobetrag,
           nettobetrag: k.auftrag.nettobetrag
-        } : null
+        } : null,
+        mitarbeiter: k.mitarbeiter || [],
+        ansprechpartner: k.ansprechpartner || [],
+        _budgetUsed: parseFloat(k._budgetUsed) || 0,
+        _budgetTotal: parseFloat(k._budgetTotal) || 0
       };
     });
 
-    // Lade Many-to-Many Beziehungen (z.B. Ansprechpartner) über DataService
-    const entityConfig = window.dataService.entities.kampagne;
-    if (entityConfig.manyToMany) {
-      await window.dataService.loadManyToManyRelations(formattedData, 'kampagne', entityConfig.manyToMany);
-    }
-
-    // Lade alle Mitarbeiter für die geladenen Kampagnen über die aggregierte View
-    const kampagneIds = formattedData.map(k => k.id).filter(Boolean);
-    let mitarbeiterByKampagne = {};
-
-    if (kampagneIds.length > 0) {
-      const { data: mitarbeiterData, error: mitarbeiterError } = await window.supabase
-        .from('v_kampagne_mitarbeiter_aggregated')
-        .select('kampagne_id, mitarbeiter_id, name, rolle, profile_image_url, zuordnungsart')
-        .in('kampagne_id', kampagneIds);
-      
-      if (!mitarbeiterError && mitarbeiterData) {
-        mitarbeiterData.forEach(m => {
-          if (!mitarbeiterByKampagne[m.kampagne_id]) {
-            mitarbeiterByKampagne[m.kampagne_id] = [];
-          }
-          mitarbeiterByKampagne[m.kampagne_id].push({
-            id: m.mitarbeiter_id,
-            name: m.name,
-            rolle: m.rolle,
-            profile_image_url: m.profile_image_url,
-            zuordnungsart: m.zuordnungsart
-          });
-        });
-        debugLog('✅ KAMPAGNELIST: Mitarbeiter geladen für', Object.keys(mitarbeiterByKampagne).length, 'Kampagnen');
-      } else if (mitarbeiterError) {
-        console.error('❌ Fehler beim Laden der Mitarbeiter:', mitarbeiterError);
-      }
-    }
-
-    // Budget-Verbrauch pro Kampagne aggregieren
-    let budgetUsedMap = {};
-    if (kampagneIds.length > 0) {
-      const { data: koopData } = await window.supabase
-        .from('kooperationen')
-        .select('kampagne_id, kooperation_videos(verkaufspreis_netto)')
-        .in('kampagne_id', kampagneIds);
-
-      (koopData || []).forEach(koop => {
-        const sum = (koop.kooperation_videos || [])
-          .reduce((s, v) => s + (parseFloat(v.verkaufspreis_netto) || 0), 0);
-        budgetUsedMap[koop.kampagne_id] = (budgetUsedMap[koop.kampagne_id] || 0) + sum;
-      });
-    }
-
-    // Füge Mitarbeiter + Budget zu den formatierten Daten hinzu
-    formattedData.forEach(kampagne => {
-      if (!kampagne.mitarbeiter || kampagne.mitarbeiter.length === 0) {
-        kampagne.mitarbeiter = mitarbeiterByKampagne[kampagne.id] || [];
-      }
-      kampagne._budgetUsed = budgetUsedMap[kampagne.id] || 0;
-      kampagne._budgetTotal = parseFloat(
-        kampagne.auftrag?.creator_budget ||
-        kampagne.auftrag?.gesamt_budget ||
-        kampagne.auftrag?.nettobetrag || 0
-      );
-    });
-
-    // Virtual Filter anwenden (z.B. creator_count, duration)
+    // Virtual Filter client-seitig anwenden (creator_count, duration_days, is_completed)
     const filtered = KampagneFilterLogic.applyVirtualFilters(formattedData, activeFilters);
 
     const loadTime = (performance.now() - startTime).toFixed(0);
-    debugLog(`✅ KAMPAGNELIST: ${filtered.length} Kampagnen geladen (von ${formattedData.length} nach Filter) in ${loadTime}ms`);
-    
-    const result = { data: filtered, count: count || filtered.length, kampagneArtMap };
-    kampagnenCache.set(result, cacheKey);
-    
-    return result;
+    debugLog(`✅ KAMPAGNELIST: ${filtered.length} Kampagnen geladen in ${loadTime}ms (RPC single-roundtrip)`);
+
+    return { data: filtered, count: totalCount, kampagneArtMap };
 
   } catch (error) {
-    console.error('❌ Fehler beim Laden der Kampagnen mit Beziehungen:', error);
+    console.error('❌ Fehler beim Laden der Kampagnen:', error);
     const data = await window.dataService.loadEntities('kampagne');
     return { data, count: data.length, kampagneArtMap: new Map() };
   }
 }
 
 /**
- * @deprecated Nutze stattdessen KampagneUtils.loadAllowedKampagneIds()
+ * @deprecated Nutze stattdessen RLS für Permission-Filterung
  */
 export async function loadUserPermissions() {
-  console.warn('⚠️ loadUserPermissions() ist deprecated - nutze KampagneUtils.loadAllowedKampagneIds()');
-  const ids = await KampagneUtils.loadAllowedKampagneIds();
-  return { data: ids || [] };
+  console.warn('⚠️ loadUserPermissions() ist deprecated - RLS filtert automatisch');
+  return { data: [] };
 }

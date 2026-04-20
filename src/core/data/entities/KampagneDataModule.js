@@ -90,6 +90,18 @@ export default {
     return false;
   },
 
+  async loadFilterDataOverride(supabase) {
+    const { data, error } = await supabase.rpc('get_kampagne_filter_options');
+    if (error) {
+      console.error('❌ Fehler bei get_kampagne_filter_options RPC:', error);
+      return {};
+    }
+    return {
+      status: data?.status || [],
+      art_typen: data?.art_typen || []
+    };
+  },
+
   async extractFilterOptions(data, supabase) {
     const filterOptions = {};
 
@@ -100,16 +112,6 @@ export default {
       }
     });
     filterOptions.status = Array.from(allStatus).sort();
-
-    const budgetValues = data
-      .map(item => item.budget)
-      .filter(budget => budget && budget > 0)
-      .sort((a, b) => a - b);
-
-    if (budgetValues.length > 0) {
-      filterOptions.budget_min = Math.min(...budgetValues);
-      filterOptions.budget_max = Math.max(...budgetValues);
-    }
 
     return filterOptions;
   }

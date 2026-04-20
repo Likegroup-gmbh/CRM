@@ -165,11 +165,11 @@ export class BulkActionSystem {
 
   // Generische Delete-Selected Funktion
   async genericDeleteSelected() {
-    // Sicherheits-Check: Nur Admins dürfen löschen
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-    if (!isAdmin) {
-      console.warn('⚠️ Löschen verweigert: Fehlende Berechtigung (Nur Admins)');
-      alert('Nur Administratoren dürfen Einträge löschen.');
+    const role = window.currentUser?.rolle?.toLowerCase();
+    const canDelete = role === 'admin' || role === 'mitarbeiter';
+    if (!canDelete) {
+      console.warn('⚠️ Löschen verweigert: Fehlende Berechtigung');
+      alert('Sie haben keine Berechtigung, Einträge zu löschen.');
       return;
     }
 
@@ -202,11 +202,11 @@ export class BulkActionSystem {
 
   // Führe generische Löschung aus
   async performGenericDelete(entityType, checkedBoxes) {
-    // Sicherheits-Check: Nur Admins dürfen löschen
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-    if (!isAdmin) {
-      console.warn('⚠️ Löschen verweigert: Fehlende Berechtigung (Nur Admins)');
-      alert('Nur Administratoren dürfen Einträge löschen.');
+    const role = window.currentUser?.rolle?.toLowerCase();
+    const canDelete = role === 'admin' || role === 'mitarbeiter';
+    if (!canDelete) {
+      console.warn('⚠️ Löschen verweigert: Fehlende Berechtigung');
+      alert('Sie haben keine Berechtigung, Einträge zu löschen.');
       return;
     }
     

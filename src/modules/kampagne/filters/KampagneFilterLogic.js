@@ -42,22 +42,6 @@ export class KampagneFilterLogic {
           }
           break;
 
-        case 'budget':
-          // Budget-Range Filter
-          if (typeof value === 'object') {
-            processedFilters[key] = {
-              type: 'number_range',
-              min: value.min || 0,
-              max: value.max || null
-            };
-          } else {
-            processedFilters[key] = {
-              type: 'number_min',
-              value: parseFloat(value)
-            };
-          }
-          break;
-
         case 'start':
         case 'deadline_post_produktion':
           // Datum-Range Filter
@@ -141,19 +125,6 @@ export class KampagneFilterLogic {
    */
   static validateFilters(filters) {
     const errors = [];
-
-    // Budget Validierung
-    if (filters.budget) {
-      const budget = filters.budget;
-      if (typeof budget === 'object') {
-        if (budget.min && budget.max && budget.min > budget.max) {
-          errors.push('Budget: Minimum darf nicht größer als Maximum sein');
-        }
-        if (budget.min && budget.min < 0) {
-          errors.push('Budget: Minimum darf nicht negativ sein');
-        }
-      }
-    }
 
     // Creator-Anzahl Validierung
     if (filters.creator_count) {

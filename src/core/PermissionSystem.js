@@ -76,21 +76,21 @@ export class PermissionSystem {
       mitarbeiter: {
         creator: { can_view: true, can_edit: true, can_delete: true },
         'creator-lists': { can_view: true, can_edit: true, can_delete: true },
-        unternehmen: { can_view: true, can_edit: false, can_delete: false }, // Kein Löschen erlaubt
-        marke: { can_view: true, can_edit: false, can_delete: false }, // Kein Löschen erlaubt
+        unternehmen: { can_view: true, can_edit: false, can_delete: true },
+        marke: { can_view: true, can_edit: false, can_delete: true },
         produkt: { can_view: true, can_edit: true, can_delete: true },
-        auftrag: { can_view: false, can_edit: false, can_delete: false }, // Aufträge für Mitarbeiter ausgeblendet
-        auftragsdetails: { can_view: true, can_edit: false, can_delete: false }, // Kein Löschen erlaubt
+        auftrag: { can_view: false, can_edit: false, can_delete: false },
+        auftragsdetails: { can_view: true, can_edit: false, can_delete: true },
         kampagne: { can_view: true, can_edit: true, can_delete: true },
         kooperation: { can_view: true, can_edit: true, can_delete: true },
         briefing: { can_view: true, can_edit: true, can_delete: true },
         videos: { can_view: true, can_edit: true, can_delete: true },
-        rechnung: { can_view: true, can_edit: true, can_delete: true },
+        rechnung: { can_view: true, can_edit: true, can_delete: false },
         ansprechpartner: { can_view: true, can_edit: true, can_delete: true },
         dashboard: { can_view: true, can_edit: false, can_delete: false },
-        tasks: { can_view: true, can_edit: false, can_delete: false },
+        tasks: { can_view: true, can_edit: false, can_delete: true },
         strategie: { can_view: true, can_edit: true, can_delete: true },
-        kickoff: { can_view: true, can_edit: true, can_delete: false },
+        kickoff: { can_view: true, can_edit: true, can_delete: true },
         sourcing: { can_view: true, can_edit: true, can_delete: true },
         feedback: { can_view: true, can_edit: true, can_delete: true },
         mitarbeiter: { can_view: false, can_edit: false, can_delete: false },

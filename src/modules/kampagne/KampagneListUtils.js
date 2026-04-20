@@ -1,7 +1,5 @@
 // KampagneListUtils.js
-// Shared Utilities für KampagneList: Cache, Debug, Debounce
-
-import { KampagneUtils } from './KampagneUtils.js';
+// Shared Utilities für KampagneList: Debug, Debounce
 
 // Debug-Flag für Logging (Production: false)
 export const DEBUG_KAMPAGNE = false;
@@ -17,52 +15,6 @@ export const debounce = (fn, delay) => {
     timeoutId = setTimeout(() => fn.apply(null, args), delay);
   };
 };
-
-// Kampagnen-Cache mit TTL und User-Context
-export const kampagnenCache = {
-  data: null,
-  timestamp: 0,
-  ttl: 60000, // 60 Sekunden
-  cacheKey: null, // Kombiniert User-ID + Filter
-  
-  /**
-   * Erstellt einen Cache-Key der User-ID und Filter kombiniert
-   * Verhindert dass User A Cache-Daten von User B sieht
-   */
-  _buildKey(filterKey) {
-    const userId = window.currentUser?.id || 'anonymous';
-    return `${userId}:${filterKey}`;
-  },
-  
-  get(filterKey) {
-    const now = Date.now();
-    const fullKey = this._buildKey(filterKey);
-    if (this.data && this.cacheKey === fullKey && (now - this.timestamp) < this.ttl) {
-      return this.data;
-    }
-    return null;
-  },
-  
-  set(data, filterKey) {
-    this.data = data;
-    this.cacheKey = this._buildKey(filterKey);
-    this.timestamp = Date.now();
-  },
-  
-  invalidate() {
-    this.data = null;
-    this.cacheKey = null;
-    this.timestamp = 0;
-  }
-};
-
-// Globaler Event-Listener für Cache-Invalidierung
-window.addEventListener('entityUpdated', (e) => {
-  if (e.detail.entity === 'kampagne') {
-    kampagnenCache.invalidate();
-    KampagneUtils.invalidatePermissionCache();
-  }
-});
 
 /**
  * Drag-to-Scroll für horizontales Scrollen der Tabelle.
