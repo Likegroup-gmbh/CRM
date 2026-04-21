@@ -5,6 +5,14 @@
 import { VertraegeCreate } from './VertraegeCreateCore.js';
 import { KampagneUtils } from '../../kampagne/KampagneUtils.js';
 
+function koopLabel(k) {
+  const name = k.name || k.id;
+  if (k.created_at) {
+    return `${name} (${new Date(k.created_at).toLocaleDateString('de-DE')})`;
+  }
+  return name;
+}
+
 VertraegeCreate.prototype.updateFilteredKampagnen = function() {
     console.log('🔍 VERTRAG: updateFilteredKampagnen aufgerufen');
     console.log('🔍 VERTRAG: kunde_unternehmen_id:', this.formData.kunde_unternehmen_id, '(Typ:', typeof this.formData.kunde_unternehmen_id, ')');
@@ -110,7 +118,7 @@ VertraegeCreate.prototype.updateKooperationField = function() {
     field.style.display = '';
     select.innerHTML = `
       <option value="">Kooperation auswählen...</option>
-      ${koopForCreator.map(k => `<option value="${k.id}">${k.name || k.id}</option>`).join('')}
+      ${koopForCreator.map(k => `<option value="${k.id}">${koopLabel(k)}</option>`).join('')}
     `;
 
     if (koopForCreator.length === 1) {
@@ -133,7 +141,7 @@ VertraegeCreate.prototype.renderKooperationSelect = function() {
           <option value="">Kooperation auswählen...</option>
           ${koopForCreator.map(k => `
             <option value="${k.id}" ${this.formData.kooperation_id === k.id ? 'selected' : ''}>
-              ${k.name || k.id}
+              ${koopLabel(k)}
             </option>
           `).join('')}
         </select>
@@ -210,7 +218,7 @@ VertraegeCreate.prototype.updateFilteredCreators = async function() {
     try {
       const { data: kooperationen } = await window.supabase
         .from('kooperationen')
-        .select('id, creator_id, name, einkaufspreis_netto, einkaufspreis_zusatzkosten')
+        .select('id, creator_id, name, einkaufspreis_netto, einkaufspreis_zusatzkosten, created_at')
         .eq('kampagne_id', this.formData.kampagne_id);
 
       this.filteredKooperationen = kooperationen || [];

@@ -252,159 +252,6 @@ export const kooperationVideoDetail = {
     window.setContentSafely(window.content, html);
   },
 
-  async sendFeedbackNotifications(runde) {
-    if (!this.video?.kooperation_id || !window.currentUser?.id) return;
-    
-    const isKunde = window.currentUser?.rolle === 'kunde';
-    const isMitarbeiter = window.currentUser?.rolle === 'mitarbeiter' || window.currentUser?.rolle === 'admin';
-    
-    try {
-      if (isMitarbeiter) {
-        // Mitarbeiter gibt Feedback → Benachrichtige Kunden
-        // Lade Kunden über kooperation → kampagne → marke → kunden_marken
-        const { data: koopData } = await window.supabase
-          .from('kooperationen')
-          .select(`
-            id,
-            name,
-            kampagne:kampagne_id(
-              id,
-              kampagnenname,
-              eigener_name,
-              marke:marke_id(
-                id,
-                markenname,
-                kunden_marken!inner(kunde_id)
-              )
-            )
-          `)
-          .eq('id', this.video.kooperation_id)
-          .single();
-        
-        if (koopData?.kampagne?.marke?.kunden_marken) {
-          const kundenIds = koopData.kampagne.marke.kunden_marken.map(km => km.kunde_id).filter(Boolean);
-          const videoTitle = this.video?.titel || `Video #${this.videoId}`;
-          const koopName = koopData.name || 'Unbekannte Kooperation';
-          
-          // Batch-Insert für alle Kunden
-          if (kundenIds.length > 0) {
-            const notifications = kundenIds.map(kundeId => ({
-              user_id: kundeId,
-              type: 'feedback',
-              entity: 'kooperation_videos',
-              entity_id: this.videoId,
-              title: 'Neues Video-Feedback',
-              message: `Neues Feedback (Runde ${runde}) für Video "${videoTitle}" in Kooperation "${koopName}"`,
-              created_at: new Date().toISOString()
-            }));
-            
-            await window.supabase.from('notifications').insert(notifications);
-          }
-        }
-      } else if (isKunde) {
-        // Kunde gibt Feedback → Benachrichtige alle Kampagnen-Mitarbeiter
-        const { data: koopData } = await window.supabase
-          .from('kooperationen')
-          .select(`
-            id,
-            name,
-            kampagne:kampagne_id(
-              id,
-              kampagnenname,
-              eigener_name,
-              kampagne_mitarbeiter!inner(mitarbeiter_id)
-            )
-          `)
-          .eq('id', this.video.kooperation_id)
-          .single();
-        
-        if (koopData?.kampagne?.kampagne_mitarbeiter) {
-          const mitarbeiterIds = koopData.kampagne.kampagne_mitarbeiter.map(km => km.mitarbeiter_id).filter(Boolean);
-          const videoTitle = this.video?.titel || `Video #${this.videoId}`;
-          const koopName = koopData.name || 'Unbekannte Kooperation';
-          
-          // Batch-Insert für alle Mitarbeiter
-          if (mitarbeiterIds.length > 0) {
-            const notifications = mitarbeiterIds.map(mitarbeiterId => ({
-              user_id: mitarbeiterId,
-              type: 'feedback',
-              entity: 'kooperation_videos',
-              entity_id: this.videoId,
-              title: 'Kunden-Feedback erhalten',
-              message: `Kunde hat Feedback (Runde ${runde}) für Video "${videoTitle}" in Kooperation "${koopName}" gegeben`,
-              created_at: new Date().toISOString()
-            }));
-            
-            await window.supabase.from('notifications').insert(notifications);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('❌ Fehler beim Versenden der Feedback-Benachrichtigungen:', error);
-      // Fehler nicht nach oben propagieren, damit Feedback trotzdem gespeichert wird
-    }
-  },
-
-  async sendVideoUploadNotifications(videoId, isNewVersion = false) {
-    if (!videoId) return;
-    
-    const isMitarbeiter = window.currentUser?.rolle === 'mitarbeiter' || window.currentUser?.rolle === 'admin';
-    if (!isMitarbeiter) return; // Nur Mitarbeiter/Admin laden Videos hoch
-    
-    try {
-      // Lade Kooperations-Info und Kunden
-      const { data: videoData } = await window.supabase
-        .from('kooperation_videos')
-        .select(`
-          id,
-          titel,
-          kooperation:kooperation_id(
-            id,
-            name,
-            kampagne:kampagne_id(
-              id,
-              kampagnenname,
-              eigener_name,
-              marke:marke_id(
-                id,
-                markenname,
-                kunde_marke!inner(kunde_id)
-              )
-            )
-          )
-        `)
-        .eq('id', videoId)
-        .single();
-      
-      if (videoData?.kooperation?.kampagne?.marke?.kunde_marke) {
-        const kundenIds = videoData.kooperation.kampagne.marke.kunde_marke.map(km => km.kunde_id).filter(Boolean);
-        const videoTitle = videoData.titel || `Video #${videoId}`;
-        const koopName = videoData.kooperation.name || 'Unbekannte Kooperation';
-        
-        // Batch-Insert für alle Kunden
-        if (kundenIds.length > 0) {
-          const notifications = kundenIds.map(kundeId => ({
-            user_id: kundeId,
-            type: 'video_upload',
-            entity: 'kooperation_videos',
-            entity_id: videoId,
-            title: isNewVersion ? 'Neue Video-Version hochgeladen' : 'Neues Video hochgeladen',
-            message: isNewVersion 
-              ? `Eine neue Version von "${videoTitle}" wurde in Kooperation "${koopName}" hochgeladen`
-              : `Ein neues Video "${videoTitle}" wurde in Kooperation "${koopName}" hochgeladen`,
-            created_at: new Date().toISOString()
-          }));
-          
-          await window.supabase.from('notifications').insert(notifications);
-          console.log(`✅ Video-Upload-Benachrichtigungen versendet (${kundenIds.length} Kunden)`);
-        }
-      }
-    } catch (error) {
-      console.error('❌ Fehler beim Versenden der Video-Upload-Benachrichtigungen:', error);
-      // Fehler nicht nach oben propagieren
-    }
-  },
-
   renderAssetVersions(assets, safe, fmtDateTime, canEdit) {
     if (!assets || assets.length === 0) {
       return '<p class="empty-state">Keine Assets vorhanden.</p>';
@@ -693,12 +540,7 @@ export const kooperationVideoDetail = {
           const { error } = await window.supabase.from('kooperation_video_comment').insert(payload);
           if (error) throw error;
           
-          // Benachrichtigungen versenden
-          try {
-            await this.sendFeedbackNotifications(runde);
-          } catch (notifErr) {
-            console.warn('⚠️ Benachrichtigung konnte nicht versendet werden:', notifErr);
-          }
+          window.toastSystem?.success?.('Feedback gespeichert!');
           
           form.reset();
           // Direkt lokal ergänzen für Live-Feeling
@@ -1057,12 +899,6 @@ export const kooperationVideoDetail = {
             .update({ folder_url: folderUrl })
             .eq('id', this.videoId);
         }
-      }
-
-      try {
-        await this.sendVideoUploadNotifications(this.videoId, true);
-      } catch (notifErr) {
-        console.warn('Video-Version-Benachrichtigung konnte nicht versendet werden:', notifErr);
       }
 
       this._selectedFile = null;

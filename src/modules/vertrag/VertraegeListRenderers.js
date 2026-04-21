@@ -221,7 +221,7 @@ export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, is
       ? '<span class="status-badge status-draft">Entwurf</span>'
       : '<span class="status-badge status-final">Finalisiert</span>';
 
-    const actionsHtml = renderVertragActions(vertrag, isAdmin, canEdit);
+    const actionsHtml = renderVertragActions(vertrag, isAdmin, canEdit, canBulkDelete);
 
     return `
       <tr class="table-row-clickable" data-vertrag-id="${vertrag.id}" data-vertrag-draft="${vertrag.is_draft ? '1' : '0'}">
@@ -262,7 +262,7 @@ export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, is
   }).join('');
 }
 
-export function renderVertragActions(vertrag, isAdmin, canEdit) {
+export function renderVertragActions(vertrag, isAdmin, canEdit, canDelete = isAdmin) {
   const isDraft = vertrag.is_draft;
 
   let actions = '';
@@ -320,7 +320,7 @@ export function renderVertragActions(vertrag, isAdmin, canEdit) {
     `;
   }
 
-  if (isAdmin) {
+  if (canDelete) {
     actions += `
       <div class="action-separator"></div>
       <a href="#" class="action-item action-danger" data-action="delete" data-id="${vertrag.id}">
