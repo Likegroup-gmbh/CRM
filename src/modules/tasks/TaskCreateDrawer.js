@@ -871,8 +871,6 @@ export class TaskCreateDrawer {
 
       console.log('✅ Task erfolgreich erstellt:', data);
 
-      window.notificationSystem?.success?.('Aufgabe erfolgreich erstellt.');
-      
       // Trigger Refresh Event
       window.dispatchEvent(new CustomEvent('taskCreated', { 
         detail: { 
@@ -886,7 +884,6 @@ export class TaskCreateDrawer {
       this.close();
     } catch (error) {
       console.error('❌ Fehler beim Erstellen der Task:', error);
-      window.notificationSystem?.error?.('Fehler beim Erstellen der Aufgabe: ' + error.message);
     } finally {
       // Loading State zurücksetzen
       if (submitBtn) {

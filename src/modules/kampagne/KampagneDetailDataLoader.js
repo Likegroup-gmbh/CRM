@@ -140,9 +140,7 @@ export async function loadCriticalData(kampagneId) {
   }
 
   // Notizen, Ratings, Strategien, Briefings & Tab-Counts parallel laden
-  const [notizenResult, ratingsResult, strategienResult, briefingsResult, sourcingCountResult, vertraegeCountResult, rechnungenCountResult] = await Promise.all([
-    window.notizenSystem ? window.notizenSystem.loadNotizen('kampagne', kampagneId) : [],
-    window.bewertungsSystem ? window.bewertungsSystem.loadBewertungen('kampagne', kampagneId) : [],
+  const [strategienResult, briefingsResult, sourcingCountResult, vertraegeCountResult, rechnungenCountResult] = await Promise.all([
     window.supabase
       .from('strategie')
       .select(`
@@ -172,8 +170,6 @@ export async function loadCriticalData(kampagneId) {
       .eq('kampagne_id', kampagneId)
   ]);
 
-  const notizen = notizenResult || [];
-  const ratings = ratingsResult || [];
   const strategien = strategienResult.data || [];
 
   if (briefingsResult.error) {
@@ -190,8 +186,6 @@ export async function loadCriticalData(kampagneId) {
 
   return {
     kampagneData,
-    notizen,
-    ratings,
     strategien,
     briefings,
     sourcingListenCount,

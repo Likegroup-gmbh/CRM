@@ -1,4 +1,7 @@
 export default {
+  skipM2MForPagination: true,
+  countMode: 'estimated',
+
   config: {
     table: 'creator',
     displayField: 'vorname',
@@ -71,7 +74,8 @@ export default {
 instagram,instagram_follower,tiktok,tiktok_follower,
 lieferadresse_stadt,lieferadresse_land,
 creator_creator_type(creator_type_id(id,name)),
-creator_branchen(branche_id(id,name))`;
+creator_branchen(branche_id(id,name)),
+creator_sprachen(sprachen!sprache_id(id,name))`;
     }
     return '*';
   },
@@ -155,7 +159,15 @@ creator_branchen(branche_id(id,name))`;
   transformPaginationResult(data) {
     if (!data) return data;
     data.forEach(c => {
-      c.sprachen = c.sprachen || [];
+      // Sprachen aus Junction-Table extrahieren
+      if (c.creator_sprachen && Array.isArray(c.creator_sprachen)) {
+        c.sprachen = c.creator_sprachen
+          .map(j => j.sprachen?.name)
+          .filter(Boolean);
+        delete c.creator_sprachen;
+      } else {
+        c.sprachen = c.sprachen || [];
+      }
       
       // Branchen aus Junction-Table extrahieren
       if (c.creator_branchen && Array.isArray(c.creator_branchen)) {
@@ -194,7 +206,11 @@ creator_branchen(branche_id(id,name))`;
     if (
       field === 'agentur_vertreten' ||
       field === 'agentur_name' ||
-      field === 'agentur_adresse' ||
+      field === 'agentur_strasse' ||
+      field === 'agentur_hausnummer' ||
+      field === 'agentur_plz' ||
+      field === 'agentur_stadt' ||
+      field === 'agentur_land' ||
       field === 'agentur_vertretung'
     ) {
       console.log(`🏢 Überspringe Agentur-Feld ${field} für Haupttabelle (wird in creator_agentur gespeichert)`);
@@ -226,109 +242,60 @@ creator_branchen(branche_id(id,name))`;
     return { value, handled: false };
   },
 
-  async extractFilterOptions(data, supabase) {
+  async loadFilterDataOverride(supabase) {
     const filterOptions = {};
 
     try {
-      const { data: creatorTypes, error: ctError } = await supabase
-        .from('creator_type')
-        .select('id, name')
-        .order('name');
-      
-      if (!ctError && creatorTypes) {
-        const options = creatorTypes.map(ct => ({ id: ct.id, name: ct.name }));
+      const [creatorResult, ctResult, spResult, brResult] = await Promise.all([
+        supabase.from('creator').select('lieferadresse_stadt,lieferadresse_land,instagram_follower'),
+        supabase.from('creator_type').select('id, name').order('name'),
+        supabase.from('sprachen').select('id, name').order('name'),
+        supabase.from('branchen_creator').select('id, name').order('name'),
+      ]);
+
+      if (!ctResult.error && ctResult.data) {
+        const options = ctResult.data.map(ct => ({ id: ct.id, name: ct.name }));
         filterOptions.creator_type = options;
         filterOptions.creator_type_id = options;
       }
-
-      const { data: sprachen, error: spError } = await supabase
-        .from('sprachen')
-        .select('id, name')
-        .order('name');
-      
-      if (!spError && sprachen) {
-        const options = sprachen.map(s => ({ id: s.id, name: s.name }));
+      if (!spResult.error && spResult.data) {
+        const options = spResult.data.map(s => ({ id: s.id, name: s.name }));
         filterOptions.sprache = options;
         filterOptions.sprache_id = options;
       }
-
-      const { data: branchen, error: brError } = await supabase
-        .from('branchen_creator')
-        .select('id, name')
-        .order('name');
-      
-      if (!brError && branchen) {
-        const options = branchen.map(b => ({ id: b.id, name: b.name }));
+      if (!brResult.error && brResult.data) {
+        const options = brResult.data.map(b => ({ id: b.id, name: b.name }));
         filterOptions.branche = options;
         filterOptions.branche_id = options;
       }
-    } catch (error) {
-      console.error('❌ Fehler beim Laden der Filter-Optionen:', error);
-    }
 
-    // Instagram Follower Range
-    const followerValues = data
-      .map(item => item.instagram_follower)
-      .filter(follower => follower && follower > 0)
-      .sort((a, b) => a - b);
-    
-    if (followerValues.length > 0) {
-      filterOptions.instagram_follower_min = Math.min(...followerValues);
-      filterOptions.instagram_follower_max = Math.max(...followerValues);
-    }
+      const data = creatorResult.data || [];
 
-    // Stadt
-    const allStaedte = new Set();
-    data.forEach(item => {
-      if (item.lieferadresse_stadt) {
-        allStaedte.add(item.lieferadresse_stadt);
-      }
-    });
-    filterOptions.lieferadresse_stadt = Array.from(allStaedte).sort();
+      const followerValues = data
+        .map(item => item.instagram_follower)
+        .filter(follower => follower && follower > 0)
+        .sort((a, b) => a - b);
 
-    // Land
-    const allLaender = new Set();
-    data.forEach(item => {
-      if (item.lieferadresse_land) {
-        allLaender.add(item.lieferadresse_land);
-      }
-    });
-    filterOptions.lieferadresse_land = Array.from(allLaender).sort();
-
-    return filterOptions;
-  },
-
-  async loadExtraFilterData(filterOptions, supabase) {
-    try {
-      const { data: creatorTypes, error: ctError } = await supabase
-        .from('creator_type')
-        .select('id, name')
-        .order('name');
-      
-      if (!ctError && creatorTypes) {
-        filterOptions.creator_type_id = creatorTypes.map(ct => ({ id: ct.id, name: ct.name }));
+      if (followerValues.length > 0) {
+        filterOptions.instagram_follower_min = Math.min(...followerValues);
+        filterOptions.instagram_follower_max = Math.max(...followerValues);
       }
 
-      const { data: sprachen, error: spError } = await supabase
-        .from('sprachen')
-        .select('id, name')
-        .order('name');
-      
-      if (!spError && sprachen) {
-        filterOptions.sprache_id = sprachen.map(s => ({ id: s.id, name: s.name }));
-      }
+      const allStaedte = new Set();
+      data.forEach(item => {
+        if (item.lieferadresse_stadt) allStaedte.add(item.lieferadresse_stadt);
+      });
+      filterOptions.lieferadresse_stadt = Array.from(allStaedte).sort();
 
-      const { data: branchen, error: brError } = await supabase
-        .from('branchen_creator')
-        .select('id, name')
-        .order('name');
-      
-      if (!brError && branchen) {
-        filterOptions.branche_id = branchen.map(b => ({ id: b.id, name: b.name }));
-      }
+      const allLaender = new Set();
+      data.forEach(item => {
+        if (item.lieferadresse_land) allLaender.add(item.lieferadresse_land);
+      });
+      filterOptions.lieferadresse_land = Array.from(allLaender).sort();
     } catch (error) {
       console.error('❌ Fehler beim Laden der Creator-Filter-Optionen:', error);
     }
+
     return filterOptions;
   },
 };

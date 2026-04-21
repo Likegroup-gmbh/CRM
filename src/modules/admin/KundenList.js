@@ -182,10 +182,8 @@ export class KundenList {
           await this.load();
           await this.render();
           this.bind();
-          window.NotificationSystem?.show('success', `Rolle gesetzt: ${role}`);
         } catch (err) {
           console.error('❌ Rolle setzen fehlgeschlagen', err);
-          window.NotificationSystem?.show('error', 'Rolle setzen fehlgeschlagen');
         }
       }
 
@@ -206,10 +204,8 @@ export class KundenList {
           await this.load();
           await this.render();
           this.bind();
-          window.NotificationSystem?.show('success', 'Unternehmen entfernt');
         } catch (err) {
           console.error('❌ Entfernen fehlgeschlagen', err);
-          window.NotificationSystem?.show('error', 'Entfernen fehlgeschlagen');
         }
       }
       if (e.target.closest('.submenu-item[data-action="assign-marke"]')) {
@@ -223,10 +219,8 @@ export class KundenList {
           await this.load();
           await this.render();
           this.bind();
-          window.NotificationSystem?.show('success', 'Marke zugeordnet');
         } catch (err) {
           console.error('❌ Zuordnung fehlgeschlagen', err);
-          window.NotificationSystem?.show('error', 'Zuordnung fehlgeschlagen');
         }
       }
       if (e.target.closest('.submenu-item[data-action="remove-marke"]')) {
@@ -240,23 +234,14 @@ export class KundenList {
           await this.load();
           await this.render();
           this.bind();
-          window.NotificationSystem?.show('success', 'Marke entfernt');
         } catch (err) {
           console.error('❌ Entfernen fehlgeschlagen', err);
-          window.NotificationSystem?.show('error', 'Entfernen fehlgeschlagen');
         }
       }
       if (e.target.closest('.action-item[data-action="invite"]')) {
         e.preventDefault();
         const item = e.target.closest('.action-item[data-action="invite"]');
         const userId = item.dataset.id;
-        try {
-          await window.notificationSystem?.sendCustomerInvite?.(userId);
-          window.NotificationSystem?.show('success', 'Einladung gesendet');
-        } catch (err) {
-          console.error('❌ Einladung fehlgeschlagen', err);
-          window.NotificationSystem?.show('error', 'Einladung fehlgeschlagen');
-        }
       }
 
       if (e.target.closest('.action-item[data-action="freischalten"]')) {
@@ -269,10 +254,8 @@ export class KundenList {
           await this.load();
           await this.render();
           this.bind();
-          window.NotificationSystem?.show('success', !currentStatus ? 'Kunde freigeschaltet' : 'Kunde gesperrt');
         } catch (err) {
           console.error('❌ Status-Update fehlgeschlagen', err);
-          window.NotificationSystem?.show('error', 'Update fehlgeschlagen');
         }
       }
 
@@ -370,9 +353,7 @@ export class KundenList {
       const email = document.getElementById('c-email').value.trim();
       const url = `${window.location.origin}/src/auth/kunden-register.html?email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}`;
       navigator.clipboard?.writeText(url).then(() => {
-        window.NotificationSystem?.show('success', 'Einladungslink kopiert');
       }).catch(() => {
-        window.NotificationSystem?.show('info', url);
       });
     });
 
@@ -583,7 +564,6 @@ export class KundenList {
 
         if (!benutzerId) {
           showMsg('info', 'Benutzer noch nicht vorhanden. Einladung senden und nach Registrierung erneut Zuordnungen speichern.');
-          window.NotificationSystem?.show('info', 'Einladung erforderlich.');
           return;
         }
 
@@ -618,7 +598,6 @@ export class KundenList {
         }
 
         showMsg('success', 'Kunde aktualisiert und Zuordnungen gespeichert.');
-        window.NotificationSystem?.show('success', 'Gespeichert');
         
         // Event auslösen für Listen-Update statt Navigation
         window.dispatchEvent(new CustomEvent('entityUpdated', { 
@@ -776,7 +755,6 @@ export class KundenList {
 
         if (error) throw error;
 
-        window.NotificationSystem?.show('success', 'Unternehmen erfolgreich zugeordnet');
         modal.remove();
         
         // Liste aktualisieren
@@ -785,7 +763,6 @@ export class KundenList {
         this.bind();
       } catch (err) {
         console.error('❌ Zuordnung fehlgeschlagen', err);
-        window.NotificationSystem?.show('error', 'Zuordnung fehlgeschlagen: ' + err.message);
         
         // Loading State zurücksetzen
         saveBtn.disabled = false;

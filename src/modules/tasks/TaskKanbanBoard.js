@@ -571,7 +571,6 @@ export class TaskKanbanBoard {
       window.dispatchEvent(new CustomEvent('taskUpdated', { detail: { taskId } }));
     } catch (error) {
       console.error('Fehler beim Aktualisieren des Task-Status:', error);
-      window.notificationSystem?.error?.('Fehler beim Verschieben der Aufgabe.');
     }
   }
 

@@ -1,4 +1,5 @@
 import { syncVertragCheckbox } from '../../core/VertragSyncHelper.js';
+import { backfillRechnungVertragId } from '../rechnung/RechnungVertragZuordnung.js';
 
 const DEBUG_UPLOAD = true;
 
@@ -375,16 +376,30 @@ export class VertragUploadDrawer {
       updateData.kooperation_id = this.kooperationId;
     }
 
-    const { error } = await window.supabase
+    const { data: updatedRows, error } = await window.supabase
       .from('vertraege')
       .update(updateData)
-      .eq('id', this.vertragId);
+      .eq('id', this.vertragId)
+      .select('creator_id, kampagne_id');
 
     if (error) throw error;
 
     // Vertrag-Checkbox auf Kooperation synchronisieren
     if (this.kooperationId) {
       await syncVertragCheckbox(this.kooperationId, true);
+    }
+
+    // Retroaktiver Sync: alle Rechnungen mit vertrag_id=NULL nachtraeglich verknuepfen
+    const row = updatedRows?.[0];
+    if (row?.creator_id && row?.kampagne_id) {
+      try {
+        const result = await backfillRechnungVertragId(this.vertragId, row.creator_id, row.kampagne_id);
+        if (result.updatedCount > 0) {
+          console.log(`[VertragUpload] ${result.updatedCount} Rechnung(en) nachtraeglich verknuepft.`);
+        }
+      } catch (backfillErr) {
+        console.warn('[VertragUpload] Backfill der Rechnungen fehlgeschlagen (nicht kritisch):', backfillErr);
+      }
     }
   }
 

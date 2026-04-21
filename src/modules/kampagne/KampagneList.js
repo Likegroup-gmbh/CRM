@@ -219,23 +219,22 @@ export class KampagneList {
       if (!checkMounted()) return;
       
       if (this.currentView === 'list') {
-        await this.initializeFilterBar();
-        
+        const [, result] = await Promise.all([
+          this.initializeFilterBar(),
+          loadKampagnenWithRelations(
+            this.pagination.currentPage,
+            this.pagination.itemsPerPage,
+            { searchQuery: this.searchQuery }
+          )
+        ]);
+
         if (!checkMounted()) return;
-        
-        const result = await loadKampagnenWithRelations(
-          this.pagination.currentPage,
-          this.pagination.itemsPerPage,
-          { searchQuery: this.searchQuery }
-        );
 
         if (result.kampagneArtMap) this.kampagneArtMap = result.kampagneArtMap;
 
         const filteredKampagnen = result?.data ?? result ?? [];
         const totalCount = result?.count ?? filteredKampagnen.length;
-        
-        if (!checkMounted()) return;
-        
+
         this.pagination.updateTotal(totalCount);
         await updateTable(filteredKampagnen, {
           bindDragToScroll: () => this.bindDragToScroll()

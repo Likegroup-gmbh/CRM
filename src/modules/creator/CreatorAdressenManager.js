@@ -404,11 +404,8 @@ export class CreatorAdressenManager {
 
       if (error) throw error;
 
-      // Nutze toastSystem oder NotificationSystem
       if (window.toastSystem) {
         window.toastSystem.show('success', 'Adresse erfolgreich gelöscht.');
-      } else {
-        window.NotificationSystem?.show('success', 'Adresse erfolgreich gelöscht.');
       }
       
       // Event auslösen
@@ -419,8 +416,6 @@ export class CreatorAdressenManager {
       console.error('❌ Fehler beim Löschen der Adresse:', error);
       if (window.toastSystem) {
         window.toastSystem.show('error', 'Löschen fehlgeschlagen: ' + error.message);
-      } else {
-        window.NotificationSystem?.show('error', 'Löschen fehlgeschlagen: ' + error.message);
       }
     }
   }

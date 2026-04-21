@@ -18,8 +18,6 @@ describe('AuftragsdetailsDetail', () => {
     window.setContentSafely = vi.fn();
     window.content = document.createElement('div');
     window.ErrorHandler = { handle: vi.fn() };
-    window.notizenSystem = null;
-    window.bewertungsSystem = null;
   });
 
   it('nutzt permissions.auftragsdetails für Edit-Berechtigung', async () => {

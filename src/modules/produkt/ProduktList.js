@@ -166,7 +166,7 @@ export class ProduktList extends BasePaginatedList {
           </thead>
           <tbody>
             <tr>
-              <td colspan="${isAdmin ? '6' : '5'}" class="no-data">Lade Produkte...</td>
+              <td colspan="${canBulkDelete ? '6' : '5'}" class="no-data">Lade Produkte...</td>
             </tr>
           </tbody>
         </table>

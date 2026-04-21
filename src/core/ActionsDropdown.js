@@ -92,7 +92,6 @@ export class ActionsDropdown {
 
         replaceIn('.action-item[data-action="view"]', 'view');
         replaceIn('.action-item[data-action="edit"]', 'edit');
-        replaceIn('.action-item[data-action="notiz"]', 'notiz');
         replaceIn('.action-item[data-action="favorite"]', 'favorite');
         replaceIn('.action-item.action-danger[data-action="delete"]', 'delete');
         replaceIn('.action-item[data-action="rechnungen"]', 'rechnungen');
@@ -424,14 +423,6 @@ export class ActionsDropdown {
             <i class="icon-edit"></i>
             Bearbeiten
           </a>
-          <a href="#" class="action-item" data-action="notiz" data-id="${creatorId}">
-            <i class="icon-note"></i>
-            Notiz hinzufügen
-          </a>
-          <a href="#" class="action-item" data-action="rating" data-id="${creatorId}">
-            
-            Bewerten
-          </a>
           <a href="#" class="action-item" data-action="add_to_list" data-id="${creatorId}">
             ${this.getHeroIcon('add-to-list')}
             Zur Liste hinzufügen
@@ -469,10 +460,6 @@ export class ActionsDropdown {
           <a href="#" class="action-item" data-action="edit" data-id="${unternehmenId}">
             <i class="icon-edit"></i>
             Bearbeiten
-          </a>
-          <a href="#" class="action-item" data-action="notiz" data-id="${unternehmenId}">
-            <i class="icon-note"></i>
-            Notiz hinzufügen
           </a>
           <a href="#" class="action-item" data-action="marken" data-id="${unternehmenId}">
             <i class="icon-tag"></i>
@@ -515,10 +502,6 @@ export class ActionsDropdown {
           <a href="#" class="action-item" data-action="edit" data-id="${markeId}">
             <i class="icon-edit"></i>
             Bearbeiten
-          </a>
-          <a href="#" class="action-item" data-action="notiz" data-id="${markeId}">
-            <i class="icon-note"></i>
-            Notiz hinzufügen
           </a>
           <a href="#" class="action-item" data-action="auftraege" data-id="${markeId}">
             <i class="icon-briefcase"></i>
@@ -564,12 +547,6 @@ export class ActionsDropdown {
             </svg>
             Bearbeiten
           </a>
-          <a href="#" class="action-item" data-action="notiz" data-id="${kooperationId}">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-              <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.336-3.117C2.688 12.31 2 11.104 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd" />
-            </svg>
-            Notiz hinzufügen
-          </a>
           <a href="#" class="action-item" data-action="quickview" data-id="${kooperationId}">
             ${this.getHeroIcon('quickview')}
             Schnellansicht öffnen
@@ -611,10 +588,6 @@ export class ActionsDropdown {
           <a href="#" class="action-item" data-action="edit" data-id="${auftragId}">
             <i class="icon-edit"></i>
             Bearbeiten
-          </a>
-          <a href="#" class="action-item" data-action="notiz" data-id="${auftragId}">
-            <i class="icon-note"></i>
-            Notiz hinzufügen
           </a>
           <a href="#" class="action-item" data-action="auftrag-details" data-icon="details" data-id="${auftragId}">
             Auftragsdetails hinzufügen
@@ -683,8 +656,7 @@ export class ActionsDropdown {
     
     const defaultActions = [
       { action: 'view', icon: 'icon-eye', label: 'Details anzeigen' },
-      { action: 'edit', icon: 'icon-edit', label: 'Bearbeiten' },
-      { action: 'notiz', icon: 'icon-note', label: 'Notiz hinzufügen' }
+      { action: 'edit', icon: 'icon-edit', label: 'Bearbeiten' }
     ];
 
     const allActions = [...defaultActions, ...customActions];
@@ -787,14 +759,6 @@ export class ActionsDropdown {
       
       case 'remove':
         this.handleRemoveZuordnung(entityId, entityType);
-        break;
-      
-      case 'notiz':
-        this.openNotizModal(entityId, entityType);
-        break;
-      
-      case 'rating':
-        this.openRatingModal(entityId, entityType);
         break;
       
       case 'rechnung_anpassen':
@@ -1362,25 +1326,6 @@ export class ActionsDropdown {
           console.error('❌ Insert-Fehler:', insertError);
           throw insertError;
         }
-        // Notification an zugewiesenen Mitarbeiter
-        try {
-          const { data: kamp } = await window.supabase
-            .from('kampagne')
-            .select('id, kampagnenname, eigener_name')
-            .eq('id', kampagneId)
-            .single();
-          const kampName = KampagneUtils.getDisplayName(kamp);
-          await window.notificationSystem?.pushNotification(selectedId, {
-            type: 'assign',
-            entity: 'kampagne',
-            entityId: kampagneId,
-            title: 'Neue Kampagnen-Zuweisung',
-            message: `Du wurdest der Kampagne "${kampName}" zugeordnet.`
-          });
-          window.dispatchEvent(new Event('notificationsRefresh'));
-        } catch (err) {
-          console.warn('⚠️ Fehler beim Erstellen der Benachrichtigung:', err?.message);
-        }
         console.log('✅ Mitarbeiter erfolgreich zugeordnet');
         close();
         window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'kampagne', action: 'staff-assigned', id: kampagneId } }));
@@ -1607,27 +1552,6 @@ export class ActionsDropdown {
 
         if (error) throw error;
 
-        // Push-Benachrichtigung senden
-        try {
-          const { data: marke } = await window.supabase
-            .from('marke')
-            .select('id, markenname')
-            .eq('id', markeId)
-            .single();
-          const markeName = marke?.markenname || markeId;
-          
-          await window.notificationSystem?.pushNotification(selectedId, {
-            type: 'assignment',
-            entity: 'marke',
-            entityId: markeId,
-            title: 'Neue Marken-Zuordnung',
-            message: `Sie wurden der Marke "${markeName}" zugeordnet und können nun alle zugehörigen Kampagnen und Kooperationen einsehen.`
-          });
-          window.dispatchEvent(new Event('notificationsRefresh'));
-        } catch (notifError) {
-          console.warn('⚠️ Benachrichtigung fehlgeschlagen:', notifError);
-        }
-
         close();
         document.removeEventListener('keydown', handleEsc);
         
@@ -1842,27 +1766,6 @@ export class ActionsDropdown {
         await window.supabase
           .from('kampagne_creator_sourcing')
           .insert({ kampagne_id: selectedId, creator_id: creatorId });
-        // Notification an alle zugewiesenen Mitarbeiter der Kampagne (Sourcing update)
-        try {
-          const [{ data: staff }, { data: kamp }] = await Promise.all([
-            window.supabase.from('kampagne_mitarbeiter').select('mitarbeiter_id').eq('kampagne_id', selectedId),
-            window.supabase.from('kampagne').select('kampagnenname, eigener_name').eq('id', selectedId).single()
-          ]);
-          const kampName = KampagneUtils.getDisplayName(kamp);
-          const mitarbeiterIds = (staff || []).map(r => r.mitarbeiter_id).filter(Boolean);
-          for (const uid of mitarbeiterIds) {
-            await window.notificationSystem?.pushNotification(uid, {
-              type: 'update',
-              entity: 'kampagne',
-              entityId: selectedId,
-              title: 'Sourcing-Update',
-              message: `Neuer Creator wurde dem Sourcing von "${kampName}" hinzugefügt.`
-            });
-          }
-          if (mitarbeiterIds.length) window.dispatchEvent(new Event('notificationsRefresh'));
-        } catch (err) {
-          console.warn('⚠️ Fehler beim Senden der Sourcing-Benachrichtigungen:', err?.message);
-        }
         close();
         window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'kampagne', action: 'sourcing-added', id: selectedId } }));
         alert('Creator wurde zum Sourcing der Kampagne hinzugefügt.');
@@ -2892,7 +2795,6 @@ export class ActionsDropdown {
       }
 
       console.log('✅ Standard-Adresse erfolgreich gesetzt');
-      window.NotificationSystem?.show('success', 'Standard-Adresse erfolgreich festgelegt.');
 
       // UI aktualisieren
       window.dispatchEvent(new CustomEvent('entityUpdated', { 
@@ -2903,7 +2805,6 @@ export class ActionsDropdown {
 
     } catch (error) {
       console.error('❌ Fehler beim Festlegen der Standard-Adresse:', error);
-      window.NotificationSystem?.show('error', 'Fehler beim Festlegen der Standard-Adresse: ' + error.message);
       throw error;
     }
   }
@@ -2925,7 +2826,6 @@ export class ActionsDropdown {
       }
 
       console.log('✅ Hauptadresse erfolgreich als Standard gesetzt');
-      window.NotificationSystem?.show('success', 'Hauptadresse erfolgreich als Standard festgelegt.');
 
       // UI aktualisieren
       window.dispatchEvent(new CustomEvent('entityUpdated', { 
@@ -2936,7 +2836,6 @@ export class ActionsDropdown {
 
     } catch (error) {
       console.error('❌ Fehler beim Festlegen der Hauptadresse als Standard:', error);
-      window.NotificationSystem?.show('error', 'Fehler: ' + error.message);
       throw error;
     }
   }
@@ -3186,18 +3085,6 @@ export class ActionsDropdown {
         modal.remove();
       },
     };
-  }
-
-  // Modal für Notizen öffnen
-  openNotizModal(entityId, entityType) {
-    console.log(`📝 Öffne Notiz-Modal für ${entityType} ${entityId}`);
-    // TODO: Implementiere Notiz-Modal
-  }
-
-  // Modal für Bewertungen öffnen
-  openRatingModal(entityId, entityType) {
-    console.log(`⭐ Öffne Rating-Modal für ${entityType} ${entityId}`);
-    // TODO: Implementiere Rating-Modal
   }
 
   // Modal für Rechnungen öffnen

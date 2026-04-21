@@ -42,3 +42,23 @@ export async function compressImage(file, options = {}) {
   const newName = file.name.replace(/\.\w+$/, '.webp');
   return new File([blob], newName, { type: format });
 }
+
+/**
+ * Erzeugt eine kleine Thumbnail-Variante (Standard: 128x128, WebP) aus einer
+ * Bilddatei. Für Listenansichten mit Avatar-Bubbles gedacht, wo das Original
+ * (bis 800px) zu groß wäre.
+ * @param {File} file - Original-Bilddatei
+ * @param {Object} [options]
+ * @param {number} [options.size=128] - Kantenlänge (Longest-Edge)
+ * @param {number} [options.quality=0.85]
+ * @returns {Promise<File>} Thumbnail-Datei (WebP)
+ */
+export async function createThumbnail(file, options = {}) {
+  const size = options.size ?? 128;
+  return compressImage(file, {
+    maxWidth: size,
+    maxHeight: size,
+    quality: options.quality ?? 0.85,
+    format: 'image/webp'
+  });
+}

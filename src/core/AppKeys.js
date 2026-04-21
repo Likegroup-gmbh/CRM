@@ -10,9 +10,6 @@ export const K = Object.freeze({
   PERMISSION_SYSTEM: 'permissionSystem',
   SUBMIT_GUARD: 'submitGuard',
   MODULE_REGISTRY: 'moduleRegistry',
-  NOTIFICATION_SYSTEM: 'notificationSystem',
-  NOTIZEN_SYSTEM: 'notizenSystem',
-  BEWERTUNGS_SYSTEM: 'bewertungsSystem',
   STATIC_DATA_CACHE: 'staticDataCache',
 
   CURRENT_USER: 'currentUser',

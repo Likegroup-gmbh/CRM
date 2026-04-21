@@ -18,8 +18,6 @@ export class KampagneDetail {
     this.kampagneData = null;
     this.store = null;
     this.creator = [];
-    this.notizen = [];
-    this.ratings = [];
     this.kooperationen = [];
     this.koopBudgetSum = 0;
     this.koopVideosUsed = 0;
@@ -135,8 +133,6 @@ export class KampagneDetail {
       const data = await _loadCriticalData(this.kampagneId);
 
       this.kampagneData = data.kampagneData;
-      this.notizen = data.notizen;
-      this.ratings = data.ratings;
       this.strategien = data.strategien;
       this.briefings = data.briefings;
       this.sourcingListenCount = data.sourcingListenCount;

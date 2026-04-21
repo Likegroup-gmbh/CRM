@@ -1,3 +1,6 @@
+// Performance Monitor – muss erster Import sein (self-initialising side-effect)
+import './core/PerformanceMonitor.js';
+
 // CSS Imports - müssen für Vite-Build hier sein
 import '../assets/styles/variables.css';
 import '../assets/styles/base.css';
@@ -37,8 +40,6 @@ import { dataService } from './core/DataService.js';
 import { validatorSystem } from './core/ValidatorSystem.js';
 import { creatorUtils } from './modules/creator/CreatorUtils.js';
 import { formSystem } from './core/FormSystem.js';
-import { notizenSystem } from './core/NotizenSystem.js';
-import { bewertungsSystem } from './core/BewertungsSystem.js';
 import { unternehmenDetail } from './modules/unternehmen/UnternehmenDetail.js';
 import { auftragDetail } from './modules/auftrag/AuftragDetail.js';
 import { actionRegistry } from './core/ActionRegistry.js';
@@ -63,7 +64,6 @@ import { kundenDetail } from './modules/admin/KundenDetail.js';
 import { kundenLanding } from './modules/kunden/KundenLanding.js';
 import { kundenKooperationDetail } from './modules/kunden/KundenKooperationDetail.js';
 import { bulkActionSystem } from './core/BulkActionSystem.js';
-import { notificationSystem } from './core/NotificationSystem.js';
 import { AvatarBubbles } from './core/components/AvatarBubbles.js';
 import { dashboardModule } from './modules/dashboard/DashboardModule.js';
 import { breadcrumbSystem } from './core/BreadcrumbSystem.js';
@@ -75,12 +75,11 @@ import { strategieDetail } from './modules/strategie/StrategieDetail.js';
 import { creatorAuswahlList } from './modules/creator-auswahl/CreatorAuswahlList.js';
 import { creatorAuswahlDetail } from './modules/creator-auswahl/CreatorAuswahlDetail.js';
 import { feedbackPage } from './modules/feedback/FeedbackPage.js';
-import { feedbackNotifications } from './modules/feedback/FeedbackNotifications.js';
 import { educationPage } from './modules/education/EducationPage.js';
 import { educationArticleDetail } from './modules/education/EducationArticleDetail.js';
 import { videoList } from './modules/video/VideoList.js';
 import { vertraegeList } from './modules/vertrag/VertraegeList.js';
-import { vertraegeCreate } from './modules/vertrag/VertraegeCreate.js';
+import { vertraegeCreate } from './modules/vertrag/create/VertraegeCreate.js';
 import { kickOffPage } from './modules/marke/KickOffPage.js';
 import { kickOffList } from './modules/kickoff/KickOffList.js';
 import { kickOffDetail } from './modules/kickoff/KickOffDetail.js';
@@ -209,16 +208,12 @@ window.validatorSystem = validatorSystem;
 window.creatorUtils = creatorUtils;
 window.AvatarBubbles = AvatarBubbles;
 window.formSystem = formSystem;
-window.notizenSystem = notizenSystem;
-window.bewertungsSystem = bewertungsSystem;
 window.ActionsDropdown = actionsDropdown;
 window.bulkActionSystem = bulkActionSystem;
 
 // Duplicate Checker Service
 window.duplicateChecker = new DuplicateChecker();
 console.log('✅ DuplicateChecker initialisiert');
-window.notificationSystem = notificationSystem;
-window.feedbackNotifications = feedbackNotifications;
 window.ansprechpartnerList = ansprechpartnerList;
 window.ansprechpartnerDetail = ansprechpartnerDetail;
 window.ansprechpartnerCreate = ansprechpartnerCreate;
@@ -236,12 +231,9 @@ App.set('permissionSystem', permissionSystem);
 App.set('dataService', dataService);
 App.set('validatorSystem', validatorSystem);
 App.set('formSystem', formSystem);
-App.set('notizenSystem', notizenSystem);
-App.set('bewertungsSystem', bewertungsSystem);
 App.set('toastSystem', toastSystem);
 App.set('breadcrumbSystem', breadcrumbSystem);
 App.set('bulkActionSystem', bulkActionSystem);
-App.set('notificationSystem', notificationSystem);
 App.set('submitGuard', submitGuard);
 App.set('ActionsDropdown', actionsDropdown);
 App.set('actionRegistry', actionRegistry);
@@ -269,8 +261,6 @@ if (import.meta.env.DEV) {
   console.log('ValidatorSystem:', validatorSystem);
   console.log('CreatorUtils:', creatorUtils);
   console.log('FormSystem:', formSystem);
-  console.log('NotizenSystem:', notizenSystem);
-  console.log('BewertungsSystem:', bewertungsSystem);
   console.log('ActionsDropdown:', actionsDropdown);
   console.log('KampagneList:', kampagneList);
   console.log('KampagneDetail:', kampagneDetail);
@@ -351,11 +341,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // BulkActionSystem initialisieren
     bulkActionSystem.init();
-    // NotificationSystem deaktiviert - FeedbackNotifications übernimmt die Glocke
-    // notificationSystem.init();
-    
-    // FeedbackNotifications initialisieren (Glocke für Feedback-Kommentare)
-    feedbackNotifications.init();
     
     // TaskDetailDrawer initialisieren (global)
     const taskDetailDrawer = new TaskDetailDrawer();

@@ -26,7 +26,6 @@ export const ActionConfigs = {
     actions: [
       { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
-      { id: 'notiz', icon: 'notiz', label: 'Notiz hinzufügen', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],
@@ -55,7 +54,6 @@ export const ActionConfigs = {
         entityTypeCheck: 'kooperation',
         roles: ['admin', 'mitarbeiter']
       },
-      { id: 'notiz', icon: 'notiz', label: 'Notiz hinzufügen', roles: ['admin', 'mitarbeiter'] },
       { id: 'quickview', icon: 'quickview', label: 'Schnellansicht öffnen', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
@@ -106,7 +104,6 @@ export const ActionConfigs = {
     actions: [
       { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
-      { id: 'notiz', icon: 'notiz', label: 'Notiz hinzufügen', roles: ['admin', 'mitarbeiter'] },
       { id: 'rechnung', icon: 'rechnung-create', label: 'Rechnung anlegen', roles: ['admin', 'mitarbeiter'] },
       { id: 'rechnung_anpassen', icon: 'edit', label: 'Rechnung anpassen', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
@@ -120,7 +117,6 @@ export const ActionConfigs = {
     actions: [
       { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
-      { id: 'notiz', icon: 'notiz', label: 'Notiz hinzufügen', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],

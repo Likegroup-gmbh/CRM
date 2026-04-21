@@ -105,8 +105,6 @@ export class AuthService {
           window.navigationSystem?.init?.();
           window.actionsDropdown?.init?.();
           window.bulkActionSystem?.init?.();
-          // notificationSystem deaktiviert - FeedbackNotifications übernimmt
-          // window.notificationSystem?.init?.();
           
           // Header-Buttons basierend auf Rolle anpassen (Education, Notifications für Kunden ausblenden)
           this.updateHeaderForRole(data.rolle);
@@ -165,9 +163,6 @@ export class AuthService {
                 
                 // Header-Buttons basierend auf Rolle anpassen
                 this.updateHeaderForRole(updatedUser.rolle);
-                
-                // Benachrichtigungs-Refresh triggern
-                window.dispatchEvent(new Event('notificationsRefresh'));
                 
                 // Soft-Refresh Event dispatchen statt Full Page Reload
                 // Module können selbst entscheiden ob sie updaten (z.B. wenn kein Formular aktiv)
@@ -684,12 +679,6 @@ export class AuthService {
     const educationBtn = document.querySelector('.education-btn');
     if (educationBtn) {
       educationBtn.style.display = isKunde ? 'none' : '';
-    }
-    
-    // Notification Menu ausblenden für Kunden
-    const notificationMenu = document.getElementById('feedbackNotificationMenu');
-    if (notificationMenu) {
-      notificationMenu.style.display = isKunde ? 'none' : '';
     }
     
     console.log(`🎨 Header aktualisiert für Rolle: ${rolle}, isKunde: ${isKunde}`);

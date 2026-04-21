@@ -227,6 +227,73 @@ export class KampagneDetailStore {
   }
 
   // ========================================
+  // STORY SLOTS
+  // ========================================
+
+  applyStorySlots(slotsByVideoId) {
+    for (const koopVideos of Object.values(this.videos)) {
+      for (const video of koopVideos) {
+        if (slotsByVideoId[video.id]) {
+          video.story_slots = slotsByVideoId[video.id];
+        } else if (!video.story_slots) {
+          video.story_slots = [];
+        }
+      }
+    }
+  }
+
+  getStorySlots(videoId) {
+    for (const koopVideos of Object.values(this.videos)) {
+      const video = koopVideos.find(v => v.id === videoId);
+      if (video) return video.story_slots || [];
+    }
+    return [];
+  }
+
+  addStorySlot(videoId, slot) {
+    for (const koopVideos of Object.values(this.videos)) {
+      const video = koopVideos.find(v => v.id === videoId);
+      if (video) {
+        if (!video.story_slots) video.story_slots = [];
+        video.story_slots.push(slot);
+        this.emit('story-slot-added', { videoId, slot });
+        return slot;
+      }
+    }
+    return null;
+  }
+
+  updateStorySlot(storyId, patch) {
+    for (const koopVideos of Object.values(this.videos)) {
+      for (const video of koopVideos) {
+        const slots = video.story_slots || [];
+        const idx = slots.findIndex(s => s.id === storyId);
+        if (idx !== -1) {
+          slots[idx] = { ...slots[idx], ...patch };
+          this.emit('story-slot-updated', { videoId: video.id, storyId, slot: slots[idx] });
+          return slots[idx];
+        }
+      }
+    }
+    return null;
+  }
+
+  removeStorySlot(storyId) {
+    for (const koopVideos of Object.values(this.videos)) {
+      for (const video of koopVideos) {
+        const slots = video.story_slots || [];
+        const idx = slots.findIndex(s => s.id === storyId);
+        if (idx !== -1) {
+          const removed = slots.splice(idx, 1)[0];
+          this.emit('story-slot-removed', { videoId: video.id, storyId });
+          return removed;
+        }
+      }
+    }
+    return null;
+  }
+
+  // ========================================
   // LIFECYCLE
   // ========================================
 

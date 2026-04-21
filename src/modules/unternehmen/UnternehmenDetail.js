@@ -1,5 +1,5 @@
 // UnternehmenDetail.js (ES6-Modul)
-// Unternehmen-Detailseite mit Tabs für Informationen, Notizen, Bewertungen, Marken und Aufträge
+// Unternehmen-Detailseite mit Tabs für Informationen, Marken und Aufträge
 // Nutzt einheitliches zwei-Spalten-Layout
 
 import { renderCreatorTable } from '../creator/CreatorTable.js';
@@ -16,8 +16,6 @@ export class UnternehmenDetail extends PersonDetailBase {
     super();
     this.unternehmenId = null;
     this.unternehmen = null;
-    this.notizen = [];
-    this.ratings = [];
     this.marken = [];
     this.auftraege = [];
     this.auftragsdetails = [];
@@ -99,9 +97,7 @@ export class UnternehmenDetail extends PersonDetailBase {
         strategienResult,
         creatorAuswahlenResult,
         kickoffResult,
-        ansprechpartnerResult,
-        notizenResult,
-        ratingsResult
+        ansprechpartnerResult
       ] = await Promise.all([
         // Unternehmen-Basisdaten
         window.supabase.from('unternehmen').select('*').eq('id', this.unternehmenId).single(),
@@ -136,11 +132,7 @@ export class UnternehmenDetail extends PersonDetailBase {
             telefonnummer_office_land:eu_laender!telefonnummer_office_land_id (id, name, name_de, iso_code, vorwahl),
             kunde_ansprechpartner(kunde_id)
           )
-        `).eq('unternehmen_id', this.unternehmenId),
-        // Notizen (falls System verfügbar)
-        window.notizenSystem ? window.notizenSystem.loadNotizen('unternehmen', this.unternehmenId) : Promise.resolve([]),
-        // Bewertungen (falls System verfügbar)
-        window.bewertungsSystem ? window.bewertungsSystem.loadBewertungen('unternehmen', this.unternehmenId) : Promise.resolve([])
+        `).eq('unternehmen_id', this.unternehmenId)
       ]);
 
       // Batch 1 Ergebnisse verarbeiten
@@ -174,8 +166,6 @@ export class UnternehmenDetail extends PersonDetailBase {
           : (this.kickoffsByType.paid ? 'paid' : 'organic');
       }
       this.kickoff = this.kickoffsByType[this.activeKickoffType] || null;
-      this.notizen = notizenResult || [];
-      this.ratings = ratingsResult || [];
 
       // Lade Kick-Off Markenwerte je Typ
       this.kickoffMarkenwerteByType = { paid: [], organic: [] };

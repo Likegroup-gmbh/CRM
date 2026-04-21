@@ -1,7 +1,7 @@
 // ImageUploadHelper.js
 // Wiederverwendbare Bild-Upload-Logik für alle Entitäten (Logos, Profilbilder, etc.)
 
-import { compressImage } from './ImageCompressor.js';
+import { compressImage, createThumbnail } from './ImageCompressor.js';
 
 /**
  * Konfiguration für verschiedene Bildtypen
@@ -12,6 +12,8 @@ const IMAGE_CONFIG = {
     fieldName: 'logo_file',
     urlField: 'logo_url',
     pathField: 'logo_path',
+    thumbUrlField: 'logo_thumb_url',
+    thumbPathField: 'logo_thumb_path',
     maxSize: 200 * 1024, // 200 KB
     fileName: 'logo'
   },
@@ -20,6 +22,8 @@ const IMAGE_CONFIG = {
     fieldName: 'profile_image_file',
     urlField: 'profile_image_url',
     pathField: 'profile_image_path',
+    thumbUrlField: 'profile_image_thumb_url',
+    thumbPathField: 'profile_image_thumb_path',
     maxSize: 500 * 1024, // 500 KB
     fileName: 'profile'
   }
@@ -51,6 +55,8 @@ export class ImageUploadHelper {
     const fileName = config?.fileName || 'image';
     const urlField = config?.urlField || 'image_url';
     const pathField = config?.pathField || 'image_path';
+    const thumbUrlField = config?.thumbUrlField || null;
+    const thumbPathField = config?.thumbPathField || null;
 
     try {
       const uploaderRoot = form.querySelector(`.uploader[data-name="${finalFieldName}"]`);
@@ -66,20 +72,21 @@ export class ImageUploadHelper {
       }
 
       const files = uploaderRoot.__uploaderInstance.files;
-      let file = files[0];
+      const originalUpload = files[0];
 
       // Validierung: Dateityp (vor Komprimierung)
-      if (!ALLOWED_TYPES.includes(file.type)) {
-        return { 
-          success: false, 
-          error: 'Nur PNG, JPG und WebP Dateien sind erlaubt' 
+      if (!ALLOWED_TYPES.includes(originalUpload.type)) {
+        return {
+          success: false,
+          error: 'Nur PNG, JPG und WebP Dateien sind erlaubt'
         };
       }
 
-      // WebP-Komprimierung
+      // WebP-Komprimierung des Originals
+      let file = originalUpload;
       try {
         const originalSize = file.size;
-        file = await compressImage(file);
+        file = await compressImage(originalUpload);
         console.log(`🖼️ Bild komprimiert: ${Math.round(originalSize / 1024)}KB → ${Math.round(file.size / 1024)}KB (WebP)`);
       } catch (compressError) {
         console.warn('⚠️ Komprimierung fehlgeschlagen, nutze Original:', compressError);
@@ -88,18 +95,19 @@ export class ImageUploadHelper {
       // Validierung: Dateigröße (nach Komprimierung)
       if (file.size > maxSize) {
         const maxSizeKB = Math.round(maxSize / 1024);
-        return { 
-          success: false, 
-          error: `Datei zu groß (max. ${maxSizeKB} KB)` 
+        return {
+          success: false,
+          error: `Datei zu groß (max. ${maxSizeKB} KB)`
         };
       }
 
       const path = `${entityId}/${fileName}.webp`;
+      const thumbPath = `${entityId}/${fileName}_thumb.webp`;
 
-      // Alte Dateien löschen
+      // Alte Dateien löschen (Original + Thumb)
       await this._deleteExistingFiles(finalBucket, entityId);
 
-      // Upload zu Storage
+      // 1. Upload Original
       const { error: uploadError } = await window.supabase.storage
         .from(finalBucket)
         .upload(path, file, {
@@ -113,18 +121,49 @@ export class ImageUploadHelper {
         return { success: false, error: uploadError.message };
       }
 
-      // Öffentliche URL erstellen
+      // 2. Thumb generieren und hochladen (parallel zum DB-Update optimiert)
+      let thumbUrl = null;
+      if (thumbUrlField && thumbPathField) {
+        try {
+          const thumbFile = await createThumbnail(originalUpload, { size: 128 });
+          const { error: thumbError } = await window.supabase.storage
+            .from(finalBucket)
+            .upload(thumbPath, thumbFile, {
+              cacheControl: '31536000', // 1 Jahr - Thumbs ändern sich nicht
+              upsert: true,
+              contentType: 'image/webp'
+            });
+
+          if (thumbError) {
+            console.warn('⚠️ Thumb-Upload fehlgeschlagen:', thumbError);
+          } else {
+            const { data: thumbUrlData } = window.supabase.storage
+              .from(finalBucket)
+              .getPublicUrl(thumbPath);
+            thumbUrl = thumbUrlData?.publicUrl || null;
+            console.log(`🖼️ Thumb erzeugt: ${Math.round(thumbFile.size / 1024)}KB`);
+          }
+        } catch (thumbErr) {
+          console.warn('⚠️ Thumb-Generierung fehlgeschlagen:', thumbErr);
+        }
+      }
+
+      // Öffentliche URL für Original
       const { data: publicUrlData } = window.supabase.storage
         .from(finalBucket)
         .getPublicUrl(path);
 
       const imageUrl = publicUrlData?.publicUrl || '';
 
-      // URL in Datenbank speichern
+      // URL in Datenbank speichern (inkl. Thumb falls vorhanden)
       const updateData = {
         [urlField]: imageUrl,
         [pathField]: path
       };
+      if (thumbUrlField && thumbPathField && thumbUrl) {
+        updateData[thumbUrlField] = thumbUrl;
+        updateData[thumbPathField] = thumbPath;
+      }
 
       const { error: dbError } = await window.supabase
         .from(entityType)
@@ -136,7 +175,7 @@ export class ImageUploadHelper {
         return { success: false, error: dbError.message };
       }
 
-      return { success: true, url: imageUrl };
+      return { success: true, url: imageUrl, thumbUrl };
 
     } catch (error) {
       console.error('❌ Fehler beim Bild-Upload:', error);

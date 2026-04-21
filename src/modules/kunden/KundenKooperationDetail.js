@@ -148,7 +148,6 @@ export class KundenKooperationDetail {
           }
         } catch (err) {
           console.error('❌ Download fehlgeschlagen', err);
-          window.NotificationSystem?.show('error', 'Download fehlgeschlagen');
         }
       }
     });

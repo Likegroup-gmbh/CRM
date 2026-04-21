@@ -6,8 +6,6 @@ export class AuftragsdetailsDetail {
     this.detailsId = null;
     this.details = null;
     this.auftrag = null;
-    this.notizen = [];
-    this.ratings = [];
     this.kampagnen = [];
     this.kooperationen = [];
     this.videos = [];
@@ -19,8 +17,6 @@ export class AuftragsdetailsDetail {
     };
     this._eventsBound = false;
     this._docClickHandler = null;
-    this._notizenUpdatedHandler = null;
-    this._bewertungenUpdatedHandler = null;
   }
 
   // Initialisiere Auftragsdetails-Detailseite
@@ -107,18 +103,6 @@ export class AuftragsdetailsDetail {
       this.details = details;
       this.auftrag = details.auftrag;
       console.log('✅ AUFTRAGSDETAILSDETAIL: Auftragsdetails geladen:', this.details);
-
-      // Notizen laden (falls Notizen-System verfügbar)
-      if (window.notizenSystem) {
-        this.notizen = await window.notizenSystem.loadNotizen('auftrag_details', this.detailsId);
-        console.log('✅ AUFTRAGSDETAILSDETAIL: Notizen geladen:', this.notizen.length);
-      }
-
-      // Bewertungen laden (falls Bewertungs-System verfügbar)
-      if (window.bewertungsSystem) {
-        this.ratings = await window.bewertungsSystem.loadBewertungen('auftrag_details', this.detailsId);
-        console.log('✅ AUFTRAGSDETAILSDETAIL: Ratings geladen:', this.ratings.length);
-      }
 
       // Lade Kampagnen, Kooperationen und Budget-Informationen
       await this.loadBudgetData();
@@ -853,21 +837,6 @@ export class AuftragsdetailsDetail {
       }
     };
     document.addEventListener('click', this._docClickHandler);
-
-    // Notizen und Bewertungen Events
-    this._notizenUpdatedHandler = () => {
-      this.loadDetailsData().then(() => {
-        this.render();
-      });
-    };
-    document.addEventListener('notizenUpdated', this._notizenUpdatedHandler);
-
-    this._bewertungenUpdatedHandler = () => {
-      this.loadDetailsData().then(() => {
-        this.render();
-      });
-    };
-    document.addEventListener('bewertungenUpdated', this._bewertungenUpdatedHandler);
   }
 
   // Bearbeitungsformular anzeigen
@@ -884,14 +853,6 @@ export class AuftragsdetailsDetail {
     if (this._docClickHandler) {
       document.removeEventListener('click', this._docClickHandler);
       this._docClickHandler = null;
-    }
-    if (this._notizenUpdatedHandler) {
-      document.removeEventListener('notizenUpdated', this._notizenUpdatedHandler);
-      this._notizenUpdatedHandler = null;
-    }
-    if (this._bewertungenUpdatedHandler) {
-      document.removeEventListener('bewertungenUpdated', this._bewertungenUpdatedHandler);
-      this._bewertungenUpdatedHandler = null;
     }
     this._eventsBound = false;
   }

@@ -17,8 +17,6 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     super();
     this.ansprechpartner = null;
     this.ansprechpartnerId = null;
-    this.notizen = [];
-    this.ratings = [];
     this.kundeVerknuepfung = null; // Verknüpfter Kunde via Magic Link
     this.activeMainTab = 'informationen';
     this.eventsBound = false;
@@ -81,8 +79,6 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       // Alle kritischen Daten PARALLEL laden
       const [
         ansprechpartnerResult,
-        notizenResult,
-        ratingsResult,
         kundeResult
       ] = await parallelLoad([
         // 1. Ansprechpartner mit Relations
@@ -102,17 +98,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
           .eq('id', this.ansprechpartnerId)
           .single(),
         
-        // 2. Notizen
-        () => window.notizenSystem ? 
-          window.notizenSystem.loadNotizen('ansprechpartner', this.ansprechpartnerId) : 
-          Promise.resolve([]),
-        
-        // 3. Ratings
-        () => window.bewertungsSystem ? 
-          window.bewertungsSystem.loadBewertungen('ansprechpartner', this.ansprechpartnerId) : 
-          Promise.resolve([]),
-        
-        // 4. Kunden-Verknüpfung (via Magic Link)
+        // 2. Kunden-Verknüpfung (via Magic Link)
         () => window.supabase
           .from('kunde_ansprechpartner')
           .select('kunde:kunde_id(id, name, email)')
@@ -136,8 +122,6 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
           .filter(Boolean);
       }
 
-      this.notizen = notizenResult || [];
-      this.ratings = ratingsResult || [];
       this.kundeVerknuepfung = kundeResult?.data?.kunde || null;
       
       const loadTime = (performance.now() - startTime).toFixed(0);
@@ -412,22 +396,6 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     return html;
   }
 
-  // Rendere Notizen-Tab
-  renderNotizen() {
-    if (window.notizenSystem) {
-      return window.notizenSystem.renderNotizenContainer(this.notizen, 'ansprechpartner', this.ansprechpartnerId);
-    }
-    return '<p>Notizen-System nicht verfügbar</p>';
-  }
-
-  // Rendere Bewertungen-Tab
-  renderBewertungen() {
-    if (window.bewertungsSystem) {
-      return window.bewertungsSystem.renderBewertungenContainer(this.ratings, 'ansprechpartner', this.ansprechpartnerId);
-    }
-    return '<p>Bewertungs-System nicht verfügbar</p>';
-  }
-
   // Rendere Unternehmen-Tab
   renderUnternehmen() {
     if (!this.ansprechpartner?.ansprechpartner_unternehmen || this.ansprechpartner.ansprechpartner_unternehmen.length === 0) {
@@ -597,18 +565,6 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       }
     };
     document.addEventListener('click', this._onDocumentClick);
-
-    this._onNotizenUpdated = (e) => {
-      if (e.detail?.entityType !== 'ansprechpartner' || e.detail?.entityId !== this.ansprechpartnerId) return;
-      this.loadCriticalData().then(() => { this.render(); });
-    };
-    document.addEventListener('notizenUpdated', this._onNotizenUpdated);
-
-    this._onBewertungenUpdated = (e) => {
-      if (e.detail?.entityType !== 'ansprechpartner' || e.detail?.entityId !== this.ansprechpartnerId) return;
-      this.loadCriticalData().then(() => { this.render(); });
-    };
-    document.addEventListener('bewertungenUpdated', this._onBewertungenUpdated);
 
     this._onSoftRefresh = async () => {
       if (!this.ansprechpartnerId || !location.pathname.startsWith('/ansprechpartner/')) return;
@@ -947,14 +903,6 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     if (this._onDocumentClick) {
       document.removeEventListener('click', this._onDocumentClick);
       this._onDocumentClick = null;
-    }
-    if (this._onNotizenUpdated) {
-      document.removeEventListener('notizenUpdated', this._onNotizenUpdated);
-      this._onNotizenUpdated = null;
-    }
-    if (this._onBewertungenUpdated) {
-      document.removeEventListener('bewertungenUpdated', this._onBewertungenUpdated);
-      this._onBewertungenUpdated = null;
     }
     if (this._onSoftRefresh) {
       window.removeEventListener('softRefresh', this._onSoftRefresh);

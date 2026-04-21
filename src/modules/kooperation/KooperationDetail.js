@@ -16,8 +16,6 @@ export class KooperationDetail extends PersonDetailBase {
     this.kooperationId = null;
     this.kooperation = null;
     this.returnToRoute = null;
-    this.notizen = [];
-    this.ratings = [];
     this.creator = null;
     this.kampagne = null;
     this.rechnungen = [];
@@ -29,7 +27,6 @@ export class KooperationDetail extends PersonDetailBase {
 
     // Bound Event Handlers für sauberes Cleanup
     this._handleDocumentClick = this._handleDocumentClick.bind(this);
-    this._handleNotizenUpdated = this._handleNotizenUpdated.bind(this);
     this._handleEntityUpdated = this._handleEntityUpdated.bind(this);
     this._handleSoftRefresh = this._handleSoftRefresh.bind(this);
     this._handleVideoEntityUpdated = this._handleVideoEntityUpdated.bind(this);
@@ -85,8 +82,6 @@ export class KooperationDetail extends PersonDetailBase {
 
     const [
       kooperationResult,
-      notizenResult,
-      ratingsResult,
       versandResult,
       tagsResult
     ] = await parallelLoad([
@@ -110,8 +105,6 @@ export class KooperationDetail extends PersonDetailBase {
         `)
         .eq('id', this.kooperationId)
         .single(),
-      () => window.notizenSystem.loadNotizen('kooperation', this.kooperationId),
-      () => window.bewertungsSystem?.loadBewertungen('kooperation', this.kooperationId).catch(() => []),
       () => window.supabase
         .from('kooperation_versand')
         .select(`
@@ -140,8 +133,6 @@ export class KooperationDetail extends PersonDetailBase {
     this.kooperation = kooperationResult.data;
     this.creator = kooperationResult.data.creator || null;
     this.kampagne = kooperationResult.data.kampagne || null;
-    this.notizen = notizenResult || [];
-    this.ratings = ratingsResult || [];
     this.versandDaten = versandResult.data || [];
     this.kooperationTags = (tagsResult?.data || []).map(r => ({ id: r.tag_id, name: r.kooperation_tag_typen?.name || '' }));
 
@@ -378,8 +369,6 @@ export class KooperationDetail extends PersonDetailBase {
     ];
 
     if (!isKundeRole) {
-      tabs.push({ tab: 'notizen', label: 'Notizen', isActive: this.activeMainTab === 'notizen' });
-      tabs.push({ tab: 'ratings', label: 'Bewertungen', isActive: this.activeMainTab === 'ratings' });
       tabs.push({ tab: 'tasks', label: 'Aufgaben', isActive: this.activeMainTab === 'tasks' });
     }
 
@@ -423,18 +412,6 @@ export class KooperationDetail extends PersonDetailBase {
         </div>
 
         ${!isKundeRole ? `
-        <div class="tab-pane ${this.activeMainTab === 'notizen' ? 'active' : ''}" id="tab-notizen">
-          <div class="detail-section">
-            ${this.renderNotizen()}
-          </div>
-        </div>
-
-        <div class="tab-pane ${this.activeMainTab === 'ratings' ? 'active' : ''}" id="tab-ratings">
-          <div class="detail-section">
-            ${this.renderRatings()}
-          </div>
-        </div>
-
         <div class="tab-pane ${this.activeMainTab === 'tasks' ? 'active' : ''}" id="tab-tasks">
           <div class="detail-section">
             <div id="tasks-kanban-container"></div>
@@ -540,35 +517,6 @@ export class KooperationDetail extends PersonDetailBase {
     } catch (_) {
       return '';
     }
-  }
-
-  renderNotizen() {
-    if (window.notizenSystem) {
-      return window.notizenSystem.renderNotizenContainer(this.notizen, 'kooperation', this.kooperationId);
-    }
-    if (!this.notizen || this.notizen.length === 0) {
-      return '<div class="empty-state"><p>Keine Notizen vorhanden</p></div>';
-    }
-    const inner = this.notizen.map(n => `
-      <div class="notiz-card">
-        <div class="notiz-header">
-          <span>${n.user_name || 'Unbekannt'}</span>
-          <span>${new Date(n.created_at).toLocaleDateString('de-DE')}</span>
-        </div>
-        <div class="notiz-content"><p>${this.sanitize(n.text)}</p></div>
-      </div>
-    `).join('');
-    return `<div class="notizen-container">${inner}</div>`;
-  }
-
-  renderRatings() {
-    if (window.bewertungsSystem) {
-      return window.bewertungsSystem.renderBewertungenContainer(this.ratings, 'kooperation', this.kooperationId);
-    }
-    if (!this.ratings || this.ratings.length === 0) {
-      return '<div class="empty-state"><p>Keine Bewertungen vorhanden.</p></div>';
-    }
-    return '';
   }
 
   renderRechnungen() {
@@ -822,7 +770,7 @@ export class KooperationDetail extends PersonDetailBase {
         const pane = document.getElementById(`tab-${tab}`);
         if (pane) {
           pane.classList.add('active');
-          if (!['notizen', 'ratings', 'versand'].includes(tab) && tab !== 'tasks') {
+          if (!['versand'].includes(tab) && tab !== 'tasks') {
             await this.loadTabData(tab);
           }
           if (tab === 'tasks' && !this.taskKanbanBoard) {
@@ -877,14 +825,6 @@ export class KooperationDetail extends PersonDetailBase {
     }
   }
 
-  async _handleNotizenUpdated(e) {
-    if (e.detail.entityType === 'kooperation' && e.detail.entityId === this.kooperationId) {
-      this.notizen = await window.notizenSystem.loadNotizen('kooperation', this.kooperationId);
-      const pane = document.querySelector('#tab-notizen .detail-section');
-      if (pane) pane.innerHTML = this.renderNotizen();
-    }
-  }
-
   _handleEntityUpdated(e) {
     if (e.detail.entity === 'kooperation_versand' && e.detail.kooperation_id == this.kooperationId) {
       tabDataCache.invalidate('kooperation', this.kooperationId);
@@ -935,7 +875,6 @@ export class KooperationDetail extends PersonDetailBase {
     this._eventsBound = true;
 
     document.addEventListener('click', this._handleDocumentClick);
-    window.addEventListener('notizenUpdated', this._handleNotizenUpdated);
     window.addEventListener('entityUpdated', this._handleEntityUpdated);
     window.addEventListener('entityUpdated', this._handleVideoEntityUpdated);
     window.addEventListener('softRefresh', this._handleSoftRefresh);
@@ -1098,14 +1037,6 @@ export class KooperationDetail extends PersonDetailBase {
     }
   }
 
-  showAddNotizModal() {
-    window.notizenSystem.showAddNotizModal('kooperation', this.kooperationId, () => {
-      this.loadCriticalData().then(() => {
-        this.render();
-      });
-    });
-  }
-
   formatNumber(num) {
     if (!num) return '-';
     return new Intl.NumberFormat('de-DE').format(num);
@@ -1124,7 +1055,6 @@ export class KooperationDetail extends PersonDetailBase {
 
     if (this._eventsBound) {
       document.removeEventListener('click', this._handleDocumentClick);
-      window.removeEventListener('notizenUpdated', this._handleNotizenUpdated);
       window.removeEventListener('entityUpdated', this._handleEntityUpdated);
       window.removeEventListener('entityUpdated', this._handleVideoEntityUpdated);
       window.removeEventListener('softRefresh', this._handleSoftRefresh);

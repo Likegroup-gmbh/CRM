@@ -56,7 +56,8 @@ export class AvatarBubbles {
         const clickableClass = isClickable ? 'avatar-bubble--clickable' : '';
         
         // Unterstütze beide: logo_url (für Orgs) UND profile_image_url (für Mitarbeiter)
-        const imageUrl = item.profile_image_url || item.logo_url;
+        // Bevorzuge thumb_url wenn verfügbar (128px WebP, deutlich kleiner)
+        const imageUrl = item.thumb_url || item.profile_image_url || item.logo_url;
         const hasImage = imageUrl && typeof imageUrl === 'string' && imageUrl.trim().length > 0;
         const imageClass = hasImage ? 'avatar-bubble--with-logo' : '';
         
@@ -70,7 +71,7 @@ export class AvatarBubbles {
         
         // Content: Profilbild/Logo oder Initialen
         const content = hasImage 
-          ? `<img src="${imageUrl}" alt="${safeName}" class="avatar-bubble-logo" />` 
+          ? `<img src="${imageUrl}" alt="${safeName}" class="avatar-bubble-logo" width="32" height="32" loading="lazy" decoding="async" fetchpriority="low" />` 
           : initials;
         
         // Label-Text (item.label hat Priorität, Fallback auf item.name)

@@ -199,7 +199,11 @@ export class RelationManager {
         creator_id: creatorId,
         ist_aktiv: agenturVertreten,
         agentur_name: agenturVertreten ? (data.agentur_name || null) : null,
-        agentur_adresse: agenturVertreten ? (data.agentur_adresse || null) : null,
+        agentur_strasse: agenturVertreten ? (data.agentur_strasse || null) : null,
+        agentur_hausnummer: agenturVertreten ? (data.agentur_hausnummer || null) : null,
+        agentur_plz: agenturVertreten ? (data.agentur_plz || null) : null,
+        agentur_stadt: agenturVertreten ? (data.agentur_stadt || null) : null,
+        agentur_land: agenturVertreten ? (data.agentur_land || 'Deutschland') : null,
         agentur_vertretung: agenturVertreten ? (data.agentur_vertretung || null) : null,
         updated_at: new Date().toISOString()
       };

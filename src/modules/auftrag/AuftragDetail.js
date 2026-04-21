@@ -1,5 +1,5 @@
 // AuftragDetail.js (ES6-Modul)
-// Auftrags-Detailseite mit Tabs für Informationen, Notizen, Bewertungen und Creator
+// Auftrags-Detailseite mit Tabs für Informationen und Creator
 
 import { KAMPAGNENARTEN_MAPPING } from './logic/KampagnenartenMapping.js';
 import { renderAuftragAmpel } from './logic/AuftragStatusUtils.js';
@@ -13,8 +13,6 @@ export class AuftragDetail extends PersonDetailBase {
     super();
     this.auftragId = null;
     this.auftrag = null;
-    this.notizen = [];
-    this.ratings = [];
     this.creator = [];
     this.marke = null;
     this.unternehmen = null;
@@ -115,11 +113,6 @@ export class AuftragDetail extends PersonDetailBase {
   }
 
   _handleEntityUpdated(e) {
-    if (e.type === 'notizenUpdated' || e.type === 'bewertungenUpdated') {
-      this._refreshDetailView();
-      return;
-    }
-
     const entity = e.detail?.entity;
     const isRelevantAuftrag = entity === 'auftrag' && e.detail?.id === this.auftragId;
     const isRelevantDetails = entity === 'auftrag_details' && e.detail?.auftrag_id === this.auftragId;
@@ -155,8 +148,6 @@ export class AuftragDetail extends PersonDetailBase {
       // Alle kritischen Daten PARALLEL laden
       const [
         auftragResult,
-        notizenResult,
-        ratingsResult,
         creatorResult,
         mitarbeiterResult,
         cutterResult,
@@ -175,48 +166,38 @@ export class AuftragDetail extends PersonDetailBase {
           .eq('id', this.auftragId)
           .single(),
         
-        // 2. Notizen
-        () => window.notizenSystem ? 
-          window.notizenSystem.loadNotizen('auftrag', this.auftragId) : 
-          Promise.resolve([]),
-        
-        // 3. Ratings
-        () => window.bewertungsSystem ? 
-          window.bewertungsSystem.loadBewertungen('auftrag', this.auftragId) : 
-          Promise.resolve([]),
-        
-        // 4. Creator
+        // 2. Creator
         () => window.supabase
           .from('creator_auftrag')
           .select(`creator:creator_id(*)`)
           .eq('auftrag_id', this.auftragId),
         
-        // 5. Mitarbeiter
+        // 3. Mitarbeiter
         () => window.supabase
           .from('auftrag_mitarbeiter')
           .select('mitarbeiter_id')
           .eq('auftrag_id', this.auftragId),
         
-        // 6. Cutter
+        // 4. Cutter
         () => window.supabase
           .from('auftrag_cutter')
           .select('mitarbeiter_id')
           .eq('auftrag_id', this.auftragId),
         
-        // 7. Copywriter
+        // 5. Copywriter
         () => window.supabase
           .from('auftrag_copywriter')
           .select('mitarbeiter_id')
           .eq('auftrag_id', this.auftragId),
         
-        // 8. Auftragsdetails
+        // 6. Auftragsdetails
         () => window.supabase
           .from('auftrag_details')
           .select('*')
           .eq('auftrag_id', this.auftragId)
           .maybeSingle(),
         
-        // 9. Art der Kampagne aus Junction-Table
+        // 7. Art der Kampagne aus Junction-Table
         () => window.supabase
           .from('auftrag_kampagne_art')
           .select('kampagne_art_id')
@@ -226,9 +207,6 @@ export class AuftragDetail extends PersonDetailBase {
       // Daten verarbeiten
       if (auftragResult.error) throw auftragResult.error;
       this.auftrag = auftragResult.data;
-      
-      this.notizen = notizenResult || [];
-      this.ratings = ratingsResult || [];
       
       // Creator verarbeiten
       if (!creatorResult.error) {
@@ -1176,22 +1154,6 @@ export class AuftragDetail extends PersonDetailBase {
     `;
   }
 
-  // Rendere Notizen
-  renderNotizen() {
-    if (window.notizenSystem) {
-      return window.notizenSystem.renderNotizenContainer(this.notizen, 'auftrag', this.auftragId);
-    }
-    return '<p>Notizen-System nicht verfügbar</p>';
-  }
-
-  // Rendere Bewertungen
-  renderRatings() {
-    if (window.bewertungsSystem) {
-      return window.bewertungsSystem.renderBewertungenContainer(this.ratings, 'auftrag', this.auftragId);
-    }
-    return '<p>Bewertungs-System nicht verfügbar</p>';
-  }
-
   // Rendere Creator
   renderCreator() {
     if (!this.creator || this.creator.length === 0) {
@@ -1274,8 +1236,6 @@ export class AuftragDetail extends PersonDetailBase {
 
     document.addEventListener('click', this._handleDocumentClick);
     document.addEventListener('entityUpdated', this._handleEntityUpdated);
-    document.addEventListener('notizenUpdated', this._handleEntityUpdated);
-    document.addEventListener('bewertungenUpdated', this._handleEntityUpdated);
     window.addEventListener('softRefresh', this._handleSoftRefresh);
 
     this._eventsBound = true;
@@ -1818,8 +1778,6 @@ export class AuftragDetail extends PersonDetailBase {
     console.log('AuftragDetail: Cleaning up...');
     document.removeEventListener('click', this._handleDocumentClick);
     document.removeEventListener('entityUpdated', this._handleEntityUpdated);
-    document.removeEventListener('notizenUpdated', this._handleEntityUpdated);
-    document.removeEventListener('bewertungenUpdated', this._handleEntityUpdated);
     window.removeEventListener('softRefresh', this._handleSoftRefresh);
     this._eventsBound = false;
     tabDataCache.invalidate('auftrag', this.auftragId);

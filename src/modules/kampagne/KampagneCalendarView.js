@@ -750,7 +750,6 @@ export class KampagneCalendarView {
 
       if (!window.supabase) {
         console.warn('⚠️ Supabase nicht verfügbar');
-        window.notificationSystem?.error?.('Datenbank nicht verfügbar.');
         return;
       }
 
@@ -769,10 +768,6 @@ export class KampagneCalendarView {
 
       console.log('✅ CALENDAR: Deadline erfolgreich aktualisiert');
 
-      // Erfolgs-Notification
-      const deadlineLabel = this.deadlineTypes[deadlineType]?.label || deadlineType;
-      window.notificationSystem?.success?.(`${deadlineLabel} auf ${new Date(newDate).toLocaleDateString('de-DE')} verschoben`);
-
       // UI aktualisieren
       await this.refresh();
 
@@ -783,7 +778,6 @@ export class KampagneCalendarView {
 
     } catch (error) {
       console.error('❌ CALENDAR: Fehler beim Aktualisieren der Deadline:', error);
-      window.notificationSystem?.error?.('Fehler beim Verschieben der Deadline.');
     }
   }
 

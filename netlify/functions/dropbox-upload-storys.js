@@ -10,10 +10,23 @@ function buildStorysBaseFolderPath({ unternehmen, marke, kampagne, kooperation }
   return parts.join('/');
 }
 
-function buildStorysVersionFolderPath(fields) {
+function buildVideoFolderPath(fields) {
   const base = buildStorysBaseFolderPath(fields);
+  const pos = fields.videoPosition || 1;
+  const thema = sanitizePath(fields.videoThema || '');
+  return thema ? `${base}/Video_${pos}_${thema}` : `${base}/Video_${pos}`;
+}
+
+function buildSlotFolderPath(fields) {
+  const videoFolder = buildVideoFolderPath(fields);
+  const slotIdx = fields.slotIndex || 1;
+  return `${videoFolder}/Story_${slotIdx}`;
+}
+
+function buildStorysVersionFolderPath(fields) {
+  const slotFolder = buildSlotFolderPath(fields);
   const version = fields.versionNumber || 1;
-  return `${base}/Version_${version}`;
+  return `${slotFolder}/Version_${version}`;
 }
 
 function buildStorysFilePath(fields) {
@@ -23,6 +36,8 @@ function buildStorysFilePath(fields) {
 }
 
 exports.buildStorysBaseFolderPath = buildStorysBaseFolderPath;
+exports.buildVideoFolderPath = buildVideoFolderPath;
+exports.buildSlotFolderPath = buildSlotFolderPath;
 exports.buildStorysVersionFolderPath = buildStorysVersionFolderPath;
 
 exports.handler = async (event) => {
@@ -47,16 +62,18 @@ exports.handler = async (event) => {
     console.log('dropbox-upload-storys action:', action, 'fields:', JSON.stringify(fields));
 
     const token = await getAccessToken();
-    const baseFolderPath = buildStorysBaseFolderPath(fields);
+    const videoFolderPath = buildVideoFolderPath(fields);
     const versionFolderPath = buildStorysVersionFolderPath(fields);
 
     if (action === 'list') {
       try {
-        const targetPath = fields.versionNumber ? versionFolderPath : baseFolderPath;
+        const targetPath = fields.slotIndex
+          ? (fields.versionNumber ? versionFolderPath : buildSlotFolderPath(fields))
+          : videoFolderPath;
         const resp = await fetch('https://api.dropboxapi.com/2/files/list_folder', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: targetPath, recursive: fields.versionNumber ? false : true, include_deleted: false }),
+          body: JSON.stringify({ path: targetPath, recursive: !fields.versionNumber, include_deleted: false }),
         });
 
         if (!resp.ok) {
@@ -145,7 +162,7 @@ exports.handler = async (event) => {
     return {
       statusCode: 200,
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, dropboxPath, folderPath: versionFolderPath, baseFolderPath }),
+      body: JSON.stringify({ token, dropboxPath, folderPath: versionFolderPath, videoFolderPath }),
     };
   } catch (err) {
     console.error('dropbox-upload-storys error:', err);

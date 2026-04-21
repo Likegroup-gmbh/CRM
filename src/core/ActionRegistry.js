@@ -22,7 +22,7 @@ export class ActionRegistry {
 
     // Liste aller Actions, die ans Legacy-System delegiert werden sollen
     const legacyActions = [
-      'edit', 'delete', 'delete-liste', 'notiz', 
+      'edit', 'delete', 'delete-liste', 
       'add_ansprechpartner_unternehmen', 'remove_ansprechpartner_unternehmen',
       'add_ansprechpartner_kampagne', 'remove_ansprechpartner_kampagne',
       'add_ansprechpartner',
@@ -34,8 +34,8 @@ export class ActionRegistry {
       'set-role', 'set-field',
       'assign-unternehmen', 'remove-unternehmen',
       'assign-marke', 'remove-marke',
-      'unassign-kampagne',  // Mitarbeiter-Detail: Kampagnen-Zuweisung entfernen
-      'rating', 'favorite',
+      'unassign-kampagne',
+      'favorite',
       // Creator-Adressen Actions
       'edit_creator_adresse', 'delete_creator_adresse',
       'set_standard_adresse', 'set_hauptadresse_standard',

@@ -99,7 +99,6 @@ export class AuftragsdetailsCreateController {
       
     } catch (error) {
       console.error('❌ AUFTRAGSDETAILSCREATE: Fehler beim Laden der Details:', error);
-      window.notificationSystem?.show('Fehler beim Laden der Auftragsdetails', 'error');
     }
   }
 
@@ -128,7 +127,6 @@ export class AuftragsdetailsCreateController {
       auftragIdsWithDetails = await this.repository.loadAuftragIdsWithDetails();
     } catch (detailsError) {
       console.error('Fehler beim Laden der existierenden Details:', detailsError);
-      window.showNotification('Fehler beim Laden der Daten', 'error');
       return;
     }
 
@@ -567,7 +565,6 @@ export class AuftragsdetailsCreateController {
    */
   async activateKampagnenarten() {
     if (!this.currentAuftragId) {
-      window.notificationSystem?.show('Bitte wählen Sie zuerst einen Auftrag aus.', 'warning');
       return;
     }
 
@@ -578,7 +575,6 @@ export class AuftragsdetailsCreateController {
       const selectedIds = this.getSelectedKampagnenartIds();
       
       if (selectedIds.length === 0) {
-        window.notificationSystem?.show('Bitte wählen Sie mindestens eine Kampagnenart aus.', 'warning');
         return;
       }
 
@@ -606,12 +602,10 @@ export class AuftragsdetailsCreateController {
         submitBtn.disabled = false;
       }
 
-      window.notificationSystem?.show(`${kampagnenarten.length} Kampagnenart(en) aktiviert.`, 'success');
       console.log('✅ Kampagnenarten aktiviert:', kampagnenarten);
 
     } catch (error) {
       console.error('❌ Fehler beim Aktivieren der Kampagnenarten:', error);
-      window.notificationSystem?.show('Fehler beim Aktivieren der Kampagnenarten.', 'error');
     }
   }
 
@@ -958,7 +952,6 @@ export class AuftragsdetailsCreateController {
 
       // Validierung
       if (!data.auftrag_id) {
-        window.showNotification('Bitte wählen Sie einen Auftrag aus', 'error');
         if (submitBtn) {
           submitBtn.classList.remove('is-loading');
           submitBtn.disabled = false;
@@ -978,9 +971,6 @@ export class AuftragsdetailsCreateController {
         submitBtn.classList.add('is-success');
       }
       
-      // Erfolgs-Benachrichtigung anzeigen
-      window.showNotification?.('Auftragsdetails erfolgreich gespeichert', 'success');
-      
       // Event auslösen für Listen-Update
       window.dispatchEvent(new CustomEvent('entityUpdated', { 
         detail: { entity: 'auftrag_details', id: result.id, action: 'saved' } 
@@ -994,7 +984,6 @@ export class AuftragsdetailsCreateController {
     } catch (error) {
       console.error('Fehler beim Erstellen:', error);
       window.ErrorHandler?.handle(error, 'AuftragsdetailsCreate.handleFormSubmit');
-      window.showNotification?.(`Fehler beim Speichern: ${error.message}`, 'error') || alert(`❌ Fehler beim Speichern der Auftragsdetails: ${error.message}`);
 
       const submitBtn = document.querySelector('#auftragsdetails-form button[type="submit"]');
       if (submitBtn) {

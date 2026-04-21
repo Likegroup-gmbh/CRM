@@ -201,7 +201,10 @@ export class VideoTableDataLoader {
 
       const videoIds = allVideos.map(v => v.id);
       if (videoIds.length > 0) {
-        await this.loadAssetsAndComments(videoIds);
+        await Promise.all([
+          this.loadAssetsAndComments(videoIds),
+          this.loadStorySlots(videoIds),
+        ]);
       }
 
     } catch (error) {
@@ -283,6 +286,71 @@ export class VideoTableDataLoader {
       console.log(`✅ Assets (${assets.length}) + Comments (${comments.length}) nachgeladen`);
     } catch (error) {
       console.error('❌ Fehler beim Nachladen von Assets/Comments:', error);
+    }
+  }
+
+  async loadStorySlots(videoIds) {
+    const t = this.table;
+    if (!videoIds || videoIds.length === 0) return;
+
+    try {
+      const batchIn = VideoTableDataLoader.batchInQuery;
+      const sb = window.supabase;
+
+      const [slotsResult, assetsResult] = await Promise.allSettled([
+        batchIn(
+          sb.from('kooperation_story'),
+          'id, video_id, slot_index, slot_name, created_at',
+          'video_id', videoIds,
+          q => q.order('slot_index', { ascending: true })
+        ),
+        batchIn(
+          sb.from('kooperation_story_asset'),
+          'id, video_id, story_id, file_url, file_name, file_size, version_number, is_current',
+          'video_id', videoIds
+        )
+      ]);
+
+      const slots = slotsResult.status === 'fulfilled' ? (slotsResult.value.data || []) : [];
+      const assets = assetsResult.status === 'fulfilled' ? (assetsResult.value.data || []) : [];
+
+      const assetsByStoryId = {};
+      for (const a of assets) {
+        if (!assetsByStoryId[a.story_id]) assetsByStoryId[a.story_id] = [];
+        assetsByStoryId[a.story_id].push(a);
+      }
+
+      const slotsByVideoId = {};
+      for (const slot of slots) {
+        const slotAssets = assetsByStoryId[slot.id] || [];
+        const currentAsset = slotAssets.find(a => a.is_current) || slotAssets[0] || null;
+        const versions = [...new Set(slotAssets.map(a => a.version_number))].sort((a, b) => a - b);
+
+        const enrichedSlot = {
+          ...slot,
+          assets: slotAssets,
+          currentAsset,
+          currentVersion: currentAsset?.version_number || 0,
+          existingVersions: versions,
+        };
+
+        if (!slotsByVideoId[slot.video_id]) slotsByVideoId[slot.video_id] = [];
+        slotsByVideoId[slot.video_id].push(enrichedSlot);
+      }
+
+      if (t.store) {
+        t.store.applyStorySlots(slotsByVideoId);
+      } else {
+        for (const koopVideos of Object.values(t.videos)) {
+          for (const video of koopVideos) {
+            video.story_slots = slotsByVideoId[video.id] || [];
+          }
+        }
+      }
+
+      console.log(`✅ Story-Slots (${slots.length}) + Assets (${assets.length}) geladen`);
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Story-Slots:', error);
     }
   }
 

@@ -493,15 +493,12 @@ export class KundenDetail extends PersonDetailBase {
 
       console.log('✅ KUNDEN-DETAIL: Zuordnung erfolgreich gelöscht');
       
-      window.NotificationSystem?.show('success', `${typeLabel}-Zuordnung erfolgreich entfernt!`);
-      
       await this.load();
       await this.render();
       this.bind();
       
     } catch (error) {
       console.error(`❌ ${errorMessage}:`, error);
-      window.NotificationSystem?.show('error', `${errorMessage}: ${error.message}`);
     }
   }
 
@@ -598,11 +595,9 @@ export class KundenDetail extends PersonDetailBase {
           if (error) throw error;
           this.user.freigeschaltet = isFreigeschaltet;
           if (updateData.rolle) this.user.rolle = updateData.rolle;
-          window.NotificationSystem?.show('success', isFreigeschaltet ? 'Kunde freigeschaltet' : 'Kunde gesperrt');
         } catch (err) {
           console.error('❌ Update fehlgeschlagen', err);
           e.target.checked = !isFreigeschaltet;
-          window.NotificationSystem?.show('error', 'Update fehlgeschlagen');
         }
       }
     };
@@ -731,14 +726,12 @@ export class KundenDetail extends PersonDetailBase {
 
         if (error) {
           if (error.code === '23505') {
-            window.NotificationSystem?.show('warning', 'Unternehmen ist bereits zugeordnet');
             modal.remove();
             return;
           }
           throw error;
         }
 
-        window.NotificationSystem?.show('success', 'Unternehmen erfolgreich zugeordnet');
         modal.remove();
         
         await this.load();
@@ -746,7 +739,6 @@ export class KundenDetail extends PersonDetailBase {
         this.bind();
       } catch (err) {
         console.error('❌ Zuordnung fehlgeschlagen', err);
-        window.NotificationSystem?.show('error', 'Zuordnung fehlgeschlagen: ' + err.message);
       }
     });
 
@@ -880,14 +872,12 @@ export class KundenDetail extends PersonDetailBase {
 
         if (error) {
           if (error.code === '23505') {
-            window.NotificationSystem?.show('warning', 'Marke ist bereits zugeordnet');
             modal.remove();
             return;
           }
           throw error;
         }
 
-        window.NotificationSystem?.show('success', 'Marke erfolgreich zugeordnet');
         modal.remove();
         
         await this.load();
@@ -895,7 +885,6 @@ export class KundenDetail extends PersonDetailBase {
         this.bind();
       } catch (err) {
         console.error('❌ Zuordnung fehlgeschlagen', err);
-        window.NotificationSystem?.show('error', 'Zuordnung fehlgeschlagen: ' + err.message);
       }
     });
 

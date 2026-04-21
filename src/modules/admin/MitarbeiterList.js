@@ -337,15 +337,8 @@ export class MitarbeiterList {
       await this.render();
       this.bind();
 
-      // Success-Message anzeigen
-      if (window.NotificationSystem) {
-        window.NotificationSystem.show('success', `Rolle erfolgreich auf "${roleName}" geändert`);
-      }
     } catch (error) {
       console.error('❌ Fehler beim Ändern der Rolle:', error);
-      if (window.NotificationSystem) {
-        window.NotificationSystem.show('error', 'Fehler beim Ändern der Rolle');
-      }
     }
   }
 
@@ -361,16 +354,8 @@ export class MitarbeiterList {
       await this.render();
       this.bind();
 
-      // Success-Message anzeigen
-      const actionText = newStatus ? 'freigeschaltet' : 'gesperrt';
-      if (window.NotificationSystem) {
-        window.NotificationSystem.show('success', `Mitarbeiter erfolgreich ${actionText}`);
-      }
     } catch (error) {
       console.error('❌ Fehler beim Ändern des Status:', error);
-      if (window.NotificationSystem) {
-        window.NotificationSystem.show('error', 'Fehler beim Ändern des Status');
-      }
     }
   }
 

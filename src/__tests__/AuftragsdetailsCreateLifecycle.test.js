@@ -28,7 +28,6 @@ describe('AuftragsdetailsCreateController Lifecycle', () => {
     instance.repository = { upsertAuftragsdetails: upsertSpy };
 
     window.showNotification = vi.fn();
-    window.notificationSystem = { show: vi.fn() };
     window.ErrorHandler = { handle: vi.fn() };
     window.navigateTo = vi.fn();
 

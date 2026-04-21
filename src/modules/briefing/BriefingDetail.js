@@ -1,5 +1,4 @@
 // BriefingDetail.js (ES6-Modul)
-// Detailansicht für Briefings mit Tabs (Informationen, Notizen, Bewertungen)
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { getTabIcon } from '../../core/TabUtils.js';
@@ -9,8 +8,6 @@ export class BriefingDetail {
   constructor() {
     this.briefingId = null;
     this.briefing = null;
-    this.notizen = [];
-    this.ratings = [];
   }
 
   async init(briefingId) {
@@ -51,8 +48,6 @@ export class BriefingDetail {
       // Alle kritischen Daten PARALLEL laden
       const [
         briefingResult,
-        notizenResult,
-        ratingsResult,
         documentsResult
       ] = await parallelLoad([
         // 1. Briefing mit Relations
@@ -68,17 +63,7 @@ export class BriefingDetail {
           .eq('id', this.briefingId)
           .single(),
         
-        // 2. Notizen
-        () => window.notizenSystem 
-          ? window.notizenSystem.loadNotizen('briefing', this.briefingId)
-          : Promise.resolve([]),
-        
-        // 3. Ratings
-        () => window.bewertungsSystem
-          ? window.bewertungsSystem.loadBewertungen('briefing', this.briefingId)
-          : Promise.resolve([]),
-        
-        // 4. Dokumente
+        // 2. Dokumente
         () => window.supabase
           .from('briefing_documents')
           .select('*')
@@ -91,8 +76,6 @@ export class BriefingDetail {
       if (briefingResult.error) throw briefingResult.error;
 
       this.briefing = briefingResult.data;
-      this.notizen = notizenResult || [];
-      this.ratings = ratingsResult || [];
       this.briefing.documents = documentsResult;
 
       // Kooperation separat nachladen falls vorhanden
@@ -272,58 +255,6 @@ export class BriefingDetail {
     window.setContentSafely(window.content, html);
   }
 
-  renderNotizen() {
-    if (window.notizenSystem) {
-      return window.notizenSystem.renderNotizenContainer(this.notizen, 'briefing', this.briefingId);
-    }
-    if (!this.notizen || this.notizen.length === 0) {
-      return `
-        <div class="empty-state">
-          <p>Keine Notizen vorhanden</p>
-        </div>
-      `;
-    }
-    const inner = this.notizen.map(n => `
-      <div class="notiz-card">
-        <div class="notiz-header">
-          <span>${n.user_name || 'Unbekannt'}</span>
-          <span>${new Date(n.created_at).toLocaleDateString('de-DE')}</span>
-        </div>
-        <div class="notiz-content">
-          <p>${window.validatorSystem?.sanitizeHtml?.(n.text) || n.text}</p>
-        </div>
-      </div>
-    `).join('');
-    return `<div class="notizen-container">${inner}</div>`;
-  }
-
-  renderRatings() {
-    if (window.bewertungsSystem) {
-      return window.bewertungsSystem.renderBewertungenContainer(this.ratings, 'briefing', this.briefingId);
-    }
-    if (!this.ratings || this.ratings.length === 0) {
-      return `
-        <div class="empty-state">
-          <p>Keine Bewertungen vorhanden</p>
-        </div>
-      `;
-    }
-    const inner = this.ratings.map(r => `
-      <div class="rating-card">
-        <div class="rating-header">
-          <span>${r.user_name || 'Unbekannt'}</span>
-          <span>${new Date(r.created_at).toLocaleDateString('de-DE')}</span>
-        </div>
-        <div class="rating-stars">
-          ${Array.from({ length: 5 }, (_, i) => `
-            <span class="star ${i < r.rating ? 'filled' : ''}">★</span>
-          `).join('')}
-        </div>
-      </div>
-    `).join('');
-    return `<div class="ratings-container">${inner}</div>`;
-  }
-
   bindEvents() {
     document.addEventListener('click', (e) => {
       if (e.target.classList.contains('tab-button')) {
@@ -431,22 +362,6 @@ export class BriefingDetail {
           console.error('❌ Fehler beim Löschen des Briefings:', err);
           alert('Löschen fehlgeschlagen.');
         }
-      }
-    });
-
-    window.addEventListener('notizenUpdated', async (e) => {
-      if (e.detail.entityType === 'briefing' && e.detail.entityId === this.briefingId) {
-        this.notizen = await window.notizenSystem.loadNotizen('briefing', this.briefingId);
-        const pane = document.querySelector('#tab-notizen .detail-section');
-        if (pane) pane.innerHTML = `<h2>Notizen</h2>${this.renderNotizen()}`;
-      }
-    });
-
-    window.addEventListener('bewertungenUpdated', async (e) => {
-      if (e.detail.entityType === 'briefing' && e.detail.entityId === this.briefingId) {
-        this.ratings = await window.bewertungsSystem.loadBewertungen('briefing', this.briefingId);
-        const pane = document.querySelector('#tab-ratings .detail-section');
-        if (pane) pane.innerHTML = `<h2>Bewertungen</h2>${this.renderRatings()}`;
       }
     });
 

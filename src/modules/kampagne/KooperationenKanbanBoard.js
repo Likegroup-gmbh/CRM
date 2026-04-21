@@ -125,44 +125,9 @@ export class KooperationenKanbanBoard {
       ? `${koop.creator.vorname || ''} ${koop.creator.nachname || ''}`.trim()
       : 'Kein Creator';
 
-    const statusChip = koop.status_name
-      ? `<span class="kooperation-card-status">${safe(koop.status_name)}</span>`
-      : '';
-
     const tags = (koop._tags || []).map(t =>
       `<span class="kooperation-card-tag">${safe(t)}</span>`
     ).join('');
-
-    const postingDatum = koop.posting_datum
-      ? new Date(koop.posting_datum).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })
-      : '';
-
-    const datumHtml = postingDatum
-      ? `<span class="kooperation-card-datum">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-          </svg>
-          ${postingDatum}
-        </span>`
-      : '';
-
-    let kostenHtml = '';
-    if (!this.isKunde) {
-      const kosten = parseFloat(koop.einkaufspreis_gesamt) || parseFloat(koop.einkaufspreis_netto) || 0;
-      if (kosten > 0) {
-        kostenHtml = `<span class="kooperation-card-kosten">${kosten.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</span>`;
-      }
-    }
-
-    const videos = this.store?.videos?.[koop.id] || [];
-    const firstVideoWithSkript = videos.find(v => v.link_skript);
-    const skriptLinkHtml = firstVideoWithSkript
-      ? `<a href="${firstVideoWithSkript.link_skript}" target="_blank" rel="noopener" class="kooperation-card-skript-link" title="Skript öffnen">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-          </svg>
-        </a>`
-      : '';
 
     const draggable = this.isKunde ? '' : 'draggable="true"';
 
@@ -174,20 +139,9 @@ export class KooperationenKanbanBoard {
 
         <div class="kooperation-card-header">
           <span class="kooperation-card-creator">${safe(creatorName)}</span>
-          ${statusChip}
         </div>
 
         ${tags ? `<div class="kooperation-card-tags">${tags}</div>` : ''}
-
-        <div class="kooperation-card-footer">
-          <div class="kooperation-card-meta-left">
-            ${datumHtml}
-            ${kostenHtml}
-          </div>
-          <div class="kooperation-card-meta-right">
-            ${skriptLinkHtml}
-          </div>
-        </div>
       </div>
     `;
   }
@@ -300,7 +254,6 @@ export class KooperationenKanbanBoard {
       }));
     } catch (error) {
       console.error('Fehler beim Aktualisieren des Kooperations-Status:', error);
-      window.notificationSystem?.error?.('Fehler beim Verschieben der Kooperation.');
 
       if (this.store && oldStatusId !== undefined) {
         this.store.updateKooperation(koopId, {

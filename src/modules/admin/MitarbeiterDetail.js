@@ -894,19 +894,6 @@ export class MitarbeiterDetail extends PersonDetailBase {
           if (updateData.rolle) self.user.rolle = updateData.rolle;
           if (updateData.zugriffsrechte !== undefined) self.user.zugriffsrechte = updateData.zugriffsrechte;
           
-          if (window.notificationSystem && self.userId) {
-            await window.notificationSystem.pushNotification(self.userId, {
-              type: 'system',
-              entity: null,
-              entityId: null,
-              title: isFreigeschaltet ? 'Ihr Account wurde freigeschaltet' : 'Ihr Account wurde gesperrt',
-              message: isFreigeschaltet ? 
-                'Sie können sich jetzt anmelden und das System nutzen.' : 
-                'Ihr Zugang wurde vorübergehend deaktiviert.'
-            });
-            window.dispatchEvent(new Event('notificationsRefresh'));
-          }
-          
           console.log(`✅ Benutzer ${isFreigeschaltet ? 'freigeschaltet' : 'gesperrt'}`);
           
           setTimeout(() => {
@@ -1085,7 +1072,6 @@ export class MitarbeiterDetail extends PersonDetailBase {
       allRollen = data || [];
     } catch (err) {
       console.error('❌ Fehler beim Laden der Rollen', err);
-      window.NotificationSystem?.show('error', 'Fehler beim Laden der Rollen');
       modal.remove();
       return;
     }
@@ -1182,7 +1168,6 @@ export class MitarbeiterDetail extends PersonDetailBase {
 
         if (error) throw error;
 
-        window.NotificationSystem?.show('success', `Rolle erfolgreich auf "${selectedRolle.name}" geändert`);
         modal.remove();
         
         await this.load();
@@ -1190,7 +1175,6 @@ export class MitarbeiterDetail extends PersonDetailBase {
         this.bind();
       } catch (err) {
         console.error('❌ Rolle ändern fehlgeschlagen', err);
-        window.NotificationSystem?.show('error', 'Rolle ändern fehlgeschlagen: ' + err.message);
       }
     });
 
@@ -1336,14 +1320,12 @@ export class MitarbeiterDetail extends PersonDetailBase {
 
         if (error) {
           if (error.code === '23505') {
-            window.NotificationSystem?.show('warning', 'Unternehmen ist bereits zugeordnet');
             modal.remove();
             return;
           }
           throw error;
         }
 
-        window.NotificationSystem?.show('success', 'Unternehmen erfolgreich zugeordnet');
         modal.remove();
         
         await this.load();
@@ -1351,7 +1333,6 @@ export class MitarbeiterDetail extends PersonDetailBase {
         this.bind();
       } catch (err) {
         console.error('❌ Zuordnung fehlgeschlagen', err);
-        window.NotificationSystem?.show('error', 'Zuordnung fehlgeschlagen: ' + err.message);
       }
     });
 
@@ -1381,15 +1362,12 @@ export class MitarbeiterDetail extends PersonDetailBase {
         'mitarbeiter': 'Mitarbeiter'
       };
       
-      window.NotificationSystem?.show('success', `Rolle auf "${roleLabels[newRole]}" geändert`);
-      
       // Lokale Daten aktualisieren
       const u = this.zugeordnet.unternehmen.find(u => u.id === unternehmenId);
       if (u) u.role = newRole;
       
     } catch (err) {
       console.error('❌ Rolle ändern fehlgeschlagen', err);
-      window.NotificationSystem?.show('error', 'Rolle ändern fehlgeschlagen: ' + err.message);
     }
   }
 
@@ -1403,14 +1381,11 @@ export class MitarbeiterDetail extends PersonDetailBase {
 
       if (error) throw error;
 
-      window.NotificationSystem?.show('success', `Unternehmen "${unternehmenName}" erfolgreich entfernt`);
-      
       await this.load();
       await this.render();
       this.bind();
     } catch (err) {
       console.error('❌ Entfernen fehlgeschlagen', err);
-      window.NotificationSystem?.show('error', 'Entfernen fehlgeschlagen: ' + err.message);
     }
   }
 
@@ -1420,7 +1395,6 @@ export class MitarbeiterDetail extends PersonDetailBase {
       const nummer = document.getElementById('firmenhandy-nummer')?.value?.trim() || null;
 
       if (nummer && !landId) {
-        window.NotificationSystem?.show('warning', 'Bitte Land auswählen.');
         return;
       }
 
@@ -1438,12 +1412,10 @@ export class MitarbeiterDetail extends PersonDetailBase {
       this.user.telefonnummer_firmenhandy_land_id = landId;
       this.user.telefonnummer_firmenhandy_land = (this.euLaender || []).find(land => land.id === landId) || null;
 
-      window.NotificationSystem?.show('success', 'Firmenhandy gespeichert.');
       await this.render();
       this.bind();
     } catch (error) {
       console.error('❌ Firmenhandy speichern fehlgeschlagen', error);
-      window.NotificationSystem?.show('error', `Speichern fehlgeschlagen: ${error.message}`);
     }
   }
 

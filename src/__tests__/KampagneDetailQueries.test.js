@@ -51,8 +51,6 @@ function setupSupabaseMock(mitarbeiterByRoleData = []) {
     }),
   };
 
-  window.notizenSystem = { loadNotizen: vi.fn(async () => []) };
-  window.bewertungsSystem = { loadBewertungen: vi.fn(async () => []) };
   window.currentUser = { rolle: 'admin' };
 
   return fromCalls;

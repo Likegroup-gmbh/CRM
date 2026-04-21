@@ -421,9 +421,6 @@ export class AuftragCashFlowCalendar {
       
       if (error) {
         console.error('❌ Fehler beim Laden der Auftrags-Details:', error);
-        if (window.notificationSystem && typeof window.notificationSystem.showNotification === 'function') {
-          window.notificationSystem.showNotification('Fehler beim Laden der Auftrags-Details', 'error');
-        }
         return;
       }
       
@@ -437,9 +434,6 @@ export class AuftragCashFlowCalendar {
       
     } catch (error) {
       console.error('❌ Fehler beim Öffnen des Details-Drawers:', error);
-      if (window.notificationSystem && typeof window.notificationSystem.showNotification === 'function') {
-        window.notificationSystem.showNotification('Fehler beim Öffnen der Details', 'error');
-      }
     }
   }
 

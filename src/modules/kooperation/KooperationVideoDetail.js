@@ -32,7 +32,6 @@ export const kooperationVideoDetail = {
       this.bindEvents();
     } catch (error) {
       console.error('KooperationVideoDetail init error:', error);
-      window.notificationSystem?.error?.('Video-Detail konnte nicht geladen werden.');
     }
   },
 
@@ -300,7 +299,6 @@ export const kooperationVideoDetail = {
             }));
             
             await window.supabase.from('notifications').insert(notifications);
-            window.dispatchEvent(new Event('notificationsRefresh'));
           }
         }
       } else if (isKunde) {
@@ -338,7 +336,6 @@ export const kooperationVideoDetail = {
             }));
             
             await window.supabase.from('notifications').insert(notifications);
-            window.dispatchEvent(new Event('notificationsRefresh'));
           }
         }
       }
@@ -399,7 +396,6 @@ export const kooperationVideoDetail = {
           }));
           
           await window.supabase.from('notifications').insert(notifications);
-          window.dispatchEvent(new Event('notificationsRefresh'));
           console.log(`✅ Video-Upload-Benachrichtigungen versendet (${kundenIds.length} Kunden)`);
         }
       }
@@ -1075,7 +1071,6 @@ export const kooperationVideoDetail = {
       this.bindLocalEvents();
       if (window.ActionsDropdown) window.ActionsDropdown.init();
 
-      window.notificationSystem?.success?.(`Version ${nextVersion} erfolgreich hochgeladen.`);
     } catch (err) {
       console.error('Asset-Version speichern fehlgeschlagen', err);
       alert('Asset konnte nicht gespeichert werden: ' + (err.message || ''));

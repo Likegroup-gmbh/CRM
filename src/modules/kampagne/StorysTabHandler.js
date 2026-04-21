@@ -7,21 +7,16 @@ import {
 export class StorysTabHandler {
   constructor(drawer) {
     this.drawer = drawer;
-    this._selectedStorys = [];
-    this._existingStorys = [];
+    this._queue = [];
+    this._storySlots = [];
     this._isUploadingStorys = false;
-    this._storyExistingVersions = [];
-    this._storyAvailableVersions = [];
-    this._selectedStoryVersion = null;
     this._initialized = false;
   }
 
   get isUploading() { return this._isUploadingStorys; }
 
   async init() {
-    this._storyExistingVersions = await this._loadExistingStoryVersions();
-    this._storyAvailableVersions = getAvailableVersions(this._storyExistingVersions, MAX_VERSIONS);
-    this._selectedStoryVersion = this._storyAvailableVersions[0] || 1;
+    this._storySlots = await this._loadStorySlots();
     this._initialized = true;
   }
 
@@ -30,55 +25,75 @@ export class StorysTabHandler {
   }
 
   reset() {
-    this._selectedStorys = [];
-    this._existingStorys = [];
+    this._queue = [];
+    this._storySlots = [];
     this._isUploadingStorys = false;
-    this._storyExistingVersions = [];
-    this._storyAvailableVersions = [];
-    this._selectedStoryVersion = null;
     this._initialized = false;
   }
 
-  async _loadExistingStoryVersions() {
+  async _loadStorySlots() {
     if (!this.drawer.videoId) return [];
     try {
-      const { data, error } = await window.supabase
-        .from('kooperation_story_asset')
-        .select('version_number')
-        .eq('video_id', this.drawer.videoId);
+      const { data: slots, error } = await window.supabase
+        .from('kooperation_story')
+        .select('id, video_id, slot_index, slot_name, created_at')
+        .eq('video_id', this.drawer.videoId)
+        .order('slot_index', { ascending: true });
       if (error) return [];
-      return [...new Set((data || []).map(a => a.version_number).filter(v => typeof v === 'number'))];
+
+      const slotIds = (slots || []).map(s => s.id);
+      let assets = [];
+      if (slotIds.length > 0) {
+        const { data: assetData } = await window.supabase
+          .from('kooperation_story_asset')
+          .select('id, story_id, file_url, file_path, file_name, file_size, version_number, is_current')
+          .in('story_id', slotIds);
+        assets = assetData || [];
+      }
+
+      const assetsBySlot = {};
+      for (const a of assets) {
+        if (!assetsBySlot[a.story_id]) assetsBySlot[a.story_id] = [];
+        assetsBySlot[a.story_id].push(a);
+      }
+
+      return (slots || []).map(slot => {
+        const slotAssets = assetsBySlot[slot.id] || [];
+        const currentAsset = slotAssets.find(a => a.is_current) || slotAssets[0] || null;
+        const existingVersions = [...new Set(slotAssets.map(a => a.version_number))].sort((a, b) => a - b);
+        return { ...slot, assets: slotAssets, currentAsset, currentVersion: currentAsset?.version_number || 0, existingVersions };
+      });
     } catch (err) {
-      console.error('[StorysTabHandler] _loadExistingStoryVersions:', err);
+      console.error('[StorysTabHandler] _loadStorySlots:', err);
       return [];
     }
   }
 
-  // ─── Render ────────────────────────────────────────────────
-
-  _renderStoryVersionSection() {
-    const allVersions = Array.from({ length: MAX_VERSIONS }, (_, i) => i + 1);
-    const options = allVersions
-      .map(v => {
-        const exists = !this._storyAvailableVersions.includes(v);
-        const label = exists ? `Version ${v} (ersetzen)` : `Version ${v}`;
-        const selected = v === this._selectedStoryVersion ? ' selected' : '';
-        return `<option value="${v}"${selected}>${label}</option>`;
-      })
-      .join('');
-
-    return `
-      <div class="video-settings-section">
-        <label class="video-settings-label" for="storys-upload-version">Version (Runde)</label>
-        <select id="storys-upload-version" class="form-input">${options}</select>
-      </div>
-    `;
+  async _loadExistingStoryVersions() {
+    const slots = this._storySlots || [];
+    const allVersions = new Set();
+    for (const s of slots) {
+      for (const v of (s.existingVersions || [])) allVersions.add(v);
+    }
+    return [...allVersions];
   }
+
+  // ─── Render ────────────────────────────────────────────────
 
   renderTab(activeTab) {
     return `
       <div id="upload-tab-storys" style="${activeTab !== 'storys' ? 'display:none' : ''}">
         <div class="storys-upload-drawer-content">
+          <div class="existing-storys-section" id="existing-storys-section">
+            <div class="existing-images-header">
+              <span class="existing-images-title">Story-Slots</span>
+              <span class="existing-images-count" id="existing-storys-count"></span>
+            </div>
+            <div class="existing-images-list" id="existing-storys-list">
+              <div class="existing-images-loading">Lade...</div>
+            </div>
+          </div>
+
           <div class="upload-dropzone" id="storys-upload-dropzone">
             <div class="dropzone-content">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="40" height="40" class="upload-dropzone-icon">
@@ -99,8 +114,6 @@ export class StorysTabHandler {
             <div class="upload-progress-text" id="storys-upload-progress-text">Wird hochgeladen...</div>
           </div>
 
-          ${this._renderStoryVersionSection()}
-
           <div class="upload-error-msg" id="storys-upload-error" style="display:none;"></div>
 
           <div class="drawer-footer storys-upload-drawer-footer">
@@ -111,16 +124,6 @@ export class StorysTabHandler {
               </svg>
               Hochladen
             </button>
-          </div>
-
-          <div class="existing-storys-section" id="existing-storys-section">
-            <div class="existing-images-header">
-              <span class="existing-images-title">Vorhandene Storys</span>
-              <span class="existing-images-count" id="existing-storys-count"></span>
-            </div>
-            <div class="existing-images-list" id="existing-storys-list">
-              <div class="existing-images-loading">Lade...</div>
-            </div>
           </div>
         </div>
       </div>
@@ -135,22 +138,16 @@ export class StorysTabHandler {
     const dropzone = document.getElementById('storys-upload-dropzone');
     const fileInput = document.getElementById('storys-upload-file-input');
     const browseBtn = document.getElementById('storys-browse-btn');
-    const versionSelect = document.getElementById('storys-upload-version');
 
     cancelBtn?.addEventListener('click', () => this.drawer.close());
     submitBtn?.addEventListener('click', () => {
-      if (this._selectedStorys.length > 0 && !this._isUploadingStorys) this._handleStorysUpload();
+      if (this._queue.length > 0 && !this._isUploadingStorys) this._handleStorysUpload();
     });
 
     browseBtn?.addEventListener('click', () => fileInput?.click());
     fileInput?.addEventListener('change', (e) => {
       if (e.target.files?.length) this._addStorys(Array.from(e.target.files));
       fileInput.value = '';
-    });
-
-    versionSelect?.addEventListener('change', () => {
-      this._selectedStoryVersion = parseInt(versionSelect.value, 10);
-      this._updateStorysSubmitState();
     });
 
     dropzone?.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
@@ -167,22 +164,39 @@ export class StorysTabHandler {
       const removeBtn = e.target.closest('.storys-file-remove');
       if (removeBtn) {
         const idx = parseInt(removeBtn.dataset.idx, 10);
-        this._removeSelectedStory(idx);
+        this._removeQueueItem(idx);
+      }
+    });
+    previewList?.addEventListener('change', (e) => {
+      const slotSelect = e.target.closest('.storys-slot-select');
+      const versionSelect = e.target.closest('.storys-version-select');
+      if (slotSelect) {
+        const idx = parseInt(slotSelect.dataset.idx, 10);
+        this._onSlotChange(idx, slotSelect.value);
+      }
+      if (versionSelect) {
+        const idx = parseInt(versionSelect.dataset.idx, 10);
+        this._onVersionChange(idx, parseInt(versionSelect.value, 10));
       }
     });
 
     const existingList = document.getElementById('existing-storys-list');
     existingList?.addEventListener('click', (e) => {
-      const deleteBtn = e.target.closest('.existing-story-delete');
-      if (deleteBtn) {
-        const assetId = deleteBtn.dataset.id;
-        const path = deleteBtn.dataset.path;
-        if (assetId) this._deleteExistingStory(assetId, path);
+      const deleteSlotBtn = e.target.closest('.existing-story-slot-delete');
+      if (deleteSlotBtn) {
+        const slotId = deleteSlotBtn.dataset.slotId;
+        if (slotId) this._deleteSlot(slotId);
+        return;
+      }
+      const newVersionBtn = e.target.closest('.existing-story-new-version');
+      if (newVersionBtn) {
+        const slotId = newVersionBtn.dataset.slotId;
+        if (slotId) this._triggerNewVersionUpload(slotId);
       }
     });
   }
 
-  // ─── File Selection ────────────────────────────────────────
+  // ─── File Selection / Queue ────────────────────────────────
 
   _addStorys(files) {
     this._hideStorysError();
@@ -200,55 +214,148 @@ export class StorysTabHandler {
         continue;
       }
 
-      const alreadySelected = this._selectedStorys.some(f => f.name === file.name && f.size === file.size);
-      if (!alreadySelected) {
-        this._selectedStorys.push(file);
+      const alreadyQueued = this._queue.some(q => q.file.name === file.name && q.file.size === file.size);
+      if (!alreadyQueued) {
+        this._queue.push({
+          file,
+          slotId: '__new__',
+          versionNumber: 1,
+        });
       }
     }
 
-    if (rejected.length) {
-      this._showStorysError(rejected.join('\n'));
+    if (rejected.length) this._showStorysError(rejected.join('\n'));
+    this._renderQueue();
+    this._updateSubmitState();
+  }
+
+  _removeQueueItem(idx) {
+    this._queue.splice(idx, 1);
+    this._renderQueue();
+    this._updateSubmitState();
+  }
+
+  _onSlotChange(idx, value) {
+    const item = this._queue[idx];
+    if (!item) return;
+    item.slotId = value;
+    if (value === '__new__') {
+      item.versionNumber = 1;
+    } else {
+      const slot = this._storySlots.find(s => s.id === value);
+      const nextVersion = this._getNextVersionForSlot(slot);
+      item.versionNumber = nextVersion;
     }
-
-    this._renderSelectedStorysList();
-    this._updateStorysSubmitState();
+    this._renderQueue();
   }
 
-  _removeSelectedStory(idx) {
-    this._selectedStorys.splice(idx, 1);
-    this._renderSelectedStorysList();
-    this._updateStorysSubmitState();
+  _onVersionChange(idx, value) {
+    const item = this._queue[idx];
+    if (!item) return;
+    item.versionNumber = value;
   }
 
-  _renderSelectedStorysList() {
+  _getNextVersionForSlot(slot) {
+    if (!slot) return 1;
+    const available = getAvailableVersions(slot.existingVersions || [], MAX_VERSIONS);
+    return available[0] || 1;
+  }
+
+  _triggerNewVersionUpload(slotId) {
+    const fileInput = document.getElementById('storys-upload-file-input');
+    if (!fileInput) return;
+
+    const handler = (e) => {
+      fileInput.removeEventListener('change', handler);
+      const files = Array.from(e.target.files || []);
+      fileInput.value = '';
+      if (files.length === 0) return;
+
+      this._hideStorysError();
+      const file = files[0];
+      if (file.size > MAX_STORY_SIZE) {
+        this._showStorysError(`${file.name}: zu groß (${(file.size / 1024 / 1024).toFixed(1)} MB, max. 500 MB)`);
+        return;
+      }
+      const isVideo = VIDEO_MIME_TYPES.includes(file.type) || VIDEO_EXTENSIONS.test(file.name);
+      if (!isVideo) {
+        this._showStorysError(`${file.name}: kein unterstütztes Videoformat`);
+        return;
+      }
+
+      const slot = this._storySlots.find(s => s.id === slotId);
+      const nextVersion = this._getNextVersionForSlot(slot);
+      this._queue.push({ file, slotId, versionNumber: nextVersion });
+      this._renderQueue();
+      this._updateSubmitState();
+    };
+
+    fileInput.addEventListener('change', handler);
+    fileInput.click();
+  }
+
+  // ─── Render Queue ─────────────────────────────────────────
+
+  _renderQueue() {
     const list = document.getElementById('storys-preview-list');
     if (!list) return;
 
-    if (this._selectedStorys.length === 0) {
+    if (this._queue.length === 0) {
       list.innerHTML = '';
       return;
     }
 
-    list.innerHTML = this._selectedStorys.map((file, i) => `
-      <div class="upload-file-item">
-        <div class="file-info">
-          <span class="file-name">${escapeHtml(file.name)}</span>
-          <span class="file-size">${(file.size / 1024 / 1024).toFixed(1)} MB</span>
+    list.innerHTML = this._queue.map((item, i) => {
+      const slotOptions = this._buildSlotOptions(item.slotId);
+      const versionOptions = this._buildVersionOptions(item);
+      return `
+        <div class="upload-file-item storys-queue-item">
+          <div class="file-info">
+            <span class="file-name">${escapeHtml(item.file.name)}</span>
+            <span class="file-size">${(item.file.size / 1024 / 1024).toFixed(1)} MB</span>
+          </div>
+          <div class="storys-queue-selects">
+            <select class="form-input storys-slot-select" data-idx="${i}">${slotOptions}</select>
+            <select class="form-input storys-version-select" data-idx="${i}">${versionOptions}</select>
+          </div>
+          <button type="button" class="file-remove-btn storys-file-remove" data-idx="${i}" title="Entfernen">&times;</button>
         </div>
-        <button type="button" class="file-remove-btn storys-file-remove" data-idx="${i}" title="Entfernen">&times;</button>
-      </div>
-    `).join('');
+      `;
+    }).join('');
   }
 
-  _updateStorysSubmitState() {
+  _buildSlotOptions(selectedSlotId) {
+    let html = `<option value="__new__" ${selectedSlotId === '__new__' ? 'selected' : ''}>Neue Story</option>`;
+    for (const slot of this._storySlots) {
+      const label = `Story ${slot.slot_index}${slot.currentVersion ? ` (V${slot.currentVersion})` : ''}`;
+      html += `<option value="${slot.id}" ${selectedSlotId === slot.id ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+    }
+    return html;
+  }
+
+  _buildVersionOptions(item) {
+    if (item.slotId === '__new__') {
+      return '<option value="1" selected>Version 1</option>';
+    }
+    const slot = this._storySlots.find(s => s.id === item.slotId);
+    const allVersions = Array.from({ length: MAX_VERSIONS }, (_, i) => i + 1);
+    return allVersions.map(v => {
+      const exists = slot?.existingVersions?.includes(v);
+      const label = exists ? `Version ${v} (ersetzen)` : `Version ${v}`;
+      const selected = v === item.versionNumber ? ' selected' : '';
+      return `<option value="${v}"${selected}>${label}</option>`;
+    }).join('');
+  }
+
+  _updateSubmitState() {
     const btn = document.getElementById('storys-upload-submit-btn');
-    if (btn) btn.disabled = this._isUploadingStorys || this._selectedStorys.length === 0;
+    if (btn) btn.disabled = this._isUploadingStorys || this._queue.length === 0;
   }
 
   // ─── Upload ────────────────────────────────────────────────
 
   async _handleStorysUpload() {
-    if (this._selectedStorys.length === 0 || this._isUploadingStorys) return;
+    if (this._queue.length === 0 || this._isUploadingStorys) return;
     this._isUploadingStorys = true;
 
     const submitBtn = document.getElementById('storys-upload-submit-btn');
@@ -262,74 +369,95 @@ export class StorysTabHandler {
     if (progressContainer) progressContainer.style.display = 'block';
     this._hideStorysError();
 
-    const total = this._selectedStorys.length;
-    const versionNumber = this._selectedStoryVersion || 1;
+    const total = this._queue.length;
     let uploaded = 0;
-    let token = null;
-    let versionFolderPath = null;
-    let baseFolderPath = null;
+    let videoFolderUrl = null;
 
     try {
-      if (this._storyExistingVersions.includes(versionNumber)) {
-        if (progressText) progressText.textContent = `Lösche alte Version ${versionNumber}...`;
+      const meta = this.drawer.metadaten;
+      const basePayload = {
+        unternehmen: meta.unternehmen || '',
+        marke: meta.marke || '',
+        kampagne: meta.kampagne || '',
+        kooperation: meta.kooperationName || '',
+        videoPosition: meta.videoPosition || 1,
+        videoThema: meta.videoThema || '',
+      };
 
-        await fetch('/.netlify/functions/dropbox-upload-storys', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'delete-version',
-            unternehmen: this.drawer.metadaten.unternehmen || '',
-            marke: this.drawer.metadaten.marke || '',
-            kampagne: this.drawer.metadaten.kampagne || '',
-            kooperation: this.drawer.metadaten.kooperationName || '',
-            versionNumber,
-          })
-        });
+      for (let i = 0; i < this._queue.length; i++) {
+        const item = this._queue[i];
+        const file = item.file;
+        const versionNumber = item.versionNumber;
+        let slotId = item.slotId;
+        let slotIndex;
 
-        await window.supabase
-          .from('kooperation_story_asset')
-          .delete()
-          .eq('video_id', this.drawer.videoId)
-          .eq('version_number', versionNumber);
-      }
-
-      if (progressText) progressText.textContent = 'Verbinde mit Dropbox...';
-      const firstFile = this._selectedStorys[0];
-      const prepareResp = await fetch('/.netlify/functions/dropbox-upload-storys', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'prepare',
-          unternehmen: this.drawer.metadaten.unternehmen || '',
-          marke: this.drawer.metadaten.marke || '',
-          kampagne: this.drawer.metadaten.kampagne || '',
-          kooperation: this.drawer.metadaten.kooperationName || '',
-          versionNumber,
-          fileName: firstFile.name,
-        })
-      });
-
-      if (!prepareResp.ok) {
-        const errData = await prepareResp.json().catch(() => ({}));
-        throw new Error(errData.error || `Vorbereitung fehlgeschlagen (${prepareResp.status})`);
-      }
-
-      const prepareData = await prepareResp.json();
-      token = prepareData.token;
-      versionFolderPath = prepareData.folderPath;
-      baseFolderPath = prepareData.baseFolderPath;
-
-      const uploadedFiles = [];
-
-      for (let i = 0; i < this._selectedStorys.length; i++) {
-        const file = this._selectedStorys[i];
         const pct = Math.round((i / total) * 90);
         if (progressFill) progressFill.style.width = `${pct}%`;
+
+        // Create new slot if needed
+        if (slotId === '__new__') {
+          if (progressText) progressText.textContent = `Erstelle Story-Slot ${i + 1}...`;
+          const maxIdx = this._storySlots.reduce((m, s) => Math.max(m, s.slot_index), 0);
+          slotIndex = maxIdx + 1;
+
+          const { data: newSlot, error: slotErr } = await window.supabase
+            .from('kooperation_story')
+            .insert({
+              video_id: this.drawer.videoId,
+              slot_index: slotIndex,
+              created_by: window.currentUser?.id || null,
+            })
+            .select('id, video_id, slot_index, slot_name, created_at')
+            .single();
+          if (slotErr) throw slotErr;
+
+          slotId = newSlot.id;
+          const enrichedSlot = { ...newSlot, assets: [], currentAsset: null, currentVersion: 0, existingVersions: [] };
+          this._storySlots.push(enrichedSlot);
+        } else {
+          const slot = this._storySlots.find(s => s.id === slotId);
+          slotIndex = slot?.slot_index || 1;
+        }
+
+        const payload = { ...basePayload, slotIndex, versionNumber, fileName: file.name };
+
+        // Delete existing version in this slot if replacing
+        const slot = this._storySlots.find(s => s.id === slotId);
+        if (slot?.existingVersions?.includes(versionNumber)) {
+          if (progressText) progressText.textContent = `Lösche alte Version ${versionNumber} für Story ${slotIndex}...`;
+
+          await fetch('/.netlify/functions/dropbox-upload-storys', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...payload, action: 'delete-version' }),
+          });
+
+          await window.supabase
+            .from('kooperation_story_asset')
+            .delete()
+            .eq('story_id', slotId)
+            .eq('version_number', versionNumber);
+        }
+
+        // Prepare & upload
         if (progressText) progressText.textContent = `Lade hoch... ${i + 1}/${total}: ${file.name}`;
 
-        const dropboxPath = `${versionFolderPath}/${file.name}`;
-        const CHUNK_SIZE = 2 * 1024 * 1024;
+        const prepareResp = await fetch('/.netlify/functions/dropbox-upload-storys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...payload, action: 'prepare' }),
+        });
+        if (!prepareResp.ok) {
+          const errData = await prepareResp.json().catch(() => ({}));
+          throw new Error(errData.error || `Vorbereitung fehlgeschlagen (${prepareResp.status})`);
+        }
 
+        const prepareData = await prepareResp.json();
+        const token = prepareData.token;
+        const dropboxPath = prepareData.dropboxPath;
+        if (prepareData.videoFolderPath) videoFolderUrl = prepareData.videoFolderPath;
+
+        const CHUNK_SIZE = 2 * 1024 * 1024;
         if (file.size <= CHUNK_SIZE) {
           const chunk = await readFileAsBase64(file);
           await proxyPost({ action: 'upload-small', dropboxPath, chunk, token });
@@ -337,56 +465,71 @@ export class StorysTabHandler {
           await uploadLargeFile(file, dropboxPath, token);
         }
 
-        uploadedFiles.push({ name: file.name, size: file.size, path: dropboxPath });
-        uploaded++;
-      }
-
-      if (progressFill) progressFill.style.width = '92%';
-      if (progressText) progressText.textContent = 'Erstelle Links...';
-
-      const storysFolderUrl = await createFolderSharedLink(token, baseFolderPath);
-
-      const fileLinks = [];
-      for (const uf of uploadedFiles) {
+        // Create shared link for file
         let fileUrl = null;
         try {
           const linkResp = await fetch('/.netlify/functions/dropbox-proxy', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'shared-link', path: uf.path, token }),
+            body: JSON.stringify({ action: 'shared-link', path: dropboxPath, token }),
           });
           if (linkResp.ok) {
             const linkData = await linkResp.json();
             fileUrl = linkData.url?.replace('?dl=0', '?raw=1') || null;
           }
         } catch (_) {}
-        fileLinks.push({ ...uf, fileUrl });
+
+        // Mark old assets in this slot as not current
+        await window.supabase
+          .from('kooperation_story_asset')
+          .update({ is_current: false })
+          .eq('story_id', slotId);
+
+        // Insert new asset
+        const { error: insertErr } = await window.supabase
+          .from('kooperation_story_asset')
+          .insert({
+            story_id: slotId,
+            video_id: this.drawer.videoId,
+            file_url: fileUrl,
+            file_path: dropboxPath,
+            file_name: file.name,
+            file_size: file.size,
+            version_number: versionNumber,
+            is_current: true,
+            uploaded_by: window.currentUser?.id || null,
+            created_at: new Date().toISOString(),
+          });
+        if (insertErr) throw insertErr;
+
+        uploaded++;
       }
 
-      if (progressFill) progressFill.style.width = '95%';
-      if (progressText) progressText.textContent = 'Speichere in Datenbank...';
+      // Create shared link for video-level storys folder
+      if (progressFill) progressFill.style.width = '92%';
+      if (progressText) progressText.textContent = 'Erstelle Ordner-Links...';
 
-      await window.supabase
-        .from('kooperation_story_asset')
-        .update({ is_current: false })
-        .eq('video_id', this.drawer.videoId);
-
-      const insertRows = fileLinks.map(fl => ({
-        video_id: this.drawer.videoId,
-        file_url: fl.fileUrl,
-        file_path: fl.path,
-        file_name: fl.name,
-        file_size: fl.size,
-        version_number: versionNumber,
-        is_current: true,
-        uploaded_by: window.currentUser?.id || null,
-        created_at: new Date().toISOString(),
-      }));
-
-      const { error: insertErr } = await window.supabase
-        .from('kooperation_story_asset')
-        .insert(insertRows);
-      if (insertErr) throw insertErr;
+      let storysFolderUrl = null;
+      if (videoFolderUrl) {
+        const tokenResp = await fetch('/.netlify/functions/dropbox-upload-storys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...{
+            unternehmen: meta.unternehmen || '',
+            marke: meta.marke || '',
+            kampagne: meta.kampagne || '',
+            kooperation: meta.kooperationName || '',
+            videoPosition: meta.videoPosition || 1,
+            videoThema: meta.videoThema || '',
+            slotIndex: 1,
+            versionNumber: 1,
+          }, action: 'prepare' }),
+        });
+        if (tokenResp.ok) {
+          const tokenData = await tokenResp.json();
+          storysFolderUrl = await createFolderSharedLink(tokenData.token, tokenData.videoFolderPath);
+        }
+      }
 
       if (storysFolderUrl && this.drawer.videoId) {
         await window.supabase
@@ -396,22 +539,18 @@ export class StorysTabHandler {
       }
 
       if (progressFill) progressFill.style.width = '100%';
-      if (progressText) progressText.textContent = `${uploaded} Story${uploaded !== 1 ? 's' : ''} als Version ${versionNumber} hochgeladen!`;
+      if (progressText) progressText.textContent = `${uploaded} Story${uploaded !== 1 ? 's' : ''} hochgeladen!`;
 
       this._isUploadingStorys = false;
-      this._selectedStorys = [];
-      this._renderSelectedStorysList();
+      this._queue = [];
+      this._renderQueue();
 
-      this._storyExistingVersions = await this._loadExistingStoryVersions();
-      this._storyAvailableVersions = getAvailableVersions(this._storyExistingVersions, MAX_VERSIONS);
-      this._selectedStoryVersion = this._storyAvailableVersions[0] || 1;
-      this._refreshStoryVersionDropdown();
+      this._storySlots = await this._loadStorySlots();
+      this._renderExistingSlots();
 
       if (typeof this.drawer.onStorysSuccess === 'function') {
         this.drawer.onStorysSuccess(storysFolderUrl);
       }
-
-      await this._loadExistingStorys();
 
       setTimeout(() => {
         if (submitBtn) submitBtn.disabled = true;
@@ -429,144 +568,118 @@ export class StorysTabHandler {
   }
 
   _refreshStoryVersionDropdown() {
-    const select = document.getElementById('storys-upload-version');
-    if (!select) return;
-    const allVersions = Array.from({ length: MAX_VERSIONS }, (_, i) => i + 1);
-    select.innerHTML = allVersions.map(v => {
-      const exists = !this._storyAvailableVersions.includes(v);
-      const label = exists ? `Version ${v} (ersetzen)` : `Version ${v}`;
-      const selected = v === this._selectedStoryVersion ? ' selected' : '';
-      return `<option value="${v}"${selected}>${label}</option>`;
-    }).join('');
+    // Kept for backward compat; now re-render existing slots instead
+    this._renderExistingSlots();
   }
 
-  // ─── Existing Storys ──────────────────────────────────────
+  // ─── Existing Slots ──────────────────────────────────────
 
   async _loadExistingStorys() {
-    const listEl = document.getElementById('existing-storys-list');
-    const countEl = document.getElementById('existing-storys-count');
-    if (listEl) listEl.innerHTML = '<div class="existing-images-loading">Lade...</div>';
-
-    try {
-      if (!this.drawer.videoId) {
-        this._existingStorys = [];
-        if (countEl) countEl.textContent = '(0)';
-        if (listEl) listEl.innerHTML = '<div class="existing-images-empty">Keine Storys vorhanden</div>';
-        return;
-      }
-
-      const { data, error } = await window.supabase
-        .from('kooperation_story_asset')
-        .select('id, file_url, file_path, file_name, file_size, version_number, is_current, created_at')
-        .eq('video_id', this.drawer.videoId)
-        .order('version_number', { ascending: true })
-        .order('file_name', { ascending: true });
-
-      if (error) throw error;
-      this._existingStorys = data || [];
-
-      const totalCount = this._existingStorys.length;
-      if (countEl) countEl.textContent = `(${totalCount})`;
-
-      if (!listEl) return;
-
-      if (totalCount === 0) {
-        listEl.innerHTML = '<div class="existing-images-empty">Keine Storys vorhanden</div>';
-        return;
-      }
-
-      const grouped = {};
-      for (const asset of this._existingStorys) {
-        const v = asset.version_number || 1;
-        if (!grouped[v]) grouped[v] = [];
-        grouped[v].push(asset);
-      }
-
-      let html = '';
-      for (const [version, assets] of Object.entries(grouped)) {
-        const isCurrent = assets.some(a => a.is_current);
-        const badge = isCurrent ? ' <span class="version-badge version-badge--current">aktuell</span>' : '';
-        html += `<div class="existing-storys-version-group">`;
-        html += `<div class="existing-storys-version-header">Version ${version}${badge} <span class="existing-storys-version-count">(${assets.length} Datei${assets.length !== 1 ? 'en' : ''})</span></div>`;
-        for (const asset of assets) {
-          const sizeMB = asset.file_size ? (asset.file_size / 1024 / 1024).toFixed(1) + ' MB' : '';
-          html += `
-            <div class="existing-image-item">
-              <div class="existing-image-info">
-                <span class="existing-image-name">${escapeHtml(asset.file_name || asset.file_path?.split('/').pop() || '?')}</span>
-                ${sizeMB ? `<span class="existing-image-size">${sizeMB}</span>` : ''}
-              </div>
-              <button type="button" class="existing-story-delete" data-id="${asset.id}" data-path="${escapeHtml(asset.file_path || '')}" title="Löschen">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
-                </svg>
-              </button>
-            </div>`;
-        }
-        html += `</div>`;
-      }
-
-      listEl.innerHTML = html;
-
-    } catch (err) {
-      console.error('Storys laden fehlgeschlagen:', err);
-      if (listEl) listEl.innerHTML = '<div class="existing-images-empty">Fehler beim Laden</div>';
-    }
+    this._storySlots = await this._loadStorySlots();
+    this._renderExistingSlots();
   }
 
-  async _deleteExistingStory(assetId, filePath) {
+  _renderExistingSlots() {
+    const listEl = document.getElementById('existing-storys-list');
+    const countEl = document.getElementById('existing-storys-count');
+
+    if (countEl) countEl.textContent = `(${this._storySlots.length})`;
+    if (!listEl) return;
+
+    if (this._storySlots.length === 0) {
+      listEl.innerHTML = '<div class="existing-images-empty">Keine Storys vorhanden</div>';
+      return;
+    }
+
+    let html = '';
+    for (const slot of this._storySlots) {
+      const currentAsset = slot.currentAsset;
+      const versionLabel = slot.currentVersion ? `V${slot.currentVersion}` : '—';
+      const fileName = currentAsset?.file_name || '—';
+      const versionsStr = (slot.existingVersions || []).join(', ');
+      const canAddVersion = (slot.existingVersions || []).length < MAX_VERSIONS;
+
+      html += `
+        <div class="existing-storys-slot-item">
+          <div class="existing-storys-slot-header">
+            <span class="existing-storys-slot-title">Story ${slot.slot_index}</span>
+            <span class="existing-storys-slot-meta">${escapeHtml(fileName)} · ${versionLabel} ${versionsStr ? `(Versionen: ${versionsStr})` : ''}</span>
+          </div>
+          <div class="existing-storys-slot-actions">
+            ${canAddVersion ? `<button type="button" class="mdc-btn mdc-btn--small existing-story-new-version" data-slot-id="${slot.id}" title="Neue Version hochladen">+ Version</button>` : ''}
+            <button type="button" class="existing-story-slot-delete" data-slot-id="${slot.id}" title="Slot löschen">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      `;
+
+      for (const asset of slot.assets) {
+        const sizeMB = asset.file_size ? (asset.file_size / 1024 / 1024).toFixed(1) + ' MB' : '';
+        const currentBadge = asset.is_current ? ' <span class="version-badge version-badge--current">aktuell</span>' : '';
+        html += `
+          <div class="existing-image-item existing-storys-asset-item">
+            <div class="existing-image-info">
+              <span class="existing-image-name">${escapeHtml(asset.file_name || '?')} · V${asset.version_number}${currentBadge}</span>
+              ${sizeMB ? `<span class="existing-image-size">${sizeMB}</span>` : ''}
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    listEl.innerHTML = html;
+  }
+
+  async _deleteSlot(slotId) {
     if (this._isUploadingStorys) return;
 
-    const item = document.querySelector(`.existing-story-delete[data-id="${assetId}"]`)?.closest('.existing-image-item');
-    if (item) item.style.opacity = '0.5';
+    const slotEl = document.querySelector(`.existing-story-slot-delete[data-slot-id="${slotId}"]`)?.closest('.existing-storys-slot-item');
+    if (slotEl) slotEl.style.opacity = '0.5';
 
     try {
-      if (filePath) {
-        await fetch('/.netlify/functions/dropbox-delete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filePath }),
-        }).catch(err => console.warn('Dropbox-Löschung fehlgeschlagen:', err));
-      }
+      const slot = this._storySlots.find(s => s.id === slotId);
 
-      await window.supabase
-        .from('kooperation_story_asset')
-        .delete()
-        .eq('id', assetId);
-
-      const videoId = this.drawer.videoId;
-      const { count } = await window.supabase
-        .from('kooperation_story_asset')
-        .select('id', { count: 'exact', head: true })
-        .eq('video_id', videoId);
-
-      if ((count ?? 0) === 0) {
-        if (filePath) {
-          const folderPath = filePath.substring(0, filePath.lastIndexOf('/'));
-          fetch('/.netlify/functions/dropbox-delete', {
+      // Delete all assets from Dropbox
+      for (const asset of (slot?.assets || [])) {
+        if (asset.file_path) {
+          await fetch('/.netlify/functions/dropbox-delete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filePath: folderPath }),
+            body: JSON.stringify({ filePath: asset.file_path }),
           }).catch(() => {});
         }
+      }
+
+      // DB cascade: deleting kooperation_story cascades to kooperation_story_asset
+      await window.supabase
+        .from('kooperation_story')
+        .delete()
+        .eq('id', slotId);
+
+      // Check if any slots remain
+      const { count } = await window.supabase
+        .from('kooperation_story')
+        .select('id', { count: 'exact', head: true })
+        .eq('video_id', this.drawer.videoId);
+
+      if ((count ?? 0) === 0) {
         await window.supabase
           .from('kooperation_videos')
           .update({ story_folder_url: null })
-          .eq('id', videoId);
+          .eq('id', this.drawer.videoId);
         this.drawer.onStorysCleared?.();
       }
 
-      this._storyExistingVersions = await this._loadExistingStoryVersions();
-      this._storyAvailableVersions = getAvailableVersions(this._storyExistingVersions, MAX_VERSIONS);
-      this._selectedStoryVersion = this._storyAvailableVersions[0] || 1;
-      this._refreshStoryVersionDropdown();
-
-      await this._loadExistingStorys();
+      this._storySlots = await this._loadStorySlots();
+      this._renderExistingSlots();
 
     } catch (err) {
-      console.error('Story löschen fehlgeschlagen:', err);
+      console.error('Story-Slot löschen fehlgeschlagen:', err);
       this._showStorysError(err.message || 'Löschen fehlgeschlagen');
-      if (item) item.style.opacity = '';
+      if (slotEl) slotEl.style.opacity = '';
     }
   }
 

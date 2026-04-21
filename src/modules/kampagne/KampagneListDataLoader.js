@@ -98,14 +98,21 @@ export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQ
     const rows = result?.rows || [];
     const totalCount = result?.total_count || 0;
 
-    // art_der_kampagne Typ-Map laden (leichtgewichtiger Call, parallel möglich)
+    // art_der_kampagne Typ-Map: zuerst aus RPC-Result, dann aus FilterSystem-Cache,
+    // zuletzt Fallback auf separaten DB-Call (nur wenn beides leer)
     const kampagneArtMap = new Map();
     const artTypen = result?.art_typen;
     if (artTypen) {
       artTypen.forEach(t => kampagneArtMap.set(t.id, t.name));
     }
 
-    // Falls art_typen nicht in RPC enthalten, separat laden
+    if (kampagneArtMap.size === 0) {
+      const cached = filterSystem.getDynamicFilterData('kampagne')?.art_typen;
+      if (cached && cached.length > 0) {
+        cached.forEach(t => kampagneArtMap.set(t.value ?? t.id, t.label ?? t.name));
+      }
+    }
+
     if (kampagneArtMap.size === 0) {
       const { data: artData } = await window.supabase
         .from('kampagne_art_typen')

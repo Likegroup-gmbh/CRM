@@ -726,8 +726,6 @@ export class TaskDetailDrawer {
 
       if (error) throw error;
 
-      window.notificationSystem?.success?.('Task erfolgreich aktualisiert.');
-      
       // Refresh & Event
       await this.loadTaskData();
       this.renderContent();
@@ -736,7 +734,6 @@ export class TaskDetailDrawer {
       window.dispatchEvent(new CustomEvent('taskUpdated', { detail: { taskId: this.taskId } }));
     } catch (error) {
       console.error('Task-Update Fehler:', error);
-      window.notificationSystem?.error?.('Fehler beim Aktualisieren der Aufgabe.');
     }
   }
 
@@ -766,7 +763,6 @@ export class TaskDetailDrawer {
       window.dispatchEvent(new CustomEvent('taskUpdated', { detail: { taskId: this.taskId } }));
     } catch (error) {
       console.error('Kommentar-Add Fehler:', error);
-      window.notificationSystem?.error?.('Fehler beim Hinzufügen des Kommentars.');
     }
   }
 
@@ -799,7 +795,6 @@ export class TaskDetailDrawer {
       window.dispatchEvent(new CustomEvent('taskUpdated', { detail: { taskId: this.taskId } }));
     } catch (error) {
       console.error('Attachment-Add Fehler:', error);
-      window.notificationSystem?.error?.('Fehler beim Hinzufügen des Anhangs.');
     }
   }
 
@@ -828,12 +823,10 @@ export class TaskDetailDrawer {
 
       if (error) throw error;
 
-      window.notificationSystem?.success?.('Aufgabe gelöscht.');
       this.close();
       window.dispatchEvent(new CustomEvent('taskDeleted', { detail: { taskId: this.taskId } }));
     } catch (error) {
       console.error('Task-Delete Fehler:', error);
-      window.notificationSystem?.error?.('Fehler beim Löschen der Aufgabe.');
     }
   }
 

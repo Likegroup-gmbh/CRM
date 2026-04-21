@@ -1,5 +1,5 @@
 // MarkeDetail.js (ES6-Modul)
-// Marken-Detailseite mit Tabs für Informationen, Notizen, Bewertungen, Kampagnen und Aufträge
+// Marken-Detailseite mit Tabs für Informationen, Kampagnen und Aufträge
 // Nutzt einheitliches zwei-Spalten-Layout
 
 import { TableHelper } from '../../core/TableHelper.js';
@@ -19,8 +19,6 @@ export class MarkeDetail extends PersonDetailBase {
     super();
     this.markeId = null;
     this.marke = null;
-    this.notizen = [];
-    this.ratings = [];
     this.kampagnen = [];
     this.auftraege = [];
     this.briefings = [];
@@ -197,8 +195,6 @@ export class MarkeDetail extends PersonDetailBase {
       const [
         markeResult,
         branchenResult,
-        notizenResult,
-        ratingsResult,
         ansprechpartnerResult
       ] = await parallelLoad([
         // 1. Marken-Basisdaten mit Relations
@@ -221,17 +217,7 @@ export class MarkeDetail extends PersonDetailBase {
           `)
           .eq('marke_id', this.markeId),
         
-        // 3. Notizen
-        () => window.notizenSystem ? 
-          window.notizenSystem.loadNotizen('marke', this.markeId) : 
-          Promise.resolve([]),
-        
-        // 4. Ratings
-        () => window.bewertungsSystem ? 
-          window.bewertungsSystem.loadBewertungen('marke', this.markeId) : 
-          Promise.resolve([]),
-        
-        // 5. Ansprechpartner
+        // 3. Ansprechpartner
         () => window.supabase
           .from('ansprechpartner_marke')
           .select(`
@@ -262,9 +248,6 @@ export class MarkeDetail extends PersonDetailBase {
       } else {
         this.marke.branchen = [];
       }
-      
-      this.notizen = notizenResult || [];
-      this.ratings = ratingsResult || [];
       
       // Ansprechpartner verarbeiten
       if (!ansprechpartnerResult.error) {

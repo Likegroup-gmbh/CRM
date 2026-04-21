@@ -15,8 +15,6 @@ export class CreatorDetail extends PersonDetailBase {
     super();
     this.creatorId = null;
     this.creator = null;
-    this.notizen = [];
-    this.ratings = [];
     this.kampagnen = [];
     this.lists = [];
     this.kooperationen = [];
@@ -99,8 +97,6 @@ export class CreatorDetail extends PersonDetailBase {
       branchenResult,
       typenResult,
       adressenResult,
-      notizenResult,
-      ratingsResult,
       agenturResult
     ] = await parallelLoad([
       () => window.supabase
@@ -134,10 +130,6 @@ export class CreatorDetail extends PersonDetailBase {
         .order('created_at', { ascending: false })
         .then(r => r.data || []),
       
-      () => window.notizenSystem.loadNotizen('creator', this.creatorId),
-      
-      () => window.bewertungsSystem.loadBewertungen('creator', this.creatorId),
-      
       () => window.supabase
         .from('creator_agentur')
         .select('*')
@@ -155,14 +147,16 @@ export class CreatorDetail extends PersonDetailBase {
     this.creator.branchen = branchenResult;
     this.creator.creator_types = typenResult;
     this.creatorAdressen = adressenResult;
-    this.notizen = notizenResult || [];
-    this.ratings = ratingsResult || [];
     
     // Agentur-Daten
     if (agenturResult && agenturResult.ist_aktiv) {
       this.creator.agentur_vertreten = true;
       this.creator.agentur_name = agenturResult.agentur_name;
-      this.creator.agentur_adresse = agenturResult.agentur_adresse;
+      this.creator.agentur_strasse = agenturResult.agentur_strasse;
+      this.creator.agentur_hausnummer = agenturResult.agentur_hausnummer;
+      this.creator.agentur_plz = agenturResult.agentur_plz;
+      this.creator.agentur_stadt = agenturResult.agentur_stadt;
+      this.creator.agentur_land = agenturResult.agentur_land;
       this.creator.agentur_vertretung = agenturResult.agentur_vertretung;
     }
     
@@ -675,14 +669,6 @@ export class CreatorDetail extends PersonDetailBase {
         <div class="tab-pane ${this.activeMainTab === 'adresse' ? 'active' : ''}" id="tab-adresse">
           ${this.renderAdresseContent()}
         </div>
-
-        <div class="tab-pane ${this.activeMainTab === 'notizen' ? 'active' : ''}" id="tab-notizen">
-          ${window.notizenSystem.renderNotizenContainer(this.notizen, 'creator', this.creatorId)}
-        </div>
-
-        <div class="tab-pane ${this.activeMainTab === 'ratings' ? 'active' : ''}" id="tab-ratings">
-          ${window.bewertungsSystem.renderBewertungenContainer(this.ratings, 'creator', this.creatorId)}
-        </div>
       </div>
     `;
   }
@@ -711,8 +697,16 @@ export class CreatorDetail extends PersonDetailBase {
               <span>${this.creator.agentur_name || '-'}</span>
             </div>
             <div class="detail-item">
-              <label>Agenturadresse:</label>
-              <span>${this.creator.agentur_adresse || '-'}</span>
+              <label>Straße:</label>
+              <span>${this.creator.agentur_strasse ? `${this.creator.agentur_strasse} ${this.creator.agentur_hausnummer || ''}`.trim() : '-'}</span>
+            </div>
+            <div class="detail-item">
+              <label>PLZ / Stadt:</label>
+              <span>${(this.creator.agentur_plz || this.creator.agentur_stadt) ? `${this.creator.agentur_plz || ''} ${this.creator.agentur_stadt || ''}`.trim() : '-'}</span>
+            </div>
+            <div class="detail-item">
+              <label>Land:</label>
+              <span>${this.creator.agentur_land || '-'}</span>
             </div>
             <div class="detail-item">
               <label>Vertreten durch:</label>
@@ -1214,20 +1208,6 @@ export class CreatorDetail extends PersonDetailBase {
       }
     }, { signal });
 
-    // Notizen Update Event
-    window.addEventListener('notizenUpdated', async (e) => {
-      if (this._destroyed) return;
-      if (e.detail.entityType === 'creator' && e.detail.entityId === this.creatorId) {
-        console.log('🔄 CREATORDETAIL: Notizen wurden aktualisiert, lade neu...');
-        this.notizen = await window.notizenSystem.loadNotizen('creator', this.creatorId);
-        if (this._destroyed) return;
-        const notizenTab = document.querySelector('#tab-notizen');
-        if (notizenTab) {
-          notizenTab.innerHTML = window.notizenSystem.renderNotizenContainer(this.notizen, 'creator', this.creatorId);
-        }
-      }
-    }, { signal });
-
     // Creator-Adressen Update Event
     window.addEventListener('entityUpdated', async (e) => {
       if (this._destroyed) return;
@@ -1241,20 +1221,6 @@ export class CreatorDetail extends PersonDetailBase {
         if (adresseTab) {
           adresseTab.innerHTML = this.renderAdresseContent();
           console.log('✅ CREATORDETAIL: Adresse-Tab erfolgreich aktualisiert');
-        }
-      }
-    }, { signal });
-
-    // Bewertungen Update Event
-    window.addEventListener('bewertungenUpdated', async (e) => {
-      if (this._destroyed) return;
-      if (e.detail.entityType === 'creator' && e.detail.entityId === this.creatorId) {
-        console.log('🔄 CREATORDETAIL: Bewertungen wurden aktualisiert, lade neu...');
-        this.ratings = await window.bewertungsSystem.loadBewertungen('creator', this.creatorId);
-        if (this._destroyed) return;
-        const ratingsTab = document.querySelector('#tab-ratings');
-        if (ratingsTab) {
-          ratingsTab.innerHTML = window.bewertungsSystem.renderBewertungenContainer(this.ratings, 'creator', this.creatorId);
         }
       }
     }, { signal });
@@ -1299,7 +1265,7 @@ export class CreatorDetail extends PersonDetailBase {
       activePane.classList.add('active');
       
       // Lazy load Tab-Daten
-      if (!['notizen', 'ratings', 'adresse'].includes(tabName)) {
+      if (!['adresse'].includes(tabName)) {
         await this.loadTabData(tabName);
       }
     }

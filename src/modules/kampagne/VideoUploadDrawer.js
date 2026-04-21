@@ -44,12 +44,12 @@ export class VideoUploadDrawer {
     this.bilderTab.reset();
 
     // Parallel check: existieren Videos oder Storys?
-    const [videoVersions, storyVersions] = await Promise.all([
+    const [videoVersions, storySlots] = await Promise.all([
       this.videoTab._loadExistingVersions(),
-      this.storysTab._loadExistingStoryVersions()
+      this.storysTab._loadStorySlots()
     ]);
     this._hasExistingVideos = videoVersions.length > 0;
-    this._hasExistingStorys = storyVersions.length > 0;
+    this._hasExistingStorys = storySlots.length > 0;
 
     // Fallback: nie auf einem gesperrten Tab öffnen
     if (initialTab === 'video' && this._hasExistingStorys) {
@@ -69,14 +69,11 @@ export class VideoUploadDrawer {
     this.videoTab._selectedVersion = this.videoTab._availableVersions[0] || 1;
     this._refreshVideoVersionDropdown();
 
-    this.storysTab._storyExistingVersions = storyVersions;
-    this.storysTab._storyAvailableVersions = this._getAvailableVersions(storyVersions);
-    this.storysTab._selectedStoryVersion = this.storysTab._storyAvailableVersions[0] || 1;
+    this.storysTab._storySlots = storySlots;
     this.storysTab._initialized = true;
 
     if (initialTab === 'storys') {
-      this.storysTab._refreshStoryVersionDropdown();
-      this.storysTab._loadExistingStorys();
+      this.storysTab._renderExistingSlots();
     } else if (initialTab === 'bilder') {
       await this.bilderTab.ensureInitialized();
     }

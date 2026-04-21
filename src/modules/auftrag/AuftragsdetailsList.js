@@ -338,7 +338,7 @@ export class AuftragsdetailsList {
               ${auftragFields}
             ),
             created_by:created_by_id(id, name, profile_image_url)
-          `, { count: 'exact' });
+          `, { count: 'estimated' });
         
         // Filtere nach erlaubten Aufträgen für Nicht-Admins
         if (!isAdmin && allowedAuftragIds !== null && allowedAuftragIds.length > 0) {

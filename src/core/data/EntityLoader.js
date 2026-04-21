@@ -19,10 +19,13 @@ export class EntityLoader {
 
     const mod = EntityModules[entityType];
 
+    // Count-Modus: Entity-Module können 'estimated' setzen, Default ist 'exact'
+    const countMode = mod?.countMode || 'exact';
+
     // Query aufbauen
     const selectClause = mod?.buildSelectClause?.(context) || '*';
     let query = isPaginated
-      ? window.supabase.from(entityConfig.table).select(selectClause, { count: 'exact' })
+      ? window.supabase.from(entityConfig.table).select(selectClause, { count: countMode })
       : window.supabase.from(entityConfig.table).select(selectClause);
 
     // Sortierung (nur für loadEntities — Pagination sortiert nach Filter-Phase)
@@ -115,7 +118,7 @@ export class EntityLoader {
 
     // M:N-Beziehungen laden
     const shouldLoadM2M = isPaginated
-      ? (data && data.length > 0 && entityConfig.manyToMany)
+      ? (!mod?.skipM2MForPagination && data && data.length > 0 && entityConfig.manyToMany)
       : (data && entityConfig.manyToMany);
 
     if (shouldLoadM2M) {
