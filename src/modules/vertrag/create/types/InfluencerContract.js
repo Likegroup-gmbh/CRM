@@ -2,6 +2,7 @@
 // Influencer-Kooperationsvertrag: Steps 2-5 + Helper fuer Veroeffentlichungsdaten.
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
+import { KampagneUtils } from '../../../kampagne/KampagneUtils.js';
 
 VertraegeCreate.prototype.renderInfluencerStep2 = function() {
     if (!this._filtersInitialized) {

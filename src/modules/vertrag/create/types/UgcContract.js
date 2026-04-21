@@ -2,6 +2,7 @@
 // UGC-Produktionsvertrag: Steps 2-5.
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
+import { KampagneUtils } from '../../../kampagne/KampagneUtils.js';
 
 VertraegeCreate.prototype.renderStep2 = function() {
     // Filter nur initialisieren wenn noch nicht geschehen (z.B. bei Draft-Load bereits erledigt)

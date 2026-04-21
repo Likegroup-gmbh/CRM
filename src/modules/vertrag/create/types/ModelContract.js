@@ -2,6 +2,7 @@
 // Modelvertrag: Steps 2-5.
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
+import { KampagneUtils } from '../../../kampagne/KampagneUtils.js';
 
 VertraegeCreate.prototype.renderModelStep2 = function() {
     if (!this._filtersInitialized) {

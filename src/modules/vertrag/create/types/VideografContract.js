@@ -2,6 +2,7 @@
 // Videografen- & Fotografen-Produktionsvertrag: Steps 2-5 + Produktionsplan-Helper.
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
+import { KampagneUtils } from '../../../kampagne/KampagneUtils.js';
 
 VertraegeCreate.prototype.renderVideografStep2 = function() {
     if (!this._filtersInitialized) {
