@@ -9,22 +9,11 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
   # WICHTIG: @sparticuz/chromium MUSS external sein (zu groß für Bundling)
-  # sharp muss external sein (native Binaries, nicht bundlebar)
-  external_node_modules = ["@sparticuz/chromium", "sharp"]
+  external_node_modules = ["@sparticuz/chromium"]
 
 # Screenshot Function mit 60s Timeout
 [functions."screenshot"]
   timeout = 60
-
-# Backfill-Functions brauchen sharp (native binaries) -> nft-Bundler statt esbuild,
-# damit node_modules/sharp inkl. Linux-Binaries mit in die Zip kommt.
-[functions."backfill-webp-originals"]
-  node_bundler = "nft"
-  timeout = 120
-
-[functions."backfill-thumbnails"]
-  node_bundler = "nft"
-  timeout = 120
 
 # Dropbox Upload Function – Videos können groß sein
 [functions."dropbox-upload"]
