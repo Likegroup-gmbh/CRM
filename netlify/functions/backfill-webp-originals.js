@@ -17,7 +17,7 @@ const { createClient } = require('@supabase/supabase-js');
 const sharp = require('sharp');
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
 
 const WEBP_QUALITY = 85;
 const DEFAULT_LIMIT = 100;
@@ -179,7 +179,7 @@ exports.handler = async (event) => {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: 'SUPABASE_URL und SUPABASE_SERVICE_ROLE_KEY müssen gesetzt sein' })
+      body: JSON.stringify({ error: 'SUPABASE_URL und SUPABASE_SERVICE_ROLE_KEY (oder SUPABASE_SERVICE_KEY) müssen gesetzt sein' })
     };
   }
 

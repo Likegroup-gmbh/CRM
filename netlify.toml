@@ -9,7 +9,8 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
   # WICHTIG: @sparticuz/chromium MUSS external sein (zu groß für Bundling)
-  external_node_modules = ["@sparticuz/chromium"]
+  # sharp muss external sein (native Binaries, nicht bundlebar)
+  external_node_modules = ["@sparticuz/chromium", "sharp"]
 
 # Screenshot Function mit 60s Timeout
 [functions."screenshot"]
