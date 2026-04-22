@@ -96,8 +96,8 @@ export class RechnungList {
         console.error('❌ Bezahlt-Toggle Fehler:', err);
       } finally {
         this._bezahltUpdateInFlight.delete(id);
-        const canEdit = window.currentUser?.rolle !== 'kunde' && window.currentUser?.rolle !== 'kunde_editor';
-        target.disabled = !canEdit;
+        const isAdmin = window.currentUser?.rolle?.toLowerCase() === 'admin';
+        target.disabled = !isAdmin;
       }
     });
 
@@ -253,9 +253,11 @@ export class RechnungList {
     // 6. Actions-Dropdown aktualisieren (currentStatus für Checkmark)
     const actionsCell = row.cells[row.cells.length - 1];
     if (actionsCell && rechnung) {
+      const isAdminRow = window.currentUser?.rolle?.toLowerCase() === 'admin';
       actionsCell.innerHTML = actionBuilder.create('rechnung', id, window.currentUser, {
         statusOptions: this.statusOptions,
-        currentStatus: { id: newStatus, name: newStatus }
+        currentStatus: { id: newStatus, name: newStatus },
+        restrictToPaid: (newStatus === 'Bezahlt') && !isAdminRow
       });
     }
 
@@ -586,6 +588,7 @@ export class RechnungList {
 
     const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
     const canEdit = window.currentUser?.rolle !== 'kunde' && window.currentUser?.rolle !== 'kunde_editor';
+    const canToggleBezahlt = isAdmin;
     const formatCurrency = (v) => v == null ? '-' : new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v);
     const formatDate = (v) => v ? new Intl.DateTimeFormat('de-DE').format(new Date(v)) : '-';
 
@@ -630,11 +633,12 @@ export class RechnungList {
           <td class="col-vertrag">${renderVertragCell(r)}</td>
           <td class="col-status" data-col="status">${r.status || '-'}</td>
           <td class="col-erstellt-von">${this.renderCreatedBy(r.created_by)}</td>
-          <td class="table-cell-center col-bezahlt">${renderBezahltToggle(r, canEdit)}</td>
+          <td class="table-cell-center col-bezahlt">${renderBezahltToggle(r, canToggleBezahlt)}</td>
           <td class="col-actions">
             ${actionBuilder.create('rechnung', r.id, window.currentUser, { 
               statusOptions: this.statusOptions, 
-              currentStatus: { id: r.status, name: r.status } 
+              currentStatus: { id: r.status, name: r.status },
+              restrictToPaid: (r.status === 'Bezahlt') && !isAdmin
             })}
           </td>
         </tr>

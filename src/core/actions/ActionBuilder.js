@@ -74,7 +74,17 @@ export class ActionBuilder {
    * @returns {string} HTML-String
    */
   buildActionsHTML(actions, entityId, entityType, options) {
-    return actions.map(action => {
+    // Spezial-Filter: bei bezahlten Rechnungen für Nicht-Admins nur view + download erlauben
+    let filteredActions = actions;
+    if (options && options.restrictToPaid) {
+      const allowedOnPaid = new Set(['view', 'download']);
+      filteredActions = actions.filter(action => {
+        if (action.id === 'separator') return false;
+        return allowedOnPaid.has(action.id);
+      });
+    }
+
+    return filteredActions.map(action => {
       if (action.id === 'separator') {
         return this.buildSeparator();
       }

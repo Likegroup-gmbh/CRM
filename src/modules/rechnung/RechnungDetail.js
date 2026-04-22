@@ -17,7 +17,11 @@ export class RechnungDetail {
     
     // Breadcrumb aktualisieren mit Edit-Button
     if (window.breadcrumbSystem && this.data) {
-      const canEdit = window.currentUser?.permissions?.rechnung?.can_edit !== false;
+      const isAdmin = window.currentUser?.rolle?.toLowerCase() === 'admin';
+      const isBezahlt = this.data?.status === 'Bezahlt';
+      const hasEditPermission = window.currentUser?.permissions?.rechnung?.can_edit !== false;
+      // Bezahlte Rechnungen dürfen nur von Admins bearbeitet werden
+      const canEdit = hasEditPermission && (!isBezahlt || isAdmin);
       window.breadcrumbSystem.updateDetailLabel(this.data.rechnung_nr || 'Details', {
         id: 'btn-edit-rechnung',
         canEdit: canEdit
@@ -387,6 +391,12 @@ export class RechnungDetail {
   bindEvents() {
     document.addEventListener('click', (e) => {
       if (e.target.closest('#btn-edit-rechnung')) {
+        const isAdmin = window.currentUser?.rolle?.toLowerCase() === 'admin';
+        const isBezahlt = this.data?.status === 'Bezahlt';
+        if (isBezahlt && !isAdmin) {
+          window.toastSystem?.show?.('Bezahlte Rechnungen können nur von Admins bearbeitet werden.', 'warning');
+          return;
+        }
         this.showEditForm();
       }
       const link = e.target.closest('.table-link[data-table][data-id]');

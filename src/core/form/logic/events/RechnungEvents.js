@@ -23,6 +23,7 @@ export async function setup(form, ctx) {
   const nettoInput = form.querySelector('input[name="nettobetrag"]');
   const zusatzInput = form.querySelector('input[name="zusatzkosten"]');
   const ustProzentInput = form.querySelector('input[name="ust_prozent"]');
+  const ustAktivToggle = form.querySelector('input[name="ust_aktiv"]');
   const bruttoInput = form.querySelector('input[name="bruttobetrag"]');
 
   // Im Edit-Modus: Kooperation + abhängige Selects komplett sperren
@@ -124,6 +125,7 @@ export async function setup(form, ctx) {
       if (nettoInput) nettoInput.value = '';
       if (zusatzInput) zusatzInput.value = '';
       if (bruttoInput) bruttoInput.value = '';
+      if (ustAktivToggle) ustAktivToggle.checked = true;
       if (ustProzentInput) ustProzentInput.value = '19';
       
       return;
@@ -189,12 +191,17 @@ export async function setup(form, ctx) {
       const creatorData = creatorResult.data;
       const creatorId = creatorData?.id || null;
       const creatorLabel = creatorData ? `${creatorData.vorname || ''} ${creatorData.nachname || ''}`.trim() : '';
+      const isUstPflichtig = creatorData?.umsatzsteuerpflichtig !== false;
+      if (ustAktivToggle) {
+        ustAktivToggle.checked = isUstPflichtig;
+      }
       if (ustProzentInput) {
-        ustProzentInput.value = String(creatorData?.umsatzsteuerpflichtig === false ? 0 : 19);
+        ustProzentInput.value = String(isUstPflichtig ? 19 : 0);
       }
       fillSelect(creatorField, creatorId, creatorLabel);
-    } else if (ustProzentInput) {
-      ustProzentInput.value = '19';
+    } else {
+      if (ustAktivToggle) ustAktivToggle.checked = true;
+      if (ustProzentInput) ustProzentInput.value = '19';
     }
 
     // Videoanzahl + Beträge aus Kooperation
@@ -220,7 +227,14 @@ export async function setup(form, ctx) {
     const netto = parseFloat(nettoInput?.value) || 0;
     const zusatz = parseFloat(zusatzInput?.value) || 0;
     const hatSkonto = skontoToggle?.checked || false;
-    const ustProzent = parseFloat(ustProzentInput?.value) || 0;
+    // ust_aktiv steuert ob USt angewendet wird
+    const ustAktiv = ustAktivToggle ? ustAktivToggle.checked : true;
+    if (!ustAktiv && ustProzentInput) {
+      ustProzentInput.value = '0';
+    } else if (ustAktiv && ustProzentInput && (parseFloat(ustProzentInput.value) || 0) === 0) {
+      ustProzentInput.value = '19';
+    }
+    const ustProzent = ustAktiv ? (parseFloat(ustProzentInput?.value) || 0) : 0;
     const ustRate = ustProzent / 100;
     
     const nettoGesamt = netto + zusatz;
@@ -248,6 +262,9 @@ export async function setup(form, ctx) {
     ustProzentInput.addEventListener('input', debouncedBerechne);
     ustProzentInput.addEventListener('change', berechneRechnung);
   }
+  if (ustAktivToggle) {
+    ustAktivToggle.addEventListener('change', berechneRechnung);
+  }
 
   // === BUG-FIX: Im Edit-Mode NICHT onKoopChange aufrufen (überschreibt Rechnungswerte) ===
   if (!isEditMode) {
@@ -257,6 +274,12 @@ export async function setup(form, ctx) {
       setTimeout(() => onKoopChange(), 100);
     }
     onKoopChange();
+  } else {
+    // Edit-Mode: ust_aktiv Toggle aus gespeichertem ust_prozent ableiten (0 = aus, >0 = an)
+    if (ustAktivToggle && ustProzentInput) {
+      const gespeichertProzent = parseFloat(ustProzentInput.value) || 0;
+      ustAktivToggle.checked = gespeichertProzent > 0;
+    }
   }
   
   // Initiale Berechnung aus gespeicherten Werten (auch im Edit-Mode)

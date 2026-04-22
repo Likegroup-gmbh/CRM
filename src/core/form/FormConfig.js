@@ -865,6 +865,7 @@ export class FormConfig {
           // Eingabefelder
           { name: 'nettobetrag', label: 'Betrag (Netto)', type: 'number', required: true, validation: { type: 'number', min: 0 } },
           { name: 'zusatzkosten', label: 'Zusatzkosten (Netto)', type: 'number', required: false, validation: { type: 'number', min: 0 } },
+          { name: 'ust_aktiv', label: 'Umsatzsteuer berechnen', type: 'toggle', required: false, defaultValue: true, helpText: 'Ausschalten, wenn der Creator keine Umsatzsteuer ausweist' },
           { name: 'ust_prozent', label: 'Umsatzsteuer (%)', type: 'number', required: false, readonly: true, defaultValue: 19, suffix: '%' },
           { name: 'skonto', label: '3% Skonto berücksichtigen', type: 'toggle', required: false },
           // Berechnete Ergebnis-Felder (readonly)

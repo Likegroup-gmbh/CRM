@@ -44,6 +44,14 @@ export default {
     sortOrder: 'asc'
   },
 
+  skipFieldForSupabase(field, value) {
+    // ust_aktiv ist ein UI-only Toggle und keine DB-Spalte
+    if (field === 'ust_aktiv') {
+      return true;
+    }
+    return false;
+  },
+
   buildSelectClause(context) {
     return `*,
 unternehmen:unternehmen_id (
