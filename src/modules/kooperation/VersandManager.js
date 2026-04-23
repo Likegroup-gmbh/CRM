@@ -3,11 +3,13 @@ export class KooperationVersandManager {
     this.drawerId = 'kooperation-versand-drawer';
     this.currentKooperationId = null;
     this.isSubmitting = false;
+    this._abortController = new AbortController();
     this.bindGlobalEvents();
   }
 
-  // Event-basierte Kommunikation (globale Events, einmal gebunden)
   bindGlobalEvents() {
+    const signal = this._abortController.signal;
+
     document.addEventListener('actionRequested', (event) => {
       const { action, entityType, entityId } = event.detail;
       
@@ -15,9 +17,8 @@ export class KooperationVersandManager {
         console.log('%c🎯 VERSANDMANAGER: Event empfangen für ID: ' + entityId, 'color: blue; font-weight: bold');
         this.open(entityId);
       }
-    });
+    }, { signal });
 
-    // Event-Delegation für Form-Submits (verhindert Page Reload)
     document.addEventListener('submit', (e) => {
       if (e.target.id === 'versand-form') {
         e.preventDefault();
@@ -28,9 +29,8 @@ export class KooperationVersandManager {
           this.handleSubmit(e.target, kooperationId);
         }
       }
-    }, true); // Use capture phase!
+    }, { capture: true, signal });
 
-    // Event-Delegation für Delete-Buttons
     document.addEventListener('click', async (e) => {
       if (e.target.closest('.btn-delete-versand')) {
         e.preventDefault();
@@ -41,15 +41,19 @@ export class KooperationVersandManager {
           await this.deleteVersandEintrag(versandId, this.currentKooperationId);
         }
       }
-    });
+    }, { signal });
 
-    // Event-Delegation für Abbrechen-Button
     document.addEventListener('click', (e) => {
       if (e.target.closest('[data-close]') && e.target.closest(`#${this.drawerId}`)) {
         e.preventDefault();
         this.close();
       }
-    });
+    }, { signal });
+  }
+
+  destroy() {
+    this._abortController.abort();
+    this.removeDrawer();
   }
 
   async open(kooperationId) {

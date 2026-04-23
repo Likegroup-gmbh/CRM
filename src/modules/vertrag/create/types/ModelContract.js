@@ -2,8 +2,6 @@
 // Modelvertrag: Steps 2-5.
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
-import { KampagneUtils } from '../../../kampagne/KampagneUtils.js';
-
 VertraegeCreate.prototype.renderModelStep2 = function() {
     if (!this._filtersInitialized) {
       this.updateFilteredKampagnen();
@@ -35,7 +33,7 @@ VertraegeCreate.prototype.renderModelStep2 = function() {
             <option value="">${this.formData.kunde_unternehmen_id ? 'Kampagne auswählen...' : 'Bitte zuerst Kunde wählen...'}</option>
             ${this.filteredKampagnen.map(k => `
               <option value="${k.id}" ${this.formData.kampagne_id === k.id ? 'selected' : ''}>
-                ${KampagneUtils.getDisplayName(k)}
+                ${this.getKampagneDisplayName(k)}
               </option>
             `).join('')}
           </select>

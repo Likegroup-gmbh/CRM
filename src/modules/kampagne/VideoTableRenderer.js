@@ -109,11 +109,11 @@ export class VideoTableRenderer {
       h('col-vertrag', 'Vertrag', '4'),
       h('col-nutzungsrechte', 'Nutzungsrechte', '5'),
       h('col-start-datum', 'Erstellt', '6'),
-      h('col-script-deadline', 'Script Deadline', '7'),
-      h('col-end-datum', 'Content Deadline', '8'),
       h('col-videoanzahl', 'Videos', '9'),
       h('col-video-nr', 'Video-Nr', '10'),
       h('col-vk-video', 'Kosten', '10b'),
+      h('col-video-script-deadline', 'Script Deadline', '10d'),
+      h('col-video-content-deadline', 'Content Deadline', '10e'),
       h('col-video-typ', 'Typ', '10c'),
       h('col-thema', 'Thema', '11'),
       h('col-organic-paid', 'Content/Art', '12'),
@@ -183,8 +183,6 @@ export class VideoTableRenderer {
           />
         </td>
         <td class="grid-cell read-only" ${!t.isColumnVisibleForCustomer('col-start-datum') ? 'style="display:none;"' : ''}>${formatDate(koop.created_at)}</td>
-        <td class="grid-cell read-only" ${!t.isColumnVisibleForCustomer('col-script-deadline') ? 'style="display:none;"' : ''}>${formatDate(koop.skript_deadline)}</td>
-        <td class="grid-cell read-only" ${!t.isColumnVisibleForCustomer('col-end-datum') ? 'style="display:none;"' : ''}>${formatDate(koop.content_deadline)}</td>
         <td class="grid-cell read-only" ${!t.isColumnVisibleForCustomer('col-videoanzahl') ? 'style="display:none;"' : ''}>${koop.videoanzahl || 0}</td>
         <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-video-nr') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video, index, total) => {
@@ -197,6 +195,12 @@ export class VideoTableRenderer {
             const vk = video.verkaufspreis_netto != null ? parseFloat(video.verkaufspreis_netto) : null;
             return vk != null ? `<div class="video-vk-text">${vk.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</div>` : '<div class="video-vk-text">—</div>';
           })}
+        </td>
+        <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-video-script-deadline') ? 'style="display:none;"' : ''}>
+          ${this.renderVideoFieldStack(videos, (video) => `<div class="video-deadline-text">${formatDate(video.skript_deadline)}</div>`)}
+        </td>
+        <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-video-content-deadline') ? 'style="display:none;"' : ''}>
+          ${this.renderVideoFieldStack(videos, (video) => `<div class="video-deadline-text">${formatDate(video.content_deadline)}</div>`)}
         </td>
         <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-video-typ') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => {

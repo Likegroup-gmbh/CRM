@@ -8,6 +8,7 @@ export class BriefingDetail {
   constructor() {
     this.briefingId = null;
     this.briefing = null;
+    this._abortController = null;
   }
 
   async init(briefingId) {
@@ -105,6 +106,7 @@ export class BriefingDetail {
   }
   
   setupCacheInvalidation() {
+    const signal = this._abortController?.signal;
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail.entity === 'briefing' && e.detail.id === this.briefingId) {
         console.log('🔄 BRIEFINGDETAIL: Entity updated - invalidiere Cache');
@@ -114,7 +116,7 @@ export class BriefingDetail {
           this.loadCriticalData().then(() => this.render());
         }
       }
-    });
+    }, { signal });
   }
 
   async render() {
@@ -256,19 +258,23 @@ export class BriefingDetail {
   }
 
   bindEvents() {
+    this._abortController?.abort();
+    this._abortController = new AbortController();
+    const signal = this._abortController.signal;
+
     document.addEventListener('click', (e) => {
       if (e.target.classList.contains('tab-button')) {
         e.preventDefault();
         this.switchTab(e.target.dataset.tab);
       }
-    });
+    }, { signal });
 
     document.addEventListener('click', (e) => {
       if (e.target.closest('#btn-edit-briefing')) {
         e.preventDefault();
         window.navigateTo(`/briefing/${this.briefingId}/edit`);
       }
-    });
+    }, { signal });
 
     // Dokument öffnen
     document.addEventListener('click', async (e) => {
@@ -300,7 +306,7 @@ export class BriefingDetail {
           alert(`Fehler beim Öffnen des Dokuments: ${error.message}`);
         }
       }
-    });
+    }, { signal });
 
     // Dokument löschen
     document.addEventListener('click', async (e) => {
@@ -343,7 +349,7 @@ export class BriefingDetail {
           alert(`Fehler beim Löschen: ${error.message}`);
         }
       }
-    });
+    }, { signal });
 
     document.addEventListener('click', async (e) => {
       if (e.target.id === 'btn-delete-briefing') {
@@ -363,7 +369,7 @@ export class BriefingDetail {
           alert('Löschen fehlgeschlagen.');
         }
       }
-    });
+    }, { signal });
 
     // Soft-Refresh bei Realtime-Updates (nur wenn kein Formular aktiv)
     window.addEventListener('softRefresh', async (e) => {
@@ -379,7 +385,7 @@ export class BriefingDetail {
       await this.loadBriefingData();
       await this.render();
       this.bindEvents();
-    });
+    }, { signal });
   }
 
   switchTab(tabName) {
@@ -606,6 +612,9 @@ export class BriefingDetail {
   destroy() {
     console.log('🗑️ BRIEFINGDETAIL: Destroy aufgerufen - räume auf');
     
+    this._abortController?.abort();
+    this._abortController = null;
+
     // Invalidiere Tab-Cache für dieses Briefing
     tabDataCache.invalidate('briefing', this.briefingId);
     

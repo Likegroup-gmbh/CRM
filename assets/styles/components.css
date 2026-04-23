@@ -15101,3 +15101,189 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
 .ansprechpartner-table-container .data-table tbody tr:hover td.col-nachname {
   background: var(--gray-50) !important;
 }
+
+/* ==========================================================================
+   Projekt-Erstellen Wizard
+   ========================================================================== */
+
+/* form-page Reset: Padding und border-right entfernen,
+   damit die beiden Split-Spalten edge-to-edge gehen koennen */
+.form-page--split-wizard {
+  padding: 0;
+  border-right: none;
+}
+
+.projekt-erstellen-container {
+  align-items: stretch;
+  min-height: 100%;
+  gap: 0;
+}
+
+/* Linke Seite: weiss, volles Padding, Flex-Column fuer volle Hoehe */
+.projekt-erstellen-container .form-split-left {
+  background: var(--bg-primary);
+  padding: var(--space-md);
+  width: 50%;
+  flex: 1 1 0%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Rechte Seite: grauer Hintergrund, border-left entfernen, feste Breite */
+.projekt-erstellen-container .form-split-right {
+  background: var(--bg-secondary);
+  border-left: none;
+  padding: var(--space-xxl);
+  max-width: 100%;
+  width: 50%;
+  flex: 0 0 auto;
+  
+}
+
+.projekt-erstellen-step-host {
+  min-height: 320px;
+}
+
+#projekt-progress-container .progress-steps {
+  flex: 1;
+}
+
+.projekt-erstellen-feedback-col {
+  display: block;
+}
+
+.projekt-erstellen-feedback-sticky {
+  position: sticky;
+  top: var(--space-md);
+}
+
+/* Feedback-Card: weisser Content-Background innerhalb der grauen Spalte */
+.projekt-erstellen-feedback-card {
+  background: var(--bg-primary);
+  border-radius: var(--radius-xl);
+  padding: var(--space-lg);
+}
+
+.projekt-erstellen-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.projekt-erstellen-chip {
+  padding: var(--space-xs) var(--space-sm);
+  border: var(--border-xs) solid var(--gray-300);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  user-select: none;
+  background: var(--bg-primary, #fff);
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.projekt-erstellen-chip:hover {
+  border-color: var(--gray-500);
+}
+
+.projekt-erstellen-chip.is-active {
+  background: var(--color-primary, var(--gray-900));
+  color: #fff;
+  border-color: var(--color-primary, var(--gray-900));
+}
+
+.projekt-erstellen-summary-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.projekt-erstellen-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.projekt-erstellen-summary-label {
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.projekt-erstellen-summary-value {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.projekt-erstellen-summary-value--empty {
+  color: var(--gray-400);
+  font-style: italic;
+}
+
+.projekt-erstellen-extra-row {
+  display: grid;
+  grid-template-columns: 1fr 160px auto;
+  gap: var(--space-sm);
+  align-items: end;
+  margin-bottom: var(--space-xs);
+}
+
+.projekt-erstellen-extra-row .form-field {
+  margin: 0;
+}
+
+.projekt-erstellen-remove-btn {
+  background: transparent;
+  border: var(--border-xs) solid var(--gray-300);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--gray-700);
+}
+
+.projekt-erstellen-remove-btn:hover {
+  border-color: var(--danger, #c33);
+  color: var(--danger, #c33);
+}
+
+.projekt-erstellen-section-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: 0 var(--space-xxl) var(--space-xxl) 0;
+}
+
+.projekt-erstellen-titel-wrap {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: end;
+}
+
+.projekt-erstellen-titel-wrap .form-field {
+  flex: 1;
+  margin: 0;
+}
+
+.projekt-erstellen-agency-toggle-label {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.projekt-erstellen-empty-note {
+  color: var(--gray-500);
+  font-style: italic;
+  font-size: var(--font-size-sm);
+}
+
+.projekt-erstellen-budget-host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.projekt-erstellen-budget-host:empty {
+  margin-top: 0;
+}

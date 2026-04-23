@@ -48,6 +48,12 @@ VertraegeCreate.prototype.getContractLocale = function(lang) {
     return lang === 'en' ? 'en-GB' : 'de-DE';
 };
 
+// Wrapper damit KampagneUtils in Prototype-Extension-Dateien (types/*.js)
+// nicht vom Tree-Shaking entfernt wird. Kern-Datei importiert KampagneUtils bereits.
+VertraegeCreate.prototype.getKampagneDisplayName = function(kampagne) {
+    return KampagneUtils.getDisplayName(kampagne);
+};
+
 VertraegeCreate.prototype.formatContractDate = function(dateValue, lang, options) {
     if (!dateValue) return '-';
     return new Date(dateValue).toLocaleDateString(this.getContractLocale(lang), options);

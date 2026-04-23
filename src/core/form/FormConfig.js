@@ -619,11 +619,8 @@ export class FormConfig {
           { name: 'verkaufspreis_netto', label: 'VK Netto', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, placeholder: 'Aus Videos', row: 'vk1', colSize: 'grow', section: 'preise' },
           { name: 'verkaufspreis_zusatzkosten', label: 'VK Zusatzkosten', type: 'number', required: false, validation: { type: 'number', min: 0 }, row: 'vk1', colSize: 'grow', section: 'preise' },
           { name: 'verkaufspreis_ust', label: 'VK USt (19%)', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['verkaufspreis_netto', 'verkaufspreis_zusatzkosten'], row: 'vk2', colSize: 'grow', section: 'preise' },
-          { name: 'verkaufspreis_gesamt', label: 'VK Gesamt', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['verkaufspreis_netto', 'verkaufspreis_zusatzkosten', 'verkaufspreis_ust'], row: 'vk2', colSize: 'grow', section: 'preise' },
-
-          // Sektion 4: Deadlines
-          { name: 'skript_deadline', label: 'Skript Deadline', type: 'date', required: false, section: 'vertrag', sectionTitle: 'Deadlines' },
-          { name: 'content_deadline', label: 'Content Deadline', type: 'date', required: false, section: 'vertrag' }
+          { name: 'verkaufspreis_gesamt', label: 'VK Gesamt', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['verkaufspreis_netto', 'verkaufspreis_zusatzkosten', 'verkaufspreis_ust'], row: 'vk2', colSize: 'grow', section: 'preise' }
+          // Deadlines wurden auf Video-Ebene verschoben (kooperation_videos.skript_deadline / content_deadline)
         ]
       },
       ansprechpartner: {

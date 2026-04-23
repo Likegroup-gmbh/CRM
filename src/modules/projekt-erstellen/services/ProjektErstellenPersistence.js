@@ -1,0 +1,154 @@
+// ProjektErstellenPersistence.js
+// Insert fuer auftrag + auftrag_details + kampagne beim Submit.
+
+import { generatePoNummer } from '../../auftrag/logic/PoNummerGenerator.js';
+import { CAMPAIGN_TYPES } from '../constants.js';
+import { mapBudgetsToDbColumns } from '../logic/CampaignBudgetFields.js';
+
+const SUPABASE = () => window.supabase;
+
+export class ProjektErstellenPersistence {
+  buildAuftragPayload(fd) {
+    const a = fd.auftrag || {};
+    return {
+      unternehmen_id: a.unternehmen_id || null,
+      marke_id: a.marke_id || null,
+      ansprechpartner_id: a.ansprechpartner_id || null,
+      auftragtype: a.auftragtype || null,
+      start: a.start || null,
+      ende: a.ende || null,
+      titel: a.titel || null,
+      titel_manuell_geaendert: !!a.titel_manuell_geaendert,
+      auftragsname: a.titel || null,
+      angebotsnummer: a.angebotsnummer || null,
+      re_nr: a.re_nr || null,
+      externe_po: a.externe_po || null,
+      zahlungsziel_tage: a.zahlungsziel_tage ?? null,
+      re_faelligkeit: a.re_faelligkeit || null,
+      rechnung_gestellt: !!a.rechnung_gestellt,
+      rechnung_gestellt_am: a.rechnung_gestellt_am || null,
+      erwarteter_monat_zahlungseingang: a.erwarteter_monat_zahlungseingang || null,
+      nettobetrag: a.nettobetrag ?? null,
+      ust_prozent: a.ust_prozent ?? null,
+      ust_betrag: a.ust_betrag ?? null,
+      bruttobetrag: a.bruttobetrag ?? null,
+      is_draft: false,
+      status: 'Beauftragt'
+    };
+  }
+
+  buildDetailsPayload(fd) {
+    const d = fd.details || {};
+    const activeChips = Array.isArray(d.campaign_type) ? d.campaign_type : [];
+    const budgetColumns = mapBudgetsToDbColumns(d.campaign_budgets || {}, activeChips);
+
+    return {
+      campaign_type: activeChips,
+      agency_services_enabled: !!d.agency_services_enabled,
+      retainer_type: d.retainer_type || 'none',
+      retainer_amount: d.retainer_amount ?? 0,
+      extra_services: d.extra_services_enabled && Array.isArray(d.extra_services) ? d.extra_services : [],
+      percentage_fee_enabled: !!d.percentage_fee_enabled,
+      percentage_fee_value: d.percentage_fee_value ?? 0,
+      percentage_fee_base: d.percentage_fee_base || 'total_budget',
+      ksk_enabled: !!d.ksk_enabled,
+      ksk_type: d.ksk_type || 'percentage',
+      ksk_value: d.ksk_value ?? 0,
+      ...budgetColumns
+    };
+  }
+
+  buildKampagnePayload(fd) {
+    const k = fd.kampagne || {};
+    const d = fd.details || {};
+    const a = fd.auftrag || {};
+    const artDerKampagne = Array.isArray(d.campaign_type)
+      ? d.campaign_type.map(v => CAMPAIGN_TYPES.find(t => t.value === v)?.label || v)
+      : [];
+    return {
+      kampagnenname: k.kampagnenname || a.titel || null,
+      eigener_name: null,
+      unternehmen_id: a.unternehmen_id || null,
+      marke_id: a.marke_id || null,
+      art_der_kampagne: artDerKampagne,
+      start: k.start || null,
+      deadline: k.deadline || null,
+      creatoranzahl: k.creatoranzahl ?? null,
+      videoanzahl: k.videoanzahl ?? null,
+      budget_info: null
+    };
+  }
+
+  async submit({ formData }) {
+    const supabase = SUPABASE();
+    if (!supabase) return { success: false, error: 'Supabase nicht verfügbar' };
+
+    try {
+      const auftragPayload = this.buildAuftragPayload(formData);
+      auftragPayload.created_by_id = window.currentUser?.id || null;
+
+      const unternehmenId = auftragPayload.unternehmen_id;
+      if (unternehmenId) {
+        const poResult = await generatePoNummer(unternehmenId);
+        if (!poResult.success) {
+          return { success: false, error: poResult.error };
+        }
+        auftragPayload.po = poResult.poNummer;
+      }
+
+      const { data: auftragData, error: auftragErr } = await supabase
+        .from('auftrag')
+        .insert(auftragPayload)
+        .select('id')
+        .single();
+      if (auftragErr) throw auftragErr;
+
+      const savedAuftragId = auftragData.id;
+
+      const detailsPayload = this.buildDetailsPayload(formData);
+      detailsPayload.auftrag_id = savedAuftragId;
+      detailsPayload.created_by_id = window.currentUser?.id || null;
+
+      const { error: detailsErr } = await supabase
+        .from('auftrag_details')
+        .insert(detailsPayload);
+      if (detailsErr) throw detailsErr;
+
+      const kampagnePayload = this.buildKampagnePayload(formData);
+      kampagnePayload.auftrag_id = savedAuftragId;
+
+      const { error: kampagneErr } = await supabase
+        .from('kampagne')
+        .insert(kampagnePayload);
+      if (kampagneErr) throw kampagneErr;
+
+      return { success: true, auftragId: savedAuftragId };
+    } catch (e) {
+      const friendly = this.friendlyError(e, 'Projekt konnte nicht angelegt werden');
+      console.error('❌ submit Fehler:', {
+        message: e?.message,
+        details: e?.details,
+        hint: e?.hint,
+        code: e?.code,
+        raw: e
+      });
+      return { success: false, error: friendly };
+    }
+  }
+
+  friendlyError(e, fallback) {
+    if (e?.code === '23505') {
+      if (e?.message?.includes('angebotsnummer') || e?.details?.includes('angebotsnummer')) {
+        return 'Diese Angebotsnummer ist bereits einem anderen Auftrag zugewiesen.';
+      }
+      return 'Dieser Wert existiert bereits und darf nur einmal vergeben werden.';
+    }
+    if (e?.code === '23503') {
+      return 'Verknüpfter Datensatz nicht gefunden. Bitte Auswahl prüfen.';
+    }
+    if (e?.code === '23514') {
+      return `Ungültiger Wert (${e?.message || e?.details || 'CHECK-Constraint verletzt'}).`;
+    }
+    return e?.message || e?.details || fallback;
+  }
+}

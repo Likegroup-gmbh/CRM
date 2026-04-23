@@ -1,8 +1,15 @@
+export { OptionsManager } from './form/data/OptionsManager.js';
+
 export class ModuleRegistry {
   constructor() {
     this.modules = new Map();
     this.currentModule = null;
     this._isNavigating = false;
+    this._cleanupCallbacks = [];
+  }
+
+  registerCleanup(fn) {
+    if (typeof fn === 'function') this._cleanupCallbacks.push(fn);
   }
 
   register(name, module) {
@@ -112,6 +119,8 @@ export class ModuleRegistry {
       this.currentModule.destroy();
       this.currentModule = null;
     }
+
+    this._globalCleanup();
 
     if (window.breadcrumbSystem?.setFromRoute) {
       window.breadcrumbSystem.setFromRoute(segment, id || null);
@@ -283,19 +292,10 @@ export class ModuleRegistry {
     if (segment === 'projekt-erstellen') {
       moduleKey = 'projekt-erstellen';
       module = this.modules.get(moduleKey);
-      if (id) {
-        console.log(`🎯 Projekt-Erstellen Draft/Edit, verwende Modul: ${moduleKey} mit ID: ${id}`);
-        const draftId = id;
-        if (module?.init) {
-          this.currentModule = module;
-          return module.init(draftId);
-        }
-      } else {
-        console.log(`🎯 Projekt-Erstellen (neu), verwende Modul: ${moduleKey}`);
-        if (module?.init) {
-          this.currentModule = module;
-          return module.init();
-        }
+      console.log(`🎯 Projekt-Erstellen, verwende Modul: ${moduleKey}`);
+      if (module?.init) {
+        this.currentModule = module;
+        return module.init();
       }
     }
 
@@ -353,6 +353,13 @@ export class ModuleRegistry {
   }
 
   loadDashboard() {
+    if (this.currentModule && this.currentModule.destroy) {
+      this.currentModule.destroy();
+      this.currentModule = null;
+    }
+
+    this._globalCleanup();
+
     if (window.breadcrumbSystem?.setFromRoute) {
       window.breadcrumbSystem.setFromRoute('dashboard');
     }
@@ -370,5 +377,18 @@ export class ModuleRegistry {
         </div>
       `;
     }
+  }
+
+  _globalCleanup() {
+    try { OptionsManager.cleanup(); } catch {}
+
+    for (const cb of this._cleanupCallbacks) {
+      try { cb(); } catch (e) { console.warn('⚠️ Cleanup-Callback Fehler:', e); }
+    }
+    this._cleanupCallbacks = [];
+
+    document.querySelectorAll(
+      '.drawer-overlay, .modal-overlay'
+    ).forEach(el => el.remove());
   }
 }

@@ -19,6 +19,7 @@ export class MarkeDetail extends PersonDetailBase {
     super();
     this.markeId = null;
     this.marke = null;
+    this._cacheAbortController = null;
     this.kampagnen = [];
     this.auftraege = [];
     this.briefings = [];
@@ -489,6 +490,9 @@ export class MarkeDetail extends PersonDetailBase {
   
   // Setup Cache-Invalidierung bei Updates
   setupCacheInvalidation() {
+    this._cacheAbortController?.abort();
+    this._cacheAbortController = new AbortController();
+
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail?.entity === 'marke' && e.detail?.id === this.markeId) {
         console.log('🔄 MARKENDETAIL: Entity updated - invalidiere Cache');
@@ -498,7 +502,7 @@ export class MarkeDetail extends PersonDetailBase {
           this.loadCriticalData().then(() => this.render());
         }
       }
-    });
+    }, { signal: this._cacheAbortController.signal });
   }
 
   // Rendere Marken-Detailseite
@@ -1135,10 +1139,14 @@ export class MarkeDetail extends PersonDetailBase {
     if (this._eventsBound) return;
     this._eventsBound = true;
 
-    // Zentrale Event-Handler registrieren (mit Referenz für Cleanup)
-    document.addEventListener('click', this._handleDocumentClick);
-    document.addEventListener('entityUpdated', this._handleEntityUpdated);
-    window.addEventListener('softRefresh', this._handleSoftRefresh);
+    this._eventsAbort?.abort();
+    this._eventsAbort = new AbortController();
+    const signal = this._eventsAbort.signal;
+
+    // Zentrale Event-Handler registrieren
+    document.addEventListener('click', this._handleDocumentClick, { signal });
+    document.addEventListener('entityUpdated', this._handleEntityUpdated, { signal });
+    window.addEventListener('softRefresh', this._handleSoftRefresh, { signal });
     
     console.log('✅ MARKEDETAIL: Event-Listener registriert');
   }
@@ -1393,14 +1401,14 @@ export class MarkeDetail extends PersonDetailBase {
   destroy() {
     console.log('🗑️ MARKEDETAIL: Destroy aufgerufen');
     
+    this._cacheAbortController?.abort();
+    this._cacheAbortController = null;
+
     // Event-Listener entfernen
-    if (this._eventsBound) {
-      document.removeEventListener('click', this._handleDocumentClick);
-      document.removeEventListener('entityUpdated', this._handleEntityUpdated);
-      window.removeEventListener('softRefresh', this._handleSoftRefresh);
-      this._eventsBound = false;
-      console.log('✅ MARKEDETAIL: Event-Listener entfernt');
-    }
+    this._eventsAbort?.abort();
+    this._eventsAbort = null;
+    this._eventsBound = false;
+    console.log('✅ MARKEDETAIL: Event-Listener entfernt');
     
     tabDataCache.invalidate('marke', this.markeId);
     window.setContentSafely('');

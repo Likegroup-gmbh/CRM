@@ -393,12 +393,12 @@ export class TaskKanbanBoard {
   }
 
   bindGlobalEvents() {
-    // Diese Events werden nur einmal beim Init gebunden
-    // Listener für Task-Updates (Kommentare, Anhänge, etc.)
-    window.addEventListener('taskUpdated', (e) => this.handleTaskUpdate(e));
-    
-    // Listener für neue Tasks
-    window.addEventListener('taskCreated', (e) => this.handleTaskCreated(e));
+    this._globalAbort?.abort();
+    this._globalAbort = new AbortController();
+    const signal = this._globalAbort.signal;
+
+    window.addEventListener('taskUpdated', (e) => this.handleTaskUpdate(e), { signal });
+    window.addEventListener('taskCreated', (e) => this.handleTaskCreated(e), { signal });
   }
 
   async handleTaskUpdate(event) {
@@ -587,7 +587,8 @@ export class TaskKanbanBoard {
   }
 
   destroy() {
-    // Cleanup wenn Board nicht mehr benötigt wird
+    this._globalAbort?.abort();
+    this._globalAbort = null;
     this.container = null;
     this.tasks = [];
   }

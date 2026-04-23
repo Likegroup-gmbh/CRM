@@ -48,8 +48,8 @@ export class VideoTableDataLoader {
         const kampagneJoin = 'kampagne:kampagne_id (id, kampagnenname, eigener_name, unternehmen:unternehmen_id(id, firmenname), marke:marke_id(id, markenname))';
         const statusJoin = 'status_ref:status_id(id, name)';
         const koopSelect = isKunde
-          ? `id, name, status_id, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, skript_deadline, content_deadline, created_at, creator_id, bilder_folder_url, ${statusJoin}, ${kampagneJoin}`
-          : `id, name, status_id, einkaufspreis_netto, einkaufspreis_gesamt, verkaufspreis_zusatzkosten, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, skript_deadline, content_deadline, created_at, creator_id, bilder_folder_url, ${statusJoin}, ${kampagneJoin}`;
+          ? `id, name, status_id, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, bilder_folder_url, ${statusJoin}, ${kampagneJoin}`
+          : `id, name, status_id, einkaufspreis_netto, einkaufspreis_gesamt, verkaufspreis_zusatzkosten, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, bilder_folder_url, ${statusJoin}, ${kampagneJoin}`;
 
         const kooperationenResult = await window.supabase
           .from('kooperationen')
@@ -99,7 +99,7 @@ export class VideoTableDataLoader {
       const [videosResult, creatorsResult, vertraegeResult, versandResult, statusResult, tagsResult] = await Promise.allSettled([
         batchIn(
           sb.from('kooperation_videos'),
-          'id, kooperation_id, position, asset_url, content_art, caption, feedback_creatorjobs, feedback_ritzenhoff, freigabe, link_content, folder_url, story_folder_url, link_produkte, thema, link_skript, skript_freigegeben, drehort, video_name, posting_datum, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id, video_link)',
+          'id, kooperation_id, position, asset_url, content_art, caption, feedback_creatorjobs, feedback_ritzenhoff, freigabe, link_content, folder_url, story_folder_url, link_produkte, thema, link_skript, skript_freigegeben, drehort, video_name, posting_datum, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, skript_deadline, content_deadline, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id, video_link)',
           'kooperation_id', koopIds,
           q => q.order('position', { ascending: true })
         ),
@@ -197,7 +197,8 @@ export class VideoTableDataLoader {
       t._dataLoaded = true;
       t._logPerformanceSummary();
       t._updateLoadingProgress('Fertig!', 100);
-      setTimeout(() => t._removeLoadingProgress(), 300);
+      clearTimeout(t._loadingProgressTimer);
+      t._loadingProgressTimer = setTimeout(() => t._removeLoadingProgress(), 300);
 
       const videoIds = allVideos.map(v => v.id);
       if (videoIds.length > 0) {

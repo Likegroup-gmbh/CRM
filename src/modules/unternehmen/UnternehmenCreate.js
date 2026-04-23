@@ -244,11 +244,15 @@ export class UnternehmenCreate {
 
   // Binde Events
   bindEvents() {
+    this._eventsAbort?.abort();
+    this._eventsAbort = new AbortController();
+    const signal = this._eventsAbort.signal;
+
     // Form Submit
     document.getElementById('unternehmen-create-form').addEventListener('submit', (e) => {
       e.preventDefault();
       this.handleSubmit();
-    });
+    }, { signal });
 
     // Abbrechen Button
     document.getElementById('btn-cancel').addEventListener('click', () => {
@@ -305,7 +309,7 @@ export class UnternehmenCreate {
       if (!input.contains(e.target) && !dropdown.contains(e.target)) {
         dropdown.style.display = 'none';
       }
-    });
+    }, { signal: this._eventsAbort.signal });
   }
 
   // Rendere Branchen-Dropdown
@@ -777,7 +781,8 @@ export class UnternehmenCreate {
   // Cleanup
   destroy() {
     console.log('🗑️ UNTERNEHMENCREATE: Destroy aufgerufen');
-    // Content zurücksetzen
+    this._eventsAbort?.abort();
+    this._eventsAbort = null;
     window.setContentSafely('');
     console.log('✅ UNTERNEHMENCREATE: Destroy abgeschlossen');
   }

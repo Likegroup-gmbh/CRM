@@ -5,13 +5,16 @@ export class GridController {
   constructor(renderer, autoSaveManager) {
     this.renderer = renderer;
     this.autoSaveManager = autoSaveManager;
-    this.selectedCell = null; // {row, col}
-    this.editingCell = null; // {row, col, input}
+    this.selectedCell = null;
+    this.editingCell = null;
     this.container = renderer.container;
+    this._abortController = new AbortController();
   }
 
   // Initialisiere Event-Listener
   init() {
+    this._abortController?.abort();
+    this._abortController = new AbortController();
     this.bindCellEvents();
     this.bindHeaderEvents();
     this.bindKeyboardEvents();
@@ -20,17 +23,19 @@ export class GridController {
 
   // Bind Header-Events (für editierbare Spalten-Namen)
   bindHeaderEvents() {
+    const signal = this._abortController.signal;
     this.container.addEventListener('dblclick', (e) => {
       const header = e.target.closest('.editable-header');
       if (header) {
         const col = parseInt(header.dataset.col);
         this.startHeaderEdit(col);
       }
-    });
+    }, { signal });
   }
 
   // Bind Cell-Click Events
   bindCellEvents() {
+    const signal = this._abortController.signal;
     this.container.addEventListener('click', (e) => {
       const cell = e.target.closest('.grid-cell');
       if (cell) {
@@ -38,9 +43,8 @@ export class GridController {
         const col = parseInt(cell.dataset.col);
         this.selectCell(row, col);
       }
-    });
+    }, { signal });
 
-    // Doppelklick zum Editieren
     this.container.addEventListener('dblclick', (e) => {
       const cell = e.target.closest('.grid-cell');
       if (cell) {
@@ -48,7 +52,7 @@ export class GridController {
         const col = parseInt(cell.dataset.col);
         this.startEdit(row, col);
       }
-    });
+    }, { signal });
   }
 
   // Bind Keyboard-Navigation
@@ -127,11 +131,12 @@ export class GridController {
           }
           break;
       }
-    });
+    }, { signal: this._abortController.signal });
   }
 
   // Bind Menu-Events (Zeile/Spalte hinzufügen/löschen)
   bindMenuEvents() {
+    const signal = this._abortController.signal;
     // Row-Menu
     this.container.addEventListener('click', (e) => {
       if (e.target.classList.contains('row-menu-btn')) {
@@ -139,7 +144,7 @@ export class GridController {
         this.showRowMenu(e.target, row);
         e.stopPropagation();
       }
-    });
+    }, { signal });
 
     // Col-Menu
     this.container.addEventListener('click', (e) => {
@@ -148,7 +153,7 @@ export class GridController {
         this.showColumnMenu(e.target, col);
         e.stopPropagation();
       }
-    });
+    }, { signal });
   }
 
   // Starte Header-Edit
@@ -428,6 +433,7 @@ export class GridController {
 
   // Cleanup
   destroy() {
+    this._abortController.abort();
     if (this.editingCell) {
       this.finishEdit(false);
     }

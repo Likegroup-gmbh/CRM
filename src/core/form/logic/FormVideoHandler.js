@@ -121,12 +121,16 @@ export class FormVideoHandler {
       const einkaufspreis = (ekRaw !== null && ekRaw !== undefined && ekRaw !== '') ? parseFloat(ekRaw) : 0;
       const vkRaw = form.querySelector(`input[name="video_vk_netto_${id}"]`)?.value;
       const verkaufspreis = (vkRaw !== null && vkRaw !== undefined && vkRaw !== '') ? parseFloat(vkRaw) : 0;
+      const skriptDeadlineRaw = form.querySelector(`input[name="video_skript_deadline_${id}"]`)?.value;
+      const contentDeadlineRaw = form.querySelector(`input[name="video_content_deadline_${id}"]`)?.value;
       return {
         kooperation_id: kooperationId,
         content_art: contentArt,
         kampagnenart: kampagnenart,
         einkaufspreis_netto: einkaufspreis,
         verkaufspreis_netto: verkaufspreis,
+        skript_deadline: skriptDeadlineRaw || null,
+        content_deadline: contentDeadlineRaw || null,
         position: idx + 1
       };
     });
@@ -143,6 +147,8 @@ export class FormVideoHandler {
         kampagnenart: manual?.kampagnenart || null,
         einkaufspreis_netto: manual?.einkaufspreis_netto || 0,
         verkaufspreis_netto: manual?.verkaufspreis_netto || 0,
+        skript_deadline: manual?.skript_deadline || null,
+        content_deadline: manual?.content_deadline || null,
         titel: null,
         asset_url: null,
         kommentar: null,
@@ -166,7 +172,7 @@ export class FormVideoHandler {
   async _mergeKooperationVideos(kooperationId, videoanzahl, manualRows, contentArtFallback) {
     const { data: existing, error: loadErr } = await window.supabase
       .from('kooperation_videos')
-      .select('id, position, content_art, kampagnenart, einkaufspreis_netto, verkaufspreis_netto')
+      .select('id, position, content_art, kampagnenart, einkaufspreis_netto, verkaufspreis_netto, skript_deadline, content_deadline')
       .eq('kooperation_id', kooperationId)
       .order('position', { ascending: true });
 
@@ -187,6 +193,13 @@ export class FormVideoHandler {
       if (manual.kampagnenart) updates.kampagnenart = manual.kampagnenart;
       if (manual.einkaufspreis_netto > 0) updates.einkaufspreis_netto = manual.einkaufspreis_netto;
       if (manual.verkaufspreis_netto > 0) updates.verkaufspreis_netto = manual.verkaufspreis_netto;
+      // Deadlines immer durchreichen (auch null, damit gezielt geleert werden kann)
+      if ((manual.skript_deadline || null) !== (video.skript_deadline || null)) {
+        updates.skript_deadline = manual.skript_deadline || null;
+      }
+      if ((manual.content_deadline || null) !== (video.content_deadline || null)) {
+        updates.content_deadline = manual.content_deadline || null;
+      }
       updates.position = idx + 1;
 
       if (Object.keys(updates).length === 1 && updates.position === video.position) return null;
@@ -225,6 +238,8 @@ export class FormVideoHandler {
           kampagnenart: manual?.kampagnenart || null,
           einkaufspreis_netto: manual?.einkaufspreis_netto || 0,
           verkaufspreis_netto: manual?.verkaufspreis_netto || 0,
+          skript_deadline: manual?.skript_deadline || null,
+          content_deadline: manual?.content_deadline || null,
           titel: null,
           asset_url: null,
           kommentar: null,

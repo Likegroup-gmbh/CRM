@@ -19,6 +19,8 @@ export function addVideoRow(list, contentArtOptions = [], initial = {}, kampagne
   const contentArtHtml = buildVideoSelectOptions(contentArtOptions, initial.content_art || '');
   const ekValue = initial.einkaufspreis_netto != null ? parseFloat(initial.einkaufspreis_netto) || '' : '';
   const vkValue = initial.verkaufspreis_netto != null ? parseFloat(initial.verkaufspreis_netto) || '' : '';
+  const skriptDeadlineValue = initial.skript_deadline || '';
+  const contentDeadlineValue = initial.content_deadline || '';
 
   const html = `
     <div class="video-item" data-video-id="${itemId}">
@@ -46,6 +48,14 @@ export function addVideoRow(list, contentArtOptions = [], initial = {}, kampagne
         <div class="video-field">
           <label>VK Netto (€)</label>
           <input type="number" name="video_vk_netto_${itemId}" class="video-vk-input" min="0" step="0.01" value="${vkValue}" placeholder="0,00">
+        </div>
+        <div class="video-field">
+          <label>Skript Deadline</label>
+          <input type="date" name="video_skript_deadline_${itemId}" class="video-skript-deadline-input" value="${skriptDeadlineValue}">
+        </div>
+        <div class="video-field">
+          <label>Content Deadline</label>
+          <input type="date" name="video_content_deadline_${itemId}" class="video-content-deadline-input" value="${contentDeadlineValue}">
         </div>
       </div>
     </div>`;

@@ -19,7 +19,7 @@ export class KampagneKooperationenVideoTable {
     this.resizeStartWidth = 0;
     this.storageKey = `kampagne_koops_videos_column_widths_v3_${kampagneId}`;
     this.hiddenColumns = [];
-    this._visibilityEventBound = false;
+    this._abortController = null;
     
     this.activeFilterTab = 'offen';
     
@@ -203,6 +203,10 @@ export class KampagneKooperationenVideoTable {
   // ========================================
 
   bindEvents() {
+    if (this._abortController) this._abortController.abort();
+    this._abortController = new AbortController();
+    const signal = this._abortController.signal;
+
     const container = document.querySelector('.kooperation-video-grid');
     if (!container) return;
 
@@ -231,7 +235,8 @@ export class KampagneKooperationenVideoTable {
             const allApproved = this.areAllVideosApproved(koopId);
             const shouldBeVisible = this.activeFilterTab === 'offen' ? !allApproved : allApproved;
             if (!shouldBeVisible) {
-              setTimeout(() => this.refilter(), 600);
+              clearTimeout(this._refilterTimer);
+              this._refilterTimer = setTimeout(() => this.refilter(), 600);
             }
           }
         }
@@ -259,7 +264,7 @@ export class KampagneKooperationenVideoTable {
     window.addEventListener('kooperationStatusChanged', (e) => {
       const { kooperationId, statusId, statusName } = e.detail;
       this._updateStatusInline(kooperationId, statusId, statusName);
-    });
+    }, { signal });
 
     this.bindResizeEvents();
     this.bindDragToScroll();
@@ -443,15 +448,12 @@ export class KampagneKooperationenVideoTable {
       
       this.bindEvents();
       
-      if (!this._visibilityEventBound) {
-        window.addEventListener('video-column-visibility-changed', (e) => {
-          if (e.detail.kampagneId === this.kampagneId) {
-            this.hiddenColumns = e.detail.hiddenColumns;
-            this.refilter();
-          }
-        });
-        this._visibilityEventBound = true;
-      }
+      window.addEventListener('video-column-visibility-changed', (e) => {
+        if (e.detail.kampagneId === this.kampagneId) {
+          this.hiddenColumns = e.detail.hiddenColumns;
+          this.refilter();
+        }
+      }, { signal: this._abortController.signal });
 
       if (!this._entityUpdatedHandler) {
         this._entityUpdatedHandler = async (e) => {
@@ -542,13 +544,18 @@ export class KampagneKooperationenVideoTable {
       this.isDragging = false;
       this.dragScrollContainer = null;
     }
-    
-    if (this.cleanupFloatingScrollbar) {
-      this.cleanupFloatingScrollbar();
-      this.cleanupFloatingScrollbar = null;
-    }
+
+    this.uiHelpers.destroy();
+
+    clearTimeout(this._refilterTimer);
+    clearTimeout(this._loadingProgressTimer);
     
     this.cleanupRealtimeSubscription();
+
+    if (this._abortController) {
+      this._abortController.abort();
+      this._abortController = null;
+    }
 
     if (this._entityUpdatedHandler) {
       window.removeEventListener('entityUpdated', this._entityUpdatedHandler);

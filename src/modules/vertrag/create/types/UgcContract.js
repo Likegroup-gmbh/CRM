@@ -2,7 +2,6 @@
 // UGC-Produktionsvertrag: Steps 2-5.
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
-import { KampagneUtils } from '../../../kampagne/KampagneUtils.js';
 
 VertraegeCreate.prototype.renderStep2 = function() {
     // Filter nur initialisieren wenn noch nicht geschehen (z.B. bei Draft-Load bereits erledigt)
@@ -38,7 +37,7 @@ VertraegeCreate.prototype.renderStep2 = function() {
             <option value="">${this.formData.kunde_unternehmen_id ? 'Kampagne auswählen...' : 'Bitte zuerst Kunde wählen...'}</option>
             ${this.filteredKampagnen.map(k => `
               <option value="${k.id}" ${this.formData.kampagne_id === k.id ? 'selected' : ''}>
-                ${KampagneUtils.getDisplayName(k)}
+                ${this.getKampagneDisplayName(k)}
               </option>
             `).join('')}
           </select>

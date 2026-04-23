@@ -14,6 +14,7 @@ export class ProduktDetail extends PersonDetailBase {
     this.pflichtElemente = [];
     this.noGos = [];
     this.activeMainTab = 'informationen';
+    this._abortController = null;
   }
 
   // Initialisiere Produkt-Detailseite
@@ -308,6 +309,10 @@ export class ProduktDetail extends PersonDetailBase {
 
   // Binde Events
   bindEvents() {
+    if (this._abortController) this._abortController.abort();
+    this._abortController = new AbortController();
+    const signal = this._abortController.signal;
+
     // Sidebar Tabs binden (aus Basis-Klasse)
     this.bindSidebarTabs();
 
@@ -327,14 +332,14 @@ export class ProduktDetail extends PersonDetailBase {
       if (pane) {
         pane.classList.add('active');
       }
-    });
+    }, { signal });
 
     // Produkt bearbeiten Button
     document.addEventListener('click', (e) => {
       if (e.target.closest('#btn-edit-produkt')) {
         this.showEditForm();
       }
-    });
+    }, { signal });
 
     // Entity Updates
     document.addEventListener('entityUpdated', (e) => {
@@ -344,7 +349,7 @@ export class ProduktDetail extends PersonDetailBase {
           this.loadCriticalData().then(() => this.render());
         }
       }
-    });
+    }, { signal });
   }
 
   // Bearbeitungsformular anzeigen
@@ -575,6 +580,10 @@ export class ProduktDetail extends PersonDetailBase {
   // Cleanup
   destroy() {
     console.log('🗑️ PRODUKTDETAIL: Destroy aufgerufen');
+    if (this._abortController) {
+      this._abortController.abort();
+      this._abortController = null;
+    }
     window.setContentSafely('');
   }
 }

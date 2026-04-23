@@ -7,11 +7,12 @@ export class BulkActionSystem {
   constructor() {
     this.currentEntityType = null;
     this.currentListInstance = null;
-    this.boundEventListeners = new Set();
+    this._abortController = null;
   }
 
   // Initialisiere das System
   init() {
+    this.destroy();
     console.log('🔧 BulkActionSystem: Initialisiere...');
     this.bindGlobalEvents();
   }
@@ -56,25 +57,24 @@ export class BulkActionSystem {
 
   // Globale Event-Listener binden
   bindGlobalEvents() {
+    this._abortController = new AbortController();
+    const signal = this._abortController.signal;
+
     // Bulk-Actions: Deselect All Button
-    const deselectHandler = (e) => {
+    document.addEventListener('click', (e) => {
       if (e.target.id === 'btn-deselect-all') {
         e.preventDefault();
         this.handleDeselectAll();
       }
-    };
-    document.addEventListener('click', deselectHandler);
-    this.boundEventListeners.add({ element: document, type: 'click', handler: deselectHandler });
+    }, { signal });
 
     // Bulk-Actions: Delete Selected Button
-    const deleteHandler = (e) => {
+    document.addEventListener('click', (e) => {
       if (e.target.id === 'btn-delete-selected') {
         e.preventDefault();
         this.handleDeleteSelected();
       }
-    };
-    document.addEventListener('click', deleteHandler);
-    this.boundEventListeners.add({ element: document, type: 'click', handler: deleteHandler });
+    }, { signal });
 
     console.log('✅ BulkActionSystem: Globale Event-Listener registriert');
   }
@@ -108,7 +108,7 @@ export class BulkActionSystem {
     
     if (!canDelete) {
       console.warn(`⚠️ Löschen verweigert: Fehlende Berechtigung für ${entityType}`);
-      alert('Sie haben keine Berechtigung, diese Einträge zu löschen.');
+      window.toastSystem?.error('Sie haben keine Berechtigung, diese Einträge zu löschen.');
       return;
     }
     
@@ -169,7 +169,7 @@ export class BulkActionSystem {
     const canDelete = role === 'admin' || role === 'mitarbeiter';
     if (!canDelete) {
       console.warn('⚠️ Löschen verweigert: Fehlende Berechtigung');
-      alert('Sie haben keine Berechtigung, Einträge zu löschen.');
+      window.toastSystem?.error('Sie haben keine Berechtigung, Einträge zu löschen.');
       return;
     }
 
@@ -183,7 +183,7 @@ export class BulkActionSystem {
     const checkedBoxes = document.querySelectorAll(`${config.checkboxSelector}:checked`);
     
     if (checkedBoxes.length === 0) {
-      alert(`Keine ${config.displayName} ausgewählt.`);
+      window.toastSystem?.warning(`Keine ${config.displayName} ausgewählt.`);
       return;
     }
 
@@ -206,7 +206,7 @@ export class BulkActionSystem {
     const canDelete = role === 'admin' || role === 'mitarbeiter';
     if (!canDelete) {
       console.warn('⚠️ Löschen verweigert: Fehlende Berechtigung');
-      alert('Sie haben keine Berechtigung, Einträge zu löschen.');
+      window.toastSystem?.error('Sie haben keine Berechtigung, Einträge zu löschen.');
       return;
     }
     
@@ -232,11 +232,14 @@ export class BulkActionSystem {
         }
         if (totalDeleted > 0) {
           selectedIds.forEach(id => document.querySelector(`tr[data-id="${id}"]`)?.remove());
-          alert(`✅ ${totalDeleted} Unternehmen erfolgreich gelöscht.${allErrors.length > 0 ? ` (${allErrors.length} Fehler in delete_logs protokolliert)` : ''}`);
+          const unternehmenMsg = totalDeleted === 1
+            ? `Unternehmen erfolgreich gelöscht.${allErrors.length > 0 ? ` (${allErrors.length} Fehler in delete_logs protokolliert)` : ''}`
+            : `${totalDeleted} Unternehmen erfolgreich gelöscht.${allErrors.length > 0 ? ` (${allErrors.length} Fehler in delete_logs protokolliert)` : ''}`;
+          window.toastSystem?.success(unternehmenMsg);
           this.genericDeselectAll();
           window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'unternehmen', action: 'bulk-deleted', count: totalDeleted } }));
         } else {
-          alert('❌ Keines der Unternehmen konnte gelöscht werden. Siehe delete_logs.');
+          window.toastSystem?.error('Keines der Unternehmen konnte gelöscht werden. Siehe delete_logs.');
         }
         return;
       }
@@ -252,7 +255,22 @@ export class BulkActionSystem {
           document.querySelector(`tr[data-id="${id}"]`)?.remove();
         });
         
-        alert(`✅ ${result.deletedCount} ${config.displayName} erfolgreich gelöscht.`);
+        const singularName = {
+          'Creator': 'Creator',
+          'Unternehmen': 'Unternehmen',
+          'Kampagnen': 'Kampagne',
+          'Marken': 'Marke',
+          'Aufträge': 'Auftrag',
+          'Ansprechpartner': 'Ansprechpartner',
+          'Kooperationen': 'Kooperation',
+          'Rechnungen': 'Rechnung',
+          'Briefings': 'Briefing',
+          'Auftragsdetails': 'Auftragsdetail'
+        }[config.displayName] || config.displayName;
+        const successMsg = result.deletedCount === 1
+          ? `${singularName} erfolgreich gelöscht.`
+          : `${result.deletedCount} ${config.displayName} erfolgreich gelöscht.`;
+        window.toastSystem?.success(successMsg);
         
         // Auswahl zurücksetzen
         this.genericDeselectAll();
@@ -280,7 +298,7 @@ export class BulkActionSystem {
       });
       
       console.error('❌ BulkActionSystem: Fehler beim Löschen:', error);
-      alert(`❌ Fehler beim Löschen: ${error.message}`);
+      window.toastSystem?.error(`Fehler beim Löschen: ${error.message}`);
       
       // Liste neu laden um konsistenten Zustand herzustellen
       if (this.currentListInstance && typeof this.currentListInstance.loadAndRender === 'function') {
@@ -416,10 +434,8 @@ export class BulkActionSystem {
 
   // Cleanup
   destroy() {
-    this.boundEventListeners.forEach(({ element, type, handler }) => {
-      element.removeEventListener(type, handler);
-    });
-    this.boundEventListeners.clear();
+    this._abortController?.abort();
+    this._abortController = null;
   }
 }
 

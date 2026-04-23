@@ -52,7 +52,8 @@
 .kooperation-video-grid .col-videoanzahl { width: 70px; min-width: 70px; }
 .kooperation-video-grid .col-status { width: 120px; min-width: 120px; }
 .kooperation-video-grid .col-start-datum { width: 80px; min-width: 80px; }
-.kooperation-video-grid .col-end-datum { width: 80px; min-width: 80px; }
+.kooperation-video-grid .col-video-script-deadline { width: 110px; min-width: 110px; }
+.kooperation-video-grid .col-video-content-deadline { width: 110px; min-width: 110px; }
 .kooperation-video-grid .col-typ { width: 120px; min-width: 120px; }
 .kooperation-video-grid .col-organic-paid { width: 120px; min-width: 120px; }
 .kooperation-video-grid .col-kampagne { width: 150px; min-width: 150px; }

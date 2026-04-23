@@ -1,3 +1,5 @@
+import { SafeTimers } from '../../core/utils/SafeTimers.js';
+
 // KooperationenKanbanBoard.js
 // Kanban Board für Kooperationen auf der Kampagnen-Detail-Seite
 // Gruppiert Kooperationen nach kampagne_status, DnD für Statuswechsel
@@ -10,6 +12,8 @@ export class KooperationenKanbanBoard {
     this.container = null;
     this.draggedKoop = null;
     this.activeFilterTab = 'offen';
+    this._abortController = null;
+    this._timers = new SafeTimers();
 
     this.boundHandlers = {
       dragStart: (e) => this.onDragStart(e),
@@ -34,8 +38,8 @@ export class KooperationenKanbanBoard {
       this.bindDragDropEvents();
     }
     this._subscribeToUpdates();
-    setTimeout(() => this.initDragToScroll(), 100);
-    setTimeout(() => this.initFloatingScrollbar(), 150);
+    this._timers.setTimeout(() => this.initDragToScroll(), 100);
+    this._timers.setTimeout(() => this.initFloatingScrollbar(), 150);
   }
 
   setFilterTab(tab) {
@@ -44,7 +48,11 @@ export class KooperationenKanbanBoard {
   }
 
   _subscribeToUpdates() {
-    window.addEventListener('kooperationen-updated', this._onKooperationenUpdated);
+    this._abortController?.abort();
+    this._abortController = new AbortController();
+    const signal = this._abortController.signal;
+
+    window.addEventListener('kooperationen-updated', this._onKooperationenUpdated, { signal });
     if (this.store) {
       this._unsubStore = this.store.on('kooperationen-changed', this._onStoreChanged);
     }
@@ -97,7 +105,7 @@ export class KooperationenKanbanBoard {
     if (!this.isKunde) {
       this.bindDragDropEvents();
     }
-    setTimeout(() => this.initDragToScroll(), 50);
+    this._timers.setTimeout(() => this.initDragToScroll(), 50);
   }
 
   _renderColumn(statusId, statusName, koops) {
@@ -357,10 +365,10 @@ export class KooperationenKanbanBoard {
 
     updateScrollbar();
     checkVisibility();
-    setTimeout(() => { updateScrollbar(); checkVisibility(); }, 500);
+    this._timers.setTimeout(() => { updateScrollbar(); checkVisibility(); }, 500);
 
     const handleResize = () => { updateScrollbar(); checkVisibility(); };
-    window.addEventListener('resize', handleResize);
+    window.addEventListener('resize', handleResize, { signal: this._abortController?.signal });
 
     this._cleanupFloatingScrollbar = () => {
       floatingScrollbar.remove();
@@ -389,7 +397,9 @@ export class KooperationenKanbanBoard {
   // ========================================
 
   destroy() {
-    window.removeEventListener('kooperationen-updated', this._onKooperationenUpdated);
+    this._timers.clearAll();
+    this._abortController?.abort();
+    this._abortController = null;
     if (this._unsubStore) this._unsubStore();
     if (this._dragToScrollCleanup) this._dragToScrollCleanup();
     if (this._cleanupFloatingScrollbar) this._cleanupFloatingScrollbar();

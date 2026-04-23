@@ -53,6 +53,8 @@ export const feedbackPage = {
   mergeZoneActive: false, // Ist die Merge-Zone aktiv?
   isAdmin: false,
   editingCommentId: null, // ID des aktuell bearbeiteten Kommentars
+  _abortController: null,
+  _handleFeedbackCreated: null,
   filters: {
     priority: null,
     date: null,
@@ -754,6 +756,19 @@ export const feedbackPage = {
   },
 
   bindEvents() {
+    this._abortController?.abort();
+    this._abortController = new AbortController();
+    const { signal } = this._abortController;
+
+    if (!this._handleFeedbackCreated) {
+      this._handleFeedbackCreated = async () => {
+        await this.loadFeedbacks();
+        await this.loadComments();
+        this.render();
+        this.bindEvents();
+      };
+    }
+
     // Neues Feedback
     const newBtn = document.getElementById('new-feedback-btn');
     if (newBtn) {
@@ -927,7 +942,7 @@ export const feedbackPage = {
     this.bindDragDropEvents();
 
     // Event für Drawer-Refresh
-    window.addEventListener('feedbackCreated', this.handleFeedbackCreated.bind(this));
+    window.addEventListener('feedbackCreated', this._handleFeedbackCreated, { signal });
   },
 
   autoResizeTextarea(textarea) {
@@ -1751,6 +1766,9 @@ export const feedbackPage = {
 
   destroy() {
     console.log('🗑️ FeedbackPage: destroy()');
-    window.removeEventListener('feedbackCreated', this.handleFeedbackCreated);
+    this._abortController?.abort();
+    this._abortController = null;
+    clearTimeout(this.mergeTimer);
+    this.mergeTimer = null;
   }
 };

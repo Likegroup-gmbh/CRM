@@ -523,7 +523,7 @@ export class KampagneCreateHandler {
   async showDeleteSelectedConfirmation() {
     const selectedCount = this.list.selectedKampagnen.size;
     if (selectedCount === 0) {
-      alert('Keine Kampagnen ausgewählt.');
+      window.toastSystem?.warning('Keine Kampagnen ausgewählt.');
       return;
     }
 
@@ -574,7 +574,10 @@ export class KampagneCreateHandler {
           document.querySelector(`tr[data-id="${id}"]`)?.remove();
         });
         
-        alert(`✅ ${result.deletedCount} Kampagnen erfolgreich gelöscht.`);
+        const successMsg = result.deletedCount === 1
+          ? 'Kampagne erfolgreich gelöscht.'
+          : `${result.deletedCount} Kampagnen erfolgreich gelöscht.`;
+        window.toastSystem?.success(successMsg);
         
         this.list.deselectAll();
         
@@ -596,7 +599,7 @@ export class KampagneCreateHandler {
       });
       
       console.error('❌ Fehler beim Löschen:', error);
-      alert(`❌ Fehler beim Löschen: ${error.message}`);
+      window.toastSystem?.error(`Fehler beim Löschen: ${error.message}`);
       
       await this.list.loadAndRender();
     }

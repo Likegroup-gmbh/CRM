@@ -21,6 +21,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     this.activeMainTab = 'informationen';
     this.eventsBound = false;
     this._cacheInvalidationBound = false;
+    this._abortController = null;
     this._breadcrumbEditHandler = null;
     this._breadcrumbEditHandlerBound = false;
   }
@@ -209,6 +210,8 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     if (this._cacheInvalidationBound) return;
     this._cacheInvalidationBound = true;
     
+    const signal = this._abortController?.signal;
+    
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail?.entity === 'ansprechpartner' && e.detail?.id === this.ansprechpartnerId) {
         console.log('🔄 ANSPRECHPARTNERDETAIL: Entity updated - lade neu');
@@ -219,7 +222,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
           });
         });
       }
-    });
+    }, signal ? { signal } : undefined);
   }
 
   // Hauptansicht rendern
@@ -528,6 +531,11 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
   // Events für Detail-Ansicht binden (benannte Handler für sauberes Cleanup in destroy())
   bindEvents() {
     if (this.eventsBound) return;
+
+    if (this._abortController) this._abortController.abort();
+    this._abortController = new AbortController();
+    const signal = this._abortController.signal;
+
     // Sidebar Tabs binden (aus Basis-Klasse)
     this.bindSidebarTabs();
 
@@ -564,7 +572,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
         this.showMagicLinkModal();
       }
     };
-    document.addEventListener('click', this._onDocumentClick);
+    document.addEventListener('click', this._onDocumentClick, { signal });
 
     this._onSoftRefresh = async () => {
       if (!this.ansprechpartnerId || !location.pathname.startsWith('/ansprechpartner/')) return;
@@ -576,7 +584,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       await this.loadCriticalData();
       this.render();
     };
-    window.addEventListener('softRefresh', this._onSoftRefresh);
+    window.addEventListener('softRefresh', this._onSoftRefresh, { signal });
 
     this.eventsBound = true;
   }
@@ -900,13 +908,9 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
   destroy() {
     console.log('AnsprechpartnerDetail: Cleaning up...');
 
-    if (this._onDocumentClick) {
-      document.removeEventListener('click', this._onDocumentClick);
-      this._onDocumentClick = null;
-    }
-    if (this._onSoftRefresh) {
-      window.removeEventListener('softRefresh', this._onSoftRefresh);
-      this._onSoftRefresh = null;
+    if (this._abortController) {
+      this._abortController.abort();
+      this._abortController = null;
     }
 
     // Breadcrumb Edit Handler entfernen

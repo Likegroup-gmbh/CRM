@@ -318,20 +318,20 @@ export class DashboardModule {
         .gte('deadline', new Date().toISOString().split('T')[0]);
         
       let koopSkriptQuery = window.supabase
-        .from('kooperationen')
-        .select('id, name, skript_deadline, creator:creator_id(vorname, nachname)')
+        .from('kooperation_videos')
+        .select('id, kooperation_id, position, skript_deadline, kooperation:kooperation_id(id, name, creator:creator_id(vorname, nachname))')
         .lte('skript_deadline', nextWeekStr)
         .gte('skript_deadline', new Date().toISOString().split('T')[0]);
-        
+
       let koopContentQuery = window.supabase
-        .from('kooperationen')
-        .select('id, name, content_deadline, creator:creator_id(vorname, nachname)')
+        .from('kooperation_videos')
+        .select('id, kooperation_id, position, content_deadline, kooperation:kooperation_id(id, name, creator:creator_id(vorname, nachname))')
         .lte('content_deadline', nextWeekStr)
         .gte('content_deadline', new Date().toISOString().split('T')[0]);
         
       let rechnungQuery = window.supabase
-        .from('rechnungen')
-        .select('id, rechnungs_nr, zahlungsziel, unternehmen:unternehmen_id(firmenname)')
+        .from('rechnung')
+        .select('id, rechnung_nr, zahlungsziel, unternehmen:unternehmen_id(firmenname)')
         .lte('zahlungsziel', nextWeekStr)
         .gte('zahlungsziel', new Date().toISOString().split('T')[0]);
 
@@ -349,11 +349,11 @@ export class DashboardModule {
         }
         
         if (allowedKoopIds.length > 0) {
-          koopSkriptQuery = koopSkriptQuery.in('id', allowedKoopIds);
-          koopContentQuery = koopContentQuery.in('id', allowedKoopIds);
+          koopSkriptQuery = koopSkriptQuery.in('kooperation_id', allowedKoopIds);
+          koopContentQuery = koopContentQuery.in('kooperation_id', allowedKoopIds);
         } else {
-          koopSkriptQuery = koopSkriptQuery.eq('id', '00000000-0000-0000-0000-000000000000');
-          koopContentQuery = koopContentQuery.eq('id', '00000000-0000-0000-0000-000000000000');
+          koopSkriptQuery = koopSkriptQuery.eq('kooperation_id', '00000000-0000-0000-0000-000000000000');
+          koopContentQuery = koopContentQuery.eq('kooperation_id', '00000000-0000-0000-0000-000000000000');
         }
       }
 
@@ -392,30 +392,42 @@ export class DashboardModule {
           url: `/briefing/${b.id}`
         })) || []),
         
-        ...(kooperationSkriptDeadlines?.map(k => ({
-          type: 'kooperation-skript',
-          id: k.id,
-          title: `Skript: ${k.name || 'Kooperation'}`,
-          subtitle: `${k.creator?.vorname} ${k.creator?.nachname}`,
-          deadline: k.skript_deadline,
-          priority: this.getDeadlinePriority(k.skript_deadline),
-          url: `/kooperation/${k.id}`
-        })) || []),
-        
-        ...(kooperationContentDeadlines?.map(k => ({
-          type: 'kooperation-content',
-          id: k.id,
-          title: `Content: ${k.name || 'Kooperation'}`,
-          subtitle: `${k.creator?.vorname} ${k.creator?.nachname}`,
-          deadline: k.content_deadline,
-          priority: this.getDeadlinePriority(k.content_deadline),
-          url: `/kooperation/${k.id}`
-        })) || []),
+        ...(kooperationSkriptDeadlines?.map(v => {
+          const koop = v.kooperation || {};
+          const creator = koop.creator || {};
+          const koopName = koop.name || 'Kooperation';
+          const pos = v.position ? ` #${v.position}` : '';
+          return {
+            type: 'kooperation-skript',
+            id: v.id,
+            title: `Skript: ${koopName}${pos}`,
+            subtitle: `${creator.vorname || ''} ${creator.nachname || ''}`.trim(),
+            deadline: v.skript_deadline,
+            priority: this.getDeadlinePriority(v.skript_deadline),
+            url: `/kooperation/${v.kooperation_id}`
+          };
+        }) || []),
+
+        ...(kooperationContentDeadlines?.map(v => {
+          const koop = v.kooperation || {};
+          const creator = koop.creator || {};
+          const koopName = koop.name || 'Kooperation';
+          const pos = v.position ? ` #${v.position}` : '';
+          return {
+            type: 'kooperation-content',
+            id: v.id,
+            title: `Content: ${koopName}${pos}`,
+            subtitle: `${creator.vorname || ''} ${creator.nachname || ''}`.trim(),
+            deadline: v.content_deadline,
+            priority: this.getDeadlinePriority(v.content_deadline),
+            url: `/kooperation/${v.kooperation_id}`
+          };
+        }) || []),
         
         ...(rechnungDeadlines?.map(r => ({
           type: 'rechnung',
           id: r.id,
-          title: `Rechnung ${r.rechnungs_nr}`,
+          title: `Rechnung ${r.rechnung_nr}`,
           subtitle: r.unternehmen?.firmenname,
           deadline: r.zahlungsziel,
           priority: this.getDeadlinePriority(r.zahlungsziel),
@@ -1197,7 +1209,14 @@ export class DashboardModule {
   }
 
   setupKampagneEventListeners() {
-    // Event-Listener für Kampagnen-Updates (bidirektionale Sync)
+    // Cleanup alte Handler falls vorhanden
+    if (this.kampagneUpdatedHandler) {
+      window.removeEventListener('kampagneUpdated', this.kampagneUpdatedHandler);
+    }
+    if (this.entityUpdatedHandler) {
+      window.removeEventListener('entityUpdated', this.entityUpdatedHandler);
+    }
+
     this.kampagneUpdatedHandler = (e) => {
       console.log('📢 Dashboard: Kampagne Updated Event empfangen', e.detail);
       this.loadKampagnenTable();
@@ -1205,7 +1224,6 @@ export class DashboardModule {
     
     window.addEventListener('kampagneUpdated', this.kampagneUpdatedHandler);
     
-    // Entity Updated Event
     this.entityUpdatedHandler = (e) => {
       if (e.detail.entity === 'kampagne') {
         console.log('📢 Dashboard: Entity Updated Event (kampagne) empfangen', e.detail);

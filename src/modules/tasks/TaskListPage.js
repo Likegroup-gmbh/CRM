@@ -7,6 +7,7 @@ export const taskListPage = {
   kanbanBoard: null,
   createDrawer: null,
   tasks: [],
+  _abortController: null,
   filters: {
     entityType: null,
     entityId: null,
@@ -255,9 +256,12 @@ export const taskListPage = {
     }
 
     // Event Listener für Task-Updates
-    window.addEventListener('taskUpdated', () => this.refresh());
-    window.addEventListener('taskCreated', () => this.refresh());
-    window.addEventListener('taskDeleted', () => this.refresh());
+    this._abortController?.abort();
+    this._abortController = new AbortController();
+    const signal = this._abortController.signal;
+    window.addEventListener('taskUpdated', () => this.refresh(), { signal });
+    window.addEventListener('taskCreated', () => this.refresh(), { signal });
+    window.addEventListener('taskDeleted', () => this.refresh(), { signal });
   },
 
   async refresh() {
@@ -280,10 +284,8 @@ export const taskListPage = {
       this.kanbanBoard = null;
     }
     
-    // Remove Event Listeners
-    window.removeEventListener('taskUpdated', () => this.refresh());
-    window.removeEventListener('taskCreated', () => this.refresh());
-    window.removeEventListener('taskDeleted', () => this.refresh());
+    this._abortController?.abort();
+    this._abortController = null;
   }
 };
 

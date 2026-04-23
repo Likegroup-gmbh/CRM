@@ -1,6 +1,8 @@
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 
 export class KickOffDetail extends PersonDetailBase {
+  _abortController = null;
+
   constructor() {
     super();
     this.kickoff = null;
@@ -132,11 +134,16 @@ export class KickOffDetail extends PersonDetailBase {
   }
 
   bindDetailEvents() {
-    document.addEventListener('click', this._handleAction);
+    this._abortController?.abort();
+    this._abortController = new AbortController();
+    const { signal } = this._abortController;
+
+    document.addEventListener('click', this._handleAction, { signal });
   }
 
   destroy() {
-    document.removeEventListener('click', this._handleAction);
+    this._abortController?.abort();
+    this._abortController = null;
     this.kickoff = null;
     this.markenwerte = [];
   }

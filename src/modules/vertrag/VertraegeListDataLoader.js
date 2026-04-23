@@ -22,6 +22,16 @@ export async function loadUnternehmenFolders() {
     return [];
   }
 
+  // Guard: Bei ungültiger/abgelaufener Session nicht querien (verhindert 500er beim Logout)
+  try {
+    const { data: sessionData } = await window.supabase.auth.getSession();
+    if (!sessionData?.session) {
+      return [];
+    }
+  } catch {
+    return [];
+  }
+
   const { data, error } = await window.supabase
     .from('vertraege')
     .select(`
@@ -34,7 +44,14 @@ export async function loadUnternehmenFolders() {
     `)
     .not('kunde_unternehmen_id', 'is', null);
 
-  if (error) throw error;
+  if (error) {
+    // Auth-/Session-Fehler nach Logout nicht eskalieren
+    if (error.code === 'PGRST301' || error.status === 401 || error.message?.toLowerCase().includes('jwt')) {
+      console.warn('⚠️ loadUnternehmenFolders: Auth-Fehler ignoriert (vermutlich Logout-Race)');
+      return [];
+    }
+    throw error;
+  }
 
   const unternehmenMap = new Map();
   (data || []).forEach(v => {

@@ -37,6 +37,7 @@ export class KampagneDetail {
 
     this._isMounted = false;
     this._initPromise = null;
+    this._visibilityHandler = null;
   }
 
   async init(kampagneId) {
@@ -205,15 +206,16 @@ export class KampagneDetail {
       this.kooperationenVideoTable.initRealtimeSubscription();
       this.kooperationenVideoTable.loadColumnWidths();
 
-      if (!this.kooperationenVideoTable._visibilityEventBound) {
-        window.addEventListener('video-column-visibility-changed', (e) => {
-          if (e.detail.kampagneId === this.kampagneId) {
-            this.kooperationenVideoTable.hiddenColumns = e.detail.hiddenColumns;
-            this.kooperationenVideoTable.refilter();
-          }
-        });
-        this.kooperationenVideoTable._visibilityEventBound = true;
+      if (this._visibilityHandler) {
+        window.removeEventListener('video-column-visibility-changed', this._visibilityHandler);
       }
+      this._visibilityHandler = (e) => {
+        if (e.detail.kampagneId === this.kampagneId) {
+          this.kooperationenVideoTable.hiddenColumns = e.detail.hiddenColumns;
+          this.kooperationenVideoTable.refilter();
+        }
+      };
+      window.addEventListener('video-column-visibility-changed', this._visibilityHandler);
 
       if (!this.kooperationenVideoTable._entityUpdatedHandler) {
         this.kooperationenVideoTable._entityUpdatedHandler = async (e) => {
@@ -335,6 +337,11 @@ export class KampagneDetail {
     this._initPromise = null;
 
     teardownEvents();
+
+    if (this._visibilityHandler) {
+      window.removeEventListener('video-column-visibility-changed', this._visibilityHandler);
+      this._visibilityHandler = null;
+    }
 
     if (this.kooperationenVideoTable && typeof this.kooperationenVideoTable.destroy === 'function') {
       this.kooperationenVideoTable.destroy();

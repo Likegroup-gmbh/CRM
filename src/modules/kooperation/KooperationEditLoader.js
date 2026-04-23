@@ -257,7 +257,7 @@ export class KooperationEditLoader {
     if (!koopId || !window.supabase) return [];
     const { data } = await window.supabase
       .from('kooperation_videos')
-      .select('id, content_art, kampagnenart, einkaufspreis_netto, verkaufspreis_netto, titel, asset_url, kommentar, position')
+      .select('id, content_art, kampagnenart, einkaufspreis_netto, verkaufspreis_netto, skript_deadline, content_deadline, titel, asset_url, kommentar, position')
       .eq('kooperation_id', koopId)
       .order('position', { ascending: true });
     return data || [];

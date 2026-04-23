@@ -167,11 +167,15 @@ export class GridEditor {
   // Cleanup
   destroy() {
     console.log('🗑️ GridEditor: Destroy aufgerufen');
-    
+
     if (this.autoSaveManager) {
       this.autoSaveManager.destroy();
     }
-    
+
+    if (this.resizeController) {
+      this.resizeController.destroy();
+    }
+
     if (this.controller) {
       this.controller.destroy();
     }

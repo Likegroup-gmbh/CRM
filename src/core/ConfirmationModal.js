@@ -41,6 +41,7 @@ export class ConfirmationModal {
 
       const close = (result) => {
         if (!modal.parentNode) return;
+        window.removeEventListener('keydown', onKey);
         modal.remove();
         this._open = false;
         this._currentModal = null;
@@ -58,7 +59,7 @@ export class ConfirmationModal {
       });
 
       // Escape schließt
-      const onKey = (ev) => { if (ev.key === 'Escape') { window.removeEventListener('keydown', onKey); close({ confirmed: false }); } };
+      const onKey = (ev) => { if (ev.key === 'Escape') { close({ confirmed: false }); } };
       window.addEventListener('keydown', onKey);
     });
   }

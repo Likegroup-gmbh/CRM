@@ -11,6 +11,7 @@ export class KundenList {
     this.filteredRows = [];
     this.unternehmenMap = {};
     this.markenMap = {};
+    this._abortController = null;
   }
 
   async init() {
@@ -140,13 +141,17 @@ export class KundenList {
   }
 
   bind() {
+    this._abortController?.abort();
+    this._abortController = new AbortController();
+    const signal = this._abortController.signal;
+
     // Create button
     document.addEventListener('click', (e) => {
       if (e.target && e.target.id === 'btn-kunde-anlegen') {
         e.preventDefault();
         window.navigateTo('/admin/kunden/new');
       }
-    });
+    }, { signal });
     // Suche
     document.addEventListener('input', (e) => {
       if (e.target && e.target.id === 'kunden-search') {
@@ -161,7 +166,7 @@ export class KundenList {
         }
         this.render();
       }
-    });
+    }, { signal });
     document.addEventListener('click', (e) => {
       const link = e.target.closest('.table-link');
       if (link && link.dataset.table === 'kunden') {
@@ -169,7 +174,7 @@ export class KundenList {
         const id = link.dataset.id;
         window.navigateTo(`/kunden-admin/${id}`);
       }
-    });
+    }, { signal });
 
     document.addEventListener('click', async (e) => {
       if (e.target.closest('.submenu-item[data-action="set-role"]')) {
@@ -265,7 +270,7 @@ export class KundenList {
         const id = item.dataset.id;
         window.navigateTo(`/kunden-admin/${id}`);
       }
-    });
+    }, { signal });
   }
 
   // Wizard zum Anlegen eines Kunden (Form-Page)
@@ -783,6 +788,8 @@ export class KundenList {
   }
 
   destroy() {
+    this._abortController?.abort();
+    this._abortController = null;
     window.setContentSafely('');
   }
 }

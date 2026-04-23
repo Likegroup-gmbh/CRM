@@ -18,11 +18,11 @@ export class VideoTableColumnVisibilityDrawer {
       { className: 'col-vertrag', label: 'Vertrag' },
       { className: 'col-nutzungsrechte', label: 'Nutzungsrechte' },
       { className: 'col-start-datum', label: 'Erstellt' },
-      { className: 'col-script-deadline', label: 'Script Deadline' },
-      { className: 'col-end-datum', label: 'Content Deadline' },
       { className: 'col-videoanzahl', label: 'Videos' },
       { className: 'col-video-nr', label: 'Video-Nr' },
       { className: 'col-vk-video', label: 'Kosten' },
+      { className: 'col-video-script-deadline', label: 'Script Deadline' },
+      { className: 'col-video-content-deadline', label: 'Content Deadline' },
       { className: 'col-video-typ', label: 'Typ' },
       { className: 'col-thema', label: 'Thema' },
       { className: 'col-organic-paid', label: 'Content/Art' },
@@ -167,6 +167,7 @@ export class VideoTableColumnVisibilityDrawer {
 
   // Entferne Drawer
   removeDrawer() {
+    clearTimeout(this._closeTimer);
     const overlay = document.getElementById(`${this.drawerId}-overlay`);
     const panel = document.getElementById(this.drawerId);
     if (overlay) overlay.remove();
@@ -181,7 +182,8 @@ export class VideoTableColumnVisibilityDrawer {
     
     if (panel) panel.classList.remove('show');
     
-    setTimeout(() => {
+    clearTimeout(this._closeTimer);
+    this._closeTimer = setTimeout(() => {
       if (overlay) overlay.remove();
       if (panel) panel.remove();
     }, 300);

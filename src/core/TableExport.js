@@ -185,12 +185,16 @@ export const tableExport = {
     const dropdown = document.getElementById(`${containerId}-export-dropdown`);
     
     if (!btn || !menu) return;
+
+    if (this._exportAbort) this._exportAbort.abort();
+    this._exportAbort = new AbortController();
+    const signal = this._exportAbort.signal;
     
     // Toggle Dropdown
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       dropdown.classList.toggle('open');
-    });
+    }, { signal });
     
     // Format auswählen
     menu.querySelectorAll('.export-dropdown-item').forEach(item => {
@@ -199,13 +203,13 @@ export const tableExport = {
         const format = item.dataset.format;
         dropdown.classList.remove('open');
         onExport(format);
-      });
+      }, { signal });
     });
     
     // Schließen bei Klick außerhalb
     document.addEventListener('click', () => {
       dropdown.classList.remove('open');
-    });
+    }, { signal });
   }
 };
 

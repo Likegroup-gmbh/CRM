@@ -1385,6 +1385,16 @@ export class FilterDropdown {
    * Cleanup
    */
   destroy() {
+    if (this._mainClickHandler) {
+      document.removeEventListener('click', this._mainClickHandler);
+      this._mainClickHandler = null;
+    }
+    if (this._applyClickHandler) {
+      document.removeEventListener('click', this._applyClickHandler);
+      this._applyClickHandler = null;
+    }
+    this._eventsBound = false;
+    this.eventsBound = false;
     this.instances.clear();
     this.activeFilters.clear();
     this.filterConfigs.clear();

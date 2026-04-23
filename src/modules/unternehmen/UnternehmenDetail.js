@@ -1166,6 +1166,10 @@ export class UnternehmenDetail extends PersonDetailBase {
     // Sidebar Tabs binden (aus Basis-Klasse)
     this.bindSidebarTabs();
 
+    this._eventsAbort?.abort();
+    this._eventsAbort = new AbortController();
+    const signal = this._eventsAbort.signal;
+
     // Main Tab-Navigation - als benannter Handler speichern
     this._tabClickHandler = (e) => {
       const kickoffTypeBtn = e.target.closest('.kickoff-type-btn');
@@ -1194,7 +1198,7 @@ export class UnternehmenDetail extends PersonDetailBase {
       const pane = document.getElementById(`tab-${tab}`);
       if (pane) pane.classList.add('active');
     };
-    document.addEventListener('click', this._tabClickHandler);
+    document.addEventListener('click', this._tabClickHandler, { signal });
 
     // Unternehmen bearbeiten Button - als benannter Handler speichern
     this._editClickHandler = (e) => {
@@ -1202,7 +1206,7 @@ export class UnternehmenDetail extends PersonDetailBase {
         this.showEditForm();
       }
     };
-    document.addEventListener('click', this._editClickHandler);
+    document.addEventListener('click', this._editClickHandler, { signal });
 
     // Ansprechpartner hinzufügen Button - als benannter Handler speichern
     this._ansprechpartnerClickHandler = (e) => {
@@ -1213,7 +1217,7 @@ export class UnternehmenDetail extends PersonDetailBase {
         }
       }
     };
-    document.addEventListener('click', this._ansprechpartnerClickHandler);
+    document.addEventListener('click', this._ansprechpartnerClickHandler, { signal });
 
     // Navigation zu verknüpften Entitäten - als benannter Handler speichern
     this._tableLinkClickHandler = (e) => {
@@ -1224,7 +1228,7 @@ export class UnternehmenDetail extends PersonDetailBase {
         window.navigateTo(`/${table}/${id}`);
       }
     };
-    document.addEventListener('click', this._tableLinkClickHandler);
+    document.addEventListener('click', this._tableLinkClickHandler, { signal });
 
     // Entity Updates (für Ansprechpartner)
     this._entityUpdatedHandler = (e) => {
@@ -1241,7 +1245,7 @@ export class UnternehmenDetail extends PersonDetailBase {
         });
       }
     };
-    document.addEventListener('entityUpdated', this._entityUpdatedHandler);
+    document.addEventListener('entityUpdated', this._entityUpdatedHandler, { signal });
 
     // Soft-Refresh bei Realtime-Updates (nur wenn kein Formular aktiv)
     this._softRefreshHandler = async (e) => {
@@ -1267,7 +1271,7 @@ export class UnternehmenDetail extends PersonDetailBase {
       this.render(); // Debounce schützt bereits
       // NICHT bindEvents() erneut aufrufen - führt zu Endlosschleife
     };
-    window.addEventListener('softRefresh', this._softRefreshHandler);
+    window.addEventListener('softRefresh', this._softRefreshHandler, { signal });
   }
 
   // Ansprechpartner entfernen
@@ -1579,32 +1583,14 @@ export class UnternehmenDetail extends PersonDetailBase {
 
   // Cleanup - entfernt alle Event-Listener
   _removeAllEventListeners() {
-    // Click-Handler entfernen
-    if (this._tabClickHandler) {
-      document.removeEventListener('click', this._tabClickHandler);
-      this._tabClickHandler = null;
-    }
-    if (this._editClickHandler) {
-      document.removeEventListener('click', this._editClickHandler);
-      this._editClickHandler = null;
-    }
-    if (this._ansprechpartnerClickHandler) {
-      document.removeEventListener('click', this._ansprechpartnerClickHandler);
-      this._ansprechpartnerClickHandler = null;
-    }
-    if (this._tableLinkClickHandler) {
-      document.removeEventListener('click', this._tableLinkClickHandler);
-      this._tableLinkClickHandler = null;
-    }
-    // Custom Event-Handler entfernen
-    if (this._softRefreshHandler) {
-      window.removeEventListener('softRefresh', this._softRefreshHandler);
-      this._softRefreshHandler = null;
-    }
-    if (this._entityUpdatedHandler) {
-      document.removeEventListener('entityUpdated', this._entityUpdatedHandler);
-      this._entityUpdatedHandler = null;
-    }
+    this._eventsAbort?.abort();
+    this._eventsAbort = null;
+    this._tabClickHandler = null;
+    this._editClickHandler = null;
+    this._ansprechpartnerClickHandler = null;
+    this._tableLinkClickHandler = null;
+    this._softRefreshHandler = null;
+    this._entityUpdatedHandler = null;
     this._sidebarTabsBound = false;
     this.eventsBound = false;
   }

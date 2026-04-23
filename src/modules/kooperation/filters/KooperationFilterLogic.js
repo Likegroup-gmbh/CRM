@@ -42,34 +42,8 @@ export class KooperationFilterLogic {
       }
     }
     
-    // Start-Datum Range Filter (mappt auf skript_deadline)
-    if (filters.start_datum) {
-      const from = filters.start_datum.from || filters.start_datum.min || null;
-      const to = filters.start_datum.to || filters.start_datum.max || null;
-      
-      if (from || to) {
-        processedFilters.skript_deadline = {
-          type: 'date_range',
-          from,
-          to
-        };
-      }
-    }
-    
-    // End-Datum Range Filter (mappt auf content_deadline)
-    if (filters.end_datum) {
-      const from = filters.end_datum.from || filters.end_datum.min || null;
-      const to = filters.end_datum.to || filters.end_datum.max || null;
-      
-      if (from || to) {
-        processedFilters.content_deadline = {
-          type: 'date_range',
-          from,
-          to
-        };
-      }
-    }
-    
+    // Script/Content Deadline Filter entfernt: liegen jetzt auf Video-Ebene (kooperation_videos)
+
     // Virtual: has_deliverables (wird in Post-Processing behandelt)
     if (filters.has_deliverables !== undefined) {
       processedFilters.has_deliverables = {

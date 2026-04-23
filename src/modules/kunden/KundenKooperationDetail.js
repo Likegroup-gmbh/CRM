@@ -2,6 +2,8 @@
 // Kunden-Portal: Kooperation-Detail (Uploads read-only)
 
 export class KundenKooperationDetail {
+  _abortController = null;
+
   constructor() {
     this.koopId = null;
     this.koop = null;
@@ -125,6 +127,10 @@ export class KundenKooperationDetail {
   }
 
   bind() {
+    this._abortController?.abort();
+    this._abortController = new AbortController();
+    const { signal } = this._abortController;
+
     document.addEventListener('click', async (e) => {
       if (e.target && e.target.id === 'btn-back-kampagne') {
         e.preventDefault();
@@ -136,24 +142,24 @@ export class KundenKooperationDetail {
         e.preventDefault();
         const storagePath = dl.dataset.path;
         try {
-          // Permanente Public URL generieren
           const { data: urlData } = window.supabase.storage
             ?.from('kooperation_uploads')
             ?.getPublicUrl(storagePath);
           if (urlData?.publicUrl) {
             window.open(urlData.publicUrl, '_blank');
           } else {
-            // Fallback: versuche direkten Link
             window.open(storagePath, '_blank');
           }
         } catch (err) {
           console.error('❌ Download fehlgeschlagen', err);
         }
       }
-    });
+    }, { signal });
   }
 
   destroy() {
+    this._abortController?.abort();
+    this._abortController = null;
     window.setContentSafely('');
   }
 }

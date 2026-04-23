@@ -18,8 +18,6 @@ export default {
       verkaufspreis_gesamt: 'number',
       vertrag_unterschrieben: 'boolean',
       videoanzahl: 'number',
-      skript_deadline: 'date',
-      content_deadline: 'date',
       content_link: 'string',
       bewertung: 'number',
       budget: 'number',

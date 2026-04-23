@@ -4,7 +4,7 @@
 export class SortDropdown {
   constructor() {
     this.instances = new Map();
-    this.eventsBound = false;
+    this._abortController = null;
   }
 
   /**
@@ -50,9 +50,8 @@ export class SortDropdown {
     containerElement.innerHTML = this.renderDropdown(entityType, currentSort);
 
     // Globale Events nur einmal binden
-    if (!this.eventsBound) {
+    if (!this._abortController) {
       this.bindGlobalEvents();
-      this.eventsBound = true;
     }
 
     console.log(`✅ SORTDROPDOWN: ${entityType} initialisiert mit ${currentSort}`);
@@ -94,6 +93,9 @@ export class SortDropdown {
    * Bindet globale Event-Listener
    */
   bindGlobalEvents() {
+    this._abortController = new AbortController();
+    const signal = this._abortController.signal;
+
     // Toggle Dropdown
     document.addEventListener('click', (e) => {
       const toggle = e.target.closest('.sort-dropdown-toggle');
@@ -104,10 +106,8 @@ export class SortDropdown {
         return;
       }
 
-      // Sort Option geklickt - prüfe ob innerhalb eines sort-dropdown
       const sortOption = e.target.closest('.sort-option');
       if (sortOption) {
-        // Stelle sicher, dass wir im richtigen Dropdown sind
         const parentDropdown = sortOption.closest('.sort-dropdown');
         if (parentDropdown) {
           e.preventDefault();
@@ -118,18 +118,17 @@ export class SortDropdown {
         }
       }
 
-      // Click außerhalb: Schließe alle Dropdowns
       if (!e.target.closest('.sort-dropdown')) {
         this.closeAllDropdowns();
       }
-    });
+    }, { signal });
 
     // Escape-Taste schließt Dropdown
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         this.closeAllDropdowns();
       }
-    });
+    }, { signal });
   }
 
   /**
@@ -279,8 +278,14 @@ export class SortDropdown {
   destroy(entityType = null) {
     if (entityType) {
       this.instances.delete(entityType);
+      if (this.instances.size === 0) {
+        this._abortController?.abort();
+        this._abortController = null;
+      }
     } else {
       this.instances.clear();
+      this._abortController?.abort();
+      this._abortController = null;
     }
   }
 }

@@ -279,8 +279,6 @@ export const EntityRegistry = {
       verkaufspreis_gesamt: 'number',
       vertrag_unterschrieben: 'boolean',
       videoanzahl: 'number',
-      skript_deadline: 'date',
-      content_deadline: 'date',
       content_link: 'string',
       bewertung: 'number',
       budget: 'number',
@@ -548,6 +546,8 @@ export const EntityRegistry = {
       ansprechpartner_id: 'uuid',
       auftragtype: 'string',
       titel: 'string',
+      titel_manuell_geaendert: 'boolean',
+      is_draft: 'boolean',
       notiz: 'string',
       angebotsnummer: 'string',
       po: 'string',
@@ -674,6 +674,17 @@ export const EntityRegistry = {
       vor_ort_mitarbeiter_verkaufspreis_netto_bis: 'number',
       gesamt_videos: 'number',
       gesamt_creator: 'number',
+      campaign_type: 'array',
+      agency_services_enabled: 'boolean',
+      retainer_type: 'string',
+      retainer_amount: 'number',
+      extra_services: 'jsonb',
+      percentage_fee_enabled: 'boolean',
+      percentage_fee_value: 'number',
+      percentage_fee_base: 'string',
+      ksk_enabled: 'boolean',
+      ksk_type: 'string',
+      ksk_value: 'number',
       created_by_id: 'uuid'
     },
     relations: {
@@ -749,6 +760,17 @@ export const EntityRegistry = {
       vor_ort_mitarbeiter_verkaufspreis_netto_bis: 'number',
       gesamt_videos: 'number',
       gesamt_creator: 'number',
+      campaign_type: 'array',
+      agency_services_enabled: 'boolean',
+      retainer_type: 'string',
+      retainer_amount: 'number',
+      extra_services: 'jsonb',
+      percentage_fee_enabled: 'boolean',
+      percentage_fee_value: 'number',
+      percentage_fee_base: 'string',
+      ksk_enabled: 'boolean',
+      ksk_type: 'string',
+      ksk_value: 'number',
       created_by_id: 'uuid'
     },
     relations: {
@@ -841,6 +863,29 @@ export const EntityRegistry = {
     filters: ['name'],
     sortBy: 'name',
     sortOrder: 'asc'
+  },
+  vertrag: {
+    table: 'vertraege',
+    displayField: 'name',
+    fields: {
+      name: 'string',
+      typ: 'string',
+      kunde_unternehmen_id: 'uuid',
+      kampagne_id: 'uuid',
+      creator_id: 'uuid',
+      kooperation_id: 'uuid',
+      is_draft: 'boolean',
+      created_at: 'date'
+    },
+    relations: {
+      kunde: { table: 'unternehmen', foreignKey: 'kunde_unternehmen_id', displayField: 'firmenname' },
+      kampagne: { table: 'kampagne', foreignKey: 'kampagne_id', displayField: 'kampagnenname' },
+      creator: { table: 'creator', foreignKey: 'creator_id', displayField: 'vorname' },
+      kooperation: { table: 'kooperationen', foreignKey: 'kooperation_id', displayField: 'name' }
+    },
+    filters: ['name', 'typ', 'kunde_unternehmen_id', 'kampagne_id', 'creator_id', 'is_draft'],
+    sortBy: 'created_at',
+    sortOrder: 'desc'
   },
   marke_kickoff: {
     table: 'marke_kickoff',

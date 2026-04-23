@@ -44,19 +44,7 @@ export const KOOPERATION_FILTERS = [
     priority: 4
   }),
 
-  // Start-Datum Filter
-  createFilterConfig('dateRange', {
-    id: 'start_datum',
-    label: 'Script Deadline',
-    priority: 5
-  }),
-
-  // End-Datum Filter
-  createFilterConfig('dateRange', {
-    id: 'end_datum',
-    label: 'Content Deadline',
-    priority: 6
-  }),
+  // Deadline-Filter entfernt: skript_deadline/content_deadline liegen jetzt auf Video-Ebene (kooperation_videos)
 
   // Deliverables erstellt
   createFilterConfig('boolean', {

@@ -602,7 +602,7 @@ export class AuftragsdetailsList {
     
     const selectedIds = Array.from(this.selectedDetails);
     if (selectedIds.length === 0) {
-      alert('Keine Auftragsdetails ausgewählt.');
+      window.toastSystem?.warning('Keine Auftragsdetails ausgewählt.');
       return;
     }
     
@@ -638,7 +638,10 @@ export class AuftragsdetailsList {
           document.querySelector(`tr[data-id="${id}"]`)?.remove();
         });
         
-        alert(`✅ ${result.deletedCount} Auftragsdetails erfolgreich gelöscht.`);
+        const successMsg = result.deletedCount === 1
+          ? 'Auftragsdetail erfolgreich gelöscht.'
+          : `${result.deletedCount} Auftragsdetails erfolgreich gelöscht.`;
+        window.toastSystem?.success(successMsg);
         
         this.selectedDetails.clear();
         this.updateSelection();
@@ -663,7 +666,7 @@ export class AuftragsdetailsList {
       });
       
       console.error('❌ Fehler beim Löschen:', error);
-      alert(`❌ Fehler beim Löschen: ${error.message}`);
+      window.toastSystem?.error(`Fehler beim Löschen: ${error.message}`);
       
       // Liste neu laden um konsistenten Zustand herzustellen
       await this.loadAndRender();

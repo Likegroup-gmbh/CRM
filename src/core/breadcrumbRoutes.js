@@ -7,6 +7,7 @@ const ROUTE_CONFIG = {
   produkt:            { label: 'Produkte',           icon: 'icon-cube' },
   creator:            { label: 'Creator',            icon: 'icon-users' },
   auftrag:            { label: 'Aufträge',          icon: 'icon-briefcase' },
+  'projekt-erstellen': { label: 'Projekt anlegen',   icon: 'icon-briefcase' },
   auftragsdetails:    { label: 'Auftragsdetails',   icon: 'icon-auftragsdetails' },
   kampagne:           { label: 'Kampagne',          icon: 'icon-campaign' },
   strategie:          { label: 'Strategien',        icon: 'icon-lightbulb' },

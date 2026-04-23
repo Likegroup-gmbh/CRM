@@ -13,6 +13,7 @@ export class KooperationList {
   constructor() {
     this.selectedKooperation = new Set();
     this._boundEventListeners = new Set();
+    this._abortController = null;
     // Drag-to-Scroll State
     this.isDragging = false;
     this.startX = 0;
@@ -158,7 +159,7 @@ export class KooperationList {
 
       let coopQuery = window.supabase
         .from('kooperationen')
-        .select('id, name, videoanzahl, einkaufspreis_gesamt, verkaufspreis_gesamt, verkaufspreis_zusatzkosten, kampagne_id, creator_id, assignee_id, skript_deadline, content_deadline, created_at')
+        .select('id, name, videoanzahl, einkaufspreis_gesamt, verkaufspreis_gesamt, verkaufspreis_zusatzkosten, kampagne_id, creator_id, assignee_id, created_at')
         .order('created_at', { ascending: false });
 
       // Für Mitarbeiter: Filtere nach zugewiesenen Kampagnen
@@ -281,8 +282,6 @@ export class KooperationList {
               <th>Verkaufspreis</th>
               <th>Extra Kosten (VK)</th>
               <th>Erstellt</th>
-              <th>Script Deadline</th>
-              <th>Content Deadline</th>
               <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
@@ -326,7 +325,9 @@ export class KooperationList {
 
   // Binde Events
   bindEvents() {
-    // Filter-Events werden vom FilterDropdown gehandelt
+    this._abortController?.abort();
+    this._abortController = new AbortController();
+    const signal = this._abortController.signal;
 
     // Neue Kooperation anlegen Button
     document.addEventListener('click', (e) => {
@@ -334,7 +335,7 @@ export class KooperationList {
         e.preventDefault();
         window.navigateTo('/kooperation/new');
       }
-    });
+    }, { signal });
 
     // Alle auswählen Button
     document.addEventListener('click', (e) => {
@@ -352,7 +353,7 @@ export class KooperationList {
         }
         this.updateSelection();
       }
-    });
+    }, { signal });
 
     // Auswahl aufheben Button
     document.addEventListener('click', (e) => {
@@ -368,7 +369,7 @@ export class KooperationList {
         }
         this.updateSelection();
       }
-    });
+    }, { signal });
 
     // Kooperation Detail Links
     document.addEventListener('click', (e) => {
@@ -378,14 +379,14 @@ export class KooperationList {
         console.log('🎯 KOOPERATIONLIST: Navigiere zu Kooperation Details:', kooperationId);
         window.navigateTo(`/kooperation/${kooperationId}`);
       }
-    });
+    }, { signal });
 
     // Entity Updated Event
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail.entity === 'kooperation') {
         this.loadAndRender();
       }
-    });
+    }, { signal });
 
     // Filter-Tag X-Buttons
     document.addEventListener('click', (e) => {
@@ -402,7 +403,7 @@ export class KooperationList {
         filterSystem.applyFilters('kooperation', currentFilters);
         this.loadAndRender();
       }
-    });
+    }, { signal });
 
     // Select-All Checkbox
     document.addEventListener('change', (e) => {
@@ -418,7 +419,7 @@ export class KooperationList {
         });
         this.updateSelection();
       }
-    });
+    }, { signal });
 
     // Kooperation Checkboxes
     document.addEventListener('change', (e) => {
@@ -430,7 +431,7 @@ export class KooperationList {
         }
         this.updateSelection();
       }
-    });
+    }, { signal });
   }
 
   // Prüfe ob aktive Filter vorhanden
@@ -501,8 +502,6 @@ export class KooperationList {
           <td>${formatCurrency(kooperation.verkaufspreis_gesamt)}</td>
           <td>${formatCurrency(kooperation.verkaufspreis_zusatzkosten)}</td>
           <td>${formatDate(kooperation.created_at)}</td>
-          <td>${formatDate(kooperation.skript_deadline)}</td>
-          <td>${formatDate(kooperation.content_deadline)}</td>
           <td class="col-actions">
             ${actionBuilder.create('kooperation', kooperation.id, window.currentUser)}
           </td>
@@ -669,6 +668,8 @@ export class KooperationList {
   // Cleanup
   destroy() {
     console.log('KooperationList: Cleaning up...');
+    this._abortController?.abort();
+    this._abortController = null;
     this._boundEventListeners.forEach(({ element, type, handler }) => {
       element.removeEventListener(type, handler);
     });

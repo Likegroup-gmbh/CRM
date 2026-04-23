@@ -31,6 +31,7 @@ export class KooperationDetail extends PersonDetailBase {
     this._handleSoftRefresh = this._handleSoftRefresh.bind(this);
     this._handleVideoEntityUpdated = this._handleVideoEntityUpdated.bind(this);
     this._eventsBound = false;
+    this._abortController = null;
   }
 
   // ============================================
@@ -94,7 +95,6 @@ export class KooperationDetail extends PersonDetailBase {
           id, name, videoanzahl,
           einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_ust, einkaufspreis_gesamt,
           verkaufspreis_netto, verkaufspreis_zusatzkosten, verkaufspreis_ust, verkaufspreis_gesamt,
-          skript_deadline, content_deadline,
           creator_id, kampagne_id, unternehmen_id, briefing_id,
           kampagne:kampagne_id ( id, marke:marke_id ( id ) )
         `)
@@ -139,7 +139,7 @@ export class KooperationDetail extends PersonDetailBase {
         .select(`
           id, name, einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_ust, einkaufspreis_gesamt,
           verkaufspreis_netto, verkaufspreis_zusatzkosten, verkaufspreis_ust, verkaufspreis_gesamt,
-          skript_deadline, content_deadline, videoanzahl,
+          videoanzahl,
           creator_id, kampagne_id, unternehmen_id, briefing_id,
           creator:creator_id (
             id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, mail,
@@ -218,7 +218,7 @@ export class KooperationDetail extends PersonDetailBase {
     try {
       const { data: videos } = await window.supabase
         .from('kooperation_videos')
-        .select('id, content_art, kampagnenart, einkaufspreis_netto, verkaufspreis_netto, titel, asset_url, folder_url, kommentar, status, position, created_at')
+        .select('id, content_art, kampagnenart, einkaufspreis_netto, verkaufspreis_netto, skript_deadline, content_deadline, titel, asset_url, folder_url, kommentar, status, position, created_at')
         .eq('kooperation_id', this.kooperationId)
         .order('position', { ascending: true });
 
@@ -399,8 +399,6 @@ export class KooperationDetail extends PersonDetailBase {
       ...campaignItems,
       ...(!isKunde ? [{ icon: 'currency', label: 'EK Gesamt', value: this.formatCurrency(this.kooperation?.einkaufspreis_gesamt) }] : []),
       ...(!isKunde ? [{ icon: 'currency', label: 'VK Gesamt', value: this.formatCurrency(this.kooperation?.verkaufspreis_gesamt) }] : []),
-      { icon: 'calendar', label: 'Skript-Deadline', value: this.formatDate(this.kooperation?.skript_deadline) },
-      { icon: 'calendar', label: 'Content-Deadline', value: this.formatDate(this.kooperation?.content_deadline) },
       { icon: 'info', label: 'Videoanzahl', value: this.kooperation?.videoanzahl || '-' }
     ];
     return this.renderInfoItems(items);
@@ -479,9 +477,7 @@ export class KooperationDetail extends PersonDetailBase {
     const isKunde = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
     const allgemeinItems = this.renderInfoItems([
       ...(!isKunde ? [{ icon: 'currency', label: 'Einkaufspreis', value: this.formatCurrency(this.kooperation.einkaufspreis_gesamt) }] : []),
-      { icon: 'currency', label: 'Verkaufspreis', value: this.formatCurrency(this.kooperation.verkaufspreis_gesamt) },
-      { icon: 'calendar', label: 'Skript-Deadline', value: this.formatDate(this.kooperation.skript_deadline) },
-      { icon: 'calendar', label: 'Content-Deadline', value: this.formatDate(this.kooperation.content_deadline) }
+      { icon: 'currency', label: 'Verkaufspreis', value: this.formatCurrency(this.kooperation.verkaufspreis_gesamt) }
     ]);
 
     const creatorHtml = this.creator ? `
@@ -672,12 +668,16 @@ export class KooperationDetail extends PersonDetailBase {
 
       const vkFormatted = v.verkaufspreis_netto != null ? parseFloat(v.verkaufspreis_netto).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }) : '-';
       const ekFormatted = v.einkaufspreis_netto != null ? parseFloat(v.einkaufspreis_netto).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }) : '-';
+      const skriptDeadlineFormatted = v.skript_deadline ? new Date(v.skript_deadline).toLocaleDateString('de-DE') : '-';
+      const contentDeadlineFormatted = v.content_deadline ? new Date(v.content_deadline).toLocaleDateString('de-DE') : '-';
 
       return `
         <tr>
           <td>${v.position || '-'}</td>
           <td>${this.sanitize(v.kampagnenart || '-')}</td>
           <td>${this.sanitize(v.content_art || '-')}</td>
+          <td>${skriptDeadlineFormatted}</td>
+          <td>${contentDeadlineFormatted}</td>
           <td class="text-right">${vkFormatted}</td>
           ${!isKundeRole ? `<td class="text-right">${ekFormatted}</td>` : ''}
           <td>
@@ -702,6 +702,8 @@ export class KooperationDetail extends PersonDetailBase {
               <th>#</th>
               <th>Kampagnenart</th>
               <th>Content Art</th>
+              <th>Skript Deadline</th>
+              <th>Content Deadline</th>
               <th class="text-right">VK Netto</th>
               ${!isKundeRole ? '<th class="text-right">EK Netto</th>' : ''}
               <th>URL</th>
@@ -923,10 +925,14 @@ export class KooperationDetail extends PersonDetailBase {
     if (this._eventsBound) return;
     this._eventsBound = true;
 
-    document.addEventListener('click', this._handleDocumentClick);
-    window.addEventListener('entityUpdated', this._handleEntityUpdated);
-    window.addEventListener('entityUpdated', this._handleVideoEntityUpdated);
-    window.addEventListener('softRefresh', this._handleSoftRefresh);
+    this._abortController?.abort();
+    this._abortController = new AbortController();
+    const signal = this._abortController.signal;
+
+    document.addEventListener('click', this._handleDocumentClick, { signal });
+    window.addEventListener('entityUpdated', this._handleEntityUpdated, { signal });
+    window.addEventListener('entityUpdated', this._handleVideoEntityUpdated, { signal });
+    window.addEventListener('softRefresh', this._handleSoftRefresh, { signal });
 
     console.log('✅ KOOPERATIONDETAIL: Event-Listener registriert');
   }
@@ -943,9 +949,10 @@ export class KooperationDetail extends PersonDetailBase {
     this.taskKanbanBoard = new TaskKanbanBoard('kooperation', this.kooperationId);
     await this.taskKanbanBoard.init(container);
 
-    window.addEventListener('taskCreated', () => this.loadTasksCount());
-    window.addEventListener('taskUpdated', () => this.loadTasksCount());
-    window.addEventListener('taskDeleted', () => this.loadTasksCount());
+    const signal = this._abortController?.signal;
+    window.addEventListener('taskCreated', () => this.loadTasksCount(), { signal });
+    window.addEventListener('taskUpdated', () => this.loadTasksCount(), { signal });
+    window.addEventListener('taskDeleted', () => this.loadTasksCount(), { signal });
   }
 
   // ============================================
@@ -1101,6 +1108,9 @@ export class KooperationDetail extends PersonDetailBase {
 
   destroy() {
     console.log('🗑️ KOOPERATIONDETAIL: Destroy aufgerufen - räume auf');
+
+    this._abortController?.abort();
+    this._abortController = null;
 
     if (this._eventsBound) {
       document.removeEventListener('click', this._handleDocumentClick);

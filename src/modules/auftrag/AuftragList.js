@@ -554,6 +554,7 @@ export class AuftragList {
       query = AuftragFilterLogic.buildSupabaseQuery(query, filters);
 
       query = query
+        .order('created_at', { ascending: false })
         .order('angebotsnummer', { ascending: false, nullsFirst: false })
         .range(from, to);
 
@@ -991,6 +992,8 @@ export class AuftragList {
 
   // Cleanup
   destroy() {
+    clearTimeout(this._searchDebounceTimer);
+
     if (this.pagination) {
       this.pagination.destroy();
     }

@@ -14,6 +14,8 @@ export class AuftragCashFlowCalendar {
     this.container = null;
     this.months = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
     this.currentFilters = {};
+    this._floatingResizeObserver = null;
+    this._floatingAbortController = null;
   }
 
   // Initialisiere Kalender
@@ -462,6 +464,26 @@ export class AuftragCashFlowCalendar {
   destroy() {
     console.log('🧹 CASHFLOW: Cleanup');
     
+    // Drag-to-Scroll Listener entfernen
+    if (this._dragMouseMove) {
+      document.removeEventListener('mousemove', this._dragMouseMove);
+      document.removeEventListener('mouseup', this._dragMouseUp);
+      document.removeEventListener('mouseleave', this._dragMouseUp);
+      this._dragMouseDown = null;
+      this._dragMouseMove = null;
+      this._dragMouseUp = null;
+    }
+
+    // Floating scrollbar observer + window listeners
+    if (this._floatingResizeObserver) {
+      this._floatingResizeObserver.disconnect();
+      this._floatingResizeObserver = null;
+    }
+    if (this._floatingAbortController) {
+      this._floatingAbortController.abort();
+      this._floatingAbortController = null;
+    }
+    
     // Entferne Floating Scrollbar
     const floatingScrollbar = document.getElementById('floating-scrollbar-cashflow');
     if (floatingScrollbar) {
@@ -478,6 +500,17 @@ export class AuftragCashFlowCalendar {
   // Initialisiere Floating Scrollbar
   initFloatingScrollbar() {
     console.log('📊 CASHFLOW: Initialisiere Floating Scrollbar');
+    
+    // Alte Observer/Listener aufräumen bevor neue erstellt werden
+    if (this._floatingResizeObserver) {
+      this._floatingResizeObserver.disconnect();
+      this._floatingResizeObserver = null;
+    }
+    if (this._floatingAbortController) {
+      this._floatingAbortController.abort();
+    }
+    this._floatingAbortController = new AbortController();
+    const signal = this._floatingAbortController.signal;
     
     // Entferne vorhandene Scrollbar falls vorhanden
     let floatingScrollbar = document.getElementById('floating-scrollbar-cashflow');
@@ -512,50 +545,11 @@ export class AuftragCashFlowCalendar {
       floatingScrollbar.style.width = containerRect.width + 'px';
     };
 
-    // ResizeObserver für automatische Größenanpassung
-    const resizeObserver = new ResizeObserver(() => {
-      updateScrollbarPosition();
-      toggleFloatingScrollbar();
-    });
-
-    resizeObserver.observe(table);
-    resizeObserver.observe(tableContainer);
-    
-    // Synchronisiere Scrolling zwischen Floating-Scrollbar und Tabelle
-    let isSyncingFromFloating = false;
-    let isSyncingFromTable = false;
-    
-    // Floating -> Table
-    const handleFloatingScroll = () => {
-      if (isSyncingFromTable) return;
-      isSyncingFromFloating = true;
-      tableContainer.scrollLeft = floatingScrollbar.scrollLeft;
-      requestAnimationFrame(() => {
-        isSyncingFromFloating = false;
-      });
-    };
-    floatingScrollbar.addEventListener('scroll', handleFloatingScroll);
-    
-    // Table -> Floating
-    const handleTableScroll = () => {
-      if (isSyncingFromFloating) return;
-      isSyncingFromTable = true;
-      floatingScrollbar.scrollLeft = tableContainer.scrollLeft;
-      requestAnimationFrame(() => {
-        isSyncingFromTable = false;
-      });
-    };
-    tableContainer.addEventListener('scroll', handleTableScroll);
-    
     // Zeige/Verstecke Floating-Scrollbar basierend auf Sichtbarkeit der Tabelle
     const toggleFloatingScrollbar = () => {
       const tableRect = tableContainer.getBoundingClientRect();
       const viewportHeight = window.innerHeight;
       
-      // Zeige Floating-Scrollbar nur wenn:
-      // 1. Wir auf der Aufträge-Seite sind
-      // 2. Tabelle breiter als Viewport ist (horizontales Scrollen nötig)
-      // 3. Tabelle teilweise oder ganz sichtbar ist
       const isOnAuftragPage = window.location.pathname.includes('/auftraege') || window.location.pathname.includes('/auftrag');
       const needsHorizontalScroll = table.scrollWidth > tableContainer.clientWidth;
       const tableIsVisible = tableRect.top < viewportHeight && tableRect.bottom > 0;
@@ -567,18 +561,51 @@ export class AuftragCashFlowCalendar {
         floatingScrollbar.classList.remove('visible');
       }
     };
+
+    // ResizeObserver für automatische Größenanpassung
+    this._floatingResizeObserver = new ResizeObserver(() => {
+      updateScrollbarPosition();
+      toggleFloatingScrollbar();
+    });
+
+    this._floatingResizeObserver.observe(table);
+    this._floatingResizeObserver.observe(tableContainer);
+    
+    // Synchronisiere Scrolling zwischen Floating-Scrollbar und Tabelle
+    let isSyncingFromFloating = false;
+    let isSyncingFromTable = false;
+    
+    // Floating -> Table
+    floatingScrollbar.addEventListener('scroll', () => {
+      if (isSyncingFromTable) return;
+      isSyncingFromFloating = true;
+      tableContainer.scrollLeft = floatingScrollbar.scrollLeft;
+      requestAnimationFrame(() => {
+        isSyncingFromFloating = false;
+      });
+    }, { signal });
+    
+    // Table -> Floating
+    tableContainer.addEventListener('scroll', () => {
+      if (isSyncingFromFloating) return;
+      isSyncingFromTable = true;
+      floatingScrollbar.scrollLeft = tableContainer.scrollLeft;
+      requestAnimationFrame(() => {
+        isSyncingFromTable = false;
+      });
+    }, { signal });
     
     // Initial check
     toggleFloatingScrollbar();
     
     // Bei Scroll und Resize prüfen
-    window.addEventListener('scroll', toggleFloatingScrollbar);
-    window.addEventListener('resize', toggleFloatingScrollbar);
+    window.addEventListener('scroll', toggleFloatingScrollbar, { signal });
+    window.addEventListener('resize', toggleFloatingScrollbar, { signal });
     
     // Bei Route-Change verstecken
     window.addEventListener('popstate', () => {
       floatingScrollbar.classList.remove('visible');
-    });
+    }, { signal });
 
     console.log('✅ CASHFLOW: Floating Scrollbar initialisiert');
   }

@@ -30,6 +30,11 @@ export class TaskCreateDrawer {
       // Initial die leeren Dropdowns anzeigen
       this.updateAssignmentDropdowns();
       
+      // Alten Handler abmelden falls vorhanden
+      if (this.boundHandleEntityUpdate) {
+        window.removeEventListener('entityUpdated', this.boundHandleEntityUpdate);
+      }
+
       // Event-Listener für Live-Updates hinzufügen
       this.boundHandleEntityUpdate = this.handleEntityUpdate.bind(this);
       window.addEventListener('entityUpdated', this.boundHandleEntityUpdate);
@@ -704,6 +709,10 @@ export class TaskCreateDrawer {
     
     if (!searchInput || !dropdown || !hiddenInput) return;
 
+    this._autoSuggestAbort?.abort();
+    this._autoSuggestAbort = new AbortController();
+    const signal = this._autoSuggestAbort.signal;
+
     const safe = (str) => window.validatorSystem?.sanitizeHtml?.(str) ?? str;
     let selectedIndex = -1;
 
@@ -798,7 +807,7 @@ export class TaskCreateDrawer {
       if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
         hideDropdown();
       }
-    });
+    }, { signal });
   }
 
   async handleSubmit(formData) {
@@ -895,6 +904,9 @@ export class TaskCreateDrawer {
 
   close() {
     // Event-Listener entfernen
+    this._autoSuggestAbort?.abort();
+    this._autoSuggestAbort = null;
+
     if (this.boundHandleEntityUpdate) {
       window.removeEventListener('entityUpdated', this.boundHandleEntityUpdate);
       this.boundHandleEntityUpdate = null;

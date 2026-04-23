@@ -1898,14 +1898,16 @@ export class CreatorAuswahlDetail {
 
     toggleFloatingScrollbar();
     window.addEventListener('scroll', toggleFloatingScrollbar);
-    window.addEventListener('resize', () => {
+    const resizeHandler = () => {
       updateScrollbarSize();
       toggleFloatingScrollbar();
-    });
+    };
+    window.addEventListener('resize', resizeHandler);
 
     this.cleanupFloatingScrollbar = () => {
       floatingScrollbar.classList.remove('visible');
       window.removeEventListener('scroll', toggleFloatingScrollbar);
+      window.removeEventListener('resize', resizeHandler);
       floatingScrollbar.removeEventListener('scroll', handleFloatingScroll);
       scrollTarget.removeEventListener('scroll', handleTableScroll);
       if (floatingScrollbar.parentNode) {

@@ -7,6 +7,7 @@ import { renderTabButton } from '../../core/TabUtils.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { renderAuftragAmpel } from '../auftrag/logic/AuftragStatusUtils.js';
+import staticDataCache from '../../core/cache/StaticDataCache.js';
 
 export class MitarbeiterDetail extends PersonDetailBase {
   constructor() {
@@ -20,6 +21,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
     this.euLaender = [];
     this.activeMainTab = 'informationen';
     this._eventsBound = false;
+    this._abortController = null;
   }
 
   async init(id) {
@@ -37,35 +39,51 @@ export class MitarbeiterDetail extends PersonDetailBase {
 
   async load() {
     try {
-      let { data: user, error: userError } = await window.supabase
-        .from('benutzer')
-        .select('*, mitarbeiter_klasse:mitarbeiter_klasse_id(id, name), telefonnummer_firmenhandy_land:telefonnummer_firmenhandy_land_id(id, name_de, vorwahl, iso_code)')
-        .eq('id', this.userId)
-        .single();
-      if (userError) {
-        console.warn('⚠️ Mitarbeiter-Ladung mit Firmenhandy-Feldern fehlgeschlagen, nutze Fallback:', userError.message);
-        const fallbackResult = await window.supabase
+      // ─── Phase 1: Ein einziger paralleler Batch mit User + allen direkten Relationen ───
+      // Benutzer-Query mit integriertem Fallback (ohne Firmenhandy-Join, falls Feld fehlt)
+      const userPromise = (async () => {
+        const { data, error } = await window.supabase
           .from('benutzer')
-          .select('*, mitarbeiter_klasse:mitarbeiter_klasse_id(id, name)')
+          .select('*, mitarbeiter_klasse:mitarbeiter_klasse_id(id, name), telefonnummer_firmenhandy_land:telefonnummer_firmenhandy_land_id(id, name_de, vorwahl, iso_code)')
           .eq('id', this.userId)
           .single();
-        user = fallbackResult.data;
-      }
-      this.user = user || {};
-      
-      // Mitarbeiter-Klassen-Name extrahieren
-      if (this.user.mitarbeiter_klasse) {
-        this.user.mitarbeiter_klasse_name = this.user.mitarbeiter_klasse.name;
-      }
+        if (error) {
+          console.warn('⚠️ Mitarbeiter-Ladung mit Firmenhandy-Feldern fehlgeschlagen, nutze Fallback:', error.message);
+          const fb = await window.supabase
+            .from('benutzer')
+            .select('*, mitarbeiter_klasse:mitarbeiter_klasse_id(id, name)')
+            .eq('id', this.userId)
+            .single();
+          return fb.data;
+        }
+        return data;
+      })();
 
-      const [{ data: kampRel }, { data: koops }, { data: briefs }, { data: statusRows }, { data: unternehmenRel }, { data: markenRel }, { data: euLaenderRows }] = await Promise.all([
+      const [
+        user,
+        { data: kampRel },
+        { data: koops },
+        { data: briefs },
+        statusRows,
+        { data: unternehmenRel },
+        { data: markenRel },
+        euLaenderRows
+      ] = await Promise.all([
+        userPromise,
         window.supabase
           .from('kampagne_mitarbeiter')
           .select('kampagne:kampagne_id(id, kampagnenname, eigener_name)')
           .eq('mitarbeiter_id', this.userId),
-        window.supabase.from('kooperationen').select('id, name, kampagne:kampagne_id(kampagnenname, eigener_name), einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_gesamt').eq('assignee_id', this.userId),
-        window.supabase.from('briefings').select('id, product_service_offer, status').eq('assignee_id', this.userId),
-        window.supabase.from('kampagne_status').select('id, name, sort_order').order('sort_order', { ascending: true }).order('name', { ascending: true }),
+        window.supabase
+          .from('kooperationen')
+          .select('id, name, kampagne:kampagne_id(kampagnenname, eigener_name), einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_gesamt')
+          .eq('assignee_id', this.userId),
+        window.supabase
+          .from('briefings')
+          .select('id, product_service_offer, status')
+          .eq('assignee_id', this.userId),
+        // Gecached via StaticDataCache (ändert sich selten)
+        staticDataCache.get('kampagne_status', 'id, name, sort_order', 'sort_order'),
         window.supabase
           .from('mitarbeiter_unternehmen')
           .select('unternehmen:unternehmen_id(id, firmenname), role')
@@ -74,79 +92,137 @@ export class MitarbeiterDetail extends PersonDetailBase {
           .from('marke_mitarbeiter')
           .select('marke:marke_id(id, markenname)')
           .eq('mitarbeiter_id', this.userId),
-        window.supabase
-          .from('eu_laender')
-          .select('id, name_de, vorwahl, iso_code')
-          .order('name_de', { ascending: true })
+        // Gecached via StaticDataCache (ändert sich fast nie)
+        staticDataCache.get('eu_laender', 'id, name_de, vorwahl, iso_code', 'name_de')
       ]);
 
-      // Direkt zugeordnete Kampagnen
+      this.user = user || {};
+      if (this.user.mitarbeiter_klasse) {
+        this.user.mitarbeiter_klasse_name = this.user.mitarbeiter_klasse.name;
+      }
+
       const directKampagnen = (kampRel || []).map(r => r.kampagne).filter(Boolean);
-      
-      // Kampagnen über zugeordnete Unternehmen laden
+      const directKoops = koops || [];
       const unternehmenIds = (unternehmenRel || []).map(r => r.unternehmen?.id).filter(Boolean);
-      let unternehmenKampagnen = [];
-      
-      if (unternehmenIds.length > 0) {
+
+      // ─── Phase 2: Zwei unabhängige Branches parallel ───
+      // Branch A: marke → kampagne → kooperationen → rechnung
+      // Branch B: auftrag → auftrag_details
+      const branchA = (async () => {
+        let unternehmenKampagnen = [];
+        if (unternehmenIds.length > 0) {
+          try {
+            const { data: marken } = await window.supabase
+              .from('marke')
+              .select('id')
+              .in('unternehmen_id', unternehmenIds);
+            const markenIds = (marken || []).map(m => m.id).filter(Boolean);
+            if (markenIds.length > 0) {
+              const { data: kampagnen } = await window.supabase
+                .from('kampagne')
+                .select('id, kampagnenname, eigener_name')
+                .in('marke_id', markenIds);
+              unternehmenKampagnen = (kampagnen || []).filter(Boolean);
+            }
+          } catch (e) {
+            console.error('❌ Fehler beim Laden von Unternehmen-Kampagnen:', e);
+          }
+        }
+
+        const allKampagnenMap = new Map();
+        [...directKampagnen, ...unternehmenKampagnen].forEach(k => {
+          if (k && k.id) allKampagnenMap.set(k.id, k);
+        });
+        const allKampagnenIds = Array.from(allKampagnenMap.keys());
+
+        let unternehmenKoops = [];
+        if (allKampagnenIds.length > 0) {
+          try {
+            const { data } = await window.supabase
+              .from('kooperationen')
+              .select('id, name, status, kampagne:kampagne_id(kampagnenname, eigener_name), einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_gesamt')
+              .in('kampagne_id', allKampagnenIds);
+            unternehmenKoops = data || [];
+          } catch (e) {
+            console.error('❌ Fehler beim Laden von Unternehmen-Kooperationen:', e);
+          }
+        }
+
+        const allKoopsMap = new Map();
+        [...directKoops, ...unternehmenKoops].forEach(k => {
+          if (k && k.id) allKoopsMap.set(k.id, k);
+        });
+        const allKoops = Array.from(allKoopsMap.values());
+        const koopIds = allKoops.map(k => k.id).filter(Boolean);
+
+        let invoicesByKoop = {};
+        const totals = { netto: 0, zusatz: 0, gesamt: 0, invoice_netto: 0, invoice_brutto: 0 };
+        if (koopIds.length > 0) {
+          try {
+            const { data: rechnungen } = await window.supabase
+              .from('rechnung')
+              .select('id, rechnung_nr, status, nettobetrag, bruttobetrag, gestellt_am, bezahlt_am, pdf_url, kooperation_id')
+              .in('kooperation_id', koopIds);
+            (rechnungen || []).forEach(r => {
+              if (!invoicesByKoop[r.kooperation_id]) invoicesByKoop[r.kooperation_id] = [];
+              invoicesByKoop[r.kooperation_id].push(r);
+              totals.invoice_netto += Number(r.nettobetrag || 0);
+              totals.invoice_brutto += Number(r.bruttobetrag || 0);
+            });
+          } catch (_) {
+            invoicesByKoop = {};
+          }
+        }
+        allKoops.forEach(k => {
+          totals.netto += Number(k.einkaufspreis_netto || 0);
+          totals.zusatz += Number(k.einkaufspreis_zusatzkosten || 0);
+          totals.gesamt += Number(k.einkaufspreis_gesamt != null ? k.einkaufspreis_gesamt : (Number(k.einkaufspreis_netto || 0) + Number(k.einkaufspreis_zusatzkosten || 0)));
+        });
+
+        return {
+          kampagnen: Array.from(allKampagnenMap.values()),
+          kooperationen: allKoops,
+          invoicesByKoop,
+          totals
+        };
+      })();
+
+      const branchB = (async () => {
+        if (unternehmenIds.length === 0) return [];
         try {
-          const { data: unternehmenMarken } = await window.supabase
-            .from('marke')
+          const { data: auftraege } = await window.supabase
+            .from('auftrag')
             .select('id')
             .in('unternehmen_id', unternehmenIds);
-          
-          const markenIds = (unternehmenMarken || []).map(m => m.id).filter(Boolean);
-          
-          if (markenIds.length > 0) {
-            const { data: kampagnen } = await window.supabase
-              .from('kampagne')
-              .select('id, kampagnenname, eigener_name')
-              .in('marke_id', markenIds);
-            
-            unternehmenKampagnen = (kampagnen || []).filter(Boolean);
-          }
+          const auftragIds = (auftraege || []).map(a => a.id).filter(Boolean);
+          if (auftragIds.length === 0) return [];
+          const { data: auftragsdetails } = await window.supabase
+            .from('auftrag_details')
+            .select(`
+              *,
+              auftrag:auftrag_id (
+                id,
+                auftragsname,
+                status
+              )
+            `)
+            .in('auftrag_id', auftragIds)
+            .order('created_at', { ascending: false });
+          return auftragsdetails || [];
         } catch (e) {
-          console.error('❌ Fehler beim Laden von Unternehmen-Kampagnen:', e);
+          console.error('❌ Fehler beim Laden von Auftragsdetails:', e);
+          return [];
         }
-      }
-      
-      // Alle Kampagnen zusammenführen (ohne Duplikate)
-      const allKampagnenMap = new Map();
-      [...directKampagnen, ...unternehmenKampagnen].forEach(k => {
-        if (k && k.id) {
-          allKampagnenMap.set(k.id, k);
-        }
-      });
-      
-      this.assignments.kampagnen = Array.from(allKampagnenMap.values());
-      
-      // Kooperationen: Direkt zugewiesen + über Kampagnen des Unternehmens
-      const directKoops = koops || [];
-      const allKampagnenIds = Array.from(allKampagnenMap.keys());
-      let unternehmenKoops = [];
-      
-      if (allKampagnenIds.length > 0) {
-        try {
-          const { data: kampagnenKoops } = await window.supabase
-            .from('kooperationen')
-            .select('id, name, status, kampagne:kampagne_id(kampagnenname, eigener_name), einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_gesamt')
-            .in('kampagne_id', allKampagnenIds);
-          
-          unternehmenKoops = kampagnenKoops || [];
-        } catch (e) {
-          console.error('❌ Fehler beim Laden von Unternehmen-Kooperationen:', e);
-        }
-      }
-      
-      // Alle Kooperationen zusammenführen (ohne Duplikate)
-      const allKoopsMap = new Map();
-      [...directKoops, ...unternehmenKoops].forEach(k => {
-        if (k && k.id) {
-          allKoopsMap.set(k.id, k);
-        }
-      });
-      
-      this.assignments.kooperationen = Array.from(allKoopsMap.values());
+      })();
+
+      const [branchAResult, auftragsdetails] = await Promise.all([branchA, branchB]);
+
+      this.assignments.kampagnen = branchAResult.kampagnen;
+      this.assignments.kooperationen = branchAResult.kooperationen;
       this.assignments.briefings = briefs || [];
+      this.assignments.auftragsdetails = auftragsdetails;
+      this.budget = { invoicesByKoop: branchAResult.invoicesByKoop, totals: branchAResult.totals };
+
       this.statusOptions = statusRows || [];
       this.euLaender = euLaenderRows || [];
       this.zugeordnet = {
@@ -156,65 +232,6 @@ export class MitarbeiterDetail extends PersonDetailBase {
         })).filter(u => u && u.id),
         marken: (markenRel || []).map(r => r.marke).filter(Boolean)
       };
-
-      const koopIds = (this.assignments.kooperationen || []).map(k => k.id).filter(Boolean);
-      let invoicesByKoop = {};
-      let totals = { netto: 0, zusatz: 0, gesamt: 0, invoice_netto: 0, invoice_brutto: 0 };
-      if (koopIds.length > 0) {
-        try {
-          const { data: rechnungen } = await window.supabase
-            .from('rechnung')
-            .select('id, rechnung_nr, status, nettobetrag, bruttobetrag, gestellt_am, bezahlt_am, pdf_url, kooperation_id')
-            .in('kooperation_id', koopIds);
-          (rechnungen || []).forEach(r => {
-            if (!invoicesByKoop[r.kooperation_id]) invoicesByKoop[r.kooperation_id] = [];
-            invoicesByKoop[r.kooperation_id].push(r);
-            totals.invoice_netto += Number(r.nettobetrag || 0);
-            totals.invoice_brutto += Number(r.bruttobetrag || 0);
-          });
-        } catch (_) {
-          invoicesByKoop = {};
-        }
-      }
-      (this.assignments.kooperationen || []).forEach(k => {
-        totals.netto += Number(k.einkaufspreis_netto || 0);
-        totals.zusatz += Number(k.einkaufspreis_zusatzkosten || 0);
-        totals.gesamt += Number(k.einkaufspreis_gesamt != null ? k.einkaufspreis_gesamt : (Number(k.einkaufspreis_netto || 0) + Number(k.einkaufspreis_zusatzkosten || 0)));
-      });
-      this.budget = { invoicesByKoop, totals };
-
-      // Auftragsdetails laden (über zugeordnete Unternehmen)
-      if (unternehmenIds.length > 0) {
-        try {
-          // Aufträge der zugeordneten Unternehmen laden
-          const { data: auftraege } = await window.supabase
-            .from('auftrag')
-            .select('id')
-            .in('unternehmen_id', unternehmenIds);
-          
-          const auftragIds = (auftraege || []).map(a => a.id).filter(Boolean);
-          
-          if (auftragIds.length > 0) {
-            const { data: auftragsdetails } = await window.supabase
-              .from('auftrag_details')
-              .select(`
-                *,
-                auftrag:auftrag_id (
-                  id,
-                  auftragsname,
-                  status
-                )
-              `)
-              .in('auftrag_id', auftragIds)
-              .order('created_at', { ascending: false });
-            
-            this.assignments.auftragsdetails = auftragsdetails || [];
-          }
-        } catch (e) {
-          console.error('❌ Fehler beim Laden von Auftragsdetails:', e);
-          this.assignments.auftragsdetails = [];
-        }
-      }
     } catch (e) {
       console.error('❌ Fehler beim Laden Mitarbeiter-Details:', e);
     }
@@ -294,54 +311,49 @@ export class MitarbeiterDetail extends PersonDetailBase {
   }
 
   renderMainContent() {
-    return `
-      <div class="tab-content">
-        <div class="tab-pane ${this.activeMainTab === 'rechte' ? 'active' : ''}" id="tab-rechte">
-          ${this.renderRechteTab()}
-        </div>
+    // Lazy Tab-Rendering: nur den aktiven Tab rendern, Rest wird on-demand in bind() gefüllt
+    const tabs = ['rechte', 'unternehmen', 'kampagnen', 'koops', 'budget', 'briefings', 'auftragsdetails'];
+    this._renderedTabs = new Set();
+    if (this.activeMainTab && tabs.includes(this.activeMainTab)) {
+      this._renderedTabs.add(this.activeMainTab);
+    }
 
-        <div class="tab-pane ${this.activeMainTab === 'unternehmen' ? 'active' : ''}" id="tab-unternehmen">
+    const panes = tabs.map(t => {
+      const isActive = this.activeMainTab === t;
+      const content = isActive ? this.renderTabContent(t) : '';
+      return `<div class="tab-pane ${isActive ? 'active' : ''}" id="tab-${t}">${content}</div>`;
+    }).join('');
+
+    return `<div class="tab-content">${panes}</div>`;
+  }
+
+  renderTabContent(tab) {
+    switch (tab) {
+      case 'rechte':
+        return this.renderRechteTab();
+      case 'unternehmen':
+        return `
           <div class="detail-section">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-              <div>
-              </div>
+              <div></div>
               <button class="primary-btn" id="btn-add-unternehmen">+ Unternehmen zuordnen</button>
             </div>
             ${this.renderUnternehmenTable()}
           </div>
-        </div>
-
-        <div class="tab-pane ${this.activeMainTab === 'kampagnen' ? 'active' : ''}" id="tab-kampagnen">
-          <div class="detail-section">
-            ${this.renderKampagnenTable()}
-          </div>
-        </div>
-
-        <div class="tab-pane ${this.activeMainTab === 'koops' ? 'active' : ''}" id="tab-koops">
-          <div class="detail-section">
-            ${this.renderKooperationenTable()}
-          </div>
-        </div>
-
-        <div class="tab-pane ${this.activeMainTab === 'budget' ? 'active' : ''}" id="tab-budget">
-          <div class="detail-section">
-            ${this.renderBudget()}
-          </div>
-        </div>
-
-        <div class="tab-pane ${this.activeMainTab === 'briefings' ? 'active' : ''}" id="tab-briefings">
-          <div class="detail-section">
-            ${this.renderBriefingsTable()}
-          </div>
-        </div>
-
-        <div class="tab-pane ${this.activeMainTab === 'auftragsdetails' ? 'active' : ''}" id="tab-auftragsdetails">
-          <div class="detail-section">
-            ${this.renderAuftragsdetailsTable()}
-          </div>
-        </div>
-      </div>
-    `;
+        `;
+      case 'kampagnen':
+        return `<div class="detail-section">${this.renderKampagnenTable()}</div>`;
+      case 'koops':
+        return `<div class="detail-section">${this.renderKooperationenTable()}</div>`;
+      case 'budget':
+        return `<div class="detail-section">${this.renderBudget()}</div>`;
+      case 'briefings':
+        return `<div class="detail-section">${this.renderBriefingsTable()}</div>`;
+      case 'auftragsdetails':
+        return `<div class="detail-section">${this.renderAuftragsdetailsTable()}</div>`;
+      default:
+        return '';
+    }
   }
 
   renderRechteTab() {
@@ -834,24 +846,39 @@ export class MitarbeiterDetail extends PersonDetailBase {
     if (this._eventsBound) return;
     this._eventsBound = true;
 
-    // Main Tab-Navigation
-    document.addEventListener('click', (e) => {
+    // Frischen AbortController für alle Listener – destroy() ruft abort() auf
+    this._abortController = new AbortController();
+    const signal = this._abortController.signal;
+    const on = (type, handler) => document.addEventListener(type, handler, { signal });
+
+    // Main Tab-Navigation (mit Lazy-Rendering)
+    on('click', (e) => {
       const btn = e.target.closest('.tab-button');
       if (!btn) return;
       e.preventDefault();
       const tab = btn.dataset.tab;
       if (!tab) return;
-      
+
       this.activeMainTab = tab;
       document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
       const pane = document.getElementById(`tab-${tab}`);
-      if (pane) pane.classList.add('active');
+      if (pane) {
+        // Lazy Render: Inhalt erst beim ersten Öffnen generieren
+        if (this._renderedTabs && !this._renderedTabs.has(tab)) {
+          const content = this.renderTabContent(tab);
+          if (content) {
+            pane.innerHTML = content;
+          }
+          this._renderedTabs.add(tab);
+        }
+        pane.classList.add('active');
+      }
     });
 
     // Event-Handler für "Rolle ändern" Button
-    document.addEventListener('click', (e) => {
+    on('click', (e) => {
       if (e.target.closest('#btn-change-rolle')) {
         e.preventDefault();
         this.showChangeRolleModal();
@@ -860,7 +887,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
 
     // Live Toggle für Freigeschaltet-Status mit Auto-Save
     const self = this;
-    document.addEventListener('change', async (e) => {
+    on('change', async (e) => {
       if (e.target && e.target.id === 'freigeschaltet-toggle') {
         const isFreigeschaltet = e.target.checked;
         const rechteSection = document.querySelector('#tab-rechte .detail-section:nth-child(3)');
@@ -945,7 +972,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
       }
     });
 
-    document.addEventListener('click', async (e) => {
+    on('click', async (e) => {
       if (e.target && e.target.id === 'btn-back-mitarbeiter') {
         e.preventDefault();
         window.navigateTo('/mitarbeiter');
@@ -960,7 +987,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
     });
 
     // Event-Handler für Unternehmen zuordnen
-    document.addEventListener('click', (e) => {
+    on('click', (e) => {
       if (e.target.closest('#btn-add-unternehmen')) {
         e.preventDefault();
         this.showAddUnternehmenModal();
@@ -968,7 +995,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
     });
     
     // Event-Handler für Unternehmen-Rolle ändern
-    document.addEventListener('change', async (e) => {
+    on('change', async (e) => {
       const roleSelect = e.target.closest('.role-select');
       if (roleSelect) {
         const unternehmenId = roleSelect.dataset.unternehmenId;
@@ -978,7 +1005,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
     });
     
     // Event-Handler für Unternehmen entfernen
-    document.addEventListener('click', async (e) => {
+    on('click', async (e) => {
       const removeBtn = e.target.closest('.btn-remove-unternehmen');
       if (removeBtn) {
         e.preventDefault();
@@ -1420,7 +1447,13 @@ export class MitarbeiterDetail extends PersonDetailBase {
   }
 
   destroy() {
+    // Alle in bind() registrierten Listener auf einen Schlag entfernen
+    if (this._abortController) {
+      this._abortController.abort();
+      this._abortController = null;
+    }
     this._eventsBound = false;
+    this._renderedTabs = null;
     window.setContentSafely('');
   }
 }

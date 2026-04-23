@@ -793,6 +793,7 @@ export class GlobalSearch {
   }
 
   destroy() {
+    clearTimeout(this.debounceTimer);
     this.close();
     this.overlay?.remove();
     this.container?.remove();

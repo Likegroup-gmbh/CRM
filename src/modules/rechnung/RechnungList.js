@@ -12,6 +12,8 @@ import { renderBezahltToggle } from './RechnungBezahltToggle.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 
 export class RechnungList {
+  _abortController = null;
+
   constructor() {
     this.selectedRechnungen = new Set();
     this.rechnungen = [];
@@ -41,25 +43,28 @@ export class RechnungList {
     }
 
     await this.loadAndRender();
+
+    this._abortController?.abort();
+    this._abortController = new AbortController();
+    const { signal } = this._abortController;
+
     // Reload Liste bei Änderungen (z. B. Status geändert, gelöscht)
     window.addEventListener('entityUpdated', (e) => {
       if (e?.detail?.entity === 'rechnung') {
         const { action, id, field, value } = e.detail;
-        // Bei Status-Update nur einzelne Zeile aktualisieren
         if (action === 'updated' && field === 'status' && id) {
           this.updateSingleRow(id, value);
         } else {
-          // Bei anderen Aktionen (delete, bulk, etc.) komplett neu laden
           this.loadAndRender();
         }
       }
-    });
+    }, { signal });
     document.addEventListener('click', (e) => {
       if (e.target && e.target.id === 'btn-rechnung-new') {
         e.preventDefault();
         this.showCreateForm();
       }
-    });
+    }, { signal });
     
     // Download-Action Handler
     document.addEventListener('click', (e) => {
@@ -69,7 +74,7 @@ export class RechnungList {
         const id = actionItem.dataset.id;
         this.handleDownload(id);
       }
-    });
+    }, { signal });
     
     // Bezahlt-Toggle direkt in der Tabelle
     document.addEventListener('change', async (e) => {
@@ -99,7 +104,7 @@ export class RechnungList {
         const isAdmin = window.currentUser?.rolle?.toLowerCase() === 'admin';
         target.disabled = !isAdmin;
       }
-    });
+    }, { signal });
 
     // Status-Tab Klicks
     document.addEventListener('click', (e) => {
@@ -113,7 +118,7 @@ export class RechnungList {
         tabBtn.classList.add('active');
         this.updateTable(this.getFilteredRechnungen());
       }
-    });
+    }, { signal });
 
     // Tabellen-Links in Rechnungstabelle
     document.addEventListener('click', (e) => {
@@ -125,7 +130,7 @@ export class RechnungList {
       if (table && id) {
         window.navigateTo(`/${table}/${id}`);
       }
-    });
+    }, { signal });
 
     // Unternehmen-Quickfilter: Toggle, Reset, Click-Outside
     document.addEventListener('click', (e) => {
@@ -155,7 +160,7 @@ export class RechnungList {
         dropdown.classList.remove('show');
         toggleButton.setAttribute('aria-expanded', 'false');
       }
-    });
+    }, { signal });
 
     // Unternehmen-Quickfilter: Checkbox-Toggles
     document.addEventListener('change', (e) => {
@@ -166,7 +171,7 @@ export class RechnungList {
       ).map(input => input.value).filter(Boolean);
 
       this.applyUnternehmenQuickFilter(selectedIds);
-    });
+    }, { signal });
   }
   
   // Rechnung PDF herunterladen
@@ -1086,6 +1091,9 @@ export class RechnungList {
   }
 
   destroy() {
+    this._abortController?.abort();
+    this._abortController = null;
+
     if (this.dragScrollContainer) {
       this.dragScrollContainer.removeEventListener('mousedown', this._dragMouseDown);
       this.dragScrollContainer.removeEventListener('mousemove', this._dragMouseMove);

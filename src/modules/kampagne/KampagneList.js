@@ -387,10 +387,10 @@ export class KampagneList {
       }
     }
 
-    document.addEventListener('click', this._handlers.globalClick);
-    document.addEventListener('change', this._handlers.globalChange);
-    window.addEventListener('entityUpdated', this._handlers.entityUpdated);
-    window.addEventListener('kampagneUpdated', this._handlers.kampagneUpdated);
+    document.addEventListener('click', this._handlers.globalClick, { signal: this._abortController.signal });
+    document.addEventListener('change', this._handlers.globalChange, { signal: this._abortController.signal });
+    window.addEventListener('entityUpdated', this._handlers.entityUpdated, { signal: this._abortController.signal });
+    window.addEventListener('kampagneUpdated', this._handlers.kampagneUpdated, { signal: this._abortController.signal });
   }
 
   hasActiveFilters() {
@@ -505,6 +505,7 @@ export class KampagneList {
 
   destroy() {
     this._isMounted = false;
+    clearTimeout(this._searchDebounceTimer);
     
     if (this._abortController) {
       this._abortController.abort();

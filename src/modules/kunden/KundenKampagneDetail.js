@@ -4,6 +4,8 @@
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export class KundenKampagneDetail {
+  _abortController = null;
+
   constructor() {
     this.kampagneId = null;
     this.kampagne = null;
@@ -58,15 +60,21 @@ export class KundenKampagneDetail {
   }
 
   bind() {
+    this._abortController?.abort();
+    this._abortController = new AbortController();
+    const { signal } = this._abortController;
+
     document.addEventListener('click', (e) => {
       if (e.target && e.target.id === 'btn-back-kunden') {
         e.preventDefault();
         window.navigateTo('/kunden');
       }
-    });
+    }, { signal });
   }
 
   destroy() {
+    this._abortController?.abort();
+    this._abortController = null;
     window.setContentSafely('');
   }
 }

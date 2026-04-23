@@ -5,6 +5,9 @@
 export class VideoTableUIHelpers {
   constructor(table) {
     this.table = table;
+    this._resizeAbort = null;
+    this._scrollbarAbort = null;
+    this._dragScrollAbort = null;
   }
 
   // --- Performance Tracking ---
@@ -150,24 +153,28 @@ export class VideoTableUIHelpers {
     const container = document.querySelector('.grid-wrapper');
     if (!container) return;
 
+    this._resizeAbort?.abort();
+    this._resizeAbort = new AbortController();
+    const signal = this._resizeAbort.signal;
+
     container.addEventListener('mousedown', (e) => {
       const handle = e.target.closest('.resize-handle-col');
       if (handle) {
         this.startResize(parseInt(handle.dataset.col), e.pageX);
         e.preventDefault();
       }
-    });
+    }, { signal });
 
     document.addEventListener('mousemove', (e) => {
       if (!this.table.isResizing) return;
       const delta = e.pageX - this.table.resizeStartX;
       const newWidth = Math.max(50, this.table.resizeStartWidth + delta);
       this.setColumnWidth(this.table.resizeCol, newWidth);
-    });
+    }, { signal });
 
     document.addEventListener('mouseup', () => {
       if (this.table.isResizing) this.endResize();
-    });
+    }, { signal });
   }
 
   startResize(col, pageX) {
@@ -230,6 +237,10 @@ export class VideoTableUIHelpers {
     const container = document.querySelector('.grid-wrapper');
     if (!container) return;
 
+    this._dragScrollAbort?.abort();
+    this._dragScrollAbort = new AbortController();
+    const signal = this._dragScrollAbort.signal;
+
     this.table.dragScrollContainer = container;
 
     container.addEventListener('mousedown', (e) => {
@@ -248,14 +259,14 @@ export class VideoTableUIHelpers {
       container.style.cursor = 'grabbing';
       container.style.userSelect = 'none';
       e.preventDefault();
-    });
+    }, { signal });
 
     container.addEventListener('mousemove', (e) => {
       if (!this.table.isDragging) return;
       e.preventDefault();
       const x = e.pageX - container.offsetLeft;
       container.scrollLeft = this.table.scrollLeft - (x - this.table.startX) * 1.5;
-    });
+    }, { signal });
 
     const stopDragging = () => {
       if (this.table.isDragging) {
@@ -264,8 +275,8 @@ export class VideoTableUIHelpers {
         container.style.userSelect = '';
       }
     };
-    container.addEventListener('mouseup', stopDragging);
-    container.addEventListener('mouseleave', stopDragging);
+    container.addEventListener('mouseup', stopDragging, { signal });
+    container.addEventListener('mouseleave', stopDragging, { signal });
 
     container.style.cursor = 'grab';
   }
@@ -273,6 +284,10 @@ export class VideoTableUIHelpers {
   // --- Floating Scrollbar ---
 
   initFloatingScrollbar() {
+    this._scrollbarAbort?.abort();
+    this._scrollbarAbort = new AbortController();
+    const abortSignal = this._scrollbarAbort.signal;
+
     let floatingScrollbar = document.getElementById('floating-scrollbar-kampagne');
     if (!floatingScrollbar) {
       floatingScrollbar = document.createElement('div');
@@ -341,8 +356,8 @@ export class VideoTableUIHelpers {
 
     const onScroll = () => toggleVisibility();
     const onResize = () => { updatePosition(); toggleVisibility(); };
-    window.addEventListener('scroll', onScroll);
-    window.addEventListener('resize', onResize);
+    window.addEventListener('scroll', onScroll, { signal: abortSignal });
+    window.addEventListener('resize', onResize, { signal: abortSignal });
 
     const cleanup = () => {
       floatingScrollbar.classList.remove('visible');
@@ -353,7 +368,7 @@ export class VideoTableUIHelpers {
       gridWrapper.removeEventListener('scroll', onTableScroll);
     };
 
-    document.addEventListener('tab-changed', cleanup);
+    document.addEventListener('tab-changed', cleanup, { signal: abortSignal });
 
     const navCleanup = () => {
       if (!window.location.pathname.includes('/kampagne/')) {
@@ -361,8 +376,21 @@ export class VideoTableUIHelpers {
         if (floatingScrollbar?.parentNode) floatingScrollbar.parentNode.removeChild(floatingScrollbar);
       }
     };
-    window.addEventListener('popstate', navCleanup);
+    window.addEventListener('popstate', navCleanup, { signal: abortSignal });
 
     this.table.cleanupFloatingScrollbar = cleanup;
+  }
+
+  destroy() {
+    this._resizeAbort?.abort();
+    this._resizeAbort = null;
+    this._dragScrollAbort?.abort();
+    this._dragScrollAbort = null;
+    this._scrollbarAbort?.abort();
+    this._scrollbarAbort = null;
+    if (this.table.cleanupFloatingScrollbar) {
+      this.table.cleanupFloatingScrollbar();
+      this.table.cleanupFloatingScrollbar = null;
+    }
   }
 }

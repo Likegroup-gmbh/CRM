@@ -8,6 +8,7 @@ export class MitarbeiterList {
   constructor() {
     this.rows = [];
     this.mitarbeiterKlassen = [];
+    this._abortController = null;
   }
 
   async init() {
@@ -261,6 +262,10 @@ export class MitarbeiterList {
   }
 
   bind() {
+    this._abortController?.abort();
+    this._abortController = new AbortController();
+    const signal = this._abortController.signal;
+
     document.addEventListener('click', (e) => {
       const link = e.target.closest('.table-link');
       if (link && link.dataset.table === 'mitarbeiter') {
@@ -268,7 +273,7 @@ export class MitarbeiterList {
         const id = link.dataset.id;
         window.navigateTo(`/mitarbeiter/${id}`);
       }
-    });
+    }, { signal });
 
     // Event-Handler für Rollen-Submenu (generiert von ActionBuilder als .submenu-item)
     document.addEventListener('click', (e) => {
@@ -294,7 +299,7 @@ export class MitarbeiterList {
           this.handleFreischaltenToggle(userId, !user.freigeschaltet);
         }
       }
-    });
+    }, { signal });
 
     // Live-Update bei entityUpdated
     window.addEventListener('entityUpdated', async (evt) => {
@@ -322,7 +327,7 @@ export class MitarbeiterList {
             : '<span class="status-badge warning">WARTET</span>';
         }
       }
-    });
+    }, { signal });
   }
 
   // Handler für Rollen-Änderungen
@@ -360,6 +365,8 @@ export class MitarbeiterList {
   }
 
   destroy() {
+    this._abortController?.abort();
+    this._abortController = null;
     window.setContentSafely('');
   }
 }

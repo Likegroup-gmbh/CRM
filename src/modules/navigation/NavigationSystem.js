@@ -24,6 +24,7 @@ export class NavigationSystem {
       {
         title: 'Projektmanagement',
         items: [
+          { id: 'projekt-erstellen', label: 'Projekt anlegen', icon: 'icon-briefcase', url: '/projekt-erstellen' },
           { id: 'auftrag', label: 'Aufträge', icon: 'icon-briefcase', url: '/auftrag' },
           { id: 'auftragsdetails', label: 'Auftragsdetails', icon: 'icon-auftragsdetails', url: '/auftragsdetails' },
           { id: 'kampagne', label: 'Kampagnen', icon: 'icon-campaign', url: '/kampagne' }
@@ -84,6 +85,12 @@ export class NavigationSystem {
       if (window.currentUser?.isBlocked === true) {
         return false;
       }
+
+      // "Projekt anlegen" nur für interne Mitarbeiter, nicht für Kunden
+      if (id === 'projekt-erstellen') {
+        const rolle = window.currentUser?.rolle?.toLowerCase();
+        if (rolle === 'kunde' || rolle === 'kunde_editor') return false;
+      }
       
       // 1) Page-Scoped Check (DB-Overrides)
       if (window.canViewPage && typeof window.canViewPage === 'function') {
@@ -98,6 +105,7 @@ export class NavigationSystem {
         marke: 'marke',
         produkt: 'produkt',
         auftrag: 'auftrag',
+        'projekt-erstellen': 'auftrag',
         auftragsdetails: 'auftragsdetails',
         ansprechpartner: 'ansprechpartner',
         kampagne: 'kampagne',

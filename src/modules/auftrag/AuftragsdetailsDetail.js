@@ -336,6 +336,9 @@ export class AuftragsdetailsDetail {
         <!-- Kategorien-Übersicht Tabelle -->
         ${this.renderKategorienTable()}
 
+        <!-- Zusatzleistungen -->
+        ${this.renderZusatzleistungenTable()}
+
         <!-- Kampagnen-Übersicht -->
         ${this.renderKampagnenTable()}
 
@@ -442,6 +445,68 @@ export class AuftragsdetailsDetail {
     `;
   }
 
+  // Rendere Zusatzleistungen-Tabelle (aus auftrag_details.extra_services)
+  renderZusatzleistungenTable() {
+    const details = this.details;
+    if (!details) return '';
+
+    if (details.extra_services_enabled === false) return '';
+
+    const services = Array.isArray(details.extra_services) ? details.extra_services : [];
+    const valid = services.filter(s => s && typeof s.name === 'string' && s.name.trim());
+    if (valid.length === 0) return '';
+
+    const isKunde = ['kunde', 'kunde_editor'].includes(window.currentUser?.rolle?.toLowerCase());
+    const isAdmin = window.currentUser?.rolle?.toLowerCase() === 'admin';
+    const showAmount = isAdmin && !isKunde;
+
+    const formatCurrency = (v) => {
+      const n = parseFloat(v);
+      if (isNaN(n)) return '-';
+      return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);
+    };
+    const sanitize = (v) => window.validatorSystem?.sanitizeHtml(v) || v || '';
+
+    let total = 0;
+    const rowsHtml = valid.map(s => {
+      const amount = parseFloat(s.amount) || 0;
+      total += amount;
+      return `
+        <tr>
+          <td>${sanitize(s.name)}</td>
+          ${showAmount ? `<td class="text-right">${formatCurrency(amount)}</td>` : ''}
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div class="detail-section" style="margin-top: var(--space-lg);">
+        <h3 class="section-title section-title--spaced">Zusatzleistungen</h3>
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Leistung</th>
+                ${showAmount ? '<th class="text-right">Betrag (Netto)</th>' : ''}
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+            ${showAmount ? `
+            <tfoot>
+              <tr style="font-weight: 600;">
+                <td>Gesamt</td>
+                <td class="text-right">${formatCurrency(total)}</td>
+              </tr>
+            </tfoot>
+            ` : ''}
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
   // Rendere Kategorien-Übersichtstabelle (UGC, Influencer, Vor Ort, etc.)
   renderKategorienTable() {
     const details = this.details;
@@ -532,9 +597,27 @@ export class AuftragsdetailsDetail {
     const sections = [
       ...ugcSections,
       {
+        title: 'UGC Paid',
+        prefix: 'ugc_paid',
+        color: '#28a745',
+        hasVideographen: false
+      },
+      {
+        title: 'UGC Organic',
+        prefix: 'ugc_organic',
+        color: '#17a2b8',
+        hasVideographen: false
+      },
+      {
         title: 'Influencer Kampagne',
         prefix: 'influencer',
         color: '#20c997',
+        hasVideographen: false
+      },
+      {
+        title: 'Story',
+        prefix: 'story',
+        color: '#e83e8c',
         hasVideographen: false
       },
       {

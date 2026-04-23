@@ -1492,6 +1492,8 @@ export class CreatorDetail extends PersonDetailBase {
     if (this._cacheInvalidationBound) return;
     this._cacheInvalidationBound = true;
     
+    const signal = this._abortController?.signal;
+    
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail.entity === 'creator' && e.detail.id === this.creatorId) {
         console.log('🔄 CREATORDETAIL: Entity updated - invalidiere Cache');
@@ -1506,7 +1508,7 @@ export class CreatorDetail extends PersonDetailBase {
           });
         }
       }
-    });
+    }, signal ? { signal } : undefined);
   }
 
   destroy() {

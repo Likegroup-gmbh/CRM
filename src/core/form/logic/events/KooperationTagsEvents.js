@@ -9,6 +9,10 @@ export async function setup(form, preloaded = null) {
   const selectedContainer = document.getElementById('selected_koop_tags');
   if (!input || !suggestionsDiv || !selectedContainer) return;
 
+  if (setup._abortController) setup._abortController.abort();
+  setup._abortController = new AbortController();
+  const signal = setup._abortController.signal;
+
   let allTags = [];
   let selectedTags = [];
 
@@ -183,7 +187,7 @@ export async function setup(form, preloaded = null) {
     if (container && !container.contains(e.target)) {
       suggestionsDiv.style.display = 'none';
     }
-  });
+  }, { signal });
 
   renderSelected();
 }

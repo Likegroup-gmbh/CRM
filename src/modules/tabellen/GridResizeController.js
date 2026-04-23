@@ -13,13 +13,15 @@ export class GridResizeController {
   }
 
   init() {
+    this._resizeAbort?.abort();
+    this._resizeAbort = new AbortController();
     this.bindResizeEvents();
   }
 
   bindResizeEvents() {
     const container = this.renderer.container;
+    const signal = this._resizeAbort.signal;
 
-    // Mousedown auf Resize-Handles
     container.addEventListener('mousedown', (e) => {
       const colHandle = e.target.closest('.resize-handle-col');
       const rowHandle = e.target.closest('.resize-handle-row');
@@ -31,28 +33,26 @@ export class GridResizeController {
         this.startResize('row', parseInt(rowHandle.dataset.row), e.pageY);
         e.preventDefault();
       }
-    });
+    }, { signal });
 
-    // Mousemove
     document.addEventListener('mousemove', (e) => {
       if (!this.isResizing) return;
 
       const delta = (this.resizeType === 'col' ? e.pageX : e.pageY) - this.startPos;
-      const newSize = Math.max(50, this.startSize + delta); // Min 50px
+      const newSize = Math.max(50, this.startSize + delta);
 
       if (this.resizeType === 'col') {
         this.renderer.setColumnWidth(this.resizeIndex, newSize);
       } else {
         this.renderer.setRowHeight(this.resizeIndex, newSize);
       }
-    });
+    }, { signal });
 
-    // Mouseup
     document.addEventListener('mouseup', () => {
       if (this.isResizing) {
         this.endResize();
       }
-    });
+    }, { signal });
   }
 
   startResize(type, index, pos) {
@@ -83,7 +83,8 @@ export class GridResizeController {
   }
 
   destroy() {
-    // Cleanup falls nötig
+    this._resizeAbort?.abort();
+    this._resizeAbort = null;
   }
 }
 

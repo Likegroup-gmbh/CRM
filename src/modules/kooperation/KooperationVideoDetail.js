@@ -9,7 +9,7 @@ export const kooperationVideoDetail = {
   kooperation: null,
   comments: [],
   assets: [],
-  _eventsBound: false,
+  _abortController: null,
   _selectedFile: null,
 
   async init(id) {
@@ -385,50 +385,47 @@ export const kooperationVideoDetail = {
   },
 
   bindEvents() {
-    // Globale Event-Listener nur einmal binden
-    if (!this._eventsBound) {
-      // Tab-Switching
-      document.addEventListener('click', (e) => {
-        if (e.target.classList.contains('tab-button')) {
-          e.preventDefault();
-          const tabName = e.target.dataset.tab;
-          if (tabName) this.switchTab(tabName);
-        }
-      });
+    this._abortController?.abort();
+    this._abortController = new AbortController();
+    const { signal } = this._abortController;
 
-      // Kommentar löschen (Soft-Delete - Delegation mit Event-Bubbling)
-      document.addEventListener('click', async (e) => {
-        const del = e.target.closest('.comment-delete');
-        if (!del) return;
+    // Tab-Switching
+    document.addEventListener('click', (e) => {
+      if (e.target.classList.contains('tab-button')) {
         e.preventDefault();
-        const id = del.dataset.id;
-        if (!id) return;
-        if (!confirm('Kommentar wirklich entfernen?')) return;
-        try {
-          // Soft-Delete: Setze deleted_at und deleted_by
-          const { error } = await window.supabase
-            .from('kooperation_video_comment')
-            .update({
-              deleted_at: new Date().toISOString(),
-              deleted_by_benutzer_id: window.currentUser?.id || null
-            })
-            .eq('id', id);
-          if (error) throw error;
-          await this.loadData();
-          this.render();
-          this.bindLocalEvents(); // Nur lokale Events neu binden
-          // ActionsDropdown neu initialisieren
-          if (window.ActionsDropdown) {
-            window.ActionsDropdown.init();
-          }
-        } catch (err) {
-          console.error('Kommentar löschen fehlgeschlagen', err);
-          alert('Kommentar konnte nicht gelöscht werden.');
+        const tabName = e.target.dataset.tab;
+        if (tabName) this.switchTab(tabName);
+      }
+    }, { signal });
+
+    // Kommentar löschen (Soft-Delete - Delegation mit Event-Bubbling)
+    document.addEventListener('click', async (e) => {
+      const del = e.target.closest('.comment-delete');
+      if (!del) return;
+      e.preventDefault();
+      const id = del.dataset.id;
+      if (!id) return;
+      if (!confirm('Kommentar wirklich entfernen?')) return;
+      try {
+        const { error } = await window.supabase
+          .from('kooperation_video_comment')
+          .update({
+            deleted_at: new Date().toISOString(),
+            deleted_by_benutzer_id: window.currentUser?.id || null
+          })
+          .eq('id', id);
+        if (error) throw error;
+        await this.loadData();
+        this.render();
+        this.bindLocalEvents();
+        if (window.ActionsDropdown) {
+          window.ActionsDropdown.init();
         }
-      });
-      
-      this._eventsBound = true;
-    }
+      } catch (err) {
+        console.error('Kommentar löschen fehlgeschlagen', err);
+        alert('Kommentar konnte nicht gelöscht werden.');
+      }
+    }, { signal });
     
     // Lokale Event-Listener die bei jedem Render neu gebunden werden müssen
     this.bindLocalEvents();
@@ -940,7 +937,7 @@ export const kooperationVideoDetail = {
   },
 
   destroy() {
-    // Setze das Flag zurück, damit beim nächsten init() die Events neu gebunden werden
-    this._eventsBound = false;
+    this._abortController?.abort();
+    this._abortController = null;
   }
 };

@@ -2,8 +2,6 @@
 // Videografen- & Fotografen-Produktionsvertrag: Steps 2-5 + Produktionsplan-Helper.
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
-import { KampagneUtils } from '../../../kampagne/KampagneUtils.js';
-
 VertraegeCreate.prototype.renderVideografStep2 = function() {
     if (!this._filtersInitialized) {
       this.updateFilteredKampagnen();
@@ -42,7 +40,7 @@ VertraegeCreate.prototype.renderVideografStep2 = function() {
             <option value="">${this.formData.kunde_unternehmen_id ? 'Kampagne auswählen...' : 'Bitte zuerst Kunde wählen...'}</option>
             ${this.filteredKampagnen.map(k => `
               <option value="${k.id}" ${this.formData.kampagne_id === k.id ? 'selected' : ''}>
-                ${KampagneUtils.getDisplayName(k)}
+                ${this.getKampagneDisplayName(k)}
               </option>
             `).join('')}
           </select>

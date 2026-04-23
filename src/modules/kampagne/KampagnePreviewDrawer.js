@@ -255,6 +255,10 @@ export class KampagnePreviewDrawer {
   }
 
   removeDrawer() {
+    if (this._escHandler) {
+      document.removeEventListener('keydown', this._escHandler);
+      this._escHandler = null;
+    }
     document.getElementById(`${this.drawerId}-overlay`)?.remove();
     document.getElementById(this.drawerId)?.remove();
   }

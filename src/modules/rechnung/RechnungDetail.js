@@ -6,6 +6,7 @@ export class RechnungDetail {
     this.id = null;
     this.data = null;
     this.belege = [];
+    this._abortController = null;
   }
 
   async init(id) {
@@ -389,6 +390,10 @@ export class RechnungDetail {
   }
 
   bindEvents() {
+    this._abortController?.abort();
+    this._abortController = new AbortController();
+    const { signal } = this._abortController;
+
     document.addEventListener('click', (e) => {
       if (e.target.closest('#btn-edit-rechnung')) {
         const isAdmin = window.currentUser?.rolle?.toLowerCase() === 'admin';
@@ -406,7 +411,13 @@ export class RechnungDetail {
         const id = link.dataset.id;
         if (table && id) window.navigateTo(`/${table}/${id}`);
       }
-    });
+    }, { signal });
+  }
+
+  destroy() {
+    this._abortController?.abort();
+    this._abortController = null;
+    window.setContentSafely?.(window.content, '');
   }
 
   async showEditForm() {

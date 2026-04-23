@@ -85,6 +85,7 @@ export class CreatorAdressenManager {
         document.removeEventListener('keydown', escHandler);
       }
     };
+    this._escHandler = escHandler;
     document.addEventListener('keydown', escHandler);
 
     // Zeige Drawer
@@ -422,6 +423,10 @@ export class CreatorAdressenManager {
 
   // Schließe Drawer
   close() {
+    if (this._escHandler) {
+      document.removeEventListener('keydown', this._escHandler);
+      this._escHandler = null;
+    }
     const drawer = document.getElementById(this.drawerId);
     if (drawer) {
       drawer.classList.remove('active');

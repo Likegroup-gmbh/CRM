@@ -11,7 +11,7 @@ import { deleteUnternehmenCascade, collectDependentIds } from '../modules/untern
 export class ActionsDropdown {
   constructor() {
     this.dropdowns = new Map();
-    this.boundEventListeners = new Set();
+    this._abortController = null;
     this._iconObserver = null;
     this._normalizingIcons = false;
     this.actionRegistry = actionRegistry;
@@ -21,6 +21,7 @@ export class ActionsDropdown {
 
   // Initialisiere die Komponente
   init() {
+    this.destroy();
     console.log('🎯 ACTIONSDROPDOWN: Initialisiere ActionsDropdown');
     this.bindGlobalEvents();
     this.normalizeIcons(document);
@@ -156,14 +157,14 @@ export class ActionsDropdown {
 
   // Globale Event-Listener binden
   bindGlobalEvents() {
+    this._abortController = new AbortController();
+    const signal = this._abortController.signal;
+
     // Event-Delegation für Dropdown-Toggles
     document.addEventListener('click', (e) => {
-      // Prüfe ob der Klick auf einen actions-toggle Button oder dessen Inhalt war
       const toggleButton = e.target.closest('.actions-toggle');
       if (toggleButton) {
         e.preventDefault();
-        // Wichtig: Verhindere, dass andere Click-Listener auf document (z. B. Outside-Handler)
-        // im selben Bubbling-Durchlauf ausgeführt werden.
         if (typeof e.stopImmediatePropagation === 'function') {
           e.stopImmediatePropagation();
         } else {
@@ -171,7 +172,7 @@ export class ActionsDropdown {
         }
         this.toggleDropdown(toggleButton);
       }
-    });
+    }, { signal });
 
     // Event-Delegation für Submenu-Items (z. B. Status ändern)
     document.addEventListener('click', async (e) => {
@@ -208,24 +209,18 @@ export class ActionsDropdown {
         }
         this.closeAllDropdowns();
       }
-    });
+    }, { signal });
+
     // Event-Delegation für Action-Items
     document.addEventListener('click', (e) => {
       const actionItem = e.target.closest('.action-item');
       if (!actionItem) return;
 
       const action = actionItem.dataset?.action;
-      // Wenn keine data-action gesetzt ist (custom Actions wie Favoriten-Menü),
-      // NICHT abfangen – lasse andere Listener (z. B. KampagneDetail) den Klick verarbeiten
       if (!action) return;
 
-      // Custom Actions die nicht vom ActionsDropdown gehandhabt werden
-      // (z.B. comment-delete, remove-zuordnung) sollen durch Event-Delegation behandelt werden
       const customActions = ['comment-delete', 'video-view', 'video-edit', 'video-delete', 'remove-zuordnung'];
-      if (customActions.includes(action)) {
-        // Lasse Event weiterlaufen für custom Handler
-        return;
-      }
+      if (customActions.includes(action)) return;
 
       e.preventDefault();
       if (typeof e.stopImmediatePropagation === 'function') {
@@ -235,12 +230,10 @@ export class ActionsDropdown {
       }
 
       const entityId = actionItem.dataset.id;
-      // Entity-Type aus data-attribute ermitteln
       const container = actionItem.closest('.actions-dropdown-container');
       let entityType = container?.dataset?.entityType || 'auftrag';
 
       console.log(`🎯 ACTIONSDROPDOWN: Entity-Type aus data-attribute: ${entityType}`);
-      // Sonderfall: Favoriten im Sourcing-Tab – IDs direkt aus dem Link nehmen
       if (action === 'favorite') {
         const creatorId = actionItem.dataset.creatorId || entityId;
         let kampagneId = actionItem.dataset.kampagneId || null;
@@ -251,29 +244,28 @@ export class ActionsDropdown {
 
       this.handleAction(action, entityId, entityType, actionItem);
       this.closeAllDropdowns();
-    });
+    }, { signal });
 
     // Schließe Dropdowns beim Klick außerhalb
     document.addEventListener('click', (e) => {
-      // Klicke innerhalb des gesamten Containers NICHT schließen
       if (!e.target.closest('.actions-dropdown-container')) {
         this.closeAllDropdowns();
       }
-    });
+    }, { signal });
 
     // ESC-Taste schließt alle Dropdowns
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         this.closeAllDropdowns();
       }
-    });
+    }, { signal });
 
     // Scroll schließt offene Dropdowns (capture: true für interne Container)
     window.addEventListener('scroll', () => {
       if (document.querySelector('.actions-dropdown.show')) {
         this.closeAllDropdowns();
       }
-    }, true);
+    }, { capture: true, signal });
   }
 
   // Entity-Type aus dem Kontext ermitteln
@@ -1090,10 +1082,11 @@ export class ActionsDropdown {
       document.body.appendChild(panel);
 
       // Close handlers
-      const close = () => { try { overlay.remove(); panel.remove(); } catch(err) { console.warn('⚠️ Drawer-Close fehlgeschlagen:', err?.message); } };
+      const close = () => { try { document.removeEventListener('keydown', onEsc); overlay.remove(); panel.remove(); } catch(err) { console.warn('⚠️ Drawer-Close fehlgeschlagen:', err?.message); } };
       overlay.addEventListener('click', close);
       header.querySelector('#kvq-close')?.addEventListener('click', close);
-      document.addEventListener('keydown', function onEsc(e){ if(e.key==='Escape'){ close(); document.removeEventListener('keydown', onEsc);} });
+      function onEsc(e){ if(e.key==='Escape'){ close(); } }
+      document.addEventListener('keydown', onEsc);
 
       // Animate in
       requestAnimationFrame(() => { panel.classList.add('show'); });
@@ -1519,15 +1512,15 @@ export class ActionsDropdown {
     });
 
     // Event-Handlers
-    const close = () => modal.remove();
+    let handleEsc;
+    const close = () => { document.removeEventListener('keydown', handleEsc); modal.remove(); };
     modal.querySelector('#add-mitarbeiter-close').onclick = close;
     modal.querySelector('#add-mitarbeiter-cancel').onclick = close;
     
     // ESC-Taste zum Schließen
-    const handleEsc = (e) => {
+    handleEsc = (e) => {
       if (e.key === 'Escape') {
         close();
-        document.removeEventListener('keydown', handleEsc);
       }
     };
     document.addEventListener('keydown', handleEsc);
@@ -1962,15 +1955,15 @@ export class ActionsDropdown {
     });
 
     // Event-Handlers
-    const close = () => modal.remove();
+    let handleEsc;
+    const close = () => { document.removeEventListener('keydown', handleEsc); modal.remove(); };
     modal.querySelector('#add-ansprechpartner-close').onclick = close;
     modal.querySelector('#add-ansprechpartner-cancel').onclick = close;
     
     // ESC-Taste zum Schließen
-    const handleEsc = (e) => {
+    handleEsc = (e) => {
       if (e.key === 'Escape') {
         close();
-        document.removeEventListener('keydown', handleEsc);
       }
     };
     document.addEventListener('keydown', handleEsc);
@@ -2201,13 +2194,13 @@ export class ActionsDropdown {
     });
 
     const close = () => {
+      document.removeEventListener('keydown', handleEsc);
       document.body.removeChild(modal);
     };
 
     const handleEsc = (e) => {
       if (e.key === 'Escape') {
         close();
-        document.removeEventListener('keydown', handleEsc);
       }
     };
 
@@ -2403,13 +2396,13 @@ export class ActionsDropdown {
     });
 
     const close = () => {
+      document.removeEventListener('keydown', handleEsc);
       document.body.removeChild(modal);
     };
 
     const handleEsc = (e) => {
       if (e.key === 'Escape') {
         close();
-        document.removeEventListener('keydown', handleEsc);
       }
     };
 
@@ -2417,11 +2410,9 @@ export class ActionsDropdown {
 
     modal.querySelector('#remove-ansprechpartner-unternehmen-close').onclick = () => {
       close();
-      document.removeEventListener('keydown', handleEsc);
     };
     modal.querySelector('#remove-ansprechpartner-unternehmen-cancel').onclick = () => {
       close();
-      document.removeEventListener('keydown', handleEsc);
     };
 
     modal.querySelector('#remove-ansprechpartner-unternehmen-confirm').onclick = async () => {
@@ -2717,13 +2708,13 @@ export class ActionsDropdown {
 
     // Modal schließen
     const close = () => {
+      document.removeEventListener('keydown', handleEsc);
       document.body.removeChild(modal);
     };
 
     const handleEsc = (e) => {
       if (e.key === 'Escape') {
         close();
-        document.removeEventListener('keydown', handleEsc);
       }
     };
 
@@ -2731,11 +2722,9 @@ export class ActionsDropdown {
 
     modal.querySelector('#remove-ansprechpartner-unternehmen-close').onclick = () => {
       close();
-      document.removeEventListener('keydown', handleEsc);
     };
     modal.querySelector('#remove-ansprechpartner-unternehmen-cancel').onclick = () => {
       close();
-      document.removeEventListener('keydown', handleEsc);
     };
 
     // Initial update
@@ -3293,15 +3282,15 @@ export class ActionsDropdown {
     });
 
     // Event-Handlers
-    const close = () => modal.remove();
+    let handleEsc;
+    const close = () => { document.removeEventListener('keydown', handleEsc); modal.remove(); };
     modal.querySelector('#add-ansprechpartner-kampagne-close').onclick = close;
     modal.querySelector('#add-ansprechpartner-kampagne-cancel').onclick = close;
     
     // ESC-Taste zum Schließen
-    const handleEsc = (e) => {
+    handleEsc = (e) => {
       if (e.key === 'Escape') {
         close();
-        document.removeEventListener('keydown', handleEsc);
       }
     };
     document.addEventListener('keydown', handleEsc);
@@ -3418,10 +3407,12 @@ export class ActionsDropdown {
   destroy() {
     console.log('🗑️ ACTIONSDROPDOWN: Cleanup');
     this.closeAllDropdowns();
-    this.boundEventListeners.forEach(({ element, type, handler }) => {
-      element.removeEventListener(type, handler);
-    });
-    this.boundEventListeners.clear();
+    this._abortController?.abort();
+    this._abortController = null;
+    if (this._iconObserver) {
+      this._iconObserver.forEach(obs => obs.disconnect());
+      this._iconObserver = null;
+    }
   }
 }
 

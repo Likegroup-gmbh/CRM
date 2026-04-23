@@ -12,6 +12,7 @@ export class BriefingList {
   constructor() {
     this.selectedBriefings = new Set();
     this._boundEventListeners = new Set();
+    this._abortController = null;
   }
 
   // Initialisiere Briefing-Liste
@@ -350,14 +351,16 @@ export class BriefingList {
   }
 
   bindEvents() {
-    // Filter-Events werden vom FilterDropdown gehandelt
+    this._abortController?.abort();
+    this._abortController = new AbortController();
+    const signal = this._abortController.signal;
 
     document.addEventListener('click', (e) => {
       if (e.target.id === 'btn-briefing-new' || e.target.id === 'btn-briefing-new-filter') {
         e.preventDefault();
         window.navigateTo('/briefing/new');
       }
-    });
+    }, { signal });
 
     // Alle auswählen Button
     document.addEventListener('click', (e) => {
@@ -375,7 +378,7 @@ export class BriefingList {
         }
         this.updateSelection();
       }
-    });
+    }, { signal });
 
     // Auswahl aufheben Button
     document.addEventListener('click', (e) => {
@@ -391,7 +394,7 @@ export class BriefingList {
         }
         this.updateSelection();
       }
-    });
+    }, { signal });
 
     document.addEventListener('click', (e) => {
       if (e.target.classList.contains('table-link') && e.target.dataset.table === 'briefing') {
@@ -399,13 +402,13 @@ export class BriefingList {
         const id = e.target.dataset.id;
         window.navigateTo(`/briefing/${id}`);
       }
-    });
+    }, { signal });
 
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail.entity === 'briefing') {
         this.loadAndRender();
       }
-    });
+    }, { signal });
 
     document.addEventListener('change', (e) => {
       if (e.target.id === 'select-all-briefings') {
@@ -418,7 +421,7 @@ export class BriefingList {
         });
         this.updateSelection();
       }
-    });
+    }, { signal });
 
     document.addEventListener('change', (e) => {
       if (e.target.classList.contains('briefing-check')) {
@@ -427,7 +430,7 @@ export class BriefingList {
         this.updateSelection();
         this.updateSelectAllCheckbox();
       }
-    });
+    }, { signal });
   }
 
   hasActiveFilters() {
@@ -797,6 +800,8 @@ export class BriefingList {
   }
 
   destroy() {
+    this._abortController?.abort();
+    this._abortController = null;
     this._boundEventListeners.forEach(({ element, type, handler }) => {
       element.removeEventListener(type, handler);
     });

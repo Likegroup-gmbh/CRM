@@ -24,6 +24,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     this.sprachen = [];
     this.euLaender = [];
     this.activeMainTab = 'informationen';
+    this._abortController = null;
   }
 
   async init() {
@@ -696,10 +697,12 @@ export class ProfileDetailV2 extends PersonDetailBase {
   }
 
   bind() {
-    // Sidebar Tabs binden (aus Basis-Klasse)
+    this._abortController?.abort();
+    this._abortController = new AbortController();
+    const { signal } = this._abortController;
+
     this.bindSidebarTabs();
 
-    // Main Tabs
     document.querySelectorAll('[data-main-tab]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const tab = e.currentTarget.dataset.mainTab;
@@ -710,27 +713,21 @@ export class ProfileDetailV2 extends PersonDetailBase {
         
         e.currentTarget.classList.add('active');
         document.getElementById(`main-${tab}`)?.classList.add('active');
-      });
+      }, { signal });
     });
 
-    // Breadcrumb Edit-Button Event Handler - nur einmal registrieren
-    if (!this._breadcrumbEditHandlerBound) {
-      this._breadcrumbEditHandler = (e) => {
-        if (e.detail?.buttonId === 'btn-edit-profile') {
-          this.openEditDrawer();
-        }
-      };
-      window.addEventListener('breadcrumbEditClick', this._breadcrumbEditHandler);
-      this._breadcrumbEditHandlerBound = true;
-    }
+    window.addEventListener('breadcrumbEditClick', (e) => {
+      if (e.detail?.buttonId === 'btn-edit-profile') {
+        this.openEditDrawer();
+      }
+    }, { signal });
 
-    // Edit Profile Action (für andere UI-Elemente)
     document.addEventListener('click', (e) => {
       if (e.target.closest('[data-action="edit-profile"]')) {
         e.preventDefault();
         this.openEditDrawer();
       }
-    });
+    }, { signal });
   }
 
   openEditDrawer() {
@@ -1153,13 +1150,9 @@ export class ProfileDetailV2 extends PersonDetailBase {
   }
 
   destroy() {
-    // Event-Listener entfernen
-    if (this._breadcrumbEditHandler) {
-      window.removeEventListener('breadcrumbEditClick', this._breadcrumbEditHandler);
-      this._breadcrumbEditHandler = null;
-      this._breadcrumbEditHandlerBound = false;
-    }
-    
+    this._abortController?.abort();
+    this._abortController = null;
+
     const container = document.getElementById('dashboard-content');
     if (container) {
       const mainWrapper = container.closest('.profile-page-container');

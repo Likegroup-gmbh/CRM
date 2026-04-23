@@ -2,6 +2,8 @@
 // Wiederverwendbare Komponente für überlappende Avatar-Bubbles mit Initialen
 
 export class AvatarBubbles {
+  static _abortController = null;
+
   /**
    * Extrahiert Initialen aus einem Namen
    * @param {string} name - Der Name (z.B. "Oliver Mackeldanz" oder "Green by Default")
@@ -103,9 +105,10 @@ export class AvatarBubbles {
    * Sollte nach dem Rendern aufgerufen werden
    */
   static bindClickEvents() {
-    // Verwende Event-Delegation auf document für dynamisch geladene Bubbles
+    if (this._abortController) this._abortController.abort();
+    this._abortController = new AbortController();
+
     document.addEventListener('click', (e) => {
-      // Klick auf Avatar-Bubble oder Label mit data-entity
       const bubble = e.target.closest('.avatar-bubble--clickable') || e.target.closest('.avatar-bubble-label--clickable');
       if (!bubble) return;
 
@@ -117,7 +120,14 @@ export class AvatarBubbles {
         e.stopPropagation();
         window.navigateTo(`/${entityType}/${id}`);
       }
-    }, { capture: true }); // Capture-Phase für bessere Event-Priorität
+    }, { capture: true, signal: this._abortController.signal });
+  }
+
+  static destroy() {
+    if (this._abortController) {
+      this._abortController.abort();
+      this._abortController = null;
+    }
   }
 }
 

@@ -1,6 +1,10 @@
 // Performance Monitor – muss erster Import sein (self-initialising side-effect)
 import './core/PerformanceMonitor.js';
 
+// Dev-Mode Listener Monitor (muss vor allen anderen addEventListener-Aufrufen laufen)
+import { initListenerMonitor } from './core/dev/ListenerMonitor.js';
+initListenerMonitor();
+
 // CSS Imports - müssen für Vite-Build hier sein
 import '../assets/styles/variables.css';
 import '../assets/styles/base.css';
@@ -80,6 +84,7 @@ import { educationArticleDetail } from './modules/education/EducationArticleDeta
 import { videoList } from './modules/video/VideoList.js';
 import { vertraegeList } from './modules/vertrag/VertraegeList.js';
 import { vertraegeCreate } from './modules/vertrag/create/VertraegeCreate.js';
+import { projektErstellenModule } from './modules/projekt-erstellen/ProjektErstellenModule.js';
 import { kickOffPage } from './modules/marke/KickOffPage.js';
 import { kickOffList } from './modules/kickoff/KickOffList.js';
 import { kickOffDetail } from './modules/kickoff/KickOffDetail.js';
@@ -152,6 +157,7 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('videos', videoList);
   moduleRegistry.register('vertraege', vertraegeList);
   moduleRegistry.register('vertraege-create', vertraegeCreate);
+  moduleRegistry.register('projekt-erstellen', projektErstellenModule);
   
   // Profile-Modul initialisieren und registrieren (V2 - neue Version mit zweispaltigem Layout)
   const profileDetailV2 = new ProfileDetailV2();
@@ -289,7 +295,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       const { createClient } = window.supabase;
       window.supabase = createClient(
         window.CONFIG.SUPABASE.URL,
-        window.CONFIG.SUPABASE.KEY
+        window.CONFIG.SUPABASE.KEY,
+        {
+          global: {
+            fetch: (...args) => window.fetch(...args),
+          },
+        }
       );
       App.set('supabase', window.supabase);
       console.log('✅ Supabase initialisiert');
