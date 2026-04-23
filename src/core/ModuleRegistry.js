@@ -120,6 +120,11 @@ export class ModuleRegistry {
     let moduleKey = segment;
     let module = this.modules.get(moduleKey);
     let isEditMode = action === 'edit';
+
+    // Leeres Segment (Root-Pfad "/"): kein Navigate. main.js ruft separat loadDashboard() auf.
+    if (!moduleKey) {
+      return;
+    }
     
     if (id && segment === 'creator' && id !== 'new') {
       moduleKey = 'creator-detail';
@@ -275,6 +280,25 @@ export class ModuleRegistry {
       console.log(`🎯 Vertraege-Bearbeitung erkannt, verwende Modul: ${moduleKey} mit ID: ${id}`);
     }
 
+    if (segment === 'projekt-erstellen') {
+      moduleKey = 'projekt-erstellen';
+      module = this.modules.get(moduleKey);
+      if (id) {
+        console.log(`🎯 Projekt-Erstellen Draft/Edit, verwende Modul: ${moduleKey} mit ID: ${id}`);
+        const draftId = id;
+        if (module?.init) {
+          this.currentModule = module;
+          return module.init(draftId);
+        }
+      } else {
+        console.log(`🎯 Projekt-Erstellen (neu), verwende Modul: ${moduleKey}`);
+        if (module?.init) {
+          this.currentModule = module;
+          return module.init();
+        }
+      }
+    }
+
     if (module) {
       console.log(`✅ Modul gefunden: ${moduleKey}`, module);
       this.currentModule = module;
@@ -300,6 +324,11 @@ export class ModuleRegistry {
           console.log(`✏️ Zeige Edit-Formular für: ${segment}/${id}`);
           if (segment === 'vertraege' && module && module.init) {
             return module.init(effectiveId);
+          }
+          // Fast-Path: Wenn das Modul initForEdit implementiert, diesen direkt nutzen
+          // (kein Detail-Render-Flash vor der Edit-Form).
+          if (module && typeof module.initForEdit === 'function') {
+            return module.initForEdit(effectiveId);
           }
           if (module && module.init) {
             module.init(effectiveId).then(() => {

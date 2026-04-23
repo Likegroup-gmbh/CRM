@@ -72,6 +72,55 @@ export class KooperationDetail extends PersonDetailBase {
     }
   }
 
+  // Fast-Path für Edit-URL: Nur minimale kooperation-Rohdaten laden und direkt
+  // die Edit-Form rendern. Kein Detail-Render (kein Flash), keine versand/tags/tasks-Queries.
+  // Der KooperationEditLoader lädt alles weitere parallel.
+  async initForEdit(kooperationId) {
+    console.log('⚡ KOOPERATIONDETAIL: Fast-Path initForEdit für ID:', kooperationId);
+
+    const currentUrl = new URL(window.location.href);
+    this.returnToRoute = currentUrl.searchParams.get('returnTo') || null;
+    this.kooperationId = kooperationId;
+
+    if (window.moduleRegistry?.currentModule !== this) {
+      console.log('⚠️ KOOPERATIONDETAIL: Nicht mehr das aktuelle Modul, breche ab');
+      return;
+    }
+
+    try {
+      const { data, error } = await window.supabase
+        .from('kooperationen')
+        .select(`
+          id, name, videoanzahl,
+          einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_ust, einkaufspreis_gesamt,
+          verkaufspreis_netto, verkaufspreis_zusatzkosten, verkaufspreis_ust, verkaufspreis_gesamt,
+          skript_deadline, content_deadline,
+          creator_id, kampagne_id, unternehmen_id, briefing_id,
+          kampagne:kampagne_id ( id, marke:marke_id ( id ) )
+        `)
+        .eq('id', kooperationId)
+        .single();
+
+      if (error || !data) {
+        console.error('❌ KOOPERATIONDETAIL.initForEdit: Fehler beim Laden:', error);
+        window.ErrorHandler?.handle(error, 'KooperationDetail.initForEdit');
+        return;
+      }
+
+      this.kooperation = data;
+
+      if (window.breadcrumbSystem) {
+        window.breadcrumbSystem.updateDetailLabel(data.name || 'Bearbeiten', { canEdit: false });
+      }
+
+      await this.showEditForm();
+      console.log('✅ KOOPERATIONDETAIL: Fast-Path abgeschlossen');
+    } catch (error) {
+      console.error('❌ KOOPERATIONDETAIL: Fehler im Fast-Path:', error);
+      window.ErrorHandler?.handle(error, 'KooperationDetail.initForEdit');
+    }
+  }
+
   // ============================================
   // DATA LOADING
   // ============================================

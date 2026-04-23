@@ -1,5 +1,7 @@
 import { initializeSearchableSelects } from './events/SearchableSelects.js';
 import { setupAddressesFields } from './events/AddressFields.js';
+import { EditFormDataLoader } from '../data/EditFormDataLoader.js';
+import { KooperationEditLoader } from '../../../modules/kooperation/KooperationEditLoader.js';
 
 const ENTITY_EVENT_LOADERS = {
   auftrag: () => import('./events/AuftragEvents.js'),
@@ -7,6 +9,11 @@ const ENTITY_EVENT_LOADERS = {
   kooperation: () => import('./events/KooperationEvents.js'),
   rechnung: () => import('./events/RechnungEvents.js'),
 };
+
+// Entity-spezifische Edit-Loader registrieren (Bypass für den Standard-Waterfall)
+if (!EditFormDataLoader.hasLoader('kooperation')) {
+  EditFormDataLoader.registerLoader('kooperation', new KooperationEditLoader());
+}
 
 export class FormEvents {
   constructor(formSystem) {
@@ -143,6 +150,27 @@ export class FormEvents {
     const closeBtn = form.querySelector('.btn-close');
     if (closeBtn) {
       closeBtn.onclick = () => this.formSystem.closeForm();
+    }
+
+    // === Edit-Mode Bypass: entity-spezifischer Loader (z. B. Kooperation) ===
+    // Lädt alle Daten parallel, rendert direkt, überspringt DynamicDataLoader + DependentFields + Entity-Events-Cascade.
+    if (data && data._isEditMode && EditFormDataLoader.hasLoader(entity)) {
+      const editLoader = EditFormDataLoader.getLoader(entity);
+      try {
+        const result = await editLoader.load(form, data);
+        if (result && result.success !== false) {
+          // Searchable-Selects initialisieren (echte Impl liegt im FormSystem, nicht im No-op oben)
+          this.formSystem.initializeSearchableSelects(form);
+          this.formSystem.autoCalculation.initializeAutoCalculation(form);
+          // AutoGeneration im Edit NICHT aufrufen — Name ist fix, spart 3 Queries
+          setupAddressesFields(form);
+          await editLoader.bindEvents(form, data);
+          return;
+        }
+        console.warn(`⚠️ EditFormDataLoader für ${entity} fehlgeschlagen, Fallback auf Standard-Flow`);
+      } catch (error) {
+        console.error(`❌ EditFormDataLoader für ${entity} Fehler, Fallback auf Standard-Flow:`, error);
+      }
     }
 
     // Dynamische Daten laden (ZUERST)

@@ -1,4 +1,6 @@
-export async function setup(form) {
+// Optional: preloaded = { allTags: [{id,name}...], selectedTags: [{id,name}...] }
+// Wenn übergeben, werden die beiden Supabase-Calls übersprungen (Edit-Fast-Path).
+export async function setup(form, preloaded = null) {
   const MAX_TAGS = 7;
   const MONTHS_DE = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 
@@ -12,33 +14,41 @@ export async function setup(form) {
 
   const normId = (id) => typeof id === 'string' ? id.toLowerCase().trim() : String(id);
 
-  try {
-    const { data, error } = await window.supabase
-      .from('kooperation_tag_typen')
-      .select('id, name')
-      .order('name', { ascending: true });
-    if (error) throw error;
-    allTags = (data || []).map(t => ({ ...t, id: normId(t.id) }));
-  } catch (err) {
-    console.error('Fehler beim Laden der Kooperation-Tags:', err);
+  if (preloaded?.allTags) {
+    allTags = preloaded.allTags.map(t => ({ ...t, id: normId(t.id) }));
+  } else {
+    try {
+      const { data, error } = await window.supabase
+        .from('kooperation_tag_typen')
+        .select('id, name')
+        .order('name', { ascending: true });
+      if (error) throw error;
+      allTags = (data || []).map(t => ({ ...t, id: normId(t.id) }));
+    } catch (err) {
+      console.error('Fehler beim Laden der Kooperation-Tags:', err);
+    }
   }
 
   const isEdit = !!form.dataset.entityId;
   if (isEdit) {
-    try {
-      const { data: existing, error } = await window.supabase
-        .from('kooperation_tags')
-        .select('tag_id, kooperation_tag_typen(id, name)')
-        .eq('kooperation_id', form.dataset.entityId);
-      if (error) {
-        console.error('❌ Supabase-Fehler beim Laden bestehender Koop-Tags:', error);
-      } else if (existing) {
-        selectedTags = existing
-          .filter(r => r.kooperation_tag_typen)
-          .map(r => ({ id: normId(r.tag_id), name: r.kooperation_tag_typen.name }));
+    if (preloaded?.selectedTags) {
+      selectedTags = preloaded.selectedTags.map(t => ({ id: normId(t.id), name: t.name }));
+    } else {
+      try {
+        const { data: existing, error } = await window.supabase
+          .from('kooperation_tags')
+          .select('tag_id, kooperation_tag_typen(id, name)')
+          .eq('kooperation_id', form.dataset.entityId);
+        if (error) {
+          console.error('❌ Supabase-Fehler beim Laden bestehender Koop-Tags:', error);
+        } else if (existing) {
+          selectedTags = existing
+            .filter(r => r.kooperation_tag_typen)
+            .map(r => ({ id: normId(r.tag_id), name: r.kooperation_tag_typen.name }));
+        }
+      } catch (err) {
+        console.warn('Fehler beim Laden bestehender Tags:', err);
       }
-    } catch (err) {
-      console.warn('Fehler beim Laden bestehender Tags:', err);
     }
   } else {
     const now = new Date();
