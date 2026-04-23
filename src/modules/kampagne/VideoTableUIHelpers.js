@@ -284,6 +284,10 @@ export class VideoTableUIHelpers {
   // --- Floating Scrollbar ---
 
   initFloatingScrollbar() {
+    if (this.table.cleanupFloatingScrollbar) {
+      this.table.cleanupFloatingScrollbar();
+      this.table.cleanupFloatingScrollbar = null;
+    }
     this._scrollbarAbort?.abort();
     this._scrollbarAbort = new AbortController();
     const abortSignal = this._scrollbarAbort.signal;

@@ -36,6 +36,23 @@ function patch() {
       state.log.push({ action: 'add', target, type, source, ts: Date.now() });
       if (state.log.length > state.maxLogEntries) state.log.shift();
     }
+
+    const sig = (opts && typeof opts === 'object') ? opts.signal : undefined;
+    if (sig && !sig.aborted) {
+      const self = this;
+      sig.addEventListener('abort', () => {
+        const n = getTargetName(self);
+        if (n) state.counts[n] = Math.max(0, state.counts[n] - 1);
+        else state.counts.element = Math.max(0, state.counts.element - 1);
+        if (state.active) {
+          const t = n || (self.id ? `#${self.id}` : self.className?.toString?.().split(' ')[0] || self.tagName || 'element');
+          state.log.push({ action: 'signal-remove', target: t, type, source: '', ts: Date.now() });
+          if (state.log.length > state.maxLogEntries) state.log.shift();
+        }
+        updateUI();
+      }, { once: true });
+    }
+
     updateUI();
     return origAdd.call(this, type, fn, opts);
   };

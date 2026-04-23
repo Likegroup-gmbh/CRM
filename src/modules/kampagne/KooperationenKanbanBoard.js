@@ -329,6 +329,11 @@ export class KooperationenKanbanBoard {
   // ========================================
 
   initFloatingScrollbar() {
+    if (this._cleanupFloatingScrollbar) {
+      this._cleanupFloatingScrollbar();
+      this._cleanupFloatingScrollbar = null;
+    }
+
     const existingScrollbar = document.querySelector('.floating-scrollbar-kooperationen-kanban');
     if (existingScrollbar) existingScrollbar.remove();
 

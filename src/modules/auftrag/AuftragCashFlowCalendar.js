@@ -465,7 +465,10 @@ export class AuftragCashFlowCalendar {
     console.log('🧹 CASHFLOW: Cleanup');
     
     // Drag-to-Scroll Listener entfernen
-    if (this._dragMouseMove) {
+    if (this._dragMouseDown) {
+      if (this.container) {
+        this.container.removeEventListener('mousedown', this._dragMouseDown);
+      }
       document.removeEventListener('mousemove', this._dragMouseMove);
       document.removeEventListener('mouseup', this._dragMouseUp);
       document.removeEventListener('mouseleave', this._dragMouseUp);
