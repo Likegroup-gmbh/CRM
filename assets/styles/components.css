@@ -10257,6 +10257,15 @@ table:has(#strategien-table-body) td.col-actions {
   overflow-y: visible !important;
 }
 
+/* main-wrapper als horizontaler Scroll-Container (Strategie, Creator-Pool) */
+.main-wrapper.drag-scroll-enabled {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.main-wrapper.drag-scroll-enabled::-webkit-scrollbar {
+  display: none;
+}
+
 /* main-wrapper muss horizontal scrollen können wenn creator-pool-table drin ist */
 .main-wrapper:has(.creator-pool-table-container) {
   overflow-x: auto;

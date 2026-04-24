@@ -535,16 +535,21 @@ export class StrategieDetail {
   }
 
   /**
-   * Drag-to-Scroll für horizontales Scrollen der Tabelle (AbortController-Pattern)
+   * Drag-to-Scroll für horizontales Scrollen der Tabelle (AbortController-Pattern).
+   * Bindet an .main-wrapper statt .table-container, damit position:sticky für thead th
+   * relativ zu .main-wrapper greift (table-container bleibt overflow:visible).
    */
   bindDragToScroll() {
-    const container = document.querySelector('.table-container');
+    const container = document.querySelector('.main-wrapper');
     if (!container) return;
 
     this._dragScrollAbort?.abort();
     this._dragScrollAbort = new AbortController();
     const signal = this._dragScrollAbort.signal;
 
+    this._dragScrollContainer = container;
+    this._origOverflowX = container.style.overflowX;
+    container.style.overflowX = 'auto';
     container.classList.add('drag-scroll-enabled');
 
     container.addEventListener('mousedown', (e) => {
@@ -582,6 +587,21 @@ export class StrategieDetail {
     container.addEventListener('mouseleave', stopDragging, { signal });
 
     container.style.cursor = 'grab';
+  }
+
+  /**
+   * Cleanup Drag-to-Scroll: AbortController + Styles zurücksetzen
+   */
+  _destroyDragToScroll() {
+    this._dragScrollAbort?.abort();
+    this._dragScrollAbort = null;
+    if (this._dragScrollContainer) {
+      this._dragScrollContainer.classList.remove('drag-scroll-enabled');
+      this._dragScrollContainer.style.overflowX = this._origOverflowX || '';
+      this._dragScrollContainer.style.cursor = '';
+      this._dragScrollContainer.style.userSelect = '';
+      this._dragScrollContainer = null;
+    }
   }
 
   /**
@@ -1564,8 +1584,7 @@ export class StrategieDetail {
     this._boundEventListeners.forEach(cleanup => cleanup());
     this._boundEventListeners.clear();
     this._cleanupTableEvents();
-    this._dragScrollAbort?.abort();
-    this._dragScrollAbort = null;
+    this._destroyDragToScroll();
     this.removeKategorienDrawer();
     this.removeEditItemDrawer();
   }
