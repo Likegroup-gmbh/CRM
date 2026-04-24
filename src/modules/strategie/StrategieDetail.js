@@ -8,6 +8,8 @@ import { AddItemDrawer } from './AddItemDrawer.js';
 export class StrategieDetail {
   constructor() {
     this._boundEventListeners = new Set();
+    this._tableEventListeners = new Set();
+    this._dragScrollAbort = null;
     this.strategie = null;
     this.items = [];
     this.draggedItem = null;
@@ -411,6 +413,7 @@ export class StrategieDetail {
     // Cleanup alte Events
     this._boundEventListeners.forEach(cleanup => cleanup());
     this._boundEventListeners.clear();
+    this._cleanupTableEvents();
 
     // Event-Listener für Strategie-Item Verknüpfung (aus AddToVideoDrawer)
     const linkHandler = async (event) => {
@@ -449,8 +452,28 @@ export class StrategieDetail {
         manageKategorienBtn.addEventListener('click', handler);
         this._boundEventListeners.add(() => manageKategorienBtn.removeEventListener('click', handler));
       }
+    }
 
-      // Drag & Drop
+    // Table-spezifische Events binden (Inputs, Checkboxen, Actions, Drag&Drop, Scroll)
+    this._bindTableEvents();
+  }
+
+  /**
+   * Cleanup nur der Table-Events (bei Rerender)
+   */
+  _cleanupTableEvents() {
+    this._tableEventListeners.forEach(cleanup => cleanup());
+    this._tableEventListeners.clear();
+  }
+
+  /**
+   * Alle Table-spezifischen Events binden (wiederverwendbar für bindEvents + rerenderItemsTable)
+   */
+  _bindTableEvents() {
+    this._cleanupTableEvents();
+
+    // Drag & Drop
+    if (!this.isKunde) {
       this.bindDragAndDropEvents();
     }
 
@@ -458,14 +481,14 @@ export class StrategieDetail {
     document.querySelectorAll('input[data-field], textarea[data-field]').forEach(input => {
       const handler = () => this.handleFieldUpdate(input);
       input.addEventListener('blur', handler);
-      this._boundEventListeners.add(() => input.removeEventListener('blur', handler));
+      this._tableEventListeners.add(() => input.removeEventListener('blur', handler));
     });
 
     // Checkbox Auswahl (Prio 1, Prio 2, Nicht umsetzen)
     document.querySelectorAll('input[type="checkbox"][data-field]').forEach(checkbox => {
       const handler = () => this.handleFieldUpdate(checkbox);
       checkbox.addEventListener('change', handler);
-      this._boundEventListeners.add(() => checkbox.removeEventListener('change', handler));
+      this._tableEventListeners.add(() => checkbox.removeEventListener('change', handler));
     });
 
     // Actions Dropdown (Edit, Delete, Add to Video)
@@ -476,7 +499,7 @@ export class StrategieDetail {
           this.showEditItemDrawer(btn.dataset.id);
         };
         btn.addEventListener('click', handler);
-        this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
+        this._tableEventListeners.add(() => btn.removeEventListener('click', handler));
       });
 
       document.querySelectorAll('[data-action="delete-item"]').forEach(btn => {
@@ -485,7 +508,7 @@ export class StrategieDetail {
           this.handleDeleteItem(btn.dataset.id);
         };
         btn.addEventListener('click', handler);
-        this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
+        this._tableEventListeners.add(() => btn.removeEventListener('click', handler));
       });
 
       document.querySelectorAll('[data-action="add-to-video"]').forEach(btn => {
@@ -494,7 +517,7 @@ export class StrategieDetail {
           this.handleAddToVideo(btn.dataset.id);
         };
         btn.addEventListener('click', handler);
-        this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
+        this._tableEventListeners.add(() => btn.removeEventListener('click', handler));
       });
 
       document.querySelectorAll('[data-action="unlink-from-video"]').forEach(btn => {
@@ -503,9 +526,62 @@ export class StrategieDetail {
           this.handleUnlinkFromVideo(btn.dataset.id, btn.dataset.videoId);
         };
         btn.addEventListener('click', handler);
-        this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
+        this._tableEventListeners.add(() => btn.removeEventListener('click', handler));
       });
     }
+
+    // Drag-to-Scroll (horizontales Ziehen)
+    this.bindDragToScroll();
+  }
+
+  /**
+   * Drag-to-Scroll für horizontales Scrollen der Tabelle (AbortController-Pattern)
+   */
+  bindDragToScroll() {
+    const container = document.querySelector('.table-container');
+    if (!container) return;
+
+    this._dragScrollAbort?.abort();
+    this._dragScrollAbort = new AbortController();
+    const signal = this._dragScrollAbort.signal;
+
+    container.classList.add('drag-scroll-enabled');
+
+    container.addEventListener('mousedown', (e) => {
+      if (
+        e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' ||
+        e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON' ||
+        e.target.tagName === 'A' || e.target.closest('a') ||
+        e.target.closest('.actions-dropdown-container') ||
+        e.target.closest('.drag-handle')
+      ) return;
+
+      this._isDragScrolling = true;
+      this._dragStartX = e.pageX - container.offsetLeft;
+      this._dragScrollLeft = container.scrollLeft;
+      container.style.cursor = 'grabbing';
+      container.style.userSelect = 'none';
+      e.preventDefault();
+    }, { signal });
+
+    container.addEventListener('mousemove', (e) => {
+      if (!this._isDragScrolling) return;
+      e.preventDefault();
+      const x = e.pageX - container.offsetLeft;
+      container.scrollLeft = this._dragScrollLeft - (x - this._dragStartX) * 1.5;
+    }, { signal });
+
+    const stopDragging = () => {
+      if (this._isDragScrolling) {
+        this._isDragScrolling = false;
+        container.style.cursor = 'grab';
+        container.style.userSelect = '';
+      }
+    };
+    container.addEventListener('mouseup', stopDragging, { signal });
+    container.addEventListener('mouseleave', stopDragging, { signal });
+
+    container.style.cursor = 'grab';
   }
 
   /**
@@ -525,20 +601,19 @@ export class StrategieDetail {
         e.dataTransfer.setData('text/plain', row.dataset.itemId);
       };
       row.addEventListener('dragstart', dragstartHandler);
-      this._boundEventListeners.add(() => row.removeEventListener('dragstart', dragstartHandler));
+      this._tableEventListeners.add(() => row.removeEventListener('dragstart', dragstartHandler));
 
       // Dragend
       const dragendHandler = () => {
         row.style.opacity = '1';
         this.draggedItem = null;
         this.draggedItemId = null;
-        // Highlight von Kategorie-Headern entfernen
         document.querySelectorAll('.category-header-row').forEach(h => {
           h.classList.remove('drag-over');
         });
       };
       row.addEventListener('dragend', dragendHandler);
-      this._boundEventListeners.add(() => row.removeEventListener('dragend', dragendHandler));
+      this._tableEventListeners.add(() => row.removeEventListener('dragend', dragendHandler));
 
       // Dragover auf Item-Zeilen
       const dragoverHandler = (e) => {
@@ -556,7 +631,7 @@ export class StrategieDetail {
         }
       };
       row.addEventListener('dragover', dragoverHandler);
-      this._boundEventListeners.add(() => row.removeEventListener('dragover', dragoverHandler));
+      this._tableEventListeners.add(() => row.removeEventListener('dragover', dragoverHandler));
 
       // Drop auf Item-Zeilen
       const dropHandler = (e) => {
@@ -564,7 +639,7 @@ export class StrategieDetail {
         this.handleSortUpdate();
       };
       row.addEventListener('drop', dropHandler);
-      this._boundEventListeners.add(() => row.removeEventListener('drop', dropHandler));
+      this._tableEventListeners.add(() => row.removeEventListener('drop', dropHandler));
     });
 
     // Kategorie-Header als Drop-Ziele
@@ -578,14 +653,14 @@ export class StrategieDetail {
         header.classList.add('drag-over');
       };
       header.addEventListener('dragover', dragoverHandler);
-      this._boundEventListeners.add(() => header.removeEventListener('dragover', dragoverHandler));
+      this._tableEventListeners.add(() => header.removeEventListener('dragover', dragoverHandler));
 
       // Dragleave
       const dragleaveHandler = () => {
         header.classList.remove('drag-over');
       };
       header.addEventListener('dragleave', dragleaveHandler);
-      this._boundEventListeners.add(() => header.removeEventListener('dragleave', dragleaveHandler));
+      this._tableEventListeners.add(() => header.removeEventListener('dragleave', dragleaveHandler));
 
       // Drop auf Kategorie-Header
       const dropHandler = async (e) => {
@@ -599,7 +674,7 @@ export class StrategieDetail {
         await this.handleCategoryChange(this.draggedItemId, kategorie);
       };
       header.addEventListener('drop', dropHandler);
-      this._boundEventListeners.add(() => header.removeEventListener('drop', dropHandler));
+      this._tableEventListeners.add(() => header.removeEventListener('drop', dropHandler));
     });
   }
 
@@ -765,7 +840,7 @@ export class StrategieDetail {
   }
 
   /**
-   * Nur die Tabelle neu rendern (ohne Events neu zu binden)
+   * Nur die Tabelle neu rendern und Events neu binden
    */
   rerenderItemsTable() {
     const tableContainer = document.querySelector('.table-container');
@@ -773,63 +848,7 @@ export class StrategieDetail {
 
     tableContainer.outerHTML = this.renderItemsTable();
     
-    // Events für die neu gerenderte Tabelle binden
-    if (!this.isKunde) {
-      this.bindDragAndDropEvents();
-    }
-    
-    // Beschreibung/Anmerkung Inputs
-    document.querySelectorAll('input[data-field], textarea[data-field]').forEach(input => {
-      const handler = () => this.handleFieldUpdate(input);
-      input.addEventListener('blur', handler);
-      this._boundEventListeners.add(() => input.removeEventListener('blur', handler));
-    });
-
-    // Checkbox Auswahl (Prio 1, Prio 2, Nicht umsetzen)
-    document.querySelectorAll('input[type="checkbox"][data-field]').forEach(checkbox => {
-      const handler = () => this.handleFieldUpdate(checkbox);
-      checkbox.addEventListener('change', handler);
-      this._boundEventListeners.add(() => checkbox.removeEventListener('change', handler));
-    });
-
-    // Actions Dropdown (Edit, Delete, Add to Video)
-    if (!this.isKunde) {
-      document.querySelectorAll('[data-action="edit-item"]').forEach(btn => {
-        const handler = (e) => {
-          e.preventDefault();
-          this.showEditItemDrawer(btn.dataset.id);
-        };
-        btn.addEventListener('click', handler);
-        this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
-      });
-
-      document.querySelectorAll('[data-action="delete-item"]').forEach(btn => {
-        const handler = (e) => {
-          e.preventDefault();
-          this.handleDeleteItem(btn.dataset.id);
-        };
-        btn.addEventListener('click', handler);
-        this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
-      });
-
-      document.querySelectorAll('[data-action="add-to-video"]').forEach(btn => {
-        const handler = (e) => {
-          e.preventDefault();
-          this.handleAddToVideo(btn.dataset.id);
-        };
-        btn.addEventListener('click', handler);
-        this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
-      });
-
-      document.querySelectorAll('[data-action="unlink-from-video"]').forEach(btn => {
-        const handler = (e) => {
-          e.preventDefault();
-          this.handleUnlinkFromVideo(btn.dataset.id, btn.dataset.videoId);
-        };
-        btn.addEventListener('click', handler);
-        this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
-      });
-    }
+    this._bindTableEvents();
   }
 
   /**
@@ -1544,6 +1563,9 @@ export class StrategieDetail {
   destroy() {
     this._boundEventListeners.forEach(cleanup => cleanup());
     this._boundEventListeners.clear();
+    this._cleanupTableEvents();
+    this._dragScrollAbort?.abort();
+    this._dragScrollAbort = null;
     this.removeKategorienDrawer();
     this.removeEditItemDrawer();
   }
