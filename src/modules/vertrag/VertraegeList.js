@@ -144,8 +144,11 @@ export class VertraegeList {
         }
         TableAnimationHelper.hideLoadingOverlay(tbody);
       } else {
-        await this._initializeFilterBar();
-        this.vertraege = await loadVertraege(this.currentUnternehmenId, this.pagination);
+        const [, vertraege] = await Promise.all([
+          this._initializeFilterBar(),
+          loadVertraege(this.currentUnternehmenId, this.pagination)
+        ]);
+        this.vertraege = vertraege;
         this.updateVertraegeTable(this.vertraege);
         TableAnimationHelper.hideLoadingOverlay(tbody);
       }

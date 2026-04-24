@@ -95,9 +95,7 @@ export async function loadVertraege(unternehmenId, pagination) {
   if (filters.kampagne_id) countQuery = countQuery.eq('kampagne_id', filters.kampagne_id);
   if (filters.creator_id) countQuery = countQuery.eq('creator_id', filters.creator_id);
 
-  const { count } = await countQuery;
-
-  let query = window.supabase
+  let dataQuery = window.supabase
     .from('vertraege')
     .select(`
       id,
@@ -131,13 +129,17 @@ export async function loadVertraege(unternehmenId, pagination) {
     `)
     .eq('kunde_unternehmen_id', unternehmenId);
 
-  if (filters.typ) query = query.eq('typ', filters.typ);
-  if (filters.kampagne_id) query = query.eq('kampagne_id', filters.kampagne_id);
-  if (filters.creator_id) query = query.eq('creator_id', filters.creator_id);
+  if (filters.typ) dataQuery = dataQuery.eq('typ', filters.typ);
+  if (filters.kampagne_id) dataQuery = dataQuery.eq('kampagne_id', filters.kampagne_id);
+  if (filters.creator_id) dataQuery = dataQuery.eq('creator_id', filters.creator_id);
 
-  const { data: vertraege, error } = await query
-    .order('created_at', { ascending: false })
-    .range(from, to);
+  const [countResult, dataResult] = await Promise.all([
+    countQuery,
+    dataQuery.order('created_at', { ascending: false }).range(from, to)
+  ]);
+
+  const { count } = countResult;
+  const { data: vertraege, error } = dataResult;
 
   pagination.updateTotal(count || 0);
   pagination.render();
