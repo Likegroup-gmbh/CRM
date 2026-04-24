@@ -683,7 +683,8 @@ export class AuftragList {
         e.target.tagName === 'A' ||
         e.target.closest('a') ||
         e.target.closest('button') ||
-        e.target.closest('.actions-dropdown')
+        e.target.closest('.actions-dropdown') ||
+        e.target.closest('.actions-dropdown-portal')
       ) {
         return;
       }

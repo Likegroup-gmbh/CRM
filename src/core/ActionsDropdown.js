@@ -26,13 +26,6 @@ export class ActionsDropdown {
     this.bindGlobalEvents();
     this.normalizeIcons(document);
     this.observeTableMutations();
-    
-    // Debug: Überprüfe ob die Komponente korrekt geladen ist
-    setTimeout(() => {
-      console.log('🔍 ACTIONSDROPDOWN: Debug - Überprüfe Initialisierung');
-      console.log('🔍 ACTIONSDROPDOWN: window.ActionsDropdown verfügbar:', !!window.ActionsDropdown);
-      console.log('🔍 ACTIONSDROPDOWN: createAuftragActions verfügbar:', !!window.ActionsDropdown?.createAuftragActions);
-    }, 1000);
   }
 
   // Einheitliche Heroicons bereitstellen
@@ -184,7 +177,11 @@ export class ActionsDropdown {
       const entityId = submenuItem.dataset.id;
       const fieldName = submenuItem.dataset.field;
       const fieldValue = submenuItem.dataset.value;
-      const entityType = submenuItem.closest('.actions-dropdown-container')?.dataset?.entityType || 'auftrag';
+      const portal = submenuItem.closest('.actions-dropdown-portal');
+      const entityType = portal?.dataset?.entityType
+        || portal?._sourceContainer?.dataset?.entityType
+        || submenuItem.closest('.actions-dropdown-container')?.dataset?.entityType
+        || 'auftrag';
 
       console.log('▶️ Submenu-Click erkannt', { entityType, entityId, fieldName, fieldValue });
 
@@ -230,8 +227,11 @@ export class ActionsDropdown {
       }
 
       const entityId = actionItem.dataset.id;
-      const container = actionItem.closest('.actions-dropdown-container');
-      let entityType = container?.dataset?.entityType || 'auftrag';
+      const portal = actionItem.closest('.actions-dropdown-portal');
+      const container = portal?._sourceContainer || actionItem.closest('.actions-dropdown-container');
+      let entityType = portal?.dataset?.entityType
+        || container?.dataset?.entityType
+        || 'auftrag';
 
       console.log(`🎯 ACTIONSDROPDOWN: Entity-Type aus data-attribute: ${entityType}`);
       if (action === 'favorite') {
@@ -248,7 +248,7 @@ export class ActionsDropdown {
 
     // Schließe Dropdowns beim Klick außerhalb
     document.addEventListener('click', (e) => {
-      if (!e.target.closest('.actions-dropdown-container')) {
+      if (!e.target.closest('.actions-dropdown-container') && !e.target.closest('.actions-dropdown-portal')) {
         this.closeAllDropdowns();
       }
     }, { signal });
@@ -262,7 +262,7 @@ export class ActionsDropdown {
 
     // Scroll schließt offene Dropdowns (capture: true für interne Container)
     window.addEventListener('scroll', () => {
-      if (document.querySelector('.actions-dropdown.show')) {
+      if (document.querySelector('.actions-dropdown-portal')) {
         this.closeAllDropdowns();
       }
     }, { capture: true, signal });
@@ -330,299 +330,62 @@ export class ActionsDropdown {
     return 'auftrag'; // Fallback zu auftrag
   }
 
-  // Dropdown umschalten
+  // Dropdown umschalten (Portal-Pattern: Dropdown wird an document.body appended)
   toggleDropdown(toggleButton) {
-    const dropdown = toggleButton.nextElementSibling;
-    const isOpen = dropdown.classList.contains('show');
+    const existingPortal = document.querySelector('.actions-dropdown-portal');
+    const wasOpenForThisButton = existingPortal && existingPortal._sourceToggle === toggleButton;
 
-    // Alle anderen Dropdowns schließen
     this.closeAllDropdowns();
 
-    if (!isOpen) {
-      dropdown.classList.remove('dropdown-flip-up');
-      dropdown.style.position = '';
-      dropdown.style.top = '';
-      dropdown.style.bottom = '';
-      dropdown.style.right = '';
+    if (wasOpenForThisButton) return;
 
-      const buttonRect = toggleButton.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-      const spaceBelow = viewportHeight - buttonRect.bottom;
+    const sourceDropdown = toggleButton.nextElementSibling;
+    if (!sourceDropdown) return;
 
-      // Dropdown kurz unsichtbar einblenden um die echte Höhe zu messen
-      dropdown.style.visibility = 'hidden';
-      dropdown.style.opacity = '0';
-      dropdown.classList.add('show');
-      const dropdownHeight = dropdown.offsetHeight || 300;
-      dropdown.classList.remove('show');
-      dropdown.style.visibility = '';
-      dropdown.style.opacity = '';
+    const container = toggleButton.closest('.actions-dropdown-container');
+    const portal = sourceDropdown.cloneNode(true);
+    portal.classList.remove('actions-dropdown');
+    portal.classList.add('actions-dropdown-portal');
+    portal._sourceToggle = toggleButton;
+    portal._sourceContainer = container;
 
-      const needsFlip = spaceBelow < dropdownHeight && buttonRect.top > dropdownHeight;
-
-      // Container mit overflow: hidden/auto schneiden das Dropdown ab → fixed positioning
-      const scrollContainer = toggleButton.closest('.data-table-container, .auftrag-table, .grid-wrapper, .main-wrapper, [style*="overflow"]');
-      if (scrollContainer) {
-        dropdown.style.position = 'fixed';
-        dropdown.style.right = (window.innerWidth - buttonRect.right) + 'px';
-        if (needsFlip) {
-          dropdown.style.top = 'auto';
-          dropdown.style.bottom = (viewportHeight - buttonRect.top + 4) + 'px';
-        } else {
-          dropdown.style.top = (buttonRect.bottom + 4) + 'px';
-          dropdown.style.bottom = 'auto';
-        }
-      } else if (needsFlip) {
-        dropdown.classList.add('dropdown-flip-up');
-      }
-
-      dropdown.classList.add('show');
-      toggleButton.setAttribute('aria-expanded', 'true');
+    if (container?.dataset?.entityType) {
+      portal.dataset.entityType = container.dataset.entityType;
     }
+
+    document.body.appendChild(portal);
+
+    const buttonRect = toggleButton.getBoundingClientRect();
+    const portalHeight = portal.offsetHeight || 300;
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - buttonRect.bottom;
+    const needsFlip = spaceBelow < portalHeight && buttonRect.top > portalHeight;
+
+    portal.style.right = (window.innerWidth - buttonRect.right) + 'px';
+
+    if (needsFlip) {
+      portal.style.bottom = (viewportHeight - buttonRect.top + 4) + 'px';
+      portal.style.transformOrigin = 'bottom right';
+    } else {
+      portal.style.top = (buttonRect.bottom + 4) + 'px';
+      portal.style.transformOrigin = 'top right';
+    }
+
+    requestAnimationFrame(() => portal.classList.add('show'));
+    toggleButton.setAttribute('aria-expanded', 'true');
   }
 
-  // Alle Dropdowns schließen
+  // Alle Dropdowns schließen (Portal aus DOM entfernen)
   closeAllDropdowns() {
-    document.querySelectorAll('.actions-dropdown').forEach(dropdown => {
-      dropdown.classList.remove('show');
-    });
+    document.querySelectorAll('.actions-dropdown-portal').forEach(portal => portal.remove());
     document.querySelectorAll('.actions-toggle').forEach(toggle => {
       toggle.setAttribute('aria-expanded', 'false');
     });
   }
 
-  // Erstelle Actions für Creator
-  // @deprecated - Nutze stattdessen actionBuilder.create('creator', creatorId)
-  // Diese Methode bleibt für Backward Compatibility, wird aber schrittweise ersetzt
-  createCreatorActions(creatorId) {
-    if (this.isKunde()) {
-      return this.createReadOnlyActions(creatorId);
-    }
-    
-    return `
-      <div class="actions-dropdown-container">
-        <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-          </svg>
-        </button>
-        <div class="actions-dropdown">
-          <a href="#" class="action-item" data-action="view" data-id="${creatorId}">
-            <i class="icon-eye"></i>
-            Details anzeigen
-          </a>
-          <a href="#" class="action-item" data-action="edit" data-id="${creatorId}">
-            <i class="icon-edit"></i>
-            Bearbeiten
-          </a>
-          <a href="#" class="action-item" data-action="add_to_list" data-id="${creatorId}">
-            ${this.getHeroIcon('add-to-list')}
-            Zur Liste hinzufügen
-          </a>
-          <div class="action-separator"></div>
-          <a href="#" class="action-item action-danger" data-action="delete" data-id="${creatorId}">
-            <i class="icon-trash"></i>
-            Löschen
-          </a>
-        </div>
-      </div>
-    `;
-  }
-
-  // Erstelle Actions für Unternehmen
-  // @deprecated - Nutze stattdessen actionBuilder.create('unternehmen', unternehmenId)
-  // Diese Methode bleibt für Backward Compatibility, wird aber schrittweise ersetzt
-  createUnternehmenActions(unternehmenId) {
-    if (this.isKunde()) {
-      return this.createReadOnlyActions(unternehmenId);
-    }
-    
-    return `
-      <div class="actions-dropdown-container">
-        <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-          </svg>
-        </button>
-        <div class="actions-dropdown">
-          <a href="#" class="action-item" data-action="view" data-id="${unternehmenId}">
-            <i class="icon-eye"></i>
-            Details anzeigen
-          </a>
-          <a href="#" class="action-item" data-action="edit" data-id="${unternehmenId}">
-            <i class="icon-edit"></i>
-            Bearbeiten
-          </a>
-          <a href="#" class="action-item" data-action="marken" data-id="${unternehmenId}">
-            <i class="icon-tag"></i>
-            Marken anzeigen
-          </a>
-          <a href="#" class="action-item" data-action="auftraege" data-id="${unternehmenId}">
-            <i class="icon-briefcase"></i>
-            Aufträge anzeigen
-          </a>
-          <div class="action-separator"></div>
-          <a href="#" class="action-item action-danger" data-action="delete" data-id="${unternehmenId}">
-            <i class="icon-trash"></i>
-            Löschen
-          </a>
-        </div>
-      </div>
-    `;
-  }
-
-  // Erstelle Actions für Marken
-  // @deprecated - Nutze stattdessen actionBuilder.create('marke', markeId)
-  // Diese Methode bleibt für Backward Compatibility, wird aber schrittweise ersetzt
-  createMarkeActions(markeId) {
-    if (this.isKunde()) {
-      return this.createReadOnlyActions(markeId);
-    }
-    
-    return `
-      <div class="actions-dropdown-container">
-        <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-          </svg>
-        </button>
-        <div class="actions-dropdown">
-          <a href="#" class="action-item" data-action="view" data-id="${markeId}">
-            <i class="icon-eye"></i>
-            Details anzeigen
-          </a>
-          <a href="#" class="action-item" data-action="edit" data-id="${markeId}">
-            <i class="icon-edit"></i>
-            Bearbeiten
-          </a>
-          <a href="#" class="action-item" data-action="auftraege" data-id="${markeId}">
-            <i class="icon-briefcase"></i>
-            Aufträge anzeigen
-          </a>
-          <div class="action-separator"></div>
-          <a href="#" class="action-item action-danger" data-action="delete" data-id="${markeId}">
-            <i class="icon-trash"></i>
-            Löschen
-          </a>
-        </div>
-      </div>
-    `;
-  }
-
-  // Erstelle Actions für Kooperationen
-  // @deprecated - Nutze stattdessen actionBuilder.create('kooperation', kooperationId)
-  // Diese Methode bleibt für Backward Compatibility, wird aber schrittweise ersetzt
-  createKooperationActions(kooperationId) {
-    if (this.isKunde()) {
-      return this.createReadOnlyActions(kooperationId);
-    }
-    
-    return `
-      <div class="actions-dropdown-container" data-entity-type="kooperation">
-        <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-            <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
-          </svg>
-        </button>
-        <div class="actions-dropdown">
-          <a href="#" class="action-item" data-action="view" data-id="${kooperationId}">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-              <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
-              <path fill-rule="evenodd" d="M.661 10c1.743-2.372 4.761-5 9.339-5 4.578 0 7.601 2.628 9.339 5-1.738 2.372-4.761 5-9.339 5-4.578 0-7.601-2.628-9.339-5zM10 15a5 5 0 100-10 5 5 0 000 10z" clip-rule="evenodd" />
-            </svg>
-            Details anzeigen
-          </a>
-          <a href="#" class="action-item" data-action="edit" data-id="${kooperationId}">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-              <path d="M5.433 13.917l-1.523 1.523a.75.75 0 001.06 1.06l1.523-1.523L5.433 13.917zM11.206 6.106L13.917 3.4a.75.75 0 011.06 1.06l-2.711 2.711-.693-.693z" />
-              <path fill-rule="evenodd" d="M1.334 10.606a1.5 1.5 0 011.06-1.06l10.38-10.38a1.5 1.5 0 012.122 0l1.523 1.523a1.5 1.5 0 010 2.122l-10.38 10.38a1.5 1.5 0 01-1.06 1.06H1.334v-3.182z" clip-rule="evenodd" />
-            </svg>
-            Bearbeiten
-          </a>
-          <a href="#" class="action-item" data-action="quickview" data-id="${kooperationId}">
-            ${this.getHeroIcon('quickview')}
-            Schnellansicht öffnen
-          </a>
-          <div class="action-separator"></div>
-          <a href="#" class="action-item action-danger" data-action="delete" data-id="${kooperationId}">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-              <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.368.298a.75.75 0 10.232 1.482l.175-.027c.572-.089 1.14-.19 1.706-.302A3.75 3.75 0 019.75 3h.5a3.75 3.75 0 013.657 3.234c.566.112 1.134.213 1.706.302l.175.027a.75.75 0 10.232-1.482A41.203 41.203 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM2.5 7.75a.75.75 0 01.75-.75h13.5a.75.75 0 010 1.5H3.25a.75.75 0 01-.75-.75zM7.25 9.75a.75.75 0 01.75-.75h4.5a.75.75 0 010 1.5H8a.75.75 0 01-.75-.75zM6 12.25a.75.75 0 01.75-.75h6.5a.75.75 0 010 1.5H6.75a.75.75 0 01-.75-.75zM4.75 14.75a.75.75 0 01.75-.75h9.5a.75.75 0 010 1.5h-9.5a.75.75 0 01-.75-.75z" clip-rule="evenodd" />
-            </svg>
-            Löschen
-          </a>
-        </div>
-      </div>
-    `;
-  }
-
-  // Erstelle Actions für Aufträge
-  // @deprecated - Nutze stattdessen actionBuilder.create('auftrag', auftragId)
-  // Diese Methode bleibt für Backward Compatibility, wird aber schrittweise ersetzt
-  createAuftragActions(auftragId) {
-    console.log('🎯 ACTIONSDROPDOWN: createAuftragActions aufgerufen für ID:', auftragId);
-    
-    if (this.isKunde()) {
-      return this.createReadOnlyActions(auftragId);
-    }
-    
-    const html = `
-      <div class="actions-dropdown-container">
-        <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-          </svg>
-        </button>
-        <div class="actions-dropdown">
-          <a href="#" class="action-item" data-action="view" data-id="${auftragId}">
-            <i class="icon-eye"></i>
-            Details anzeigen
-          </a>
-          <a href="#" class="action-item" data-action="edit" data-id="${auftragId}">
-            <i class="icon-edit"></i>
-            Bearbeiten
-          </a>
-          <a href="#" class="action-item" data-action="auftrag-details" data-icon="details" data-id="${auftragId}">
-            Auftragsdetails hinzufügen
-          </a>
-          <a href="#" class="action-item" data-action="rechnung" data-id="${auftragId}">
-            <i class="icon-invoice"></i>
-            Rechnung erstellen
-          </a>
-          <div class="action-separator"></div>
-          <a href="#" class="action-item action-danger" data-action="delete" data-id="${auftragId}">
-            <i class="icon-trash"></i>
-            Löschen
-          </a>
-        </div>
-      </div>
-    `;
-    
-    console.log('🎯 ACTIONSDROPDOWN: HTML generiert:', html.substring(0, 100) + '...');
-    return html;
-  }
-
   // Hilfsfunktion: Prüft ob Benutzer Kunde ist
   isKunde() {
     return window.currentUser?.rolle === 'kunde';
-  }
-
-  // Hilfsfunktion: Erstellt nur-Lesen Actions für Kunden
-  createReadOnlyActions(entityId) {
-    return `
-      <div class="actions-dropdown-container">
-        <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-          </svg>
-        </button>
-        <div class="actions-dropdown">
-          <a href="#" class="action-item" data-action="view" data-id="${entityId}">
-            <i class="icon-eye"></i>
-            Details anzeigen
-          </a>
-        </div>
-      </div>
-    `;
   }
 
   // Handle Remove-Zuordnung Action
@@ -635,47 +398,6 @@ export class ActionsDropdown {
 
     // Rufe die removeZuordnung Methode des KundenDetail auf
     await window.kundenDetail.removeZuordnung(entityId, entityType);
-  }
-
-  // Generische Action-Erstellung für zukünftige Listen
-  // @deprecated - Nutze stattdessen actionBuilder.create(entityType, entityId)
-  // Diese Methode bleibt für Backward Compatibility, wird aber schrittweise ersetzt
-  createGenericActions(entityType, entityId, customActions = []) {
-    // Für Kunden: Nur Details anzeigen erlaubt
-    if (this.isKunde()) {
-      return this.createReadOnlyActions(entityId);
-    }
-    
-    const defaultActions = [
-      { action: 'view', icon: 'icon-eye', label: 'Details anzeigen' },
-      { action: 'edit', icon: 'icon-edit', label: 'Bearbeiten' }
-    ];
-
-    const allActions = [...defaultActions, ...customActions];
-
-    const actionItems = allActions.map(item => {
-      const dangerClass = (item.action === 'delete' || item.action === 'remove') ? 'action-danger' : '';
-      const iconHtml = this.getHeroIcon(item.action) || `<i class="${item.icon}"></i>`;
-      return `
-        <a href="#" class="action-item ${dangerClass}" data-action="${item.action}" data-id="${entityId}">
-          ${iconHtml}
-          ${item.label}
-        </a>
-      `;
-    }).join('');
-
-    return `
-      <div class="actions-dropdown-container" data-entity-type="${entityType}">
-        <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-          </svg>
-        </button>
-        <div class="actions-dropdown">
-          ${actionItems}
-        </div>
-      </div>
-    `;
   }
 
   // Event-Handler für Actions

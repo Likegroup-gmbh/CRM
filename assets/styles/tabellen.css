@@ -95,49 +95,6 @@
   background: var(--gray-50);
 }
 
-.kooperation-video-grid td.col-actions .actions-dropdown-container {
-  overflow: visible !important;
-}
-
-.kooperation-video-grid td.col-actions .actions-dropdown {
-  z-index: 99999;
-}
-
-/* Zelle mit geöffnetem Dropdown bekommt höheren z-index als andere sticky-Zellen */
-.kooperation-video-grid td.col-actions:has(.actions-dropdown.show) {
-  z-index: 9999 !important;
-}
-
-/* Grid-Wrapper: overflow visible wenn Dropdown offen */
-.grid-wrapper:has(.actions-dropdown.show) {
-  overflow: visible !important;
-}
-
-/* Container für Kooperationen-Tabelle: overflow visible wenn Dropdown offen */
-#kooperationen-videos-container:has(.actions-dropdown.show) {
-  overflow: visible !important;
-}
-
-/* Grid-Editor-Content: overflow visible wenn Dropdown offen */
-.grid-editor-content:has(.actions-dropdown.show) {
-  overflow: visible !important;
-}
-
-/* Detail-Section: overflow visible wenn Dropdown offen */
-#tab-koops-videos .detail-section:has(.actions-dropdown.show) {
-  overflow: visible !important;
-}
-
-/* Tab-Pane: overflow visible wenn Dropdown offen */
-#tab-koops-videos:has(.actions-dropdown.show) {
-  overflow: visible !important;
-}
-
-/* Auftrag-Container: overflow visible wenn Dropdown offen */
-#auftrag-table-container:has(.actions-dropdown.show) {
-  overflow: visible !important;
-}
-
 
 /* --- BORDER-SYSTEM (separate + right/bottom Pattern) --- */
 /* Basis: jede Zelle hat nur border-right + border-bottom */

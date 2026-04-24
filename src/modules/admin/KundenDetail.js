@@ -554,8 +554,9 @@ export class KundenDetail extends PersonDetailBase {
       if (viewAction) {
         e.preventDefault();
         const entityId = viewAction.dataset.id;
-        const container = viewAction.closest('.actions-dropdown-container');
-        const entityType = container?.dataset?.entityType;
+        const portal = viewAction.closest('.actions-dropdown-portal');
+        const container = portal?._sourceContainer || viewAction.closest('.actions-dropdown-container');
+        const entityType = portal?.dataset?.entityType || container?.dataset?.entityType;
         
         if (entityId && entityType) {
           window.navigateTo(`/${entityType}/${entityId}`);

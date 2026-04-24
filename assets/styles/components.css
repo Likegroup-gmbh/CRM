@@ -5313,14 +5313,6 @@ width: 100%;
 }
 
 /* Auftrags-Tabelle: Fixed positioning für Dropdown (wird per JS gesetzt) */
-.auftrag-table .actions-dropdown {
-  z-index: 9999;
-}
-
-.auftrag-table .actions-dropdown.show {
-  transform: none;
-}
-
 /* Table Container - Clean Design für Listen-Seiten */
 .table-container,
 .data-table-container {
@@ -6007,31 +5999,38 @@ width: 100%;
 }
 
 .actions-dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
+  display: none;
+}
+
+/* Portal: am body angehängt, fixed positioniert */
+.actions-dropdown-portal {
+  position: fixed;
   background: white;
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   min-width: 260px;
-  z-index: 1000;
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(-10px);
-  transition: all 0.2s ease;
+  z-index: 99999;
   padding: var(--space-xs) 0;
+  opacity: 0;
+  transform: scale(0.95);
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.actions-dropdown-portal.show {
+  opacity: 1;
+  transform: scale(1);
 }
 
 /* Submenu Styles */
-.actions-dropdown .action-submenu { position: relative; }
-.actions-dropdown .action-item.has-submenu::after {
+.actions-dropdown-portal .action-submenu { position: relative; }
+.actions-dropdown-portal .action-item.has-submenu::after {
   content: '›';
   float: right;
   opacity: 0.7;
-  transform: rotate(180deg); /* Submenü öffnet nach links */
+  transform: rotate(180deg);
 }
-.actions-dropdown .submenu {
+.actions-dropdown-portal .submenu {
   position: absolute;
   top: 0;
   right: 100%;
@@ -6046,9 +6045,9 @@ width: 100%;
   visibility: hidden;
   transform: translateY(4px);
   transition: opacity .12s ease, transform .12s ease, visibility .12s ease;
-  z-index: 1001;
+  z-index: 100000;
 }
-.actions-dropdown .action-submenu:hover > .submenu { opacity: 1; visibility: visible; transform: translateY(0); }
+.actions-dropdown-portal .action-submenu:hover > .submenu { opacity: 1; visibility: visible; transform: translateY(0); }
 .submenu-item { 
   display: 
   flex; align-items: 
@@ -6063,22 +6062,6 @@ width: 100%;
 .submenu-item svg { width: var(--icon-sm); height: var(--icon-sm); stroke-width: 2; }
 .submenu-item:hover { background: #f5f7fb; }
 .submenu-check { margin-left: auto; color: #16a34a; display: inline-flex; }
-
-.actions-dropdown.show {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
-}
-
-.actions-dropdown.dropdown-flip-up {
-  top: auto;
-  bottom: 100%;
-  transform: translateY(10px);
-}
-
-.actions-dropdown.dropdown-flip-up.show {
-  transform: translateY(0);
-}
 
 .action-item {
   display: flex;
@@ -6147,9 +6130,8 @@ width: 100%;
 
 /* Responsive Design für Actions */
 @media (max-width: 768px) {
-  .actions-dropdown {
+  .actions-dropdown-portal {
     min-width: var(--panel-md);
-    right: -10px;
   }
   
   .action-item {
