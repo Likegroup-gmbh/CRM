@@ -22,7 +22,6 @@ export async function loadUnternehmenFolders() {
     return [];
   }
 
-  // Guard: Bei ungültiger/abgelaufener Session nicht querien (verhindert 500er beim Logout)
   try {
     const { data: sessionData } = await window.supabase.auth.getSession();
     if (!sessionData?.session) {
@@ -32,20 +31,9 @@ export async function loadUnternehmenFolders() {
     return [];
   }
 
-  const { data, error } = await window.supabase
-    .from('vertraege')
-    .select(`
-      kunde_unternehmen_id,
-      kunde:kunde_unternehmen_id (
-        id,
-        firmenname,
-        logo_url
-      )
-    `)
-    .not('kunde_unternehmen_id', 'is', null);
+  const { data, error } = await window.supabase.rpc('get_unternehmen_folders');
 
   if (error) {
-    // Auth-/Session-Fehler nach Logout nicht eskalieren
     if (error.code === 'PGRST301' || error.status === 401 || error.message?.toLowerCase().includes('jwt')) {
       console.warn('⚠️ loadUnternehmenFolders: Auth-Fehler ignoriert (vermutlich Logout-Race)');
       return [];
@@ -53,25 +41,7 @@ export async function loadUnternehmenFolders() {
     throw error;
   }
 
-  const unternehmenMap = new Map();
-  (data || []).forEach(v => {
-    if (v.kunde?.id) {
-      const existing = unternehmenMap.get(v.kunde.id);
-      if (existing) {
-        existing.count++;
-      } else {
-        unternehmenMap.set(v.kunde.id, {
-          id: v.kunde.id,
-          firmenname: v.kunde.firmenname,
-          logo_url: v.kunde.logo_url,
-          count: 1
-        });
-      }
-    }
-  });
-
-  return Array.from(unternehmenMap.values())
-    .sort((a, b) => (a.firmenname || '').localeCompare(b.firmenname || '', 'de'));
+  return data || [];
 }
 
 export async function loadVertraege(unternehmenId, pagination) {

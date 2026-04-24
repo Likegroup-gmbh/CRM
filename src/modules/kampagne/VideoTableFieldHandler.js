@@ -149,27 +149,57 @@ export class VideoTableFieldHandler {
           return;
         }
 
-        const tableName = entity === 'kooperation' ? 'kooperationen' : 'kooperation_videos';
-        
-        const { error } = await window.supabase
-          .from(tableName)
-          .update({ [fieldName]: value })
-          .eq('id', id);
+        if (entity === 'kooperation' && fieldName === 'status_id') {
+          const statusId = value || null;
+          const statusOptions = store?.statusOptions || t.statusOptions || [];
+          const statusName = statusOptions.find(s => s.id === statusId)?.name || '';
 
-        if (error) throw error;
+          const { error } = await window.supabase
+            .from('kooperationen')
+            .update({ status_id: statusId, status: statusName, updated_at: new Date().toISOString() })
+            .eq('id', id);
 
-        if (store) {
-          if (entity === 'video') {
-            store.updateVideo(id, { [fieldName]: value });
-          } else if (entity === 'kooperation') {
-            store.updateKooperation(id, { [fieldName]: value });
+          if (error) throw error;
+
+          if (store) {
+            store.updateKooperation(id, {
+              status_id: statusId,
+              status_name: statusName,
+              status_ref: statusId ? { id: statusId, name: statusName } : null
+            });
           }
-        }
 
-        console.log(`✅ ${entity} aktualisiert`);
+          window.dispatchEvent(new CustomEvent('kooperationStatusChanged', {
+            detail: { kooperationId: id, statusId, statusName }
+          }));
+          window.dispatchEvent(new CustomEvent('kooperationen-updated', {
+            detail: { kampagneId: t.kampagneId, koopId: id, newStatusId: statusId }
+          }));
 
-        if (entity === 'video' && fieldName === 'verkaufspreis_netto') {
-          this._triggerBudgetCheck();
+          console.log(`✅ Kooperation Status aktualisiert: ${statusName}`);
+        } else {
+          const tableName = entity === 'kooperation' ? 'kooperationen' : 'kooperation_videos';
+          
+          const { error } = await window.supabase
+            .from(tableName)
+            .update({ [fieldName]: value })
+            .eq('id', id);
+
+          if (error) throw error;
+
+          if (store) {
+            if (entity === 'video') {
+              store.updateVideo(id, { [fieldName]: value });
+            } else if (entity === 'kooperation') {
+              store.updateKooperation(id, { [fieldName]: value });
+            }
+          }
+
+          console.log(`✅ ${entity} aktualisiert`);
+
+          if (entity === 'video' && fieldName === 'verkaufspreis_netto') {
+            this._triggerBudgetCheck();
+          }
         }
       }
 

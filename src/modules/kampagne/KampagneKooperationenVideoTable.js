@@ -261,6 +261,35 @@ export class KampagneKooperationenVideoTable {
       }
     });
 
+    container.addEventListener('click', (e) => {
+      const trigger = e.target.closest('.status-select-trigger');
+      if (trigger) {
+        e.stopPropagation();
+        const wrapper = trigger.closest('.status-select-wrapper');
+        document.querySelectorAll('.status-select-wrapper.open').forEach(w => {
+          if (w !== wrapper) w.classList.remove('open');
+        });
+        wrapper?.classList.toggle('open');
+        return;
+      }
+
+      const item = e.target.closest('.status-dropdown-item');
+      if (item) {
+        e.stopPropagation();
+        const wrapper = item.closest('.status-select-wrapper');
+        const koopId = wrapper?.dataset.kooperationId;
+        const newValue = item.dataset.value || null;
+        wrapper?.classList.remove('open');
+        if (koopId) {
+          this._handleStatusDropdownChange(koopId, newValue);
+        }
+      }
+    });
+
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.status-select-wrapper.open').forEach(w => w.classList.remove('open'));
+    }, { signal });
+
     window.addEventListener('kooperationStatusChanged', (e) => {
       const { kooperationId, statusId, statusName } = e.detail;
       this._updateStatusInline(kooperationId, statusId, statusName);
@@ -473,6 +502,32 @@ export class KampagneKooperationenVideoTable {
     }
   }
 
+  async _handleStatusDropdownChange(kooperationId, newStatusId) {
+    const store = this.store;
+    const statusOptions = store?.statusOptions || this.statusOptions || [];
+    const statusName = statusOptions.find(s => s.id === newStatusId)?.name || '';
+
+    this._updateStatusInline(kooperationId, newStatusId, statusName);
+
+    try {
+      const { error } = await window.supabase
+        .from('kooperationen')
+        .update({ status_id: newStatusId || null, status: statusName, updated_at: new Date().toISOString() })
+        .eq('id', kooperationId);
+
+      if (error) throw error;
+
+      window.dispatchEvent(new CustomEvent('kooperationStatusChanged', {
+        detail: { kooperationId, statusId: newStatusId, statusName }
+      }));
+      window.dispatchEvent(new CustomEvent('kooperationen-updated', {
+        detail: { kampagneId: this.kampagneId, koopId: kooperationId, newStatusId }
+      }));
+    } catch (error) {
+      console.error('❌ Fehler beim Status-Update:', error);
+    }
+  }
+
   _updateStatusInline(kooperationId, statusId, statusName) {
     const koop = this.kooperationen.find(k => k.id === kooperationId);
     if (koop) {
@@ -482,12 +537,14 @@ export class KampagneKooperationenVideoTable {
     }
     
     const row = document.querySelector(`tr[data-kooperation-id="${kooperationId}"]`);
-    if (row) {
-      const cell = row.querySelector('.col-status');
-      if (cell && this.renderer) {
-        cell.innerHTML = this.renderer.renderStatusBadge(koop || { id: kooperationId, status_id: statusId, status_name: statusName });
-      }
-    }
+    if (!row) return;
+
+    const cell = row.querySelector('.col-status');
+    if (!cell || !this.renderer) return;
+
+    cell.innerHTML = this.renderer.renderStatusSelect(
+      koop || { id: kooperationId, status_id: statusId, status_name: statusName, status_ref: statusId ? { id: statusId, name: statusName } : null }
+    );
   }
 
   refilter() {

@@ -260,6 +260,9 @@ export class KooperationenKanbanBoard {
       window.dispatchEvent(new CustomEvent('kooperationen-updated', {
         detail: { kampagneId: this.kampagneId, koopId, newStatusId }
       }));
+      window.dispatchEvent(new CustomEvent('kooperationStatusChanged', {
+        detail: { kooperationId: koopId, statusId: newStatusId, statusName: newStatusName }
+      }));
     } catch (error) {
       console.error('Fehler beim Aktualisieren des Kooperations-Status:', error);
 

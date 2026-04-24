@@ -155,7 +155,7 @@ export class VideoTableRenderer {
             : this.escapeHtml(`${creator.vorname || ''} ${creator.nachname || ''}`.trim() || 'Unbekannt')}
         </td>
         <td class="grid-cell cell-centered col-status" ${!t.isColumnVisibleForCustomer('col-status') ? 'style="display:none;"' : ''}>
-          ${this.renderStatusBadge(koop)}
+          ${this.renderStatusSelect(koop)}
         </td>
         <td class="grid-cell col-tags" ${!t.isColumnVisibleForCustomer('col-tags') ? 'style="display:none;"' : ''}>
           ${(koop._tags || []).length > 0
@@ -511,6 +511,42 @@ export class VideoTableRenderer {
     }
     
     return `<span class="status-badge ${statusClass}">${this.escapeHtml(statusName)}</span>`;
+  }
+
+  renderStatusSelect(koop) {
+    const t = this.table;
+    const statusOptions = t.statusOptions || [];
+    const isEditable = !t.isKundeRole() && statusOptions.length > 0;
+
+    if (!isEditable) return this.renderStatusBadge(koop);
+
+    const currentId = koop.status_id || '';
+    const statusName = koop.status_name || koop.status_ref?.name || '';
+    const statusClass = statusName ? `status-${statusName.toLowerCase().replace(/\s+/g, '-')}` : '';
+    const chevron = `<svg class="status-select-chevron" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 4.5L6 7.5L9 4.5"/></svg>`;
+    const checkSvg = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>`;
+
+    const triggerClasses = statusName
+      ? `status-badge ${statusClass} status-select-trigger`
+      : `status-badge status-select-trigger status-no-value`;
+    const triggerLabel = statusName ? this.escapeHtml(statusName) : '<span class="text-muted">–</span>';
+
+    return `<div class="status-select-wrapper" data-kooperation-id="${koop.id}">
+      <span class="${triggerClasses}" role="button">${triggerLabel} ${chevron}</span>
+      <div class="status-dropdown">
+        <a href="#" class="status-dropdown-item ${!currentId ? 'is-active' : ''}" data-value="">
+          <span>– kein Status –</span>
+          ${!currentId ? `<span class="submenu-check">${checkSvg}</span>` : ''}
+        </a>
+        ${statusOptions.map(opt => {
+          const isActive = opt.id === currentId;
+          return `<a href="#" class="status-dropdown-item ${isActive ? 'is-active' : ''}" data-value="${opt.id}">
+            <span>${this.escapeHtml(opt.name)}</span>
+            ${isActive ? `<span class="submenu-check">${checkSvg}</span>` : ''}
+          </a>`;
+        }).join('')}
+      </div>
+    </div>`;
   }
 
   renderVideoFieldStack(videos, fieldRenderer) {

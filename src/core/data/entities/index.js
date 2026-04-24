@@ -10,6 +10,7 @@ import AuftragDataModule from './AuftragDataModule.js';
 import AuftragsdetailsDataModule from './AuftragsdetailsDataModule.js';
 import KooperationDataModule from './KooperationDataModule.js';
 import KampagneDataModule from './KampagneDataModule.js';
+import VertragDataModule from './VertragDataModule.js';
 
 export const EntityModules = {
   creator: CreatorDataModule,
@@ -22,6 +23,7 @@ export const EntityModules = {
   auftragsdetails: AuftragsdetailsDataModule,
   kooperation: KooperationDataModule,
   kampagne: KampagneDataModule,
+  vertrag: VertragDataModule,
 };
 
 export const EntityRegistry = {

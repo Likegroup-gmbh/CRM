@@ -3060,11 +3060,89 @@ h3.section-title,
 
 .kooperation-card-status {
   font-size: var(--text-xs);
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
+  margin-top: var(--space-xs);
+}
+
+/* Status Select Custom Dropdown (Table) */
+.status-select-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.status-select-trigger {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  user-select: none;
+  transition: opacity 0.15s, box-shadow 0.15s;
+}
+
+.status-select-trigger:hover {
+  opacity: 0.85;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.08);
+}
+
+.status-select-trigger.status-no-value {
   background: var(--gray-100);
   color: var(--text-secondary);
+}
+
+.status-select-chevron {
+  flex-shrink: 0;
+  opacity: 0.4;
+  transition: transform 0.15s;
+}
+
+.status-select-wrapper.open .status-select-chevron {
+  transform: rotate(180deg);
+}
+
+.status-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 1000;
+  min-width: 180px;
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-xxs) 0;
+}
+
+.status-select-wrapper.open .status-dropdown {
+  display: block;
+}
+
+.status-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  color: var(--gray-800);
+  text-decoration: none;
   white-space: nowrap;
+  font-weight: 500;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.status-dropdown-item:hover {
+  background: #f5f7fb;
+}
+
+.status-dropdown-item .submenu-check {
+  margin-left: auto;
+  color: #16a34a;
+  display: inline-flex;
+}
+
+.status-dropdown-item .submenu-check svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  stroke-width: 2;
 }
 
 .kooperation-card-tags {
@@ -9159,6 +9237,17 @@ input.readonly-field {
   background: var(--red-100, #fee2e2) !important;
   color: var(--red-700, #b91c1c) !important;
   border-top: 2px solid var(--red-300, #fca5a5);
+}
+
+/* Sourcing: Kategorie-Header vertikal sticky unter dem Table-Header */
+.creator-pool-table .kategorie-header-row > td {
+  position: sticky;
+  top: calc(var(--sticky-add-section-height, 0px) + var(--sticky-thead-height, 37px));
+  z-index: 12;
+}
+
+.creator-pool-table .kategorie-header-row--rejected > td {
+  background: var(--red-50, #fef2f2);
 }
 
 /* Idee-Placeholder (ohne Video-Link) */
