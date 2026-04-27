@@ -4,6 +4,7 @@
 // Wurde aus AuftragList.js ausgelagert, um die Listen-Logik schlank zu halten.
 
 import { generatePoNummer } from './logic/PoNummerGenerator.js';
+import { getCurrentBenutzerId } from '../auth/CurrentUser.js';
 
 export class AuftragCreateHandler {
   constructor() {
@@ -654,7 +655,8 @@ export class AuftragCreateHandler {
       submitData.po = poResult.poNummer;
       console.log('📋 Generierte PO-Nummer:', poResult.poNummer);
 
-      submitData.created_by_id = window.currentUser?.id || null;
+      const currentBenutzerId = await getCurrentBenutzerId();
+      submitData.created_by_id = currentBenutzerId;
       if (!submitData.status) submitData.status = 'Beauftragt';
 
       const result = await window.dataService.createEntity('auftrag', submitData);
@@ -682,7 +684,7 @@ export class AuftragCreateHandler {
         }
 
         const createDetailsToggle = document.getElementById('field-create_auftragsdetails');
-        const detailsCreated = await this.handleAuftragsdetailsCreation(result.id, createDetailsToggle?.checked);
+        const detailsCreated = await this.handleAuftragsdetailsCreation(result.id, createDetailsToggle?.checked, currentBenutzerId);
 
         if (detailsCreated) {
           window.toastSystem?.show('Auftrag und Auftragsdetails erfolgreich angelegt', 'success');
@@ -734,9 +736,10 @@ export class AuftragCreateHandler {
    * Erstellt Auftragsdetails wenn der Toggle aktiv ist
    * @param {string} auftragId - ID des gerade erstellten Auftrags
    * @param {boolean} shouldCreate - Ob Auftragsdetails erstellt werden sollen (Toggle-Status)
+   * @param {string|null} createdById - Interne benutzer.id des Erstellers
    * @returns {Promise<boolean>} - True wenn Auftragsdetails erstellt wurden
    */
-  async handleAuftragsdetailsCreation(auftragId, shouldCreate) {
+  async handleAuftragsdetailsCreation(auftragId, shouldCreate, createdById = null) {
     if (!shouldCreate || !auftragId) {
       return false;
     }
@@ -751,6 +754,7 @@ export class AuftragCreateHandler {
 
       const detailsData = {
         auftrag_id: auftragId,
+        created_by_id: createdById ?? await getCurrentBenutzerId(),
         kampagnenanzahl: parseInt(document.getElementById('auftragsdetails-kampagnenanzahl')?.value) || null
       };
 

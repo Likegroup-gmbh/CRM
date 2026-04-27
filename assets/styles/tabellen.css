@@ -1576,6 +1576,10 @@ td.col-produkt .stacked-video-input,
   text-overflow: ellipsis;
 }
 
+.data-table.data-table--nowrap td:has(.avatar-bubbles) {
+  overflow: visible;
+}
+
 /* Rechnung: No-Wrap + em-basierte Spaltenkalibrierung */
 .data-table.data-table--rechnung th.col-name,
 .data-table.data-table--rechnung td.col-name { min-width: 18em; }

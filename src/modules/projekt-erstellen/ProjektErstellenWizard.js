@@ -5,7 +5,6 @@
 import { StepBasisdaten } from './steps/StepBasisdaten.js';
 import { StepDetails } from './steps/StepDetails.js';
 import { StepKampagnenarten } from './steps/StepKampagnenarten.js';
-import { StepKampagne } from './steps/StepKampagne.js';
 import { FeedbackCard } from './components/FeedbackCard.js';
 import { WizardProgressBar } from './components/WizardProgressBar.js';
 import { ProjektErstellenPersistence } from './services/ProjektErstellenPersistence.js';
@@ -15,7 +14,7 @@ export class ProjektErstellenWizard {
   constructor(container) {
     this.container = container;
     this.currentStep = 1;
-    this.totalSteps = 4;
+    this.totalSteps = 3;
 
     this.formData = {
       auftrag: {
@@ -74,8 +73,7 @@ export class ProjektErstellenWizard {
     this.steps = [
       new StepBasisdaten(this),
       new StepDetails(this),
-      new StepKampagnenarten(this),
-      new StepKampagne(this)
+      new StepKampagnenarten(this)
     ];
 
     this.render();
@@ -110,7 +108,7 @@ export class ProjektErstellenWizard {
 
     this.progressBar = new WizardProgressBar(
       document.getElementById('projekt-progress-steps'),
-      ['Basisdaten', 'Details', 'Kampagnenarten', 'Kampagne'],
+      ['Basisdaten', 'Details', 'Kampagne'],
       this.currentStep,
       (targetStep) => this.goToStep(targetStep)
     );
@@ -134,9 +132,9 @@ export class ProjektErstellenWizard {
     if (!container) {
       container = document.createElement('div');
       container.id = 'projekt-progress-container';
-      container.className = 'multistep-progress';
       mainWrapper.insertBefore(container, mainWrapper.firstChild);
     }
+    container.className = 'multistep-progress multistep-progress--projekt-erstellen';
 
     container.innerHTML = `
       <div id="projekt-progress-steps"></div>

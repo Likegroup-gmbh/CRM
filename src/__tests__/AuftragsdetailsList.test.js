@@ -18,6 +18,11 @@ describe('AuftragsdetailsList', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.currentUser = { rolle: 'admin' };
+    window.content = document.createElement('div');
+    window.setHeadline = vi.fn();
+    window.setContentSafely = vi.fn((element, html) => {
+      element.innerHTML = html;
+    });
   });
 
   it('liefert bei Suchbegriff konsistente count+Pagination clientseitig', async () => {
@@ -47,5 +52,31 @@ describe('AuftragsdetailsList', () => {
 
     // Bei aktivem Search-Flow darf kein serverseitiges range greifen
     expect(query.range).not.toHaveBeenCalled();
+    expect(query.select.mock.calls[0][0]).not.toContain('titel');
+    expect(query.select.mock.calls[0][0]).not.toContain('notiz');
+  });
+
+  it('rendert Auftrag als erste Inhaltsspalte und entfernt Titel', async () => {
+    const list = new AuftragsdetailsList();
+
+    await list.render();
+
+    const headers = [...window.content.querySelectorAll('thead th')]
+      .map((header) => header.textContent.trim())
+      .filter(Boolean);
+
+    expect(headers).toEqual([
+      'Auftrag',
+      'Unternehmen',
+      'Marke',
+      'PO intern',
+      'Status',
+      'Start',
+      'Ende',
+      'Erstellt am',
+      'Erstellt von',
+      'Aktionen'
+    ]);
+    expect(headers).not.toContain('Titel');
   });
 });

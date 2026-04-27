@@ -193,12 +193,14 @@ export class StepBasisdaten {
     try {
       const { data: unternehmenRows, error: uErr } = await window.supabase
         .from('unternehmen')
-        .select('id, firmenname')
+        .select('id, firmenname, logo_url, logo_thumb_url')
         .order('firmenname');
       if (uErr) throw uErr;
       this.unternehmenOptions = (unternehmenRows || []).map(u => ({
         value: u.id,
-        label: u.firmenname || '(ohne Name)'
+        label: u.firmenname || '(ohne Name)',
+        logo_url: u.logo_url || null,
+        logo_thumb_url: u.logo_thumb_url || null
       }));
     } catch (e) {
       console.warn('⚠️ Unternehmen laden fehlgeschlagen:', e);
@@ -265,11 +267,16 @@ export class StepBasisdaten {
     try {
       const { data, error } = await window.supabase
         .from('marke')
-        .select('id, markenname')
+        .select('id, markenname, logo_url, logo_thumb_url')
         .eq('unternehmen_id', unternehmenId)
         .order('markenname');
       if (error) throw error;
-      const opts = (data || []).map(m => ({ value: m.id, label: m.markenname || '(ohne Name)' }));
+      const opts = (data || []).map(m => ({
+        value: m.id,
+        label: m.markenname || '(ohne Name)',
+        logo_url: m.logo_url || null,
+        logo_thumb_url: m.logo_thumb_url || null
+      }));
       this.markenOptionsByUnternehmen.set(unternehmenId, opts);
       return opts;
     } catch (e) {
@@ -285,13 +292,15 @@ export class StepBasisdaten {
     try {
       const { data, error } = await window.supabase
         .from('ansprechpartner')
-        .select('id, vorname, nachname')
+        .select('id, vorname, nachname, profile_image_url, profile_image_thumb_url')
         .eq('unternehmen_id', unternehmenId)
         .order('nachname');
       if (error) throw error;
       const opts = (data || []).map(a => ({
         value: a.id,
-        label: [a.vorname, a.nachname].filter(Boolean).join(' ') || '(ohne Name)'
+        label: [a.vorname, a.nachname].filter(Boolean).join(' ') || '(ohne Name)',
+        profile_image_url: a.profile_image_url || null,
+        profile_image_thumb_url: a.profile_image_thumb_url || null
       }));
       this.ansprechpartnerOptionsByUnternehmen.set(unternehmenId, opts);
       return opts;

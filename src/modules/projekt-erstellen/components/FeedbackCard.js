@@ -51,10 +51,6 @@ export class FeedbackCard {
     if (!this.host) return;
     this.host.innerHTML = `
       <div class="detail-card projekt-erstellen-feedback-card">
-        <div class="detail-card-header">
-          <h3 class="detail-card-title" id="feedback-card-title">Zusammenfassung</h3>
-          <p class="detail-card-subtitle" id="feedback-card-subtitle"></p>
-        </div>
         <div class="detail-card-body">
           <div id="feedback-card-content" class="projekt-erstellen-summary-list"></div>
         </div>
@@ -66,30 +62,78 @@ export class FeedbackCard {
   update(currentStep, formData) {
     if (!this.host) return;
 
-    const title = document.getElementById('feedback-card-title');
-    const subtitle = document.getElementById('feedback-card-subtitle');
     const content = document.getElementById('feedback-card-content');
-    if (!title || !subtitle || !content) return;
+    if (!content) return;
 
-    const stepTitles = {
-      1: { t: 'Basisdaten', s: 'Grunddaten des Auftrags' },
-      2: { t: 'Details & Finanzen', s: 'Agenturleistungen und Finanzen' },
-      3: { t: 'Kampagnenarten', s: 'Ausgewählte Arten und Budgets' },
-      4: { t: 'Kampagne', s: 'Die erste Kampagne zu diesem Auftrag' }
-    };
-
-    title.textContent = stepTitles[currentStep]?.t || 'Zusammenfassung';
-    subtitle.textContent = stepTitles[currentStep]?.s || '';
-
-    content.innerHTML = this.buildContent(currentStep, formData);
+    content.innerHTML = this.buildContent(formData);
   }
 
-  buildContent(step, formData) {
-    if (step === 1) return this.buildStep1(formData);
-    if (step === 2) return this.buildStep2(formData);
-    if (step === 3) return this.buildStep3Kampagnenarten(formData);
-    if (step === 4) return this.buildStep4(formData);
-    return '';
+  buildContent(formData) {
+    return `
+      <div class="projekt-erstellen-summary-doc">
+        ${this.renderSummarySection('Basisdaten', this.buildStep1(formData))}
+        ${this.renderSummarySection('Details', this.buildStep2(formData))}
+        ${this.renderSummarySection('Kampagne', this.buildKampagneSummary(formData))}
+      </div>
+    `;
+  }
+
+  renderSummarySection(title, contentHtml) {
+    return `
+      <section class="projekt-erstellen-summary-section">
+        <div class="projekt-erstellen-summary-section-header">
+          <h4>${title}</h4>
+        </div>
+        ${contentHtml}
+      </section>
+    `;
+  }
+
+  renderValue(valueHtml, isEmpty = false) {
+    return isEmpty || !valueHtml
+      ? `<div class="projekt-erstellen-summary-value projekt-erstellen-summary-value--empty">${EMPTY_PLACEHOLDER}</div>`
+      : `<div class="projekt-erstellen-summary-value">${valueHtml}</div>`;
+  }
+
+  renderSummaryMetric(label, valueHtml, isEmpty = false) {
+    return `
+      <div class="projekt-erstellen-summary-metric">
+        <div class="projekt-erstellen-summary-label">${label}</div>
+        ${this.renderValue(valueHtml, isEmpty)}
+      </div>
+    `;
+  }
+
+  renderEntityMetric(label, entity, type = 'org') {
+    const name = entity?.label || null;
+    const imageUrl = entity?.imageUrl || null;
+    const initial = name ? name.trim().charAt(0).toUpperCase() : '';
+
+    const avatar = imageUrl
+      ? `<span class="projekt-erstellen-summary-avatar projekt-erstellen-summary-avatar--${type}">
+          <img src="${this.escapeAttr(imageUrl)}" alt="">
+        </span>`
+      : `<span class="projekt-erstellen-summary-avatar projekt-erstellen-summary-avatar--${type} projekt-erstellen-summary-avatar--placeholder">
+          ${this.escapeHtml(initial || '–')}
+        </span>`;
+
+    const value = name
+      ? `<div class="projekt-erstellen-summary-entity">${avatar}<span>${this.escapeHtml(name)}</span></div>`
+      : null;
+
+    return this.renderSummaryMetric(label, value, !name);
+  }
+
+  renderSummaryGrid(columns) {
+    return `
+      <div class="projekt-erstellen-summary-grid">
+        ${columns.map(items => `
+          <div class="projekt-erstellen-summary-grid-col">
+            ${items.join('')}
+          </div>
+        `).join('')}
+      </div>
+    `;
   }
 
   renderItem(label, valueHtml, isEmpty = false) {
@@ -107,9 +151,9 @@ export class FeedbackCard {
   buildStep1(formData) {
     const a = formData.auftrag || {};
 
-    const unternehmenLabel = resolveOptionLabel('field-pe-unternehmen_id', a.unternehmen_id) || (looksLikeUuid(a.unternehmen_id) ? null : a.unternehmen_id);
-    const markeLabel = resolveOptionLabel('field-pe-marke_id', a.marke_id) || (looksLikeUuid(a.marke_id) ? null : a.marke_id);
-    const apLabel = resolveOptionLabel('field-pe-ansprechpartner_id', a.ansprechpartner_id) || (looksLikeUuid(a.ansprechpartner_id) ? null : a.ansprechpartner_id);
+    const unternehmen = this.resolveBasisdatenEntity('unternehmen', a.unternehmen_id);
+    const marke = this.resolveBasisdatenEntity('marke', a.marke_id);
+    const ap = this.resolveBasisdatenEntity('ansprechpartner', a.ansprechpartner_id);
 
     const artLabel = AUFTRAG_TYPES.find(t => t.value === a.auftragtype)?.label || null;
 
@@ -117,14 +161,51 @@ export class FeedbackCard {
       ? `${formatDate(a.start)} – ${formatDate(a.ende)}`
       : null;
 
-    return `
-      ${this.renderItem('Unternehmen', unternehmenLabel, !unternehmenLabel)}
-      ${this.renderItem('Marke', markeLabel, !markeLabel)}
-      ${this.renderItem('Ansprechpartner', apLabel, !apLabel)}
-      ${this.renderItem('Art des Auftrags', artLabel, !artLabel)}
-      ${this.renderItem('Zeitraum', zeitraum, !zeitraum)}
-      ${this.renderItem('Titel', a.titel || null, !a.titel)}
-    `;
+    return this.renderSummaryGrid([
+      [
+        this.renderEntityMetric('Unternehmen', unternehmen, 'org'),
+        this.renderEntityMetric('Marke', marke, 'org'),
+        this.renderEntityMetric('Ansprechpartner', ap, 'person')
+      ],
+      [
+        this.renderSummaryMetric('Art des Auftrags', artLabel, !artLabel),
+        this.renderSummaryMetric('Zeitraum', zeitraum, !zeitraum),
+        this.renderSummaryMetric('Titel', this.escapeHtml(a.titel || ''), !a.titel)
+      ]
+    ]);
+  }
+
+  resolveBasisdatenEntity(type, value) {
+    if (!value) return null;
+
+    const fallbackLabel = looksLikeUuid(value) ? null : value;
+    if (type === 'unternehmen') {
+      const option = this.wizard?.steps?.[0]?.unternehmenOptions?.find(o => o.value === value);
+      const label = resolveOptionLabel('field-pe-unternehmen_id', value) || option?.label || fallbackLabel;
+      return label ? {
+        label,
+        imageUrl: option?.logo_thumb_url || option?.logo_url || null
+      } : null;
+    }
+    if (type === 'marke') {
+      const allMarken = Array.from(this.wizard?.steps?.[0]?.markenOptionsByUnternehmen?.values?.() || []).flat();
+      const option = allMarken.find(o => o.value === value);
+      const label = resolveOptionLabel('field-pe-marke_id', value) || option?.label || fallbackLabel;
+      return label ? {
+        label,
+        imageUrl: option?.logo_thumb_url || option?.logo_url || null
+      } : null;
+    }
+    if (type === 'ansprechpartner') {
+      const allAp = Array.from(this.wizard?.steps?.[0]?.ansprechpartnerOptionsByUnternehmen?.values?.() || []).flat();
+      const option = allAp.find(o => o.value === value);
+      const label = resolveOptionLabel('field-pe-ansprechpartner_id', value) || option?.label || fallbackLabel;
+      return label ? {
+        label,
+        imageUrl: option?.profile_image_thumb_url || option?.profile_image_url || null
+      } : null;
+    }
+    return fallbackLabel ? { label: fallbackLabel, imageUrl: null } : null;
   }
 
   buildCampaignBudgetBlocks(d) {
@@ -148,22 +229,19 @@ export class FeedbackCard {
       const info = (b.budget_info || '').trim() || null;
       const videos = b.video_anzahl != null && b.video_anzahl !== '' ? formatNumber(b.video_anzahl) : null;
       const creators = b.creator_anzahl != null && b.creator_anzahl !== '' ? formatNumber(b.creator_anzahl) : null;
-
-      const rows = [
-        this.renderItem('Videos', videos, !videos),
-        this.renderItem('Creator', creators, !creators),
-        this.renderItem('Einkauf (Netto)', ek, !ek),
-        this.renderItem('Verkauf (Netto)', vk, !vk)
-      ];
-      if (info) {
-        rows.push(this.renderItem('Budget-Info', this.escapeHtml(info), false));
-      }
+      const cell = (value, isEmpty = false) => isEmpty || !value
+        ? `<span class="projekt-erstellen-summary-table-empty">${EMPTY_PLACEHOLDER}</span>`
+        : value;
 
       return `
-        <div class="projekt-erstellen-summary-item">
-          <div class="projekt-erstellen-summary-label" style="font-weight:600;">${this.escapeHtml(label)}</div>
-        </div>
-        ${rows.join('')}
+        <tr>
+          <td class="col-campaign-type">${this.escapeHtml(label)}</td>
+          <td class="col-count">${cell(videos, !videos)}</td>
+          <td class="col-count">${cell(creators, !creators)}</td>
+          <td class="col-price">${cell(ek, !ek)}</td>
+          <td class="col-price">${cell(vk, !vk)}</td>
+          <td class="col-budget-info">${cell(info ? this.escapeHtml(info) : null, !info)}</td>
+        </tr>
       `;
     }).join('');
   }
@@ -178,11 +256,21 @@ export class FeedbackCard {
       .replace(/\n/g, '<br>');
   }
 
+  escapeAttr(v) {
+    if (v == null) return '';
+    return String(v)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
   buildStep2(formData) {
     const d = formData.details || {};
     const a = formData.auftrag || {};
 
     let agencyBlock = '';
+    let agencyLeft = [];
     if (d.agency_services_enabled) {
       const retainer = RETAINER_TYPES.find(t => t.value === d.retainer_type)?.label || d.retainer_type;
       const retainerLine = d.retainer_type && d.retainer_type !== 'none'
@@ -204,23 +292,26 @@ export class FeedbackCard {
         ? (d.ksk_type === 'percentage' ? `${d.ksk_value || 0} %` : formatCurrency(d.ksk_value))
         : null;
 
-      agencyBlock = `
-        ${this.renderItem('Retainer', retainerLine, !retainerLine)}
-        ${this.renderItem('Zusatzleistungen', extraLine, !extraLine)}
-        ${this.renderItem('Prozentuale Vergütung', pctLine, !pctLine)}
-        ${this.renderItem('KSK', kskLine, !kskLine)}
-      `;
+      agencyLeft = [
+        this.renderSummaryMetric('Retainer', retainerLine, !retainerLine),
+        this.renderSummaryMetric('Zusatzleistungen', extraLine, !extraLine),
+        this.renderSummaryMetric('Prozentuale Vergütung', pctLine, !pctLine),
+        this.renderSummaryMetric('KSK', kskLine, !kskLine)
+      ];
     } else {
-      agencyBlock = this.renderItem('Agenturleistungen', 'Deaktiviert', false);
+      agencyBlock = this.renderSummaryMetric('Agenturleistungen', 'Deaktiviert', false);
+      agencyLeft = [agencyBlock];
     }
 
-    return `
-      ${agencyBlock}
-      ${this.renderItem('Netto', a.nettobetrag != null && a.nettobetrag !== '' ? formatCurrency(a.nettobetrag) : null, a.nettobetrag == null || a.nettobetrag === '')}
-      ${this.renderItem('Brutto', a.bruttobetrag != null && a.bruttobetrag !== '' ? formatCurrency(a.bruttobetrag) : null, a.bruttobetrag == null || a.bruttobetrag === '')}
-      ${this.renderItem('Angebotsnummer', a.angebotsnummer || null, !a.angebotsnummer)}
-      ${this.renderItem('Rechnungsnummer', a.re_nr || null, !a.re_nr)}
-    `;
+    return this.renderSummaryGrid([
+      agencyLeft,
+      [
+        this.renderSummaryMetric('Netto', a.nettobetrag != null && a.nettobetrag !== '' ? formatCurrency(a.nettobetrag) : null, a.nettobetrag == null || a.nettobetrag === ''),
+        this.renderSummaryMetric('Brutto', a.bruttobetrag != null && a.bruttobetrag !== '' ? formatCurrency(a.bruttobetrag) : null, a.bruttobetrag == null || a.bruttobetrag === ''),
+        this.renderSummaryMetric('Angebotsnummer', this.escapeHtml(a.angebotsnummer || ''), !a.angebotsnummer),
+        this.renderSummaryMetric('Rechnungsnummer', this.escapeHtml(a.re_nr || ''), !a.re_nr)
+      ]
+    ]);
   }
 
   buildStep3Kampagnenarten(formData) {
@@ -231,12 +322,32 @@ export class FeedbackCard {
     const campaignBudgetBlocks = this.buildCampaignBudgetBlocks(d);
 
     return `
-      ${this.renderItem('Kampagnenarten', campaignTypeLabels, !campaignTypeLabels)}
-      ${campaignBudgetBlocks}
+      ${this.renderSummaryMetric('Kampagnenarten', this.escapeHtml(campaignTypeLabels), !campaignTypeLabels)}
+      ${campaignBudgetBlocks ? `
+        <div class="data-table-container projekt-erstellen-summary-campaign-table-wrap">
+          <table class="data-table projekt-erstellen-summary-campaign-table">
+            <thead>
+              <tr>
+                <th class="col-campaign-type">Kampagnenart</th>
+                <th class="col-count">Videos</th>
+                <th class="col-count">Creator</th>
+                <th class="col-price">Einkauf</th>
+                <th class="col-price">Verkauf</th>
+                <th class="col-budget-info">Budget Info</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${campaignBudgetBlocks}
+            </tbody>
+          </table>
+        </div>
+      ` : `
+        <div class="projekt-erstellen-empty-note">Keine Kampagnenarten ausgewählt.</div>
+      `}
     `;
   }
 
-  buildStep4(formData) {
+  buildKampagneSummary(formData) {
     const k = formData.kampagne || {};
     const a = formData.auftrag || {};
     const d = formData.details || {};
@@ -247,14 +358,13 @@ export class FeedbackCard {
     const totals = this.calculateCampaignTotals(d.campaign_budgets || {}, d.campaign_type || []);
 
     return `
-      ${this.renderItem('Kampagnenname', name, !name)}
-      ${this.renderItem('Zeitraum aus Basisdaten', dreh, !dreh)}
-      ${this.renderItem('Creator gesamt', formatNumber(totals.creators), false)}
-      ${this.renderItem('Videos gesamt', formatNumber(totals.videos), false)}
-      <div class="projekt-erstellen-summary-item">
-        <div class="projekt-erstellen-summary-label">Projekt wird gespeichert</div>
-        <div class="projekt-erstellen-summary-value">Auftrag + Auftragsdetails + Kampagne</div>
+      <div class="projekt-erstellen-summary-metrics">
+        ${this.renderSummaryMetric('Kampagnenname', this.escapeHtml(name || ''), !name)}
+        ${this.renderSummaryMetric('Zeitraum', dreh, !dreh)}
+        ${this.renderSummaryMetric('Creator gesamt', formatNumber(totals.creators), false)}
+        ${this.renderSummaryMetric('Videos gesamt', formatNumber(totals.videos), false)}
       </div>
+      ${this.buildStep3Kampagnenarten(formData)}
     `;
   }
 

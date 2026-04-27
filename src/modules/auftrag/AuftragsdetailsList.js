@@ -21,8 +21,6 @@ export class AuftragsdetailsList {
     this._eventsBound = false;
     this._reloadTimer = null;
     this._loadRequestId = 0;
-    this._supportsAuftragTitel = true;
-    this._titelFallbackLogged = false;
     this._isKunde = null;
   }
 
@@ -33,13 +31,6 @@ export class AuftragsdetailsList {
       );
     }
     return this._isKunde;
-  }
-
-  isTitelMissingError(error) {
-    const text = `${error?.message || ''} ${error?.details || ''} ${error?.hint || ''}`.toLowerCase();
-    const mentionsTitel = text.includes('titel');
-    const looksLikeMissingColumn = text.includes('column') || text.includes('schema cache') || error?.code === '42703' || error?.code === 'PGRST204';
-    return mentionsTitel && looksLikeMissingColumn;
   }
 
   // Initialisiere Auftragsdetails-Liste
@@ -151,19 +142,18 @@ export class AuftragsdetailsList {
       </div>
 
       <!-- Daten-Tabelle -->
-      <div class="table-container">
-          <table class="data-table">
+      <div class="table-container auftragsdetails-table-container">
+          <table class="data-table data-table--nowrap data-table--auftragsdetails">
             <thead>
               <tr>
                 ${canBulkDelete ? `<th class="col-checkbox">
                   <input type="checkbox" id="select-all-auftragsdetails">
                 </th>` : ''}
+                <th class="col-ad-auftrag">Auftrag</th>
                 <th class="col-ad-unternehmen">Unternehmen</th>
                 <th class="col-ad-marke">Marke</th>
                 <th>${this.isKunde ? 'PO extern' : 'PO intern'}</th>
                 <th>Status</th>
-                <th class="col-ad-auftrag">Auftrag</th>
-                <th>Titel</th>
                 <th>Start</th>
                 <th>Ende</th>
                 <th>Erstellt am</th>
@@ -173,7 +163,7 @@ export class AuftragsdetailsList {
             </thead>
             <tbody id="auftragsdetails-table-body">
               <tr>
-                <td colspan="${this.isKunde ? '9' : canBulkDelete ? '12' : '11'}" class="loading">Lade Auftragsdetails...</td>
+                <td colspan="${this.isKunde ? '8' : canBulkDelete ? '11' : '10'}" class="loading">Lade Auftragsdetails...</td>
               </tr>
             </tbody>
           </table>
@@ -315,12 +305,10 @@ export class AuftragsdetailsList {
       const from = (page - 1) * limit;
       const to = from + limit - 1;
 
-      const buildAndRunQuery = async (includeTitel) => {
+      const buildAndRunQuery = async () => {
         const auftragFields = [
           'id',
           'auftragsname',
-          ...(includeTitel ? ['titel'] : []),
-          'notiz',
           'status',
           'po',
           'externe_po',
@@ -364,17 +352,7 @@ export class AuftragsdetailsList {
         return query;
       };
 
-      let { data, error, count } = await buildAndRunQuery(this._supportsAuftragTitel);
-
-      // Graceful fallback fuer Deploy-Reihenfolge: App-Code vor DB-Migration
-      if (error && this._supportsAuftragTitel && this.isTitelMissingError(error)) {
-        this._supportsAuftragTitel = false;
-        if (!this._titelFallbackLogged) {
-          console.warn('⚠️ `auftrag.titel` noch nicht in DB verfuegbar, falle auf `auftrag.notiz` zurueck.');
-          this._titelFallbackLogged = true;
-        }
-        ({ data, error, count } = await buildAndRunQuery(false));
-      }
+      const { data, error, count } = await buildAndRunQuery();
 
       if (error) {
         console.error('❌ Fehler beim Laden der Auftragsdetails mit Beziehungen:', error);
@@ -389,9 +367,7 @@ export class AuftragsdetailsList {
         const search = this.searchQuery.toLowerCase();
         filteredData = filteredData.filter(d => {
           const auftrag = d.auftrag;
-          const titelText = (auftrag?.titel ?? auftrag?.notiz ?? '').toLowerCase();
           return (auftrag?.auftragsname?.toLowerCase().includes(search)) ||
-                 titelText.includes(search) ||
                  (auftrag?.unternehmen?.firmenname?.toLowerCase().includes(search)) ||
                  (auftrag?.marke?.markenname?.toLowerCase().includes(search)) ||
                  (auftrag?.po?.toLowerCase().includes(search)) ||
@@ -686,7 +662,7 @@ export class AuftragsdetailsList {
       if (!details || details.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="${this.isKunde ? '9' : canBulkDelete ? '11' : '10'}" class="no-data">
+            <td colspan="${this.isKunde ? '8' : canBulkDelete ? '11' : '10'}" class="no-data">
               <div style="text-align: center; padding: 40px 20px;">
                 <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📄</div>
                 <h3 style="color: #666; margin-bottom: 8px;">Keine Auftragsdetails vorhanden</h3>
@@ -711,7 +687,6 @@ export class AuftragsdetailsList {
 
       tbody.innerHTML = details.map(detail => {
         const auftrag = detail.auftrag || {};
-        const titel = auftrag.titel ?? auftrag.notiz ?? '-';
         
         // Unternehmen Bubble
         const unternehmenHtml = auftrag.unternehmen
@@ -739,16 +714,15 @@ export class AuftragsdetailsList {
         return `
           <tr data-id="${detail.id}">
             ${canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="auftragsdetails-check" data-id="${detail.id}"></td>` : ''}
-            <td class="col-ad-unternehmen">${unternehmenHtml}</td>
-            <td class="col-ad-marke">${markeHtml}</td>
-            <td>${window.validatorSystem?.sanitizeHtml(this.isKunde ? auftrag.externe_po : auftrag.po) || (this.isKunde ? auftrag.externe_po : auftrag.po) || '-'}</td>
-            <td>${renderAuftragAmpel(auftrag.status)}</td>
             <td class="col-ad-auftrag">
               <a href="#" class="table-link" data-table="auftragsdetails" data-id="${detail.id}">
                 ${window.validatorSystem?.sanitizeHtml(auftrag.auftragsname || 'Unbekannter Auftrag') || 'Unbekannter Auftrag'}
               </a>
             </td>
-            <td>${window.validatorSystem?.sanitizeHtml(titel) || titel}</td>
+            <td class="col-ad-unternehmen">${unternehmenHtml}</td>
+            <td class="col-ad-marke">${markeHtml}</td>
+            <td>${window.validatorSystem?.sanitizeHtml(this.isKunde ? auftrag.externe_po : auftrag.po) || (this.isKunde ? auftrag.externe_po : auftrag.po) || '-'}</td>
+            <td>${renderAuftragAmpel(auftrag.status)}</td>
             <td>${formatDate(auftrag.start)}</td>
             <td>${formatDate(auftrag.ende)}</td>
             <td>${formatDate(detail.created_at)}</td>

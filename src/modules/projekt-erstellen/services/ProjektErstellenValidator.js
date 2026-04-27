@@ -6,7 +6,6 @@ export class ProjektErstellenValidator {
     if (step === 1) return this.validateStep1(formData);
     if (step === 2) return this.validateStep2(formData);
     if (step === 3) return this.validateStep3(formData);
-    if (step === 4) return this.validateStep4(formData);
     return { valid: true, errors: [] };
   }
 
@@ -48,7 +47,11 @@ export class ProjektErstellenValidator {
 
   validateStep3(formData) {
     const errors = [];
+    const k = formData.kampagne || {};
     const d = formData.details || {};
+    if (!k.kampagnenname || !String(k.kampagnenname).trim()) {
+      errors.push('Kampagnenname ist ein Pflichtfeld');
+    }
     if (!Array.isArray(d.campaign_type) || d.campaign_type.length === 0) {
       errors.push('Mindestens eine Kampagnenart muss ausgewählt sein');
     }
@@ -62,14 +65,6 @@ export class ProjektErstellenValidator {
         }
       });
     });
-    return { valid: errors.length === 0, errors };
-  }
-
-  validateStep4(formData) {
-    const errors = [];
-    const k = formData.kampagne || {};
-    const name = (k.kampagnenname || '').trim();
-    if (!name) errors.push('Kampagnenname ist ein Pflichtfeld');
     return { valid: errors.length === 0, errors };
   }
 }

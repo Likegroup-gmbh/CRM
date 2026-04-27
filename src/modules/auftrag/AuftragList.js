@@ -46,8 +46,6 @@ const CHECK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox=
 const CROSS_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: var(--icon-xs); height: var(--icon-xs); display: inline-block; vertical-align: middle;"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>`;
 const VIEW_LIST_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 1.5v-1.5m0 0c0-.621.504-1.125 1.125-1.125m0 0h7.5" /></svg>`;
 const VIEW_CAL_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" /></svg>`;
-const DETAILS_EYE_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
-
 export class AuftragList {
   constructor() {
     this.selectedAuftraege = new Set();
@@ -462,6 +460,24 @@ export class AuftragList {
     return avatarBubbles.renderBubbles(items);
   }
 
+  getListColumnCount() {
+    if (this.isKunde) {
+      return (this._kundeHasMultipleMarken ? 1 : 0) + 14;
+    }
+
+    return (this.isAdmin ? 1 : 0) + 19;
+  }
+
+  renderAuftragsdetailsLink(auftrag) {
+    if (!auftrag.auftragsdetails_id) return '-';
+    const name = window.validatorSystem.sanitizeHtml(auftrag.auftragsname || 'Unbekannter Auftrag');
+    return `
+      <a href="#" onclick="event.preventDefault(); window.navigateTo('/auftragsdetails/${auftrag.auftragsdetails_id}')" class="table-link details-link" title="Auftragsdetails anzeigen">
+        ${name}
+      </a>
+    `;
+  }
+
   // Rendere List-View HTML
   renderListView() {
     return `
@@ -475,11 +491,9 @@ export class AuftragList {
                 </th>` : ''}
                 ${!this.isKunde ? '<th class="col-unternehmen">Unternehmen</th>' : ''}
                 ${!this.isKunde || this._kundeHasMultipleMarken ? '<th>Marke</th>' : ''}
-                <th>Interne PO</th>
-                <th>Status</th>
                 <th>Angebotsnummer</th>
-                ${!this.isKunde ? '<th class="table-cell-center">Details</th>' : ''}
                 <th>Rechnungsnummer</th>
+                <th>Externe PO</th>
                 <th class="col-rechnung-gestellt">Rechnungsdatum</th>
                 <th>Zahlungsziel</th>
                 <th class="col-re-faelligkeit">Rechnungsfälligkeit</th>
@@ -491,12 +505,14 @@ export class AuftragList {
                 <th class="col-ueberwiesen">Bezahlt am</th>
                 ${!this.isKunde ? '<th>Ansprechpartner</th>' : ''}
                 <th class="col-erstellt-von">Erstellt von</th>
+                <th>Status</th>
+                ${!this.isKunde ? '<th class="table-cell-center col-details">Details</th>' : ''}
                 ${!this.isKunde ? '<th class="col-actions">Aktionen</th>' : ''}
               </tr>
             </thead>
             <tbody id="auftraege-table-body">
               <tr>
-                <td colspan="${this.isKunde ? '14' : '20'}" class="loading">Lade Aufträge...</td>
+                <td colspan="${this.getListColumnCount()}" class="loading">Lade Aufträge...</td>
               </tr>
             </tbody>
           </table>
@@ -530,6 +546,7 @@ export class AuftragList {
           angebotsnummer,
           status,
           po,
+          externe_po,
           re_nr,
           re_faelligkeit,
           zahlungsziel_tage,
@@ -542,6 +559,7 @@ export class AuftragList {
           rechnung_gestellt_am,
           ueberwiesen,
           ueberwiesen_am,
+          created_by_id,
           created_at,
           unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url, logo_thumb_url),
           marke:marke_id(id, markenname, logo_url, logo_thumb_url),
@@ -565,6 +583,8 @@ export class AuftragList {
         throw error;
       }
 
+      const createdByFallbacks = await this.loadCreatedByFallbacks(data || []);
+
       // Daten für Kompatibilität formatieren - Details via Inline-JOIN (1:1 Relation)
       const formattedData = (data || []).map(auftrag => {
         const details = auftrag.auftrag_details;
@@ -574,6 +594,7 @@ export class AuftragList {
           ...auftrag,
           has_auftragsdetails: Boolean(detailsId),
           auftragsdetails_id: detailsId || null,
+          created_by: auftrag.created_by || createdByFallbacks.get(auftrag.created_by_id) || null,
           unternehmen: auftrag.unternehmen ? {
             id: auftrag.unternehmen.id,
             firmenname: auftrag.unternehmen.firmenname,
@@ -598,6 +619,33 @@ export class AuftragList {
     } catch (error) {
       console.error('❌ Fehler beim Laden der Aufträge:', error);
       throw error;
+    }
+  }
+
+  async loadCreatedByFallbacks(auftraege) {
+    const missingIds = [...new Set((auftraege || [])
+      .filter(auftrag => auftrag.created_by_id && !auftrag.created_by?.name)
+      .map(auftrag => auftrag.created_by_id))];
+
+    if (missingIds.length === 0 || !window.supabase) {
+      return new Map();
+    }
+
+    const fields = 'id, auth_user_id, name, profile_image_url, profile_image_thumb_url';
+
+    try {
+      const [{ data: byBenutzerId }, { data: byAuthUserId }] = await Promise.all([
+        window.supabase.from('benutzer').select(fields).in('id', missingIds),
+        window.supabase.from('benutzer').select(fields).in('auth_user_id', missingIds)
+      ]);
+
+      const usersByCreatedById = new Map();
+      (byBenutzerId || []).forEach(user => usersByCreatedById.set(user.id, user));
+      (byAuthUserId || []).forEach(user => usersByCreatedById.set(user.auth_user_id, user));
+      return usersByCreatedById;
+    } catch (error) {
+      console.warn('⚠️ Erstellt-von-Fallback konnte nicht geladen werden:', error);
+      return new Map();
     }
   }
 
@@ -914,7 +962,7 @@ export class AuftragList {
       if (!auftraege || auftraege.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="${this.isKunde ? '12' : '19'}" class="no-data">
+            <td colspan="${this.getListColumnCount()}" class="no-data">
               <div style="text-align: center; padding: 40px 20px;">
                 <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📋</div>
                 <h3 style="color: #666; margin-bottom: 8px;">Keine Aufträge vorhanden</h3>
@@ -950,13 +998,9 @@ export class AuftragList {
           ${this.isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
           ${!this.isKunde ? `<td class="col-unternehmen">${this.formatUnternehmenTag(auftrag.unternehmen)}</td>` : ''}
           ${!this.isKunde || this._kundeHasMultipleMarken ? `<td>${this.formatMarkeTag(auftrag.marke)}</td>` : ''}
-          <td>${window.validatorSystem.sanitizeHtml(auftrag.po || '-')}</td>
-          <td>${renderAuftragAmpel(auftrag.status)}</td>
           <td>${window.validatorSystem.sanitizeHtml(auftrag.angebotsnummer || '-')}</td>
-          ${!this.isKunde ? `<td class="table-cell-center">${auftrag.auftragsdetails_id
-            ? `<a href="#" onclick="event.preventDefault(); window.navigateTo('/auftragsdetails/${auftrag.auftragsdetails_id}')" class="details-link" title="Auftragsdetails anzeigen">${DETAILS_EYE_ICON}</a>`
-            : '-'}</td>` : ''}
           <td>${window.validatorSystem.sanitizeHtml(auftrag.re_nr || '-')}</td>
+          <td>${window.validatorSystem.sanitizeHtml(auftrag.externe_po || '-')}</td>
           <td class="col-rechnung-gestellt">${this.formatDate(auftrag.rechnung_gestellt_am)}</td>
           <td>${this.formatZahlungsziel(auftrag.zahlungsziel_tage)}</td>
           <td>${this.formatDate(auftrag.re_faelligkeit)}</td>
@@ -968,6 +1012,8 @@ export class AuftragList {
           <td class="col-ueberwiesen">${this.formatDate(auftrag.ueberwiesen_am)}</td>
           ${!this.isKunde ? `<td>${this.formatAnsprechpartner(auftrag.ansprechpartner)}</td>` : ''}
           <td class="col-erstellt-von">${this.renderCreatedBy(auftrag.created_by)}</td>
+          <td>${renderAuftragAmpel(auftrag.status)}</td>
+          ${!this.isKunde ? `<td class="table-cell-center col-details">${this.renderAuftragsdetailsLink(auftrag)}</td>` : ''}
           ${!this.isKunde ? `<td class="col-actions">${actionBuilder.create('auftrag', auftrag.id)}</td>` : ''}
         </tr>
       `}).join('');

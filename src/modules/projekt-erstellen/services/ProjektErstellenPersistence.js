@@ -2,6 +2,7 @@
 // Insert fuer auftrag + auftrag_details + kampagne beim Submit.
 
 import { generatePoNummer } from '../../auftrag/logic/PoNummerGenerator.js';
+import { getCurrentBenutzerId } from '../../auth/CurrentUser.js';
 import { CAMPAIGN_TYPES } from '../constants.js';
 import { CHIP_PREFIX_MAP, mapBudgetsToDbColumns } from '../logic/CampaignBudgetFields.js';
 
@@ -119,8 +120,9 @@ export class ProjektErstellenPersistence {
     if (!supabase) return { success: false, error: 'Supabase nicht verfügbar' };
 
     try {
+      const currentBenutzerId = await getCurrentBenutzerId();
       const auftragPayload = this.buildAuftragPayload(formData);
-      auftragPayload.created_by_id = window.currentUser?.id || null;
+      auftragPayload.created_by_id = currentBenutzerId;
 
       const unternehmenId = auftragPayload.unternehmen_id;
       if (unternehmenId) {
@@ -142,7 +144,7 @@ export class ProjektErstellenPersistence {
 
       const detailsPayload = this.buildDetailsPayload(formData);
       detailsPayload.auftrag_id = savedAuftragId;
-      detailsPayload.created_by_id = window.currentUser?.id || null;
+      detailsPayload.created_by_id = currentBenutzerId;
 
       const { error: detailsErr } = await supabase
         .from('auftrag_details')
@@ -152,12 +154,26 @@ export class ProjektErstellenPersistence {
       const kampagnePayload = this.buildKampagnePayload(formData);
       kampagnePayload.auftrag_id = savedAuftragId;
 
-      const { error: kampagneErr } = await supabase
+      const { data: kampagneData, error: kampagneErr } = await supabase
         .from('kampagne')
-        .insert(kampagnePayload);
+        .insert(kampagnePayload)
+        .select('id')
+        .single();
       if (kampagneErr) throw kampagneErr;
 
-      return { success: true, auftragId: savedAuftragId };
+      const savedKampagneId = kampagneData.id;
+      const ansprechpartnerId = auftragPayload.ansprechpartner_id;
+      if (ansprechpartnerId) {
+        const { error: ansprechpartnerErr } = await supabase
+          .from('ansprechpartner_kampagne')
+          .insert({
+            kampagne_id: savedKampagneId,
+            ansprechpartner_id: ansprechpartnerId
+          });
+        if (ansprechpartnerErr) throw ansprechpartnerErr;
+      }
+
+      return { success: true, auftragId: savedAuftragId, kampagneId: savedKampagneId };
     } catch (e) {
       const friendly = this.friendlyError(e, 'Projekt konnte nicht angelegt werden');
       console.error('❌ submit Fehler:', {

@@ -1,6 +1,6 @@
 // StepKampagnenarten.js
 // Step 3 des Projekt-Erstellen-Flows:
-// Auswahl der Kampagnenarten (Chips) + dynamische Budget-Bloecke pro Art.
+// Kampagnenname, Kampagnenarten (Chips) + dynamische Budget-Bloecke pro Art.
 
 import { CAMPAIGN_TYPES } from '../constants.js';
 import {
@@ -18,10 +18,20 @@ export class StepKampagnenarten {
   render(host) {
     this.host = host;
     const d = this.wizard.formData.details || {};
+    const k = this.wizard.formData.kampagne || {};
+    const a = this.wizard.formData.auftrag || {};
+    const kampagnenname = k.kampagnenname || a.titel || '';
+    if (!k.kampagnenname && kampagnenname) {
+      this.wizard.formData.kampagne = { ...k, kampagnenname };
+    }
     const selected = new Set(d.campaign_type || []);
 
     host.innerHTML = `
       <div class="form-section projekt-erstellen-section-stack">
+        <div class="form-field">
+          <label for="field-pe-kampagnenname">Kampagnenname <span class="required">*</span></label>
+          <input type="text" id="field-pe-kampagnenname" name="kampagnenname" value="${this.escape(kampagnenname)}" placeholder="z.B. Kampagnenname" autocomplete="off">
+        </div>
         <div>
           <h5 class="section-subtitle" style="margin-bottom: var(--space-sm);">Kampagnenarten</h5>
           <div class="projekt-erstellen-chip-group" id="pe-campaign-type-chips">
@@ -37,9 +47,27 @@ export class StepKampagnenarten {
     `;
   }
 
+  escape(v) {
+    if (v == null) return '';
+    return String(v)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
   async onEnter() {}
 
   bindEvents() {
+    const kampagnennameInput = document.getElementById('field-pe-kampagnenname');
+    if (kampagnennameInput) {
+      kampagnennameInput.addEventListener('input', (e) => {
+        if (!this.wizard.formData.kampagne) this.wizard.formData.kampagne = {};
+        this.wizard.formData.kampagne.kampagnenname = e.target.value || '';
+        this.wizard.updateFeedback();
+      });
+    }
+
     const chipGroup = document.getElementById('pe-campaign-type-chips');
     if (chipGroup) {
       chipGroup.addEventListener('click', (e) => {
@@ -158,6 +186,9 @@ export class StepKampagnenarten {
   collectData() {
     this.collectBudgetsIntoState();
     return {
+      kampagne: {
+        kampagnenname: document.getElementById('field-pe-kampagnenname')?.value || ''
+      },
       details: {
         campaign_type: (this.wizard.formData.details.campaign_type || []).slice(),
         campaign_budgets: { ...(this.wizard.formData.details.campaign_budgets || {}) }
