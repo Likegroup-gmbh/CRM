@@ -7,7 +7,6 @@ import { CAMPAIGN_TYPES } from '../constants.js';
 import { CHIP_PREFIX_MAP, mapBudgetsToDbColumns } from '../logic/CampaignBudgetFields.js';
 
 const SUPABASE = () => window.supabase;
-const DUPLICATE_ANGEBOTSNUMMER_MESSAGE = 'Diese Angebotsnummer ist bereits einem anderen Auftrag zugewiesen.';
 
 export class ProjektErstellenPersistence {
   normalizeTextValue(value) {
@@ -122,23 +121,6 @@ export class ProjektErstellenPersistence {
     };
   }
 
-  async validateUniqueAngebotsnummer(supabase, angebotsnummer) {
-    if (!angebotsnummer) return { valid: true };
-
-    const { data, error } = await supabase
-      .from('auftrag')
-      .select('id')
-      .eq('angebotsnummer', angebotsnummer)
-      .limit(1);
-
-    if (error) throw error;
-    if (Array.isArray(data) && data.length > 0) {
-      return { valid: false, error: DUPLICATE_ANGEBOTSNUMMER_MESSAGE };
-    }
-
-    return { valid: true };
-  }
-
   async submit({ formData }) {
     const supabase = SUPABASE();
     if (!supabase) return { success: false, error: 'Supabase nicht verfügbar' };
@@ -147,14 +129,6 @@ export class ProjektErstellenPersistence {
       const currentBenutzerId = await getCurrentBenutzerId();
       const auftragPayload = this.buildAuftragPayload(formData);
       auftragPayload.created_by_id = currentBenutzerId;
-
-      const angebotsnummerValidation = await this.validateUniqueAngebotsnummer(
-        supabase,
-        auftragPayload.angebotsnummer
-      );
-      if (!angebotsnummerValidation.valid) {
-        return { success: false, error: angebotsnummerValidation.error };
-      }
 
       const unternehmenId = auftragPayload.unternehmen_id;
       if (unternehmenId) {
@@ -221,9 +195,6 @@ export class ProjektErstellenPersistence {
 
   friendlyError(e, fallback) {
     if (e?.code === '23505') {
-      if (e?.message?.includes('angebotsnummer') || e?.details?.includes('angebotsnummer')) {
-        return DUPLICATE_ANGEBOTSNUMMER_MESSAGE;
-      }
       return 'Dieser Wert existiert bereits und darf nur einmal vergeben werden.';
     }
     if (e?.code === '23503') {

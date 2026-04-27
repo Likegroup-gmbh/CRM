@@ -9,6 +9,7 @@ export class StepDetails {
     this.wizard = wizard;
     this.host = null;
     this.agencyBlock = null;
+    this.angebotsnummerOptions = [];
   }
 
   render(host) {
@@ -22,7 +23,8 @@ export class StepDetails {
           <div class="form-two-col">
             <div class="form-field form-field--half">
               <label for="field-pe-angebotsnummer">Angebotsnummer <span class="required">*</span></label>
-              <input type="text" id="field-pe-angebotsnummer" value="${this.escape(a.angebotsnummer)}" required>
+              <input type="text" id="field-pe-angebotsnummer" list="field-pe-angebotsnummer-options" value="${this.escape(a.angebotsnummer)}" required>
+              <datalist id="field-pe-angebotsnummer-options"></datalist>
             </div>
             <div class="form-field form-field--half">
               <label for="field-pe-re_nr">Rechnungsnummer</label>
@@ -150,6 +152,41 @@ export class StepDetails {
       `;
       document.head.appendChild(style);
     }
+
+    await this.loadAngebotsnummerOptions();
+    this.populateAngebotsnummerOptions();
+  }
+
+  async loadAngebotsnummerOptions() {
+    if (!window.supabase) return;
+
+    try {
+      const { data, error } = await window.supabase
+        .from('auftrag')
+        .select('angebotsnummer')
+        .not('angebotsnummer', 'is', null)
+        .order('angebotsnummer', { ascending: false });
+
+      if (error) throw error;
+
+      this.angebotsnummerOptions = [...new Set(
+        (data || [])
+          .map(row => row?.angebotsnummer?.trim())
+          .filter(Boolean)
+      )];
+    } catch (e) {
+      console.warn('⚠️ Angebotsnummern laden fehlgeschlagen:', e);
+      this.angebotsnummerOptions = [];
+    }
+  }
+
+  populateAngebotsnummerOptions() {
+    const datalist = document.getElementById('field-pe-angebotsnummer-options');
+    if (!datalist) return;
+
+    datalist.innerHTML = this.angebotsnummerOptions
+      .map(value => `<option value="${this.escape(value)}"></option>`)
+      .join('');
   }
 
   bindEvents() {

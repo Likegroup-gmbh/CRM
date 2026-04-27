@@ -14,27 +14,16 @@ function createInsertQuery(data) {
   };
 }
 
-function createSelectQuery(rows = []) {
-  return {
-    eq: vi.fn(() => ({
-      limit: vi.fn(async () => ({ data: rows, error: null }))
-    }))
-  };
-}
-
 describe('ProjektErstellenPersistence', () => {
   let inserted;
-  let existingAuftraege;
   let persistence;
 
   beforeEach(() => {
     inserted = {};
-    existingAuftraege = [];
     persistence = new ProjektErstellenPersistence();
     window.currentUser = { id: 'user-1' };
     window.supabase = {
       from: vi.fn((table) => ({
-        select: vi.fn(() => createSelectQuery(table === 'auftrag' ? existingAuftraege : [])),
         insert: vi.fn((payload) => {
           inserted[table] = payload;
 
@@ -82,9 +71,7 @@ describe('ProjektErstellenPersistence', () => {
     });
   });
 
-  it('bricht ab, wenn die Angebotsnummer bereits existiert', async () => {
-    existingAuftraege = [{ id: 'auftrag-existing' }];
-
+  it('lässt mehrfach verwendete Angebotsnummern zu', async () => {
     const result = await persistence.submit({
       formData: {
         auftrag: {
@@ -103,11 +90,8 @@ describe('ProjektErstellenPersistence', () => {
       }
     });
 
-    expect(result).toEqual({
-      success: false,
-      error: 'Diese Angebotsnummer ist bereits einem anderen Auftrag zugewiesen.'
-    });
-    expect(inserted.auftrag).toBeUndefined();
+    expect(result.success).toBe(true);
+    expect(inserted.auftrag.angebotsnummer).toBe('AN-100');
   });
 
   it('speichert Angebotsnummern ohne führende oder folgende Leerzeichen', async () => {
