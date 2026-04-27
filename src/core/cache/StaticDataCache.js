@@ -18,8 +18,6 @@ export class StaticDataCache {
     this.cache = new Map();
     this.maxAge = maxAge;
     this.loading = new Map(); // Verhindert doppelte Requests
-    
-    console.log('📦 StaticDataCache initialisiert (Max Age:', maxAge / 1000 / 60, 'Minuten)');
   }
 
   /**
@@ -35,19 +33,15 @@ export class StaticDataCache {
     // 1. Prüfe Cache
     const cached = this.cache.get(key);
     if (cached && Date.now() - cached.timestamp < this.maxAge) {
-      console.log(`✅ Cache HIT für ${table} (Alter: ${Math.round((Date.now() - cached.timestamp) / 1000)}s)`);
       return cached.data;
     }
 
     // 2. Prüfe ob bereits ein Request läuft
     if (this.loading.has(key)) {
-      console.log(`⏳ Warte auf laufenden Request für ${table}...`);
       return await this.loading.get(key);
     }
 
     // 3. Lade von DB
-    console.log(`📥 Cache MISS für ${table} - lade von DB...`);
-    
     const loadPromise = this._loadFromDB(table, query, orderBy);
     this.loading.set(key, loadPromise);
     
@@ -60,7 +54,6 @@ export class StaticDataCache {
         timestamp: Date.now() 
       });
       
-      console.log(`✅ ${table} geladen und gecached (${data.length} Einträge)`);
       return data;
       
     } finally {
@@ -92,7 +85,6 @@ export class StaticDataCache {
       
       // Bei Fehler (z.B. sort_order existiert nicht), nochmal ohne ORDER BY
       if (orderBy && error.message?.includes('sort_order')) {
-        console.log(`⚠️ Retry ohne ORDER BY für ${table}...`);
         return await this._loadFromDB(table, query, null);
       }
       
@@ -115,7 +107,6 @@ export class StaticDataCache {
     }
     
     if (invalidatedCount > 0) {
-      console.log(`🗑️ Cache invalidiert für ${table} (${invalidatedCount} Einträge)`);
     }
   }
 
@@ -123,9 +114,7 @@ export class StaticDataCache {
    * Löscht gesamten Cache
    */
   clear() {
-    const size = this.cache.size;
     this.cache.clear();
-    console.log(`🗑️ Kompletter Cache gelöscht (${size} Einträge)`);
   }
 
   /**
@@ -152,7 +141,6 @@ export class StaticDataCache {
 // Globale Instanz
 if (!window.staticDataCache) {
   window.staticDataCache = new StaticDataCache();
-  console.log('✅ Global StaticDataCache erstellt');
 }
 
 export default window.staticDataCache;

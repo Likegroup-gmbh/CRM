@@ -52,6 +52,16 @@ export class ProjektErstellenValidator {
     if (!Array.isArray(d.campaign_type) || d.campaign_type.length === 0) {
       errors.push('Mindestens eine Kampagnenart muss ausgewählt sein');
     }
+    const budgets = d.campaign_budgets || {};
+    (d.campaign_type || []).forEach(chipValue => {
+      const values = budgets[chipValue] || {};
+      ['video_anzahl', 'creator_anzahl'].forEach(suffix => {
+        const raw = values[suffix];
+        if (raw !== '' && raw != null && Number(raw) < 0) {
+          errors.push('Creator- und Video-Anzahl dürfen nicht negativ sein');
+        }
+      });
+    });
     return { valid: errors.length === 0, errors };
   }
 
@@ -60,9 +70,6 @@ export class ProjektErstellenValidator {
     const k = formData.kampagne || {};
     const name = (k.kampagnenname || '').trim();
     if (!name) errors.push('Kampagnenname ist ein Pflichtfeld');
-    if (k.start && k.deadline && new Date(k.deadline) < new Date(k.start)) {
-      errors.push('Deadline darf nicht vor dem Start liegen');
-    }
     return { valid: errors.length === 0, errors };
   }
 }

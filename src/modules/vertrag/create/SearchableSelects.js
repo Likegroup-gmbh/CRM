@@ -5,6 +5,15 @@
 import { VertraegeCreate } from './VertraegeCreateCore.js';
 import { KampagneUtils } from '../../kampagne/KampagneUtils.js';
 
+function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+}
+
 VertraegeCreate.prototype.rebuildKampagneSelect = function(kundeId) {
     console.log('🔧 VERTRAG: rebuildKampagneSelect aufgerufen mit kundeId:', kundeId);
     console.log('🔧 VERTRAG: filteredKampagnen:', this.filteredKampagnen.length, 'Stück');
@@ -115,38 +124,15 @@ VertraegeCreate.prototype.rebuildCreatorSelect = function(enabled) {
         this.formData.creator_id = id;
         
         const creator = this.creators.find(c => c.id === id);
-        const preview = document.getElementById('creator-adresse');
-        if (preview && creator) {
-          // Prüfen ob Creator eine gültige Adresse hat
-          if (this.hasValidCreatorAddress(creator)) {
-            this.creatorAddressMissing = false;
-            preview.innerHTML = `
-              <small class="address-text">
-                ${creator.lieferadresse_strasse || ''} ${creator.lieferadresse_hausnummer || ''}<br>
-                ${creator.lieferadresse_plz || ''} ${creator.lieferadresse_stadt || ''}<br>
-                ${creator.lieferadresse_land || 'Deutschland'}
-              </small>
-            `;
-          } else {
-            // Keine gültige Adresse - Warnung mit Link zum Creator-Profil
-            this.creatorAddressMissing = true;
-            preview.innerHTML = `
-              <div class="address-warning" style="color: #dc3545; background: #fff3f3; padding: 8px 12px; border-radius: 4px; border: 1px solid #dc3545; margin-top: 8px;">
-                <span style="margin-right: 6px;">⚠️</span>
-                <span>Keine Adresse hinterlegt! Vertragserstellung nicht möglich.</span><br>
-                <a href="/creator/${creator.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${creator.id}')" style="color: #0066cc; text-decoration: underline; margin-top: 4px; display: inline-block;">
-                  Zum Creator-Profil →
-                </a>
-              </div>
-            `;
-          }
+        if (creator) {
           // Social-Media-Profile aus Creator-Profil übernehmen
           this._applyCreatorProfiles(creator);
-          // Agentur-Daten aus creator_agentur laden (async, aber nicht blockierend)
-          this._loadCreatorAgentur(id);
-        } else if (preview) {
+          // Agentur-Daten aus creator_agentur laden und danach Adressfallback rendern
+          await this._loadCreatorAgentur(id);
+        } else {
+          const preview = document.getElementById('creator-adresse');
           this.creatorAddressMissing = false;
-          preview.innerHTML = '';
+          if (preview) preview.innerHTML = '';
           // Profile zurücksetzen wenn kein Creator
           this.formData.influencer_profile = [];
           this._resetAgenturFields();
@@ -276,37 +262,11 @@ VertraegeCreate.prototype.initCreatorSearchableSelect = function() {
     if (selectedCreator) {
       this.setSearchableSelectValue('creator_id', selectedCreator, options);
       
-      // Agentur-Daten fuer geladenen Creator aus creator_agentur nachladen
-      // (ueberschreibt ggf. alte Draft-Werte, das ist gewollt)
-      this._loadCreatorAgentur(selectedCreator);
-      
-      // Adress-Vorschau für geladenen Creator
       const creator = this.creators.find(c => c.id === selectedCreator);
-      const preview = document.getElementById('creator-adresse');
-      if (preview && creator) {
-        // Prüfen ob Creator eine gültige Adresse hat
-        if (this.hasValidCreatorAddress(creator)) {
-          this.creatorAddressMissing = false;
-          preview.innerHTML = `
-            <small class="address-text">
-              ${creator.lieferadresse_strasse || ''} ${creator.lieferadresse_hausnummer || ''}<br>
-              ${creator.lieferadresse_plz || ''} ${creator.lieferadresse_stadt || ''}<br>
-              ${creator.lieferadresse_land || 'Deutschland'}
-            </small>
-          `;
-        } else {
-          // Keine gültige Adresse - Warnung mit Link zum Creator-Profil
-          this.creatorAddressMissing = true;
-          preview.innerHTML = `
-            <div class="address-warning" style="color: #dc3545; background: #fff3f3; padding: 8px 12px; border-radius: 4px; border: 1px solid #dc3545; margin-top: 8px;">
-              <span style="margin-right: 6px;">⚠️</span>
-              <span>Keine Adresse hinterlegt! Vertragserstellung nicht möglich.</span><br>
-              <a href="/creator/${creator.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${creator.id}')" style="color: #0066cc; text-decoration: underline; margin-top: 4px; display: inline-block;">
-                Zum Creator-Profil →
-              </a>
-            </div>
-          `;
-        }
+      if (creator) {
+        // Agentur-Daten fuer geladenen Creator aus creator_agentur nachladen.
+        // (ueberschreibt ggf. alte Draft-Werte, das ist gewollt)
+        this._loadCreatorAgentur(selectedCreator);
       }
     }
     
@@ -316,38 +276,15 @@ VertraegeCreate.prototype.initCreatorSearchableSelect = function() {
       this.formData.creator_id = id;
       
       const creator = this.creators.find(c => c.id === id);
-      const preview = document.getElementById('creator-adresse');
-      if (preview && creator) {
-        // Prüfen ob Creator eine gültige Adresse hat
-        if (this.hasValidCreatorAddress(creator)) {
-          this.creatorAddressMissing = false;
-          preview.innerHTML = `
-            <small class="address-text">
-              ${creator.lieferadresse_strasse || ''} ${creator.lieferadresse_hausnummer || ''}<br>
-              ${creator.lieferadresse_plz || ''} ${creator.lieferadresse_stadt || ''}<br>
-              ${creator.lieferadresse_land || 'Deutschland'}
-            </small>
-          `;
-        } else {
-          // Keine gültige Adresse - Warnung mit Link zum Creator-Profil
-          this.creatorAddressMissing = true;
-          preview.innerHTML = `
-            <div class="address-warning" style="color: #dc3545; background: #fff3f3; padding: 8px 12px; border-radius: 4px; border: 1px solid #dc3545; margin-top: 8px;">
-              <span style="margin-right: 6px;">⚠️</span>
-              <span>Keine Adresse hinterlegt! Vertragserstellung nicht möglich.</span><br>
-              <a href="/creator/${creator.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${creator.id}')" style="color: #0066cc; text-decoration: underline; margin-top: 4px; display: inline-block;">
-                Zum Creator-Profil →
-              </a>
-            </div>
-          `;
-        }
+      if (creator) {
         // Social-Media-Profile aus Creator-Profil übernehmen
         this._applyCreatorProfiles(creator);
-        // Agentur-Daten aus creator_agentur laden
-        this._loadCreatorAgentur(id);
-      } else if (preview) {
+        // Agentur-Daten aus creator_agentur laden und danach Adressfallback rendern
+        await this._loadCreatorAgentur(id);
+      } else {
+        const preview = document.getElementById('creator-adresse');
         this.creatorAddressMissing = false;
-        preview.innerHTML = '';
+        if (preview) preview.innerHTML = '';
         // Profile zurücksetzen wenn kein Creator
         this.formData.influencer_profile = [];
         this._resetAgenturFields();
@@ -387,6 +324,10 @@ VertraegeCreate.prototype._loadCreatorAgentur = async function(creatorId) {
 
     if (!window.supabase) {
       console.warn('⚠️ VERTRAG: Supabase nicht verfuegbar fuer creator_agentur-Load');
+      const creator = this.creators.find(c => c.id === creatorId);
+      if (creator && this.formData.creator_id === creatorId) {
+        this.updateCreatorAddressPreview(creator);
+      }
       return;
     }
 
@@ -420,6 +361,11 @@ VertraegeCreate.prototype._loadCreatorAgentur = async function(creatorId) {
     }
 
     this._syncAgenturDomFromFormData();
+
+    const creator = this.creators.find(c => c.id === creatorId);
+    if (creator && this.formData.creator_id === creatorId) {
+      this.updateCreatorAddressPreview(creator);
+    }
 };
 
 
@@ -520,5 +466,92 @@ VertraegeCreate.prototype.hasValidCreatorAddress = function(creator) {
     const hasPlz = creator.lieferadresse_plz && creator.lieferadresse_plz.trim() !== '';
     const hasStadt = creator.lieferadresse_stadt && creator.lieferadresse_stadt.trim() !== '';
     return hasStrasse && hasPlz && hasStadt;
+};
+
+
+VertraegeCreate.prototype.hasValidAgencyAddress = function(agentur = this.formData) {
+    if (!agentur) return false;
+    const hasStrasse = agentur.influencer_agentur_strasse && agentur.influencer_agentur_strasse.trim() !== '';
+    const hasPlz = agentur.influencer_agentur_plz && agentur.influencer_agentur_plz.trim() !== '';
+    const hasStadt = agentur.influencer_agentur_stadt && agentur.influencer_agentur_stadt.trim() !== '';
+    return !!agentur.influencer_agentur_vertreten && hasStrasse && hasPlz && hasStadt;
+};
+
+
+VertraegeCreate.prototype.getResolvedCreatorContractAddress = function(creator, agentur = this.formData) {
+    if (this.hasValidCreatorAddress(creator)) {
+      return {
+        source: 'creator',
+        strasse: creator.lieferadresse_strasse || '',
+        hausnummer: creator.lieferadresse_hausnummer || '',
+        plz: creator.lieferadresse_plz || '',
+        stadt: creator.lieferadresse_stadt || '',
+        land: creator.lieferadresse_land || 'Deutschland'
+      };
+    }
+
+    if (this.hasValidAgencyAddress(agentur)) {
+      return {
+        source: 'agentur',
+        name: agentur.influencer_agentur_name || '',
+        strasse: agentur.influencer_agentur_strasse || '',
+        hausnummer: agentur.influencer_agentur_hausnummer || '',
+        plz: agentur.influencer_agentur_plz || '',
+        stadt: agentur.influencer_agentur_stadt || '',
+        land: agentur.influencer_agentur_land || 'Deutschland'
+      };
+    }
+
+    return null;
+};
+
+
+VertraegeCreate.prototype.renderCreatorAddressPreview = function(creator) {
+    const resolved = this.getResolvedCreatorContractAddress(creator);
+
+    if (!creator) return '';
+
+    if (!resolved) {
+      this.creatorAddressMissing = true;
+      return `
+        <div class="address-warning">
+          <span>Keine Creator-Adresse und keine gültige Agentur-Adresse hinterlegt. Vertragserstellung nicht möglich.</span><br>
+          <a href="/creator/${escapeHtml(creator.id)}" onclick="event.preventDefault(); window.navigateTo('/creator/${escapeHtml(creator.id)}')">
+            Zum Creator-Profil
+          </a>
+        </div>
+      `;
+    }
+
+    this.creatorAddressMissing = resolved.source !== 'creator';
+
+    if (resolved.source === 'agentur') {
+      return `
+        <div class="contract-address-fallback">
+          <div class="contract-address-fallback__title">Creator hat keine eigene Adresse. Für den Vertrag wird die Agentur-Adresse verwendet.</div>
+          <small class="address-text">
+            ${resolved.name ? `${escapeHtml(resolved.name)}<br>` : ''}
+            ${escapeHtml(resolved.strasse)} ${escapeHtml(resolved.hausnummer)}<br>
+            ${escapeHtml(resolved.plz)} ${escapeHtml(resolved.stadt)}<br>
+            ${escapeHtml(resolved.land)}
+          </small>
+        </div>
+      `;
+    }
+
+    return `
+      <small class="address-text">
+        ${escapeHtml(resolved.strasse)} ${escapeHtml(resolved.hausnummer)}<br>
+        ${escapeHtml(resolved.plz)} ${escapeHtml(resolved.stadt)}<br>
+        ${escapeHtml(resolved.land)}
+      </small>
+    `;
+};
+
+
+VertraegeCreate.prototype.updateCreatorAddressPreview = function(creator) {
+    const preview = document.getElementById('creator-adresse');
+    if (!preview) return;
+    preview.innerHTML = this.renderCreatorAddressPreview(creator);
 };
 

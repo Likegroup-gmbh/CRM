@@ -22,6 +22,16 @@ export const BUDGET_FIELD_SUFFIXES = [
   'budget_info'
 ];
 
+export const COUNT_FIELD_SUFFIXES = [
+  'video_anzahl',
+  'creator_anzahl'
+];
+
+export const CAMPAIGN_FIELD_SUFFIXES = [
+  ...COUNT_FIELD_SUFFIXES,
+  ...BUDGET_FIELD_SUFFIXES
+];
+
 function escapeHtml(v) {
   if (v == null) return '';
   return String(v)
@@ -48,6 +58,8 @@ export function getChipPrefix(chipValue) {
 export function generateBudgetBlockHtml(chipValue, chipLabel, values = {}) {
   const v = values || {};
   const ids = {
+    videos: domId(chipValue, 'video_anzahl'),
+    creators: domId(chipValue, 'creator_anzahl'),
     ek_von: domId(chipValue, 'einkaufspreis_netto_von'),
     ek_bis: domId(chipValue, 'einkaufspreis_netto_bis'),
     vk_von: domId(chipValue, 'verkaufspreis_netto_von'),
@@ -58,6 +70,18 @@ export function generateBudgetBlockHtml(chipValue, chipLabel, values = {}) {
   return `
     <fieldset class="kampagnenart-fields form-section-fieldset" data-chip="${chipValue}">
       <legend>${escapeHtml(chipLabel)}</legend>
+      <div class="form-two-col">
+        <div class="form-field form-field--half">
+          <label for="${ids.videos}">Video-Anzahl</label>
+          <input type="number" id="${ids.videos}" data-chip="${chipValue}" data-suffix="video_anzahl"
+                 min="0" step="1" value="${v.video_anzahl ?? ''}" placeholder="z.B. 5">
+        </div>
+        <div class="form-field form-field--half">
+          <label for="${ids.creators}">Creator-Anzahl</label>
+          <input type="number" id="${ids.creators}" data-chip="${chipValue}" data-suffix="creator_anzahl"
+                 min="0" step="1" value="${v.creator_anzahl ?? ''}" placeholder="z.B. 3">
+        </div>
+      </div>
       <div class="form-two-col">
         <div class="form-field form-field--half">
           <label>Einkaufspreis (Netto)</label>
@@ -102,7 +126,7 @@ function parseNum(value) {
  */
 export function readBudgetValuesFromDom(chipValue) {
   const result = {};
-  BUDGET_FIELD_SUFFIXES.forEach(suffix => {
+  CAMPAIGN_FIELD_SUFFIXES.forEach(suffix => {
     const el = document.getElementById(domId(chipValue, suffix));
     if (!el) {
       result[suffix] = null;
@@ -130,7 +154,7 @@ export function mapBudgetsToDbColumns(campaignBudgets = {}, activeChips = []) {
   Object.entries(CHIP_PREFIX_MAP).forEach(([chipValue, prefix]) => {
     const isActive = active.has(chipValue);
     const values = (isActive && campaignBudgets[chipValue]) || {};
-    BUDGET_FIELD_SUFFIXES.forEach(suffix => {
+    CAMPAIGN_FIELD_SUFFIXES.forEach(suffix => {
       const col = `${prefix}_${suffix}`;
       if (!isActive) {
         payload[col] = suffix === 'budget_info' ? null : null;
@@ -159,7 +183,7 @@ export function mapDbColumnsToBudgets(detailsRow = {}, activeChips = null) {
     if (!prefix) return;
     const values = {};
     let hasAny = false;
-    BUDGET_FIELD_SUFFIXES.forEach(suffix => {
+    CAMPAIGN_FIELD_SUFFIXES.forEach(suffix => {
       const col = `${prefix}_${suffix}`;
       const raw = detailsRow[col];
       if (raw != null && raw !== '') {

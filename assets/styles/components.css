@@ -4763,6 +4763,16 @@ h3.section-title,
   border: 1px solid var(--border-primary);
 }
 
+.tag-based-select .tags-placeholder {
+  color: #6b7280;
+  font-style: italic;
+  font-size: 14px;
+}
+
+.tag-based-select .tags-container--empty {
+  background: #f3f4f6;
+}
+
 .tag-based-select .tag {
   background: var(--color-primary);
   color: var(--text-inverse);
@@ -12867,6 +12877,27 @@ table:has(#strategien-table-body) td.col-actions {
 .address-text {
   color: var(--text-secondary);
   line-height: 1.5;
+}
+
+.contract-address-fallback {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  background: var(--warning-100, #FEF3C7);
+  border: 1px solid var(--warning-300, #FCD34D);
+  border-radius: var(--radius-sm);
+  color: var(--warning-700, #B45309);
+}
+
+.contract-address-fallback__title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.contract-address-fallback .address-text {
+  color: inherit;
 }
 
 /* Form Grid Layouts */

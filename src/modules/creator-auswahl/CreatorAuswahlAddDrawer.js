@@ -98,16 +98,9 @@ export class CreatorAuswahlAddDrawer {
     const searchSection = isDatabaseMode ? `
       <div class="form-field sourcing-search-section">
         <label class="form-label">Creator suchen</label>
-        <div class="auto-suggest-container">
-          <input
-            type="text"
-            id="db-creator-search"
-            class="form-input"
-            placeholder="Name, Instagram oder TikTok eingeben..."
-            autocomplete="off"
-          />
-          <div id="db-creator-dropdown" class="dropdown-menu"></div>
-        </div>
+        <select id="db-creator-select" class="form-input">
+          <option value="">Name, Instagram oder TikTok eingeben...</option>
+        </select>
         <small class="form-hint">Suche nach bestehenden Creators in der Datenbank</small>
       </div>
       <input type="hidden" id="db-selected-creator-id" value="" />
@@ -199,15 +192,12 @@ export class CreatorAuswahlAddDrawer {
   }
 
   setupDbCreatorAutoSuggestion() {
-    const input = document.getElementById('db-creator-search');
-    const dropdown = document.getElementById('db-creator-dropdown');
+    const selectEl = document.getElementById('db-creator-select');
     const hiddenInput = document.getElementById('db-selected-creator-id');
     const infoDiv = document.getElementById('db-selected-info');
     const formFields = document.getElementById('add-creator-form-fields');
 
-    if (!input || !dropdown) return;
-
-    let debounceTimer;
+    if (!selectEl || !window.formSystem) return;
 
     const escapeHtml = (str) => {
       if (!str) return '';
@@ -216,31 +206,11 @@ export class CreatorAuswahlAddDrawer {
       return div.innerHTML;
     };
 
-    const renderDropdown = (items) => {
-      if (!items || items.length === 0) {
-        dropdown.innerHTML = '<div class="dropdown-item no-results">Keine Creator gefunden</div>';
-        dropdown.style.display = 'block';
-        return;
-      }
-
-      dropdown.innerHTML = items.map(creator => {
-        const name = `${creator.vorname || ''} ${creator.nachname || ''}`.trim() || 'Unbekannt';
-        const socials = [creator.instagram, creator.tiktok].filter(Boolean).join(', ') || 'Keine Social Media';
-        return `
-          <div class="dropdown-item" data-id="${creator.id}">
-            <div class="dropdown-item-title">${escapeHtml(name)}</div>
-            <div class="dropdown-item-subtitle">${escapeHtml(socials)}</div>
-          </div>
-        `;
-      }).join('');
-      dropdown.style.display = 'block';
-    };
-
     const loadCreators = async (query) => {
       try {
         let q = window.supabase
           .from('creator')
-          .select('id, vorname, nachname, instagram, tiktok, instagram_follower, tiktok_follower, lieferadresse_stadt')
+          .select('id, vorname, nachname, instagram, tiktok')
           .limit(20);
 
         if (query && query.length > 0) {
@@ -249,36 +219,28 @@ export class CreatorAuswahlAddDrawer {
 
         const { data, error } = await q;
         if (error) throw error;
-        return data || [];
+        return (data || []).map(c => {
+          const name = `${c.vorname || ''} ${c.nachname || ''}`.trim() || 'Unbekannt';
+          const socials = [c.instagram, c.tiktok].filter(Boolean).join(', ');
+          return {
+            value: c.id,
+            label: socials ? `${name} — ${socials}` : name
+          };
+        });
       } catch (error) {
         console.error('Fehler beim Laden der Creator:', error);
         return [];
       }
     };
 
-    input.addEventListener('focus', async () => {
-      const items = await loadCreators('');
-      renderDropdown(items);
+    window.formSystem.createSimpleSearchableSelect(selectEl, [], {
+      placeholder: 'Name, Instagram oder TikTok eingeben...',
+      serverSearch: loadCreators
     });
 
-    input.addEventListener('blur', () => {
-      setTimeout(() => { dropdown.style.display = 'none'; }, 200);
-    });
-
-    input.addEventListener('input', () => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(async () => {
-        const query = input.value.trim();
-        const items = await loadCreators(query);
-        renderDropdown(items);
-      }, 250);
-    });
-
-    dropdown.addEventListener('click', async (e) => {
-      const item = e.target.closest('.dropdown-item[data-id]');
-      if (!item) return;
-
-      const creatorId = item.dataset.id;
+    selectEl.addEventListener('change', async () => {
+      const creatorId = selectEl.value;
+      if (!creatorId) return;
 
       try {
         const { data: creator, error } = await window.supabase
@@ -292,6 +254,9 @@ export class CreatorAuswahlAddDrawer {
         this.selectedCreatorFromDb = creator;
         hiddenInput.value = creatorId;
 
+        const ssContainer = selectEl.parentNode.querySelector('.searchable-select-container');
+        if (ssContainer) ssContainer.style.display = 'none';
+
         const name = `${creator.vorname || ''} ${creator.nachname || ''}`.trim();
         infoDiv.innerHTML = `
           <div class="tag tag-selected-creator">
@@ -300,7 +265,6 @@ export class CreatorAuswahlAddDrawer {
           </div>
         `;
         infoDiv.style.display = 'block';
-        input.style.display = 'none';
 
         formFields.style.display = 'block';
         this.fillFormFromDbCreator(creator);
@@ -309,9 +273,11 @@ export class CreatorAuswahlAddDrawer {
           this.selectedCreatorFromDb = null;
           hiddenInput.value = '';
           infoDiv.style.display = 'none';
-          input.style.display = 'block';
-          input.value = '';
+          if (ssContainer) ssContainer.style.display = '';
           formFields.style.display = 'none';
+          selectEl.value = '';
+          const ssInput = ssContainer?.querySelector('.searchable-select-input');
+          if (ssInput) ssInput.value = '';
         });
 
       } catch (error) {

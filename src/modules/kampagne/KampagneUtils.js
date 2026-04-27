@@ -302,8 +302,11 @@ export class KampagneUtils {
     }
     
     const artMap = {
+      'ugc_paid': 'UGC Paid',
+      'ugc_organic': 'UGC Organic',
       'influencer': 'Influencer Kampagne',
-      'vor_ort_produktion': 'Vor Ort Produktionen',
+      'vor_ort_produktion': 'Vor-Ort-Produktion',
+      'story': 'Story',
       'ugc_pro_paid': 'UGC Pro Paid',
       'ugc_pro_organic': 'UGC Pro Organic',
       'ugc_video_paid': 'UGC Video Paid',
@@ -464,6 +467,41 @@ export class KampagneUtils {
       isValid: Object.keys(errors).length === 0,
       errors
     };
+  }
+
+  // Berechne Gesamt-Videoanzahl einer Kampagne (nur neue Subfield-Spalten)
+  static getKampagneTotalVideosSimple(k) {
+    const subfieldsSum =
+      (parseInt(k.ugc_paid_video_anzahl, 10) || 0) +
+      (parseInt(k.ugc_organic_video_anzahl, 10) || 0) +
+      (parseInt(k.ugc_pro_paid_video_anzahl, 10) || 0) +
+      (parseInt(k.ugc_pro_organic_video_anzahl, 10) || 0) +
+      (parseInt(k.ugc_video_paid_video_anzahl, 10) || 0) +
+      (parseInt(k.ugc_video_organic_video_anzahl, 10) || 0) +
+      (parseInt(k.influencer_video_anzahl, 10) || 0) +
+      (parseInt(k.story_video_anzahl, 10) || 0) +
+      (parseInt(k.vor_ort_video_anzahl, 10) || 0);
+    return subfieldsSum || (k.videoanzahl ?? 0);
+  }
+
+  // Berechne Gesamt-Videoanzahl einer Kampagne (mit Legacy-Spalten-Fallback)
+  static getKampagneTotalVideosFull(k) {
+    const newSum =
+      (parseInt(k.ugc_paid_video_anzahl, 10) || 0) +
+      (parseInt(k.ugc_organic_video_anzahl, 10) || 0) +
+      (parseInt(k.ugc_pro_paid_video_anzahl, 10) || 0) +
+      (parseInt(k.ugc_pro_organic_video_anzahl, 10) || 0) +
+      (parseInt(k.ugc_video_paid_video_anzahl, 10) || 0) +
+      (parseInt(k.ugc_video_organic_video_anzahl, 10) || 0) +
+      (parseInt(k.influencer_video_anzahl, 10) || 0) +
+      (parseInt(k.story_video_anzahl, 10) || 0) +
+      (parseInt(k.vor_ort_video_anzahl, 10) || 0);
+    const legacySum =
+      (parseInt(k.ugc_video_anzahl, 10) || 0) +
+      (parseInt(k.igc_video_anzahl, 10) || 0) +
+      (parseInt(k.influencer_video_anzahl, 10) || 0) +
+      (parseInt(k.vor_ort_video_anzahl, 10) || 0);
+    return newSum || legacySum || (k.videoanzahl ?? 0);
   }
 
   // Erstelle Kampagnen-Summary

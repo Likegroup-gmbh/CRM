@@ -1,4 +1,9 @@
 import { checkAuftragBudgetStatus } from '../auftrag/logic/AuftragStatusUtils.js';
+import {
+  getVideoFeedbackSlotByField,
+  replaceVideoFeedbackBucket,
+  VIDEO_FEEDBACK_SELECT
+} from '../../core/VideoFeedbackBuckets.js';
 
 export class VideoTableFieldHandler {
   constructor(table) {
@@ -86,12 +91,12 @@ export class VideoTableFieldHandler {
           console.log('✅ Versand-Info aktualisiert');
         }
       } 
-      else if (entity === 'video' && (fieldName === 'feedback_creatorjobs' || fieldName === 'feedback_ritzenhoff')) {
-        const runde = fieldName === 'feedback_creatorjobs' ? 1 : 2;
+      else if (entity === 'video' && getVideoFeedbackSlotByField(fieldName)) {
+        const slot = getVideoFeedbackSlotByField(fieldName);
         const videoId = id;
         const commentsSource = store ? store.videoComments : t.videoComments;
         
-        const existingComments = commentsSource[videoId]?.[runde === 1 ? 'r1' : 'r2'] || [];
+        const existingComments = commentsSource[videoId]?.[slot.bucket] || [];
         if (existingComments.length > 0) {
           const commentIds = existingComments.map(c => c.id);
           await window.supabase
@@ -108,39 +113,34 @@ export class VideoTableFieldHandler {
             .from('kooperation_video_comment')
             .insert({
               video_id: videoId,
-              runde: runde,
+              runde: slot.runde,
+              feedback_typ: slot.feedback_typ,
               text: value.trim(),
               author_benutzer_id: currentUser?.id || null,
               author_name: authorName,
               is_public: true
             })
-            .select('id, video_id, text, runde, author_name, created_at')
+            .select(VIDEO_FEEDBACK_SELECT)
             .single();
 
           if (error) throw error;
           
-          const r1 = runde === 1 ? [data] : (commentsSource[videoId]?.r1 || []);
-          const r2 = runde === 2 ? [data] : (commentsSource[videoId]?.r2 || []);
+          const nextComments = replaceVideoFeedbackBucket(commentsSource[videoId], slot.bucket, [data]);
           if (store) {
-            store.updateVideoComments(videoId, r1, r2);
+            store.updateVideoComments(videoId, nextComments);
           } else {
-            if (!t.videoComments[videoId]) t.videoComments[videoId] = { r1: [], r2: [] };
-            if (runde === 1) t.videoComments[videoId].r1 = [data];
-            else t.videoComments[videoId].r2 = [data];
+            t.videoComments[videoId] = nextComments;
           }
           
-          console.log(`✅ Feedback Runde ${runde} gespeichert als Kommentar von ${authorName}`);
+          console.log(`✅ ${slot.label} gespeichert als Kommentar von ${authorName}`);
         } else {
-          const r1 = runde === 1 ? [] : (commentsSource[videoId]?.r1 || []);
-          const r2 = runde === 2 ? [] : (commentsSource[videoId]?.r2 || []);
+          const nextComments = replaceVideoFeedbackBucket(commentsSource[videoId], slot.bucket, []);
           if (store) {
-            store.updateVideoComments(videoId, r1, r2);
+            store.updateVideoComments(videoId, nextComments);
           } else {
-            if (!t.videoComments[videoId]) t.videoComments[videoId] = { r1: [], r2: [] };
-            if (runde === 1) t.videoComments[videoId].r1 = [];
-            else t.videoComments[videoId].r2 = [];
+            t.videoComments[videoId] = nextComments;
           }
-          console.log(`✅ Feedback Runde ${runde} gelöscht`);
+          console.log(`✅ ${slot.label} gelöscht`);
         }
       } 
       else {

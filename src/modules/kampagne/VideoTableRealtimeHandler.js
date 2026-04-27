@@ -2,6 +2,15 @@
 // Realtime-Subscriptions und Live-DOM-Updates fuer die Kampagnen-Video-Tabelle
 
 import { checkAuftragBudgetStatus } from '../auftrag/logic/AuftragStatusUtils.js';
+import {
+  formatVideoFeedbackValue,
+  getVideoFeedbackSlotByField,
+  groupVideoFeedbackComments,
+  isMissingFeedbackTypeError,
+  VIDEO_FEEDBACK_FIELDS,
+  VIDEO_FEEDBACK_LEGACY_SELECT,
+  VIDEO_FEEDBACK_SELECT
+} from '../../core/VideoFeedbackBuckets.js';
 
 export class VideoTableRealtimeHandler {
   constructor(table) {
@@ -213,45 +222,48 @@ export class VideoTableRealtimeHandler {
 
     const videoId = comment.video_id;
 
-    const { data: comments } = await window.supabase
+    let { data: comments, error } = await window.supabase
       .from('kooperation_video_comment')
-      .select('id, video_id, text, runde, author_name, created_at')
+      .select(VIDEO_FEEDBACK_SELECT)
       .eq('video_id', videoId)
       .is('deleted_at', null)
       .order('created_at', { ascending: true });
 
-    const r1 = (comments || []).filter(c => c.runde === 1);
-    const r2 = (comments || []).filter(c => c.runde === 2);
+    if (error && isMissingFeedbackTypeError(error)) {
+      const legacyResult = await window.supabase
+        .from('kooperation_video_comment')
+        .select(VIDEO_FEEDBACK_LEGACY_SELECT)
+        .eq('video_id', videoId)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: true });
+      comments = legacyResult.data || [];
+      error = legacyResult.error;
+    }
+
+    if (error) {
+      console.warn('Realtime-Kommentare konnten nicht geladen werden:', error);
+      return;
+    }
+
+    const groupedComments = groupVideoFeedbackComments(comments);
 
     if (this.table.store) {
-      this.table.store.updateVideoComments(videoId, r1, r2);
+      this.table.store.updateVideoComments(videoId, groupedComments);
     } else {
-      if (!this.table.videoComments[videoId]) {
-        this.table.videoComments[videoId] = { r1: [], r2: [] };
-      }
-      this.table.videoComments[videoId].r1 = r1;
-      this.table.videoComments[videoId].r2 = r2;
+      this.table.videoComments[videoId] = groupedComments;
     }
 
     this.updateVideoFeedbackFields(videoId);
   }
 
   updateVideoFeedbackFields(videoId) {
-    const feedbackCJ = document.querySelector(`[data-entity="video"][data-id="${videoId}"][data-field="feedback_creatorjobs"]`);
-    if (feedbackCJ) {
-      const r1 = this.table.videoComments[videoId]?.r1 || [];
-      feedbackCJ.value = r1.length > 0 ? r1.map(c => c.text).join('\n\n---\n\n') : '';
-      feedbackCJ.classList.add('field-updated');
-      setTimeout(() => feedbackCJ.classList.remove('field-updated'), 2000);
-    }
-
-    const feedbackRH = document.querySelector(`[data-entity="video"][data-id="${videoId}"][data-field="feedback_ritzenhoff"]`);
-    if (feedbackRH) {
-      const r2 = this.table.videoComments[videoId]?.r2 || [];
-      feedbackRH.value = r2.length > 0 ? r2.map(c => c.text).join('\n\n---\n\n') : '';
-      feedbackRH.classList.add('field-updated');
-      setTimeout(() => feedbackRH.classList.remove('field-updated'), 2000);
-    }
+    VIDEO_FEEDBACK_FIELDS.forEach(slot => {
+      const field = document.querySelector(`[data-entity="video"][data-id="${videoId}"][data-field="${slot.field}"]`);
+      if (!field) return;
+      field.value = formatVideoFeedbackValue(this.table.videoComments[videoId], slot.bucket);
+      field.classList.add('field-updated');
+      setTimeout(() => field.classList.remove('field-updated'), 2000);
+    });
   }
 
   async updateVideoRow(videoId) {
@@ -270,21 +282,13 @@ export class VideoTableRealtimeHandler {
 
     fields.forEach(field => {
       const fieldName = field.getAttribute('data-field');
+      const feedbackSlot = getVideoFeedbackSlotByField(fieldName);
       let shouldUpdate = false;
 
-      switch (fieldName) {
-        case 'feedback_creatorjobs': {
-          const r1 = this.table.videoComments[videoId]?.r1 || [];
-          const val = r1.length > 0 ? r1.map(c => c.text).join('\n\n---\n\n') : '';
-          if (field.value !== val) { field.value = val; shouldUpdate = true; }
-          break;
-        }
-        case 'feedback_ritzenhoff': {
-          const r2 = this.table.videoComments[videoId]?.r2 || [];
-          const val = r2.length > 0 ? r2.map(c => c.text).join('\n\n---\n\n') : '';
-          if (field.value !== val) { field.value = val; shouldUpdate = true; }
-          break;
-        }
+      if (feedbackSlot) {
+        const val = formatVideoFeedbackValue(this.table.videoComments[videoId], feedbackSlot.bucket);
+        if (field.value !== val) { field.value = val; shouldUpdate = true; }
+      } else switch (fieldName) {
         case 'freigabe': {
           const v = video.freigabe || false;
           if (field.checked !== v) {

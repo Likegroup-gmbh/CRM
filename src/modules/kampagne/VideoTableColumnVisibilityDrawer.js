@@ -1,6 +1,8 @@
 // VideoTableColumnVisibilityDrawer.js (ES6-Modul)
 // Drawer zur Verwaltung der Spalten-Sichtbarkeit für Kunden in der Video-Tabelle
 
+import { VIDEO_FEEDBACK_FIELDS } from '../../core/VideoFeedbackBuckets.js';
+
 export class VideoTableColumnVisibilityDrawer {
   constructor(kampagneId) {
     this.kampagneId = kampagneId;
@@ -33,8 +35,7 @@ export class VideoTableColumnVisibilityDrawer {
       { className: 'col-link-skript', label: 'Link Skript / Briefing' },
       { className: 'col-skript-freigegeben', label: 'Skript freigegeben' },
       { className: 'col-link-content', label: 'Link Content' },
-      { className: 'col-feedback-cj', label: 'Feedback CJ' },
-      { className: 'col-feedback-kunde', label: 'Feedback Kunde' },
+      ...VIDEO_FEEDBACK_FIELDS.map(slot => ({ className: slot.colClass, label: slot.label })),
       { className: 'col-freigabe', label: 'Freigabe' },
       { className: 'col-caption', label: 'Caption' },
       { className: 'col-posting-datum', label: 'Posting Datum' }

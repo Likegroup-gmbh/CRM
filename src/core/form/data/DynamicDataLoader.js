@@ -21,13 +21,13 @@ import {
   disableFieldWithMessage
 } from './PrefillHandler.js';
 
-// VERSION MARKER: v2024-01-05-phone-fix-v3 (prefix debug)
-console.log('🚀🚀🚀 DynamicDataLoader LOADED - Phone Fix v3 (prefix debug) 🚀🚀🚀');
-
 export class DynamicDataLoader {
-  constructor() {
+  constructor({ getFormConfig, createSearchableSelect, reinitializeSearchableSelect } = {}) {
     this.dataService = window.dataService;
     this.cache = staticDataCache;
+    this.getFormConfig = getFormConfig || (() => null);
+    this.createSearchableSelect = createSearchableSelect || (() => {});
+    this.reinitializeSearchableSelect = reinitializeSearchableSelect || (() => {});
   }
 
   setDataService(dataService) {
@@ -52,9 +52,7 @@ export class DynamicDataLoader {
       loadPromises.push(this.loadPhoneFieldCountries(form));
       loadPromises.push(this.loadCountryFieldCountries(form));
 
-      console.log(`🚀 Lade ${loadPromises.length} Felder parallel...`);
       await Promise.all(loadPromises);
-      console.log(`✅ Alle ${loadPromises.length} Felder geladen`);
     } catch (error) {
       console.error('❌ Fehler beim Laden der dynamischen Formulardaten:', error);
     }
@@ -66,11 +64,8 @@ export class DynamicDataLoader {
       const phoneCountrySelects = form.querySelectorAll('select[data-phone-field="true"]');
 
       if (phoneCountrySelects.length === 0) {
-        console.log('🔧 Keine Phone-Country-Selects gefunden');
         return;
       }
-
-      console.log(`🔧 Lade Länder für ${phoneCountrySelects.length} Phone-Fields`);
 
       const countries = await this.cache.get('eu_laender', '*', 'sort_order');
 
@@ -78,8 +73,6 @@ export class DynamicDataLoader {
         console.error('❌ Keine EU-Länder geladen');
         return;
       }
-
-      console.log(`✅ ${countries.length} EU-Länder geladen (aus Cache)`);
 
       phoneCountrySelects.forEach(select => {
         while (select.options.length > 1) {
@@ -114,11 +107,9 @@ export class DynamicDataLoader {
               if (savedCountryOption) {
                 savedCountryOption.selected = true;
                 select.value = savedCountryId;
-                console.log(`📱 Edit-Modus: Land vorausgewählt für ${countryFieldName}:`, savedCountryOption.textContent);
               }
             }
           } catch (e) {
-            console.warn('⚠️ Fehler beim Setzen des gespeicherten Landes:', e);
           }
         } else if (!select.value) {
           const deutschlandOption = Array.from(select.options).find(opt =>
@@ -138,25 +129,16 @@ export class DynamicDataLoader {
           selected: option.selected || option.value === select.value
         }));
 
-        console.log(`📱 PHONE-FIELD: Optionen erstellt mit selected:`, options.filter(o => o.selected).map(o => o.label));
-
         if (this.createSearchableSelect) {
-          console.log(`📱 PHONE-FIELD: Initialisiere Searchable Select für ${select.name} mit ${options.length} Optionen`);
-          console.log(`📱 PHONE-FIELD: select.value vor createSearchableSelect: "${select.value}"`);
-
           this.createSearchableSelect(select, options, {
             placeholder: select.dataset.placeholder || 'Land wählen...',
             type: 'phone'
           });
 
-          console.log(`📱 PHONE-FIELD: select.value nach createSearchableSelect: "${select.value}"`);
-
           if (select.value) {
             const selectedOption = options.find(opt => opt.value === select.value);
-            console.log(`📱 PHONE-FIELD: selectedOption gefunden: `, selectedOption);
             if (selectedOption) {
               const container = select.nextElementSibling;
-              console.log(`📱 PHONE-FIELD: container gefunden: `, container?.className);
               if (container && container.classList.contains('searchable-select-container')) {
                 const input = container.querySelector('input');
                 if (input) {
@@ -167,27 +149,20 @@ export class DynamicDataLoader {
                 const flagIcon = container.querySelector('.phone-flag-icon');
                 if (flagIcon && selectedOption.isoCode) {
                   flagIcon.className = `phone-flag-icon fi fi-${selectedOption.isoCode.toLowerCase()}`;
-                  console.log(`🚩 Initial Flagge gesetzt: fi-${selectedOption.isoCode.toLowerCase()}`);
                 }
 
                 const phoneType = select.dataset.phoneType || 'mobile';
-                console.log(`📱 PHONE-FIELD: phoneType=${phoneType}, container.parentElement=`, container.parentElement?.className);
 
                 const phoneNumberField = container.closest('.phone-number-field');
-                console.log(`📱 PHONE-FIELD: phoneNumberField gefunden:`, phoneNumberField?.className);
 
                 const phoneWrapper = phoneNumberField?.querySelector('.phone-input-wrapper');
-                console.log(`📱 PHONE-FIELD: phoneWrapper gefunden:`, phoneWrapper?.className);
 
                 if (phoneWrapper && selectedOption.vorwahl) {
                   const prefixSpan = phoneWrapper.querySelector('.phone-prefix');
                   const phoneInput = phoneWrapper.querySelector('.phone-number-input');
 
-                  console.log(`📱 PHONE-FIELD: prefixSpan gefunden:`, !!prefixSpan, 'phoneInput gefunden:', !!phoneInput);
-
                   if (prefixSpan && phoneInput) {
                     const prefix = this.getPhonePrefix(phoneType, selectedOption.isoCode, selectedOption.vorwahl);
-                    console.log(`📱 PHONE-FIELD: Setze Prefix "${prefix}" für ${select.name}`);
 
                     prefixSpan.textContent = prefix;
                     prefixSpan.style.display = 'inline-block';
@@ -201,12 +176,7 @@ export class DynamicDataLoader {
 
                     phoneInput.dataset.vorwahl = selectedOption.vorwahl;
                     phoneInput.dataset.phoneType = phoneType;
-                    console.log(`📱 ✅ Initiale Vorwahl im Span gesetzt: ${prefix} (phoneType: ${phoneType})`);
-                  } else {
-                    console.log(`📱 ❌ prefixSpan oder phoneInput nicht gefunden!`);
                   }
-                } else {
-                  console.log(`📱 ❌ phoneWrapper nicht gefunden oder keine Vorwahl!`, { phoneWrapper: !!phoneWrapper, vorwahl: selectedOption.vorwahl });
                 }
               }
             }
@@ -222,7 +192,6 @@ export class DynamicDataLoader {
                 const flagIcon = container.querySelector('.phone-flag-icon');
                 if (flagIcon && selectedOption.isoCode) {
                   flagIcon.className = `phone-flag-icon fi fi-${selectedOption.isoCode.toLowerCase()}`;
-                  console.log(`🚩 Flagge geändert zu: fi-${selectedOption.isoCode.toLowerCase()}`);
                 }
 
                 const phoneType = select.dataset.phoneType || 'mobile';
@@ -246,7 +215,6 @@ export class DynamicDataLoader {
                     }
 
                     phoneInput.dataset.vorwahl = selectedOption.vorwahl;
-                    console.log(`📱 Prefix im Span gesetzt: ${prefix} (phoneType: ${phoneType}, Land: ${selectedOption.isoCode})`);
                   }
                 }
               }
@@ -284,16 +252,12 @@ export class DynamicDataLoader {
         return;
       }
 
-      console.log(`🌍 Lade Länder für ${countrySelects.length} Country-Fields`);
-
       const countries = await this.cache.get('eu_laender', '*', 'sort_order');
 
       if (!countries || countries.length === 0) {
         console.error('❌ Keine Länder geladen für Country-Fields');
         return;
       }
-
-      console.log(`✅ ${countries.length} Länder geladen für Country-Fields (aus Cache)`);
 
       countrySelects.forEach(select => {
         while (select.options.length > 1) {
@@ -320,11 +284,9 @@ export class DynamicDataLoader {
               if (savedOption) {
                 savedOption.selected = true;
                 select.value = savedCountryId;
-                console.log(`🌍 Edit-Modus: Land vorausgewählt für ${select.name}:`, savedOption.textContent);
               }
             }
           } catch (e) {
-            console.warn('⚠️ Fehler beim Setzen des gespeicherten Country-Feldes:', e);
           }
         } else if (!select.value) {
           const deutschlandOption = Array.from(select.options).find(opt => opt.dataset.isoCode === 'de');
@@ -355,8 +317,6 @@ export class DynamicDataLoader {
 
   // Select-Optionen aktualisieren (Fill + selected setzen + Searchable reinit)
   updateSelectOptions(selectElement, options, field) {
-    console.log('🔧 Update Select-Optionen für:', field.name, 'mit', options.length, 'Optionen');
-
     selectElement.innerHTML = '';
 
     const placeholder = document.createElement('option');
@@ -370,9 +330,6 @@ export class DynamicDataLoader {
       try {
         const editData = JSON.parse(form.dataset.editModeData);
         editModeValue = editData[field.name];
-        if (editModeValue) {
-          console.log(`🎯 DYNAMICDATALOADER: Edit-Mode Wert für statisches Feld ${field.name}:`, editModeValue);
-        }
       } catch (e) {
         // ignore
       }
@@ -389,96 +346,22 @@ export class DynamicDataLoader {
       if (option.selected || (editModeValue && option.value === editModeValue) || (defaultValue && option.value === String(defaultValue))) {
         optionElement.selected = true;
         option.selected = true;
-        if (editModeValue && option.value === editModeValue) {
-          console.log(`✅ DYNAMICDATALOADER: Statisches Feld ${field.name} vorausgewählt:`, editModeValue);
-        } else if (defaultValue && option.value === String(defaultValue)) {
-          console.log(`✅ DYNAMICDATALOADER: Default-Wert für ${field.name} gesetzt:`, defaultValue);
-        }
       }
       selectElement.appendChild(optionElement);
     });
 
     if (selectElement.dataset.searchable === 'true') {
-      console.log('🔧 Reinitialisiere Auto-Suggestion für:', field.name);
       const normalized = options.map(o => ({
         value: o.value,
         label: o.label,
         selected: o.selected || false
       }));
 
-      const selectedOptions = normalized.filter(o => o.selected);
-      if (selectedOptions.length > 0) {
-        console.log('🎯 DYNAMICDATALOADER: Übergebe selected Optionen an reinitializeSearchableSelect:', selectedOptions.map(o => o.label));
-      }
-
       this.reinitializeSearchableSelect(selectElement, normalized, field);
       return;
     }
   }
 
-  // Searchable Select reinitialisieren (Container aktualisieren oder neu erstellen)
-  reinitializeSearchableSelect(selectElement, options, field) {
-    console.log('🔧 Reinitialisiere Searchable Select für:', field.name, 'mit', options.length, 'Optionen');
-
-    if (selectElement.dataset.tagBased === 'true' && field.tagBased) {
-      console.log('🏷️ DYNAMICDATALOADER: Tag-basiertes Multi-Select erkannt:', field.name);
-
-      if (window.formSystem?.optionsManager?.createTagBasedSelect) {
-        window.formSystem.optionsManager.createTagBasedSelect(selectElement, options, field);
-        console.log('✅ DYNAMICDATALOADER: Tag-basiertes Multi-Select reinitialisiert für:', field.name);
-        return;
-      } else {
-        console.warn('⚠️ DYNAMICDATALOADER: OptionsManager nicht verfügbar für:', field.name);
-      }
-    }
-
-    const existingContainer = selectElement.nextElementSibling;
-    if (existingContainer && existingContainer.classList.contains('searchable-select-container')) {
-      console.log('🔄 Aktualisiere bestehenden Searchable Select Container für:', field.name);
-
-      const dropdown = existingContainer.querySelector('.searchable-select-dropdown');
-      if (dropdown && this.updateDropdownItems) {
-        this.updateDropdownItems(dropdown, options, '');
-        console.log('✅ Dropdown Items aktualisiert für:', field.name);
-      }
-
-      const input = existingContainer.querySelector('.searchable-select-input');
-      if (input) {
-        input.disabled = false;
-        input.placeholder = field.placeholder || 'Suchen...';
-        input.readOnly = false;
-        console.log('✅ Input-Feld aktiviert für:', field.name);
-      }
-
-      return;
-    }
-
-    const oldContainer = selectElement.parentNode.querySelector('.searchable-select-container');
-    if (oldContainer && oldContainer !== existingContainer) {
-      oldContainer.remove();
-    }
-
-    selectElement.style.display = 'none';
-
-    this.createSearchableSelect(selectElement, options, field);
-  }
-
-  // Dropdown-Items aktualisieren (wird von OptionsManager injiziert)
-  updateDropdownItems(dropdown, options, filterText) {
-    if (window.formSystem?.optionsManager?.updateDropdownItems) {
-      window.formSystem.optionsManager.updateDropdownItems(dropdown, options, filterText);
-    }
-  }
-
-  // Searchable Select erstellen (wird von außen injiziert via FormSystem)
-  createSearchableSelect(selectElement, options, field) {
-    console.log('🔧 Searchable Select erstellen für:', field.name);
-  }
-
-  // Konfiguration abrufen (wird von außen injiziert via FormSystem)
-  getFormConfig(entity) {
-    return null;
-  }
 
   // ===== Delegationen an ausgelagerte Module =====
 

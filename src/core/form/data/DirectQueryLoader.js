@@ -13,7 +13,6 @@ import {
 export async function loadDirectQueryOptions(field, form) {
   try {
     if (!field.table) {
-      console.warn('⚠️ Keine Tabelle für direktes Laden definiert:', field.name);
       return [];
     }
 
@@ -42,7 +41,6 @@ export async function loadDirectQueryOptions(field, form) {
     }
     else if (staticTables.includes(field.table) && !field.filter) {
       data = await this.cache.get(field.table, '*', 'sort_order');
-      console.log(`📦 ${field.table} aus Cache geladen (${data.length} Einträge)`);
     }
     else if (field.table === 'marke') {
       data = await loadMarkenWithAccessFilter(field);
@@ -95,18 +93,8 @@ export async function loadDirectQueryOptions(field, form) {
 
         if (deutschlandOption) {
           deutschlandOption.selected = true;
-          console.log(`✅ DYNAMICDATALOADER: Deutschland als Standard für ${field.name} ausgewählt`);
         }
       }
-    }
-
-    if (field.name === 'branche_id') {
-      const selectedOptions = options.filter(o => o.selected);
-      console.log('🎯 DYNAMICDATALOADER: Final branche_id Optionen:', {
-        total: options.length,
-        selected: selectedOptions.length,
-        selectedValues: selectedOptions.map(o => ({ value: o.value, label: o.label }))
-      });
     }
 
     return options;
@@ -127,19 +115,14 @@ async function loadFilteredByParent(field, form) {
       const editModeData = JSON.parse(form.dataset.editModeData || '{}');
       parentValue = editModeData[field.filterBy];
       if (parentValue) {
-        console.log(`🔧 ${field.name}: Parent-Wert aus editModeData: ${field.filterBy}=${parentValue}`);
       }
     } catch (e) {
-      console.warn('⚠️ Fehler beim Parsen von editModeData:', e);
     }
   }
 
   if (!parentValue) {
-    console.log(`⏸️ ${field.name}: Kein ${field.filterBy} ausgewählt - zeige leere Optionen`);
     return null;
   }
-
-  console.log(`🔍 ${field.name}: Filtere nach ${field.filterBy} = ${parentValue}`);
 
   let filteredQuery = window.supabase
     .from(field.table)
@@ -159,7 +142,6 @@ async function loadFilteredByParent(field, form) {
   }
 
   const data = filteredData || [];
-  console.log(`✅ ${data.length} ${field.table} geladen für ${field.filterBy}=${parentValue}`);
   return data;
 }
 
@@ -174,7 +156,6 @@ async function loadMarkenWithAccessFilter(field) {
 
   if (allowedMarkenIds !== null) {
     if (allowedMarkenIds.length === 0) {
-      console.log(`🔐 ${field.name}: Keine Marken-Zuordnungen für Mitarbeiter`);
       return [];
     }
     query = query.in('id', allowedMarkenIds);
@@ -183,7 +164,6 @@ async function loadMarkenWithAccessFilter(field) {
       console.error(`❌ Fehler beim Laden der Marken:`, result.error);
       return [];
     }
-    console.log(`🔐 ${field.name}: ${(result.data || []).length} erlaubte Marken geladen`);
     return result.data || [];
   }
 
@@ -206,7 +186,6 @@ async function loadUnternehmenWithAccessFilter(field) {
 
   if (allowedUnternehmenIds !== null) {
     if (allowedUnternehmenIds.length === 0) {
-      console.log(`🔐 ${field.name}: Keine Unternehmen-Zuordnungen für Mitarbeiter`);
       return [];
     }
     query = query.in('id', allowedUnternehmenIds);
@@ -215,7 +194,6 @@ async function loadUnternehmenWithAccessFilter(field) {
       console.error(`❌ Fehler beim Laden der Unternehmen:`, result.error);
       return [];
     }
-    console.log(`🔐 ${field.name}: ${(result.data || []).length} erlaubte Unternehmen geladen`);
     return result.data || [];
   }
 
@@ -240,7 +218,6 @@ async function loadGenericTable(field) {
 
   if (field.table === 'benutzer') {
     query = query.neq('rolle', 'kunde');
-    console.log(`🚫 Filtere Kunden aus für ${field.name}`);
 
     if (field.filterByKlasse) {
       const klasseNames = Array.isArray(field.filterByKlasse)
@@ -255,9 +232,7 @@ async function loadGenericTable(field) {
       if (!klassenError && klassenData && klassenData.length > 0) {
         const klassenIds = klassenData.map(k => k.id);
         query = query.or(`rolle.eq.admin,mitarbeiter_klasse_id.in.(${klassenIds.join(',')})`);
-        console.log(`🎯 Filtere nach Klassen für ${field.name}:`, klasseNames, '(+ Admins)');
       } else {
-        console.warn(`⚠️ Keine Mitarbeiter-Klassen gefunden für: ${klasseNames.join(', ')} - zeige nur Admins`);
         query = query.eq('rolle', 'admin');
       }
     }

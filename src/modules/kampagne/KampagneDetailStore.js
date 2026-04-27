@@ -3,6 +3,12 @@
 // Haelt alle Kooperationen, Videos, Creators, Vertraege, Versand, Kommentare, Assets.
 // Bietet gefilterte Views und Event-basierte Benachrichtigungen.
 
+import {
+  createEmptyVideoFeedbackComments,
+  getVideoFeedbackBucket,
+  normalizeVideoFeedbackComments
+} from '../../core/VideoFeedbackBuckets.js';
+
 export class KampagneDetailStore {
   constructor(kampagneId) {
     this.kampagneId = kampagneId;
@@ -179,8 +185,8 @@ export class KampagneDetailStore {
     this.emit('kooperation-removed', { koopId, deletedVideoIds });
   }
 
-  updateVideoComments(videoId, r1, r2) {
-    this.videoComments[videoId] = { r1: r1 || [], r2: r2 || [] };
+  updateVideoComments(videoId, commentsByBucket) {
+    this.videoComments[videoId] = normalizeVideoFeedbackComments(commentsByBucket);
     this.emit('comments-updated', { videoId });
   }
 
@@ -212,13 +218,9 @@ export class KampagneDetailStore {
   applyComments(comments) {
     for (const comment of comments) {
       if (!this.videoComments[comment.video_id]) {
-        this.videoComments[comment.video_id] = { r1: [], r2: [] };
+        this.videoComments[comment.video_id] = createEmptyVideoFeedbackComments();
       }
-      if (comment.runde === 1) {
-        this.videoComments[comment.video_id].r1.push(comment);
-      } else if (comment.runde === 2) {
-        this.videoComments[comment.video_id].r2.push(comment);
-      }
+      this.videoComments[comment.video_id][getVideoFeedbackBucket(comment)].push(comment);
     }
   }
 

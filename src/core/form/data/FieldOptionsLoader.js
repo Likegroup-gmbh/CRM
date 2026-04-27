@@ -9,18 +9,12 @@ import { KampagneUtils } from '../../../modules/kampagne/KampagneUtils.js';
 // `this` = DynamicDataLoader
 export async function loadFieldOptions(entity, field, form) {
   try {
-    console.log(`🔍 LOADFIELDOPTIONS DEBUG: field.name=${field.name}, field.type=${field.type}`);
-
     if (field.type === 'phone') {
-      console.log(`⏭️ Überspringe Phone-Field ${field.name} in loadFieldOptions - wird von loadPhoneFieldCountries behandelt`);
       return;
     }
     if (field.type === 'country') {
-      console.log(`⏭️ Überspringe Country-Field ${field.name} in loadFieldOptions - wird von loadCountryFieldCountries behandelt`);
       return;
     }
-
-    console.log(`📋 LOADFIELDOPTIONS: Starte Laden für ${field.name} (entity: ${entity}, table: ${field.table}, dependsOn: ${field.dependsOn}, prefillFromUnternehmen: ${field.prefillFromUnternehmen})`);
 
     if (!this.dataService) {
       console.error('❌ DataService ist nicht verfügbar in DynamicDataLoader');
@@ -34,13 +28,8 @@ export async function loadFieldOptions(entity, field, form) {
       const editEntities = ['kampagne', 'ansprechpartner', 'auftrag', 'kooperation', 'unternehmen', 'marke', 'rechnung'];
       const isEditModeForDependentEntity = form.dataset.isEditMode === 'true' && editEntities.includes(form.dataset.entityType);
       if (!isEditModeForDependentEntity) {
-        console.log(`⏭️ Überspringe automatisches Laden für abhängiges Feld: ${field.name} (abhängig von ${field.dependsOn})`);
         return;
-      } else {
-        console.log(`🎯 Edit-Mode (${form.dataset.entityType}): Lade abhängiges Feld trotzdem: ${field.name}`);
       }
-    } else if (shouldAlwaysLoad) {
-      console.log(`🎯 Lade Feld ${field.name} immer (${field.prefillFromUnternehmen ? 'prefillFromUnternehmen' : 'statische Lookup-Tabelle'})`);
     }
 
     let options = [];
@@ -49,7 +38,6 @@ export async function loadFieldOptions(entity, field, form) {
       options = await loadKooperationIdOptionsForRechnung.call(this, form);
     }
     else if (field.options && Array.isArray(field.options) && !field.dynamic) {
-      console.log(`🔧 Verwende statische Optionen für ${field.name}`);
       options = field.options.map(opt => {
         if (typeof opt === 'string') {
           return { value: opt, label: opt };
@@ -58,20 +46,15 @@ export async function loadFieldOptions(entity, field, form) {
         }
         return null;
       }).filter(Boolean);
-      console.log(`✅ ${field.name} statische Optionen:`, options.length);
     }
     else if (field.name === 'paid_ziele_ids') {
-      console.log(`🎯 Lade Paid-Ziele (immer, unabhängig von dependsOn)`);
       options = await loadZieleOptions('kampagne_paid_ziele_typen');
     }
     else if (field.name === 'organic_ziele_ids') {
-      console.log(`🎯 Lade Organic-Ziele (immer, unabhängig von dependsOn)`);
       options = await loadZieleOptions('kampagne_organic_ziele_typen');
     }
     else if (field.table) {
-      console.log(`🔧 Lade Daten direkt aus Tabelle ${field.table} für ${field.name}`);
       options = await this.loadDirectQueryOptions(field, form);
-      console.log(`✅ ${field.name} Optionen geladen:`, options.length, options.slice(0, 3));
     } else {
       options = await loadSwitchCaseOptions.call(this, entity, field, form);
     }
@@ -86,11 +69,7 @@ export async function loadFieldOptions(entity, field, form) {
 
     const selectElement = form.querySelector(`[name="${field.name}"]`);
     if (selectElement) {
-      console.log(`🔧 Update Select für ${field.name} mit ${options.length} Optionen`);
-
       if (selectElement.dataset.tagBased === 'true' && field.tagBased && selectElement.multiple) {
-        console.log('🏷️ DYNAMICDATALOADER: Initialisiere Tag-basiertes Multi-Select:', field.name);
-
         selectElement.innerHTML = '';
         selectElement.appendChild(new Option('', ''));
         options.forEach(option => {
@@ -99,19 +78,12 @@ export async function loadFieldOptions(entity, field, form) {
         });
 
         if (window.formSystem?.optionsManager?.createTagBasedSelect) {
-          console.log('🏷️ DYNAMICDATALOADER: Erstelle Tag-System mit', options.length, 'Optionen für:', field.name);
           const selectedOptions = options.filter(o => o.selected);
-          console.log(`🎯 DYNAMICDATALOADER: Übergebe ${selectedOptions.length} selected Optionen an createTagBasedSelect:`, selectedOptions.map(o => `${o.label} (${o.value})`));
           window.formSystem.optionsManager.createTagBasedSelect(selectElement, options, field);
-          console.log('✅ DYNAMICDATALOADER: Tag-basiertes Multi-Select initialisiert für:', field.name);
-        } else {
-          console.warn('⚠️ DYNAMICDATALOADER: OptionsManager nicht verfügbar für:', field.name);
         }
       } else {
         this.updateSelectOptions(selectElement, options, field);
       }
-    } else {
-      console.log(`❌ Select-Element nicht gefunden für ${field.name}`);
     }
   } catch (error) {
     console.error(`❌ Fehler beim Laden der Optionen für ${field.name}:`, error);
@@ -124,7 +96,6 @@ async function loadKooperationIdOptionsForRechnung(form) {
   let options = [];
 
   if (isEditMode && form.dataset.editModeData) {
-    console.log('🔧 Edit-Mode: Lade Kooperationen inkl. aktuelle Kooperation');
     const editData = JSON.parse(form.dataset.editModeData);
     const currentKoopId = editData.kooperation_id;
 
@@ -133,7 +104,6 @@ async function loadKooperationIdOptionsForRechnung(form) {
     const hasCurrentKoop = options.some(o => o.value === currentKoopId);
 
     if (!hasCurrentKoop && currentKoopId) {
-      console.log('🔧 Aktuelle Kooperation nicht in Liste, lade separat:', currentKoopId);
       const { data: currentKoop } = await window.supabase
         .from('kooperationen')
         .select('id, name, kampagne_id, kampagne:kampagne_id(kampagnenname, eigener_name)')
@@ -150,7 +120,6 @@ async function loadKooperationIdOptionsForRechnung(form) {
           label: label,
           selected: true
         });
-        console.log('✅ Aktuelle Kooperation hinzugefügt:', label);
       }
     } else if (hasCurrentKoop) {
       options.forEach(o => {
@@ -158,10 +127,8 @@ async function loadKooperationIdOptionsForRechnung(form) {
       });
     }
   } else {
-    console.log('🔧 Create-Mode: Lade Kooperationen ohne bestehende Rechnung');
     options = await this.loadKooperationenOhneRechnung();
   }
-  console.log(`✅ kooperation_id Optionen:`, options.length);
   return options;
 }
 
@@ -277,7 +244,6 @@ async function loadSwitchCaseOptions(entity, field, form) {
           value: ct.id,
           label: ct.name || 'Unbekannter Typ'
         }));
-        console.log('✅ Creator Types geladen:', options.length);
       }
       break;
     }
@@ -294,7 +260,6 @@ async function loadSwitchCaseOptions(entity, field, form) {
           label: s.name || 'Unbekannte Branche',
           description: s.beschreibung
         }));
-        console.log('✅ Branchen geladen:', options.length);
       }
       break;
     }
@@ -313,9 +278,6 @@ async function loadSwitchCaseOptions(entity, field, form) {
           value: b.id,
           label: b.name || 'Unbekannter Benutzer'
         }));
-        console.log('✅ Benutzer geladen:', options.length, options);
-      } else {
-        console.warn('⚠️ Keine Benutzer gefunden');
       }
       break;
     }
@@ -331,7 +293,6 @@ async function loadSwitchCaseOptions(entity, field, form) {
           value: kat.id,
           label: kat.name || 'Unbekannte Art'
         }));
-        console.log('✅ Kampagne Art Typen geladen:', options.length);
       }
       break;
     }
@@ -347,7 +308,6 @@ async function loadSwitchCaseOptions(entity, field, form) {
           value: fat.id,
           label: fat.name || 'Unbekanntes Format'
         }));
-        console.log('✅ Format Anpassung Typen geladen:', options.length);
       }
       break;
     }
@@ -380,7 +340,6 @@ export async function loadKooperationenOhneRechnung() {
     const isAdmin = allowedUnternehmenIds === null;
 
     if (!isAdmin && (!allowedUnternehmenIds || allowedUnternehmenIds.length === 0)) {
-      console.log('🔐 Keine Unternehmen zugeordnet - keine Kooperationen verfügbar');
       return [];
     }
 
@@ -420,7 +379,6 @@ export async function loadKooperationenOhneRechnung() {
         kampagneUnternehmenMap = (kamp || []).reduce((acc, row) => { acc[row.id] = row.unternehmen_id; return acc; }, {});
       }
     } catch (err) {
-      console.warn('⚠️ Fehler beim Laden der Kampagnen-Namen für Kooperationen:', err?.message);
     }
 
     let filteredKoops = koops || [];
@@ -429,7 +387,6 @@ export async function loadKooperationenOhneRechnung() {
         const unternehmenId = kampagneUnternehmenMap[k.kampagne_id];
         return unternehmenId && allowedUnternehmenIds.includes(unternehmenId);
       });
-      console.log(`🔐 Kooperationen gefiltert: ${koops.length} → ${filteredKoops.length} (für ${allowedUnternehmenIds.length} Unternehmen)`);
     }
 
     return filteredKoops.map(k => ({
@@ -487,7 +444,6 @@ export async function loadZieleOptions(tableName) {
       return [];
     }
 
-    console.log(`✅ ${(data || []).length} Ziele aus ${tableName} geladen`);
     return (data || []).map(ziel => ({
       value: ziel.id,
       label: ziel.name
@@ -537,4 +493,3 @@ export async function loadAnsprechpartnerOptions(field, form) {
     return [];
   }
 }
-

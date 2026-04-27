@@ -3,11 +3,39 @@
 
 import { generatePoNummer } from '../../auftrag/logic/PoNummerGenerator.js';
 import { CAMPAIGN_TYPES } from '../constants.js';
-import { mapBudgetsToDbColumns } from '../logic/CampaignBudgetFields.js';
+import { CHIP_PREFIX_MAP, mapBudgetsToDbColumns } from '../logic/CampaignBudgetFields.js';
 
 const SUPABASE = () => window.supabase;
 
 export class ProjektErstellenPersistence {
+  parseCount(value) {
+    if (value === '' || value == null) return null;
+    const n = parseInt(value, 10);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  calculateCampaignTotals(campaignBudgets = {}, activeChips = []) {
+    return (activeChips || []).reduce((sum, chipValue) => {
+      const values = campaignBudgets?.[chipValue] || {};
+      sum.videos += this.parseCount(values.video_anzahl) || 0;
+      sum.creators += this.parseCount(values.creator_anzahl) || 0;
+      return sum;
+    }, { videos: 0, creators: 0 });
+  }
+
+  mapCountsToKampagneColumns(campaignBudgets = {}, activeChips = []) {
+    const payload = {};
+    const active = new Set(activeChips || []);
+
+    Object.entries(CHIP_PREFIX_MAP).forEach(([chipValue, prefix]) => {
+      const values = active.has(chipValue) ? (campaignBudgets?.[chipValue] || {}) : {};
+      payload[`${prefix}_video_anzahl`] = active.has(chipValue) ? this.parseCount(values.video_anzahl) : null;
+      payload[`${prefix}_creator_anzahl`] = active.has(chipValue) ? this.parseCount(values.creator_anzahl) : null;
+    });
+
+    return payload;
+  }
+
   buildAuftragPayload(fd) {
     const a = fd.auftrag || {};
     return {
@@ -41,9 +69,12 @@ export class ProjektErstellenPersistence {
     const d = fd.details || {};
     const activeChips = Array.isArray(d.campaign_type) ? d.campaign_type : [];
     const budgetColumns = mapBudgetsToDbColumns(d.campaign_budgets || {}, activeChips);
+    const totals = this.calculateCampaignTotals(d.campaign_budgets || {}, activeChips);
 
     return {
       campaign_type: activeChips,
+      gesamt_videos: totals.videos,
+      gesamt_creator: totals.creators,
       agency_services_enabled: !!d.agency_services_enabled,
       retainer_type: d.retainer_type || 'none',
       retainer_amount: d.retainer_amount ?? 0,
@@ -62,6 +93,8 @@ export class ProjektErstellenPersistence {
     const k = fd.kampagne || {};
     const d = fd.details || {};
     const a = fd.auftrag || {};
+    const activeChips = Array.isArray(d.campaign_type) ? d.campaign_type : [];
+    const totals = this.calculateCampaignTotals(d.campaign_budgets || {}, activeChips);
     const artDerKampagne = Array.isArray(d.campaign_type)
       ? d.campaign_type.map(v => CAMPAIGN_TYPES.find(t => t.value === v)?.label || v)
       : [];
@@ -71,10 +104,12 @@ export class ProjektErstellenPersistence {
       unternehmen_id: a.unternehmen_id || null,
       marke_id: a.marke_id || null,
       art_der_kampagne: artDerKampagne,
-      start: k.start || null,
-      deadline: k.deadline || null,
-      creatoranzahl: k.creatoranzahl ?? null,
-      videoanzahl: k.videoanzahl ?? null,
+      start: a.start || null,
+      deadline: a.ende || null,
+      deadline_post_produktion: a.ende || null,
+      creatoranzahl: totals.creators,
+      videoanzahl: totals.videos,
+      ...this.mapCountsToKampagneColumns(d.campaign_budgets || {}, activeChips),
       budget_info: null
     };
   }

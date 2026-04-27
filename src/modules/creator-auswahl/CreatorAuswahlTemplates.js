@@ -357,18 +357,8 @@ export function renderItemRow(ctx, item, index) {
               </svg>
             </button>
             <div class="actions-dropdown">
-              ${!isLinkedToCRM ? `
-                <a href="#" class="action-item" data-action="transfer-to-crm" data-id="${item.id}">
-                  ${window.ActionsDropdown?.getHeroIcon('add-to-list') || ''}
-                  Ins CRM übernehmen
-                </a>
-              ` : `
-                <a href="#" class="action-item" data-action="view-crm-creator" data-id="${item.creator_id}">
-                  ${window.ActionsDropdown?.getHeroIcon('view') || ''}
-                  Im CRM anzeigen
-                </a>
-              `}
-              <div class="action-separator"></div>
+              ${''}
+              <!-- CRM-Uebernahme vorerst ausgeblendet -->
               <a href="#" class="action-item action-danger" data-action="delete-item" data-id="${item.id}">
                 ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
                 Löschen

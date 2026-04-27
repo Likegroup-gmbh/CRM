@@ -9,6 +9,13 @@ import { renderTabButton } from '../../core/TabUtils.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { deleteVideoFull } from '../../core/VideoDeleteHelper.js';
+import {
+  createEmptyVideoFeedbackComments,
+  getVideoFeedbackBucket,
+  isMissingFeedbackTypeError,
+  VIDEO_FEEDBACK_LEGACY_SELECT,
+  VIDEO_FEEDBACK_FIELDS
+} from '../../core/VideoFeedbackBuckets.js';
 
 export class KooperationDetail extends PersonDetailBase {
   constructor() {
@@ -258,21 +265,29 @@ export class KooperationDetail extends PersonDetailBase {
       try {
         const videoIds = (this.videos || []).map(v => v.id);
         if (videoIds.length > 0) {
-          const { data: comments } = await window.supabase
+          let { data: comments, error: commentsError } = await window.supabase
             .from('kooperation_video_comment')
-            .select('id, video_id, runde, text, created_at, author_name, deleted_at')
+            .select('id, video_id, runde, feedback_typ, text, created_at, author_name, deleted_at')
             .in('video_id', videoIds)
             .order('created_at', { ascending: true });
+          if (commentsError && isMissingFeedbackTypeError(commentsError)) {
+            const legacyResult = await window.supabase
+              .from('kooperation_video_comment')
+              .select(`${VIDEO_FEEDBACK_LEGACY_SELECT}, deleted_at`)
+              .in('video_id', videoIds)
+              .order('created_at', { ascending: true });
+            comments = legacyResult.data || [];
+            commentsError = legacyResult.error;
+          }
+          if (commentsError) throw commentsError;
           const byVideo = {};
           (comments || []).forEach(c => {
-            if (!byVideo[c.video_id]) byVideo[c.video_id] = { r1: [], r2: [] };
-            const r = (c.runde === 2 || c.runde === '2') ? 'r2' : 'r1';
-            byVideo[c.video_id][r].push(c);
+            if (!byVideo[c.video_id]) byVideo[c.video_id] = createEmptyVideoFeedbackComments();
+            byVideo[c.video_id][getVideoFeedbackBucket(c)].push(c);
           });
           this.videos = (this.videos || []).map(v => ({
             ...v,
-            feedback1: byVideo[v.id]?.r1 || [],
-            feedback2: byVideo[v.id]?.r2 || []
+            feedback: byVideo[v.id] || createEmptyVideoFeedbackComments()
           }));
         }
       } catch (err) {
@@ -686,8 +701,7 @@ export class KooperationDetail extends PersonDetailBase {
               : (v.titel ? `<a href="/video/${v.id}" class="table-link" data-table="video" data-id="${v.id}">${this.sanitize(v.titel)}</a>` : '-')}
             ${v.currentAsset ? `<span class="version-badge" style="margin-left:8px;">V${v.currentAsset.version_number || 1}</span>` : ''}
           </td>
-          <td class="feedback-cell">${formatList(v.feedback1)}</td>
-          <td class="feedback-cell">${formatList(v.feedback2)}</td>
+          ${VIDEO_FEEDBACK_FIELDS.map(slot => `<td class="feedback-cell">${formatList(v.feedback?.[slot.bucket])}</td>`).join('')}
           <td><span class="status-badge status-${(v.status || 'produktion').toLowerCase()}">${v.status === 'abgeschlossen' ? 'Abgeschlossen' : 'Produktion'}</span></td>
           <td>${menu}</td>
         </tr>`;
@@ -707,8 +721,7 @@ export class KooperationDetail extends PersonDetailBase {
               <th class="text-right">VK Netto</th>
               ${!isKundeRole ? '<th class="text-right">EK Netto</th>' : ''}
               <th>URL</th>
-              <th>Feedback K1</th>
-              <th>Feedback K2</th>
+              ${VIDEO_FEEDBACK_FIELDS.map(slot => `<th>${slot.label}</th>`).join('')}
               <th>Status</th>
               <th>Aktion</th>
             </tr>
@@ -718,7 +731,7 @@ export class KooperationDetail extends PersonDetailBase {
             <tr>
               <td colspan="3" style="text-align:right; font-weight:600;">Gesamt VK Netto:</td>
               <td class="text-right" style="font-weight:600;">${(this.videos || []).reduce((s, v) => s + (parseFloat(v.verkaufspreis_netto) || 0), 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</td>
-              <td colspan="${!isKundeRole ? '6' : '5'}"></td>
+              <td colspan="${!isKundeRole ? '10' : '9'}"></td>
             </tr>
           </tfoot>
         </table>

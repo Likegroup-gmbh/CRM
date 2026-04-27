@@ -6,6 +6,7 @@ import { VideoTableFieldHandler } from './VideoTableFieldHandler.js';
 import { VideoUploadDrawer } from './VideoUploadDrawer.js';
 import { VideoSettingsDrawer } from './VideoSettingsDrawer.js';
 import { deleteVideoFile } from '../../core/VideoDeleteHelper.js';
+import { VIDEO_FEEDBACK_FIELDS } from '../../core/VideoFeedbackBuckets.js';
 
 export class KampagneKooperationenVideoTable {
   constructor(kampagneId, store) {
@@ -95,7 +96,11 @@ export class KampagneKooperationenVideoTable {
       const readOnlyFieldsForKunden = {
         'kooperation': ['vertrag_unterschrieben', 'typ', 'nutzungsrechte'],
         'versand': ['versendet', 'tracking_nummer', 'produkt_name', 'produkt_link'],
-        'video': ['thema', 'link_produkte', 'link_skript', 'skript_freigegeben', 'feedback_creatorjobs', 'caption', 'posting_datum', 'drehort', 'content_art', 'video_name']
+        'video': [
+          'thema', 'link_produkte', 'link_skript', 'skript_freigegeben',
+          ...VIDEO_FEEDBACK_FIELDS.filter(slot => slot.feedback_typ === 'cj').map(slot => slot.field),
+          'caption', 'posting_datum', 'drehort', 'content_art', 'video_name'
+        ]
       };
       return !readOnlyFieldsForKunden[entity]?.includes(field);
     }

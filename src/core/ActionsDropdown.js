@@ -7,6 +7,13 @@ import { actionBuilder } from './actions/ActionBuilder.js';
 import { KampagneUtils } from '../modules/kampagne/KampagneUtils.js';
 import { deleteVideoFull, deleteDropboxCascade } from './VideoDeleteHelper.js';
 import { deleteUnternehmenCascade, collectDependentIds } from '../modules/unternehmen/services/UnternehmenDeleteService.js';
+import {
+  createEmptyVideoFeedbackComments,
+  getVideoFeedbackBucket,
+  isMissingFeedbackTypeError,
+  VIDEO_FEEDBACK_LEGACY_SELECT,
+  VIDEO_FEEDBACK_FIELDS
+} from './VideoFeedbackBuckets.js';
 
 export class ActionsDropdown {
   constructor() {
@@ -823,16 +830,25 @@ export class ActionsDropdown {
       let commentsByVideo = {};
       if (videoList.length) {
         const ids = videoList.map(v => v.id);
-        const { data: comments } = await window.supabase
+        let { data: comments, error: commentsError } = await window.supabase
           .from('kooperation_video_comment')
-          .select('id, video_id, runde, text, author_name, created_at, deleted_at')
+          .select('id, video_id, runde, feedback_typ, text, author_name, created_at, deleted_at')
           .in('video_id', ids)
           .order('created_at', { ascending: true });
+        if (commentsError && isMissingFeedbackTypeError(commentsError)) {
+          const legacyResult = await window.supabase
+            .from('kooperation_video_comment')
+            .select(`${VIDEO_FEEDBACK_LEGACY_SELECT}, deleted_at`)
+            .in('video_id', ids)
+            .order('created_at', { ascending: true });
+          comments = legacyResult.data || [];
+          commentsError = legacyResult.error;
+        }
+        if (commentsError) throw commentsError;
         (comments || []).forEach(c => {
           const key = c.video_id;
-          if (!commentsByVideo[key]) commentsByVideo[key] = { r1: [], r2: [] };
-          const bucket = (c.runde === 2 || c.runde === '2') ? 'r2' : 'r1';
-          commentsByVideo[key][bucket].push(c);
+          if (!commentsByVideo[key]) commentsByVideo[key] = createEmptyVideoFeedbackComments();
+          commentsByVideo[key][getVideoFeedbackBucket(c)].push(c);
         });
       }
       const safe = (s) => window.validatorSystem?.sanitizeHtml?.(s) ?? s;
@@ -850,7 +866,7 @@ export class ActionsDropdown {
       };
 
       const rows = videoList.map(v => {
-        const fb = commentsByVideo[v.id] || { r1: [], r2: [] };
+        const fb = commentsByVideo[v.id] || createEmptyVideoFeedbackComments();
         const linkBtn = v.asset_url ? `<a class=\"kvq-link-btn\" href=\"${v.asset_url}\" target=\"_blank\" rel=\"noopener\">${this.getHeroIcon('view')}<span>Öffnen</span></a>` : '-';
         return `
           <tr>
@@ -862,8 +878,7 @@ export class ActionsDropdown {
                 ${linkBtn}
               </div>
             </td>
-            <td class="feedback-cell">${fmtFeedback(fb.r1)}</td>
-            <td class="feedback-cell">${fmtFeedback(fb.r2)}</td>
+            ${VIDEO_FEEDBACK_FIELDS.map(slot => `<td class="feedback-cell">${fmtFeedback(fb[slot.bucket])}</td>`).join('')}
             <td><span class="status-badge status-${(v.status || 'produktion').toLowerCase()}">${v.status === 'abgeschlossen' ? 'Abgeschlossen' : 'Produktion'}</span></td>
           </tr>`;
       }).join('');
@@ -876,8 +891,7 @@ export class ActionsDropdown {
                 <th>#</th>
                 <th>Content Art</th>
                 <th>Titel/URL</th>
-                <th>Feedback K1</th>
-                <th>Feedback K2</th>
+                ${VIDEO_FEEDBACK_FIELDS.map(slot => `<th>${slot.label}</th>`).join('')}
                 <th>Status</th>
               </tr>
             </thead>

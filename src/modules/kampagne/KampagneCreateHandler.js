@@ -381,12 +381,14 @@ export class KampagneCreateHandler {
       console.log('🔄 Starte Transfer Kampagnendaten → Auftragsdetails');
       
       const { KAMPAGNENARTEN_MAPPING } = await import('../auftrag/logic/KampagnenartenMapping.js');
+      const uniqueConfigs = Object.values(KAMPAGNENARTEN_MAPPING)
+        .filter((config, index, configs) => configs.findIndex(c => c.prefix === config.prefix) === index);
       
       const auftragsDetailsUpdate = {};
       let gesamtVideos = 0;
       let gesamtCreator = 0;
       
-      for (const [artName, config] of Object.entries(KAMPAGNENARTEN_MAPPING)) {
+      for (const config of uniqueConfigs) {
         const { prefix, hasCreator, hasBilder, hasVideographen } = config;
         
         const videoKey = `${prefix}_video_anzahl`;
@@ -457,7 +459,7 @@ export class KampagneCreateHandler {
         let totalCreator = 0;
         
         for (const kamp of (alleKampagnen || [])) {
-          for (const [artName, config] of Object.entries(KAMPAGNENARTEN_MAPPING)) {
+          for (const config of uniqueConfigs) {
             const { prefix, hasCreator, hasBilder, hasVideographen } = config;
             
             const videoKey = `${prefix}_video_anzahl`;

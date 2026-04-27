@@ -6,11 +6,14 @@ export class FormVideoHandler {
   // Gesamt-Videoanzahl einer Kampagne: Neue Einzelfelder > Legacy-Felder > fallback videoanzahl
   getKampagneTotalVideos(kampagne) {
     const newFieldsSum =
+      (parseInt(kampagne?.ugc_paid_video_anzahl, 10) || 0) +
+      (parseInt(kampagne?.ugc_organic_video_anzahl, 10) || 0) +
       (parseInt(kampagne?.ugc_pro_paid_video_anzahl, 10) || 0) +
       (parseInt(kampagne?.ugc_pro_organic_video_anzahl, 10) || 0) +
       (parseInt(kampagne?.ugc_video_paid_video_anzahl, 10) || 0) +
       (parseInt(kampagne?.ugc_video_organic_video_anzahl, 10) || 0) +
       (parseInt(kampagne?.influencer_video_anzahl, 10) || 0) +
+      (parseInt(kampagne?.story_video_anzahl, 10) || 0) +
       (parseInt(kampagne?.vor_ort_video_anzahl, 10) || 0);
 
     const legacyFieldsSum =
@@ -42,7 +45,7 @@ export class FormVideoHandler {
 
       const { data: kampagne, error: kampagneError } = await window.supabase
         .from('kampagne')
-        .select('videoanzahl, ugc_pro_paid_video_anzahl, ugc_pro_organic_video_anzahl, ugc_video_paid_video_anzahl, ugc_video_organic_video_anzahl, influencer_video_anzahl, vor_ort_video_anzahl, ugc_video_anzahl, igc_video_anzahl')
+        .select('videoanzahl, ugc_paid_video_anzahl, ugc_organic_video_anzahl, ugc_pro_paid_video_anzahl, ugc_pro_organic_video_anzahl, ugc_video_paid_video_anzahl, ugc_video_organic_video_anzahl, influencer_video_anzahl, story_video_anzahl, vor_ort_video_anzahl, ugc_video_anzahl, igc_video_anzahl')
         .eq('id', kampagneId)
         .single();
 

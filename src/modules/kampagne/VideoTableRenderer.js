@@ -1,4 +1,5 @@
 import { renderVertragCell } from '../../core/VertragSyncHelper.js';
+import { formatVideoFeedbackValue, VIDEO_FEEDBACK_FIELDS } from '../../core/VideoFeedbackBuckets.js';
 
 const EXTERNAL_LINK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>`;
 
@@ -125,12 +126,11 @@ export class VideoTableRenderer {
       h('col-skript-freigegeben', 'Skript freigegeben', '18'),
       h('col-video-name', 'Video-Name', '18b'),
       h('col-link-content', 'Content', '19'),
-      h('col-feedback-cj', 'Feedback CJ', '20'),
-      h('col-feedback-kunde', 'Feedback Kunde', '21'),
-      h('col-freigabe', 'Freigabe', '22'),
-      h('col-caption', 'Caption', '23'),
-      h('col-posting-datum', 'Posting Datum', '24'),
-      h('col-actions', 'Aktionen', '25'),
+      ...VIDEO_FEEDBACK_FIELDS.map((slot, idx) => h(slot.colClass, slot.label, String(20 + idx))),
+      h('col-freigabe', 'Freigabe', '24'),
+      h('col-caption', 'Caption', '25'),
+      h('col-posting-datum', 'Posting Datum', '26'),
+      h('col-actions', 'Aktionen', '27'),
     ].join('\n');
   }
 
@@ -392,31 +392,17 @@ export class VideoTableRenderer {
             }
           })}
         </td>
-        <td class="grid-cell video-stack-cell wide-field" ${!t.isColumnVisibleForCustomer('col-feedback-cj') ? 'style="display:none;"' : ''}>
+        ${VIDEO_FEEDBACK_FIELDS.map(slot => `
+        <td class="grid-cell video-stack-cell wide-field" ${!t.isColumnVisibleForCustomer(slot.colClass) ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => {
             const comments = t.videoComments[video.id];
-            const relevantComments = comments?.r1 || [];
-            const value = relevantComments.length > 0 
-              ? relevantComments.map(c => c.text).join('\n\n---\n\n')
-              : '';
+            const value = formatVideoFeedbackValue(comments, slot.bucket);
             return `<textarea class="grid-textarea stacked-video-textarea auto-resize-textarea" 
-              data-entity="video" data-id="${video.id}" data-field="feedback_creatorjobs"
-              ${!t.isFieldEditableForUser('video', 'feedback_creatorjobs') ? 'readonly' : ''}
-              placeholder="Feedback Runde 1" rows="1">${this.escapeHtml(value)}</textarea>`;
+              data-entity="video" data-id="${video.id}" data-field="${slot.field}"
+              ${!t.isFieldEditableForUser('video', slot.field) ? 'readonly' : ''}
+              placeholder="${slot.label}" rows="1">${this.escapeHtml(value)}</textarea>`;
           })}
-        </td>
-        <td class="grid-cell video-stack-cell wide-field" ${!t.isColumnVisibleForCustomer('col-feedback-kunde') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => {
-            const comments = t.videoComments[video.id];
-            const relevantComments = comments?.r2 || [];
-            const value = relevantComments.length > 0 
-              ? relevantComments.map(c => c.text).join('\n\n---\n\n')
-              : '';
-            return `<textarea class="grid-textarea stacked-video-textarea auto-resize-textarea" 
-              data-entity="video" data-id="${video.id}" data-field="feedback_ritzenhoff"
-              placeholder="Feedback Runde 2" rows="1">${this.escapeHtml(value)}</textarea>`;
-          })}
-        </td>
+        </td>`).join('')}
         <td class="grid-cell video-stack-cell checkbox-stack" ${!t.isColumnVisibleForCustomer('col-freigabe') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => `
             <div class="stacked-video-checkbox-wrapper">

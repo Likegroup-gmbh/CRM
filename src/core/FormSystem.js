@@ -24,28 +24,33 @@ export class FormSystem {
     this.autoCalculation = new AutoCalculation();
     this.dependentFields = new DependentFields(this.autoGeneration);
     this.relationTables = new RelationTables();
-    this.dataLoader = new DynamicDataLoader();
     this.optionsManager = new OptionsManager();
-    this.formEvents = new FormEvents(this);
-    this.videoHandler = new FormVideoHandler();
-    this.relationsHandler = new FormRelationsHandler(this.renderer);
     this.searchableSelect = new FormSearchableSelect(this.optionsManager);
-
-    // NEUE ARCHITEKTUR
-    this.smartInitializer = new SmartFormInitializer();
-    this.useSmartInitialization = false; // Feature Flag - TEMPORÄR DEAKTIVIERT für Ansprechpartner Fix
 
     // Konfiguration injizieren
     this.renderer.getFormConfig = this.config.getFormConfig.bind(this.config);
     this.relationTables.getFormConfig = this.config.getFormConfig.bind(this.config);
-    this.dataLoader.getFormConfig = this.config.getFormConfig.bind(this.config);
     this.validator.getFormConfig = this.config.getFormConfig.bind(this.config);
     this.dependentFields.getFormConfig = this.config.getFormConfig.bind(this.config);
 
     // Searchable Select Methoden injizieren
-    this.dataLoader.createSearchableSelect = this.createSearchableSelect.bind(this);
-    this.dataLoader.reinitializeSearchableSelect = this.reinitializeSearchableSelect.bind(this);
     this.optionsManager.createSearchableSelect = this.createSearchableSelect.bind(this);
+    this.optionsManager.updateDropdownItems = this.searchableSelect.updateDropdownItems.bind(this.searchableSelect);
+
+    // DynamicDataLoader mit expliziter Constructor-DI
+    this.dataLoader = new DynamicDataLoader({
+      getFormConfig: this.config.getFormConfig.bind(this.config),
+      createSearchableSelect: this.createSearchableSelect.bind(this),
+      reinitializeSearchableSelect: this.optionsManager.reinitializeSearchableSelect.bind(this.optionsManager)
+    });
+
+    this.formEvents = new FormEvents(this);
+    this.videoHandler = new FormVideoHandler();
+    this.relationsHandler = new FormRelationsHandler(this.renderer);
+
+    // NEUE ARCHITEKTUR
+    this.smartInitializer = new SmartFormInitializer();
+    this.useSmartInitialization = false;
 
     // DynamicDataLoader für abhängige Felder injizieren
     this.dependentFields.dynamicDataLoader = this.dataLoader;

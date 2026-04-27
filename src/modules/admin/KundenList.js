@@ -631,10 +631,10 @@ export class KundenList {
         <div class="modal-body">
           <div class="form-group">
             <label class="form-label">Unternehmen suchen</label>
-            <input id="unternehmen-search" class="form-input" type="text" placeholder="Firmenname eingeben..." autocomplete="off" />
-            <div id="unternehmen-dropdown" class="auto-suggest-dropdown" style="display: none;"></div>
+            <select id="unternehmen-modal-select" class="form-input">
+              <option value="">Firmenname eingeben...</option>
+            </select>
           </div>
-          <div id="selected-unternehmen" class="selected-items" style="margin-top: 10px;"></div>
         </div>
         <div class="modal-footer">
           <button id="cancel-zuordnung" class="mdc-btn mdc-btn--cancel">
@@ -664,118 +664,64 @@ export class KundenList {
 
     document.body.appendChild(modal);
 
-    const input = modal.querySelector('#unternehmen-search');
-    const dropdown = modal.querySelector('#unternehmen-dropdown');
-    const selectedContainer = modal.querySelector('#selected-unternehmen');
+    const selectEl = modal.querySelector('#unternehmen-modal-select');
     const saveBtn = modal.querySelector('#save-zuordnung');
-    let selectedUnternehmen = null;
-    let searchTimeout;
 
-    // Auto-Suggestion für Unternehmen
-    input.addEventListener('input', (e) => {
-      clearTimeout(searchTimeout);
-      searchTimeout = setTimeout(async () => {
-        const query = e.target.value.trim();
-        
-        if (query.length < 2) {
-          dropdown.style.display = 'none';
-          return;
-        }
-
-        try {
-          const { data, error } = await window.supabase
-            .from('unternehmen')
-            .select('id, firmenname')
-            .ilike('firmenname', `%${query}%`)
-            .order('firmenname')
-            .limit(10);
-
-          if (error) throw error;
-
-          if (data && data.length > 0) {
-            dropdown.innerHTML = data.map(u => `
-              <div class="dropdown-item" data-id="${u.id}" data-name="${u.firmenname}">
-                <div class="dropdown-item-main">${window.validatorSystem.sanitizeHtml(u.firmenname)}</div>
-              </div>
-            `).join('');
-            dropdown.style.display = 'block';
-          } else {
-            dropdown.innerHTML = '<div class="dropdown-item no-results">Keine Unternehmen gefunden</div>';
-            dropdown.style.display = 'block';
+    if (window.formSystem) {
+      window.formSystem.createSimpleSearchableSelect(selectEl, [], {
+        placeholder: 'Firmenname eingeben...',
+        serverSearch: async (query) => {
+          try {
+            let q = window.supabase
+              .from('unternehmen')
+              .select('id, firmenname')
+              .order('firmenname')
+              .limit(10);
+            if (query && query.length >= 2) {
+              q = q.ilike('firmenname', `%${query}%`);
+            }
+            const { data, error } = await q;
+            if (error) throw error;
+            return (data || []).map(u => ({ value: u.id, label: u.firmenname }));
+          } catch (err) {
+            console.error('Unternehmen-Suche fehlgeschlagen:', err);
+            return [];
           }
-        } catch (err) {
-          console.error('❌ Unternehmen-Suche fehlgeschlagen', err);
-          dropdown.innerHTML = '<div class="dropdown-item no-results">Fehler bei der Suche</div>';
-          dropdown.style.display = 'block';
         }
-      }, 300);
+      });
+    }
+
+    selectEl.addEventListener('change', () => {
+      saveBtn.disabled = !selectEl.value;
     });
 
-    // Dropdown-Auswahl
-    dropdown.addEventListener('click', (e) => {
-      const item = e.target.closest('.dropdown-item[data-id]');
-      if (!item) return;
-
-      selectedUnternehmen = {
-        id: item.dataset.id,
-        name: item.dataset.name
-      };
-
-      selectedContainer.innerHTML = `
-        <div class="selected-item">
-          <span class="selected-item-name">${window.validatorSystem.sanitizeHtml(selectedUnternehmen.name)}</span>
-          <button type="button" class="selected-item-remove">&times;</button>
-        </div>
-      `;
-
-      input.value = '';
-      dropdown.style.display = 'none';
-      saveBtn.disabled = false;
-    });
-
-    // Auswahl entfernen
-    selectedContainer.addEventListener('click', (e) => {
-      if (e.target.classList.contains('selected-item-remove')) {
-        selectedUnternehmen = null;
-        selectedContainer.innerHTML = '';
-        saveBtn.disabled = true;
-      }
-    });
-
-    // Speichern
     saveBtn.addEventListener('click', async () => {
-      if (!selectedUnternehmen) return;
+      if (!selectEl.value) return;
 
-      // Loading State
       saveBtn.disabled = true;
       saveBtn.classList.add('is-loading');
 
       try {
         const { error } = await window.supabase
           .from('kunde_unternehmen')
-          .insert({ 
-            kunde_id: kundeId, 
-            unternehmen_id: selectedUnternehmen.id 
+          .insert({
+            kunde_id: kundeId,
+            unternehmen_id: selectEl.value
           });
 
         if (error) throw error;
 
         modal.remove();
-        
-        // Liste aktualisieren
         await this.load();
         await this.render();
         this.bind();
       } catch (err) {
-        console.error('❌ Zuordnung fehlgeschlagen', err);
-        
-        // Loading State zurücksetzen
+        console.error('Zuordnung fehlgeschlagen:', err);
         saveBtn.disabled = false;
         saveBtn.classList.remove('is-loading');
       }
     });
 
-    // Modal schließen
     const closeModal = () => modal.remove();
     modal.querySelector('#close-modal').onclick = closeModal;
     modal.querySelector('#cancel-zuordnung').onclick = closeModal;
@@ -783,8 +729,10 @@ export class KundenList {
       if (e.target === modal) closeModal();
     });
 
-    // Focus auf Input
-    setTimeout(() => input.focus(), 100);
+    setTimeout(() => {
+      const ssInput = modal.querySelector('.searchable-select-input');
+      if (ssInput) ssInput.focus();
+    }, 100);
   }
 
   destroy() {

@@ -2,6 +2,20 @@
 // Mapping zwischen Kampagnenarten-Namen (aus DB kampagne_art_typen) und Feld-Präfixen
 
 export const KAMPAGNENARTEN_MAPPING = {
+  'UGC Paid': {
+    prefix: 'ugc_paid',
+    hasCreator: true,
+    hasBilder: false,
+    hasVideographen: false,
+    displayName: 'UGC Paid'
+  },
+  'UGC Organic': {
+    prefix: 'ugc_organic',
+    hasCreator: true,
+    hasBilder: false,
+    hasVideographen: false,
+    displayName: 'UGC Organic'
+  },
   'UGC Pro Paid': {
     prefix: 'ugc_pro_paid',
     hasCreator: true,
@@ -36,6 +50,27 @@ export const KAMPAGNENARTEN_MAPPING = {
     hasBilder: false,  // Influencer hat keine Bilder
     hasVideographen: false,
     displayName: 'Influencer'
+  },
+  'Story': {
+    prefix: 'story',
+    hasCreator: true,
+    hasBilder: false,
+    hasVideographen: false,
+    displayName: 'Story'
+  },
+  'Vorort-Produktion': {
+    prefix: 'vor_ort',
+    hasCreator: true,
+    hasBilder: false,
+    hasVideographen: true,
+    displayName: 'Vor-Ort-Produktion'
+  },
+  'Vor-Ort-Produktion': {
+    prefix: 'vor_ort',
+    hasCreator: true,
+    hasBilder: false,
+    hasVideographen: true,
+    displayName: 'Vor-Ort-Produktion'
   },
   'Vor Ort Produktionen': { 
     prefix: 'vor_ort', 

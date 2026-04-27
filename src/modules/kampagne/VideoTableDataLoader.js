@@ -1,6 +1,34 @@
+import {
+  createEmptyVideoFeedbackComments,
+  formatVideoFeedbackValue,
+  getVideoFeedbackBucket,
+  isMissingFeedbackTypeError,
+  VIDEO_FEEDBACK_FIELDS,
+  VIDEO_FEEDBACK_LEGACY_SELECT,
+  VIDEO_FEEDBACK_SELECT
+} from '../../core/VideoFeedbackBuckets.js';
+
 export class VideoTableDataLoader {
   constructor(table) {
     this.table = table;
+  }
+
+  async loadVideoFeedbackComments(videoIds) {
+    const batchIn = VideoTableDataLoader.batchInQuery;
+    const sb = window.supabase;
+    const load = (selectStr) => batchIn(
+      sb.from('kooperation_video_comment'),
+      selectStr,
+      'video_id',
+      videoIds,
+      q => q.is('deleted_at', null).order('created_at', { ascending: true })
+    );
+
+    const result = await load(VIDEO_FEEDBACK_SELECT);
+    if (!result.error || !isMissingFeedbackTypeError(result.error)) return result;
+
+    console.warn('feedback_typ fehlt noch in der DB, lade Kommentare im Legacy-Modus.');
+    return load(VIDEO_FEEDBACK_LEGACY_SELECT);
   }
 
   static batchInQuery(supabaseFrom, selectStr, column, ids, extraFilters) {
@@ -99,7 +127,7 @@ export class VideoTableDataLoader {
       const [videosResult, creatorsResult, vertraegeResult, versandResult, statusResult, tagsResult] = await Promise.allSettled([
         batchIn(
           sb.from('kooperation_videos'),
-          'id, kooperation_id, position, asset_url, content_art, caption, feedback_creatorjobs, feedback_ritzenhoff, freigabe, link_content, folder_url, story_folder_url, link_produkte, thema, link_skript, skript_freigegeben, drehort, video_name, posting_datum, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, skript_deadline, content_deadline, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id, video_link)',
+          'id, kooperation_id, position, asset_url, content_art, caption, freigabe, link_content, folder_url, story_folder_url, link_produkte, thema, link_skript, skript_freigegeben, drehort, video_name, posting_datum, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, skript_deadline, content_deadline, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id, video_link)',
           'kooperation_id', koopIds,
           q => q.order('position', { ascending: true })
         ),
@@ -234,12 +262,7 @@ export class VideoTableDataLoader {
           'video_id', videoIds,
           q => q.eq('is_current', true)
         ),
-        batchIn(
-          sb.from('kooperation_video_comment'),
-          'id, video_id, text, runde, author_name, created_at',
-          'video_id', videoIds,
-          q => q.is('deleted_at', null).order('created_at', { ascending: true })
-        )
+        this.loadVideoFeedbackComments(videoIds)
       ]);
 
       const assets = assetsResult.status === 'fulfilled' ? (assetsResult.value.data || []) : [];
@@ -270,13 +293,9 @@ export class VideoTableDataLoader {
 
         comments.forEach(comment => {
           if (!t.videoComments[comment.video_id]) {
-            t.videoComments[comment.video_id] = { r1: [], r2: [] };
+            t.videoComments[comment.video_id] = createEmptyVideoFeedbackComments();
           }
-          if (comment.runde === 1) {
-            t.videoComments[comment.video_id].r1.push(comment);
-          } else if (comment.runde === 2) {
-            t.videoComments[comment.video_id].r2.push(comment);
-          }
+          t.videoComments[comment.video_id][getVideoFeedbackBucket(comment)].push(comment);
         });
       }
 
@@ -369,14 +388,10 @@ export class VideoTableDataLoader {
 
     const commentsSource = this.table.store?.videoComments || this.table.videoComments || {};
     for (const [videoId, comments] of Object.entries(commentsSource)) {
-      const r1Value = (comments.r1 || []).map(c => c.text).join('\n\n---\n\n');
-      const r2Value = (comments.r2 || []).map(c => c.text).join('\n\n---\n\n');
-
-      const feedbackCJ = container.querySelector(`[data-entity="video"][data-id="${videoId}"][data-field="feedback_creatorjobs"]`);
-      if (feedbackCJ && !feedbackCJ.value) feedbackCJ.value = r1Value;
-
-      const feedbackKunde = container.querySelector(`[data-entity="video"][data-id="${videoId}"][data-field="feedback_ritzenhoff"]`);
-      if (feedbackKunde && !feedbackKunde.value) feedbackKunde.value = r2Value;
+      VIDEO_FEEDBACK_FIELDS.forEach(slot => {
+        const field = container.querySelector(`[data-entity="video"][data-id="${videoId}"][data-field="${slot.field}"]`);
+        if (field && !field.value) field.value = formatVideoFeedbackValue(comments, slot.bucket);
+      });
     }
   }
 

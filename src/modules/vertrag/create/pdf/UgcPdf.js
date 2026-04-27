@@ -112,6 +112,7 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       // Hole Kunden- und Creator-Daten
       const kunde = this.unternehmen.find(u => u.id === vertrag.kunde_unternehmen_id);
       const creator = this.creators.find(c => c.id === vertrag.creator_id);
+      const creatorContractAddress = this.getResolvedCreatorContractAddress(creator, vertrag);
 
       // Helper: Content-Erstellung Art lesbar machen
       const contentErstellungLabels = {
@@ -229,11 +230,11 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       y += 8;
       doc.text(`Name: ${creator?.vorname || ''} ${creator?.nachname || ''}`, 105, y, { align: 'center' });
       y += 5;
-      doc.text(`${creator?.lieferadresse_strasse || ''} ${creator?.lieferadresse_hausnummer || ''}`, 105, y, { align: 'center' });
+      doc.text(`${creatorContractAddress?.strasse || ''} ${creatorContractAddress?.hausnummer || ''}`.trim(), 105, y, { align: 'center' });
       y += 5;
-      doc.text(`${creator?.lieferadresse_plz || ''} ${creator?.lieferadresse_stadt || ''}`, 105, y, { align: 'center' });
+      doc.text(`${creatorContractAddress?.plz || ''} ${creatorContractAddress?.stadt || ''}`.trim(), 105, y, { align: 'center' });
       y += 5;
-      doc.text(`${creator?.lieferadresse_land || 'Deutschland'}`, 105, y, { align: 'center' });
+      doc.text(`${creatorContractAddress?.land || 'Deutschland'}`, 105, y, { align: 'center' });
 
       // Influencer-Vertretung (zentriert)
       y += 15;

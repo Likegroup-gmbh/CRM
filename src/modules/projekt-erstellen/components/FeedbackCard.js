@@ -23,6 +23,12 @@ function formatCurrency(value) {
   return n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
 }
 
+function formatNumber(value) {
+  const n = parseInt(value, 10);
+  if (isNaN(n)) return EMPTY_PLACEHOLDER;
+  return n.toLocaleString('de-DE');
+}
+
 function looksLikeUuid(v) {
   return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 }
@@ -140,8 +146,12 @@ export class FeedbackCard {
       const ek = rangeOrDash(b.einkaufspreis_netto_von, b.einkaufspreis_netto_bis);
       const vk = rangeOrDash(b.verkaufspreis_netto_von, b.verkaufspreis_netto_bis);
       const info = (b.budget_info || '').trim() || null;
+      const videos = b.video_anzahl != null && b.video_anzahl !== '' ? formatNumber(b.video_anzahl) : null;
+      const creators = b.creator_anzahl != null && b.creator_anzahl !== '' ? formatNumber(b.creator_anzahl) : null;
 
       const rows = [
+        this.renderItem('Videos', videos, !videos),
+        this.renderItem('Creator', creators, !creators),
         this.renderItem('Einkauf (Netto)', ek, !ek),
         this.renderItem('Verkauf (Netto)', vk, !vk)
       ];
@@ -228,20 +238,32 @@ export class FeedbackCard {
 
   buildStep4(formData) {
     const k = formData.kampagne || {};
+    const a = formData.auftrag || {};
+    const d = formData.details || {};
     const name = k.kampagnenname || null;
-    const dreh = k.start || k.deadline
-      ? `${formatDate(k.start)} – ${formatDate(k.deadline)}`
+    const dreh = a.start || a.ende
+      ? `${formatDate(a.start)} – ${formatDate(a.ende)}`
       : null;
+    const totals = this.calculateCampaignTotals(d.campaign_budgets || {}, d.campaign_type || []);
 
     return `
       ${this.renderItem('Kampagnenname', name, !name)}
-      ${this.renderItem('Zeitraum', dreh, !dreh)}
-      ${this.renderItem('Creator-Anzahl', k.creatoranzahl || null, !k.creatoranzahl)}
-      ${this.renderItem('Video-Anzahl', k.videoanzahl || null, !k.videoanzahl)}
+      ${this.renderItem('Zeitraum aus Basisdaten', dreh, !dreh)}
+      ${this.renderItem('Creator gesamt', formatNumber(totals.creators), false)}
+      ${this.renderItem('Videos gesamt', formatNumber(totals.videos), false)}
       <div class="projekt-erstellen-summary-item">
         <div class="projekt-erstellen-summary-label">Projekt wird gespeichert</div>
         <div class="projekt-erstellen-summary-value">Auftrag + Auftragsdetails + Kampagne</div>
       </div>
     `;
+  }
+
+  calculateCampaignTotals(budgets, activeTypes) {
+    return (activeTypes || []).reduce((sum, chipValue) => {
+      const values = budgets?.[chipValue] || {};
+      sum.videos += parseInt(values.video_anzahl, 10) || 0;
+      sum.creators += parseInt(values.creator_anzahl, 10) || 0;
+      return sum;
+    }, { videos: 0, creators: 0 });
   }
 }

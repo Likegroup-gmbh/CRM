@@ -74,6 +74,13 @@
 .kooperation-video-grid .col-caption { width: 400px; min-width: 400px; }
 .kooperation-video-grid .col-feedback-cj { width: 400px; min-width: 400px; }
 .kooperation-video-grid .col-feedback-kunde { width: 400px; min-width: 400px; }
+.kooperation-video-grid .col-feedback-cj-1,
+.kooperation-video-grid .col-feedback-kunde-1,
+.kooperation-video-grid .col-feedback-cj-2,
+.kooperation-video-grid .col-feedback-kunde-2 {
+  width: 260px;
+  min-width: 260px;
+}
 .kooperation-video-grid .col-kosten { width: 100px; min-width: 100px; }
 .kooperation-video-grid .col-actions { width: 70px; min-width: 70px; }
 

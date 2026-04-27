@@ -6,7 +6,7 @@ import { CAMPAIGN_TYPES } from '../constants.js';
 import {
   generateBudgetBlockHtml,
   readBudgetValuesFromDom,
-  BUDGET_FIELD_SUFFIXES
+  CAMPAIGN_FIELD_SUFFIXES
 } from '../logic/CampaignBudgetFields.js';
 
 export class StepKampagnenarten {
@@ -148,7 +148,7 @@ export class StepKampagnenarten {
     }
     active.forEach(chipValue => {
       const values = readBudgetValuesFromDom(chipValue);
-      const hasDom = BUDGET_FIELD_SUFFIXES.some(s => document.getElementById(`pe-budget-${chipValue}-${s}`));
+      const hasDom = CAMPAIGN_FIELD_SUFFIXES.some(s => document.getElementById(`pe-budget-${chipValue}-${s}`));
       if (hasDom) {
         this.wizard.formData.details.campaign_budgets[chipValue] = values;
       }

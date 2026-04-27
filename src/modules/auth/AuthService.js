@@ -325,10 +325,6 @@ export class AuthService {
         throw new Error('Passwort muss mindestens 4 Zeichen haben.');
       }
 
-      if (!firmenhandy) {
-        throw new Error('Bitte Firmenhandy angeben.');
-      }
-
       if (!window.supabase) {
         throw new Error('Verbindung zum Server nicht möglich. Bitte später erneut versuchen.');
       }

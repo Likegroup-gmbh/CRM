@@ -1,5 +1,12 @@
 // Kooperation Video Detail – lädt Video, Kommentare (Runde 1/2), Assets und erlaubt Statuswechsel + Kommentare
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import {
+  getVideoFeedbackSlotByField,
+  groupVideoFeedbackComments,
+  isMissingFeedbackTypeError,
+  VIDEO_FEEDBACK_LEGACY_SELECT,
+  VIDEO_FEEDBACK_FIELDS
+} from '../../core/VideoFeedbackBuckets.js';
 
 const DEBUG_UPLOAD = true;
 
@@ -57,13 +64,23 @@ export const kooperationVideoDetail = {
       this.kooperation = null;
     }
 
-    // Kommentare (Runde 1/2) - inklusive soft-deleted für Anzeige
+    // Kommentare je Feedback-Slot - inklusive soft-deleted für Anzeige
     try {
-      const { data: comments } = await window.supabase
+      let { data: comments, error: commentsError } = await window.supabase
         .from('kooperation_video_comment')
-        .select('id, video_id, runde, text, author_name, author_benutzer_id, created_at, deleted_at, deleted_by_benutzer_id')
+        .select('id, video_id, runde, feedback_typ, text, author_name, author_benutzer_id, created_at, deleted_at, deleted_by_benutzer_id')
         .eq('video_id', this.videoId)
         .order('created_at', { ascending: true });
+      if (commentsError && isMissingFeedbackTypeError(commentsError)) {
+        const legacyResult = await window.supabase
+          .from('kooperation_video_comment')
+          .select(`${VIDEO_FEEDBACK_LEGACY_SELECT}, author_benutzer_id, deleted_at, deleted_by_benutzer_id`)
+          .eq('video_id', this.videoId)
+          .order('created_at', { ascending: true });
+        comments = legacyResult.data || [];
+        commentsError = legacyResult.error;
+      }
+      if (commentsError) throw commentsError;
       this.comments = comments || [];
     } catch (_) {
       this.comments = [];
@@ -103,11 +120,7 @@ export const kooperationVideoDetail = {
       ? `<a href="${folderUrl}" target="_blank" rel="noopener" class="primary-btn">Ordner öffnen</a>`
       : '<p class="empty-state">Kein Ordner hinterlegt.</p>';
 
-    const grouped = { r1: [], r2: [] };
-    (this.comments || []).forEach(c => {
-      const r = (c.runde === 2 || c.runde === '2') ? 'r2' : 'r1';
-      grouped[r].push(c);
-    });
+    const grouped = groupVideoFeedbackComments(this.comments || []);
 
     // Asset-Versionen rendern
     const assetsHtml = this.renderAssetVersions(this.assets, safe, fmtDateTime, canEdit);
@@ -210,14 +223,11 @@ export const kooperationVideoDetail = {
           </div>
 
           <div class="detail-grid">
+            ${VIDEO_FEEDBACK_FIELDS.map(slot => `
             <div class="detail-card">
-              <h3>Feedback Runde 1</h3>
-              <div id="comments-r1">${this.renderCommentsTable(grouped.r1)}</div>
-            </div>
-            <div class="detail-card">
-              <h3>Feedback Runde 2</h3>
-              <div id="comments-r2">${this.renderCommentsTable(grouped.r2)}</div>
-            </div>
+              <h3>${slot.label}</h3>
+              <div id="comments-${slot.bucket}">${this.renderCommentsTable(grouped[slot.bucket])}</div>
+            </div>`).join('')}
           </div>
 
           <div class="detail-card">
@@ -225,10 +235,9 @@ export const kooperationVideoDetail = {
             <form id="comment-form">
               <div class="detail-grid-2">
                 <div class="form-field">
-                  <label>Runde</label>
-                  <select name="runde" class="form-input">
-                    <option value="1">1</option>
-                    <option value="2">2</option>
+                  <label>Feedback</label>
+                  <select name="feedback_field" class="form-input">
+                    ${VIDEO_FEEDBACK_FIELDS.map(slot => `<option value="${slot.field}">${slot.label}</option>`).join('')}
                   </select>
                 </div>
                 <div class="form-field" style="grid-column: span 2;">
@@ -518,7 +527,7 @@ export const kooperationVideoDetail = {
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const fd = new FormData(form);
-        const runde = parseInt(fd.get('runde') || '1', 10) === 2 ? 2 : 1;
+        const slot = getVideoFeedbackSlotByField(fd.get('feedback_field') || 'feedback_cj_r1') || VIDEO_FEEDBACK_FIELDS[0];
         const text = String(fd.get('text') || '').trim();
         if (!text) return;
         try {
@@ -528,7 +537,8 @@ export const kooperationVideoDetail = {
           }
           const payload = {
             video_id: this.videoId,
-            runde,
+            runde: slot.runde,
+            feedback_typ: slot.feedback_typ,
             text,
             author_benutzer_id: window.currentUser?.id || null,
             author_name: window.currentUser?.name || null,
@@ -555,9 +565,10 @@ export const kooperationVideoDetail = {
             }, 600);
           }
           // UI Teilbereich aktualisieren
-          const content = document.querySelector('#comments-' + (runde === 2 ? 'r2' : 'r1'));
+          const grouped = groupVideoFeedbackComments(this.comments || []);
+          const content = document.querySelector(`#comments-${slot.bucket}`);
           if (content) {
-            content.innerHTML = this.renderCommentsTable(runde === 2 ? [...(this.comments.filter(c=>c.runde===2))] : [...(this.comments.filter(c=>c.runde!==2))]);
+            content.innerHTML = this.renderCommentsTable(grouped[slot.bucket]);
             // ActionsDropdown neu initialisieren nach UI-Update
             if (window.ActionsDropdown) {
               window.ActionsDropdown.init();

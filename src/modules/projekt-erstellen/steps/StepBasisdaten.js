@@ -226,27 +226,36 @@ export class StepBasisdaten {
     this.enhanceSearchableSelect('field-pe-unternehmen_id', enrichedOptions, {
       name: 'unternehmen_id',
       placeholder: 'Unternehmen suchen und auswählen...',
-      value: currentValue || null
+      value: currentValue || null,
+      required: true
     });
   }
 
   enhanceSearchableSelect(selectId, options, field) {
     const el = document.getElementById(selectId);
-    if (!el || !window.formSystem?.createSearchableSelect) return;
+    if (!el || !window.formSystem?.reinitializeSearchableSelect) return;
 
-    const fieldName = field?.name || el.name;
+    el.disabled = false;
+    if (field?.required) el.setAttribute('required', '');
+
+    window.formSystem.reinitializeSearchableSelect(el, options, {
+      placeholder: field?.placeholder || 'Suchen...',
+      readonly: field?.readonly === true
+    });
+  }
+
+  resetSearchableSelect(selectId, placeholder, disabled = true) {
+    const el = document.getElementById(selectId);
+    if (!el) return;
+
     const container = el.closest('.form-field') || el.parentNode;
     const oldWrap = container?.querySelector('.searchable-select-container');
     if (oldWrap) oldWrap.remove();
 
     el.style.display = '';
-    el.disabled = false;
-
-    window.formSystem.createSearchableSelect(el, options, {
-      name: fieldName,
-      placeholder: field?.placeholder || 'Suchen...',
-      value: field?.value || null
-    });
+    el.disabled = disabled;
+    el.innerHTML = `<option value="">${this.escape(placeholder)}</option>`;
+    el.value = '';
   }
 
   async loadMarkenFuerUnternehmen(unternehmenId) {
@@ -300,17 +309,22 @@ export class StepBasisdaten {
     if (!markeSelect || !apSelect) return;
 
     if (!unternehmenId) {
-      markeSelect.innerHTML = '<option value="">Bitte zuerst Unternehmen wählen...</option>';
-      markeSelect.disabled = true;
-      apSelect.innerHTML = '<option value="">Bitte zuerst Unternehmen wählen...</option>';
-      apSelect.disabled = true;
+      this.resetSearchableSelect('field-pe-marke_id', 'Bitte zuerst Unternehmen wählen...');
+      this.resetSearchableSelect('field-pe-ansprechpartner_id', 'Bitte zuerst Unternehmen wählen...');
       return;
     }
+
+    this.resetSearchableSelect('field-pe-marke_id', 'Marken werden geladen...');
+    this.resetSearchableSelect('field-pe-ansprechpartner_id', 'Ansprechpartner werden geladen...');
 
     const [markenOpts, apOpts] = await Promise.all([
       this.loadMarkenFuerUnternehmen(unternehmenId),
       this.loadAnsprechpartnerFuerUnternehmen(unternehmenId)
     ]);
+
+    if (this.wizard.formData.auftrag.unternehmen_id !== unternehmenId) {
+      return;
+    }
 
     markeSelect.disabled = false;
     markeSelect.innerHTML = `
@@ -320,6 +334,16 @@ export class StepBasisdaten {
     if (this.wizard.formData.auftrag.marke_id) {
       markeSelect.value = this.wizard.formData.auftrag.marke_id;
     }
+    const enrichedMarkenOpts = markenOpts.map(o => ({
+      ...o,
+      selected: !!this.wizard.formData.auftrag.marke_id && o.value === this.wizard.formData.auftrag.marke_id
+    }));
+    this.enhanceSearchableSelect('field-pe-marke_id', enrichedMarkenOpts, {
+      name: 'marke_id',
+      placeholder: markenOpts.length ? 'Marke suchen und auswählen...' : 'Keine Marken verfügbar',
+      value: this.wizard.formData.auftrag.marke_id || null,
+      readonly: markenOpts.length === 0
+    });
 
     apSelect.disabled = false;
     apSelect.innerHTML = `
@@ -329,6 +353,17 @@ export class StepBasisdaten {
     if (this.wizard.formData.auftrag.ansprechpartner_id) {
       apSelect.value = this.wizard.formData.auftrag.ansprechpartner_id;
     }
+    const enrichedApOpts = apOpts.map(o => ({
+      ...o,
+      selected: !!this.wizard.formData.auftrag.ansprechpartner_id && o.value === this.wizard.formData.auftrag.ansprechpartner_id
+    }));
+    this.enhanceSearchableSelect('field-pe-ansprechpartner_id', enrichedApOpts, {
+      name: 'ansprechpartner_id',
+      placeholder: apOpts.length ? 'Ansprechpartner suchen und auswählen...' : 'Keine Ansprechpartner verfügbar',
+      value: this.wizard.formData.auftrag.ansprechpartner_id || null,
+      required: true,
+      readonly: apOpts.length === 0
+    });
   }
 
   setSelectValue(id, value) {

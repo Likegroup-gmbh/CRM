@@ -349,11 +349,11 @@ VertraegeCreate.prototype.handleSubmit = async function(e, startNewAfter = false
     if (!this.validateCurrentStep()) return;
     this.saveCurrentStepData();
 
-    // Prüfen ob Creator ausgewählt ist und keine gültige Adresse hat
+    // Creator-Adresse bevorzugen, sonst aktive Agentur-Adresse im Vertragskontext nutzen.
     if (this.formData.creator_id) {
       const creator = this.creators.find(c => c.id === this.formData.creator_id);
-      if (creator && !this.hasValidCreatorAddress(creator)) {
-        window.toastSystem?.show('Der ausgewählte Creator hat keine gültige Adresse hinterlegt. Bitte zuerst Adresse im Creator-Profil ergänzen.', 'error');
+      if (creator && !this.getResolvedCreatorContractAddress(creator)) {
+        window.toastSystem?.show('Der ausgewählte Creator hat keine gültige Adresse und keine gültige Agentur-Adresse hinterlegt.', 'error');
         return;
       }
     }

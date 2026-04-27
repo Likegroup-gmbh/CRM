@@ -1,7 +1,7 @@
 // StepKampagne.js
-// Step 3 des Projekt-Erstellen-Flows:
+// Step 4 des Projekt-Erstellen-Flows:
 // Grunddaten der ersten Kampagne zu diesem Auftrag.
-// Vorbelegung: unternehmen_id, marke_id aus Step 1, art_der_kampagne aus Step 2.
+// Zeitraum und Mengen werden aus Basisdaten bzw. Kampagnenarten übernommen.
 
 export class StepKampagne {
   constructor(wizard) {
@@ -13,10 +13,13 @@ export class StepKampagne {
     this.host = host;
     const k = this.wizard.formData.kampagne || {};
     const a = this.wizard.formData.auftrag || {};
+    const d = this.wizard.formData.details || {};
 
     const titelSuggestion = a.titel || '';
-    const drehStart = k.start || a.start || '';
-    const drehEnde = k.deadline || a.ende || '';
+    const totals = this.calculateTotals(d.campaign_budgets || {}, d.campaign_type || []);
+    const zeitraum = a.start || a.ende
+      ? `${this.formatDate(a.start)} – ${this.formatDate(a.ende)}`
+      : 'Noch kein Zeitraum in den Basisdaten gesetzt';
 
     host.innerHTML = `
       <div class="form-section projekt-erstellen-section-stack">
@@ -26,30 +29,39 @@ export class StepKampagne {
           <input type="text" id="field-pe-k-name" value="${this.escape(k.kampagnenname || titelSuggestion)}" placeholder="z.B. ${this.escape(titelSuggestion) || 'Kampagnenname'}">
         </div>
 
-        <div class="form-two-col">
-          <div class="form-field form-field--half">
-            <label for="field-pe-k-start">Start</label>
-            <input type="date" id="field-pe-k-start" value="${drehStart}">
+        <div class="projekt-erstellen-inline-summary">
+          <div class="projekt-erstellen-inline-summary__item">
+            <span class="projekt-erstellen-inline-summary__label">Zeitraum aus Basisdaten</span>
+            <strong>${this.escape(zeitraum)}</strong>
           </div>
-          <div class="form-field form-field--half">
-            <label for="field-pe-k-deadline">Deadline</label>
-            <input type="date" id="field-pe-k-deadline" value="${drehEnde}">
+          <div class="projekt-erstellen-inline-summary__item">
+            <span class="projekt-erstellen-inline-summary__label">Gesamt Videos</span>
+            <strong>${totals.videos}</strong>
           </div>
-        </div>
-
-        <div class="form-two-col">
-          <div class="form-field form-field--half">
-            <label for="field-pe-k-creatoranzahl">Creator-Anzahl</label>
-            <input type="number" id="field-pe-k-creatoranzahl" min="0" value="${k.creatoranzahl ?? ''}">
-          </div>
-          <div class="form-field form-field--half">
-            <label for="field-pe-k-videoanzahl">Video-Anzahl</label>
-            <input type="number" id="field-pe-k-videoanzahl" min="0" value="${k.videoanzahl ?? ''}">
+          <div class="projekt-erstellen-inline-summary__item">
+            <span class="projekt-erstellen-inline-summary__label">Gesamt Creator</span>
+            <strong>${totals.creators}</strong>
           </div>
         </div>
 
       </div>
     `;
+  }
+
+  calculateTotals(budgets, activeTypes) {
+    return (activeTypes || []).reduce((sum, chipValue) => {
+      const values = budgets?.[chipValue] || {};
+      sum.videos += parseInt(values.video_anzahl, 10) || 0;
+      sum.creators += parseInt(values.creator_anzahl, 10) || 0;
+      return sum;
+    }, { videos: 0, creators: 0 });
+  }
+
+  formatDate(value) {
+    if (!value) return '—';
+    const d = new Date(value);
+    if (isNaN(d)) return '—';
+    return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
   escape(v) {
@@ -71,9 +83,7 @@ export class StepKampagne {
 
   bindEvents() {
     const ids = [
-      'field-pe-k-name',
-      'field-pe-k-start', 'field-pe-k-deadline',
-      'field-pe-k-creatoranzahl', 'field-pe-k-videoanzahl'
+      'field-pe-k-name'
     ];
     ids.forEach(id => {
       const el = document.getElementById(id);
@@ -86,20 +96,9 @@ export class StepKampagne {
   }
 
   collectData() {
-    const parseNum = (id) => {
-      const v = document.getElementById(id)?.value;
-      if (v === '' || v == null) return null;
-      const n = parseFloat(v);
-      return isNaN(n) ? null : n;
-    };
-
     return {
       kampagne: {
-        kampagnenname: document.getElementById('field-pe-k-name')?.value || '',
-        start: document.getElementById('field-pe-k-start')?.value || null,
-        deadline: document.getElementById('field-pe-k-deadline')?.value || null,
-        creatoranzahl: parseNum('field-pe-k-creatoranzahl'),
-        videoanzahl: parseNum('field-pe-k-videoanzahl')
+        kampagnenname: document.getElementById('field-pe-k-name')?.value || ''
       }
     };
   }

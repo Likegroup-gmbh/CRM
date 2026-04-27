@@ -12,7 +12,6 @@ export class FormSearchableSelect {
 
     searchableSelects.forEach(select => {
       if (select.dataset.phoneField === 'true') {
-        console.log(`⏭️ Überspringe Phone-Field ${select.name} - bereits initialisiert`);
         return;
       }
 
@@ -38,13 +37,12 @@ export class FormSearchableSelect {
             label: o.textContent,
             selected: o.selected || false
           }));
-        console.log('🔧 FORMSYSTEM: Optionen aus DOM extrahiert für Tag-basiertes Select:', options.filter(o => o.selected));
-      } else {
-        const selectedOptions = options.filter(o => o.selected);
-        if (selectedOptions.length > 0) {
-          console.log('🎯 FORMSYSTEM: Übergebe selected Optionen an OptionsManager:', selectedOptions.map(o => o.label));
-        }
+
+    } else {
+      const selectedOptions = options.filter(o => o.selected);
+      if (selectedOptions.length > 0) {
       }
+    }
       return this.optionsManager.createTagBasedSelect(selectElement, options, field);
     }
 
@@ -65,7 +63,7 @@ export class FormSearchableSelect {
     return String.fromCodePoint(...codePoints);
   }
 
-  // Einfache Auto-Suggestion Select erstellen (Hauptlogik - 200+ Zeilen)
+  // Einfache Auto-Suggestion Select erstellen
   createSimpleSearchableSelect(selectElement, options, field) {
     const existingContainer = selectElement.parentNode.querySelector('.searchable-select-container');
     if (existingContainer) {
@@ -146,7 +144,6 @@ export class FormSearchableSelect {
         }
       });
       hiddenInput.value = selectedOption.value;
-      console.log('✅ FORMSYSTEM: Bestehender Wert gesetzt für', field.name, ':', selectedOption.label);
     }
 
     const updateDropdownPosition = () => {
@@ -158,7 +155,7 @@ export class FormSearchableSelect {
       }
     };
 
-    input.addEventListener('focus', () => {
+    input.addEventListener('focus', async () => {
       if (isReadonly || input.hasAttribute('data-is-readonly')) {
         return;
       }
@@ -169,7 +166,15 @@ export class FormSearchableSelect {
         input.value = '';
       }
 
-      this.updateDropdownItems(dropdown, options, input.value, field);
+      if (field?.serverSearch) {
+        try {
+          const results = await field.serverSearch(input.value || '');
+          options.length = 0;
+          options.push(...results);
+        } catch (e) { console.error('serverSearch error:', e); }
+      }
+
+      this.updateDropdownItems(dropdown, options, field?.serverSearch ? '' : input.value, field);
 
       if (isPhoneField) {
         setTimeout(() => {
@@ -191,12 +196,25 @@ export class FormSearchableSelect {
       }, 200);
     });
 
+    let debounceTimer = null;
     input.addEventListener('input', () => {
       if (isReadonly || input.hasAttribute('data-is-readonly')) {
         return;
       }
 
-      this.updateDropdownItems(dropdown, options, input.value, field);
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(async () => {
+        if (field?.serverSearch) {
+          try {
+            const results = await field.serverSearch(input.value || '');
+            options.length = 0;
+            options.push(...results);
+          } catch (e) { console.error('serverSearch error:', e); }
+          this.updateDropdownItems(dropdown, options, '', field);
+        } else {
+          this.updateDropdownItems(dropdown, options, input.value, field);
+        }
+      }, field?.serverSearch ? (field.debounceMs || 250) : 150);
 
       if (input.hasAttribute('data-was-required')) {
         if (input.value.trim() === '') {
@@ -228,24 +246,26 @@ export class FormSearchableSelect {
           }
           selectElement.dispatchEvent(new Event('change', { bubbles: true }));
           dropdown.classList.remove('show');
-          console.log(`✅ Existierende Option per Enter ausgewählt: ${exactMatch.label}`);
         } else if (field?.allowCreate && cleanFilterText.length > 0) {
           await this.handleCreateNewOption(dropdown, options, cleanFilterText, field);
         }
       }
     });
 
-    this.updateDropdownItems(dropdown, options, '', field);
+    if (!field?.serverSearch) {
+      this.updateDropdownItems(dropdown, options, '', field);
+    }
   }
 
-  // Dropdown-Items rendern/filtern
+  // Dropdown-Items rendern/filtern (DOM-Recycling + Lazy Rendering: max 50 initial)
   updateDropdownItems(dropdown, options, filterText, field = null) {
-    dropdown.innerHTML = '';
+    try { dropdown.parentNode.dataset.options = JSON.stringify(options || []); } catch (_) { }
 
     const cleanFilterText = filterText.replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '').trim();
+    const lowerFilter = cleanFilterText.toLowerCase();
 
     const filteredOptions = options.filter(option =>
-      option.label.toLowerCase().includes(cleanFilterText.toLowerCase())
+      option.label.toLowerCase().includes(lowerFilter)
     );
 
     const selectElement = dropdown.parentNode.parentNode.querySelector('select');
@@ -253,74 +273,70 @@ export class FormSearchableSelect {
     const isCountryField = selectElement?.dataset?.countryField === 'true';
 
     const exactMatch = options.some(opt =>
-      opt.label.toLowerCase() === cleanFilterText.toLowerCase()
+      opt.label.toLowerCase() === lowerFilter
     );
 
-    filteredOptions.forEach(option => {
-      const item = document.createElement('div');
-      item.className = 'searchable-select-item';
+    const BATCH_SIZE = 50;
+    const renderCount = Math.min(filteredOptions.length, BATCH_SIZE);
+
+    // DOM-Recycling: bestehende Items wiederverwenden statt innerHTML-Nuke
+    const existingItems = Array.from(dropdown.querySelectorAll('.searchable-select-item:not(.create-new)'));
+    let itemIndex = 0;
+
+    for (let i = 0; i < renderCount; i++) {
+      const option = filteredOptions[i];
+      let item;
+
+      if (itemIndex < existingItems.length) {
+        item = existingItems[itemIndex];
+        item.style.display = '';
+      } else {
+        item = document.createElement('div');
+        item.className = 'searchable-select-item';
+        const createNew = dropdown.querySelector('.create-new');
+        if (createNew) {
+          dropdown.insertBefore(item, createNew);
+        } else {
+          dropdown.appendChild(item);
+        }
+      }
 
       if ((isPhoneField || isCountryField) && option.isoCode) {
-        const flagEmoji = this.isoToFlagEmoji(option.isoCode);
-        item.textContent = `${flagEmoji} ${option.label}`;
+        item.textContent = `${this.isoToFlagEmoji(option.isoCode)} ${option.label}`;
       } else {
         item.textContent = option.label;
       }
 
-      item.addEventListener('click', () => {
-        const selectEl = dropdown.parentNode.parentNode.querySelector('select');
+      item.onclick = () => this._selectOption(dropdown, option, isPhoneField, isCountryField);
+      item.onmouseenter = () => item.classList.add('hover');
+      item.onmouseleave = () => item.classList.remove('hover');
 
-        let optionElement = Array.from(selectEl.options).find(opt => opt.value === option.value);
-        if (!optionElement) {
-          optionElement = document.createElement('option');
-          optionElement.value = option.value;
-          optionElement.textContent = option.label;
-          if (option.isoCode) {
-            optionElement.dataset.isoCode = option.isoCode;
-          }
-          if (option.vorwahl) {
-            optionElement.dataset.vorwahl = option.vorwahl;
-          }
-          selectEl.appendChild(optionElement);
-        }
+      itemIndex++;
+    }
 
-        selectEl.value = option.value;
+    // Überschüssige Items entfernen
+    for (let i = itemIndex; i < existingItems.length; i++) {
+      existingItems[i].remove();
+    }
 
-        const hiddenInput = dropdown.parentNode.querySelector('input[type="hidden"]');
-        if (hiddenInput) {
-          hiddenInput.value = option.value;
-        }
+    // Bestehende create-new Items entfernen
+    dropdown.querySelectorAll('.create-new').forEach(el => el.remove());
 
-        const input = dropdown.parentNode.querySelector('.searchable-select-input');
+    // Lazy Rendering: Scroll-Nachladen für Listen > BATCH_SIZE
+    if (filteredOptions.length > BATCH_SIZE) {
+      dropdown._lazyOptions = filteredOptions;
+      dropdown._lazyOffset = BATCH_SIZE;
+      dropdown._isPhoneField = isPhoneField;
+      dropdown._isCountryField = isCountryField;
 
-        if (isPhoneField && option.isoCode) {
-          const flagEmoji = this.isoToFlagEmoji(option.isoCode);
-          const vorwahl = option.vorwahl || '';
-          const countryName = option.label.replace(/^\+\d+\s*/, '').trim();
-          input.value = `${flagEmoji} ${vorwahl} ${countryName}`.trim();
-        } else if (isCountryField && option.isoCode) {
-          const flagEmoji = this.isoToFlagEmoji(option.isoCode);
-          input.value = `${flagEmoji} ${option.label}`.trim();
-        } else {
-          input.value = option.label;
-        }
-
-        if (input.hasAttribute('data-was-required')) {
-          input.setCustomValidity('');
-        }
-
-        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
-
-        dropdown.classList.remove('show');
-
-        console.log(`✅ Searchable Select ${selectEl.name} aktualisiert: ${option.label} → ${option.value}`);
-      });
-
-      item.addEventListener('mouseenter', () => item.classList.add('hover'));
-      item.addEventListener('mouseleave', () => item.classList.remove('hover'));
-
-      dropdown.appendChild(item);
-    });
+      if (!dropdown._scrollHandler) {
+        dropdown._scrollHandler = () => this._loadMoreItems(dropdown);
+        dropdown.addEventListener('scroll', dropdown._scrollHandler, { passive: true });
+      }
+    } else {
+      dropdown._lazyOptions = null;
+      dropdown._lazyOffset = 0;
+    }
 
     if (field?.allowCreate && cleanFilterText.length > 0 && !exactMatch) {
       const createItem = document.createElement('div');
@@ -336,6 +352,88 @@ export class FormSearchableSelect {
 
       dropdown.appendChild(createItem);
     }
+  }
+
+  // Weitere Items beim Scrollen nachladen
+  _loadMoreItems(dropdown) {
+    if (!dropdown._lazyOptions) return;
+    const { scrollTop, scrollHeight, clientHeight } = dropdown;
+    if (scrollTop + clientHeight < scrollHeight - 40) return;
+
+    const BATCH_SIZE = 50;
+    const options = dropdown._lazyOptions;
+    const offset = dropdown._lazyOffset;
+    if (offset >= options.length) return;
+
+    const end = Math.min(offset + BATCH_SIZE, options.length);
+    const isPhoneField = dropdown._isPhoneField;
+    const isCountryField = dropdown._isCountryField;
+
+    const fragment = document.createDocumentFragment();
+    for (let i = offset; i < end; i++) {
+      const option = options[i];
+      const item = document.createElement('div');
+      item.className = 'searchable-select-item';
+
+      if ((isPhoneField || isCountryField) && option.isoCode) {
+        item.textContent = `${this.isoToFlagEmoji(option.isoCode)} ${option.label}`;
+      } else {
+        item.textContent = option.label;
+      }
+
+      item.onclick = () => this._selectOption(dropdown, option, isPhoneField, isCountryField);
+      item.onmouseenter = () => item.classList.add('hover');
+      item.onmouseleave = () => item.classList.remove('hover');
+
+      fragment.appendChild(item);
+    }
+
+    const createNew = dropdown.querySelector('.create-new');
+    if (createNew) {
+      dropdown.insertBefore(fragment, createNew);
+    } else {
+      dropdown.appendChild(fragment);
+    }
+
+    dropdown._lazyOffset = end;
+  }
+
+  // Click-Handler für Dropdown-Item
+  _selectOption(dropdown, option, isPhoneField, isCountryField) {
+    const selectEl = dropdown.parentNode.parentNode.querySelector('select');
+
+    let optionElement = Array.from(selectEl.options).find(opt => opt.value === option.value);
+    if (!optionElement) {
+      optionElement = document.createElement('option');
+      optionElement.value = option.value;
+      optionElement.textContent = option.label;
+      if (option.isoCode) optionElement.dataset.isoCode = option.isoCode;
+      if (option.vorwahl) optionElement.dataset.vorwahl = option.vorwahl;
+      selectEl.appendChild(optionElement);
+    }
+
+    selectEl.value = option.value;
+
+    const hiddenInput = dropdown.parentNode.querySelector('input[type="hidden"]');
+    if (hiddenInput) hiddenInput.value = option.value;
+
+    const input = dropdown.parentNode.querySelector('.searchable-select-input');
+
+    if (isPhoneField && option.isoCode) {
+      const flagEmoji = this.isoToFlagEmoji(option.isoCode);
+      const vorwahl = option.vorwahl || '';
+      const countryName = option.label.replace(/^\+\d+\s*/, '').trim();
+      input.value = `${flagEmoji} ${vorwahl} ${countryName}`.trim();
+    } else if (isCountryField && option.isoCode) {
+      input.value = `${this.isoToFlagEmoji(option.isoCode)} ${option.label}`.trim();
+    } else {
+      input.value = option.label;
+    }
+
+    if (input.hasAttribute('data-was-required')) input.setCustomValidity('');
+
+    selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+    dropdown.classList.remove('show');
   }
 
   // Neue Option erstellen und auswählen (allowCreate Feature)
@@ -376,12 +474,10 @@ export class FormSearchableSelect {
 
       if (window.staticDataCache) {
         window.staticDataCache.invalidate(field.table);
-        console.log(`🗑️ Cache invalidiert für ${field.table}`);
       }
 
-      console.log(`✅ Neue Option erstellt und ausgewählt: ${newOption.label} → ${newOption.value}`);
     } catch (error) {
-      console.error('❌ Fehler beim Erstellen der neuen Option:', error);
+      console.error('Fehler beim Erstellen der neuen Option:', error);
       alert(`Fehler beim Erstellen: ${error.message || 'Unbekannter Fehler'}`);
     }
   }
@@ -394,8 +490,6 @@ export class FormSearchableSelect {
 
   // Neuen Lookup-Eintrag in DB erstellen (für allowCreate Feature)
   async createLookupEntry(table, displayField, value) {
-    console.log(`🆕 Erstelle neuen Eintrag in ${table}: ${value}`);
-
     try {
       const { data, error } = await window.supabase
         .from(table)
@@ -404,14 +498,13 @@ export class FormSearchableSelect {
         .single();
 
       if (error) {
-        console.error(`❌ Fehler beim Erstellen in ${table}:`, error);
+        console.error(`Fehler beim Erstellen in ${table}:`, error);
         throw error;
       }
 
-      console.log(`✅ Neuer Eintrag erstellt:`, data);
       return data;
     } catch (err) {
-      console.error(`❌ createLookupEntry fehlgeschlagen:`, err);
+      console.error(`createLookupEntry fehlgeschlagen:`, err);
       throw err;
     }
   }
