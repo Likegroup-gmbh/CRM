@@ -7,8 +7,15 @@ import { CAMPAIGN_TYPES } from '../constants.js';
 import { CHIP_PREFIX_MAP, mapBudgetsToDbColumns } from '../logic/CampaignBudgetFields.js';
 
 const SUPABASE = () => window.supabase;
+const DUPLICATE_ANGEBOTSNUMMER_MESSAGE = 'Diese Angebotsnummer ist bereits einem anderen Auftrag zugewiesen.';
 
 export class ProjektErstellenPersistence {
+  normalizeTextValue(value) {
+    if (value == null) return null;
+    const normalized = String(value).trim();
+    return normalized || null;
+  }
+
   parseCount(value) {
     if (value === '' || value == null) return null;
     const n = parseInt(value, 10);
@@ -49,9 +56,9 @@ export class ProjektErstellenPersistence {
       titel: a.titel || null,
       titel_manuell_geaendert: !!a.titel_manuell_geaendert,
       auftragsname: a.titel || null,
-      angebotsnummer: a.angebotsnummer || null,
-      re_nr: a.re_nr || null,
-      externe_po: a.externe_po || null,
+      angebotsnummer: this.normalizeTextValue(a.angebotsnummer),
+      re_nr: this.normalizeTextValue(a.re_nr),
+      externe_po: this.normalizeTextValue(a.externe_po),
       zahlungsziel_tage: a.zahlungsziel_tage ?? null,
       re_faelligkeit: a.re_faelligkeit || null,
       rechnung_gestellt: !!a.rechnung_gestellt,
@@ -115,6 +122,23 @@ export class ProjektErstellenPersistence {
     };
   }
 
+  async validateUniqueAngebotsnummer(supabase, angebotsnummer) {
+    if (!angebotsnummer) return { valid: true };
+
+    const { data, error } = await supabase
+      .from('auftrag')
+      .select('id')
+      .eq('angebotsnummer', angebotsnummer)
+      .limit(1);
+
+    if (error) throw error;
+    if (Array.isArray(data) && data.length > 0) {
+      return { valid: false, error: DUPLICATE_ANGEBOTSNUMMER_MESSAGE };
+    }
+
+    return { valid: true };
+  }
+
   async submit({ formData }) {
     const supabase = SUPABASE();
     if (!supabase) return { success: false, error: 'Supabase nicht verfügbar' };
@@ -123,6 +147,14 @@ export class ProjektErstellenPersistence {
       const currentBenutzerId = await getCurrentBenutzerId();
       const auftragPayload = this.buildAuftragPayload(formData);
       auftragPayload.created_by_id = currentBenutzerId;
+
+      const angebotsnummerValidation = await this.validateUniqueAngebotsnummer(
+        supabase,
+        auftragPayload.angebotsnummer
+      );
+      if (!angebotsnummerValidation.valid) {
+        return { success: false, error: angebotsnummerValidation.error };
+      }
 
       const unternehmenId = auftragPayload.unternehmen_id;
       if (unternehmenId) {
@@ -190,7 +222,7 @@ export class ProjektErstellenPersistence {
   friendlyError(e, fallback) {
     if (e?.code === '23505') {
       if (e?.message?.includes('angebotsnummer') || e?.details?.includes('angebotsnummer')) {
-        return 'Diese Angebotsnummer ist bereits einem anderen Auftrag zugewiesen.';
+        return DUPLICATE_ANGEBOTSNUMMER_MESSAGE;
       }
       return 'Dieser Wert existiert bereits und darf nur einmal vergeben werden.';
     }

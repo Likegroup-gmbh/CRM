@@ -24,7 +24,11 @@ export class ProjektErstellenValidator {
 
   validateStep2(formData) {
     const errors = [];
+    const a = formData.auftrag || {};
     const d = formData.details || {};
+    if (!a.angebotsnummer || !String(a.angebotsnummer).trim()) {
+      errors.push('Angebotsnummer ist ein Pflichtfeld');
+    }
     if (d.agency_services_enabled) {
       if (d.retainer_type && d.retainer_type !== 'none' && (!d.retainer_amount || d.retainer_amount <= 0)) {
         errors.push('Retainer-Betrag muss größer als 0 sein');

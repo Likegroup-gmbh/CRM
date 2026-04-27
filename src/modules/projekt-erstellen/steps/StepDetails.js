@@ -21,8 +21,8 @@ export class StepDetails {
         <div>
           <div class="form-two-col">
             <div class="form-field form-field--half">
-              <label for="field-pe-angebotsnummer">Angebotsnummer</label>
-              <input type="text" id="field-pe-angebotsnummer" value="${this.escape(a.angebotsnummer)}">
+              <label for="field-pe-angebotsnummer">Angebotsnummer <span class="required">*</span></label>
+              <input type="text" id="field-pe-angebotsnummer" value="${this.escape(a.angebotsnummer)}" required>
             </div>
             <div class="form-field form-field--half">
               <label for="field-pe-re_nr">Rechnungsnummer</label>
@@ -249,7 +249,7 @@ export class StepDetails {
     };
 
     const auftrag = {
-      angebotsnummer: document.getElementById('field-pe-angebotsnummer')?.value || '',
+      angebotsnummer: document.getElementById('field-pe-angebotsnummer')?.value?.trim() || '',
       re_nr: document.getElementById('field-pe-re_nr')?.value || '',
       po: document.getElementById('field-pe-po')?.value || this.wizard.formData.auftrag.po || '',
       externe_po: document.getElementById('field-pe-externe_po')?.value || '',

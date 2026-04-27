@@ -14,16 +14,27 @@ function createInsertQuery(data) {
   };
 }
 
+function createSelectQuery(rows = []) {
+  return {
+    eq: vi.fn(() => ({
+      limit: vi.fn(async () => ({ data: rows, error: null }))
+    }))
+  };
+}
+
 describe('ProjektErstellenPersistence', () => {
   let inserted;
+  let existingAuftraege;
   let persistence;
 
   beforeEach(() => {
     inserted = {};
+    existingAuftraege = [];
     persistence = new ProjektErstellenPersistence();
     window.currentUser = { id: 'user-1' };
     window.supabase = {
       from: vi.fn((table) => ({
+        select: vi.fn(() => createSelectQuery(table === 'auftrag' ? existingAuftraege : [])),
         insert: vi.fn((payload) => {
           inserted[table] = payload;
 
@@ -69,5 +80,56 @@ describe('ProjektErstellenPersistence', () => {
       kampagne_id: 'kampagne-1',
       ansprechpartner_id: 'ansprechpartner-1'
     });
+  });
+
+  it('bricht ab, wenn die Angebotsnummer bereits existiert', async () => {
+    existingAuftraege = [{ id: 'auftrag-existing' }];
+
+    const result = await persistence.submit({
+      formData: {
+        auftrag: {
+          unternehmen_id: 'unternehmen-1',
+          marke_id: 'marke-1',
+          ansprechpartner_id: 'ansprechpartner-1',
+          titel: 'Neue Kampagne',
+          angebotsnummer: 'AN-100'
+        },
+        details: {
+          campaign_type: []
+        },
+        kampagne: {
+          kampagnenname: 'Neue Kampagne'
+        }
+      }
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Diese Angebotsnummer ist bereits einem anderen Auftrag zugewiesen.'
+    });
+    expect(inserted.auftrag).toBeUndefined();
+  });
+
+  it('speichert Angebotsnummern ohne führende oder folgende Leerzeichen', async () => {
+    const result = await persistence.submit({
+      formData: {
+        auftrag: {
+          unternehmen_id: 'unternehmen-1',
+          marke_id: 'marke-1',
+          ansprechpartner_id: 'ansprechpartner-1',
+          titel: 'Neue Kampagne',
+          angebotsnummer: '  AN-100  '
+        },
+        details: {
+          campaign_type: []
+        },
+        kampagne: {
+          kampagnenname: 'Neue Kampagne'
+        }
+      }
+    });
+
+    expect(result.success).toBe(true);
+    expect(inserted.auftrag.angebotsnummer).toBe('AN-100');
   });
 });
