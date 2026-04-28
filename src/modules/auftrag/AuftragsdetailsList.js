@@ -22,6 +22,7 @@ export class AuftragsdetailsList {
     this._reloadTimer = null;
     this._loadRequestId = 0;
     this._isKunde = null;
+    this._isMitarbeiter = null;
   }
 
   get isKunde() {
@@ -31,6 +32,13 @@ export class AuftragsdetailsList {
       );
     }
     return this._isKunde;
+  }
+
+  get isMitarbeiter() {
+    if (this._isMitarbeiter === null) {
+      this._isMitarbeiter = window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
+    }
+    return this._isMitarbeiter;
   }
 
   // Initialisiere Auftragsdetails-Liste
@@ -137,7 +145,7 @@ export class AuftragsdetailsList {
           ${canBulkDelete ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
           ${canBulkDelete ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
-          ${!this.isKunde ? '<button id="btn-auftragsdetails-new" class="primary-btn">Neue Auftragsdetails anlegen</button>' : ''}
+          ${!this.isKunde && !this.isMitarbeiter ? '<button id="btn-auftragsdetails-new" class="primary-btn">Neue Auftragsdetails anlegen</button>' : ''}
         </div>
       </div>
 

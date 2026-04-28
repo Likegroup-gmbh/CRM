@@ -13,8 +13,9 @@ import { SearchInput } from '../../core/components/SearchInput.js';
 export function renderPageHtml({ currentView, searchQuery }) {
   const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
   const isKunde = window.currentUser?.rolle === 'kunde';
+  const isMitarbeiter = window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
   const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-  const canBulkDelete = isAdmin || window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
+  const canBulkDelete = isAdmin || isMitarbeiter;
 
   return `
     <div class="table-filter-wrapper">
@@ -46,7 +47,7 @@ export function renderPageHtml({ currentView, searchQuery }) {
         ${currentView === 'list' && canBulkDelete ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
         ${currentView === 'list' && canBulkDelete ? '<span id="selected-count" style="display:none;">0 ausgewählt</span>' : ''}
         ${currentView === 'list' && canBulkDelete ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
-        ${canEdit ? '<button id="btn-kampagne-new" class="primary-btn">Neue Kampagne anlegen</button>' : ''}
+        ${canEdit && !isMitarbeiter ? '<button id="btn-kampagne-new" class="primary-btn">Neue Kampagne anlegen</button>' : ''}
       </div>` : ''}
     </div>
 

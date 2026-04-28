@@ -101,4 +101,26 @@ describe('KampagneKooperationenVideoTable – Ladeoptimierung', () => {
 
     expect(queriedTables).not.toContain('kooperationen');
   });
+
+  it('öffnet das Status-Dropdown nach oben wenn unten zu wenig Platz ist', () => {
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 600 });
+
+    document.body.innerHTML = `
+      <div class="status-select-wrapper">
+        <span class="status-select-trigger"></span>
+        <div class="status-dropdown"></div>
+      </div>
+    `;
+
+    const wrapper = document.querySelector('.status-select-wrapper');
+    const trigger = document.querySelector('.status-select-trigger');
+    const dropdown = document.querySelector('.status-dropdown');
+
+    trigger.getBoundingClientRect = () => ({ top: 540, bottom: 570 });
+    Object.defineProperty(dropdown, 'offsetHeight', { configurable: true, value: 180 });
+
+    table.positionStatusDropdown(wrapper);
+
+    expect(wrapper.classList.contains('opens-up')).toBe(true);
+  });
 });

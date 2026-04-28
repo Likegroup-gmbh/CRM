@@ -460,6 +460,13 @@ export class ActionsDropdown {
           this.confirmDelete(entityId, entityType);
         }
         break;
+
+      case 'rename-liste':
+        if (entityType === 'creator-auswahl' && window.creatorAuswahlList) {
+          const currentName = actionItem?.dataset?.name || '';
+          window.creatorAuswahlList.openRenameDrawer(entityId, currentName);
+        }
+        break;
       
       case 'delete-strategie':
         // Speziell für Strategien

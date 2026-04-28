@@ -7,6 +7,7 @@ import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
+import { SearchInput } from '../../core/components/SearchInput.js';
 import { renderVertragCell } from './RechnungVertragColumn.js';
 import { renderBezahltToggle } from './RechnungBezahltToggle.js';
 import { renderTabButton } from '../../core/TabUtils.js';
@@ -19,6 +20,8 @@ export class RechnungList {
     this.rechnungen = [];
     this._bezahltUpdateInFlight = new Set();
     this.activeStatusTab = 'alle';
+    this.searchQuery = '';
+    this._searchDebounceTimer = null;
     this.statusOptions = [
       { id: 'Offen', name: 'Offen' },
       { id: 'Rückfrage', name: 'Rückfrage' },
@@ -467,8 +470,14 @@ export class RechnungList {
     const html = `
       <div class="table-filter-wrapper">
         <div class="filter-bar">
-          <div id="filter-dropdown-container"></div>
-          <div id="rechnung-unternehmen-filter-container"></div>
+          <div class="filter-left">
+            ${SearchInput.render('rechnung', {
+              placeholder: 'Rechnung suchen...',
+              currentValue: this.searchQuery
+            })}
+            <div id="filter-dropdown-container"></div>
+            <div id="rechnung-unternehmen-filter-container"></div>
+          </div>
         </div>
         <div class="table-actions">
           ${isAdmin ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
@@ -537,15 +546,38 @@ export class RechnungList {
   }
 
   getFilteredRechnungen() {
-    if (this.activeStatusTab === 'alle') return this.rechnungen;
-    return this.rechnungen.filter(r => r.status === this.activeStatusTab);
+    const searchFiltered = this.getSearchFilteredRechnungen();
+    if (this.activeStatusTab === 'alle') return searchFiltered;
+    return searchFiltered.filter(r => r.status === this.activeStatusTab);
+  }
+
+  getSearchFilteredRechnungen() {
+    const query = this.searchQuery.trim().toLowerCase();
+    if (!query) return this.rechnungen;
+
+    return this.rechnungen.filter(r => {
+      const searchableValues = [
+        r.rechnung_nr,
+        r.po_nummer,
+        r.auftrag?.auftragsname,
+        r.unternehmen?.firmenname,
+        r.kampagne?.eigener_name,
+        r.kampagne?.kampagnenname,
+        r.land,
+        [r.creator?.vorname, r.creator?.nachname].filter(Boolean).join(' '),
+        r.status
+      ];
+
+      return searchableValues.some(value => String(value || '').toLowerCase().includes(query));
+    });
   }
 
   updateStatusTabCounts() {
-    const counts = { alle: this.rechnungen.length };
+    const searchFiltered = this.getSearchFilteredRechnungen();
+    const counts = { alle: searchFiltered.length };
     this.statusTabs.forEach(t => {
       if (t.id !== 'alle') {
-        counts[t.id] = this.rechnungen.filter(r => r.status === t.id).length;
+        counts[t.id] = searchFiltered.filter(r => r.status === t.id).length;
       }
     });
     this.statusTabs.forEach(t => {
@@ -554,9 +586,23 @@ export class RechnungList {
     });
   }
 
+  handleSearch(query) {
+    if (this._searchDebounceTimer) {
+      clearTimeout(this._searchDebounceTimer);
+    }
+
+    this._searchDebounceTimer = setTimeout(async () => {
+      this.searchQuery = query.trim();
+      this.updateStatusTabCounts();
+      await this.updateTable(this.getFilteredRechnungen());
+    }, 300);
+  }
+
   async initializeFilterBar() {
     const container = document.getElementById('filter-dropdown-container');
     if (!container) return;
+    SearchInput.bind('rechnung', (value) => this.handleSearch(value));
+
     await filterDropdown.init('rechnung', container, {
       onFilterApply: (filters) => this.onFiltersApplied(filters),
       onFilterReset: () => this.onFiltersReset()
@@ -1091,6 +1137,7 @@ export class RechnungList {
   }
 
   destroy() {
+    clearTimeout(this._searchDebounceTimer);
     this._abortController?.abort();
     this._abortController = null;
 

@@ -370,6 +370,10 @@ export class CreatorAuswahlList {
                   Details anzeigen
                 </a>
                 ${!isKunde ? `
+                  <a href="#" class="action-item" data-action="rename-liste" data-id="${liste.id}" data-name="${this.sanitize(liste.name || '')}">
+                    ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
+                    Name bearbeiten
+                  </a>
                   <a href="#" class="action-item" data-action="edit-liste" data-id="${liste.id}">
                     ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
                     Bearbeiten
@@ -615,6 +619,13 @@ export class CreatorAuswahlList {
         return;
       }
 
+      const renameBtn = e.target.closest('[data-action="rename-liste"]');
+      if (renameBtn) {
+        e.preventDefault();
+        this.openRenameDrawer(renameBtn.dataset.id, renameBtn.dataset.name);
+        return;
+      }
+
       const editBtn = e.target.closest('[data-action="edit-liste"]');
       if (editBtn) {
         e.preventDefault();
@@ -671,6 +682,107 @@ export class CreatorAuswahlList {
     } catch (error) {
       console.error('Fehler beim Löschen:', error);
       window.toastSystem?.show('Fehler beim Löschen der Creator-Auswahl', 'error');
+    }
+  }
+
+  openRenameDrawer(listeId, currentName) {
+    this.closeRenameDrawer();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'drawer-overlay';
+    overlay.id = 'sourcing-rename-drawer-overlay';
+
+    const panel = document.createElement('div');
+    panel.setAttribute('role', 'dialog');
+    panel.className = 'drawer-panel';
+    panel.id = 'sourcing-rename-drawer';
+
+    const header = document.createElement('div');
+    header.className = 'drawer-header';
+    header.innerHTML = `
+      <div>
+        <span class="drawer-title">Name bearbeiten</span>
+        <p class="drawer-subtitle">Ändern Sie den Namen dieser Sourcing-Liste</p>
+      </div>
+      <div>
+        <button type="button" class="drawer-close-btn" aria-label="Schließen">&times;</button>
+      </div>
+    `;
+
+    const body = document.createElement('div');
+    body.className = 'drawer-body';
+    body.innerHTML = `
+      <form id="sourcing-rename-form">
+        <div class="form-group">
+          <label class="form-label" for="rename-liste-name">Name</label>
+          <input type="text" id="rename-liste-name" class="form-input" value="${currentName}" required>
+        </div>
+        <div class="drawer-footer" style="margin-top: var(--space-lg, 24px);">
+          <button type="submit" class="primary-btn">Speichern</button>
+          <button type="button" class="secondary-btn rename-cancel-btn">Abbrechen</button>
+        </div>
+      </form>
+    `;
+
+    panel.appendChild(header);
+    panel.appendChild(body);
+
+    overlay.addEventListener('click', () => this.closeRenameDrawer());
+    header.querySelector('.drawer-close-btn').addEventListener('click', () => this.closeRenameDrawer());
+
+    document.body.appendChild(overlay);
+    document.body.appendChild(panel);
+
+    requestAnimationFrame(() => {
+      panel.classList.add('show');
+    });
+
+    const form = panel.querySelector('#sourcing-rename-form');
+    const input = panel.querySelector('#rename-liste-name');
+    input.focus();
+    input.select();
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const newName = input.value.trim();
+      if (!newName) {
+        window.toastSystem?.show('Name darf nicht leer sein', 'warning');
+        return;
+      }
+      await this.handleRenameSubmit(listeId, newName);
+    };
+
+    body.querySelector('.rename-cancel-btn').addEventListener('click', () => this.closeRenameDrawer());
+  }
+
+  closeRenameDrawer() {
+    const overlay = document.getElementById('sourcing-rename-drawer-overlay');
+    const panel = document.getElementById('sourcing-rename-drawer');
+
+    if (panel) {
+      panel.classList.remove('show');
+      setTimeout(() => {
+        overlay?.remove();
+        panel?.remove();
+      }, 300);
+    } else {
+      overlay?.remove();
+    }
+  }
+
+  async handleRenameSubmit(listeId, newName) {
+    try {
+      await creatorAuswahlService.updateListe(listeId, { name: newName });
+
+      const liste = this.listen.find(l => l.id === listeId);
+      if (liste) liste.name = newName;
+
+      window.toastSystem?.show('Name erfolgreich geändert', 'success');
+      this.closeRenameDrawer();
+      this.loadAndRender();
+    } catch (error) {
+      console.error('Fehler beim Umbenennen:', error);
+      window.toastSystem?.show('Fehler beim Umbenennen der Liste', 'error');
     }
   }
 
@@ -788,6 +900,7 @@ export class CreatorAuswahlList {
     this._boundEventListeners.forEach((cleanup) => cleanup());
     this._boundEventListeners.clear();
     this.closeCreateDrawer();
+    this.closeRenameDrawer();
     this.listen = [];
     this.companyFolders = [];
     this.brandFolders = [];

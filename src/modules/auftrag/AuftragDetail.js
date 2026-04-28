@@ -662,12 +662,13 @@ export class AuftragDetail extends PersonDetailBase {
       return 'summary-progress-fill--success';
     };
 
-    const isAdmin = window.currentUser?.rolle === 'admin';
+    const currentRole = window.currentUser?.rolle?.toLowerCase();
+    const canViewInternalBudget = ['admin', 'mitarbeiter'].includes(currentRole);
 
     return `
       <div class="auftragsdetails-summary" style="margin-bottom: var(--space-xl);">
         <div class="summary-cards">
-          ${isAdmin ? `
+          ${canViewInternalBudget ? `
           <div class="summary-card" data-summary-card="total-budget">
             <div class="summary-value">${fmt(totalBudget)}</div>
             <div class="summary-label">Gesamtbudget (netto)</div>
@@ -690,6 +691,20 @@ export class AuftragDetail extends PersonDetailBase {
               </div>
             </div>
           </div>` : ''}
+          ${(() => {
+            const d = this.auftragsDetails;
+            const showFee = d?.agency_services_enabled && d.percentage_fee_enabled && parseFloat(d.percentage_fee_value) > 0;
+            const showKsk = d?.agency_services_enabled && d.ksk_enabled && parseFloat(d.ksk_value) > 0;
+            return (canViewInternalBudget && showFee ? `
+          <div class="summary-card" data-summary-card="agentur-fee">
+            <div class="summary-value">${fmt(parseFloat(d.percentage_fee_value))}</div>
+            <div class="summary-label">Agentur Fee</div>
+          </div>` : '') + (canViewInternalBudget && showKsk ? `
+          <div class="summary-card" data-summary-card="ksk">
+            <div class="summary-value">${fmt(parseFloat(d.ksk_value))}</div>
+            <div class="summary-label">KSK</div>
+          </div>` : '');
+          })()}
           <div class="summary-card" data-summary-card="creators">
             <div class="summary-value">${num(this.realCreatorCount)} von ${num(this.targetCreatorCount)}</div>
             <div class="summary-label">Gebuchte Creator</div>
@@ -697,10 +712,6 @@ export class AuftragDetail extends PersonDetailBase {
           <div class="summary-card" data-summary-card="videos">
             <div class="summary-value">${num(this.usedVideoCount)} von ${num(this.targetVideoCount)}</div>
             <div class="summary-label">Gebuchte Videos</div>
-          </div>
-          <div class="summary-card" data-summary-card="po-intern">
-            <div class="summary-value">${this.auftrag?.po || '-'}</div>
-            <div class="summary-label">PO intern</div>
           </div>
         </div>
       </div>
@@ -938,13 +949,14 @@ export class AuftragDetail extends PersonDetailBase {
   // Rendere Auftragsdetails-Tab
   renderAuftragsdetails() {
     if (!this.auftragsDetails) {
+      const isMitarbeiter = window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
       return `
         <div class="empty-state">
           <h3>Keine Auftragsdetails vorhanden</h3>
           <p>Es wurden noch keine detaillierten Produktionsinformationen für diesen Auftrag hinterlegt.</p>
-          <button onclick="window.navigateTo('/auftragsdetails/new')" class="primary-btn">
+          ${!isMitarbeiter ? `<button onclick="window.navigateTo('/auftragsdetails/new')" class="primary-btn">
             Auftragsdetails anlegen
-          </button>
+          </button>` : ''}
         </div>
       `;
     }

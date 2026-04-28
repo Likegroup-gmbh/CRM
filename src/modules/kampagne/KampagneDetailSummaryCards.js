@@ -127,6 +127,16 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
           <div class="summary-value" data-summary-value="extra-kosten-vk">${KampagneUtils.formatCurrency(extraKostenVkSum || 0)}</div>
           <div class="summary-label">Extra Kosten</div>
         </div>
+        ${kampagneData?.auftragDetails?.agency_services_enabled && kampagneData.auftragDetails.percentage_fee_enabled && parseFloat(kampagneData.auftragDetails.percentage_fee_value) > 0 ? `
+        <div class="summary-card" data-summary-card="agentur-fee">
+          <div class="summary-value">${KampagneUtils.formatCurrency(parseFloat(kampagneData.auftragDetails.percentage_fee_value))}</div>
+          <div class="summary-label">Agentur Fee</div>
+        </div>` : ''}
+        ${kampagneData?.auftragDetails?.agency_services_enabled && kampagneData.auftragDetails.ksk_enabled && parseFloat(kampagneData.auftragDetails.ksk_value) > 0 ? `
+        <div class="summary-card" data-summary-card="ksk">
+          <div class="summary-value">${KampagneUtils.formatCurrency(parseFloat(kampagneData.auftragDetails.ksk_value))}</div>
+          <div class="summary-label">KSK</div>
+        </div>` : ''}
         <div class="summary-card" data-summary-card="creators">
           <div class="summary-value" data-summary-value="creators">${KampagneUtils.num(usedCreators)} von ${KampagneUtils.num(totalCreators)}</div>
           <div class="summary-label">Gebuchte Creator</div>

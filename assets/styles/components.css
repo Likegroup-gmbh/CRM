@@ -3116,6 +3116,11 @@ h3.section-title,
   display: block;
 }
 
+.status-select-wrapper.opens-up .status-dropdown {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
 .status-dropdown-item {
   display: flex;
   align-items: center;
@@ -4111,6 +4116,11 @@ h3.section-title,
   --auftrag-col-checkbox-width: 40px;
   border-collapse: separate !important;
   border-spacing: 0 !important;
+}
+
+.auftrag-table th.col-details,
+.auftrag-table td.col-details {
+  text-align: left;
 }
 
 /* Alle Zellen mit feinen Borders */
@@ -15290,7 +15300,7 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
 /* Linke Seite: weiss, volles Padding, Flex-Column fuer volle Hoehe */
 .projekt-erstellen-container .form-split-left {
   background: var(--bg-primary);
-  padding: var(--space-md);
+  padding: var(--space-xxl);
   width: 50%;
   flex: 1 1 0%;
   display: flex;
@@ -15458,42 +15468,51 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
   border-radius: var(--radius-lg);
 }
 
-.projekt-erstellen-summary-campaign-table {
+.pe-summary-table {
+  width: 100%;
+  border-collapse: collapse;
   margin: 0;
   min-width: 680px;
-  font-size: var(--text-xs);
+  font-size: var(--text-xsm);
 }
 
-.projekt-erstellen-summary-campaign-table th,
-.projekt-erstellen-summary-campaign-table td {
+.pe-summary-table th,
+.pe-summary-table td {
   padding: var(--space-xs) var(--space-sm);
-  vertical-align: top;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--gray-100);
 }
 
-.projekt-erstellen-summary-campaign-table th {
+.pe-summary-table th {
   color: var(--gray-500);
-  font-weight: 600;
-  text-transform: uppercase;
+  font-weight: 400;
+  text-align: left;
+  background: var(--gray-50);
 }
 
-.projekt-erstellen-summary-campaign-table td {
+.pe-summary-table td {
   color: var(--text-primary);
 }
 
-.projekt-erstellen-summary-campaign-table .col-campaign-type {
+.pe-summary-table .col-campaign-type {
   min-width: 130px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
-.projekt-erstellen-summary-campaign-table .col-count {
+.pe-summary-table .col-deadline {
+  min-width: 110px;
+}
+
+.pe-summary-table .col-count {
   width: 72px;
 }
 
-.projekt-erstellen-summary-campaign-table .col-price {
+.pe-summary-table .col-price {
   min-width: 120px;
 }
 
-.projekt-erstellen-summary-campaign-table .col-budget-info {
+.pe-summary-table .col-budget-info {
   min-width: 180px;
   white-space: normal;
 }
@@ -15535,6 +15554,34 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
   background: var(--color-primary, var(--gray-900));
   color: #fff;
   border-color: var(--color-primary, var(--gray-900));
+}
+
+.projekt-erstellen-campaign-add-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-sm);
+  align-items: end;
+}
+
+.projekt-erstellen-campaign-add-row .form-field {
+  margin: 0;
+}
+
+.projekt-erstellen-campaign-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.projekt-erstellen-campaign-block-header legend {
+  margin: 0;
+}
+
+.projekt-erstellen-campaign-block-index {
+  color: var(--gray-400);
+  font-weight: 400;
 }
 
 .projekt-erstellen-summary-list {
@@ -15598,7 +15645,7 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
-  padding: 0 var(--space-xxl) var(--space-xxl) 0;
+  
 }
 
 .projekt-erstellen-titel-wrap {

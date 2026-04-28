@@ -221,12 +221,18 @@ export class StepDetails {
       const reDate = document.getElementById('field-pe-rechnung_gestellt_am')?.value;
       const ziel = parseInt(document.getElementById('field-pe-zahlungsziel_tage')?.value, 10);
       const fEl = document.getElementById('field-pe-re_faelligkeit');
+      const ezEl = document.getElementById('field-pe-erwarteter_monat_zahlungseingang');
       if (!fEl) return;
       if (reDate && !isNaN(ziel)) {
         const d = new Date(reDate);
         d.setDate(d.getDate() + ziel);
-        fEl.value = d.toISOString().slice(0, 10);
-        this.wizard.formData.auftrag.re_faelligkeit = fEl.value;
+        const berechnet = d.toISOString().slice(0, 10);
+        fEl.value = berechnet;
+        this.wizard.formData.auftrag.re_faelligkeit = berechnet;
+        if (ezEl) {
+          ezEl.value = berechnet;
+          this.wizard.formData.auftrag.erwarteter_monat_zahlungseingang = berechnet;
+        }
       }
     };
     document.getElementById('field-pe-rechnung_gestellt_am')?.addEventListener('input', recalcFaelligkeit);
@@ -268,7 +274,7 @@ export class StepDetails {
           percentage_fee_value: this.wizard.formData.details?.percentage_fee_value ?? 0,
           percentage_fee_base: this.wizard.formData.details?.percentage_fee_base || 'total_budget',
           ksk_enabled: !!this.wizard.formData.details?.ksk_enabled,
-          ksk_type: 'percentage',
+          ksk_type: 'fixed',
           ksk_value: this.wizard.formData.details?.ksk_value ?? 0
         };
 

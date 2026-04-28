@@ -2,7 +2,8 @@
 // Sticky Feedback-Card rechts neben dem Wizard. Zeigt Live-Zusammenfassung
 // des aktuellen Steps. Nutzt bestehende .detail-card / .detail-section Klassen.
 
-import { AUFTRAG_TYPES, CAMPAIGN_TYPES, RETAINER_TYPES, FEE_BASES } from '../constants.js';
+import { AUFTRAG_TYPES, CAMPAIGN_TYPES, RETAINER_TYPES } from '../constants.js';
+import { normalizeCampaignBlocks } from '../logic/CampaignBudgetFields.js';
 
 const EMPTY_PLACEHOLDER = '—';
 
@@ -27,6 +28,39 @@ function formatNumber(value) {
   const n = parseInt(value, 10);
   if (isNaN(n)) return EMPTY_PLACEHOLDER;
   return n.toLocaleString('de-DE');
+}
+
+function parseMoney(value) {
+  if (value === '' || value == null) return 0;
+  const n = parseFloat(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function roundMoney(value) {
+  return Math.round((parseMoney(value) + Number.EPSILON) * 100) / 100;
+}
+
+function calculateAgencyDeductions(details = {}) {
+  if (!details.agency_services_enabled) return { extraServicesTotal: 0, agencyFee: 0, ksk: 0, total: 0 };
+
+  const extraServicesTotal = details.extra_services_enabled && Array.isArray(details.extra_services)
+    ? details.extra_services.reduce((sum, item) => sum + parseMoney(item?.amount), 0)
+    : 0;
+  const agencyFee = details.percentage_fee_enabled ? parseMoney(details.percentage_fee_value) : 0;
+  const ksk = details.ksk_enabled ? parseMoney(details.ksk_value) : 0;
+
+  return {
+    extraServicesTotal: roundMoney(extraServicesTotal),
+    agencyFee: roundMoney(agencyFee),
+    ksk: roundMoney(ksk),
+    total: roundMoney(extraServicesTotal + agencyFee + ksk)
+  };
+}
+
+function calculateCreatorBudget(auftrag = {}, details = {}) {
+  if (auftrag.nettobetrag === '' || auftrag.nettobetrag == null) return null;
+  const deductions = calculateAgencyDeductions(details);
+  return roundMoney(Math.max(0, parseMoney(auftrag.nettobetrag) - deductions.total));
 }
 
 function looksLikeUuid(v) {
@@ -209,9 +243,8 @@ export class FeedbackCard {
   }
 
   buildCampaignBudgetBlocks(d) {
-    const budgets = d.campaign_budgets || {};
-    const types = d.campaign_type || [];
-    if (!types.length) return '';
+    const blocks = normalizeCampaignBlocks(d);
+    if (!blocks.length) return '';
 
     const rangeOrDash = (vonRaw, bisRaw) => {
       const von = vonRaw != null && vonRaw !== '' ? formatCurrency(vonRaw) : null;
@@ -221,21 +254,22 @@ export class FeedbackCard {
       return von || bis;
     };
 
-    return types.map(chipValue => {
-      const label = CAMPAIGN_TYPES.find(t => t.value === chipValue)?.label || chipValue;
-      const b = budgets[chipValue] || {};
+    return blocks.map((b, index) => {
+      const label = CAMPAIGN_TYPES.find(t => t.value === b.campaign_type)?.label || b.campaign_type;
       const ek = rangeOrDash(b.einkaufspreis_netto_von, b.einkaufspreis_netto_bis);
       const vk = rangeOrDash(b.verkaufspreis_netto_von, b.verkaufspreis_netto_bis);
       const info = (b.budget_info || '').trim() || null;
       const videos = b.video_anzahl != null && b.video_anzahl !== '' ? formatNumber(b.video_anzahl) : null;
       const creators = b.creator_anzahl != null && b.creator_anzahl !== '' ? formatNumber(b.creator_anzahl) : null;
+      const deadline = b.kooperations_deadline ? formatDate(b.kooperations_deadline) : null;
       const cell = (value, isEmpty = false) => isEmpty || !value
         ? `<span class="projekt-erstellen-summary-table-empty">${EMPTY_PLACEHOLDER}</span>`
         : value;
 
       return `
         <tr>
-          <td class="col-campaign-type">${this.escapeHtml(label)}</td>
+          <td class="col-campaign-type">${this.escapeHtml(label)}${index > 0 ? ` <span class="projekt-erstellen-summary-table-empty">#${index + 1}</span>` : ''}</td>
+          <td class="col-deadline">${cell(deadline, !deadline)}</td>
           <td class="col-count">${cell(videos, !videos)}</td>
           <td class="col-count">${cell(creators, !creators)}</td>
           <td class="col-price">${cell(ek, !ek)}</td>
@@ -268,6 +302,7 @@ export class FeedbackCard {
   buildStep2(formData) {
     const d = formData.details || {};
     const a = formData.auftrag || {};
+    const creatorBudget = calculateCreatorBudget(a, d);
 
     let agencyBlock = '';
     let agencyLeft = [];
@@ -280,22 +315,23 @@ export class FeedbackCard {
       const extraCount = d.extra_services_enabled
         ? (d.extra_services || []).filter(e => e?.name).length
         : 0;
+      const deductions = calculateAgencyDeductions(d);
       const extraLine = d.extra_services_enabled && extraCount > 0
-        ? `${extraCount} Zusatzleistung${extraCount === 1 ? '' : 'en'}`
+        ? `${extraCount} Zusatzleistung${extraCount === 1 ? '' : 'en'}: ${formatCurrency(deductions.extraServicesTotal)}`
         : null;
 
       const pctLine = d.percentage_fee_enabled
-        ? `${d.percentage_fee_value || 0} % auf ${FEE_BASES.find(b => b.value === d.percentage_fee_base)?.label || d.percentage_fee_base}`
+        ? formatCurrency(d.percentage_fee_value)
         : null;
 
       const kskLine = d.ksk_enabled
-        ? (d.ksk_type === 'percentage' ? `${d.ksk_value || 0} %` : formatCurrency(d.ksk_value))
+        ? formatCurrency(d.ksk_value)
         : null;
 
       agencyLeft = [
         this.renderSummaryMetric('Retainer', retainerLine, !retainerLine),
         this.renderSummaryMetric('Zusatzleistungen', extraLine, !extraLine),
-        this.renderSummaryMetric('Prozentuale Vergütung', pctLine, !pctLine),
+        this.renderSummaryMetric('Agentur Fee', pctLine, !pctLine),
         this.renderSummaryMetric('KSK', kskLine, !kskLine)
       ];
     } else {
@@ -306,7 +342,8 @@ export class FeedbackCard {
     return this.renderSummaryGrid([
       agencyLeft,
       [
-        this.renderSummaryMetric('Netto', a.nettobetrag != null && a.nettobetrag !== '' ? formatCurrency(a.nettobetrag) : null, a.nettobetrag == null || a.nettobetrag === ''),
+        this.renderSummaryMetric('Auftrag Netto', a.nettobetrag != null && a.nettobetrag !== '' ? formatCurrency(a.nettobetrag) : null, a.nettobetrag == null || a.nettobetrag === ''),
+        this.renderSummaryMetric('Gesamtbudget (netto)', creatorBudget != null ? formatCurrency(creatorBudget) : null, creatorBudget == null),
         this.renderSummaryMetric('Brutto', a.bruttobetrag != null && a.bruttobetrag !== '' ? formatCurrency(a.bruttobetrag) : null, a.bruttobetrag == null || a.bruttobetrag === ''),
         this.renderSummaryMetric('Angebotsnummer', this.escapeHtml(a.angebotsnummer || ''), !a.angebotsnummer),
         this.renderSummaryMetric('Rechnungsnummer', this.escapeHtml(a.re_nr || ''), !a.re_nr)
@@ -316,24 +353,26 @@ export class FeedbackCard {
 
   buildStep3Kampagnenarten(formData) {
     const d = formData.details || {};
-    const campaignTypeLabels = (d.campaign_type || [])
-      .map(v => CAMPAIGN_TYPES.find(t => t.value === v)?.label || v)
+    const blocks = normalizeCampaignBlocks(d);
+    const campaignTypeLabels = blocks
+      .map(v => CAMPAIGN_TYPES.find(t => t.value === v.campaign_type)?.label || v.campaign_type)
       .join(', ');
     const campaignBudgetBlocks = this.buildCampaignBudgetBlocks(d);
 
     return `
       ${this.renderSummaryMetric('Kampagnenarten', this.escapeHtml(campaignTypeLabels), !campaignTypeLabels)}
       ${campaignBudgetBlocks ? `
-        <div class="data-table-container projekt-erstellen-summary-campaign-table-wrap">
-          <table class="data-table projekt-erstellen-summary-campaign-table">
+        <div class="projekt-erstellen-summary-campaign-table-wrap">
+          <table class="pe-summary-table projekt-erstellen-summary-campaign-table">
             <thead>
               <tr>
-                <th class="col-campaign-type">Kampagnenart</th>
-                <th class="col-count">Videos</th>
-                <th class="col-count">Creator</th>
-                <th class="col-price">Einkauf</th>
-                <th class="col-price">Verkauf</th>
-                <th class="col-budget-info">Budget Info</th>
+                <th>Kampagnenart</th>
+                <th>Deadline</th>
+                <th>Videos</th>
+                <th>Creator</th>
+                <th>Einkauf</th>
+                <th>Verkauf</th>
+                <th>Budget Info</th>
               </tr>
             </thead>
             <tbody>
@@ -355,7 +394,7 @@ export class FeedbackCard {
     const dreh = a.start || a.ende
       ? `${formatDate(a.start)} – ${formatDate(a.ende)}`
       : null;
-    const totals = this.calculateCampaignTotals(d.campaign_budgets || {}, d.campaign_type || []);
+    const totals = this.calculateCampaignTotals(normalizeCampaignBlocks(d));
 
     return `
       <div class="projekt-erstellen-summary-metrics">
@@ -368,11 +407,10 @@ export class FeedbackCard {
     `;
   }
 
-  calculateCampaignTotals(budgets, activeTypes) {
-    return (activeTypes || []).reduce((sum, chipValue) => {
-      const values = budgets?.[chipValue] || {};
-      sum.videos += parseInt(values.video_anzahl, 10) || 0;
-      sum.creators += parseInt(values.creator_anzahl, 10) || 0;
+  calculateCampaignTotals(blocks) {
+    return (blocks || []).reduce((sum, block) => {
+      sum.videos += parseInt(block.video_anzahl, 10) || 0;
+      sum.creators += parseInt(block.creator_anzahl, 10) || 0;
       return sum;
     }, { videos: 0, creators: 0 });
   }

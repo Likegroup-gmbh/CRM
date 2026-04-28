@@ -383,8 +383,10 @@ export class StepBasisdaten {
   recomputeTitle() {
     if (!this.titelGenerator) return;
     const a = this.wizard.formData.auftrag;
+    const unternehmensname = this.resolveLabel('field-pe-unternehmen_id', a.unternehmen_id);
     const markeLabel = this.resolveLabel('field-pe-marke_id', a.marke_id);
     this.titelGenerator.recompute({
+      unternehmensname,
       markeLabel,
       auftragType: a.auftragtype,
       startDate: a.start

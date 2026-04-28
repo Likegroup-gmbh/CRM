@@ -1,10 +1,8 @@
 // AgencyServicesBlock.js
 // Render + Interaktion fuer den Agenturleistungen-Block in Step 2.
-// Kapselt: Toggle, Retainer, Zusatzleistungen, prozentuale Verguetung, KSK.
+// Kapselt: Toggle, Retainer, Zusatzleistungen, Agentur Fee, KSK.
 
-import { RETAINER_TYPES, FEE_BASES } from '../constants.js';
-
-const KSK_FIXED_PERCENTAGE = 4.9;
+import { RETAINER_TYPES } from '../constants.js';
 
 export class AgencyServicesBlock {
   constructor({ hostId, data, onChange }) {
@@ -25,8 +23,8 @@ export class AgencyServicesBlock {
       percentage_fee_value: d.percentage_fee_value ?? 0,
       percentage_fee_base: d.percentage_fee_base || 'total_budget',
       ksk_enabled: !!d.ksk_enabled,
-      ksk_type: 'percentage',
-      ksk_value: d.ksk_enabled ? KSK_FIXED_PERCENTAGE : 0
+      ksk_type: 'fixed',
+      ksk_value: d.ksk_value ?? 0
     };
   }
 
@@ -126,24 +124,16 @@ export class AgencyServicesBlock {
     return `
       <div class="projekt-erstellen-subsection">
         <div class="projekt-erstellen-subsection-header">
-          <h5 class="section-subtitle">Prozentuale Vergütung</h5>
+          <h5 class="section-subtitle">Agentur Fee</h5>
           <label class="toggle-switch">
             <input type="checkbox" id="field-pe-percentage_fee_enabled" ${d.percentage_fee_enabled ? 'checked' : ''}>
             <span class="toggle-slider"></span>
           </label>
         </div>
         <div id="pe-percentage-body" style="${d.percentage_fee_enabled ? '' : 'display:none;'}">
-          <div class="form-two-col">
-            <div class="form-field form-field--half">
-              <label for="field-pe-percentage_fee_value">Prozent (%)</label>
-              <input type="number" id="field-pe-percentage_fee_value" step="0.01" min="0" max="100" value="${d.percentage_fee_value || ''}">
-            </div>
-            <div class="form-field form-field--half">
-              <label for="field-pe-percentage_fee_base">Berechnungsbasis</label>
-              <select id="field-pe-percentage_fee_base">
-                ${FEE_BASES.map(b => `<option value="${b.value}" ${d.percentage_fee_base === b.value ? 'selected' : ''}>${b.label}</option>`).join('')}
-              </select>
-            </div>
+          <div class="form-field">
+            <label for="field-pe-percentage_fee_value">Betrag (€)</label>
+            <input type="number" id="field-pe-percentage_fee_value" step="0.01" min="0" value="${d.percentage_fee_value || ''}">
           </div>
         </div>
       </div>
@@ -155,11 +145,17 @@ export class AgencyServicesBlock {
     return `
       <div class="projekt-erstellen-subsection">
         <div class="projekt-erstellen-subsection-header">
-          <h5 class="section-subtitle">KSK (Künstlersozialkasse) – fix ${KSK_FIXED_PERCENTAGE.toString().replace('.', ',')} %</h5>
+          <h5 class="section-subtitle">KSK (Künstlersozialkasse)</h5>
           <label class="toggle-switch">
             <input type="checkbox" id="field-pe-ksk_enabled" ${d.ksk_enabled ? 'checked' : ''}>
             <span class="toggle-slider"></span>
           </label>
+        </div>
+        <div id="pe-ksk-body" style="${d.ksk_enabled ? '' : 'display:none;'}">
+          <div class="form-field">
+            <label for="field-pe-ksk_value">Betrag (€)</label>
+            <input type="number" id="field-pe-ksk_value" step="0.01" min="0" value="${d.ksk_value || ''}">
+          </div>
         </div>
       </div>
     `;
@@ -237,16 +233,19 @@ export class AgencyServicesBlock {
       this.data.percentage_fee_value = parseFloat(e.target.value) || 0;
       this.emit();
     });
-    document.getElementById('field-pe-percentage_fee_base')?.addEventListener('change', (e) => {
-      this.data.percentage_fee_base = e.target.value || 'total_budget';
-      this.emit();
-    });
 
     const kskToggle = document.getElementById('field-pe-ksk_enabled');
+    const kskBody = document.getElementById('pe-ksk-body');
     kskToggle?.addEventListener('change', (e) => {
       this.data.ksk_enabled = !!e.target.checked;
-      this.data.ksk_type = 'percentage';
-      this.data.ksk_value = e.target.checked ? KSK_FIXED_PERCENTAGE : 0;
+      this.data.ksk_type = 'fixed';
+      if (!e.target.checked) this.data.ksk_value = 0;
+      if (kskBody) kskBody.style.display = e.target.checked ? '' : 'none';
+      this.emit();
+    });
+    document.getElementById('field-pe-ksk_value')?.addEventListener('input', (e) => {
+      this.data.ksk_value = parseFloat(e.target.value) || 0;
+      this.data.ksk_type = 'fixed';
       this.emit();
     });
   }

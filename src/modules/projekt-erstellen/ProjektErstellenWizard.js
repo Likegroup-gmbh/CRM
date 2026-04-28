@@ -43,6 +43,7 @@ export class ProjektErstellenWizard {
       },
       details: {
         campaign_type: [],
+        campaign_blocks: [],
         campaign_budgets: {},
         agency_services_enabled: false,
         retainer_type: 'none',
@@ -53,7 +54,7 @@ export class ProjektErstellenWizard {
         percentage_fee_value: 0,
         percentage_fee_base: 'total_budget',
         ksk_enabled: false,
-        ksk_type: 'percentage',
+        ksk_type: 'fixed',
         ksk_value: 0
       },
       kampagne: {}

@@ -10,9 +10,10 @@ const MONTH_NAMES_DE = [
   'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
 ];
 
-export function generateAuftragTitle({ markeLabel, auftragType, startDate }) {
+export function generateAuftragTitle({ unternehmensname, markeLabel, auftragType, startDate }) {
   const parts = [];
 
+  if (unternehmensname) parts.push(unternehmensname);
   if (markeLabel) parts.push(markeLabel);
 
   const artLabel = AUFTRAG_TYPES.find(t => t.value === auftragType)?.label;
@@ -68,9 +69,9 @@ export class TitelGenerator {
     }
   }
 
-  recompute({ markeLabel, auftragType, startDate }) {
+  recompute({ unternehmensname, markeLabel, auftragType, startDate }) {
     if (this.manual) return;
-    const generated = generateAuftragTitle({ markeLabel, auftragType, startDate });
+    const generated = generateAuftragTitle({ unternehmensname, markeLabel, auftragType, startDate });
     if (this.titleInput) {
       this.titleInput.value = generated;
     }

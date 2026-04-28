@@ -20,6 +20,7 @@ export async function setup(form, ctx) {
   const rechnungGestelltAm = form.querySelector('input[name="rechnung_gestellt_am"]');
   const zahlungszielTage = form.querySelector('select[name="zahlungsziel_tage"]');
   const reFaelligkeit = form.querySelector('input[name="re_faelligkeit"]');
+  const erwarteterZahlungseingang = form.querySelector('input[name="erwarteter_monat_zahlungseingang"]');
 
   if (rechnungGestelltAm && zahlungszielTage && reFaelligkeit) {
     const calculateReFaelligkeit = () => {
@@ -28,9 +29,12 @@ export async function setup(form, ctx) {
       if (datum && tage >= 0) {
         const date = new Date(datum);
         date.setDate(date.getDate() + tage);
-        reFaelligkeit.value = date.toISOString().split('T')[0];
+        const berechnet = date.toISOString().split('T')[0];
+        reFaelligkeit.value = berechnet;
+        if (erwarteterZahlungseingang) erwarteterZahlungseingang.value = berechnet;
       } else if (!datum) {
         reFaelligkeit.value = '';
+        if (erwarteterZahlungseingang) erwarteterZahlungseingang.value = '';
       }
     };
     rechnungGestelltAm.addEventListener('change', calculateReFaelligkeit);

@@ -265,8 +265,8 @@ export class AuftragsdetailsDetail {
     };
 
     const auftragtype = this.auftrag?.auftragtype || '-';
-    const sanitize = (v) => window.validatorSystem?.sanitizeHtml(v) || v || '';
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    const currentRole = window.currentUser?.rolle?.toLowerCase();
+    const canViewInternalBudget = ['admin', 'mitarbeiter'].includes(currentRole);
 
     const totalBudget = this.budgetSummary.totalBudget;
     const usedBudget = this.budgetSummary.usedVkBudget || 0;
@@ -290,7 +290,7 @@ export class AuftragsdetailsDetail {
         <!-- Budget-Kacheln -->
         <div class="auftragsdetails-summary">
           <div class="summary-cards">
-            ${isAdmin ? `
+            ${canViewInternalBudget ? `
             <div class="summary-card">
               <div class="summary-value">${formatCurrency(totalBudget)}</div>
               <div class="summary-label">Gesamtbudget (netto)</div>
@@ -325,10 +325,6 @@ export class AuftragsdetailsDetail {
             <div class="summary-card">
               <div class="summary-value">${num(this.budgetSummary.totalVideos)} von ${num(this.budgetSummary.targetVideos)}</div>
               <div class="summary-label">Gebuchte Videos</div>
-            </div>
-            <div class="summary-card">
-              <div class="summary-value">${sanitize(this.auftrag?.po) || '-'}</div>
-              <div class="summary-label">PO intern</div>
             </div>
           </div>
         </div>

@@ -45,6 +45,8 @@ export class ActionRegistry {
       'add-signed', 'edit-signed',
       // Strategie Actions
       'view-strategie', 'edit-strategie', 'delete-strategie',
+      // Creator-Auswahl Actions
+      'rename-liste',
       // Verträge: Entwurf weiter bearbeiten
       'continue'
     ];

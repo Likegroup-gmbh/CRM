@@ -1,12 +1,16 @@
 // StepKampagnenarten.js
 // Step 3 des Projekt-Erstellen-Flows:
-// Kampagnenname, Kampagnenarten (Chips) + dynamische Budget-Bloecke pro Art.
+// Kampagnenname + wiederholbare Kampagnenart-Bloecke.
 
 import { CAMPAIGN_TYPES } from '../constants.js';
 import {
+  aggregateCampaignBlocksForLegacy,
+  createCampaignBlock,
   generateBudgetBlockHtml,
+  getCampaignTypesFromBlocks,
+  normalizeCampaignBlocks,
   readBudgetValuesFromDom,
-  CAMPAIGN_FIELD_SUFFIXES
+  CAMPAIGN_BLOCK_FIELD_SUFFIXES
 } from '../logic/CampaignBudgetFields.js';
 
 export class StepKampagnenarten {
@@ -24,7 +28,8 @@ export class StepKampagnenarten {
     if (!k.kampagnenname && kampagnenname) {
       this.wizard.formData.kampagne = { ...k, kampagnenname };
     }
-    const selected = new Set(d.campaign_type || []);
+    const blocks = normalizeCampaignBlocks(d);
+    this.syncBlocksIntoState(blocks);
 
     host.innerHTML = `
       <div class="form-section projekt-erstellen-section-stack">
@@ -34,12 +39,14 @@ export class StepKampagnenarten {
         </div>
         <div>
           <h5 class="section-subtitle" style="margin-bottom: var(--space-sm);">Kampagnenarten</h5>
-          <div class="projekt-erstellen-chip-group" id="pe-campaign-type-chips">
-            ${CAMPAIGN_TYPES.map(ct => `
-              <div class="projekt-erstellen-chip ${selected.has(ct.value) ? 'is-active' : ''}" data-value="${ct.value}" role="button" tabindex="0">
-                ${ct.label}
-              </div>
-            `).join('')}
+          <div class="projekt-erstellen-campaign-add-row">
+            <div class="form-field">
+              <label for="pe-campaign-type-add">Kampagnenart hinzufügen</label>
+              <select id="pe-campaign-type-add">
+                ${CAMPAIGN_TYPES.map(ct => `<option value="${ct.value}">${ct.label}</option>`).join('')}
+              </select>
+            </div>
+            <button type="button" class="secondary-btn" id="pe-add-campaign-block-btn">Hinzufügen</button>
           </div>
           <div id="pe-campaign-budgets-host" class="projekt-erstellen-budget-host"></div>
         </div>
@@ -68,22 +75,9 @@ export class StepKampagnenarten {
       });
     }
 
-    const chipGroup = document.getElementById('pe-campaign-type-chips');
-    if (chipGroup) {
-      chipGroup.addEventListener('click', (e) => {
-        const chip = e.target.closest('.projekt-erstellen-chip');
-        if (!chip) return;
-        this.toggleChip(chip);
-      });
-      chipGroup.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          const chip = e.target.closest('.projekt-erstellen-chip');
-          if (chip) {
-            e.preventDefault();
-            this.toggleChip(chip);
-          }
-        }
-      });
+    const addBtn = document.getElementById('pe-add-campaign-block-btn');
+    if (addBtn) {
+      addBtn.addEventListener('click', () => this.addCampaignBlock());
     }
 
     this.renderBudgetSections();
@@ -94,45 +88,49 @@ export class StepKampagnenarten {
     // Updates laufen direkt ueber bindBudgetEvents + toggleChip.
   }
 
-  toggleChip(chip) {
-    const value = chip.dataset.value;
-    if (!value) return;
-
+  addCampaignBlock() {
     this.collectBudgetsIntoState();
-
-    const list = this.wizard.formData.details.campaign_type || [];
-    const idx = list.indexOf(value);
-    if (idx >= 0) {
-      list.splice(idx, 1);
-      chip.classList.remove('is-active');
-    } else {
-      list.push(value);
-      chip.classList.add('is-active');
-    }
-    this.wizard.formData.details.campaign_type = list;
+    const select = document.getElementById('pe-campaign-type-add');
+    const campaignType = select?.value || CAMPAIGN_TYPES[0]?.value || 'ugc_paid';
+    const blocks = normalizeCampaignBlocks(this.wizard.formData.details);
+    blocks.push(createCampaignBlock(campaignType));
+    this.syncBlocksIntoState(blocks);
 
     this.renderBudgetSections();
     this.bindBudgetEvents();
     this.wizard.updateFeedback();
   }
 
+  removeCampaignBlock(blockId) {
+    this.collectBudgetsIntoState();
+    const blocks = normalizeCampaignBlocks(this.wizard.formData.details).filter(block => block.id !== blockId);
+    this.syncBlocksIntoState(blocks);
+
+    this.renderBudgetSections();
+    this.bindBudgetEvents();
+    this.wizard.updateFeedback();
+  }
+
+  syncBlocksIntoState(blocks) {
+    if (!this.wizard.formData.details) this.wizard.formData.details = {};
+    const normalized = (blocks || []).map(block => ({ ...block }));
+    this.wizard.formData.details.campaign_blocks = normalized;
+    this.wizard.formData.details.campaign_type = getCampaignTypesFromBlocks(normalized);
+    this.wizard.formData.details.campaign_budgets = aggregateCampaignBlocksForLegacy(normalized);
+  }
+
   renderBudgetSections() {
     const host = document.getElementById('pe-campaign-budgets-host');
     if (!host) return;
 
-    const active = this.wizard.formData.details.campaign_type || [];
-    const budgets = this.wizard.formData.details.campaign_budgets || {};
+    const blocks = normalizeCampaignBlocks(this.wizard.formData.details);
 
-    if (!active.length) {
-      host.innerHTML = '';
+    if (!blocks.length) {
+      host.innerHTML = '<div class="projekt-erstellen-empty-note">Noch keine Kampagnenart hinzugefügt.</div>';
       return;
     }
 
-    const html = active.map(chipValue => {
-      const label = CAMPAIGN_TYPES.find(t => t.value === chipValue)?.label || chipValue;
-      const values = budgets[chipValue] || {};
-      return generateBudgetBlockHtml(chipValue, label, values);
-    }).join('');
+    const html = blocks.map((block, index) => generateBudgetBlockHtml(block, CAMPAIGN_TYPES, index)).join('');
 
     host.innerHTML = html;
   }
@@ -141,57 +139,68 @@ export class StepKampagnenarten {
     const host = document.getElementById('pe-campaign-budgets-host');
     if (!host) return;
 
-    const inputs = host.querySelectorAll('input[data-chip], textarea[data-chip]');
+    const removeButtons = host.querySelectorAll('[data-action="remove-campaign-block"]');
+    removeButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const blockId = btn.dataset.blockId;
+        if (blockId) this.removeCampaignBlock(blockId);
+      });
+    });
+
+    const inputs = host.querySelectorAll('[data-block-id][data-field]');
     inputs.forEach(el => {
       const evt = el.tagName === 'TEXTAREA' || el.type === 'text' || el.type === 'number' ? 'input' : 'change';
       el.addEventListener(evt, () => {
-        const chipValue = el.dataset.chip;
-        const suffix = el.dataset.suffix;
-        if (!chipValue || !suffix) return;
+        const blockId = el.dataset.blockId;
+        const field = el.dataset.field;
+        if (!blockId || !field) return;
 
-        if (!this.wizard.formData.details.campaign_budgets) {
-          this.wizard.formData.details.campaign_budgets = {};
-        }
-        if (!this.wizard.formData.details.campaign_budgets[chipValue]) {
-          this.wizard.formData.details.campaign_budgets[chipValue] = {};
-        }
+        const blocks = normalizeCampaignBlocks(this.wizard.formData.details);
+        const block = blocks.find(item => item.id === blockId);
+        if (!block) return;
 
-        if (suffix === 'budget_info') {
-          this.wizard.formData.details.campaign_budgets[chipValue][suffix] = el.value || '';
+        if (field === 'budget_info' || field === 'kooperations_deadline') {
+          block[field] = el.value || (field === 'budget_info' ? '' : null);
         } else {
           const raw = el.value;
-          this.wizard.formData.details.campaign_budgets[chipValue][suffix] =
-            raw === '' || raw == null ? null : (isNaN(parseFloat(raw)) ? null : parseFloat(raw));
+          block[field] = raw === '' || raw == null ? null : (isNaN(parseFloat(raw)) ? null : parseFloat(raw));
         }
 
+        this.syncBlocksIntoState(blocks);
         this.wizard.updateFeedback();
       });
     });
   }
 
   collectBudgetsIntoState() {
-    const active = this.wizard.formData.details.campaign_type || [];
-    if (!this.wizard.formData.details.campaign_budgets) {
-      this.wizard.formData.details.campaign_budgets = {};
-    }
-    active.forEach(chipValue => {
-      const values = readBudgetValuesFromDom(chipValue);
-      const hasDom = CAMPAIGN_FIELD_SUFFIXES.some(s => document.getElementById(`pe-budget-${chipValue}-${s}`));
-      if (hasDom) {
-        this.wizard.formData.details.campaign_budgets[chipValue] = values;
+    const blocks = normalizeCampaignBlocks(this.wizard.formData.details);
+    const nextBlocks = blocks.map(block => {
+      const hasDom = CAMPAIGN_BLOCK_FIELD_SUFFIXES.some(s => document.getElementById(`pe-budget-${block.id}-${s}`));
+      if (!hasDom) return block;
+      return {
+        ...block,
+        ...readBudgetValuesFromDom(block.id),
+        status: block.status || 'offen'
       }
     });
+    this.syncBlocksIntoState(nextBlocks);
+  }
+
+  hasBlocks() {
+    return normalizeCampaignBlocks(this.wizard.formData.details).length > 0;
   }
 
   collectData() {
     this.collectBudgetsIntoState();
+    const blocks = normalizeCampaignBlocks(this.wizard.formData.details);
     return {
       kampagne: {
         kampagnenname: document.getElementById('field-pe-kampagnenname')?.value || ''
       },
       details: {
-        campaign_type: (this.wizard.formData.details.campaign_type || []).slice(),
-        campaign_budgets: { ...(this.wizard.formData.details.campaign_budgets || {}) }
+        campaign_blocks: blocks,
+        campaign_type: getCampaignTypesFromBlocks(blocks),
+        campaign_budgets: aggregateCampaignBlocksForLegacy(blocks)
       }
     };
   }

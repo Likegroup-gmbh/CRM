@@ -1,5 +1,6 @@
 .env
 *.sql
+!supabase/migrations/20260427_add_auftrag_kampagnenart_blocks.sql
 node_modules/
 dist/
 .DS_Store

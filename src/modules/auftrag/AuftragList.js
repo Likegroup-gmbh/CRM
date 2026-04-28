@@ -462,7 +462,7 @@ export class AuftragList {
 
   getListColumnCount() {
     if (this.isKunde) {
-      return (this._kundeHasMultipleMarken ? 1 : 0) + 14;
+      return 16;
     }
 
     return (this.isAdmin ? 1 : 0) + 19;
@@ -489,8 +489,9 @@ export class AuftragList {
                 ${this.isAdmin ? `<th class="col-checkbox">
                   <input type="checkbox" id="select-all-auftraege">
                 </th>` : ''}
-                ${!this.isKunde ? '<th class="col-unternehmen">Unternehmen</th>' : ''}
-                ${!this.isKunde || this._kundeHasMultipleMarken ? '<th>Marke</th>' : ''}
+                <th class="col-unternehmen">Unternehmen</th>
+                <th>Marke</th>
+                ${!this.isKunde ? '<th class="col-details">Details</th>' : ''}
                 <th>Angebotsnummer</th>
                 <th>Rechnungsnummer</th>
                 <th>Externe PO</th>
@@ -506,7 +507,6 @@ export class AuftragList {
                 ${!this.isKunde ? '<th>Ansprechpartner</th>' : ''}
                 <th class="col-erstellt-von">Erstellt von</th>
                 <th>Status</th>
-                ${!this.isKunde ? '<th class="table-cell-center col-details">Details</th>' : ''}
                 ${!this.isKunde ? '<th class="col-actions">Aktionen</th>' : ''}
               </tr>
             </thead>
@@ -996,8 +996,9 @@ export class AuftragList {
         return `
         <tr data-id="${auftrag.id}" class="${rowClasses}" data-rechnung-gestellt="${Boolean(auftrag.rechnung_gestellt)}" data-ueberwiesen="${Boolean(auftrag.ueberwiesen)}">
           ${this.isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
-          ${!this.isKunde ? `<td class="col-unternehmen">${this.formatUnternehmenTag(auftrag.unternehmen)}</td>` : ''}
-          ${!this.isKunde || this._kundeHasMultipleMarken ? `<td>${this.formatMarkeTag(auftrag.marke)}</td>` : ''}
+          <td class="col-unternehmen">${this.formatUnternehmenTag(auftrag.unternehmen)}</td>
+          <td>${this.formatMarkeTag(auftrag.marke)}</td>
+          ${!this.isKunde ? `<td class="col-details">${this.renderAuftragsdetailsLink(auftrag)}</td>` : ''}
           <td>${window.validatorSystem.sanitizeHtml(auftrag.angebotsnummer || '-')}</td>
           <td>${window.validatorSystem.sanitizeHtml(auftrag.re_nr || '-')}</td>
           <td>${window.validatorSystem.sanitizeHtml(auftrag.externe_po || '-')}</td>
@@ -1013,7 +1014,6 @@ export class AuftragList {
           ${!this.isKunde ? `<td>${this.formatAnsprechpartner(auftrag.ansprechpartner)}</td>` : ''}
           <td class="col-erstellt-von">${this.renderCreatedBy(auftrag.created_by)}</td>
           <td>${renderAuftragAmpel(auftrag.status)}</td>
-          ${!this.isKunde ? `<td class="table-cell-center col-details">${this.renderAuftragsdetailsLink(auftrag)}</td>` : ''}
           ${!this.isKunde ? `<td class="col-actions">${actionBuilder.create('auftrag', auftrag.id)}</td>` : ''}
         </tr>
       `}).join('');

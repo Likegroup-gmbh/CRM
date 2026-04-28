@@ -62,4 +62,28 @@ describe('AuftragsdetailsDetail', () => {
     const editButton = updateDetailLabel.mock.calls[0][1];
     expect(editButton.canEdit).toBe(false);
   });
+
+  it('zeigt Budget-Kacheln auch für Mitarbeiter', () => {
+    window.currentUser = { rolle: 'mitarbeiter' };
+
+    const instance = new AuftragsdetailsDetail();
+    instance.details = {};
+    instance.auftrag = { id: 'a1', po: 'PO-1' };
+    instance.budgetSummary = {
+      totalBudget: 10000,
+      usedVkBudget: 2500,
+      extraKostenVkSum: 500,
+      totalCreators: 2,
+      targetCreators: 4,
+      totalVideos: 3,
+      targetVideos: 6
+    };
+
+    const html = instance.renderInformationen();
+
+    expect(html).toContain('Gesamtbudget (netto)');
+    expect(html).toContain('Verbrauchtes Budget');
+    expect(html).toContain('Offenes Budget');
+    expect(html).toContain('Extra Kosten');
+  });
 });

@@ -13,7 +13,8 @@ export async function loadCriticalData(kampagneId) {
   const [
     kampagneResult,
     ansprechpartnerResult,
-    mitarbeiterResult
+    mitarbeiterResult,
+    auftragDetailsResult
   ] = await Promise.all([
     window.supabase
       .from('kampagne')
@@ -40,7 +41,21 @@ export async function loadCriticalData(kampagneId) {
     window.supabase
       .from('v_kampagne_mitarbeiter_aggregated')
       .select('mitarbeiter_id, name, rolle, profile_image_url, zuordnungsart')
-      .eq('kampagne_id', kampagneId)
+      .eq('kampagne_id', kampagneId),
+
+    window.supabase
+      .from('kampagne')
+      .select('auftrag_id')
+      .eq('id', kampagneId)
+      .single()
+      .then(async (res) => {
+        if (res.error || !res.data?.auftrag_id) return { data: null, error: null };
+        return window.supabase
+          .from('auftrag_details')
+          .select('agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, extra_services_enabled, extra_services')
+          .eq('auftrag_id', res.data.auftrag_id)
+          .maybeSingle();
+      })
   ]);
 
   if (kampagneResult.error) throw kampagneResult.error;
@@ -50,6 +65,8 @@ export async function loadCriticalData(kampagneId) {
   kampagneData.ansprechpartner = ansprechpartnerResult.data
     ?.map(item => item.ansprechpartner)
     .filter(Boolean) || [];
+
+  kampagneData.auftragDetails = auftragDetailsResult?.data || null;
 
   const mitarbeiterData = mitarbeiterResult.data || [];
   kampagneData.mitarbeiter = mitarbeiterData.map(m => ({

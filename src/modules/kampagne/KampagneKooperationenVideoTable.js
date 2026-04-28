@@ -272,9 +272,14 @@ export class KampagneKooperationenVideoTable {
         e.stopPropagation();
         const wrapper = trigger.closest('.status-select-wrapper');
         document.querySelectorAll('.status-select-wrapper.open').forEach(w => {
-          if (w !== wrapper) w.classList.remove('open');
+          if (w !== wrapper) w.classList.remove('open', 'opens-up');
         });
-        wrapper?.classList.toggle('open');
+        if (wrapper) {
+          const shouldOpen = !wrapper.classList.contains('open');
+          wrapper.classList.toggle('open', shouldOpen);
+          wrapper.classList.remove('opens-up');
+          if (shouldOpen) this.positionStatusDropdown(wrapper);
+        }
         return;
       }
 
@@ -284,7 +289,7 @@ export class KampagneKooperationenVideoTable {
         const wrapper = item.closest('.status-select-wrapper');
         const koopId = wrapper?.dataset.kooperationId;
         const newValue = item.dataset.value || null;
-        wrapper?.classList.remove('open');
+        wrapper?.classList.remove('open', 'opens-up');
         if (koopId) {
           this._handleStatusDropdownChange(koopId, newValue);
         }
@@ -292,7 +297,7 @@ export class KampagneKooperationenVideoTable {
     });
 
     document.addEventListener('click', () => {
-      document.querySelectorAll('.status-select-wrapper.open').forEach(w => w.classList.remove('open'));
+      document.querySelectorAll('.status-select-wrapper.open').forEach(w => w.classList.remove('open', 'opens-up'));
     }, { signal });
 
     window.addEventListener('kooperationStatusChanged', (e) => {
@@ -302,6 +307,20 @@ export class KampagneKooperationenVideoTable {
 
     this.bindResizeEvents();
     this.bindDragToScroll();
+  }
+
+  positionStatusDropdown(wrapper) {
+    const dropdown = wrapper?.querySelector('.status-dropdown');
+    const trigger = wrapper?.querySelector('.status-select-trigger');
+    if (!dropdown || !trigger) return;
+
+    const triggerRect = trigger.getBoundingClientRect();
+    const dropdownHeight = dropdown.offsetHeight || dropdown.scrollHeight || 260;
+    const spaceBelow = window.innerHeight - triggerRect.bottom;
+    const spaceAbove = triggerRect.top;
+    const shouldOpenUp = spaceBelow < dropdownHeight + 8 && spaceAbove > spaceBelow;
+
+    wrapper.classList.toggle('opens-up', shouldOpenUp);
   }
 
   // ========================================
