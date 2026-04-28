@@ -42,7 +42,7 @@ export class ActionRegistry {
       // Rechnung Download
       'download',
       // Verträge: Unterschriebener Vertrag
-      'add-signed', 'edit-signed',
+      'add-signed', 'edit-signed', 'replace-signed', 'remove-signed',
       // Strategie Actions
       'view-strategie', 'edit-strategie', 'delete-strategie',
       // Creator-Auswahl Actions
