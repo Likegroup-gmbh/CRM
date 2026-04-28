@@ -38,12 +38,11 @@ export class VertraegeList {
   }
 
   getVertragPermissions() {
-    const role = String(window.currentUser?.rolle || '').trim().toLowerCase();
-    const isAdmin = role === 'admin';
+    const isAdmin = window.isAdmin();
     const perms = window.currentUser?.permissions?.vertraege || {};
     return {
       isAdmin,
-      canBulkDelete: isAdmin || role === 'mitarbeiter',
+      canBulkDelete: window.canBulkDelete(),
       canView: isAdmin || perms.can_view === true,
       canEdit: isAdmin || perms.can_edit === true
     };
@@ -499,8 +498,7 @@ export class VertraegeList {
   }
 
   async _deleteSelected() {
-    const role = window.currentUser?.rolle?.toLowerCase();
-    if (role !== 'admin' && role !== 'mitarbeiter') return;
+    if (!window.isInternal()) return;
 
     const selectedIds = Array.from(this.selectedVertraege);
     try {

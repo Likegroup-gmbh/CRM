@@ -36,7 +36,7 @@ export class AuftragsdetailsCreateController {
     console.log('🎯 AUFTRAGSDETAILSCREATE: Initialisiere Auftragsdetails-Erstellung');
     
     // Security: Nur Mitarbeiter haben Zugriff
-    const isKunde = window.currentUser?.rolle === 'kunde';
+    const isKunde = window.isKunde();
     if (isKunde) {
       window.setHeadline('Zugriff verweigert');
       window.content.innerHTML = `

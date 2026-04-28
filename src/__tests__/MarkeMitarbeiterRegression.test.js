@@ -5,7 +5,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MarkeService } from '../modules/marke/services/MarkeService.js';
-import { permissionSystem } from '../core/PermissionSystem.js';
+import { dataScopeService } from '../core/DataScopeService.js';
 
 const emptyTable = () => ({
   select: vi.fn(() => ({ eq: vi.fn(() => ({ in: vi.fn(() => Promise.resolve({ data: [], error: null })) })), then(fn) { return Promise.resolve({ data: [], error: null }).then(fn); } })),
@@ -22,21 +22,24 @@ describe('Marken-Mitarbeiter: Rechte Override-Semantik', () => {
   it('getAllowedMarkenIds: Admin gibt null zurück', async () => {
     window.currentUser = { id: 'admin-1', rolle: 'admin' };
     window.supabase = { from: vi.fn(emptyTable) };
-    const ids = await permissionSystem.getAllowedMarkenIds();
+    dataScopeService.invalidateCache();
+    const ids = await dataScopeService.getAllowedMarkenIds();
     expect(ids).toBeNull();
   });
 
   it('getAllowedMarkenIds: Kein User gibt [] zurück', async () => {
     window.currentUser = null;
     window.supabase = { from: vi.fn(emptyTable) };
-    const ids = await permissionSystem.getAllowedMarkenIds();
+    dataScopeService.invalidateCache();
+    const ids = await dataScopeService.getAllowedMarkenIds();
     expect(ids).toEqual([]);
   });
 
   it('getAllowedMarkenIds: Kunde gibt null zurück', async () => {
     window.currentUser = { id: 'k-1', rolle: 'kunde' };
     window.supabase = { from: vi.fn(emptyTable) };
-    const ids = await permissionSystem.getAllowedMarkenIds();
+    dataScopeService.invalidateCache();
+    const ids = await dataScopeService.getAllowedMarkenIds();
     expect(ids).toBeNull();
   });
 });

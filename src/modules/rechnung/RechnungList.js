@@ -104,7 +104,7 @@ export class RechnungList {
         console.error('❌ Bezahlt-Toggle Fehler:', err);
       } finally {
         this._bezahltUpdateInFlight.delete(id);
-        const isAdmin = window.currentUser?.rolle?.toLowerCase() === 'admin';
+        const isAdmin = window.isAdmin();
         target.disabled = !isAdmin;
       }
     }, { signal });
@@ -261,7 +261,7 @@ export class RechnungList {
     // 6. Actions-Dropdown aktualisieren (currentStatus für Checkmark)
     const actionsCell = row.cells[row.cells.length - 1];
     if (actionsCell && rechnung) {
-      const isAdminRow = window.currentUser?.rolle?.toLowerCase() === 'admin';
+      const isAdminRow = window.isAdmin();
       actionsCell.innerHTML = actionBuilder.create('rechnung', id, window.currentUser, {
         statusOptions: this.statusOptions,
         currentStatus: { id: newStatus, name: newStatus },
@@ -291,7 +291,7 @@ export class RechnungList {
       // Neue Logik: Marken-Zuordnung als Zusatzfilter
       // - Nur Unternehmen zugeordnet → Sieht ALLES vom Unternehmen
       // - Unternehmen + bestimmte Marken → Sieht NUR Inhalte der zugewiesenen Marken
-      const isAdmin = window.currentUser?.rolle === 'admin';
+      const isAdmin = window.isAdmin();
       let allowedKampagneIds = [];
       let allowedKoopIds = [];
       let allowedUnternehmenIds = []; // Für Rechnungen direkt auf Unternehmen
@@ -400,7 +400,7 @@ export class RechnungList {
       }
 
       let rechnungen;
-      const isMitarbeiter = !isAdmin && window.currentUser?.rolle !== 'kunde' && window.currentUser?.rolle !== 'kunde_editor';
+      const isMitarbeiter = window.isMitarbeiter();
       if (isMitarbeiter) {
         if (allowedKampagneIds.length || allowedKoopIds.length || allowedUnternehmenIds.length) {
           const baseFilters = { ...currentFilters };
@@ -465,7 +465,7 @@ export class RechnungList {
   }
 
   async render() {
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+    const isAdmin = window.isAdmin();
     
     const html = `
       <div class="table-filter-wrapper">
@@ -637,8 +637,8 @@ export class RechnungList {
     const tbody = document.getElementById('rechnungen-table-body');
     if (!tbody) return;
 
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-    const canEdit = window.currentUser?.rolle !== 'kunde' && window.currentUser?.rolle !== 'kunde_editor';
+    const isAdmin = window.isAdmin();
+    const canEdit = !window.isKunde();
     const canToggleBezahlt = isAdmin;
     const formatCurrency = (v) => v == null ? '-' : new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v);
     const formatDate = (v) => v ? new Intl.DateTimeFormat('de-DE').format(new Date(v)) : '-';
@@ -910,7 +910,7 @@ export class RechnungList {
   }
 
   async showDeleteSelectedConfirmation() {
-    if (window.currentUser?.rolle !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'admin') return;
+    if (!window.isAdmin()) return;
     
     const selectedIds = Array.from(this.selectedRechnungen);
     if (selectedIds.length === 0) {

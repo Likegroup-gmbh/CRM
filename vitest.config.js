@@ -8,6 +8,10 @@ export default defineConfig({
     // Test-Dateien Muster
     include: ['src/__tests__/**/*.test.js'],
     
+    // Globales Setup: registriert PermissionSystem window-exports
+    // und synct window.currentUser automatisch mit permissionSystem
+    setupFiles: ['src/__tests__/setup.js'],
+    
     // Globale APIs (describe, it, expect, etc.) ohne Import
     globals: true,
     

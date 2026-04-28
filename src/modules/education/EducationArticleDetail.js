@@ -8,8 +8,7 @@ export const educationArticleDetail = {
   relatedArticles: [],
 
   isKundeRole() {
-    const rolle = window.currentUser?.rolle;
-    return rolle === 'kunde' || rolle === 'kunde_editor';
+    return window.isKunde();
   },
 
   async init(slug) {

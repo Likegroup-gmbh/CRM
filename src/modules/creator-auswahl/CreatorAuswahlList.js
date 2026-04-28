@@ -29,8 +29,7 @@ export class CreatorAuswahlList {
   }
 
   async init() {
-    const rolle = window.currentUser?.rolle?.toLowerCase();
-    const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+    const isKunde = window.isKunde();
     if (isKunde) {
       const quickMenuContainer = document.getElementById('quick-menu-container');
       if (quickMenuContainer) {
@@ -45,7 +44,7 @@ export class CreatorAuswahlList {
     this.currentMarkeId = null;
     this.currentMarkeName = null;
 
-    const canView = window.currentUser?.rolle === 'admin' || window.currentUser?.permissions?.kampagne?.can_view;
+    const canView = window.isAdmin() || window.currentUser?.permissions?.kampagne?.can_view;
     if (!canView) {
       window.content.innerHTML = `
         <div class="error-message">
@@ -159,9 +158,8 @@ export class CreatorAuswahlList {
   }
 
   renderCompaniesView() {
-    const rolle = window.currentUser?.rolle?.toLowerCase();
-    const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
-    const canCreate = !isKunde && (rolle === 'admin' || window.currentUser?.permissions?.kampagne?.can_edit);
+    const isKunde = window.isKunde();
+    const canCreate = !isKunde && (window.isAdmin() || window.currentUser?.permissions?.kampagne?.can_edit);
 
     return `
       <div class="list-container">
@@ -252,9 +250,8 @@ export class CreatorAuswahlList {
   }
 
   renderBrandsView() {
-    const rolle = window.currentUser?.rolle?.toLowerCase();
-    const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
-    const canCreate = !isKunde && (rolle === 'admin' || window.currentUser?.permissions?.kampagne?.can_edit);
+    const isKunde = window.isKunde();
+    const canCreate = !isKunde && (window.isAdmin() || window.currentUser?.permissions?.kampagne?.can_edit);
     const showBrandsSection = !isKunde || this.brandFolders.length > 0;
     const showCompanyOnlySection = !isKunde || this.companyOnlyItems.length > 0;
 
@@ -343,8 +340,7 @@ export class CreatorAuswahlList {
     };
 
     return items.map((liste) => {
-      const rolle = window.currentUser?.rolle?.toLowerCase();
-      const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+      const isKunde = window.isKunde();
       const kampagneName = KampagneUtils.getDisplayName(liste.kampagne);
       return `
         <tr class="table-row-clickable" data-liste-id="${liste.id}">
@@ -405,9 +401,8 @@ export class CreatorAuswahlList {
   }
 
   renderItemsView() {
-    const rolle = window.currentUser?.rolle?.toLowerCase();
-    const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
-    const canCreate = !isKunde && (rolle === 'admin' || window.currentUser?.permissions?.kampagne?.can_edit);
+    const isKunde = window.isKunde();
+    const canCreate = !isKunde && (window.isAdmin() || window.currentUser?.permissions?.kampagne?.can_edit);
     return `
       <div class="list-container">
         <div class="table-filter-wrapper">

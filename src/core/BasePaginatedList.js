@@ -746,8 +746,7 @@ export class BasePaginatedList {
    */
   get isAdmin() {
     if (this._isAdmin === null) {
-      this._isAdmin = window.currentUser?.rolle === 'admin' || 
-                      window.currentUser?.rolle?.toLowerCase() === 'admin';
+      this._isAdmin = window.isAdmin();
     }
     return this._isAdmin;
   }
@@ -756,7 +755,7 @@ export class BasePaginatedList {
    * Gecachter Bulk-Delete-Check (Admin oder Mitarbeiter)
    */
   get canBulkDelete() {
-    return this.isAdmin || window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
+    return window.canBulkDelete();
   }
   
   /**
@@ -764,7 +763,7 @@ export class BasePaginatedList {
    */
   get canEdit() {
     if (this._canEdit === null) {
-      this._canEdit = this.isAdmin || 
+      this._canEdit = window.isAdmin() || 
                       window.currentUser?.permissions?.[this.options.permissionEntity]?.can_edit || 
                       false;
     }

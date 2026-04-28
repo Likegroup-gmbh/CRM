@@ -14,7 +14,7 @@ export class MitarbeiterList {
   async init() {
     window.setHeadline('Mitarbeiter');
     
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.canViewPage?.('mitarbeiter') || window.checkUserPermission('dashboard', 'can_view');
+    const isAdmin = window.isAdmin() || window.canViewPage?.('mitarbeiter') || window.checkUserPermission('dashboard', 'can_view');
     if (!isAdmin) {
       window.content.innerHTML = `
         <div class="error-message">

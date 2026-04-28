@@ -12,10 +12,10 @@ import { SearchInput } from '../../core/components/SearchInput.js';
  */
 export function renderPageHtml({ currentView, searchQuery }) {
   const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
-  const isKunde = window.currentUser?.rolle === 'kunde';
-  const isMitarbeiter = window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
-  const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-  const canBulkDelete = isAdmin || isMitarbeiter;
+  const isKunde = window.isKunde();
+  const isMitarbeiter = window.isMitarbeiter();
+  const isAdmin = window.isAdmin();
+  const canBulkDelete = window.canBulkDelete();
 
   return `
     <div class="table-filter-wrapper">
@@ -61,9 +61,9 @@ export function renderPageHtml({ currentView, searchQuery }) {
 }
 
 export function renderTableWrapper() {
-  const isKunde = window.currentUser?.rolle === 'kunde';
-  const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-  const canBulkDelete = isAdmin || window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
+  const isKunde = window.isKunde();
+  const isAdmin = window.isAdmin();
+  const canBulkDelete = window.canBulkDelete();
   
   return `
     <div class="data-table-container kampagne-table-container">
@@ -102,9 +102,9 @@ export async function updateTable(kampagnen, { bindDragToScroll }) {
   const tbody = document.getElementById('kampagnen-table-body');
   if (!tbody) return;
 
-  const isKunde = window.currentUser?.rolle === 'kunde';
-  const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-  const canBulkDelete = isAdmin || window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
+  const isKunde = window.isKunde();
+  const isAdmin = window.isAdmin();
+  const canBulkDelete = window.canBulkDelete();
 
   await TableAnimationHelper.animatedUpdate(tbody, async () => {
     if (!kampagnen || kampagnen.length === 0) {

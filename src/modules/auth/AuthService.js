@@ -669,7 +669,7 @@ export class AuthService {
 
   // Header-Buttons basierend auf Rolle anpassen
   updateHeaderForRole(rolle) {
-    const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+    const isKunde = window.isKunde();
     
     // Education Button ausblenden für Kunden
     const educationBtn = document.querySelector('.education-btn');

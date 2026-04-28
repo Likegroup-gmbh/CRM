@@ -165,9 +165,7 @@ export class BulkActionSystem {
 
   // Generische Delete-Selected Funktion
   async genericDeleteSelected() {
-    const role = window.currentUser?.rolle?.toLowerCase();
-    const canDelete = role === 'admin' || role === 'mitarbeiter';
-    if (!canDelete) {
+    if (!window.canBulkDelete()) {
       console.warn('⚠️ Löschen verweigert: Fehlende Berechtigung');
       window.toastSystem?.error('Sie haben keine Berechtigung, Einträge zu löschen.');
       return;
@@ -202,9 +200,7 @@ export class BulkActionSystem {
 
   // Führe generische Löschung aus
   async performGenericDelete(entityType, checkedBoxes) {
-    const role = window.currentUser?.rolle?.toLowerCase();
-    const canDelete = role === 'admin' || role === 'mitarbeiter';
-    if (!canDelete) {
+    if (!window.canBulkDelete()) {
       console.warn('⚠️ Löschen verweigert: Fehlende Berechtigung');
       window.toastSystem?.error('Sie haben keine Berechtigung, Einträge zu löschen.');
       return;
@@ -415,7 +411,7 @@ export class BulkActionSystem {
 
   // Prüfe ob Benutzer Kunde ist
   isKunde() {
-    return window.currentUser?.rolle === 'kunde';
+    return window.isKunde();
   }
 
   // Verstecke Bulk-Actions für Kunden

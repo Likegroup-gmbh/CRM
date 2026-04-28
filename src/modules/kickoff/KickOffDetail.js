@@ -52,8 +52,7 @@ export class KickOffDetail extends PersonDetailBase {
   }
 
   _isKunde() {
-    const rolle = window.currentUser?.rolle;
-    return rolle === 'kunde' || rolle === 'kunde_editor';
+    return window.isKunde();
   }
 
   render() {

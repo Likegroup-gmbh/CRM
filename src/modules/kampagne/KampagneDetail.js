@@ -83,8 +83,7 @@ export class KampagneDetail {
     this._initPromise = (async () => {
       const _initStart = performance.now();
       try {
-        const rolle = String(window.currentUser?.rolle || '').trim().toLowerCase();
-        const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+        const isKunde = window.isKunde();
 
         const [, tableData] = await Promise.all([
           this.loadCriticalData(),
@@ -156,8 +155,7 @@ export class KampagneDetail {
 
     window.setHeadline(`Kampagne: ${KampagneUtils.getDisplayName(this.kampagneData)}`);
 
-    const rolle = String(window.currentUser?.rolle || '').trim().toLowerCase();
-    this.isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+    this.isKunde = window.isKunde();
 
     const html = renderMainPage({
       kampagneData: this.kampagneData,

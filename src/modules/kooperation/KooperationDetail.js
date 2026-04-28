@@ -356,7 +356,7 @@ export class KooperationDetail extends PersonDetailBase {
       return;
     }
 
-    const isKundeRole = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
+    const isKundeRole = window.isKunde();
     const title = this.kooperation.name || 'Kooperation';
     if (window.setHeadline) {
       window.setHeadline(`Kooperation: ${this.sanitize(title)}`);
@@ -404,7 +404,7 @@ export class KooperationDetail extends PersonDetailBase {
   }
 
   _getSidebarInfo() {
-    const isKunde = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
+    const isKunde = window.isKunde();
     const campaignItems = [
       { icon: 'info', label: 'Kampagne', value: this.kampagne ? KampagneUtils.getDisplayName(this.kampagne) : '-' },
       { icon: 'building', label: 'Unternehmen', value: this.kooperation?.unternehmen?.firmenname || this.kampagne?.unternehmen?.firmenname || '-' },
@@ -489,7 +489,7 @@ export class KooperationDetail extends PersonDetailBase {
   // ============================================
 
   renderInfoDetails() {
-    const isKunde = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
+    const isKunde = window.isKunde();
     const allgemeinItems = this.renderInfoItems([
       ...(!isKunde ? [{ icon: 'currency', label: 'Einkaufspreis', value: this.formatCurrency(this.kooperation.einkaufspreis_gesamt) }] : []),
       { icon: 'currency', label: 'Verkaufspreis', value: this.formatCurrency(this.kooperation.verkaufspreis_gesamt) }
@@ -510,7 +510,7 @@ export class KooperationDetail extends PersonDetailBase {
             : '-' },
           { icon: 'info', label: 'TikTok Follower', value: this.creator.tiktok_follower ? this.formatNumber(this.creator.tiktok_follower) : '-' }
         ])}
-        ${!(window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor') ? `<div class="detail-actions">
+        ${!window.isKunde() ? `<div class="detail-actions">
           <button onclick="window.navigateTo('/creator/${this.creator.id}')" class="secondary-btn">Creator Details anzeigen</button>
         </div>` : ''}
       </div>
@@ -611,7 +611,7 @@ export class KooperationDetail extends PersonDetailBase {
       return `<p class="empty-state">Keine Videos angelegt. Videos werden automatisch beim Erstellen/Bearbeiten der Kooperation generiert.</p>`;
     }
 
-    const isKundeRole = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
+    const isKundeRole = window.isKunde();
 
     const rows = this.videos.map(v => {
       const formatList = (arr) => {
@@ -624,9 +624,8 @@ export class KooperationDetail extends PersonDetailBase {
         }).join('');
       };
 
-      const userRole = window.currentUser?.rolle;
-      const isKunde = userRole === 'kunde';
-      const isAdmin = userRole === 'admin';
+      const isKunde = window.isKunde();
+      const isAdmin = window.isAdmin();
 
       const menu = `
         <div class="actions-dropdown-container" data-entity-type="kooperation_videos">
@@ -740,7 +739,7 @@ export class KooperationDetail extends PersonDetailBase {
   }
 
   renderVersand() {
-    const isKunde = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
+    const isKunde = window.isKunde();
 
     if (!this.versandDaten || this.versandDaten.length === 0) {
       return `

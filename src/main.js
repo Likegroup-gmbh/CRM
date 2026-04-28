@@ -40,6 +40,7 @@ import { authService } from './modules/auth/AuthService.js';
 import { authUtils } from './modules/auth/AuthUtils.js';
 import { navigationSystem } from './modules/navigation/NavigationSystem.js';
 import { permissionSystem } from './core/PermissionSystem.js';
+import './core/DataScopeService.js';
 import { dataService } from './core/DataService.js';
 import { validatorSystem } from './core/ValidatorSystem.js';
 import { creatorUtils } from './modules/creator/CreatorUtils.js';
@@ -476,7 +477,7 @@ window.setupHeaderUI = () => {
     // Kick-Off Button setup
     const kickoffBtn = document.getElementById('kickoffBtn');
     if (kickoffBtn) {
-      const isKunde = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
+      const isKunde = window.isKunde();
       kickoffBtn.style.display = isKunde ? 'none' : '';
 
       if (!isKunde && !kickoffBtn.dataset.bound) {
@@ -569,7 +570,7 @@ window.setupHeaderUI = () => {
         const entity = btn.getAttribute('data-entity');
         const permKey = map[entity];
         const canEdit = permKey ? !!window.permissionSystem?.getEntityPermissions(permKey)?.can_edit : false;
-        btn.style.display = canEdit || window.currentUser?.rolle === 'admin' ? '' : 'none';
+        btn.style.display = canEdit || window.isAdmin() ? '' : 'none';
       });
 
       quickDropdown.addEventListener('click', (e) => {

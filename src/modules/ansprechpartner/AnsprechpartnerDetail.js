@@ -45,7 +45,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
 
       // Debug: Permission-Check für Edit-Button
       const canEdit = window.currentUser?.permissions?.ansprechpartner?.can_edit !== false;
-      console.log('🔐 ANSPRECHPARTNERDETAIL: Permission-Check:', {
+      console.debug('🔐 ANSPRECHPARTNERDETAIL: Permission-Check:', {
         rolle: window.currentUser?.rolle,
         permissions: window.currentUser?.permissions?.ansprechpartner,
         canEdit: canEdit,
@@ -759,7 +759,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
   // Bearbeitungsformular anzeigen
   showEditForm() {
     const canEdit = window.currentUser?.permissions?.ansprechpartner?.can_edit !== false;
-    console.log('🎯 ANSPRECHPARTNERDETAIL: showEditForm() aufgerufen', {
+    console.debug('🎯 ANSPRECHPARTNERDETAIL: showEditForm() aufgerufen', {
       canEdit,
       rolle: window.currentUser?.rolle,
       permissions: window.currentUser?.permissions?.ansprechpartner,

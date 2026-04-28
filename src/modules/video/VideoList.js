@@ -7,7 +7,6 @@ import { modularFilterSystem as filterSystem } from '../../core/filters/ModularF
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
-import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { VideoDataLoader } from './VideoDataLoader.js';
 import { VideoFolderRenderer } from './VideoFolderRenderer.js';
 import { VideoTableRenderer } from './VideoTableRenderer.js';
@@ -40,8 +39,8 @@ export class VideoList {
   async init() {
     window.setHeadline('Videos');
 
-    this.isAdmin = KampagneUtils.isUserAdmin();
-    this.isKunde = KampagneUtils.isUserKunde();
+    this.isAdmin = window.isAdmin();
+    this.isKunde = window.isKunde();
 
     const canView = (window.canViewPage && window.canViewPage('videos')) ||
                     await window.checkUserPermission('videos', 'can_view');

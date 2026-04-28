@@ -76,7 +76,7 @@ export class BriefingList {
       // Neue Logik: Marken-Zuordnung als Zusatzfilter
       // - Nur Unternehmen zugeordnet → Sieht ALLES vom Unternehmen
       // - Unternehmen + bestimmte Marken → Sieht NUR Inhalte der zugewiesenen Marken
-      const isAdmin = window.currentUser?.rolle === 'admin';
+      const isAdmin = window.isAdmin();
       let allowedKampagneIds = [];
       let allowedKoopIds = [];
       if (!isAdmin) {
@@ -196,7 +196,7 @@ export class BriefingList {
 
       // Für Mitarbeiter: Filtere nach zugewiesenen Kampagnen
       // Für Kunden: RLS-Policies filtern automatisch
-      if (!isAdmin && window.currentUser?.rolle !== 'kunde') {
+      if (!isAdmin && !window.isKunde()) {
         const orParts = [`assignee_id.eq.${window.currentUser?.id}`];
         if (allowedKoopIds.length) orParts.push(`kooperation_id.in.(${allowedKoopIds.join(',')})`);
         if (allowedKampagneIds.length) orParts.push(`kampagne_id.in.(${allowedKampagneIds.join(',')})`);
@@ -279,9 +279,9 @@ export class BriefingList {
 
   async render() {
     const canEdit = window.currentUser?.permissions?.briefing?.can_edit || false;
-    const isKunde = window.currentUser?.rolle === 'kunde';
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-    const canBulkDelete = isAdmin || window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
+    const isKunde = window.isKunde();
+    const isAdmin = window.isAdmin();
+    const canBulkDelete = window.canBulkDelete();
 
     const filterHtml = !isKunde ? `<div class="filter-bar">
       <div class="filter-left">
@@ -461,7 +461,7 @@ export class BriefingList {
 
   // Ausgewählte Briefings löschen
   async deleteSelectedBriefings() {
-    if (window.currentUser?.rolle !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'mitarbeiter') return;
+    if (!window.canBulkDelete()) return;
     
     const selectedIds = Array.from(this.selectedBriefings);
     const totalCount = selectedIds.length;
@@ -599,9 +599,9 @@ export class BriefingList {
     const tbody = document.getElementById('briefings-table-body');
     if (!tbody) return;
 
-    const isKunde = window.currentUser?.rolle === 'kunde';
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-    const canBulkDelete = isAdmin || window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
+    const isKunde = window.isKunde();
+    const isAdmin = window.isAdmin();
+    const canBulkDelete = window.canBulkDelete();
     const escapeHtml = (s) => window.validatorSystem.sanitizeHtml(s || '—');
 
     await TableAnimationHelper.animatedUpdate(tbody, async () => {

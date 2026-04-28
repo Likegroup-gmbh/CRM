@@ -67,7 +67,7 @@ export const feedbackPage = {
     window.setHeadline('Feedback');
     
     // Berechtigungsprüfung (nutzt berechnete Permissions statt rohe zugriffsrechte)
-    if (window.currentUser?.rolle !== 'admin') {
+    if (!window.isAdmin()) {
       const canView = window.currentUser?.permissions?.feedback?.can_view;
       if (!canView) {
         this.renderBlocked();
@@ -75,7 +75,7 @@ export const feedbackPage = {
       }
     }
     
-    this.isAdmin = window.currentUser?.rolle === 'admin';
+    this.isAdmin = window.isAdmin();
     this.createDrawer = new FeedbackCreateDrawer();
     await this.loadFeedbacks();
     await this.loadComments();

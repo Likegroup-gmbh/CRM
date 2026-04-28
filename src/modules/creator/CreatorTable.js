@@ -4,8 +4,7 @@ import { creatorUtils } from './CreatorUtils.js';
 
 export function renderCreatorTable(creators, options = {}) {
   const { showFavoriteAction = false, showFavoritesMenu = false, showSelection = false, kampagneId = null } = options || {};
-  const rolle = String(window.currentUser?.rolle || '').trim().toLowerCase();
-  const isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+  const isKunde = window.isKunde();
   const canViewViaPage = window.canViewPage?.('creator');
   const canViewViaPerm = window.currentUser?.permissions?.creator?.can_view;
   const canViewCreator = !isKunde && canViewViaPage !== false && canViewViaPerm !== false;

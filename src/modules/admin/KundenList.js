@@ -17,7 +17,7 @@ export class KundenList {
   async init() {
     window.setHeadline('Kunden');
     
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.canViewPage?.('mitarbeiter');
+    const isAdmin = window.isAdmin() || window.canViewPage?.('mitarbeiter');
     if (!isAdmin) {
       window.content.innerHTML = `
         <div class="error-message">
@@ -276,8 +276,7 @@ export class KundenList {
   // Wizard zum Anlegen eines Kunden (Form-Page)
   async showCreateForm() {
     // Nur Admin
-    const isAdmin = window.currentUser?.rolle === 'admin';
-    if (!isAdmin) {
+    if (!window.isAdmin()) {
       window.content.innerHTML = '<div class="error-message"><p>Keine Berechtigung.</p></div>';
       return;
     }

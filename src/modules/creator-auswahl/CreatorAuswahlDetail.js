@@ -31,8 +31,7 @@ export class CreatorAuswahlDetail {
 
   async init(listeId) {
     this.listeId = listeId;
-    const rolle = window.currentUser?.rolle?.toLowerCase();
-    this.isKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+    this.isKunde = window.isKunde();
 
     if (this.isKunde) {
       const quickMenuContainer = document.getElementById('quick-menu-container');

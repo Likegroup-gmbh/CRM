@@ -54,7 +54,7 @@ export class DashboardModule {
     window.setHeadline('Dashboard');
     
     // Für Kunden: Spezielle Dashboard-Ansicht
-    if (window.currentUser?.rolle === 'kunde') {
+    if (window.isKunde()) {
       await this.renderKundenDashboard();
       this.setupEventListeners();
       this.setupKampagneEventListeners();
@@ -69,7 +69,7 @@ export class DashboardModule {
 
   async loadDashboardData() {
     try {
-      console.log('🔄 DASHBOARD: Lade Daten... Rolle:', window.currentUser?.rolle);
+      console.debug('🔄 DASHBOARD: Lade Daten... Rolle:', window.currentUser?.rolle);
       
       const loadPromises = [
         this.loadStats(),
@@ -252,7 +252,7 @@ export class DashboardModule {
       const nextWeekStr = nextWeek.toISOString().split('T')[0];
 
       // Sichtbarkeits-Logik: Nicht-Admins nur zugeordnete Inhalte
-      const isAdmin = window.currentUser?.rolle === 'admin';
+      const isAdmin = window.isAdmin();
       let allowedKampagneIds = [];
       let allowedKoopIds = [];
       
@@ -1244,7 +1244,7 @@ export class DashboardModule {
       }
 
       // Sichtbarkeits-Logik: Nicht-Admins nur zugeordnete Inhalte
-      const isAdmin = window.currentUser?.rolle === 'admin';
+      const isAdmin = window.isAdmin();
       let allowedKampagneIds = [];
       
       if (!isAdmin) {
@@ -1288,7 +1288,7 @@ export class DashboardModule {
         .order('created_at', { ascending: false });
       
       // Nicht-Admin Filterung anwenden
-      if (!isAdmin && window.currentUser?.rolle !== 'kunde') {
+      if (!isAdmin && !window.isKunde()) {
         if (allowedKampagneIds.length > 0) {
           kampagnenQuery = kampagnenQuery.in('id', allowedKampagneIds);
         } else {

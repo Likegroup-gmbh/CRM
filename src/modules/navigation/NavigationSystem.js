@@ -88,8 +88,7 @@ export class NavigationSystem {
 
       // "Projekt anlegen" nur für interne Mitarbeiter, nicht für Kunden
       if (id === 'projekt-erstellen') {
-        const rolle = window.currentUser?.rolle?.toLowerCase();
-        if (rolle === 'kunde' || rolle === 'kunde_editor') return false;
+        if (!window.canCreateProject()) return false;
       }
       
       // 1) Page-Scoped Check (DB-Overrides)
@@ -127,16 +126,12 @@ export class NavigationSystem {
       };
       
       const entity = map[id] || id;
-      const canViewResult = perms?.[entity]?.can_view || (window.currentUser?.rolle === 'admin');
+      const canViewResult = perms?.[entity]?.can_view || window.isAdmin();
       
       // Debug-Log für Tasks
       if (id === 'tasks') {
-        console.log('🔍 Navigation Debug - Tasks:', {
-          id,
-          entity,
-          perms,
-          canView: canViewResult,
-          rolle: window.currentUser?.rolle
+        console.debug('🔍 Navigation Debug - Tasks:', {
+          id, entity, perms, canView: canViewResult
         });
       }
       

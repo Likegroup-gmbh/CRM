@@ -22,14 +22,12 @@ export class CreatorAuswahlService {
    */
   async getAllListen() {
     const user = window.currentUser;
-    const rolle = user?.rolle?.toLowerCase();
     
-    // Admin sieht alle Listen
-    if (rolle === 'admin') {
+    if (window.isAdmin()) {
       return this._fetchAllListen();
     }
 
-    if (rolle === 'kunde' || rolle === 'kunde_editor') {
+    if (window.isKunde()) {
       const customerScope = await this._getCustomerAccessScope(user?.id);
       console.log('🔐 Kundenscope Sourcing:', customerScope);
 
@@ -40,8 +38,7 @@ export class CreatorAuswahlService {
       return filtered;
     }
 
-    // Für Mitarbeiter: erlaubte Kampagnen ermitteln
-    const allowedKampagneIds = await this._getAllowedKampagneIds(user, rolle);
+    const allowedKampagneIds = await this._getAllowedKampagneIds(user);
     console.log('🔐 Erlaubte Kampagnen für Benutzer:', allowedKampagneIds);
 
     const allListen = await this._fetchAllListen();
@@ -146,13 +143,13 @@ export class CreatorAuswahlService {
   /**
    * Ermittelt alle Kampagnen-IDs, auf die der Benutzer Zugriff hat
    */
-  async _getAllowedKampagneIds(user, rolle) {
+  async _getAllowedKampagneIds(user) {
     const userId = user?.id;
     if (!userId) return [];
     
     const kampagneIds = new Set();
     
-    if (rolle === 'mitarbeiter') {
+    if (window.isMitarbeiter()) {
       // 1. Direkt zugeordnete Kampagnen
       const { data: directKampagnen } = await window.supabase
         .from('kampagne_mitarbeiter')
@@ -190,7 +187,7 @@ export class CreatorAuswahlService {
         (markenKampagnen || []).forEach(k => kampagneIds.add(k.id));
       }
       
-    } else if (rolle === 'kunde' || rolle === 'kunde_editor') {
+    } else if (window.isKunde()) {
       const customerScope = await this._getCustomerAccessScope(userId);
       customerScope.kampagneIds.forEach((id) => kampagneIds.add(id));
     }
@@ -226,8 +223,7 @@ export class CreatorAuswahlService {
    * Liste erstellen
    */
   async createListe(listeData) {
-    const rolle = window.currentUser?.rolle?.toLowerCase();
-    if (rolle === 'kunde' || rolle === 'kunde_editor') {
+    if (window.isKunde()) {
       throw new Error('Keine Berechtigung zum Erstellen von Listen');
     }
     
@@ -252,8 +248,7 @@ export class CreatorAuswahlService {
    * Liste aktualisieren
    */
   async updateListe(id, updates) {
-    const rolle = window.currentUser?.rolle?.toLowerCase();
-    if (rolle === 'kunde' || rolle === 'kunde_editor') {
+    if (window.isKunde()) {
       throw new Error('Keine Berechtigung zum Bearbeiten von Listen');
     }
     
@@ -276,8 +271,7 @@ export class CreatorAuswahlService {
    * Liste löschen (inkl. aller Items)
    */
   async deleteListe(id) {
-    const rolle = window.currentUser?.rolle?.toLowerCase();
-    if (rolle !== 'admin') {
+    if (!window.isAdmin()) {
       throw new Error('Nur Admins dürfen Listen löschen');
     }
     

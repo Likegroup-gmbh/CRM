@@ -90,7 +90,7 @@ export class ModuleRegistry {
     }
 
     if (segment === 'auftrag' && id && id !== 'new') {
-      const isKunde = ['kunde', 'kunde_editor'].includes(window.currentUser?.rolle?.toLowerCase());
+      const isKunde = window.isKunde();
       if (isKunde) {
         console.log('🚫 Navigation blockiert: Kunden dürfen nicht auf Auftrags-Detailseite');
         window.toastSystem?.show('Sie können Aufträge nur in der Übersicht einsehen.', 'warning');

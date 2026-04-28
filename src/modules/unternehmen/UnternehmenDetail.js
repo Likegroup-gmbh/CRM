@@ -830,7 +830,7 @@ export class UnternehmenDetail extends PersonDetailBase {
       `;
     }
 
-    const isKunde = window.currentUser?.rolle === 'kunde';
+    const isKunde = window.isKunde();
 
     const rows = this.kooperationen.map(k => `
       <tr>

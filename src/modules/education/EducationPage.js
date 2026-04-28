@@ -52,7 +52,7 @@ export const educationPage = {
       this.tags = tags || [];
 
       // Artikel mit Kategorie und Tags laden (nur published)
-      const isKunde = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
+      const isKunde = window.isKunde();
 
       let articlesQuery = window.supabase
         .from('education_articles')
@@ -99,7 +99,7 @@ export const educationPage = {
   },
 
   getFilteredArticles() {
-    const isKunde = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
+    const isKunde = window.isKunde();
     let filtered = isKunde
       ? this.articles.filter(a => KUNDE_ALLOWED_SLUGS.includes(a.slug))
       : [...this.articles];

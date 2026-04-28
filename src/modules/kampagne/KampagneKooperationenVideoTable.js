@@ -76,21 +76,18 @@ export class KampagneKooperationenVideoTable {
   }
 
   isKundeRole() {
-    const role = this.getCurrentUserRole();
-    return role === 'kunde' || role === 'kunde_editor';
+    return window.isKunde();
   }
 
   canDeleteKooperation() {
     if (this.isKundeRole()) return false;
     const canDelete = window.currentUser?.permissions?.kooperation?.can_delete;
     if (typeof canDelete === 'boolean') return canDelete;
-    const role = this.getCurrentUserRole();
-    return role === 'admin' || role === 'mitarbeiter';
+    return window.canSeePricing();
   }
 
   isFieldEditableForUser(entity, field) {
-    const userRole = this.getCurrentUserRole();
-    if (userRole === 'admin' || userRole === 'mitarbeiter') return true;
+    if (window.canSeePricing()) return true;
     
     if (this.isKundeRole()) {
       const readOnlyFieldsForKunden = {

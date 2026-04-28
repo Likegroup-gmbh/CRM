@@ -73,8 +73,7 @@ export class AuftragList {
   // Gecachte Admin-Prüfung
   get isAdmin() {
     if (this._isAdmin === null) {
-      this._isAdmin = window.currentUser?.rolle === 'admin' ||
-                      window.currentUser?.rolle?.toLowerCase() === 'admin';
+      this._isAdmin = window.isAdmin();
     }
     return this._isAdmin;
   }
@@ -82,9 +81,7 @@ export class AuftragList {
   // Gecachte Kunden-Prüfung
   get isKunde() {
     if (this._isKunde === null) {
-      this._isKunde = ['kunde', 'kunde_editor'].includes(
-        window.currentUser?.rolle?.toLowerCase()
-      );
+      this._isKunde = window.isKunde();
     }
     return this._isKunde;
   }

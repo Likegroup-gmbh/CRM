@@ -922,7 +922,7 @@ export class MarkeDetail extends PersonDetailBase {
       `;
     }
 
-    const isKunde = window.currentUser?.rolle === 'kunde';
+    const isKunde = window.isKunde();
 
     const rows = this.kooperationen.map(k => `
       <tr>
@@ -1021,7 +1021,7 @@ export class MarkeDetail extends PersonDetailBase {
     const activeKickoff = this.kickoffsByType[this.activeKickoffType];
     const activeMarkenwerte = this.kickoffMarkenwerteByType[this.activeKickoffType] || [];
     const typeLabel = this.activeKickoffType === 'paid' ? 'Paid' : 'Organic';
-    const isKunde = window.currentUser?.rolle === 'kunde' || window.currentUser?.rolle === 'kunde_editor';
+    const isKunde = window.isKunde();
 
     if (availableCount === 0) {
       if (!this._kickoffLoaded) {

@@ -81,7 +81,7 @@ export class KooperationList {
       }
 
       // Sichtbarkeit: Nicht-Admins nur eigene (assignee_id) ODER solche aus zugewiesenen Kampagnen/Marken/Unternehmen
-      const isAdmin = window.currentUser?.rolle === 'admin';
+      const isAdmin = window.isAdmin();
       let allowedKampagneIds = [];
       if (!isAdmin) {
         try {
@@ -164,7 +164,7 @@ export class KooperationList {
 
       // Für Mitarbeiter: Filtere nach zugewiesenen Kampagnen
       // Für Kunden: RLS-Policies filtern automatisch
-      if (!isAdmin && window.currentUser?.rolle !== 'kunde') {
+      if (!isAdmin && !window.isKunde()) {
         coopQuery = coopQuery.or(`assignee_id.eq.${window.currentUser?.id}${allowedKampagneIds.length ? `,kampagne_id.in.(${allowedKampagneIds.join(',')})` : ''}`);
       }
 
@@ -249,8 +249,8 @@ export class KooperationList {
       
     </div>`;
 
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-    const canBulkDelete = isAdmin || window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
+    const isAdmin = window.isAdmin();
+    const canBulkDelete = window.canBulkDelete();
     
     // Haupt-HTML
     let html = `
@@ -482,8 +482,8 @@ export class KooperationList {
         return date ? new Date(date).toLocaleDateString('de-DE') : '-';
       };
 
-      const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-      const canBulkDelete = isAdmin || window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
+      const isAdmin = window.isAdmin();
+      const canBulkDelete = window.canBulkDelete();
 
       return `
         <tr data-id="${kooperation.id}">
@@ -610,7 +610,7 @@ export class KooperationList {
 
   // Ausgewählte Kooperationen löschen
   async deleteSelectedKooperationen() {
-    if (window.currentUser?.rolle !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'mitarbeiter') return;
+    if (!window.canBulkDelete()) return;
     
     const selectedIds = Array.from(this.selectedKooperation);
     const totalCount = selectedIds.length;

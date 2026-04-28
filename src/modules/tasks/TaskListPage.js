@@ -31,7 +31,7 @@ export const taskListPage = {
     window.setHeadline('Aufgaben');
     
     // Berechtigungsprüfung
-    const canView = window.currentUser?.rolle === 'admin' || window.currentUser?.permissions?.tasks?.can_view;
+    const canView = window.isAdmin() || window.currentUser?.permissions?.tasks?.can_view;
     if (!canView) {
       window.content.innerHTML = `
         <div class="error-message">
@@ -98,7 +98,7 @@ export const taskListPage = {
 
   render() {
     const safe = (str) => window.validatorSystem?.sanitizeHtml?.(str) ?? str;
-    const canEdit = window.currentUser?.rolle === 'admin' || window.currentUser?.permissions?.tasks?.can_edit;
+    const canEdit = window.isAdmin() || window.currentUser?.permissions?.tasks?.can_edit;
 
     const html = `
       <div class="page-header">

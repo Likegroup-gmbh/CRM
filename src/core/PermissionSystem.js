@@ -1,248 +1,157 @@
 // PermissionSystem.js (ES6-Modul)
 // Zentrale Berechtigungsverwaltung
 
+// --- Komprimierte Rollen-Matrix (Modul-Konstante, wird nur 1x erzeugt) ---
+
+const ENTITIES = [
+  'creator', 'creator-lists', 'unternehmen', 'marke', 'produkt',
+  'auftrag', 'auftragsdetails', 'kampagne', 'kooperation', 'briefing',
+  'videos', 'rechnung', 'ansprechpartner', 'dashboard', 'tasks',
+  'strategie', 'kickoff', 'sourcing', 'feedback', 'mitarbeiter',
+  'vertraege', 'kunden-admin'
+];
+
+const T = { can_view: true, can_edit: true, can_delete: true };
+const F = { can_view: false, can_edit: false, can_delete: false };
+const V = { can_view: true, can_edit: false, can_delete: false };
+
+function allOf(template) {
+  return Object.fromEntries(ENTITIES.map(e => [e, { ...template }]));
+}
+
+const BASE_PERMISSIONS = {
+  admin: allOf(T),
+
+  mitarbeiter: {
+    ...allOf(T),
+    unternehmen:    { can_view: true, can_edit: false, can_delete: true },
+    marke:          { can_view: true, can_edit: false, can_delete: true },
+    auftrag:        { ...F },
+    auftragsdetails:{ can_view: true, can_edit: false, can_delete: true },
+    rechnung:       { can_view: true, can_edit: true, can_delete: false },
+    dashboard:      { ...V },
+    tasks:          { can_view: true, can_edit: false, can_delete: true },
+    mitarbeiter:    { ...F },
+    'kunden-admin': { ...F },
+  },
+
+  kunde: {
+    ...allOf(F),
+    produkt:     { ...V },
+    auftrag:     { ...V },
+    kampagne:    { ...V },
+    kooperation: { ...V },
+    briefing:    { ...V },
+    videos:      { ...V },
+    dashboard:   { ...V },
+    tasks:       { can_view: true, can_edit: true, can_delete: false },
+    strategie:   { can_view: true, can_edit: true, can_delete: false },
+    kickoff:     { ...V },
+    sourcing:    { ...V },
+  },
+};
+
+// kunde_editor ist aktuell identisch mit kunde; spaeter koennen hier Abweichungen definiert werden
+BASE_PERMISSIONS.kunde_editor = { ...BASE_PERMISSIONS.kunde };
+
+const DEFAULT_PERMISSIONS = {
+  ...allOf(F),
+  dashboard: { ...V },
+  feedback:  { ...V },
+};
+
+const PENDING_PERMISSIONS = {
+  ...allOf(F),
+  dashboard: { ...V },
+};
+
+// --- Permission System Klasse ---
+
 export class PermissionSystem {
   constructor() {
     this.userPermissions = {};
     this.userRole = null;
+    this._normalizedRole = '';
     this.calculatedPermissions = {};
-    // Page-/Tabellen-Scoped-Overrides aus DB `user_permissions`
-    this.pagePermissions = {}; // key: page_id → { can_view, can_edit, can_delete, data_filters }
-    this.tablePermissions = {}; // key: `${page_id}.${table_id}` → { ... }
+    this.pagePermissions = {};
+    this.tablePermissions = {};
   }
 
+  // ============================================
+  // Rollen-Helper (gecacht ueber _normalizedRole)
+  // ============================================
+
+  get isAdmin()       { return this._normalizedRole === 'admin'; }
+  get isKunde()       { return this._normalizedRole === 'kunde' || this._normalizedRole === 'kunde_editor'; }
+  get isKundeEditor() { return this._normalizedRole === 'kunde_editor'; }
+  get isMitarbeiter() { return this._normalizedRole === 'mitarbeiter'; }
+  get isPending()     { return this._normalizedRole === 'pending'; }
+  get isInternal()    { return this.isAdmin || this.isMitarbeiter; }
+
+  // Feature-basierte Checks (Capabilities)
+  get canSeePricing()      { return this.isInternal; }
+  get canManageStaff()     { return this.isAdmin; }
+  get canBulkDelete()      { return this.isInternal; }
+  get canCreateProject()   { return this.isInternal; }
+  get canUseGlobalSearch() { return this.isInternal; }
+
+  // ============================================
   // Benutzer-Berechtigungen setzen
+  // ============================================
+
   setUserPermissions(user) {
-    console.log('🔐 Setze Benutzer-Berechtigungen:', user);
-    
     this.userRole = user.rolle;
+    this._normalizedRole = String(user.rolle || '').trim().toLowerCase();
     this.userPermissions = user.zugriffsrechte || {};
-    
-    // Berechtigungen basierend auf Rolle berechnen
-    let calculatedPermissions = this.getPermissionsByUser(user);
-    // Benutzer-spezifische Overrides aus zugriffsrechte anwenden (can_view + can_edit)
+
+    let calculatedPermissions = this.getPermissionsByRole(this._normalizedRole);
+
     if (user?.zugriffsrechte && typeof user.zugriffsrechte === 'object') {
       calculatedPermissions = this.applyOverrides(calculatedPermissions, user.zugriffsrechte);
     }
-    // final berechnete Permissions persistieren
+
     this.calculatedPermissions = calculatedPermissions;
-    // Speichere auch roh am user-Objekt
     user.permissions = calculatedPermissions;
-    
-    // Berechtigungen in window.currentUser setzen
+
     if (window.currentUser) {
       window.currentUser.permissions = calculatedPermissions;
-      console.log('✅ Berechtigungen in window.currentUser gesetzt:', calculatedPermissions);
     }
-    
-    console.log('✅ Berechtigungen gesetzt:', {
-      role: this.userRole,
-      permissions: this.userPermissions,
-      calculatedPermissions: calculatedPermissions
-    });
+
+    console.debug('🔐 Berechtigungen gesetzt:', { role: this.userRole, permissions: calculatedPermissions });
   }
 
-  // Berechtigungen basierend auf Benutzer-Rolle (aus Datenbank)
+  // ============================================
+  // Rollen-Matrix auflösen
+  // ============================================
+
+  getPermissionsByRole(normalizedRole) {
+    if (normalizedRole === 'pending') return { ...PENDING_PERMISSIONS };
+    const matrix = BASE_PERMISSIONS[normalizedRole];
+    if (matrix) return structuredClone(matrix);
+    return { ...DEFAULT_PERMISSIONS };
+  }
+
+  // Abwaertskompatibilitaet: alte Signatur getPermissionsByUser(user)
   getPermissionsByUser(user) {
-    const role = user.rolle;
-    
-    // Basis-Berechtigungen basierend auf Rolle (case-insensitive)
-    const normalizedRole = role?.toLowerCase();
-    const basePermissions = {
-      admin: {
-        creator: { can_view: true, can_edit: true, can_delete: true },
-        'creator-lists': { can_view: true, can_edit: true, can_delete: true },
-        unternehmen: { can_view: true, can_edit: true, can_delete: true },
-        marke: { can_view: true, can_edit: true, can_delete: true },
-        produkt: { can_view: true, can_edit: true, can_delete: true },
-        auftrag: { can_view: true, can_edit: true, can_delete: true },
-        auftragsdetails: { can_view: true, can_edit: true, can_delete: true },
-        kampagne: { can_view: true, can_edit: true, can_delete: true },
-        kooperation: { can_view: true, can_edit: true, can_delete: true },
-        briefing: { can_view: true, can_edit: true, can_delete: true },
-        videos: { can_view: true, can_edit: true, can_delete: true },
-        rechnung: { can_view: true, can_edit: true, can_delete: true },
-        ansprechpartner: { can_view: true, can_edit: true, can_delete: true },
-        dashboard: { can_view: true, can_edit: true, can_delete: true },
-        tasks: { can_view: true, can_edit: true, can_delete: true },
-        strategie: { can_view: true, can_edit: true, can_delete: true },
-        kickoff: { can_view: true, can_edit: true, can_delete: true },
-        sourcing: { can_view: true, can_edit: true, can_delete: true },
-        feedback: { can_view: true, can_edit: true, can_delete: true },
-        mitarbeiter: { can_view: true, can_edit: true, can_delete: true },
-        vertraege: { can_view: true, can_edit: true, can_delete: true },
-        'kunden-admin': { can_view: true, can_edit: true, can_delete: true }
-      },
-      mitarbeiter: {
-        creator: { can_view: true, can_edit: true, can_delete: true },
-        'creator-lists': { can_view: true, can_edit: true, can_delete: true },
-        unternehmen: { can_view: true, can_edit: false, can_delete: true },
-        marke: { can_view: true, can_edit: false, can_delete: true },
-        produkt: { can_view: true, can_edit: true, can_delete: true },
-        auftrag: { can_view: false, can_edit: false, can_delete: false },
-        auftragsdetails: { can_view: true, can_edit: false, can_delete: true },
-        kampagne: { can_view: true, can_edit: true, can_delete: true },
-        kooperation: { can_view: true, can_edit: true, can_delete: true },
-        briefing: { can_view: true, can_edit: true, can_delete: true },
-        videos: { can_view: true, can_edit: true, can_delete: true },
-        rechnung: { can_view: true, can_edit: true, can_delete: false },
-        ansprechpartner: { can_view: true, can_edit: true, can_delete: true },
-        dashboard: { can_view: true, can_edit: false, can_delete: false },
-        tasks: { can_view: true, can_edit: false, can_delete: true },
-        strategie: { can_view: true, can_edit: true, can_delete: true },
-        kickoff: { can_view: true, can_edit: true, can_delete: true },
-        sourcing: { can_view: true, can_edit: true, can_delete: true },
-        feedback: { can_view: true, can_edit: true, can_delete: true },
-        mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
-        vertraege: { can_view: true, can_edit: true, can_delete: true },
-        'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
-      },
-      // Kunden: read-only Einsicht in relevante Module (RLS filtert auf eigene Daten)
-      kunde: {
-        creator: { can_view: false, can_edit: false, can_delete: false },
-        'creator-lists': { can_view: false, can_edit: false, can_delete: false },
-        unternehmen: { can_view: false, can_edit: false, can_delete: false },
-        marke: { can_view: false, can_edit: false, can_delete: false },
-        produkt: { can_view: true, can_edit: false, can_delete: false },
-        auftrag: { can_view: true, can_edit: false, can_delete: false },
-        auftragsdetails: { can_view: false, can_edit: false, can_delete: false },
-        kampagne: { can_view: true, can_edit: false, can_delete: false },
-        kooperation: { can_view: true, can_edit: false, can_delete: false },
-        briefing: { can_view: true, can_edit: false, can_delete: false },
-        videos: { can_view: true, can_edit: false, can_delete: false },
-        rechnung: { can_view: false, can_edit: false, can_delete: false },
-        ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
-        dashboard: { can_view: true, can_edit: false, can_delete: false },
-        tasks: { can_view: true, can_edit: true, can_delete: false },
-        strategie: { can_view: true, can_edit: true, can_delete: false },
-        kickoff: { can_view: true, can_edit: false, can_delete: false },
-        sourcing: { can_view: true, can_edit: false, can_delete: false },
-        feedback: { can_view: false, can_edit: false, can_delete: false },
-        mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
-        vertraege: { can_view: false, can_edit: false, can_delete: false },
-        'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
-      },
-      // Kunde-Editor: perspektivisch eingeschränkt bearbeitbar; v1 wie kunde
-      'kunde_editor': {
-        creator: { can_view: false, can_edit: false, can_delete: false },
-        'creator-lists': { can_view: false, can_edit: false, can_delete: false },
-        unternehmen: { can_view: false, can_edit: false, can_delete: false },
-        marke: { can_view: false, can_edit: false, can_delete: false },
-        produkt: { can_view: true, can_edit: false, can_delete: false },
-        auftrag: { can_view: true, can_edit: false, can_delete: false },
-        auftragsdetails: { can_view: false, can_edit: false, can_delete: false },
-        kampagne: { can_view: true, can_edit: false, can_delete: false },
-        kooperation: { can_view: true, can_edit: false, can_delete: false },
-        briefing: { can_view: true, can_edit: false, can_delete: false },
-        videos: { can_view: true, can_edit: false, can_delete: false },
-        rechnung: { can_view: false, can_edit: false, can_delete: false },
-        ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
-        dashboard: { can_view: true, can_edit: false, can_delete: false },
-        tasks: { can_view: true, can_edit: true, can_delete: false },
-        strategie: { can_view: true, can_edit: true, can_delete: false },
-        kickoff: { can_view: true, can_edit: false, can_delete: false },
-        sourcing: { can_view: true, can_edit: false, can_delete: false }, // Kunden können Sourcing sehen
-        feedback: { can_view: false, can_edit: false, can_delete: false }, // Kunden dürfen Feedback NICHT sehen
-        mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
-        vertraege: { can_view: false, can_edit: false, can_delete: false },
-        'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
-      }
-    };
-
-    // Standard-Berechtigungen
-    const defaultPermissions = {
-      creator: { can_view: false, can_edit: false, can_delete: false },
-      'creator-lists': { can_view: false, can_edit: false, can_delete: false },
-      unternehmen: { can_view: false, can_edit: false, can_delete: false },
-      marke: { can_view: false, can_edit: false, can_delete: false },
-      produkt: { can_view: false, can_edit: false, can_delete: false },
-      auftrag: { can_view: false, can_edit: false, can_delete: false },
-      auftragsdetails: { can_view: false, can_edit: false, can_delete: false },
-      kampagne: { can_view: false, can_edit: false, can_delete: false },
-      kooperation: { can_view: false, can_edit: false, can_delete: false },
-      briefing: { can_view: false, can_edit: false, can_delete: false },
-      videos: { can_view: false, can_edit: false, can_delete: false },
-      tasks: { can_view: false, can_edit: false, can_delete: false },
-      rechnung: { can_view: false, can_edit: false, can_delete: false },
-      ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
-      dashboard: { can_view: true, can_edit: false, can_delete: false },
-      strategie: { can_view: false, can_edit: false, can_delete: false },
-      kickoff: { can_view: false, can_edit: false, can_delete: false },
-      sourcing: { can_view: false, can_edit: false, can_delete: false },
-      feedback: { can_view: true, can_edit: false, can_delete: false },
-      mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
-      vertraege: { can_view: false, can_edit: false, can_delete: false },
-      'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
-    };
-
-    // Pending-User: Nur Dashboard, keine anderen Rechte
-    const pendingPermissions = {
-      creator: { can_view: false, can_edit: false, can_delete: false },
-      'creator-lists': { can_view: false, can_edit: false, can_delete: false },
-      unternehmen: { can_view: false, can_edit: false, can_delete: false },
-      marke: { can_view: false, can_edit: false, can_delete: false },
-      produkt: { can_view: false, can_edit: false, can_delete: false },
-      auftrag: { can_view: false, can_edit: false, can_delete: false },
-      auftragsdetails: { can_view: false, can_edit: false, can_delete: false },
-      kampagne: { can_view: false, can_edit: false, can_delete: false },
-      kooperation: { can_view: false, can_edit: false, can_delete: false },
-      briefing: { can_view: false, can_edit: false, can_delete: false },
-      rechnung: { can_view: false, can_edit: false, can_delete: false },
-      ansprechpartner: { can_view: false, can_edit: false, can_delete: false },
-      dashboard: { can_view: true, can_edit: false, can_delete: false },
-      tasks: { can_view: false, can_edit: false, can_delete: false },
-      strategie: { can_view: false, can_edit: false, can_delete: false },
-      kickoff: { can_view: false, can_edit: false, can_delete: false },
-      sourcing: { can_view: false, can_edit: false, can_delete: false },
-      feedback: { can_view: false, can_edit: false, can_delete: false },
-      mitarbeiter: { can_view: false, can_edit: false, can_delete: false },
-      vertraege: { can_view: false, can_edit: false, can_delete: false },
-      'kunden-admin': { can_view: false, can_edit: false, can_delete: false }
-    };
-
-    // Pending-User: Warten auf Admin-Freischaltung
-    if (normalizedRole === 'pending') {
-      console.log('👤 Pending-User: Nur Dashboard-Zugriff, alle anderen Module gesperrt');
-      return pendingPermissions;
-    }
-
-    // Admin hat alle Rechte
-    if (normalizedRole === 'admin') {
-      return basePermissions.admin;
-    }
-
-    // Mitarbeiter-Rechte
-    if (normalizedRole === 'mitarbeiter') {
-      return basePermissions.mitarbeiter;
-    }
-
-    // Kunde (read-only, RLS filtert die Daten)
-    if (normalizedRole === 'kunde') {
-      console.log('👤 Kunde: Zugriff auf Kampagnen, Kooperationen, Briefings (RLS-gefiltert)');
-      return basePermissions.kunde;
-    }
-
-    // Kunde-Editor (derzeit wie Kunde; spätere Edit-Rechte möglich)
-    if (normalizedRole === 'kunde_editor') {
-      return basePermissions['kunde_editor'];
-    }
-
-    // Fallback zu Standard-Berechtigungen (ohne Rechte)
-    return defaultPermissions;
+    const role = String(user?.rolle || '').trim().toLowerCase();
+    return this.getPermissionsByRole(role);
   }
 
-  // Overrides anwenden (can_view + can_edit aus JSON-Objekt, delete bleibt rollenbasiert)
+  // ============================================
+  // Overrides
+  // ============================================
+
   applyOverrides(perms, overrides) {
-    const cloned = JSON.parse(JSON.stringify(perms || {}));
-    Object.keys(overrides || {}).forEach((key) => {
+    const cloned = structuredClone(perms || {});
+    for (const key of Object.keys(overrides || {})) {
       if (!cloned[key]) cloned[key] = { can_view: false, can_edit: false, can_delete: false };
       const ov = overrides[key];
-      if (typeof ov === 'boolean') cloned[key].can_view = ov;
+      if (typeof ov === 'boolean') { cloned[key].can_view = ov; continue; }
       if (ov && typeof ov === 'object') {
         if (typeof ov.can_view === 'boolean') cloned[key].can_view = ov.can_view;
         if (typeof ov.can_edit === 'boolean') cloned[key].can_edit = ov.can_edit;
       }
-    });
+    }
     return cloned;
   }
 
@@ -273,27 +182,26 @@ export class PermissionSystem {
     }
   }
 
-  // Seiten-/Tabellen-Sichtbarkeit ermitteln (Page-Override hat Vorrang)
+  // ============================================
+  // Permission-Checks
+  // ============================================
+
   canViewPage(pageId) {
-    // Admin immer true
-    if (this.userRole === 'admin') return true;
+    if (this.isAdmin) return true;
+    if (!this._normalizedRole) return false;
 
     const pageOverride = this.pagePermissions?.[pageId]?.can_view;
     if (typeof pageOverride === 'boolean') return pageOverride;
 
-    // Fallback: berechnete rollenbasierte Rechte
     const perms = this.calculatedPermissions?.[pageId];
-    // Wenn pageId nicht in calculatedPermissions existiert, undefined zurückgeben
-    // damit das Entity-Mapping in der Navigation greifen kann
     if (perms === undefined) return undefined;
     return !!perms?.can_view;
   }
 
   canViewTable(pageId, tableId) {
-    if (this.userRole === 'admin') return true;
+    if (this.isAdmin) return true;
     const tableOverride = this.tablePermissions?.[`${pageId}.${tableId}`]?.can_view;
     if (typeof tableOverride === 'boolean') return tableOverride;
-    // Wenn keine Table-Regel vorhanden ist, nutze Page-Regel
     return this.canViewPage(pageId);
   }
 
@@ -303,39 +211,32 @@ export class PermissionSystem {
     return scoped?.data_filters || null;
   }
 
-  // Berechtigung für eine spezifische Aktion prüfen
   checkPermission(entity, action) {
-    if (!this.userRole) {
+    if (!this._normalizedRole) {
       console.warn('⚠️ Keine Benutzer-Rolle gesetzt');
       return false;
     }
 
-    // Admin hat alle Rechte
-    if (this.userRole === 'admin') {
-      return true;
-    }
+    if (this.isAdmin) return true;
 
-    // Zuerst: Page-Scoped Override aus DB (falls vorhanden)
-    if (action === 'can_view') {
+    // Normalisierung: sowohl 'view' als auch 'can_view' akzeptieren
+    const normalized = action.startsWith('can_') ? action.slice(4) : action;
+
+    // Page-Scoped Override aus DB
+    if (normalized === 'view') {
       const pageOverride = this.pagePermissions?.[entity]?.can_view;
       if (typeof pageOverride === 'boolean') return pageOverride;
     }
 
-    // Prüfe berechnete, gecachte Rollenrechte inkl. (boolean) Overrides
     const entityPermissions = this.calculatedPermissions?.[entity];
-
     if (!entityPermissions) {
       console.warn(`⚠️ Keine Berechtigungen für Entity: ${entity}`);
       return false;
     }
 
-    const hasPermission = entityPermissions[`can_${action}`] || false;
-    
-    console.log(`🔐 Berechtigung prüfen: ${entity}.${action} = ${hasPermission}`);
-    return hasPermission;
+    return entityPermissions[`can_${normalized}`] || false;
   }
 
-  // Mehrere Berechtigungen auf einmal prüfen
   checkPermissions(entity, actions) {
     if (Array.isArray(actions)) {
       return actions.every(action => this.checkPermission(entity, action));
@@ -343,202 +244,68 @@ export class PermissionSystem {
     return this.checkPermission(entity, actions);
   }
 
-  // Aktuelle Benutzer-Berechtigungen abrufen
+  // ============================================
+  // Getter
+  // ============================================
+
   getUserPermissions() {
-    return {
-      role: this.userRole,
-      permissions: this.calculatedPermissions
-    };
+    return { role: this.userRole, permissions: this.calculatedPermissions };
   }
 
-  // Berechtigungen für eine spezifische Entität abrufen
   getEntityPermissions(entity) {
-    if (!this.userRole) return null;
-
-    const permissions = this.calculatedPermissions?.[entity];
-
-    return permissions || null;
+    if (!this._normalizedRole) return null;
+    return this.calculatedPermissions?.[entity] || null;
   }
 
-  // Berechtigungen zurücksetzen
+  // ============================================
+  // Lifecycle
+  // ============================================
+
   clearPermissions() {
     this.userPermissions = {};
     this.userRole = null;
-    console.log('🔐 Berechtigungen zurückgesetzt');
+    this._normalizedRole = '';
+    this.calculatedPermissions = {};
+    this.pagePermissions = {};
+    this.tablePermissions = {};
   }
 
-  // Benutzer-Berechtigungen aktualisieren
   updateUserPermissions(user) {
     this.setUserPermissions(user);
-    
-    // Berechtigungen auch in window.currentUser aktualisieren
     if (window.currentUser) {
       window.currentUser.permissions = this.calculatedPermissions;
-      console.log('✅ Berechtigungen in window.currentUser aktualisiert:', this.calculatedPermissions);
-    }
-  }
-
-  /**
-   * Holt alle Unternehmen-IDs, auf die der aktuelle User Zugriff hat
-   * @returns {Promise<string[]|null>} Array von IDs oder null (= alle erlaubt für Admin)
-   */
-  async getAllowedUnternehmenIds() {
-    const rolle = window.currentUser?.rolle?.toLowerCase();
-    const userId = window.currentUser?.id;
-    
-    // Admin hat uneingeschränkten Zugriff
-    if (rolle === 'admin') return null;
-    
-    // Kunde hat auch uneingeschränkten Zugriff (RLS filtert auf DB-Ebene)
-    if (rolle === 'kunde' || rolle === 'kunde_editor') return null;
-    
-    if (!userId) {
-      console.warn('⚠️ getAllowedUnternehmenIds: Kein User-ID gefunden');
-      return [];
-    }
-    
-    try {
-      // 1. Direkt über mitarbeiter_unternehmen zugeordnete Unternehmen
-      const { data: direkteZuordnung, error: err1 } = await window.supabase
-        .from('mitarbeiter_unternehmen')
-        .select('unternehmen_id')
-        .eq('mitarbeiter_id', userId);
-      
-      if (err1) {
-        console.error('❌ Fehler beim Laden direkter Unternehmen-Zuordnungen:', err1);
-      }
-      
-      // 2. Indirekt über marke_mitarbeiter -> marke.unternehmen_id
-      const { data: markenZuordnung, error: err2 } = await window.supabase
-        .from('marke_mitarbeiter')
-        .select('marke:marke_id(unternehmen_id)')
-        .eq('mitarbeiter_id', userId);
-      
-      if (err2) {
-        console.error('❌ Fehler beim Laden Marken-basierter Unternehmen-Zuordnungen:', err2);
-      }
-      
-      // Zusammenführen und Duplikate entfernen
-      const alleIds = [
-        ...(direkteZuordnung || []).map(r => r.unternehmen_id),
-        ...(markenZuordnung || []).map(r => r.marke?.unternehmen_id).filter(Boolean)
-      ];
-      const uniqueIds = [...new Set(alleIds)];
-      
-      console.log(`🔐 getAllowedUnternehmenIds: ${uniqueIds.length} Unternehmen für User ${userId}`);
-      return uniqueIds;
-      
-    } catch (error) {
-      console.error('❌ getAllowedUnternehmenIds Fehler:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Holt alle Marken-IDs, auf die der aktuelle User Zugriff hat.
-   * Override-Semantik: Pro Unternehmen gilt entweder nur die expliziten Marken (marke_mitarbeiter)
-   * oder, falls keine explizite Zuordnung, alle Marken des Unternehmens.
-   * @returns {Promise<string[]|null>} Array von IDs oder null (= alle erlaubt für Admin)
-   */
-  async getAllowedMarkenIds() {
-    const rolle = window.currentUser?.rolle?.toLowerCase();
-    const userId = window.currentUser?.id;
-    
-    if (rolle === 'admin') return null;
-    if (rolle === 'kunde' || rolle === 'kunde_editor') return null;
-    if (!userId) {
-      console.warn('⚠️ getAllowedMarkenIds: Kein User-ID gefunden');
-      return [];
-    }
-    
-    try {
-      // 1. Direkt zugeordnete Marken (marke_mitarbeiter)
-      const { data: direkteMarken, error: err1 } = await window.supabase
-        .from('marke_mitarbeiter')
-        .select('marke_id')
-        .eq('mitarbeiter_id', userId);
-      
-      if (err1) {
-        console.error('❌ Fehler beim Laden direkter Marken-Zuordnungen:', err1);
-      }
-      
-      const directMarkeIds = (direkteMarken || []).map(r => r.marke_id).filter(Boolean);
-      
-      // 2. Marken → Unternehmen für Override-Logik
-      let unternehmenMarkenMap = new Map();
-      if (directMarkeIds.length > 0) {
-        const { data: markenData } = await window.supabase
-          .from('marke')
-          .select('id, unternehmen_id')
-          .in('id', directMarkeIds);
-        (markenData || []).forEach(m => {
-          if (m.unternehmen_id) {
-            if (!unternehmenMarkenMap.has(m.unternehmen_id)) unternehmenMarkenMap.set(m.unternehmen_id, []);
-            unternehmenMarkenMap.get(m.unternehmen_id).push(m.id);
-          }
-        });
-      }
-      
-      // 3. Unternehmen-Zuordnungen (mitarbeiter_unternehmen)
-      const { data: unternehmenZuordnung, error: err2 } = await window.supabase
-        .from('mitarbeiter_unternehmen')
-        .select('unternehmen_id')
-        .eq('mitarbeiter_id', userId);
-      
-      if (err2) console.error('❌ Fehler beim Laden Unternehmen-Zuordnungen:', err2);
-      const unternehmenIds = (unternehmenZuordnung || []).map(r => r.unternehmen_id).filter(Boolean);
-      
-      const allowedMarkeIds = [];
-      for (const unternehmenId of unternehmenIds) {
-        const expliziteMarken = unternehmenMarkenMap.get(unternehmenId);
-        if (expliziteMarken && expliziteMarken.length > 0) {
-          allowedMarkeIds.push(...expliziteMarken);
-        } else {
-          const { data: markenData } = await window.supabase
-            .from('marke')
-            .select('id')
-            .eq('unternehmen_id', unternehmenId);
-          allowedMarkeIds.push(...(markenData || []).map(m => m.id));
-        }
-      }
-      allowedMarkeIds.push(...directMarkeIds);
-      const uniqueIds = [...new Set(allowedMarkeIds)];
-      console.log(`🔐 getAllowedMarkenIds: ${uniqueIds.length} Marken für User ${userId}`);
-      return uniqueIds;
-    } catch (error) {
-      console.error('❌ getAllowedMarkenIds Fehler:', error);
-      return [];
     }
   }
 }
 
-// Exportiere Instanz
+// --- Singleton + Window-Exports ---
+
 export const permissionSystem = new PermissionSystem();
 
-// Globale Funktionen für Kompatibilität
 if (typeof window !== 'undefined') {
-  window.checkUserPermission = (entity, action) => {
-    return permissionSystem.checkPermission(entity, action);
-  };
-  
-  window.checkUserPermissions = (entity, actions) => {
-    return permissionSystem.checkPermissions(entity, actions);
-  };
-  
-  window.getUserPermissions = () => {
-    return permissionSystem.getUserPermissions();
-  };
-  
-  window.getEntityPermissions = (entity) => {
-    return permissionSystem.getEntityPermissions(entity);
-  };
-
-  // Scoped-APIs global machen für UI
+  // Bestehende APIs (Abwaertskompatibilitaet)
+  window.checkUserPermission = (entity, action) => permissionSystem.checkPermission(entity, action);
+  window.checkUserPermissions = (entity, actions) => permissionSystem.checkPermissions(entity, actions);
+  window.getUserPermissions = () => permissionSystem.getUserPermissions();
+  window.getEntityPermissions = (entity) => permissionSystem.getEntityPermissions(entity);
   window.canViewPage = (pageId) => permissionSystem.canViewPage(pageId);
   window.canViewTable = (pageId, tableId) => permissionSystem.canViewTable(pageId, tableId);
   window.getDataFilters = (pageId, tableId) => permissionSystem.getDataFilters(pageId, tableId);
-  
-  // Globale Helper für erlaubte Unternehmen/Marken
-  window.getAllowedUnternehmenIds = () => permissionSystem.getAllowedUnternehmenIds();
-  window.getAllowedMarkenIds = () => permissionSystem.getAllowedMarkenIds();
+
+  // Neue Rollen-Helper
+  window.isAdmin        = () => permissionSystem.isAdmin;
+  window.isKunde        = () => permissionSystem.isKunde;
+  window.isKundeEditor  = () => permissionSystem.isKundeEditor;
+  window.isMitarbeiter  = () => permissionSystem.isMitarbeiter;
+  window.isPending      = () => permissionSystem.isPending;
+  window.isInternal     = () => permissionSystem.isInternal;
+
+  // Feature-basierte Capabilities
+  window.canSeePricing      = () => permissionSystem.canSeePricing;
+  window.canManageStaff     = () => permissionSystem.canManageStaff;
+  window.canBulkDelete      = () => permissionSystem.canBulkDelete;
+  window.canCreateProject   = () => permissionSystem.canCreateProject;
+  window.canUseGlobalSearch = () => permissionSystem.canUseGlobalSearch;
+
+  window.permissionSystem = permissionSystem;
 }

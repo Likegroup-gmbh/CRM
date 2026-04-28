@@ -26,9 +26,7 @@ export function groupItemsByKategorie(items) {
 }
 
 export function isColumnVisibleForCustomer(columnClass, isKunde, hiddenColumns) {
-  const userRole = window.currentUser?.rolle?.toLowerCase();
-
-  if (userRole === 'admin' || userRole === 'mitarbeiter') {
+  if (window.isInternal()) {
     return true;
   }
 

@@ -27,16 +27,14 @@ export class AuftragsdetailsList {
 
   get isKunde() {
     if (this._isKunde === null) {
-      this._isKunde = ['kunde', 'kunde_editor'].includes(
-        window.currentUser?.rolle?.toLowerCase()
-      );
+      this._isKunde = window.isKunde();
     }
     return this._isKunde;
   }
 
   get isMitarbeiter() {
     if (this._isMitarbeiter === null) {
-      this._isMitarbeiter = window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
+      this._isMitarbeiter = window.isMitarbeiter();
     }
     return this._isMitarbeiter;
   }
@@ -126,8 +124,8 @@ export class AuftragsdetailsList {
   async render() {
     window.setHeadline('Auftragsdetails');
     
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-    const canBulkDelete = isAdmin || window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
+    const isAdmin = window.isAdmin();
+    const canBulkDelete = window.canBulkDelete();
 
     const html = `
       <div class="table-filter-wrapper">
@@ -195,7 +193,7 @@ export class AuftragsdetailsList {
       }
 
       // Sichtbarkeit: Nicht-Admins sehen nur zugewiesene Aufträge
-      const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
+      const isAdmin = window.isAdmin();
       let allowedAuftragIds = null;
       
       if (!isAdmin && window.currentUser?.id) {
@@ -582,7 +580,7 @@ export class AuftragsdetailsList {
 
   // Ausgewählte Auftragsdetails löschen
   async showDeleteSelectedConfirmation() {
-    if (window.currentUser?.rolle !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'mitarbeiter') return;
+    if (!window.canBulkDelete()) return;
     
     const selectedIds = Array.from(this.selectedDetails);
     if (selectedIds.length === 0) {
@@ -662,8 +660,8 @@ export class AuftragsdetailsList {
     const tbody = document.querySelector('.data-table tbody');
     if (!tbody) return;
 
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-    const canBulkDelete = isAdmin || window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
+    const isAdmin = window.isAdmin();
+    const canBulkDelete = window.canBulkDelete();
     const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
 
     await TableAnimationHelper.animatedUpdate(tbody, () => {

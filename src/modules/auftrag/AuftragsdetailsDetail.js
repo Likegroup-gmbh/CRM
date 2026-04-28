@@ -265,8 +265,7 @@ export class AuftragsdetailsDetail {
     };
 
     const auftragtype = this.auftrag?.auftragtype || '-';
-    const currentRole = window.currentUser?.rolle?.toLowerCase();
-    const canViewInternalBudget = ['admin', 'mitarbeiter'].includes(currentRole);
+    const canViewInternalBudget = window.canSeePricing();
 
     const totalBudget = this.budgetSummary.totalBudget;
     const usedBudget = this.budgetSummary.usedVkBudget || 0;
@@ -366,8 +365,8 @@ export class AuftragsdetailsDetail {
       return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v);
     };
     const sanitize = (v) => window.validatorSystem?.sanitizeHtml(v) || v || '';
-    const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-    const isKunde = ['kunde', 'kunde_editor'].includes(window.currentUser?.rolle?.toLowerCase());
+    const isAdmin = window.isAdmin();
+    const isKunde = window.isKunde();
 
     let totalEk = 0;
     let totalVk = 0;
@@ -452,8 +451,8 @@ export class AuftragsdetailsDetail {
     const valid = services.filter(s => s && typeof s.name === 'string' && s.name.trim());
     if (valid.length === 0) return '';
 
-    const isKunde = ['kunde', 'kunde_editor'].includes(window.currentUser?.rolle?.toLowerCase());
-    const isAdmin = window.currentUser?.rolle?.toLowerCase() === 'admin';
+    const isKunde = window.isKunde();
+    const isAdmin = window.isAdmin();
     const showAmount = isAdmin && !isKunde;
 
     const formatCurrency = (v) => {
@@ -508,7 +507,7 @@ export class AuftragsdetailsDetail {
     const details = this.details;
     if (!details) return '';
 
-    const isKunde = ['kunde', 'kunde_editor'].includes(window.currentUser?.rolle?.toLowerCase());
+    const isKunde = window.isKunde();
     const num = (v) => v || v === 0 ? new Intl.NumberFormat('de-DE').format(v) : '-';
     const formatCurrency = (v) => {
       if (v === null || v === undefined || v === '') return '-';
@@ -783,7 +782,7 @@ export class AuftragsdetailsDetail {
       `;
     }
 
-    const isKunde = ['kunde', 'kunde_editor'].includes(window.currentUser?.rolle?.toLowerCase());
+    const isKunde = window.isKunde();
     const formatCurrency = (v) => {
       if (v === null || v === undefined) return '-';
       return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v);
@@ -894,7 +893,7 @@ export class AuftragsdetailsDetail {
     if (this._eventsBound) return;
     this._eventsBound = true;
 
-    const isKunde = ['kunde', 'kunde_editor'].includes(window.currentUser?.rolle?.toLowerCase());
+    const isKunde = window.isKunde();
 
     // Edit-Button + Table-Links
     this._docClickHandler = (e) => {

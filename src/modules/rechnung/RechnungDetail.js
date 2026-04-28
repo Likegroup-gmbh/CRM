@@ -18,7 +18,7 @@ export class RechnungDetail {
     
     // Breadcrumb aktualisieren mit Edit-Button
     if (window.breadcrumbSystem && this.data) {
-      const isAdmin = window.currentUser?.rolle?.toLowerCase() === 'admin';
+      const isAdmin = window.isAdmin();
       const isBezahlt = this.data?.status === 'Bezahlt';
       const hasEditPermission = window.currentUser?.permissions?.rechnung?.can_edit !== false;
       // Bezahlte Rechnungen dürfen nur von Admins bearbeitet werden
@@ -396,7 +396,7 @@ export class RechnungDetail {
 
     document.addEventListener('click', (e) => {
       if (e.target.closest('#btn-edit-rechnung')) {
-        const isAdmin = window.currentUser?.rolle?.toLowerCase() === 'admin';
+        const isAdmin = window.isAdmin();
         const isBezahlt = this.data?.status === 'Bezahlt';
         if (isBezahlt && !isAdmin) {
           window.toastSystem?.show?.('Bezahlte Rechnungen können nur von Admins bearbeitet werden.', 'warning');

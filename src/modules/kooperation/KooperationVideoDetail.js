@@ -111,8 +111,8 @@ export const kooperationVideoDetail = {
       window.setHeadline(`Video: ${safe(title)}`);
     }
 
-    const canEdit = window.currentUser?.permissions?.kooperation?.can_edit || window.currentUser?.rolle === 'admin';
-    const canUpload = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle === 'mitarbeiter';
+    const canEdit = window.currentUser?.permissions?.kooperation?.can_edit || window.isAdmin();
+    const canUpload = window.isInternal();
 
     // Ordner-Link anzeigen statt Video-Player
     const folderUrl = v.folder_url || '';

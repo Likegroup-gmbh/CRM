@@ -213,19 +213,18 @@ export class GlobalSearch {
 
   /** Nur Mitarbeiter und Admin dürfen die Suche nutzen. */
   isAllowed() {
-    const rolle = (window.currentUser?.rolle || '').toLowerCase();
-    return rolle === 'admin' || rolle === 'mitarbeiter';
+    return window.canUseGlobalSearch();
   }
 
   canViewEntity(permKey) {
-    if (window.currentUser?.rolle === 'admin') return true;
+    if (window.isAdmin()) return true;
     const perms = window.permissionSystem?.getEntityPermissions(permKey);
     return !!perms?.can_view;
   }
 
   /** Prüft ob der aktuelle User Admin ist. */
   _isAdmin() {
-    return window.currentUser?.rolle === 'admin';
+    return window.isAdmin();
   }
 
   /**
@@ -233,16 +232,12 @@ export class GlobalSearch {
    * Für Admins wird kein Cache gesetzt (= keine Filterung).
    */
   async _loadAllowedIdsForMitarbeiter() {
-    const rolle = window.currentUser?.rolle?.toLowerCase();
-
-    // Admin sieht alles – kein Cache nötig
-    if (rolle === 'admin') {
+    if (window.isAdmin()) {
       this._allowedIdsCache = null;
       return;
     }
 
-    // Kein Mitarbeiter → kein Filter (Sicherheits-Fallback)
-    if (rolle !== 'mitarbeiter') {
+    if (!window.isInternal()) {
       this._allowedIdsCache = null;
       return;
     }

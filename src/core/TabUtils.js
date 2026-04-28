@@ -52,8 +52,7 @@ export const TAB_PERMISSION_MAP = {
  * @returns {boolean} true wenn der Tab angezeigt werden soll
  */
 export function canViewTab(tabName) {
-  // Admin hat immer Zugriff
-  if (window.currentUser?.rolle === 'admin') return true;
+  if (window.isAdmin()) return true;
   
   // Tab-Name normalisieren
   const normalizedTab = tabName?.toLowerCase().replace(/\s+/g, '-');

@@ -21,7 +21,7 @@ export class StrategieDetail {
    */
   async init(strategieId) {
     this.strategieId = strategieId;
-    this.isKunde = window.currentUser?.rolle === 'kunde';
+    this.isKunde = window.isKunde();
 
     try {
       // Daten laden

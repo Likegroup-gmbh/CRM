@@ -392,7 +392,7 @@ export class ActionsDropdown {
 
   // Hilfsfunktion: Prüft ob Benutzer Kunde ist
   isKunde() {
-    return window.currentUser?.rolle === 'kunde';
+    return window.isKunde();
   }
 
   // Handle Remove-Zuordnung Action
@@ -525,7 +525,7 @@ export class ActionsDropdown {
         break;
       case 'assign-staff':
         // Nur Admin darf
-        if (window.currentUser?.rolle !== 'admin') {
+        if (!window.canManageStaff()) {
           alert('Nur Admins dürfen Mitarbeiter zuordnen.');
           break;
         }
@@ -536,7 +536,7 @@ export class ActionsDropdown {
         // Mitarbeiter zu Marke zuordnen
         if (entityType === 'marke') {
           // Nur Admin und Benutzer mit entsprechenden Rechten
-          if (window.currentUser?.rolle !== 'admin') {
+          if (!window.canManageStaff()) {
             alert('Nur Admins dürfen Mitarbeiter zuordnen.');
             break;
           }
@@ -1357,7 +1357,7 @@ export class ActionsDropdown {
       excludedCampaignIds = Array.from(new Set([...finalIds, ...sourcingIds]));
 
       // Sichtbarkeits-Filter: Nicht-Admin sieht nur ihm zugewiesene Kampagnen
-      if (window.currentUser?.rolle !== 'admin') {
+      if (!window.isAdmin()) {
         const { data: assignedK } = await window.supabase
           .from('kampagne_mitarbeiter')
           .select('kampagne_id')

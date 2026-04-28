@@ -615,15 +615,19 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
       y += 8;
-      doc.text('• Die Agentur handelt im Namen und auf Rechnung des Kunden.', 18, y);
-      y += 4;
-      doc.text('• Vertragspartner des Creators ist ausschließlich der Kunde.', 18, y);
-      y += 4;
-      doc.text('• Sämtliche Nutzungsrechte gehen unmittelbar auf den Kunden über.', 18, y);
-      y += 4;
-      doc.text('• Weisungen und Abnahmen der Agentur gelten als verbindlich.', 18, y);
-      y += 4;
-      doc.text('• Die Agentur übernimmt keine Haftung für Inhalt oder Rechtskonformität.', 18, y);
+      doc.text('Die Agentur beauftragt Creator im eigenen Namen und auf eigene Rechnung; Vertragspartner des', 14, y);
+      y += 5;
+      doc.text('Creators ist ausschließlich die Agentur.', 14, y);
+      y += 8;
+      doc.text('Der Creator räumt der Agentur die zur Durchführung der Beauftragung erforderlichen', 14, y);
+      y += 5;
+      doc.text('Nutzungsrechte ein.', 14, y);
+      y += 8;
+      doc.text('Die Agentur ist berechtigt, diese Rechte im Umfang der ihr eingeräumten Rechte ganz oder', 14, y);
+      y += 5;
+      doc.text('teilweise auf den in diesem Vertrag genannten Kunden zu übertragen oder diesem entsprechende', 14, y);
+      y += 5;
+      doc.text('Nutzungsrechte einzuräumen.', 14, y);
 
       // Seitenumbruch prüfen für §12
       if (y > MAX_CONTENT_Y) {

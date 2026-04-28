@@ -662,8 +662,7 @@ export class AuftragDetail extends PersonDetailBase {
       return 'summary-progress-fill--success';
     };
 
-    const currentRole = window.currentUser?.rolle?.toLowerCase();
-    const canViewInternalBudget = ['admin', 'mitarbeiter'].includes(currentRole);
+    const canViewInternalBudget = window.canSeePricing();
 
     return `
       <div class="auftragsdetails-summary" style="margin-bottom: var(--space-xl);">
@@ -949,7 +948,7 @@ export class AuftragDetail extends PersonDetailBase {
   // Rendere Auftragsdetails-Tab
   renderAuftragsdetails() {
     if (!this.auftragsDetails) {
-      const isMitarbeiter = window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
+      const isMitarbeiter = window.isMitarbeiter();
       return `
         <div class="empty-state">
           <h3>Keine Auftragsdetails vorhanden</h3>
@@ -1656,7 +1655,7 @@ export class AuftragDetail extends PersonDetailBase {
     }
 
     const formatCurrency = (value) => value ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value) : '-';
-    const isKunde = window.currentUser?.rolle === 'kunde';
+    const isKunde = window.isKunde();
 
     const rows = this.kooperationen.map(koop => {
       const creator = koop.creator || {};

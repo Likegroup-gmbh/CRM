@@ -551,7 +551,7 @@ export class KampagneCreateHandler {
   }
 
   async deleteSelectedKampagnen() {
-    if (window.currentUser?.rolle !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'admin' && window.currentUser?.rolle?.toLowerCase() !== 'mitarbeiter') return;
+    if (!window.canBulkDelete()) return;
 
     const selectedIds = Array.from(this.list.selectedKampagnen);
     const totalCount = selectedIds.length;

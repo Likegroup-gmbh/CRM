@@ -58,8 +58,7 @@ export class ProduktList extends BasePaginatedList {
         .order('created_at', { ascending: false });
 
       // Kunden-Filter: nur Produkte der eigenen Unternehmen/Marken
-      const rolle = window.currentUser?.rolle?.toLowerCase();
-      if (rolle === 'kunde' || rolle === 'kunde_editor') {
+      if (window.isKunde()) {
         const scope = await this._getCustomerScope();
         if (scope.unternehmenIds.length === 0 && scope.markeIds.length === 0) {
           return { data: [], total: 0 };

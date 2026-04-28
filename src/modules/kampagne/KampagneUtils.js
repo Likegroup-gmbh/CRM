@@ -18,8 +18,7 @@ export class KampagneUtils {
    * @returns {boolean}
    */
   static isUserAdmin() {
-    const rolle = window.currentUser?.rolle;
-    return rolle === 'admin' || rolle?.toLowerCase() === 'admin';
+    return window.isAdmin();
   }
 
   /**
@@ -27,8 +26,7 @@ export class KampagneUtils {
    * @returns {boolean}
    */
   static isUserKunde() {
-    const rolle = window.currentUser?.rolle;
-    return rolle === 'kunde' || rolle === 'kunde_editor';
+    return window.isKunde();
   }
 
   /**

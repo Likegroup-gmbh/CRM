@@ -162,8 +162,7 @@ export async function removeSignedContract(list, vertragId) {
 }
 
 export function bindSelectionEvents(list) {
-  const isAdmin = window.currentUser?.rolle === 'admin' || window.currentUser?.rolle?.toLowerCase() === 'admin';
-  const canBulkDelete = isAdmin || window.currentUser?.rolle?.toLowerCase() === 'mitarbeiter';
+  const canBulkDelete = window.canBulkDelete();
   if (!canBulkDelete) return;
 
   const selectAllBtn = document.getElementById('btn-select-all');

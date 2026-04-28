@@ -123,8 +123,8 @@ export class TaskCreateDrawer {
 
   async loadKampagnen() {
     try {
-      const isAdmin = window.currentUser?.rolle === 'admin';
-      const isKunde = window.currentUser?.rolle === 'kunde';
+      const isAdmin = window.isAdmin();
+      const isKunde = window.isKunde();
       let kampagneIds = [];
 
       // Für Kunden: Lade über kunde_marke und kunde_unternehmen
@@ -379,11 +379,7 @@ export class TaskCreateDrawer {
       }
 
       // Prüfe ob User Admin/Mitarbeiter ist
-      const isAdminOrMitarbeiter = window.currentUser?.rolle === 'admin' || 
-                                    window.currentUser?.rolle === 'mitarbeiter';
-      
-      if (!isAdminOrMitarbeiter) {
-        // Kunden sehen kein Kunden-Dropdown
+      if (!window.isInternal()) {
         this.kunden = [];
         return;
       }
@@ -672,8 +668,7 @@ export class TaskCreateDrawer {
     `;
 
     // Prüfe ob User Admin/Mitarbeiter ist für Kunden-Dropdown
-    const isAdminOrMitarbeiter = window.currentUser?.rolle === 'admin' || 
-                                  window.currentUser?.rolle === 'mitarbeiter';
+    const isAdminOrMitarbeiter = window.isInternal();
 
     // HTML für Kunden-Dropdown (nur für Admins/Mitarbeiter, aber immer anzeigen)
     const kundenHtml = isAdminOrMitarbeiter ? `

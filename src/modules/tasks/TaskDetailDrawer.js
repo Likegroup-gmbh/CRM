@@ -206,10 +206,7 @@ export class TaskDetailDrawer {
       }
 
       // Prüfe ob User Admin/Mitarbeiter ist
-      const isAdminOrMitarbeiter = window.currentUser?.rolle === 'admin' || 
-                                    window.currentUser?.rolle === 'mitarbeiter';
-      
-      if (!isAdminOrMitarbeiter) {
+      if (!window.isInternal()) {
         // Kunden sehen kein Kunden-Dropdown
         this.availableKunden = [];
         return;

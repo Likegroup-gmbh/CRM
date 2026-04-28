@@ -118,8 +118,7 @@ VertraegeCreate.prototype.formatContractMoney = function(value, lang, options = 
 };
 
 VertraegeCreate.prototype.getVertragPermissions = function() {
-    const role = String(window.currentUser?.rolle || '').trim().toLowerCase();
-    const isAdmin = role === 'admin';
+    const isAdmin = window.isAdmin();
     const perms = window.currentUser?.permissions?.vertraege || {};
     return {
       isAdmin,

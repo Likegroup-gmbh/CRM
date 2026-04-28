@@ -12,14 +12,13 @@ export class StrategieService {
    */
   async getAllStrategien() {
     const user = window.currentUser;
-    const rolle = user?.rolle?.toLowerCase();
-    
+
     // Admin sieht alle Strategien
-    if (rolle === 'admin') {
+    if (window.isAdmin()) {
       return this._fetchAllStrategien();
     }
 
-    if (rolle === 'kunde' || rolle === 'kunde_editor') {
+    if (window.isKunde()) {
       const customerScope = await this._getCustomerAccessScope(user?.id);
       console.log('🔐 Kundenscope Strategie:', customerScope);
 
@@ -31,7 +30,7 @@ export class StrategieService {
     }
 
     // Für Mitarbeiter: erlaubte Kampagnen ermitteln
-    const allowedKampagneIds = await this._getAllowedKampagneIds(user, rolle);
+    const allowedKampagneIds = await this._getAllowedKampagneIds(user);
     console.log('🔐 Erlaubte Kampagnen für Benutzer:', allowedKampagneIds);
 
     const allStrategien = await this._fetchAllStrategien();
@@ -135,13 +134,13 @@ export class StrategieService {
    * - Mitarbeiter: via kampagne_mitarbeiter, mitarbeiter_unternehmen, marke_mitarbeiter
    * - Kunden: via kunde_unternehmen, kunde_marke
    */
-  async _getAllowedKampagneIds(user, rolle) {
+  async _getAllowedKampagneIds(user) {
     const userId = user?.id;
     if (!userId) return [];
     
     const kampagneIds = new Set();
     
-    if (rolle === 'mitarbeiter') {
+    if (window.isMitarbeiter()) {
       // 1. Direkt zugeordnete Kampagnen (kampagne_mitarbeiter)
       const { data: directKampagnen } = await window.supabase
         .from('kampagne_mitarbeiter')
@@ -225,7 +224,7 @@ export class StrategieService {
         (direkteUnternehmenKampagnen || []).forEach(k => kampagneIds.add(k.id));
       }
       
-    } else if (rolle === 'kunde' || rolle === 'kunde_editor') {
+    } else if (window.isKunde()) {
       const customerScope = await this._getCustomerAccessScope(userId);
       customerScope.kampagneIds.forEach((id) => kampagneIds.add(id));
     }
@@ -258,10 +257,9 @@ export class StrategieService {
 
     // Berechtigungsprüfung für Nicht-Admins
     const user = window.currentUser;
-    const rolle = user?.rolle?.toLowerCase();
     
-    if (rolle !== 'admin' && data?.kampagne_id) {
-      const allowedKampagneIds = await this._getAllowedKampagneIds(user, rolle);
+    if (!window.isAdmin() && data?.kampagne_id) {
+      const allowedKampagneIds = await this._getAllowedKampagneIds(user);
       
       if (!allowedKampagneIds.includes(data.kampagne_id)) {
         console.warn('🔐 Zugriff verweigert: Benutzer hat keinen Zugriff auf diese Strategie');
@@ -278,8 +276,7 @@ export class StrategieService {
    */
   async createStrategie(strategieData) {
     // Berechtigungsprüfung: Kunden dürfen keine Strategien erstellen
-    const rolle = window.currentUser?.rolle?.toLowerCase();
-    if (rolle === 'kunde' || rolle === 'kunde_editor') {
+    if (window.isKunde()) {
       console.warn('🔐 Kunden dürfen keine Strategien erstellen');
       throw new Error('Keine Berechtigung zum Erstellen von Strategien');
     }
@@ -315,8 +312,7 @@ export class StrategieService {
    */
   async updateStrategie(id, updates) {
     // Berechtigungsprüfung: Kunden dürfen Strategien nicht bearbeiten
-    const rolle = window.currentUser?.rolle?.toLowerCase();
-    if (rolle === 'kunde' || rolle === 'kunde_editor') {
+    if (window.isKunde()) {
       console.warn('🔐 Kunden dürfen Strategien nicht bearbeiten');
       throw new Error('Keine Berechtigung zum Bearbeiten von Strategien');
     }
