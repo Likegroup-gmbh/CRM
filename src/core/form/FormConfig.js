@@ -874,7 +874,7 @@ export class FormConfig {
           { name: 'bruttobetrag', label: 'Betrag (Brutto)', type: 'number', required: false, readonly: true, validation: { type: 'number', min: 0 } },
           { name: 'land', label: 'Land', type: 'text', required: false, placeholder: 'z.B. Deutschland' },
           // Uploads
-          { name: 'pdf_file', label: 'Rechnungs-PDF', type: 'custom', customType: 'uploader', accept: 'application/pdf', multiple: false, required: false, maxFileSize: 10 * 1024 * 1024 },
+          { name: 'pdf_file', label: 'Rechnungs-PDFs', type: 'custom', customType: 'uploader', accept: 'application/pdf', multiple: true, required: false, maxFileSize: 10 * 1024 * 1024 },
           { name: 'belege_files', label: 'Belege (mehrere Dateien)', type: 'custom', customType: 'uploader', accept: 'application/pdf,image/*', multiple: true, required: false, maxFileSize: 10 * 1024 * 1024 }
         ]
       },

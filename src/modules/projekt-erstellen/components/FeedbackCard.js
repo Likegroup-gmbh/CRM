@@ -261,7 +261,6 @@ export class FeedbackCard {
       const info = (b.budget_info || '').trim() || null;
       const videos = b.video_anzahl != null && b.video_anzahl !== '' ? formatNumber(b.video_anzahl) : null;
       const creators = b.creator_anzahl != null && b.creator_anzahl !== '' ? formatNumber(b.creator_anzahl) : null;
-      const deadline = b.kooperations_deadline ? formatDate(b.kooperations_deadline) : null;
       const cell = (value, isEmpty = false) => isEmpty || !value
         ? `<span class="projekt-erstellen-summary-table-empty">${EMPTY_PLACEHOLDER}</span>`
         : value;
@@ -269,7 +268,6 @@ export class FeedbackCard {
       return `
         <tr>
           <td class="col-campaign-type">${this.escapeHtml(label)}${index > 0 ? ` <span class="projekt-erstellen-summary-table-empty">#${index + 1}</span>` : ''}</td>
-          <td class="col-deadline">${cell(deadline, !deadline)}</td>
           <td class="col-count">${cell(videos, !videos)}</td>
           <td class="col-count">${cell(creators, !creators)}</td>
           <td class="col-price">${cell(ek, !ek)}</td>
@@ -367,7 +365,6 @@ export class FeedbackCard {
             <thead>
               <tr>
                 <th>Kampagnenart</th>
-                <th>Deadline</th>
                 <th>Videos</th>
                 <th>Creator</th>
                 <th>Einkauf</th>

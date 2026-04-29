@@ -112,7 +112,7 @@ export class UnternehmenDetail extends PersonDetailBase {
         // Kampagnen
         window.supabase.from('kampagne').select('id, kampagnenname, eigener_name, status, start, deadline, unternehmen_id').eq('unternehmen_id', this.unternehmenId).order('created_at', { ascending: false }),
         // Rechnungen
-        window.supabase.from('rechnung').select('id, rechnung_nr, status, nettobetrag, bruttobetrag, gestellt_am, zahlungsziel, bezahlt_am, pdf_url').eq('unternehmen_id', this.unternehmenId).order('gestellt_am', { ascending: false }),
+        window.supabase.from('rechnung').select('id, rechnung_nr, status, nettobetrag, bruttobetrag, gestellt_am, zahlungsziel, bezahlt_am, pdf_url, rechnung_pdfs(id, file_name, file_path, file_url)').eq('unternehmen_id', this.unternehmenId).order('gestellt_am', { ascending: false }),
         // Verträge
         window.supabase.from('vertraege').select('id, name, typ, is_draft, datei_url, datei_path, created_at, kampagne:kampagne_id(id, kampagnenname, eigener_name), creator:creator_id(id, vorname, nachname)').eq('kunde_unternehmen_id', this.unternehmenId).order('created_at', { ascending: false }),
         // Strategien
@@ -968,7 +968,7 @@ export class UnternehmenDetail extends PersonDetailBase {
         <td>${this.formatDate(r.gestellt_am)}</td>
         <td>${this.formatDate(r.zahlungsziel)}</td>
         <td>${this.formatDate(r.bezahlt_am)}</td>
-        <td>${r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener">PDF</a>` : '-'}</td>
+        <td>${r.rechnung_pdfs && r.rechnung_pdfs.length > 0 ? r.rechnung_pdfs.map((p, i) => `<a href="${p.file_url}" target="_blank" rel="noopener">PDF${r.rechnung_pdfs.length > 1 ? ' ' + (i + 1) : ''}</a>`).join(' ') : (r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener">PDF</a>` : '-')}</td>
       </tr>
     `).join('');
 

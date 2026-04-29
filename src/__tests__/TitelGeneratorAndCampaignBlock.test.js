@@ -3,30 +3,26 @@ import { generateAuftragTitle } from '../modules/projekt-erstellen/components/Ti
 import { generateBudgetBlockHtml } from '../modules/projekt-erstellen/logic/CampaignBudgetFields.js';
 
 describe('generateAuftragTitle', () => {
-  it('setzt den Unternehmensnamen an den Anfang', () => {
+  it('setzt das Kürzel an den Anfang', () => {
     const result = generateAuftragTitle({
-      unternehmensname: 'Grüne Kraft',
-      markeLabel: 'BioVital',
+      unternehmensname: 'GK',
       auftragType: 'ugc',
       startDate: '2026-04-01'
     });
-    expect(result).toMatch(/^Grüne Kraft/);
-    expect(result).toContain('BioVital');
+    expect(result).toMatch(/^GK/);
   });
 
-  it('erzeugt Titel ohne Unternehmensname wenn nicht gesetzt', () => {
+  it('erzeugt Titel ohne Kürzel wenn nicht gesetzt', () => {
     const result = generateAuftragTitle({
-      markeLabel: 'BioVital',
       auftragType: 'ugc',
       startDate: '2026-04-01'
     });
-    expect(result).toMatch(/^BioVital/);
+    expect(result).toContain('April 2026');
   });
 
   it('enthält Monat und Jahr aus dem Startdatum', () => {
     const result = generateAuftragTitle({
-      unternehmensname: 'TestFirma',
-      markeLabel: 'Marke',
+      unternehmensname: 'ABC',
       startDate: '2026-04-15'
     });
     expect(result).toContain('April 2026');
@@ -60,7 +56,6 @@ describe('generateBudgetBlockHtml', () => {
 
   it('enthält alle relevanten Eingabefelder', () => {
     const html = generateBudgetBlockHtml({ id: 'b1', campaign_type: 'ugc_paid' }, types, 0);
-    expect(html).toContain('kooperations_deadline');
     expect(html).toContain('video_anzahl');
     expect(html).toContain('creator_anzahl');
     expect(html).toContain('einkaufspreis_netto_von');

@@ -1,35 +1,45 @@
 export class AutoGeneration {
-  // Auftragsname automatisch generieren: "[Art]_[Nummer]_[Kürzel]" (Fallback: Firmenname)
+  static MONTH_NAMES_DE = [
+    'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+    'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
+  ];
+
+  static formatStartMonthYear(dateValue) {
+    if (!dateValue) return null;
+    try {
+      const d = new Date(dateValue);
+      if (isNaN(d)) return null;
+      return `${AutoGeneration.MONTH_NAMES_DE[d.getMonth()]} ${d.getFullYear()}`;
+    } catch (_) { return null; }
+  }
+
+  // Auftragsname automatisch generieren: "Kürzel - Monat Jahr - Auftragsart"
   async autoGenerateAuftragsname(form) {
     if (form.dataset?.isEditMode === 'true' && form.dataset?.entityType === 'auftrag') return;
     try {
-      // Werte aus dem Formular holen
       const unternehmenSelect = form.querySelector('select[name="unternehmen_id"]');
       const auftragTypeSelect = form.querySelector('select[name="auftragtype"]');
       const auftragnameInput = form.querySelector('input[name="auftragsname"]');
+      const startInput = form.querySelector('input[name="start"]');
       
       if (!auftragnameInput) return;
       
-      // Werte ermitteln (auch aus hidden inputs für searchable selects)
       let unternehmenId = unternehmenSelect?.value;
-      let auftragType = auftragTypeSelect?.value;
+      const auftragType = auftragTypeSelect?.value;
       
-      // Fallback für searchable selects: hidden input prüfen
       if (!unternehmenId) {
         const hiddenUnternehmen = form.querySelector('input[name="unternehmen_id_value"]') || 
                                    form.querySelector('select[name="unternehmen_id"][style*="display: none"]');
         unternehmenId = hiddenUnternehmen?.value;
       }
       
-      // Beide Werte müssen vorhanden sein
-      if (!unternehmenId || !auftragType) {
-        console.log('🔧 Auftragsname: Warte auf Unternehmen und Auftragsart');
+      if (!unternehmenId) {
+        console.log('🔧 Auftragsname: Warte auf Unternehmen');
         return;
       }
       
       console.log(`🔧 Generiere Auftragsname für Unternehmen: ${unternehmenId}, Art: ${auftragType}`);
       
-      // 1. Unternehmensdaten laden (Kürzel und Firmenname)
       const { data: unternehmen, error: unternehmenError } = await window.supabase
         .from('unternehmen')
         .select('firmenname, internes_kuerzel')
@@ -41,44 +51,20 @@ export class AutoGeneration {
         return;
       }
       
-      // Kürzel bevorzugen, Fallback auf Firmenname
       const displayName = unternehmen.internes_kuerzel || unternehmen.firmenname || 'Unbekannt';
       
-      // 2. Bestehende Aufträge mit gleicher Art UND gleichem Unternehmen zählen
-      const { data: existingAuftraege, error: auftraegeError } = await window.supabase
-        .from('auftrag')
-        .select('id, auftragsname')
-        .eq('unternehmen_id', unternehmenId)
-        .eq('auftragtype', auftragType);
+      const parts = [displayName];
       
-      if (auftraegeError) {
-        console.error('❌ Fehler beim Zählen der Aufträge:', auftraegeError);
-        return;
+      const formatted = AutoGeneration.formatStartMonthYear(startInput?.value);
+      if (formatted) parts.push(formatted);
+      
+      if (auftragType) {
+        parts.push(auftragType);
       }
       
-      // 3. Nächste verfügbare Nummer finden (um Dopplungen zu vermeiden)
-      let nextNumber = (existingAuftraege?.length || 0) + 1;
+      const auftragsname = parts.join(' - ');
       
-      // Prüfen ob der Name bereits existiert und ggf. hochzählen
-      const basePattern = `${auftragType}_`;
-      const existingNumbers = (existingAuftraege || [])
-        .map(a => {
-          const match = a.auftragsname?.match(new RegExp(`^${auftragType}_(\\d+)_`));
-          return match ? parseInt(match[1]) : 0;
-        })
-        .filter(n => n > 0);
-      
-      if (existingNumbers.length > 0) {
-        nextNumber = Math.max(...existingNumbers) + 1;
-      }
-      
-      // 4. Auftragsname generieren
-      const auftragsname = `${auftragType}_${nextNumber}_${displayName}`;
-      
-      // 5. Feld aktualisieren
       auftragnameInput.value = auftragsname;
-      
-      // Events auslösen
       auftragnameInput.dispatchEvent(new Event('input', { bubbles: true }));
       auftragnameInput.dispatchEvent(new Event('change', { bubbles: true }));
       auftragnameInput.focus();
@@ -91,14 +77,13 @@ export class AutoGeneration {
     }
   }
 
-  // Kampagnenname automatisch generieren: "[Kürzel] - X/Y - Datum" (Fallback: Firmenname)
+  // Kampagnenname automatisch generieren: "Kürzel - Startdatum - Kampagnentyp"
   async autoGenerateKampagnenname(form, auftragId, excludeKampagneId = null) {
     try {
       if (!auftragId) return;
 
       console.log(`🔧 Generiere Kampagnenname für Auftrag: ${auftragId}${excludeKampagneId ? ` (exkl. Kampagne ${excludeKampagneId})` : ''}`);
 
-      // 1. Auftrag-Details laden (inkl. Kürzel und Firmenname)
       const { data: auftrag, error: auftragError } = await window.supabase
         .from('auftrag')
         .select(`
@@ -114,64 +99,31 @@ export class AutoGeneration {
         return;
       }
 
-      // 2. Bestehende Kampagnen für diesen Auftrag laden (inkl. Namen für Nummern-Extraktion)
-      const { data: existingKampagnen, error: kampagnenError } = await window.supabase
-        .from('kampagne')
-        .select('id, kampagnenname')
-        .eq('auftrag_id', auftragId);
-
-      if (kampagnenError) {
-        console.error('❌ Fehler beim Zählen der Kampagnen:', kampagnenError);
-        return;
-      }
-
-      // Im Edit-Mode: Aktuelle Kampagne aus der Zählung ausschließen
-      const filteredKampagnen = excludeKampagneId
-        ? (existingKampagnen || []).filter(k => k.id !== excludeKampagneId)
-        : (existingKampagnen || []);
-
-      // 3. Nächste verfügbare Nummer finden (um Dopplungen nach Löschen zu vermeiden)
-      let currentKampagneNummer = filteredKampagnen.length + 1;
-      const maxKampagnen = auftrag.kampagnenanzahl || 1;
-
-      // Höchste existierende Nummer aus Kampagnennamen extrahieren
-      // Pattern: "ABC - 2/5" oder "ABC - 2/5 - 01.02.2025"
-      const existingNumbers = filteredKampagnen
-        .map(k => {
-          const match = k.kampagnenname?.match(/- (\d+)\/\d+/);
-          return match ? parseInt(match[1]) : 0;
-        })
-        .filter(n => n > 0);
-
-      if (existingNumbers.length > 0) {
-        currentKampagneNummer = Math.max(...existingNumbers) + 1;
-      }
-
-      // 3. Deadline aus dem Formular holen
-      const deadlineInput = form.querySelector('input[name="deadline"]');
-      const deadline = deadlineInput ? deadlineInput.value : '';
-
-      // 4. Kampagnenname generieren (Kürzel bevorzugen, Fallback auf Firmenname)
       const displayName = auftrag.unternehmen?.internes_kuerzel || auftrag.unternehmen?.firmenname || 'Unbekannte Firma';
       
-      let kampagnenname = `${displayName} - ${currentKampagneNummer}/${maxKampagnen}`;
+      const parts = [displayName];
       
-      if (deadline) {
-        const deadlineDate = new Date(deadline);
-        const formattedDeadline = deadlineDate.toLocaleDateString('de-DE');
-        kampagnenname += ` - ${formattedDeadline}`;
+      // Startdatum als Monat + Jahr aus dem Formular holen
+      const startInput = form.querySelector('input[name="start"]');
+      const formatted = AutoGeneration.formatStartMonthYear(startInput?.value);
+      if (formatted) parts.push(formatted);
+      
+      // Kampagnentyp aus dem Formular holen
+      const kampagneTypSelect = form.querySelector('select[name="kampagne_typ"]');
+      const kampagneTyp = kampagneTypSelect?.value;
+      if (kampagneTyp) {
+        const typLabels = { paid: 'Paid', organic: 'Organic', influencer_posting: 'Influencer Posting' };
+        parts.push(typLabels[kampagneTyp] || kampagneTyp);
       }
+      
+      const kampagnenname = parts.join(' - ');
 
-      // 5. Kampagnenname-Feld aktualisieren
       const kampagnennameInput = form.querySelector('input[name="kampagnenname"]');
       if (kampagnennameInput) {
         kampagnennameInput.value = kampagnenname;
         
-        // Event auslösen, damit das Formular-System den Wert erkennt
         kampagnennameInput.dispatchEvent(new Event('input', { bubbles: true }));
         kampagnennameInput.dispatchEvent(new Event('change', { bubbles: true }));
-        
-        // Zusätzlich: Focus und Blur Events auslösen
         kampagnennameInput.focus();
         kampagnennameInput.blur();
         
@@ -461,6 +413,12 @@ export class AutoGeneration {
       unternehmenSelectForAuftrag.addEventListener('change', triggerAuftragsname);
       auftragTypeSelect.addEventListener('change', triggerAuftragsname);
       
+      // Startdatum-Änderung überwachen
+      const startInputForAuftrag = form.querySelector('input[name="start"]');
+      if (startInputForAuftrag) {
+        startInputForAuftrag.addEventListener('change', triggerAuftragsname);
+      }
+      
       // Searchable Select für Unternehmen
       const unternehmenField = unternehmenSelectForAuftrag.closest('.form-field');
       if (unternehmenField) {
@@ -477,8 +435,8 @@ export class AutoGeneration {
         }
       }
       
-      // Sofort generieren wenn beide Werte vorhanden
-      if (unternehmenSelectForAuftrag.value && auftragTypeSelect.value) {
+      // Sofort generieren wenn Unternehmen vorhanden
+      if (unternehmenSelectForAuftrag.value) {
         this.autoGenerateAuftragsname(form);
       }
       
@@ -493,10 +451,21 @@ export class AutoGeneration {
       console.log('🔒 AUTOGENERATION: Kampagne Edit-Mode erkannt, überspringe initiale Auto-Generierung. Kampagne-ID:', editKampagneId);
     }
 
-    // Deadline-Änderung überwachen (Kampagne)
-    const deadlineInput = form.querySelector('input[name="deadline"]');
-    if (deadlineInput) {
-      deadlineInput.addEventListener('change', () => {
+    // Startdatum-Änderung überwachen (Kampagne)
+    const kampagneStartInput = form.querySelector('input[name="start"]');
+    if (kampagneStartInput) {
+      kampagneStartInput.addEventListener('change', () => {
+        const auftragSelect = form.querySelector('select[name="auftrag_id"]');
+        if (auftragSelect && auftragSelect.value) {
+          this.autoGenerateKampagnenname(form, auftragSelect.value, editKampagneId);
+        }
+      });
+    }
+
+    // Kampagnentyp-Änderung überwachen (Kampagne)
+    const kampagneTypSelect = form.querySelector('select[name="kampagne_typ"]');
+    if (kampagneTypSelect) {
+      kampagneTypSelect.addEventListener('change', () => {
         const auftragSelect = form.querySelector('select[name="auftrag_id"]');
         if (auftragSelect && auftragSelect.value) {
           this.autoGenerateKampagnenname(form, auftragSelect.value, editKampagneId);

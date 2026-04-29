@@ -31,8 +31,7 @@ export const CAMPAIGN_FIELD_SUFFIXES = [
 ];
 
 export const CAMPAIGN_BLOCK_FIELD_SUFFIXES = [
-  ...CAMPAIGN_FIELD_SUFFIXES,
-  'kooperations_deadline'
+  ...CAMPAIGN_FIELD_SUFFIXES
 ];
 
 export const DEFAULT_CAMPAIGN_BLOCK_STATUS = 'offen';
@@ -70,7 +69,6 @@ export function createCampaignBlock(campaignType = 'ugc_paid') {
     verkaufspreis_netto_von: null,
     verkaufspreis_netto_bis: null,
     budget_info: '',
-    kooperations_deadline: null,
     status: DEFAULT_CAMPAIGN_BLOCK_STATUS
   };
 }
@@ -79,10 +77,6 @@ function parseNum(value) {
   if (value === '' || value == null) return null;
   const n = parseFloat(value);
   return isNaN(n) ? null : n;
-}
-
-function parseDateValue(value) {
-  return value || null;
 }
 
 export function normalizeCampaignBlock(block = {}, fallbackType = 'ugc_paid') {
@@ -96,7 +90,6 @@ export function normalizeCampaignBlock(block = {}, fallbackType = 'ugc_paid') {
   normalized.verkaufspreis_netto_von = parseNum(block.verkaufspreis_netto_von);
   normalized.verkaufspreis_netto_bis = parseNum(block.verkaufspreis_netto_bis);
   normalized.budget_info = block.budget_info || '';
-  normalized.kooperations_deadline = parseDateValue(block.kooperations_deadline);
   normalized.status = block.status || DEFAULT_CAMPAIGN_BLOCK_STATUS;
   return normalized;
 }
@@ -177,7 +170,6 @@ export function generateBudgetBlockHtml(block, campaignTypes = [], index = 0) {
     type: domId(blockId, 'campaign_type'),
     videos: domId(blockId, 'video_anzahl'),
     creators: domId(blockId, 'creator_anzahl'),
-    deadline: domId(blockId, 'kooperations_deadline'),
     ek_von: domId(blockId, 'einkaufspreis_netto_von'),
     ek_bis: domId(blockId, 'einkaufspreis_netto_bis'),
     vk_von: domId(blockId, 'verkaufspreis_netto_von'),
@@ -190,13 +182,6 @@ export function generateBudgetBlockHtml(block, campaignTypes = [], index = 0) {
       <div class="projekt-erstellen-campaign-block-header">
         <legend>${escapeHtml(label)} ${index > 0 ? `<span class="projekt-erstellen-campaign-block-index">#${index + 1}</span>` : ''}</legend>
         <button type="button" class="projekt-erstellen-remove-btn" data-action="remove-campaign-block" data-block-id="${escapeHtml(blockId)}">Entfernen</button>
-      </div>
-      <div class="form-two-col">
-        <div class="form-field form-field--half">
-          <label for="${ids.deadline}">Kooperations-Deadline</label>
-          <input type="date" id="${ids.deadline}" data-block-id="${escapeHtml(blockId)}" data-field="kooperations_deadline"
-                 value="${v.kooperations_deadline || ''}">
-        </div>
       </div>
       <div class="form-two-col">
         <div class="form-field form-field--half">
@@ -261,8 +246,6 @@ export function readBudgetValuesFromDom(blockId) {
     }
     if (suffix === 'budget_info') {
       result[suffix] = el.value || '';
-    } else if (suffix === 'kooperations_deadline') {
-      result[suffix] = el.value || null;
     } else {
       result[suffix] = parseNum(el.value);
     }

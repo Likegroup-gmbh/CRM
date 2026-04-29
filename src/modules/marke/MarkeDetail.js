@@ -357,7 +357,7 @@ export class MarkeDetail extends PersonDetailBase {
             if (auftragIds.length > 0) {
               const { data: rechnungen } = await window.supabase
                 .from('rechnung')
-                .select('id, rechnung_nr, status, nettobetrag, bruttobetrag, gestellt_am, zahlungsziel, bezahlt_am, pdf_url, auftrag_id')
+                .select('id, rechnung_nr, status, nettobetrag, bruttobetrag, gestellt_am, zahlungsziel, bezahlt_am, pdf_url, auftrag_id, rechnung_pdfs(id, file_name, file_path, file_url)')
                 .in('auftrag_id', auftragIds);
               if (!isStillActive()) return rechnungen;
               this.rechnungen = rechnungen || [];
@@ -841,7 +841,7 @@ export class MarkeDetail extends PersonDetailBase {
         <td>${this.formatCurrency(r.nettobetrag)}</td>
         <td>${this.formatCurrency(r.bruttobetrag)}</td>
         <td>${this.formatDate(r.gestellt_am)}</td>
-        <td>${r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener">PDF</a>` : '-'}</td>
+        <td>${r.rechnung_pdfs && r.rechnung_pdfs.length > 0 ? r.rechnung_pdfs.map((p, i) => `<a href="${p.file_url}" target="_blank" rel="noopener">PDF${r.rechnung_pdfs.length > 1 ? ' ' + (i + 1) : ''}</a>`).join(' ') : (r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener">PDF</a>` : '-')}</td>
       </tr>
     `).join('');
 

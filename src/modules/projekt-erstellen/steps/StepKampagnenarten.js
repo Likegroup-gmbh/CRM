@@ -159,8 +159,8 @@ export class StepKampagnenarten {
         const block = blocks.find(item => item.id === blockId);
         if (!block) return;
 
-        if (field === 'budget_info' || field === 'kooperations_deadline') {
-          block[field] = el.value || (field === 'budget_info' ? '' : null);
+        if (field === 'budget_info') {
+          block[field] = el.value || '';
         } else {
           const raw = el.value;
           block[field] = raw === '' || raw == null ? null : (isNaN(parseFloat(raw)) ? null : parseFloat(raw));

@@ -403,7 +403,7 @@ export class AuftragDetail extends PersonDetailBase {
           case 'rechnungen':
             const { data: rechnungen } = await window.supabase
               .from('rechnung')
-              .select('id, rechnung_nr, status, nettobetrag, bruttobetrag, gestellt_am, bezahlt_am, pdf_url')
+              .select('id, rechnung_nr, status, nettobetrag, bruttobetrag, gestellt_am, bezahlt_am, pdf_url, rechnung_pdfs(id, file_name, file_path, file_url)')
               .eq('auftrag_id', this.auftragId)
               .order('gestellt_am', { ascending: false });
             this.rechnungen = rechnungen || [];
@@ -1218,7 +1218,7 @@ export class AuftragDetail extends PersonDetailBase {
         <td>${fmt(r.bruttobetrag)}</td>
         <td>${fDate(r.gestellt_am)}</td>
         <td>${fDate(r.bezahlt_am)}</td>
-        <td>${r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener">PDF</a>` : '-'}</td>
+        <td>${r.rechnung_pdfs && r.rechnung_pdfs.length > 0 ? r.rechnung_pdfs.map((p, i) => `<a href="${p.file_url}" target="_blank" rel="noopener">PDF${r.rechnung_pdfs.length > 1 ? ' ' + (i + 1) : ''}</a>`).join(' ') : (r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener">PDF</a>` : '-')}</td>
       </tr>
     `).join('');
     return `

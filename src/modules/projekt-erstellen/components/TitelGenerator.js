@@ -1,5 +1,5 @@
 // TitelGenerator.js
-// Auto-Generierung des Auftrag-Titels: [Marke] - [Art] - [Monat Jahr].
+// Auto-Generierung des Auftrag-Titels: [Kürzel] - [Startdatum] - [Art].
 // Sobald der User den Titel manuell aendert, wird titel_manuell_geaendert = true
 // und Auto-Update deaktiviert (stabile Persistenz).
 
@@ -10,25 +10,27 @@ const MONTH_NAMES_DE = [
   'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
 ];
 
-export function generateAuftragTitle({ unternehmensname, markeLabel, auftragType, startDate }) {
+export function formatStartMonthYear(startDate) {
+  if (!startDate) return null;
+  try {
+    const d = typeof startDate === 'string' ? new Date(startDate) : startDate;
+    if (isNaN(d)) return null;
+    return `${MONTH_NAMES_DE[d.getMonth()]} ${d.getFullYear()}`;
+  } catch (_) { return null; }
+}
+
+export function generateAuftragTitle({ unternehmensname, auftragType, startDate }) {
   const parts = [];
 
   if (unternehmensname) parts.push(unternehmensname);
-  if (markeLabel) parts.push(markeLabel);
+
+  const formatted = formatStartMonthYear(startDate);
+  if (formatted) parts.push(formatted);
 
   const artLabel = AUFTRAG_TYPES.find(t => t.value === auftragType)?.label;
   if (artLabel) parts.push(artLabel);
 
-  if (startDate) {
-    try {
-      const d = typeof startDate === 'string' ? new Date(startDate) : startDate;
-      if (!isNaN(d)) {
-        parts.push(`${MONTH_NAMES_DE[d.getMonth()]} ${d.getFullYear()}`);
-      }
-    } catch (_) { /* noop */ }
-  }
-
-  return parts.join(' – ');
+  return parts.join(' - ');
 }
 
 export class TitelGenerator {
@@ -69,9 +71,9 @@ export class TitelGenerator {
     }
   }
 
-  recompute({ unternehmensname, markeLabel, auftragType, startDate }) {
+  recompute({ unternehmensname, auftragType, startDate }) {
     if (this.manual) return;
-    const generated = generateAuftragTitle({ unternehmensname, markeLabel, auftragType, startDate });
+    const generated = generateAuftragTitle({ unternehmensname, auftragType, startDate });
     if (this.titleInput) {
       this.titleInput.value = generated;
     }

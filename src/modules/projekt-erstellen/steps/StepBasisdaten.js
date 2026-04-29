@@ -193,12 +193,13 @@ export class StepBasisdaten {
     try {
       const { data: unternehmenRows, error: uErr } = await window.supabase
         .from('unternehmen')
-        .select('id, firmenname, logo_url, logo_thumb_url')
+        .select('id, firmenname, internes_kuerzel, logo_url, logo_thumb_url')
         .order('firmenname');
       if (uErr) throw uErr;
       this.unternehmenOptions = (unternehmenRows || []).map(u => ({
         value: u.id,
         label: u.firmenname || '(ohne Name)',
+        internes_kuerzel: u.internes_kuerzel || null,
         logo_url: u.logo_url || null,
         logo_thumb_url: u.logo_thumb_url || null
       }));
@@ -383,11 +384,10 @@ export class StepBasisdaten {
   recomputeTitle() {
     if (!this.titelGenerator) return;
     const a = this.wizard.formData.auftrag;
-    const unternehmensname = this.resolveLabel('field-pe-unternehmen_id', a.unternehmen_id);
-    const markeLabel = this.resolveLabel('field-pe-marke_id', a.marke_id);
+    const unternehmenOption = this.unternehmenOptions.find(o => o.value === a.unternehmen_id);
+    const displayName = unternehmenOption?.internes_kuerzel || unternehmenOption?.label || null;
     this.titelGenerator.recompute({
-      unternehmensname,
-      markeLabel,
+      unternehmensname: displayName,
       auftragType: a.auftragtype,
       startDate: a.start
     });

@@ -566,6 +566,20 @@ export class AuftragList {
           kampagne_arten:auftrag_kampagne_art(art:kampagne_art_id(id, name))
         `, { count: 'estimated' });
 
+      // Erweiterte Suche: auch in Markenname und Unternehmensname suchen
+      if (filters.auftragsname) {
+        const search = filters.auftragsname;
+        const [{ data: matchU }, { data: matchM }] = await Promise.all([
+          window.supabase.from('unternehmen').select('id').ilike('firmenname', `%${search}%`),
+          window.supabase.from('marke').select('id').ilike('markenname', `%${search}%`)
+        ]);
+        const orParts = [`auftragsname.ilike.%${search}%`];
+        if (matchU?.length) orParts.push(`unternehmen_id.in.(${matchU.map(u => u.id).join(',')})`);
+        if (matchM?.length) orParts.push(`marke_id.in.(${matchM.map(m => m.id).join(',')})`);
+        query = query.or(orParts.join(','));
+        delete filters.auftragsname;
+      }
+
       query = AuftragFilterLogic.buildSupabaseQuery(query, filters);
 
       query = query

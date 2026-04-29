@@ -158,9 +158,17 @@ export class UnternehmenList extends BasePaginatedList {
       }
       
       // Weitere Filter anwenden
-      // Name-Filter vom Suchfeld (wird als 'name' übergeben)
+      // Name-Filter vom Suchfeld: sucht in firmenname UND zugehörigen Markennamen
       if (filters.name) {
-        query = query.ilike('firmenname', `%${filters.name}%`);
+        const search = filters.name;
+        const { data: matchM } = await window.supabase
+          .from('marke').select('unternehmen_id').ilike('markenname', `%${search}%`);
+        const orParts = [`firmenname.ilike.%${search}%`];
+        if (matchM?.length) {
+          const ids = [...new Set(matchM.map(m => m.unternehmen_id).filter(Boolean))];
+          if (ids.length) orParts.push(`id.in.(${ids.join(',')})`);
+        }
+        query = query.or(orParts.join(','));
       }
       if (filters.firmenname) {
         query = query.ilike('firmenname', `%${filters.firmenname}%`);

@@ -192,10 +192,18 @@ export class FormVideoHandler {
       if (!manual) return null;
 
       const updates = {};
-      if (manual.content_art) updates.content_art = manual.content_art;
-      if (manual.kampagnenart) updates.kampagnenart = manual.kampagnenart;
-      if (manual.einkaufspreis_netto > 0) updates.einkaufspreis_netto = manual.einkaufspreis_netto;
-      if (manual.verkaufspreis_netto > 0) updates.verkaufspreis_netto = manual.verkaufspreis_netto;
+      if ((manual.content_art || null) !== (video.content_art || null)) {
+        updates.content_art = manual.content_art || null;
+      }
+      if ((manual.kampagnenart || null) !== (video.kampagnenart || null)) {
+        updates.kampagnenart = manual.kampagnenart || null;
+      }
+      if (manual.einkaufspreis_netto !== video.einkaufspreis_netto) {
+        updates.einkaufspreis_netto = manual.einkaufspreis_netto;
+      }
+      if (manual.verkaufspreis_netto !== video.verkaufspreis_netto) {
+        updates.verkaufspreis_netto = manual.verkaufspreis_netto;
+      }
       // Deadlines immer durchreichen (auch null, damit gezielt geleert werden kann)
       if ((manual.skript_deadline || null) !== (video.skript_deadline || null)) {
         updates.skript_deadline = manual.skript_deadline || null;

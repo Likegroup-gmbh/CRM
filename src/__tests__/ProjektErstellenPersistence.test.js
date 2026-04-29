@@ -221,8 +221,7 @@ describe('ProjektErstellenPersistence', () => {
               einkaufspreis_netto_bis: 150,
               verkaufspreis_netto_von: 200,
               verkaufspreis_netto_bis: 250,
-              budget_info: 'Erster Block',
-              kooperations_deadline: '2026-05-10'
+              budget_info: 'Erster Block'
             },
             {
               id: 'block-2',
@@ -233,8 +232,7 @@ describe('ProjektErstellenPersistence', () => {
               einkaufspreis_netto_bis: 180,
               verkaufspreis_netto_von: 240,
               verkaufspreis_netto_bis: 300,
-              budget_info: 'Zweiter Block',
-              kooperations_deadline: '2026-05-20'
+              budget_info: 'Zweiter Block'
             },
             {
               id: 'block-3',
@@ -264,7 +262,6 @@ describe('ProjektErstellenPersistence', () => {
         kampagne_id: 'kampagne-1',
         kampagne_art_id: 'art-ugc-paid',
         campaign_type: 'ugc_paid',
-        kooperations_deadline: '2026-05-10',
         status: 'offen'
       },
       {
@@ -272,7 +269,6 @@ describe('ProjektErstellenPersistence', () => {
         kampagne_id: 'kampagne-1',
         kampagne_art_id: 'art-ugc-paid',
         campaign_type: 'ugc_paid',
-        kooperations_deadline: '2026-05-20',
         status: 'offen'
       },
       {

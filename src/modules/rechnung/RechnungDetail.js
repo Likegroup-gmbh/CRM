@@ -6,6 +6,7 @@ export class RechnungDetail {
     this.id = null;
     this.data = null;
     this.belege = [];
+    this.pdfs = [];
     this._abortController = null;
   }
 
@@ -71,6 +72,28 @@ export class RechnungDetail {
       console.warn('⚠️ Fehler beim Laden der Belege:', err?.message);
       this.belege = [];
     }
+
+    // PDFs zu dieser Rechnung laden
+    try {
+      const { data: pdfRows } = await window.supabase
+        .from('rechnung_pdfs')
+        .select('id, file_name, file_path, file_url, content_type, size, uploaded_at, uploaded_by')
+        .eq('rechnung_id', this.id)
+        .order('uploaded_at', { ascending: false });
+      const pdfBucket = 'rechnungen';
+      const pdfProcessed = [];
+      for (const row of (pdfRows || [])) {
+        const { data: urlData } = window.supabase.storage
+          .from(pdfBucket)
+          .getPublicUrl(row.file_path);
+        const openUrl = urlData?.publicUrl || row.file_url || '';
+        pdfProcessed.push({ ...row, open_url: openUrl });
+      }
+      this.pdfs = pdfProcessed;
+    } catch (err) {
+      console.warn('⚠️ Fehler beim Laden der PDFs:', err?.message);
+      this.pdfs = [];
+    }
   }
 
   render() {
@@ -96,7 +119,7 @@ export class RechnungDetail {
             <div class="detail-item"><label>Nettobetrag</label><span>${formatCurrency(this.data?.nettobetrag)}</span></div>
             <div class="detail-item"><label>Zusatzkosten</label><span>${formatCurrency(this.data?.zusatzkosten)}</span></div>
             <div class="detail-item"><label>Bruttobetrag</label><span>${formatCurrency(this.data?.bruttobetrag)}</span></div>
-            <div class="detail-item"><label>PDF</label><span>${this.data?.pdf_url ? `<a href="${this.data.pdf_url}" target="_blank" rel="noopener noreferrer">Öffnen</a>` : '-'}</span></div>
+            <div class="detail-item"><label>PDFs</label><span>${this.pdfs && this.pdfs.length > 0 ? this.pdfs.map((p, i) => `<a href="${p.open_url}" target="_blank" rel="noopener noreferrer">${window.validatorSystem?.sanitizeHtml?.(p.file_name) || ('PDF ' + (i + 1))}</a>`).join(' &middot; ') : (this.data?.pdf_url ? `<a href="${this.data.pdf_url}" target="_blank" rel="noopener noreferrer">Öffnen</a>` : '-')}</span></div>
           </div>
 
           <div class="detail-card">
@@ -239,32 +262,27 @@ export class RechnungDetail {
       console.log('📋 Submit-Daten vor Übertragung:', submitData);
       console.log('🔍 auftrag_id Wert:', submitData.auftrag_id, typeof submitData.auftrag_id);
 
-      // PDF Upload via UploaderField (Single)
+      // PDF Upload via UploaderField (Multi) → rechnung_pdfs Tabelle
       const pdfUploaderRoot = form.querySelector('.uploader[data-name="pdf_file"]');
-      let pdf_url = null;
-      let pdf_path = null;
+      const pdfFiles = [];
       if (pdfUploaderRoot && pdfUploaderRoot.__uploaderInstance && pdfUploaderRoot.__uploaderInstance.files.length && window.supabase) {
-        const file = pdfUploaderRoot.__uploaderInstance.files[0];
-        const sanitizedName = file.name
-          .replace(/[^a-zA-Z0-9._-]/g, '_')
-          .replace(/\.{2,}/g, '_')
-          .substring(0, 200);
-        const bucket = 'rechnungen';
-        const path = `${submitData.unternehmen_id || 'unknown'}/${Date.now()}_${sanitizedName}`;
-        const { error: upErr } = await window.supabase.storage.from(bucket).upload(path, file, {
-          cacheControl: '3600',
-          upsert: false,
-          contentType: file.type
-        });
-        if (upErr) throw upErr;
-        const { data } = window.supabase.storage.from(bucket).getPublicUrl(path);
-        pdf_url = data.publicUrl;
-        pdf_path = path;
-      }
-
-      if (pdf_url) {
-        submitData.pdf_url = pdf_url;
-        submitData.pdf_path = pdf_path;
+        const files = Array.from(pdfUploaderRoot.__uploaderInstance.files);
+        for (const file of files) {
+          const sanitizedName = file.name
+            .replace(/[^a-zA-Z0-9._-]/g, '_')
+            .replace(/\.{2,}/g, '_')
+            .substring(0, 200);
+          const bucket = 'rechnungen';
+          const path = `${submitData.unternehmen_id || 'unknown'}/${Date.now()}_${Math.random().toString(36).slice(2)}_${sanitizedName}`;
+          const { error: upErr } = await window.supabase.storage.from(bucket).upload(path, file, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: file.type
+          });
+          if (upErr) throw upErr;
+          const { data } = window.supabase.storage.from(bucket).getPublicUrl(path);
+          pdfFiles.push({ file_name: file.name, file_path: path, file_url: data.publicUrl || '', content_type: file.type, size: file.size });
+        }
       }
 
       // Ersteller automatisch setzen
@@ -299,6 +317,24 @@ export class RechnungDetail {
 
       const result = await window.dataService.createEntity('rechnung', submitData);
       if (result.success) {
+        // PDF-Metadaten in rechnung_pdfs speichern
+        try {
+          const rechnungId = result.id;
+          for (const pdf of pdfFiles) {
+            await window.supabase.from('rechnung_pdfs').insert({
+              rechnung_id: rechnungId,
+              file_name: pdf.file_name,
+              file_path: pdf.file_path,
+              file_url: pdf.file_url,
+              content_type: pdf.content_type,
+              size: pdf.size,
+              uploaded_by: window.currentUser?.id || null
+            });
+          }
+        } catch (pdfErr) {
+          console.warn('⚠️ PDF-Metadaten teilweise fehlgeschlagen:', pdfErr);
+        }
+
         // Multi-Upload Belege via UploaderField (Multi) in separatem Bucket 'rechnung-belege'
         try {
           const belegeUploaderRoot = form.querySelector('.uploader[data-name="belege_files"]');
@@ -460,14 +496,14 @@ export class RechnungDetail {
     }
 
     const pdfUploader = document.querySelector('.uploader[data-name="pdf_file"]')?.__uploaderInstance;
-    if (pdfUploader && this.data?.pdf_url) {
-      pdfUploader.setExistingFiles([{
-        id: 'pdf',
-        name: this.data.pdf_path?.split('/').pop() || 'Rechnung.pdf',
-        url: this.data.pdf_url,
-        path: this.data.pdf_path,
-        size: null
-      }]);
+    if (pdfUploader && this.pdfs && this.pdfs.length > 0) {
+      pdfUploader.setExistingFiles(this.pdfs.map(p => ({
+        id: p.id,
+        name: p.file_name,
+        url: p.open_url,
+        path: p.file_path,
+        size: p.size
+      })));
     }
   }
 }

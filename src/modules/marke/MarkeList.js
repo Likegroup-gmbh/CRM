@@ -112,11 +112,22 @@ export class MarkeList extends BasePaginatedList {
         }
       }
 
-      // Andere Filter anwenden
+      // Erweiterte Suche: auch in Unternehmensname suchen
       const filtersWithoutBranche = { ...filters };
       delete filtersWithoutBranche.branche_id;
       delete filtersWithoutBranche._sortBy;
       delete filtersWithoutBranche._sortOrder;
+
+      if (filtersWithoutBranche.name) {
+        const search = filtersWithoutBranche.name;
+        const { data: matchU } = await window.supabase
+          .from('unternehmen').select('id').ilike('firmenname', `%${search}%`);
+        const orParts = [`markenname.ilike.%${search}%`];
+        if (matchU?.length) orParts.push(`unternehmen_id.in.(${matchU.map(u => u.id).join(',')})`);
+        query = query.or(orParts.join(','));
+        delete filtersWithoutBranche.name;
+      }
+
       query = MarkeFilterLogic.buildSupabaseQuery(query, filtersWithoutBranche);
 
       // Range für Pagination

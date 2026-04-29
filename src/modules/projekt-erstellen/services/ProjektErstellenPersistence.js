@@ -225,7 +225,6 @@ export class ProjektErstellenPersistence {
         verkaufspreis_netto_von: block.verkaufspreis_netto_von ?? null,
         verkaufspreis_netto_bis: block.verkaufspreis_netto_bis ?? null,
         budget_info: block.budget_info || null,
-        kooperations_deadline: block.kooperations_deadline || null,
         status: block.status || DEFAULT_CAMPAIGN_BLOCK_STATUS,
         created_by_id: createdById || null
       };

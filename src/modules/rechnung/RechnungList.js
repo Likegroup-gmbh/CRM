@@ -184,20 +184,23 @@ export class RechnungList {
       window.toastSystem?.show('Rechnung nicht gefunden', 'error');
       return;
     }
-    
-    if (!rechnung.pdf_url) {
+
+    const pdfs = rechnung.rechnung_pdfs || [];
+    if (pdfs.length === 0 && !rechnung.pdf_url) {
       window.toastSystem?.show('Keine PDF für diese Rechnung hinterlegt', 'warning');
       return;
     }
-    
-    // PDF in neuem Tab öffnen / Download starten
-    const link = document.createElement('a');
-    link.href = rechnung.pdf_url;
-    link.target = '_blank';
-    link.download = `Rechnung_${rechnung.rechnung_nr || rechnungId}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+
+    const urls = pdfs.length > 0 ? pdfs.map(p => ({ url: p.open_url, name: p.file_name })) : [{ url: rechnung.pdf_url, name: `Rechnung_${rechnung.rechnung_nr || rechnungId}.pdf` }];
+    for (const { url, name } of urls) {
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.download = name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   }
 
   /**
@@ -424,6 +427,7 @@ export class RechnungList {
       }
 
       this.rechnungen = rechnungen;
+      await this.enrichRechnungPdfs(rechnungen);
       await this.enrichKampagnenNames(rechnungen);
       this.updateStatusTabCounts();
       await this.updateTable(this.getFilteredRechnungen());
@@ -449,6 +453,29 @@ export class RechnungList {
       });
     } catch (e) {
       console.warn('⚠️ Kampagnennamen konnten nicht nachgeladen werden:', e);
+    }
+  }
+
+  async enrichRechnungPdfs(rechnungen) {
+    try {
+      const ids = (rechnungen || []).map(r => r.id).filter(Boolean);
+      if (ids.length === 0) return;
+      const { data, error } = await window.supabase
+        .from('rechnung_pdfs')
+        .select('id, rechnung_id, file_name, file_path, file_url')
+        .in('rechnung_id', ids);
+      if (error || !data) return;
+      const map = new Map();
+      for (const row of data) {
+        if (!map.has(row.rechnung_id)) map.set(row.rechnung_id, []);
+        const { data: urlData } = window.supabase.storage.from('rechnungen').getPublicUrl(row.file_path);
+        map.get(row.rechnung_id).push({ ...row, open_url: urlData?.publicUrl || row.file_url || '' });
+      }
+      rechnungen.forEach(r => {
+        r.rechnung_pdfs = map.get(r.id) || [];
+      });
+    } catch (e) {
+      console.warn('⚠️ Rechnungs-PDFs konnten nicht nachgeladen werden:', e);
     }
   }
 
@@ -680,7 +707,7 @@ export class RechnungList {
           <td class="col-videos">${r.videoanzahl || '-'}</td>
           <td class="col-preis-video">${r.videoanzahl && r.nettobetrag ? formatCurrency(r.nettobetrag / r.videoanzahl) : '-'}</td>
           <td class="col-brutto">${formatCurrency(r.bruttobetrag)}</td>
-          <td class="col-beleg">${r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener noreferrer">PDF</a>` : '-'}</td>
+          <td class="col-beleg">${r.rechnung_pdfs && r.rechnung_pdfs.length > 0 ? r.rechnung_pdfs.map((p, i) => `<a href="${p.open_url}" target="_blank" rel="noopener noreferrer">PDF${r.rechnung_pdfs.length > 1 ? ' ' + (i + 1) : ''}</a>`).join(' ') : (r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener noreferrer">PDF</a>` : '-')}</td>
           <td class="col-vertrag">${renderVertragCell(r)}</td>
           <td class="col-status" data-col="status">${r.status || '-'}</td>
           <td class="col-erstellt-von">${this.renderCreatedBy(r.created_by)}</td>
@@ -834,9 +861,9 @@ export class RechnungList {
       return;
     }
 
-    // Rechnungen mit PDF-URLs aus gespeicherten Daten filtern
+    // Rechnungen mit PDFs aus gespeicherten Daten filtern
     const rechnungenToDownload = this.rechnungen.filter(r => 
-      selectedIds.includes(r.id) && r.pdf_url
+      selectedIds.includes(r.id) && ((r.rechnung_pdfs && r.rechnung_pdfs.length > 0) || r.pdf_url)
     );
 
     if (rechnungenToDownload.length === 0) {
@@ -849,41 +876,45 @@ export class RechnungList {
       window.toastSystem?.show(`${skipped} Rechnung(en) ohne PDF übersprungen`, 'info');
     }
 
-    window.toastSystem?.show(`Starte Download von ${rechnungenToDownload.length} Rechnung(en)...`, 'info');
+    // Alle PDF-URLs sammeln
+    const allPdfs = [];
+    for (const rechnung of rechnungenToDownload) {
+      const pdfs = rechnung.rechnung_pdfs && rechnung.rechnung_pdfs.length > 0
+        ? rechnung.rechnung_pdfs.map(p => ({ url: p.open_url, name: p.file_name || `Rechnung_${rechnung.rechnung_nr}.pdf` }))
+        : [{ url: rechnung.pdf_url, name: `Rechnung_${rechnung.rechnung_nr || rechnung.id}.pdf` }];
+      allPdfs.push(...pdfs);
+    }
 
-    // Downloads nacheinander mit kurzer Verzögerung starten
-    for (let i = 0; i < rechnungenToDownload.length; i++) {
-      const rechnung = rechnungenToDownload[i];
-      
+    window.toastSystem?.show(`Starte Download von ${allPdfs.length} PDF(s)...`, 'info');
+
+    for (let i = 0; i < allPdfs.length; i++) {
+      const pdf = allPdfs[i];
+
       try {
-        // PDF als Blob herunterladen
-        const response = await fetch(rechnung.pdf_url);
-        if (!response.ok) throw new Error(`Fehler beim Laden von ${rechnung.rechnung_nr}`);
-        
+        const response = await fetch(pdf.url);
+        if (!response.ok) throw new Error(`Fehler beim Laden von ${pdf.name}`);
+
         const blob = await response.blob();
         const blobUrl = URL.createObjectURL(blob);
-        
-        // Download-Link erstellen und klicken
+
         const link = document.createElement('a');
         link.href = blobUrl;
-        link.download = `Rechnung_${rechnung.rechnung_nr || rechnung.id}.pdf`;
+        link.download = pdf.name;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
-        // Blob URL freigeben
+
         URL.revokeObjectURL(blobUrl);
-        
-        // Kurze Verzögerung zwischen Downloads damit Browser nicht blockiert
-        if (i < rechnungenToDownload.length - 1) {
+
+        if (i < allPdfs.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 500));
         }
       } catch (error) {
-        console.error(`❌ Fehler beim Download von Rechnung ${rechnung.rechnung_nr}:`, error);
+        console.error(`❌ Fehler beim Download von ${pdf.name}:`, error);
       }
     }
 
-    window.toastSystem?.show(`${rechnungenToDownload.length} Rechnung(en) heruntergeladen`, 'success');
+    window.toastSystem?.show(`${allPdfs.length} PDF(s) heruntergeladen`, 'success');
   }
 
   updateHeaderSelectAll() {

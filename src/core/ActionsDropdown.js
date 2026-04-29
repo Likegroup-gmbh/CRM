@@ -3097,46 +3097,55 @@ export class ActionsDropdown {
     console.log('📥 ACTIONSDROPDOWN: Lade Rechnung PDF herunter für ID', rechnungId);
     
     try {
-      // Rechnung-Daten direkt von Supabase laden
-      const { data: rechnung, error } = await window.supabase
-        .from('rechnung')
-        .select('id, rechnung_nr, pdf_url')
-        .eq('id', rechnungId)
-        .single();
-      
-      if (error) throw error;
-      
-      if (!rechnung) {
-        window.toastSystem?.show('Rechnung nicht gefunden', 'error');
-        return;
-      }
-      
-      if (!rechnung.pdf_url) {
-        window.toastSystem?.show('Keine PDF für diese Rechnung hinterlegt', 'warning');
-        return;
+      // PDFs aus rechnung_pdfs laden
+      const { data: pdfs, error: pdfErr } = await window.supabase
+        .from('rechnung_pdfs')
+        .select('id, file_name, file_path, file_url')
+        .eq('rechnung_id', rechnungId);
+
+      if (pdfErr) throw pdfErr;
+
+      // Fallback auf altes pdf_url Feld
+      let downloadUrls = [];
+      if (pdfs && pdfs.length > 0) {
+        downloadUrls = pdfs.map(p => {
+          const { data: urlData } = window.supabase.storage.from('rechnungen').getPublicUrl(p.file_path);
+          return { url: urlData?.publicUrl || p.file_url, name: p.file_name };
+        });
+      } else {
+        const { data: rechnung, error } = await window.supabase
+          .from('rechnung')
+          .select('id, rechnung_nr, pdf_url')
+          .eq('id', rechnungId)
+          .single();
+        if (error) throw error;
+        if (!rechnung?.pdf_url) {
+          window.toastSystem?.show('Keine PDF für diese Rechnung hinterlegt', 'warning');
+          return;
+        }
+        downloadUrls = [{ url: rechnung.pdf_url, name: `Rechnung_${rechnung.rechnung_nr || rechnungId}.pdf` }];
       }
       
       window.toastSystem?.show('Download wird vorbereitet...', 'info');
       
-      // PDF als Blob herunterladen für echten Download
-      const response = await fetch(rechnung.pdf_url);
-      if (!response.ok) throw new Error('PDF konnte nicht geladen werden');
+      for (const pdf of downloadUrls) {
+        const response = await fetch(pdf.url);
+        if (!response.ok) throw new Error('PDF konnte nicht geladen werden');
+        
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = pdf.name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        URL.revokeObjectURL(blobUrl);
+      }
       
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      
-      // Download-Link erstellen und klicken
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = `Rechnung_${rechnung.rechnung_nr || rechnungId}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      // Blob URL freigeben
-      URL.revokeObjectURL(blobUrl);
-      
-      window.toastSystem?.show('Download gestartet', 'success');
+      window.toastSystem?.show(`${downloadUrls.length} PDF(s) heruntergeladen`, 'success');
     } catch (error) {
       console.error('❌ Fehler beim Herunterladen der Rechnung:', error);
       window.toastSystem?.show('Fehler beim Herunterladen: ' + (error.message || 'Unbekannter Fehler'), 'error');
