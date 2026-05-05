@@ -84,7 +84,8 @@ exports.handler = async (event, context) => {
     let result;
 
     if (platform === 'instagram') {
-      await handleInstagramPopups(page);
+      const diagCtx = debug ? { supabase, supabaseUrl } : null;
+      await handleInstagramPopups(page, diagCtx);
       result = await takeInstagramScreenshot(page, ctx);
       if (result.debugResponse) return result.debugResponse;
     } else if (platform === 'tiktok') {
