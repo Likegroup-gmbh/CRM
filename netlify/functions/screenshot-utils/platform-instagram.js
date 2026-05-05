@@ -176,11 +176,11 @@ async function hideAppDownloadOverlay(page) {
 }
 
 /**
- * Instagram Screenshot-Strategie mit optionalen Diagnose-Screenshots
+ * Instagram Screenshot-Strategie mit Timing-Diagnose-Screenshots.
+ * Macht IMMER Screenshots zu verschiedenen Zeitpunkten, lädt sie hoch
+ * und loggt die URLs mit Zeitlabel in die Konsole.
  */
 async function takeInstagramScreenshot(page, { debug, supabase, supabaseUrl, headers }) {
-  const diagCtx = debug ? { supabase, supabaseUrl } : null;
-
   console.log('📷 Instagram: Warte auf Video/Bild...');
   try {
     await page.waitForFunction(() => {
@@ -195,19 +195,52 @@ async function takeInstagramScreenshot(page, { debug, supabase, supabaseUrl, hea
     console.log('⚠️ Instagram: Video/Bild nicht bereit nach 5s');
   }
 
-  if (diagCtx) await uploadDiagnostic(page, supabase, supabaseUrl, 'vor-screenshot', 5);
+  // Multi-Timing Diagnose: Screenshots bei 1.0s, 1.5s, 2.0s, 2.5s, 3.0s
+  const timings = [1.0, 1.5, 2.0, 2.5, 3.0];
+  const diagResults = [];
+  let lastBuffer = null;
 
-  console.log('📸 Instagram: Viewport-Screenshot...');
-  const screenshotBuffer = await page.screenshot({
-    type: 'jpeg',
-    quality: 85,
-    fullPage: false
-  });
+  console.log('📸 Instagram: Starte Timing-Diagnose-Screenshots...');
+  const startTime = Date.now();
+
+  for (const seconds of timings) {
+    const elapsed = (Date.now() - startTime) / 1000;
+    const waitMs = Math.max(0, (seconds * 1000) - (elapsed * 1000));
+    if (waitMs > 0) await new Promise(r => setTimeout(r, waitMs));
+
+    try {
+      const buffer = await page.screenshot({ type: 'jpeg', quality: 80, fullPage: false });
+      lastBuffer = buffer;
+      const label = `${seconds.toFixed(1)}s`;
+      const fileName = `diag-ig-timing-${label}-${Date.now()}.jpg`;
+      const { error } = await supabase.storage
+        .from('strategie-screenshots')
+        .upload(`screenshots/${fileName}`, buffer, { contentType: 'image/jpeg', upsert: true });
+
+      const url = error
+        ? `UPLOAD_ERROR: ${error.message}`
+        : `${supabaseUrl}/storage/v1/object/public/strategie-screenshots/screenshots/${fileName}`;
+
+      console.log(`📸 [${label}] ${url}`);
+      diagResults.push({ label, url, buffer });
+    } catch (e) {
+      console.log(`⚠️ [${seconds.toFixed(1)}s] Screenshot fehlgeschlagen: ${e.message}`);
+    }
+  }
+
+  console.log(`📸 Instagram: ${diagResults.length} Diagnose-Screenshots hochgeladen`);
 
   // Debug-Modus: DOM-Analyse hochladen und zurückgeben
   if (debug) {
     return handleInstagramDebug(page, { supabase, supabaseUrl, headers });
   }
+
+  // Finaler Screenshot: den letzten Diagnose-Screenshot nehmen (3.0s)
+  const screenshotBuffer = lastBuffer || await page.screenshot({
+    type: 'jpeg',
+    quality: 85,
+    fullPage: false
+  });
 
   return { screenshotBuffer };
 }
