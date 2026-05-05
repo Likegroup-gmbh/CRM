@@ -103,30 +103,7 @@ async function handleYouTubeInteraction(page) {
  * Overlays entfernen, Element-Clip mit Bounding-Box
  * Debug-Screenshot nur bei debug: true
  */
-async function takeYouTubeScreenshot(page, { debug, supabase, supabaseUrl } = {}) {
-  // Debug-Screenshot nur im Debug-Modus
-  if (debug && supabase) {
-    console.log('📸 YouTube DEBUG: Fullscreen-Screenshot...');
-    const debugScreenshot = await page.screenshot({
-      type: 'jpeg',
-      quality: 80,
-      fullPage: false
-    });
-
-    const debugFileName = `debug-youtube-${Date.now()}.jpg`;
-    const { error: debugError } = await supabase.storage
-      .from('strategie-screenshots')
-      .upload(`screenshots/${debugFileName}`, debugScreenshot, {
-        contentType: 'image/jpeg',
-        upsert: true
-      });
-
-    if (!debugError) {
-      const debugUrl = `${supabaseUrl}/storage/v1/object/public/strategie-screenshots/screenshots/${debugFileName}`;
-      console.log('🔍 DEBUG Screenshot:', debugUrl);
-    }
-  }
-
+async function takeYouTubeScreenshot(page) {
   // Overlays entfernen
   await new Promise(r => setTimeout(r, 1500));
   await page.evaluate(() => {

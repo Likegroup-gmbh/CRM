@@ -105,7 +105,7 @@ async function hideAppDownloadOverlay(page) {
   await new Promise(r => setTimeout(r, 1000));
 }
 
-async function takeInstagramScreenshot(page, { debug, supabase, supabaseUrl, headers }) {
+async function takeInstagramScreenshot(page) {
   console.log('📷 Instagram: Warte auf Video/Bild...');
   try {
     await page.waitForFunction(() => {
@@ -127,56 +127,7 @@ async function takeInstagramScreenshot(page, { debug, supabase, supabaseUrl, hea
     fullPage: false
   });
 
-  if (debug) {
-    return handleInstagramDebug(page, { supabase, supabaseUrl, headers });
-  }
-
   return { screenshotBuffer };
-}
-
-async function handleInstagramDebug(page, { supabase, supabaseUrl, headers }) {
-  console.log('🔍 Instagram DEBUG: DOM-Analyse...');
-
-  const debugInfo = await page.evaluate(() => ({
-    currentUrl: window.location.href,
-    title: document.title,
-    hasArticle: !!document.querySelector('article'),
-    hasVideo: !!document.querySelector('article video'),
-    videoReadyState: document.querySelector('video')?.readyState ?? 'no video',
-    hasImg: !!document.querySelector('article img'),
-    hasPresentation: !!document.querySelector('[role="presentation"]'),
-    hasDialog: !!document.querySelector('[role="dialog"]'),
-    dialogCount: document.querySelectorAll('[role="dialog"]').length,
-    bodyText: document.body?.textContent?.substring(0, 300) || 'NO BODY'
-  }));
-
-  console.log('🔍 DEBUG Info:', JSON.stringify(debugInfo, null, 2));
-
-  const debugScreenshot = await page.screenshot({ type: 'jpeg', quality: 80, fullPage: false });
-  const debugFileName = `debug-instagram-${Date.now()}.jpg`;
-  const { error: debugUploadError } = await supabase.storage
-    .from('strategie-screenshots')
-    .upload(`screenshots/${debugFileName}`, debugScreenshot, {
-      contentType: 'image/jpeg', upsert: true
-    });
-
-  let debugScreenshotUrl = null;
-  if (!debugUploadError) {
-    debugScreenshotUrl = `${supabaseUrl}/storage/v1/object/public/strategie-screenshots/screenshots/${debugFileName}`;
-  }
-
-  return {
-    debugResponse: {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        success: true, debug: true,
-        debug_screenshot_url: debugScreenshotUrl,
-        debug_info: debugInfo,
-        platform: 'instagram'
-      })
-    }
-  };
 }
 
 module.exports = { handleInstagramPopups, takeInstagramScreenshot };

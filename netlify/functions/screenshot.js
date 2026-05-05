@@ -55,7 +55,7 @@ exports.handler = async (event, context) => {
   let browser;
 
   try {
-    const { url, debug } = JSON.parse(event.body || '{}');
+    const { url } = JSON.parse(event.body || '{}');
     if (!url) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'URL required' }) };
     }
@@ -87,19 +87,17 @@ exports.handler = async (event, context) => {
     await page.goto(navigateUrl, { waitUntil: 'domcontentloaded', timeout: 25000 });
 
     // Plattform-spezifisches Handling + Screenshot
-    const ctx = { debug, supabase, supabaseUrl, headers };
     let result;
 
     if (platform === 'instagram') {
       await handleInstagramPopups(page, navigateUrl);
-      result = await takeInstagramScreenshot(page, ctx);
-      if (result.debugResponse) return result.debugResponse;
+      result = await takeInstagramScreenshot(page);
     } else if (platform === 'tiktok') {
       await handleTikTokPopups(page);
       result = await takeTikTokScreenshot(page);
     } else if (platform === 'youtube') {
       await handleYouTubeInteraction(page);
-      result = await takeYouTubeScreenshot(page, ctx);
+      result = await takeYouTubeScreenshot(page);
     } else {
       // Fallback: Viewport-Screenshot
       result = {
