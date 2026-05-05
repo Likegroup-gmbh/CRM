@@ -1,4 +1,5 @@
 import { KampagneUtils } from '../../../../modules/kampagne/KampagneUtils.js';
+import { findSignedVertragForKooperation } from '../../../../modules/rechnung/RechnungVertragZuordnung.js';
 
 let _debounceTimer = null;
 
@@ -7,6 +8,88 @@ function debounce(fn, ms = 50) {
     clearTimeout(_debounceTimer);
     _debounceTimer = setTimeout(() => fn(...args), ms);
   };
+}
+
+const VERTRAG_WARNING_ID = 'rechnung-vertrag-warning';
+const DISABLED_WRAPPER_ID = 'rechnung-fields-wrapper';
+
+function showVertragWarning(form, message) {
+  hideVertragWarning(form);
+
+  const banner = document.createElement('div');
+  banner.id = VERTRAG_WARNING_ID;
+  banner.className = 'notice-box notice-info';
+  banner.innerHTML = `
+    <strong>Kein Vertrag vorhanden</strong>
+    ${message}
+  `;
+
+  const koopField = form.querySelector('select[name="kooperation_id"]');
+  const koopGroup = koopField?.closest('.form-field') || koopField?.closest('.form-row-group');
+  if (koopGroup) {
+    koopGroup.insertAdjacentElement('afterend', banner);
+  } else {
+    form.prepend(banner);
+  }
+
+  let wrapper = form.querySelector(`#${DISABLED_WRAPPER_ID}`);
+  if (!wrapper) {
+    wrapper = document.createElement('div');
+    wrapper.id = DISABLED_WRAPPER_ID;
+
+    const siblings = [];
+    let foundKoop = false;
+    for (const child of Array.from(form.children)) {
+      if (child === koopGroup || child.id === VERTRAG_WARNING_ID) {
+        foundKoop = true;
+        continue;
+      }
+      if (foundKoop) siblings.push(child);
+    }
+    siblings.forEach(el => wrapper.appendChild(el));
+    form.appendChild(wrapper);
+  }
+  wrapper.classList.add('rechnung-form-disabled');
+
+  const submitBtn = form.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.disabled = true;
+}
+
+function hideVertragWarning(form) {
+  const existing = document.getElementById(VERTRAG_WARNING_ID);
+  if (existing) existing.remove();
+
+  const wrapper = form.querySelector(`#${DISABLED_WRAPPER_ID}`);
+  if (wrapper) {
+    wrapper.classList.remove('rechnung-form-disabled');
+  }
+
+  const submitBtn = form.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.disabled = false;
+}
+
+// Wiederverwendbare Berechnungslogik fuer USt/Brutto — wird auch von RechnungContractingEvents importiert
+export function berechneRechnungFromInputs({ nettoInput, zusatzInput, skontoToggle, ustAktivToggle, ustProzentInput, nettoGesamtInput, bruttoVorSkontoInput, skontoBetragInput, nettoNachSkontoInput, ustBetragInput, bruttoInput }) {
+  const netto = parseFloat(nettoInput?.value) || 0;
+  const zusatz = parseFloat(zusatzInput?.value) || 0;
+  const hatSkonto = skontoToggle?.checked || false;
+  const ustAktiv = ustAktivToggle ? ustAktivToggle.checked : true;
+  if (!ustAktiv && ustProzentInput) ustProzentInput.value = '0';
+  else if (ustAktiv && ustProzentInput && (parseFloat(ustProzentInput.value) || 0) === 0) ustProzentInput.value = '19';
+  const ustProzent = ustAktiv ? (parseFloat(ustProzentInput?.value) || 0) : 0;
+  const ustRate = ustProzent / 100;
+  const nettoGesamt = netto + zusatz;
+  const bruttoVorSkonto = nettoGesamt * (1 + ustRate);
+  const skontoBetrag = hatSkonto ? nettoGesamt * 0.03 : 0;
+  const nettoNachSkonto = nettoGesamt - skontoBetrag;
+  const ustBetrag = nettoNachSkonto * ustRate;
+  const brutto = nettoNachSkonto + ustBetrag;
+  if (nettoGesamtInput) nettoGesamtInput.value = nettoGesamt.toFixed(2);
+  if (bruttoVorSkontoInput) bruttoVorSkontoInput.value = bruttoVorSkonto.toFixed(2);
+  if (skontoBetragInput) skontoBetragInput.value = skontoBetrag.toFixed(2);
+  if (nettoNachSkontoInput) nettoNachSkontoInput.value = nettoNachSkonto.toFixed(2);
+  if (ustBetragInput) ustBetragInput.value = ustBetrag.toFixed(2);
+  if (bruttoInput) bruttoInput.value = brutto.toFixed(2);
 }
 
 export async function setup(form, ctx) {
@@ -97,6 +180,7 @@ export async function setup(form, ctx) {
   const onKoopChange = async () => {
     const koopId = koopSelect.value;
     if (!koopId) {
+      hideVertragWarning(form);
       const fieldsToReset = [
         { field: auftragField, placeholder: 'Auftrag wird automatisch gesetzt' },
         { field: unternehmenField, placeholder: 'Unternehmen wird automatisch gesetzt' },
@@ -140,6 +224,14 @@ export async function setup(form, ctx) {
       console.error('❌ Fehler beim Laden der Kooperation:', error);
       return;
     }
+
+    // Vertrag-Prefilter: prüfen ob finaler Vertrag vorhanden
+    const vertragCheck = await findSignedVertragForKooperation(koopId);
+    if (!vertragCheck.ok) {
+      showVertragWarning(form, vertragCheck.message);
+      return;
+    }
+    hideVertragWarning(form);
 
     // Parallele Queries: Unternehmen, Kampagne+Auftrag, Creator
     const [unternehmenResult, kampagneResult, creatorResult] = await Promise.all([

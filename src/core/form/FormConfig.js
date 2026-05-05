@@ -1,8 +1,10 @@
 import { CONTENT_ART_OPTIONS } from '../../modules/kooperation/contentArtOptions.js';
+import { rechnungContractingConfig } from './config/RechnungContractingFormConfig.js';
 
 export class FormConfig {
   getFormConfig(entity) {
     const configs = {
+      rechnung_contracting: rechnungContractingConfig,
       creator: {
         title: 'Neuen Creator anlegen',
         fields: [

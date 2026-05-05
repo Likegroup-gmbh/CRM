@@ -3,6 +3,7 @@
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { CREATOR_TYP_OPTIONS, isAllowedCreatorTyp, normalizeCreatorTyp } from './creatorTypeOptions.js';
+import { getTeilbereicheFromListe } from './CreatorAuswahlTemplates.js';
 
 export class CreatorAuswahlAddDrawer {
   constructor(detail) {
@@ -95,6 +96,12 @@ export class CreatorAuswahlAddDrawer {
       .map(typ => `<option value="${typ}">${typ}</option>`)
       .join('');
 
+    const teilbereiche = getTeilbereicheFromListe(this.detail.liste)
+      .filter(tb => tb !== 'Nicht umsetzen');
+    const kategorieOptionsHtml = teilbereiche
+      .map(tb => `<option value="${tb}">${tb}</option>`)
+      .join('');
+
     const searchSection = isDatabaseMode ? `
       <div class="form-field sourcing-search-section">
         <label class="form-label">Creator suchen</label>
@@ -105,6 +112,16 @@ export class CreatorAuswahlAddDrawer {
       </div>
       <input type="hidden" id="db-selected-creator-id" value="" />
       <div id="db-selected-info" class="sourcing-selected-info" style="display: none;"></div>
+    ` : '';
+
+    const kategorieFeld = teilbereiche.length > 0 ? `
+          <div class="form-field">
+            <label class="form-label">Kategorie</label>
+            <select id="creator-kategorie" name="kategorie" class="form-input">
+              <option value="">Ohne Kategorie</option>
+              ${kategorieOptionsHtml}
+            </select>
+          </div>
     ` : '';
 
     return `
@@ -119,6 +136,8 @@ export class CreatorAuswahlAddDrawer {
               ${creatorTypOptionsHtml}
             </select>
           </div>
+
+          ${kategorieFeld}
 
           <div class="form-field">
             <label class="form-label">Name *</label>

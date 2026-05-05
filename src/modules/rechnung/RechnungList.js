@@ -409,6 +409,7 @@ export class RechnungList {
           const baseFilters = { ...currentFilters };
           rechnungen = await window.dataService.loadEntities('rechnung', baseFilters);
           rechnungen = (rechnungen || []).filter(r => {
+            if (r.rechnungstyp === 'contracting') return true;
             return (r.kampagne_id && allowedKampagneIds.includes(r.kampagne_id)) || 
                    (r.kooperation_id && allowedKoopIds.includes(r.kooperation_id)) ||
                    (r.unternehmen_id && allowedUnternehmenIds.includes(r.unternehmen_id));
@@ -529,11 +530,12 @@ export class RechnungList {
             <tr>
               ${isAdmin ? `<th class="col-checkbox"><input type="checkbox" id="select-all-rechnungen"></th>` : ''}
               <th class="col-name">Rechnungsname</th>
+              <th class="col-typ">Typ</th>
               <th class="col-auftrag">Auftrag</th>
               <th class="col-po">PO-Nummer</th>
               <th class="col-created-at">Erstellt am</th>
               <th class="col-unternehmen">Unternehmen</th>
-              <th class="col-kampagne">Kampagne</th>
+              <th class="col-kampagne">Kampagne / Contract</th>
               <th class="col-land">Land</th>
               <th class="col-creator">Creator</th>
               <th class="col-gestellt-am">Gestellt am</th>
@@ -694,11 +696,12 @@ export class RechnungList {
         <tr data-id="${r.id}" class="${getRowClass(r)}">
           ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="rechnung-check" data-id="${r.id}"></td>` : ''}
           <td class="col-name">${r.rechnung_nr || '-'}</td>
-          <td class="col-auftrag">${r.auftrag_id ? `<a href="#" class="table-link" data-table="auftragsdetails" data-id="${r.auftrag?.auftrag_details?.[0]?.id || r.auftrag_id}">${r.auftrag?.auftragsname || '-'}</a>` : '-'}</td>
+          <td class="col-typ"><span class="status-badge ${r.rechnungstyp === 'contracting' ? 'status-gestellt' : 'status-beauftragt'}">${r.rechnungstyp === 'contracting' ? 'Contracting' : 'Kampagne'}</span></td>
+          <td class="col-auftrag">${r.auftrag_id ? `<a href="#" class="table-link" data-table="${r.rechnungstyp === 'contracting' ? 'contracts' : 'auftragsdetails'}" data-id="${r.rechnungstyp === 'contracting' ? r.auftrag_id : (r.auftrag?.auftrag_details?.[0]?.id || r.auftrag_id)}">${r.auftrag?.auftragsname || '-'}</a>` : '-'}</td>
           <td class="col-po">${r.po_nummer || '-'}</td>
           <td class="col-created-at">${formatDate(r.created_at)}</td>
           <td class="col-unternehmen">${r.unternehmen?.firmenname || '-'}</td>
-          <td class="col-kampagne">${r.kampagne_id ? `<a href="#" class="table-link" data-table="kampagne" data-id="${r.kampagne_id}">${r.kampagne?.eigener_name || r.kampagne?.kampagnenname || '-'}</a>` : '-'}</td>
+          <td class="col-kampagne">${r.rechnungstyp === 'contracting' ? (r.auftrag?.auftragsname || r.auftrag?.titel || '-') : (r.kampagne_id ? `<a href="#" class="table-link" data-table="kampagne" data-id="${r.kampagne_id}">${r.kampagne?.eigener_name || r.kampagne?.kampagnenname || '-'}</a>` : '-')}</td>
           <td class="col-land">${r.land || '-'}</td>
           <td class="col-creator">${[r.creator?.vorname, r.creator?.nachname].filter(Boolean).join(' ') || '-'}</td>
           <td class="col-gestellt-am">${formatDate(r.gestellt_am)}</td>

@@ -27,7 +27,8 @@ export class NavigationSystem {
           { id: 'projekt-erstellen', label: 'Projekt anlegen', icon: 'icon-briefcase', url: '/projekt-erstellen' },
           { id: 'auftrag', label: 'Aufträge', icon: 'icon-briefcase', url: '/auftrag' },
           { id: 'auftragsdetails', label: 'Auftragsdetails', icon: 'icon-auftragsdetails', url: '/auftragsdetails' },
-          { id: 'kampagne', label: 'Kampagnen', icon: 'icon-campaign', url: '/kampagne' }
+          { id: 'kampagne', label: 'Kampagnen', icon: 'icon-campaign', url: '/kampagne' },
+          { id: 'contracts', label: 'Contracts', icon: 'icon-contract', url: '/contracts' }
         ]
       },
       {
@@ -90,6 +91,10 @@ export class NavigationSystem {
       if (id === 'projekt-erstellen') {
         if (!window.canCreateProject()) return false;
       }
+
+      if (id === 'contracts') {
+        return window.canViewContracts?.() || false;
+      }
       
       // 1) Page-Scoped Check (DB-Overrides)
       if (window.canViewPage && typeof window.canViewPage === 'function') {
@@ -122,7 +127,8 @@ export class NavigationSystem {
         'kunden-admin': 'kunden-admin',
         tasks: 'tasks',
         tabellen: 'dashboard',
-        feedback: 'feedback'
+        feedback: 'feedback',
+        contracts: 'contracts'
       };
       
       const entity = map[id] || id;

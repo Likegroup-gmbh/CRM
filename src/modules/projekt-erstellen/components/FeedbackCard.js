@@ -103,11 +103,12 @@ export class FeedbackCard {
   }
 
   buildContent(formData) {
+    const isContracting = formData.auftrag?.auftragtype === 'Contracting';
     return `
       <div class="projekt-erstellen-summary-doc">
         ${this.renderSummarySection('Basisdaten', this.buildStep1(formData))}
-        ${this.renderSummarySection('Details', this.buildStep2(formData))}
-        ${this.renderSummarySection('Kampagne', this.buildKampagneSummary(formData))}
+        ${this.renderSummarySection(isContracting ? 'Finanzen' : 'Details', this.buildStep2(formData))}
+        ${isContracting ? '' : this.renderSummarySection('Kampagne', this.buildKampagneSummary(formData))}
       </div>
     `;
   }

@@ -223,7 +223,7 @@ export class ActionsDropdown {
       const action = actionItem.dataset?.action;
       if (!action) return;
 
-      const customActions = ['comment-delete', 'video-view', 'video-edit', 'video-delete', 'remove-zuordnung'];
+      const customActions = ['comment-delete', 'video-view', 'video-edit', 'video-delete', 'remove-zuordnung', 'add-to-video', 'unlink-from-video', 'edit-item', 'delete-item'];
       if (customActions.includes(action)) return;
 
       e.preventDefault();
@@ -422,7 +422,11 @@ export class ActionsDropdown {
     // Legacy-System als Fallback
     switch (action) {
       case 'view':
-        window.navigateTo(`/${entityType}/${entityId}`);
+        if (entityType === 'contract') {
+          window.navigateTo(`/contracts/${entityId}`);
+        } else {
+          window.navigateTo(`/${entityType}/${entityId}`);
+        }
         break;
       
       case 'edit':
@@ -442,11 +446,12 @@ export class ActionsDropdown {
       
       case 'delete':
         if (entityType === 'vertraege') {
-          // Vertraege haben eigene Lösch-Logik (inkl. PDF-Datei-Löschung)
           const vertraegeModule = window.moduleRegistry?.modules?.get('vertraege');
           if (vertraegeModule?.deleteVertrag) {
             vertraegeModule.deleteVertrag(entityId);
           }
+        } else if (entityType === 'contract') {
+          this.confirmDelete(entityId, 'auftrag');
         } else {
           this.confirmDelete(entityId, entityType);
         }

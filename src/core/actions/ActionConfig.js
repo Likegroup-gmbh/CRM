@@ -99,6 +99,16 @@ export const ActionConfigs = {
     kundenActions: ['view']
   },
 
+  // Contract Actions (Contracting-Auftraege)
+  contract: {
+    actions: [
+      { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
+      { id: 'separator' },
+      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin'] }
+    ],
+    kundenActions: ['view']
+  },
+
   // Auftrag Actions
   auftrag: {
     actions: [

@@ -491,43 +491,37 @@ export class StrategieDetail {
       this._tableEventListeners.add(() => checkbox.removeEventListener('change', handler));
     });
 
-    // Actions Dropdown (Edit, Delete, Add to Video)
+    // Actions Dropdown (Edit, Delete, Add to Video) – Event-Delegation,
+    // damit auch Portal-Klone (ActionsDropdown Portal-Pattern) erreicht werden.
     if (!this.isKunde) {
-      document.querySelectorAll('[data-action="edit-item"]').forEach(btn => {
-        const handler = (e) => {
-          e.preventDefault();
-          this.showEditItemDrawer(btn.dataset.id);
-        };
-        btn.addEventListener('click', handler);
-        this._tableEventListeners.add(() => btn.removeEventListener('click', handler));
-      });
+      const actionHandler = (e) => {
+        const actionItem = e.target.closest('[data-action]');
+        if (!actionItem) return;
 
-      document.querySelectorAll('[data-action="delete-item"]').forEach(btn => {
-        const handler = (e) => {
-          e.preventDefault();
-          this.handleDeleteItem(btn.dataset.id);
-        };
-        btn.addEventListener('click', handler);
-        this._tableEventListeners.add(() => btn.removeEventListener('click', handler));
-      });
+        const action = actionItem.dataset.action;
+        const id = actionItem.dataset.id;
 
-      document.querySelectorAll('[data-action="add-to-video"]').forEach(btn => {
-        const handler = (e) => {
-          e.preventDefault();
-          this.handleAddToVideo(btn.dataset.id);
-        };
-        btn.addEventListener('click', handler);
-        this._tableEventListeners.add(() => btn.removeEventListener('click', handler));
-      });
-
-      document.querySelectorAll('[data-action="unlink-from-video"]').forEach(btn => {
-        const handler = (e) => {
-          e.preventDefault();
-          this.handleUnlinkFromVideo(btn.dataset.id, btn.dataset.videoId);
-        };
-        btn.addEventListener('click', handler);
-        this._tableEventListeners.add(() => btn.removeEventListener('click', handler));
-      });
+        switch (action) {
+          case 'edit-item':
+            e.preventDefault();
+            this.showEditItemDrawer(id);
+            break;
+          case 'delete-item':
+            e.preventDefault();
+            this.handleDeleteItem(id);
+            break;
+          case 'add-to-video':
+            e.preventDefault();
+            this.handleAddToVideo(id);
+            break;
+          case 'unlink-from-video':
+            e.preventDefault();
+            this.handleUnlinkFromVideo(id, actionItem.dataset.videoId);
+            break;
+        }
+      };
+      document.addEventListener('click', actionHandler);
+      this._tableEventListeners.add(() => document.removeEventListener('click', actionHandler));
     }
 
     // Drag-to-Scroll (horizontales Ziehen)

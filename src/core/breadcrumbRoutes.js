@@ -26,6 +26,7 @@ const ROUTE_CONFIG = {
   education:          { label: 'Education',          icon: 'icon-dashboard' },
   'creator-lists':    { label: 'Listen',            icon: 'icon-list' },
   kickoff:            { label: 'Kick-Off',          icon: 'icon-tag' },
+  contracts:          { label: 'Contracts',          icon: 'icon-contract' },
   profile:            { label: 'Profil',            icon: 'icon-user-circle' },
 };
 

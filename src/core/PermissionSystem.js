@@ -8,7 +8,7 @@ const ENTITIES = [
   'auftrag', 'auftragsdetails', 'kampagne', 'kooperation', 'briefing',
   'videos', 'rechnung', 'ansprechpartner', 'dashboard', 'tasks',
   'strategie', 'kickoff', 'sourcing', 'feedback', 'mitarbeiter',
-  'vertraege', 'kunden-admin'
+  'vertraege', 'kunden-admin', 'contracts'
 ];
 
 const T = { can_view: true, can_edit: true, can_delete: true };
@@ -33,6 +33,7 @@ const BASE_PERMISSIONS = {
     tasks:          { can_view: true, can_edit: false, can_delete: true },
     mitarbeiter:    { ...F },
     'kunden-admin': { ...F },
+    contracts:      { ...F },
   },
 
   kunde: {
@@ -48,6 +49,7 @@ const BASE_PERMISSIONS = {
     strategie:   { can_view: true, can_edit: true, can_delete: false },
     kickoff:     { ...V },
     sourcing:    { ...V },
+    contracts:   { ...V },
   },
 };
 
@@ -94,6 +96,11 @@ export class PermissionSystem {
   get canBulkDelete()      { return this.isInternal; }
   get canCreateProject()   { return this.isInternal; }
   get canUseGlobalSearch() { return this.isInternal; }
+  get canViewContracts() {
+    if (this.isAdmin) return true;
+    if (this.isKunde) return !!window.currentUser?.contracting_sicht;
+    return false;
+  }
 
   // ============================================
   // Benutzer-Berechtigungen setzen
@@ -306,6 +313,7 @@ if (typeof window !== 'undefined') {
   window.canBulkDelete      = () => permissionSystem.canBulkDelete;
   window.canCreateProject   = () => permissionSystem.canCreateProject;
   window.canUseGlobalSearch = () => permissionSystem.canUseGlobalSearch;
+  window.canViewContracts   = () => permissionSystem.canViewContracts;
 
   window.permissionSystem = permissionSystem;
 }

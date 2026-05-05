@@ -82,6 +82,12 @@
   min-width: 260px;
 }
 .kooperation-video-grid .col-kosten { width: 100px; min-width: 100px; }
+.kooperation-video-grid .col-video-name {
+  --_col-base: 9.125rem;
+  --_col-factor: 2.5;
+  width: calc(var(--_col-base) * var(--_col-factor));
+  min-width: calc(var(--_col-base) * var(--_col-factor));
+}
 .kooperation-video-grid .col-actions { width: 70px; min-width: 70px; }
 
 /* Aktions-Spalte: sticky rechts */
@@ -294,6 +300,12 @@
 .video-stack-cell .video-field-wrapper {
   padding-left: var(--space-md);
   padding-right: var(--space-md);
+}
+
+.video-stack-cell .video-field-wrapper:has([readonly]),
+.video-stack-cell .video-field-wrapper:has([disabled]) {
+  padding: 0;
+  background: var(--readonly-bg);
 }
 
 /* Gestapelte Video-Inputs innerhalb einer Kooperation */
@@ -1887,77 +1899,43 @@ width: 18em;
 }
 
 /* === READ-ONLY / DISABLED FELDER FÜR KUNDEN === */
-/* Grid-Inputs (text, date, etc.) */
-.grid-input[readonly] {
-  background: var(--gray-100);
+/* Gemeinsame Readonly/Disabled-Styles (Farben via --readonly-bg / --readonly-text in variables.css) */
+.grid-input[readonly],
+.grid-select[disabled],
+.grid-textarea[readonly],
+.stacked-video-input[readonly],
+.stacked-video-textarea[readonly] {
+  background: var(--readonly-bg);
+  color: var(--readonly-text);
   cursor: not-allowed;
-  opacity: 0.6;
-  color: var(--gray-600);
 }
 
 .grid-input[readonly]:hover,
-.grid-input[readonly]:focus {
-  background: var(--gray-100);
-  border-color: var(--gray-300);
-}
-
-/* Grid-Select disabled Zustand */
-.grid-select[disabled] {
-  background: var(--gray-100);
-  cursor: not-allowed;
-  opacity: 0.6;
-  color: var(--gray-600);
-}
-
+.grid-input[readonly]:focus,
 .grid-select[disabled]:hover,
-.grid-select[disabled]:focus {
-  background: var(--gray-100);
+.grid-select[disabled]:focus,
+.grid-textarea[readonly]:hover,
+.grid-textarea[readonly]:focus {
+  background: var(--readonly-bg);
   border-color: var(--gray-300);
 }
 
 /* Grid-Checkboxen */
-.grid-checkbox[disabled] {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.grid-checkbox[disabled] + span {
-  color: var(--gray-500);
-  cursor: not-allowed;
-}
-
-/* Grid-Textareas */
-.grid-textarea[readonly] {
-  background: var(--gray-100);
-  cursor: not-allowed;
-  opacity: 0.6;
-  color: var(--gray-600);
-}
-
-.grid-textarea[readonly]:hover,
-.grid-textarea[readonly]:focus {
-  background: var(--gray-100);
-  border-color: var(--gray-300);
-}
-
-/* Stacked Video Inputs */
-.stacked-video-input[readonly] {
-  background: var(--gray-100);
-  cursor: not-allowed;
-  opacity: 0.6;
-  color: var(--gray-600);
-}
-
+.grid-checkbox[disabled],
 .stacked-video-checkbox[disabled] {
   cursor: not-allowed;
   opacity: 0.5;
 }
 
-.stacked-video-textarea[readonly] {
-  background: var(--gray-100);
+.grid-checkbox[disabled] + span {
+  color: var(--readonly-text);
   cursor: not-allowed;
-  opacity: 0.6;
-  color: var(--gray-600);
+}
+
+/* Stacked Video: Padding ins Input, weil Wrapper-Padding bei readonly entfällt */
+.stacked-video-input[readonly],
+.stacked-video-textarea[readonly] {
+  padding: var(--space-sm) var(--space-md);
 }
 
 /* External Link Button */

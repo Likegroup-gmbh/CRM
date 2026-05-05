@@ -12,6 +12,10 @@ export class StepDetails {
     this.angebotsnummerOptions = [];
   }
 
+  get isContracting() {
+    return this.wizard.formData.auftrag?.auftragtype === 'Contracting';
+  }
+
   render(host) {
     this.host = host;
     const a = this.wizard.formData.auftrag || {};
@@ -93,7 +97,7 @@ export class StepDetails {
           </div>
         </div>
 
-        <div id="pe-agency-host"></div>
+        ${this.isContracting ? '' : '<div id="pe-agency-host"></div>'}
 
       </div>
     `;
@@ -190,15 +194,17 @@ export class StepDetails {
   }
 
   bindEvents() {
-    this.agencyBlock = new AgencyServicesBlock({
-      hostId: 'pe-agency-host',
-      data: this.wizard.formData.details,
-      onChange: (val) => {
-        this.wizard.formData.details = { ...this.wizard.formData.details, ...val };
-        this.wizard.updateFeedback();
-      }
-    });
-    this.agencyBlock.render();
+    if (!this.isContracting) {
+      this.agencyBlock = new AgencyServicesBlock({
+        hostId: 'pe-agency-host',
+        data: this.wizard.formData.details,
+        onChange: (val) => {
+          this.wizard.formData.details = { ...this.wizard.formData.details, ...val };
+          this.wizard.updateFeedback();
+        }
+      });
+      this.agencyBlock.render();
+    }
 
     const recalcBrutto = () => {
       const net = parseFloat(document.getElementById('field-pe-nettobetrag')?.value);

@@ -5,9 +5,10 @@ import { normalizeCampaignBlocks } from '../logic/CampaignBudgetFields.js';
 
 export class ProjektErstellenValidator {
   validateStep(step, formData) {
+    const isContracting = formData.auftrag?.auftragtype === 'Contracting';
     if (step === 1) return this.validateStep1(formData);
-    if (step === 2) return this.validateStep2(formData);
-    if (step === 3) return this.validateStep3(formData);
+    if (step === 2) return isContracting ? this.validateStep2Contracting(formData) : this.validateStep2(formData);
+    if (step === 3 && !isContracting) return this.validateStep3(formData);
     return { valid: true, errors: [] };
   }
 
@@ -20,6 +21,15 @@ export class ProjektErstellenValidator {
     if (!a.titel || !String(a.titel).trim()) errors.push('Titel ist ein Pflichtfeld');
     if (a.start && a.ende && new Date(a.ende) < new Date(a.start)) {
       errors.push('Enddatum darf nicht vor dem Startdatum liegen');
+    }
+    return { valid: errors.length === 0, errors };
+  }
+
+  validateStep2Contracting(formData) {
+    const errors = [];
+    const a = formData.auftrag || {};
+    if (!a.angebotsnummer || !String(a.angebotsnummer).trim()) {
+      errors.push('Angebotsnummer ist ein Pflichtfeld');
     }
     return { valid: errors.length === 0, errors };
   }

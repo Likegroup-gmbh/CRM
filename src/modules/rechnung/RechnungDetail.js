@@ -1,5 +1,6 @@
 // RechnungDetail.js (ES6-Modul)
 import { findSignedVertragForKooperation } from './RechnungVertragZuordnung.js';
+import { renderSegmentedControl, bindSegmentSwitcher, handleContractingCreateSubmit, handleContractingEditSubmit } from './RechnungContractingCreate.js';
 
 export class RechnungDetail {
   constructor() {
@@ -158,26 +159,48 @@ export class RechnungDetail {
     window.setContentSafely(window.content, html);
   }
 
-  showCreateForm() {
+  showCreateForm(initialType = null) {
     window.setHeadline('Neue Rechnung anlegen');
-    
-    // Breadcrumb aktualisieren
     if (window.breadcrumbSystem) {
       window.breadcrumbSystem.updateDetailLabel('Neue Rechnung');
     }
-    
-    const formHtml = window.formSystem.renderFormOnly('rechnung');
+
+    const params = new URLSearchParams(window.location.search);
+    const type = initialType || params.get('type') || 'kampagne';
+    this._currentCreateType = type;
+
+    this._renderCreateFormForType(type);
+  }
+
+  _renderCreateFormForType(type) {
+    this._currentCreateType = type;
+    const entity = type === 'contracting' ? 'rechnung_contracting' : 'rechnung';
+    const formHtml = window.formSystem.renderFormOnly(entity);
+
     window.content.innerHTML = `
-      <div class="form-page">${formHtml}</div>
+      <div class="form-page">
+        ${renderSegmentedControl(type)}
+        ${formHtml}
+      </div>
     `;
-    window.formSystem.bindFormEvents('rechnung', null);
-    const form = document.getElementById('rechnung-form');
+
+    window.formSystem.bindFormEvents(entity, null);
+
+    const form = document.getElementById(`${entity}-form`);
     if (form) {
       form.onsubmit = async (e) => {
         e.preventDefault();
-        await this.handleCreateSubmit();
+        if (type === 'contracting') {
+          await handleContractingCreateSubmit(form);
+        } else {
+          await this.handleCreateSubmit();
+        }
       };
     }
+
+    bindSegmentSwitcher(window.content, (newType) => {
+      this._renderCreateFormForType(newType);
+    });
   }
 
   async validateVertragForKooperation(kooperationId) {
@@ -457,13 +480,15 @@ export class RechnungDetail {
   }
 
   async showEditForm() {
+    const isContracting = this.data?.rechnungstyp === 'contracting';
+    const entity = isContracting ? 'rechnung_contracting' : 'rechnung';
     const editData = {
       ...this.data,
       _isEditMode: true,
       _entityId: this.id
     };
     
-    const formHtml = window.formSystem.renderFormOnly('rechnung', editData);
+    const formHtml = window.formSystem.renderFormOnly(entity, editData);
     window.content.innerHTML = `
       <div class="page-header">
         <div class="page-header-right">
@@ -479,7 +504,7 @@ export class RechnungDetail {
       </div>
       <div class="form-page">${formHtml}</div>
     `;
-    await window.formSystem.bindFormEvents('rechnung', editData);
+    await window.formSystem.bindFormEvents(entity, editData);
 
     // Uploader werden per setTimeout(0) gemountet – kurz warten
     await new Promise(r => setTimeout(r, 50));

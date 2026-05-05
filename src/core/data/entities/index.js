@@ -858,6 +858,8 @@ export const EntityRegistry = {
       pdf_url: 'string',
       pdf_path: 'string',
       vertrag_id: 'uuid',
+      rechnungstyp: 'string',
+      contracting_position_id: 'uuid',
       created_by_id: 'uuid',
       created_at: 'date',
       updated_at: 'date'
@@ -869,9 +871,10 @@ export const EntityRegistry = {
       creator: { table: 'creator', foreignKey: 'creator_id', displayField: 'vorname' },
       kampagne: { table: 'kampagne', foreignKey: 'kampagne_id', displayField: 'kampagnenname' },
       created_by: { table: 'benutzer', foreignKey: 'created_by_id', displayField: 'name' },
-      vertrag: { table: 'vertraege', foreignKey: 'vertrag_id', displayField: 'name' }
+      vertrag: { table: 'vertraege', foreignKey: 'vertrag_id', displayField: 'name' },
+      contracting_position: { table: 'contracting_position', foreignKey: 'contracting_position_id', displayField: 'beschreibung' }
     },
-    filters: ['rechnung_nr', 'kooperation_id', 'kampagne_id', 'unternehmen_id', 'auftrag_id', 'status', 'gestellt_am', 'zahlungsziel', 'bezahlt_am', 'nettobetrag', 'land'],
+    filters: ['rechnung_nr', 'rechnungstyp', 'kooperation_id', 'kampagne_id', 'unternehmen_id', 'auftrag_id', 'status', 'gestellt_am', 'zahlungsziel', 'bezahlt_am', 'nettobetrag', 'land'],
     sortBy: 'zahlungsziel',
     sortOrder: 'asc'
   },

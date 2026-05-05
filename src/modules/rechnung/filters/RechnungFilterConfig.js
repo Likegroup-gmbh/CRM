@@ -2,6 +2,14 @@
 import { createFilterConfig } from '../../../core/filters/BaseFilterConfig.js';
 
 export const RECHNUNG_FILTERS = [
+  createFilterConfig('select', {
+    id: 'rechnungstyp',
+    label: 'Rechnungstyp',
+    options: [
+      { value: 'kampagne', label: 'Kampagne' },
+      { value: 'contracting', label: 'Contracting' }
+    ]
+  }),
   createFilterConfig('text', {
     id: 'rechnung_nr',
     label: 'Rechnungs-Nr.',

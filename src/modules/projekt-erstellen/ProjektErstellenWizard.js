@@ -15,6 +15,7 @@ export class ProjektErstellenWizard {
     this.container = container;
     this.currentStep = 1;
     this.totalSteps = 3;
+    this._isContracting = false;
 
     this.formData = {
       auftrag: {
@@ -70,12 +71,48 @@ export class ProjektErstellenWizard {
     this._destroyed = false;
   }
 
+  get isContracting() {
+    return this.formData.auftrag?.auftragtype === 'Contracting';
+  }
+
+  getStepLabels() {
+    return this.isContracting
+      ? ['Basisdaten', 'Finanzen']
+      : ['Basisdaten', 'Details', 'Kampagne'];
+  }
+
+  buildSteps() {
+    return this.isContracting
+      ? [new StepBasisdaten(this), new StepDetails(this)]
+      : [new StepBasisdaten(this), new StepDetails(this), new StepKampagnenarten(this)];
+  }
+
+  updateStepsForAuftragtype() {
+    const wasContracting = this._isContracting;
+    this._isContracting = this.isContracting;
+    if (wasContracting === this._isContracting) return;
+
+    const currentStepInstance = this.steps[this.currentStep - 1];
+    if (currentStepInstance?.collectData) {
+      this.mergeFormData(currentStepInstance.collectData());
+    }
+
+    this.steps = this.buildSteps();
+    this.totalSteps = this.steps.length;
+
+    if (this.currentStep > this.totalSteps) {
+      this.currentStep = this.totalSteps;
+    }
+
+    this.progressBar.labels = this.getStepLabels();
+    this.progressBar.update(this.currentStep);
+    this.updateNavButtons();
+  }
+
   async init() {
-    this.steps = [
-      new StepBasisdaten(this),
-      new StepDetails(this),
-      new StepKampagnenarten(this)
-    ];
+    this._isContracting = this.isContracting;
+    this.steps = this.buildSteps();
+    this.totalSteps = this.steps.length;
 
     this.render();
 
@@ -109,7 +146,7 @@ export class ProjektErstellenWizard {
 
     this.progressBar = new WizardProgressBar(
       document.getElementById('projekt-progress-steps'),
-      ['Basisdaten', 'Details', 'Kampagne'],
+      this.getStepLabels(),
       this.currentStep,
       (targetStep) => this.goToStep(targetStep)
     );
@@ -178,7 +215,9 @@ export class ProjektErstellenWizard {
 
     prevBtn.style.visibility = this.currentStep > 1 ? 'visible' : 'hidden';
     if (nextLabel) {
-      nextLabel.textContent = this.currentStep === this.totalSteps ? 'Projekt anlegen' : 'Weiter';
+      nextLabel.textContent = this.currentStep === this.totalSteps
+        ? (this.isContracting ? 'Contract anlegen' : 'Projekt anlegen')
+        : 'Weiter';
     }
   }
 
@@ -313,14 +352,21 @@ export class ProjektErstellenWizard {
       });
 
       if (result.success) {
-        window.toastSystem?.show('Projekt erfolgreich angelegt', 'success');
+        const isContract = this.isContracting;
+        window.toastSystem?.show(
+          isContract ? 'Contract erfolgreich angelegt' : 'Projekt erfolgreich angelegt',
+          'success'
+        );
 
         window.dispatchEvent(new CustomEvent('entityUpdated', {
           detail: { entity: 'auftrag', action: 'created', id: result.auftragId }
         }));
 
         setTimeout(() => {
-          window.navigateTo?.(`/auftrag/${result.auftragId}`);
+          const target = isContract
+            ? `/contracts/${result.auftragId}`
+            : `/auftrag/${result.auftragId}`;
+          window.navigateTo?.(target);
         }, 1200);
       } else {
         window.toastSystem?.show(result.error || 'Projekt konnte nicht angelegt werden', 'error');

@@ -245,6 +245,10 @@ input:-webkit-autofill:focus {
   --gap-8: 0.5rem;         /* 8px */
   --gap-10: 0.625rem;   /* 10px */
   --gap-12: 0.75rem;        /* 12px */
+
+  /* Readonly / Disabled Felder */
+  --readonly-bg: var(--gray-50);
+  --readonly-text: var(--gray-900);
 }
 
 

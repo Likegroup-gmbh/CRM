@@ -234,6 +234,12 @@ export class ModuleRegistry {
       module = this.modules.get(moduleKey);
       console.log(`🎯 Kampagnen-Details erkannt, verwende Modul: ${moduleKey}`);
     }
+
+    if (id && segment === 'contracts' && id !== 'new') {
+      moduleKey = 'contracts-detail';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Contract-Details erkannt, verwende Modul: ${moduleKey}`);
+    }
     
     if (id && segment === 'briefing' && id !== 'new') {
       moduleKey = 'briefing-detail';

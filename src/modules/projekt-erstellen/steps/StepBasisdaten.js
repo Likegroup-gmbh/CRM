@@ -154,6 +154,7 @@ export class StepBasisdaten {
     if (auftragTypeSelect) {
       auftragTypeSelect.addEventListener('change', (e) => {
         this.wizard.formData.auftrag.auftragtype = e.target.value || null;
+        this.wizard.updateStepsForAuftragtype();
         this.recomputeTitle();
         this.wizard.updateFeedback();
       });

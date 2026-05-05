@@ -1933,6 +1933,77 @@ h3.section-title,
   color: #0c5460;
 }
 
+/* Vertrag-Prefilter: disabled Form-Bereich */
+.rechnung-form-disabled {
+  pointer-events: none;
+  opacity: 0.45;
+  user-select: none;
+  transition: opacity 0.2s ease;
+}
+
+/* Segmented Control fuer Rechnungstyp-Auswahl */
+.rechnung-type-switcher {
+  display: inline-flex;
+  background: var(--gray-100, #f3f4f6);
+  border-radius: var(--radius-md, 8px);
+  padding: 3px;
+  margin-bottom: var(--space-lg, 1.5rem);
+  gap: 2px;
+}
+
+.rechnung-type-switcher .segment-btn {
+  padding: var(--space-xs, 0.5rem) var(--space-md, 1rem);
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  background: transparent;
+  color: var(--text-secondary, #6b7280);
+  font-size: var(--text-sm, 0.875rem);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.rechnung-type-switcher .segment-btn:hover {
+  color: var(--text-primary, #111827);
+}
+
+.rechnung-type-switcher .segment-btn.active {
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary, #111827);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Budget-Banner fuer Contracting-Rechnungen */
+.contracting-budget-banner {
+  margin-bottom: var(--space-md, 1rem);
+}
+
+.contracting-budget-banner .budget-banner-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md, 1rem);
+  font-size: var(--text-sm, 0.875rem);
+}
+
+.contracting-budget-banner .budget-verfuegbar {
+  font-weight: 600;
+}
+
+.contracting-budget-banner .budget-over {
+  color: var(--color-danger-dark, #dc2626);
+}
+
+.contracting-budget-banner.notice-warning {
+  border-color: var(--color-danger-dark, #dc2626);
+  background: #fef2f2;
+}
+
+input.input-error {
+  border-color: var(--color-danger-dark, #dc2626) !important;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15);
+}
+
 .notice-warning {
   background: #fff3cd;
   border: 1px solid #ffc107;
@@ -4462,6 +4533,26 @@ h3.section-title,
   color: #856404;
 }
 
+.status-gestellt {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-bezahlt {
+  background: var(--green-50, #dcfce7);
+  color: var(--green-800, #166534);
+}
+
+.status-erfolg {
+  background: var(--green-50, #dcfce7);
+  color: var(--green-800, #166534);
+}
+
+.status-in-bearbeitung {
+  background: #fef3c7;
+  color: #d97706;
+}
+
 .tracking-number {
   font-family: monospace;
   background: #e9ecef;
@@ -4891,6 +4982,12 @@ h3.section-title,
 .tag--strategie:hover {
   background-color: rgba(14, 165, 233, 0.15);
   text-decoration: none;
+}
+
+.tag--contracting {
+  color: var(--badge-indigo-text, #4338ca);
+  border-color: var(--badge-indigo-text, #4338ca);
+  background-color: var(--badge-indigo-bg, #eef2ff);
 }
 
 /* ===== AVATAR BUBBLES ===== */

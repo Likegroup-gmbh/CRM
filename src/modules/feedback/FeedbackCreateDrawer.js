@@ -1,47 +1,21 @@
 // FeedbackCreateDrawer.js - Drawer für Feedback-Erstellung und -Bearbeitung
-// Slide-in Drawer mit Kategorie, Priorität und Beschreibung
 
-// Icons
-const ICON_BUG = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M12 12.75c1.148 0 2.278.08 3.383.237 1.037.146 1.866.966 1.866 2.013 0 3.728-2.35 6.75-5.25 6.75S6.75 18.728 6.75 15c0-1.046.83-1.867 1.866-2.013A24.204 24.204 0 0 1 12 12.75Zm0 0c2.883 0 5.647.508 8.207 1.44a23.91 23.91 0 0 1-1.152 6.06M12 12.75c-2.883 0-5.647.508-8.208 1.44.125 2.104.52 4.136 1.153 6.06M12 12.75a2.25 2.25 0 0 0 2.248-2.354M12 12.75a2.25 2.25 0 0 1-2.248-2.354M12 8.25c.995 0 1.971-.08 2.922-.236.403-.066.74-.358.795-.762a3.778 3.778 0 0 0-.399-2.25M12 8.25c-.995 0-1.97-.08-2.922-.236-.402-.066-.74-.358-.795-.762a3.734 3.734 0 0 1 .4-2.253M12 8.25a2.25 2.25 0 0 0-2.248 2.146M12 8.25a2.25 2.25 0 0 1 2.248 2.146M8.683 5a6.032 6.032 0 0 1-1.155-1.002c.07-.63.27-1.222.574-1.747m.581 2.749A3.75 3.75 0 0 1 15.318 5m0 0c.427-.283.815-.62 1.155-.999a4.471 4.471 0 0 0-.575-1.752M4.921 6a24.048 24.048 0 0 0-.392 3.314c1.668.546 3.416.914 5.223 1.082M19.08 6c.205 1.08.337 2.187.392 3.314a23.882 23.882 0 0 1-5.223 1.082" /></svg>`;
-
-const ICON_FEATURE = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" /></svg>`;
-
-const ICON_ADDITIONS = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" /></svg>`;
-
-// Verfügbare Bereiche für das Feedback
-const FEEDBACK_AREAS = [
-  { value: '', label: '-- Kein Bereich --' },
-  { value: 'dashboard', label: 'Dashboard' },
-  { value: 'aufgaben', label: 'Aufgaben' },
-  { value: 'unternehmen', label: 'Unternehmen' },
-  { value: 'marken', label: 'Marken' },
-  { value: 'ansprechpartner', label: 'Ansprechpartner' },
-  { value: 'creator', label: 'Creator' },
-  { value: 'auftraege', label: 'Aufträge' },
-  { value: 'auftragsdetails', label: 'Auftragsdetails' },
-  { value: 'kampagnen', label: 'Kampagnen' },
-  { value: 'strategie', label: 'Strategie' },
-  { value: 'creator-sourcing', label: 'Sourcing' },
-  { value: 'vertraege', label: 'Verträge' },
-  { value: 'briefing', label: 'Briefing' },
-  { value: 'videos', label: 'Videos' },
-  { value: 'rechnung', label: 'Rechnung' },
-  { value: 'mitarbeiter', label: 'Mitarbeiter' },
-  { value: 'sonstiges', label: 'Sonstiges' }
-];
+import {
+  ICON_BUG_SM, ICON_FEATURE_SM, ICON_ADDITIONS_SM,
+  FEEDBACK_AREAS
+} from './FeedbackConstants.js';
 
 export class FeedbackCreateDrawer {
   constructor() {
     this.drawerId = 'feedback-create-drawer';
     this.preselectedCategory = null;
-    this.feedbackToEdit = null; // Feedback-Objekt für Edit-Modus
+    this.feedbackToEdit = null;
   }
 
   async open(preselectedCategory = null, feedbackToEdit = null) {
-    console.log('🆕 FeedbackCreateDrawer: open()', { preselectedCategory, feedbackToEdit });
     this.preselectedCategory = preselectedCategory;
     this.feedbackToEdit = feedbackToEdit;
-    
+
     try {
       this.createDrawer();
       this.renderForm();
@@ -57,39 +31,35 @@ export class FeedbackCreateDrawer {
   }
 
   createDrawer() {
-    // Nur DOM-Elemente entfernen, nicht den State resetten
     const existingPanel = document.getElementById(this.drawerId);
     const existingOverlay = document.getElementById(`${this.drawerId}-overlay`);
     if (existingPanel) existingPanel.remove();
     if (existingOverlay) existingOverlay.remove();
 
-    // Overlay
     const overlay = document.createElement('div');
     overlay.className = 'drawer-overlay';
     overlay.id = `${this.drawerId}-overlay`;
-    
-    // Panel
+
     const panel = document.createElement('div');
     panel.setAttribute('role', 'dialog');
     panel.className = 'drawer-panel';
     panel.id = this.drawerId;
 
-    // Header
     const header = document.createElement('div');
     header.className = 'drawer-header';
-    
+
     const headerLeft = document.createElement('div');
     const title = document.createElement('span');
     title.className = 'drawer-title';
     title.textContent = this.isEditMode ? 'Feedback bearbeiten' : 'Neues Feedback';
-    
+
     const subtitle = document.createElement('p');
     subtitle.className = 'drawer-subtitle';
     subtitle.textContent = this.isEditMode ? 'Änderungen am Feedback vornehmen' : 'Bug melden oder Feature vorschlagen';
-    
+
     headerLeft.appendChild(title);
     headerLeft.appendChild(subtitle);
-    
+
     const headerRight = document.createElement('div');
     const closeBtn = document.createElement('button');
     closeBtn.className = 'drawer-close-btn';
@@ -97,11 +67,10 @@ export class FeedbackCreateDrawer {
     closeBtn.setAttribute('aria-label', 'Schließen');
     closeBtn.innerHTML = '&times;';
     headerRight.appendChild(closeBtn);
-    
+
     header.appendChild(headerLeft);
     header.appendChild(headerRight);
 
-    // Body
     const body = document.createElement('div');
     body.className = 'drawer-body';
     body.id = `${this.drawerId}-body`;
@@ -109,39 +78,30 @@ export class FeedbackCreateDrawer {
     panel.appendChild(header);
     panel.appendChild(body);
 
-    // Events
     overlay.addEventListener('click', () => this.close());
     closeBtn.addEventListener('click', () => this.close());
 
-    // Zum DOM hinzufügen
     document.body.appendChild(overlay);
     document.body.appendChild(panel);
 
-    // Slide-in Animation
-    requestAnimationFrame(() => {
-      panel.classList.add('show');
-    });
+    requestAnimationFrame(() => panel.classList.add('show'));
   }
 
   showError(message) {
     const body = document.getElementById(`${this.drawerId}-body`);
-    if (body) {
-      body.innerHTML = `<div class="drawer-error">${message}</div>`;
-    }
+    if (body) body.innerHTML = `<div class="drawer-error">${message}</div>`;
   }
 
   renderForm() {
     const body = document.getElementById(`${this.drawerId}-body`);
     if (!body) return;
 
-    // Werte aus feedbackToEdit oder Defaults
     const category = this.feedbackToEdit?.category || this.preselectedCategory;
     const priority = this.feedbackToEdit?.priority || 'medium';
     const description = this.feedbackToEdit?.description || '';
     const area = this.feedbackToEdit?.area || '';
 
-    // Area-Options generieren
-    const areaOptionsHtml = FEEDBACK_AREAS.map(a => 
+    const areaOptionsHtml = FEEDBACK_AREAS.map(a =>
       `<option value="${a.value}" ${area === a.value ? 'selected' : ''}>${a.label}</option>`
     ).join('');
 
@@ -156,21 +116,21 @@ export class FeedbackCreateDrawer {
               <label class="category-option ${category === 'bug' ? 'selected' : ''}">
                 <input type="radio" name="category" value="bug" ${category === 'bug' ? 'checked' : ''} required>
                 <span class="category-option-content">
-                  ${ICON_BUG}
+                  ${ICON_BUG_SM}
                   <span>Bug melden</span>
                 </span>
               </label>
               <label class="category-option ${category === 'feature' ? 'selected' : ''}">
                 <input type="radio" name="category" value="feature" ${category === 'feature' ? 'checked' : ''}>
                 <span class="category-option-content">
-                  ${ICON_FEATURE}
+                  ${ICON_FEATURE_SM}
                   <span>Feature Wunsch</span>
                 </span>
               </label>
               <label class="category-option ${category === 'additions' ? 'selected' : ''}">
                 <input type="radio" name="category" value="additions" ${category === 'additions' ? 'checked' : ''}>
                 <span class="category-option-content">
-                  ${ICON_ADDITIONS}
+                  ${ICON_ADDITIONS_SM}
                   <span>Ergänzung</span>
                 </span>
               </label>
@@ -245,10 +205,7 @@ export class FeedbackCreateDrawer {
     const form = document.getElementById('feedback-form');
     const cancelBtn = document.getElementById('cancel-btn');
 
-    if (cancelBtn) {
-      cancelBtn.addEventListener('click', () => this.close());
-    }
-
+    if (cancelBtn) cancelBtn.addEventListener('click', () => this.close());
     if (form) {
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -258,14 +215,8 @@ export class FeedbackCreateDrawer {
   }
 
   async handleSubmit() {
-    const form = document.getElementById('feedback-form');
     const submitBtn = document.getElementById('submit-btn');
-
-    // Loading State
-    if (submitBtn) {
-      submitBtn.disabled = true;
-      submitBtn.classList.add('is-loading');
-    }
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.classList.add('is-loading'); }
 
     try {
       const categoryRadio = document.querySelector('input[name="category"]:checked');
@@ -274,7 +225,6 @@ export class FeedbackCreateDrawer {
       const description = document.getElementById('feedback-description').value.trim();
       const area = document.getElementById('feedback-area').value || null;
 
-      // Validierung
       if (!category || !description) {
         window.toastSystem?.show('Bitte alle Pflichtfelder ausfüllen', 'warning');
         return;
@@ -283,40 +233,21 @@ export class FeedbackCreateDrawer {
       let data, error;
 
       if (this.isEditMode) {
-        // UPDATE
         const result = await window.supabase
           .from('feedback')
-          .update({
-            category,
-            priority,
-            description,
-            area,
-            updated_at: new Date().toISOString()
-          })
+          .update({ category, priority, description, area, updated_at: new Date().toISOString() })
           .eq('id', this.feedbackToEdit.id)
           .select()
           .single();
-        
         data = result.data;
         error = result.error;
       } else {
-        // INSERT
-        // Wenn Kategorie 'additions' ist, setze Status auf 'additions' statt 'open'
         const status = category === 'additions' ? 'additions' : 'open';
-        
         const result = await window.supabase
           .from('feedback')
-          .insert({
-            category,
-            priority,
-            description,
-            area,
-            status,
-            created_by: window.currentUser?.id
-          })
+          .insert({ category, priority, description, area, status, created_by: window.currentUser?.id })
           .select()
           .single();
-        
         data = result.data;
         error = result.error;
       }
@@ -327,45 +258,31 @@ export class FeedbackCreateDrawer {
         return;
       }
 
-      console.log('✅ Feedback gespeichert:', data);
       window.toastSystem?.show(
-        this.isEditMode ? 'Feedback aktualisiert!' : 'Feedback erfolgreich gesendet!', 
+        this.isEditMode ? 'Feedback aktualisiert!' : 'Feedback erfolgreich gesendet!',
         'success'
       );
-
-      // Event für Refresh (gleicher Event für Create und Update)
       window.dispatchEvent(new CustomEvent('feedbackCreated', { detail: data }));
-
-      // Drawer schließen
       this.close();
-
     } catch (err) {
       console.error('❌ Unerwarteter Fehler:', err);
       window.toastSystem?.show('Unerwarteter Fehler', 'error');
     } finally {
-      // Loading State zurücksetzen
-      if (submitBtn) {
-        submitBtn.disabled = false;
-        submitBtn.classList.remove('is-loading');
-      }
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('is-loading'); }
     }
   }
 
   close() {
     const panel = document.getElementById(this.drawerId);
-    const overlay = document.getElementById(`${this.drawerId}-overlay`);
-
     if (panel) {
       panel.classList.remove('show');
       setTimeout(() => {
         this.removeDrawer();
-        // Reset state nur beim Schließen
         this.feedbackToEdit = null;
         this.preselectedCategory = null;
       }, 300);
     } else {
       this.removeDrawer();
-      // Reset state
       this.feedbackToEdit = null;
       this.preselectedCategory = null;
     }
@@ -374,7 +291,6 @@ export class FeedbackCreateDrawer {
   removeDrawer() {
     const panel = document.getElementById(this.drawerId);
     const overlay = document.getElementById(`${this.drawerId}-overlay`);
-    
     if (panel) panel.remove();
     if (overlay) overlay.remove();
   }

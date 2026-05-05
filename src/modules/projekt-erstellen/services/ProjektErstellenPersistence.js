@@ -231,7 +231,44 @@ export class ProjektErstellenPersistence {
     });
   }
 
+  async submitContracting({ formData }) {
+    const supabase = SUPABASE();
+    if (!supabase) return { success: false, error: 'Supabase nicht verfügbar' };
+
+    try {
+      const currentBenutzerId = await getCurrentBenutzerId();
+      const auftragPayload = this.buildAuftragPayload(formData);
+      auftragPayload.created_by_id = currentBenutzerId;
+      auftragPayload.creator_budget = null;
+
+      const unternehmenId = auftragPayload.unternehmen_id;
+      if (unternehmenId) {
+        const poResult = await generatePoNummer(unternehmenId);
+        if (!poResult.success) return { success: false, error: poResult.error };
+        auftragPayload.po = poResult.poNummer;
+      }
+
+      const { data: auftragData, error: auftragErr } = await supabase
+        .from('auftrag')
+        .insert(auftragPayload)
+        .select('id')
+        .single();
+      if (auftragErr) throw auftragErr;
+
+      return { success: true, auftragId: auftragData.id };
+    } catch (e) {
+      const friendly = this.friendlyError(e, 'Contract konnte nicht angelegt werden');
+      console.error('❌ submitContracting Fehler:', {
+        message: e?.message, details: e?.details, hint: e?.hint, code: e?.code, raw: e
+      });
+      return { success: false, error: friendly };
+    }
+  }
+
   async submit({ formData }) {
+    const isContracting = formData.auftrag?.auftragtype === 'Contracting';
+    if (isContracting) return this.submitContracting({ formData });
+
     const supabase = SUPABASE();
     if (!supabase) return { success: false, error: 'Supabase nicht verfügbar' };
 

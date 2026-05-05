@@ -239,7 +239,7 @@ async function loadGenericTable(field) {
   }
 
   if (field.filter) {
-    query.or(field.filter);
+    query = query.or(field.filter);
   }
 
   const result = await query;

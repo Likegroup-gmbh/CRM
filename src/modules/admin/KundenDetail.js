@@ -263,6 +263,24 @@ export class KundenDetail extends PersonDetailBase {
                   </label>
                 </td>
               </tr>
+              <tr>
+                <td>
+                  <div>
+                    <strong>Contracting-Sicht erlaubt</strong>
+                    <div class="form-help" style="margin-top: 4px;">
+                      ${this.user?.contracting_sicht ? 'Dieser Kunde kann den Contracts-Bereich sehen.' : 'Contracts-Bereich ist für diesen Kunden nicht sichtbar.'}
+                    </div>
+                  </div>
+                </td>
+                <td style="text-align:right;">
+                  <label class="toggle-label" style="justify-content:flex-end;">
+                    <span class="toggle-switch">
+                      <input type="checkbox" id="contracting-sicht-toggle" ${this.user?.contracting_sicht ? 'checked' : ''}>
+                      <span class="toggle-slider"></span>
+                    </span>
+                  </label>
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -599,6 +617,21 @@ export class KundenDetail extends PersonDetailBase {
         } catch (err) {
           console.error('❌ Update fehlgeschlagen', err);
           e.target.checked = !isFreigeschaltet;
+        }
+      }
+
+      if (e.target && e.target.id === 'contracting-sicht-toggle') {
+        const val = e.target.checked;
+        try {
+          const { error } = await window.supabase
+            .from('benutzer')
+            .update({ contracting_sicht: val })
+            .eq('id', this.userId);
+          if (error) throw error;
+          this.user.contracting_sicht = val;
+        } catch (err) {
+          console.error('❌ Contracting-Sicht Update fehlgeschlagen', err);
+          e.target.checked = !val;
         }
       }
     };

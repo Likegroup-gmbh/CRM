@@ -8,6 +8,7 @@ const ENTITY_EVENT_LOADERS = {
   kampagne: () => import('./events/KampagneEvents.js'),
   kooperation: () => import('./events/KooperationEvents.js'),
   rechnung: () => import('./events/RechnungEvents.js'),
+  rechnung_contracting: () => import('./events/RechnungContractingEvents.js'),
 };
 
 // Entity-spezifische Edit-Loader registrieren (Bypass für den Standard-Waterfall)

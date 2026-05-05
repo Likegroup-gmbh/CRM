@@ -466,13 +466,18 @@ export class AuftragList {
   }
 
   renderAuftragsdetailsLink(auftrag) {
-    if (!auftrag.auftragsdetails_id) return '-';
-    const name = window.validatorSystem.sanitizeHtml(auftrag.auftragsname || 'Unbekannter Auftrag');
-    return `
-      <a href="#" onclick="event.preventDefault(); window.navigateTo('/auftragsdetails/${auftrag.auftragsdetails_id}')" class="table-link details-link" title="Auftragsdetails anzeigen">
-        ${name}
-      </a>
-    `;
+    if (auftrag.auftragsdetails_id) {
+      const name = window.validatorSystem.sanitizeHtml(auftrag.auftragsname || 'Unbekannter Auftrag');
+      return `
+        <a href="#" onclick="event.preventDefault(); window.navigateTo('/auftragsdetails/${auftrag.auftragsdetails_id}')" class="table-link details-link" title="Auftragsdetails anzeigen">
+          ${name}
+        </a>
+      `;
+    }
+    if (auftrag.auftragtype === 'Contracting') {
+      return '<span class="tag tag--contracting">Contracting</span>';
+    }
+    return '-';
   }
 
   // Rendere List-View HTML
@@ -540,6 +545,7 @@ export class AuftragList {
         .select(`
           id,
           auftragsname,
+          auftragtype,
           angebotsnummer,
           status,
           po,
