@@ -1,35 +1,11 @@
 /**
  * Instagram: Popup-Handling + Screenshot-Strategie
- * Unterscheidet zwischen /reels/ und /p/ URLs (verschiedene Layouts/Popups)
+ * /p/-URLs werden im Orchestrator (screenshot.js) zu /reels/ umgeschrieben.
  * WICHTIG: [role="dialog"] NIEMALS entfernen - darin lebt der Reel-Content!
  */
 
-function detectInstagramType(url) {
-  if (!url) return 'unknown';
-  if (url.includes('/reel/') || url.includes('/reels/')) return 'reel';
-  if (url.includes('/p/')) return 'post';
-  return 'unknown';
-}
-
-async function uploadDiagnostic(page, supabase, supabaseUrl, label, step) {
-  try {
-    const buffer = await page.screenshot({ type: 'jpeg', quality: 70, fullPage: false });
-    const fileName = `diag-ig-${step}-${label}-${Date.now()}.jpg`;
-    const { error } = await supabase.storage
-      .from('strategie-screenshots')
-      .upload(`screenshots/${fileName}`, buffer, { contentType: 'image/jpeg', upsert: true });
-    const diagUrl = error ? 'UPLOAD_ERROR' : `${supabaseUrl}/storage/v1/object/public/strategie-screenshots/screenshots/${fileName}`;
-    console.log(`📸 DIAG [${step}] ${label}: ${diagUrl}`);
-    return diagUrl;
-  } catch (e) {
-    console.log(`⚠️ DIAG [${step}] ${label} failed: ${e.message}`);
-    return null;
-  }
-}
-
 async function handleInstagramPopups(page, url) {
-  const igType = detectInstagramType(url);
-  console.log(`🍪 Instagram: Popups... (Typ: ${igType}, URL: ${url})`);
+  console.log(`🍪 Instagram: Popups... (URL: ${url})`);
   await new Promise(r => setTimeout(r, 2000));
 
   try {
@@ -129,22 +105,7 @@ async function hideAppDownloadOverlay(page) {
   await new Promise(r => setTimeout(r, 1000));
 }
 
-/**
- * Instagram Screenshot mit URL-Typ-Erkennung.
- * /p/-URLs: Diagnose-Screenshots für Timing-Analyse
- * /reels/-URLs: Direkter Screenshot (funktioniert bereits)
- */
-async function takeInstagramScreenshot(page, { debug, supabase, supabaseUrl, headers, url }) {
-  const igType = detectInstagramType(url);
-  const isPostUrl = igType === 'post';
-
-  // Bei /p/-URLs: Diagnose-Screenshots für Analyse
-  if (isPostUrl) {
-    console.log('📸 Instagram /p/ URL erkannt - starte Diagnose-Screenshots...');
-    return takePostDiagnosticScreenshots(page, { supabase, supabaseUrl, headers, debug });
-  }
-
-  // /reels/-URLs: Normaler Flow (funktioniert)
+async function takeInstagramScreenshot(page, { debug, supabase, supabaseUrl, headers }) {
   console.log('📷 Instagram: Warte auf Video/Bild...');
   try {
     await page.waitForFunction(() => {
@@ -169,57 +130,6 @@ async function takeInstagramScreenshot(page, { debug, supabase, supabaseUrl, hea
   if (debug) {
     return handleInstagramDebug(page, { supabase, supabaseUrl, headers });
   }
-
-  return { screenshotBuffer };
-}
-
-/**
- * Diagnose-Screenshots für /p/ URLs.
- * Macht Screenshots zu verschiedenen Zeitpunkten + DOM-Analyse.
- */
-async function takePostDiagnosticScreenshots(page, { supabase, supabaseUrl, headers, debug }) {
-  // DOM-Analyse zuerst
-  const domInfo = await page.evaluate(() => ({
-    currentUrl: window.location.href,
-    title: document.title,
-    hasArticle: !!document.querySelector('article'),
-    hasVideo: !!document.querySelector('video'),
-    hasImg: !!document.querySelector('img[src*="instagram"]'),
-    hasDialog: !!document.querySelector('[role="dialog"]'),
-    dialogCount: document.querySelectorAll('[role="dialog"]').length,
-    hasError: !!(document.body?.textContent?.includes('schiefgelaufen') || document.body?.textContent?.includes('went wrong')),
-    hasLoginWall: !!(document.body?.textContent?.includes('Anmelden') || document.body?.textContent?.includes('Log in')),
-    bodyText: document.body?.textContent?.substring(0, 500) || 'NO BODY'
-  }));
-  console.log('🔍 /p/ DOM-Analyse:', JSON.stringify(domInfo, null, 2));
-
-  // Screenshots zu verschiedenen Zeitpunkten
-  const timings = [0, 1.0, 2.0, 3.0, 5.0, 8.0];
-  let lastBuffer = null;
-
-  for (const seconds of timings) {
-    if (seconds > 0) await new Promise(r => setTimeout(r, seconds === timings[1] ? 1000 : (seconds - timings[timings.indexOf(seconds) - 1]) * 1000));
-
-    await uploadDiagnostic(page, supabase, supabaseUrl, `post-${seconds.toFixed(1)}s`, seconds.toFixed(1));
-
-    lastBuffer = await page.screenshot({ type: 'jpeg', quality: 85, fullPage: false });
-  }
-
-  // Nochmal DOM-Check nach Warten
-  const domInfoAfter = await page.evaluate(() => ({
-    currentUrl: window.location.href,
-    hasError: !!(document.body?.textContent?.includes('schiefgelaufen') || document.body?.textContent?.includes('went wrong')),
-    hasArticle: !!document.querySelector('article'),
-    hasImg: !!document.querySelector('img[src*="instagram"]'),
-    bodyText: document.body?.textContent?.substring(0, 300) || 'NO BODY'
-  }));
-  console.log('🔍 /p/ DOM nach Warten:', JSON.stringify(domInfoAfter, null, 2));
-
-  const screenshotBuffer = lastBuffer || await page.screenshot({
-    type: 'jpeg',
-    quality: 85,
-    fullPage: false
-  });
 
   return { screenshotBuffer };
 }

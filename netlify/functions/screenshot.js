@@ -75,17 +75,24 @@ exports.handler = async (event, context) => {
     browser = await launchBrowser(platform);
     const page = await setupPage(browser, platform);
 
+    // Instagram /p/ -> /reels/ Rewrite (Instagram blockiert /p/ fuer nicht-eingeloggte User)
+    let navigateUrl = url;
+    if (platform === 'instagram' && url.includes('/p/')) {
+      navigateUrl = url.replace(/\/p\//, '/reels/').split('?')[0];
+      console.log(`🔄 Instagram /p/ -> /reels/: ${navigateUrl}`);
+    }
+
     // Navigation
     console.log('🌐 Navigating...');
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 25000 });
+    await page.goto(navigateUrl, { waitUntil: 'domcontentloaded', timeout: 25000 });
 
     // Plattform-spezifisches Handling + Screenshot
     const ctx = { debug, supabase, supabaseUrl, headers };
     let result;
 
     if (platform === 'instagram') {
-      await handleInstagramPopups(page, url);
-      result = await takeInstagramScreenshot(page, { ...ctx, url });
+      await handleInstagramPopups(page, navigateUrl);
+      result = await takeInstagramScreenshot(page, ctx);
       if (result.debugResponse) return result.debugResponse;
     } else if (platform === 'tiktok') {
       await handleTikTokPopups(page);
