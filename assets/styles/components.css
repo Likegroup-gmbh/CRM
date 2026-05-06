@@ -14847,7 +14847,7 @@ table.vertraege-unternehmen-table td:last-child {
   display: flex;
   flex-direction: column;
   gap: var(--gap-6);
-  max-height: 200px;
+  max-height: 50vh;
   overflow-y: auto;
 }
 
@@ -15070,6 +15070,8 @@ table.vertraege-unternehmen-table td:last-child {
 .video-queue-item { flex-wrap: wrap; gap: var(--space-xs); }
 .video-queue-variant { flex: 1 1 100%; }
 .video-variant-name-input { font-size: var(--text-xs); padding: 4px 8px; width: 100%; }
+.video-queue-selects { display: flex; gap: var(--space-xs); flex-shrink: 0; }
+.video-queue-selects select { font-size: var(--text-xs); padding: 2px 6px; min-width: 120px; }
 
 /* Story Upload Queue */
 .storys-queue-item { flex-wrap: wrap; gap: var(--space-xs); }

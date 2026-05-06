@@ -1,5 +1,5 @@
 import {
-  getAvailableVersions, buildVersionedFileName, MAX_VERSIONS,
+  buildVersionedFileName, MAX_VERSIONS,
   escapeHtml, proxyPost, createFolderSharedLink
 } from '../../core/VideoUploadUtils.js';
 import { deleteSingleDropboxFile } from '../../core/VideoDeleteHelper.js';
@@ -12,8 +12,6 @@ export class VideoTabHandler {
     this._queue = [];
     this._isUploading = false;
     this._existingVersions = [];
-    this._availableVersions = [];
-    this._selectedVersion = null;
     this._proxyToken = null;
   }
 
@@ -21,8 +19,6 @@ export class VideoTabHandler {
 
   async init() {
     this._existingVersions = await this._loadExistingVersions();
-    this._availableVersions = getAvailableVersions(this._existingVersions, MAX_VERSIONS);
-    this._selectedVersion = this._availableVersions[0] || 1;
   }
 
   reset() {
@@ -48,23 +44,14 @@ export class VideoTabHandler {
 
   // ─── Render ────────────────────────────────────────────────
 
-  _renderVersionSection() {
+  _buildVersionOptions(item) {
     const allVersions = Array.from({ length: MAX_VERSIONS }, (_, i) => i + 1);
-    const options = allVersions
-      .map(v => {
-        const exists = this._existingVersions.includes(v);
-        const label = exists ? `Feedbackschleife ${v} (hinzufügen)` : `Feedbackschleife ${v}`;
-        const selected = v === this._selectedVersion ? ' selected' : '';
-        return `<option value="${v}"${selected}>${label}</option>`;
-      })
-      .join('');
-
-    return `
-      <div class="video-settings-section">
-        <label class="video-settings-label" for="video-upload-version">Feedbackschleife</label>
-        <select id="video-upload-version" class="form-input">${options}</select>
-      </div>
-    `;
+    return allVersions.map(v => {
+      const exists = this._existingVersions.includes(v);
+      const label = exists ? `Feedbackschleife ${v} (hinzufügen)` : `Feedbackschleife ${v}`;
+      const selected = v === item.versionNumber ? ' selected' : '';
+      return `<option value="${v}"${selected}>${label}</option>`;
+    }).join('');
   }
 
   renderTab(activeTab) {
@@ -90,8 +77,6 @@ export class VideoTabHandler {
             </div>
             <div class="upload-progress-text" id="video-upload-progress-text">Wird hochgeladen... 0%</div>
           </div>
-
-          ${this._renderVersionSection()}
 
           <div class="video-settings-section video-upload-name-field">
             <label class="video-settings-label" for="video-upload-name">Video-Name</label>
@@ -123,7 +108,6 @@ export class VideoTabHandler {
     const fileInput = document.getElementById('video-upload-file-input');
     const browseBtn = panel?.querySelector('#upload-tab-video .dropzone-browse-btn');
     const nameInput = document.getElementById('video-upload-name');
-    const versionSelect = document.getElementById('video-upload-version');
 
     cancelBtn?.addEventListener('click', () => this.drawer.close());
     submitBtn?.addEventListener('click', () => {
@@ -136,11 +120,6 @@ export class VideoTabHandler {
       fileInput.value = '';
     });
     nameInput?.addEventListener('input', () => this._updateSubmitButtonState());
-
-    versionSelect?.addEventListener('change', () => {
-      this._selectedVersion = parseInt(versionSelect.value, 10);
-      this._updateSubmitButtonState();
-    });
 
     dropzone?.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
     dropzone?.addEventListener('dragleave', () => { dropzone.classList.remove('dragover'); });
@@ -169,6 +148,15 @@ export class VideoTabHandler {
         this._updateSubmitButtonState();
       }
     });
+    queueEl?.addEventListener('change', (e) => {
+      const versionSelect = e.target.closest('.video-version-select');
+      if (versionSelect) {
+        const idx = parseInt(versionSelect.dataset.idx, 10);
+        if (this._queue[idx]) {
+          this._queue[idx].versionNumber = parseInt(versionSelect.value, 10);
+        }
+      }
+    });
 
     this._updateSubmitButtonState();
   }
@@ -192,7 +180,10 @@ export class VideoTabHandler {
       }
       const alreadyQueued = this._queue.some(q => q.file.name === file.name && q.file.size === file.size);
       if (!alreadyQueued) {
-        this._queue.push({ file, variantName: '' });
+        const defaultVersion = this._existingVersions.length > 0
+          ? Math.max(...this._existingVersions)
+          : 1;
+        this._queue.push({ file, variantName: '', versionNumber: defaultVersion });
       }
     }
 
@@ -221,29 +212,35 @@ export class VideoTabHandler {
     const dropzone = document.getElementById('video-upload-dropzone');
     if (dropzone) dropzone.style.display = 'none';
 
-    list.innerHTML = this._queue.map((item, i) => `
-      <div class="upload-file-item video-queue-item">
-        <div class="file-info">
-          <span class="file-name">${escapeHtml(item.file.name)}</span>
-          <span class="file-size">${(item.file.size / 1024 / 1024).toFixed(1)} MB</span>
+    list.innerHTML = this._queue.map((item, i) => {
+      const versionOptions = this._buildVersionOptions(item);
+      return `
+        <div class="upload-file-item video-queue-item">
+          <div class="file-info">
+            <span class="file-name">${escapeHtml(item.file.name)}</span>
+            <span class="file-size">${(item.file.size / 1024 / 1024).toFixed(1)} MB</span>
+          </div>
+          <div class="video-queue-variant">
+            <input type="text" class="form-input video-variant-name-input" data-idx="${i}"
+              value="${escapeHtml(item.variantName)}"
+              placeholder="Varianten-Name (z.B. Voice-Over Berlin)" maxlength="120"/>
+          </div>
+          <div class="video-queue-selects">
+            <select class="form-input video-version-select" data-idx="${i}">${versionOptions}</select>
+          </div>
+          <button type="button" class="file-remove-btn video-file-remove" data-idx="${i}" title="Entfernen">&times;</button>
         </div>
-        <div class="video-queue-variant">
-          <input type="text" class="form-input video-variant-name-input" data-idx="${i}"
-            value="${escapeHtml(item.variantName)}"
-            placeholder="Varianten-Name (z.B. Voice-Over Berlin)" maxlength="120"/>
-        </div>
-        <button type="button" class="file-remove-btn video-file-remove" data-idx="${i}" title="Entfernen">&times;</button>
-      </div>
-    `).join('');
+      `;
+    }).join('');
   }
 
-  _getVersionedFileName(file, variantName) {
+  _getVersionedFileName(file, versionNumber) {
     const ext = file.name.split('.').pop() || 'mp4';
     return buildVersionedFileName(
       this.drawer.metadaten?.creatorName || '',
       this.drawer.metadaten?.unternehmen || '',
       this.drawer.metadaten?.kampagne || '',
-      this._selectedVersion,
+      versionNumber,
       ext
     );
   }
@@ -285,7 +282,6 @@ export class VideoTabHandler {
       return;
     }
 
-    const versionNumber = String(this._selectedVersion || 1);
     const total = this._queue.length;
     let lastFileUrl = null;
     let folderUrl = null;
@@ -295,7 +291,8 @@ export class VideoTabHandler {
         const item = this._queue[i];
         const file = item.file;
         const variantName = item.variantName.trim();
-        const fileName = this._getVersionedFileName(file, variantName);
+        const versionNumber = String(item.versionNumber || 1);
+        const fileName = this._getVersionedFileName(file, item.versionNumber);
 
         const pct = Math.round((i / total) * 85);
         if (progressFill) progressFill.style.width = `${pct}%`;
@@ -510,8 +507,8 @@ export class VideoTabHandler {
     }
   }
 
-  async saveAssetVersion(fileUrl, filePath, videoName, folderUrl) {
-    await this._saveAssetVersion(fileUrl, filePath, null, this._selectedVersion);
+  async saveAssetVersion(fileUrl, filePath, videoName, folderUrl, versionNumber = 1) {
+    await this._saveAssetVersion(fileUrl, filePath, null, versionNumber);
     await this._updateCurrentFlags();
 
     const updateData = { link_content: fileUrl, video_name: videoName || null };

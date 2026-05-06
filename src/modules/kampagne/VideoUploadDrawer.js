@@ -1,4 +1,3 @@
-import { MAX_VERSIONS, getAvailableVersions } from '../../core/VideoUploadUtils.js';
 import { VideoTabHandler } from './VideoTabHandler.js';
 import { StorysTabHandler } from './StorysTabHandler.js';
 import { BilderTabHandler } from './BilderTabHandler.js';
@@ -51,11 +50,7 @@ export class VideoUploadDrawer {
     this.renderForm();
     this.bindEvents();
 
-    // Init der Tab-Handler mit bereits geladenen Daten
     this.videoTab._existingVersions = videoVersions;
-    this.videoTab._availableVersions = this._getAvailableVersions(videoVersions);
-    this.videoTab._selectedVersion = this.videoTab._availableVersions[0] || 1;
-    this._refreshVideoVersionDropdown();
 
     this.storysTab._storySlots = storySlots;
     this.storysTab._initialized = true;
@@ -65,22 +60,6 @@ export class VideoUploadDrawer {
     } else if (initialTab === 'bilder') {
       await this.bilderTab.ensureInitialized();
     }
-  }
-
-  _getAvailableVersions(existing) {
-    return getAvailableVersions(existing, MAX_VERSIONS);
-  }
-
-  _refreshVideoVersionDropdown() {
-    const select = document.getElementById('video-upload-version');
-    if (!select) return;
-    const allVersions = Array.from({ length: MAX_VERSIONS }, (_, i) => i + 1);
-    select.innerHTML = allVersions.map(v => {
-      const exists = !this.videoTab._availableVersions.includes(v);
-      const label = exists ? `Feedbackschleife ${v} (hinzufügen)` : `Feedbackschleife ${v}`;
-      const selected = v === this.videoTab._selectedVersion ? ' selected' : '';
-      return `<option value="${v}"${selected}>${label}</option>`;
-    }).join('');
   }
 
   // ─── Drawer Shell ──────────────────────────────────────────
