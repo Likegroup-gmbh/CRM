@@ -196,12 +196,6 @@ export class StorysTabHandler {
       if (deleteSlotBtn) {
         const slotId = deleteSlotBtn.dataset.slotId;
         if (slotId) this._deleteSlot(slotId);
-        return;
-      }
-      const newVersionBtn = e.target.closest('.existing-story-new-version');
-      if (newVersionBtn) {
-        const slotId = newVersionBtn.dataset.slotId;
-        if (slotId) this._triggerNewVersionUpload(slotId);
       }
     });
   }
@@ -272,39 +266,6 @@ export class StorysTabHandler {
     return available[0] || 1;
   }
 
-  _triggerNewVersionUpload(slotId) {
-    const fileInput = document.getElementById('storys-upload-file-input');
-    if (!fileInput) return;
-
-    const handler = (e) => {
-      fileInput.removeEventListener('change', handler);
-      const files = Array.from(e.target.files || []);
-      fileInput.value = '';
-      if (files.length === 0) return;
-
-      this._hideStorysError();
-      const file = files[0];
-      if (file.size > MAX_STORY_SIZE) {
-        this._showStorysError(`${file.name}: zu groß (${(file.size / 1024 / 1024).toFixed(1)} MB, max. 500 MB)`);
-        return;
-      }
-      const isVideo = VIDEO_MIME_TYPES.includes(file.type) || VIDEO_EXTENSIONS.test(file.name);
-      if (!isVideo) {
-        this._showStorysError(`${file.name}: kein unterstütztes Videoformat`);
-        return;
-      }
-
-      const slot = this._storySlots.find(s => s.id === slotId);
-      const nextVersion = this._getNextVersionForSlot(slot);
-      this._queue.push({ file, slotId, versionNumber: nextVersion, variantName: '' });
-      this._renderQueue();
-      this._updateSubmitState();
-    };
-
-    fileInput.addEventListener('change', handler);
-    fileInput.click();
-  }
-
   // ─── Render Queue ─────────────────────────────────────────
 
   _renderQueue() {
@@ -350,10 +311,7 @@ export class StorysTabHandler {
   }
 
   _buildVersionOptions(item) {
-    if (item.slotId === '__new__') {
-      return '<option value="1" selected>Feedbackschleife 1</option>';
-    }
-    const slot = this._storySlots.find(s => s.id === item.slotId);
+    const slot = item.slotId !== '__new__' ? this._storySlots.find(s => s.id === item.slotId) : null;
     const allVersions = Array.from({ length: MAX_VERSIONS }, (_, i) => i + 1);
     return allVersions.map(v => {
       const exists = slot?.existingVersions?.includes(v);
@@ -590,7 +548,6 @@ export class StorysTabHandler {
       const versionLabel = slot.currentVersion ? `FS${slot.currentVersion}` : '—';
       const fileName = currentAsset?.file_name || '—';
       const versionsStr = (slot.existingVersions || []).map(v => `FS${v}`).join(', ');
-      const canAddVersion = (slot.existingVersions || []).length < MAX_VERSIONS;
 
       html += `
         <div class="existing-storys-slot-item">
@@ -599,7 +556,6 @@ export class StorysTabHandler {
             <span class="existing-storys-slot-meta">${escapeHtml(fileName)} · ${versionLabel} ${versionsStr ? `(Feedbackschleifen: ${versionsStr})` : ''}</span>
           </div>
           <div class="existing-storys-slot-actions">
-            ${canAddVersion ? `<button type="button" class="mdc-btn mdc-btn--small existing-story-new-version" data-slot-id="${slot.id}" title="Neue Feedbackschleife hochladen">+ Feedbackschleife</button>` : ''}
             <button type="button" class="existing-story-slot-delete" data-slot-id="${slot.id}" title="Slot löschen">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
                 <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>

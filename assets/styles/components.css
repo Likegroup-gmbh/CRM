@@ -15073,6 +15073,16 @@ table.vertraege-unternehmen-table td:last-child {
 .video-queue-selects { display: flex; gap: var(--space-xs); flex-shrink: 0; }
 .video-queue-selects select { font-size: var(--text-xs); padding: 2px 6px; min-width: 120px; }
 
+/* Existing Videos round header */
+.existing-videos-round-header {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: var(--space-xs) 0;
+  margin-top: var(--space-xs);
+  border-bottom: var(--border-xs) solid var(--border-primary);
+  color: var(--text-secondary);
+}
+
 /* Story Upload Queue */
 .storys-queue-item { flex-wrap: wrap; gap: var(--space-xs); }
 .storys-queue-variant { flex: 1 1 100%; }
@@ -15088,6 +15098,7 @@ table.vertraege-unternehmen-table td:last-child {
   border: var(--border-xs) solid var(--border-primary);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  margin: var(--space-sm) 0 var(--space-sm) 0;
 }
 .settings-accordion-item + .settings-accordion-item {
   border-top: var(--border-xs) solid var(--border-primary);

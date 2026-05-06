@@ -51,6 +51,7 @@ export class VideoUploadDrawer {
     this.bindEvents();
 
     this.videoTab._existingVersions = videoVersions;
+    this.videoTab._loadExistingVideoAssets();
 
     this.storysTab._storySlots = storySlots;
     this.storysTab._initialized = true;
