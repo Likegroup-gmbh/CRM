@@ -172,7 +172,7 @@ export const kooperationVideoDetail = {
             ${assetsHtml}
             ${canUpload ? `
             <div class="asset-upload-section" style="margin-top:var(--space-md);padding-top:var(--space-md);border-top:var(--border-xs) solid var(--border-primary);">
-              <h4 style="margin:0 0 var(--space-sm) 0;">Neue Video-Version hochladen</h4>
+              <h4 style="margin:0 0 var(--space-sm) 0;">Neue Video-Variante hochladen</h4>
               <div style="margin-bottom:var(--space-xs);">
                 <label style="display:inline-flex;align-items:center;gap:var(--space-xxs);cursor:pointer;font-size:var(--font-size-sm);color:var(--text-secondary);">
                   <input type="checkbox" id="toggle-upload-mode" />
@@ -217,7 +217,7 @@ export const kooperationVideoDetail = {
                     <div id="upload-progress-bar" style="width:0%;height:100%;background:var(--color-primary);border-radius:3px;transition:width 0.3s ease;"></div>
                   </div>
                 </div>
-                <button type="submit" id="asset-upload-btn" class="primary-btn" style="margin-top:var(--space-sm);" disabled>Version hochladen</button>
+                <button type="submit" id="asset-upload-btn" class="primary-btn" style="margin-top:var(--space-sm);" disabled>Hochladen</button>
               </form>
             </div>` : ''}
           </div>
@@ -751,7 +751,7 @@ export const kooperationVideoDetail = {
     } catch (err) {
       console.error('Dropbox-Upload fehlgeschlagen', err);
       alert('Upload fehlgeschlagen: ' + (err.message || ''));
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Version hochladen'; }
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Hochladen'; }
       if (progressContainer) progressContainer.style.display = 'none';
     }
   },
@@ -919,7 +919,7 @@ export const kooperationVideoDetail = {
       console.error('Asset-Version speichern fehlgeschlagen', err);
       alert('Asset konnte nicht gespeichert werden: ' + (err.message || ''));
       const submitBtn = document.getElementById('asset-upload-btn');
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Version hochladen'; }
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Hochladen'; }
     }
   },
 

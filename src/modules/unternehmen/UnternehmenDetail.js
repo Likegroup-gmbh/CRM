@@ -5,6 +5,7 @@
 import { renderCreatorTable } from '../creator/CreatorTable.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { UnternehmenService } from './services/UnternehmenService.js';
@@ -29,6 +30,7 @@ export class UnternehmenDetail extends PersonDetailBase {
     this.strategien = [];
     this.creatorAuswahlen = [];
     this._creatorMap = {};
+    this._kampagneArtMap = new Map();
     this.kickoff = null;
     this.kickoffMarkenwerte = [];
     this.kickoffsByType = { paid: null, organic: null };
@@ -38,7 +40,11 @@ export class UnternehmenDetail extends PersonDetailBase {
     this.eventsBound = false;
     this._isLoading = false;
     this._lastRenderTime = 0;
-    this._renderDebounceMs = 500; // Mindestens 500ms zwischen Renders
+    this._renderDebounceMs = 500;
+    this.isDragging = false;
+    this.startX = 0;
+    this.scrollLeft = 0;
+    this._dragCleanup = null;
   }
 
   // Initialisiere Unternehmen-Detailseite
@@ -61,9 +67,9 @@ export class UnternehmenDetail extends PersonDetailBase {
         });
       }
       
-      this.render(true); // force=true für initiales Render
+      this.render(true);
+      this.bindDragToScroll();
       
-      // Events nur einmal binden
       if (!this.eventsBound) {
         this.bindEvents();
         this.eventsBound = true;
@@ -106,13 +112,13 @@ export class UnternehmenDetail extends PersonDetailBase {
         // Marken
         window.supabase.from('marke').select('*').eq('unternehmen_id', this.unternehmenId),
         // Aufträge
-        window.supabase.from('auftrag').select('*').eq('unternehmen_id', this.unternehmenId),
+        window.supabase.from('auftrag').select('*, marke:marke_id(id, markenname, logo_url), ansprechpartner:ansprechpartner_id(id, vorname, nachname, profile_image_url), created_by:created_by_id(id, name, profile_image_url)').eq('unternehmen_id', this.unternehmenId).order('created_at', { ascending: false }),
         // Briefings
-        window.supabase.from('briefings').select('id, product_service_offer, status, deadline, unternehmen_id, marke_id, kampagne_id, created_at').eq('unternehmen_id', this.unternehmenId).order('created_at', { ascending: false }),
+        window.supabase.from('briefings').select('id, product_service_offer, status, deadline, unternehmen_id, marke_id, kampagne_id, created_at, marke:marke_id(id, markenname, logo_url), kampagne:kampagne_id(id, kampagnenname, eigener_name), assignee:assignee_id(id, name, profile_image_url)').eq('unternehmen_id', this.unternehmenId).order('created_at', { ascending: false }),
         // Kampagnen
-        window.supabase.from('kampagne').select('id, kampagnenname, eigener_name, status, start, deadline, unternehmen_id').eq('unternehmen_id', this.unternehmenId).order('created_at', { ascending: false }),
+        window.supabase.from('kampagne').select('id, kampagnenname, eigener_name, status, start, deadline, art_der_kampagne, creatoranzahl, videoanzahl, unternehmen_id, auftrag_id, marke:marke_id(id, markenname, logo_url)').eq('unternehmen_id', this.unternehmenId).order('created_at', { ascending: false }),
         // Rechnungen
-        window.supabase.from('rechnung').select('id, rechnung_nr, status, nettobetrag, bruttobetrag, gestellt_am, zahlungsziel, bezahlt_am, pdf_url, rechnung_pdfs(id, file_name, file_path, file_url)').eq('unternehmen_id', this.unternehmenId).order('gestellt_am', { ascending: false }),
+        window.supabase.from('rechnung').select('id, rechnung_nr, rechnungstyp, status, nettobetrag, bruttobetrag, gestellt_am, zahlungsziel, bezahlt_am, po_nummer, land, videoanzahl, created_at, pdf_url, auftrag:auftrag_id(id, auftragsname), kampagne:kampagne_id(id, kampagnenname, eigener_name), creator:creator_id(id, vorname, nachname), created_by:created_by_id(id, name, profile_image_url), rechnung_pdfs(id, file_name, file_path, file_url)').eq('unternehmen_id', this.unternehmenId).order('gestellt_am', { ascending: false }),
         // Verträge
         window.supabase.from('vertraege').select('id, name, typ, is_draft, datei_url, datei_path, created_at, kampagne:kampagne_id(id, kampagnenname, eigener_name), creator:creator_id(id, vorname, nachname)').eq('kunde_unternehmen_id', this.unternehmenId).order('created_at', { ascending: false }),
         // Strategien
@@ -223,7 +229,7 @@ export class UnternehmenDetail extends PersonDetailBase {
       if (auftragIds.length > 0) {
         batch2Promises.push(
           window.supabase.from('auftrag_details')
-            .select('*, auftrag:auftrag_id (id, auftragsname, status)')
+            .select('*, auftrag:auftrag_id (id, auftragsname, status, po, start, ende, externe_po, marke:marke_id(id, markenname, logo_url)), created_by:created_by_id(id, name, profile_image_url)')
             .in('auftrag_id', auftragIds)
             .order('created_at', { ascending: false })
         );
@@ -235,7 +241,7 @@ export class UnternehmenDetail extends PersonDetailBase {
       if (kampagneIds.length > 0) {
         batch2Promises.push(
           window.supabase.from('kooperationen')
-            .select('id, name, status, videoanzahl, einkaufspreis_gesamt, kampagne_id, creator_id, created_at, kampagne:kampagne_id(kampagnenname, eigener_name)')
+            .select('id, name, status, videoanzahl, einkaufspreis_gesamt, verkaufspreis_gesamt, verkaufspreis_zusatzkosten, kampagne_id, creator_id, created_at, kampagne:kampagne_id(kampagnenname, eigener_name)')
             .in('kampagne_id', kampagneIds)
             .order('created_at', { ascending: false })
         );
@@ -250,20 +256,46 @@ export class UnternehmenDetail extends PersonDetailBase {
 
       console.log(`✅ UNTERNEHMENDETAIL: Batch 2 geladen in ${Date.now() - startTime}ms`);
 
-      // ========== BATCH 3: Creator laden (falls Kooperationen vorhanden) ==========
+      // ========== BATCH 3: Creator + Kampagnenart-Typen parallel laden ==========
       const creatorIds = Array.from(new Set(this.kooperationen.map(k => k.creator_id).filter(Boolean)));
-      
-      if (creatorIds.length > 0) {
-        const { data: creators } = await window.supabase
-          .from('creator')
-          .select('id, vorname, nachname, instagram, instagram_follower, tiktok_follower, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land')
-          .in('id', creatorIds);
-        this.creators = creators || [];
-        this._creatorMap = this.creators.reduce((acc, c) => { acc[c.id] = c; return acc; }, {});
-      } else {
-        this.creators = [];
-        this._creatorMap = {};
-      }
+      const allArtIds = Array.from(new Set(
+        this.kampagnen.flatMap(k => Array.isArray(k.art_der_kampagne) ? k.art_der_kampagne : []).filter(Boolean)
+      ));
+
+      const batch3Promises = [];
+
+      batch3Promises.push(
+        creatorIds.length > 0
+          ? window.supabase.from('creator')
+              .select('id, vorname, nachname, instagram, instagram_follower, tiktok_follower, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land')
+              .in('id', creatorIds)
+          : Promise.resolve({ data: [] })
+      );
+
+      batch3Promises.push(
+        allArtIds.length > 0
+          ? window.supabase.from('kampagne_art_typen').select('id, name').in('id', allArtIds)
+          : Promise.resolve({ data: [] })
+      );
+
+      const [creatorsResult, artTypenResult] = await Promise.all(batch3Promises);
+
+      this.creators = creatorsResult.data || [];
+      this._creatorMap = this.creators.reduce((acc, c) => { acc[c.id] = c; return acc; }, {});
+
+      this._kampagneArtMap = new Map();
+      (artTypenResult.data || []).forEach(t => this._kampagneArtMap.set(t.id, t.name));
+
+      this.kampagnen = this.kampagnen.map(k => {
+        const arr = Array.isArray(k.art_der_kampagne) ? k.art_der_kampagne : [];
+        return {
+          ...k,
+          art_der_kampagne_display: arr.map(id => {
+            const fullName = this._kampagneArtMap.get(id) || id;
+            return fullName.replace(/[-\s]Kampagne[n]?$/i, '');
+          })
+        };
+      });
 
       console.log(`✅ UNTERNEHMENDETAIL: Alle Daten geladen in ${Date.now() - startTime}ms`);
 
@@ -529,6 +561,18 @@ export class UnternehmenDetail extends PersonDetailBase {
     `;
   }
 
+  formatZahlungsziel(tage) {
+    if (tage === null || tage === undefined) return '-';
+    if (tage === 0) return 'Sofort';
+    return `${tage} Tage`;
+  }
+
+  formatBoolean(value) {
+    return value
+      ? `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: var(--icon-xs); height: var(--icon-xs);"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>`
+      : `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: var(--icon-xs); height: var(--icon-xs);"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>`;
+  }
+
   // Rendere Aufträge
   renderAuftraege() {
     if (!this.auftraege || this.auftraege.length === 0) {
@@ -540,36 +584,58 @@ export class UnternehmenDetail extends PersonDetailBase {
       `;
     }
 
+    const isKunde = window.isKunde();
+
     const rows = this.auftraege.map(auftrag => `
       <tr>
+        <td>${this.renderMarkeBubble(auftrag.marke)}</td>
         <td>
           <a href="#" class="table-link" data-table="auftrag" data-id="${auftrag.id}">
             ${this.sanitize(auftrag.auftragsname) || 'Unbekannter Auftrag'}
           </a>
         </td>
+        <td>${this.sanitize(auftrag.angebotsnummer) || '-'}</td>
+        <td>${this.sanitize(auftrag.re_nr) || '-'}</td>
+        <td>${this.sanitize(auftrag.externe_po) || '-'}</td>
+        <td>${this.formatDate(auftrag.rechnung_gestellt_am)}</td>
+        <td>${this.formatZahlungsziel(auftrag.zahlungsziel_tage)}</td>
+        <td>${this.formatDate(auftrag.re_faelligkeit)}</td>
+        <td>${this.formatCurrency(auftrag.nettobetrag)}</td>
+        <td>${this.formatCurrency(auftrag.ust_betrag)}</td>
+        <td>${this.formatCurrency(auftrag.bruttobetrag)}</td>
+        <td class="table-cell-center">${this.formatBoolean(auftrag.rechnung_gestellt)}</td>
+        <td class="table-cell-center">${this.formatBoolean(auftrag.ueberwiesen)}</td>
+        <td>${this.formatDate(auftrag.ueberwiesen_am)}</td>
+        ${!isKunde ? `<td>${this.renderPersonBubble(auftrag.ansprechpartner, 'ansprechpartner')}</td>` : ''}
+        <td>${this.renderPersonBubble(auftrag.created_by)}</td>
         <td>${renderAuftragAmpel(auftrag.status)}</td>
-        <td>${this.sanitize(auftrag.auftragtype) || '-'}</td>
-        <td>${this.sanitize(auftrag.marke?.markenname) || '-'}</td>
-        <td>${this.formatCurrency(auftrag.gesamt_budget)}</td>
-        <td>${this.formatDate(auftrag.created_at)}</td>
-        <td>
-          ${actionBuilder.create('auftrag', auftrag.id)}
-        </td>
+        ${!isKunde ? `<td>${actionBuilder.create('auftrag', auftrag.id)}</td>` : ''}
       </tr>
     `).join('');
 
     return `
       <div class="data-table-container">
-        <table class="data-table">
+        <table class="data-table data-table--nowrap">
           <thead>
             <tr>
-              <th>Auftragsname</th>
-              <th>Status</th>
-              <th>Typ</th>
               <th>Marke</th>
-              <th>Budget</th>
-              <th>Erstellt am</th>
-              <th>Aktion</th>
+              <th>Auftragsname</th>
+              <th>Angebotsnummer</th>
+              <th>Rechnungsnummer</th>
+              <th>Externe PO</th>
+              <th>Rechnungsdatum</th>
+              <th>Zahlungsziel</th>
+              <th>Rechnungsfälligkeit</th>
+              <th>Betrag netto</th>
+              <th>Umsatzsteuer</th>
+              <th>Betrag brutto</th>
+              <th class="table-cell-center">Rechnung gestellt</th>
+              <th class="table-cell-center">Überwiesen</th>
+              <th>Bezahlt am</th>
+              ${!isKunde ? '<th>Ansprechpartner</th>' : ''}
+              <th>Erstellt von</th>
+              <th>Status</th>
+              ${!isKunde ? '<th>Aktionen</th>' : ''}
             </tr>
           </thead>
           <tbody>
@@ -591,34 +657,42 @@ export class UnternehmenDetail extends PersonDetailBase {
       `;
     }
 
-    const rows = this.auftragsdetails.map(detail => `
+    const isKunde = window.isKunde();
+
+    const rows = this.auftragsdetails.map(detail => {
+      const auftrag = detail.auftrag || {};
+      return `
       <tr>
         <td>
           <a href="#" class="table-link" data-table="auftragsdetails" data-id="${detail.id}">
-            ${this.sanitize(detail.auftrag?.auftragsname) || 'Unbekannter Auftrag'}
+            ${this.sanitize(auftrag.auftragsname) || 'Unbekannter Auftrag'}
           </a>
         </td>
-        <td>${renderAuftragAmpel(detail.auftrag?.status)}</td>
-        <td>${this.sanitize(detail.kategorie) || '-'}</td>
-        <td>${this.sanitize(detail.beschreibung) || '-'}</td>
+        <td>${this.renderMarkeBubble(auftrag.marke)}</td>
+        <td>${this.sanitize(isKunde ? auftrag.externe_po : auftrag.po) || '-'}</td>
+        <td>${renderAuftragAmpel(auftrag.status)}</td>
+        <td>${this.formatDate(auftrag.start)}</td>
+        <td>${this.formatDate(auftrag.ende)}</td>
         <td>${this.formatDate(detail.created_at)}</td>
-        <td>
-          ${actionBuilder.create('auftragsdetails', detail.id)}
-        </td>
+        ${!isKunde ? `<td>${this.renderPersonBubble(detail.created_by)}</td>` : ''}
+        ${!isKunde ? `<td>${actionBuilder.create('auftragsdetails', detail.id)}</td>` : ''}
       </tr>
-    `).join('');
+    `}).join('');
 
     return `
       <div class="data-table-container">
-        <table class="data-table">
+        <table class="data-table data-table--nowrap">
           <thead>
             <tr>
               <th>Auftrag</th>
+              <th>Marke</th>
+              <th>${isKunde ? 'PO extern' : 'PO intern'}</th>
               <th>Status</th>
-              <th>Kategorie</th>
-              <th>Beschreibung</th>
+              <th>Start</th>
+              <th>Ende</th>
               <th>Erstellt am</th>
-              <th>Aktion</th>
+              ${!isKunde ? '<th>Erstellt von</th>' : ''}
+              ${!isKunde ? '<th>Aktionen</th>' : ''}
             </tr>
           </thead>
           <tbody>
@@ -647,12 +721,10 @@ export class UnternehmenDetail extends PersonDetailBase {
             ${this.sanitize(briefing.product_service_offer) || 'Unbekanntes Briefing'}
           </a>
         </td>
-        <td><span class="status-badge status-${briefing.status?.toLowerCase() || 'unknown'}">${briefing.status || '-'}</span></td>
-        <td>${this.formatDate(briefing.deadline)}</td>
-        <td>${this.formatDate(briefing.created_at)}</td>
-        <td>
-          ${actionBuilder.create('briefing', briefing.id)}
-        </td>
+        <td>${this.renderMarkeBubble(briefing.marke)}</td>
+        <td>${briefing.kampagne?.id ? `<span class="tag tag--type">${this.sanitize(KampagneUtils.getDisplayName(briefing.kampagne))}</span>` : '-'}</td>
+        <td>${this.renderPersonBubble(briefing.assignee)}</td>
+        <td>${actionBuilder.create('briefing', briefing.id)}</td>
       </tr>
     `).join('');
 
@@ -662,10 +734,10 @@ export class UnternehmenDetail extends PersonDetailBase {
           <thead>
             <tr>
               <th>Produkt/Angebot</th>
-              <th>Status</th>
-              <th>Deadline</th>
-              <th>Erstellt am</th>
-              <th>Aktion</th>
+              <th>Marke</th>
+              <th>Kampagne</th>
+              <th>Zugewiesen</th>
+              <th>Aktionen</th>
             </tr>
           </thead>
           <tbody>
@@ -676,7 +748,52 @@ export class UnternehmenDetail extends PersonDetailBase {
     `;
   }
 
-  // Rendere Kampagnen
+  // --- Avatar-Bubble Helper (identisch mit Listen-Seiten) ---
+  renderMarkeBubble(marke) {
+    if (!marke?.markenname) return '-';
+    return avatarBubbles.renderBubbles([{
+      name: marke.markenname, type: 'org', id: marke.id,
+      entityType: 'marke', logo_url: marke.logo_url || null
+    }], { showLabel: true });
+  }
+
+  renderPersonBubble(person, entityType = 'mitarbeiter') {
+    if (!person) return '-';
+    const name = person.name || [person.vorname, person.nachname].filter(Boolean).join(' ');
+    if (!name) return '-';
+    return avatarBubbles.renderBubbles([{
+      name, type: 'person', id: person.id,
+      entityType, profile_image_url: person.profile_image_url || null
+    }]);
+  }
+
+  renderArtTags(artArray) {
+    if (!artArray || artArray.length === 0) return '-';
+    const arr = Array.isArray(artArray) ? artArray : [artArray];
+    return `<div class="tags tags-compact">${arr.map(art => {
+      const short = art.replace(/ Kampagne$/i, '');
+      return `<span class="tag tag--type">${this.sanitize(short)}</span>`;
+    }).join('')}</div>`;
+  }
+
+  renderBudgetProgress(kampagne) {
+    const auftrag = kampagne.auftrag_id
+      ? this.auftraege.find(a => a.id === kampagne.auftrag_id)
+      : null;
+    const budgetTotal = auftrag?.bruttobetrag || 0;
+    const budgetUsed = this.kooperationen
+      .filter(k => k.kampagne_id === kampagne.id)
+      .reduce((sum, k) => sum + (k.einkaufspreis_gesamt || 0), 0);
+    if (budgetTotal <= 0) return '<span class="text-muted">-</span>';
+    const pct = KampagneUtils.getProgressPercentage(budgetUsed, budgetTotal);
+    const remainPct = Math.max(0, 100 - pct);
+    let colorClass = '';
+    if (pct >= 90) colorClass = 'summary-progress-fill--danger';
+    else if (pct >= 75) colorClass = 'summary-progress-fill--warning';
+    return `<div class="budget-progress-cell"><div class="summary-progress"><div class="summary-progress-fill ${colorClass}" style="width: ${pct}%"></div></div><span class="budget-progress-label">${remainPct}%</span></div>`;
+  }
+
+  // Rendere Kampagnen (Reihenfolge: KampagneList minus Unternehmen)
   renderKampagnen() {
     if (!this.kampagnen || this.kampagnen.length === 0) {
       return `
@@ -687,6 +804,8 @@ export class UnternehmenDetail extends PersonDetailBase {
       `;
     }
 
+    const isKunde = window.isKunde();
+
     const rows = this.kampagnen.map(k => `
       <tr>
         <td>
@@ -694,31 +813,27 @@ export class UnternehmenDetail extends PersonDetailBase {
             ${this.sanitize(KampagneUtils.getDisplayName(k))}
           </a>
         </td>
-        <td><span class="status-badge status-${k.status?.toLowerCase() || 'unknown'}">${k.status || '-'}</span></td>
-        <td>${this.sanitize(k.marke?.markenname) || '-'}</td>
-        <td>${this.formatDate(k.start)}</td>
-        <td>${this.formatDate(k.deadline)}</td>
+        <td>${this.renderMarkeBubble(k.marke)}</td>
+        <td>${this.renderArtTags(k.art_der_kampagne_display || k.art_der_kampagne)}</td>
+        <td>${this.renderBudgetProgress(k)}</td>
         <td>${k.creatoranzahl || 0}</td>
         <td>${k.videoanzahl || 0}</td>
-        <td>
-          ${actionBuilder.create('kampagne', k.id)}
-        </td>
+        ${!isKunde ? `<td>${actionBuilder.create('kampagne', k.id)}</td>` : ''}
       </tr>
     `).join('');
 
     return `
       <div class="data-table-container">
-        <table class="data-table">
+        <table class="data-table data-table--nowrap">
           <thead>
             <tr>
               <th>Kampagnenname</th>
-              <th>Status</th>
               <th>Marke</th>
-              <th>Start</th>
-              <th>Deadline</th>
-              <th>Creator</th>
-              <th>Videos</th>
-              <th>Aktion</th>
+              <th>Art der Kampagne</th>
+              <th>Budget</th>
+              <th>Creator Anzahl</th>
+              <th>Video Anzahl</th>
+              ${!isKunde ? '<th>Aktionen</th>' : ''}
             </tr>
           </thead>
           <tbody>
@@ -830,38 +945,43 @@ export class UnternehmenDetail extends PersonDetailBase {
       `;
     }
 
-    const isKunde = window.isKunde();
+    const creatorMap = this._creatorMap || {};
 
-    const rows = this.kooperationen.map(k => `
+    const rows = this.kooperationen.map(k => {
+      const creator = creatorMap[k.creator_id];
+      const creatorName = creator ? `${this.sanitize(creator.vorname || '')} ${this.sanitize(creator.nachname || '')}`.trim() : '-';
+      return `
       <tr>
         <td>
           <a href="#" class="table-link" data-table="kooperation" data-id="${k.id}">
             ${this.sanitize(k.name) || 'Kooperation'}
           </a>
         </td>
-        <td><span class="status-badge status-${k.status?.toLowerCase() || 'unknown'}">${k.status || '-'}</span></td>
-        <td>${k.creator ? `${this.sanitize(k.creator.vorname || '')} ${this.sanitize(k.creator.nachname || '')}`.trim() || '-' : '-'}</td>
-        <td>${this.sanitize(KampagneUtils.getDisplayName(k.kampagne))}</td>
+        <td>${k.kampagne ? this.sanitize(KampagneUtils.getDisplayName(k.kampagne)) : '-'}</td>
+        <td>${creator ? creatorName : '-'}</td>
         <td>${k.videoanzahl || 0}</td>
-        ${!isKunde ? `<td>${this.formatCurrency(k.einkaufspreis_gesamt)}</td>` : ''}
-        <td>
-          ${actionBuilder.create('kooperation', k.id)}
-        </td>
+        <td>${this.formatCurrency(k.einkaufspreis_gesamt)}</td>
+        <td>${this.formatCurrency(k.verkaufspreis_gesamt)}</td>
+        <td>${this.formatCurrency(k.verkaufspreis_zusatzkosten)}</td>
+        <td>${this.formatDate(k.created_at)}</td>
+        <td>${actionBuilder.create('kooperation', k.id)}</td>
       </tr>
-    `).join('');
+    `}).join('');
 
     return `
       <div class="data-table-container">
-        <table class="data-table">
+        <table class="data-table data-table--nowrap">
           <thead>
             <tr>
               <th>Name</th>
-              <th>Status</th>
-              <th>Creator</th>
               <th>Kampagne</th>
+              <th>Creator</th>
               <th>Videos</th>
-              ${!isKunde ? '<th>Gesamtkosten</th>' : ''}
-              <th>Aktion</th>
+              <th>Einkaufspreis</th>
+              <th>Verkaufspreis</th>
+              <th>Extra Kosten (VK)</th>
+              <th>Erstellt</th>
+              <th>Aktionen</th>
             </tr>
           </thead>
           <tbody>
@@ -959,32 +1079,61 @@ export class UnternehmenDetail extends PersonDetailBase {
       `;
     }
 
-    const rows = this.rechnungen.map(r => `
+    const isKunde = window.isKunde();
+
+    const rows = this.rechnungen.map(r => {
+      const kampagneName = r.kampagne ? (r.kampagne.eigener_name || r.kampagne.kampagnenname || '-') : '-';
+      const preisProVideo = r.videoanzahl && r.nettobetrag ? this.formatCurrency(r.nettobetrag / r.videoanzahl) : '-';
+      const creatorBubble = r.creator ? avatarBubbles.renderBubbles([{
+        name: [r.creator.vorname, r.creator.nachname].filter(Boolean).join(' '),
+        type: 'person', id: r.creator.id, entityType: 'creator'
+      }]) : '-';
+      return `
       <tr>
         <td><a href="/rechnung/${r.id}" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${this.sanitize(r.rechnung_nr || '—')}</a></td>
-        <td><span class="status-badge status-${(r.status||'unknown').toLowerCase()}">${r.status || '-'}</span></td>
-        <td>${this.formatCurrency(r.nettobetrag)}</td>
-        <td>${this.formatCurrency(r.bruttobetrag)}</td>
+        <td><span class="status-badge ${r.rechnungstyp === 'contracting' ? 'status-gestellt' : 'status-beauftragt'}">${r.rechnungstyp === 'contracting' ? 'Contracting' : 'Kampagne'}</span></td>
+        <td>${r.auftrag ? `<a href="#" class="table-link" data-table="auftrag" data-id="${r.auftrag.id}">${this.sanitize(r.auftrag.auftragsname || '-')}</a>` : '-'}</td>
+        <td>${this.sanitize(r.po_nummer) || '-'}</td>
+        <td>${this.formatDate(r.created_at)}</td>
+        <td>${r.kampagne ? `<a href="#" class="table-link" data-table="kampagne" data-id="${r.kampagne.id}">${this.sanitize(kampagneName)}</a>` : '-'}</td>
+        <td>${this.sanitize(r.land) || '-'}</td>
+        <td>${creatorBubble}</td>
         <td>${this.formatDate(r.gestellt_am)}</td>
         <td>${this.formatDate(r.zahlungsziel)}</td>
-        <td>${this.formatDate(r.bezahlt_am)}</td>
-        <td>${r.rechnung_pdfs && r.rechnung_pdfs.length > 0 ? r.rechnung_pdfs.map((p, i) => `<a href="${p.file_url}" target="_blank" rel="noopener">PDF${r.rechnung_pdfs.length > 1 ? ' ' + (i + 1) : ''}</a>`).join(' ') : (r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener">PDF</a>` : '-')}</td>
+        <td>${this.formatCurrency(r.nettobetrag)}</td>
+        <td>${r.videoanzahl || '-'}</td>
+        <td>${preisProVideo}</td>
+        <td>${this.formatCurrency(r.bruttobetrag)}</td>
+        <td>${r.rechnung_pdfs && r.rechnung_pdfs.length > 0 ? r.rechnung_pdfs.map((p, i) => `<a href="${p.file_url || p.open_url}" target="_blank" rel="noopener">PDF${r.rechnung_pdfs.length > 1 ? ' ' + (i + 1) : ''}</a>`).join(' ') : (r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener">PDF</a>` : '-')}</td>
+        <td>${r.status || '-'}</td>
+        ${!isKunde ? `<td>${this.renderPersonBubble(r.created_by)}</td>` : ''}
+        ${!isKunde ? `<td>${actionBuilder.create('rechnung', r.id)}</td>` : ''}
       </tr>
-    `).join('');
+    `}).join('');
 
     return `
       <div class="data-table-container">
-        <table class="data-table">
+        <table class="data-table data-table--nowrap">
           <thead>
             <tr>
-              <th>Rechnungs-Nr</th>
-              <th>Status</th>
-              <th>Netto</th>
-              <th>Brutto</th>
-              <th>Gestellt</th>
-              <th>Fällig</th>
-              <th>Bezahlt</th>
+              <th>Rechnungsname</th>
+              <th>Typ</th>
+              <th>Auftrag</th>
+              <th>PO-Nummer</th>
+              <th>Erstellt am</th>
+              <th>Kampagne / Contract</th>
+              <th>Land</th>
+              <th>Creator</th>
+              <th>Gestellt am</th>
+              <th>Zahlungsziel</th>
+              <th>Nettobetrag</th>
+              <th>Videos</th>
+              <th>Preis/Video</th>
+              <th>Bruttobetrag</th>
               <th>Beleg</th>
+              <th>Status</th>
+              ${!isKunde ? '<th>Erstellt von</th>' : ''}
+              ${!isKunde ? '<th>Aktionen</th>' : ''}
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -1161,6 +1310,66 @@ export class UnternehmenDetail extends PersonDetailBase {
     `;
   }
 
+  bindDragToScroll() {
+    this._dragCleanup?.();
+    this._dragCleanup = null;
+
+    const container = document.querySelector('.tab-pane.active .data-table-container');
+    if (!container) return;
+
+    container.classList.add('drag-scroll-enabled');
+
+    const self = this;
+
+    const handleMouseDown = (e) => {
+      if (
+        e.target.tagName === 'INPUT' ||
+        e.target.tagName === 'BUTTON' ||
+        e.target.classList.contains('status-badge') ||
+        e.target.closest('a') ||
+        e.target.closest('.actions-dropdown-container')
+      ) return;
+
+      self.isDragging = true;
+      self.startX = e.pageX - container.offsetLeft;
+      self.scrollLeft = container.scrollLeft;
+      container.style.cursor = 'grabbing';
+      container.style.userSelect = 'none';
+      e.preventDefault();
+    };
+
+    const handleMouseMove = (e) => {
+      if (!self.isDragging) return;
+      e.preventDefault();
+      const x = e.pageX - container.offsetLeft;
+      const walk = (x - self.startX) * 1.5;
+      container.scrollLeft = self.scrollLeft - walk;
+    };
+
+    const handleMouseUp = () => {
+      if (self.isDragging) {
+        self.isDragging = false;
+        container.style.cursor = 'grab';
+        container.style.userSelect = '';
+      }
+    };
+
+    container.addEventListener('mousedown', handleMouseDown);
+    container.addEventListener('mousemove', handleMouseMove);
+    container.addEventListener('mouseup', handleMouseUp);
+    container.addEventListener('mouseleave', handleMouseUp);
+    container.style.cursor = 'grab';
+
+    this._dragCleanup = () => {
+      container.classList.remove('drag-scroll-enabled');
+      container.removeEventListener('mousedown', handleMouseDown);
+      container.removeEventListener('mousemove', handleMouseMove);
+      container.removeEventListener('mouseup', handleMouseUp);
+      container.removeEventListener('mouseleave', handleMouseUp);
+      container.style.cursor = '';
+    };
+  }
+
   // Binde Events
   bindEvents() {
     // Sidebar Tabs binden (aus Basis-Klasse)
@@ -1197,6 +1406,7 @@ export class UnternehmenDetail extends PersonDetailBase {
       document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
       const pane = document.getElementById(`tab-${tab}`);
       if (pane) pane.classList.add('active');
+      this.bindDragToScroll();
     };
     document.addEventListener('click', this._tabClickHandler, { signal });
 
@@ -1268,8 +1478,8 @@ export class UnternehmenDetail extends PersonDetailBase {
       
       console.log('🔄 UNTERNEHMENDETAIL: Soft-Refresh - lade Daten neu');
       await this.loadUnternehmenData();
-      this.render(); // Debounce schützt bereits
-      // NICHT bindEvents() erneut aufrufen - führt zu Endlosschleife
+      this.render();
+      this.bindDragToScroll();
     };
     window.addEventListener('softRefresh', this._softRefreshHandler, { signal });
   }
@@ -1583,6 +1793,8 @@ export class UnternehmenDetail extends PersonDetailBase {
 
   // Cleanup - entfernt alle Event-Listener
   _removeAllEventListeners() {
+    this._dragCleanup?.();
+    this._dragCleanup = null;
     this._eventsAbort?.abort();
     this._eventsAbort = null;
     this._tabClickHandler = null;

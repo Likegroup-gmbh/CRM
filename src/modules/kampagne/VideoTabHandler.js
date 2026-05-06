@@ -9,7 +9,7 @@ const DEBUG_UPLOAD = true;
 export class VideoTabHandler {
   constructor(drawer) {
     this.drawer = drawer;
-    this._selectedFile = null;
+    this._queue = [];
     this._isUploading = false;
     this._existingVersions = [];
     this._availableVersions = [];
@@ -26,7 +26,7 @@ export class VideoTabHandler {
   }
 
   reset() {
-    this._selectedFile = null;
+    this._queue = [];
     this._isUploading = false;
     this._proxyToken = null;
   }
@@ -39,7 +39,7 @@ export class VideoTabHandler {
         .select('version_number')
         .eq('video_id', this.drawer.videoId);
       if (error) return [];
-      return (data || []).map(a => a.version_number).filter(v => typeof v === 'number');
+      return [...new Set((data || []).map(a => a.version_number).filter(v => typeof v === 'number'))];
     } catch (err) {
       console.error('[VideoTabHandler] _loadExistingVersions:', err);
       return [];
@@ -52,8 +52,8 @@ export class VideoTabHandler {
     const allVersions = Array.from({ length: MAX_VERSIONS }, (_, i) => i + 1);
     const options = allVersions
       .map(v => {
-        const exists = !this._availableVersions.includes(v);
-        const label = exists ? `Version ${v} (ersetzen)` : `Version ${v}`;
+        const exists = this._existingVersions.includes(v);
+        const label = exists ? `Feedbackschleife ${v} (hinzufügen)` : `Feedbackschleife ${v}`;
         const selected = v === this._selectedVersion ? ' selected' : '';
         return `<option value="${v}"${selected}>${label}</option>`;
       })
@@ -61,7 +61,7 @@ export class VideoTabHandler {
 
     return `
       <div class="video-settings-section">
-        <label class="video-settings-label" for="video-upload-version">Version (Runde)</label>
+        <label class="video-settings-label" for="video-upload-version">Feedbackschleife</label>
         <select id="video-upload-version" class="form-input">${options}</select>
       </div>
     `;
@@ -76,19 +76,13 @@ export class VideoTabHandler {
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="40" height="40" class="upload-dropzone-icon">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/>
               </svg>
-              <p class="dropzone-text">Video hierher ziehen oder <button type="button" class="dropzone-browse-btn">Datei auswählen</button></p>
-              <p class="dropzone-hint">MP4, MOV, AVI, MKV – max. 500 MB</p>
+              <p class="dropzone-text">Videos hierher ziehen oder <button type="button" class="dropzone-browse-btn">Dateien auswählen</button></p>
+              <p class="dropzone-hint">MP4, MOV, AVI, MKV – max. 500 MB pro Datei</p>
             </div>
-            <input type="file" id="video-upload-file-input" accept="video/*,.mp4,.mov,.avi,.mkv,.webm" style="display:none"/>
+            <input type="file" id="video-upload-file-input" accept="video/*,.mp4,.mov,.avi,.mkv,.webm" multiple style="display:none"/>
           </div>
 
-          <div class="upload-file-preview" id="video-upload-preview" style="display:none;">
-            <div class="file-info">
-              <span class="file-name" id="video-upload-filename"></span>
-              <span class="file-size" id="video-upload-filesize"></span>
-            </div>
-            <button type="button" class="file-remove-btn" id="video-upload-remove" title="Datei entfernen">&times;</button>
-          </div>
+          <div class="upload-file-list" id="video-upload-queue"></div>
 
           <div class="upload-progress-container" id="video-upload-progress" style="display:none;">
             <div class="upload-progress-bar">
@@ -128,20 +122,19 @@ export class VideoTabHandler {
     const dropzone = document.getElementById('video-upload-dropzone');
     const fileInput = document.getElementById('video-upload-file-input');
     const browseBtn = panel?.querySelector('#upload-tab-video .dropzone-browse-btn');
-    const removeBtn = document.getElementById('video-upload-remove');
     const nameInput = document.getElementById('video-upload-name');
     const versionSelect = document.getElementById('video-upload-version');
 
     cancelBtn?.addEventListener('click', () => this.drawer.close());
     submitBtn?.addEventListener('click', () => {
-      if (this._selectedFile && !this._isUploading) this.handleUpload();
+      if (this._queue.length > 0 && !this._isUploading) this.handleUpload();
     });
 
     browseBtn?.addEventListener('click', () => fileInput?.click());
     fileInput?.addEventListener('change', (e) => {
-      if (e.target.files?.[0]) this.selectFile(e.target.files[0]);
+      if (e.target.files?.length) this._addFiles(Array.from(e.target.files));
+      fileInput.value = '';
     });
-    removeBtn?.addEventListener('click', () => this.clearFile());
     nameInput?.addEventListener('input', () => this._updateSubmitButtonState());
 
     versionSelect?.addEventListener('change', () => {
@@ -154,57 +147,98 @@ export class VideoTabHandler {
     dropzone?.addEventListener('drop', (e) => {
       e.preventDefault();
       dropzone.classList.remove('dragover');
-      const file = e.dataTransfer.files?.[0];
-      if (file) this.selectFile(file);
+      const files = e.dataTransfer.files;
+      if (files?.length) this._addFiles(Array.from(files));
+    });
+
+    const queueEl = document.getElementById('video-upload-queue');
+    queueEl?.addEventListener('click', (e) => {
+      const removeBtn = e.target.closest('.video-file-remove');
+      if (removeBtn) {
+        const idx = parseInt(removeBtn.dataset.idx, 10);
+        this._removeQueueItem(idx);
+      }
+    });
+    queueEl?.addEventListener('input', (e) => {
+      const variantInput = e.target.closest('.video-variant-name-input');
+      if (variantInput) {
+        const idx = parseInt(variantInput.dataset.idx, 10);
+        if (this._queue[idx]) {
+          this._queue[idx].variantName = variantInput.value;
+        }
+        this._updateSubmitButtonState();
+      }
     });
 
     this._updateSubmitButtonState();
   }
 
-  // ─── File Selection ────────────────────────────────────────
+  // ─── File Selection / Queue ────────────────────────────────
 
-  selectFile(file) {
-    const maxSize = 500 * 1024 * 1024;
-    if (file.size > maxSize) {
-      this.showError(`Datei zu groß (${(file.size / 1024 / 1024).toFixed(1)} MB). Max. 500 MB.`);
-      return;
-    }
-
-    const allowed = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska', 'video/webm'];
-    if (!allowed.includes(file.type) && !file.name.match(/\.(mp4|mov|avi|mkv|webm)$/i)) {
-      this.showError('Bitte eine Videodatei auswählen (MP4, MOV, AVI, MKV, WebM).');
-      return;
-    }
-
-    this._selectedFile = file;
+  _addFiles(files) {
     this.hideError();
+    const maxSize = 500 * 1024 * 1024;
+    const allowed = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska', 'video/webm'];
+    const rejected = [];
+
+    for (const file of files) {
+      if (file.size > maxSize) {
+        rejected.push(`${file.name}: zu groß (${(file.size / 1024 / 1024).toFixed(1)} MB, max. 500 MB)`);
+        continue;
+      }
+      if (!allowed.includes(file.type) && !file.name.match(/\.(mp4|mov|avi|mkv|webm)$/i)) {
+        rejected.push(`${file.name}: kein unterstütztes Videoformat`);
+        continue;
+      }
+      const alreadyQueued = this._queue.some(q => q.file.name === file.name && q.file.size === file.size);
+      if (!alreadyQueued) {
+        this._queue.push({ file, variantName: '' });
+      }
+    }
+
+    if (rejected.length) this.showError(rejected.join('\n'));
+    this._renderQueue();
+    this._updateSubmitButtonState();
+  }
+
+  _removeQueueItem(idx) {
+    this._queue.splice(idx, 1);
+    this._renderQueue();
+    this._updateSubmitButtonState();
+  }
+
+  _renderQueue() {
+    const list = document.getElementById('video-upload-queue');
+    if (!list) return;
+
+    if (this._queue.length === 0) {
+      list.innerHTML = '';
+      const dropzone = document.getElementById('video-upload-dropzone');
+      if (dropzone) dropzone.style.display = '';
+      return;
+    }
 
     const dropzone = document.getElementById('video-upload-dropzone');
-    const preview = document.getElementById('video-upload-preview');
-    const nameEl = document.getElementById('video-upload-filename');
-    const sizeEl = document.getElementById('video-upload-filesize');
     if (dropzone) dropzone.style.display = 'none';
-    if (preview) preview.style.display = 'flex';
-    if (nameEl) nameEl.textContent = file.name;
-    if (sizeEl) sizeEl.textContent = `${(file.size / 1024 / 1024).toFixed(1)} MB`;
-    this._updateSubmitButtonState();
+
+    list.innerHTML = this._queue.map((item, i) => `
+      <div class="upload-file-item video-queue-item">
+        <div class="file-info">
+          <span class="file-name">${escapeHtml(item.file.name)}</span>
+          <span class="file-size">${(item.file.size / 1024 / 1024).toFixed(1)} MB</span>
+        </div>
+        <div class="video-queue-variant">
+          <input type="text" class="form-input video-variant-name-input" data-idx="${i}"
+            value="${escapeHtml(item.variantName)}"
+            placeholder="Varianten-Name (z.B. Voice-Over Berlin)" maxlength="120"/>
+        </div>
+        <button type="button" class="file-remove-btn video-file-remove" data-idx="${i}" title="Entfernen">&times;</button>
+      </div>
+    `).join('');
   }
 
-  clearFile() {
-    this._selectedFile = null;
-    const dropzone = document.getElementById('video-upload-dropzone');
-    const preview = document.getElementById('video-upload-preview');
-    const fileInput = document.getElementById('video-upload-file-input');
-
-    if (dropzone) dropzone.style.display = '';
-    if (preview) preview.style.display = 'none';
-    if (fileInput) fileInput.value = '';
-    this._updateSubmitButtonState();
-  }
-
-  _getVersionedFileName() {
-    if (!this._selectedFile) return null;
-    const ext = this._selectedFile.name.split('.').pop() || 'mp4';
+  _getVersionedFileName(file, variantName) {
+    const ext = file.name.split('.').pop() || 'mp4';
     return buildVersionedFileName(
       this.drawer.metadaten?.creatorName || '',
       this.drawer.metadaten?.unternehmen || '',
@@ -218,15 +252,16 @@ export class VideoTabHandler {
     const submitBtn = document.getElementById('video-upload-submit-btn');
     const nameInput = document.getElementById('video-upload-name');
     if (!submitBtn) return;
-    const hasFile = Boolean(this._selectedFile);
+    const hasFiles = this._queue.length > 0;
     const hasVideoName = Boolean(nameInput?.value?.trim());
-    submitBtn.disabled = this._isUploading || !hasFile || !hasVideoName;
+    const allVariantsNamed = this._queue.every(q => q.variantName.trim().length > 0);
+    submitBtn.disabled = this._isUploading || !hasFiles || !hasVideoName || !allVariantsNamed;
   }
 
   // ─── Upload ────────────────────────────────────────────────
 
   async handleUpload() {
-    if (!this._selectedFile || this._isUploading) return;
+    if (this._queue.length === 0 || this._isUploading) return;
     this._isUploading = true;
 
     const submitBtn = document.getElementById('video-upload-submit-btn');
@@ -251,54 +286,79 @@ export class VideoTabHandler {
     }
 
     const versionNumber = String(this._selectedVersion || 1);
-    const fileName = this._getVersionedFileName() || this._selectedFile.name;
+    const total = this._queue.length;
+    let lastFileUrl = null;
+    let folderUrl = null;
 
     try {
-      if (progressText) progressText.textContent = 'Verbinde mit Dropbox...';
-      const tokenResp = await fetch('/.netlify/functions/dropbox-upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          unternehmen: this.drawer.metadaten.unternehmen || '',
-          marke: this.drawer.metadaten.marke || '',
-          kampagne: this.drawer.metadaten.kampagne || '',
-          kooperation: this.drawer.metadaten.kooperationName || '',
-          videoPosition: this.drawer.metadaten.videoPosition || 1,
-          videoThema: this.drawer.metadaten.videoThema || '',
-          videoTitel: this.drawer.metadaten.videoTitel || 'Video',
-          versionNumber,
-          fileName
-        })
-      });
+      for (let i = 0; i < this._queue.length; i++) {
+        const item = this._queue[i];
+        const file = item.file;
+        const variantName = item.variantName.trim();
+        const fileName = this._getVersionedFileName(file, variantName);
 
-      if (!tokenResp.ok) {
-        const errData = await tokenResp.json().catch(() => ({}));
-        throw new Error(errData.error || `Token-Abruf fehlgeschlagen (${tokenResp.status})`);
+        const pct = Math.round((i / total) * 85);
+        if (progressFill) progressFill.style.width = `${pct}%`;
+        if (progressText) progressText.textContent = `Lade hoch... ${i + 1}/${total}: ${file.name}`;
+
+        const tokenResp = await fetch('/.netlify/functions/dropbox-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            unternehmen: this.drawer.metadaten.unternehmen || '',
+            marke: this.drawer.metadaten.marke || '',
+            kampagne: this.drawer.metadaten.kampagne || '',
+            kooperation: this.drawer.metadaten.kooperationName || '',
+            videoPosition: this.drawer.metadaten.videoPosition || 1,
+            videoThema: this.drawer.metadaten.videoThema || '',
+            videoTitel: this.drawer.metadaten.videoTitel || 'Video',
+            versionNumber,
+            variantName,
+            fileName
+          })
+        });
+
+        if (!tokenResp.ok) {
+          const errData = await tokenResp.json().catch(() => ({}));
+          throw new Error(errData.error || `Token-Abruf fehlgeschlagen (${tokenResp.status})`);
+        }
+
+        const { token, dropboxPath, kooperationFolderPath } = await tokenResp.json();
+
+        const uploadResult = await this._uploadToDropbox(token, dropboxPath, file, progressFill, progressText, i, total);
+
+        const actualPath = uploadResult.path_display || dropboxPath;
+        const sharedLink = await this._createSharedLink(token, actualPath);
+        if (!folderUrl) {
+          folderUrl = await createFolderSharedLink(this._proxyToken || token, kooperationFolderPath);
+        }
+
+        const fileUrl = sharedLink || actualPath;
+        lastFileUrl = fileUrl;
+
+        await this._saveAssetVersion(fileUrl, actualPath, variantName, versionNumber);
       }
 
-      const { token, dropboxPath, kooperationFolderPath } = await tokenResp.json();
-
-      if (progressText) progressText.textContent = 'Lade hoch nach Dropbox...';
-      const uploadResult = await this._uploadToDropbox(token, dropboxPath, progressFill, progressText);
-
-      if (progressFill) progressFill.style.width = '90%';
-      if (progressText) progressText.textContent = 'Erstelle Links...';
-      const actualPath = uploadResult.path_display || dropboxPath;
-      const sharedLink = await this._createSharedLink(token, actualPath);
-
-      const folderUrl = await createFolderSharedLink(this._proxyToken || token, kooperationFolderPath);
-
-      if (progressFill) progressFill.style.width = '100%';
+      if (progressFill) progressFill.style.width = '95%';
       if (progressText) progressText.textContent = 'Speichere in Datenbank...';
 
-      const fileUrl = sharedLink || actualPath;
-      await this.saveAssetVersion(fileUrl, actualPath, videoName, folderUrl);
+      await this._updateCurrentFlags();
 
-      if (progressText) progressText.textContent = 'Upload abgeschlossen!';
+      const updateData = { video_name: videoName || null };
+      if (lastFileUrl) updateData.link_content = lastFileUrl;
+      if (folderUrl) updateData.folder_url = folderUrl;
+
+      await window.supabase
+        .from('kooperation_videos')
+        .update(updateData)
+        .eq('id', this.drawer.videoId);
+
+      if (progressFill) progressFill.style.width = '100%';
+      if (progressText) progressText.textContent = `${total} Video${total !== 1 ? 's' : ''} hochgeladen!`;
       this._isUploading = false;
 
       if (typeof this.drawer.onSuccess === 'function') {
-        this.drawer.onSuccess(fileUrl, uploadResult.path_display || dropboxPath, videoName, folderUrl);
+        this.drawer.onSuccess(lastFileUrl, null, videoName, folderUrl);
       }
 
       setTimeout(() => this.drawer.close(), 800);
@@ -312,8 +372,7 @@ export class VideoTabHandler {
     }
   }
 
-  async _uploadToDropbox(token, dropboxPath, progressFill, progressText) {
-    const file = this._selectedFile;
+  async _uploadToDropbox(token, dropboxPath, file, progressFill, progressText, fileIdx, totalFiles) {
     const CHUNK_SIZE = 2 * 1024 * 1024;
     const totalSize = file.size;
 
@@ -352,12 +411,14 @@ export class VideoTabHandler {
       return json;
     };
 
+    const baseProgress = (fileIdx / totalFiles) * 85;
+    const fileWeight = 85 / totalFiles;
+
     if (totalSize <= CHUNK_SIZE) {
-      if (progressFill) progressFill.style.width = '50%';
-      if (progressText) progressText.textContent = 'Lade hoch...';
+      if (progressFill) progressFill.style.width = `${baseProgress + fileWeight * 0.5}%`;
       const chunk = await readChunkAsBase64(0, totalSize);
       const result = await proxyPostLocal({ action: 'upload-small', dropboxPath, chunk });
-      if (progressFill) progressFill.style.width = '90%';
+      if (progressFill) progressFill.style.width = `${baseProgress + fileWeight}%`;
       return result;
     }
 
@@ -365,33 +426,28 @@ export class VideoTabHandler {
     let offset = 0;
 
     const firstChunk = await readChunkAsBase64(0, CHUNK_SIZE);
-    if (progressText) progressText.textContent = `Lade hoch... 1/${totalChunks}`;
+    if (progressText) progressText.textContent = `Lade hoch... ${fileIdx + 1}/${totalFiles}: ${file.name} (1/${totalChunks})`;
     const startResp = await proxyPostLocal({ action: 'session-start', chunk: firstChunk });
     const { session_id } = startResp;
     this._proxyToken = startResp.token;
-    if (DEBUG_UPLOAD) console.log(`[VideoUpload] session-start OK: sessionId=${session_id} tokenLen=${this._proxyToken?.length} tokenPrefix=${this._proxyToken?.substring(0, 20)}...`);
     offset = CHUNK_SIZE;
 
     let chunkIdx = 2;
     while (offset + CHUNK_SIZE < totalSize) {
       const chunk = await readChunkAsBase64(offset, offset + CHUNK_SIZE);
-      const pct = Math.round((offset / totalSize) * 90);
-      if (progressFill) progressFill.style.width = `${pct}%`;
-      if (progressText) progressText.textContent = `Lade hoch... ${chunkIdx}/${totalChunks} (${Math.round(offset / 1024 / 1024)} MB)`;
+      const chunkPct = baseProgress + (offset / totalSize) * fileWeight;
+      if (progressFill) progressFill.style.width = `${chunkPct}%`;
+      if (progressText) progressText.textContent = `Lade hoch... ${fileIdx + 1}/${totalFiles}: ${file.name} (${chunkIdx}/${totalChunks})`;
       await proxyPostLocal({ action: 'session-append', sessionId: session_id, offset, chunk, token: this._proxyToken });
       offset += CHUNK_SIZE;
       chunkIdx++;
     }
 
     const lastChunk = await readChunkAsBase64(offset, totalSize);
-    if (progressFill) progressFill.style.width = '85%';
-    if (progressText) progressText.textContent = `Lade hoch... ${totalChunks}/${totalChunks}`;
-    if (DEBUG_UPLOAD) {
-      const finishTokenPrefix = this._proxyToken?.substring(0, 20) || 'N/A';
-      console.log(`[VideoUpload] session-finish SENDING: sessionId=${session_id} offset=${offset} tokenPrefix=${finishTokenPrefix}... path=${dropboxPath}`);
-    }
+    if (progressFill) progressFill.style.width = `${baseProgress + fileWeight * 0.95}%`;
+    if (progressText) progressText.textContent = `Lade hoch... ${fileIdx + 1}/${totalFiles}: ${file.name} (${totalChunks}/${totalChunks})`;
     const result = await proxyPostLocal({ action: 'session-finish', sessionId: session_id, offset, dropboxPath, chunk: lastChunk, token: this._proxyToken });
-    if (progressFill) progressFill.style.width = '90%';
+    if (progressFill) progressFill.style.width = `${baseProgress + fileWeight}%`;
     return result;
   }
 
@@ -408,33 +464,8 @@ export class VideoTabHandler {
 
   // ─── DB ────────────────────────────────────────────────────
 
-  async saveAssetVersion(fileUrl, filePath, videoName, folderUrl) {
-    await window.supabase
-      .from('kooperation_video_asset')
-      .update({ is_current: false })
-      .eq('video_id', this.drawer.videoId);
-
-    const version = this._selectedVersion || 1;
-    if (this._existingVersions?.includes(version)) {
-      const { data: oldAsset } = await window.supabase
-        .from('kooperation_video_asset')
-        .select('file_path')
-        .eq('video_id', this.drawer.videoId)
-        .eq('version_number', version)
-        .maybeSingle();
-
-      if (oldAsset?.file_path) {
-        await deleteSingleDropboxFile(oldAsset.file_path).catch(err =>
-          console.warn('Alte Dropbox-Datei konnte nicht gelöscht werden:', err)
-        );
-      }
-
-      await window.supabase
-        .from('kooperation_video_asset')
-        .delete()
-        .eq('video_id', this.drawer.videoId)
-        .eq('version_number', version);
-    }
+  async _saveAssetVersion(fileUrl, filePath, variantName, versionNumber) {
+    const version = parseInt(versionNumber, 10) || 1;
 
     const { error } = await window.supabase
       .from('kooperation_video_asset')
@@ -443,17 +474,48 @@ export class VideoTabHandler {
         file_url: fileUrl,
         file_path: filePath,
         version_number: version,
+        variant_name: variantName || null,
         is_current: true,
         description: null,
         uploaded_by: window.currentUser?.id || null,
         created_at: new Date().toISOString()
       });
     if (error) throw error;
+  }
+
+  async _updateCurrentFlags() {
+    const { data: allAssets } = await window.supabase
+      .from('kooperation_video_asset')
+      .select('id, version_number')
+      .eq('video_id', this.drawer.videoId);
+
+    if (!allAssets || allAssets.length === 0) return;
+
+    const maxVersion = Math.max(...allAssets.map(a => a.version_number));
+
+    const nonCurrentIds = allAssets.filter(a => a.version_number !== maxVersion).map(a => a.id);
+    const currentIds = allAssets.filter(a => a.version_number === maxVersion).map(a => a.id);
+
+    if (nonCurrentIds.length > 0) {
+      await window.supabase
+        .from('kooperation_video_asset')
+        .update({ is_current: false })
+        .in('id', nonCurrentIds);
+    }
+    if (currentIds.length > 0) {
+      await window.supabase
+        .from('kooperation_video_asset')
+        .update({ is_current: true })
+        .in('id', currentIds);
+    }
+  }
+
+  async saveAssetVersion(fileUrl, filePath, videoName, folderUrl) {
+    await this._saveAssetVersion(fileUrl, filePath, null, this._selectedVersion);
+    await this._updateCurrentFlags();
 
     const updateData = { link_content: fileUrl, video_name: videoName || null };
-    if (folderUrl) {
-      updateData.folder_url = folderUrl;
-    }
+    if (folderUrl) updateData.folder_url = folderUrl;
 
     await window.supabase
       .from('kooperation_videos')

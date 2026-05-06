@@ -1865,6 +1865,27 @@ width: 18em;
   margin-left: 0.35em;
 }
 
+.creator-social-links {
+  display: flex;
+  gap: 6px;
+  margin-top: var(--space-xs);
+}
+
+.creator-social-links a {
+  display: inline-flex;
+  color: var(--gray-400);
+  transition: color 0.15s;
+}
+
+.creator-social-links a:hover {
+  color: var(--gray-700);
+}
+
+.creator-social-links .platform-icon {
+  width: 14px;
+  height: 14px;
+}
+
 /* Icon/Boolean-Spalten (✅/❌) kompakt */
 .data-table td:has(.icon-check),
 .data-table td:has(.icon-x) {

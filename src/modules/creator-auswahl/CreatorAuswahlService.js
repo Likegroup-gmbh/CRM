@@ -419,6 +419,21 @@ export class CreatorAuswahlService {
     }
   }
 
+  async updateItemsKategorie(itemIds, kategorie) {
+    const { data, error } = await window.supabase
+      .from('creator_auswahl_items')
+      .update({ kategorie })
+      .in('id', itemIds)
+      .select();
+
+    if (error) {
+      console.error('Fehler beim Batch-Update der Kategorie:', error);
+      throw error;
+    }
+
+    return data;
+  }
+
   // =====================================================
   // SCRAPING
   // =====================================================

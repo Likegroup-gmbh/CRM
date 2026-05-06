@@ -1,6 +1,6 @@
 const { getAccessToken, sanitizePath } = require('./_shared/dropbox');
 
-function buildDropboxPath({ unternehmen, marke, kampagne, kooperation, videoPosition, videoThema, videoTitel, versionNumber, fileName }) {
+function buildDropboxPath({ unternehmen, marke, kampagne, kooperation, videoPosition, videoThema, videoTitel, versionNumber, variantName, fileName }) {
   const parts = ['/Videos'];
   if (unternehmen) parts.push(sanitizePath(unternehmen));
   if (marke) parts.push(sanitizePath(marke));
@@ -11,7 +11,11 @@ function buildDropboxPath({ unternehmen, marke, kampagne, kooperation, videoPosi
   const pos = videoPosition || 1;
   parts.push(thema ? `Video_${pos}_${thema}` : `Video_${pos}`);
 
-  parts.push(`Version_${versionNumber || 1}`);
+  parts.push(`Feedbackschleife_${versionNumber || 1}`);
+
+  if (variantName) {
+    parts.push(sanitizePath(variantName));
+  }
 
   const name = sanitizePath(fileName) || `V${versionNumber || 1}_${sanitizePath(videoTitel || 'Video')}.mp4`;
   parts.push(name);
@@ -52,6 +56,7 @@ exports.handler = async (event) => {
       videoThema: fields.videoThema,
       videoTitel: fields.videoTitel,
       versionNumber: fields.versionNumber,
+      variantName: fields.variantName,
       fileName: fields.fileName,
     });
 

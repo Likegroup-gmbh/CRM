@@ -14,8 +14,6 @@ export class VideoUploadDrawer {
     this.onStorysSuccess = null;
 
     this._activeTab = 'video';
-    this._hasExistingVideos = false;
-    this._hasExistingStorys = false;
 
     this.videoTab = new VideoTabHandler(this);
     this.storysTab = new StorysTabHandler(this);
@@ -43,20 +41,10 @@ export class VideoUploadDrawer {
     this.storysTab.reset();
     this.bilderTab.reset();
 
-    // Parallel check: existieren Videos oder Storys?
     const [videoVersions, storySlots] = await Promise.all([
       this.videoTab._loadExistingVersions(),
       this.storysTab._loadStorySlots()
     ]);
-    this._hasExistingVideos = videoVersions.length > 0;
-    this._hasExistingStorys = storySlots.length > 0;
-
-    // Fallback: nie auf einem gesperrten Tab öffnen
-    if (initialTab === 'video' && this._hasExistingStorys) {
-      initialTab = 'storys';
-    } else if (initialTab === 'storys' && this._hasExistingVideos) {
-      initialTab = 'video';
-    }
     this._activeTab = initialTab;
 
     this.createDrawer();
@@ -89,7 +77,7 @@ export class VideoUploadDrawer {
     const allVersions = Array.from({ length: MAX_VERSIONS }, (_, i) => i + 1);
     select.innerHTML = allVersions.map(v => {
       const exists = !this.videoTab._availableVersions.includes(v);
-      const label = exists ? `Version ${v} (ersetzen)` : `Version ${v}`;
+      const label = exists ? `Feedbackschleife ${v} (hinzufügen)` : `Feedbackschleife ${v}`;
       const selected = v === this.videoTab._selectedVersion ? ' selected' : '';
       return `<option value="${v}"${selected}>${label}</option>`;
     }).join('');
@@ -147,28 +135,17 @@ export class VideoUploadDrawer {
   // ─── Tab Navigation ────────────────────────────────────────
 
   _renderTabNav() {
-    const videoDisabled = this._hasExistingStorys;
-    const storysDisabled = this._hasExistingVideos;
     return `
       <div class="drawer-tab-nav">
-        <button type="button" class="drawer-tab-btn ${this._activeTab === 'video' ? 'active' : ''}" ${videoDisabled ? 'disabled' : ''} data-drawer-tab="video">Video</button>
-        <button type="button" class="drawer-tab-btn ${this._activeTab === 'storys' ? 'active' : ''}" ${storysDisabled ? 'disabled' : ''} data-drawer-tab="storys">Storys</button>
+        <button type="button" class="drawer-tab-btn ${this._activeTab === 'video' ? 'active' : ''}" data-drawer-tab="video">Video</button>
+        <button type="button" class="drawer-tab-btn ${this._activeTab === 'storys' ? 'active' : ''}" data-drawer-tab="storys">Storys</button>
         <button type="button" class="drawer-tab-btn ${this._activeTab === 'bilder' ? 'active' : ''}" data-drawer-tab="bilder">Bilder</button>
       </div>
-      ${videoDisabled ? '<p class="upload-tab-disabled-hint">Video-Upload nicht verfügbar – es wurden bereits Storys hochgeladen</p>' : ''}
-      ${storysDisabled ? '<p class="upload-tab-disabled-hint">Storys-Upload nicht verfügbar – es wurden bereits Videos hochgeladen</p>' : ''}
     `;
-  }
-
-  _isTabDisabled(tabName) {
-    if (tabName === 'video') return this._hasExistingStorys;
-    if (tabName === 'storys') return this._hasExistingVideos;
-    return false;
   }
 
   _switchTab(tabName) {
     if (this.isAnyUploadActive()) return;
-    if (this._isTabDisabled(tabName)) return;
     this._activeTab = tabName;
 
     const panel = document.getElementById(this.drawerId);

@@ -224,7 +224,10 @@ export class ActionsDropdown {
       if (!action) return;
 
       const customActions = ['comment-delete', 'video-view', 'video-edit', 'video-delete', 'remove-zuordnung', 'add-to-video', 'unlink-from-video', 'edit-item', 'delete-item'];
-      if (customActions.includes(action)) return;
+      if (customActions.includes(action)) {
+        this.closeAllDropdowns();
+        return;
+      }
 
       e.preventDefault();
       if (typeof e.stopImmediatePropagation === 'function') {

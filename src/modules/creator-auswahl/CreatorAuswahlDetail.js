@@ -25,6 +25,7 @@ export class CreatorAuswahlDetail {
     this.columnVisibilityDrawer = null;
     this.kategorienDrawer = new CreatorAuswahlKategorienDrawer(this);
     this.addDrawer = new CreatorAuswahlAddDrawer(this);
+    this.selectedItems = new Set();
   }
 
   // --- Init & Lifecycle ---
@@ -70,6 +71,11 @@ export class CreatorAuswahlDetail {
     this._boundEventListeners.clear();
     this.addDrawer.remove();
     this.kategorienDrawer.remove();
+    this.selectedItems.clear();
+
+    const bulkBar = document.getElementById('sourcing-bulk-bar');
+    if (bulkBar) bulkBar.remove();
+    this.closePillDropdown();
 
     if (this.cleanupFloatingScrollbar) {
       this.cleanupFloatingScrollbar();
@@ -128,7 +134,8 @@ export class CreatorAuswahlDetail {
       items: this.items,
       liste: this.liste,
       isKunde: this.isKunde,
-      hiddenColumns: this.hiddenColumns
+      hiddenColumns: this.hiddenColumns,
+      teilbereiche: getTeilbereicheFromListe(this.liste)
     };
   }
 
@@ -139,6 +146,10 @@ export class CreatorAuswahlDetail {
     `;
     window.content.innerHTML = html;
     this._updateStickyHeights();
+
+    if (!this.isKunde) {
+      this.renderBulkBar();
+    }
   }
 
   _updateStickyHeights() {
@@ -152,12 +163,20 @@ export class CreatorAuswahlDetail {
     }
   }
 
-  rerenderTable() {
+  rerenderTable(movedItemIds = []) {
     const tableContainer = document.querySelector('.table-container');
     if (tableContainer) {
       tableContainer.outerHTML = renderItemsTable(this.getRenderContext());
       this.bindEvents();
       this._updateStickyHeights();
+
+      movedItemIds.forEach(id => {
+        const row = document.querySelector(`.item-row[data-item-id="${id}"]`);
+        if (row) {
+          row.classList.add('kategorie-moving-in');
+          row.addEventListener('animationend', () => row.classList.remove('kategorie-moving-in'), { once: true });
+        }
+      });
     }
   }
 
@@ -211,6 +230,9 @@ export class CreatorAuswahlDetail {
       }
 
       this.bindDragAndDropEvents();
+      this.bindSelectionEvents();
+      this.bindPillEvents();
+      this.bindBulkBarEvents();
     }
 
     this.initFloatingScrollbar();
@@ -498,7 +520,7 @@ export class CreatorAuswahlDetail {
       const item = this.items.find(i => i.id === itemId);
       if (item) item.kategorie = kategorie;
 
-      this.rerenderTable();
+      this.rerenderTable([itemId]);
       window.toastSystem?.show('Kategorie aktualisiert', 'success');
     } catch (error) {
       console.error('Fehler beim Ändern der Kategorie:', error);
@@ -691,6 +713,294 @@ export class CreatorAuswahlDetail {
 
     container.classList.add('drag-scroll-enabled');
     container.style.cursor = 'grab';
+  }
+
+  // --- Bulk Selection ---
+
+  renderBulkBar() {
+    let bar = document.getElementById('sourcing-bulk-bar');
+
+    const teilbereiche = getTeilbereicheFromListe(this.liste);
+    const kategorieOptions = [
+      '<option value="">Kategorie zuweisen…</option>',
+      ...teilbereiche.filter(k => k !== 'Nicht umsetzen').map(k => `<option value="${k}">${k}</option>`),
+      '<option value="Ohne Kategorie">Ohne Kategorie</option>',
+      '<option value="Nicht umsetzen">Nicht umsetzen</option>'
+    ].join('');
+
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'sourcing-bulk-bar';
+      bar.className = 'sourcing-bulk-bar';
+      bar.innerHTML = `
+        <span class="bulk-count" id="sourcing-bulk-count">0 ausgewählt</span>
+        <div class="bulk-bar-actions">
+          <select class="bulk-kategorie-select" id="sourcing-bulk-kategorie">
+            ${kategorieOptions}
+          </select>
+          <button class="primary-btn btn-sm" id="btn-bulk-assign">Zuweisen</button>
+          <button class="secondary-btn btn-sm" id="btn-bulk-deselect">Auswahl aufheben</button>
+        </div>
+      `;
+      document.body.appendChild(bar);
+    } else {
+      const select = bar.querySelector('#sourcing-bulk-kategorie');
+      if (select) select.innerHTML = kategorieOptions;
+    }
+
+    bar.style.display = 'none';
+  }
+
+  bindSelectionEvents() {
+    const selectAll = document.querySelector('.sourcing-select-all');
+    if (selectAll) {
+      const handler = (e) => {
+        const checked = e.target.checked;
+        document.querySelectorAll('.sourcing-item-check').forEach(cb => {
+          cb.checked = checked;
+          if (checked) this.selectedItems.add(cb.dataset.itemId);
+          else this.selectedItems.delete(cb.dataset.itemId);
+        });
+        document.querySelectorAll('.sourcing-group-select').forEach(cb => cb.checked = checked);
+        this.updateBulkBar();
+      };
+      selectAll.addEventListener('change', handler);
+      this._boundEventListeners.add(() => selectAll.removeEventListener('change', handler));
+    }
+
+    document.querySelectorAll('.sourcing-group-select').forEach(groupCb => {
+      const handler = () => {
+        const checked = groupCb.checked;
+        const headerRow = groupCb.closest('.kategorie-header-row');
+        let sibling = headerRow?.nextElementSibling;
+        while (sibling && sibling.classList.contains('item-row')) {
+          const cb = sibling.querySelector('.sourcing-item-check');
+          if (cb) {
+            cb.checked = checked;
+            if (checked) this.selectedItems.add(cb.dataset.itemId);
+            else this.selectedItems.delete(cb.dataset.itemId);
+          }
+          sibling = sibling.nextElementSibling;
+        }
+        this.updateSelectAllState();
+        this.updateBulkBar();
+      };
+      groupCb.addEventListener('change', handler);
+      this._boundEventListeners.add(() => groupCb.removeEventListener('change', handler));
+    });
+
+    document.querySelectorAll('.sourcing-item-check').forEach(cb => {
+      const handler = () => {
+        if (cb.checked) this.selectedItems.add(cb.dataset.itemId);
+        else this.selectedItems.delete(cb.dataset.itemId);
+        this.updateGroupSelectState(cb);
+        this.updateSelectAllState();
+        this.updateBulkBar();
+      };
+      cb.addEventListener('change', handler);
+      this._boundEventListeners.add(() => cb.removeEventListener('change', handler));
+    });
+
+    // Restore selection after re-render
+    this.selectedItems.forEach(id => {
+      const cb = document.querySelector(`.sourcing-item-check[data-item-id="${id}"]`);
+      if (cb) cb.checked = true;
+    });
+    // Remove stale IDs
+    const existingIds = new Set(
+      Array.from(document.querySelectorAll('.sourcing-item-check')).map(cb => cb.dataset.itemId)
+    );
+    this.selectedItems.forEach(id => { if (!existingIds.has(id)) this.selectedItems.delete(id); });
+
+    this.updateBulkBar();
+  }
+
+  updateSelectAllState() {
+    const all = document.querySelectorAll('.sourcing-item-check');
+    const checked = document.querySelectorAll('.sourcing-item-check:checked');
+    const selectAll = document.querySelector('.sourcing-select-all');
+    if (selectAll) {
+      selectAll.checked = all.length > 0 && checked.length === all.length;
+      selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+    }
+  }
+
+  updateGroupSelectState(changedCheckbox) {
+    const row = changedCheckbox.closest('.item-row');
+    if (!row) return;
+
+    let headerRow = row.previousElementSibling;
+    while (headerRow && !headerRow.classList.contains('kategorie-header-row')) {
+      headerRow = headerRow.previousElementSibling;
+    }
+    if (!headerRow) return;
+
+    const groupCb = headerRow.querySelector('.sourcing-group-select');
+    if (!groupCb) return;
+
+    let sibling = headerRow.nextElementSibling;
+    let total = 0, checkedCount = 0;
+    while (sibling && sibling.classList.contains('item-row')) {
+      const cb = sibling.querySelector('.sourcing-item-check');
+      if (cb) {
+        total++;
+        if (cb.checked) checkedCount++;
+      }
+      sibling = sibling.nextElementSibling;
+    }
+
+    groupCb.checked = total > 0 && checkedCount === total;
+    groupCb.indeterminate = checkedCount > 0 && checkedCount < total;
+  }
+
+  updateBulkBar() {
+    const bar = document.getElementById('sourcing-bulk-bar');
+    if (!bar) return;
+
+    const count = this.selectedItems.size;
+    bar.style.display = count > 0 ? 'flex' : 'none';
+
+    const countEl = document.getElementById('sourcing-bulk-count');
+    if (countEl) countEl.textContent = `${count} Creator ausgewählt`;
+  }
+
+  bindBulkBarEvents() {
+    const assignBtn = document.getElementById('btn-bulk-assign');
+    if (assignBtn) {
+      const handler = () => this.handleBulkKategorieAssign();
+      assignBtn.addEventListener('click', handler);
+      this._boundEventListeners.add(() => assignBtn.removeEventListener('click', handler));
+    }
+
+    const deselectBtn = document.getElementById('btn-bulk-deselect');
+    if (deselectBtn) {
+      const handler = () => {
+        this.selectedItems.clear();
+        document.querySelectorAll('.sourcing-item-check').forEach(cb => cb.checked = false);
+        document.querySelectorAll('.sourcing-group-select').forEach(cb => { cb.checked = false; cb.indeterminate = false; });
+        const selectAll = document.querySelector('.sourcing-select-all');
+        if (selectAll) { selectAll.checked = false; selectAll.indeterminate = false; }
+        this.updateBulkBar();
+      };
+      deselectBtn.addEventListener('click', handler);
+      this._boundEventListeners.add(() => deselectBtn.removeEventListener('click', handler));
+    }
+  }
+
+  async handleBulkKategorieAssign() {
+    const select = document.getElementById('sourcing-bulk-kategorie');
+    if (!select || !select.value) {
+      window.toastSystem?.show('Bitte eine Kategorie auswählen', 'warning');
+      return;
+    }
+
+    const newKategorie = select.value === 'Ohne Kategorie' ? null : select.value;
+    const itemIds = Array.from(this.selectedItems);
+    if (itemIds.length === 0) return;
+
+    try {
+      if (select.value === 'Nicht umsetzen') {
+        const existingKategorien = getTeilbereicheFromListe(this.liste);
+        if (!existingKategorien.includes('Nicht umsetzen')) {
+          const updatedKategorien = [...existingKategorien, 'Nicht umsetzen'];
+          await creatorAuswahlService.updateListe(this.listeId, { teilbereich: updatedKategorien.join(', ') });
+          this.liste.teilbereich = updatedKategorien.join(', ');
+        }
+      }
+
+      itemIds.forEach(id => {
+        const row = document.querySelector(`.item-row[data-item-id="${id}"]`);
+        if (row) row.classList.add('kategorie-moving-out');
+      });
+
+      await creatorAuswahlService.updateItemsKategorie(itemIds, newKategorie);
+
+      this.items.forEach(item => {
+        if (itemIds.includes(item.id)) {
+          item.kategorie = newKategorie;
+          if (select.value === 'Nicht umsetzen') item.nicht_umsetzen = true;
+        }
+      });
+
+      await new Promise(r => setTimeout(r, 300));
+
+      this.selectedItems.clear();
+      select.value = '';
+      this.renderBulkBar();
+      this.rerenderTable(itemIds);
+
+      window.toastSystem?.show(`${itemIds.length} Creator verschoben`, 'success');
+    } catch (error) {
+      console.error('Fehler beim Bulk-Zuweisen:', error);
+      window.toastSystem?.show('Fehler beim Zuweisen', 'error');
+    }
+  }
+
+  // --- Kategorie-Pill ---
+
+  bindPillEvents() {
+    document.querySelectorAll('.kategorie-pill').forEach(pill => {
+      const handler = (e) => {
+        e.stopPropagation();
+        this.openPillDropdown(pill.dataset.itemId, pill);
+      };
+      pill.addEventListener('click', handler);
+      this._boundEventListeners.add(() => pill.removeEventListener('click', handler));
+    });
+
+    const closeHandler = (e) => {
+      if (!e.target.closest('.kategorie-pill-dropdown') && !e.target.closest('.kategorie-pill')) {
+        this.closePillDropdown();
+      }
+    };
+    document.addEventListener('click', closeHandler);
+    this._boundEventListeners.add(() => document.removeEventListener('click', closeHandler));
+  }
+
+  openPillDropdown(itemId, pillElement) {
+    this.closePillDropdown();
+
+    const teilbereiche = getTeilbereicheFromListe(this.liste);
+    const categories = [...teilbereiche.filter(k => k !== 'Nicht umsetzen'), 'Ohne Kategorie'];
+    const currentItem = this.items.find(i => i.id === itemId);
+    const currentKat = currentItem?.kategorie || 'Ohne Kategorie';
+
+    const dropdown = document.createElement('div');
+    dropdown.className = 'kategorie-pill-dropdown';
+    dropdown.innerHTML = categories.map(k =>
+      `<div class="kategorie-pill-option${k === currentKat ? ' active' : ''}" data-kategorie="${k}">${k}</div>`
+    ).join('');
+
+    const rect = pillElement.getBoundingClientRect();
+    dropdown.style.position = 'fixed';
+    dropdown.style.top = (rect.bottom + 4) + 'px';
+    dropdown.style.left = rect.left + 'px';
+    dropdown.style.zIndex = '9999';
+
+    document.body.appendChild(dropdown);
+
+    dropdown.querySelectorAll('.kategorie-pill-option').forEach(opt => {
+      opt.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const newKat = opt.dataset.kategorie;
+        if (newKat === currentKat) {
+          this.closePillDropdown();
+          return;
+        }
+        this.closePillDropdown();
+
+        const row = document.querySelector(`.item-row[data-item-id="${itemId}"]`);
+        if (row) row.classList.add('kategorie-moving-out');
+        await new Promise(r => setTimeout(r, 300));
+
+        await this.handleCategoryChange(itemId, newKat);
+      });
+    });
+  }
+
+  closePillDropdown() {
+    const existing = document.querySelector('.kategorie-pill-dropdown');
+    if (existing) existing.remove();
   }
 }
 

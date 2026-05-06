@@ -46,7 +46,7 @@ export class StorysTabHandler {
       if (slotIds.length > 0) {
         const { data: assetData } = await window.supabase
           .from('kooperation_story_asset')
-          .select('id, story_id, file_url, file_path, file_name, file_size, version_number, is_current')
+          .select('id, story_id, file_url, file_path, file_name, file_size, version_number, is_current, variant_name')
           .in('story_id', slotIds);
         assets = assetData || [];
       }
@@ -179,6 +179,16 @@ export class StorysTabHandler {
         this._onVersionChange(idx, parseInt(versionSelect.value, 10));
       }
     });
+    previewList?.addEventListener('input', (e) => {
+      const variantInput = e.target.closest('.storys-variant-name-input');
+      if (variantInput) {
+        const idx = parseInt(variantInput.dataset.idx, 10);
+        if (this._queue[idx]) {
+          this._queue[idx].variantName = variantInput.value;
+        }
+        this._updateSubmitState();
+      }
+    });
 
     const existingList = document.getElementById('existing-storys-list');
     existingList?.addEventListener('click', (e) => {
@@ -220,6 +230,7 @@ export class StorysTabHandler {
           file,
           slotId: '__new__',
           versionNumber: 1,
+          variantName: '',
         });
       }
     }
@@ -285,7 +296,7 @@ export class StorysTabHandler {
 
       const slot = this._storySlots.find(s => s.id === slotId);
       const nextVersion = this._getNextVersionForSlot(slot);
-      this._queue.push({ file, slotId, versionNumber: nextVersion });
+      this._queue.push({ file, slotId, versionNumber: nextVersion, variantName: '' });
       this._renderQueue();
       this._updateSubmitState();
     };
@@ -314,6 +325,11 @@ export class StorysTabHandler {
             <span class="file-name">${escapeHtml(item.file.name)}</span>
             <span class="file-size">${(item.file.size / 1024 / 1024).toFixed(1)} MB</span>
           </div>
+          <div class="storys-queue-variant">
+            <input type="text" class="form-input storys-variant-name-input" data-idx="${i}"
+              value="${escapeHtml(item.variantName || '')}"
+              placeholder="Varianten-Name (optional)" maxlength="120"/>
+          </div>
           <div class="storys-queue-selects">
             <select class="form-input storys-slot-select" data-idx="${i}">${slotOptions}</select>
             <select class="form-input storys-version-select" data-idx="${i}">${versionOptions}</select>
@@ -327,7 +343,7 @@ export class StorysTabHandler {
   _buildSlotOptions(selectedSlotId) {
     let html = `<option value="__new__" ${selectedSlotId === '__new__' ? 'selected' : ''}>Neue Story</option>`;
     for (const slot of this._storySlots) {
-      const label = `Story ${slot.slot_index}${slot.currentVersion ? ` (V${slot.currentVersion})` : ''}`;
+      const label = `Story ${slot.slot_index}${slot.currentVersion ? ` (FS${slot.currentVersion})` : ''}`;
       html += `<option value="${slot.id}" ${selectedSlotId === slot.id ? 'selected' : ''}>${escapeHtml(label)}</option>`;
     }
     return html;
@@ -335,13 +351,13 @@ export class StorysTabHandler {
 
   _buildVersionOptions(item) {
     if (item.slotId === '__new__') {
-      return '<option value="1" selected>Version 1</option>';
+      return '<option value="1" selected>Feedbackschleife 1</option>';
     }
     const slot = this._storySlots.find(s => s.id === item.slotId);
     const allVersions = Array.from({ length: MAX_VERSIONS }, (_, i) => i + 1);
     return allVersions.map(v => {
       const exists = slot?.existingVersions?.includes(v);
-      const label = exists ? `Version ${v} (ersetzen)` : `Version ${v}`;
+      const label = exists ? `Feedbackschleife ${v} (hinzufügen)` : `Feedbackschleife ${v}`;
       const selected = v === item.versionNumber ? ' selected' : '';
       return `<option value="${v}"${selected}>${label}</option>`;
     }).join('');
@@ -419,27 +435,9 @@ export class StorysTabHandler {
           slotIndex = slot?.slot_index || 1;
         }
 
-        const payload = { ...basePayload, slotIndex, versionNumber, fileName: file.name };
+        const variantName = item.variantName?.trim() || '';
+        const payload = { ...basePayload, slotIndex, versionNumber, variantName, fileName: file.name };
 
-        // Delete existing version in this slot if replacing
-        const slot = this._storySlots.find(s => s.id === slotId);
-        if (slot?.existingVersions?.includes(versionNumber)) {
-          if (progressText) progressText.textContent = `Lösche alte Version ${versionNumber} für Story ${slotIndex}...`;
-
-          await fetch('/.netlify/functions/dropbox-upload-storys', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...payload, action: 'delete-version' }),
-          });
-
-          await window.supabase
-            .from('kooperation_story_asset')
-            .delete()
-            .eq('story_id', slotId)
-            .eq('version_number', versionNumber);
-        }
-
-        // Prepare & upload
         if (progressText) progressText.textContent = `Lade hoch... ${i + 1}/${total}: ${file.name}`;
 
         const prepareResp = await fetch('/.netlify/functions/dropbox-upload-storys', {
@@ -479,13 +477,6 @@ export class StorysTabHandler {
           }
         } catch (_) {}
 
-        // Mark old assets in this slot as not current
-        await window.supabase
-          .from('kooperation_story_asset')
-          .update({ is_current: false })
-          .eq('story_id', slotId);
-
-        // Insert new asset
         const { error: insertErr } = await window.supabase
           .from('kooperation_story_asset')
           .insert({
@@ -496,6 +487,7 @@ export class StorysTabHandler {
             file_name: file.name,
             file_size: file.size,
             version_number: versionNumber,
+            variant_name: variantName || null,
             is_current: true,
             uploaded_by: window.currentUser?.id || null,
             created_at: new Date().toISOString(),
@@ -505,7 +497,8 @@ export class StorysTabHandler {
         uploaded++;
       }
 
-      // Create shared link for video-level storys folder
+      await this._updateCurrentFlags();
+
       if (progressFill) progressFill.style.width = '92%';
       if (progressText) progressText.textContent = 'Erstelle Ordner-Links...';
 
@@ -594,19 +587,19 @@ export class StorysTabHandler {
     let html = '';
     for (const slot of this._storySlots) {
       const currentAsset = slot.currentAsset;
-      const versionLabel = slot.currentVersion ? `V${slot.currentVersion}` : '—';
+      const versionLabel = slot.currentVersion ? `FS${slot.currentVersion}` : '—';
       const fileName = currentAsset?.file_name || '—';
-      const versionsStr = (slot.existingVersions || []).join(', ');
+      const versionsStr = (slot.existingVersions || []).map(v => `FS${v}`).join(', ');
       const canAddVersion = (slot.existingVersions || []).length < MAX_VERSIONS;
 
       html += `
         <div class="existing-storys-slot-item">
           <div class="existing-storys-slot-header">
             <span class="existing-storys-slot-title">Story ${slot.slot_index}</span>
-            <span class="existing-storys-slot-meta">${escapeHtml(fileName)} · ${versionLabel} ${versionsStr ? `(Versionen: ${versionsStr})` : ''}</span>
+            <span class="existing-storys-slot-meta">${escapeHtml(fileName)} · ${versionLabel} ${versionsStr ? `(Feedbackschleifen: ${versionsStr})` : ''}</span>
           </div>
           <div class="existing-storys-slot-actions">
-            ${canAddVersion ? `<button type="button" class="mdc-btn mdc-btn--small existing-story-new-version" data-slot-id="${slot.id}" title="Neue Version hochladen">+ Version</button>` : ''}
+            ${canAddVersion ? `<button type="button" class="mdc-btn mdc-btn--small existing-story-new-version" data-slot-id="${slot.id}" title="Neue Feedbackschleife hochladen">+ Feedbackschleife</button>` : ''}
             <button type="button" class="existing-story-slot-delete" data-slot-id="${slot.id}" title="Slot löschen">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
                 <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
@@ -622,7 +615,7 @@ export class StorysTabHandler {
         html += `
           <div class="existing-image-item existing-storys-asset-item">
             <div class="existing-image-info">
-              <span class="existing-image-name">${escapeHtml(asset.file_name || '?')} · V${asset.version_number}${currentBadge}</span>
+              <span class="existing-image-name">${escapeHtml(asset.file_name || '?')}${asset.variant_name ? ` · ${escapeHtml(asset.variant_name)}` : ''} · FS${asset.version_number}${currentBadge}</span>
               ${sizeMB ? `<span class="existing-image-size">${sizeMB}</span>` : ''}
             </div>
           </div>
@@ -680,6 +673,30 @@ export class StorysTabHandler {
       console.error('Story-Slot löschen fehlgeschlagen:', err);
       this._showStorysError(err.message || 'Löschen fehlgeschlagen');
       if (slotEl) slotEl.style.opacity = '';
+    }
+  }
+
+  async _updateCurrentFlags() {
+    for (const slot of this._storySlots) {
+      const allAssets = slot.assets || [];
+      if (allAssets.length === 0) continue;
+
+      const maxVersion = Math.max(...allAssets.map(a => a.version_number));
+      const nonCurrentIds = allAssets.filter(a => a.version_number !== maxVersion).map(a => a.id);
+      const currentIds = allAssets.filter(a => a.version_number === maxVersion).map(a => a.id);
+
+      if (nonCurrentIds.length > 0) {
+        await window.supabase
+          .from('kooperation_story_asset')
+          .update({ is_current: false })
+          .in('id', nonCurrentIds);
+      }
+      if (currentIds.length > 0) {
+        await window.supabase
+          .from('kooperation_story_asset')
+          .update({ is_current: true })
+          .in('id', currentIds);
+      }
     }
   }
 

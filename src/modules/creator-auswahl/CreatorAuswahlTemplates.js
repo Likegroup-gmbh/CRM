@@ -110,12 +110,12 @@ export function renderItemsTable(ctx) {
 
   return `
     <div class="table-container creator-pool-table-container">
-      <table class="data-table strategie-items-table creator-pool-table">
+      <table class="data-table strategie-items-table creator-pool-table${!ctx.isKunde ? ' has-bulk-select' : ''}">
         <thead>
           <tr>
-            ${!ctx.isKunde ? '<th class="col-drag col-sticky-1 cp-col-drag"></th>' : ''}
+            ${!ctx.isKunde ? '<th class="col-drag col-sticky-1 cp-col-drag"><input type="checkbox" class="sourcing-select-all" title="Alle auswählen"></th>' : ''}
             <th class="${ctx.isKunde ? 'col-sticky-1' : 'col-sticky-2'} cp-col-name">Name</th>
-            <th class="${ctx.isKunde ? 'col-sticky-2' : 'col-sticky-3'} cp-col-typ" ${hide('cp-col-typ')}>Creator Art</th>
+            <th class="${ctx.isKunde ? 'col-sticky-2' : ''} cp-col-typ" ${hide('cp-col-typ')}>Creator Art</th>
             <th class="cp-col-link-ig" ${hide('cp-col-link-ig')}>Link ${INSTAGRAM_ICON}</th>
             <th class="cp-col-follower-ig" ${hide('cp-col-follower-ig')}>Follower ${INSTAGRAM_ICON}</th>
             <th class="cp-col-link-tt" ${hide('cp-col-link-tt')}>Link ${TIKTOK_ICON}</th>
@@ -176,6 +176,7 @@ export function renderGroupedItems(ctx) {
       <tr class="kategorie-header-row" data-kategorie="${kategorie}">
         <td colspan="${colCount}" class="kategorie-header">
           <div class="kategorie-header-content">
+            ${!ctx.isKunde ? `<input type="checkbox" class="sourcing-group-select" data-kategorie="${kategorie}" title="Alle in '${kategorie}' auswählen">` : ''}
             <span class="kategorie-label">${kategorie}</span>
             <span class="kategorie-count">(${items.length})</span>
           </div>
@@ -193,6 +194,7 @@ export function renderGroupedItems(ctx) {
       <tr class="kategorie-header-row" data-kategorie="Ohne Kategorie">
         <td colspan="${colCount}" class="kategorie-header kategorie-header--default">
           <div class="kategorie-header-content">
+            ${!ctx.isKunde ? `<input type="checkbox" class="sourcing-group-select" data-kategorie="Ohne Kategorie" title="Alle ohne Kategorie auswählen">` : ''}
             <span class="kategorie-label">Ohne Kategorie</span>
             <span class="kategorie-count">(${ohneKategorie.length})</span>
           </div>
@@ -210,6 +212,7 @@ export function renderGroupedItems(ctx) {
       <tr class="kategorie-header-row kategorie-header-row--rejected" data-kategorie="${NICHT_UMSETZEN_KATEGORIE}">
         <td colspan="${colCount}" class="kategorie-header kategorie-header--rejected">
           <div class="kategorie-header-content">
+            ${!ctx.isKunde ? `<input type="checkbox" class="sourcing-group-select" data-kategorie="${NICHT_UMSETZEN_KATEGORIE}" title="Alle in 'Nicht umsetzen' auswählen">` : ''}
             <span class="kategorie-label">${NICHT_UMSETZEN_ICON} ${NICHT_UMSETZEN_KATEGORIE}</span>
             <span class="kategorie-count">(${nichtUmsetzenItems.length})</span>
           </div>
@@ -246,17 +249,21 @@ export function renderItemRow(ctx, item, index) {
     <tr class="item-row ${!ctx.isKunde ? 'draggable' : ''} ${isBooked ? 'item-gebucht' : ''} ${item.nicht_umsetzen ? 'item-nicht-umsetzen' : ''}" data-item-id="${item.id}" draggable="${!ctx.isKunde}">
       ${!ctx.isKunde ? `
         <td class="col-drag drag-handle col-sticky-1">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="drag-icon" style="width: 16px; height: 16px;">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-          </svg>
+          <div class="drag-cell-content">
+            <input type="checkbox" class="sourcing-item-check" data-item-id="${item.id}">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="drag-icon" style="width: 16px; height: 16px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+            </svg>
+          </div>
         </td>
       ` : ''}
       <td class="cell-textarea cp-col-name ${ctx.isKunde ? 'col-sticky-1' : 'col-sticky-2'}">
         ${!ctx.isKunde ? `
           <textarea class="strategie-textarea" data-field="name" data-item-id="${item.id}" placeholder="Name...">${item.name || ''}</textarea>
+          ${ctx.teilbereiche?.length > 0 && item.kategorie !== 'Nicht umsetzen' ? `<span class="kategorie-pill" data-item-id="${item.id}">${item.kategorie || 'Ohne Kategorie'}</span>` : ''}
         ` : `<div class="cell-text-readonly">${item.name || '-'}</div>`}
       </td>
-      <td class="cell-textarea cp-col-typ ${ctx.isKunde ? 'col-sticky-2' : 'col-sticky-3'}" style="${hide('cp-col-typ')}">
+      <td class="cell-textarea cp-col-typ ${ctx.isKunde ? 'col-sticky-2' : ''}" style="${hide('cp-col-typ')}">
         ${!ctx.isKunde ? `
           <select class="strategie-textarea" data-field="typ" data-item-id="${item.id}" style="border: none; background: transparent; cursor: pointer;">
             <option value="">-</option>

@@ -26,12 +26,16 @@ function buildSlotFolderPath(fields) {
 function buildStorysVersionFolderPath(fields) {
   const slotFolder = buildSlotFolderPath(fields);
   const version = fields.versionNumber || 1;
-  return `${slotFolder}/Version_${version}`;
+  return `${slotFolder}/Feedbackschleife_${version}`;
 }
 
 function buildStorysFilePath(fields) {
   const folder = buildStorysVersionFolderPath(fields);
+  const variantName = fields.variantName ? sanitizePath(fields.variantName) : '';
   const name = sanitizePath(fields.fileName) || 'story.mp4';
+  if (variantName) {
+    return `${folder}/${variantName}/${name}`;
+  }
   return `${folder}/${name}`;
 }
 
@@ -150,12 +154,13 @@ exports.handler = async (event) => {
 
     // action === 'prepare' (default)
     const dropboxPath = buildStorysFilePath(fields);
+    const fileFolderPath = dropboxPath.substring(0, dropboxPath.lastIndexOf('/'));
 
     try {
       await fetch('https://api.dropboxapi.com/2/files/create_folder_v2', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: versionFolderPath, autorename: false }),
+        body: JSON.stringify({ path: fileFolderPath, autorename: false }),
       });
     } catch (_) { /* Ordner existiert evtl. schon */ }
 
