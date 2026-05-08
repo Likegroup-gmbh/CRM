@@ -961,7 +961,10 @@ button.is-submit-locked,
   width: 100%;
   border-right: 1px solid var(--gray-100);
   padding: var(--space-xxl);
-  
+}
+
+.form-page--half {
+  max-width: 50%;
 }
 
   /* ===== Table ===== */
@@ -1708,6 +1711,45 @@ h3.section-title,
 }
 
 .rechnung-status-tabs .tab-button.active .tab-count {
+  color: var(--gray-800);
+  background: var(--gray-200);
+}
+
+/* Auftrag/Contracts Tabs (Listenansicht) - analog Rechnung-Status-Tabs */
+.auftrag-tabs {
+  border-bottom: 1px solid var(--gray-50);
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--color-white);
+  gap: var(--space-sm);
+}
+
+.auftrag-tabs .tab-button {
+  gap: var(--space-xxs);
+  padding: var(--space-xxs) var(--space-xs);
+  border-radius: var(--radius-sm, 4px);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.auftrag-tabs .tab-button:hover {
+  background: var(--gray-50);
+}
+
+.auftrag-tabs .tab-button.active {
+  color: var(--gray-900);
+  font-weight: 500;
+}
+
+.auftrag-tabs .tab-button.active::after {
+  background-color: var(--gray-900);
+  height: 2px;
+}
+
+.auftrag-tabs .tab-count {
+  font-size: 0.7rem;
+  min-width: 20px;
+}
+
+.auftrag-tabs .tab-button.active .tab-count {
   color: var(--gray-800);
   background: var(--gray-200);
 }
@@ -4189,19 +4231,22 @@ input.input-error {
   border-spacing: 0 !important;
 }
 
-.auftrag-table th.col-details,
-.auftrag-table td.col-details {
-  text-align: left;
-}
-
-/* Alle Zellen mit feinen Borders */
+/* Alle Zellen: konsistente 1px Borders (bottom + right) */
 .auftrag-table th,
 .auftrag-table td {
   border-bottom: 1px solid var(--gray-100);
   border-right: 1px solid var(--gray-100);
+  border-top: none;
+  border-left: none;
 }
 
-/* Auftrags-Tabelle: Checkbox-Spalte fixieren (via Klasse statt nth-child) */
+/* Letzte Spalte: kein rechter Border */
+.auftrag-table th:last-child,
+.auftrag-table td:last-child {
+  border-right: none;
+}
+
+/* Checkbox-Spalte fixieren */
 .auftrag-table .col-checkbox {
   position: sticky !important;
   left: 0 !important;
@@ -4212,10 +4257,7 @@ input.input-error {
   max-width: var(--auftrag-col-checkbox-width) !important;
   text-align: center;
   padding: var(--space-xs) !important;
-  border: none !important;
-  box-shadow: 
-    inset 0 1px 0 0 var(--gray-100),
-    inset 0 -1px 0 0 var(--gray-100);
+  border-right: none !important;
 }
 
 /* Header-Zellen höherer z-index */
@@ -4228,6 +4270,64 @@ input.input-error {
 .auftrag-table tbody tr:hover .col-checkbox {
   background: var(--gray-50) !important;
 }
+
+/* Feste Spaltenbreiten (verhindert Layout-Shift beim Tab-Wechsel) */
+.auftrag-table th.col-unternehmen,
+.auftrag-table td.col-unternehmen { min-width: 12em; }
+
+.auftrag-table th.col-marke,
+.auftrag-table td.col-marke { min-width: 10em; }
+
+.auftrag-table th.col-details,
+.auftrag-table td.col-details { min-width: 12em; text-align: left; }
+
+.auftrag-table th.col-angebotsnr,
+.auftrag-table td.col-angebotsnr { min-width: 10em; }
+
+.auftrag-table th.col-rechnungsnr,
+.auftrag-table td.col-rechnungsnr { min-width: 10em; }
+
+.auftrag-table th.col-externe-po,
+.auftrag-table td.col-externe-po { min-width: 8em; }
+
+.auftrag-table th.col-rechnung-gestellt,
+.auftrag-table td.col-rechnung-gestellt { min-width: 9em; }
+
+.auftrag-table th.col-zahlungsziel,
+.auftrag-table td.col-zahlungsziel { min-width: 7em; }
+
+.auftrag-table th.col-re-faelligkeit,
+.auftrag-table td.col-re-faelligkeit { min-width: 9em; }
+
+.auftrag-table th.col-netto,
+.auftrag-table td.col-netto { min-width: 8em; }
+
+.auftrag-table th.col-ust,
+.auftrag-table td.col-ust { min-width: 7em; }
+
+.auftrag-table th.col-brutto,
+.auftrag-table td.col-brutto { min-width: 8em; }
+
+.auftrag-table th.col-re-gestellt,
+.auftrag-table td.col-re-gestellt { min-width: 8em; }
+
+.auftrag-table th.col-ueberwiesen-bool,
+.auftrag-table td.col-ueberwiesen-bool { min-width: 7em; }
+
+.auftrag-table th.col-ueberwiesen,
+.auftrag-table td.col-ueberwiesen { min-width: 7em; }
+
+.auftrag-table th.col-ansprechpartner,
+.auftrag-table td.col-ansprechpartner { min-width: 10em; }
+
+.auftrag-table th.col-erstellt-von,
+.auftrag-table td.col-erstellt-von { min-width: 4em; }
+
+.auftrag-table th.col-status,
+.auftrag-table td.col-status { min-width: 6em; }
+
+.auftrag-table th.col-actions,
+.auftrag-table td.col-actions { min-width: 5em; }
 
 /* Container nur horizontal scrollen - KEIN vertikales Scrollen */
 #auftrag-table-container,
@@ -13117,7 +13217,128 @@ table:has(#strategien-table-body) td.col-actions {
   margin-bottom: var(--space-lg);
 }
 
+/* Projekt-Erstellen: Auftragstyp-Vorauswahl (Radio-Cards) */
 
+/* Fullscreen-Modus: Progress-Bar + Feedback ausblenden */
+.pe-wizard--type-select .projekt-erstellen-container .form-split-right {
+  display: none !important;
+}
+.pe-wizard--type-select .projekt-erstellen-container {
+  justify-content: center;
+}
+.pe-wizard--type-select .projekt-erstellen-container .form-split-left {
+  max-width: 600px;
+  width: 100%;
+  flex: 0 1 auto;
+}
+
+/* Fade-Animationen */
+@keyframes pe-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.pe-fade-in {
+  animation: pe-fade-in 0.3s ease-out both;
+}
+
+.pe-fade-out {
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 0.2s ease-in, transform 0.2s ease-in;
+}
+
+.pe-type-selection {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: var(--space-xl) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 60vh;
+  justify-content: center;
+}
+
+.pe-type-selection__title {
+  font-size: var(--text-xl);
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0 0 var(--space-xxxs) 0;
+}
+
+.pe-type-selection__subtitle {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-lg) 0;
+}
+
+.pe-type-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  width: 100%;
+}
+
+.pe-type-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  
+}
+
+.pe-type-card:hover {
+  border-color: var(--gray-400);
+  background: var(--bg-secondary);
+}
+
+.pe-type-card--selected {
+  border-color: var(--primary-500);
+  background: var(--primary-50, var(--bg-secondary));
+  box-shadow: 0 0 0 1px var(--primary-500);
+}
+
+.pe-type-card--selected:hover {
+  border-color: var(--primary-600);
+}
+
+.pe-type-card__radio {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  accent-color: var(--primary-500);
+  cursor: pointer;
+}
+
+.pe-type-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pe-type-card__title {
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.pe-type-card__desc {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.pe-type-selection__actions {
+  margin-top: var(--space-lg);
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}
 
 .secondary-btn:hover {
   background: var(--bg-secondary);
@@ -15073,14 +15294,31 @@ table.vertraege-unternehmen-table td:last-child {
 .video-queue-selects { display: flex; gap: var(--space-xs); flex-shrink: 0; }
 .video-queue-selects select { font-size: var(--text-xs); padding: 2px 6px; min-width: 120px; }
 
-/* Existing Videos round header */
-.existing-videos-round-header {
-  font-size: var(--text-xs);
-  font-weight: 600;
-  padding: var(--space-xs) 0;
-  margin-top: var(--space-xs);
-  border-bottom: var(--border-xs) solid var(--border-primary);
-  color: var(--text-secondary);
+/* Shared asset action buttons (replace, delete) */
+.existing-asset-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-shrink: 0;
+}
+.existing-asset-actions button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: var(--space-xxs);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+.existing-asset-actions button:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary, rgba(0,0,0,0.05));
+}
+.existing-video-replace:hover {
+  color: var(--primary, #3b82f6) !important;
 }
 
 /* Story Upload Queue */
@@ -16116,4 +16354,80 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
 .creator-pool-table .item-row:has(.sourcing-item-check:checked) td.col-sticky-1,
 .creator-pool-table .item-row:has(.sourcing-item-check:checked) td.col-sticky-2 {
   background: var(--blue-50, #eff6ff);
+}
+
+/* --- Quick Access Floating Bar --- */
+.quick-access-bar {
+  position: fixed;
+  bottom: var(--space-lg);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  padding: var(--space-xs) var(--space-xs);
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
+  z-index: 1000;
+  animation: quickAccessBarSlideIn 0.25s ease;
+}
+
+.quick-access-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-xl);
+  height: var(--space-xl);
+  padding: 0;
+  border: none;
+  border-radius: var(--space-sm);
+  background: transparent;
+  color: var(--gray-500);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.quick-access-btn:hover {
+  background: var(--gray-100);
+  color: var(--gray-900);
+}
+
+.quick-access-btn:active {
+  background: var(--gray-200);
+}
+
+.quick-access-btn--primary {
+  color: var(--color-primary);
+}
+
+.quick-access-btn--primary:hover {
+  background: var(--color-primary-light, #dbeafe);
+  color: var(--color-primary);
+}
+
+.quick-access-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.quick-access-icon svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.quick-access-divider {
+  width: 1px;
+  height: var(--space-lg);
+  background: var(--gray-200);
+  flex-shrink: 0;
+  margin: 0 var(--space-xxxs);
+}
+
+@keyframes quickAccessBarSlideIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(var(--space-sm)); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }

@@ -276,6 +276,16 @@ export class ActionsDropdown {
         this.closeAllDropdowns();
       }
     }, { capture: true, signal });
+
+    // Submenu vertical positionieren (Viewport-Overflow verhindern)
+    document.addEventListener('mouseover', (e) => {
+      const trigger = e.target.closest('.actions-dropdown-portal .action-item.has-submenu');
+      if (!trigger) return;
+      const wrapper = trigger.closest('.action-submenu');
+      const submenu = wrapper?.querySelector('.submenu');
+      if (!submenu) return;
+      this.positionSubmenu(submenu, trigger);
+    }, { signal });
   }
 
   // Entity-Type aus dem Kontext ermitteln
@@ -383,6 +393,17 @@ export class ActionsDropdown {
 
     requestAnimationFrame(() => portal.classList.add('show'));
     toggleButton.setAttribute('aria-expanded', 'true');
+  }
+
+  positionSubmenu(submenu, trigger) {
+    const triggerRect = trigger.getBoundingClientRect();
+
+    // Hoehe messen (visibility:hidden hat trotzdem offsetHeight)
+    const submenuHeight = submenu.offsetHeight || submenu.scrollHeight || 300;
+    const viewportHeight = window.innerHeight;
+    const overflow = (triggerRect.top + submenuHeight) - (viewportHeight - 20);
+
+    submenu.style.top = overflow > 0 ? -overflow + 'px' : '0px';
   }
 
   // Alle Dropdowns schließen (Portal aus DOM entfernen)
