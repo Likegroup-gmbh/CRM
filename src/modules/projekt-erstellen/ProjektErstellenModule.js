@@ -24,6 +24,27 @@ export class ProjektErstellenModule {
     await this.wizard.init();
   }
 
+  async initForEdit(auftragId) {
+    console.log('✏️ ProjektErstellenModule.initForEdit()', auftragId);
+
+    window.setHeadline?.('Projekt bearbeiten');
+
+    if (window.breadcrumbSystem) {
+      window.breadcrumbSystem.updateDetailLabel?.('Projekt bearbeiten');
+    }
+
+    this.destroy();
+
+    this.wizard = new ProjektErstellenWizard(window.content);
+    try {
+      await this.wizard.initEditMode(auftragId);
+    } catch (e) {
+      console.error('❌ ProjektErstellenModule: initEditMode fehlgeschlagen', e);
+      // Bei Lade-Fehler zurueck zur Auftrags-Detailseite
+      window.navigateTo?.(`/auftrag/${auftragId}`);
+    }
+  }
+
   showCreateForm() {
     return this.init();
   }

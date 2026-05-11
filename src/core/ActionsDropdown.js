@@ -47,6 +47,23 @@ export class ActionsDropdown {
     return this.iconRegistry.getStatusIcon(statusName);
   }
 
+  // Hilfsfunktion: laed die auftrag_id zu einem auftrag_details-Datensatz
+  async resolveAuftragIdForDetails(detailsId) {
+    if (!detailsId || !window.supabase) return null;
+    try {
+      const { data, error } = await window.supabase
+        .from('auftrag_details')
+        .select('auftrag_id')
+        .eq('id', detailsId)
+        .single();
+      if (error) throw error;
+      return data?.auftrag_id || null;
+    } catch (e) {
+      console.warn('⚠️ resolveAuftragIdForDetails fehlgeschlagen:', e);
+      return null;
+    }
+  }
+
   async setField(entityType, entityId, fieldName, fieldValue) {
     try {
       console.log('⬆️ setField starte Update', { entityType, entityId, fieldName, fieldValue });
@@ -454,7 +471,20 @@ export class ActionsDropdown {
         break;
       
       case 'edit':
-        // Standard-Route für alle Entitäten inkl. Auftragsdetails
+        // Auftraege/Contracts/Auftragsdetails laufen seit dem Projekt-Erstellen-
+        // Wizard-Refactor ueber den Wizard (gleicher Daten-Pfad fuer Anlegen + Bearbeiten).
+        if (entityType === 'auftrag' || entityType === 'contract') {
+          window.navigateTo(`/projekt-erstellen/edit/${entityId}`);
+          break;
+        }
+        if (entityType === 'auftragsdetails') {
+          const auftragId = await this.resolveAuftragIdForDetails(entityId);
+          if (auftragId) {
+            window.navigateTo(`/projekt-erstellen/edit/${auftragId}`);
+            break;
+          }
+          console.warn('⚠️ Konnte auftrag_id für auftragsdetails nicht ermitteln, fallback auf Legacy-Edit');
+        }
         {
           const returnTo = actionItem?.dataset?.returnTo;
           const editRoute = returnTo

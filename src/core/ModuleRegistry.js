@@ -292,6 +292,26 @@ export class ModuleRegistry {
       console.log(`🎯 Ansprechpartner-Details/Erstellung erkannt, verwende Modul: ${moduleKey}`);
     }
 
+    // /management-ansprechpartner: gefilterte Ansprechpartner-Liste (mode='management')
+    if (segment === 'management-ansprechpartner' && id === 'new') {
+      moduleKey = 'management-ansprechpartner-create';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Management-Ansprechpartner-Erstellung erkannt, verwende Modul: ${moduleKey}`);
+    } else if (segment === 'management-ansprechpartner' && id) {
+      // Detail-Ansicht nutzt das gleiche AnsprechpartnerDetail
+      moduleKey = 'ansprechpartner-detail';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Management-Ansprechpartner-Details, verwende Modul: ${moduleKey}`);
+    }
+
+    // /management-creator: gefilterte Creator-Liste (mode='management')
+    if (segment === 'management-creator' && id) {
+      // Detail-Ansicht nutzt das gleiche CreatorDetail
+      moduleKey = 'creator-detail';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Management-Creator-Details, verwende Modul: ${moduleKey}`);
+    }
+
     if (segment === 'management' && id === 'new') {
       moduleKey = 'management-create';
       module = this.modules.get(moduleKey);
@@ -320,9 +340,18 @@ export class ModuleRegistry {
       moduleKey = 'projekt-erstellen';
       module = this.modules.get(moduleKey);
       console.log(`🎯 Projekt-Erstellen, verwende Modul: ${moduleKey}`);
-      if (module?.init) {
+      if (module) {
         this.currentModule = module;
-        return module.init();
+        // Edit-Routen: /projekt-erstellen/edit/:id ODER /projekt-erstellen/:id/edit
+        const editId = (id === 'edit' && action)
+          ? action
+          : (id && id !== 'new' && action === 'edit' ? id : null);
+        if (editId && module.initForEdit) {
+          return module.initForEdit(editId);
+        }
+        if (module.init) {
+          return module.init();
+        }
       }
     }
 

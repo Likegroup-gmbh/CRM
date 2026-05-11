@@ -920,9 +920,17 @@ export class AuftragsdetailsDetail {
   // Bearbeitungsformular anzeigen
   showEditForm() {
     console.log('🎯 AUFTRAGSDETAILSDETAIL: Öffne Bearbeitungsformular für Details:', this.detailsId);
-    
-    // Standard-Route wie bei anderen Entitäten
-    window.navigateTo(`/auftragsdetails/${this.detailsId}/edit`);
+
+    // Edit laeuft seit dem Projekt-Erstellen-Wizard-Refactor ueber den Wizard
+    // (gemeinsamer Pfad fuer Anlegen + Bearbeiten, konsistente Budget-Berechnung).
+    // Wizard nutzt die auftrag_id, daher hier den Auftrag aus den geladenen Details.
+    const auftragId = this.auftrag?.id || this.details?.auftrag_id;
+    if (auftragId) {
+      window.navigateTo(`/projekt-erstellen/edit/${auftragId}`);
+    } else {
+      console.warn('⚠️ AUFTRAGSDETAILSDETAIL: Keine Auftrag-ID gefunden, Fallback auf altes Edit-Formular');
+      window.navigateTo(`/auftragsdetails/${this.detailsId}/edit`);
+    }
   }
 
   // Cleanup

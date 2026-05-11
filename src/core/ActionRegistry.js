@@ -93,11 +93,46 @@ export class ActionRegistry {
   }
 
   // Standard Edit Action
-  handleEdit(entityType, entityId) {
-    if (this.moduleRegistry) {
-      this.moduleRegistry.navigateTo(`/${entityType}/${entityId}/edit`);
-    } else {
+  async handleEdit(entityType, entityId) {
+    if (!this.moduleRegistry) {
       console.warn('ModuleRegistry nicht verfügbar');
+      return;
+    }
+
+    // Aufträge / Contracts / Auftragsdetails laufen seit dem
+    // Projekt-Erstellen-Wizard-Refactor durch den neuen Wizard, damit
+    // Anlegen und Bearbeiten denselben Datenpfad nutzen (creator_budget
+    // wird konsistent neu berechnet).
+    if (entityType === 'auftrag' || entityType === 'contract') {
+      this.moduleRegistry.navigateTo(`/projekt-erstellen/edit/${entityId}`);
+      return;
+    }
+
+    if (entityType === 'auftragsdetails') {
+      const auftragId = await this.resolveAuftragIdForDetails(entityId);
+      if (auftragId) {
+        this.moduleRegistry.navigateTo(`/projekt-erstellen/edit/${auftragId}`);
+        return;
+      }
+      console.warn('⚠️ Konnte auftrag_id für auftragsdetails nicht ermitteln, fallback auf Legacy-Edit');
+    }
+
+    this.moduleRegistry.navigateTo(`/${entityType}/${entityId}/edit`);
+  }
+
+  async resolveAuftragIdForDetails(detailsId) {
+    if (!detailsId || !window.supabase) return null;
+    try {
+      const { data, error } = await window.supabase
+        .from('auftrag_details')
+        .select('auftrag_id')
+        .eq('id', detailsId)
+        .single();
+      if (error) throw error;
+      return data?.auftrag_id || null;
+    } catch (e) {
+      console.warn('⚠️ resolveAuftragIdForDetails fehlgeschlagen:', e);
+      return null;
     }
   }
 

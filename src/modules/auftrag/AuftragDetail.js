@@ -78,7 +78,10 @@ export class AuftragDetail extends PersonDetailBase {
     }
 
     if (e.target.closest('#btn-edit-auftrag')) {
-      this.showEditForm();
+      // Edit laeuft seit dem Projekt-Erstellen-Wizard-Refactor ueber den Wizard,
+      // damit Anlegen und Bearbeiten denselben Datenpfad nutzen (z.B. creator_budget
+      // wird konsistent neu berechnet wenn der Nettobetrag geaendert wird).
+      window.navigateTo(`/projekt-erstellen/edit/${this.auftragId}`);
       return;
     }
 

@@ -10,6 +10,7 @@ import { FeedbackCard } from './components/FeedbackCard.js';
 import { WizardProgressBar } from './components/WizardProgressBar.js';
 import { ProjektErstellenPersistence } from './services/ProjektErstellenPersistence.js';
 import { ProjektErstellenValidator } from './services/ProjektErstellenValidator.js';
+import { projektErstellenEditLoader } from './services/ProjektErstellenEditLoader.js';
 
 export class ProjektErstellenWizard {
   constructor(container) {
@@ -17,6 +18,12 @@ export class ProjektErstellenWizard {
     this.currentStep = 1;
     this.totalSteps = 3;
     this._isContracting = false;
+
+    // Edit-Mode-State -- wird durch initEditMode() gesetzt
+    this.isEditMode = false;
+    this.editAuftragId = null;
+    this.editKampagneId = null;
+    this.editRaw = null;
 
     this.formData = {
       auftrag: {
@@ -86,6 +93,12 @@ export class ProjektErstellenWizard {
   }
 
   buildSteps() {
+    if (this.isEditMode) {
+      // Im Edit-Mode wird der Auftragstyp nicht mehr abgefragt
+      return this.isContracting
+        ? [new StepBasisdaten(this), new StepDetails(this)]
+        : [new StepBasisdaten(this), new StepDetails(this), new StepKampagnenarten(this)];
+    }
     return this.isContracting
       ? [new StepAuftragstyp(this), new StepBasisdaten(this), new StepDetails(this)]
       : [new StepAuftragstyp(this), new StepBasisdaten(this), new StepDetails(this), new StepKampagnenarten(this)];
@@ -109,7 +122,7 @@ export class ProjektErstellenWizard {
     }
 
     this.progressBar.labels = this.getStepLabels();
-    this.progressBar.update(Math.max(1, this.currentStep - 1));
+    this.progressBar.update(this.getProgressBarStep());
     this.updateNavButtons();
   }
 
@@ -120,6 +133,45 @@ export class ProjektErstellenWizard {
     this._isContracting = this.isContracting;
     this.steps = this.buildSteps();
     this.totalSteps = this.steps.length;
+
+    this.render();
+
+    const activeStep = this.steps[this.currentStep - 1];
+    if (activeStep?.onEnter) {
+      await activeStep.onEnter();
+    }
+    this.updateFeedback();
+  }
+
+  async initEditMode(auftragId) {
+    this._abort?.abort();
+    this._abort = new AbortController();
+
+    this.isEditMode = true;
+    this.editAuftragId = auftragId;
+
+    // Bestehenden Auftrag laden und in formData mappen
+    let loaded;
+    try {
+      loaded = await projektErstellenEditLoader.load(auftragId);
+    } catch (e) {
+      console.error('❌ ProjektErstellenWizard: Edit-Daten konnten nicht geladen werden', e);
+      window.toastSystem?.show('Auftrag konnte nicht geladen werden', 'error');
+      throw e;
+    }
+
+    this.formData = {
+      auftrag: { ...this.formData.auftrag, ...loaded.formData.auftrag },
+      details: { ...this.formData.details, ...loaded.formData.details },
+      kampagne: { ...this.formData.kampagne, ...loaded.formData.kampagne }
+    };
+    this.editKampagneId = loaded.raw?.kampagne?.id || null;
+    this.editRaw = loaded.raw;
+
+    this._isContracting = this.isContracting;
+    this.steps = this.buildSteps();
+    this.totalSteps = this.steps.length;
+    this.currentStep = 1;
 
     this.render();
 
@@ -154,8 +206,8 @@ export class ProjektErstellenWizard {
     this.progressBar = new WizardProgressBar(
       document.getElementById('projekt-progress-steps'),
       this.getStepLabels(),
-      Math.max(1, this.currentStep - 1),
-      (progressStep) => this.goToStep(progressStep + 1)
+      this.getProgressBarStep(),
+      (progressStep) => this.goToStep(this.isEditMode ? progressStep : progressStep + 1)
     );
     this.progressBar.render();
 
@@ -223,14 +275,27 @@ export class ProjektErstellenWizard {
 
     prevBtn.style.visibility = this.currentStep > 1 ? 'visible' : 'hidden';
     if (nextLabel) {
-      nextLabel.textContent = this.currentStep === this.totalSteps
-        ? (this.isContracting ? 'Contract anlegen' : 'Projekt anlegen')
-        : 'Weiter';
+      if (this.currentStep === this.totalSteps) {
+        if (this.isEditMode) {
+          nextLabel.textContent = 'Änderungen speichern';
+        } else {
+          nextLabel.textContent = this.isContracting ? 'Contract anlegen' : 'Projekt anlegen';
+        }
+      } else {
+        nextLabel.textContent = 'Weiter';
+      }
     }
   }
 
   get isTypeSelectStep() {
-    return this.currentStep === 1;
+    // Im Edit-Mode gibt es keinen Type-Select-Step
+    return !this.isEditMode && this.currentStep === 1;
+  }
+
+  // Mappt die aktuelle Step-Position auf die im Validator erwarteten
+  // logischen Step-Nummern (1=Auftragstyp, 2=Basisdaten, 3=Details, 4=Kampagne).
+  getLogicalStepNumber(stepIndex = this.currentStep) {
+    return this.isEditMode ? stepIndex + 1 : stepIndex;
   }
 
   updateWizardChrome() {
@@ -264,9 +329,16 @@ export class ProjektErstellenWizard {
 
     this.updateNavButtons();
     if (!this.isTypeSelectStep) {
-      this.progressBar?.update(this.currentStep - 1);
+      this.progressBar?.update(this.getProgressBarStep());
     }
     this.feedbackCard?.update(this.currentStep, this.formData);
+  }
+
+  // Mappt currentStep auf den 1-basierten ProgressBar-Index.
+  // Create-Mode: Step 1 = Auftragstyp (nicht in Progress), Step 2 = Basisdaten = Progress-Pos 1
+  // Edit-Mode: Step 1 = Basisdaten = Progress-Pos 1
+  getProgressBarStep() {
+    return this.isEditMode ? this.currentStep : Math.max(1, this.currentStep - 1);
   }
 
   async navigate(direction) {
@@ -280,7 +352,7 @@ export class ProjektErstellenWizard {
         this.mergeFormData(collected);
       }
 
-      const validation = this.validator.validateStep(this.currentStep, this.formData);
+      const validation = this.validator.validateStep(this.getLogicalStepNumber(), this.formData);
       if (!validation.valid) {
         window.toastSystem?.show(validation.errors[0] || 'Bitte alle Pflichtfelder ausfüllen', 'error');
         return;
@@ -361,7 +433,7 @@ export class ProjektErstellenWizard {
 
     if (targetStep > this.currentStep) {
       for (let s = this.currentStep; s < targetStep; s++) {
-        const v = this.validator.validateStep(s, this.formData);
+        const v = this.validator.validateStep(this.getLogicalStepNumber(s), this.formData);
         if (!v.valid) {
           window.toastSystem?.show(v.errors[0] || `Schritt ${s} ist noch unvollständig`, 'warning');
           return;
@@ -409,7 +481,7 @@ export class ProjektErstellenWizard {
     const nextBtn = document.getElementById('wizard-next-btn');
 
     for (let s = 1; s <= this.totalSteps; s++) {
-      const v = this.validator.validateStep(s, this.formData);
+      const v = this.validator.validateStep(this.getLogicalStepNumber(s), this.formData);
       if (!v.valid) {
         window.toastSystem?.show(`Schritt ${s}: ${v.errors[0]}`, 'error');
         this.currentStep = s;
@@ -422,20 +494,36 @@ export class ProjektErstellenWizard {
     }
 
     const nextLabel = document.getElementById('wizard-next-btn-label');
+    const finalLabel = this.isEditMode
+      ? 'Änderungen speichern'
+      : (this.isContracting ? 'Contract anlegen' : 'Projekt anlegen');
+
     try {
       if (nextBtn) nextBtn.disabled = true;
-      if (nextLabel) nextLabel.textContent = 'Wird angelegt…';
+      if (nextLabel) nextLabel.textContent = this.isEditMode ? 'Wird gespeichert…' : 'Wird angelegt…';
 
-      const result = await this.persistence.submit({
-        formData: this.formData
-      });
+      const result = this.isEditMode
+        ? await this.persistence.submitEdit({
+            formData: this.formData,
+            auftragId: this.editAuftragId,
+            kampagneId: this.editKampagneId,
+            existingRaw: this.editRaw
+          })
+        : await this.persistence.submit({ formData: this.formData });
 
       if (result.success) {
         const isContract = this.isContracting;
-        window.toastSystem?.show(
-          isContract ? 'Contract erfolgreich angelegt' : 'Projekt erfolgreich angelegt',
-          'success'
-        );
+        if (this.isEditMode) {
+          window.toastSystem?.show(
+            isContract ? 'Contract erfolgreich aktualisiert' : 'Projekt erfolgreich aktualisiert',
+            'success'
+          );
+        } else {
+          window.toastSystem?.show(
+            isContract ? 'Contract erfolgreich angelegt' : 'Projekt erfolgreich angelegt',
+            'success'
+          );
+        }
 
         if (Array.isArray(result.uploadErrors) && result.uploadErrors.length > 0) {
           const failedNames = result.uploadErrors.map(e => e.fileName).join(', ');
@@ -446,8 +534,17 @@ export class ProjektErstellenWizard {
         }
 
         window.dispatchEvent(new CustomEvent('entityUpdated', {
-          detail: { entity: 'auftrag', action: 'created', id: result.auftragId }
+          detail: {
+            entity: 'auftrag',
+            action: this.isEditMode ? 'updated' : 'created',
+            id: result.auftragId
+          }
         }));
+        if (this.isEditMode) {
+          window.dispatchEvent(new CustomEvent('entityUpdated', {
+            detail: { entity: 'auftrag_details', action: 'updated', auftrag_id: result.auftragId }
+          }));
+        }
 
         setTimeout(() => {
           const target = isContract
@@ -456,15 +553,18 @@ export class ProjektErstellenWizard {
           window.navigateTo?.(target);
         }, 1200);
       } else {
-        window.toastSystem?.show(result.error || 'Projekt konnte nicht angelegt werden', 'error');
+        window.toastSystem?.show(
+          result.error || (this.isEditMode ? 'Projekt konnte nicht aktualisiert werden' : 'Projekt konnte nicht angelegt werden'),
+          'error'
+        );
         if (nextBtn) nextBtn.disabled = false;
-        if (nextLabel) nextLabel.textContent = 'Projekt anlegen';
+        if (nextLabel) nextLabel.textContent = finalLabel;
       }
     } catch (e) {
       console.error('❌ Submit Fehler:', e);
       window.toastSystem?.show('Ein unerwarteter Fehler ist aufgetreten', 'error');
       if (nextBtn) nextBtn.disabled = false;
-      if (nextLabel) nextLabel.textContent = 'Projekt anlegen';
+      if (nextLabel) nextLabel.textContent = finalLabel;
     }
   }
 

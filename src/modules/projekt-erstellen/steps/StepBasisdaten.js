@@ -5,6 +5,7 @@
 
 import { TitelGenerator } from '../components/TitelGenerator.js';
 import { UploaderField } from '../../../core/form/fields/UploaderField.js';
+import { AUFTRAG_TYPES } from '../constants.js';
 
 const AUFTRAGSBESTAETIGUNG_ACCEPT = '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png';
 const AUFTRAGSBESTAETIGUNG_MAX_SIZE = 25 * 1024 * 1024;
@@ -28,9 +29,18 @@ export class StepBasisdaten {
     this.host = host;
     const a = this.wizard.formData.auftrag || {};
     const isContracting = this.wizard.isContracting;
+    const isEdit = !!this.wizard.isEditMode;
+    const auftragTypeLabel = AUFTRAG_TYPES.find(t => t.value === a.auftragtype)?.label || a.auftragtype || '';
 
     host.innerHTML = `
       <div class="form-section projekt-erstellen-section-stack">
+        ${isEdit && auftragTypeLabel ? `
+          <div class="form-field">
+            <label>Auftragstyp</label>
+            <input type="text" value="${this.escape(auftragTypeLabel)}" readonly disabled>
+            <small class="form-hint">Der Auftragstyp kann nach dem Anlegen nicht mehr geändert werden.</small>
+          </div>
+        ` : ''}
         <div class="form-field">
           <label for="field-pe-unternehmen_id">Unternehmen <span class="required">*</span></label>
           <select id="field-pe-unternehmen_id" name="unternehmen_id" required>

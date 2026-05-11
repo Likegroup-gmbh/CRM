@@ -333,6 +333,156 @@ export class ProjektErstellenPersistence {
     });
   }
 
+  async submitEdit({ formData, auftragId, kampagneId, existingRaw } = {}) {
+    const isContracting = formData.auftrag?.auftragtype === 'Contracting';
+    if (isContracting) return this.submitEditContracting({ formData, auftragId, existingRaw });
+
+    const supabase = SUPABASE();
+    if (!supabase) return { success: false, error: 'Supabase nicht verfügbar' };
+    if (!auftragId) return { success: false, error: 'Auftrag-ID fehlt' };
+
+    try {
+      const currentBenutzerId = await getCurrentBenutzerId();
+
+      // 1) Auftrag updaten -- PO bleibt unangetastet (wird beim Anlegen vergeben)
+      const auftragPayload = this.buildAuftragPayload(formData);
+      delete auftragPayload.po; // PO niemals beim Edit ueberschreiben
+      // is_draft + status nur setzen falls noch nicht existiert -- ansonsten bestehende Werte belassen
+      if (existingRaw?.auftrag?.status) {
+        delete auftragPayload.status;
+      }
+      if (existingRaw?.auftrag?.is_draft === false) {
+        delete auftragPayload.is_draft;
+      }
+
+      const { error: auftragErr } = await supabase
+        .from('auftrag')
+        .update(auftragPayload)
+        .eq('id', auftragId);
+      if (auftragErr) throw auftragErr;
+
+      // 2) auftrag_details per upsert (onConflict auftrag_id)
+      const detailsPayload = this.buildDetailsPayload(formData);
+      detailsPayload.auftrag_id = auftragId;
+      if (!existingRaw?.details) {
+        detailsPayload.created_by_id = currentBenutzerId;
+      }
+
+      const { error: detailsErr } = await supabase
+        .from('auftrag_details')
+        .upsert([detailsPayload], { onConflict: 'auftrag_id' });
+      if (detailsErr) throw detailsErr;
+
+      // 3) Kampagne updaten oder neu anlegen
+      const kampagnePayload = this.buildKampagnePayload(formData);
+      let savedKampagneId = kampagneId || null;
+
+      if (savedKampagneId) {
+        const { error: kampagneErr } = await supabase
+          .from('kampagne')
+          .update(kampagnePayload)
+          .eq('id', savedKampagneId);
+        if (kampagneErr) throw kampagneErr;
+      } else {
+        kampagnePayload.auftrag_id = auftragId;
+        const { data: kampagneData, error: kampagneErr } = await supabase
+          .from('kampagne')
+          .insert(kampagnePayload)
+          .select('id')
+          .single();
+        if (kampagneErr) throw kampagneErr;
+        savedKampagneId = kampagneData?.id || null;
+      }
+
+      // 4) auftrag_kampagnenart_blocks: delete + reinsert
+      const { error: deleteBlocksErr } = await supabase
+        .from('auftrag_kampagnenart_blocks')
+        .delete()
+        .eq('auftrag_id', auftragId);
+      if (deleteBlocksErr) throw deleteBlocksErr;
+
+      const blockLabels = normalizeCampaignBlocks(formData.details || {})
+        .map(block => CAMPAIGN_TYPES.find(t => t.value === block.campaign_type)?.label || block.campaign_type);
+      const campaignArtIdMap = await this.loadCampaignArtIdMap(blockLabels);
+      const blockPayloads = this.buildCampaignBlockPayloads(formData, {
+        auftragId,
+        kampagneId: savedKampagneId,
+        createdById: currentBenutzerId,
+        campaignArtIdMap
+      });
+
+      if (blockPayloads.length > 0) {
+        const { error: blocksErr } = await supabase
+          .from('auftrag_kampagnenart_blocks')
+          .insert(blockPayloads);
+        if (blocksErr) throw blocksErr;
+      }
+
+      // 5) ansprechpartner_kampagne synchronisieren
+      const ansprechpartnerId = auftragPayload.ansprechpartner_id;
+      if (savedKampagneId) {
+        const { error: delApErr } = await supabase
+          .from('ansprechpartner_kampagne')
+          .delete()
+          .eq('kampagne_id', savedKampagneId);
+        if (delApErr) {
+          console.warn('⚠️ ansprechpartner_kampagne delete fehlgeschlagen:', delApErr);
+        }
+
+        if (ansprechpartnerId) {
+          const { error: insApErr } = await supabase
+            .from('ansprechpartner_kampagne')
+            .insert({
+              kampagne_id: savedKampagneId,
+              ansprechpartner_id: ansprechpartnerId
+            });
+          if (insApErr) {
+            console.warn('⚠️ ansprechpartner_kampagne insert fehlgeschlagen:', insApErr);
+          }
+        }
+      }
+
+      return { success: true, auftragId, kampagneId: savedKampagneId };
+    } catch (e) {
+      const friendly = this.friendlyError(e, 'Projekt konnte nicht aktualisiert werden');
+      console.error('❌ submitEdit Fehler:', {
+        message: e?.message, details: e?.details, hint: e?.hint, code: e?.code, raw: e
+      });
+      return { success: false, error: friendly };
+    }
+  }
+
+  async submitEditContracting({ formData, auftragId, existingRaw } = {}) {
+    const supabase = SUPABASE();
+    if (!supabase) return { success: false, error: 'Supabase nicht verfügbar' };
+    if (!auftragId) return { success: false, error: 'Auftrag-ID fehlt' };
+
+    try {
+      const auftragPayload = this.buildAuftragPayload(formData);
+      delete auftragPayload.po;
+      if (existingRaw?.auftrag?.status) {
+        delete auftragPayload.status;
+      }
+      if (existingRaw?.auftrag?.is_draft === false) {
+        delete auftragPayload.is_draft;
+      }
+
+      const { error: auftragErr } = await supabase
+        .from('auftrag')
+        .update(auftragPayload)
+        .eq('id', auftragId);
+      if (auftragErr) throw auftragErr;
+
+      return { success: true, auftragId };
+    } catch (e) {
+      const friendly = this.friendlyError(e, 'Contract konnte nicht aktualisiert werden');
+      console.error('❌ submitEditContracting Fehler:', {
+        message: e?.message, details: e?.details, hint: e?.hint, code: e?.code, raw: e
+      });
+      return { success: false, error: friendly };
+    }
+  }
+
   async submit({ formData }) {
     const isContracting = formData.auftrag?.auftragtype === 'Contracting';
     if (isContracting) return this.submitContracting({ formData });
