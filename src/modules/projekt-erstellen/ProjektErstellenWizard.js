@@ -2,6 +2,7 @@
 // Zentrale Wizard-Klasse: verwaltet State, Step-Navigation und Validation-Orchestrierung.
 // Jeder Step ist eine eigene Klasse mit einheitlicher Schnittstelle.
 
+import { StepAuftragstyp } from './steps/StepAuftragstyp.js';
 import { StepBasisdaten } from './steps/StepBasisdaten.js';
 import { StepDetails } from './steps/StepDetails.js';
 import { StepKampagnenarten } from './steps/StepKampagnenarten.js';
@@ -40,7 +41,9 @@ export class ProjektErstellenWizard {
         nettobetrag: null,
         ust_prozent: null,
         ust_betrag: null,
-        bruttobetrag: null
+        bruttobetrag: null,
+
+        auftragsbestaetigungen_files: []
       },
       details: {
         campaign_type: [],
@@ -69,6 +72,7 @@ export class ProjektErstellenWizard {
     this.steps = null;
 
     this._destroyed = false;
+    this._abort = null;
   }
 
   get isContracting() {
@@ -83,8 +87,8 @@ export class ProjektErstellenWizard {
 
   buildSteps() {
     return this.isContracting
-      ? [new StepBasisdaten(this), new StepDetails(this)]
-      : [new StepBasisdaten(this), new StepDetails(this), new StepKampagnenarten(this)];
+      ? [new StepAuftragstyp(this), new StepBasisdaten(this), new StepDetails(this)]
+      : [new StepAuftragstyp(this), new StepBasisdaten(this), new StepDetails(this), new StepKampagnenarten(this)];
   }
 
   updateStepsForAuftragtype() {
@@ -105,11 +109,14 @@ export class ProjektErstellenWizard {
     }
 
     this.progressBar.labels = this.getStepLabels();
-    this.progressBar.update(this.currentStep);
+    this.progressBar.update(Math.max(1, this.currentStep - 1));
     this.updateNavButtons();
   }
 
   async init() {
+    this._abort?.abort();
+    this._abort = new AbortController();
+
     this._isContracting = this.isContracting;
     this.steps = this.buildSteps();
     this.totalSteps = this.steps.length;
@@ -147,8 +154,8 @@ export class ProjektErstellenWizard {
     this.progressBar = new WizardProgressBar(
       document.getElementById('projekt-progress-steps'),
       this.getStepLabels(),
-      this.currentStep,
-      (targetStep) => this.goToStep(targetStep)
+      Math.max(1, this.currentStep - 1),
+      (progressStep) => this.goToStep(progressStep + 1)
     );
     this.progressBar.render();
 
@@ -196,12 +203,13 @@ export class ProjektErstellenWizard {
   bindNavigation() {
     const prevBtn = document.getElementById('wizard-prev-btn');
     const nextBtn = document.getElementById('wizard-next-btn');
+    const signal = this._abort?.signal;
 
     if (prevBtn) {
-      prevBtn.addEventListener('click', () => this.navigate(-1));
+      prevBtn.addEventListener('click', () => this.navigate(-1), signal ? { signal } : undefined);
     }
     if (nextBtn) {
-      nextBtn.addEventListener('click', () => this.navigate(1));
+      nextBtn.addEventListener('click', () => this.navigate(1), signal ? { signal } : undefined);
     }
 
     this.updateNavButtons();
@@ -221,11 +229,30 @@ export class ProjektErstellenWizard {
     }
   }
 
+  get isTypeSelectStep() {
+    return this.currentStep === 1;
+  }
+
+  updateWizardChrome() {
+    const progressContainer = document.getElementById('projekt-progress-container');
+    const formPage = this.container.querySelector('.form-page--split-wizard');
+
+    if (this.isTypeSelectStep) {
+      if (progressContainer) progressContainer.style.display = 'none';
+      if (formPage) formPage.classList.add('pe-wizard--type-select');
+    } else {
+      if (progressContainer) progressContainer.style.display = '';
+      if (formPage) formPage.classList.remove('pe-wizard--type-select');
+    }
+  }
+
   renderCurrentStep() {
     const host = document.getElementById('wizard-step-host');
     if (!host) return;
     const step = this.steps[this.currentStep - 1];
     if (!step) return;
+
+    this.updateWizardChrome();
 
     step.render(host);
 
@@ -236,12 +263,16 @@ export class ProjektErstellenWizard {
     }
 
     this.updateNavButtons();
-    this.progressBar?.update(this.currentStep);
+    if (!this.isTypeSelectStep) {
+      this.progressBar?.update(this.currentStep - 1);
+    }
     this.feedbackCard?.update(this.currentStep, this.formData);
   }
 
   async navigate(direction) {
     const currentStepInstance = this.steps[this.currentStep - 1];
+    const leavingTypeSelect = this.isTypeSelectStep && direction > 0;
+    const enteringTypeSelect = this.currentStep === 2 && direction < 0;
 
     if (direction > 0) {
       if (currentStepInstance?.collectData) {
@@ -269,7 +300,12 @@ export class ProjektErstellenWizard {
       if (this.currentStep > 1) this.currentStep -= 1;
     }
 
-    this.renderCurrentStep();
+    if (leavingTypeSelect || enteringTypeSelect) {
+      await this._animateTransition();
+    } else {
+      this.renderCurrentStep();
+    }
+
     const activeStep = this.steps[this.currentStep - 1];
     if (activeStep?.onEnter) {
       await activeStep.onEnter();
@@ -277,10 +313,46 @@ export class ProjektErstellenWizard {
     this.updateFeedback();
   }
 
+  _animateTransition() {
+    return new Promise(resolve => {
+      const host = document.getElementById('wizard-step-host');
+      const formPage = this.container.querySelector('.form-page--split-wizard');
+
+      if (!host || !formPage) {
+        this.renderCurrentStep();
+        resolve();
+        return;
+      }
+
+      formPage.classList.add('pe-fade-out');
+
+      setTimeout(() => {
+        this.renderCurrentStep();
+        formPage.classList.remove('pe-fade-out');
+        formPage.classList.add('pe-fade-in');
+
+        let settled = false;
+        const settle = () => {
+          if (settled) return;
+          settled = true;
+          formPage.classList.remove('pe-fade-in');
+          formPage.removeEventListener('animationend', onDone);
+          clearTimeout(fallbackTimer);
+          resolve();
+        };
+        const onDone = () => settle();
+        formPage.addEventListener('animationend', onDone);
+
+        const fallbackTimer = setTimeout(settle, 400);
+      }, 220);
+    });
+  }
+
   async goToStep(targetStep) {
     if (targetStep === this.currentStep) return;
     if (targetStep < 1 || targetStep > this.totalSteps) return;
 
+    const wasTypeSelect = this.isTypeSelectStep;
     const currentStepInstance = this.steps[this.currentStep - 1];
     if (currentStepInstance?.collectData) {
       const collected = currentStepInstance.collectData();
@@ -298,7 +370,14 @@ export class ProjektErstellenWizard {
     }
 
     this.currentStep = targetStep;
-    this.renderCurrentStep();
+    const needsTransition = wasTypeSelect || targetStep === 1;
+
+    if (needsTransition) {
+      await this._animateTransition();
+    } else {
+      this.renderCurrentStep();
+    }
+
     const activeStep = this.steps[this.currentStep - 1];
     if (activeStep?.onEnter) {
       await activeStep.onEnter();
@@ -358,6 +437,14 @@ export class ProjektErstellenWizard {
           'success'
         );
 
+        if (Array.isArray(result.uploadErrors) && result.uploadErrors.length > 0) {
+          const failedNames = result.uploadErrors.map(e => e.fileName).join(', ');
+          window.toastSystem?.show(
+            `Hinweis: ${result.uploadErrors.length} Datei(en) konnten nicht hochgeladen werden: ${failedNames}`,
+            'warning'
+          );
+        }
+
         window.dispatchEvent(new CustomEvent('entityUpdated', {
           detail: { entity: 'auftrag', action: 'created', id: result.auftragId }
         }));
@@ -383,6 +470,10 @@ export class ProjektErstellenWizard {
 
   destroy() {
     this._destroyed = true;
+    if (this._abort) {
+      try { this._abort.abort(); } catch (_) { /* noop */ }
+      this._abort = null;
+    }
     if (this.steps) {
       this.steps.forEach(s => {
         if (s?.destroy) {

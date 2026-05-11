@@ -7,11 +7,14 @@ import { FormSubmitHelper } from '../../core/form/FormSubmitHelper.js';
 export class MarkeCreate {
   constructor() {
     this.formData = {};
+    this._abort = null;
   }
 
   // Initialisiere Marke-Erstellung
   async init() {
     console.log('🎯 MARKECREATE: Initialisiere Marke-Erstellung');
+    this._abort?.abort();
+    this._abort = new AbortController();
     this.showCreateForm();
   }
 
@@ -81,16 +84,19 @@ export class MarkeCreate {
       markennameField.parentElement.appendChild(messageContainer);
     }
 
+    const signal = this._abort?.signal;
+    const opts = signal ? { signal } : undefined;
+
     // Blur Event
     markennameField.addEventListener('blur', async (e) => {
       await this.validateMarkeDuplicate(e.target.value, messageContainer);
-    });
+    }, opts);
 
     // Clear beim Tippen
     markennameField.addEventListener('input', () => {
       this.clearDuplicateMessages(messageContainer);
       this.enableSubmitButton();
-    });
+    }, opts);
   }
 
   // Validiere Marke Duplikat
@@ -175,6 +181,8 @@ export class MarkeCreate {
   // Bind Click-Events für Duplikat-Links
   bindDuplicateLinks(container, entityType) {
     const links = container.querySelectorAll('.duplicate-link[data-entity-id]');
+    const signal = this._abort?.signal;
+    const opts = signal ? { signal } : undefined;
     links.forEach(link => {
       link.addEventListener('click', (e) => {
         e.preventDefault();
@@ -186,7 +194,7 @@ export class MarkeCreate {
             window.navigationSystem.navigateTo(route);
           }
         }
-      });
+      }, opts);
     });
   }
 
@@ -233,6 +241,8 @@ export class MarkeCreate {
     // Event für File-Input (falls vorhanden)
     const fileInput = uploaderRoot.querySelector('input[type="file"]');
     if (fileInput) {
+      const signal = this._abort?.signal;
+      const opts = signal ? { signal } : undefined;
       fileInput.addEventListener('change', (e) => {
         const file = e.target.files?.[0];
         if (file && file.type.startsWith('image/')) {
@@ -247,7 +257,7 @@ export class MarkeCreate {
           };
           reader.readAsDataURL(file);
         }
-      });
+      }, opts);
     }
   }
 
@@ -412,6 +422,10 @@ export class MarkeCreate {
   // Destroy
   destroy() {
     console.log('🎯 MARKECREATE: Destroy');
+    if (this._abort) {
+      try { this._abort.abort(); } catch (_) { /* noop */ }
+      this._abort = null;
+    }
   }
 }
 

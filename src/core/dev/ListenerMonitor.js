@@ -144,3 +144,18 @@ export function initListenerMonitor() {
 
   console.log('🔬 ListenerMonitor aktiv – Click = Toggle Log, Shift+Click = Dump, Alt+Click = Toggle Element-Count');
 }
+
+/**
+ * Resettet den Element-Counter. Sinnvoll bei Routenwechsel, da Element-Listener
+ * durch DOM-Removal (innerHTML =) ohnehin inaktiv sind, der Counter aber nicht
+ * automatisch dekrementiert wird (kein removeEventListener-Call).
+ * Beeinflusst NICHT die doc/win-Counter (echte Leaks bleiben sichtbar).
+ */
+export function resetElementCount() {
+  state.counts.element = 0;
+  if (state.active) {
+    state.log.push({ action: 'reset-elements', target: 'element', type: '', source: '', ts: Date.now() });
+    if (state.log.length > state.maxLogEntries) state.log.shift();
+  }
+  updateUI();
+}

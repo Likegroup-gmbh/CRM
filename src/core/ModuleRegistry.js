@@ -1,4 +1,6 @@
-export { OptionsManager } from './form/data/OptionsManager.js';
+import { OptionsManager } from './form/data/OptionsManager.js';
+import { resetElementCount } from './dev/ListenerMonitor.js';
+export { OptionsManager };
 
 export class ModuleRegistry {
   constructor() {
@@ -240,6 +242,13 @@ export class ModuleRegistry {
       module = this.modules.get(moduleKey);
       console.log(`🎯 Contract-Details erkannt, verwende Modul: ${moduleKey}`);
     }
+
+    if (segment === 'contracts' && !id) {
+      console.log(`🔄 /contracts → /auftrag (Contracts-Tab)`);
+      moduleKey = 'auftrag';
+      module = this.modules.get(moduleKey);
+      if (module) module._pendingTab = 'contracts';
+    }
     
     if (id && segment === 'briefing' && id !== 'new') {
       moduleKey = 'briefing-detail';
@@ -281,6 +290,18 @@ export class ModuleRegistry {
       moduleKey = 'ansprechpartner-detail';
       module = this.modules.get(moduleKey);
       console.log(`🎯 Ansprechpartner-Details/Erstellung erkannt, verwende Modul: ${moduleKey}`);
+    }
+
+    if (segment === 'management' && id === 'new') {
+      moduleKey = 'management-create';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Management-Erstellung erkannt, verwende Modul: ${moduleKey}`);
+    }
+
+    if (id && segment === 'management' && id !== 'new') {
+      moduleKey = 'management-detail';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Management-Details erkannt, verwende Modul: ${moduleKey}`);
     }
     
     if (segment === 'vertraege' && id === 'new') {
@@ -396,5 +417,11 @@ export class ModuleRegistry {
     document.querySelectorAll(
       '.drawer-overlay, .modal-overlay'
     ).forEach(el => el.remove());
+
+    // Element-Listener-Counter im DevTools-Monitor zuruecksetzen.
+    // Element-Listener auf Knoten innerhalb von window.content werden durch
+    // innerHTML-Replacement im Zielmodul ohnehin GC'd, der Counter wird aber
+    // nicht automatisch dekrementiert (keine removeEventListener-Calls).
+    try { resetElementCount?.(); } catch {}
   }
 }

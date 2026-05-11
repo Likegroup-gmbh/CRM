@@ -1,6 +1,8 @@
 // FormSearchableSelect.js
 // Kapselt die gesamte Searchable-Select-Logik inkl. Phone-/Country-Fields und allowCreate.
 // Wird als Handler in FormSystem instanziert; FormSystem delegiert die öffentlichen Methoden.
+import { OptionsManager } from '../data/OptionsManager.js';
+
 export class FormSearchableSelect {
   constructor(optionsManager) {
     this.optionsManager = optionsManager;
@@ -104,6 +106,8 @@ export class FormSearchableSelect {
     dropdown.className = 'searchable-select-dropdown';
 
     selectElement.style.display = 'none';
+    const fieldName = selectElement.name;
+    selectElement.removeAttribute('name');
     const wasRequired = selectElement.hasAttribute('required');
     if (wasRequired) {
       selectElement.removeAttribute('required');
@@ -113,7 +117,7 @@ export class FormSearchableSelect {
 
     const hiddenInput = document.createElement('input');
     hiddenInput.type = 'hidden';
-    hiddenInput.name = selectElement.name;
+    hiddenInput.name = fieldName;
     hiddenInput.id = selectElement.id + '_value';
 
     if (selectElement.value) {
@@ -155,6 +159,20 @@ export class FormSearchableSelect {
       }
     };
 
+    // Phone-Field Window-Listener (scroll/resize) werden via AbortController verwaltet,
+    // damit sie auch bei Navigation aufgeraeumt werden falls blur nicht feuert.
+    // Der Controller wird in OptionsManager._abortControllers registriert und bei
+    // OptionsManager.cleanup() (= _globalCleanup() bei Routenwechsel) aborted.
+    let phonePositionAbort = null;
+    const detachPhonePositionListeners = () => {
+      if (phonePositionAbort) {
+        phonePositionAbort.abort();
+        const idx = OptionsManager._abortControllers.indexOf(phonePositionAbort);
+        if (idx >= 0) OptionsManager._abortControllers.splice(idx, 1);
+        phonePositionAbort = null;
+      }
+    };
+
     input.addEventListener('focus', async () => {
       if (isReadonly || input.hasAttribute('data-is-readonly')) {
         return;
@@ -179,8 +197,12 @@ export class FormSearchableSelect {
       if (isPhoneField) {
         setTimeout(() => {
           updateDropdownPosition();
-          window.addEventListener('scroll', updateDropdownPosition, true);
-          window.addEventListener('resize', updateDropdownPosition);
+          detachPhonePositionListeners();
+          phonePositionAbort = new AbortController();
+          OptionsManager._abortControllers.push(phonePositionAbort);
+          const sig = phonePositionAbort.signal;
+          window.addEventListener('scroll', updateDropdownPosition, { capture: true, signal: sig });
+          window.addEventListener('resize', updateDropdownPosition, { signal: sig });
         }, 10);
       }
     });
@@ -190,8 +212,7 @@ export class FormSearchableSelect {
         dropdown.classList.remove('show');
 
         if (isPhoneField) {
-          window.removeEventListener('scroll', updateDropdownPosition, true);
-          window.removeEventListener('resize', updateDropdownPosition);
+          detachPhonePositionListeners();
         }
       }, 200);
     });
