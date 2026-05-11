@@ -18,17 +18,16 @@ export class NavigationSystem {
           { id: 'unternehmen', label: 'Unternehmen', icon: 'icon-building', url: '/unternehmen' },
           { id: 'marke', label: 'Marken', icon: 'icon-tag', url: '/marke' },
           { id: 'ansprechpartner', label: 'Ansprechpartner', icon: 'icon-user-circle', url: '/ansprechpartner' },
-          { id: 'creator', label: 'Creator', icon: 'icon-users', url: '/creator' }
+          { id: 'creator', label: 'Creator', icon: 'icon-users', url: '/creator' },
+          { id: 'management', label: 'Management', icon: 'icon-building', url: '/management' }
         ]
       },
       {
         title: 'Projektmanagement',
         items: [
-          { id: 'projekt-erstellen', label: 'Projekt anlegen', icon: 'icon-briefcase', url: '/projekt-erstellen' },
           { id: 'auftrag', label: 'Aufträge', icon: 'icon-briefcase', url: '/auftrag' },
           { id: 'auftragsdetails', label: 'Auftragsdetails', icon: 'icon-auftragsdetails', url: '/auftragsdetails' },
-          { id: 'kampagne', label: 'Kampagnen', icon: 'icon-campaign', url: '/kampagne' },
-          { id: 'contracts', label: 'Contracts', icon: 'icon-contract', url: '/contracts' }
+          { id: 'kampagne', label: 'Kampagnen', icon: 'icon-campaign', url: '/kampagne' }
         ]
       },
       {
@@ -91,10 +90,6 @@ export class NavigationSystem {
       if (id === 'projekt-erstellen') {
         if (!window.canCreateProject()) return false;
       }
-
-      if (id === 'contracts') {
-        return window.canViewContracts?.() || false;
-      }
       
       // 1) Page-Scoped Check (DB-Overrides)
       if (window.canViewPage && typeof window.canViewPage === 'function') {
@@ -122,6 +117,7 @@ export class NavigationSystem {
         vertraege: 'vertraege',
         creator: 'creator',
         'creator-lists': 'creator',
+        management: 'management',
         'sourcing': 'sourcing',
         mitarbeiter: 'mitarbeiter',
         'kunden-admin': 'kunden-admin',
@@ -336,6 +332,15 @@ export class NavigationSystem {
   init() {
     console.log('🧭 NavigationSystem: Initialisiere Navigation');
     this.renderNavigation();
+    this._restoreSidebarState();
+  }
+
+  _restoreSidebarState() {
+    if (!window.isAdmin?.()) return;
+    const appRoot = document.getElementById('app-root');
+    if (appRoot && localStorage.getItem('sidebar-collapsed') === 'true') {
+      appRoot.classList.add('sidebar-collapsed');
+    }
   }
 
   // Cleanup

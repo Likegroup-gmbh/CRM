@@ -11,6 +11,7 @@ import './RenderShell.js';
 import './KooperationLogic.js';
 import './FormEvents.js';
 import './SearchableSelects.js';
+import './CreatorAddressResolver.js';
 import './AgenturSection.js';
 import './AgenturEditModal.js';
 import './DataPersistence.js';

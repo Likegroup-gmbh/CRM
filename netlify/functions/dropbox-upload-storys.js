@@ -1,13 +1,8 @@
-const { getAccessToken, sanitizePath } = require('./_shared/dropbox');
+const { getAccessToken, sanitizePath, buildUnifiedBasePath, ensureFolder } = require('./_shared/dropbox');
 
 function buildStorysBaseFolderPath({ unternehmen, marke, kampagne, kooperation }) {
-  const parts = ['/Videos'];
-  if (unternehmen) parts.push(sanitizePath(unternehmen));
-  if (marke) parts.push(sanitizePath(marke));
-  if (kampagne) parts.push(sanitizePath(kampagne));
-  if (kooperation) parts.push(sanitizePath(kooperation));
-  parts.push('Storys');
-  return parts.join('/');
+  const base = buildUnifiedBasePath({ unternehmen, marke, kampagne, kooperation });
+  return `${base}/Storys`;
 }
 
 function buildVideoFolderPath(fields) {
@@ -155,14 +150,7 @@ exports.handler = async (event) => {
     // action === 'prepare' (default)
     const dropboxPath = buildStorysFilePath(fields);
     const fileFolderPath = dropboxPath.substring(0, dropboxPath.lastIndexOf('/'));
-
-    try {
-      await fetch('https://api.dropboxapi.com/2/files/create_folder_v2', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: fileFolderPath, autorename: false }),
-      });
-    } catch (_) { /* Ordner existiert evtl. schon */ }
+    await ensureFolder(token, fileFolderPath);
 
     return {
       statusCode: 200,

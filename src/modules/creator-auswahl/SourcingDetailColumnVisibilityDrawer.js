@@ -11,10 +11,17 @@ export class SourcingDetailColumnVisibilityDrawer {
     // Name und Aktionen sind immer sichtbar und können nicht deaktiviert werden
     this.columns = [
       { className: 'cp-col-typ', label: 'Creator Art' },
-      { className: 'cp-col-link-ig', label: 'Link Instagram' },
+      { className: 'cp-col-links', label: 'Links (IG/TT)' },
       { className: 'cp-col-follower-ig', label: 'Follower Instagram' },
-      { className: 'cp-col-link-tt', label: 'Link TikTok' },
       { className: 'cp-col-follower-tt', label: 'Follower TikTok' },
+      { className: 'cp-col-ek', label: 'EK (Einkaufspreis)' },
+      { className: 'cp-col-vk', label: 'VK (Verkaufspreis)' },
+      { className: 'cp-col-pricing', label: 'Pricing (Freitext)' },
+      { className: 'cp-col-reichweite-ig', label: 'Reichweite Instagram' },
+      { className: 'cp-col-reichweite-tt', label: 'Reichweite TikTok' },
+      { className: 'cp-col-reichweite-garantie', label: 'Reichweitengarantie' },
+      { className: 'cp-col-cpm-ig', label: 'CPM Instagram' },
+      { className: 'cp-col-cpm-tt', label: 'CPM TikTok' },
       { className: 'cp-col-location', label: 'Location' },
       { className: 'cp-col-notiz', label: 'Kurzbeschreibung' },
       { className: 'cp-col-angefragt', label: 'Angefragt' },
@@ -22,8 +29,7 @@ export class SourcingDetailColumnVisibilityDrawer {
       { className: 'cp-col-prio1', label: 'Buchen' },
       { className: 'cp-col-prio2', label: 'Prio 2' },
       { className: 'cp-col-nicht', label: 'Nicht buchen' },
-      { className: 'cp-col-check', label: 'Rückmeldung' },
-      { className: 'cp-col-pricing', label: 'Pricing' }
+      { className: 'cp-col-check', label: 'Rückmeldung' }
     ];
   }
 
@@ -50,11 +56,11 @@ export class SourcingDetailColumnVisibilityDrawer {
     const headerLeft = document.createElement('div');
     const title = document.createElement('span');
     title.className = 'drawer-title';
-    title.textContent = 'Spalten-Sichtbarkeit für Kunden';
+    title.textContent = 'Spalten-Sichtbarkeit';
     
     const subtitle = document.createElement('p');
     subtitle.className = 'drawer-subtitle';
-    subtitle.textContent = 'Deaktivierte Spalten werden nur für Kunden ausgeblendet';
+    subtitle.textContent = 'Deaktivierte Spalten werden für alle Nutzer ausgeblendet';
     
     headerLeft.appendChild(title);
     headerLeft.appendChild(subtitle);
@@ -147,7 +153,7 @@ export class SourcingDetailColumnVisibilityDrawer {
           <thead>
             <tr>
               <th style="text-align: left;">Spalte</th>
-              <th style="text-align: right;">Sichtbar für Kunden</th>
+              <th style="text-align: right;">Sichtbar</th>
             </tr>
           </thead>
           <tbody>

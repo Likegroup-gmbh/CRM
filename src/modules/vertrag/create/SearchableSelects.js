@@ -122,27 +122,22 @@ VertraegeCreate.prototype.rebuildCreatorSelect = function(enabled) {
       creatorSelect.addEventListener('change', async (e) => {
         const id = e.target.value;
         this.formData.creator_id = id;
-        
+
+        this.updateKooperationField();
+        this.generateVertragName();
+
         const creator = this.creators.find(c => c.id === id);
         if (creator) {
-          // Social-Media-Profile aus Creator-Profil übernehmen
           this._applyCreatorProfiles(creator);
-          // Agentur-Daten aus creator_agentur laden und danach Adressfallback rendern
-          await this._loadCreatorAgentur(id);
+          await this._loadCreatorManagement(id);
         } else {
           const preview = document.getElementById('creator-adresse');
           this.creatorAddressMissing = false;
           if (preview) preview.innerHTML = '';
-          // Profile zurücksetzen wenn kein Creator
           this.formData.influencer_profile = [];
-          this._resetAgenturFields();
+          this._resetManagementFields();
           this._syncAgenturDomFromFormData();
         }
-
-        this.updateKooperationField();
-        
-        // Vertragsname automatisch generieren
-        this.generateVertragName();
       });
     } else {
       // Fallback ohne Searchable Select
@@ -264,34 +259,32 @@ VertraegeCreate.prototype.initCreatorSearchableSelect = function() {
       
       const creator = this.creators.find(c => c.id === selectedCreator);
       if (creator) {
-        // Agentur-Daten fuer geladenen Creator aus creator_agentur nachladen.
-        // (ueberschreibt ggf. alte Draft-Werte, das ist gewollt)
-        this._loadCreatorAgentur(selectedCreator);
+        this._loadCreatorManagement(selectedCreator);
       }
     }
     
     // Event-Handler für Creator-Änderung
     creatorSelect.addEventListener('change', async (e) => {
+      if (this._isInitializing) return;
+
       const id = e.target.value;
       this.formData.creator_id = id;
-      
+
+      this.updateKooperationField();
+      this.generateVertragName();
+
       const creator = this.creators.find(c => c.id === id);
       if (creator) {
-        // Social-Media-Profile aus Creator-Profil übernehmen
         this._applyCreatorProfiles(creator);
-        // Agentur-Daten aus creator_agentur laden und danach Adressfallback rendern
-        await this._loadCreatorAgentur(id);
+        await this._loadCreatorManagement(id);
       } else {
         const preview = document.getElementById('creator-adresse');
         this.creatorAddressMissing = false;
         if (preview) preview.innerHTML = '';
-        // Profile zurücksetzen wenn kein Creator
         this.formData.influencer_profile = [];
-        this._resetAgenturFields();
+        this._resetManagementFields();
         this._syncAgenturDomFromFormData();
       }
-
-      this.updateKooperationField();
     });
 };
 
@@ -311,85 +304,7 @@ VertraegeCreate.prototype._applyCreatorProfiles = function(creator) {
 };
 
 
-// Laedt die Agentur-Daten fuer den gewaehlten Creator aus creator_agentur
-// und schreibt sie in formData.influencer_agentur_*. Setzt das Flag
-// _agentur_from_creator, damit die UI die Felder read-only darstellt.
-VertraegeCreate.prototype._loadCreatorAgentur = async function(creatorId) {
-    // Reset bei fehlendem Creator
-    if (!creatorId) {
-      this._resetAgenturFields();
-      this._syncAgenturDomFromFormData();
-      return;
-    }
-
-    if (!window.supabase) {
-      console.warn('⚠️ VERTRAG: Supabase nicht verfuegbar fuer creator_agentur-Load');
-      const creator = this.creators.find(c => c.id === creatorId);
-      if (creator && this.formData.creator_id === creatorId) {
-        this.updateCreatorAddressPreview(creator);
-      }
-      return;
-    }
-
-    try {
-      const { data, error } = await window.supabase
-        .from('creator_agentur')
-        .select('ist_aktiv, agentur_name, agentur_strasse, agentur_hausnummer, agentur_plz, agentur_stadt, agentur_land, agentur_vertretung')
-        .eq('creator_id', creatorId)
-        .maybeSingle();
-
-      if (error) {
-        console.error('❌ VERTRAG: Fehler beim Laden creator_agentur:', error);
-        this._resetAgenturFields();
-      } else if (data && data.ist_aktiv) {
-        this.formData.influencer_agentur_vertreten = true;
-        this.formData.influencer_agentur_name = data.agentur_name || '';
-        this.formData.influencer_agentur_strasse = data.agentur_strasse || '';
-        this.formData.influencer_agentur_hausnummer = data.agentur_hausnummer || '';
-        this.formData.influencer_agentur_plz = data.agentur_plz || '';
-        this.formData.influencer_agentur_stadt = data.agentur_stadt || '';
-        this.formData.influencer_agentur_land = data.agentur_land || 'Deutschland';
-        this.formData.influencer_agentur_vertretung = data.agentur_vertretung || '';
-        this.formData._agentur_from_creator = true;
-      } else {
-        // Creator hat keine aktive Agentur → Felder leeren, manuell editierbar
-        this._resetAgenturFields();
-      }
-    } catch (err) {
-      console.error('❌ VERTRAG: Exception bei _loadCreatorAgentur:', err);
-      this._resetAgenturFields();
-    }
-
-    this._syncAgenturDomFromFormData();
-
-    const creator = this.creators.find(c => c.id === creatorId);
-    if (creator && this.formData.creator_id === creatorId) {
-      this.updateCreatorAddressPreview(creator);
-    }
-};
-
-
-VertraegeCreate.prototype._resetAgenturFields = function() {
-    this.formData.influencer_agentur_vertreten = false;
-    this.formData.influencer_agentur_name = '';
-    this.formData.influencer_agentur_strasse = '';
-    this.formData.influencer_agentur_hausnummer = '';
-    this.formData.influencer_agentur_plz = '';
-    this.formData.influencer_agentur_stadt = '';
-    this.formData.influencer_agentur_land = 'Deutschland';
-    this.formData.influencer_agentur_vertretung = '';
-    this.formData._agentur_from_creator = false;
-};
-
-
-// Aktualisiert die Agentur-Felder im DOM aus formData (falls Step 2 gerade sichtbar).
-// Ruft optional einen globalen Hook, der in FormEvents definiert wird, um den
-// gesamten Agentur-Block (inkl. Read-Only-State und Modal-Button) neu zu rendern.
-VertraegeCreate.prototype._syncAgenturDomFromFormData = function() {
-    if (typeof this.refreshAgenturSection === 'function') {
-      this.refreshAgenturSection();
-    }
-};
+// Adress-Logik wurde nach CreatorAddressResolver.js verschoben
 
   // Handle aus URL oder String extrahieren
   // "https://www.instagram.com/majercars/" → "majercars"
@@ -418,23 +333,19 @@ VertraegeCreate.prototype.setSearchableSelectValue = function(selectId, value, o
       return;
     }
     
-    // Original-Select Wert setzen
     select.value = value;
+
+    // Hidden Input synchronisieren (von createSimpleSearchableSelect erstellt)
+    const formField = select.closest('.form-field');
+    const hiddenInput = formField?.querySelector(`input[type="hidden"][name="${selectId}"]`);
+    if (hiddenInput) hiddenInput.value = value;
     
-    // Label finden
+    // Label finden und sichtbaren Input setzen
     const option = options.find(o => o.value === value);
     const label = option?.label || '';
-    
-    // Searchable Select Input finden
-    const formField = select.closest('.form-field');
     const container = formField?.querySelector('.searchable-select-container');
     const input = container?.querySelector('.searchable-select-input');
-    
-    if (input) {
-      input.value = label;
-    }
-    
-    // KEIN dispatchEvent - Adress-Vorschauen werden separat gesetzt
+    if (input) input.value = label;
 };
 
 
@@ -459,99 +370,5 @@ VertraegeCreate.prototype._parseProfileHandles = function(profiles) {
 };
 
 
-VertraegeCreate.prototype.hasValidCreatorAddress = function(creator) {
-    if (!creator) return false;
-    // Mindestens Straße, PLZ und Stadt müssen vorhanden sein
-    const hasStrasse = creator.lieferadresse_strasse && creator.lieferadresse_strasse.trim() !== '';
-    const hasPlz = creator.lieferadresse_plz && creator.lieferadresse_plz.trim() !== '';
-    const hasStadt = creator.lieferadresse_stadt && creator.lieferadresse_stadt.trim() !== '';
-    return hasStrasse && hasPlz && hasStadt;
-};
-
-
-VertraegeCreate.prototype.hasValidAgencyAddress = function(agentur = this.formData) {
-    if (!agentur) return false;
-    const hasStrasse = agentur.influencer_agentur_strasse && agentur.influencer_agentur_strasse.trim() !== '';
-    const hasPlz = agentur.influencer_agentur_plz && agentur.influencer_agentur_plz.trim() !== '';
-    const hasStadt = agentur.influencer_agentur_stadt && agentur.influencer_agentur_stadt.trim() !== '';
-    return !!agentur.influencer_agentur_vertreten && hasStrasse && hasPlz && hasStadt;
-};
-
-
-VertraegeCreate.prototype.getResolvedCreatorContractAddress = function(creator, agentur = this.formData) {
-    if (this.hasValidCreatorAddress(creator)) {
-      return {
-        source: 'creator',
-        strasse: creator.lieferadresse_strasse || '',
-        hausnummer: creator.lieferadresse_hausnummer || '',
-        plz: creator.lieferadresse_plz || '',
-        stadt: creator.lieferadresse_stadt || '',
-        land: creator.lieferadresse_land || 'Deutschland'
-      };
-    }
-
-    if (this.hasValidAgencyAddress(agentur)) {
-      return {
-        source: 'agentur',
-        name: agentur.influencer_agentur_name || '',
-        strasse: agentur.influencer_agentur_strasse || '',
-        hausnummer: agentur.influencer_agentur_hausnummer || '',
-        plz: agentur.influencer_agentur_plz || '',
-        stadt: agentur.influencer_agentur_stadt || '',
-        land: agentur.influencer_agentur_land || 'Deutschland'
-      };
-    }
-
-    return null;
-};
-
-
-VertraegeCreate.prototype.renderCreatorAddressPreview = function(creator) {
-    const resolved = this.getResolvedCreatorContractAddress(creator);
-
-    if (!creator) return '';
-
-    if (!resolved) {
-      this.creatorAddressMissing = true;
-      return `
-        <div class="address-warning">
-          <span>Keine Creator-Adresse und keine gültige Agentur-Adresse hinterlegt. Vertragserstellung nicht möglich.</span><br>
-          <a href="/creator/${escapeHtml(creator.id)}" onclick="event.preventDefault(); window.navigateTo('/creator/${escapeHtml(creator.id)}')">
-            Zum Creator-Profil
-          </a>
-        </div>
-      `;
-    }
-
-    this.creatorAddressMissing = resolved.source !== 'creator';
-
-    if (resolved.source === 'agentur') {
-      return `
-        <div class="contract-address-fallback">
-          <div class="contract-address-fallback__title">Creator hat keine eigene Adresse. Für den Vertrag wird die Agentur-Adresse verwendet.</div>
-          <small class="address-text">
-            ${resolved.name ? `${escapeHtml(resolved.name)}<br>` : ''}
-            ${escapeHtml(resolved.strasse)} ${escapeHtml(resolved.hausnummer)}<br>
-            ${escapeHtml(resolved.plz)} ${escapeHtml(resolved.stadt)}<br>
-            ${escapeHtml(resolved.land)}
-          </small>
-        </div>
-      `;
-    }
-
-    return `
-      <small class="address-text">
-        ${escapeHtml(resolved.strasse)} ${escapeHtml(resolved.hausnummer)}<br>
-        ${escapeHtml(resolved.plz)} ${escapeHtml(resolved.stadt)}<br>
-        ${escapeHtml(resolved.land)}
-      </small>
-    `;
-};
-
-
-VertraegeCreate.prototype.updateCreatorAddressPreview = function(creator) {
-    const preview = document.getElementById('creator-adresse');
-    if (!preview) return;
-    preview.innerHTML = this.renderCreatorAddressPreview(creator);
-};
+// Adress-Validation und Preview wurden nach CreatorAddressResolver.js verschoben
 

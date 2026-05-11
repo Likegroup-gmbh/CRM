@@ -370,19 +370,19 @@ export class BilderTabHandler {
         return;
       }
 
+      const TRASH_ICON = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>';
+
       listEl.innerHTML = this._existingImages.map(img => {
         const sizeMB = img.file_size ? (img.file_size / 1024 / 1024).toFixed(1) + ' MB' : '';
+        const name = img.file_name || img.file_path?.split('/').pop() || '?';
         return `
-          <div class="existing-image-item">
+          <div class="existing-image-item existing-storys-asset-item">
             <div class="existing-image-info">
-              <span class="existing-image-name">${escapeHtml(img.file_name || img.file_path?.split('/').pop() || '?')}</span>
-              ${sizeMB ? `<span class="existing-image-size">${sizeMB}</span>` : ''}
+              <span class="existing-image-name">${escapeHtml(name)}${sizeMB ? ` · ${sizeMB}` : ''}</span>
             </div>
-            <button type="button" class="existing-image-delete" data-id="${img.id}" data-path="${escapeHtml(img.file_path || '')}" title="Löschen">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
-              </svg>
-            </button>
+            <div class="existing-asset-actions">
+              <button type="button" class="existing-image-delete" data-id="${img.id}" data-path="${escapeHtml(img.file_path || '')}" title="Löschen">${TRASH_ICON}</button>
+            </div>
           </div>`;
       }).join('');
 

@@ -26,10 +26,6 @@ export function groupItemsByKategorie(items) {
 }
 
 export function isColumnVisibleForCustomer(columnClass, isKunde, hiddenColumns) {
-  if (window.isInternal()) {
-    return true;
-  }
-
   if (columnClass === 'cp-col-name' || columnClass === 'cp-col-actions' || columnClass === 'cp-col-drag') {
     return true;
   }
@@ -39,9 +35,12 @@ export function isColumnVisibleForCustomer(columnClass, isKunde, hiddenColumns) 
 
 export function getVisibleColumnCount(isKunde, hiddenColumns) {
   const allColumns = [
-    'cp-col-drag', 'cp-col-name', 'cp-col-typ', 'cp-col-link-ig', 'cp-col-follower-ig',
-    'cp-col-link-tt', 'cp-col-follower-tt', 'cp-col-location', 'cp-col-notiz', 'cp-col-angefragt',
-    'cp-col-feedback', 'cp-col-prio1', 'cp-col-prio2', 'cp-col-nicht', 'cp-col-check', 'cp-col-pricing', 'cp-col-actions'
+    'cp-col-drag', 'cp-col-name', 'cp-col-typ', 'cp-col-links', 'cp-col-follower-ig',
+    'cp-col-follower-tt', 'cp-col-ek', 'cp-col-vk', 'cp-col-pricing',
+    'cp-col-reichweite-ig', 'cp-col-reichweite-tt', 'cp-col-reichweite-garantie',
+    'cp-col-cpm-ig', 'cp-col-cpm-tt',
+    'cp-col-location', 'cp-col-notiz', 'cp-col-angefragt',
+    'cp-col-feedback', 'cp-col-prio1', 'cp-col-prio2', 'cp-col-nicht', 'cp-col-check', 'cp-col-actions'
   ];
 
   let count = 0;
@@ -66,10 +65,17 @@ const NICHT_UMSETZEN_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none"
 // --- Render-Funktionen ---
 // ctx = { items, liste, isKunde, hiddenColumns }
 
-export function renderAddSection() {
+export function renderAddSection(ctx = {}) {
+  const kundenCallActive = ctx.kundenCallActive || false;
   return `
     <div class="add-item-section add-item-section--compact">
       <div class="add-item-actions-right">
+        <button type="button" class="secondary-btn${kundenCallActive ? ' active' : ''}" id="btn-kunden-call-toggle" title="EK und CPM für Kundenpräsentation ausblenden">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
+          </svg>
+          Kunden Call
+        </button>
         <button type="button" class="secondary-btn" id="btn-sourcing-detail-column-visibility">
           Sichtbarkeit anpassen
         </button>
@@ -115,11 +121,18 @@ export function renderItemsTable(ctx) {
           <tr>
             ${!ctx.isKunde ? '<th class="col-drag col-sticky-1 cp-col-drag"><input type="checkbox" class="sourcing-select-all" title="Alle auswählen"></th>' : ''}
             <th class="${ctx.isKunde ? 'col-sticky-1' : 'col-sticky-2'} cp-col-name">Name</th>
-            <th class="${ctx.isKunde ? 'col-sticky-2' : ''} cp-col-typ" ${hide('cp-col-typ')}>Creator Art</th>
-            <th class="cp-col-link-ig" ${hide('cp-col-link-ig')}>Link ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-typ" ${hide('cp-col-typ')}>Creator Art</th>
+            <th class="cp-col-links" ${hide('cp-col-links')}>Links</th>
             <th class="cp-col-follower-ig" ${hide('cp-col-follower-ig')}>Follower ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-link-tt" ${hide('cp-col-link-tt')}>Link ${TIKTOK_ICON}</th>
             <th class="cp-col-follower-tt" ${hide('cp-col-follower-tt')}>Follower ${TIKTOK_ICON}</th>
+            <th class="cp-col-ek" ${hide('cp-col-ek')}>EK</th>
+            <th class="cp-col-vk" ${hide('cp-col-vk')}>VK</th>
+            <th class="cp-col-pricing" ${hide('cp-col-pricing')}>Pricing</th>
+            <th class="cp-col-reichweite-ig" ${hide('cp-col-reichweite-ig')}>Reichweite ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-reichweite-tt" ${hide('cp-col-reichweite-tt')}>Reichweite ${TIKTOK_ICON}</th>
+            <th class="cp-col-reichweite-garantie" ${hide('cp-col-reichweite-garantie')}>RW Garantie</th>
+            <th class="cp-col-cpm-ig" ${hide('cp-col-cpm-ig')}>CPM ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-cpm-tt" ${hide('cp-col-cpm-tt')}>CPM ${TIKTOK_ICON}</th>
             <th class="cp-col-location" ${hide('cp-col-location')}>Location</th>
             <th class="cp-col-notiz" ${hide('cp-col-notiz')}>Kurzbeschreibung</th>
             <th class="cp-col-angefragt" ${hide('cp-col-angefragt')}>Angefragt</th>
@@ -128,7 +141,6 @@ export function renderItemsTable(ctx) {
             <th class="cp-col-prio2" ${hide('cp-col-prio2')}>Prio 2</th>
             <th class="cp-col-nicht" ${hide('cp-col-nicht')}>Nicht buchen</th>
             <th class="cp-col-check" ${hide('cp-col-check')}>Rückmeldung</th>
-            <th class="cp-col-pricing" ${hide('cp-col-pricing')}>Pricing</th>
             ${!ctx.isKunde ? '<th class="col-actions cp-col-actions">Aktionen</th>' : ''}
           </tr>
         </thead>
@@ -263,7 +275,7 @@ export function renderItemRow(ctx, item, index) {
           ${ctx.teilbereiche?.length > 0 && item.kategorie !== 'Nicht umsetzen' ? `<span class="kategorie-pill" data-item-id="${item.id}">${item.kategorie || 'Ohne Kategorie'}</span>` : ''}
         ` : `<div class="cell-text-readonly">${item.name || '-'}</div>`}
       </td>
-      <td class="cell-textarea cp-col-typ ${ctx.isKunde ? 'col-sticky-2' : ''}" style="${hide('cp-col-typ')}">
+      <td class="cell-textarea cp-col-typ" style="${hide('cp-col-typ')}">
         ${!ctx.isKunde ? `
           <select class="strategie-textarea" data-field="typ" data-item-id="${item.id}" style="border: none; background: transparent; cursor: pointer;">
             <option value="">-</option>
@@ -271,31 +283,77 @@ export function renderItemRow(ctx, item, index) {
           </select>
         ` : `<div class="cell-text-readonly">${item.typ || '-'}</div>`}
       </td>
-      <td class="cell-textarea cp-col-link-ig" style="text-align: center;${hide('cp-col-link-ig')}">
+      <td class="cp-col-links" style="${hide('cp-col-links')}">
         ${!ctx.isKunde ? `
-          <div class="link-cell-wrapper">
-            ${item.link_instagram ? `<a href="${item.link_instagram}" target="_blank" class="link-icon-btn" title="${item.link_instagram}">${EXTERNAL_LINK_ICON}</a>` : ''}
-            <textarea class="strategie-textarea link-input" data-field="link_instagram" data-item-id="${item.id}" placeholder="Link...">${item.link_instagram || ''}</textarea>
+          <div class="links-compact-cell">
+            <div class="links-compact-row">
+              ${INSTAGRAM_ICON}
+              <input type="text" class="links-compact-input" data-field="link_instagram" data-item-id="${item.id}" placeholder="IG Link..." value="${item.link_instagram || ''}">
+              ${item.link_instagram ? `<a href="${item.link_instagram}" target="_blank" class="link-icon-btn" title="${item.link_instagram}">${EXTERNAL_LINK_ICON}</a>` : ''}
+            </div>
+            <div class="links-compact-row">
+              ${TIKTOK_ICON}
+              <input type="text" class="links-compact-input" data-field="link_tiktok" data-item-id="${item.id}" placeholder="TT Link..." value="${item.link_tiktok || ''}">
+              ${item.link_tiktok ? `<a href="${item.link_tiktok}" target="_blank" class="link-icon-btn" title="${item.link_tiktok}">${EXTERNAL_LINK_ICON}</a>` : ''}
+            </div>
           </div>
-        ` : item.link_instagram ? `<a href="${item.link_instagram}" target="_blank" class="link-icon-btn" title="${item.link_instagram}">${EXTERNAL_LINK_ICON}</a>` : `<div class="cell-text-readonly">-</div>`}
+        ` : `
+          <div class="links-compact-cell links-compact-cell--readonly">
+            ${item.link_instagram ? `<a href="${item.link_instagram}" target="_blank" class="link-icon-btn" title="Instagram">${INSTAGRAM_ICON}</a>` : ''}
+            ${item.link_tiktok ? `<a href="${item.link_tiktok}" target="_blank" class="link-icon-btn" title="TikTok">${TIKTOK_ICON}</a>` : ''}
+            ${!item.link_instagram && !item.link_tiktok ? '<span class="cell-text-readonly">-</span>' : ''}
+          </div>
+        `}
       </td>
       <td class="cell-textarea cp-col-follower-ig" style="${hide('cp-col-follower-ig')}">
         ${!ctx.isKunde ? `
           <textarea class="strategie-textarea" data-field="follower_instagram" data-item-id="${item.id}" placeholder="0">${item.follower_instagram || ''}</textarea>
         ` : `<div class="cell-text-readonly">${formatFollower(item.follower_instagram) || '-'}</div>`}
       </td>
-      <td class="cell-textarea cp-col-link-tt" style="text-align: center;${hide('cp-col-link-tt')}">
-        ${!ctx.isKunde ? `
-          <div class="link-cell-wrapper">
-            ${item.link_tiktok ? `<a href="${item.link_tiktok}" target="_blank" class="link-icon-btn" title="${item.link_tiktok}">${EXTERNAL_LINK_ICON}</a>` : ''}
-            <textarea class="strategie-textarea link-input" data-field="link_tiktok" data-item-id="${item.id}" placeholder="Link...">${item.link_tiktok || ''}</textarea>
-          </div>
-        ` : item.link_tiktok ? `<a href="${item.link_tiktok}" target="_blank" class="link-icon-btn" title="${item.link_tiktok}">${EXTERNAL_LINK_ICON}</a>` : `<div class="cell-text-readonly">-</div>`}
-      </td>
       <td class="cell-textarea cp-col-follower-tt" style="${hide('cp-col-follower-tt')}">
         ${!ctx.isKunde ? `
           <textarea class="strategie-textarea" data-field="follower_tiktok" data-item-id="${item.id}" placeholder="0">${item.follower_tiktok || ''}</textarea>
         ` : `<div class="cell-text-readonly">${formatFollower(item.follower_tiktok) || '-'}</div>`}
+      </td>
+      <td class="cell-textarea cp-col-ek" style="${hide('cp-col-ek')}">
+        ${!ctx.isKunde ? `
+          <input type="number" class="strategie-textarea${ctx.kundenCallActive ? ' kunden-call-blur' : ''}" data-field="preis_ek" data-item-id="${item.id}" data-blur-target placeholder="0" value="${item.preis_ek ?? ''}" step="0.01">
+        ` : `<div class="cell-text-readonly">${item.preis_ek != null ? Number(item.preis_ek).toLocaleString('de-DE', {minimumFractionDigits: 0}) + ' €' : '-'}</div>`}
+      </td>
+      <td class="cell-textarea cp-col-vk" style="${hide('cp-col-vk')}">
+        ${!ctx.isKunde ? `
+          <input type="number" class="strategie-textarea" data-field="preis_vk" data-item-id="${item.id}" placeholder="0" value="${item.preis_vk ?? ''}" step="0.01">
+        ` : `<div class="cell-text-readonly">${item.preis_vk != null ? Number(item.preis_vk).toLocaleString('de-DE', {minimumFractionDigits: 0}) + ' €' : '-'}</div>`}
+      </td>
+      <td class="cell-textarea cp-col-pricing" style="${hide('cp-col-pricing')}">
+        ${!ctx.isKunde ? `
+          <textarea class="strategie-textarea" data-field="pricing" data-item-id="${item.id}" placeholder="Preis...">${item.pricing || ''}</textarea>
+        ` : `<div class="cell-text-readonly">${item.pricing || '-'}</div>`}
+      </td>
+      <td class="cell-textarea cp-col-reichweite-ig" style="${hide('cp-col-reichweite-ig')}">
+        ${!ctx.isKunde ? `
+          <input type="text" class="strategie-textarea" data-field="reichweite_instagram" data-item-id="${item.id}" placeholder="z.B. 10K" value="${item.reichweite_instagram || ''}">
+        ` : `<div class="cell-text-readonly">${item.reichweite_instagram || '-'}</div>`}
+      </td>
+      <td class="cell-textarea cp-col-reichweite-tt" style="${hide('cp-col-reichweite-tt')}">
+        ${!ctx.isKunde ? `
+          <input type="text" class="strategie-textarea" data-field="reichweite_tiktok" data-item-id="${item.id}" placeholder="z.B. 10K" value="${item.reichweite_tiktok || ''}">
+        ` : `<div class="cell-text-readonly">${item.reichweite_tiktok || '-'}</div>`}
+      </td>
+      <td class="cell-textarea cp-col-reichweite-garantie" style="${hide('cp-col-reichweite-garantie')}">
+        ${!ctx.isKunde ? `
+          <input type="text" class="strategie-textarea" data-field="reichweite_garantie" data-item-id="${item.id}" placeholder="z.B. 50K" value="${item.reichweite_garantie || ''}">
+        ` : `<div class="cell-text-readonly">${item.reichweite_garantie || '-'}</div>`}
+      </td>
+      <td class="cell-textarea cp-col-cpm-ig" style="${hide('cp-col-cpm-ig')}">
+        ${!ctx.isKunde ? `
+          <input type="number" class="strategie-textarea${ctx.kundenCallActive ? ' kunden-call-blur' : ''}" data-field="cpm_instagram" data-item-id="${item.id}" data-blur-target placeholder="0" value="${item.cpm_instagram ?? ''}" step="0.01">
+        ` : `<div class="cell-text-readonly">${item.cpm_instagram != null ? Number(item.cpm_instagram).toLocaleString('de-DE', {minimumFractionDigits: 2}) + ' €' : '-'}</div>`}
+      </td>
+      <td class="cell-textarea cp-col-cpm-tt" style="${hide('cp-col-cpm-tt')}">
+        ${!ctx.isKunde ? `
+          <input type="number" class="strategie-textarea${ctx.kundenCallActive ? ' kunden-call-blur' : ''}" data-field="cpm_tiktok" data-item-id="${item.id}" data-blur-target placeholder="0" value="${item.cpm_tiktok ?? ''}" step="0.01">
+        ` : `<div class="cell-text-readonly">${item.cpm_tiktok != null ? Number(item.cpm_tiktok).toLocaleString('de-DE', {minimumFractionDigits: 2}) + ' €' : '-'}</div>`}
       </td>
       <td class="cell-textarea cp-col-location" style="${hide('cp-col-location')}">
         ${!ctx.isKunde ? `
@@ -347,11 +405,6 @@ export function renderItemRow(ctx, item, index) {
           class="cp-checkbox${ctx.isKunde ? ' cp-checkbox--readonly' : ''}"
           ${ctx.isKunde ? 'disabled' : ''}
         >
-      </td>
-      <td class="cell-textarea cp-col-pricing" style="${hide('cp-col-pricing')}">
-        ${!ctx.isKunde ? `
-          <textarea class="strategie-textarea" data-field="pricing" data-item-id="${item.id}" placeholder="Preis...">${item.pricing || ''}</textarea>
-        ` : `<div class="cell-text-readonly">${item.pricing || '-'}</div>`}
       </td>
       ${!ctx.isKunde ? `
         <td class="col-actions">

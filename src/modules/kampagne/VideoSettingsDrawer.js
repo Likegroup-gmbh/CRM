@@ -23,30 +23,24 @@ export class VideoSettingsDrawer {
     this.videoUrl = null;
     this.filePath = null;
     this.videoTitel = null;
-    this.videoName = '';
     this.onReupload = null;
     this.onStorysReupload = null;
     this.onBilderReupload = null;
     this.onDelete = null;
-    this.onNameUpdated = null;
-    this._isSavingName = false;
     this._activeTab = 'videos';
     this._expandedRounds = new Set();
   }
 
-  async open({ videoId, kooperationId, videoUrl, filePath, videoTitel, videoName, onReupload, onStorysReupload, onBilderReupload, onDelete, onNameUpdated }) {
+  async open({ videoId, kooperationId, videoUrl, filePath, videoTitel, onReupload, onStorysReupload, onBilderReupload, onDelete }) {
     this.videoId = videoId;
     this.kooperationId = kooperationId;
     this.videoUrl = videoUrl;
     this.filePath = filePath;
     this.videoTitel = videoTitel || 'Video';
-    this.videoName = videoName || '';
     this.onReupload = onReupload;
     this.onStorysReupload = onStorysReupload;
     this.onBilderReupload = onBilderReupload;
     this.onDelete = onDelete;
-    this.onNameUpdated = onNameUpdated;
-    this._isSavingName = false;
     this._activeTab = 'videos';
     this._expandedRounds = new Set();
     this.assets = [];
@@ -268,10 +262,6 @@ export class VideoSettingsDrawer {
     return `
       <div id="settings-tab-videos" style="${this._activeTab !== 'videos' ? 'display:none' : ''}">
         <div class="video-settings-section">
-          <label class="video-settings-label" for="video-settings-name-input">Video-Name</label>
-          <input type="text" id="video-settings-name-input" class="form-input video-settings-name-input" value="${escapeHtml(this.videoName)}" placeholder="Video-Name"/>
-        </div>
-        <div class="video-settings-section">
           ${contentHtml}
         </div>
         <div class="video-settings-actions">
@@ -452,7 +442,6 @@ export class VideoSettingsDrawer {
     const closeBtn = panel?.querySelector('.drawer-close-btn');
     const closeBtnFooter = document.getElementById('video-settings-close-btn');
     const reuploadBtn = document.getElementById('video-settings-reupload-btn');
-    const nameInput = document.getElementById('video-settings-name-input');
 
     overlay?.addEventListener('click', () => this.close());
     closeBtn?.addEventListener('click', () => this.close());
@@ -479,35 +468,6 @@ export class VideoSettingsDrawer {
           this._expandedRounds.add(key);
         }
       });
-    });
-
-    // Video name save on blur
-    nameInput?.addEventListener('blur', async () => {
-      if (this._isSavingName) return;
-      const currentName = this.videoName || '';
-      const nextName = (nameInput.value || '').trim();
-      if (nextName === currentName) return;
-
-      this._isSavingName = true;
-      nameInput.disabled = true;
-      try {
-        const { error } = await window.supabase
-          .from('kooperation_videos')
-          .update({ video_name: nextName || null })
-          .eq('id', this.videoId);
-        if (error) throw error;
-
-        this.videoName = nextName;
-        if (typeof this.onNameUpdated === 'function') {
-          this.onNameUpdated(nextName);
-        }
-      } catch (err) {
-        alert('Video-Name konnte nicht gespeichert werden: ' + (err.message || 'Unbekannter Fehler'));
-        nameInput.value = currentName;
-      } finally {
-        this._isSavingName = false;
-        nameInput.disabled = false;
-      }
     });
 
     reuploadBtn?.addEventListener('click', () => {

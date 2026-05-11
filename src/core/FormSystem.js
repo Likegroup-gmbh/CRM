@@ -292,7 +292,12 @@ export class FormSystem {
 
         // Rechnungs-Dateien (Belege + PDF) beim Edit verarbeiten
         if (entity === 'rechnung') {
-          await this.handleRechnungFiles(result.id, form);
+          try {
+            await this.handleRechnungFiles(result.id, form);
+          } catch (fileErr) {
+            this.validator.showErrorMessage(`Rechnung gespeichert, aber PDF-Verarbeitung fehlgeschlagen: ${fileErr.message}`);
+            return { success: false };
+          }
         }
 
         this.validator.showSuccessMessage(data ? 'Erfolgreich aktualisiert!' : 'Erfolgreich erstellt!');

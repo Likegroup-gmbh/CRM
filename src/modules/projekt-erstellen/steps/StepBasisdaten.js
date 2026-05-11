@@ -1,9 +1,13 @@
 // StepBasisdaten.js
 // Step 1 des Projekt-Erstellen-Flows:
 // Unternehmen, Marke, Ansprechpartner, Art des Auftrags, Zeitrahmen, Titel.
+// Bei Contracting zusaetzlich: Upload-Feld fuer Auftragsbestaetigungen.
 
-import { AUFTRAG_TYPES } from '../constants.js';
 import { TitelGenerator } from '../components/TitelGenerator.js';
+import { UploaderField } from '../../../core/form/fields/UploaderField.js';
+
+const AUFTRAGSBESTAETIGUNG_ACCEPT = '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png';
+const AUFTRAGSBESTAETIGUNG_MAX_SIZE = 25 * 1024 * 1024;
 
 export class StepBasisdaten {
   constructor(wizard) {
@@ -15,6 +19,7 @@ export class StepBasisdaten {
     this.ansprechpartnerOptionsByUnternehmen = new Map();
 
     this.titelGenerator = null;
+    this.uploader = null;
     this._liveHandler = null;
     this._stammdatenLoaded = false;
   }
@@ -22,10 +27,7 @@ export class StepBasisdaten {
   render(host) {
     this.host = host;
     const a = this.wizard.formData.auftrag || {};
-
-    const artOptions = AUFTRAG_TYPES.map(t => `
-      <option value="${t.value}" ${a.auftragtype === t.value ? 'selected' : ''}>${t.label}</option>
-    `).join('');
+    const isContracting = this.wizard.isContracting;
 
     host.innerHTML = `
       <div class="form-section projekt-erstellen-section-stack">
@@ -51,14 +53,6 @@ export class StepBasisdaten {
           </div>
         </div>
 
-        <div class="form-field">
-          <label for="field-pe-auftragtype">Art des Auftrags <span class="required">*</span></label>
-          <select id="field-pe-auftragtype" name="auftragtype" required>
-            <option value="">Art auswählen...</option>
-            ${artOptions}
-          </select>
-        </div>
-
         <div class="form-two-col">
           <div class="form-field form-field--half">
             <label for="field-pe-start">Startdatum</label>
@@ -77,6 +71,14 @@ export class StepBasisdaten {
           </div>
           <button type="button" class="secondary-btn" id="pe-titel-reset-btn" title="Vorschlag zurücksetzen" style="display:none;">Vorschlag nutzen</button>
         </div>
+
+        ${isContracting ? `
+          <div class="form-field">
+            <label>Auftragsbestätigungen</label>
+            <div id="pe-auftragsbestaetigung-uploader" class="uploader uploader--auftragsbestaetigung" data-name="auftragsbestaetigungen"></div>
+            <small class="form-hint">PDF, JPG oder PNG (max. 25 MB pro Datei). Mehrfach-Upload möglich. Werden nach dem Anlegen in Dropbox gespeichert.</small>
+          </div>
+        ` : ''}
       </div>
     `;
   }
@@ -102,13 +104,11 @@ export class StepBasisdaten {
     const a = this.wizard.formData.auftrag;
     if (a.marke_id) this.setSelectValue('field-pe-marke_id', a.marke_id);
     if (a.ansprechpartner_id) this.setSelectValue('field-pe-ansprechpartner_id', a.ansprechpartner_id);
-    if (a.auftragtype) this.setSelectValue('field-pe-auftragtype', a.auftragtype);
   }
 
   bindEvents() {
     const unternehmenSelect = document.getElementById('field-pe-unternehmen_id');
     const markeSelect = document.getElementById('field-pe-marke_id');
-    const auftragTypeSelect = document.getElementById('field-pe-auftragtype');
     const startInput = document.getElementById('field-pe-start');
 
     this.titelGenerator = new TitelGenerator({
@@ -151,15 +151,6 @@ export class StepBasisdaten {
       });
     }
 
-    if (auftragTypeSelect) {
-      auftragTypeSelect.addEventListener('change', (e) => {
-        this.wizard.formData.auftrag.auftragtype = e.target.value || null;
-        this.wizard.updateStepsForAuftragtype();
-        this.recomputeTitle();
-        this.wizard.updateFeedback();
-      });
-    }
-
     if (startInput) {
       startInput.addEventListener('input', (e) => {
         this.wizard.formData.auftrag.start = e.target.value || null;
@@ -182,6 +173,35 @@ export class StepBasisdaten {
         this.wizard.formData.auftrag.ansprechpartner_id = e.target.value || null;
         this.wizard.updateFeedback();
       });
+    }
+
+    this.mountAuftragsbestaetigungUploader();
+  }
+
+  mountAuftragsbestaetigungUploader() {
+    if (!this.wizard.isContracting) {
+      this.uploader = null;
+      return;
+    }
+
+    const root = document.getElementById('pe-auftragsbestaetigung-uploader');
+    if (!root) return;
+
+    this.uploader = new UploaderField({
+      multiple: true,
+      accept: AUFTRAGSBESTAETIGUNG_ACCEPT,
+      maxFileSize: AUFTRAGSBESTAETIGUNG_MAX_SIZE,
+      onFilesChanged: (files) => {
+        this.wizard.formData.auftrag.auftragsbestaetigungen_files = files;
+        this.wizard.updateFeedback();
+      }
+    });
+    this.uploader.mount(root);
+
+    const previousFiles = this.wizard.formData.auftrag.auftragsbestaetigungen_files;
+    if (Array.isArray(previousFiles) && previousFiles.length > 0) {
+      this.uploader.files = [...previousFiles];
+      this.uploader.renderList();
     }
   }
 
@@ -408,26 +428,30 @@ export class StepBasisdaten {
     const unternehmenId = document.getElementById('field-pe-unternehmen_id')?.value || a.unternehmen_id || null;
     const markeId = document.getElementById('field-pe-marke_id')?.value || a.marke_id || null;
     const apId = document.getElementById('field-pe-ansprechpartner_id')?.value || a.ansprechpartner_id || null;
-    const auftragType = document.getElementById('field-pe-auftragtype')?.value || null;
     const start = document.getElementById('field-pe-start')?.value || null;
     const ende = document.getElementById('field-pe-ende')?.value || null;
     const titel = document.getElementById('field-pe-titel')?.value || '';
+
+    const auftragsbestaetigungen_files = this.uploader
+      ? [...this.uploader.files]
+      : (Array.isArray(a.auftragsbestaetigungen_files) ? a.auftragsbestaetigungen_files : []);
 
     return {
       auftrag: {
         unternehmen_id: unternehmenId,
         marke_id: markeId,
         ansprechpartner_id: apId,
-        auftragtype: auftragType,
         start,
         ende,
         titel,
-        titel_manuell_geaendert: this.wizard.formData.auftrag.titel_manuell_geaendert
+        titel_manuell_geaendert: this.wizard.formData.auftrag.titel_manuell_geaendert,
+        auftragsbestaetigungen_files
       }
     };
   }
 
   destroy() {
     this.titelGenerator = null;
+    this.uploader = null;
   }
 }

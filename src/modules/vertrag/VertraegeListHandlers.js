@@ -87,7 +87,9 @@ export async function openVertragUploadDrawer(list, vertragId) {
   drawer.open(vertragId, {
     kooperationId: vertrag.kooperation_id,
     unternehmen: vertrag.kunde?.firmenname || list.currentUnternehmenName || '',
+    marke: vertrag.kampagne?.marke?.markenname || '',
     kampagne: KampagneUtils.getDisplayName(vertrag.kampagne) || '',
+    kooperation: vertrag.kooperation?.name || '',
     creator: vertrag.creator ? `${vertrag.creator.vorname || ''} ${vertrag.creator.nachname || ''}`.trim() : '',
     vertragstyp: vertrag.typ || ''
   }, () => {

@@ -19,18 +19,25 @@ export class MagicLinkService {
   /**
    * Erstellt einen Magic Link für einen Ansprechpartner
    * @param {string} ansprechpartnerId - UUID des Ansprechpartners
-   * @param {number} expiresInDays - Gültigkeit in Tagen (Standard: 7)
+   * @param {number|null} expiresInDays - Gültigkeit in Tagen. null/undefined = unbegrenzt gültig (Default).
    * @returns {Promise<{success: boolean, link?: string, expiresAt?: Date, error?: string}>}
    */
-  async createMagicLink(ansprechpartnerId, expiresInDays = 7) {
+  async createMagicLink(ansprechpartnerId, expiresInDays = null) {
     try {
       if (!window.supabase) {
         throw new Error('Supabase nicht verfügbar');
       }
 
       const token = this.generateToken();
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + expiresInDays);
+      // Sentinel-Datum für "unbegrenzt gültig" (kompatibel mit NOT NULL Constraint
+      // auf magic_links.expires_at und mit der bestehenden Ablauf-Validierung).
+      const expiresAt = expiresInDays == null
+        ? new Date('9999-12-31T23:59:59Z')
+        : (() => {
+            const d = new Date();
+            d.setDate(d.getDate() + expiresInDays);
+            return d;
+          })();
 
       const { data, error } = await window.supabase
         .from('magic_links')

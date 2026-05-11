@@ -1,6 +1,9 @@
 // Contracting-spezifische Create/Edit-Logik fuer Rechnungen
 // Segmented Control, Submit-Handler, File-Uploads
 
+import { uploadRechnungPdf, uploadRechnungBeleg } from '../../core/DropboxDocumentUploader.js';
+import { resolveRechnungPathMetadata } from '../../core/RechnungPathMetadata.js';
+
 // --- Segmented Control ---
 
 export function renderSegmentedControl(activeType = 'kampagne') {
@@ -71,8 +74,16 @@ export async function handleContractingCreateSubmit(form) {
     await fillPoFromAuftrag(submitData);
   }
 
-  // PDF Upload
-  const pdfFiles = await uploadFiles(form, 'pdf_file', 'rechnungen', submitData.unternehmen_id);
+  // Pfad-Metadaten (für Contracting ohne Kampagne) auflösen
+  const pathMeta = await resolveRechnungPathMetadata({
+    unternehmenId: submitData.unternehmen_id,
+    kampagneId: submitData.kampagne_id, // null bei Contracting → Fallback /Contracting/Rechnungen
+    kooperationId: submitData.kooperation_id,
+    rechnungsNr: submitData.rechnung_nr,
+  });
+
+  // PDF Upload → Dropbox
+  const pdfFiles = await uploadPdfFiles(form, pathMeta);
 
   try {
     const result = await window.dataService.createEntity('rechnung', submitData);
@@ -81,7 +92,7 @@ export async function handleContractingCreateSubmit(form) {
     const rechnungId = result.id;
 
     await savePdfMetadata(rechnungId, pdfFiles);
-    await uploadBelege(form, rechnungId);
+    await uploadBelege(form, rechnungId, pathMeta);
 
     alert('Contracting-Rechnung erstellt');
     window.navigateTo(`/rechnung/${rechnungId}`);
@@ -149,20 +160,20 @@ async function fillPoFromAuftrag(submitData) {
   } catch { /* non-critical */ }
 }
 
-async function uploadFiles(form, fieldName, bucket, folderId) {
-  const uploaderRoot = form.querySelector(`.uploader[data-name="${fieldName}"]`);
+async function uploadPdfFiles(form, pathMeta) {
+  const uploaderRoot = form.querySelector('.uploader[data-name="pdf_file"]');
   const files = [];
-  if (!uploaderRoot?.__uploaderInstance?.files?.length || !window.supabase) return files;
+  if (!uploaderRoot?.__uploaderInstance?.files?.length) return files;
 
   for (const file of Array.from(uploaderRoot.__uploaderInstance.files)) {
-    const sanitized = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.{2,}/g, '_').substring(0, 200);
-    const path = `${folderId || 'unknown'}/${Date.now()}_${Math.random().toString(36).slice(2)}_${sanitized}`;
-    const { error } = await window.supabase.storage.from(bucket).upload(path, file, {
-      cacheControl: '3600', upsert: false, contentType: file.type
+    const result = await uploadRechnungPdf({ metadata: pathMeta, file });
+    files.push({
+      file_name: file.name,
+      file_path: result.filePath,
+      file_url: result.fileUrl,
+      content_type: file.type,
+      size: file.size,
     });
-    if (error) throw error;
-    const { data } = window.supabase.storage.from(bucket).getPublicUrl(path);
-    files.push({ file_name: file.name, file_path: path, file_url: data.publicUrl || '', content_type: file.type, size: file.size });
   }
   return files;
 }
@@ -173,29 +184,25 @@ async function savePdfMetadata(rechnungId, pdfFiles) {
       rechnung_id: rechnungId,
       file_name: pdf.file_name, file_path: pdf.file_path, file_url: pdf.file_url,
       content_type: pdf.content_type, size: pdf.size,
-      uploaded_by: window.currentUser?.id || null
+      uploaded_by: window.currentUser?.auth_user_id || null
     });
   }
 }
 
-async function uploadBelege(form, rechnungId) {
+async function uploadBelege(form, rechnungId, pathMeta) {
   const uploaderRoot = form.querySelector('.uploader[data-name="belege_files"]');
-  if (!uploaderRoot?.__uploaderInstance?.files?.length || !window.supabase) return;
+  if (!uploaderRoot?.__uploaderInstance?.files?.length) return;
 
-  const bucket = 'rechnung-belege';
   for (const file of Array.from(uploaderRoot.__uploaderInstance.files)) {
-    const sanitized = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.{2,}/g, '_').substring(0, 200);
-    const path = `${rechnungId}/${Date.now()}_${Math.random().toString(36).slice(2)}_${sanitized}`;
-    const { error } = await window.supabase.storage.from(bucket).upload(path, file, {
-      cacheControl: '3600', upsert: false, contentType: file.type
-    });
-    if (error) throw error;
-    const { data } = window.supabase.storage.from(bucket).getPublicUrl(path);
+    const result = await uploadRechnungBeleg({ metadata: pathMeta, file });
     await window.supabase.from('rechnung_belege').insert({
       rechnung_id: rechnungId,
-      file_name: file.name, file_path: path, file_url: data?.publicUrl || '',
-      content_type: file.type, size: file.size,
-      uploaded_by: window.currentUser?.id || null
+      file_name: file.name,
+      file_path: result.filePath,
+      file_url: result.fileUrl,
+      content_type: file.type,
+      size: file.size,
+      uploaded_by: window.currentUser?.auth_user_id || null
     });
   }
 }

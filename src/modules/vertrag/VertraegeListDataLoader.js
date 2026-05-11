@@ -89,7 +89,15 @@ export async function loadVertraege(unternehmenId, pagination) {
       kampagne:kampagne_id (
         id,
         kampagnenname,
-        eigener_name
+        eigener_name,
+        marke:marke_id (
+          id,
+          markenname
+        )
+      ),
+      kooperation:kooperation_id (
+        id,
+        name
       ),
       creator:creator_id (
         id,

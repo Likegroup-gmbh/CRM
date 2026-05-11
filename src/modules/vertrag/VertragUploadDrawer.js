@@ -225,7 +225,9 @@ export class VertragUploadDrawer {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           unternehmen: this.metadaten.unternehmen || '',
+          marke: this.metadaten.marke || '',
           kampagne: this.metadaten.kampagne || '',
+          kooperation: this.metadaten.kooperation || '',
           creator: this.metadaten.creator || '',
           vertragstyp: this.metadaten.vertragstyp || '',
           fileName: this._selectedFile.name

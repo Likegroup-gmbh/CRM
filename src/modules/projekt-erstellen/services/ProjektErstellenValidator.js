@@ -6,10 +6,19 @@ import { normalizeCampaignBlocks } from '../logic/CampaignBudgetFields.js';
 export class ProjektErstellenValidator {
   validateStep(step, formData) {
     const isContracting = formData.auftrag?.auftragtype === 'Contracting';
-    if (step === 1) return this.validateStep1(formData);
-    if (step === 2) return isContracting ? this.validateStep2Contracting(formData) : this.validateStep2(formData);
-    if (step === 3 && !isContracting) return this.validateStep3(formData);
+    if (step === 1) return this.validateStepAuftragstyp(formData);
+    if (step === 2) return this.validateStep1(formData);
+    if (step === 3) return isContracting ? this.validateStep2Contracting(formData) : this.validateStep2(formData);
+    if (step === 4 && !isContracting) return this.validateStep3(formData);
     return { valid: true, errors: [] };
+  }
+
+  validateStepAuftragstyp(formData) {
+    const errors = [];
+    if (!formData.auftrag?.auftragtype) {
+      errors.push('Bitte wählen Sie einen Auftragstyp aus');
+    }
+    return { valid: errors.length === 0, errors };
   }
 
   validateStep1(formData) {
@@ -17,7 +26,6 @@ export class ProjektErstellenValidator {
     const a = formData.auftrag || {};
     if (!a.unternehmen_id) errors.push('Unternehmen ist ein Pflichtfeld');
     if (!a.ansprechpartner_id) errors.push('Ansprechpartner ist ein Pflichtfeld');
-    if (!a.auftragtype) errors.push('Art des Auftrags ist ein Pflichtfeld');
     if (!a.titel || !String(a.titel).trim()) errors.push('Titel ist ein Pflichtfeld');
     if (a.start && a.ende && new Date(a.ende) < new Date(a.start)) {
       errors.push('Enddatum darf nicht vor dem Startdatum liegen');
@@ -28,8 +36,29 @@ export class ProjektErstellenValidator {
   validateStep2Contracting(formData) {
     const errors = [];
     const a = formData.auftrag || {};
+    const d = formData.details || {};
+    const parseMoney = (value) => {
+      if (value === '' || value == null) return 0;
+      const n = parseFloat(value);
+      return Number.isFinite(n) ? n : 0;
+    };
     if (!a.angebotsnummer || !String(a.angebotsnummer).trim()) {
       errors.push('Angebotsnummer ist ein Pflichtfeld');
+    }
+    if (d.agency_services_enabled) {
+      if (d.percentage_fee_enabled && (!d.percentage_fee_value || d.percentage_fee_value <= 0)) {
+        errors.push('Agentur Fee muss größer als 0 sein');
+      }
+      if (d.ksk_enabled && (!d.ksk_value || d.ksk_value <= 0)) {
+        errors.push('KSK-Betrag muss größer als 0 sein');
+      }
+      const agencyFee = d.percentage_fee_enabled ? parseMoney(d.percentage_fee_value) : 0;
+      const ksk = d.ksk_enabled ? parseMoney(d.ksk_value) : 0;
+      const deductions = agencyFee + ksk;
+      const netto = parseMoney(a.nettobetrag);
+      if (a.nettobetrag !== '' && a.nettobetrag != null && deductions > netto) {
+        errors.push('Agentur Fee und KSK dürfen das Netto-Budget nicht überschreiten');
+      }
     }
     return { valid: errors.length === 0, errors };
   }

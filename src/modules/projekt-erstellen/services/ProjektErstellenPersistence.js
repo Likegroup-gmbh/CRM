@@ -12,6 +12,7 @@ import {
   mapBudgetsToDbColumns,
   normalizeCampaignBlocks
 } from '../logic/CampaignBudgetFields.js';
+import { uploadAuftragsbestaetigungen } from '../../../core/AuftragsbestaetigungUploader.js';
 
 const SUPABASE = () => window.supabase;
 
@@ -103,8 +104,11 @@ export class ProjektErstellenPersistence {
 
   buildAuftragPayload(fd) {
     const a = fd.auftrag || {};
+    const d = fd.details || {};
     const creatorBudget = this.calculateCreatorBudget(fd);
-    return {
+    const isContracting = a.auftragtype === 'Contracting';
+
+    const payload = {
       unternehmen_id: a.unternehmen_id || null,
       marke_id: a.marke_id || null,
       ansprechpartner_id: a.ansprechpartner_id || null,
@@ -130,6 +134,16 @@ export class ProjektErstellenPersistence {
       is_draft: false,
       status: 'Beauftragt'
     };
+
+    if (isContracting) {
+      payload.agency_services_enabled = !!d.agency_services_enabled;
+      payload.percentage_fee_enabled = !!d.percentage_fee_enabled;
+      payload.percentage_fee_value = d.percentage_fee_enabled ? (d.percentage_fee_value ?? 0) : 0;
+      payload.ksk_enabled = !!d.ksk_enabled;
+      payload.ksk_value = d.ksk_enabled ? (d.ksk_value ?? 0) : 0;
+    }
+
+    return payload;
   }
 
   buildDetailsPayload(fd) {
@@ -239,7 +253,6 @@ export class ProjektErstellenPersistence {
       const currentBenutzerId = await getCurrentBenutzerId();
       const auftragPayload = this.buildAuftragPayload(formData);
       auftragPayload.created_by_id = currentBenutzerId;
-      auftragPayload.creator_budget = null;
 
       const unternehmenId = auftragPayload.unternehmen_id;
       if (unternehmenId) {
@@ -255,7 +268,22 @@ export class ProjektErstellenPersistence {
         .single();
       if (auftragErr) throw auftragErr;
 
-      return { success: true, auftragId: auftragData.id };
+      const auftragId = auftragData.id;
+
+      // Auftragsbestaetigungen nach Dropbox hochladen + DB-Eintraege anlegen
+      const uploadResult = await this.uploadAuftragsbestaetigungenIfAny({
+        formData,
+        auftragId,
+        auftragPayload,
+        currentBenutzerId
+      });
+
+      return {
+        success: true,
+        auftragId,
+        uploadedDocuments: uploadResult.successes,
+        uploadErrors: uploadResult.errors
+      };
     } catch (e) {
       const friendly = this.friendlyError(e, 'Contract konnte nicht angelegt werden');
       console.error('❌ submitContracting Fehler:', {
@@ -263,6 +291,46 @@ export class ProjektErstellenPersistence {
       });
       return { success: false, error: friendly };
     }
+  }
+
+  async uploadAuftragsbestaetigungenIfAny({ formData, auftragId, auftragPayload, currentBenutzerId }) {
+    const files = formData?.auftrag?.auftragsbestaetigungen_files;
+    if (!Array.isArray(files) || files.length === 0) {
+      return { successes: [], errors: [] };
+    }
+
+    const supabase = SUPABASE();
+    let unternehmenName = '';
+    let markeName = '';
+
+    try {
+      if (auftragPayload.unternehmen_id) {
+        const { data: u } = await supabase
+          .from('unternehmen')
+          .select('firmenname')
+          .eq('id', auftragPayload.unternehmen_id)
+          .single();
+        unternehmenName = u?.firmenname || '';
+      }
+      if (auftragPayload.marke_id) {
+        const { data: m } = await supabase
+          .from('marke')
+          .select('markenname')
+          .eq('id', auftragPayload.marke_id)
+          .single();
+        markeName = m?.markenname || '';
+      }
+    } catch (lookupErr) {
+      console.warn('⚠️ Unternehmen/Marke fuer Dropbox-Pfad nicht ermittelbar:', lookupErr);
+    }
+
+    return uploadAuftragsbestaetigungen(files, {
+      auftragId,
+      unternehmen: unternehmenName,
+      marke: markeName,
+      auftragstitel: auftragPayload.titel || '',
+      uploadedById: currentBenutzerId
+    });
   }
 
   async submit({ formData }) {

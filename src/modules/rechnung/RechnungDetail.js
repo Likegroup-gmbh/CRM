@@ -1,6 +1,28 @@
 // RechnungDetail.js (ES6-Modul)
 import { findSignedVertragForKooperation } from './RechnungVertragZuordnung.js';
 import { renderSegmentedControl, bindSegmentSwitcher, handleContractingCreateSubmit, handleContractingEditSubmit } from './RechnungContractingCreate.js';
+import { uploadRechnungPdf, uploadRechnungBeleg } from '../../core/DropboxDocumentUploader.js';
+import { resolveRechnungPathMetadata } from '../../core/RechnungPathMetadata.js';
+
+// Pfade die mit "/" anfangen sind Dropbox-Pfade (neue Uploads), alle anderen
+// sind Legacy Supabase Storage-Pfade. Für Dropbox-Pfade reicht die
+// gespeicherte file_url (Shared Link), für Supabase müssen wir publicUrl bauen.
+function isDropboxPath(filePath) {
+  return typeof filePath === 'string' && filePath.startsWith('/');
+}
+
+function resolveDocumentUrl(row, supabaseBucket) {
+  if (!row) return '';
+  if (isDropboxPath(row.file_path)) {
+    return row.file_url || '';
+  }
+  try {
+    const { data } = window.supabase.storage.from(supabaseBucket).getPublicUrl(row.file_path);
+    return data?.publicUrl || row.file_url || '';
+  } catch {
+    return row.file_url || '';
+  }
+}
 
 export class RechnungDetail {
   constructor() {
@@ -51,45 +73,30 @@ export class RechnungDetail {
     if (error) throw error;
     this.data = data;
 
-    // Belege zu dieser Rechnung laden und signierte URLs generieren
+    // Belege zu dieser Rechnung laden.
+    // Dropbox-Pfade (file_path beginnt mit "/") → file_url ist bereits ein Shared Link.
+    // Legacy Supabase-Pfade → publicUrl aus Bucket generieren.
     try {
       const { data: belegeRows } = await window.supabase
         .from('rechnung_belege')
         .select('id, file_name, file_path, file_url, content_type, size, uploaded_at, uploaded_by')
         .eq('rechnung_id', this.id)
         .order('uploaded_at', { ascending: false });
-      const bucket = 'rechnung-belege';
-      const processed = [];
-      for (const row of (belegeRows || [])) {
-        // Permanente Public URL generieren
-        const { data: urlData } = window.supabase.storage
-          .from(bucket)
-          .getPublicUrl(row.file_path);
-        const openUrl = urlData?.publicUrl || row.file_url || '';
-        processed.push({ ...row, open_url: openUrl });
-      }
+      const processed = (belegeRows || []).map(row => ({ ...row, open_url: resolveDocumentUrl(row, 'rechnung-belege') }));
       this.belege = processed;
     } catch (err) {
       console.warn('⚠️ Fehler beim Laden der Belege:', err?.message);
       this.belege = [];
     }
 
-    // PDFs zu dieser Rechnung laden
+    // PDFs zu dieser Rechnung laden (gleiche Dropbox/Supabase-Unterscheidung wie bei Belegen)
     try {
       const { data: pdfRows } = await window.supabase
         .from('rechnung_pdfs')
         .select('id, file_name, file_path, file_url, content_type, size, uploaded_at, uploaded_by')
         .eq('rechnung_id', this.id)
         .order('uploaded_at', { ascending: false });
-      const pdfBucket = 'rechnungen';
-      const pdfProcessed = [];
-      for (const row of (pdfRows || [])) {
-        const { data: urlData } = window.supabase.storage
-          .from(pdfBucket)
-          .getPublicUrl(row.file_path);
-        const openUrl = urlData?.publicUrl || row.file_url || '';
-        pdfProcessed.push({ ...row, open_url: openUrl });
-      }
+      const pdfProcessed = (pdfRows || []).map(row => ({ ...row, open_url: resolveDocumentUrl(row, 'rechnungen') }));
       this.pdfs = pdfProcessed;
     } catch (err) {
       console.warn('⚠️ Fehler beim Laden der PDFs:', err?.message);
@@ -285,26 +292,29 @@ export class RechnungDetail {
       console.log('📋 Submit-Daten vor Übertragung:', submitData);
       console.log('🔍 auftrag_id Wert:', submitData.auftrag_id, typeof submitData.auftrag_id);
 
-      // PDF Upload via UploaderField (Multi) → rechnung_pdfs Tabelle
+      // PDF Upload → Dropbox (rechnung_pdfs.file_path enthält den Dropbox-Pfad)
       const pdfUploaderRoot = form.querySelector('.uploader[data-name="pdf_file"]');
       const pdfFiles = [];
-      if (pdfUploaderRoot && pdfUploaderRoot.__uploaderInstance && pdfUploaderRoot.__uploaderInstance.files.length && window.supabase) {
+      const pathMeta = await resolveRechnungPathMetadata({
+        unternehmenId: submitData.unternehmen_id,
+        kampagneId: submitData.kampagne_id,
+        kooperationId: submitData.kooperation_id,
+        rechnungsNr: submitData.rechnung_nr,
+      });
+      if (pdfUploaderRoot && pdfUploaderRoot.__uploaderInstance && pdfUploaderRoot.__uploaderInstance.files.length) {
         const files = Array.from(pdfUploaderRoot.__uploaderInstance.files);
         for (const file of files) {
-          const sanitizedName = file.name
-            .replace(/[^a-zA-Z0-9._-]/g, '_')
-            .replace(/\.{2,}/g, '_')
-            .substring(0, 200);
-          const bucket = 'rechnungen';
-          const path = `${submitData.unternehmen_id || 'unknown'}/${Date.now()}_${Math.random().toString(36).slice(2)}_${sanitizedName}`;
-          const { error: upErr } = await window.supabase.storage.from(bucket).upload(path, file, {
-            cacheControl: '3600',
-            upsert: false,
-            contentType: file.type
+          const result = await uploadRechnungPdf({
+            metadata: pathMeta,
+            file,
           });
-          if (upErr) throw upErr;
-          const { data } = window.supabase.storage.from(bucket).getPublicUrl(path);
-          pdfFiles.push({ file_name: file.name, file_path: path, file_url: data.publicUrl || '', content_type: file.type, size: file.size });
+          pdfFiles.push({
+            file_name: file.name,
+            file_path: result.filePath,
+            file_url: result.fileUrl,
+            content_type: file.type,
+            size: file.size,
+          });
         }
       }
 
@@ -351,44 +361,32 @@ export class RechnungDetail {
               file_url: pdf.file_url,
               content_type: pdf.content_type,
               size: pdf.size,
-              uploaded_by: window.currentUser?.id || null
+              uploaded_by: window.currentUser?.auth_user_id || null
             });
           }
         } catch (pdfErr) {
           console.warn('⚠️ PDF-Metadaten teilweise fehlgeschlagen:', pdfErr);
         }
 
-        // Multi-Upload Belege via UploaderField (Multi) in separatem Bucket 'rechnung-belege'
+        // Multi-Upload Belege → Dropbox (rechnung_belege.file_path enthält Dropbox-Pfad)
         try {
           const belegeUploaderRoot = form.querySelector('.uploader[data-name="belege_files"]');
-          if (belegeUploaderRoot && belegeUploaderRoot.__uploaderInstance && belegeUploaderRoot.__uploaderInstance.files.length && window.supabase) {
+          if (belegeUploaderRoot && belegeUploaderRoot.__uploaderInstance && belegeUploaderRoot.__uploaderInstance.files.length) {
             const rechnungId = result.id;
             const files = Array.from(belegeUploaderRoot.__uploaderInstance.files);
             for (const file of files) {
-              const belegeSanitizedName = file.name
-                .replace(/[^a-zA-Z0-9._-]/g, '_')
-                .replace(/\.{2,}/g, '_')
-                .substring(0, 200);
-              const belegeBucket = 'rechnung-belege';
-              const belegePath = `${rechnungId}/${Date.now()}_${Math.random().toString(36).slice(2)}_${belegeSanitizedName}`;
-              const { error: upErr } = await window.supabase.storage.from(belegeBucket).upload(belegePath, file, {
-                cacheControl: '3600',
-                upsert: false,
-                contentType: file.type
+              const uploadResult = await uploadRechnungBeleg({
+                metadata: pathMeta,
+                file,
               });
-              if (upErr) throw upErr;
-              // Permanente Public URL generieren
-              const { data: urlData } = window.supabase.storage.from(belegeBucket).getPublicUrl(belegePath);
-              const file_url = urlData?.publicUrl || '';
-              // Metadaten in rechnung_belege speichern
               await window.supabase.from('rechnung_belege').insert({
                 rechnung_id: rechnungId,
                 file_name: file.name,
-                file_path: belegePath,
-                file_url,
+                file_path: uploadResult.filePath,
+                file_url: uploadResult.fileUrl,
                 content_type: file.type,
                 size: file.size,
-                uploaded_by: window.currentUser?.id || null
+                uploaded_by: window.currentUser?.auth_user_id || null
               });
             }
           }

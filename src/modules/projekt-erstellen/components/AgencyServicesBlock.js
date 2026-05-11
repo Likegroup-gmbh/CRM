@@ -5,10 +5,15 @@
 import { RETAINER_TYPES } from '../constants.js';
 
 export class AgencyServicesBlock {
-  constructor({ hostId, data, onChange }) {
+  constructor({ hostId, data, onChange, mode }) {
     this.hostId = hostId;
+    this.mode = mode || 'full';
     this.data = this.normalize(data);
     this.onChange = onChange || (() => {});
+  }
+
+  get isReduced() {
+    return this.mode === 'reduced';
   }
 
   normalize(d) {
@@ -45,8 +50,8 @@ export class AgencyServicesBlock {
         </div>
 
         <div id="pe-agency-body" style="${d.agency_services_enabled ? '' : 'display:none;'}">
-          ${this.renderRetainer()}
-          ${this.renderExtras()}
+          ${this.isReduced ? '' : this.renderRetainer()}
+          ${this.isReduced ? '' : this.renderExtras()}
           ${this.renderPercentage()}
           ${this.renderKsk()}
         </div>
@@ -171,56 +176,58 @@ export class AgencyServicesBlock {
       this.emit();
     });
 
-    const retainerType = document.getElementById('field-pe-retainer_type');
-    const retainerAmountField = document.getElementById('pe-retainer-amount-field');
-    const retainerAmount = document.getElementById('field-pe-retainer_amount');
+    if (!this.isReduced) {
+      const retainerType = document.getElementById('field-pe-retainer_type');
+      const retainerAmountField = document.getElementById('pe-retainer-amount-field');
+      const retainerAmount = document.getElementById('field-pe-retainer_amount');
 
-    retainerType?.addEventListener('change', (e) => {
-      this.data.retainer_type = e.target.value || 'none';
-      if (retainerAmountField) retainerAmountField.style.display = this.data.retainer_type !== 'none' ? '' : 'none';
-      this.emit();
-    });
-    retainerAmount?.addEventListener('input', (e) => {
-      this.data.retainer_amount = parseFloat(e.target.value) || 0;
-      this.emit();
-    });
+      retainerType?.addEventListener('change', (e) => {
+        this.data.retainer_type = e.target.value || 'none';
+        if (retainerAmountField) retainerAmountField.style.display = this.data.retainer_type !== 'none' ? '' : 'none';
+        this.emit();
+      });
+      retainerAmount?.addEventListener('input', (e) => {
+        this.data.retainer_amount = parseFloat(e.target.value) || 0;
+        this.emit();
+      });
 
-    const extrasToggle = document.getElementById('field-pe-extra_services_enabled');
-    const extrasBody = document.getElementById('pe-extras-body');
-    extrasToggle?.addEventListener('change', (e) => {
-      this.data.extra_services_enabled = !!e.target.checked;
-      if (extrasBody) extrasBody.style.display = e.target.checked ? '' : 'none';
-      this.emit();
-    });
+      const extrasToggle = document.getElementById('field-pe-extra_services_enabled');
+      const extrasBody = document.getElementById('pe-extras-body');
+      extrasToggle?.addEventListener('change', (e) => {
+        this.data.extra_services_enabled = !!e.target.checked;
+        if (extrasBody) extrasBody.style.display = e.target.checked ? '' : 'none';
+        this.emit();
+      });
 
-    document.getElementById('pe-extra-add-btn')?.addEventListener('click', () => {
-      this.data.extra_services.push({ name: '', amount: 0 });
-      this.rerenderExtras();
-      this.emit();
-    });
+      document.getElementById('pe-extra-add-btn')?.addEventListener('click', () => {
+        this.data.extra_services.push({ name: '', amount: 0 });
+        this.rerenderExtras();
+        this.emit();
+      });
 
-    const extraList = document.getElementById('pe-extra-list');
-    extraList?.addEventListener('input', (e) => {
-      const row = e.target.closest('[data-extra-idx]');
-      if (!row) return;
-      const idx = parseInt(row.dataset.extraIdx, 10);
-      const field = e.target.dataset.extraField;
-      if (Number.isNaN(idx) || !field) return;
-      const item = this.data.extra_services[idx];
-      if (!item) return;
-      if (field === 'name') item.name = e.target.value;
-      if (field === 'amount') item.amount = parseFloat(e.target.value) || 0;
-      this.emit();
-    });
-    extraList?.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-extra-remove]');
-      if (!btn) return;
-      const idx = parseInt(btn.dataset.extraRemove, 10);
-      if (Number.isNaN(idx)) return;
-      this.data.extra_services.splice(idx, 1);
-      this.rerenderExtras();
-      this.emit();
-    });
+      const extraList = document.getElementById('pe-extra-list');
+      extraList?.addEventListener('input', (e) => {
+        const row = e.target.closest('[data-extra-idx]');
+        if (!row) return;
+        const idx = parseInt(row.dataset.extraIdx, 10);
+        const field = e.target.dataset.extraField;
+        if (Number.isNaN(idx) || !field) return;
+        const item = this.data.extra_services[idx];
+        if (!item) return;
+        if (field === 'name') item.name = e.target.value;
+        if (field === 'amount') item.amount = parseFloat(e.target.value) || 0;
+        this.emit();
+      });
+      extraList?.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-extra-remove]');
+        if (!btn) return;
+        const idx = parseInt(btn.dataset.extraRemove, 10);
+        if (Number.isNaN(idx)) return;
+        this.data.extra_services.splice(idx, 1);
+        this.rerenderExtras();
+        this.emit();
+      });
+    }
 
     const pctToggle = document.getElementById('field-pe-percentage_fee_enabled');
     const pctBody = document.getElementById('pe-percentage-body');

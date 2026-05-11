@@ -3,6 +3,7 @@
 // Progress-Bar, Navigation, Dispatcher zu den typ-spezifischen Step-Renderern.
 
 import { VertraegeCreate } from './VertraegeCreateCore.js';
+import { PageTransitionHelper } from '../../../core/PageTransitionHelper.js';
 
 VertraegeCreate.prototype.render = function() {
     // Verhindere doppeltes Rendern
@@ -27,28 +28,37 @@ VertraegeCreate.prototype.render = function() {
 };
 
 VertraegeCreate.prototype.renderStep1 = function() {
+    const types = [
+      { value: 'UGC', label: 'UGC-Produktionsvertrag', desc: 'Content-Produktion durch Creator nach Briefing.' },
+      { value: 'Influencer Kooperation', label: 'Influencer Kooperation', desc: 'Kooperationsvertrag für Influencer-Kampagnen.' },
+      { value: 'Videograph', label: 'Videograph', desc: 'Produktionsvertrag für Videografen und Fotografen.' },
+      { value: 'Model', label: 'Modelvertrag', desc: 'Vertrag für Model-Buchungen und Shootings.' }
+    ];
+
+    const cards = types.map(t => `
+      <label class="pe-type-card ${this.selectedTyp === t.value ? 'pe-type-card--selected' : ''}" data-value="${t.value}">
+        <input type="radio" name="vertrag-typ" value="${t.value}"
+               class="pe-type-card__radio" ${this.selectedTyp === t.value ? 'checked' : ''}>
+        <div class="pe-type-card__content">
+          <span class="pe-type-card__title">${t.label}</span>
+          <span class="pe-type-card__desc">${t.desc}</span>
+        </div>
+      </label>
+    `).join('');
+
     const html = `
-      <div class="form-page">
-        <div class="vertrag-typ-selection">
-          <h2>Vertragstyp auswählen</h2>
-          <p class="form-hint">Wählen Sie den Vertragstyp aus und klicken Sie auf "Generieren".</p>
-          
-          <div class="form-field form-field--centered">
-            <label for="vertrag-typ">Vertragstyp</label>
-            <select id="vertrag-typ" class="form-select">
-              <option value="">Bitte wählen...</option>
-              <option value="UGC">UGC-Produktionsvertrag</option>
-              <option value="Influencer Kooperation">Influencer Kooperation</option>
-              <option value="Videograph">Videograph</option>
-              <option value="Model">Modelvertrag</option>
-            </select>
+      <div class="form-page pe-fade-in">
+        <div class="pe-type-selection">
+          <h2 class="pe-type-selection__title">Vertragstyp auswählen</h2>
+          <p class="pe-type-selection__subtitle">Wählen Sie den Vertragstyp, um fortzufahren.</p>
+          <div class="pe-type-card-list">
+            ${cards}
           </div>
-          
-          <div class="form-actions form-actions--centered">
+          <div class="pe-type-selection__actions">
             <button type="button" class="mdc-btn mdc-btn--cancel" onclick="window.navigateTo('/vertraege')">
               <span class="mdc-btn__label">Abbrechen</span>
             </button>
-            <button type="button" id="btn-generate" class="primary-btn" disabled>
+            <button type="button" id="btn-generate" class="primary-btn" ${this.selectedTyp ? '' : 'disabled'}>
               Generieren
             </button>
           </div>
@@ -61,28 +71,41 @@ VertraegeCreate.prototype.renderStep1 = function() {
 };
 
 VertraegeCreate.prototype.bindStep1Events = function() {
-    const select = document.getElementById('vertrag-typ');
+    const cards = document.querySelectorAll('.pe-type-card');
     const generateBtn = document.getElementById('btn-generate');
 
-    if (select) {
-      select.addEventListener('change', (e) => {
-        this.selectedTyp = e.target.value;
-        if (generateBtn) {
-          generateBtn.disabled = !this.selectedTyp;
-        }
+    cards.forEach(card => {
+      card.addEventListener('click', () => {
+        const value = card.dataset.value;
+        if (!value) return;
+        cards.forEach(c => c.classList.remove('pe-type-card--selected'));
+        card.classList.add('pe-type-card--selected');
+        const radio = card.querySelector('input[type="radio"]');
+        if (radio) radio.checked = true;
+        this.selectedTyp = value;
+        if (generateBtn) generateBtn.disabled = false;
       });
-    }
+    });
 
     if (generateBtn) {
       generateBtn.addEventListener('click', () => {
         if (this.selectedTyp) {
-          this.isGenerated = true;
-          this.currentStep = 2;
-          this.formData.typ = this.selectedTyp;
-          this.render();
+          this._animateAndRender(() => {
+            this.isGenerated = true;
+            this.currentStep = 2;
+            this.formData.typ = this.selectedTyp;
+            this.render();
+          });
         }
       });
     }
+};
+
+VertraegeCreate.prototype._animateAndRender = function(renderFn) {
+    const formPage = document.querySelector('.form-page');
+    PageTransitionHelper.transition(formPage, renderFn, {
+      newElementSelector: '.form-page'
+    });
 };
 
 VertraegeCreate.prototype.renderMultistep = function() {
@@ -157,7 +180,7 @@ VertraegeCreate.prototype.renderProgressBar = function() {
           </svg>
           <span class="btn-label">Als Entwurf speichern</span>
         </button>
-        ${this.currentStep > 2 ? `
+        ${this.currentStep >= 2 ? `
           <button type="button" id="btn-prev" class="secondary-btn">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
               <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
@@ -212,12 +235,12 @@ VertraegeCreate.prototype.bindProgressBarEvents = function() {
 };
 
 VertraegeCreate.prototype.goToStep = function(targetStep) {
-    // Aktuelle Daten speichern bevor wir wechseln
+    if (targetStep === this.currentStep) return;
     this.saveCurrentStepData();
-    
-    // Schritt wechseln
-    this.currentStep = targetStep;
-    this.render();
+    this._animateAndRender(() => {
+      this.currentStep = targetStep;
+      this.render();
+    });
 };
 
 VertraegeCreate.prototype.getStepContent = function() {

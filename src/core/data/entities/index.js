@@ -575,6 +575,11 @@ export const EntityRegistry = {
       rechnung_gestellt_am: 'date',
       ueberwiesen: 'boolean',
       ueberwiesen_am: 'date',
+      agency_services_enabled: 'boolean',
+      percentage_fee_enabled: 'boolean',
+      percentage_fee_value: 'number',
+      ksk_enabled: 'boolean',
+      ksk_value: 'number',
       created_by_id: 'uuid'
     },
     relations: {
@@ -937,6 +942,34 @@ export const EntityRegistry = {
       kooperation: { table: 'kooperationen', foreignKey: 'kooperation_id', displayField: 'name' }
     },
     filters: ['name', 'typ', 'kunde_unternehmen_id', 'kampagne_id', 'creator_id', 'is_draft'],
+    sortBy: 'created_at',
+    sortOrder: 'desc'
+  },
+  management: {
+    table: 'management',
+    displayField: 'firmenname',
+    fields: {
+      firmenname: 'string',
+      webseite: 'string',
+      email: 'string',
+      telefonnummer: 'string',
+      instagram: 'string',
+      linkedin: 'string',
+      strasse: 'string',
+      hausnummer: 'string',
+      plz: 'string',
+      stadt: 'string',
+      land: 'string',
+      steuernummer: 'string',
+      ust_id: 'string',
+      notiz: 'string',
+      status: 'string',
+      logo_url: 'string',
+      logo_path: 'string'
+    },
+    relations: {},
+    manyToMany: {},
+    filters: ['firmenname', 'stadt', 'land', 'status'],
     sortBy: 'created_at',
     sortOrder: 'desc'
   },

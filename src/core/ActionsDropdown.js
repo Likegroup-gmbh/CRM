@@ -3138,8 +3138,14 @@ export class ActionsDropdown {
       let downloadUrls = [];
       if (pdfs && pdfs.length > 0) {
         downloadUrls = pdfs.map(p => {
-          const { data: urlData } = window.supabase.storage.from('rechnungen').getPublicUrl(p.file_path);
-          return { url: urlData?.publicUrl || p.file_url, name: p.file_name };
+          // Dropbox-Pfade (beginnen mit "/") nutzen direkt file_url (Shared Link).
+          // Legacy Supabase-Pfade brauchen einen publicUrl-Lookup.
+          let url = p.file_url || '';
+          if (p.file_path && !p.file_path.startsWith('/')) {
+            const { data: urlData } = window.supabase.storage.from('rechnungen').getPublicUrl(p.file_path);
+            url = urlData?.publicUrl || url;
+          }
+          return { url, name: p.file_name };
         });
       } else {
         const { data: rechnung, error } = await window.supabase

@@ -469,8 +469,13 @@ export class RechnungList {
       const map = new Map();
       for (const row of data) {
         if (!map.has(row.rechnung_id)) map.set(row.rechnung_id, []);
-        const { data: urlData } = window.supabase.storage.from('rechnungen').getPublicUrl(row.file_path);
-        map.get(row.rechnung_id).push({ ...row, open_url: urlData?.publicUrl || row.file_url || '' });
+        let openUrl = row.file_url || '';
+        // Legacy Supabase-Pfade (kein "/" am Anfang) → publicUrl bauen
+        if (row.file_path && !row.file_path.startsWith('/')) {
+          const { data: urlData } = window.supabase.storage.from('rechnungen').getPublicUrl(row.file_path);
+          openUrl = urlData?.publicUrl || openUrl;
+        }
+        map.get(row.rechnung_id).push({ ...row, open_url: openUrl });
       }
       rechnungen.forEach(r => {
         r.rechnung_pdfs = map.get(r.id) || [];

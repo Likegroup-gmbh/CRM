@@ -170,6 +170,12 @@ export class VideoTabHandler {
         const assetId = deleteBtn.dataset.id;
         const filePath = deleteBtn.dataset.path;
         if (assetId) this._deleteExistingAsset(assetId, filePath);
+        return;
+      }
+      const replaceBtn = e.target.closest('.existing-video-replace');
+      if (replaceBtn) {
+        const { id, path, version, variant } = replaceBtn.dataset;
+        if (id) this._replaceExistingAsset(id, path, parseInt(version, 10) || 1, variant || '');
       }
     });
 
@@ -219,13 +225,8 @@ export class VideoTabHandler {
 
     if (this._queue.length === 0) {
       list.innerHTML = '';
-      const dropzone = document.getElementById('video-upload-dropzone');
-      if (dropzone) dropzone.style.display = '';
       return;
     }
-
-    const dropzone = document.getElementById('video-upload-dropzone');
-    if (dropzone) dropzone.style.display = 'none';
 
     list.innerHTML = this._queue.map((item, i) => {
       const versionOptions = this._buildVersionOptions(item);
@@ -584,6 +585,8 @@ export class VideoTabHandler {
 
     const rounds = Object.keys(grouped).map(Number).sort((a, b) => a - b);
     const maxRound = Math.max(...rounds);
+    const TRASH_ICON = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>';
+    const REPLACE_ICON = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182M20.016 4.36v4.992"/></svg>';
 
     let html = '';
     for (const round of rounds) {
@@ -591,21 +594,27 @@ export class VideoTabHandler {
       const isCurrent = round === maxRound;
       const badge = isCurrent ? ' <span class="version-badge version-badge--current">aktuell</span>' : '';
 
-      html += `<div class="existing-videos-round-header">Feedbackschleife ${round}${badge} <span class="existing-images-count">(${assets.length})</span></div>`;
+      html += `
+        <div class="existing-storys-slot-item">
+          <div class="existing-storys-slot-header">
+            <span class="existing-storys-slot-title">Feedbackschleife ${round}${badge}</span>
+            <span class="existing-storys-slot-meta">${assets.length} Datei${assets.length !== 1 ? 'en' : ''}</span>
+          </div>
+        </div>`;
 
       for (const asset of assets) {
         const name = asset.variant_name || asset.file_path?.split('/').pop() || '?';
         const date = asset.created_at ? new Date(asset.created_at).toLocaleDateString('de-DE') : '';
+        const currentBadge = asset.is_current ? ' <span class="version-badge version-badge--current">aktuell</span>' : '';
         html += `
-          <div class="existing-image-item">
+          <div class="existing-image-item existing-storys-asset-item">
             <div class="existing-image-info">
-              <span class="existing-image-name">${escapeHtml(name)}${date ? ` · ${date}` : ''}</span>
+              <span class="existing-image-name">${escapeHtml(name)}${date ? ` · ${date}` : ''} · FS${asset.version_number}${currentBadge}</span>
             </div>
-            <button type="button" class="existing-image-delete existing-video-delete" data-id="${asset.id}" data-path="${escapeHtml(asset.file_path || '')}" title="Löschen">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
-              </svg>
-            </button>
+            <div class="existing-asset-actions">
+              <button type="button" class="existing-video-replace" data-id="${asset.id}" data-path="${escapeHtml(asset.file_path || '')}" data-version="${asset.version_number}" data-variant="${escapeHtml(asset.variant_name || '')}" title="Ersetzen">${REPLACE_ICON}</button>
+              <button type="button" class="existing-image-delete existing-video-delete" data-id="${asset.id}" data-path="${escapeHtml(asset.file_path || '')}" title="Löschen">${TRASH_ICON}</button>
+            </div>
           </div>`;
       }
     }
@@ -639,6 +648,119 @@ export class VideoTabHandler {
       this.showError(err.message || 'Löschen fehlgeschlagen');
       if (item) item.style.opacity = '';
     }
+  }
+
+  // ─── Replace Existing Asset ────────────────────────────────
+
+  async _replaceExistingAsset(assetId, oldFilePath, versionNumber, variantName) {
+    if (this._isUploading) return;
+
+    const fileInput = document.getElementById('video-upload-file-input');
+    if (!fileInput) return;
+
+    const onFileSelected = async (e) => {
+      fileInput.removeEventListener('change', onFileSelected);
+      const file = e.target.files?.[0];
+      fileInput.value = '';
+      if (!file) return;
+
+      const maxSize = 500 * 1024 * 1024;
+      const allowed = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska', 'video/webm'];
+      if (file.size > maxSize) {
+        this.showError(`${file.name}: zu groß (${(file.size / 1024 / 1024).toFixed(1)} MB, max. 500 MB)`);
+        return;
+      }
+      if (!allowed.includes(file.type) && !file.name.match(/\.(mp4|mov|avi|mkv|webm)$/i)) {
+        this.showError(`${file.name}: kein unterstütztes Videoformat`);
+        return;
+      }
+
+      const item = document.querySelector(`.existing-video-replace[data-id="${assetId}"]`)?.closest('.existing-image-item');
+      if (item) item.style.opacity = '0.5';
+
+      this._isUploading = true;
+      const progressContainer = document.getElementById('video-upload-progress');
+      const progressFill = document.getElementById('video-upload-progress-fill');
+      const progressText = document.getElementById('video-upload-progress-text');
+      if (progressContainer) progressContainer.style.display = 'block';
+      if (progressFill) progressFill.style.width = '0%';
+      if (progressText) progressText.textContent = `Ersetze: ${file.name}...`;
+
+      try {
+        if (oldFilePath) {
+          await fetch('/.netlify/functions/dropbox-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filePath: oldFilePath }),
+          }).catch(err => console.warn('Dropbox-Löschung fehlgeschlagen:', err));
+        }
+
+        const fileName = this._getVersionedFileName(file, versionNumber);
+        const tokenResp = await fetch('/.netlify/functions/dropbox-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            unternehmen: this.drawer.metadaten.unternehmen || '',
+            marke: this.drawer.metadaten.marke || '',
+            kampagne: this.drawer.metadaten.kampagne || '',
+            kooperation: this.drawer.metadaten.kooperationName || '',
+            videoPosition: this.drawer.metadaten.videoPosition || 1,
+            videoThema: this.drawer.metadaten.videoThema || '',
+            videoTitel: this.drawer.metadaten.videoTitel || 'Video',
+            versionNumber: String(versionNumber),
+            variantName,
+            fileName
+          })
+        });
+
+        if (!tokenResp.ok) {
+          const errData = await tokenResp.json().catch(() => ({}));
+          throw new Error(errData.error || `Token-Abruf fehlgeschlagen (${tokenResp.status})`);
+        }
+
+        const { token, dropboxPath } = await tokenResp.json();
+
+        if (progressFill) progressFill.style.width = '30%';
+        const uploadResult = await this._uploadToDropbox(token, dropboxPath, file, progressFill, progressText, 0, 1);
+
+        const actualPath = uploadResult.path_display || dropboxPath;
+        if (progressFill) progressFill.style.width = '90%';
+        if (progressText) progressText.textContent = 'Erstelle Link...';
+        const sharedLink = await this._createSharedLink(token, actualPath);
+        const fileUrl = sharedLink || actualPath;
+
+        if (progressFill) progressFill.style.width = '95%';
+        if (progressText) progressText.textContent = 'Aktualisiere Datenbank...';
+
+        await window.supabase
+          .from('kooperation_video_asset')
+          .update({
+            file_url: fileUrl,
+            file_path: actualPath,
+            created_at: new Date().toISOString()
+          })
+          .eq('id', assetId);
+
+        if (progressFill) progressFill.style.width = '100%';
+        if (progressText) progressText.textContent = 'Ersetzt!';
+
+        await this._loadExistingVideoAssets();
+
+        setTimeout(() => {
+          if (progressContainer) progressContainer.style.display = 'none';
+        }, 1500);
+
+      } catch (err) {
+        console.error('Video ersetzen fehlgeschlagen:', err);
+        this.showError(err.message || 'Ersetzen fehlgeschlagen');
+        if (item) item.style.opacity = '';
+      } finally {
+        this._isUploading = false;
+      }
+    };
+
+    fileInput.addEventListener('change', onFileSelected);
+    fileInput.click();
   }
 
   // ─── Error Helpers ─────────────────────────────────────────

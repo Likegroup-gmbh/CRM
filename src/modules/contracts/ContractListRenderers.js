@@ -38,8 +38,9 @@ function rechnungsstatusBadge(stats) {
   return `<span class="status-badge status-pending">${stats.bezahlt}/${stats.total} bezahlt</span>`;
 }
 
-export function renderPageHtml({ searchQuery }) {
+export function renderPageHtml({ searchQuery, showCreateButton = true }) {
   const isKunde = window.isKunde?.();
+  const showButton = showCreateButton && !isKunde;
 
   return `
     <div class="table-filter-wrapper">
@@ -51,7 +52,7 @@ export function renderPageHtml({ searchQuery }) {
           })}
         </div>
       </div>
-      ${!isKunde ? `<div class="table-actions">
+      ${showButton ? `<div class="table-actions">
         <button id="btn-contract-new" class="primary-btn">Neuen Contract anlegen</button>
       </div>` : ''}
     </div>

@@ -2,6 +2,17 @@
 // Wiederverwendbare Tabellen-Ausgabe für Creator
 import { creatorUtils } from './CreatorUtils.js';
 
+function renderTags(items, tagClass) {
+  if (!items || !items.length) return '-';
+  const arr = Array.isArray(items) ? items : [items];
+  const tags = arr.map(item => {
+    const label = typeof item === 'object' ? (item.name || item.label || item) : item;
+    const safe = String(label).trim().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return `<span class="tag ${tagClass}">${safe}</span>`;
+  }).join('');
+  return `<div class="tags tags-compact">${tags}</div>`;
+}
+
 export function renderCreatorTable(creators, options = {}) {
   const { showFavoriteAction = false, showFavoritesMenu = false, showSelection = false, kampagneId = null } = options || {};
   const isKunde = window.isKunde();
@@ -13,15 +24,9 @@ export function renderCreatorTable(creators, options = {}) {
   const rows = (creators || []).map((c) => {
     const id = c.id;
     const name = `${c.vorname || ''} ${c.nachname || ''}`.trim() || 'Unbekannt';
-    const typen = Array.isArray(c.creator_types) && c.creator_types.length
-      ? c.creator_types.map(t => (typeof t === 'object' ? (t.name || t.label || t) : t)).join(', ')
-      : '-';
-    const sprachen = Array.isArray(c.sprachen) && c.sprachen.length
-      ? c.sprachen.map(s => (typeof s === 'object' ? (s.name || s.label || s) : s)).join(', ')
-      : '-';
-    const branchen = Array.isArray(c.branchen) && c.branchen.length
-      ? c.branchen.map(b => (typeof b === 'object' ? (b.name || b.label || b) : b)).join(', ')
-      : '-';
+    const typen = renderTags(c.creator_types, 'tag--type');
+    const sprachen = renderTags(c.sprachen, 'tag--lang');
+    const branchen = renderTags(c.branchen, 'tag--branche');
     const igFollower = creatorUtils.formatFollowerRange(c.instagram_follower);
     const ttFollower = creatorUtils.formatFollowerRange(c.tiktok_follower);
     const stadt = c.lieferadresse_stadt || '-';

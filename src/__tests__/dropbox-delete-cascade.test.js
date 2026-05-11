@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { buildDropboxPath } from '../../netlify/functions/dropbox-upload.js';
 
 describe('Dropbox-Pfad-Konsistenz (Upload ↔ Delete)', () => {
-  it('buildDropboxPath erzeugt vorhersagbaren Pfad mit Version_N Segment', () => {
+  it('buildDropboxPath erzeugt vorhersagbaren Pfad mit Feedbackschleife_N Segment', () => {
     const path = buildDropboxPath({
       unternehmen: 'AcmeCorp',
       marke: 'SuperMarke',
@@ -14,7 +14,7 @@ describe('Dropbox-Pfad-Konsistenz (Upload ↔ Delete)', () => {
       fileName: 'V3_Unboxing.mp4',
     });
 
-    expect(path).toBe('/Videos/AcmeCorp/SuperMarke/Sommeraktion/MaxMustermann/Video_2_Unboxing/Version_3/V3_Unboxing.mp4');
+    expect(path).toBe('/AcmeCorp/SuperMarke/Sommeraktion/MaxMustermann/Videos/Video_2_Unboxing/Feedbackschleife_3/V3_Unboxing.mp4');
   });
 
   it('default Version ist 1', () => {
@@ -28,10 +28,10 @@ describe('Dropbox-Pfad-Konsistenz (Upload ↔ Delete)', () => {
       fileName: 'file.mp4',
     });
 
-    expect(path).toContain('/Version_1/');
+    expect(path).toContain('/Feedbackschleife_1/');
   });
 
-  it('Pfad enthält alle Segmente in korrekter Reihenfolge', () => {
+  it('Pfad enthält alle Segmente in korrekter Reihenfolge (Unternehmen → Marke → Kampagne → Kooperation → Videos → Video_N → Feedbackschleife_N → Datei)', () => {
     const path = buildDropboxPath({
       unternehmen: 'U',
       marke: 'M',
@@ -44,13 +44,13 @@ describe('Dropbox-Pfad-Konsistenz (Upload ↔ Delete)', () => {
     });
 
     const parts = path.split('/').filter(Boolean);
-    expect(parts[0]).toBe('Videos');
-    expect(parts[1]).toBe('U');
-    expect(parts[2]).toBe('M');
-    expect(parts[3]).toBe('K');
-    expect(parts[4]).toBe('C');
+    expect(parts[0]).toBe('U');
+    expect(parts[1]).toBe('M');
+    expect(parts[2]).toBe('K');
+    expect(parts[3]).toBe('C');
+    expect(parts[4]).toBe('Videos');
     expect(parts[5]).toBe('Video_1_T');
-    expect(parts[6]).toBe('Version_2');
+    expect(parts[6]).toBe('Feedbackschleife_2');
     expect(parts[7]).toBe('f.mp4');
   });
 });

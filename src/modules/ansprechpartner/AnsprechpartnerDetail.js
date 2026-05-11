@@ -619,21 +619,14 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
             </div>
             
             <p class="modal-description">
-              Du kannst einen einmaligen Einladungs-Link erstellen, mit dem sich dieser Ansprechpartner als Kunde registrieren kann.
+              Erstelle einen Einladungs-Link, mit dem sich dieser Ansprechpartner als Kunde registrieren kann.
             </p>
-            
-            <div class="notice-box notice-info">
-              <strong>Wichtig:</strong>
-              Der Countdown für die Gültigkeit des Links startet erst, wenn du auf "Link erstellen & kopieren" klickst. 
-              Der Link ist dann <strong>48 Stunden</strong> gültig und kann <strong>nur einmal</strong> verwendet werden.
-            </div>
-            
+
             <div id="magic-link-result" class="magic-link-result">
               <div class="form-group">
                 <label class="form-label">Registrierungs-Link</label>
                 <input type="text" id="magic-link-input" class="input input-mono" readonly />
               </div>
-              <div id="magic-link-expiry" class="notice-box notice-warning"></div>
             </div>
           </div>
           <div class="modal-footer">
@@ -656,7 +649,6 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       btn.innerHTML = '<span class="spinner-small"></span> Wird erstellt...';
       
       try {
-        // JETZT wird der Link generiert (Countdown startet)
         const result = await magicLinkService.createMagicLink(this.ansprechpartnerId);
         
         if (!result.success) {
@@ -684,20 +676,9 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
         // Ergebnis anzeigen
         const resultDiv = document.getElementById('magic-link-result');
         const linkInput = document.getElementById('magic-link-input');
-        const expiryDiv = document.getElementById('magic-link-expiry');
-        
-        if (resultDiv && linkInput && expiryDiv) {
+
+        if (resultDiv && linkInput) {
           linkInput.value = result.link;
-          
-          const expiresDate = new Date(result.expiresAt).toLocaleDateString('de-DE', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          });
-          expiryDiv.innerHTML = `<strong>Gültig bis:</strong> ${expiresDate} (einmalig verwendbar)`;
-          
           resultDiv.classList.add('show');
         }
         

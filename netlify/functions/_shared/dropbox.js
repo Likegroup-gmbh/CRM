@@ -49,4 +49,40 @@ function sanitizePath(str) {
     .trim();
 }
 
-module.exports = { getAccessToken, sanitizePath };
+// Einheitlicher Stammpfad für ALLE Uploads pro Unternehmen/Marke/Kampagne/Kooperation.
+// Bestandteile werden nur hinzugefügt wenn truthy. Fehlt unternehmen, wird ein
+// dokumentierter Fallback-Ordner /_unzugeordnet verwendet, damit Uploads nie im
+// Dropbox-Root landen.
+function buildUnifiedBasePath({ unternehmen, marke, kampagne, kooperation }) {
+  const parts = [];
+  if (unternehmen) parts.push(sanitizePath(unternehmen));
+  if (marke) parts.push(sanitizePath(marke));
+  if (kampagne) parts.push(sanitizePath(kampagne));
+  if (kooperation) parts.push(sanitizePath(kooperation));
+  if (parts.length === 0) return '/_unzugeordnet';
+  return '/' + parts.join('/');
+}
+
+// Legt einen Ordner inkl. aller Parents in Dropbox an. 409 (existiert bereits)
+// wird als Erfolg behandelt, alle anderen Fehler nur geloggt (nicht geworfen),
+// damit ein evtl. nachfolgender Upload trotzdem starten kann.
+async function ensureFolder(token, folderPath) {
+  if (!folderPath || folderPath === '/') return;
+  try {
+    const resp = await fetch('https://api.dropboxapi.com/2/files/create_folder_v2', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: folderPath, autorename: false }),
+    });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      // 409 = path/conflict/folder -> Ordner existiert schon, kein Fehler
+      if (resp.status === 409) return;
+      console.warn(`[dropbox] ensureFolder non-ok (${resp.status}) für ${folderPath}: ${text}`);
+    }
+  } catch (err) {
+    console.warn(`[dropbox] ensureFolder error für ${folderPath}: ${err.message || err}`);
+  }
+}
+
+module.exports = { getAccessToken, sanitizePath, buildUnifiedBasePath, ensureFolder };

@@ -32,8 +32,18 @@ VertraegeCreate.prototype.bindMultistepEvents = function() {
     if (prevBtn) {
       prevBtn.addEventListener('click', () => {
         this.saveCurrentStepData();
-        this.currentStep--;
-        this.render();
+        if (this.currentStep === 2) {
+          this._animateAndRender(() => {
+            this.currentStep = 1;
+            this.isGenerated = false;
+            this.render();
+          });
+        } else {
+          this._animateAndRender(() => {
+            this.currentStep--;
+            this.render();
+          });
+        }
       });
     }
 
@@ -42,8 +52,10 @@ VertraegeCreate.prototype.bindMultistepEvents = function() {
       nextBtn.addEventListener('click', () => {
         if (this.validateCurrentStep()) {
           this.saveCurrentStepData();
-          this.currentStep++;
-          this.render();
+          this._animateAndRender(() => {
+            this.currentStep++;
+            this.render();
+          });
         }
       });
     }
@@ -90,6 +102,26 @@ VertraegeCreate.prototype.bindMultistepEvents = function() {
 
 
 VertraegeCreate.prototype.bindDynamicFieldEvents = function() {
+    // Radio-Toggle: erneuter Klick auf bereits gewähltes Radio deselektiert es
+    if (!this._checkedRadios) this._checkedRadios = {};
+    const form = document.getElementById('vertrag-form');
+    if (form) {
+      form.querySelectorAll('input[type="radio"]:checked').forEach(radio => {
+        this._checkedRadios[radio.name] = radio.value;
+      });
+      form.querySelectorAll('input[type="radio"]').forEach(radio => {
+        radio.addEventListener('click', (e) => {
+          if (this._checkedRadios[radio.name] === radio.value) {
+            radio.checked = false;
+            this._checkedRadios[radio.name] = null;
+            radio.dispatchEvent(new Event('change', { bubbles: true }));
+          } else {
+            this._checkedRadios[radio.name] = radio.value;
+          }
+        });
+      });
+    }
+
     const kooperationSelect = document.getElementById('kooperation_id');
     if (kooperationSelect) {
       kooperationSelect.addEventListener('change', (e) => {

@@ -1,17 +1,29 @@
-const { getAccessToken, sanitizePath } = require('./_shared/dropbox');
+const { getAccessToken, sanitizePath, buildUnifiedBasePath, ensureFolder } = require('./_shared/dropbox');
 
-function buildVertragPath({ unternehmen, kampagne, creator, vertragstyp, fileName }) {
-  const parts = ['/Vertraege'];
-  if (unternehmen) parts.push(sanitizePath(unternehmen));
-  if (kampagne) parts.push(sanitizePath(kampagne));
-  if (creator) parts.push(sanitizePath(creator));
-  if (vertragstyp) parts.push(sanitizePath(vertragstyp));
+// Pfad für (unterschriebene) Vertrags-PDFs.
+// Einheitliche Hierarchie:
+//   /{Unternehmen}/{Marke}/{Kampagne}/{Kooperation}/Vertraege/{Creator}_{Vertragstyp}/{fileName}
+// kooperation, marke und creator/vertragstyp sind alle optional und werden nur
+// als Pfadsegment angefügt, wenn vorhanden.
+function buildVertragPath({ unternehmen, marke, kampagne, kooperation, creator, vertragstyp, fileName }) {
+  const base = buildUnifiedBasePath({ unternehmen, marke, kampagne, kooperation });
+  const parts = [base, 'Vertraege'];
+
+  const creatorPart = sanitizePath(creator || '');
+  const typPart = sanitizePath(vertragstyp || '');
+  let leafFolder = '';
+  if (creatorPart && typPart) leafFolder = `${creatorPart}_${typPart}`;
+  else if (creatorPart) leafFolder = creatorPart;
+  else if (typPart) leafFolder = typPart;
+  if (leafFolder) parts.push(leafFolder);
 
   const name = sanitizePath(fileName) || `Vertrag_${Date.now()}.pdf`;
   parts.push(name);
 
   return parts.join('/');
 }
+
+exports.buildVertragPath = buildVertragPath;
 
 exports.handler = async (event) => {
   const headers = {
@@ -37,7 +49,9 @@ exports.handler = async (event) => {
 
     const dropboxPath = buildVertragPath({
       unternehmen: fields.unternehmen,
+      marke: fields.marke,
       kampagne: fields.kampagne,
+      kooperation: fields.kooperation,
       creator: fields.creator,
       vertragstyp: fields.vertragstyp,
       fileName: fields.fileName,
@@ -45,10 +59,13 @@ exports.handler = async (event) => {
 
     console.log('dropbox-upload-vertrag path:', dropboxPath);
 
+    const folderPath = dropboxPath.substring(0, dropboxPath.lastIndexOf('/'));
+    await ensureFolder(token, folderPath);
+
     return {
       statusCode: 200,
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, dropboxPath }),
+      body: JSON.stringify({ token, dropboxPath, folderPath }),
     };
   } catch (err) {
     console.error('dropbox-upload-vertrag error:', err);

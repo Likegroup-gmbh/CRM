@@ -4,6 +4,7 @@ const ROUTE_CONFIG = {
   unternehmen:        { label: 'Unternehmen',       icon: 'icon-building' },
   marke:              { label: 'Marken',             icon: 'icon-tag' },
   ansprechpartner:    { label: 'Ansprechpartner',   icon: 'icon-user-circle' },
+  management:         { label: 'Management',        icon: 'icon-building' },
   produkt:            { label: 'Produkte',           icon: 'icon-cube' },
   creator:            { label: 'Creator',            icon: 'icon-users' },
   auftrag:            { label: 'Aufträge',          icon: 'icon-briefcase' },

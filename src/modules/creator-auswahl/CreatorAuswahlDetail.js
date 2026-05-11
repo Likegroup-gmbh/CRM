@@ -22,6 +22,7 @@ export class CreatorAuswahlDetail {
     this.startX = 0;
     this.scrollLeft = 0;
     this.hiddenColumns = [];
+    this.kundenCallActive = false;
     this.columnVisibilityDrawer = null;
     this.kategorienDrawer = new CreatorAuswahlKategorienDrawer(this);
     this.addDrawer = new CreatorAuswahlAddDrawer(this);
@@ -100,6 +101,12 @@ export class CreatorAuswahlDetail {
     } catch (error) {
       this.hiddenColumns = [];
     }
+    try {
+      const callKey = `sourcing_detail_kunden_call_${this.listeId}`;
+      this.kundenCallActive = localStorage.getItem(callKey) === 'true';
+    } catch (error) {
+      this.kundenCallActive = false;
+    }
   }
 
   saveColumnVisibilitySettings() {
@@ -127,6 +134,21 @@ export class CreatorAuswahlDetail {
     this.columnVisibilityDrawer.open();
   }
 
+  toggleKundenCall() {
+    this.kundenCallActive = !this.kundenCallActive;
+    try {
+      const callKey = `sourcing_detail_kunden_call_${this.listeId}`;
+      localStorage.setItem(callKey, this.kundenCallActive ? 'true' : 'false');
+    } catch (error) { /* ignore */ }
+
+    const btn = document.getElementById('btn-kunden-call-toggle');
+    if (btn) btn.classList.toggle('active', this.kundenCallActive);
+
+    document.querySelectorAll('[data-blur-target]').forEach(el => {
+      el.classList.toggle('kunden-call-blur', this.kundenCallActive);
+    });
+  }
+
   // --- Rendering ---
 
   getRenderContext() {
@@ -135,14 +157,16 @@ export class CreatorAuswahlDetail {
       liste: this.liste,
       isKunde: this.isKunde,
       hiddenColumns: this.hiddenColumns,
+      kundenCallActive: this.kundenCallActive,
       teilbereiche: getTeilbereicheFromListe(this.liste)
     };
   }
 
   async render() {
+    const ctx = this.getRenderContext();
     const html = `
-      ${!this.isKunde ? renderAddSection() : ''}
-      ${renderItemsTable(this.getRenderContext())}
+      ${!this.isKunde ? renderAddSection(ctx) : ''}
+      ${renderItemsTable(ctx)}
     `;
     window.content.innerHTML = html;
     this._updateStickyHeights();
@@ -201,6 +225,13 @@ export class CreatorAuswahlDetail {
     this._boundEventListeners.add(() => document.removeEventListener('actionRequested', actionHandler));
 
     if (!this.isKunde) {
+      const kundenCallBtn = document.getElementById('btn-kunden-call-toggle');
+      if (kundenCallBtn) {
+        const handler = () => this.toggleKundenCall();
+        kundenCallBtn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => kundenCallBtn.removeEventListener('click', handler));
+      }
+
       const visibilityBtn = document.getElementById('btn-sourcing-detail-column-visibility');
       if (visibilityBtn) {
         const handler = () => this.showColumnVisibilityDrawer();
@@ -390,6 +421,9 @@ export class CreatorAuswahlDetail {
     } else if (field === 'follower_instagram' || field === 'follower_tiktok') {
       const numValue = element.value?.trim();
       value = numValue ? parseInt(numValue.replace(/[^\d]/g, ''), 10) : null;
+    } else if (field === 'preis_ek' || field === 'preis_vk' || field === 'cpm_instagram' || field === 'cpm_tiktok') {
+      const numValue = element.value?.trim();
+      value = numValue ? parseFloat(numValue) : null;
     } else {
       value = element.value?.trim() || null;
     }

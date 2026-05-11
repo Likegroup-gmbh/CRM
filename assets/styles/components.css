@@ -10894,6 +10894,113 @@ table:has(#strategien-table-body) td.col-actions {
   min-width: 100px;
 }
 
+.creator-pool-table .cp-col-links {
+  width: 140px;
+  min-width: 140px;
+}
+
+.creator-pool-table .cp-col-ek,
+.creator-pool-table .cp-col-vk {
+  width: 80px;
+  min-width: 80px;
+}
+
+.creator-pool-table .cp-col-reichweite-ig,
+.creator-pool-table .cp-col-reichweite-tt,
+.creator-pool-table .cp-col-reichweite-garantie {
+  width: 100px;
+  min-width: 100px;
+}
+
+.creator-pool-table .cp-col-cpm-ig,
+.creator-pool-table .cp-col-cpm-tt {
+  width: 80px;
+  min-width: 80px;
+}
+
+/* Kompakte Links-Spalte (IG + TT kombiniert) */
+.links-compact-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0;
+}
+
+.links-compact-cell--readonly {
+  flex-direction: row;
+  gap: var(--space-xs);
+  align-items: center;
+  justify-content: center;
+}
+
+.links-compact-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.links-compact-row .platform-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  fill: currentColor;
+}
+
+.links-compact-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font-size: var(--text-xs);
+  padding: 2px 4px;
+  border-radius: var(--radius-xs);
+  color: var(--text-primary);
+}
+
+.links-compact-input:focus {
+  outline: none;
+  background: var(--gray-50);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.links-compact-row .link-icon-btn {
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+.links-compact-row .link-icon-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+.links-compact-cell--readonly .platform-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.links-compact-cell--readonly .link-icon-btn {
+  padding: var(--space-xs);
+  border-radius: var(--radius-sm);
+}
+
+.links-compact-cell--readonly .link-icon-btn:hover {
+  background: var(--gray-100);
+}
+
+/* Kunden-Call Blur - nur auf den Wert/Input, nicht die ganze Zelle */
+.kunden-call-blur {
+  color: transparent;
+  text-shadow: 0 0 8px var(--text-primary);
+  transition: color 0.2s ease, text-shadow 0.2s ease;
+}
+
+/* Kunden-Call Toggle aktiv */
+#btn-kunden-call-toggle.active {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
 .creator-pool-table .cp-col-feedback {
   width: 260px;
   min-width: 260px;
@@ -16404,7 +16511,7 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
 }
 
 .quick-access-btn--primary:hover {
-  background: var(--color-primary-light, #dbeafe);
+  background: var(--gray-100);
   color: var(--color-primary);
 }
 

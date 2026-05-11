@@ -403,23 +403,10 @@ export class KampagneKooperationenVideoTable {
       videoUrl,
       filePath,
       videoTitel: video?.thema || 'Video',
-      videoName: video?.video_name || '',
       onReupload: () => this._openUploadDrawer(videoId, kooperationId),
       onStorysReupload: () => this._openUploadDrawer(videoId, kooperationId, { initialTab: 'storys' }),
       onBilderReupload: () => this._openUploadDrawer(videoId, kooperationId, { initialTab: 'bilder' }),
       onDelete: () => this._executeVideoDelete(videoId, kooperationId),
-      onNameUpdated: (newVideoName) => {
-        if (this.store) {
-          this.store.updateVideo(videoId, { video_name: newVideoName });
-        } else {
-          const targetVideos = this.videos[kooperationId];
-          if (!targetVideos) return;
-          const targetVideo = targetVideos.find(v => v.id === videoId);
-          if (!targetVideo) return;
-          targetVideo.video_name = newVideoName;
-        }
-        this.refilter();
-      },
     });
   }
 

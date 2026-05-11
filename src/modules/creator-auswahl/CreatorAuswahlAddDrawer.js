@@ -176,9 +176,47 @@ export class CreatorAuswahlAddDrawer {
             <textarea name="notiz" class="form-input" rows="2" placeholder="Kurzbeschreibung..."></textarea>
           </div>
 
+          <div class="form-row">
+            <div class="form-field">
+              <label class="form-label">EK (€)</label>
+              <input type="number" name="preis_ek" class="form-input" placeholder="z.B. 300" step="0.01">
+            </div>
+            <div class="form-field">
+              <label class="form-label">VK (€)</label>
+              <input type="number" name="preis_vk" class="form-input" placeholder="z.B. 500" step="0.01">
+            </div>
+          </div>
+
           <div class="form-field">
-            <label class="form-label">Pricing</label>
+            <label class="form-label">Pricing (Freitext)</label>
             <input type="text" name="pricing" class="form-input" placeholder="z.B. 500€ pro Video">
+          </div>
+
+          <div class="form-row">
+            <div class="form-field">
+              <label class="form-label">Reichweite IG</label>
+              <input type="text" name="reichweite_instagram" class="form-input" placeholder="z.B. 10K">
+            </div>
+            <div class="form-field">
+              <label class="form-label">Reichweite TT</label>
+              <input type="text" name="reichweite_tiktok" class="form-input" placeholder="z.B. 50K">
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label">Reichweitengarantie</label>
+            <input type="text" name="reichweite_garantie" class="form-input" placeholder="z.B. 100K">
+          </div>
+
+          <div class="form-row">
+            <div class="form-field">
+              <label class="form-label">CPM Instagram</label>
+              <input type="number" name="cpm_instagram" class="form-input" placeholder="z.B. 15" step="0.01">
+            </div>
+            <div class="form-field">
+              <label class="form-label">CPM TikTok</label>
+              <input type="number" name="cpm_tiktok" class="form-input" placeholder="z.B. 10" step="0.01">
+            </div>
           </div>
         </div>
 
@@ -404,6 +442,13 @@ export class CreatorAuswahlAddDrawer {
         wohnort: formData.get('wohnort')?.trim() || null,
         notiz: formData.get('notiz')?.trim() || null,
         pricing: formData.get('pricing')?.trim() || null,
+        preis_ek: formData.get('preis_ek') ? parseFloat(formData.get('preis_ek')) : null,
+        preis_vk: formData.get('preis_vk') ? parseFloat(formData.get('preis_vk')) : null,
+        reichweite_instagram: formData.get('reichweite_instagram')?.trim() || null,
+        reichweite_tiktok: formData.get('reichweite_tiktok')?.trim() || null,
+        reichweite_garantie: formData.get('reichweite_garantie')?.trim() || null,
+        cpm_instagram: formData.get('cpm_instagram') ? parseFloat(formData.get('cpm_instagram')) : null,
+        cpm_tiktok: formData.get('cpm_tiktok') ? parseFloat(formData.get('cpm_tiktok')) : null,
         sortierung: this.detail.items.length,
         creator_id: this.selectedCreatorFromDb?.id || null
       };
@@ -437,6 +482,13 @@ export class CreatorAuswahlAddDrawer {
         wohnort: null,
         notiz: null,
         pricing: null,
+        preis_ek: null,
+        preis_vk: null,
+        reichweite_instagram: null,
+        reichweite_tiktok: null,
+        reichweite_garantie: null,
+        cpm_instagram: null,
+        cpm_tiktok: null,
         sortierung: 0,
         creator_id: null
       };
@@ -463,6 +515,13 @@ export class CreatorAuswahlAddDrawer {
         wohnort: null,
         notiz: null,
         pricing: null,
+        preis_ek: null,
+        preis_vk: null,
+        reichweite_instagram: null,
+        reichweite_tiktok: null,
+        reichweite_garantie: null,
+        cpm_instagram: null,
+        cpm_tiktok: null,
         sortierung: this.detail.items.length,
         creator_id: null
       };

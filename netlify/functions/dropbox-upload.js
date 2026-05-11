@@ -1,11 +1,8 @@
-const { getAccessToken, sanitizePath } = require('./_shared/dropbox');
+const { getAccessToken, sanitizePath, buildUnifiedBasePath, ensureFolder } = require('./_shared/dropbox');
 
 function buildDropboxPath({ unternehmen, marke, kampagne, kooperation, videoPosition, videoThema, videoTitel, versionNumber, variantName, fileName }) {
-  const parts = ['/Videos'];
-  if (unternehmen) parts.push(sanitizePath(unternehmen));
-  if (marke) parts.push(sanitizePath(marke));
-  if (kampagne) parts.push(sanitizePath(kampagne));
-  if (kooperation) parts.push(sanitizePath(kooperation));
+  const base = buildUnifiedBasePath({ unternehmen, marke, kampagne, kooperation });
+  const parts = [base, 'Videos'];
 
   const thema = sanitizePath(videoThema || '');
   const pos = videoPosition || 1;
@@ -63,14 +60,7 @@ exports.handler = async (event) => {
     console.log('dropbox-upload path:', dropboxPath);
 
     const folderPath = dropboxPath.substring(0, dropboxPath.lastIndexOf('/'));
-
-    try {
-      await fetch('https://api.dropboxapi.com/2/files/create_folder_v2', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: folderPath, autorename: false }),
-      });
-    } catch (_) { /* Ordner existiert evtl. schon – 409 ist okay */ }
+    await ensureFolder(token, folderPath);
 
     const kooperationFolderPath = folderPath.substring(0, folderPath.lastIndexOf('/'));
 

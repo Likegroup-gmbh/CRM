@@ -2,6 +2,7 @@
 // UGC-Produktionsvertrag: PDF-Generierung.
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
+import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
 
 VertraegeCreate.prototype.generatePDF = async function(vertrag) {
     const lang = this.getContractLanguage(vertrag);
@@ -694,45 +695,14 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       const pdfBlob = doc.output('blob');
       const filePrefix = lang === 'en' ? 'EN_Contract' : 'Vertrag';
       const fileName = `${filePrefix}_${vertrag.name || 'UGC'}_${new Date().toISOString().split('T')[0]}.pdf`;
-      // Speichere in Unternehmens-Ordner: unternehmen/{unternehmen_id}/{vertrag_id}/{filename}
-      const filePath = vertrag.kunde_unternehmen_id 
-        ? `unternehmen/${vertrag.kunde_unternehmen_id}/${vertrag.id}/${fileName}`
-        : `${vertrag.id}/${fileName}`;
 
-      // PDF in Storage hochladen
-      const { data: uploadData, error: uploadError } = await window.supabase.storage
-        .from('vertraege')
-        .upload(filePath, pdfBlob, {
-          contentType: 'application/pdf',
-          upsert: true
-        });
-
-      if (uploadError) {
-        console.warn('⚠️ PDF-Upload fehlgeschlagen:', uploadError);
-        // Fallback: Nur lokal herunterladen
-        doc.save(fileName);
+      const uploadResult = await uploadGeneratedVertragPdf(this, vertrag, pdfBlob, fileName);
+      if (uploadResult?.fileUrl) {
+        console.log('✅ PDF nach Dropbox hochgeladen und URL gespeichert');
       } else {
-        // Permanente Public URL generieren
-        const { data: urlData } = window.supabase.storage
-          .from('vertraege')
-          .getPublicUrl(filePath);
-
-        // URL in DB speichern
-        if (urlData?.publicUrl) {
-          await window.supabase
-            .from('vertraege')
-            .update({
-              datei_url: urlData.publicUrl,
-              datei_path: filePath
-            })
-            .eq('id', vertrag.id);
-
-          console.log('✅ PDF hochgeladen und URL gespeichert');
-        }
-
-        // Auch lokal herunterladen
-        doc.save(fileName);
+        console.warn('⚠️ Dropbox-Upload nicht erfolgreich – PDF wird nur lokal heruntergeladen');
       }
+      doc.save(fileName);
 
       console.log('✅ PDF generiert');
 

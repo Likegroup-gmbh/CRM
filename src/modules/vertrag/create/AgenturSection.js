@@ -1,8 +1,6 @@
 // AgenturSection.js
-// Gemeinsame Render- und Refresh-Logik fuer den "Influencer-Vertretung"-Block
-// in UGC- und Influencer-Vertraegen. Unterstuetzt zwei Modi:
-//  - aus Creator-Profil uebernommen (read-only, Bearbeiten via Modal)
-//  - manuell editierbar (wenn Creator keine Agentur hinterlegt hat)
+// Render- und Refresh-Logik fuer den "Management-Vertretung"-Block
+// in UGC- und Influencer-Vertraegen.
 
 import { VertraegeCreate } from './VertraegeCreateCore.js';
 
@@ -13,27 +11,32 @@ VertraegeCreate.prototype.renderAgenturSection = function() {
     const readonlyClass = fromCreator ? 'readonly-field' : '';
     const radioDisabled = fromCreator ? 'disabled' : '';
 
+    const managementLink = this.formData._management_id
+      ? `/management/${this.formData._management_id}`
+      : '/management/new';
+
     const hint = fromCreator
       ? `<div class="agentur-hint" style="margin-bottom: 12px; padding: 10px 12px; border-radius: 6px; background: #eef4ff; border: 1px solid #c9ddff; color: #1d4ed8; font-size: 13px; display: flex; justify-content: space-between; align-items: center; gap: 12px;">
           <span>
             ${vertreten
-              ? 'Agentur-Daten werden aus dem Creator-Profil uebernommen.'
-              : 'Fuer diesen Creator ist keine Agentur hinterlegt.'}
+              ? 'Management-Daten werden aus dem Creator-Profil uebernommen.'
+              : 'Fuer diesen Creator ist kein Management hinterlegt.'}
           </span>
-          <button type="button" id="agentur-edit-btn" class="btn btn-sm" style="padding: 6px 12px; border-radius: 4px; border: 1px solid #1d4ed8; background: #fff; color: #1d4ed8; cursor: pointer; font-size: 12px; white-space: nowrap;">
-            Im Creator bearbeiten
-          </button>
+          <a href="${managementLink}" onclick="event.preventDefault(); window.navigateTo('${managementLink}')"
+             class="btn btn-sm" style="padding: 6px 12px; border-radius: 4px; border: 1px solid #1d4ed8; background: #fff; color: #1d4ed8; cursor: pointer; font-size: 12px; white-space: nowrap; text-decoration: none;">
+            ${this.formData._management_id ? 'Management ansehen' : 'Management anlegen'}
+          </a>
         </div>`
       : '';
 
     return `
       <div id="agentur-section-container">
-        <h3 class="mt-section">Influencer-Vertretung</h3>
+        <h3 class="mt-section">Management-Vertretung</h3>
 
         ${hint}
 
         <div class="form-field">
-          <label>Wird der Influencer durch eine Agentur vertreten?</label>
+          <label>Wird der Influencer durch ein Management vertreten?</label>
           <div class="radio-group">
             <label class="radio-option">
               <input type="radio" name="influencer_agentur_vertreten" value="false"
@@ -50,10 +53,10 @@ VertraegeCreate.prototype.renderAgenturSection = function() {
 
         <div id="agentur-felder" class="${vertreten ? '' : 'hidden'}">
           <div class="form-field">
-            <label for="influencer_agentur_name">Agenturname</label>
+            <label for="influencer_agentur_name">Managementname</label>
             <input type="text" id="influencer_agentur_name" name="influencer_agentur_name"
                    value="${this.formData.influencer_agentur_name || ''}"
-                   placeholder="Name der Agentur" ${readonlyAttr} class="${readonlyClass}">
+                   placeholder="Name des Managements" ${readonlyAttr} class="${readonlyClass}">
           </div>
           <div class="form-field-row">
             <div class="form-field" style="flex: 1;">
@@ -135,13 +138,5 @@ VertraegeCreate.prototype._bindAgenturEvents = function() {
       });
     });
 
-    // Modal-Button zum Bearbeiten der Agentur im Creator-Profil
-    const editBtn = document.getElementById('agentur-edit-btn');
-    if (editBtn) {
-      editBtn.addEventListener('click', () => {
-        if (this.formData.creator_id) {
-          this.openAgenturEditModal(this.formData.creator_id);
-        }
-      });
-    }
+    // Management-Link ist ein <a>-Tag mit onclick, kein JS-Handler noetig
 };

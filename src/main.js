@@ -84,6 +84,9 @@ import { creatorAuswahlDetail } from './modules/creator-auswahl/CreatorAuswahlDe
 import { feedbackPage } from './modules/feedback/FeedbackPage.js';
 import { educationPage } from './modules/education/EducationPage.js';
 import { educationArticleDetail } from './modules/education/EducationArticleDetail.js';
+import { managementList } from './modules/management/ManagementList.js';
+import { managementDetail } from './modules/management/ManagementDetail.js';
+import { managementCreate } from './modules/management/ManagementCreate.js';
 import { videoList } from './modules/video/VideoList.js';
 import { vertraegeList } from './modules/vertrag/VertraegeList.js';
 import { vertraegeCreate } from './modules/vertrag/create/VertraegeCreate.js';
@@ -92,6 +95,7 @@ import { kickOffPage } from './modules/marke/KickOffPage.js';
 import { kickOffList } from './modules/kickoff/KickOffList.js';
 import { kickOffDetail } from './modules/kickoff/KickOffDetail.js';
 import { globalSearch } from './core/components/GlobalSearch.js';
+import { quickAccessBar } from './core/components/QuickAccessBar.js';
 // Zentrales Bestätigungs-Modal (side-effect Import, hängt window.confirmationModal an)
 import './core/ConfirmationModal.js';
 // Duplicate Checker für Creator, Marke, Unternehmen
@@ -138,6 +142,9 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('ansprechpartner', ansprechpartnerList);
   moduleRegistry.register('ansprechpartner-detail', ansprechpartnerDetail);
   moduleRegistry.register('ansprechpartner-create', ansprechpartnerCreate);
+  moduleRegistry.register('management', managementList);
+  moduleRegistry.register('management-detail', managementDetail);
+  moduleRegistry.register('management-create', managementCreate);
   moduleRegistry.register('briefing', briefingList);
   moduleRegistry.register('briefing-detail', briefingDetail);
   moduleRegistry.register('rechnung', rechnungList);
@@ -351,6 +358,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Navigation initialisieren
     navigationSystem.init();
+    
+    // Quick Access Floating Bar (vorerst nur Admin)
+    quickAccessBar.init();
     
     // ActionsDropdown initialisieren
     actionsDropdown.init();

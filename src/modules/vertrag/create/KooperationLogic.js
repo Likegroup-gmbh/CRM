@@ -103,13 +103,12 @@ VertraegeCreate.prototype.updateKooperationField = function() {
     const select = document.getElementById('kooperation_id');
     if (!field || !select) return;
 
-    this.formData.kooperation_id = null;
-
     const koopForCreator = this.filteredKooperationen.filter(
       k => k.creator_id === this.formData.creator_id
     );
 
     if (!this.formData.creator_id || koopForCreator.length === 0) {
+      this.formData.kooperation_id = null;
       field.style.display = 'none';
       select.innerHTML = '<option value="">Kooperation auswählen...</option>';
       return;
@@ -125,6 +124,13 @@ VertraegeCreate.prototype.updateKooperationField = function() {
       select.value = koopForCreator[0].id;
       this.formData.kooperation_id = koopForCreator[0].id;
       this.applyKooperationVerguetung(koopForCreator[0].id);
+    } else {
+      const stillValid = koopForCreator.some(k => k.id === this.formData.kooperation_id);
+      if (stillValid) {
+        select.value = this.formData.kooperation_id;
+      } else {
+        this.formData.kooperation_id = null;
+      }
     }
 };
 

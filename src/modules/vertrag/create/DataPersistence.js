@@ -94,7 +94,7 @@ VertraegeCreate.prototype.prepareDataForDB = function() {
     if (typ === 'Influencer Kooperation') {
       // Influencer-spezifische Felder
       Object.assign(data, {
-        // Agentur-Vertretung (strukturiert, siehe creator_agentur)
+        // Management-Vertretung (Snapshot aus creator_management -> management)
         influencer_agentur_vertreten: this.formData.influencer_agentur_vertreten || false,
         influencer_agentur_name: this.formData.influencer_agentur_vertreten ? this.formData.influencer_agentur_name || null : null,
         influencer_agentur_strasse: this.formData.influencer_agentur_vertreten ? this.formData.influencer_agentur_strasse || null : null,
@@ -198,7 +198,7 @@ VertraegeCreate.prototype.prepareDataForDB = function() {
     } else {
       // UGC-spezifische Felder
       Object.assign(data, {
-        // Agentur-Vertretung (strukturiert, siehe creator_agentur)
+        // Management-Vertretung (Snapshot aus creator_management -> management)
         influencer_agentur_vertreten: this.formData.influencer_agentur_vertreten || false,
         influencer_agentur_name: this.formData.influencer_agentur_vertreten ? this.formData.influencer_agentur_name || null : null,
         influencer_agentur_strasse: this.formData.influencer_agentur_vertreten ? this.formData.influencer_agentur_strasse || null : null,
@@ -279,6 +279,16 @@ VertraegeCreate.prototype.saveCurrentStepData = function() {
       }
     });
 
+    // Radio-Gruppen ohne Auswahl auf null setzen
+    const radioGroups = new Set();
+    form.querySelectorAll('input[type="radio"]').forEach(r => radioGroups.add(r.name));
+    radioGroups.forEach(name => {
+      const checked = form.querySelector(`input[type="radio"][name="${name}"]:checked`);
+      if (!checked) {
+        this.formData[name] = null;
+      }
+    });
+
     // Array-Felder: Nur neu sammeln wenn die Checkboxen im aktuellen Step vorhanden sind
     // Ansonsten vorherige Werte beibehalten
     arrayFields.forEach(fieldName => {
@@ -349,11 +359,10 @@ VertraegeCreate.prototype.handleSubmit = async function(e, startNewAfter = false
     if (!this.validateCurrentStep()) return;
     this.saveCurrentStepData();
 
-    // Creator-Adresse bevorzugen, sonst aktive Agentur-Adresse im Vertragskontext nutzen.
     if (this.formData.creator_id) {
       const creator = this.creators.find(c => c.id === this.formData.creator_id);
       if (creator && !this.getResolvedCreatorContractAddress(creator)) {
-        window.toastSystem?.show('Der ausgewählte Creator hat keine gültige Adresse und keine gültige Agentur-Adresse hinterlegt.', 'error');
+        window.toastSystem?.show('Der Creator hat keine gueltige Adresse und kein Management mit Adresse hinterlegt.', 'error');
         return;
       }
     }
