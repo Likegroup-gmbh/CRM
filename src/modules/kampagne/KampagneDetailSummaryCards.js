@@ -71,6 +71,7 @@ export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUse
 }
 
 export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum) {
+  const gesamtNettoBetrag = parseFloat(kampagneData?.auftrag?.nettobetrag) || 0;
   const totalBudget = parseFloat(
     kampagneData?.auftrag?.creator_budget ||
     kampagneData?.auftrag?.gesamt_budget ||
@@ -98,16 +99,37 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
     return 'summary-progress-fill--success';
   };
 
+  const sanitize = (v) => window.validatorSystem?.sanitizeHtml(v) || v || '';
+  const d = kampagneData?.auftragDetails || {};
+  const extraServices = Array.isArray(d.extra_services) ? d.extra_services : [];
+  const validExtraServices = (d.extra_services_enabled !== false)
+    ? extraServices.filter(s => s && typeof s.name === 'string' && s.name.trim())
+    : [];
+
+  const showAgencyFee = d?.agency_services_enabled && d.percentage_fee_enabled && parseFloat(d.percentage_fee_value) > 0;
+  const showKsk = d?.agency_services_enabled && d.ksk_enabled && parseFloat(d.ksk_value) > 0;
+
+  const zusatzleistungenCardsHtml = validExtraServices.map(s => `
+        <div class="summary-card">
+          <div class="summary-value">${KampagneUtils.formatCurrency(parseFloat(s.amount) || 0)}</div>
+          <div class="summary-label">${sanitize(s.name)}</div>
+        </div>
+      `).join('');
+
   return `
     <div class="auftragsdetails-summary" style="margin-bottom: var(--space-xl);">
       <div class="summary-cards">
+        <div class="summary-card" data-summary-card="gesamt-netto">
+          <div class="summary-value">${KampagneUtils.formatCurrency(gesamtNettoBetrag)}</div>
+          <div class="summary-label">Gesamt Nettobetrag</div>
+        </div>
         <div class="summary-card" data-summary-card="total-budget">
           <div class="summary-value" data-summary-value="total-budget">${KampagneUtils.formatCurrency(totalBudget)}</div>
-          <div class="summary-label">Gesamtbudget (netto)</div>
+          <div class="summary-label">Creatorbudget</div>
         </div>
         <div class="summary-card" data-summary-card="spent-budget">
           <div class="summary-value" data-summary-value="spent-budget">${KampagneUtils.formatCurrency(usedBudget)}</div>
-          <div class="summary-label">Verbrauchtes Budget</div>
+          <div class="summary-label">Verbrauchtes Creatorbudget</div>
           <div class="summary-progress">
             <div class="summary-progress-fill ${getBudgetColorClass(budgetPct)}" data-summary-progress="spent-budget"
                  style="width: ${budgetPct}%">
@@ -123,20 +145,21 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
             </div>
           </div>
         </div>
+        ${zusatzleistungenCardsHtml}
+        ${showKsk ? `
+        <div class="summary-card" data-summary-card="ksk">
+          <div class="summary-value">${KampagneUtils.formatCurrency(parseFloat(d.ksk_value))}</div>
+          <div class="summary-label">KSK</div>
+        </div>` : ''}
+        ${showAgencyFee ? `
+        <div class="summary-card" data-summary-card="agentur-fee">
+          <div class="summary-value">${KampagneUtils.formatCurrency(parseFloat(d.percentage_fee_value))}</div>
+          <div class="summary-label">Agentur Fee</div>
+        </div>` : ''}
         <div class="summary-card" data-summary-card="extra-kosten-vk">
           <div class="summary-value" data-summary-value="extra-kosten-vk">${KampagneUtils.formatCurrency(extraKostenVkSum || 0)}</div>
           <div class="summary-label">Extra Kosten</div>
         </div>
-        ${kampagneData?.auftragDetails?.agency_services_enabled && kampagneData.auftragDetails.percentage_fee_enabled && parseFloat(kampagneData.auftragDetails.percentage_fee_value) > 0 ? `
-        <div class="summary-card" data-summary-card="agentur-fee">
-          <div class="summary-value">${KampagneUtils.formatCurrency(parseFloat(kampagneData.auftragDetails.percentage_fee_value))}</div>
-          <div class="summary-label">Agentur Fee</div>
-        </div>` : ''}
-        ${kampagneData?.auftragDetails?.agency_services_enabled && kampagneData.auftragDetails.ksk_enabled && parseFloat(kampagneData.auftragDetails.ksk_value) > 0 ? `
-        <div class="summary-card" data-summary-card="ksk">
-          <div class="summary-value">${KampagneUtils.formatCurrency(parseFloat(kampagneData.auftragDetails.ksk_value))}</div>
-          <div class="summary-label">KSK</div>
-        </div>` : ''}
         <div class="summary-card" data-summary-card="creators">
           <div class="summary-value" data-summary-value="creators">${KampagneUtils.num(usedCreators)} von ${KampagneUtils.num(totalCreators)}</div>
           <div class="summary-label">Gebuchte Creator</div>
