@@ -234,14 +234,7 @@ export class AuftragsdetailsDetail {
       return sum + (parseInt(koop.videoanzahl, 10) || 0);
     }, 0);
     
-    // Anzahl einzigartiger Creator
-    const uniqueCreatorIds = new Set();
-    this.kooperationen.forEach(koop => {
-      if (koop.creator?.id) {
-        uniqueCreatorIds.add(koop.creator.id);
-      }
-    });
-    this.budgetSummary.totalCreators = uniqueCreatorIds.size;
+    this.budgetSummary.totalCreators = (this.kooperationen || []).filter(k => k.creator?.id).length;
 
     this.budgetSummary.avgCostPerCreator = this.budgetSummary.totalCreators > 0
       ? this.budgetSummary.usedBudget / this.budgetSummary.totalCreators

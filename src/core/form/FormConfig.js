@@ -799,7 +799,7 @@ export class FormConfig {
             name: 'marke_id', 
             label: 'Marke', 
             type: 'select', 
-            required: true, 
+            required: false, 
             options: [], 
             dynamic: true, 
             searchable: true, 
@@ -809,9 +809,9 @@ export class FormConfig {
             displayField: 'markenname', 
             valueField: 'id' 
           },
-          { name: 'url', label: 'Produkt-URL / Referenz', type: 'url', required: false, validation: { type: 'url' }, placeholder: 'https://...' },
+          { name: 'url', label: 'Produkt-URL / Referenz', type: 'url', required: true, validation: { type: 'url' }, placeholder: 'https://...' },
           { name: 'kernbotschaft', label: 'Kernbotschaft (1 Satz)', type: 'textarea', required: true, rows: 2, placeholder: 'Was soll hängen bleiben?' },
-          { name: 'hauptproblem', label: 'Hauptproblem, das das Produkt löst', type: 'textarea', required: true, rows: 3 },
+          { name: 'hauptproblem', label: 'Hauptproblem, das das Produkt löst', type: 'textarea', required: false, rows: 3 },
           { name: 'kernnutzen', label: 'Kernnutzen (größter Vorteil)', type: 'textarea', required: false, rows: 3 },
           // USPs als separate Felder
           { name: 'usp_1', label: 'USP / Schwerpunkt 1', type: 'text', required: false, row: 'usps', colSize: 'grow' },

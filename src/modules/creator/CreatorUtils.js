@@ -110,11 +110,13 @@ export class CreatorUtils {
     const links = [];
     
     if (creator.instagram) {
-      links.push(`<a href="https://instagram.com/${creator.instagram.replace('@', '')}" target="_blank" rel="noopener noreferrer">${this.sanitizeHtml(creator.instagram)}</a>`);
+      const igUrl = creator.instagram.startsWith('http') ? creator.instagram : `https://instagram.com/${creator.instagram.replace('@', '')}`;
+      links.push(`<a href="${this.sanitizeHtml(igUrl)}" target="_blank" rel="noopener noreferrer">${this.sanitizeHtml(creator.instagram)}</a>`);
     }
     
     if (creator.tiktok) {
-      links.push(`<a href="https://tiktok.com/@${creator.tiktok.replace('@', '')}" target="_blank" rel="noopener noreferrer">${this.sanitizeHtml(creator.tiktok)}</a>`);
+      const tkUrl = creator.tiktok.startsWith('http') ? creator.tiktok : `https://tiktok.com/@${creator.tiktok.replace('@', '')}`;
+      links.push(`<a href="${this.sanitizeHtml(tkUrl)}" target="_blank" rel="noopener noreferrer">${this.sanitizeHtml(creator.tiktok)}</a>`);
     }
     
     return links.length > 0 ? links.join('<br>') : '-';

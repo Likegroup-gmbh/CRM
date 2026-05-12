@@ -13,7 +13,8 @@ export const CAMPAIGN_TYPES = [
   { value: 'influencer', label: 'Influencer Kampagne' },
   { value: 'vorort_produktion', label: 'Vor-Ort-Produktion' },
   { value: 'story', label: 'Story' },
-  { value: 'whitelisting_darkposting', label: 'Whitelisting & Darkposting' }
+  { value: 'whitelisting', label: 'Whitelisting' },
+  { value: 'darkposting', label: 'Darkposting' }
 ];
 
 export const RETAINER_TYPES = [

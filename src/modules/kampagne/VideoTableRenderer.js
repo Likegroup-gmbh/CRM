@@ -158,8 +158,8 @@ export class VideoTableRenderer {
           </a>`
             : this.escapeHtml(`${creator.vorname || ''} ${creator.nachname || ''}`.trim() || 'Unbekannt')}
           ${(creator.instagram || creator.tiktok) ? `<div class="creator-social-links">
-            ${creator.instagram ? `<a href="https://instagram.com/${encodeURIComponent(creator.instagram)}" target="_blank" rel="noopener" title="@${this.escapeHtml(creator.instagram)}">${INSTAGRAM_ICON}</a>` : ''}
-            ${creator.tiktok ? `<a href="https://tiktok.com/@${encodeURIComponent(creator.tiktok)}" target="_blank" rel="noopener" title="@${this.escapeHtml(creator.tiktok)}">${TIKTOK_ICON}</a>` : ''}
+            ${creator.instagram ? `<a href="${creator.instagram.startsWith('http') ? this.escapeHtml(creator.instagram) : `https://instagram.com/${encodeURIComponent(creator.instagram.replace('@', ''))}`}" target="_blank" rel="noopener" title="@${this.escapeHtml(creator.instagram)}">${INSTAGRAM_ICON}</a>` : ''}
+            ${creator.tiktok ? `<a href="${creator.tiktok.startsWith('http') ? this.escapeHtml(creator.tiktok) : `https://tiktok.com/@${encodeURIComponent(creator.tiktok.replace('@', ''))}`}" target="_blank" rel="noopener" title="@${this.escapeHtml(creator.tiktok)}">${TIKTOK_ICON}</a>` : ''}
           </div>` : ''}
         </td>
         <td class="grid-cell cell-centered col-status" ${!t.isColumnVisibleForCustomer('col-status') ? 'style="display:none;"' : ''}>

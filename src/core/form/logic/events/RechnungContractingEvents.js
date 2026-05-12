@@ -7,6 +7,13 @@ import { berechneRechnungFromInputs } from './RechnungEvents.js';
 
 const BUDGET_BANNER_ID = 'contracting-budget-banner';
 
+// Searchable-Selects entfernen das name-Attribut vom <select>; Fallback auf id / data-field-name.
+function findSelect(form, name) {
+  return form.querySelector(`select[name="${name}"]`)
+    || form.querySelector(`select#field-${name}`)
+    || form.querySelector(`select[data-field-name="${name}"]`);
+}
+
 let _debounceTimer = null;
 function debounce(fn, ms = 50) {
   return (...args) => {
@@ -105,12 +112,12 @@ async function loadBudgetData(auftragId) {
 }
 
 export async function setup(form, ctx) {
-  const contractSelect = form.querySelector('select[name="auftrag_id"]');
+  const contractSelect = findSelect(form, 'auftrag_id');
   if (!contractSelect || !window.supabase) return;
 
   const isEditMode = form.dataset.isEditMode === 'true';
-  const unternehmenField = form.querySelector('select[name="unternehmen_id"]');
-  const creatorField = form.querySelector('select[name="creator_id"]');
+  const unternehmenField = findSelect(form, 'unternehmen_id');
+  const creatorField = findSelect(form, 'creator_id');
   const nettoInput = form.querySelector('input[name="nettobetrag"]');
   const ustProzentInput = form.querySelector('input[name="ust_prozent"]');
   const ustAktivToggle = form.querySelector('input[name="ust_aktiv"]');

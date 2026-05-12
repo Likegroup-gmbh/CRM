@@ -323,9 +323,9 @@ export class ProduktCreate {
       // Validierung
       const validation = window.validatorSystem.validateForm(data, {
         name: { type: 'text', minLength: 2, required: true },
-        marke_id: { required: true },
+        unternehmen_id: { required: true },
         kernbotschaft: { type: 'text', minLength: 2, required: true },
-        hauptproblem: { type: 'text', minLength: 2, required: true }
+        url: { type: 'url', required: true }
       });
       
       if (!validation.isValid) {
