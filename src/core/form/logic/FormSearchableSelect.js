@@ -67,7 +67,12 @@ export class FormSearchableSelect {
 
   // Einfache Auto-Suggestion Select erstellen
   createSimpleSearchableSelect(selectElement, options, field) {
+    // Existing container ZUERST inspizieren, dann entfernen. Sonst verlieren
+    // wir bei einem Reinit den Hidden-Input-Namen (selectElement.name wird im
+    // Erstinit unten via removeAttribute geleert).
     const existingContainer = selectElement.parentNode.querySelector('.searchable-select-container');
+    const oldHiddenName = existingContainer?.querySelector('input[type="hidden"]')?.name || '';
+    const oldHiddenValue = existingContainer?.querySelector('input[type="hidden"]')?.value || '';
     if (existingContainer) {
       existingContainer.remove();
     }
@@ -106,8 +111,25 @@ export class FormSearchableSelect {
     dropdown.className = 'searchable-select-dropdown';
 
     selectElement.style.display = 'none';
-    const fieldName = selectElement.name;
-    selectElement.removeAttribute('name');
+
+    // fieldName robust ableiten: bei Erstinit ist selectElement.name gesetzt,
+    // bei Reinit ist es leer. Dann auf dataset.fieldName / alten hidden input /
+    // id (FormRenderer setzt id="field-${name}") zurueckfallen.
+    const idDerivedName = selectElement.id?.startsWith('field-')
+      ? selectElement.id.slice('field-'.length)
+      : selectElement.id;
+    const fieldName = selectElement.name
+      || selectElement.dataset.fieldName
+      || oldHiddenName
+      || idDerivedName
+      || '';
+    if (fieldName) {
+      selectElement.dataset.fieldName = fieldName;
+    }
+    if (selectElement.name) {
+      selectElement.removeAttribute('name');
+    }
+
     const wasRequired = selectElement.hasAttribute('required');
     if (wasRequired) {
       selectElement.removeAttribute('required');
@@ -120,8 +142,13 @@ export class FormSearchableSelect {
     hiddenInput.name = fieldName;
     hiddenInput.id = selectElement.id + '_value';
 
-    if (selectElement.value) {
-      hiddenInput.value = selectElement.value;
+    // Wert beim Reinit erhalten: erst selectElement.value, dann alter hidden
+    // input, dann (falls prefilled) prefilledValue als finaler Fallback.
+    const initialValue = selectElement.value
+      || oldHiddenValue
+      || (selectElement.dataset.prefilled === 'true' ? (selectElement.dataset.prefilledValue || '') : '');
+    if (initialValue) {
+      hiddenInput.value = initialValue;
     }
 
     selectElement.parentNode.insertBefore(container, selectElement);

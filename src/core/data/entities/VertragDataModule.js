@@ -9,15 +9,17 @@ export default {
       kampagne_id: 'uuid',
       creator_id: 'uuid',
       kooperation_id: 'uuid',
+      contracting_auftrag_id: 'uuid',
       is_draft: 'boolean',
       created_at: 'date'
     },
     relations: {
       kunde: { table: 'unternehmen', foreignKey: 'kunde_unternehmen_id', displayField: 'firmenname' },
       kampagne: { table: 'kampagne', foreignKey: 'kampagne_id', displayField: 'kampagnenname' },
-      creator: { table: 'creator', foreignKey: 'creator_id', displayField: 'vorname' }
+      creator: { table: 'creator', foreignKey: 'creator_id', displayField: 'vorname' },
+      contracting_auftrag: { table: 'auftrag', foreignKey: 'contracting_auftrag_id', displayField: 'auftragsname' }
     },
-    filters: ['typ', 'kunde_unternehmen_id', 'kampagne_id', 'creator_id'],
+    filters: ['typ', 'kunde_unternehmen_id', 'kampagne_id', 'creator_id', 'contracting_auftrag_id'],
     sortBy: 'created_at',
     sortOrder: 'desc'
   },

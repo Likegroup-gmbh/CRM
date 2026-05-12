@@ -1,9 +1,8 @@
 // ContractDetail.js
 // Detailseite fuer einen Contracting-Auftrag
-// Flaches Layout (AuftragsdetailsDetail-Stil): Summary Cards + Eckdaten + Positionen + Rechnungen
+// Flaches Layout (AuftragsdetailsDetail-Stil): Summary Cards + Eckdaten + Rechnungen
 
 import { loadContractDetail } from './ContractListDataLoader.js';
-import { ContractPositionDrawer } from './ContractPositionDrawer.js';
 import { UploaderField } from '../../core/form/fields/UploaderField.js';
 import {
   uploadAuftragsbestaetigungen,
@@ -117,11 +116,6 @@ export class ContractDetail {
           </div>
 
           <div class="detail-section" style="margin-top: var(--space-lg);">
-            <h3 class="section-title section-title--spaced">Positionen</h3>
-            ${this.renderPositionenTable()}
-          </div>
-
-          <div class="detail-section" style="margin-top: var(--space-lg);">
             <h3 class="section-title section-title--spaced">Rechnungen</h3>
             ${this.renderRechnungenTable()}
           </div>
@@ -192,7 +186,6 @@ export class ContractDetail {
   renderSummaryCards() {
     const c = this.contract;
     const rechnungen = c.rechnungen || [];
-    const positionen = c.contracting_position || [];
 
     const rechnungenSummeNetto = rechnungen.reduce((s, r) => s + (parseFloat(r.nettobetrag) || 0), 0);
     const bezahltCount = rechnungen.filter(r => r.status === 'Bezahlt').length;
@@ -237,10 +230,6 @@ export class ContractDetail {
               </div>
             </div>
             ` : ''}
-          </div>
-          <div class="summary-card">
-            <div class="summary-value">${positionen.length}</div>
-            <div class="summary-label">Positionen</div>
           </div>
         </div>
       </div>
@@ -300,77 +289,6 @@ export class ContractDetail {
               : ap
           )}
         </div>
-      </div>
-    `;
-  }
-
-  renderPositionenTable() {
-    const positionen = this.contract.contracting_position || [];
-    const isAdmin = window.isAdmin?.();
-
-    const actionBar = isAdmin ? `
-      <div style="display:flex; justify-content:flex-end; margin-bottom:var(--space-md);">
-        <button class="primary-btn btn-add-position">Position hinzufügen</button>
-      </div>
-    ` : '';
-
-    if (positionen.length === 0) {
-      return `
-        ${actionBar}
-        <div class="empty-state">
-          <p>Noch keine Positionen für diesen Contract vorhanden.</p>
-        </div>
-      `;
-    }
-
-    const rows = positionen.map(p => {
-      const creator = p.creator
-        ? [p.creator.vorname, p.creator.nachname].filter(Boolean).join(' ')
-        : '—';
-      const creatorLink = p.creator?.id
-        ? `<a href="#" class="table-link" data-table="creator" data-id="${p.creator.id}">${escapeHtml(creator)}</a>`
-        : escapeHtml(creator);
-
-      return `
-        <tr>
-          <td>${creatorLink}</td>
-          <td>${escapeHtml(p.beschreibung || '—')}</td>
-          <td>${p.betrag_netto != null ? formatCurrency(p.betrag_netto) : '—'}</td>
-          <td>${p.betrag_brutto != null ? formatCurrency(p.betrag_brutto) : '—'}</td>
-          <td>${escapeHtml(p.rechnung_nr || '—')}</td>
-          <td>${statusBadge(p.status)}</td>
-          <td>${formatDate(p.bezahlt_am)}</td>
-          ${isAdmin ? `
-          <td>
-            <button class="btn-icon btn-edit-position" data-position-id="${p.id}" title="Bearbeiten">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
-              </svg>
-            </button>
-          </td>
-          ` : ''}
-        </tr>
-      `;
-    }).join('');
-
-    return `
-      ${actionBar}
-      <div class="data-table-container">
-        <table class="data-table data-table--nowrap">
-          <thead>
-            <tr>
-              <th>Creator</th>
-              <th>Beschreibung</th>
-              <th>Netto</th>
-              <th>Brutto</th>
-              <th>Rechnung-Nr</th>
-              <th>Status</th>
-              <th>Bezahlt am</th>
-              ${isAdmin ? '<th></th>' : ''}
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
       </div>
     `;
   }
@@ -458,21 +376,6 @@ export class ContractDetail {
       if (tableLink) {
         e.preventDefault();
         window.navigateTo(`/${tableLink.dataset.table}/${tableLink.dataset.id}`);
-        return;
-      }
-
-      if (e.target.closest('.btn-add-position')) {
-        e.preventDefault();
-        this.openPositionDrawer(null);
-        return;
-      }
-
-      const editBtn = e.target.closest('.btn-edit-position');
-      if (editBtn) {
-        e.preventDefault();
-        const posId = editBtn.dataset.positionId;
-        const pos = (this.contract.contracting_position || []).find(p => p.id === posId);
-        if (pos) this.openPositionDrawer(pos);
         return;
       }
 
@@ -581,26 +484,6 @@ export class ContractDetail {
       console.error('[ContractDetail] Loeschen fehlgeschlagen:', err);
       window.toastSystem?.show(err.message || 'Löschen fehlgeschlagen', 'error');
     }
-  }
-
-  openPositionDrawer(position) {
-    const drawer = new ContractPositionDrawer({
-      auftragId: this.contract.id,
-      position,
-      onSave: () => this.refreshAfterPositionChange()
-    });
-    drawer.open();
-  }
-
-  async refreshAfterPositionChange() {
-    const id = this.contract.id;
-    this.contract = await loadContractDetail(id);
-    if (!this._isMounted) return;
-    await this.loadDokumente();
-    if (!this._isMounted) return;
-    this.render();
-    this.bindEvents();
-    this.mountDokUploader();
   }
 
   destroy() {

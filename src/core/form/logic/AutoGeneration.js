@@ -4,6 +4,50 @@ export class AutoGeneration {
     'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
   ];
 
+  // Wert eines Feldes lesen, egal ob es noch ein nativer Select ist oder
+  // bereits in eine Searchable-Variante (mit hidden input) konvertiert wurde.
+  static readFieldValue(form, fieldName) {
+    if (!form || !fieldName) return '';
+    const hiddenInput = form.querySelector(`input[type="hidden"][name="${fieldName}"]`);
+    if (hiddenInput && hiddenInput.value) return hiddenInput.value;
+    const nativeSelect = form.querySelector(`select[name="${fieldName}"]`);
+    if (nativeSelect && nativeSelect.value) return nativeSelect.value;
+    const selectById = form.querySelector(`select#${fieldName}`);
+    if (selectById && selectById.value) return selectById.value;
+    return '';
+  }
+
+  // Findet das relevante <select>-Element fuer ein Feld - auch wenn der
+  // Searchable-Select dessen `name`-Attribut bereits entfernt hat.
+  static findFieldSelect(form, fieldName) {
+    if (!form || !fieldName) return null;
+    return form.querySelector(`select[name="${fieldName}"]`)
+      || form.querySelector(`select#${fieldName}`);
+  }
+
+  // Findet den Searchable-Container fuer ein Feld - mit mehreren Fallbacks,
+  // damit unterschiedliche DOM-Layouts (Container vor/nach Select, ggf. in
+  // einem Wrapper) zuverlaessig getroffen werden.
+  static findSearchableContainer(form, fieldName) {
+    const select = AutoGeneration.findFieldSelect(form, fieldName);
+    if (!select) {
+      const formField = form?.querySelector(`label[for="${fieldName}"]`)?.closest('.form-field, .form-group');
+      return formField?.querySelector('.searchable-select-container') || null;
+    }
+    if (select.previousElementSibling?.classList.contains('searchable-select-container')) {
+      return select.previousElementSibling;
+    }
+    if (select.nextElementSibling?.classList.contains('searchable-select-container')) {
+      return select.nextElementSibling;
+    }
+    if (select.parentNode) {
+      const inParent = select.parentNode.querySelector('.searchable-select-container');
+      if (inParent) return inParent;
+    }
+    const formField = select.closest('.form-field, .form-group');
+    return formField?.querySelector('.searchable-select-container') || null;
+  }
+
   static formatStartMonthYear(dateValue) {
     if (!dateValue) return null;
     try {
@@ -139,14 +183,35 @@ export class AutoGeneration {
   // Kooperationsname automatisch generieren: "Creator Vorname Nachname X/Y"
   async autoGenerateKooperationsname(form) {
     try {
-      const kampagneSelect = form.querySelector('select[name="kampagne_id"]');
-      const creatorSelect = form.querySelector('select[name="creator_id"]');
+      // Searchable-Selects entfernen das `name`-Attribut vom <select> und legen
+      // dafuer einen <input type="hidden" name="..."> an. Daher die Werte ueber
+      // einen Helper aus allen moeglichen Quellen ziehen.
+      const kampagneId = AutoGeneration.readFieldValue(form, 'kampagne_id');
+      const creatorId = AutoGeneration.readFieldValue(form, 'creator_id');
       const nameInput = form.querySelector('input[name="name"]');
-      if (!kampagneSelect || !creatorSelect || !nameInput) return;
+      if (!nameInput) return;
 
-      const kampagneId = kampagneSelect.value;
-      const creatorId = creatorSelect.value;
-      if (!kampagneId || !creatorId) return;
+      if (!kampagneId || !creatorId) {
+        console.log(`🔧 Kooperationsname: warte auf Werte (kampagne_id=${kampagneId || '∅'}, creator_id=${creatorId || '∅'})`);
+        return;
+      }
+
+      // Re-Entry-Guard: wenn bereits ein Lauf fuer dieses Tupel laeuft / fertig
+      // ist, nicht erneut ausfuehren. Verhindert doppelte DB-Queries durch
+      // MutationObserver + setTimeout-Retries.
+      const runKey = `${kampagneId}|${creatorId}`;
+      if (form._koopNameLastKey === runKey && form._koopNameLastResult) {
+        if (nameInput.value !== form._koopNameLastResult) {
+          nameInput.value = form._koopNameLastResult;
+          nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+          nameInput.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        return;
+      }
+      if (form._koopNameRunning === runKey) return;
+      form._koopNameRunning = runKey;
+
+      console.log(`🔧 Generiere Kooperationsname (kampagne=${kampagneId}, creator=${creatorId})`);
 
       // Kampagne laden (für creatoranzahl)
       const { data: kampagne, error: kampagneError } = await window.supabase
@@ -211,8 +276,13 @@ export class AutoGeneration {
       nameInput.focus();
       nameInput.blur();
 
+      form._koopNameLastKey = runKey;
+      form._koopNameLastResult = kooperationsname;
+      form._koopNameRunning = null;
+
       console.log(`✅ Kooperationsname generiert: ${kooperationsname}`);
     } catch (error) {
+      form._koopNameRunning = null;
       console.error('❌ Fehler beim Generieren des Kooperationsnamens:', error);
     }
   }
@@ -566,35 +636,71 @@ export class AutoGeneration {
     }
 
     // ========== KOOPERATIONSNAME (für Kooperation-Formulare) ==========
-    // Kooperationsname: auf Änderungen von Kampagne und Creator reagieren
-    const kampagneSelect = form.querySelector('select[name="kampagne_id"]');
-    const creatorSelect = form.querySelector('select[name="creator_id"]');
-    if (kampagneSelect && creatorSelect) {
+    // Wir wissen erst zur Laufzeit, ob die Selects nativ oder bereits Searchable
+    // sind (Searchable entfernt das `name`-Attribut!). Daher Auto-Gen an allen
+    // moeglichen Quellen ankuepfen: select#id, hidden input, container input.
+    const isKooperationForm = form.id === 'kooperation-form' || form.dataset.entity === 'kooperation' || form.dataset.entityType === 'kooperation';
+
+    if (isKooperationForm) {
       const triggerKoopName = () => this.autoGenerateKooperationsname(form);
-      kampagneSelect.addEventListener('change', triggerKoopName);
-      creatorSelect.addEventListener('change', triggerKoopName);
 
-      // Wenn beide Werte bereits vorhanden sind, sofort generieren
-      if (kampagneSelect.value && creatorSelect.value) {
-        this.autoGenerateKooperationsname(form);
-      }
+      const wireField = (fieldName) => {
+        // Native select per name oder ID
+        const nativeSelect = AutoGeneration.findFieldSelect(form, fieldName);
+        if (nativeSelect && !nativeSelect.dataset.koopAutoGenBound) {
+          nativeSelect.addEventListener('change', triggerKoopName);
+          nativeSelect.dataset.koopAutoGenBound = 'true';
+        }
 
-      // Searchable Selects (jeweils container direkt vor dem Select suchen)
-      const wireSearchable = (selectEl) => {
-        const container = selectEl.previousElementSibling;
-        if (container && container.classList.contains('searchable-select-container')) {
-          const input = container.querySelector('.searchable-select-input');
-          if (input) {
-            let timeout;
-            input.addEventListener('input', () => {
-              clearTimeout(timeout);
-              timeout = setTimeout(() => this.autoGenerateKooperationsname(form), 300);
-            });
-          }
+        // Hidden input (existiert wenn Searchable initialisiert wurde)
+        const hiddenInput = form.querySelector(`input[type="hidden"][name="${fieldName}"]`);
+        if (hiddenInput && !hiddenInput.dataset.koopAutoGenBound) {
+          hiddenInput.addEventListener('change', triggerKoopName);
+          hiddenInput.dataset.koopAutoGenBound = 'true';
+        }
+
+        // Searchable-Input (User-Tipp)
+        const container = AutoGeneration.findSearchableContainer(form, fieldName);
+        const searchInput = container?.querySelector('.searchable-select-input');
+        if (searchInput && !searchInput.dataset.koopAutoGenBound) {
+          let timeout;
+          searchInput.addEventListener('input', () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(triggerKoopName, 300);
+          });
+          searchInput.dataset.koopAutoGenBound = 'true';
         }
       };
-      wireSearchable(kampagneSelect);
-      wireSearchable(creatorSelect);
+
+      wireField('kampagne_id');
+      wireField('creator_id');
+
+      // Falls Cascade die Searchables erst spaeter initialisiert (z.B. weil
+      // creator_id von kampagne_id abhaengt), neue Selects/Inputs nachtraeglich
+      // verdrahten. MutationObserver beobachtet das Form, wired bei Bedarf nach.
+      // Debounced, damit nicht bei jeder DOM-Mutation Supabase-Queries laufen.
+      try {
+        let moTimer = null;
+        const mo = new MutationObserver(() => {
+          clearTimeout(moTimer);
+          moTimer = setTimeout(() => {
+            wireField('kampagne_id');
+            wireField('creator_id');
+            // Bei jeder Veraenderung ggf. neu generieren - die Funktion bricht
+            // selbst ab wenn nicht alle Werte da sind.
+            triggerKoopName();
+          }, 150);
+        });
+        mo.observe(form, { childList: true, subtree: true });
+        // Cleanup: alten Observer abloesen, damit kein Leak entsteht.
+        form._koopAutoGenObserver?.disconnect?.();
+        form._koopAutoGenObserver = mo;
+      } catch (_) { /* MutationObserver optional */ }
+
+      // Wenn beide Werte bereits vorhanden sind (z.B. nach Prefill), sofort generieren
+      if (AutoGeneration.readFieldValue(form, 'kampagne_id') && AutoGeneration.readFieldValue(form, 'creator_id')) {
+        triggerKoopName();
+      }
     }
 
     // ========== STRATEGIENAME (für Strategie-Formulare) ==========

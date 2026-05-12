@@ -4107,6 +4107,13 @@ input.input-error {
   padding: var(--space-sm);
 }
 
+/* Fixed-Modus: bricht aus overflow:hidden Containern (z.B. #auftrag-table-container) aus.
+   JS setzt top/bottom/left inline per getBoundingClientRect(). */
+.custom-date-picker__popover--fixed {
+  position: fixed !important;
+  z-index: 99999 !important;
+}
+
 .data-table .custom-date-picker__header {
   display: grid;
   grid-template-columns: 28px 1fr 28px;
@@ -4651,6 +4658,21 @@ input.input-error {
 .status-in-bearbeitung {
   background: #fef3c7;
   color: #d97706;
+}
+
+.status-rueckfrage {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-an-qonto-gesendet {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-nicht-erstellt {
+  background: var(--gray-100, #f3f4f6);
+  color: var(--gray-600, #4b5563);
 }
 
 .tracking-number {
@@ -16491,7 +16513,7 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
   border: none;
   border-radius: var(--space-sm);
   background: transparent;
-  color: var(--gray-500);
+  color: var(--color-primary);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
   flex-shrink: 0;

@@ -96,6 +96,7 @@ export const EntityRegistry = {
       vorname: 'string',
       nachname: 'string',
       unternehmen_id: 'uuid',
+      management_id: 'uuid',
       position_id: 'uuid',
       email: 'string',
       telefonnummer: 'string',
@@ -114,6 +115,7 @@ export const EntityRegistry = {
     },
     relations: {
       unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' },
+      management: { table: 'management', foreignKey: 'management_id', displayField: 'firmenname' },
       sprache: { table: 'sprachen', foreignKey: 'sprache_id', displayField: 'name' },
       position: { table: 'positionen', foreignKey: 'position_id', displayField: 'name' },
       telefonnummer_land: { table: 'eu_laender', foreignKey: 'telefonnummer_land_id', displayField: 'name_de' },

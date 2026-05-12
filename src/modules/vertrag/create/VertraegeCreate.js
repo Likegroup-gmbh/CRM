@@ -19,10 +19,12 @@ import './types/UgcContract.js';
 import './types/InfluencerContract.js';
 import './types/VideografContract.js';
 import './types/ModelContract.js';
+import './types/ContractingContract.js';
 import './pdf/UgcPdf.js';
 import './pdf/InfluencerPdf.js';
 import './pdf/VideografPdf.js';
 import './pdf/ModelPdf.js';
+import './pdf/ContractingPdf.js';
 
 export { VertraegeCreate };
 export const vertraegeCreate = new VertraegeCreate();

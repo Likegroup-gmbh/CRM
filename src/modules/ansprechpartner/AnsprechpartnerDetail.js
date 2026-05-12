@@ -88,6 +88,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
           .select(`
             *,
             unternehmen:unternehmen_id (id, firmenname),
+            management:management_id (id, firmenname, logo_url),
             ansprechpartner_marke (marke:marke_id (id, markenname, logo_url)),
             ansprechpartner_kampagne (kampagne:kampagne_id (id, kampagnenname, eigener_name)),
             ansprechpartner_unternehmen (unternehmen:unternehmen_id (id, firmenname, logo_url)),
@@ -763,6 +764,8 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       formData._entityId = this.ansprechpartnerId;
       // Unternehmen direkt als ID befüllen (Renderer nutzt value)
       formData.unternehmen_id = this.ansprechpartner?.unternehmen_id || this.ansprechpartner?.unternehmen?.id || null;
+      // Management direkt als ID befüllen (Renderer nutzt value)
+      formData.management_id = this.ansprechpartner?.management_id || this.ansprechpartner?.management?.id || null;
       // Position (einfache FK)
       formData.position_id = this.ansprechpartner?.position_id || null;
       // Telefonnummer-Länder (für Phone-Fields im Edit-Modus)

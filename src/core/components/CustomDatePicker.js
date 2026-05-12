@@ -270,12 +270,51 @@ export class CustomDatePicker {
     picker.classList.add('is-open');
     this._activePicker = picker;
     this.renderCalendar(picker);
+
+    // Fixed positioning, damit der Popover aus overflow:hidden Containern ausbricht
+    // und je nach verfuegbarem Platz nach oben oder unten oeffnet (wie ActionsDropdown).
+    this.positionPopover(picker);
+  }
+
+  static positionPopover(picker) {
+    const popover = picker?.querySelector('.custom-date-picker__popover');
+    const trigger = picker?.querySelector('.custom-date-picker__trigger');
+    if (!popover || !trigger) return;
+
+    const triggerRect = trigger.getBoundingClientRect();
+    const popoverHeight = popover.offsetHeight || 280;
+    const popoverWidth = popover.offsetWidth || 248;
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+    const spaceBelow = viewportHeight - triggerRect.bottom;
+    const needsFlip = spaceBelow < popoverHeight && triggerRect.top > popoverHeight;
+
+    popover.classList.add('custom-date-picker__popover--fixed');
+
+    if (needsFlip) {
+      popover.style.top = 'auto';
+      popover.style.bottom = (viewportHeight - triggerRect.top + 4) + 'px';
+    } else {
+      popover.style.top = (triggerRect.bottom + 4) + 'px';
+      popover.style.bottom = 'auto';
+    }
+
+    // Horizontal am Trigger ausrichten, aber im Viewport halten (8px Puffer rechts).
+    let left = triggerRect.left;
+    if (left + popoverWidth > viewportWidth - 8) {
+      left = Math.max(8, viewportWidth - popoverWidth - 8);
+    }
+    popover.style.left = left + 'px';
   }
 
   static closePicker(picker) {
     const popover = picker?.querySelector('.custom-date-picker__popover');
     if (!popover) return;
     popover.hidden = true;
+    popover.classList.remove('custom-date-picker__popover--fixed');
+    popover.style.top = '';
+    popover.style.bottom = '';
+    popover.style.left = '';
     picker.classList.remove('is-open');
     if (this._activePicker === picker) {
       this._activePicker = null;

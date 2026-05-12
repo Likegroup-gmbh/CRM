@@ -69,9 +69,10 @@ VertraegeCreate.prototype.prepareDataForDB = function() {
       typ: typ,
       name: this.formData.name || null,
       kunde_unternehmen_id: this.formData.kunde_unternehmen_id || null,
-      kampagne_id: this.formData.kampagne_id || null,
+      kampagne_id: typ === 'Contracting' ? null : (this.formData.kampagne_id || null),
       creator_id: this.formData.creator_id || null,
-      kooperation_id: this.formData.kooperation_id || null,
+      kooperation_id: typ === 'Contracting' ? null : (this.formData.kooperation_id || null),
+      contracting_auftrag_id: typ === 'Contracting' ? (this.formData.contracting_auftrag_id || null) : null,
       anzahl_storys: parseInt(this.formData.anzahl_storys) || 0,
       medien: this.formData.medien || [],
       nutzungsdauer: this.formData.nutzungsdauer || null,
@@ -195,6 +196,52 @@ VertraegeCreate.prototype.prepareDataForDB = function() {
         model_absage_regelung: this.formData.model_absage_regelung || [],
         model_absage_individuell: (this.formData.model_absage_regelung || []).includes('individuell') ? this.formData.model_absage_individuell || null : null
       });
+    } else if (typ === 'Contracting') {
+      // Contracting-Vertrag: direkt zu Contracting-Auftrag, ohne Kampagne/Kooperation
+      const handles = {};
+      if (this.formData.contracting_handle_instagram) handles.instagram = this.formData.contracting_handle_instagram;
+      if (this.formData.contracting_handle_tiktok) handles.tiktok = this.formData.contracting_handle_tiktok;
+      if (this.formData.contracting_handle_youtube) handles.youtube = this.formData.contracting_handle_youtube;
+      if (this.formData.contracting_handle_weitere) handles.weitere = this.formData.contracting_handle_weitere;
+
+      // Falls noch das alte Object aus Draft-Load kommt, dazu mischen
+      const existing = this.formData.contracting_plattformen_handles || {};
+      const mergedHandles = { ...existing, ...handles };
+
+      const buyoutAktiv = this.formData.contracting_buyout_aktiv === true || this.formData.contracting_buyout_aktiv === 'true';
+
+      Object.assign(data, {
+        // Management-Vertretung (analog Influencer-Vertrag, falls Creator durch Agentur vertreten)
+        influencer_agentur_vertreten: this.formData.influencer_agentur_vertreten || false,
+        influencer_agentur_name: this.formData.influencer_agentur_vertreten ? this.formData.influencer_agentur_name || null : null,
+        influencer_agentur_strasse: this.formData.influencer_agentur_vertreten ? this.formData.influencer_agentur_strasse || null : null,
+        influencer_agentur_hausnummer: this.formData.influencer_agentur_vertreten ? this.formData.influencer_agentur_hausnummer || null : null,
+        influencer_agentur_plz: this.formData.influencer_agentur_vertreten ? this.formData.influencer_agentur_plz || null : null,
+        influencer_agentur_stadt: this.formData.influencer_agentur_vertreten ? this.formData.influencer_agentur_stadt || null : null,
+        influencer_agentur_land: this.formData.influencer_agentur_vertreten ? this.formData.influencer_agentur_land || 'Deutschland' : null,
+        influencer_agentur_vertretung: this.formData.influencer_agentur_vertreten ? this.formData.influencer_agentur_vertretung || null : null,
+
+        // Influencer-Daten
+        influencer_land: this.formData.influencer_land || 'Deutschland',
+
+        // Plattformen (allgemein, wiederverwendet aus bestehender Spalte)
+        plattformen: this.formData.plattformen || [],
+        plattformen_sonstige: this.formData.plattformen_sonstige || null,
+
+        // Contracting-spezifische Felder
+        contracting_plattformen_handles: Object.keys(mergedHandles).length > 0 ? mergedHandles : null,
+        contracting_content_formate: this.formData.contracting_content_formate || [],
+        contracting_anzahl_inhalte: this.formData.contracting_anzahl_inhalte || null,
+        contracting_veroeffentlichung_zeitraum: this.formData.contracting_veroeffentlichung_zeitraum || null,
+        contracting_buyout_aktiv: buyoutAktiv,
+        contracting_buyout_plattformen: buyoutAktiv ? (this.formData.contracting_buyout_plattformen || []) : [],
+        contracting_buyout_art: buyoutAktiv ? (this.formData.contracting_buyout_art || []) : [],
+        contracting_buyout_nutzungsdauer: buyoutAktiv ? (this.formData.contracting_buyout_nutzungsdauer || null) : null,
+        contracting_buyout_geografisch: buyoutAktiv ? (this.formData.contracting_buyout_geografisch || null) : null,
+        contracting_buyout_besonderheiten: buyoutAktiv ? (this.formData.contracting_buyout_besonderheiten || null) : null,
+        contracting_veroeffentlichungsdatum: this.formData.contracting_veroeffentlichungsdatum || null,
+        contracting_exklusivitaet_bereich: this.formData.contracting_exklusivitaet_bereich || null
+      });
     } else {
       // UGC-spezifische Felder
       Object.assign(data, {
@@ -255,7 +302,7 @@ VertraegeCreate.prototype.saveCurrentStepData = function() {
     console.log('📋 FormData Einträge:', Array.from(formData.entries()));
     
     // Array-Felder die speziell behandelt werden müssen
-    const arrayFields = ['medien', 'plattformen', 'anpassungen', 'videograf_lieferumfang', 'videograf_nutzungsart', 'model_einsatzort_art', 'model_rolle', 'model_nutzungsarten', 'model_ki_nutzung', 'model_absage_regelung'];
+    const arrayFields = ['medien', 'plattformen', 'anpassungen', 'videograf_lieferumfang', 'videograf_nutzungsart', 'model_einsatzort_art', 'model_rolle', 'model_nutzungsarten', 'model_ki_nutzung', 'model_absage_regelung', 'contracting_content_formate', 'contracting_buyout_plattformen', 'contracting_buyout_art'];
     
     // Normale Felder (Array-Felder werden separat gesammelt)
     for (const [key, value] of formData.entries()) {

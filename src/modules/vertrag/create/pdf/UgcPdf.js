@@ -38,6 +38,10 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       return this.generateModelPDF(vertrag, lang);
     }
 
+    if (vertrag.typ === 'Contracting') {
+      return this.generateContractingPDF(vertrag, lang);
+    }
+
     // Standard: UGC-PDF
     try {
       const { jsPDF } = window.jspdf;

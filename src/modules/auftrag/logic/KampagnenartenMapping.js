@@ -79,6 +79,13 @@ export const KAMPAGNENARTEN_MAPPING = {
     hasVideographen: true,  // Nur Vor Ort hat Videographen
     displayName: 'Vor Ort'
   },
+  'Whitelisting & Darkposting': {
+    prefix: 'whitelisting_darkposting',
+    hasCreator: true,
+    hasBilder: false,
+    hasVideographen: false,
+    displayName: 'Whitelisting & Darkposting'
+  },
   // Legacy-Kompatibilität (kann entfernt werden, sobald Altwerte nicht mehr vorkommen)
   'UGC-Kampagne': {
     prefix: 'ugc_video_organic',

@@ -13,13 +13,29 @@ export class NavigationSystem {
         ]
       },
       {
-        title: 'Stammdaten', // TODO: Name anpassen falls gewünscht
+        title: 'Stammdaten',
         items: [
-          { id: 'unternehmen', label: 'Unternehmen', icon: 'icon-building', url: '/unternehmen' },
-          { id: 'marke', label: 'Marken', icon: 'icon-tag', url: '/marke' },
-          { id: 'ansprechpartner', label: 'Ansprechpartner', icon: 'icon-user-circle', url: '/ansprechpartner' },
-          { id: 'creator', label: 'Creator', icon: 'icon-users', url: '/creator' },
-          { id: 'management', label: 'Management', icon: 'icon-building', url: '/management' }
+          {
+            id: 'unternehmen',
+            label: 'Unternehmen',
+            icon: 'icon-building',
+            url: '/unternehmen',
+            children: [
+              { id: 'marke', label: 'Marken', icon: 'icon-tag', url: '/marke' },
+              { id: 'ansprechpartner', label: 'Ansprechpartner', icon: 'icon-user-circle', url: '/ansprechpartner' }
+            ]
+          },
+          {
+            id: 'management',
+            label: 'Management',
+            icon: 'icon-building',
+            url: '/management',
+            children: [
+              { id: 'management-creator', label: 'Creator', icon: 'icon-users', url: '/management-creator' },
+              { id: 'management-ansprechpartner', label: 'Ansprechpartner', icon: 'icon-user-circle', url: '/management-ansprechpartner' }
+            ]
+          },
+          { id: 'creator', label: 'Creator', icon: 'icon-users', url: '/creator' }
         ]
       },
       {
@@ -107,6 +123,7 @@ export class NavigationSystem {
         'projekt-erstellen': 'auftrag',
         auftragsdetails: 'auftragsdetails',
         ansprechpartner: 'ansprechpartner',
+        'management-ansprechpartner': 'ansprechpartner',
         kampagne: 'kampagne',
         strategie: 'strategie',
         kickoff: 'kickoff',
@@ -117,6 +134,7 @@ export class NavigationSystem {
         vertraege: 'vertraege',
         creator: 'creator',
         'creator-lists': 'creator',
+        'management-creator': 'creator',
         management: 'management',
         'sourcing': 'sourcing',
         mitarbeiter: 'mitarbeiter',
@@ -148,11 +166,60 @@ export class NavigationSystem {
     const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
     const searchShortcut = isMac ? '⌘K' : 'Strg+K';
     
+    const renderNavItem = (item) => `
+      <li class="nav-item">
+        <a href="${item.url}" class="nav-link" data-route="${item.url}">
+          <span class="nav-icon">${this.getIcon(item.icon)}</span>
+          <span class="nav-label">${item.label}</span>
+        </a>
+      </li>
+    `;
+
+    const chevronSvg = `
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+      </svg>
+    `;
+
+    const renderNavSubgroup = (item, visibleChildren) => `
+      <li class="nav-subgroup" data-subgroup="${item.id}">
+        <div class="nav-subgroup-header">
+          <a href="${item.url}" class="nav-link nav-subgroup-link" data-route="${item.url}">
+            <span class="nav-icon">${this.getIcon(item.icon)}</span>
+            <span class="nav-label">${item.label}</span>
+          </a>
+          <button type="button" class="nav-subgroup-toggle" aria-label="Untergruppe ${item.label} ein-/ausklappen">
+            <span class="nav-subgroup-chevron">${chevronSvg}</span>
+          </button>
+        </div>
+        <ul class="nav-subgroup-list">
+          ${visibleChildren.map(renderNavItem).join('')}
+        </ul>
+      </li>
+    `;
+
+    const renderItemsHtml = (items) => items.map(item => {
+      if (Array.isArray(item.children) && item.children.length > 0) {
+        const visibleChildren = item.children.filter(ch => canView(ch.id));
+        const headerVisible = item.url ? canView(item.id) : false;
+        if (visibleChildren.length === 0 && !headerVisible) return '';
+        return renderNavSubgroup(item, visibleChildren);
+      }
+      return renderNavItem(item);
+    }).join('');
+
     // Alle anderen Sections (ohne Feedback)
     const sectionsHtml = this.navSections
       .filter(section => section.title !== 'Feedback')
       .map(section => {
-        const visibleItems = section.items.filter(it => canView(it.id));
+        const visibleItems = section.items.filter(it => {
+          if (Array.isArray(it.children) && it.children.length > 0) {
+            const visibleChildren = it.children.filter(ch => canView(ch.id));
+            const headerVisible = it.url ? canView(it.id) : false;
+            return visibleChildren.length > 0 || headerVisible;
+          }
+          return canView(it.id);
+        });
         if (visibleItems.length === 0) return '';
         
         // Dashboard ohne Section-Title: Suche (falls erlaubt) + Dashboard + Aufgaben in einer Gruppe
@@ -170,36 +237,18 @@ export class NavigationSystem {
           return `
             <ul class="nav-list nav-list-standalone">
               ${searchLi}
-              ${visibleItems.map(item => `
-                <li class="nav-item">
-                  <a href="${item.url}" class="nav-link" data-route="${item.url}">
-                    <span class="nav-icon">${this.getIcon(item.icon)}</span>
-                    <span class="nav-label">${item.label}</span>
-                  </a>
-                </li>
-              `).join('')}
+              ${renderItemsHtml(visibleItems)}
             </ul>`;
         }
         
         return `
           <div class="nav-section" data-section="${section.title}">
             <div class="nav-section-title">
-              <span class="nav-section-chevron">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                </svg>
-              </span>
+              <span class="nav-section-chevron">${chevronSvg}</span>
               ${section.title}
             </div>
             <ul class="nav-list">
-              ${visibleItems.map(item => `
-                <li class="nav-item">
-                  <a href="${item.url}" class="nav-link" data-route="${item.url}">
-                    <span class="nav-icon">${this.getIcon(item.icon)}</span>
-                    <span class="nav-label">${item.label}</span>
-                  </a>
-                </li>
-              `).join('')}
+              ${renderItemsHtml(visibleItems)}
             </ul>
           </div>`;
       }).join('');
@@ -256,6 +305,17 @@ export class NavigationSystem {
       title.addEventListener('click', () => {
         const section = title.closest('.nav-section');
         section.classList.toggle('collapsed');
+      });
+    });
+
+    // Subgroup-Toggle Events (Chevron neben dem Sub-Gruppen-Link)
+    const subgroupToggles = document.querySelectorAll('.nav-subgroup-toggle');
+    subgroupToggles.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const subgroup = btn.closest('.nav-subgroup');
+        if (subgroup) subgroup.classList.toggle('collapsed');
       });
     });
   }
