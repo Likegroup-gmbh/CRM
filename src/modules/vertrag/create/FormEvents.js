@@ -347,6 +347,34 @@ VertraegeCreate.prototype.bindDynamicFieldEvents = function() {
         });
       });
     }
+
+    // === CONTRACTING-SPEZIFISCHE EVENTS ===
+
+    // Media Buyout Ja/Nein Toggle
+    const buyoutAktivRadios = document.querySelectorAll('input[name="contracting_buyout_aktiv"]');
+    const buyoutDetailsContainer = document.getElementById('contracting-buyout-details');
+    if (buyoutAktivRadios.length > 0 && buyoutDetailsContainer) {
+      buyoutAktivRadios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+          const isAktiv = e.target.value === 'true';
+          buyoutDetailsContainer.classList.toggle('hidden', !isAktiv);
+          this.formData.contracting_buyout_aktiv = isAktiv;
+        });
+      });
+    }
+
+    // Contracting-Auftrag-Auswahl: PO uebernehmen + Vertragsname
+    const contractingAuftragSelect = document.getElementById('contracting_auftrag_id');
+    if (contractingAuftragSelect) {
+      contractingAuftragSelect.addEventListener('change', (e) => {
+        const id = e.target.value || null;
+        this.formData.contracting_auftrag_id = id;
+        if (typeof this.applyContractingAuftragData === 'function') {
+          this.applyContractingAuftragData(id);
+        }
+        this.generateVertragName();
+      });
+    }
 };
 
 
@@ -552,12 +580,21 @@ VertraegeCreate.prototype.bindAddressPreviewEvents = function() {
           preview.innerHTML = '';
         }
 
-        // Kampagnen filtern
-        this.updateFilteredKampagnen();
-        
-        // PO zurücksetzen (wird über Kampagne-Auswahl neu gesetzt)
+        // PO zurücksetzen (wird über Kampagne/Auftrag-Auswahl neu gesetzt)
         this.formData.kunde_po_nummer = null;
-        
+
+        // Bei Contracting-Vertrag: Aufträge filtern statt Kampagnen
+        if (this.selectedTyp === 'Contracting') {
+          this.updateFilteredContractingAuftraege();
+          this.formData.contracting_auftrag_id = null;
+          this.rebuildContractingAuftragSelect(id);
+          this.generateVertragName();
+          return;
+        }
+
+        // Kampagnen filtern (Standard-Verträge)
+        this.updateFilteredKampagnen();
+
         // Kampagne zurücksetzen
         this.formData.kampagne_id = null;
         this.formData.creator_id = null;

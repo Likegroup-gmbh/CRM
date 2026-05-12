@@ -210,6 +210,16 @@ export class FormEvents {
 
     // Entity-spezifische Events via Lazy-Loading
     await this.setupEntitySpecificEvents(entity, form);
+
+    // Sicherheitsnetz fuer Kooperationsname mit Prefill: Wenn Cascade nach
+    // dem Prefill-change-Event noch laeuft, koennten Selects erst spaeter
+    // konvertiert werden. Daher mehrfach versuchen.
+    if (entity === 'kooperation' && form.dataset.prefillFromKampagne === 'true') {
+      const tryGen = () => this.formSystem.autoGeneration.autoGenerateKooperationsname(form);
+      setTimeout(tryGen, 200);
+      setTimeout(tryGen, 600);
+      setTimeout(tryGen, 1500);
+    }
   }
 
   async setupEntitySpecificEvents(entity, form) {

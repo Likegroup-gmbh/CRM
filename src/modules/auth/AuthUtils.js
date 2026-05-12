@@ -122,6 +122,16 @@ export class AuthUtils {
       }
     } catch (error) {
       console.error('Login failed:', error);
+
+      // E-Mail noch nicht bestätigt → direkt zur OTP-Eingabe weiterleiten
+      const msg = (error.message || '').toLowerCase();
+      const code = (error.code || '').toLowerCase();
+      if (code === 'email_not_confirmed' || msg.includes('email not confirmed')) {
+        localStorage.setItem('pendingVerificationEmail', email);
+        window.location.href = `/src/auth/verify-email.html?email=${encodeURIComponent(email)}`;
+        return;
+      }
+
       errorDiv.textContent = this.translateAuthError(error);
       errorDiv.style.display = 'block';
     }

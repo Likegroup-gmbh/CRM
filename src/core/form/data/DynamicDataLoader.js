@@ -317,6 +317,17 @@ export class DynamicDataLoader {
 
   // Select-Optionen aktualisieren (Fill + selected setzen + Searchable reinit)
   updateSelectOptions(selectElement, options, field) {
+    const form = selectElement.closest('form');
+
+    // Prefill-Wert sichern, bevor wir innerHTML resetten. Searchable-Selects
+    // entfernen das `name`-Attribut, daher hidden input als Fallback.
+    const hiddenInputForName = form?.querySelector(`input[type="hidden"][name="${field.name}"]`);
+    const prefilledValue = selectElement.dataset.prefilledValue
+      || (selectElement.dataset.prefilled === 'true' ? selectElement.value : '')
+      || (selectElement.dataset.prefilled === 'true' ? (hiddenInputForName?.value || '') : '');
+    const prefilledLabel = selectElement.dataset.prefilledLabel || '';
+    const isPrefilled = selectElement.dataset.prefilled === 'true' && !!prefilledValue;
+
     selectElement.innerHTML = '';
 
     const placeholder = document.createElement('option');
@@ -324,7 +335,6 @@ export class DynamicDataLoader {
     placeholder.textContent = field.placeholder || 'Bitte wählen...';
     selectElement.appendChild(placeholder);
 
-    const form = selectElement.closest('form');
     let editModeValue = null;
     if (form && form.dataset.isEditMode === 'true' && form.dataset.editModeData) {
       try {
@@ -338,27 +348,135 @@ export class DynamicDataLoader {
     const isCreateMode = !form || form.dataset.isEditMode !== 'true';
     const defaultValue = isCreateMode && field.defaultValue !== undefined ? field.defaultValue : null;
 
+    let prefillFoundInOptions = false;
     options.forEach(option => {
       const optionElement = document.createElement('option');
       optionElement.value = option.value;
       optionElement.textContent = option.label;
 
-      if (option.selected || (editModeValue && option.value === editModeValue) || (defaultValue && option.value === String(defaultValue))) {
+      if (
+        option.selected
+        || (editModeValue && option.value === editModeValue)
+        || (defaultValue && option.value === String(defaultValue))
+        || (isPrefilled && String(option.value) === String(prefilledValue))
+      ) {
         optionElement.selected = true;
         option.selected = true;
+        if (isPrefilled && String(option.value) === String(prefilledValue)) {
+          prefillFoundInOptions = true;
+        }
       }
       selectElement.appendChild(optionElement);
     });
+
+    // Falls Prefill-Wert nicht in den geladenen Optionen vorhanden ist
+    // (z.B. weil eine vorausgefuellte Kampagne fuer diese Marke gar nicht in der
+    // Liste auftaucht), trotzdem als Option einfuegen, damit der Wert erhalten
+    // bleibt und auch der Searchable das Display korrekt setzen kann.
+    if (isPrefilled && !prefillFoundInOptions) {
+      const fallbackOpt = document.createElement('option');
+      fallbackOpt.value = prefilledValue;
+      fallbackOpt.textContent = prefilledLabel || prefilledValue;
+      fallbackOpt.selected = true;
+      selectElement.appendChild(fallbackOpt);
+      options = [
+        ...options,
+        { value: prefilledValue, label: prefilledLabel || prefilledValue, selected: true }
+      ];
+    }
+
+    if (isPrefilled) {
+      selectElement.value = prefilledValue;
+    }
 
     if (selectElement.dataset.searchable === 'true') {
       const normalized = options.map(o => ({
         value: o.value,
         label: o.label,
-        selected: o.selected || false
+        selected: o.selected || (isPrefilled && String(o.value) === String(prefilledValue))
       }));
 
       this.reinitializeSearchableSelect(selectElement, normalized, field);
+
+      // Nach Reinit den frischen Searchable-Container locken, damit der User
+      // den vorausgefuellten Wert sieht und nicht mehr aendern kann.
+      if (isPrefilled) {
+        this.applyPrefillLockToSearchable(selectElement, field, prefilledValue, prefilledLabel);
+      }
       return;
+    }
+
+    if (isPrefilled) {
+      selectElement.disabled = true;
+    }
+  }
+
+  // Searchable nach Reinit visuell wieder als prefilled markieren + locken
+  applyPrefillLockToSearchable(selectElement, field, value, label) {
+    const form = selectElement.closest('form');
+    if (!form) return;
+
+    const findContainer = () => {
+      if (selectElement.previousElementSibling?.classList?.contains('searchable-select-container')) {
+        return selectElement.previousElementSibling;
+      }
+      if (selectElement.nextElementSibling?.classList?.contains('searchable-select-container')) {
+        return selectElement.nextElementSibling;
+      }
+      if (selectElement.parentNode) {
+        const inParent = selectElement.parentNode.querySelector('.searchable-select-container');
+        if (inParent) return inParent;
+      }
+      const formField = selectElement.closest('.form-field, .form-group');
+      return formField?.querySelector('.searchable-select-container') || null;
+    };
+
+    const apply = () => {
+      const container = findContainer();
+      if (!container) return false;
+
+      const input = container.querySelector('.searchable-select-input');
+      if (input) {
+        if (label) input.value = label;
+        input.disabled = true;
+        input.readOnly = true;
+      }
+      container.classList.add('prefilled-locked');
+
+      const hiddenInput = container.querySelector(`input[type="hidden"][name="${field.name}"]`)
+        || form.querySelector(`input[type="hidden"][name="${field.name}"]`);
+      if (hiddenInput) {
+        hiddenInput.value = value;
+      }
+
+      const formField = container.closest('.form-field, .form-group')
+        || selectElement.closest('.form-field, .form-group');
+      if (formField) {
+        formField.classList.add('form-field--prefilled');
+        const lbl = formField.querySelector('label');
+        if (lbl && !lbl.querySelector('.prefill-badge')) {
+          const badge = document.createElement('span');
+          badge.className = 'prefill-badge';
+          badge.textContent = ' (aus Kampagne)';
+          lbl.appendChild(badge);
+        }
+      }
+
+      // Aenderung signalisieren, damit Auto-Gen / Folge-Cascades den Wert sehen
+      selectElement.dispatchEvent(new Event('change', { bubbles: true }));
+      if (hiddenInput) {
+        hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      return true;
+    };
+
+    if (!apply()) {
+      // Container koennte erst im naechsten Frame fertig sein
+      requestAnimationFrame(() => {
+        if (!apply()) {
+          setTimeout(apply, 50);
+        }
+      });
     }
   }
 

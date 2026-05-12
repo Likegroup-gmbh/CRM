@@ -12,10 +12,13 @@ import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { creatorUtils } from './CreatorUtils.js';
 
 export class CreatorList extends BasePaginatedList {
-  constructor() {
+  constructor(opts = {}) {
+    const mode = opts.mode || 'all'; // 'all' | 'management'
+    const isManagement = mode === 'management';
+
     super('creator', {
       itemsPerPage: 25,
-      headline: 'Creator Übersicht',
+      headline: isManagement ? 'Management-Creator Übersicht' : 'Creator Übersicht',
       breadcrumbLabel: 'Creator',
       sortField: 'nachname',
       sortAscending: true,
@@ -23,9 +26,13 @@ export class CreatorList extends BasePaginatedList {
       tbodySelector: '.data-table tbody',
       tableColspan: 14, // Mit Admin-Checkbox
       checkboxClass: 'creator-check',
-      selectAllId: 'select-all-creators'
+      selectAllId: 'select-all-creators',
+      ...opts
     });
-    
+
+    this.mode = mode;
+    this._managementCreatorIds = null;
+
     // Zusätzliche Creator-spezifische Properties
     this.selectedCreator = this.selectedItems; // Alias für Kompatibilität
   }
@@ -38,6 +45,15 @@ export class CreatorList extends BasePaginatedList {
    * Lädt die Creator-Daten für eine Seite
    */
   async loadPageData(page, limit, filters) {
+    // Management-Modus: nur Creator mit aktiver Management-Verknüpfung laden
+    if (this.mode === 'management' && window.supabase) {
+      const ids = await this.loadManagementCreatorIds();
+      if (!ids || ids.length === 0) {
+        return { data: [], total: 0 };
+      }
+      filters._allowedIds = ids;
+    }
+
     const result = await window.dataService.loadEntitiesWithPagination(
       'creator',
       filters,
@@ -49,6 +65,36 @@ export class CreatorList extends BasePaginatedList {
       data: result.data || [],
       total: result.total || 0
     };
+  }
+
+  /**
+   * Lädt alle creator_id mit aktiver Management-Verknüpfung (Cache pro Modul-Instanz)
+   */
+  async loadManagementCreatorIds() {
+    if (this._managementCreatorIds !== null) return this._managementCreatorIds;
+
+    try {
+      const { data, error } = await window.supabase
+        .from('creator_management')
+        .select('creator_id')
+        .eq('ist_aktiv', true);
+
+      if (error) {
+        console.error('❌ CREATORLIST: Fehler beim Laden der Management-Verknüpfungen:', error);
+        return null;
+      }
+
+      const unique = [...new Set((data || []).map(r => r.creator_id).filter(Boolean))];
+      this._managementCreatorIds = unique;
+      return unique;
+    } catch (err) {
+      console.error('❌ CREATORLIST: Exception beim Laden der Management-Verknüpfungen:', err);
+      return null;
+    }
+  }
+
+  resetEntityCaches() {
+    this._managementCreatorIds = null;
   }
   
   /**
@@ -712,5 +758,6 @@ export class CreatorList extends BasePaginatedList {
   }
 }
 
-// Exportiere Instanz für globale Nutzung
-export const creatorList = new CreatorList();
+// Exportiere Instanzen für globale Nutzung
+export const creatorList = new CreatorList({ mode: 'all' });
+export const managementCreatorList = new CreatorList({ mode: 'management' });

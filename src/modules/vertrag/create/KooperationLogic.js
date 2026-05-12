@@ -13,6 +13,34 @@ function koopLabel(k) {
   return name;
 }
 
+VertraegeCreate.prototype.updateFilteredContractingAuftraege = function() {
+    if (!this.formData.kunde_unternehmen_id) {
+      this.filteredContractingAuftraege = [];
+      return;
+    }
+
+    const kundeId = String(this.formData.kunde_unternehmen_id);
+    this.filteredContractingAuftraege = (this.contractingAuftraege || []).filter(
+      a => String(a.unternehmen_id) === kundeId
+    );
+
+    console.log('🔍 VERTRAG: Gefilterte Contracting-Aufträge:', this.filteredContractingAuftraege.length);
+};
+
+VertraegeCreate.prototype.applyContractingAuftragData = function(auftragId) {
+    if (!auftragId) {
+      return;
+    }
+
+    const auftrag = (this.contractingAuftraege || []).find(a => a.id === auftragId);
+    if (!auftrag) return;
+
+    // PO-Nummer aus Contracting-Auftrag übernehmen, falls noch nicht gesetzt
+    if (auftrag.po && !this.formData.kunde_po_nummer) {
+      this.formData.kunde_po_nummer = auftrag.po;
+    }
+};
+
 VertraegeCreate.prototype.updateFilteredKampagnen = function() {
     console.log('🔍 VERTRAG: updateFilteredKampagnen aufgerufen');
     console.log('🔍 VERTRAG: kunde_unternehmen_id:', this.formData.kunde_unternehmen_id, '(Typ:', typeof this.formData.kunde_unternehmen_id, ')');
@@ -183,7 +211,36 @@ VertraegeCreate.prototype.applyKooperationVerguetung = function(kooperationId) {
 
 VertraegeCreate.prototype.generateVertragName = function() {
     const typ = this.formData.typ || this.selectedTyp || '';
-    
+
+    // Contracting-Vertrag: Auftragsname statt Kampagne
+    if (typ === 'Contracting') {
+      let auftragName = '';
+      if (this.formData.contracting_auftrag_id) {
+        const auftrag = (this.contractingAuftraege || []).find(a => a.id === this.formData.contracting_auftrag_id);
+        if (auftrag) {
+          auftragName = auftrag.titel || auftrag.auftragsname || '';
+        }
+      }
+
+      let creatorName = '';
+      if (this.formData.creator_id) {
+        const creator = this.creators.find(c => c.id === this.formData.creator_id);
+        if (creator) {
+          creatorName = `${creator.vorname} ${creator.nachname}`.trim();
+        }
+      }
+
+      const parts = [typ, auftragName, creatorName].filter(p => p);
+      this.formData.name = parts.join(' - ');
+
+      const nameInput = document.getElementById('name');
+      if (nameInput) {
+        nameInput.value = this.formData.name;
+      }
+
+      return this.formData.name;
+    }
+
     // Kampagne-Name finden
     let kampagneName = '';
     if (this.formData.kampagne_id) {

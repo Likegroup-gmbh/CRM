@@ -182,6 +182,22 @@ VertraegeCreate.prototype.initSearchableSelects = function() {
       }
     }
 
+    // Contracting-Vertrag: separate Initialisierung
+    if (this.selectedTyp === 'Contracting') {
+      // Contracting-Auftrag (gefiltert nach Kunde)
+      if (this.formData.kunde_unternehmen_id) {
+        this.initContractingAuftragSearchableSelect();
+      }
+      // Creator (gesamte Liste, ohne Kampagne-Kaskade)
+      this.initContractingCreatorSearchableSelect();
+
+      setTimeout(() => {
+        this._isInitializing = false;
+        this.generateVertragName();
+      }, 100);
+      return;
+    }
+
     // Wenn Draft geladen: Kampagne und Creator Searchable Selects initialisieren
     if (this.formData.kunde_unternehmen_id) {
       this.initKampagneSearchableSelect();
@@ -196,6 +212,141 @@ VertraegeCreate.prototype.initSearchableSelects = function() {
       // Vertragsname automatisch generieren (nach Initialisierung)
       this.generateVertragName();
     }, 100);
+};
+
+// =============================================================================
+// CONTRACTING-VERTRAG: Eigene Searchable Selects
+// =============================================================================
+
+VertraegeCreate.prototype.initContractingAuftragSearchableSelect = function() {
+    const select = document.getElementById('contracting_auftrag_id');
+    if (!select || !window.formSystem?.createSearchableSelect) return;
+
+    const auftraege = this.filteredContractingAuftraege || [];
+    const options = auftraege.map(a => ({
+      value: a.id,
+      label: (a.titel || a.auftragsname || a.id) + (a.po ? ` (PO: ${a.po})` : '')
+    }));
+    const selectedId = this.formData.contracting_auftrag_id;
+
+    select.disabled = false;
+    select.removeAttribute('disabled');
+
+    window.formSystem.createSearchableSelect(select, options, {
+      name: 'contracting_auftrag_id',
+      placeholder: 'Auftrag suchen...',
+      value: selectedId
+    });
+
+    if (selectedId) {
+      this.setSearchableSelectValue('contracting_auftrag_id', selectedId, options);
+    }
+
+    select.addEventListener('change', (e) => {
+      if (this._isInitializing) return;
+      const id = e.target.value || null;
+      this.formData.contracting_auftrag_id = id;
+      if (typeof this.applyContractingAuftragData === 'function') {
+        this.applyContractingAuftragData(id);
+      }
+      this.generateVertragName();
+    });
+};
+
+VertraegeCreate.prototype.rebuildContractingAuftragSelect = function(kundeId) {
+    const container = document.querySelector('.form-field:has(#contracting_auftrag_id), .form-field label[for="contracting_auftrag_id"]')?.closest('.form-field');
+    if (!container) return;
+
+    const oldSearchable = container.querySelector('.searchable-select-container');
+    if (oldSearchable) oldSearchable.remove();
+
+    let select = container.querySelector('#contracting_auftrag_id');
+    if (!select) {
+      select = document.createElement('select');
+      select.id = 'contracting_auftrag_id';
+      select.name = 'contracting_auftrag_id';
+      select.required = true;
+      container.appendChild(select);
+    }
+    select.style.display = '';
+    select.disabled = false;
+    select.removeAttribute('disabled');
+
+    const auftraege = this.filteredContractingAuftraege || [];
+    const options = auftraege.map(a => ({
+      value: a.id,
+      label: (a.titel || a.auftragsname || a.id) + (a.po ? ` (PO: ${a.po})` : '')
+    }));
+
+    if (kundeId && window.formSystem?.createSearchableSelect) {
+      window.formSystem.createSearchableSelect(select, options, {
+        name: 'contracting_auftrag_id',
+        placeholder: auftraege.length > 0 ? 'Auftrag suchen...' : 'Keine Contracting-Aufträge für diesen Kunden',
+        value: null
+      });
+
+      select.addEventListener('change', (e) => {
+        const id = e.target.value || null;
+        this.formData.contracting_auftrag_id = id;
+        if (typeof this.applyContractingAuftragData === 'function') {
+          this.applyContractingAuftragData(id);
+        }
+        this.generateVertragName();
+      });
+    } else {
+      select.disabled = !kundeId;
+      select.innerHTML = `
+        <option value="">${kundeId ? 'Auftrag auswählen...' : 'Bitte zuerst Unternehmen wählen...'}</option>
+        ${auftraege.map(a => `<option value="${a.id}">${(a.titel || a.auftragsname || a.id)}${a.po ? ` (PO: ${a.po})` : ''}</option>`).join('')}
+      `;
+    }
+};
+
+VertraegeCreate.prototype.initContractingCreatorSearchableSelect = function() {
+    const creatorSelect = document.getElementById('creator_id');
+    if (!creatorSelect || !window.formSystem?.createSearchableSelect) return;
+
+    const options = this.creators.map(c => ({ value: c.id, label: `${c.vorname} ${c.nachname}` }));
+    const selectedCreator = this.formData.creator_id;
+
+    creatorSelect.disabled = false;
+    creatorSelect.removeAttribute('disabled');
+
+    window.formSystem.createSearchableSelect(creatorSelect, options, {
+      name: 'creator_id',
+      placeholder: 'Creator suchen...',
+      value: selectedCreator
+    });
+
+    if (selectedCreator) {
+      this.setSearchableSelectValue('creator_id', selectedCreator, options);
+      const creator = this.creators.find(c => c.id === selectedCreator);
+      if (creator) {
+        this._applyCreatorProfiles(creator);
+        this._loadCreatorManagement(selectedCreator);
+      }
+    }
+
+    creatorSelect.addEventListener('change', async (e) => {
+      if (this._isInitializing) return;
+
+      const id = e.target.value;
+      this.formData.creator_id = id;
+      this.generateVertragName();
+
+      const creator = this.creators.find(c => c.id === id);
+      if (creator) {
+        this._applyCreatorProfiles(creator);
+        await this._loadCreatorManagement(id);
+      } else {
+        const preview = document.getElementById('creator-adresse');
+        this.creatorAddressMissing = false;
+        if (preview) preview.innerHTML = '';
+        this.formData.influencer_profile = [];
+        this._resetManagementFields();
+        this._syncAgenturDomFromFormData();
+      }
+    });
 };
 
 

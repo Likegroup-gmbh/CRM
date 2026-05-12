@@ -32,7 +32,8 @@ VertraegeCreate.prototype.renderStep1 = function() {
       { value: 'UGC', label: 'UGC-Produktionsvertrag', desc: 'Content-Produktion durch Creator nach Briefing.' },
       { value: 'Influencer Kooperation', label: 'Influencer Kooperation', desc: 'Kooperationsvertrag für Influencer-Kampagnen.' },
       { value: 'Videograph', label: 'Videograph', desc: 'Produktionsvertrag für Videografen und Fotografen.' },
-      { value: 'Model', label: 'Modelvertrag', desc: 'Vertrag für Model-Buchungen und Shootings.' }
+      { value: 'Model', label: 'Modelvertrag', desc: 'Vertrag für Model-Buchungen und Shootings.' },
+      { value: 'Contracting', label: 'Contracting', desc: 'Influencer-Marketing-Vertrag direkt zu einem Contracting-Auftrag.' }
     ];
 
     const cards = types.map(t => `
@@ -276,7 +277,18 @@ VertraegeCreate.prototype.getStepContent = function() {
         default: return '';
       }
     }
-    
+
+    // Contracting-Vertrag
+    if (this.selectedTyp === 'Contracting') {
+      switch (this.currentStep) {
+        case 2: return this.renderContractingStep2(); // Parteien (Unternehmen + Auftrag + Creator)
+        case 3: return this.renderContractingStep3(); // Plattformen + Content
+        case 4: return this.renderContractingStep4(); // Media Buyout + Freigabe
+        case 5: return this.renderContractingStep5(); // Vergütung + Exklusivität
+        default: return '';
+      }
+    }
+
     // UGC-Vertrag (Standard)
     switch (this.currentStep) {
       case 2: return this.renderStep2();

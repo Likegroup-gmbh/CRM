@@ -650,6 +650,21 @@ export class FormConfig {
             section: 'zuordnung'
           },
           { 
+            name: 'management_id', 
+            label: 'Management', 
+            type: 'select', 
+            required: false, 
+            options: [], 
+            dynamic: true,
+            searchable: true,
+            placeholder: 'Management suchen und auswählen...',
+            table: 'management',
+            displayField: 'firmenname',
+            valueField: 'id',
+            directQuery: true,
+            section: 'zuordnung'
+          },
+          { 
             name: 'marke_ids', 
             label: 'Marken', 
             type: 'multiselect', 

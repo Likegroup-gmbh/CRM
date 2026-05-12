@@ -33,8 +33,17 @@
 }
 .page-header h1 {
   font-size: var(--text-xl);
-   
  }
+
+.page-header-title {
+  font-size: var(--text-lg, 1.25rem);
+  font-weight: 400;
+  margin: 0;
+  color: var(--gray-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* Page Header Left/Right Sections */
 .page-header-left {
@@ -212,6 +221,87 @@
 
 .nav-section.collapsed .nav-list {
   display: none;
+}
+
+/* ===== NAV SUB-GROUPS (z.B. Unternehmen, Management innerhalb Stammdaten) ===== */
+.nav-subgroup {
+  list-style: none;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.nav-subgroup-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  padding-right: var(--space-xs);
+}
+
+.nav-subgroup-link {
+  flex: 1;
+  min-width: 0;
+}
+
+.nav-subgroup-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--gray-500);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.nav-subgroup-toggle:hover {
+  background: var(--gray-100, #f3f4f6);
+  color: var(--gray-900);
+}
+
+.nav-subgroup-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s ease;
+}
+
+.nav-subgroup-chevron svg {
+  width: 12px;
+  height: 12px;
+}
+
+.nav-subgroup.collapsed .nav-subgroup-chevron {
+  transform: rotate(-90deg);
+}
+
+.nav-subgroup.collapsed .nav-subgroup-list {
+  display: none;
+}
+
+.nav-subgroup-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxxs);
+}
+
+/* Sub-Gruppen-Items eingerückt */
+.nav-subgroup-list .nav-link {
+  padding-left: calc(var(--space-md) + var(--space-md) + var(--space-xxs));
+}
+
+.nav-subgroup-list .nav-link.active {
+  margin-left: calc(var(--space-md) + var(--space-xs));
 }
 
 .nav-item {

@@ -9,6 +9,7 @@ export class AuftragsdetailsDetail {
     this.kampagnen = [];
     this.kooperationen = [];
     this.videos = [];
+    this.rechnungStatusMap = {};
     this.budgetSummary = {
       totalBudget: 0,
       usedBudget: 0,
@@ -183,6 +184,23 @@ export class AuftragsdetailsDetail {
         if (videoError) throw videoError;
         this.videos = videos || [];
         console.log('✅ AUFTRAGSDETAILSDETAIL: Videos geladen:', this.videos.length);
+
+        // Rechnungsstatus pro Kooperation laden
+        const { data: rechnungen, error: rechnungError } = await window.supabase
+          .from('rechnung')
+          .select('id, status, kooperation_id')
+          .in('kooperation_id', koopIds);
+
+        if (rechnungError) {
+          console.warn('⚠️ AUFTRAGSDETAILSDETAIL: Rechnungen konnten nicht geladen werden:', rechnungError);
+          this.rechnungStatusMap = {};
+        } else {
+          this.rechnungStatusMap = (rechnungen || []).reduce((acc, r) => {
+            if (r.kooperation_id) acc[r.kooperation_id] = r.status;
+            return acc;
+          }, {});
+          console.log('✅ AUFTRAGSDETAILSDETAIL: Rechnungsstatus geladen für', Object.keys(this.rechnungStatusMap).length, 'Kooperationen');
+        }
       }
 
       // Berechne Budget-Zusammenfassung
@@ -266,7 +284,9 @@ export class AuftragsdetailsDetail {
 
     const auftragtype = this.auftrag?.auftragtype || '-';
     const canViewInternalBudget = window.canSeePricing();
+    const sanitize = (v) => window.validatorSystem?.sanitizeHtml(v) || v || '';
 
+    const gesamtNettoBetrag = parseFloat(this.auftrag?.nettobetrag) || 0;
     const totalBudget = this.budgetSummary.totalBudget;
     const usedBudget = this.budgetSummary.usedVkBudget || 0;
     const openBudget = Math.max(0, totalBudget - usedBudget);
@@ -284,6 +304,24 @@ export class AuftragsdetailsDetail {
       return 'summary-progress-fill--success';
     };
 
+    const d = this.details || {};
+    const extraServices = Array.isArray(d.extra_services) ? d.extra_services : [];
+    const validExtraServices = (d.extra_services_enabled !== false)
+      ? extraServices.filter(s => s && typeof s.name === 'string' && s.name.trim())
+      : [];
+
+    const showAgencyFee = d?.agency_services_enabled && d.percentage_fee_enabled && parseFloat(d.percentage_fee_value) > 0;
+    const showKsk = d?.agency_services_enabled && d.ksk_enabled && parseFloat(d.ksk_value) > 0;
+
+    const zusatzleistungenCardsHtml = canViewInternalBudget
+      ? validExtraServices.map(s => `
+            <div class="summary-card">
+              <div class="summary-value">${formatCurrency(parseFloat(s.amount) || 0)}</div>
+              <div class="summary-label">${sanitize(s.name)}</div>
+            </div>
+          `).join('')
+      : '';
+
     return `
       <div class="detail-section">
         <!-- Budget-Kacheln -->
@@ -291,12 +329,16 @@ export class AuftragsdetailsDetail {
           <div class="summary-cards">
             ${canViewInternalBudget ? `
             <div class="summary-card">
+              <div class="summary-value">${formatCurrency(gesamtNettoBetrag)}</div>
+              <div class="summary-label">Gesamt Nettobetrag</div>
+            </div>
+            <div class="summary-card">
               <div class="summary-value">${formatCurrency(totalBudget)}</div>
-              <div class="summary-label">Gesamtbudget (netto)</div>
+              <div class="summary-label">Creatorbudget</div>
             </div>
             <div class="summary-card">
               <div class="summary-value">${formatCurrency(usedBudget)}</div>
-              <div class="summary-label">Verbrauchtes Budget</div>
+              <div class="summary-label">Verbrauchtes Creatorbudget</div>
               <div class="summary-progress">
                 <div class="summary-progress-fill ${getBudgetColorClass(budgetPct)}" 
                      style="width: ${budgetPct}%">
@@ -312,19 +354,24 @@ export class AuftragsdetailsDetail {
                 </div>
               </div>
             </div>
+            ${zusatzleistungenCardsHtml}
+            ${showKsk ? `
+            <div class="summary-card">
+              <div class="summary-value">${formatCurrency(parseFloat(d.ksk_value))}</div>
+              <div class="summary-label">KSK</div>
+            </div>
+            ` : ''}
+            ${showAgencyFee ? `
+            <div class="summary-card">
+              <div class="summary-value">${formatCurrency(parseFloat(d.percentage_fee_value))}</div>
+              <div class="summary-label">Agentur Fee</div>
+            </div>
+            ` : ''}
             <div class="summary-card">
               <div class="summary-value">${formatCurrency(this.budgetSummary.extraKostenVkSum || 0)}</div>
               <div class="summary-label">Extra Kosten</div>
             </div>
             ` : ''}
-            <div class="summary-card">
-              <div class="summary-value">${num(this.budgetSummary.totalCreators)} von ${num(this.budgetSummary.targetCreators)}</div>
-              <div class="summary-label">Gebuchte Creator</div>
-            </div>
-            <div class="summary-card">
-              <div class="summary-value">${num(this.budgetSummary.totalVideos)} von ${num(this.budgetSummary.targetVideos)}</div>
-              <div class="summary-label">Gebuchte Videos</div>
-            </div>
           </div>
         </div>
 
@@ -336,6 +383,20 @@ export class AuftragsdetailsDetail {
 
         <!-- Kampagnen-Übersicht -->
         ${this.renderKampagnenTable()}
+
+        <!-- Gebuchte Creator & Videos Cards -->
+        <div class="auftragsdetails-summary" style="margin-top: var(--space-lg);">
+          <div class="summary-cards">
+            <div class="summary-card">
+              <div class="summary-value">${num(this.budgetSummary.totalCreators)} von ${num(this.budgetSummary.targetCreators)}</div>
+              <div class="summary-label">Gebuchte Creator</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-value">${num(this.budgetSummary.totalVideos)} von ${num(this.budgetSummary.targetVideos)}</div>
+              <div class="summary-label">Gebuchte Videos</div>
+            </div>
+          </div>
+        </div>
 
         <!-- Kooperationen & Videos -->
         <div class="detail-section">
@@ -788,6 +849,15 @@ export class AuftragsdetailsDetail {
       return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v);
     };
 
+    const renderRechnungStatusBadge = (kooperationId) => {
+      const status = this.rechnungStatusMap[kooperationId];
+      if (!status) {
+        return '<span class="status-badge status-nicht-erstellt">Nicht erstellt</span>';
+      }
+      const slug = status.toLowerCase().replace(/\s+/g, '-').replace(/ü/g, 'ue').replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ß/g, 'ss');
+      return `<span class="status-badge status-${slug}">${status}</span>`;
+    };
+
     const rowsHtml = videoRows.map(row => {
       const sanitize = (v) => window.validatorSystem.sanitizeHtml(v);
       const videoDisplayName = row.videoName || row.videoTitel;
@@ -822,6 +892,7 @@ export class AuftragsdetailsDetail {
           ${!isKunde ? `<td class="text-right">${formatCurrency(row.ekNetto)}</td>` : ''}
           <td class="text-right">${formatCurrency(row.vkNetto)}</td>
           ${!isKunde ? `<td class="text-right">${formatCurrency(row.extraKostenVk)}</td>` : ''}
+          <td>${renderRechnungStatusBadge(row.kooperationId)}</td>
           <td>${videoHtml}</td>
         </tr>
       `;
@@ -838,6 +909,7 @@ export class AuftragsdetailsDetail {
                 ${!isKunde ? '<th class="text-right">EK Netto</th>' : ''}
                 <th class="text-right">VK Netto</th>
                 ${!isKunde ? '<th class="text-right">Extra Kosten (VK)</th>' : ''}
+                <th>Rechnungsstatus</th>
                 <th>Video</th>
               </tr>
             </thead>

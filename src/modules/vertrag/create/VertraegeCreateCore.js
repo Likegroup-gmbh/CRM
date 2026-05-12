@@ -26,6 +26,8 @@ export class VertraegeCreate {
     this.filteredCreators = [];   // Gefiltert nach Kampagne (via Kooperationen)
     this.filteredKooperationen = []; // Kooperationen der gewählten Kampagne
     this.kundeAuftraegePo = [];   // PO-Nummern aus Aufträgen des Kunden
+    this.contractingAuftraege = []; // Alle Contracting-Aufträge
+    this.filteredContractingAuftraege = []; // Gefiltert nach Kunde
     this.isGenerated = false;
     this.editId = null; // ID wenn Draft bearbeitet wird
     this._filtersInitialized = false; // Flag um doppelte Filter-Initialisierung zu verhindern
@@ -238,7 +240,21 @@ VertraegeCreate.prototype.loadDraftFromDB = async function(draftId) {
           videograf_finale_werktage: draft.videograf_finale_werktage,
           videograf_nutzungsart: draft.videograf_nutzungsart || [],
           // PO-Nummer
-          kunde_po_nummer: draft.kunde_po_nummer
+          kunde_po_nummer: draft.kunde_po_nummer,
+          // Contracting-spezifische Felder
+          contracting_auftrag_id: draft.contracting_auftrag_id,
+          contracting_plattformen_handles: draft.contracting_plattformen_handles || {},
+          contracting_content_formate: draft.contracting_content_formate || [],
+          contracting_anzahl_inhalte: draft.contracting_anzahl_inhalte,
+          contracting_veroeffentlichung_zeitraum: draft.contracting_veroeffentlichung_zeitraum,
+          contracting_buyout_aktiv: draft.contracting_buyout_aktiv || false,
+          contracting_buyout_plattformen: draft.contracting_buyout_plattformen || [],
+          contracting_buyout_art: draft.contracting_buyout_art || [],
+          contracting_buyout_nutzungsdauer: draft.contracting_buyout_nutzungsdauer,
+          contracting_buyout_geografisch: draft.contracting_buyout_geografisch,
+          contracting_buyout_besonderheiten: draft.contracting_buyout_besonderheiten,
+          contracting_veroeffentlichungsdatum: draft.contracting_veroeffentlichungsdatum,
+          contracting_exklusivitaet_bereich: draft.contracting_exklusivitaet_bereich
         };
         this.selectedTyp = draft.typ;
         this.isGenerated = true;
@@ -247,6 +263,10 @@ VertraegeCreate.prototype.loadDraftFromDB = async function(draftId) {
         // Kaskade initialisieren: Kampagnen für Kunde und Creator für Kampagne laden
         this.updateFilteredKampagnen();
         await this.updateFilteredCreators();
+        // Contracting-Aufträge nach Kunde filtern
+        if (typeof this.updateFilteredContractingAuftraege === 'function') {
+          this.updateFilteredContractingAuftraege();
+        }
         this._filtersInitialized = true; // Verhindert doppelte Initialisierung in renderStep2
         
         // Creator-Profile aus Creator-Profil übernehmen (falls Creator gewählt)
@@ -273,6 +293,7 @@ VertraegeCreate.prototype.resetForm = function() {
     this.filteredCreators = [];
     this.filteredKooperationen = [];
     this.kundeAuftraegePo = [];
+    this.filteredContractingAuftraege = [];
     this.isGenerated = false;
     this.editId = null;
     this._filtersInitialized = false;
@@ -314,6 +335,16 @@ VertraegeCreate.prototype.loadStammdaten = async function() {
       this.creators = creators || [];
       console.log('📊 VERTRAG: Creator geladen:', this.creators.length);
 
+      // Lade Contracting-Aufträge (für Contracting-Vertragstyp)
+      const { data: contractingAuftraege } = await window.supabase
+        .from('auftrag')
+        .select('id, auftragsname, titel, unternehmen_id, po, angebotsnummer, marke_id')
+        .eq('auftragtype', 'Contracting')
+        .order('created_at', { ascending: false });
+
+      this.contractingAuftraege = contractingAuftraege || [];
+      console.log('📊 VERTRAG: Contracting-Aufträge geladen:', this.contractingAuftraege.length);
+
     } catch (error) {
       console.error('❌ Fehler beim Laden der Stammdaten:', error);
     }
@@ -325,6 +356,7 @@ VertraegeCreate.prototype.destroy = function() {
     this.formData = {};
     this.filteredKampagnen = [];
     this.filteredCreators = [];
+    this.filteredContractingAuftraege = [];
     this.isGenerated = false;
     this.editId = null;
     this._filtersInitialized = false;

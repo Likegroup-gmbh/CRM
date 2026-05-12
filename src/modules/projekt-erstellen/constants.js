@@ -12,7 +12,8 @@ export const CAMPAIGN_TYPES = [
   { value: 'ugc_organic', label: 'UGC Organic' },
   { value: 'influencer', label: 'Influencer Kampagne' },
   { value: 'vorort_produktion', label: 'Vor-Ort-Produktion' },
-  { value: 'story', label: 'Story' }
+  { value: 'story', label: 'Story' },
+  { value: 'whitelisting_darkposting', label: 'Whitelisting & Darkposting' }
 ];
 
 export const RETAINER_TYPES = [

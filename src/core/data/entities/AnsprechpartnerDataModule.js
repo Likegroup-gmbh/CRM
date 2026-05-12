@@ -5,6 +5,7 @@ const config = {
     vorname: 'string',
     nachname: 'string',
     unternehmen_id: 'uuid',
+    management_id: 'uuid',
     position_id: 'uuid',
     email: 'string',
     telefonnummer: 'string',
@@ -23,6 +24,7 @@ const config = {
   },
   relations: {
     unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' },
+    management: { table: 'management', foreignKey: 'management_id', displayField: 'firmenname' },
     sprache: { table: 'sprachen', foreignKey: 'sprache_id', displayField: 'name' },
     position: { table: 'positionen', foreignKey: 'position_id', displayField: 'name' },
     telefonnummer_land: { table: 'eu_laender', foreignKey: 'telefonnummer_land_id', displayField: 'name_de' },
@@ -61,6 +63,7 @@ function buildSelectClause(context) {
   if (context === 'list') {
     return `*,
 unternehmen:unternehmen_id (id, firmenname, logo_url),
+management:management_id (id, firmenname, logo_url),
 sprache:sprache_id (id, name),
 positionen:position_id (id, name),
 telefonnummer_land:eu_laender!telefonnummer_land_id (id, name, name_de, iso_code, vorwahl),
@@ -76,6 +79,7 @@ positionen:position_id (id, name),
 telefonnummer_land:eu_laender!telefonnummer_land_id (id, name, name_de, iso_code, vorwahl),
 telefonnummer_office_land:eu_laender!telefonnummer_office_land_id (id, name, name_de, iso_code, vorwahl),
 land:eu_laender!land_id (id, name_de, iso_code),
+management:management_id (id, firmenname, logo_url),
 ansprechpartner_marke (marke:marke_id (id, markenname, logo_url)),
 ansprechpartner_unternehmen (unternehmen:unternehmen_id (id, firmenname, internes_kuerzel, logo_url)),
 kunde_ansprechpartner (kunde_id)`;
@@ -88,6 +92,16 @@ async function applyJunctionFilters(query, filters, supabase, context = 'list') 
   if (filters && filters._allowedIds && Array.isArray(filters._allowedIds)) {
     query = query.in('id', filters._allowedIds);
     delete filters._allowedIds;
+  }
+
+  // Mode-Filter: trennt Unternehmen-Ansprechpartner von Management-Ansprechpartner
+  if (filters && filters._mode) {
+    if (filters._mode === 'unternehmen') {
+      query = query.is('management_id', null);
+    } else if (filters._mode === 'management') {
+      query = query.not('management_id', 'is', null);
+    }
+    delete filters._mode;
   }
 
   if (context !== 'list') return { query, filters, shortCircuit: false };

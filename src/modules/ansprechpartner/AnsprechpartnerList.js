@@ -7,7 +7,7 @@ import { modularFilterSystem as filterSystem } from '../../core/filters/ModularF
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { sortDropdown } from '../../core/components/SortDropdown.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
-import { ansprechpartnerCreate } from './AnsprechpartnerCreate.js';
+import { ansprechpartnerCreate, managementAnsprechpartnerCreate } from './AnsprechpartnerCreate.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { CountryDisplay } from '../../core/components/CountryDisplay.js';
@@ -34,10 +34,13 @@ const LINK_ICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height
 const MAIL_ICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" /></svg>';
 
 export class AnsprechpartnerList extends BasePaginatedList {
-  constructor() {
+  constructor(opts = {}) {
+    const mode = opts.mode || 'unternehmen'; // 'unternehmen' | 'management' | 'all'
+    const isManagement = mode === 'management';
+
     super('ansprechpartner', {
       itemsPerPage: 25,
-      headline: 'Ansprechpartner Übersicht',
+      headline: isManagement ? 'Management-Ansprechpartner Übersicht' : 'Ansprechpartner Übersicht',
       breadcrumbLabel: 'Ansprechpartner',
       sortField: 'nachname',
       sortAscending: true,
@@ -45,9 +48,13 @@ export class AnsprechpartnerList extends BasePaginatedList {
       tbodySelector: '.data-table tbody',
       tableColspan: 14,
       checkboxClass: 'ansprechpartner-check',
-      selectAllId: 'select-all-ansprechpartner'
+      selectAllId: 'select-all-ansprechpartner',
+      ...opts
     });
-    
+
+    this.mode = mode;
+    this.createRoute = isManagement ? '/management-ansprechpartner/new' : '/ansprechpartner/new';
+
     this.selectedAnsprechpartner = this.selectedItems;
     this._allowedAnsprechpartnerIds = null;
     this._newsletterUpdateInFlight = new Set();
@@ -80,8 +87,14 @@ export class AnsprechpartnerList extends BasePaginatedList {
    * Lädt die Ansprechpartner-Daten für eine Seite
    */
   async loadPageData(page, limit, filters) {
-    // Nicht-Admin Filterung prüfen
-    if (!this.isAdmin && window.supabase) {
+    // Mode-Filter (Unternehmen vs. Management)
+    if (this.mode && this.mode !== 'all') {
+      filters._mode = this.mode;
+    }
+
+    // Nicht-Admin Filterung nur im Unternehmen-Modus erforderlich
+    // (Management-Modus zeigt alle Ansprechpartner mit management_id)
+    if (!this.isAdmin && window.supabase && this.mode !== 'management') {
       const allowedIds = await this.loadAllowedAnsprechpartnerIds();
       
       if (allowedIds && allowedIds.length === 0) {
@@ -224,7 +237,8 @@ export class AnsprechpartnerList extends BasePaginatedList {
     const canBulkDelete = this.canBulkDelete;
     const canEdit = this.canEdit;
     const sanitize = this.sanitize.bind(this);
-    
+    const isManagement = this.mode === 'management';
+
     return `
       <tr data-id="${ap.id}">
         ${canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="ansprechpartner-check" data-id="${ap.id}"></td>` : ''}
@@ -241,7 +255,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
             ${sanitize(ap.nachname || '')}
           </a>
         </td>
-        <td>${this.renderUnternehmen(ap)}</td>
+        <td>${isManagement ? this.renderManagement(ap) : this.renderUnternehmen(ap)}</td>
         <td class="ap-col-marke">
           ${(ap.marken && ap.marken.length > 0)
             ? avatarBubbles.renderBubbles(ap.marken.map(m => ({
@@ -280,7 +294,9 @@ export class AnsprechpartnerList extends BasePaginatedList {
   renderShellContent() {
     const canBulkDelete = this.canBulkDelete;
     const canEdit = this.canEdit;
-    
+    const isManagement = this.mode === 'management';
+    const newButtonLabel = isManagement ? 'Neuen Management-Ansprechpartner anlegen' : 'Neuen Ansprechpartner anlegen';
+
     return `
       <div class="table-filter-wrapper">
         <div class="filter-bar">
@@ -298,7 +314,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
           <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>` : ''}
-          ${canEdit ? `<button id="btn-ansprechpartner-new" class="primary-btn">Neuen Ansprechpartner anlegen</button>` : ''}
+          ${canEdit ? `<button id="btn-ansprechpartner-new" class="primary-btn">${newButtonLabel}</button>` : ''}
         </div>
       </div>
 
@@ -309,7 +325,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
               ${canBulkDelete ? `<th class="col-checkbox"><input type="checkbox" id="select-all-ansprechpartner"></th>` : ''}
               <th class="col-vorname col-name">Vorname</th>
               <th class="col-nachname">Nachname</th>
-              <th>Unternehmen</th>
+              <th>${isManagement ? 'Management' : 'Unternehmen'}</th>
               <th class="ap-col-marke">Marke</th>
               <th class="ap-col-nowrap">Stadt</th>
               <th class="ap-col-nowrap">Land</th>
@@ -372,7 +388,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
     document.addEventListener('click', (e) => {
       if (e.target.id === 'btn-ansprechpartner-new') {
         e.preventDefault();
-        window.navigateTo('/ansprechpartner/new');
+        window.navigateTo(this.createRoute);
       }
     }, { signal });
     
@@ -518,6 +534,23 @@ export class AnsprechpartnerList extends BasePaginatedList {
   }
   
   /**
+   * Render Management (Single-FK über management_id)
+   */
+  renderManagement(ap) {
+    const mgmt = ap.management;
+    if (!mgmt || !mgmt.firmenname) return '-';
+    const items = [{
+      name: mgmt.firmenname,
+      label: mgmt.firmenname,
+      type: 'org',
+      id: mgmt.id,
+      entityType: 'management',
+      logo_url: mgmt.logo_url || null
+    }];
+    return avatarBubbles.renderBubbles(items, { showLabel: true });
+  }
+
+  /**
    * Render Unternehmen (unterstützt sowohl Legacy-Einzelobjekt als auch Many-to-Many Array)
    */
   renderUnternehmen(ap) {
@@ -644,10 +677,15 @@ export class AnsprechpartnerList extends BasePaginatedList {
   // ══════════════════════════════════════════════════════════════════════════
   
   showCreateForm() {
-    console.log('🎯 Zeige Ansprechpartner-Erstellungsformular');
-    ansprechpartnerCreate.showCreateForm();
+    console.log('🎯 Zeige Ansprechpartner-Erstellungsformular', { mode: this.mode });
+    if (this.mode === 'management') {
+      managementAnsprechpartnerCreate.showCreateForm();
+    } else {
+      ansprechpartnerCreate.showCreateForm();
+    }
   }
 }
 
 // Exportiere Instanz für globale Nutzung
-export const ansprechpartnerList = new AnsprechpartnerList();
+export const ansprechpartnerList = new AnsprechpartnerList({ mode: 'unternehmen' });
+export const managementAnsprechpartnerList = new AnsprechpartnerList({ mode: 'management' });

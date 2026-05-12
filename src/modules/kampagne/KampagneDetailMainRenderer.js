@@ -49,14 +49,17 @@ export function renderMainPage(state) {
 
   const canCreateKooperation = window.currentUser?.permissions?.kooperation?.can_edit || false;
 
+  const kampagneName = KampagneUtils.getDisplayName(kampagneData) || kampagneData?.kampagnenname || '';
+
   return `
-    ${canCreateKooperation ? `
     <div class="page-header">
+      <h2 class="page-header-title">${window.validatorSystem?.sanitizeHtml(kampagneName) || ''}</h2>
+      ${canCreateKooperation ? `
       <div class="page-header-right">
         <button id="btn-new-kooperation" class="primary-btn">Kooperation anlegen</button>
       </div>
+      ` : ''}
     </div>
-    ` : ''}
 
     <div class="content-section">
       ${renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum)}
