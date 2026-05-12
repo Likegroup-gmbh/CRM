@@ -172,7 +172,7 @@ export class ManagementDetail extends PersonDetailBase {
       { icon: 'mail', label: 'E-Mail', value: this.management?.email, mailto: true },
       { icon: 'phone', label: 'Telefon', value: this.management?.telefonnummer },
       ...(webseiteLinkHtml ? [{ icon: 'link', label: 'Webseite', rawHtml: webseiteLinkHtml }] : []),
-      ...(this.management?.instagram ? [{ icon: 'instagram', label: 'Instagram', rawHtml: `<a href="https://instagram.com/${this.sanitize(this.management.instagram)}" target="_blank" rel="noopener">@${this.sanitize(this.management.instagram)}</a>` }] : []),
+      ...(this.management?.instagram ? [{ icon: 'instagram', label: 'Instagram', rawHtml: `<a href="${this.management.instagram.startsWith('http') ? this.sanitize(this.management.instagram) : `https://instagram.com/${this.sanitize(this.management.instagram.replace('@', ''))}`}" target="_blank" rel="noopener">@${this.sanitize(this.management.instagram)}</a>` }] : []),
       ...(this.management?.linkedin ? [{ icon: 'link', label: 'LinkedIn', rawHtml: `<a href="${this.sanitizeUrl(this.management.linkedin)}" target="_blank" rel="noopener">${this.sanitize(this.management.linkedin)}</a>` }] : []),
       ...(this.management?.status ? [{ icon: 'check', label: 'Status', value: this.management.status, badge: true, badgeType: this.management.status === 'aktiv' ? 'success' : 'secondary' }] : []),
       { icon: 'clock', label: 'Erstellt', value: this.formatDate(this.management?.created_at) },

@@ -446,8 +446,9 @@ export class ProduktDetail extends PersonDetailBase {
       // Validierung
       const validation = window.validatorSystem.validateForm(allFormData, {
         name: { type: 'text', minLength: 2, required: true },
+        unternehmen_id: { required: true },
         kernbotschaft: { type: 'text', minLength: 2, required: true },
-        hauptproblem: { type: 'text', minLength: 2, required: true }
+        url: { type: 'url', required: true }
       });
       
       if (!validation.isValid) {

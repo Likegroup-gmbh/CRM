@@ -13,6 +13,13 @@ function debounce(fn, ms = 50) {
 const VERTRAG_WARNING_ID = 'rechnung-vertrag-warning';
 const DISABLED_WRAPPER_ID = 'rechnung-fields-wrapper';
 
+// Searchable-Selects entfernen das name-Attribut vom <select>; Fallback auf id / data-field-name.
+function findSelect(form, name) {
+  return form.querySelector(`select[name="${name}"]`)
+    || form.querySelector(`select#field-${name}`)
+    || form.querySelector(`select[data-field-name="${name}"]`);
+}
+
 function showVertragWarning(form, message) {
   hideVertragWarning(form);
 
@@ -24,7 +31,7 @@ function showVertragWarning(form, message) {
     ${message}
   `;
 
-  const koopField = form.querySelector('select[name="kooperation_id"]');
+  const koopField = findSelect(form, 'kooperation_id');
   const koopGroup = koopField?.closest('.form-field') || koopField?.closest('.form-row-group');
   if (koopGroup) {
     koopGroup.insertAdjacentElement('afterend', banner);
@@ -93,15 +100,15 @@ export function berechneRechnungFromInputs({ nettoInput, zusatzInput, skontoTogg
 }
 
 export async function setup(form, ctx) {
-  const koopSelect = form.querySelector('select[name="kooperation_id"]');
+  const koopSelect = findSelect(form, 'kooperation_id');
   if (!koopSelect || !window.supabase) return;
 
   const isEditMode = form.dataset.isEditMode === 'true';
 
-  const unternehmenField = form.querySelector('select[name="unternehmen_id"]');
-  const auftragField = form.querySelector('select[name="auftrag_id"]');
-  const creatorField = form.querySelector('select[name="creator_id"]');
-  const kampagneField = form.querySelector('select[name="kampagne_id"]');
+  const unternehmenField = findSelect(form, 'unternehmen_id');
+  const auftragField = findSelect(form, 'auftrag_id');
+  const creatorField = findSelect(form, 'creator_id');
+  const kampagneField = findSelect(form, 'kampagne_id');
   const videoInput = form.querySelector('input[name="videoanzahl"]');
   const nettoInput = form.querySelector('input[name="nettobetrag"]');
   const zusatzInput = form.querySelector('input[name="zusatzkosten"]');

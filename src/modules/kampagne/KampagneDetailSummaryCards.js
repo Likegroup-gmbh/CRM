@@ -7,11 +7,7 @@ export function calculateSummaryCards(kooperationen, videos) {
   const koopBudgetSum = (videos || []).reduce((sum, v) => sum + (parseFloat(v.verkaufspreis_netto) || 0), 0);
   const koopVideosUsed = (kooperationen || []).reduce((sum, koop) => sum + (parseInt(koop.videoanzahl, 10) || 0), 0);
   const extraKostenVkSum = (kooperationen || []).reduce((sum, koop) => sum + (parseFloat(koop.verkaufspreis_zusatzkosten) || 0), 0);
-  const uniqueCreatorIds = new Set();
-  (kooperationen || []).forEach(koop => {
-    if (koop.creator_id) uniqueCreatorIds.add(koop.creator_id);
-  });
-  const koopCreatorsUsed = uniqueCreatorIds.size;
+  const koopCreatorsUsed = (kooperationen || []).filter(koop => koop.creator_id).length;
 
   console.log('✅ KAMPAGNEDETAIL: Summary Cards berechnet:', { budget: koopBudgetSum, videos: koopVideosUsed, creators: koopCreatorsUsed, extraKosten: extraKostenVkSum });
   return { koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum };

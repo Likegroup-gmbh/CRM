@@ -4,6 +4,8 @@
 // Persistenz-Mapping: Wizard-Block -> neue Block-Tabelle und aggregiert in alte
 // auftrag_details/kampagne-Spalten, damit bestehende Ansichten weiter Daten sehen.
 
+import { KAMPAGNENARTEN_MAPPING } from '../../auftrag/logic/KampagnenartenMapping.js';
+
 export const CHIP_PREFIX_MAP = {
   ugc_paid: 'ugc_paid',
   ugc_organic: 'ugc_organic',
@@ -11,6 +13,28 @@ export const CHIP_PREFIX_MAP = {
   vorort_produktion: 'vor_ort',
   story: 'story'
 };
+
+// Reverse-Map: prefix -> chipValue (z.B. 'vor_ort' -> 'vorort_produktion')
+export const PREFIX_TO_CHIP_MAP = Object.entries(CHIP_PREFIX_MAP).reduce((acc, [chip, prefix]) => {
+  acc[prefix] = chip;
+  return acc;
+}, {});
+
+/**
+ * Wandelt einen kampagne_art_typen.name (z.B. "UGC Paid", "Vor-Ort-Produktion")
+ * in den entsprechenden Wizard-Slug (CAMPAIGN_TYPES.value, z.B. "ugc_paid",
+ * "vorort_produktion") um. Geht ueber das KAMPAGNENARTEN_MAPPING.prefix als
+ * Bruecke und sucht den Chip im invertierten CHIP_PREFIX_MAP.
+ *
+ * @param {string} name DB-Anzeigename aus kampagne_art_typen
+ * @returns {string|null} Wizard-Slug oder null wenn nicht zuordenbar
+ */
+export function getChipFromKampagnenartName(name) {
+  if (!name) return null;
+  const config = KAMPAGNENARTEN_MAPPING[name];
+  if (!config?.prefix) return null;
+  return PREFIX_TO_CHIP_MAP[config.prefix] || null;
+}
 
 export const BUDGET_FIELD_SUFFIXES = [
   'einkaufspreis_netto_von',
