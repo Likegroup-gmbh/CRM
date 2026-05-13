@@ -222,7 +222,10 @@ export class DependentFields {
     
     const handler = async (e) => {
       const changedField = e.target;
-      const fieldName = changedField.name;
+      // Searchable-Selects entfernen das name-Attribut vom Original-<select>
+      // und speichern den Namen in dataset.fieldName. Ohne Fallback würde die
+      // Kaskade (z.B. Unternehmen -> Marke/Kampagne) nie feuern.
+      const fieldName = changedField.name || changedField.dataset?.fieldName || '';
       
       if (dependencyMap.has(fieldName)) {
         if (debounceTimers.has(fieldName)) {
