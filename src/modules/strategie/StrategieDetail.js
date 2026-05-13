@@ -28,9 +28,37 @@ export class StrategieDetail {
       this.strategie = await strategieService.getStrategieById(strategieId);
       this.items = await strategieService.getStrategieItems(strategieId);
 
-      // Breadcrumb
+      // Breadcrumb mit Unternehmen/Marke Hierarchie
       if (window.breadcrumbSystem && this.strategie) {
-        window.breadcrumbSystem.updateDetailLabel(this.strategie.name);
+        const crumbs = [
+          { label: 'Strategien', url: '/strategie', clickable: true }
+        ];
+
+        if (this.strategie.unternehmen) {
+          const uName = encodeURIComponent(this.strategie.unternehmen.firmenname);
+          const uId = this.strategie.unternehmen_id;
+          crumbs.push({
+            label: this.strategie.unternehmen.firmenname,
+            url: `/strategie?unternehmen=${uId}&unternehmen_name=${uName}`,
+            clickable: true
+          });
+        }
+
+        if (this.strategie.marke) {
+          const uName = encodeURIComponent(this.strategie.unternehmen?.firmenname || '');
+          const uId = this.strategie.unternehmen_id;
+          const mName = encodeURIComponent(this.strategie.marke.markenname);
+          const mId = this.strategie.marke_id;
+          crumbs.push({
+            label: this.strategie.marke.markenname,
+            url: `/strategie?unternehmen=${uId}&unternehmen_name=${uName}&marke=${mId}&marke_name=${mName}`,
+            clickable: true
+          });
+        }
+
+        crumbs.push({ label: this.strategie.name, url: '#', clickable: false });
+
+        window.breadcrumbSystem.updateBreadcrumb(crumbs);
       }
 
       window.setHeadline(''); // Name wird bereits in Breadcrumb angezeigt

@@ -9280,10 +9280,8 @@ input.readonly-field {
 
 #add-item-form {
   display: flex;
-  flex-direction: row;
-  gap: var(--space-sm);
-  align-items: end;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: var(--space-md);
 }
 
 #add-item-form button[type="submit"] {
@@ -10002,14 +10000,21 @@ input.readonly-field {
   }
 }
 
+/* Drawer Form Wrapper */
+.add-item-drawer-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--gray-200);
+  margin-bottom: var(--space-lg);
+}
+
 /* Drawer Form (eine Zeile) */
 .add-item-drawer-form-row {
   display: flex;
   align-items: flex-end;
   gap: var(--space-md);
-  padding-bottom: var(--space-lg);
-  border-bottom: 1px solid var(--gray-200);
-  margin-bottom: var(--space-lg);
 }
 
 .add-item-drawer-form-row .form-field {
@@ -10021,14 +10026,51 @@ input.readonly-field {
   min-width: 200px;
 }
 
+/* URL nimmt den Platz, Kategorie nur so breit wie nötig */
+.add-item-drawer-form-row .form-field:not(.form-field--grow):not(.form-field--full):not(.form-field--btn) {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: none;
+}
+
+.add-item-drawer-form-row .form-field--full {
+  flex: 1;
+  width: 100%;
+}
+
+.add-item-drawer-form-row .form-field--full textarea.form-input {
+  width: 100%;
+  min-height: 60px;
+  resize: vertical;
+  font-family: inherit;
+}
+
 .add-item-drawer-form-row .form-field--btn {
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  width: auto;
+  max-width: none;
+  align-self: flex-end;
+}
+
+.add-item-drawer-form-row .form-field--btn .mdc-btn {
+  width: auto;
 }
 
 .add-item-drawer-form-row .form-field--btn label {
   visibility: hidden;
   height: 0;
   margin: 0;
+}
+
+/* Beschreibung im Queue-Item */
+.queue-item-beschreibung {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 /* Queue Container - füllt den verfügbaren Platz */
@@ -11024,8 +11066,20 @@ table:has(#strategien-table-body) td.col-actions {
 }
 
 .creator-pool-table .cp-col-feedback {
-  width: 260px;
-  min-width: 260px;
+  width: 360px;
+  min-width: 360px;
+}
+
+.creator-pool-table td.cp-col-feedback {
+  white-space: normal;
+  vertical-align: top;
+}
+
+.creator-pool-table td.cp-col-feedback .strategie-textarea {
+  white-space: pre-wrap;
+  word-break: break-word;
+  height: auto;
+  resize: vertical;
 }
 
 .creator-pool-table .cp-col-actions {

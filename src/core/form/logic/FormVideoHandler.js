@@ -68,6 +68,13 @@ export class FormVideoHandler {
       }
 
       const totalVideos = this.getKampagneTotalVideos(kampagne);
+
+      // Unlimited-Modus: Wenn die Kampagne kein Video-Kontingent definiert hat,
+      // duerfen Kooperationen frei angelegt werden -- der Counter laeuft nach oben.
+      if (totalVideos === 0) {
+        return { isValid: true };
+      }
+
       const usedVideos = (existingKoops || []).reduce((sum, koop) => sum + (parseInt(koop.videoanzahl, 10) || 0), 0);
       const remainingVideos = Math.max(0, totalVideos - usedVideos);
 

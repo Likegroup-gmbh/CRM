@@ -30,11 +30,32 @@ export class StrategieList {
 
   async init() {
     this._forceReload = true;
-    this.viewMode = 'companies';
-    this.currentUnternehmenId = null;
-    this.currentUnternehmenName = null;
-    this.currentMarkeId = null;
-    this.currentMarkeName = null;
+
+    const params = new URLSearchParams(window.location.search);
+    const qUnternehmenId = params.get('unternehmen');
+    const qUnternehmenName = params.get('unternehmen_name');
+    const qMarkeId = params.get('marke');
+    const qMarkeName = params.get('marke_name');
+
+    if (qUnternehmenId) {
+      this.currentUnternehmenId = qUnternehmenId;
+      this.currentUnternehmenName = decodeURIComponent(qUnternehmenName || 'Unternehmen');
+      if (qMarkeId) {
+        this.viewMode = 'items';
+        this.currentMarkeId = qMarkeId;
+        this.currentMarkeName = decodeURIComponent(qMarkeName || 'Marke');
+      } else {
+        this.viewMode = 'brands';
+        this.currentMarkeId = null;
+        this.currentMarkeName = null;
+      }
+    } else {
+      this.viewMode = 'companies';
+      this.currentUnternehmenId = null;
+      this.currentUnternehmenName = null;
+      this.currentMarkeId = null;
+      this.currentMarkeName = null;
+    }
 
     const canView = window.isAdmin() || window.currentUser?.permissions?.strategie?.can_view;
     if (!canView) {
@@ -85,16 +106,24 @@ export class StrategieList {
     if (!window.breadcrumbSystem) return;
 
     if (this.viewMode === 'companies') {
-      // Base view - router handles breadcrumb
       return;
     }
 
     if (this.viewMode === 'brands') {
-      window.breadcrumbSystem.updateDetailLabel(this.currentUnternehmenName || 'Unternehmen');
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Strategien', url: '/strategie', clickable: true },
+        { label: this.currentUnternehmenName || 'Unternehmen', url: '#', clickable: false }
+      ]);
       return;
     }
 
-    window.breadcrumbSystem.updateDetailLabel(this.currentMarkeName || 'Marke');
+    const uName = encodeURIComponent(this.currentUnternehmenName || '');
+    const uId = this.currentUnternehmenId;
+    window.breadcrumbSystem.updateBreadcrumb([
+      { label: 'Strategien', url: '/strategie', clickable: true },
+      { label: this.currentUnternehmenName || 'Unternehmen', url: `/strategie?unternehmen=${uId}&unternehmen_name=${uName}`, clickable: true },
+      { label: this.currentMarkeName || 'Marke', url: '#', clickable: false }
+    ]);
   }
 
   sanitize(value) {

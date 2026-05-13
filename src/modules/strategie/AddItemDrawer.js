@@ -114,42 +114,56 @@ export class AddItemDrawer {
     if (!body) return;
 
     body.innerHTML = `
-      <!-- Input-Bereich (eine Zeile) -->
-      <form id="add-item-form" class="add-item-drawer-form-row" data-no-submit-guard="true">
-        <div class="form-field form-field--grow">
-          <label for="drawer-video-url">Video-URL</label>
-          <input 
-            type="url" 
-            id="drawer-video-url" 
-            class="form-input" 
-            placeholder="https://youtube.com/shorts/... oder leer für Idee"
-            autocomplete="off"
-          >
-        </div>
-        
-        <div class="form-field">
-          <label for="drawer-kategorie">Kategorie</label>
-          <select id="drawer-kategorie" class="form-input">
-            <option value="">Ohne Kategorie</option>
-            ${this.teilbereiche.map(tb => `<option value="${tb}">${tb}</option>`).join('')}
-          </select>
+      <!-- Input-Bereich -->
+      <form id="add-item-form" class="add-item-drawer-form" data-no-submit-guard="true">
+        <div class="add-item-drawer-form-row">
+          <div class="form-field form-field--grow">
+            <label for="drawer-video-url">Video-URL</label>
+            <input 
+              type="url" 
+              id="drawer-video-url" 
+              class="form-input" 
+              placeholder="https://youtube.com/shorts/... oder leer für Idee"
+              autocomplete="off"
+            >
+          </div>
+          
+          <div class="form-field">
+            <label for="drawer-kategorie">Kategorie</label>
+            <select id="drawer-kategorie" class="form-input">
+              <option value="">Ohne Kategorie</option>
+              ${this.teilbereiche.map(tb => `<option value="${tb}">${tb}</option>`).join('')}
+            </select>
+          </div>
+
+          <div class="form-field form-field--btn">
+            <label>&nbsp;</label>
+            <button type="submit" class="mdc-btn mdc-btn--create" id="btn-add-to-queue">
+              <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="16" height="16">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+              </span>
+              <span class="mdc-btn__spinner" aria-hidden="true">
+                <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
+                  <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
+                </svg>
+              </span>
+              <span class="mdc-btn__label">Zur Queue hinzufügen</span>
+            </button>
+          </div>
         </div>
 
-        <div class="form-field form-field--btn">
-          <label>&nbsp;</label>
-          <button type="submit" class="mdc-btn mdc-btn--create" id="btn-add-to-queue">
-            <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="16" height="16">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-            </span>
-            <span class="mdc-btn__spinner" aria-hidden="true">
-              <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
-                <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
-              </svg>
-            </span>
-            <span class="mdc-btn__label">Zur Queue hinzufügen</span>
-          </button>
+        <div class="add-item-drawer-form-row add-item-drawer-form-row--full">
+          <div class="form-field form-field--full">
+            <label for="drawer-beschreibung">Beschreibung</label>
+            <textarea
+              id="drawer-beschreibung"
+              class="form-input"
+              rows="2"
+              placeholder="Optionale Beschreibung..."
+            ></textarea>
+          </div>
         </div>
       </form>
 
@@ -199,9 +213,11 @@ export class AddItemDrawer {
   handleAddToQueue() {
     const urlInput = document.getElementById('drawer-video-url');
     const kategorieSelect = document.getElementById('drawer-kategorie');
+    const beschreibungInput = document.getElementById('drawer-beschreibung');
     
     const url = urlInput?.value?.trim() || null;
     const kategorie = kategorieSelect?.value || null;
+    const beschreibung = beschreibungInput?.value?.trim() || null;
 
     // URL-Validierung: Nur YouTube, TikTok, Instagram oder leer (Idee)
     if (url && !this.isAllowedUrl(url)) {
@@ -221,6 +237,7 @@ export class AddItemDrawer {
       id,
       url,
       kategorie,
+      beschreibung,
       platform,
       status: 'pending',
       phase: null, // 'screenshot' | 'saving'
@@ -231,8 +248,9 @@ export class AddItemDrawer {
       startTime: null
     });
 
-    // Input leeren
+    // Inputs leeren
     urlInput.value = '';
+    if (beschreibungInput) beschreibungInput.value = '';
     urlInput.focus();
 
     // Queue rendern
@@ -445,6 +463,7 @@ export class AddItemDrawer {
           <div class="queue-item-center">
             <span class="queue-item-url">${this.escapeHtml(displayUrl)}</span>
             ${item.kategorie ? `<span class="queue-item-kategorie">${this.escapeHtml(item.kategorie)}</span>` : ''}
+            ${item.beschreibung ? `<span class="queue-item-beschreibung">${this.escapeHtml(item.beschreibung)}</span>` : ''}
             ${progressHtml}
             ${item.status === 'error' ? `<span class="queue-item-error-text">Fehlgeschlagen</span>` : ''}
           </div>
@@ -522,7 +541,8 @@ export class AddItemDrawer {
         screenshot_url: screenshotUrl,
         plattform: nextItem.url ? platform : null,
         sortierung: existingItems.length,
-        teilbereich: nextItem.kategorie
+        teilbereich: nextItem.kategorie,
+        beschreibung: nextItem.beschreibung
       };
 
       await strategieService.createStrategieItem(itemData);
