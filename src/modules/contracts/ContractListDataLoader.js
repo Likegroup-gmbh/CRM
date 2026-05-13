@@ -5,7 +5,8 @@ const SUPABASE = () => window.supabase;
 
 const CONTRACT_SELECT = `
   id, titel, auftragsname, status, auftragtype,
-  nettobetrag, bruttobetrag, angebotsnummer, po, externe_po,
+  nettobetrag, bruttobetrag, gesamt_budget, creator_budget,
+  angebotsnummer, po, externe_po,
   start, ende, created_at,
   unternehmen:unternehmen_id (id, firmenname, logo_thumb_url),
   marke:marke_id (id, markenname, logo_thumb_url),
@@ -87,7 +88,7 @@ export async function loadContractRechnungen(auftragId) {
   try {
     const { data, error } = await supabase
       .from('rechnung')
-      .select('id, rechnung_nr, nettobetrag, ust_betrag, bruttobetrag, status, gestellt_am, zahlungsziel, bezahlt_am, creator:creator_id(id, vorname, nachname)')
+      .select('id, rechnung_nr, nettobetrag, ust_betrag, bruttobetrag, status, gestellt_am, zahlungsziel, bezahlt_am, ksk_pflichtig, creator:creator_id(id, vorname, nachname)')
       .eq('auftrag_id', auftragId)
       .eq('rechnungstyp', 'contracting')
       .order('created_at', { ascending: false });
@@ -104,7 +105,7 @@ export async function loadContractDetail(auftragId) {
   if (!supabase) return null;
 
   try {
-    const [auftragResult, positionsResult, rechnungen] = await Promise.all([
+    const [auftragResult, positionsResult, auftragDetailsResult, rechnungen] = await Promise.all([
       supabase
         .from('auftrag')
         .select(CONTRACT_SELECT)
@@ -116,6 +117,11 @@ export async function loadContractDetail(auftragId) {
         .select('id, creator_id, beschreibung, betrag_netto, betrag_brutto, rechnung_nr, status, bezahlt_am, created_at')
         .eq('auftrag_id', auftragId)
         .order('created_at', { ascending: true }),
+      supabase
+        .from('auftrag_details')
+        .select('ksk_enabled, ksk_value, percentage_fee_enabled, percentage_fee_value, agency_services_enabled')
+        .eq('auftrag_id', auftragId)
+        .maybeSingle(),
       loadContractRechnungen(auftragId)
     ]);
 
@@ -142,6 +148,7 @@ export async function loadContractDetail(auftragId) {
     return {
       ...auftragResult.data,
       contracting_position: enrichedPositions,
+      auftragsDetails: auftragDetailsResult?.data || null,
       rechnungen
     };
   } catch (e) {

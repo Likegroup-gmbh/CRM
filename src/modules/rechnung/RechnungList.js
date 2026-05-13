@@ -20,6 +20,7 @@ export class RechnungList {
     this.rechnungen = [];
     this._bezahltUpdateInFlight = new Set();
     this.activeStatusTab = 'alle';
+    this.activeTypeTab = 'rechnung';
     this.searchQuery = '';
     this._searchDebounceTimer = null;
     this.statusOptions = [
@@ -34,6 +35,10 @@ export class RechnungList {
       { id: 'Rückfrage', label: 'Rückfrage' },
       { id: 'Bezahlt', label: 'Bezahlt' },
       { id: 'An Qonto gesendet', label: 'An Qonto gesendet' }
+    ];
+    this.typeTabs = [
+      { id: 'rechnung', label: 'Rechnungen' },
+      { id: 'contracting', label: 'Contracts' }
     ];
   }
 
@@ -119,6 +124,25 @@ export class RechnungList {
         this.activeStatusTab = tab;
         document.querySelectorAll('.rechnung-status-tabs .tab-button').forEach(b => b.classList.remove('active'));
         tabBtn.classList.add('active');
+        this.updateTable(this.getFilteredRechnungen());
+      }
+    }, { signal });
+
+    // Type-Tab Klicks (Rechnungen / Contracts)
+    document.addEventListener('click', (e) => {
+      const tabBtn = e.target.closest('.rechnung-type-tabs .tab-button');
+      if (!tabBtn) return;
+      e.preventDefault();
+      const tab = tabBtn.dataset.tab;
+      if (tab && tab !== this.activeTypeTab) {
+        this.activeTypeTab = tab;
+        this.activeStatusTab = 'alle';
+        document.querySelectorAll('.rechnung-type-tabs .tab-button').forEach(b => b.classList.remove('active'));
+        tabBtn.classList.add('active');
+        document.querySelectorAll('.rechnung-status-tabs .tab-button').forEach(b => {
+          b.classList.toggle('active', b.dataset.tab === 'alle');
+        });
+        this.updateStatusTabCounts();
         this.updateTable(this.getFilteredRechnungen());
       }
     }, { signal });
@@ -527,6 +551,7 @@ export class RechnungList {
         </div>
       </div>
 
+      ${this.renderTypeTabs()}
       ${this.renderStatusTabs()}
 
       <div class="data-table-container rechnung-table-container">
@@ -549,6 +574,7 @@ export class RechnungList {
               <th class="col-videos">Videos</th>
               <th class="col-preis-video">Preis/Video</th>
               <th class="col-brutto">Bruttobetrag</th>
+              <th class="col-ksk">KSK</th>
               <th class="col-beleg">Beleg</th>
               <th class="col-vertrag">Vertrag</th>
               <th class="col-status">Status</th>
@@ -559,7 +585,7 @@ export class RechnungList {
           </thead>
           <tbody id="rechnungen-table-body">
             <tr>
-              <td colspan="${isAdmin ? '21' : '20'}" class="loading">Lade Rechnungen...</td>
+              <td colspan="${isAdmin ? '22' : '21'}" class="loading">Lade Rechnungen...</td>
             </tr>
           </tbody>
         </table>
@@ -579,17 +605,35 @@ export class RechnungList {
     return `<div class="tab-navigation rechnung-status-tabs">${tabs}</div>`;
   }
 
+  renderTypeTabs() {
+    const tabs = this.typeTabs.map(t => renderTabButton({
+      tab: t.id,
+      label: `${t.label}<span class="tab-count" data-type-count="${t.id}">0</span>`,
+      isActive: t.id === this.activeTypeTab,
+      skipPermissionCheck: true
+    })).join('');
+    return `<div class="tab-navigation rechnung-type-tabs">${tabs}</div>`;
+  }
+
   getFilteredRechnungen() {
     const searchFiltered = this.getSearchFilteredRechnungen();
     if (this.activeStatusTab === 'alle') return searchFiltered;
     return searchFiltered.filter(r => r.status === this.activeStatusTab);
   }
 
-  getSearchFilteredRechnungen() {
-    const query = this.searchQuery.trim().toLowerCase();
-    if (!query) return this.rechnungen;
+  getTypeFilteredRechnungen(rechnungen = this.rechnungen) {
+    if (this.activeTypeTab === 'contracting') {
+      return (rechnungen || []).filter(r => r.rechnungstyp === 'contracting');
+    }
+    return (rechnungen || []).filter(r => r.rechnungstyp !== 'contracting');
+  }
 
-    return this.rechnungen.filter(r => {
+  getSearchFilteredRechnungen() {
+    const typeFiltered = this.getTypeFilteredRechnungen();
+    const query = this.searchQuery.trim().toLowerCase();
+    if (!query) return typeFiltered;
+
+    return typeFiltered.filter(r => {
       const searchableValues = [
         r.rechnung_nr,
         r.po_nummer,
@@ -617,6 +661,17 @@ export class RechnungList {
     this.statusTabs.forEach(t => {
       const el = document.querySelector(`[data-status-count="${t.id}"]`);
       if (el) el.textContent = counts[t.id] || 0;
+    });
+
+    // Type-Tab Counts (unabhaengig vom aktiven Type-Tab)
+    const all = this.rechnungen || [];
+    const typeCounts = {
+      rechnung: all.filter(r => r.rechnungstyp !== 'contracting').length,
+      contracting: all.filter(r => r.rechnungstyp === 'contracting').length
+    };
+    this.typeTabs.forEach(t => {
+      const el = document.querySelector(`[data-type-count="${t.id}"]`);
+      if (el) el.textContent = typeCounts[t.id] || 0;
     });
   }
 
@@ -715,6 +770,7 @@ export class RechnungList {
           <td class="col-videos">${r.videoanzahl || '-'}</td>
           <td class="col-preis-video">${r.videoanzahl && r.nettobetrag ? formatCurrency(r.nettobetrag / r.videoanzahl) : '-'}</td>
           <td class="col-brutto">${formatCurrency(r.bruttobetrag)}</td>
+          <td class="col-ksk">${r.rechnungstyp === 'contracting' ? (r.ksk_pflichtig ? '<span class="status-badge status-erfolg">Ja</span>' : '<span class="status-badge status-inactive">Nein</span>') : '—'}</td>
           <td class="col-beleg">${r.rechnung_pdfs && r.rechnung_pdfs.length > 0 ? r.rechnung_pdfs.map((p, i) => `<a href="${p.open_url}" target="_blank" rel="noopener noreferrer">PDF${r.rechnung_pdfs.length > 1 ? ' ' + (i + 1) : ''}</a>`).join(' ') : (r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener noreferrer">PDF</a>` : '-')}</td>
           <td class="col-vertrag">${renderVertragCell(r)}</td>
           <td class="col-status" data-col="status">${r.status || '-'}</td>

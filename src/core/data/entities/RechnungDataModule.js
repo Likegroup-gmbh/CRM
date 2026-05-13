@@ -28,6 +28,7 @@ export default {
       vertrag_id: 'uuid',
       rechnungstyp: 'string',
       contracting_position_id: 'uuid',
+      ksk_pflichtig: 'boolean',
       created_by_id: 'uuid',
       created_at: 'date',
       updated_at: 'date'

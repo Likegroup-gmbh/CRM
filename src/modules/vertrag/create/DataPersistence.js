@@ -236,11 +236,16 @@ VertraegeCreate.prototype.prepareDataForDB = function() {
         contracting_buyout_aktiv: buyoutAktiv,
         contracting_buyout_plattformen: buyoutAktiv ? (this.formData.contracting_buyout_plattformen || []) : [],
         contracting_buyout_art: buyoutAktiv ? (this.formData.contracting_buyout_art || []) : [],
+        contracting_buyout_art_sonstige: buyoutAktiv && (this.formData.contracting_buyout_art || []).includes('sonstige')
+          ? (this.formData.contracting_buyout_art_sonstige || null)
+          : null,
         contracting_buyout_nutzungsdauer: buyoutAktiv ? (this.formData.contracting_buyout_nutzungsdauer || null) : null,
-        contracting_buyout_geografisch: buyoutAktiv ? (this.formData.contracting_buyout_geografisch || null) : null,
-        contracting_buyout_besonderheiten: buyoutAktiv ? (this.formData.contracting_buyout_besonderheiten || null) : null,
+        contracting_buyout_geografisch: this.formData.contracting_buyout_geografisch || null,
+        contracting_buyout_besonderheiten: this.formData.contracting_buyout_besonderheiten || null,
         contracting_veroeffentlichungsdatum: this.formData.contracting_veroeffentlichungsdatum || null,
-        contracting_exklusivitaet_bereich: this.formData.contracting_exklusivitaet_bereich || null
+        contracting_exklusivitaet_bereich: this.formData.contracting_exklusivitaet_bereich || null,
+        contracting_exklusivitaet_von: this.formData.contracting_exklusivitaet_von || null,
+        contracting_exklusivitaet_bis: this.formData.contracting_exklusivitaet_bis || null
       });
     } else {
       // UGC-spezifische Felder

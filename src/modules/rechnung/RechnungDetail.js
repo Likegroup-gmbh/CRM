@@ -127,6 +127,7 @@ export class RechnungDetail {
             <div class="detail-item"><label>Nettobetrag</label><span>${formatCurrency(this.data?.nettobetrag)}</span></div>
             <div class="detail-item"><label>Zusatzkosten</label><span>${formatCurrency(this.data?.zusatzkosten)}</span></div>
             <div class="detail-item"><label>Bruttobetrag</label><span>${formatCurrency(this.data?.bruttobetrag)}</span></div>
+            ${this.data?.rechnungstyp === 'contracting' ? `<div class="detail-item"><label>KSK-pflichtig</label><span>${this.data?.ksk_pflichtig ? 'Ja' : 'Nein'}</span></div>` : ''}
             <div class="detail-item"><label>PDFs</label><span>${this.pdfs && this.pdfs.length > 0 ? this.pdfs.map((p, i) => `<a href="${p.open_url}" target="_blank" rel="noopener noreferrer">${window.validatorSystem?.sanitizeHtml?.(p.file_name) || ('PDF ' + (i + 1))}</a>`).join(' &middot; ') : (this.data?.pdf_url ? `<a href="${this.data.pdf_url}" target="_blank" rel="noopener noreferrer">Öffnen</a>` : '-')}</span></div>
           </div>
 

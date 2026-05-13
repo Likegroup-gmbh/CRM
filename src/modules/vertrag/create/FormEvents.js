@@ -363,6 +363,18 @@ VertraegeCreate.prototype.bindDynamicFieldEvents = function() {
       });
     }
 
+    // Art der Nutzung "Sonstige" -> Freitextfeld einblenden
+    const buyoutArtCheckboxes = document.querySelectorAll('input[name="contracting_buyout_art"]');
+    const buyoutArtSonstigeWrapper = document.getElementById('contracting-buyout-art-sonstige-wrapper');
+    if (buyoutArtCheckboxes.length > 0 && buyoutArtSonstigeWrapper) {
+      buyoutArtCheckboxes.forEach(cb => {
+        cb.addEventListener('change', () => {
+          const sonstigeChecked = document.querySelector('input[name="contracting_buyout_art"][value="sonstige"]:checked');
+          buyoutArtSonstigeWrapper.classList.toggle('hidden', !sonstigeChecked);
+        });
+      });
+    }
+
     // Contracting-Auftrag-Auswahl: PO uebernehmen + Vertragsname
     const contractingAuftragSelect = document.getElementById('contracting_auftrag_id');
     if (contractingAuftragSelect) {

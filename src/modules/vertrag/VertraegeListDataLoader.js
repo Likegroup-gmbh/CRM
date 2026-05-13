@@ -44,7 +44,7 @@ export async function loadUnternehmenFolders() {
   return data || [];
 }
 
-export async function loadVertraege(unternehmenId, pagination) {
+export async function loadVertraege(unternehmenId, pagination, { typeFilter = 'vertraege' } = {}) {
   if (!window.supabase) {
     console.warn('⚠️ Supabase nicht verfügbar');
     return [];
@@ -56,10 +56,17 @@ export async function loadVertraege(unternehmenId, pagination) {
 
   const filters = modularFilterSystem.getFilters('vertrag');
 
+  const applyTypeFilter = (q) => {
+    if (typeFilter === 'contracting') return q.eq('typ', 'Contracting');
+    if (typeFilter === 'vertraege') return q.neq('typ', 'Contracting');
+    return q;
+  };
+
   let countQuery = window.supabase
     .from('vertraege')
     .select('*', { count: 'exact', head: true })
     .eq('kunde_unternehmen_id', unternehmenId);
+  countQuery = applyTypeFilter(countQuery);
 
   if (filters.typ) countQuery = countQuery.eq('typ', filters.typ);
   if (filters.kampagne_id) countQuery = countQuery.eq('kampagne_id', filters.kampagne_id);
@@ -106,6 +113,7 @@ export async function loadVertraege(unternehmenId, pagination) {
       )
     `)
     .eq('kunde_unternehmen_id', unternehmenId);
+  dataQuery = applyTypeFilter(dataQuery);
 
   if (filters.typ) dataQuery = dataQuery.eq('typ', filters.typ);
   if (filters.kampagne_id) dataQuery = dataQuery.eq('kampagne_id', filters.kampagne_id);
