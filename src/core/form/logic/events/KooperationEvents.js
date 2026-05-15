@@ -23,7 +23,6 @@ export async function setup(form, ctx) {
     const ekField = form.querySelector('input[name="einkaufspreis_netto"]');
     if (ekField) {
       ekField.value = sum.toFixed(2);
-      ekField.dispatchEvent(new Event('input', { bubbles: true }));
       ekField.dispatchEvent(new Event('change', { bubbles: true }));
     }
   };
@@ -36,7 +35,6 @@ export async function setup(form, ctx) {
     const vkField = form.querySelector('input[name="verkaufspreis_netto"]');
     if (vkField) {
       vkField.value = sum.toFixed(2);
-      vkField.dispatchEvent(new Event('input', { bubbles: true }));
       vkField.dispatchEvent(new Event('change', { bubbles: true }));
     }
   };

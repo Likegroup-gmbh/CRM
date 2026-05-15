@@ -21,68 +21,9 @@ export class FormEvents {
     this.formSystem = formSystem;
   }
 
-  /**
-   * Normalisiert deutsche Zahlenformate in Standard-Dezimalzahlen
-   * "13.000" → 13000, "13.000,50" → 13000.50, "13,50" → 13.50
-   */
-  parseGermanNumber(value) {
-    if (!value || typeof value !== 'string') return null;
-    
-    let cleaned = value.trim();
-    if (!cleaned) return null;
-    
-    const hasThousandSeparator = /\d{1,3}(\.\d{3})+/.test(cleaned);
-    const hasGermanDecimal = /,\d{1,2}$/.test(cleaned);
-    
-    if (hasThousandSeparator || hasGermanDecimal) {
-      cleaned = cleaned.replace(/\./g, '').replace(',', '.');
-    }
-    
-    const num = parseFloat(cleaned);
-    return isNaN(num) ? null : num;
-  }
-
-  /**
-   * Bindet German Number Handler an alle number-Inputs im Formular
-   */
-  bindGermanNumberInputs(form) {
-    if (!form) return;
-    
-    const numberInputs = form.querySelectorAll('input[type="number"]');
-    
-    numberInputs.forEach(input => {
-      if (input.dataset.germanNumberBound) return;
-      input.dataset.germanNumberBound = 'true';
-      
-      const originalType = input.type;
-      
-      input.addEventListener('focus', () => {
-        input.type = 'text';
-        input.dataset.originalValue = input.value;
-      });
-      
-      input.addEventListener('blur', () => {
-        const rawValue = input.value;
-        const parsed = this.parseGermanNumber(rawValue);
-        
-        if (parsed !== null) {
-          input.value = parsed;
-        } else if (rawValue === '') {
-          input.value = '';
-        }
-        input.type = originalType;
-        
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-      });
-    });
-  }
-
   async bindFormEvents(entity, data) {
     const form = document.getElementById(`${entity}-form`);
     if (!form) return;
-    
-    this.bindGermanNumberInputs(form);
 
     form.dataset.entity = entity;
 

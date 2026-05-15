@@ -293,6 +293,13 @@ if (import.meta.env.DEV) {
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('🎯 Initialisiere Event-basiertes Modul-System...');
 
+  // Mausrad-Schutz: verhindert versehentliche Wertaenderung bei fokussierten number-Inputs
+  document.addEventListener('wheel', () => {
+    if (document.activeElement?.type === 'number') {
+      document.activeElement.blur();
+    }
+  }, { passive: true });
+
   // Globale DOM-Variablen setzen
   window.appRoot = document.getElementById('app-root');
   window.loginRoot = document.getElementById('login-root');
