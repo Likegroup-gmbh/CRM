@@ -387,6 +387,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       { icon: 'mail', label: 'E-Mail', value: this.ansprechpartner?.email || '-', mailto: true },
       { icon: 'link', label: 'LinkedIn', rawHtml: this.renderLinkedInLink(this.ansprechpartner?.linkedin) },
       { icon: 'tag', label: 'Newsletter (1x/Monat)', rawHtml: this.renderEinwilligungBadge(this.ansprechpartner?.erlaubt_newsletter) },
+      { icon: 'invoice', label: 'Rechnungsverantwortlich', rawHtml: this.renderEinwilligungBadge(this.ansprechpartner?.ist_rechnungsverantwortlich) },
     ].filter(Boolean);
 
     let html = this.renderInfoItems(kontaktItems);

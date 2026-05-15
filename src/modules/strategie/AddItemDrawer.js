@@ -68,7 +68,7 @@ export class AddItemDrawer {
     
     const subtitle = document.createElement('p');
     subtitle.className = 'drawer-subtitle';
-    subtitle.textContent = 'URLs hinzufügen – Screenshots werden automatisch erstellt';
+    subtitle.textContent = 'Video-URL oder Beschreibung hinzufügen – Screenshots werden automatisch erstellt';
     
     headerLeft.appendChild(title);
     headerLeft.appendChild(subtitle);
@@ -123,7 +123,7 @@ export class AddItemDrawer {
               type="url" 
               id="drawer-video-url" 
               class="form-input" 
-              placeholder="https://youtube.com/shorts/... oder leer für Idee"
+              placeholder="https://youtube.com/shorts/... oder leer lassen"
               autocomplete="off"
             >
           </div>
@@ -161,7 +161,7 @@ export class AddItemDrawer {
               id="drawer-beschreibung"
               class="form-input"
               rows="2"
-              placeholder="Optionale Beschreibung..."
+              placeholder="Beschreibung (Pflicht ohne URL)..."
             ></textarea>
           </div>
         </div>
@@ -222,6 +222,13 @@ export class AddItemDrawer {
     // URL-Validierung: Nur YouTube, TikTok, Instagram oder leer (Idee)
     if (url && !this.isAllowedUrl(url)) {
       window.toastSystem?.show('Nur YouTube, TikTok und Instagram Links sind erlaubt', 'warning');
+      return;
+    }
+
+    // Ohne URL ist eine Beschreibung Pflicht
+    if (!url && !beschreibung) {
+      window.toastSystem?.show('Ohne Video-URL bitte eine Beschreibung angeben', 'warning');
+      beschreibungInput?.focus();
       return;
     }
 

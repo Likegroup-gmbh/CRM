@@ -48,6 +48,10 @@ export default {
     sortOrder: 'asc'
   },
 
+  async loadFilterDataOverride(_supabase) {
+    return {};
+  },
+
   skipFieldForSupabase(field, value) {
     // ust_aktiv ist ein UI-only Toggle und keine DB-Spalte
     if (field === 'ust_aktiv') {
@@ -58,36 +62,13 @@ export default {
 
   buildSelectClause(context) {
     return `*,
-unternehmen:unternehmen_id (
-  id,
-  firmenname
-),
-auftrag:auftrag_id (
-  id,
-  auftragsname,
-  auftrag_details (id)
-),
-creator:creator_id (
-  id,
-  vorname,
-  nachname
-),
-kooperation:kooperation_id (
-  id,
-  name
-),
-created_by:created_by_id (
-  id,
-  name,
-  profile_image_url
-),
-vertrag:vertrag_id (
-  id,
-  name,
-  unterschriebener_vertrag_url,
-  dropbox_file_url,
-  datei_url
-)`;
+unternehmen:unternehmen_id(id, firmenname),
+auftrag:auftrag_id(id, auftragsname, auftrag_details(id)),
+creator:creator_id(id, vorname, nachname),
+created_by:created_by_id(id, name, profile_image_url),
+vertrag:vertrag_id(id, name, unterschriebener_vertrag_url, dropbox_file_url, datei_url),
+kampagne:kampagne_id(id, kampagnenname, eigener_name),
+rechnung_pdfs(id, rechnung_id, file_name, file_path, file_url)`;
   },
 
   customOrder(query) {

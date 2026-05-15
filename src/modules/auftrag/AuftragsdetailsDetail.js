@@ -993,8 +993,8 @@ export class AuftragsdetailsDetail {
     if (auftragId) {
       window.navigateTo(`/projekt-erstellen/edit/${auftragId}`);
     } else {
-      console.warn('⚠️ AUFTRAGSDETAILSDETAIL: Keine Auftrag-ID gefunden, Fallback auf altes Edit-Formular');
-      window.navigateTo(`/auftragsdetails/${this.detailsId}/edit`);
+      console.warn('⚠️ AUFTRAGSDETAILSDETAIL: Keine Auftrag-ID gefunden, Fallback auf Wizard-Neuanlage');
+      window.navigateTo('/projekt-erstellen');
     }
   }
 

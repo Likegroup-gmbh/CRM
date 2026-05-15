@@ -9,9 +9,15 @@ import { KAMPAGNENARTEN_MAPPING } from '../../auftrag/logic/KampagnenartenMappin
 export const CHIP_PREFIX_MAP = {
   ugc_paid: 'ugc_paid',
   ugc_organic: 'ugc_organic',
+  ugc_pro_paid: 'ugc_pro_paid',
+  ugc_pro_organic: 'ugc_pro_organic',
+  ugc_video_paid: 'ugc_video_paid',
+  ugc_video_organic: 'ugc_video_organic',
   influencer: 'influencer',
   vorort_produktion: 'vor_ort',
-  story: 'story'
+  story: 'story',
+  whitelisting: 'whitelisting',
+  darkposting: 'darkposting'
 };
 
 // Reverse-Map: prefix -> chipValue (z.B. 'vor_ort' -> 'vorort_produktion')

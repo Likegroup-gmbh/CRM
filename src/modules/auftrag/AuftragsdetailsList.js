@@ -451,7 +451,7 @@ export class AuftragsdetailsList {
     this.addManagedListener(document, 'click', (e) => {
       if (e.target.id === 'btn-auftragsdetails-new' || e.target.closest('#btn-auftragsdetails-new')) {
         e.preventDefault();
-        window.navigateTo('/auftragsdetails/new');
+        window.navigateTo('/projekt-erstellen');
       }
     });
 
@@ -685,7 +685,7 @@ export class AuftragsdetailsList {
         if (createBtn) {
           createBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            window.navigateTo('/auftragsdetails/new');
+            window.navigateTo('/projekt-erstellen');
           });
         }
         return;
@@ -797,14 +797,7 @@ export class AuftragsdetailsList {
 
   // Show Create Form (für Routing)
   showCreateForm() {
-    console.log('🎯 Zeige Auftragsdetails-Erstellungsformular');
-    window.setHeadline('Neue Auftragsdetails anlegen');
-    
-    if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateDetailLabel('Neue Auftragsdetails');
-    }
-
-    window.navigateTo('/auftragsdetails/new');
+    window.navigateTo('/projekt-erstellen');
   }
 }
 

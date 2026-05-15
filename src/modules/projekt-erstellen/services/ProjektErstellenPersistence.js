@@ -199,6 +199,28 @@ export class ProjektErstellenPersistence {
     };
   }
 
+  _pickWizardKampagneFields(fullPayload) {
+    const campaignColumns = Object.values(CHIP_PREFIX_MAP).flatMap(prefix => [
+      `${prefix}_video_anzahl`,
+      `${prefix}_creator_anzahl`,
+      `${prefix}_bilder_anzahl`,
+      `${prefix}_videographen_anzahl`
+    ]);
+    const WIZARD_OWNED_KEYS = [
+      'kampagnenname', 'unternehmen_id', 'marke_id', 'art_der_kampagne',
+      'start', 'deadline', 'deadline_post_produktion',
+      'creatoranzahl', 'videoanzahl',
+      ...campaignColumns
+    ];
+    const patch = {};
+    for (const key of WIZARD_OWNED_KEYS) {
+      if (key in fullPayload) {
+        patch[key] = fullPayload[key];
+      }
+    }
+    return patch;
+  }
+
   async loadCampaignArtIdMap(labels = []) {
     const supabase = SUPABASE();
     const uniqueLabels = Array.from(new Set((labels || []).filter(Boolean)));
@@ -278,11 +300,19 @@ export class ProjektErstellenPersistence {
         currentBenutzerId
       });
 
+      // Rechnungen nach Dropbox hochladen + DB-Eintraege anlegen
+      const rechnungUploadResult = await this.uploadRechnungenIfAny({
+        formData,
+        auftragId,
+        auftragPayload,
+        currentBenutzerId
+      });
+
       return {
         success: true,
         auftragId,
-        uploadedDocuments: uploadResult.successes,
-        uploadErrors: uploadResult.errors
+        uploadedDocuments: [...uploadResult.successes, ...rechnungUploadResult.successes],
+        uploadErrors: [...uploadResult.errors, ...rechnungUploadResult.errors]
       };
     } catch (e) {
       const friendly = this.friendlyError(e, 'Contract konnte nicht angelegt werden');
@@ -333,6 +363,47 @@ export class ProjektErstellenPersistence {
     });
   }
 
+  async uploadRechnungenIfAny({ formData, auftragId, auftragPayload, currentBenutzerId }) {
+    const files = formData?.auftrag?.rechnungen_files;
+    if (!Array.isArray(files) || files.length === 0) {
+      return { successes: [], errors: [] };
+    }
+
+    const supabase = SUPABASE();
+    let unternehmenName = '';
+    let markeName = '';
+
+    try {
+      if (auftragPayload.unternehmen_id) {
+        const { data: u } = await supabase
+          .from('unternehmen')
+          .select('firmenname')
+          .eq('id', auftragPayload.unternehmen_id)
+          .single();
+        unternehmenName = u?.firmenname || '';
+      }
+      if (auftragPayload.marke_id) {
+        const { data: m } = await supabase
+          .from('marke')
+          .select('markenname')
+          .eq('id', auftragPayload.marke_id)
+          .single();
+        markeName = m?.markenname || '';
+      }
+    } catch (lookupErr) {
+      console.warn('⚠️ Unternehmen/Marke fuer Dropbox-Pfad nicht ermittelbar:', lookupErr);
+    }
+
+    return uploadAuftragsbestaetigungen(files, {
+      auftragId,
+      unternehmen: unternehmenName,
+      marke: markeName,
+      auftragstitel: auftragPayload.titel || '',
+      dokumentTyp: 'rechnung',
+      uploadedById: currentBenutzerId
+    });
+  }
+
   async submitEdit({ formData, auftragId, kampagneId, existingRaw } = {}) {
     const isContracting = formData.auftrag?.auftragtype === 'Contracting';
     if (isContracting) return this.submitEditContracting({ formData, auftragId, existingRaw });
@@ -373,14 +444,15 @@ export class ProjektErstellenPersistence {
         .upsert([detailsPayload], { onConflict: 'auftrag_id' });
       if (detailsErr) throw detailsErr;
 
-      // 3) Kampagne updaten oder neu anlegen
+      // 3) Kampagne updaten oder neu anlegen – beim Update nur Wizard-Felder patchen
       const kampagnePayload = this.buildKampagnePayload(formData);
       let savedKampagneId = kampagneId || null;
 
       if (savedKampagneId) {
+        const mergedPayload = this._pickWizardKampagneFields(kampagnePayload);
         const { error: kampagneErr } = await supabase
           .from('kampagne')
-          .update(kampagnePayload)
+          .update(mergedPayload)
           .eq('id', savedKampagneId);
         if (kampagneErr) throw kampagneErr;
       } else {

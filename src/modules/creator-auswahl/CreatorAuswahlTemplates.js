@@ -30,6 +30,8 @@ export function isColumnVisibleForCustomer(columnClass, isKunde, hiddenColumns) 
     return true;
   }
 
+  if (isKunde && columnClass === 'cp-col-vk') return false;
+
   return !hiddenColumns.includes(columnClass);
 }
 
@@ -39,7 +41,7 @@ export function getVisibleColumnCount(isKunde, hiddenColumns) {
     'cp-col-follower-tt', 'cp-col-ek', 'cp-col-vk', 'cp-col-pricing',
     'cp-col-reichweite-ig', 'cp-col-reichweite-tt', 'cp-col-reichweite-garantie',
     'cp-col-cpm-ig', 'cp-col-cpm-tt',
-    'cp-col-location', 'cp-col-notiz', 'cp-col-angefragt',
+    'cp-col-location', 'cp-col-notiz', 'cp-col-angefragt', 'cp-col-absage',
     'cp-col-feedback', 'cp-col-prio1', 'cp-col-prio2', 'cp-col-nicht', 'cp-col-check', 'cp-col-actions'
   ];
 
@@ -136,6 +138,7 @@ export function renderItemsTable(ctx) {
             <th class="cp-col-location" ${hide('cp-col-location')}>Location</th>
             <th class="cp-col-notiz" ${hide('cp-col-notiz')}>Kurzbeschreibung</th>
             <th class="cp-col-angefragt" ${hide('cp-col-angefragt')}>Angefragt</th>
+            <th class="cp-col-absage" ${hide('cp-col-absage')}>Absage</th>
             <th class="cp-col-feedback" ${hide('cp-col-feedback')}>Rückmeldung Kunde</th>
             <th class="cp-col-prio1" ${hide('cp-col-prio1')}>Buchen</th>
             <th class="cp-col-prio2" ${hide('cp-col-prio2')}>Prio 2</th>
@@ -323,7 +326,7 @@ export function renderItemRow(ctx, item, index) {
       <td class="cell-textarea cp-col-vk" style="${hide('cp-col-vk')}">
         ${!ctx.isKunde ? `
           <input type="number" class="strategie-textarea" data-field="preis_vk" data-item-id="${item.id}" placeholder="0" value="${item.preis_vk ?? ''}" step="0.01">
-        ` : `<div class="cell-text-readonly">${item.preis_vk != null ? Number(item.preis_vk).toLocaleString('de-DE', {minimumFractionDigits: 0}) + ' €' : '-'}</div>`}
+        ` : `<div class="cell-text-readonly">-</div>`}
       </td>
       <td class="cell-textarea cp-col-pricing" style="${hide('cp-col-pricing')}">
         ${!ctx.isKunde ? `
@@ -376,6 +379,19 @@ export function renderItemRow(ctx, item, index) {
             ${ctx.isKunde ? 'disabled' : ''}
           >
           ${item.angefragt_am ? `<span class="angefragt-datum">${new Date(item.angefragt_am).toLocaleDateString('de-DE')}</span>` : ''}
+        </div>
+      </td>
+      <td class="cp-col-absage" style="${hide('cp-col-absage')}">
+        <div class="absage-cell">
+          <input
+            type="checkbox"
+            ${item.absage ? 'checked' : ''}
+            data-field="absage"
+            data-item-id="${item.id}"
+            class="cp-checkbox${ctx.isKunde ? ' cp-checkbox--readonly' : ''}"
+            ${ctx.isKunde ? 'disabled' : ''}
+          >
+          ${item.absage_am ? `<span class="absage-datum">${new Date(item.absage_am).toLocaleDateString('de-DE')}</span>` : ''}
         </div>
       </td>
       <td class="cell-textarea cp-col-feedback" style="${hide('cp-col-feedback')}">

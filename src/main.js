@@ -47,7 +47,6 @@ import { creatorUtils } from './modules/creator/CreatorUtils.js';
 import { formSystem } from './core/FormSystem.js';
 import { unternehmenDetail } from './modules/unternehmen/UnternehmenDetail.js';
 import { auftragDetail } from './modules/auftrag/AuftragDetail.js';
-import { actionRegistry } from './core/ActionRegistry.js';
 import { kooperationList } from './modules/kooperation/KooperationList.js';
 import { kooperationDetail } from './modules/kooperation/KooperationDetail.js';
 import { kooperationVideoDetail } from './modules/kooperation/KooperationVideoDetail.js';
@@ -257,7 +256,6 @@ App.set('breadcrumbSystem', breadcrumbSystem);
 App.set('bulkActionSystem', bulkActionSystem);
 App.set('submitGuard', submitGuard);
 App.set('ActionsDropdown', actionsDropdown);
-App.set('actionRegistry', actionRegistry);
 App.set('creatorUtils', creatorUtils);
 App.set('kampagneUtils', kampagneUtils);
 App.set('authService', authService);
@@ -353,9 +351,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   if (isAuthenticated) {
     console.log('✅ Benutzer ist authentifiziert');
-    
-    // ActionRegistry mit ModuleRegistry verbinden
-    actionRegistry.setModuleRegistry(moduleRegistry);
     
     // Globale Suche (nur für Mitarbeiter/Admin) – vor Navigation, damit Sidebar-Button sichtbar ist
     window.globalSearch = globalSearch;

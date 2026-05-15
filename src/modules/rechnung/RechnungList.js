@@ -3,7 +3,6 @@
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
-import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
@@ -307,153 +306,22 @@ export class RechnungList {
 
   async loadAndRender() {
     try {
-      // PERFORMANCE: Keine separate loadFilterData() Query mehr!
       await this.render();
-
-      await this.initializeFilterBar();
 
       const rawFilters = filterSystem.getFilters('rechnung');
       const { unternehmen_ids: _uqf, ...currentFilters } = rawFilters;
-      // Sichtbarkeit: Nicht-Admins nur Rechnungen aus ihren Kampagnen/Koops/Marken
-      // Neue Logik: Marken-Zuordnung als Zusatzfilter
-      // - Nur Unternehmen zugeordnet → Sieht ALLES vom Unternehmen
-      // - Unternehmen + bestimmte Marken → Sieht NUR Inhalte der zugewiesenen Marken
-      const isAdmin = window.isAdmin();
-      let allowedKampagneIds = [];
-      let allowedKoopIds = [];
-      let allowedUnternehmenIds = []; // Für Rechnungen direkt auf Unternehmen
-      if (!isAdmin && window.supabase) {
-        try {
-          // 1. Direkt zugeordnete Kampagnen
-          const { data: assignedKampagnen } = await window.supabase
-            .from('kampagne_mitarbeiter')
-            .select('kampagne_id')
-            .eq('mitarbeiter_id', window.currentUser?.id);
-          const directKampagnenIds = (assignedKampagnen || []).map(r => r.kampagne_id).filter(Boolean);
-          
-          // 2. Zugeordnete Marken MIT Unternehmen-Info
-          const { data: assignedMarken } = await window.supabase
-            .from('marke_mitarbeiter')
-            .select('marke_id, marke:marke_id(unternehmen_id)')
-            .eq('mitarbeiter_id', window.currentUser?.id);
-          
-          // Zugeordnete Marken mit ihren Unternehmen
-          const markenMitUnternehmen = (assignedMarken || []).map(r => ({
-            marke_id: r.marke_id,
-            unternehmen_id: r.marke?.unternehmen_id
-          })).filter(r => r.marke_id);
-          
-          // 3. Zugeordnete Unternehmen
-          const { data: mitarbeiterUnternehmen } = await window.supabase
-            .from('mitarbeiter_unternehmen')
-            .select('unternehmen_id')
-            .eq('mitarbeiter_id', window.currentUser?.id);
-          
-          const unternehmenIds = (mitarbeiterUnternehmen || [])
-            .map(r => r.unternehmen_id)
-            .filter(Boolean);
-          
-          // Für Rechnungen: Alle zugewiesenen Unternehmen erlauben
-          allowedUnternehmenIds = [...unternehmenIds];
-          
-          // Erstelle Map: Unternehmen-ID → zugeordnete Marken-IDs
-          const unternehmenMarkenMap = new Map();
-          markenMitUnternehmen.forEach(r => {
-            if (r.unternehmen_id) {
-              if (!unternehmenMarkenMap.has(r.unternehmen_id)) {
-                unternehmenMarkenMap.set(r.unternehmen_id, []);
-              }
-              unternehmenMarkenMap.get(r.unternehmen_id).push(r.marke_id);
-            }
-          });
-          
-          // Für jedes Unternehmen die erlaubten Marken ermitteln
-          let allowedMarkenIds = [];
-          
-          for (const unternehmenId of unternehmenIds) {
-            const explicitMarkenIds = unternehmenMarkenMap.get(unternehmenId);
-            
-            if (explicitMarkenIds && explicitMarkenIds.length > 0) {
-              // User hat explizite Marken-Zuordnung → Nur diese Marken erlauben
-              allowedMarkenIds.push(...explicitMarkenIds);
-            } else {
-              // Keine Marken-Zuordnung → ALLE Marken des Unternehmens erlauben
-              const { data: alleMarken } = await window.supabase
-                .from('marke')
-                .select('id')
-                .eq('unternehmen_id', unternehmenId);
-              
-              allowedMarkenIds.push(...(alleMarken || []).map(m => m.id));
-            }
-          }
-          
-          // Duplikate entfernen
-          allowedMarkenIds = [...new Set(allowedMarkenIds)];
-          
-          // Kampagnen für erlaubte Marken laden
-          let markenKampagnenIds = [];
-          if (allowedMarkenIds.length > 0) {
-            const { data: kampagnen } = await window.supabase
-              .from('kampagne')
-              .select('id')
-              .in('marke_id', allowedMarkenIds);
-            
-            markenKampagnenIds = (kampagnen || []).map(k => k.id).filter(Boolean);
-          }
-          
-          // Kombiniere alle Listen und entferne Duplikate
-          allowedKampagneIds = [...new Set([...directKampagnenIds, ...markenKampagnenIds])];
-          
-          // Kooperationen aus erlaubten Kampagnen laden
-          if (allowedKampagneIds.length > 0) {
-            const { data: koops } = await window.supabase
-              .from('kooperationen')
-              .select('id')
-              .in('kampagne_id', allowedKampagneIds);
-            allowedKoopIds = (koops || []).map(k => k.id);
-          }
-          
-          console.log(`🔍 RECHNUNGLIST: Mitarbeiter ${window.currentUser?.id} hat Zugriff auf:`, {
-            direkteKampagnen: directKampagnenIds.length,
-            erlaubteMarken: allowedMarkenIds.length,
-            markenKampagnen: markenKampagnenIds.length,
-            gesamtKampagnen: allowedKampagneIds.length,
-            kooperationen: allowedKoopIds.length,
-            unternehmen: allowedUnternehmenIds.length
-          });
-        } catch (error) {
-          console.error('❌ Fehler beim Laden der Zuordnungen:', error);
-        }
-      }
 
-      let rechnungen;
-      const isMitarbeiter = window.isMitarbeiter();
-      if (isMitarbeiter) {
-        if (allowedKampagneIds.length || allowedKoopIds.length || allowedUnternehmenIds.length) {
-          const baseFilters = { ...currentFilters };
-          rechnungen = await window.dataService.loadEntities('rechnung', baseFilters);
-          rechnungen = (rechnungen || []).filter(r => {
-            if (r.rechnungstyp === 'contracting') return true;
-            return (r.kampagne_id && allowedKampagneIds.includes(r.kampagne_id)) || 
-                   (r.kooperation_id && allowedKoopIds.includes(r.kooperation_id)) ||
-                   (r.unternehmen_id && allowedUnternehmenIds.includes(r.unternehmen_id));
-          });
-        } else {
-          console.log('ℹ️ Mitarbeiter ohne Zuordnungen – keine Rechnungen sichtbar');
-          rechnungen = [];
-        }
-      } else {
-        rechnungen = await window.dataService.loadEntities('rechnung', currentFilters);
-      }
-      // Unternehmen-Quickfilter clientseitig anwenden
+      const [, rechnungen] = await Promise.all([
+        this.initializeFilterBar(),
+        this._loadRechnungenWithPermissions(currentFilters)
+      ]);
+
       const quickFilterIds = this.getSelectedUnternehmenFilterIds();
-      if (quickFilterIds.length > 0) {
-        rechnungen = (rechnungen || []).filter(r => quickFilterIds.includes(r.unternehmen_id));
-      }
+      this.rechnungen = quickFilterIds.length > 0
+        ? (rechnungen || []).filter(r => quickFilterIds.includes(r.unternehmen_id))
+        : rechnungen;
 
-      this.rechnungen = rechnungen;
-      await this.enrichRechnungPdfs(rechnungen);
-      await this.enrichKampagnenNames(rechnungen);
+      RechnungList._normalizeRechnungPdfUrls(this.rechnungen);
       this.updateStatusTabCounts();
       await this.updateTable(this.getFilteredRechnungen());
     } catch (error) {
@@ -461,51 +329,131 @@ export class RechnungList {
     }
   }
 
-  async enrichKampagnenNames(rechnungen) {
+  async _loadRechnungenWithPermissions(currentFilters) {
+    const isAdmin = window.isAdmin();
+    const isMitarbeiter = window.isMitarbeiter();
+
+    if (isAdmin || !isMitarbeiter) {
+      return window.dataService.loadEntities('rechnung', currentFilters);
+    }
+
+    const permissions = await this._loadMitarbeiterPermissions();
+    if (!permissions.kampagneIds.length && !permissions.koopIds.length && !permissions.unternehmenIds.length) {
+      console.log('ℹ️ Mitarbeiter ohne Zuordnungen – keine Rechnungen sichtbar');
+      return [];
+    }
+
+    const rechnungen = await window.dataService.loadEntities('rechnung', { ...currentFilters });
+    return (rechnungen || []).filter(r => {
+      if (r.rechnungstyp === 'contracting') return true;
+      return (r.kampagne_id && permissions.kampagneIds.includes(r.kampagne_id)) ||
+             (r.kooperation_id && permissions.koopIds.includes(r.kooperation_id)) ||
+             (r.unternehmen_id && permissions.unternehmenIds.includes(r.unternehmen_id));
+    });
+  }
+
+  async _loadMitarbeiterPermissions() {
+    if (this._cachedPermissions) return this._cachedPermissions;
+
+    const userId = window.currentUser?.id;
+    if (!userId || !window.supabase) {
+      return { kampagneIds: [], koopIds: [], unternehmenIds: [] };
+    }
+
     try {
-      const ids = [...new Set((rechnungen || []).map(r => r.kampagne_id).filter(Boolean))];
-      if (ids.length === 0) return;
-      const { data, error } = await window.supabase
-        .from('kampagne')
-        .select('id, kampagnenname, eigener_name')
-        .in('id', ids);
-      if (error || !data) return;
-      const map = new Map(data.map(k => [k.id, k]));
-      rechnungen.forEach(r => {
-        if (r.kampagne_id && map.has(r.kampagne_id)) {
-          r.kampagne = map.get(r.kampagne_id);
+      const [kampagnenResult, markenResult, unternehmenResult] = await Promise.all([
+        window.supabase.from('kampagne_mitarbeiter').select('kampagne_id').eq('mitarbeiter_id', userId),
+        window.supabase.from('marke_mitarbeiter').select('marke_id, marke:marke_id(unternehmen_id)').eq('mitarbeiter_id', userId),
+        window.supabase.from('mitarbeiter_unternehmen').select('unternehmen_id').eq('mitarbeiter_id', userId)
+      ]);
+
+      const directKampagnenIds = (kampagnenResult.data || []).map(r => r.kampagne_id).filter(Boolean);
+
+      const markenMitUnternehmen = (markenResult.data || []).map(r => ({
+        marke_id: r.marke_id,
+        unternehmen_id: r.marke?.unternehmen_id
+      })).filter(r => r.marke_id);
+
+      const unternehmenIds = (unternehmenResult.data || []).map(r => r.unternehmen_id).filter(Boolean);
+
+      const unternehmenMarkenMap = new Map();
+      markenMitUnternehmen.forEach(r => {
+        if (r.unternehmen_id) {
+          if (!unternehmenMarkenMap.has(r.unternehmen_id)) unternehmenMarkenMap.set(r.unternehmen_id, []);
+          unternehmenMarkenMap.get(r.unternehmen_id).push(r.marke_id);
         }
       });
-    } catch (e) {
-      console.warn('⚠️ Kampagnennamen konnten nicht nachgeladen werden:', e);
+
+      let allowedMarkenIds = [];
+      const unternehmenMitExpliziterMarke = [];
+      const unternehmenOhneMarke = [];
+      for (const uid of unternehmenIds) {
+        const explicit = unternehmenMarkenMap.get(uid);
+        if (explicit?.length > 0) {
+          allowedMarkenIds.push(...explicit);
+          unternehmenMitExpliziterMarke.push(uid);
+        } else {
+          unternehmenOhneMarke.push(uid);
+        }
+      }
+
+      if (unternehmenOhneMarke.length > 0) {
+        const { data: alleMarken } = await window.supabase
+          .from('marke').select('id').in('unternehmen_id', unternehmenOhneMarke);
+        allowedMarkenIds.push(...(alleMarken || []).map(m => m.id));
+      }
+
+      allowedMarkenIds = [...new Set(allowedMarkenIds)];
+
+      const [kampagnenForMarken, koopsForKampagnen] = await Promise.all([
+        allowedMarkenIds.length > 0
+          ? window.supabase.from('kampagne').select('id').in('marke_id', allowedMarkenIds)
+          : { data: [] },
+        directKampagnenIds.length > 0
+          ? window.supabase.from('kooperationen').select('id').in('kampagne_id', directKampagnenIds)
+          : { data: [] }
+      ]);
+
+      const markenKampagnenIds = (kampagnenForMarken.data || []).map(k => k.id).filter(Boolean);
+      const allKampagneIds = [...new Set([...directKampagnenIds, ...markenKampagnenIds])];
+
+      let allKoopIds = (koopsForKampagnen.data || []).map(k => k.id);
+      if (markenKampagnenIds.length > 0) {
+        const { data: extraKoops } = await window.supabase
+          .from('kooperationen').select('id').in('kampagne_id', markenKampagnenIds);
+        allKoopIds = [...new Set([...allKoopIds, ...(extraKoops || []).map(k => k.id)])];
+      }
+
+      this._cachedPermissions = {
+        kampagneIds: allKampagneIds,
+        koopIds: allKoopIds,
+        unternehmenIds: [...unternehmenIds]
+      };
+
+      console.log(`🔍 RECHNUNGLIST: Mitarbeiter ${userId} hat Zugriff auf:`, {
+        kampagnen: allKampagneIds.length,
+        kooperationen: allKoopIds.length,
+        unternehmen: unternehmenIds.length
+      });
+
+      return this._cachedPermissions;
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Zuordnungen:', error);
+      return { kampagneIds: [], koopIds: [], unternehmenIds: [] };
     }
   }
 
-  async enrichRechnungPdfs(rechnungen) {
-    try {
-      const ids = (rechnungen || []).map(r => r.id).filter(Boolean);
-      if (ids.length === 0) return;
-      const { data, error } = await window.supabase
-        .from('rechnung_pdfs')
-        .select('id, rechnung_id, file_name, file_path, file_url')
-        .in('rechnung_id', ids);
-      if (error || !data) return;
-      const map = new Map();
-      for (const row of data) {
-        if (!map.has(row.rechnung_id)) map.set(row.rechnung_id, []);
-        let openUrl = row.file_url || '';
-        // Legacy Supabase-Pfade (kein "/" am Anfang) → publicUrl bauen
-        if (row.file_path && !row.file_path.startsWith('/')) {
-          const { data: urlData } = window.supabase.storage.from('rechnungen').getPublicUrl(row.file_path);
-          openUrl = urlData?.publicUrl || openUrl;
+  static _normalizeRechnungPdfUrls(rechnungen) {
+    for (const r of rechnungen || []) {
+      if (!r.rechnung_pdfs) { r.rechnung_pdfs = []; continue; }
+      for (const pdf of r.rechnung_pdfs) {
+        let openUrl = pdf.file_url || '';
+        if (pdf.file_path && !pdf.file_path.startsWith('/')) {
+          const { data } = window.supabase.storage.from('rechnungen').getPublicUrl(pdf.file_path);
+          openUrl = data?.publicUrl || openUrl;
         }
-        map.get(row.rechnung_id).push({ ...row, open_url: openUrl });
+        pdf.open_url = openUrl;
       }
-      rechnungen.forEach(r => {
-        r.rechnung_pdfs = map.get(r.id) || [];
-      });
-    } catch (e) {
-      console.warn('⚠️ Rechnungs-PDFs konnten nicht nachgeladen werden:', e);
     }
   }
 
@@ -1235,6 +1183,7 @@ export class RechnungList {
     clearTimeout(this._searchDebounceTimer);
     this._abortController?.abort();
     this._abortController = null;
+    this._cachedPermissions = null;
 
     if (this.dragScrollContainer) {
       this.dragScrollContainer.removeEventListener('mousedown', this._dragMouseDown);

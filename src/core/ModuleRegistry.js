@@ -32,7 +32,7 @@ export class ModuleRegistry {
     }
   }
 
-  _doNavigate(route, skipPushState = false) {
+  async _doNavigate(route, skipPushState = false) {
     if (window.currentUser?.isBlocked === true) {
       const allowedRoutes = ['/', '/dashboard', ''];
       const normalizedRoute = route.startsWith('/') ? route : `/${route}`;
@@ -136,6 +136,11 @@ export class ModuleRegistry {
     if (!moduleKey) {
       return;
     }
+
+    // Legacy-Redirects: /auftrag/new, /auftragsdetails/new, /kampagne/new → Wizard
+    if (id === 'new' && (segment === 'auftrag' || segment === 'auftragsdetails' || segment === 'kampagne')) {
+      return this.navigateTo('/projekt-erstellen', true);
+    }
     
     if (id && segment === 'creator' && id !== 'new') {
       moduleKey = 'creator-detail';
@@ -191,15 +196,29 @@ export class ModuleRegistry {
     }
     
     if (id === 'new' && segment === 'auftragsdetails') {
-      moduleKey = 'auftragsdetails-create';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Auftragsdetails-Erstellung erkannt, verwende Modul: ${moduleKey}`);
+      return this.navigateTo('/projekt-erstellen', true);
     }
     else if (id && segment === 'auftragsdetails' && id !== 'new' && action === 'edit') {
-      moduleKey = 'auftragsdetails-create';
+      // Wizard-Redirect: auftrag_id aus den Details laden, dann Wizard-Edit öffnen
+      moduleKey = 'auftragsdetails-detail';
       module = this.modules.get(moduleKey);
-      window._auftragsdetailsEditId = id;
-      console.log(`🎯 Auftragsdetails-Edit erkannt, verwende Modul: ${moduleKey}, ID: ${id}`);
+      console.log(`🎯 Auftragsdetails-Edit → Wizard-Redirect für ID: ${id}`);
+      if (module) {
+        this.currentModule = module;
+        try {
+          const { data } = await window.supabase
+            .from('auftrag_details')
+            .select('auftrag_id')
+            .eq('id', id)
+            .single();
+          if (data?.auftrag_id) {
+            return this.navigateTo(`/projekt-erstellen/edit/${data.auftrag_id}`, true);
+          }
+        } catch (e) {
+          console.warn('⚠️ Auftragsdetails-Edit Wizard-Redirect fehlgeschlagen:', e);
+        }
+        return module.init?.(id);
+      }
     }
     else if (id && segment === 'auftragsdetails' && id !== 'new') {
       moduleKey = 'auftragsdetails-detail';
@@ -231,7 +250,25 @@ export class ModuleRegistry {
       console.log(`🎯 Video-Details erkannt, verwende Modul: ${moduleKey}`);
     }
     
-    if (id && segment === 'kampagne' && id !== 'new') {
+    if (id && segment === 'kampagne' && id !== 'new' && action === 'edit') {
+      // Kampagne bearbeiten → Wizard via auftrag_id
+      console.log(`🎯 Kampagne-Edit → Wizard-Redirect für Kampagne-ID: ${id}`);
+      try {
+        const { data } = await window.supabase
+          .from('kampagne')
+          .select('auftrag_id')
+          .eq('id', id)
+          .single();
+        if (data?.auftrag_id) {
+          return this.navigateTo(`/projekt-erstellen/edit/${data.auftrag_id}?step=kampagnen`, true);
+        }
+      } catch (e) {
+        console.warn('⚠️ Kampagne-Edit Wizard-Redirect fehlgeschlagen:', e);
+      }
+      moduleKey = 'kampagne-detail';
+      module = this.modules.get(moduleKey);
+    }
+    else if (id && segment === 'kampagne' && id !== 'new') {
       moduleKey = 'kampagne-detail';
       module = this.modules.get(moduleKey);
       console.log(`🎯 Kampagnen-Details erkannt, verwende Modul: ${moduleKey}`);

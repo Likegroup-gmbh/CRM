@@ -41,11 +41,17 @@ export function setupEvents(detail) {
     }, { signal });
   }
 
-  // Bearbeiten Button
-  document.addEventListener('click', (e) => {
+  // Bearbeiten Button → Wizard mit auftrag_id
+  document.addEventListener('click', async (e) => {
     if (e.target.closest('#btn-edit-kampagne') || e.target.closest('#btn-edit-kampagne-bottom')) {
       e.preventDefault();
-      window.navigateTo(`/kampagne/${detail.kampagneId}/edit`);
+      const auftragId = detail.kampagneData?.auftrag_id;
+      if (auftragId) {
+        window.navigateTo(`/projekt-erstellen/edit/${auftragId}?step=kampagnen`);
+      } else {
+        console.warn('⚠️ Keine auftrag_id auf Kampagne – Fallback auf Wizard-Neuanlage');
+        window.navigateTo('/projekt-erstellen');
+      }
     }
   }, { signal });
 

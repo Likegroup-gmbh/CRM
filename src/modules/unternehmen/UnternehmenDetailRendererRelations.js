@@ -1,0 +1,423 @@
+// UnternehmenDetailRendererRelations.js
+// Tab-Renderer: Strategien, Creator-Auswahl, Kooperationen, Creator, Ansprechpartner, Rechnungen, Verträge, Kick-Off
+
+import { renderCreatorTable } from '../creator/CreatorTable.js';
+import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
+import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { renderMarkeBubble, renderPersonBubble } from './UnternehmenDetailRendererHelpers.js';
+
+export function renderStrategien(detail) {
+  if (!detail.strategien || detail.strategien.length === 0) {
+    return `
+      <div class="empty-state">
+        <h3>Keine Strategien vorhanden</h3>
+        <p>Es wurden noch keine Strategien für dieses Unternehmen erstellt.</p>
+      </div>
+    `;
+  }
+
+  const rows = detail.strategien.map(s => `
+    <tr>
+      <td>
+        <a href="#" class="table-link" data-table="strategie" data-id="${s.id}">
+          ${detail.sanitize(s.name) || 'Unbekannte Strategie'}
+        </a>
+      </td>
+      <td>${detail.sanitize(s.teilbereich) || '-'}</td>
+      <td class="col-erstellt-von">${detail.sanitize(s.created_by_user?.name) || '-'}</td>
+      <td>${detail.formatDate(s.created_at)}</td>
+      <td>${actionBuilder.create('strategie', s.id)}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="data-table-container">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Teilbereich</th>
+            <th class="col-erstellt-von">Erstellt von</th>
+            <th>Erstellt am</th>
+            <th>Aktion</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+export function renderCreatorAuswahl(detail) {
+  if (!detail.creatorAuswahlen || detail.creatorAuswahlen.length === 0) {
+    return `
+      <div class="empty-state">
+        <h3>Keine Creator-Auswahlen vorhanden</h3>
+        <p>Es wurden noch keine Creator-Auswahlen für dieses Unternehmen erstellt.</p>
+      </div>
+    `;
+  }
+
+  const rows = detail.creatorAuswahlen.map(ca => `
+    <tr>
+      <td>
+        <a href="#" class="table-link" data-table="sourcing" data-id="${ca.id}">
+          ${detail.sanitize(ca.name) || 'Unbekannte Creator-Auswahl'}
+        </a>
+      </td>
+      <td>${detail.formatDate(ca.created_at)}</td>
+      <td>${actionBuilder.create('creator_auswahl', ca.id)}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="data-table-container">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Erstellt am</th>
+            <th>Aktion</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+export function renderKooperationen(detail) {
+  if (!detail.kooperationen || detail.kooperationen.length === 0) {
+    return `
+      <div class="empty-state">
+        <h3>Keine Kooperationen vorhanden</h3>
+        <p>Für die Kampagnen dieses Unternehmens wurden keine Kooperationen gefunden.</p>
+      </div>
+    `;
+  }
+
+  const creatorMap = detail._creatorMap || {};
+
+  const rows = detail.kooperationen.map(k => {
+    const creator = creatorMap[k.creator_id];
+    const creatorName = creator ? `${detail.sanitize(creator.vorname || '')} ${detail.sanitize(creator.nachname || '')}`.trim() : '-';
+    return `
+    <tr>
+      <td>
+        <a href="#" class="table-link" data-table="kooperation" data-id="${k.id}">
+          ${detail.sanitize(k.name) || 'Kooperation'}
+        </a>
+      </td>
+      <td>${k.kampagne ? detail.sanitize(KampagneUtils.getDisplayName(k.kampagne)) : '-'}</td>
+      <td>${creator ? creatorName : '-'}</td>
+      <td>${k.videoanzahl || 0}</td>
+      <td>${detail.formatCurrency(k.einkaufspreis_gesamt)}</td>
+      <td>${detail.formatCurrency(k.verkaufspreis_gesamt)}</td>
+      <td>${detail.formatCurrency(k.verkaufspreis_zusatzkosten)}</td>
+      <td>${detail.formatDate(k.created_at)}</td>
+      <td>${actionBuilder.create('kooperation', k.id)}</td>
+    </tr>
+  `}).join('');
+
+  return `
+    <div class="data-table-container">
+      <table class="data-table data-table--nowrap">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Kampagne</th>
+            <th>Creator</th>
+            <th>Videos</th>
+            <th>Einkaufspreis</th>
+            <th>Verkaufspreis</th>
+            <th>Extra Kosten (VK)</th>
+            <th>Erstellt</th>
+            <th>Aktionen</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+export function renderCreators(detail) {
+  if (!detail.creators || detail.creators.length === 0) {
+    return `
+      <div class="empty-state">
+        <h3>Keine Creator vorhanden</h3>
+        <p>Es gibt keine Creator in Kooperationen für dieses Unternehmen.</p>
+      </div>
+    `;
+  }
+  return renderCreatorTable(detail.creators);
+}
+
+export function renderAnsprechpartner(detail) {
+  if (!detail.ansprechpartner || detail.ansprechpartner.length === 0) {
+    return `
+      <div class="empty-state">
+        <h3>Keine Ansprechpartner vorhanden</h3>
+        <p>Es wurden noch keine Ansprechpartner für dieses Unternehmen zugeordnet.</p>
+      </div>
+    `;
+  }
+
+  const rows = detail.ansprechpartner.map(ap => `
+    <tr>
+      <td class="col-name-with-icon">
+        ${ap.profile_image_url
+          ? `<img src="${ap.profile_image_url}" class="table-logo" width="24" height="24" alt="" />`
+          : `<span class="table-avatar">${(ap.vorname || '?')[0].toUpperCase()}</span>`}
+        <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
+          ${detail.sanitize(ap.vorname)} ${detail.sanitize(ap.nachname)}
+        </a>
+        ${ap.ist_verknuepft ? `<span class="tag tag--verknuepft" title="verknüpft"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="tag--verknuepft-icon"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></svg></span>` : ''}
+      </td>
+      <td>${detail.sanitize(ap.position?.name) || '-'}</td>
+      <td>${ap.email ? `<a href="mailto:${ap.email}">${detail.sanitize(ap.email)}</a>` : '-'}</td>
+      <td>${PhoneDisplay.render(
+        ap.telefonnummer_land?.iso_code,
+        ap.telefonnummer_land?.vorwahl,
+        ap.telefonnummer
+      )}</td>
+      <td>${PhoneDisplay.render(
+        ap.telefonnummer_office_land?.iso_code,
+        ap.telefonnummer_office_land?.vorwahl,
+        ap.telefonnummer_office
+      )}</td>
+      <td>${detail.sanitize(ap.stadt) || '-'}</td>
+      <td>${actionBuilder.create('ansprechpartner_unternehmen', ap.id)}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="data-table-container">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Position</th>
+            <th>Email</th>
+            <th>Telefon (Privat)</th>
+            <th>Telefon (Büro)</th>
+            <th>Stadt</th>
+            <th>Aktion</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+export function renderRechnungen(detail) {
+  if (!detail.rechnungen || detail.rechnungen.length === 0) {
+    return `
+      <div class="empty-state">
+        <h3>Keine Rechnungen vorhanden</h3>
+        <p>Für dieses Unternehmen wurden noch keine Rechnungen erfasst.</p>
+      </div>
+    `;
+  }
+
+  const isKunde = window.isKunde();
+
+  const rows = detail.rechnungen.map(r => {
+    const kampagneName = r.kampagne ? (r.kampagne.eigener_name || r.kampagne.kampagnenname || '-') : '-';
+    const preisProVideo = r.videoanzahl && r.nettobetrag ? detail.formatCurrency(r.nettobetrag / r.videoanzahl) : '-';
+    const creatorBubble = r.creator ? avatarBubbles.renderBubbles([{
+      name: [r.creator.vorname, r.creator.nachname].filter(Boolean).join(' '),
+      type: 'person', id: r.creator.id, entityType: 'creator'
+    }]) : '-';
+    return `
+    <tr>
+      <td><a href="/rechnung/${r.id}" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${detail.sanitize(r.rechnung_nr || '—')}</a></td>
+      <td><span class="status-badge ${r.rechnungstyp === 'contracting' ? 'status-gestellt' : 'status-beauftragt'}">${r.rechnungstyp === 'contracting' ? 'Contracting' : 'Kampagne'}</span></td>
+      <td>${r.auftrag ? `<a href="#" class="table-link" data-table="auftrag" data-id="${r.auftrag.id}">${detail.sanitize(r.auftrag.auftragsname || '-')}</a>` : '-'}</td>
+      <td>${detail.sanitize(r.po_nummer) || '-'}</td>
+      <td>${detail.formatDate(r.created_at)}</td>
+      <td>${r.kampagne ? `<a href="#" class="table-link" data-table="kampagne" data-id="${r.kampagne.id}">${detail.sanitize(kampagneName)}</a>` : '-'}</td>
+      <td>${detail.sanitize(r.land) || '-'}</td>
+      <td>${creatorBubble}</td>
+      <td>${detail.formatDate(r.gestellt_am)}</td>
+      <td>${detail.formatDate(r.zahlungsziel)}</td>
+      <td>${detail.formatCurrency(r.nettobetrag)}</td>
+      <td>${r.videoanzahl || '-'}</td>
+      <td>${preisProVideo}</td>
+      <td>${detail.formatCurrency(r.bruttobetrag)}</td>
+      <td>${r.rechnung_pdfs && r.rechnung_pdfs.length > 0 ? r.rechnung_pdfs.map((p, i) => `<a href="${p.file_url || p.open_url}" target="_blank" rel="noopener">PDF${r.rechnung_pdfs.length > 1 ? ' ' + (i + 1) : ''}</a>`).join(' ') : (r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener">PDF</a>` : '-')}</td>
+      <td>${r.status || '-'}</td>
+      ${!isKunde ? `<td>${renderPersonBubble(detail, r.created_by)}</td>` : ''}
+      ${!isKunde ? `<td>${actionBuilder.create('rechnung', r.id)}</td>` : ''}
+    </tr>
+  `}).join('');
+
+  return `
+    <div class="data-table-container">
+      <table class="data-table data-table--nowrap">
+        <thead>
+          <tr>
+            <th>Rechnungsname</th>
+            <th>Typ</th>
+            <th>Auftrag</th>
+            <th>PO-Nummer</th>
+            <th>Erstellt am</th>
+            <th>Kampagne / Contract</th>
+            <th>Land</th>
+            <th>Creator</th>
+            <th>Gestellt am</th>
+            <th>Zahlungsziel</th>
+            <th>Nettobetrag</th>
+            <th>Videos</th>
+            <th>Preis/Video</th>
+            <th>Bruttobetrag</th>
+            <th>Beleg</th>
+            <th>Status</th>
+            ${!isKunde ? '<th>Erstellt von</th>' : ''}
+            ${!isKunde ? '<th>Aktionen</th>' : ''}
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+export function renderVertraege(detail) {
+  if (!detail.vertraege || detail.vertraege.length === 0) {
+    return `
+      <div class="empty-state">
+        <h3>Keine Verträge vorhanden</h3>
+        <p>Für dieses Unternehmen wurden noch keine Verträge erfasst.</p>
+      </div>
+    `;
+  }
+
+  const getStatusLabel = (isDraft) => isDraft ? 'Entwurf' : 'Final';
+  const getStatusClass = (isDraft) => isDraft ? 'draft' : 'aktiv';
+
+  const rows = detail.vertraege.map(v => {
+    const creatorName = v.creator ? `${v.creator.vorname || ''} ${v.creator.nachname || ''}`.trim() : '-';
+    const kampagneName = KampagneUtils.getDisplayName(v.kampagne);
+
+    return `
+      <tr>
+        <td><a href="/vertraege/${v.id}" onclick="event.preventDefault(); window.navigateTo('/vertraege/${v.id}')">${detail.sanitize(v.name || '—')}</a></td>
+        <td>${detail.sanitize(v.typ || '-')}</td>
+        <td><span class="status-badge status-${getStatusClass(v.is_draft)}">${getStatusLabel(v.is_draft)}</span></td>
+        <td>${v.kampagne ? `<a href="/kampagnen/${v.kampagne.id}" onclick="event.preventDefault(); window.navigateTo('/kampagnen/${v.kampagne.id}')">${detail.sanitize(kampagneName)}</a>` : '-'}</td>
+        <td>${v.creator ? `<a href="/creator/${v.creator.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${v.creator.id}')">${detail.sanitize(creatorName)}</a>` : '-'}</td>
+        <td>${v.datei_url ? `<a href="${v.datei_url}" target="_blank" rel="noopener">PDF</a>` : '-'}</td>
+        <td>${detail.formatDate(v.created_at)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div class="data-table-container">
+      <table class="data-table vertraege-detail-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Typ</th>
+            <th>Status</th>
+            <th>Kampagne</th>
+            <th>Creator</th>
+            <th>Datei</th>
+            <th>Erstellt am</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+export function renderKickOff(detail) {
+  const availableCount = Object.values(detail.kickoffsByType).filter(Boolean).length;
+  const activeKickoff = detail.kickoffsByType[detail.activeKickoffType];
+  const activeMarkenwerte = detail.kickoffMarkenwerteByType[detail.activeKickoffType] || [];
+  const typeLabel = detail.activeKickoffType === 'paid' ? 'Paid' : 'Organic';
+
+  if (availableCount === 0) {
+    return `
+      <div class="empty-state">
+        <h3>Kein Kick-Off vorhanden</h3>
+        <p>Es wurde noch kein Brand Kick-Off für dieses Unternehmen erstellt.</p>
+        <a href="/kickoff" class="btn btn-primary" onclick="event.preventDefault(); window.navigateTo('/kickoff')">
+          Kick-Off erstellen
+        </a>
+      </div>
+    `;
+  }
+
+  const formatValue = (value) => {
+    if (!value) return '<span class="text-muted">-</span>';
+    return detail.sanitize(value).replace(/\n/g, '<br>');
+  };
+
+  const markenwerteHtml = activeMarkenwerte.length > 0
+    ? activeMarkenwerte.map(mw => `<span class="tag tag--markenwert">${detail.sanitize(mw.name)}</span>`).join(' ')
+    : '<span class="text-muted">-</span>';
+
+  const typeSwitcher = `
+    <div class="tab-navigation kickoff-type-switcher">
+      <button type="button" class="tab-button ${detail.activeKickoffType === 'organic' ? 'active' : ''} kickoff-type-btn" data-kickoff-type="organic">Organic</button>
+      <button type="button" class="tab-button ${detail.activeKickoffType === 'paid' ? 'active' : ''} kickoff-type-btn" data-kickoff-type="paid">Paid</button>
+    </div>
+  `;
+
+  if (!activeKickoff) {
+    return `
+      <div class="detail-section">
+        ${typeSwitcher}
+        <div class="empty-state">
+          <h3>Kein ${typeLabel} Kick-Off vorhanden</h3>
+          <p>Für den Typ ${typeLabel} wurde noch kein Kick-Off erstellt.</p>
+          <a href="/kickoff" class="btn btn-primary" onclick="event.preventDefault(); window.navigateTo('/kickoff')">
+            ${typeLabel} Kick-Off erstellen
+          </a>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="detail-section">
+      ${typeSwitcher}
+      <div class="data-table-container">
+        <table class="data-table kickoff-table">
+          <thead>
+            <tr>
+              <th style="width: 30%;">Kategorie</th>
+              <th>Inhalt</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>1. Brand-Essenz</strong></td><td>${formatValue(activeKickoff.brand_essenz)}</td></tr>
+            <tr><td><strong>2. Mission / Zweck</strong></td><td>${formatValue(activeKickoff.mission)}</td></tr>
+            <tr><td><strong>3. Markenwerte</strong></td><td>${markenwerteHtml}</td></tr>
+            <tr><td><strong>4. Zielgruppe</strong></td><td>${formatValue(activeKickoff.zielgruppe)}</td></tr>
+            <tr><td><strong>5. Zielgruppen-Mindset</strong></td><td>${formatValue(activeKickoff.zielgruppen_mindset)}</td></tr>
+            <tr><td><strong>6. Marken-USP</strong></td><td>${formatValue(activeKickoff.marken_usp)}</td></tr>
+            <tr><td><strong>7. Tonalität & Sprachstil</strong></td><td>${formatValue(activeKickoff.tonalitaet_sprachstil)}</td></tr>
+            <tr><td><strong>8. Content-Charakter</strong></td><td>${formatValue(activeKickoff.content_charakter)}</td></tr>
+            <tr><td><strong>9. Do's & Don'ts</strong></td><td>${formatValue(activeKickoff.dos_donts)}</td></tr>
+            <tr><td><strong>10. Rechtliche Leitplanken</strong></td><td>${formatValue(activeKickoff.rechtliche_leitplanken)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="kickoff-meta">
+        <small class="text-muted">
+          Typ: ${typeLabel} | Zuletzt aktualisiert: ${detail.formatDate(activeKickoff.updated_at)}
+        </small>
+        <a href="/kickoff" class="btn btn-sm btn-secondary" onclick="event.preventDefault(); window.navigateTo('/kickoff')" style="margin-left: 1rem;">
+          Bearbeiten
+        </a>
+      </div>
+    </div>
+  `;
+}

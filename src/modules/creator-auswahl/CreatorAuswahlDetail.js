@@ -210,7 +210,7 @@ export class CreatorAuswahlDetail {
     this._boundEventListeners.forEach(cleanup => cleanup());
     this._boundEventListeners.clear();
 
-    // Event-basierte Action-Behandlung (Portal-kompatibel via ActionRegistry)
+    // Event-basierte Action-Behandlung (Portal-kompatibel)
     const actionHandler = (event) => {
       const { action, entityType, entityId } = event.detail;
       if (entityType !== 'creator_auswahl_item') return;
@@ -437,6 +437,19 @@ export class CreatorAuswahlDetail {
         if (item) {
           item.angefragt = value;
           if (value) item.angefragt_am = updates.angefragt_am;
+        }
+        this.rerenderTable();
+        return;
+      }
+
+      if (field === 'absage') {
+        const updates = { absage: value };
+        updates.absage_am = value ? new Date().toISOString() : null;
+        await creatorAuswahlService.updateItem(itemId, updates);
+        const item = this.items.find(i => i.id === itemId);
+        if (item) {
+          item.absage = value;
+          item.absage_am = updates.absage_am;
         }
         this.rerenderTable();
         return;

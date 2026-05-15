@@ -10677,6 +10677,35 @@ table:has(#strategien-table-body) td.col-actions {
   background: var(--gray-100);
 }
 
+/* Umgesetzt (grün wie rechnung-row-paid) */
+.strategie-items-table .strategie-item-umgesetzt {
+  background-color: var(--green-100) !important;
+}
+
+.strategie-items-table .strategie-item-umgesetzt td {
+  color: var(--green-900);
+}
+
+.strategie-items-table tbody tr.item-row.strategie-item-umgesetzt:hover {
+  background-color: var(--green-50, #f0fdf4) !important;
+}
+
+/* Creator-Spalte */
+.strategie-items-table .col-creator {
+  min-width: calc(var(--space-xxl) * 3);
+}
+
+/* Umgesetzt-Spalte */
+.strategie-items-table .col-umgesetzt {
+  width: 7em;
+  text-align: center;
+}
+
+.strategie-umgesetzt-toggle-wrapper {
+  display: inline-flex;
+  vertical-align: middle;
+}
+
 /* === CREATOR POOL TABLE - STICKY COLUMNS === */
 .creator-pool-table-container {
   position: relative;
@@ -10920,6 +10949,28 @@ table:has(#strategien-table-body) td.col-actions {
 }
 
 .angefragt-datum {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.creator-pool-table .cp-col-absage {
+  width: 140px;
+  min-width: 140px;
+}
+
+.creator-pool-table td.cp-col-absage {
+  padding: var(--space-xs) var(--space-sm) !important;
+  vertical-align: top;
+}
+
+.absage-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.absage-datum {
   font-size: var(--text-xs);
   color: var(--text-secondary);
 }

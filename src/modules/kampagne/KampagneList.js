@@ -60,7 +60,7 @@ export class KampagneList {
     // Neue Kampagne anlegen Button
     if (e.target.id === 'btn-kampagne-new' || e.target.id === 'btn-kampagne-new-filter') {
       e.preventDefault();
-      window.navigateTo('/kampagne/new');
+      window.navigateTo('/projekt-erstellen');
       return;
     }
     
@@ -468,7 +468,7 @@ export class KampagneList {
   // ========================================
 
   showCreateForm() {
-    createHandler.showCreateForm();
+    window.navigateTo('/projekt-erstellen');
   }
 
   async handleFormSubmit() {
