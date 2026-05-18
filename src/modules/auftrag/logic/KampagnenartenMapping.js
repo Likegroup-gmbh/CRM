@@ -1,6 +1,10 @@
 // KampagnenartenMapping.js
 // Mapping zwischen Kampagnenarten-Namen (aus DB kampagne_art_typen) und Feld-Präfixen
 
+// Prefixe die KEINE Spalten in auftrag_details / kampagne haben.
+// Deren Daten werden nur in auftrag_kampagnenart_blocks persistiert.
+export const PREFIXES_WITHOUT_LEGACY_COLUMNS = new Set(['whitelisting', 'darkposting']);
+
 export const KAMPAGNENARTEN_MAPPING = {
   'UGC Paid': {
     prefix: 'ugc_paid',

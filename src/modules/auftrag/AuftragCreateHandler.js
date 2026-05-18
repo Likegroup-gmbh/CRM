@@ -5,6 +5,7 @@
 
 import { generatePoNummer } from './logic/PoNummerGenerator.js';
 import { getCurrentBenutzerId } from '../auth/CurrentUser.js';
+import { PREFIXES_WITHOUT_LEGACY_COLUMNS } from './logic/KampagnenartenMapping.js';
 
 export class AuftragCreateHandler {
   constructor() {
@@ -789,6 +790,16 @@ export class AuftragCreateHandler {
             detailsData[videoFieldName] = null;
           }
         });
+      }
+
+      // Keys fuer Prefixe ohne DB-Spalten entfernen (whitelisting_*, darkposting_*)
+      for (const key of Object.keys(detailsData)) {
+        for (const prefix of PREFIXES_WITHOUT_LEGACY_COLUMNS) {
+          if (key.startsWith(`${prefix}_`)) {
+            delete detailsData[key];
+            break;
+          }
+        }
       }
 
       console.log('📤 Auftragsdetails-Daten:', detailsData);
