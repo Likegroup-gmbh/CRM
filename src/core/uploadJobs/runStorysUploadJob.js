@@ -141,13 +141,25 @@ export async function runStorysUploadJob(ctx) {
       token,
       getToken,
       signal,
-      onProgress: ({ loaded, total, phase }) => {
+      onProgress: ({ loaded, total, phase, error }) => {
         const patch = { loaded, total };
+        if (phase === 'direct-failed') {
+          patch.directOk = false;
+          patch.directError = error || 'Unbekannter Fehler';
+          patch.transport = 'proxy';
+          if (!item.directErrorNotified) {
+            item.directErrorNotified = true;
+            window.toastSystem?.warning?.(
+              `Direct-Upload fehlgeschlagen (${patch.directError}). Upload laeuft ueber Proxy weiter (langsamer).`
+            );
+          }
+        }
         if (phase === 'proxy-fallback') patch.transport = 'proxy';
         updateItem(item.id, patch);
       },
     });
 
+    if (item.directOk === null) updateItem(item.id, { directOk: true });
     updateItem(item.id, { status: 'saving' });
 
     const fileUrl = await createSharedLink(token, dropboxPath);

@@ -90,7 +90,7 @@ describe('DropboxDirectUploader', () => {
     expect(r.headers['Dropbox-API-Arg']).toContain('/x/small.mp4');
   });
 
-  it('große Datei (concurrent-session): leerer start, N parallele appends, leerer finish', async () => {
+  it('große Datei (concurrent-session): leerer start, N parallele appends, letzter mit close:true, leerer finish', async () => {
     responders.push({
       match: (xhr) => xhr.url.endsWith('/upload_session/start'),
       handler: (xhr) => xhr._ok({ session_id: 'sess-1' }),
@@ -104,7 +104,7 @@ describe('DropboxDirectUploader', () => {
       handler: (xhr) => xhr._ok({ path_display: '/x/big.mp4' }),
     });
 
-    // 5 Chunks à 2 KB → 1 leerer start, 5 appends, 1 leerer finish
+    // 5 Chunks à 2 KB → 1 leerer start, 5 appends (letzter close:true), 1 leerer finish
     const buf = new Uint8Array(10 * 1024);
     const file = new File([buf], 'big.mp4', { type: 'video/mp4' });
 
@@ -130,7 +130,46 @@ describe('DropboxDirectUploader', () => {
     expect(starts[0].headers['Dropbox-API-Arg']).toContain('concurrent');
     // finish muss Cursor auf totalSize zeigen
     expect(finishes[0].headers['Dropbox-API-Arg']).toContain('"offset":10240');
+    // genau ein Append mit close:true, alle anderen close:false
+    const closeFlags = appends.map(a => /"close":(true|false)/.exec(a.headers['Dropbox-API-Arg'])?.[1]);
+    expect(closeFlags.filter(c => c === 'true')).toHaveLength(1);
+    expect(closeFlags.filter(c => c === 'false')).toHaveLength(4);
+    // Der close:true-Append muss derjenige mit Offset 8192 sein (Datei = 5 * 2 KB)
+    const closing = appends.find(a => /"close":true/.test(a.headers['Dropbox-API-Arg']));
+    expect(closing.headers['Dropbox-API-Arg']).toContain('"offset":8192');
     expect(progress[progress.length - 1]).toBe(10 * 1024);
+  });
+
+  it('Datei mit Rest-Chunk: letzter append darf nicht 4-MB-Vielfaches sein, close:true noetig', async () => {
+    responders.push({
+      match: (xhr) => xhr.url.endsWith('/upload_session/start'),
+      handler: (xhr) => xhr._ok({ session_id: 'sess-rest' }),
+    });
+    responders.push({
+      match: (xhr) => xhr.url.endsWith('/upload_session/append_v2'),
+      handler: (xhr) => xhr._ok({}),
+    });
+    responders.push({
+      match: (xhr) => xhr.url.endsWith('/upload_session/finish'),
+      handler: (xhr) => xhr._ok({ path_display: '/x/rest.mp4' }),
+    });
+
+    // 12 KB bei chunkSize 4 KB → 3 volle Chunks, kein Rest
+    // Aber 10 KB bei chunkSize 4 KB → 2 volle + 1 Rest (2 KB) als close:true
+    const file = new File([new Uint8Array(10 * 1024)], 'rest.mp4');
+    await uploadFileDirect({
+      file, dropboxPath: '/x/rest.mp4', token: 'tok-1',
+      chunkSize: 4 * 1024, concurrency: 4, allowProxyFallback: false,
+    });
+
+    const appends = allRequests.filter(r => r.url.endsWith('/upload_session/append_v2'));
+    expect(appends).toHaveLength(3);
+    const closing = appends.find(a => /"close":true/.test(a.headers['Dropbox-API-Arg']));
+    expect(closing).toBeDefined();
+    // Rest-Chunk = 2 KB, NICHT 4 KB
+    expect(closing.body?.size).toBe(2048);
+    // Cursor des close-Append zeigt auf den Offset des Rest-Chunks
+    expect(closing.headers['Dropbox-API-Arg']).toContain('"offset":8192');
   });
 
   it('Retry bei 503, dann Erfolg', async () => {

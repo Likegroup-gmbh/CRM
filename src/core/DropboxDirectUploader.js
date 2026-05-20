@@ -43,6 +43,22 @@ class HttpError extends Error {
   }
 }
 
+// Liefert eine kurze, menschenlesbare Fehlermeldung; bevorzugt Dropbox' error_summary.
+function parseDropboxError(err) {
+  if (!err) return 'Unbekannter Fehler';
+  if (err instanceof HttpError) {
+    try {
+      const parsed = JSON.parse(err.body || '{}');
+      if (parsed.error_summary) {
+        return `HTTP ${err.status}: ${String(parsed.error_summary).replace(/\.+$/, '')}`;
+      }
+    } catch { /* body war kein JSON */ }
+    const snippet = (err.body || '').slice(0, 120);
+    return `HTTP ${err.status}${snippet ? `: ${snippet}` : ''}`;
+  }
+  return err.message || String(err);
+}
+
 /**
  * Ein einzelner XHR-Request mit Progress-Callback, Abort und Timeout.
  * Liefert das geparste JSON oder wirft HttpError.
@@ -148,7 +164,7 @@ async function sessionStart({ token, signal }) {
   return result.session_id;
 }
 
-async function sessionAppend({ token, sessionId, offset, chunk, signal, onProgress }) {
+async function sessionAppend({ token, sessionId, offset, chunk, close = false, signal, onProgress }) {
   await xhrRequest({
     url: `${CONTENT_BASE}/upload_session/append_v2`,
     headers: {
@@ -156,7 +172,7 @@ async function sessionAppend({ token, sessionId, offset, chunk, signal, onProgre
       'Content-Type': 'application/octet-stream',
       'Dropbox-API-Arg': httpHeaderSafeJson({
         cursor: { session_id: sessionId, offset },
-        close: false,
+        close,
       }),
     },
     body: chunk,
@@ -246,7 +262,9 @@ export async function uploadFileDirect({
     if (err?.name === 'AbortError') throw err;
     if (!allowProxyFallback) throw err;
 
-    console.warn('[DirectUpload] Direct fehlgeschlagen, Proxy-Fallback:', err.message);
+    const reason = parseDropboxError(err);
+    console.warn('[DirectUpload] Direct fehlgeschlagen, Proxy-Fallback:', reason);
+    onProgress?.({ loaded: 0, total: totalSize, phase: 'direct-failed', error: reason });
     onProgress?.({ loaded: 0, total: totalSize, phase: 'proxy-fallback' });
     return uploadViaProxyFallback({ file, dropboxPath, token, signal, onProgress });
   }
@@ -268,6 +286,10 @@ async function uploadSessionParallel({
     return currentToken;
   };
 
+  // Dropbox concurrent-session: alle append_v2-Chunks muessen Vielfaches von 4 MB sein,
+  // ausser dem letzten Chunk wenn dieser mit close:true gesendet wird.
+  // chunkSize ist Vielfaches von 4 MB (Default 8 MB), die letzten size-Bytes
+  // sind der Rest und werden als close:true-Chunk gesendet.
   const chunks = [];
   let off = 0;
   while (off < totalSize) {
@@ -275,6 +297,7 @@ async function uploadSessionParallel({
     chunks.push({ offset: off, size: end - off });
     off = end;
   }
+  const lastIdx = chunks.length - 1;
 
   const sessionId = await withRetry(
     (t) => sessionStart({ token: t, signal }),
@@ -290,12 +313,13 @@ async function uploadSessionParallel({
     onProgress({ loaded: Math.min(sum, totalSize), total: totalSize, phase: 'upload' });
   };
 
+  // Pool-Indizes: 0..lastIdx-1 (Vielfaches von 4 MB); letzter Chunk separat mit close:true.
   let nextIdx = 0;
   async function worker() {
     while (true) {
       if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
       const myIdx = nextIdx++;
-      if (myIdx >= chunks.length) return;
+      if (myIdx >= lastIdx) return; // letzten Chunk macht der Finalizer
 
       const meta = chunks[myIdx];
       const slice = file.slice(meta.offset, meta.offset + meta.size);
@@ -307,6 +331,7 @@ async function uploadSessionParallel({
           sessionId,
           offset: meta.offset,
           chunk: slice,
+          close: false,
           signal,
           onProgress: (loaded) => {
             chunkLoaded[myIdx] = Math.min(loaded, meta.size);
@@ -319,10 +344,33 @@ async function uploadSessionParallel({
     }
   }
 
-  const workerCount = Math.min(Math.max(1, concurrency), chunks.length);
-  const workers = [];
-  for (let i = 0; i < workerCount; i++) workers.push(worker());
-  await Promise.all(workers);
+  if (lastIdx > 0) {
+    const workerCount = Math.min(Math.max(1, concurrency), lastIdx);
+    const workers = [];
+    for (let i = 0; i < workerCount; i++) workers.push(worker());
+    await Promise.all(workers);
+  }
+
+  // Letzter Chunk mit close:true; darf beliebige Groesse haben (auch nicht 4-MB-Vielfaches).
+  const lastMeta = chunks[lastIdx];
+  const lastSlice = file.slice(lastMeta.offset, lastMeta.offset + lastMeta.size);
+  await withRetry(async (t) => {
+    chunkLoaded[lastIdx] = 0;
+    await sessionAppend({
+      token: t,
+      sessionId,
+      offset: lastMeta.offset,
+      chunk: lastSlice,
+      close: true,
+      signal,
+      onProgress: (loaded) => {
+        chunkLoaded[lastIdx] = Math.min(loaded, lastMeta.size);
+        reportProgress();
+      },
+    });
+    chunkLoaded[lastIdx] = lastMeta.size;
+    reportProgress();
+  }, { signal, getToken: refreshToken, currentToken });
 
   dbg('all appends OK, calling finish', { totalSize });
   const finishResult = await withRetry(

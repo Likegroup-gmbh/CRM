@@ -255,6 +255,9 @@ export class BackgroundUploadPanel {
     } else if (item.transport === 'proxy') {
       transportBadge = '<span class="bg-upload-transport bg-upload-transport--proxy" title="Fallback ueber Netlify-Proxy (langsamer)">Proxy</span>';
     }
+    const directWarn = item.directOk === false
+      ? `<div class="bg-upload-direct-warn">Direct fehlgeschlagen${item.directError ? `: ${escapeHtml(item.directError)}` : ''}. Upload laeuft ueber Proxy weiter.</div>`
+      : '';
     return `
       <div class="bg-upload-item bg-upload-item--${item.status}" data-item-id="${item.id}">
         <div class="bg-upload-item-row">
@@ -275,6 +278,7 @@ export class BackgroundUploadPanel {
             <span class="bg-upload-item-duration">${durText}</span>
           </span>
         </div>
+        ${directWarn}
       </div>
     `;
   }

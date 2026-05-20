@@ -17023,3 +17023,14 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
   color: rgb(154, 52, 18);
   border: 1px solid rgba(234, 88, 12, 0.3);
 }
+
+.bg-upload-direct-warn {
+  margin-top: 4px;
+  padding: 4px 6px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: rgb(154, 52, 18);
+  background: rgba(234, 88, 12, 0.08);
+  border: 1px solid rgba(234, 88, 12, 0.2);
+  border-radius: 4px;
+}
