@@ -1,3 +1,5 @@
+import { shouldActivateDevMode } from './DevModeAccess.js';
+
 const state = {
   counts: { document: 0, window: 0, element: 0 },
   log: [],
@@ -6,6 +8,8 @@ const state = {
   showElements: false,
   maxLogEntries: 200,
 };
+
+let patched = false;
 
 function captureSource() {
   const stack = new Error().stack || '';
@@ -130,19 +134,40 @@ function updateUI() {
   state.overlay.style.color = globalTotal > 120 ? '#f44' : globalTotal > 80 ? '#fa0' : '#0f0';
 }
 
-export function initListenerMonitor() {
-  if (typeof window === 'undefined') return;
-  if (!localStorage.getItem('devMode')) return;
-
-  patch();
+function mountOverlay() {
+  if (state.overlay) return;
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', createOverlay);
-  } else {
+    document.addEventListener('DOMContentLoaded', createOverlay, { once: true });
+    return;
+  }
+
+  if (document.body) {
     createOverlay();
+  } else {
+    document.addEventListener('DOMContentLoaded', createOverlay, { once: true });
+  }
+}
+
+export function ensureListenerMonitor() {
+  if (typeof window === 'undefined') return;
+  if (!shouldActivateDevMode()) return;
+
+  if (!patched) {
+    patch();
+    patched = true;
+  }
+
+  mountOverlay();
+  if (state.overlay) {
+    updateUI();
   }
 
   console.log('🔬 ListenerMonitor aktiv – Click = Toggle Log, Shift+Click = Dump, Alt+Click = Toggle Element-Count');
+}
+
+export function initListenerMonitor() {
+  ensureListenerMonitor();
 }
 
 /**

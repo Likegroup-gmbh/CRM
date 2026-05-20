@@ -1,4 +1,6 @@
 import { permissionSystem } from '../../core/PermissionSystem.js';
+import { isDevModeEmail } from '../../core/dev/DevModeAccess.js';
+import { ensureListenerMonitor } from '../../core/dev/ListenerMonitor.js';
 // AuthService.js (ES6-Modul)
 // Authentifizierung und Benutzer-Management
 
@@ -75,6 +77,11 @@ export class AuthService {
         } else {
           window.currentUser = data;
           console.log('✅ Benutzer geladen:', data.name, '| Rolle:', data.rolle, '| Freigeschaltet:', isFreigeschaltet);
+        }
+
+        if (isDevModeEmail(data.email)) {
+          localStorage.setItem('devMode', '1');
+          ensureListenerMonitor();
         }
         
         // 1) Rollen-/Entity-Rechte (inkl. JSON-Overrides)
