@@ -12,7 +12,7 @@ const RETRY_BACKOFF_MS = [1000, 2000, 4000];
 
 const CONTENT_BASE = 'https://content.dropboxapi.com/2/files';
 
-const DEBUG = false;
+const DEBUG = true; // Temporaer fuer Test-Phase, nach stabilem Betrieb zurueck auf false.
 function dbg(...args) { if (DEBUG) console.log('[DirectUpload]', ...args); }
 
 // Dropbox verlangt \uXXXX-Escaping für Non-ASCII im API-Arg Header
@@ -132,15 +132,17 @@ async function withRetry(fn, { signal, getToken, currentToken }) {
   }
 }
 
-async function sessionStart({ token, chunk, signal }) {
+async function sessionStart({ token, signal }) {
+  // Concurrent-Session: leerer Body, session_type 'concurrent' ist Pflicht
+  // damit Dropbox parallele append_v2 erlaubt (default ist sequenziell).
   const result = await xhrRequest({
     url: `${CONTENT_BASE}/upload_session/start`,
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/octet-stream',
-      'Dropbox-API-Arg': httpHeaderSafeJson({ close: false }),
+      'Dropbox-API-Arg': httpHeaderSafeJson({ close: false, session_type: 'concurrent' }),
     },
-    body: chunk,
+    body: new Blob(),
     signal,
   });
   return result.session_id;
@@ -163,7 +165,8 @@ async function sessionAppend({ token, sessionId, offset, chunk, signal, onProgre
   });
 }
 
-async function sessionFinish({ token, sessionId, offset, dropboxPath, chunk, signal }) {
+async function sessionFinish({ token, sessionId, offset, dropboxPath, signal }) {
+  // Concurrent-Session: finish ohne Body, Offset = totalSize.
   return xhrRequest({
     url: `${CONTENT_BASE}/upload_session/finish`,
     headers: {
@@ -174,7 +177,7 @@ async function sessionFinish({ token, sessionId, offset, dropboxPath, chunk, sig
         commit: { path: dropboxPath, mode: 'overwrite', autorename: true, mute: false },
       }),
     },
-    body: chunk,
+    body: new Blob(),
     signal,
   });
 }
@@ -244,13 +247,14 @@ export async function uploadFileDirect({
     if (!allowProxyFallback) throw err;
 
     console.warn('[DirectUpload] Direct fehlgeschlagen, Proxy-Fallback:', err.message);
+    onProgress?.({ loaded: 0, total: totalSize, phase: 'proxy-fallback' });
     return uploadViaProxyFallback({ file, dropboxPath, token, signal, onProgress });
   }
 }
 
 /**
- * Parallele Session-Appends mit Worker-Pool.
- * Reihenfolge der Appends spielt für Dropbox keine Rolle, solange der Cursor-Offset stimmt.
+ * Concurrent-Session: leerer Start, alle Chunks parallel via append_v2, leerer Finish.
+ * Dropbox erlaubt im concurrent-Mode beliebig viele parallele Appends auf dieselbe Session.
  */
 async function uploadSessionParallel({
   file, dropboxPath, token, getToken, chunkSize, concurrency, signal, onProgress, totalSize,
@@ -264,52 +268,34 @@ async function uploadSessionParallel({
     return currentToken;
   };
 
-  // Chunks vorberechnen (Offset + size + ob "letzter")
   const chunks = [];
   let off = 0;
   while (off < totalSize) {
     const end = Math.min(off + chunkSize, totalSize);
-    chunks.push({ offset: off, size: end - off, isLast: end === totalSize });
+    chunks.push({ offset: off, size: end - off });
     off = end;
   }
 
-  // Session mit erstem Chunk starten (synchron — Session-ID brauchen wir)
-  const firstSlice = file.slice(0, chunks[0].size);
   const sessionId = await withRetry(
-    (t) => sessionStart({ token: t, chunk: firstSlice, signal }),
+    (t) => sessionStart({ token: t, signal }),
     { signal, getToken: refreshToken, currentToken }
   );
-  dbg('session-start OK', { sessionId, firstChunk: chunks[0].size });
+  dbg('session-start OK (concurrent)', { sessionId, chunks: chunks.length });
 
-  // Progress-Tracking: pro Chunk loaded; finalisiert auf size beim Erfolg
   const chunkLoaded = new Array(chunks.length).fill(0);
-  chunkLoaded[0] = chunks[0].size; // first chunk schon hochgeladen
   const reportProgress = () => {
     if (!onProgress) return;
     let sum = 0;
     for (const v of chunkLoaded) sum += v;
     onProgress({ loaded: Math.min(sum, totalSize), total: totalSize, phase: 'upload' });
   };
-  reportProgress();
-
-  // Letzter Chunk muss via session-finish gehen (kein parallel-finish nötig, läuft am Ende)
-  const lastChunkIdx = chunks.length - 1;
-  const appendIndices = [];
-  for (let i = 1; i < chunks.length - 1; i++) appendIndices.push(i);
-  // Bei nur 2 Chunks: keine appends, direkt finish
-  // Bei 3+: 1..n-2 sind appends, n-1 ist finish
 
   let nextIdx = 0;
-  const queue = appendIndices;
-
   async function worker() {
     while (true) {
       if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-      const myIdx = (() => {
-        if (nextIdx >= queue.length) return -1;
-        return queue[nextIdx++];
-      })();
-      if (myIdx < 0) return;
+      const myIdx = nextIdx++;
+      if (myIdx >= chunks.length) return;
 
       const meta = chunks[myIdx];
       const slice = file.slice(meta.offset, meta.offset + meta.size);
@@ -333,35 +319,16 @@ async function uploadSessionParallel({
     }
   }
 
-  // Worker-Pool starten
-  const workerCount = Math.min(Math.max(1, concurrency), queue.length || 1);
+  const workerCount = Math.min(Math.max(1, concurrency), chunks.length);
   const workers = [];
   for (let i = 0; i < workerCount; i++) workers.push(worker());
   await Promise.all(workers);
 
-  // Finish mit letztem Chunk (sequentiell nach allen Appends)
-  if (chunks.length === 1) {
-    // Sollte hier nicht ankommen (small file path), aber safety
-    chunkLoaded[0] = chunks[0].size;
-    reportProgress();
-    return { path_display: dropboxPath };
-  }
-
-  const lastMeta = chunks[lastChunkIdx];
-  const lastSlice = file.slice(lastMeta.offset, lastMeta.offset + lastMeta.size);
-  const finishResult = await withRetry(async (t) => {
-    const r = await sessionFinish({
-      token: t,
-      sessionId,
-      offset: lastMeta.offset,
-      dropboxPath,
-      chunk: lastSlice,
-      signal,
-    });
-    chunkLoaded[lastChunkIdx] = lastMeta.size;
-    reportProgress();
-    return r;
-  }, { signal, getToken: refreshToken, currentToken });
+  dbg('all appends OK, calling finish', { totalSize });
+  const finishResult = await withRetry(
+    (t) => sessionFinish({ token: t, sessionId, offset: totalSize, dropboxPath, signal }),
+    { signal, getToken: refreshToken, currentToken }
+  );
 
   return finishResult;
 }

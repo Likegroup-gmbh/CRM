@@ -17000,3 +17000,26 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
   color: var(--text-primary);
   font-weight: 500;
 }
+
+.bg-upload-transport {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.bg-upload-transport--direct {
+  background: rgba(34, 197, 94, 0.12);
+  color: rgb(21, 128, 61);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.bg-upload-transport--proxy {
+  background: rgba(234, 88, 12, 0.12);
+  color: rgb(154, 52, 18);
+  border: 1px solid rgba(234, 88, 12, 0.3);
+}

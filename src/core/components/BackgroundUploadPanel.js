@@ -249,6 +249,12 @@ export class BackgroundUploadPanel {
     const durMs = itemDurationMs(item);
     const durText = fmtDuration(durMs);
     const speedText = fmtSpeed(item);
+    let transportBadge = '';
+    if (item.transport === 'direct') {
+      transportBadge = '<span class="bg-upload-transport bg-upload-transport--direct" title="Direkt zu Dropbox">Direct</span>';
+    } else if (item.transport === 'proxy') {
+      transportBadge = '<span class="bg-upload-transport bg-upload-transport--proxy" title="Fallback ueber Netlify-Proxy (langsamer)">Proxy</span>';
+    }
     return `
       <div class="bg-upload-item bg-upload-item--${item.status}" data-item-id="${item.id}">
         <div class="bg-upload-item-row">
@@ -264,6 +270,7 @@ export class BackgroundUploadPanel {
         <div class="bg-upload-item-status">
           <span>${escapeHtml(statusLabel)}${item.error ? ` — ${escapeHtml(item.error)}` : ''}</span>
           <span class="bg-upload-item-stats">
+            ${transportBadge}
             <span class="bg-upload-item-speed">${speedText}</span>
             <span class="bg-upload-item-duration">${durText}</span>
           </span>

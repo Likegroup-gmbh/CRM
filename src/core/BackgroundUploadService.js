@@ -176,6 +176,7 @@ class BackgroundUploadService {
       meta: meta || {},
       startedAt: null,
       finishedAt: null,
+      transport: null, // 'direct' | 'proxy' | null (vor Upload)
     };
   }
 
@@ -228,14 +229,16 @@ class BackgroundUploadService {
     if (!item) return;
     const prevStatus = item.status;
     Object.assign(item, patch);
+    // startedAt erst beim ersten echten Progress-Event (loaded > 0) setzen,
+    // damit Wartezeit fuer Token-Abruf nicht in die Speed-Berechnung einfliesst.
+    if (!item.startedAt && typeof patch.loaded === 'number' && patch.loaded > 0) {
+      item.startedAt = Date.now();
+    }
     if (patch.status && patch.status !== prevStatus) {
       const FINAL = new Set(['done', 'error', 'aborted']);
-      if (patch.status === 'uploading' && !item.startedAt) {
-        item.startedAt = Date.now();
-      }
       if (FINAL.has(patch.status) && !item.finishedAt) {
         item.finishedAt = Date.now();
-        if (!item.startedAt) item.startedAt = item.finishedAt; // 0s saving-only
+        if (!item.startedAt) item.startedAt = item.finishedAt; // sehr kurzer / direkter Abschluss
       }
     }
     this._emit(EVT.ITEM_UPDATE, { jobId: job.id, itemId, item: { ...item } });

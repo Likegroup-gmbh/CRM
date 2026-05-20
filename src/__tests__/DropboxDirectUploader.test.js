@@ -90,7 +90,7 @@ describe('DropboxDirectUploader', () => {
     expect(r.headers['Dropbox-API-Arg']).toContain('/x/small.mp4');
   });
 
-  it('große Datei: session-start + 3 appends + finish, parallel', async () => {
+  it('große Datei (concurrent-session): leerer start, N parallele appends, leerer finish', async () => {
     responders.push({
       match: (xhr) => xhr.url.endsWith('/upload_session/start'),
       handler: (xhr) => xhr._ok({ session_id: 'sess-1' }),
@@ -104,7 +104,7 @@ describe('DropboxDirectUploader', () => {
       handler: (xhr) => xhr._ok({ path_display: '/x/big.mp4' }),
     });
 
-    // 5 Chunks à 2 KB → 1 start, 3 appends, 1 finish
+    // 5 Chunks à 2 KB → 1 leerer start, 5 appends, 1 leerer finish
     const buf = new Uint8Array(10 * 1024);
     const file = new File([buf], 'big.mp4', { type: 'video/mp4' });
 
@@ -117,9 +117,19 @@ describe('DropboxDirectUploader', () => {
     });
 
     expect(result.path_display).toBe('/x/big.mp4');
-    expect(allRequests.filter(r => r.url.endsWith('/upload_session/start'))).toHaveLength(1);
-    expect(allRequests.filter(r => r.url.endsWith('/upload_session/append_v2'))).toHaveLength(3);
-    expect(allRequests.filter(r => r.url.endsWith('/upload_session/finish'))).toHaveLength(1);
+    const starts = allRequests.filter(r => r.url.endsWith('/upload_session/start'));
+    const appends = allRequests.filter(r => r.url.endsWith('/upload_session/append_v2'));
+    const finishes = allRequests.filter(r => r.url.endsWith('/upload_session/finish'));
+    expect(starts).toHaveLength(1);
+    expect(appends).toHaveLength(5);
+    expect(finishes).toHaveLength(1);
+    // start und finish duerfen keinen Datei-Inhalt tragen
+    expect(starts[0].body?.size ?? 0).toBe(0);
+    expect(finishes[0].body?.size ?? 0).toBe(0);
+    // start muss session_type:concurrent setzen
+    expect(starts[0].headers['Dropbox-API-Arg']).toContain('concurrent');
+    // finish muss Cursor auf totalSize zeigen
+    expect(finishes[0].headers['Dropbox-API-Arg']).toContain('"offset":10240');
     expect(progress[progress.length - 1]).toBe(10 * 1024);
   });
 

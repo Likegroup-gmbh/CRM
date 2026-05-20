@@ -91,7 +91,7 @@ export async function runStorysUploadJob(ctx) {
     const variantName = (queueItem.variantName || '').trim();
     const item = job.items[i];
 
-    updateItem(item.id, { status: 'uploading', loaded: 0, total: file.size });
+    updateItem(item.id, { status: 'uploading', loaded: 0, total: file.size, transport: 'direct' });
 
     // Slot anlegen falls nötig
     if (slotId === '__new__') {
@@ -141,7 +141,11 @@ export async function runStorysUploadJob(ctx) {
       token,
       getToken,
       signal,
-      onProgress: ({ loaded, total }) => updateItem(item.id, { loaded, total }),
+      onProgress: ({ loaded, total, phase }) => {
+        const patch = { loaded, total };
+        if (phase === 'proxy-fallback') patch.transport = 'proxy';
+        updateItem(item.id, patch);
+      },
     });
 
     updateItem(item.id, { status: 'saving' });

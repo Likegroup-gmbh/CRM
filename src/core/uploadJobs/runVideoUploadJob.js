@@ -124,7 +124,7 @@ export async function runVideoUploadJob(ctx) {
     const fileName = buildVersionedFileName_(file, versionNumber, metadaten);
     const item = job.items[i];
 
-    updateItem(item.id, { status: 'uploading', loaded: 0, total: file.size });
+    updateItem(item.id, { status: 'uploading', loaded: 0, total: file.size, transport: 'direct' });
 
     const { token, dropboxPath, kooperationFolderPath } = await fetchTokenAndPath({
       metadaten, versionNumber, variantName, fileName,
@@ -141,8 +141,10 @@ export async function runVideoUploadJob(ctx) {
       token,
       getToken,
       signal,
-      onProgress: ({ loaded, total }) => {
-        updateItem(item.id, { loaded, total });
+      onProgress: ({ loaded, total, phase }) => {
+        const patch = { loaded, total };
+        if (phase === 'proxy-fallback') patch.transport = 'proxy';
+        updateItem(item.id, patch);
       },
     });
 
