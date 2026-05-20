@@ -174,7 +174,7 @@ export class VideoUploadDrawer {
     const labels = [];
     if (types.has('video') || types.has('video-replace')) labels.push('Video');
     if (types.has('storys')) labels.push('Storys');
-    return `<div class="video-upload-active-banner">Es läuft bereits ein Upload im Hintergrund (${labels.join(' + ')}). Status siehst du im Panel rechts unten.</div>`;
+    return `<div class="video-upload-active-banner">Es läuft bereits ein Upload im Hintergrund (${labels.join(' + ')}). Status siehst du im Panel links unten.</div>`;
   }
 
   _updateActiveJobsBanner() {

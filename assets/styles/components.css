@@ -16784,7 +16784,7 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
 /* ─── BackgroundUploadPanel (rechts unten, global) ─────────── */
 .bg-upload-panel {
   position: fixed;
-  right: var(--space-lg);
+  left: var(--space-lg);
   bottom: var(--space-lg);
   width: 360px;
   max-width: calc(100vw - 32px);
@@ -16793,7 +16793,7 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  z-index: 1450;
+  z-index: 1550;
   display: flex;
   flex-direction: column;
   overflow: hidden;
