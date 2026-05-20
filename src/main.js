@@ -95,6 +95,8 @@ import { kickOffList } from './modules/kickoff/KickOffList.js';
 import { kickOffDetail } from './modules/kickoff/KickOffDetail.js';
 import { globalSearch } from './core/components/GlobalSearch.js';
 import { quickAccessBar } from './core/components/QuickAccessBar.js';
+import { backgroundUploadPanel } from './core/components/BackgroundUploadPanel.js';
+import { backgroundUploadService } from './core/BackgroundUploadService.js';
 // Zentrales Bestätigungs-Modal (side-effect Import, hängt window.confirmationModal an)
 import './core/ConfirmationModal.js';
 // Duplicate Checker für Creator, Marke, Unternehmen
@@ -366,6 +368,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Quick Access Floating Bar (vorerst nur Admin)
     quickAccessBar.init();
+
+    // Background Upload Panel (global, rechts unten)
+    backgroundUploadPanel.init();
+    window.backgroundUploadService = backgroundUploadService;
     
     // ActionsDropdown initialisieren
     actionsDropdown.init();

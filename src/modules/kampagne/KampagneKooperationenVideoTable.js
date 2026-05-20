@@ -5,8 +5,10 @@ import { VideoTableDataLoader } from './VideoTableDataLoader.js';
 import { VideoTableFieldHandler } from './VideoTableFieldHandler.js';
 import { VideoUploadDrawer } from './VideoUploadDrawer.js';
 import { VideoSettingsDrawer } from './VideoSettingsDrawer.js';
+import { LinkStrategieItemDrawer } from '../strategie/LinkStrategieItemDrawer.js';
 import { deleteVideoFile } from '../../core/VideoDeleteHelper.js';
 import { VIDEO_FEEDBACK_FIELDS } from '../../core/VideoFeedbackBuckets.js';
+import { UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
 
 export class KampagneKooperationenVideoTable {
   constructor(kampagneId, store) {
@@ -46,6 +48,7 @@ export class KampagneKooperationenVideoTable {
     this.fieldHandler = new VideoTableFieldHandler(this);
     this._uploadDrawer = new VideoUploadDrawer();
     this._settingsDrawer = new VideoSettingsDrawer();
+    this._linkStrategieDrawer = new LinkStrategieItemDrawer();
   }
 
   // Store-backed getters (Proxy zum Store, Fallback auf lokale Daten für Kompatibilität)
@@ -264,6 +267,14 @@ export class KampagneKooperationenVideoTable {
     });
 
     container.addEventListener('click', (e) => {
+      const linkBtn = e.target.closest('[data-action="link-strategie-item"]');
+      if (linkBtn) {
+        e.preventDefault();
+        this._openLinkStrategieDrawer(linkBtn);
+      }
+    });
+
+    container.addEventListener('click', (e) => {
       const trigger = e.target.closest('.status-select-trigger');
       if (trigger) {
         e.stopPropagation();
@@ -410,6 +421,31 @@ export class KampagneKooperationenVideoTable {
     });
   }
 
+  async _openLinkStrategieDrawer(btn) {
+    const videoId = btn.dataset.videoId;
+    const kooperationId = btn.dataset.kooperationId;
+    const koop = this.kooperationen.find(k => k.id === kooperationId);
+    const videos = this.videos[kooperationId] || [];
+    const video = videos.find(v => v.id === videoId);
+
+    if (!video || !koop) {
+      window.toastSystem?.show('Video nicht gefunden', 'error');
+      return;
+    }
+
+    await this._linkStrategieDrawer.open({
+      video,
+      kooperation: koop,
+      kampagneId: this.kampagneId,
+      onSuccess: () => this._reloadAfterStrategieLink()
+    });
+  }
+
+  async _reloadAfterStrategieLink() {
+    await this.dataLoader.loadData();
+    this.refilter();
+  }
+
   async _executeVideoDelete(videoId, kooperationId) {
     const { hasRemainingAssets } = await deleteVideoFile(videoId);
     const patch = { file_url: null, link_content: null, currentAsset: null };
@@ -451,6 +487,15 @@ export class KampagneKooperationenVideoTable {
 
   async init(containerId) {
     if (this._isLoading && this.containerId === containerId) return;
+
+    // Background-Upload-Done Listener registrieren (einmalig pro init)
+    if (!this._uploadDoneHandler) {
+      this._uploadDoneHandler = () => {
+        this._reloadAfterStrategieLink();
+      };
+      window.addEventListener(UPLOAD_EVENTS.VIDEO_DONE, this._uploadDoneHandler);
+      window.addEventListener(UPLOAD_EVENTS.STORYS_DONE, this._uploadDoneHandler);
+    }
 
     if (this._dataLoaded && this.containerId === containerId) {
       await this.refresh();
@@ -626,7 +671,13 @@ export class KampagneKooperationenVideoTable {
       window.removeEventListener('entityUpdated', this._entityUpdatedHandler);
       this._entityUpdatedHandler = null;
     }
-    
+
+    if (this._uploadDoneHandler) {
+      window.removeEventListener(UPLOAD_EVENTS.VIDEO_DONE, this._uploadDoneHandler);
+      window.removeEventListener(UPLOAD_EVENTS.STORYS_DONE, this._uploadDoneHandler);
+      this._uploadDoneHandler = null;
+    }
+
     this.store = null;
 
     const floatingScrollbar = document.getElementById('floating-scrollbar-kampagne');
