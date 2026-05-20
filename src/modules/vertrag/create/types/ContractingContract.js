@@ -211,6 +211,7 @@ VertraegeCreate.prototype.renderContractingStep4 = function() {
     const buyoutPlattformen = this.formData.contracting_buyout_plattformen || [];
     const buyoutArt = this.formData.contracting_buyout_art || [];
     const geo = this.formData.contracting_buyout_geografisch || '';
+    const artSonstigeChecked = buyoutArt.includes('sonstige');
 
     return `
       <div class="step-section">
@@ -277,48 +278,64 @@ VertraegeCreate.prototype.renderContractingStep4 = function() {
                        ${buyoutArt.includes('werbeanzeigen') ? 'checked' : ''}>
                 <span>Werbeanzeigen (Unternehmenskanal)</span>
               </label>
+              <label class="checkbox-label">
+                <input type="checkbox" name="contracting_buyout_art" value="dark_ads"
+                       ${buyoutArt.includes('dark_ads') ? 'checked' : ''}>
+                <span>Dark Ads</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" name="contracting_buyout_art" value="sonstige"
+                       ${artSonstigeChecked ? 'checked' : ''}>
+                <span>Sonstige</span>
+              </label>
             </div>
           </div>
 
-          <div class="form-two-col">
-            <div class="form-field">
-              <label for="contracting_buyout_nutzungsdauer">Nutzungsdauer</label>
-              <input type="text" id="contracting_buyout_nutzungsdauer" name="contracting_buyout_nutzungsdauer"
-                     value="${this.formData.contracting_buyout_nutzungsdauer || ''}"
-                     placeholder="z.B. 6 Monate">
-            </div>
-            <div class="form-field">
-              <label>Geografisch</label>
-              <div class="radio-group radio-group-inline">
-                <label class="radio-option">
-                  <input type="radio" name="contracting_buyout_geografisch" value="deutschland"
-                         ${geo === 'deutschland' ? 'checked' : ''}>
-                  <span>Deutschland</span>
-                </label>
-                <label class="radio-option">
-                  <input type="radio" name="contracting_buyout_geografisch" value="dach"
-                         ${geo === 'dach' ? 'checked' : ''}>
-                  <span>DACH</span>
-                </label>
-                <label class="radio-option">
-                  <input type="radio" name="contracting_buyout_geografisch" value="europa"
-                         ${geo === 'europa' ? 'checked' : ''}>
-                  <span>Europa</span>
-                </label>
-                <label class="radio-option">
-                  <input type="radio" name="contracting_buyout_geografisch" value="global"
-                         ${geo === 'global' ? 'checked' : ''}>
-                  <span>Global</span>
-                </label>
-              </div>
-            </div>
+          <div class="form-field ${artSonstigeChecked ? '' : 'hidden'}" id="contracting-buyout-art-sonstige-wrapper">
+            <label for="contracting_buyout_art_sonstige">Sonstige Art der Nutzung</label>
+            <input type="text" id="contracting_buyout_art_sonstige" name="contracting_buyout_art_sonstige"
+                   value="${this.formData.contracting_buyout_art_sonstige || ''}"
+                   placeholder="z.B. Programmatic Ads, eigene Beschreibung">
           </div>
 
           <div class="form-field">
-            <label for="contracting_buyout_besonderheiten">Besonderheiten / Absprachen</label>
-            <textarea id="contracting_buyout_besonderheiten" name="contracting_buyout_besonderheiten" rows="3"
-                      placeholder="Optional: Besonderheiten zur Nutzung">${this.formData.contracting_buyout_besonderheiten || ''}</textarea>
+            <label for="contracting_buyout_nutzungsdauer">Nutzungsdauer</label>
+            <input type="text" id="contracting_buyout_nutzungsdauer" name="contracting_buyout_nutzungsdauer"
+                   value="${this.formData.contracting_buyout_nutzungsdauer || ''}"
+                   placeholder="z.B. 6 Monate">
           </div>
+        </div>
+
+        <div class="form-field">
+          <label>Geografisch</label>
+          <div class="radio-group radio-group-inline">
+            <label class="radio-option">
+              <input type="radio" name="contracting_buyout_geografisch" value="deutschland"
+                     ${geo === 'deutschland' ? 'checked' : ''}>
+              <span>Deutschland</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="contracting_buyout_geografisch" value="dach"
+                     ${geo === 'dach' ? 'checked' : ''}>
+              <span>DACH</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="contracting_buyout_geografisch" value="europa"
+                     ${geo === 'europa' ? 'checked' : ''}>
+              <span>Europa</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="contracting_buyout_geografisch" value="global"
+                     ${geo === 'global' ? 'checked' : ''}>
+              <span>Global</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label for="contracting_buyout_besonderheiten">Besonderheiten / Absprachen</label>
+          <textarea id="contracting_buyout_besonderheiten" name="contracting_buyout_besonderheiten" rows="3"
+                    placeholder="Optional: Besonderheiten zur Nutzung">${this.formData.contracting_buyout_besonderheiten || ''}</textarea>
         </div>
 
         <h3 class="mt-section">§5 Produktion & Freigabe</h3>
@@ -352,10 +369,11 @@ VertraegeCreate.prototype.renderContractingStep4 = function() {
 };
 
 VertraegeCreate.prototype.renderContractingStep5 = function() {
+    const zahlungsziel = this.formData.zahlungsziel || '45_tage';
     return `
       <div class="step-section">
         <h3>§6 Vergütung</h3>
-        <p class="form-hint">Zahlung erfolgt innerhalb von 45 Tagen nach Leistungserbringung und Rechnungsstellung über LikeGroup GmbH.</p>
+        <p class="form-hint">Zahlung erfolgt nach Leistungserbringung und Rechnungsstellung über LikeGroup GmbH.</p>
 
         <div class="form-field">
           <label for="verguetung_netto">Fixvergütung (netto) <span class="required">*</span></label>
@@ -367,8 +385,47 @@ VertraegeCreate.prototype.renderContractingStep5 = function() {
           </div>
         </div>
 
+        <div class="form-field">
+          <label>Zahlungsziel</label>
+          <div class="radio-group radio-group-inline">
+            <label class="radio-option">
+              <input type="radio" name="zahlungsziel" value="14_tage"
+                     ${zahlungsziel === '14_tage' ? 'checked' : ''}>
+              <span>14 Tage</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="zahlungsziel" value="30_tage"
+                     ${zahlungsziel === '30_tage' ? 'checked' : ''}>
+              <span>30 Tage</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="zahlungsziel" value="45_tage"
+                     ${zahlungsziel === '45_tage' ? 'checked' : ''}>
+              <span>45 Tage</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="zahlungsziel" value="60_tage"
+                     ${zahlungsziel === '60_tage' ? 'checked' : ''}>
+              <span>60 Tage</span>
+            </label>
+          </div>
+        </div>
+
         <h3 class="mt-section">§10 Exklusivität</h3>
-        <p class="form-hint">Der Influencer verpflichtet sich für die Dauer von zwei Wochen nach Veröffentlichung des Contents, keine Kooperationen mit unmittelbaren Wettbewerbern im Bereich "XXX" einzugehen.</p>
+        <p class="form-hint">Der Influencer verpflichtet sich im angegebenen Zeitraum keine Kooperationen mit unmittelbaren Wettbewerbern im angegebenen Bereich einzugehen. Ohne Zeitraum gilt: zwei Wochen nach Veröffentlichung.</p>
+
+        <div class="form-two-col">
+          <div class="form-field">
+            <label for="contracting_exklusivitaet_von">Zeitraum von</label>
+            <input type="date" id="contracting_exklusivitaet_von" name="contracting_exklusivitaet_von"
+                   value="${this.formData.contracting_exklusivitaet_von || ''}">
+          </div>
+          <div class="form-field">
+            <label for="contracting_exklusivitaet_bis">Zeitraum bis</label>
+            <input type="date" id="contracting_exklusivitaet_bis" name="contracting_exklusivitaet_bis"
+                   value="${this.formData.contracting_exklusivitaet_bis || ''}">
+          </div>
+        </div>
 
         <div class="form-field">
           <label for="contracting_exklusivitaet_bereich">Wettbewerbs-Bereich</label>

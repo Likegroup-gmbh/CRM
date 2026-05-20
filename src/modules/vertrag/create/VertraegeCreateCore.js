@@ -250,11 +250,14 @@ VertraegeCreate.prototype.loadDraftFromDB = async function(draftId) {
           contracting_buyout_aktiv: draft.contracting_buyout_aktiv || false,
           contracting_buyout_plattformen: draft.contracting_buyout_plattformen || [],
           contracting_buyout_art: draft.contracting_buyout_art || [],
+          contracting_buyout_art_sonstige: draft.contracting_buyout_art_sonstige,
           contracting_buyout_nutzungsdauer: draft.contracting_buyout_nutzungsdauer,
           contracting_buyout_geografisch: draft.contracting_buyout_geografisch,
           contracting_buyout_besonderheiten: draft.contracting_buyout_besonderheiten,
           contracting_veroeffentlichungsdatum: draft.contracting_veroeffentlichungsdatum,
-          contracting_exklusivitaet_bereich: draft.contracting_exklusivitaet_bereich
+          contracting_exklusivitaet_bereich: draft.contracting_exklusivitaet_bereich,
+          contracting_exklusivitaet_von: draft.contracting_exklusivitaet_von,
+          contracting_exklusivitaet_bis: draft.contracting_exklusivitaet_bis
         };
         this.selectedTyp = draft.typ;
         this.isGenerated = true;

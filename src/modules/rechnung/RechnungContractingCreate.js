@@ -51,6 +51,7 @@ export async function handleContractingCreateSubmit(form) {
   submitData.vertrag_id = null;
   submitData.contracting_position_id = null;
   submitData.created_by_id = window.currentUser?.id || null;
+  submitData.ksk_pflichtig = submitData.ksk_pflichtig === 'on' || submitData.ksk_pflichtig === true || submitData.ksk_pflichtig === 'true';
 
   // Rechnungs-Nr aus Contract-Label oder Fallback
   const contractSelect = form.querySelector('select[name="auftrag_id"]');
@@ -115,6 +116,7 @@ export async function handleContractingEditSubmit(form, existingRechnung) {
   submitData.rechnungstyp = 'contracting';
   submitData.kampagne_id = null;
   submitData.kooperation_id = null;
+  submitData.ksk_pflichtig = submitData.ksk_pflichtig === 'on' || submitData.ksk_pflichtig === true || submitData.ksk_pflichtig === 'true';
 
   try {
     const { error } = await window.supabase

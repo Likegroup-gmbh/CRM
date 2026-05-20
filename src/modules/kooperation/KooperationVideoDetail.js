@@ -7,6 +7,7 @@ import {
   VIDEO_FEEDBACK_LEGACY_SELECT,
   VIDEO_FEEDBACK_FIELDS
 } from '../../core/VideoFeedbackBuckets.js';
+import { MAX_VIDEO_SIZE } from '../../core/VideoUploadUtils.js';
 
 const DEBUG_UPLOAD = true;
 
@@ -608,8 +609,9 @@ export const kooperationVideoDetail = {
 
     const setFile = (file) => {
       if (!file) return;
-      if (file.size > 500 * 1024 * 1024) {
-        alert('Datei zu groß (max. 500 MB)');
+      if (file.size > MAX_VIDEO_SIZE) {
+        const maxMB = Math.round(MAX_VIDEO_SIZE / (1024 * 1024));
+        alert(`Datei zu groß (max. ${maxMB} MB)`);
         return;
       }
       this._selectedFile = file;

@@ -9,10 +9,20 @@ import { KAMPAGNENARTEN_MAPPING } from '../../auftrag/logic/KampagnenartenMappin
 export const CHIP_PREFIX_MAP = {
   ugc_paid: 'ugc_paid',
   ugc_organic: 'ugc_organic',
+  ugc_pro_paid: 'ugc_pro_paid',
+  ugc_pro_organic: 'ugc_pro_organic',
+  ugc_video_paid: 'ugc_video_paid',
+  ugc_video_organic: 'ugc_video_organic',
   influencer: 'influencer',
   vorort_produktion: 'vor_ort',
-  story: 'story'
+  story: 'story',
+  whitelisting: 'whitelisting',
+  darkposting: 'darkposting'
 };
+
+// Chips die KEINE Legacy-Spalten in auftrag_details / kampagne haben.
+// Deren Daten werden ausschliesslich in auftrag_kampagnenart_blocks persistiert.
+export const CHIPS_WITHOUT_LEGACY_COLUMNS = new Set(['whitelisting', 'darkposting']);
 
 // Reverse-Map: prefix -> chipValue (z.B. 'vor_ort' -> 'vorort_produktion')
 export const PREFIX_TO_CHIP_MAP = Object.entries(CHIP_PREFIX_MAP).reduce((acc, [chip, prefix]) => {
@@ -288,12 +298,14 @@ export function mapBudgetsToDbColumns(campaignBudgets = {}, activeChips = []) {
   const active = new Set(activeChips || []);
 
   Object.entries(CHIP_PREFIX_MAP).forEach(([chipValue, prefix]) => {
+    if (CHIPS_WITHOUT_LEGACY_COLUMNS.has(chipValue)) return;
+
     const isActive = active.has(chipValue);
     const values = (isActive && campaignBudgets[chipValue]) || {};
     CAMPAIGN_FIELD_SUFFIXES.forEach(suffix => {
       const col = `${prefix}_${suffix}`;
       if (!isActive) {
-        payload[col] = suffix === 'budget_info' ? null : null;
+        payload[col] = null;
       } else if (suffix === 'budget_info') {
         payload[col] = values[suffix] || null;
       } else {

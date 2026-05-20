@@ -50,7 +50,8 @@ export class ProjektErstellenWizard {
         ust_betrag: null,
         bruttobetrag: null,
 
-        auftragsbestaetigungen_files: []
+        auftragsbestaetigungen_files: [],
+        rechnungen_files: []
       },
       details: {
         campaign_type: [],
@@ -143,7 +144,7 @@ export class ProjektErstellenWizard {
     this.updateFeedback();
   }
 
-  async initEditMode(auftragId) {
+  async initEditMode(auftragId, { initialStep } = {}) {
     this._abort?.abort();
     this._abort = new AbortController();
 
@@ -171,7 +172,9 @@ export class ProjektErstellenWizard {
     this._isContracting = this.isContracting;
     this.steps = this.buildSteps();
     this.totalSteps = this.steps.length;
-    this.currentStep = 1;
+
+    // initialStep aus benanntem Parameter oder URL ?step= auslesen
+    this.currentStep = this._resolveInitialStep(initialStep) || 1;
 
     this.render();
 
@@ -180,6 +183,25 @@ export class ProjektErstellenWizard {
       await activeStep.onEnter();
     }
     this.updateFeedback();
+  }
+
+  _resolveInitialStep(named) {
+    const labels = this.getStepLabels().map(l => l.toLowerCase());
+    const STEP_MAP = { basis: 'basisdaten', details: 'details', kampagnen: 'kampagne', finanzen: 'finanzen' };
+
+    // 1) Explizit übergebener Name
+    let key = named;
+    // 2) Fallback: URL-Parameter ?step=
+    if (!key) {
+      try {
+        key = new URL(window.location.href).searchParams.get('step');
+      } catch { /* ignore */ }
+    }
+    if (!key) return null;
+
+    const normalized = STEP_MAP[key.toLowerCase()] || key.toLowerCase();
+    const idx = labels.indexOf(normalized);
+    return idx >= 0 ? idx + 1 : null;
   }
 
   render() {

@@ -20,7 +20,8 @@ const config = {
     notiz: 'string',
     erlaubt_updates: 'toggle',
     erlaubt_newsletter: 'toggle',
-    erlaubt_webinare: 'toggle'
+    erlaubt_webinare: 'toggle',
+    ist_rechnungsverantwortlich: 'toggle'
   },
   relations: {
     unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' },

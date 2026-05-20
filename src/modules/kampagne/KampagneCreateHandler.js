@@ -380,9 +380,10 @@ export class KampagneCreateHandler {
       
       console.log('🔄 Starte Transfer Kampagnendaten → Auftragsdetails');
       
-      const { KAMPAGNENARTEN_MAPPING } = await import('../auftrag/logic/KampagnenartenMapping.js');
+      const { KAMPAGNENARTEN_MAPPING, PREFIXES_WITHOUT_LEGACY_COLUMNS } = await import('../auftrag/logic/KampagnenartenMapping.js');
       const uniqueConfigs = Object.values(KAMPAGNENARTEN_MAPPING)
-        .filter((config, index, configs) => configs.findIndex(c => c.prefix === config.prefix) === index);
+        .filter((config, index, configs) => configs.findIndex(c => c.prefix === config.prefix) === index)
+        .filter(config => !PREFIXES_WITHOUT_LEGACY_COLUMNS.has(config.prefix));
       
       const auftragsDetailsUpdate = {};
       let gesamtVideos = 0;

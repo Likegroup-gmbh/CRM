@@ -35,12 +35,17 @@ export class ProjektErstellenModule {
 
     this.destroy();
 
+    // ?step= Parameter aus URL lesen und weitergeben
+    let initialStep;
+    try {
+      initialStep = new URL(window.location.href).searchParams.get('step') || undefined;
+    } catch { /* ignore */ }
+
     this.wizard = new ProjektErstellenWizard(window.content);
     try {
-      await this.wizard.initEditMode(auftragId);
+      await this.wizard.initEditMode(auftragId, { initialStep });
     } catch (e) {
       console.error('❌ ProjektErstellenModule: initEditMode fehlgeschlagen', e);
-      // Bei Lade-Fehler zurueck zur Auftrags-Detailseite
       window.navigateTo?.(`/auftrag/${auftragId}`);
     }
   }

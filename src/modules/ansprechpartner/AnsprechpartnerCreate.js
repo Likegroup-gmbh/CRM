@@ -44,6 +44,17 @@ export class AnsprechpartnerCreate {
     // Formular-Events binden (FormSystem übernimmt Submit-Verarbeitung)
     window.formSystem.bindFormEvents('ansprechpartner', null);
 
+    // Im Unternehmen-Modus: Management-Feld entfernen (irrelevant)
+    if (this.mode !== 'management') {
+      requestAnimationFrame(() => {
+        const mgmtField = document.querySelector('#management_id, [name="management_id"]');
+        if (mgmtField) {
+          const wrapper = mgmtField.closest('.form-field, .form-group') || mgmtField.parentElement;
+          if (wrapper) wrapper.remove();
+        }
+      });
+    }
+
     // Im Management-Modus: Management-Feld hervorheben + Hint anzeigen
     if (this.mode === 'management') {
       requestAnimationFrame(() => {

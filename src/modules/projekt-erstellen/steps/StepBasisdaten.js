@@ -21,6 +21,7 @@ export class StepBasisdaten {
 
     this.titelGenerator = null;
     this.uploader = null;
+    this.rechnungUploader = null;
     this._liveHandler = null;
     this._stammdatenLoaded = false;
   }
@@ -86,6 +87,11 @@ export class StepBasisdaten {
           <div class="form-field">
             <label>Auftragsbestätigungen</label>
             <div id="pe-auftragsbestaetigung-uploader" class="uploader uploader--auftragsbestaetigung" data-name="auftragsbestaetigungen"></div>
+            <small class="form-hint">PDF, JPG oder PNG (max. 25 MB pro Datei). Mehrfach-Upload möglich. Werden nach dem Anlegen in Dropbox gespeichert.</small>
+          </div>
+          <div class="form-field">
+            <label>Rechnungen</label>
+            <div id="pe-rechnung-uploader" class="uploader uploader--rechnung" data-name="rechnungen"></div>
             <small class="form-hint">PDF, JPG oder PNG (max. 25 MB pro Datei). Mehrfach-Upload möglich. Werden nach dem Anlegen in Dropbox gespeichert.</small>
           </div>
         ` : ''}
@@ -186,6 +192,7 @@ export class StepBasisdaten {
     }
 
     this.mountAuftragsbestaetigungUploader();
+    this.mountRechnungUploader();
   }
 
   mountAuftragsbestaetigungUploader() {
@@ -212,6 +219,33 @@ export class StepBasisdaten {
     if (Array.isArray(previousFiles) && previousFiles.length > 0) {
       this.uploader.files = [...previousFiles];
       this.uploader.renderList();
+    }
+  }
+
+  mountRechnungUploader() {
+    if (!this.wizard.isContracting) {
+      this.rechnungUploader = null;
+      return;
+    }
+
+    const root = document.getElementById('pe-rechnung-uploader');
+    if (!root) return;
+
+    this.rechnungUploader = new UploaderField({
+      multiple: true,
+      accept: AUFTRAGSBESTAETIGUNG_ACCEPT,
+      maxFileSize: AUFTRAGSBESTAETIGUNG_MAX_SIZE,
+      onFilesChanged: (files) => {
+        this.wizard.formData.auftrag.rechnungen_files = files;
+        this.wizard.updateFeedback();
+      }
+    });
+    this.rechnungUploader.mount(root);
+
+    const previousFiles = this.wizard.formData.auftrag.rechnungen_files;
+    if (Array.isArray(previousFiles) && previousFiles.length > 0) {
+      this.rechnungUploader.files = [...previousFiles];
+      this.rechnungUploader.renderList();
     }
   }
 
@@ -446,6 +480,10 @@ export class StepBasisdaten {
       ? [...this.uploader.files]
       : (Array.isArray(a.auftragsbestaetigungen_files) ? a.auftragsbestaetigungen_files : []);
 
+    const rechnungen_files = this.rechnungUploader
+      ? [...this.rechnungUploader.files]
+      : (Array.isArray(a.rechnungen_files) ? a.rechnungen_files : []);
+
     return {
       auftrag: {
         unternehmen_id: unternehmenId,
@@ -455,7 +493,8 @@ export class StepBasisdaten {
         ende,
         titel,
         titel_manuell_geaendert: this.wizard.formData.auftrag.titel_manuell_geaendert,
-        auftragsbestaetigungen_files
+        auftragsbestaetigungen_files,
+        rechnungen_files
       }
     };
   }
@@ -463,5 +502,6 @@ export class StepBasisdaten {
   destroy() {
     this.titelGenerator = null;
     this.uploader = null;
+    this.rechnungUploader = null;
   }
 }

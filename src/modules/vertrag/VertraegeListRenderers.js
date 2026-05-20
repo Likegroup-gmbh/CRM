@@ -1,5 +1,6 @@
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
+import { renderTabButton } from '../../core/TabUtils.js';
 
 const escapeHtml = (text) => {
   if (!text) return '';
@@ -123,7 +124,17 @@ export function updateUnternehmenListTableBody(folders) {
   `).join('');
 }
 
-export function renderVertraegeView({ isAdmin, canBulkDelete, canEdit }) {
+export function renderVertraegeView({ isAdmin, canBulkDelete, canEdit }, activeTypeTab = 'vertraege') {
+  const typeTabs = [
+    { id: 'vertraege', label: 'Verträge' },
+    { id: 'contracting', label: 'Contracting' }
+  ].map(t => renderTabButton({
+    tab: t.id,
+    label: t.label,
+    isActive: t.id === activeTypeTab,
+    skipPermissionCheck: true
+  })).join('');
+
   return `
     <div class="list-container">
       <div class="table-filter-wrapper">
@@ -146,6 +157,8 @@ export function renderVertraegeView({ isAdmin, canBulkDelete, canEdit }) {
           ${canEdit ? '<button id="btn-vertrag-new" class="primary-btn">Neuen Vertrag anlegen</button>' : ''}
         </div>
       </div>
+
+      <div class="tab-navigation vertraege-type-tabs">${typeTabs}</div>
 
       <div class="table-container">
         <table class="data-table">

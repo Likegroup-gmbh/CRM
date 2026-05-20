@@ -13,13 +13,11 @@ export function makeRecalcAllPrices(form, videosList) {
     const ekField = form.querySelector('input[name="einkaufspreis_netto"]');
     if (ekField) {
       ekField.value = ekSum.toFixed(2);
-      ekField.dispatchEvent(new Event('input', { bubbles: true }));
       ekField.dispatchEvent(new Event('change', { bubbles: true }));
     }
     const vkField = form.querySelector('input[name="verkaufspreis_netto"]');
     if (vkField) {
       vkField.value = vkSum.toFixed(2);
-      vkField.dispatchEvent(new Event('input', { bubbles: true }));
       vkField.dispatchEvent(new Event('change', { bubbles: true }));
     }
   };
@@ -54,9 +52,16 @@ export function attachVideoStepper(form, { videoInput, videosList, contentArtOpt
     const selected = parseInt(videoInput.value || '0', 10) || 0;
     const remainingAfter = Math.max(0, max - selected);
     const sSel = selected === 1 ? 'Video' : 'Videos';
-    info.textContent = max > 0 ? `${selected} ${sSel} | Rest: ${remainingAfter}` : 'Keine Videos verfügbar';
-    minusBtn.disabled = max === 0 || selected <= min;
-    plusBtn.disabled = max === 0 || selected >= max;
+    const isUnlimited = videoInput.dataset.unlimited === 'true';
+    if (isUnlimited) {
+      info.textContent = `${selected} ${sSel} (offen)`;
+      minusBtn.disabled = selected <= min;
+      plusBtn.disabled = false;
+    } else {
+      info.textContent = max > 0 ? `${selected} ${sSel} | Rest: ${remainingAfter}` : 'Keine Videos verfügbar';
+      minusBtn.disabled = max === 0 || selected <= min;
+      plusBtn.disabled = max === 0 || selected >= max;
+    }
   };
 
   const syncVideosToCount = () => {
@@ -79,6 +84,8 @@ export function attachVideoStepper(form, { videoInput, videosList, contentArtOpt
   const clamp = (v) => {
     const { min, max } = getBounds();
     const n = parseInt(v || '0', 10) || 0;
+    const isUnlimited = videoInput.dataset.unlimited === 'true';
+    if (isUnlimited) return String(Math.max(min, n));
     if (!max) return '';
     return String(Math.max(min, Math.min(n, max)));
   };
@@ -117,7 +124,14 @@ export function refreshStepperUI(videoInput) {
   const selected = parseInt(videoInput.value || '0', 10) || 0;
   const remainingAfter = Math.max(0, max - selected);
   const sSel = selected === 1 ? 'Video' : 'Videos';
-  if (stepperInfo) stepperInfo.textContent = max > 0 ? `${selected} ${sSel} | Rest: ${remainingAfter}` : 'Keine Videos verfügbar';
-  if (minusBtn) minusBtn.disabled = max === 0 || selected <= min;
-  if (plusBtn) plusBtn.disabled = max === 0 || selected >= max;
+  const isUnlimited = videoInput.dataset.unlimited === 'true';
+  if (isUnlimited) {
+    if (stepperInfo) stepperInfo.textContent = `${selected} ${sSel} (offen)`;
+    if (minusBtn) minusBtn.disabled = selected <= min;
+    if (plusBtn) plusBtn.disabled = false;
+  } else {
+    if (stepperInfo) stepperInfo.textContent = max > 0 ? `${selected} ${sSel} | Rest: ${remainingAfter}` : 'Keine Videos verfügbar';
+    if (minusBtn) minusBtn.disabled = max === 0 || selected <= min;
+    if (plusBtn) plusBtn.disabled = max === 0 || selected >= max;
+  }
 }

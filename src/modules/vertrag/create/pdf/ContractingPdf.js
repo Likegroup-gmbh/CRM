@@ -121,13 +121,21 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
     const buyoutArtLabels = {
       whitelisting: 'Whitelisting (Meta)',
       spark_ad: 'Spark Ad (TikTok)',
-      werbeanzeigen: 'Werbeanzeigen (Unternehmenskanal)'
+      werbeanzeigen: 'Werbeanzeigen (Unternehmenskanal)',
+      dark_ads: 'Dark Ads',
+      sonstige: 'Sonstige'
     };
     const geoLabels = {
       deutschland: 'Deutschland',
       dach: 'DACH',
       europa: 'Europa',
       global: 'Global'
+    };
+    const zahlungszielLabels = {
+      '14_tage': '14 Tage',
+      '30_tage': '30 Tage',
+      '45_tage': '45 Tage',
+      '60_tage': '60 Tage'
     };
 
     // Daten aus DB-Spalten
@@ -362,34 +370,40 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
       doc.setFont('helvetica', 'normal');
       y += 6;
       Object.entries(buyoutArtLabels).forEach(([key, label]) => {
+        checkPageBreak(8);
         drawCheckbox(14, y, buyoutArt.includes(key), label);
         y += 5;
       });
+      if (buyoutArt.includes('sonstige') && vertrag.contracting_buyout_art_sonstige) {
+        checkPageBreak(8);
+        y = addWrappedText(`Sonstige: ${vertrag.contracting_buyout_art_sonstige}`, 18, y, 176);
+      }
 
       y += 4;
       doc.text(`Nutzungsdauer: ${vertrag.contracting_buyout_nutzungsdauer || 'XXX'}`, 14, y);
       y += 6;
+    }
 
-      checkPageBreak(35);
+    // Geografisch und Besonderheiten unabhaengig vom Buyout-Status anzeigen
+    checkPageBreak(35);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Geografisch:', 14, y);
+    doc.setFont('helvetica', 'normal');
+    y += 6;
+    cbX = 14;
+    Object.entries(geoLabels).forEach(([key, label]) => {
+      drawCheckbox(cbX, y, vertrag.contracting_buyout_geografisch === key, label);
+      cbX += 32;
+    });
+    y += 8;
+
+    if (vertrag.contracting_buyout_besonderheiten) {
+      checkPageBreak(25);
       doc.setFont('helvetica', 'bold');
-      doc.text('Geografisch:', 14, y);
+      doc.text('Besonderheiten / Absprachen:', 14, y);
       doc.setFont('helvetica', 'normal');
       y += 6;
-      cbX = 14;
-      Object.entries(geoLabels).forEach(([key, label]) => {
-        drawCheckbox(cbX, y, vertrag.contracting_buyout_geografisch === key, label);
-        cbX += 32;
-      });
-      y += 8;
-
-      if (vertrag.contracting_buyout_besonderheiten) {
-        checkPageBreak(25);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Besonderheiten / Absprachen:', 14, y);
-        doc.setFont('helvetica', 'normal');
-        y += 6;
-        y = addWrappedText(vertrag.contracting_buyout_besonderheiten, 14, y, 180);
-      }
+      y = addWrappedText(vertrag.contracting_buyout_besonderheiten, 14, y, 180);
     }
 
     // §4 Rechteübertragung
@@ -446,7 +460,8 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
     y += 4;
     y = addWrappedText('(2) Ein Anspruch auf darüberhinausgehende Vergütung, insbesondere in Form von Sachleistungen, besteht nicht.', 14, y, 180);
     y += 4;
-    y = addWrappedText('(3) Die Zahlung erfolgt innerhalb von 45 Tagen nach Leistungserbringung und Rechnungsstellung.', 14, y, 180);
+    const zahlungszielText = zahlungszielLabels[vertrag.zahlungsziel] || '45 Tage';
+    y = addWrappedText(`(3) Die Zahlung erfolgt innerhalb von ${zahlungszielText} nach Leistungserbringung und Rechnungsstellung.`, 14, y, 180);
     y += 4;
     y = addWrappedText('(4) Der Auftraggeber führt die gesetzlich vorgeschriebene Künstlersozialabgabe gemäß § 24 KSVG ab, soweit erforderlich.', 14, y, 180);
 
@@ -528,7 +543,19 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
     doc.setFontSize(10);
     y += 8;
     const exklBereich = vertrag.contracting_exklusivitaet_bereich || 'XXX';
-    y = addWrappedText(`Der Influencer verpflichtet sich für die Dauer von zwei Wochen nach Veröffentlichung des Contents, keine Kooperationen mit unmittelbaren Wettbewerbern im Bereich "${exklBereich}" einzugehen.`, 14, y, 180);
+    const exklVon = vertrag.contracting_exklusivitaet_von ? formatDate(vertrag.contracting_exklusivitaet_von) : null;
+    const exklBis = vertrag.contracting_exklusivitaet_bis ? formatDate(vertrag.contracting_exklusivitaet_bis) : null;
+    let exklSatz;
+    if (exklVon && exklBis) {
+      exklSatz = `Der Influencer verpflichtet sich für den Zeitraum vom ${exklVon} bis ${exklBis}, keine Kooperationen mit unmittelbaren Wettbewerbern im Bereich "${exklBereich}" einzugehen.`;
+    } else if (exklVon) {
+      exklSatz = `Der Influencer verpflichtet sich ab dem ${exklVon}, keine Kooperationen mit unmittelbaren Wettbewerbern im Bereich "${exklBereich}" einzugehen.`;
+    } else if (exklBis) {
+      exklSatz = `Der Influencer verpflichtet sich bis zum ${exklBis}, keine Kooperationen mit unmittelbaren Wettbewerbern im Bereich "${exklBereich}" einzugehen.`;
+    } else {
+      exklSatz = `Der Influencer verpflichtet sich für die Dauer von zwei Wochen nach Veröffentlichung des Contents, keine Kooperationen mit unmittelbaren Wettbewerbern im Bereich "${exklBereich}" einzugehen.`;
+    }
+    y = addWrappedText(exklSatz, 14, y, 180);
 
     // §11 Leistungsstoerungen
     checkPageBreak(40);

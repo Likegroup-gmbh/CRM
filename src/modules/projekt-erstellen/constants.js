@@ -10,6 +10,10 @@ export const AUFTRAG_TYPES = [
 export const CAMPAIGN_TYPES = [
   { value: 'ugc_paid', label: 'UGC Paid' },
   { value: 'ugc_organic', label: 'UGC Organic' },
+  { value: 'ugc_pro_paid', label: 'UGC Pro Paid' },
+  { value: 'ugc_pro_organic', label: 'UGC Pro Organic' },
+  { value: 'ugc_video_paid', label: 'UGC Video Paid' },
+  { value: 'ugc_video_organic', label: 'UGC Video Organic' },
   { value: 'influencer', label: 'Influencer Kampagne' },
   { value: 'vorort_produktion', label: 'Vor-Ort-Produktion' },
   { value: 'story', label: 'Story' },

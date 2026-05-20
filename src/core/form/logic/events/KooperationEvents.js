@@ -23,7 +23,6 @@ export async function setup(form, ctx) {
     const ekField = form.querySelector('input[name="einkaufspreis_netto"]');
     if (ekField) {
       ekField.value = sum.toFixed(2);
-      ekField.dispatchEvent(new Event('input', { bubbles: true }));
       ekField.dispatchEvent(new Event('change', { bubbles: true }));
     }
   };
@@ -36,7 +35,6 @@ export async function setup(form, ctx) {
     const vkField = form.querySelector('input[name="verkaufspreis_netto"]');
     if (vkField) {
       vkField.value = sum.toFixed(2);
-      vkField.dispatchEvent(new Event('input', { bubbles: true }));
       vkField.dispatchEvent(new Event('change', { bubbles: true }));
     }
   };
@@ -76,6 +74,10 @@ export async function setup(form, ctx) {
     const clamp = (v) => {
       const { min, max } = getBounds();
       const n = parseInt(v || '0', 10) || 0;
+      const isUnlimited = videoInput.dataset.unlimited === 'true';
+      if (isUnlimited) {
+        return String(Math.max(min, n));
+      }
       if (!max) return '';
       return String(Math.max(min, Math.min(n, max)));
     };
@@ -85,9 +87,16 @@ export async function setup(form, ctx) {
       const selected = parseInt(videoInput.value || '0', 10) || 0;
       const remainingAfter = Math.max(0, max - selected);
       const sSel = selected === 1 ? 'Video' : 'Videos';
-      info.textContent = max > 0 ? `${selected} ${sSel} | Rest: ${remainingAfter}` : (kampagneSelect.value ? 'Keine Videos verfügbar' : 'Bitte zuerst Kampagne wählen');
-      minusBtn.disabled = max === 0 || selected <= (parseInt(videoInput.min || '0', 10) || 0);
-      plusBtn.disabled = max === 0 || selected >= max;
+      const isUnlimited = videoInput.dataset.unlimited === 'true';
+      if (isUnlimited) {
+        info.textContent = `${selected} ${sSel} (offen)`;
+        minusBtn.disabled = selected <= (parseInt(videoInput.min || '0', 10) || 0);
+        plusBtn.disabled = false;
+      } else {
+        info.textContent = max > 0 ? `${selected} ${sSel} | Rest: ${remainingAfter}` : (kampagneSelect.value ? 'Keine Videos verfügbar' : 'Bitte zuerst Kampagne wählen');
+        minusBtn.disabled = max === 0 || selected <= (parseInt(videoInput.min || '0', 10) || 0);
+        plusBtn.disabled = max === 0 || selected >= max;
+      }
     };
 
     const syncVideosToCount = () => {
@@ -121,7 +130,8 @@ export async function setup(form, ctx) {
     plusBtn.addEventListener('click', () => {
       const { max } = getBounds();
       const cur = parseInt(videoInput.value || '0', 10) || 0;
-      const next = Math.min(max, cur + 1);
+      const isUnlimited = videoInput.dataset.unlimited === 'true';
+      const next = isUnlimited ? cur + 1 : Math.min(max, cur + 1);
       videoInput.value = clamp(String(next));
       videoInput.dispatchEvent(new Event('input', { bubbles: true }));
       videoInput.dispatchEvent(new Event('change', { bubbles: true }));
@@ -150,16 +160,27 @@ export async function setup(form, ctx) {
     const selected = parseInt(videoInput.value || '0', 10) || 0;
     const remainingAfter = Math.max(0, max - selected);
     const sSel = selected === 1 ? 'Video' : 'Videos';
+    const isUnlimited = videoInput.dataset.unlimited === 'true';
     if (stepperInfo) {
-      stepperInfo.textContent = max > 0 ? `${selected} ${sSel} | Rest: ${remainingAfter}` : (kampagneSelect.value ? 'Keine Videos verfügbar' : 'Bitte zuerst Kampagne wählen');
+      if (isUnlimited) {
+        stepperInfo.textContent = `${selected} ${sSel} (offen)`;
+      } else {
+        stepperInfo.textContent = max > 0 ? `${selected} ${sSel} | Rest: ${remainingAfter}` : (kampagneSelect.value ? 'Keine Videos verfügbar' : 'Bitte zuerst Kampagne wählen');
+      }
     }
-    if (minusBtn) minusBtn.disabled = max === 0 || selected <= min;
-    if (plusBtn) plusBtn.disabled = max === 0 || selected >= max;
+    if (isUnlimited) {
+      if (minusBtn) minusBtn.disabled = selected <= min;
+      if (plusBtn) plusBtn.disabled = false;
+    } else {
+      if (minusBtn) minusBtn.disabled = max === 0 || selected <= min;
+      if (plusBtn) plusBtn.disabled = max === 0 || selected >= max;
+    }
   };
 
-  const clampValue = (value, min, max) => {
+  const clampValue = (value, min, max, unlimited = false) => {
     const n = parseInt(value, 10);
     if (isNaN(n)) return '';
+    if (unlimited) return String(Math.max(min, n));
     if (max === 0) return '';
     return String(Math.max(min, Math.min(n, max)));
   };
@@ -183,6 +204,7 @@ export async function setup(form, ctx) {
     const kampagneId = kampagneSelect.value;
     if (!kampagneId) {
       videoInput.disabled = true;
+      videoInput.dataset.unlimited = 'false';
       videoInput.removeAttribute('max');
       videoInput.removeAttribute('min');
       videoInput.value = '';
@@ -265,15 +287,30 @@ export async function setup(form, ctx) {
       const usedVideos = (existingKoops || []).reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
       const remaining = Math.max(0, totalVideos - usedVideos);
 
-      videoInput.disabled = remaining === 0;
-      videoInput.min = remaining > 0 ? '1' : '0';
-      videoInput.max = String(remaining);
-      videoInput.step = '1';
+      const isUnlimited = totalVideos === 0;
+      videoInput.dataset.unlimited = isUnlimited ? 'true' : 'false';
 
-      if (videoInput.value) {
-        videoInput.value = clampValue(videoInput.value, 1, remaining);
-      } else if (remaining > 0) {
-        videoInput.value = '1';
+      if (isUnlimited) {
+        videoInput.disabled = false;
+        videoInput.min = '1';
+        videoInput.removeAttribute('max');
+        videoInput.step = '1';
+        if (!videoInput.value) {
+          videoInput.value = '1';
+        } else {
+          videoInput.value = clampValue(videoInput.value, 1, 0, true);
+        }
+      } else {
+        videoInput.disabled = remaining === 0;
+        videoInput.min = remaining > 0 ? '1' : '0';
+        videoInput.max = String(remaining);
+        videoInput.step = '1';
+
+        if (videoInput.value) {
+          videoInput.value = clampValue(videoInput.value, 1, remaining);
+        } else if (remaining > 0) {
+          videoInput.value = '1';
+        }
       }
       refreshStepperUI();
 
@@ -304,7 +341,10 @@ export async function setup(form, ctx) {
   kampagneSelect.addEventListener('change', updateVideoLimits);
   videoInput.addEventListener('change', async () => {
     const max = parseInt(videoInput.max || '0', 10) || 0;
-    if (max > 0) {
+    const isUnlimited = videoInput.dataset.unlimited === 'true';
+    if (isUnlimited) {
+      videoInput.value = clampValue(videoInput.value, 1, 0, true);
+    } else if (max > 0) {
       videoInput.value = clampValue(videoInput.value, 1, max);
     }
     refreshStepperUI();

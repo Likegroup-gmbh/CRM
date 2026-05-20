@@ -7,6 +7,7 @@ import { CAMPAIGN_TYPES } from '../constants.js';
 import {
   aggregateCampaignBlocksForLegacy,
   CHIP_PREFIX_MAP,
+  CHIPS_WITHOUT_LEGACY_COLUMNS,
   DEFAULT_CAMPAIGN_BLOCK_STATUS,
   getCampaignTypesFromBlocks,
   mapBudgetsToDbColumns,
@@ -94,6 +95,8 @@ export class ProjektErstellenPersistence {
     const active = new Set(activeChips || []);
 
     Object.entries(CHIP_PREFIX_MAP).forEach(([chipValue, prefix]) => {
+      if (CHIPS_WITHOUT_LEGACY_COLUMNS.has(chipValue)) return;
+
       const values = active.has(chipValue) ? (campaignBudgets?.[chipValue] || {}) : {};
       payload[`${prefix}_video_anzahl`] = active.has(chipValue) ? this.parseCount(values.video_anzahl) : null;
       payload[`${prefix}_creator_anzahl`] = active.has(chipValue) ? this.parseCount(values.creator_anzahl) : null;
@@ -199,6 +202,28 @@ export class ProjektErstellenPersistence {
     };
   }
 
+  _pickWizardKampagneFields(fullPayload) {
+    const campaignColumns = Object.values(CHIP_PREFIX_MAP).flatMap(prefix => [
+      `${prefix}_video_anzahl`,
+      `${prefix}_creator_anzahl`,
+      `${prefix}_bilder_anzahl`,
+      `${prefix}_videographen_anzahl`
+    ]);
+    const WIZARD_OWNED_KEYS = [
+      'kampagnenname', 'unternehmen_id', 'marke_id', 'art_der_kampagne',
+      'start', 'deadline', 'deadline_post_produktion',
+      'creatoranzahl', 'videoanzahl',
+      ...campaignColumns
+    ];
+    const patch = {};
+    for (const key of WIZARD_OWNED_KEYS) {
+      if (key in fullPayload) {
+        patch[key] = fullPayload[key];
+      }
+    }
+    return patch;
+  }
+
   async loadCampaignArtIdMap(labels = []) {
     const supabase = SUPABASE();
     const uniqueLabels = Array.from(new Set((labels || []).filter(Boolean)));
@@ -278,11 +303,19 @@ export class ProjektErstellenPersistence {
         currentBenutzerId
       });
 
+      // Rechnungen nach Dropbox hochladen + DB-Eintraege anlegen
+      const rechnungUploadResult = await this.uploadRechnungenIfAny({
+        formData,
+        auftragId,
+        auftragPayload,
+        currentBenutzerId
+      });
+
       return {
         success: true,
         auftragId,
-        uploadedDocuments: uploadResult.successes,
-        uploadErrors: uploadResult.errors
+        uploadedDocuments: [...uploadResult.successes, ...rechnungUploadResult.successes],
+        uploadErrors: [...uploadResult.errors, ...rechnungUploadResult.errors]
       };
     } catch (e) {
       const friendly = this.friendlyError(e, 'Contract konnte nicht angelegt werden');
@@ -333,6 +366,47 @@ export class ProjektErstellenPersistence {
     });
   }
 
+  async uploadRechnungenIfAny({ formData, auftragId, auftragPayload, currentBenutzerId }) {
+    const files = formData?.auftrag?.rechnungen_files;
+    if (!Array.isArray(files) || files.length === 0) {
+      return { successes: [], errors: [] };
+    }
+
+    const supabase = SUPABASE();
+    let unternehmenName = '';
+    let markeName = '';
+
+    try {
+      if (auftragPayload.unternehmen_id) {
+        const { data: u } = await supabase
+          .from('unternehmen')
+          .select('firmenname')
+          .eq('id', auftragPayload.unternehmen_id)
+          .single();
+        unternehmenName = u?.firmenname || '';
+      }
+      if (auftragPayload.marke_id) {
+        const { data: m } = await supabase
+          .from('marke')
+          .select('markenname')
+          .eq('id', auftragPayload.marke_id)
+          .single();
+        markeName = m?.markenname || '';
+      }
+    } catch (lookupErr) {
+      console.warn('⚠️ Unternehmen/Marke fuer Dropbox-Pfad nicht ermittelbar:', lookupErr);
+    }
+
+    return uploadAuftragsbestaetigungen(files, {
+      auftragId,
+      unternehmen: unternehmenName,
+      marke: markeName,
+      auftragstitel: auftragPayload.titel || '',
+      dokumentTyp: 'rechnung',
+      uploadedById: currentBenutzerId
+    });
+  }
+
   async submitEdit({ formData, auftragId, kampagneId, existingRaw } = {}) {
     const isContracting = formData.auftrag?.auftragtype === 'Contracting';
     if (isContracting) return this.submitEditContracting({ formData, auftragId, existingRaw });
@@ -373,14 +447,15 @@ export class ProjektErstellenPersistence {
         .upsert([detailsPayload], { onConflict: 'auftrag_id' });
       if (detailsErr) throw detailsErr;
 
-      // 3) Kampagne updaten oder neu anlegen
+      // 3) Kampagne updaten oder neu anlegen – beim Update nur Wizard-Felder patchen
       const kampagnePayload = this.buildKampagnePayload(formData);
       let savedKampagneId = kampagneId || null;
 
       if (savedKampagneId) {
+        const mergedPayload = this._pickWizardKampagneFields(kampagnePayload);
         const { error: kampagneErr } = await supabase
           .from('kampagne')
-          .update(kampagnePayload)
+          .update(mergedPayload)
           .eq('id', savedKampagneId);
         if (kampagneErr) throw kampagneErr;
       } else {
@@ -513,56 +588,63 @@ export class ProjektErstellenPersistence {
 
       const savedAuftragId = auftragData.id;
 
-      const detailsPayload = this.buildDetailsPayload(formData);
-      detailsPayload.auftrag_id = savedAuftragId;
-      detailsPayload.created_by_id = currentBenutzerId;
+      try {
+        const detailsPayload = this.buildDetailsPayload(formData);
+        detailsPayload.auftrag_id = savedAuftragId;
+        detailsPayload.created_by_id = currentBenutzerId;
 
-      const { error: detailsErr } = await supabase
-        .from('auftrag_details')
-        .insert(detailsPayload);
-      if (detailsErr) throw detailsErr;
+        const { error: detailsErr } = await supabase
+          .from('auftrag_details')
+          .insert(detailsPayload);
+        if (detailsErr) throw detailsErr;
 
-      const kampagnePayload = this.buildKampagnePayload(formData);
-      kampagnePayload.auftrag_id = savedAuftragId;
+        const kampagnePayload = this.buildKampagnePayload(formData);
+        kampagnePayload.auftrag_id = savedAuftragId;
 
-      const { data: kampagneData, error: kampagneErr } = await supabase
-        .from('kampagne')
-        .insert(kampagnePayload)
-        .select('id')
-        .single();
-      if (kampagneErr) throw kampagneErr;
+        const { data: kampagneData, error: kampagneErr } = await supabase
+          .from('kampagne')
+          .insert(kampagnePayload)
+          .select('id')
+          .single();
+        if (kampagneErr) throw kampagneErr;
 
-      const savedKampagneId = kampagneData.id;
+        const savedKampagneId = kampagneData.id;
 
-      const blockLabels = normalizeCampaignBlocks(formData.details || {})
-        .map(block => CAMPAIGN_TYPES.find(t => t.value === block.campaign_type)?.label || block.campaign_type);
-      const campaignArtIdMap = await this.loadCampaignArtIdMap(blockLabels);
-      const blockPayloads = this.buildCampaignBlockPayloads(formData, {
-        auftragId: savedAuftragId,
-        kampagneId: savedKampagneId,
-        createdById: currentBenutzerId,
-        campaignArtIdMap
-      });
+        const blockLabels = normalizeCampaignBlocks(formData.details || {})
+          .map(block => CAMPAIGN_TYPES.find(t => t.value === block.campaign_type)?.label || block.campaign_type);
+        const campaignArtIdMap = await this.loadCampaignArtIdMap(blockLabels);
+        const blockPayloads = this.buildCampaignBlockPayloads(formData, {
+          auftragId: savedAuftragId,
+          kampagneId: savedKampagneId,
+          createdById: currentBenutzerId,
+          campaignArtIdMap
+        });
 
-      if (blockPayloads.length > 0) {
-        const { error: blocksErr } = await supabase
-          .from('auftrag_kampagnenart_blocks')
-          .insert(blockPayloads);
-        if (blocksErr) throw blocksErr;
+        if (blockPayloads.length > 0) {
+          const { error: blocksErr } = await supabase
+            .from('auftrag_kampagnenart_blocks')
+            .insert(blockPayloads);
+          if (blocksErr) throw blocksErr;
+        }
+
+        const ansprechpartnerId = auftragPayload.ansprechpartner_id;
+        if (ansprechpartnerId) {
+          const { error: ansprechpartnerErr } = await supabase
+            .from('ansprechpartner_kampagne')
+            .insert({
+              kampagne_id: savedKampagneId,
+              ansprechpartner_id: ansprechpartnerId
+            });
+          if (ansprechpartnerErr) throw ansprechpartnerErr;
+        }
+
+        return { success: true, auftragId: savedAuftragId, kampagneId: savedKampagneId };
+      } catch (innerErr) {
+        // Rollback: verwaisten Auftrag loeschen
+        console.warn('⚠️ Rollback: Auftrag wird geloescht weil Folge-Inserts fehlschlugen', savedAuftragId);
+        await supabase.from('auftrag').delete().eq('id', savedAuftragId).catch(() => {});
+        throw innerErr;
       }
-
-      const ansprechpartnerId = auftragPayload.ansprechpartner_id;
-      if (ansprechpartnerId) {
-        const { error: ansprechpartnerErr } = await supabase
-          .from('ansprechpartner_kampagne')
-          .insert({
-            kampagne_id: savedKampagneId,
-            ansprechpartner_id: ansprechpartnerId
-          });
-        if (ansprechpartnerErr) throw ansprechpartnerErr;
-      }
-
-      return { success: true, auftragId: savedAuftragId, kampagneId: savedKampagneId };
     } catch (e) {
       const friendly = this.friendlyError(e, 'Projekt konnte nicht angelegt werden');
       console.error('❌ submit Fehler:', {

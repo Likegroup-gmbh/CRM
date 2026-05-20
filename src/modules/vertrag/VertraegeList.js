@@ -35,6 +35,7 @@ export class VertraegeList {
     this.currentUnternehmenId = null;
     this.currentUnternehmenName = null;
     this.listViewMode = 'grid';
+    this.activeTypeTab = 'vertraege';
   }
 
   getVertragPermissions() {
@@ -106,7 +107,7 @@ export class VertraegeList {
           this._updateUnternehmenTable();
         }
       } else {
-        this.vertraege = await loadVertraege(this.currentUnternehmenId, this.pagination);
+        this.vertraege = await loadVertraege(this.currentUnternehmenId, this.pagination, { typeFilter: this.activeTypeTab });
         this.updateVertraegeTable(this.vertraege);
       }
     } catch (error) {
@@ -145,7 +146,7 @@ export class VertraegeList {
       } else {
         const [, vertraege] = await Promise.all([
           this._initializeFilterBar(),
-          loadVertraege(this.currentUnternehmenId, this.pagination)
+          loadVertraege(this.currentUnternehmenId, this.pagination, { typeFilter: this.activeTypeTab })
         ]);
         this.vertraege = vertraege;
         this.updateVertraegeTable(this.vertraege);
@@ -166,8 +167,21 @@ export class VertraegeList {
   _render() {
     const html = this.viewMode === 'folders'
       ? renderFoldersView(this.listViewMode, this.getVertragPermissions().canEdit)
-      : renderVertraegeView(this.getVertragPermissions());
+      : renderVertraegeView(this.getVertragPermissions(), this.activeTypeTab);
     window.setContentSafely(window.content, html);
+  }
+
+  bindTypeTabEvents() {
+    document.querySelectorAll('.vertraege-type-tabs .tab-button').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const tab = btn.dataset.tab;
+        if (!tab || tab === this.activeTypeTab) return;
+        this.activeTypeTab = tab;
+        this.pagination.currentPage = 1;
+        this.loadAndRender();
+      });
+    });
   }
 
   updateVertraegeTable(vertraege) {
@@ -213,6 +227,9 @@ export class VertraegeList {
   bindEvents() {
     this._boundEventListeners.forEach(cleanup => cleanup());
     this._boundEventListeners.clear();
+
+    // Type-Tabs (Verträge / Contracting)
+    this.bindTypeTabEvents();
 
     // View-Toggle (Liste vs Grid)
     const btnViewList = document.getElementById('btn-view-list');

@@ -155,7 +155,10 @@ AuftragList.prototype.updateTable = async function(auftraege, mode = 'auftraege'
         ${!this.isKunde ? `<td class="col-ansprechpartner">${this.formatAnsprechpartner(auftrag.ansprechpartner)}</td>` : ''}
         <td class="col-erstellt-von">${this.renderCreatedBy(auftrag.created_by)}</td>
         <td class="col-status">${renderAuftragAmpel(auftrag.status)}</td>
-        ${!this.isKunde ? `<td class="col-actions">${actionBuilder.create(actionEntity, auftrag.id)}</td>` : ''}
+        ${!this.isKunde ? `<td class="col-actions">${actionBuilder.create(actionEntity, auftrag.id, window.currentUser, {
+          statusOptions: this.statusOptions,
+          currentStatus: { id: auftrag.status || 'Beauftragt', name: auftrag.status || 'Beauftragt' }
+        })}</td>` : ''}
       </tr>
     `}).join('');
   });

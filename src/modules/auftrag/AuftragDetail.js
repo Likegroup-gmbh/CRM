@@ -956,7 +956,7 @@ export class AuftragDetail extends PersonDetailBase {
         <div class="empty-state">
           <h3>Keine Auftragsdetails vorhanden</h3>
           <p>Es wurden noch keine detaillierten Produktionsinformationen für diesen Auftrag hinterlegt.</p>
-          ${!isMitarbeiter ? `<button onclick="window.navigateTo('/auftragsdetails/new')" class="primary-btn">
+          ${!isMitarbeiter ? `<button onclick="window.navigateTo('/projekt-erstellen/edit/${this.auftragId}')" class="primary-btn">
             Auftragsdetails anlegen
           </button>` : ''}
         </div>
@@ -1798,8 +1798,7 @@ export class AuftragDetail extends PersonDetailBase {
   }
 
   showDetailsForm(auftragId) {
-    // Navigiere zur Auftragsdetails-Erstellungsseite
-    window.navigateTo('/auftragsdetails/new');
+    window.navigateTo(`/projekt-erstellen/edit/${this.auftragId}`);
   }
 
   /**

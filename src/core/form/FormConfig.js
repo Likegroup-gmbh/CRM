@@ -757,6 +757,7 @@ export class FormConfig {
           },
           // Ohne Section (am Ende) - Einwilligungen, Notizen
           { name: 'erlaubt_newsletter', label: 'Newsletter (1x/Monat)', type: 'toggle', required: false },
+          { name: 'ist_rechnungsverantwortlich', label: 'Rechnungsverantwortlich', type: 'toggle', required: false },
           { name: 'notiz', label: 'Notizen', type: 'textarea', required: false, rows: 4 }
         ]
       },

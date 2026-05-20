@@ -140,7 +140,7 @@ AuftragList.prototype.bindGlobalDelegatedEvents = function() {
 
     if (e.target.id === 'btn-auftrag-new' || e.target.id === 'btn-auftrag-new-filter') {
       e.preventDefault();
-      window.navigateTo('/auftrag/new');
+      window.navigateTo('/projekt-erstellen');
       return;
     }
 

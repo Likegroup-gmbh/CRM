@@ -47,7 +47,6 @@ import { creatorUtils } from './modules/creator/CreatorUtils.js';
 import { formSystem } from './core/FormSystem.js';
 import { unternehmenDetail } from './modules/unternehmen/UnternehmenDetail.js';
 import { auftragDetail } from './modules/auftrag/AuftragDetail.js';
-import { actionRegistry } from './core/ActionRegistry.js';
 import { kooperationList } from './modules/kooperation/KooperationList.js';
 import { kooperationDetail } from './modules/kooperation/KooperationDetail.js';
 import { kooperationVideoDetail } from './modules/kooperation/KooperationVideoDetail.js';
@@ -96,6 +95,8 @@ import { kickOffList } from './modules/kickoff/KickOffList.js';
 import { kickOffDetail } from './modules/kickoff/KickOffDetail.js';
 import { globalSearch } from './core/components/GlobalSearch.js';
 import { quickAccessBar } from './core/components/QuickAccessBar.js';
+import { backgroundUploadPanel } from './core/components/BackgroundUploadPanel.js';
+import { backgroundUploadService } from './core/BackgroundUploadService.js';
 // Zentrales Bestätigungs-Modal (side-effect Import, hängt window.confirmationModal an)
 import './core/ConfirmationModal.js';
 // Duplicate Checker für Creator, Marke, Unternehmen
@@ -257,7 +258,6 @@ App.set('breadcrumbSystem', breadcrumbSystem);
 App.set('bulkActionSystem', bulkActionSystem);
 App.set('submitGuard', submitGuard);
 App.set('ActionsDropdown', actionsDropdown);
-App.set('actionRegistry', actionRegistry);
 App.set('creatorUtils', creatorUtils);
 App.set('kampagneUtils', kampagneUtils);
 App.set('authService', authService);
@@ -292,6 +292,13 @@ if (import.meta.env.DEV) {
 // Initialisiere nach DOM-Load
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('🎯 Initialisiere Event-basiertes Modul-System...');
+
+  // Mausrad-Schutz: verhindert versehentliche Wertaenderung bei fokussierten number-Inputs
+  document.addEventListener('wheel', () => {
+    if (document.activeElement?.type === 'number') {
+      document.activeElement.blur();
+    }
+  }, { passive: true });
 
   // Globale DOM-Variablen setzen
   window.appRoot = document.getElementById('app-root');
@@ -347,9 +354,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (isAuthenticated) {
     console.log('✅ Benutzer ist authentifiziert');
     
-    // ActionRegistry mit ModuleRegistry verbinden
-    actionRegistry.setModuleRegistry(moduleRegistry);
-    
     // Globale Suche (nur für Mitarbeiter/Admin) – vor Navigation, damit Sidebar-Button sichtbar ist
     window.globalSearch = globalSearch;
     document.addEventListener('keydown', (e) => {
@@ -364,6 +368,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Quick Access Floating Bar (vorerst nur Admin)
     quickAccessBar.init();
+
+    // Background Upload Panel (global, rechts unten)
+    backgroundUploadPanel.init();
+    window.backgroundUploadService = backgroundUploadService;
     
     // ActionsDropdown initialisieren
     actionsDropdown.init();

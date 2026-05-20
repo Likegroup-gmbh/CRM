@@ -4,6 +4,7 @@
 import { auftragsdetailsRepository } from './repository/AuftragsdetailsRepository.js';
 import { auftragsdetailsCreateView } from './views/AuftragsdetailsCreateView.js';
 import { kampagnenartenService } from './services/KampagnenartenService.js';
+import { PREFIXES_WITHOUT_LEGACY_COLUMNS } from './logic/KampagnenartenMapping.js';
 
 export class AuftragsdetailsCreateController {
   constructor() {
@@ -947,6 +948,16 @@ export class AuftragsdetailsCreateController {
           data[videoFieldName] = null;
         }
       });
+
+      // Keys fuer Prefixe ohne DB-Spalten entfernen (whitelisting_*, darkposting_*)
+      for (const key of Object.keys(data)) {
+        for (const prefix of PREFIXES_WITHOUT_LEGACY_COLUMNS) {
+          if (key.startsWith(`${prefix}_`)) {
+            delete data[key];
+            break;
+          }
+        }
+      }
 
       console.log('📤 Auftragsdetails-Daten vorbereitet:', Object.keys(data).length, 'Felder');
 

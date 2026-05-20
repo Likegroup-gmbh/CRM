@@ -84,7 +84,7 @@ export class ProjektErstellenEditLoader {
   toFormData({ auftrag, details, kampagne, blocks, junctionArtNames = [] }) {
     return {
       auftrag: this.mapAuftrag(auftrag),
-      details: this.mapDetails(details, blocks, junctionArtNames),
+      details: this.mapDetails(details, blocks, junctionArtNames, kampagne),
       kampagne: this.mapKampagne(kampagne, auftrag)
     };
   }
@@ -117,11 +117,12 @@ export class ProjektErstellenEditLoader {
       ust_betrag: auftrag.ust_betrag ?? null,
       bruttobetrag: auftrag.bruttobetrag ?? null,
 
-      auftragsbestaetigungen_files: []
+      auftragsbestaetigungen_files: [],
+      rechnungen_files: []
     };
   }
 
-  mapDetails(details, blocks, junctionArtNames = []) {
+  mapDetails(details, blocks, junctionArtNames = [], kampagne = null) {
     // 1) Primaerquelle: vorhandene Blocks aus auftrag_kampagnenart_blocks
     let campaignBlocks = this.mapBlocks(blocks);
     let campaign_type = campaignBlocks.map(b => b.campaign_type).filter(Boolean);
@@ -142,6 +143,19 @@ export class ProjektErstellenEditLoader {
       if (slugsFromJunction.length > 0) {
         campaign_type = slugsFromJunction;
         campaignBlocks = this.buildBlocksFromSlugs(slugsFromJunction, details);
+      }
+    }
+
+    // 4) Fallback: kampagne.art_der_kampagne Labels -> Wizard-Slugs.
+    //    Aeltere Auftraege haben oft nur hier ihre Kampagnenarten gespeichert.
+    if (campaignBlocks.length === 0 && Array.isArray(kampagne?.art_der_kampagne) && kampagne.art_der_kampagne.length > 0) {
+      const slugsFromKampagne = kampagne.art_der_kampagne
+        .map(getChipFromKampagnenartName)
+        .filter(Boolean);
+      const uniqueSlugs = [...new Set(slugsFromKampagne)];
+      if (uniqueSlugs.length > 0) {
+        campaign_type = uniqueSlugs;
+        campaignBlocks = this.buildBlocksFromSlugs(uniqueSlugs, details);
       }
     }
 

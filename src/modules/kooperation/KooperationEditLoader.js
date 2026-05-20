@@ -73,8 +73,9 @@ export class KooperationEditLoader {
     const totalVideos = this._getKampagneTotalVideos(kampagne);
     const usedVideos = (andereKooperationen || []).reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
     const remainingVideos = Math.max(0, totalVideos - usedVideos + (parseInt(data?.videoanzahl, 10) || 0));
+    const isUnlimited = totalVideos === 0;
 
-    this._initVideoStepper(form, data?.videoanzahl, remainingVideos);
+    this._initVideoStepper(form, data?.videoanzahl, remainingVideos, isUnlimited);
 
     this._renderVideos(form, kooperationVideos, kampagnenartenOptions);
 
@@ -451,12 +452,19 @@ export class KooperationEditLoader {
     return (alleTypen || []).map(t => t.name).filter(Boolean);
   }
 
-  _initVideoStepper(form, currentValue, remaining) {
+  _initVideoStepper(form, currentValue, remaining, isUnlimited = false) {
     const videoInput = form.querySelector('input[name="videoanzahl"]');
     if (!videoInput) return;
-    videoInput.disabled = remaining === 0;
-    videoInput.min = remaining > 0 ? '1' : '0';
-    videoInput.max = String(remaining);
+    videoInput.dataset.unlimited = isUnlimited ? 'true' : 'false';
+    if (isUnlimited) {
+      videoInput.disabled = false;
+      videoInput.min = '1';
+      videoInput.removeAttribute('max');
+    } else {
+      videoInput.disabled = remaining === 0;
+      videoInput.min = remaining > 0 ? '1' : '0';
+      videoInput.max = String(remaining);
+    }
     videoInput.step = '1';
     if (currentValue !== undefined && currentValue !== null) {
       videoInput.value = String(currentValue);
