@@ -12,8 +12,14 @@ const RETRY_BACKOFF_MS = [1000, 2000, 4000];
 
 const CONTENT_BASE = 'https://content.dropboxapi.com/2/files';
 
+// Sichtbare Build-Version: aendert sich mit jedem Code-Push; hilft beim
+// Cache-Debugging (User-Console muss den hier gesetzten String zeigen, sonst
+// Browser/Netlify haben noch alten Build). Bei jeder neuen Aenderung am
+// Concurrent-Pfad bitte hochzaehlen oder Datum updaten.
+export const DROPBOX_DIRECT_UPLOAD_VERSION = 'v3-close-true-2026-05-20';
+
 const DEBUG = true; // Temporaer fuer Test-Phase, nach stabilem Betrieb zurueck auf false.
-function dbg(...args) { if (DEBUG) console.log('[DirectUpload]', ...args); }
+function dbg(...args) { if (DEBUG) console.log(`[DirectUpload ${DROPBOX_DIRECT_UPLOAD_VERSION}]`, ...args); }
 
 // Dropbox verlangt \uXXXX-Escaping für Non-ASCII im API-Arg Header
 function httpHeaderSafeJson(obj) {
@@ -263,7 +269,7 @@ export async function uploadFileDirect({
     if (!allowProxyFallback) throw err;
 
     const reason = parseDropboxError(err);
-    console.warn('[DirectUpload] Direct fehlgeschlagen, Proxy-Fallback:', reason);
+    console.warn(`[DirectUpload ${DROPBOX_DIRECT_UPLOAD_VERSION}] Direct fehlgeschlagen, Proxy-Fallback:`, reason);
     onProgress?.({ loaded: 0, total: totalSize, phase: 'direct-failed', error: reason });
     onProgress?.({ loaded: 0, total: totalSize, phase: 'proxy-fallback' });
     return uploadViaProxyFallback({ file, dropboxPath, token, signal, onProgress });
@@ -290,6 +296,10 @@ async function uploadSessionParallel({
   // ausser dem letzten Chunk wenn dieser mit close:true gesendet wird.
   // chunkSize ist Vielfaches von 4 MB (Default 8 MB), die letzten size-Bytes
   // sind der Rest und werden als close:true-Chunk gesendet.
+  // Asserts nur aktiv wenn chunkSize selbst ein 4-MB-Vielfaches ist
+  // (Tests verwenden teils kleinere Chunks gegen Mock-Server).
+  const CONCURRENT_BLOCK = 4 * 1024 * 1024;
+  const assertConcurrent = chunkSize % CONCURRENT_BLOCK === 0;
   const chunks = [];
   let off = 0;
   while (off < totalSize) {
@@ -303,7 +313,7 @@ async function uploadSessionParallel({
     (t) => sessionStart({ token: t, signal }),
     { signal, getToken: refreshToken, currentToken }
   );
-  dbg('session-start OK (concurrent)', { sessionId, chunks: chunks.length });
+  dbg('session-start OK (concurrent)', { sessionId, chunks: chunks.length, chunkSize, totalSize });
 
   const chunkLoaded = new Array(chunks.length).fill(0);
   const reportProgress = () => {
@@ -322,6 +332,17 @@ async function uploadSessionParallel({
       if (myIdx >= lastIdx) return; // letzten Chunk macht der Finalizer
 
       const meta = chunks[myIdx];
+
+      // Pre-Send-Assertion: ohne close:true MUSS sowohl size als auch offset
+      // ein Vielfaches von 4 MB sein. Schlaegt das hier zu, hat unser
+      // Chunk-Splitting einen Bug. Lokaler Throw statt 409 vom Server.
+      if (assertConcurrent && meta.size % CONCURRENT_BLOCK !== 0) {
+        throw new Error(`[DirectUpload ${DROPBOX_DIRECT_UPLOAD_VERSION}] BUG: append idx=${myIdx} close=false size=${meta.size} nicht 4MB-Vielfaches (totalSize=${totalSize} chunkSize=${chunkSize})`);
+      }
+      if (assertConcurrent && meta.offset % CONCURRENT_BLOCK !== 0) {
+        throw new Error(`[DirectUpload ${DROPBOX_DIRECT_UPLOAD_VERSION}] BUG: append idx=${myIdx} offset=${meta.offset} nicht 4MB-Vielfaches`);
+      }
+
       const slice = file.slice(meta.offset, meta.offset + meta.size);
 
       await withRetry(async (t) => {
@@ -352,7 +373,17 @@ async function uploadSessionParallel({
   }
 
   // Letzter Chunk mit close:true; darf beliebige Groesse haben (auch nicht 4-MB-Vielfaches).
+  // Offset muss aber dennoch Vielfaches von 4 MB sein.
   const lastMeta = chunks[lastIdx];
+  if (assertConcurrent && lastMeta.offset % CONCURRENT_BLOCK !== 0) {
+    throw new Error(`[DirectUpload ${DROPBOX_DIRECT_UPLOAD_VERSION}] BUG: last chunk offset=${lastMeta.offset} nicht 4MB-Vielfaches`);
+  }
+  dbg('sending LAST chunk with close:true', {
+    idx: lastIdx,
+    offset: lastMeta.offset,
+    size: lastMeta.size,
+    totalSize,
+  });
   const lastSlice = file.slice(lastMeta.offset, lastMeta.offset + lastMeta.size);
   await withRetry(async (t) => {
     chunkLoaded[lastIdx] = 0;

@@ -97,6 +97,8 @@ import { globalSearch } from './core/components/GlobalSearch.js';
 import { quickAccessBar } from './core/components/QuickAccessBar.js';
 import { backgroundUploadPanel } from './core/components/BackgroundUploadPanel.js';
 import { backgroundUploadService } from './core/BackgroundUploadService.js';
+import { DROPBOX_DIRECT_UPLOAD_VERSION } from './core/DropboxDirectUploader.js';
+console.log(`[App] DirectUpload version: ${DROPBOX_DIRECT_UPLOAD_VERSION}`);
 // Zentrales Bestätigungs-Modal (side-effect Import, hängt window.confirmationModal an)
 import './core/ConfirmationModal.js';
 // Duplicate Checker für Creator, Marke, Unternehmen
