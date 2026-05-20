@@ -25,6 +25,29 @@ function pct(loaded, total) {
   return Math.min(100, Math.round((loaded / total) * 100));
 }
 
+function fmtDuration(ms) {
+  if (ms == null || ms < 0) return '';
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s} s`;
+  const m = Math.floor(s / 60);
+  const rs = s % 60;
+  return `${m}:${rs.toString().padStart(2, '0')} min`;
+}
+
+function itemDurationMs(item) {
+  if (!item.startedAt) return null;
+  const end = item.finishedAt || Date.now();
+  return end - item.startedAt;
+}
+
+function fmtSpeed(item) {
+  const ms = itemDurationMs(item);
+  if (!ms || ms < 250 || !item.loaded) return '';
+  const mbPerSec = (item.loaded / 1024 / 1024) / (ms / 1000);
+  if (!isFinite(mbPerSec) || mbPerSec <= 0) return '';
+  return `${mbPerSec.toFixed(1)} MB/s`;
+}
+
 function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str || '';
@@ -45,6 +68,7 @@ export class BackgroundUploadPanel {
     this.root = null;
     this.collapsed = false;
     this._boundHandlers = null;
+    this._tickTimer = null;
   }
 
   init() {
@@ -77,8 +101,39 @@ export class BackgroundUploadPanel {
       window.removeEventListener(UPLOAD_EVENTS.JOB_UPDATE, this._boundHandlers.job);
       this._boundHandlers = null;
     }
+    this._stopTicker();
     this.root?.remove();
     this.root = null;
+  }
+
+  _startTicker() {
+    if (this._tickTimer) return;
+    this._tickTimer = setInterval(() => this._refreshDurations(), 1000);
+  }
+
+  _stopTicker() {
+    if (!this._tickTimer) return;
+    clearInterval(this._tickTimer);
+    this._tickTimer = null;
+  }
+
+  // Aktualisiert nur die Dauer-Spans aktiver Items, ohne den DOM komplett neu zu rendern
+  // (verhindert Flackern, behält Scroll-Position).
+  _refreshDurations() {
+    if (!this.root) return;
+    const jobs = backgroundUploadService.getAllJobs();
+    let anyRunning = false;
+    for (const job of jobs) {
+      for (const item of job.items) {
+        if (!item.startedAt || item.finishedAt) continue;
+        anyRunning = true;
+        const el = this.root.querySelector(`[data-item-id="${item.id}"] .bg-upload-item-duration`);
+        if (el) el.textContent = fmtDuration(itemDurationMs(item));
+        const sp = this.root.querySelector(`[data-item-id="${item.id}"] .bg-upload-item-speed`);
+        if (sp) sp.textContent = fmtSpeed(item);
+      }
+    }
+    if (!anyRunning) this._stopTicker();
   }
 
   _onClick(e) {
@@ -124,9 +179,14 @@ export class BackgroundUploadPanel {
 
     if (jobs.length === 0) {
       this.root.style.display = 'none';
+      this._stopTicker();
       return;
     }
     this.root.style.display = '';
+
+    const hasRunningItem = jobs.some(j => j.items.some(i => i.startedAt && !i.finishedAt));
+    if (hasRunningItem) this._startTicker();
+    else this._stopTicker();
 
     const active = jobs.filter(j => j.status === 'running' || j.status === 'pending').length;
     const errored = jobs.filter(j => j.status === 'error').length;
@@ -186,6 +246,9 @@ export class BackgroundUploadPanel {
   _renderItem(item) {
     const p = pct(item.loaded, item.total);
     const statusLabel = STATUS_LABEL[item.status] || item.status;
+    const durMs = itemDurationMs(item);
+    const durText = fmtDuration(durMs);
+    const speedText = fmtSpeed(item);
     return `
       <div class="bg-upload-item bg-upload-item--${item.status}" data-item-id="${item.id}">
         <div class="bg-upload-item-row">
@@ -198,7 +261,13 @@ export class BackgroundUploadPanel {
           </div>
           <span class="bg-upload-item-pct">${item.status === 'done' ? ICONS.done : `${p}%`}</span>
         </div>
-        <div class="bg-upload-item-status">${escapeHtml(statusLabel)}${item.error ? ` — ${escapeHtml(item.error)}` : ''}</div>
+        <div class="bg-upload-item-status">
+          <span>${escapeHtml(statusLabel)}${item.error ? ` — ${escapeHtml(item.error)}` : ''}</span>
+          <span class="bg-upload-item-stats">
+            <span class="bg-upload-item-speed">${speedText}</span>
+            <span class="bg-upload-item-duration">${durText}</span>
+          </span>
+        </div>
       </div>
     `;
   }

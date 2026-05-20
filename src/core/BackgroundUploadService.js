@@ -174,6 +174,8 @@ class BackgroundUploadService {
       status: 'pending', // pending | uploading | saving | done | error | aborted
       error: null,
       meta: meta || {},
+      startedAt: null,
+      finishedAt: null,
     };
   }
 
@@ -224,7 +226,18 @@ class BackgroundUploadService {
   _updateItem(job, itemId, patch) {
     const item = job.items.find(i => i.id === itemId);
     if (!item) return;
+    const prevStatus = item.status;
     Object.assign(item, patch);
+    if (patch.status && patch.status !== prevStatus) {
+      const FINAL = new Set(['done', 'error', 'aborted']);
+      if (patch.status === 'uploading' && !item.startedAt) {
+        item.startedAt = Date.now();
+      }
+      if (FINAL.has(patch.status) && !item.finishedAt) {
+        item.finishedAt = Date.now();
+        if (!item.startedAt) item.startedAt = item.finishedAt; // 0s saving-only
+      }
+    }
     this._emit(EVT.ITEM_UPDATE, { jobId: job.id, itemId, item: { ...item } });
   }
 
