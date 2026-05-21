@@ -108,7 +108,7 @@ export function renderItemRow(detail, item, index) {
   ].filter(Boolean).join(' ');
 
   return `
-    <tr class="${rowClasses}" data-item-id="${item.id}" draggable="${!detail.isKunde}">
+    <tr class="${rowClasses}" data-item-id="${item.id}" draggable="false">
       <td class="col-number">
         ${index + 1}
       </td>

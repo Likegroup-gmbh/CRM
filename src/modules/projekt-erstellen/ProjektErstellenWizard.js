@@ -11,6 +11,11 @@ import { WizardProgressBar } from './components/WizardProgressBar.js';
 import { ProjektErstellenPersistence } from './services/ProjektErstellenPersistence.js';
 import { ProjektErstellenValidator } from './services/ProjektErstellenValidator.js';
 import { projektErstellenEditLoader } from './services/ProjektErstellenEditLoader.js';
+import {
+  buildPartialPoPreview,
+  generatePoNummer,
+  reservePoGesamtNummer
+} from '../auftrag/logic/PoNummerGenerator.js';
 
 export class ProjektErstellenWizard {
   constructor(container) {
@@ -39,6 +44,7 @@ export class ProjektErstellenWizard {
         angebotsnummer: '',
         re_nr: '',
         po: '',
+        po_gesamt_nummer: null,
         externe_po: '',
         zahlungsziel_tage: null,
         rechnung_gestellt: false,
@@ -46,9 +52,10 @@ export class ProjektErstellenWizard {
         erwarteter_monat_zahlungseingang: null,
         re_faelligkeit: null,
         nettobetrag: null,
-        ust_prozent: null,
+        ust_prozent: 19,
         ust_betrag: null,
         bruttobetrag: null,
+        anzahl_teilrechnungen: 1,
 
         auftragsbestaetigungen_files: [],
         rechnungen_files: []
@@ -499,6 +506,48 @@ export class ProjektErstellenWizard {
     this.feedbackCard?.update(this.currentStep, this.formData);
   }
 
+  async ensurePoReserved() {
+    if (this.isEditMode) return;
+
+    const a = this.formData.auftrag || {};
+    if (a.po_gesamt_nummer) {
+      if (!a.po) {
+        a.po = buildPartialPoPreview(a.po_gesamt_nummer);
+        this.updateFeedback();
+      }
+      return;
+    }
+
+    const result = await reservePoGesamtNummer();
+    if (!result.success) {
+      console.warn('⚠️ PO-Reservierung fehlgeschlagen:', result.error);
+      return;
+    }
+
+    a.po_gesamt_nummer = result.gesamtPoNummer;
+    a.po = buildPartialPoPreview(result.gesamtPoNummer);
+    this.updateFeedback();
+  }
+
+  async refreshPoPreview() {
+    if (this.isEditMode) return;
+
+    const a = this.formData.auftrag || {};
+    if (!a.po_gesamt_nummer || !a.unternehmen_id) return;
+
+    const result = await generatePoNummer(a.unternehmen_id, {
+      gesamtPoNummer: a.po_gesamt_nummer
+    });
+
+    if (!result.success) {
+      console.warn('⚠️ PO-Vorschau konnte nicht aktualisiert werden:', result.error);
+      return;
+    }
+
+    a.po = result.poNummer;
+    this.updateFeedback();
+  }
+
   async submit() {
     const nextBtn = document.getElementById('wizard-next-btn');
 
@@ -565,6 +614,15 @@ export class ProjektErstellenWizard {
         if (this.isEditMode) {
           window.dispatchEvent(new CustomEvent('entityUpdated', {
             detail: { entity: 'auftrag_details', action: 'updated', auftrag_id: result.auftragId }
+          }));
+        }
+        if (result.kampagneId) {
+          window.dispatchEvent(new CustomEvent('entityUpdated', {
+            detail: {
+              entity: 'kampagne',
+              action: this.isEditMode ? 'updated' : 'created',
+              id: result.kampagneId
+            }
           }));
         }
 

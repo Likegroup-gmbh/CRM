@@ -14,15 +14,66 @@ export class CustomDatePicker {
     dateField,
     value = '',
     label = 'Datum',
-    inputClass = ''
+    inputClass = '',
+    entity = '',
+    variant = 'button'
   } = {}) {
     const safeValue = this.normalizeDateValue(value);
     const viewDate = this.parseISO(safeValue) || new Date();
     const viewMonth = viewDate.getMonth();
     const viewYear = viewDate.getFullYear();
+    const isNative = variant === 'native';
+    const hasValueClass = safeValue ? 'has-value' : '';
+    const variantClass = isNative ? 'custom-date-picker--native' : '';
+
+    if (isNative) {
+      const classes = ['custom-date-picker__input', inputClass].filter(Boolean).join(' ');
+      return `
+        <div class="custom-date-picker ${variantClass} ${hasValueClass}" data-custom-datepicker data-variant="native">
+          <div class="custom-date-picker__control">
+            <input
+              type="date"
+              class="${classes}"
+              data-id="${id || ''}"
+              data-field="${field || ''}"
+              data-date-field="${dateField || ''}"
+              ${entity ? `data-entity="${entity}"` : ''}
+              data-previous-value="${safeValue}"
+              data-iso-value="${safeValue}"
+              value="${safeValue}"
+              data-label="${label}"
+              aria-label="${label}"
+              title="${label}"
+              autocomplete="off"
+            >
+          </div>
+          <div
+            class="custom-date-picker__popover"
+            data-view-month="${viewMonth}"
+            data-view-year="${viewYear}"
+            data-focused-value="${safeValue || this.formatISO(new Date())}"
+            hidden
+          >
+            <div class="custom-date-picker__header">
+              <button type="button" class="custom-date-picker__nav custom-date-picker__nav--prev" aria-label="Vorheriger Monat">‹</button>
+              <div class="custom-date-picker__month-label">${this.capitalizeFirst(MONTH_FORMATTER.format(viewDate))}</div>
+              <button type="button" class="custom-date-picker__nav custom-date-picker__nav--next" aria-label="Nächster Monat">›</button>
+            </div>
+            <div class="custom-date-picker__weekdays">
+              ${WEEKDAY_LABELS.map(day => `<span>${day}</span>`).join('')}
+            </div>
+            <div class="custom-date-picker__days" role="grid"></div>
+            <div class="custom-date-picker__footer">
+              <button type="button" class="custom-date-picker__action" data-action="clear">Löschen</button>
+              <button type="button" class="custom-date-picker__action" data-action="today">Heute</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     const classes = ['custom-date-picker__input', 'custom-date-picker__value', inputClass].filter(Boolean).join(' ');
     const triggerTitle = safeValue ? `${label}: ${this.formatDisplayDate(safeValue)}` : `${label} setzen`;
-    const hasValueClass = safeValue ? 'has-value' : '';
 
     return `
       <div class="custom-date-picker ${hasValueClass}" data-custom-datepicker>
@@ -33,6 +84,7 @@ export class CustomDatePicker {
             data-id="${id || ''}"
             data-field="${field || ''}"
             data-date-field="${dateField || ''}"
+            ${entity ? `data-entity="${entity}"` : ''}
             data-previous-value="${safeValue}"
             data-iso-value="${safeValue}"
             value="${safeValue}"
@@ -98,6 +150,12 @@ export class CustomDatePicker {
       if (!input || !popover) return;
 
       if (event.target.closest('.custom-date-picker__trigger')) {
+        event.preventDefault();
+        this.togglePicker(picker);
+        return;
+      }
+
+      if (picker.dataset.variant === 'native' && event.target.closest('.custom-date-picker__input')) {
         event.preventDefault();
         this.togglePicker(picker);
         return;
@@ -183,10 +241,21 @@ export class CustomDatePicker {
       this.renderCalendar(picker);
     };
 
+    const handleNativeMousedown = (event) => {
+      const picker = event.target.closest('[data-custom-datepicker][data-variant="native"]');
+      if (!picker) return;
+      const input = picker.querySelector('.custom-date-picker__input');
+      if (event.target === input || event.target.closest('.custom-date-picker__control')?.contains(input)) {
+        event.preventDefault();
+      }
+    };
+
+    root.addEventListener('mousedown', handleNativeMousedown, eventOptions);
     root.addEventListener('click', handleClick, eventOptions);
     root.addEventListener('keydown', handleKeydown, eventOptions);
 
     const cleanup = () => {
+      root.removeEventListener('mousedown', handleNativeMousedown, eventOptions);
       root.removeEventListener('click', handleClick, eventOptions);
       root.removeEventListener('keydown', handleKeydown, eventOptions);
       if (this._activePicker && root.contains(this._activePicker)) {
@@ -274,14 +343,24 @@ export class CustomDatePicker {
     // Fixed positioning, damit der Popover aus overflow:hidden Containern ausbricht
     // und je nach verfuegbarem Platz nach oben oder unten oeffnet (wie ActionsDropdown).
     this.positionPopover(picker);
+
+    if (this._outsideClickHandler) {
+      document.removeEventListener('mousedown', this._outsideClickHandler, true);
+    }
+    this._outsideClickHandler = (e) => {
+      if (!picker.contains(e.target)) {
+        this.closePicker(picker);
+      }
+    };
+    document.addEventListener('mousedown', this._outsideClickHandler, true);
   }
 
   static positionPopover(picker) {
     const popover = picker?.querySelector('.custom-date-picker__popover');
-    const trigger = picker?.querySelector('.custom-date-picker__trigger');
-    if (!popover || !trigger) return;
+    const anchor = picker?.querySelector('.custom-date-picker__trigger') || picker?.querySelector('.custom-date-picker__input');
+    if (!popover || !anchor) return;
 
-    const triggerRect = trigger.getBoundingClientRect();
+    const triggerRect = anchor.getBoundingClientRect();
     const popoverHeight = popover.offsetHeight || 280;
     const popoverWidth = popover.offsetWidth || 248;
     const viewportHeight = window.innerHeight;
@@ -318,6 +397,10 @@ export class CustomDatePicker {
     picker.classList.remove('is-open');
     if (this._activePicker === picker) {
       this._activePicker = null;
+    }
+    if (this._outsideClickHandler) {
+      document.removeEventListener('mousedown', this._outsideClickHandler, true);
+      this._outsideClickHandler = null;
     }
   }
 

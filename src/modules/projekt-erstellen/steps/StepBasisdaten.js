@@ -64,17 +64,6 @@ export class StepBasisdaten {
           </div>
         </div>
 
-        <div class="form-two-col">
-          <div class="form-field form-field--half">
-            <label for="field-pe-start">Startdatum</label>
-            <input type="date" id="field-pe-start" name="start" value="${a.start || ''}">
-          </div>
-          <div class="form-field form-field--half">
-            <label for="field-pe-ende">Enddatum</label>
-            <input type="date" id="field-pe-ende" name="ende" value="${a.ende || ''}">
-          </div>
-        </div>
-
         <div class="projekt-erstellen-titel-wrap">
           <div class="form-field">
             <label for="field-pe-titel">Titel <span class="required">*</span></label>
@@ -120,12 +109,15 @@ export class StepBasisdaten {
     const a = this.wizard.formData.auftrag;
     if (a.marke_id) this.setSelectValue('field-pe-marke_id', a.marke_id);
     if (a.ansprechpartner_id) this.setSelectValue('field-pe-ansprechpartner_id', a.ansprechpartner_id);
+
+    if (a.unternehmen_id) {
+      await this.wizard.refreshPoPreview();
+    }
   }
 
   bindEvents() {
     const unternehmenSelect = document.getElementById('field-pe-unternehmen_id');
     const markeSelect = document.getElementById('field-pe-marke_id');
-    const startInput = document.getElementById('field-pe-start');
 
     this.titelGenerator = new TitelGenerator({
       rootEl: this.host,
@@ -148,13 +140,14 @@ export class StepBasisdaten {
     );
 
     if (unternehmenSelect) {
-      unternehmenSelect.addEventListener('change', (e) => {
+      unternehmenSelect.addEventListener('change', async (e) => {
         const id = e.target.value || null;
         this.wizard.formData.auftrag.unternehmen_id = id;
         this.wizard.formData.auftrag.marke_id = null;
         this.wizard.formData.auftrag.ansprechpartner_id = null;
         this.ensureDependentSelects();
         this.recomputeTitle();
+        await this.wizard.refreshPoPreview();
         this.wizard.updateFeedback();
       });
     }
@@ -163,22 +156,6 @@ export class StepBasisdaten {
       markeSelect.addEventListener('change', (e) => {
         this.wizard.formData.auftrag.marke_id = e.target.value || null;
         this.recomputeTitle();
-        this.wizard.updateFeedback();
-      });
-    }
-
-    if (startInput) {
-      startInput.addEventListener('input', (e) => {
-        this.wizard.formData.auftrag.start = e.target.value || null;
-        this.recomputeTitle();
-        this.wizard.updateFeedback();
-      });
-    }
-
-    const endeInput = document.getElementById('field-pe-ende');
-    if (endeInput) {
-      endeInput.addEventListener('input', (e) => {
-        this.wizard.formData.auftrag.ende = e.target.value || null;
         this.wizard.updateFeedback();
       });
     }
@@ -472,8 +449,6 @@ export class StepBasisdaten {
     const unternehmenId = document.getElementById('field-pe-unternehmen_id')?.value || a.unternehmen_id || null;
     const markeId = document.getElementById('field-pe-marke_id')?.value || a.marke_id || null;
     const apId = document.getElementById('field-pe-ansprechpartner_id')?.value || a.ansprechpartner_id || null;
-    const start = document.getElementById('field-pe-start')?.value || null;
-    const ende = document.getElementById('field-pe-ende')?.value || null;
     const titel = document.getElementById('field-pe-titel')?.value || '';
 
     const auftragsbestaetigungen_files = this.uploader
@@ -489,8 +464,6 @@ export class StepBasisdaten {
         unternehmen_id: unternehmenId,
         marke_id: markeId,
         ansprechpartner_id: apId,
-        start,
-        ende,
         titel,
         titel_manuell_geaendert: this.wizard.formData.auftrag.titel_manuell_geaendert,
         auftragsbestaetigungen_files,

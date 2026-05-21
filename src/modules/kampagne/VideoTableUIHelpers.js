@@ -149,6 +149,17 @@ export class VideoTableUIHelpers {
 
   // --- Column Resize ---
 
+  /** @param {number} px */
+  _pxToRem(px) {
+    return `${(px / 16).toFixed(3)}rem`;
+  }
+
+  /** Legacy localStorage speicherte Pixel; neu: rem-Zahlen */
+  _normalizeStoredWidth(value) {
+    if (typeof value !== 'number' || Number.isNaN(value)) return null;
+    return value > 25 ? value / 16 : value;
+  }
+
   bindResizeEvents() {
     const container = document.querySelector('.grid-wrapper');
     if (!container) return;
@@ -187,21 +198,29 @@ export class VideoTableUIHelpers {
     document.body.style.userSelect = 'none';
   }
 
-  setColumnWidth(col, width) {
-    this.table.columnWidths.set(col, width);
+  /** @param {number} col @param {number} widthPx Breite in Pixel (Resize-Messung) */
+  setColumnWidth(col, widthPx) {
+    const widthRem = widthPx / 16;
+    const remStr = this._pxToRem(widthPx);
+    this.table.columnWidths.set(col, widthRem);
 
     document.querySelectorAll(`th.col-header:nth-child(${col + 1})`).forEach(h => {
-      h.style.width = `${width}px`;
-      h.style.minWidth = `${width}px`;
+      h.style.width = remStr;
+      h.style.minWidth = remStr;
     });
     document.querySelectorAll(`.kooperation-video-grid tbody td:nth-child(${col + 1})`).forEach(c => {
-      c.style.width = `${width}px`;
-      c.style.minWidth = `${width}px`;
+      c.style.width = remStr;
+      c.style.minWidth = remStr;
     });
 
     if (col === 0) {
-      document.querySelectorAll('.kooperation-video-grid thead th:nth-child(2)').forEach(h => { h.style.left = `${width}px`; });
-      document.querySelectorAll('.kooperation-video-grid tbody td:nth-child(2)').forEach(c => { c.style.left = `${width}px`; });
+      document.querySelectorAll('.kooperation-video-grid').forEach(grid => {
+        grid.style.setProperty('--grid-col-nr', remStr);
+      });
+    } else if (col === 1) {
+      document.querySelectorAll('.kooperation-video-grid').forEach(grid => {
+        grid.style.setProperty('--grid-col-creator', remStr);
+      });
     }
   }
 
@@ -225,7 +244,9 @@ export class VideoTableUIHelpers {
       const saved = localStorage.getItem(this.table.storageKey);
       if (saved) {
         Object.entries(JSON.parse(saved)).forEach(([col, width]) => {
-          this.setColumnWidth(parseInt(col), width);
+          const rem = this._normalizeStoredWidth(width);
+          if (rem == null) return;
+          this.setColumnWidth(parseInt(col, 10), rem * 16);
         });
       }
     } catch { /* ignore */ }

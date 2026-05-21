@@ -4,6 +4,10 @@ vi.mock('../modules/auftrag/logic/PoNummerGenerator.js', () => ({
   generatePoNummer: vi.fn(async () => ({ success: true, poNummer: 'PO-2026-001' }))
 }));
 
+vi.mock('../modules/auth/CurrentUser.js', () => ({
+  getCurrentBenutzerId: vi.fn(async () => 'user-1')
+}));
+
 import { ProjektErstellenPersistence } from '../modules/projekt-erstellen/services/ProjektErstellenPersistence.js';
 import { ProjektErstellenValidator } from '../modules/projekt-erstellen/services/ProjektErstellenValidator.js';
 
@@ -86,6 +90,30 @@ describe('ProjektErstellenPersistence', () => {
       kampagne_id: 'kampagne-1',
       ansprechpartner_id: 'ansprechpartner-1'
     });
+    expect(inserted.auftrag.anzahl_teilrechnungen).toBeNull();
+  });
+
+  it('speichert anzahl_teilrechnungen auf dem Auftrag', async () => {
+    const result = await persistence.submit({
+      formData: {
+        auftrag: {
+          unternehmen_id: 'unternehmen-1',
+          marke_id: 'marke-1',
+          ansprechpartner_id: 'ansprechpartner-1',
+          titel: 'Neue Kampagne',
+          anzahl_teilrechnungen: 3
+        },
+        details: {
+          campaign_type: []
+        },
+        kampagne: {
+          kampagnenname: 'Neue Kampagne'
+        }
+      }
+    });
+
+    expect(result.success).toBe(true);
+    expect(inserted.auftrag.anzahl_teilrechnungen).toBe(3);
   });
 
   it('lässt mehrfach verwendete Angebotsnummern zu', async () => {
@@ -280,18 +308,119 @@ describe('ProjektErstellenPersistence', () => {
       }
     ]);
   });
+
+  it('setzt beim Edit eigener_name auf null, damit der neue kampagnenname in der Liste sichtbar ist', async () => {
+    let kampagneUpdatePayload = null;
+    let auftragUpdatePayload = null;
+
+    const chainEq = () => ({
+      eq: vi.fn(async () => ({ error: null }))
+    });
+
+    window.supabase = {
+      from: vi.fn((table) => {
+        if (table === 'kampagne_art_typen') {
+          return {
+            select: vi.fn(() => ({
+              in: vi.fn(async () => ({ data: [], error: null }))
+            }))
+          };
+        }
+
+        if (table === 'auftrag') {
+          return {
+            update: vi.fn((payload) => {
+              auftragUpdatePayload = payload;
+              return chainEq();
+            })
+          };
+        }
+
+        if (table === 'auftrag_details') {
+          return {
+            upsert: vi.fn(async () => ({ error: null }))
+          };
+        }
+
+        if (table === 'kampagne') {
+          return {
+            update: vi.fn((payload) => {
+              kampagneUpdatePayload = payload;
+              return chainEq();
+            })
+          };
+        }
+
+        if (table === 'auftrag_kampagnenart_blocks') {
+          return {
+            delete: vi.fn(() => chainEq()),
+            insert: vi.fn(async () => ({ error: null }))
+          };
+        }
+
+        if (table === 'ansprechpartner_kampagne') {
+          return {
+            delete: vi.fn(() => chainEq()),
+            insert: vi.fn(async () => ({ error: null }))
+          };
+        }
+
+        return { insert: vi.fn(async () => ({ error: null })) };
+      })
+    };
+
+    const result = await persistence.submitEdit({
+      auftragId: 'auftrag-1',
+      kampagneId: 'kampagne-1',
+      existingRaw: {
+        auftrag: { status: 'active', is_draft: false },
+        details: { campaign_type: [] }
+      },
+      formData: {
+        auftrag: {
+          unternehmen_id: 'unternehmen-1',
+          marke_id: 'marke-1',
+          ansprechpartner_id: 'ansprechpartner-1',
+          titel: 'EDEKA Z: Booster + The Real Taste',
+          start: '2026-03-01',
+          ende: '2026-06-30',
+          anzahl_teilrechnungen: 4
+        },
+        details: {
+          campaign_type: []
+        },
+        kampagne: {
+          kampagnenname: 'EDEKA Z: Booster + The Real Taste'
+        }
+      }
+    });
+
+    expect(result.success).toBe(true);
+    expect(auftragUpdatePayload).toMatchObject({
+      anzahl_teilrechnungen: 4
+    });
+    expect(kampagneUpdatePayload).toMatchObject({
+      kampagnenname: 'EDEKA Z: Booster + The Real Taste',
+      eigener_name: null
+    });
+  });
 });
 
 describe('ProjektErstellenValidator', () => {
-  it('verhindert Agentur-Abzüge über dem Netto-Budget', () => {
+  it('verhindert Agentur-Abzüge über dem Netto-Budget (Step 3 für Nicht-Contracting)', () => {
     const validator = new ProjektErstellenValidator();
 
-    const result = validator.validateStep2({
+    const result = validator.validateStep3({
       auftrag: {
         angebotsnummer: 'AN-100',
         nettobetrag: 100000
       },
+      kampagne: {
+        kampagnenname: 'Test'
+      },
       details: {
+        campaign_blocks: [{ id: 'b1', campaign_type: 'ugc_paid' }],
+        campaign_type: ['ugc_paid'],
         agency_services_enabled: true,
         extra_services_enabled: true,
         extra_services: [

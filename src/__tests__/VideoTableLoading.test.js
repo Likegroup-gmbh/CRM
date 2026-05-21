@@ -102,25 +102,50 @@ describe('KampagneKooperationenVideoTable – Ladeoptimierung', () => {
     expect(queriedTables).not.toContain('kooperationen');
   });
 
-  it('öffnet das Status-Dropdown nach oben wenn unten zu wenig Platz ist', () => {
+  it('positioniert das Portal nach oben wenn unten zu wenig Platz ist', () => {
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 600 });
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 });
+
+    const trigger = document.createElement('span');
+    trigger.className = 'status-select-trigger';
+    trigger.getBoundingClientRect = () => ({ top: 540, bottom: 570, left: 100, right: 280 });
+
+    const portal = document.createElement('div');
+    portal.className = 'status-dropdown-portal';
+    Object.defineProperty(portal, 'offsetHeight', { configurable: true, value: 180 });
+    Object.defineProperty(portal, 'offsetWidth', { configurable: true, value: 180 });
+    document.body.appendChild(portal);
+
+    table._positionStatusPortal(trigger, portal);
+
+    // Unten 540+180 > 600 -> oeffnet nach oben: top = 540 - 180 - 4 = 356
+    expect(portal.style.top).toBe('356px');
+  });
+
+  it('oeffnet das Status-Portal an document.body und schliesst es wieder', () => {
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 });
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 });
 
     document.body.innerHTML = `
-      <div class="status-select-wrapper">
+      <div class="status-select-wrapper" data-kooperation-id="k-1">
         <span class="status-select-trigger"></span>
-        <div class="status-dropdown"></div>
+        <div class="status-dropdown">
+          <a href="#" class="status-dropdown-item" data-value="">kein Status</a>
+        </div>
       </div>
     `;
 
     const wrapper = document.querySelector('.status-select-wrapper');
-    const trigger = document.querySelector('.status-select-trigger');
-    const dropdown = document.querySelector('.status-dropdown');
+    const trigger = wrapper.querySelector('.status-select-trigger');
+    trigger.getBoundingClientRect = () => ({ top: 100, bottom: 130, left: 50, right: 200 });
 
-    trigger.getBoundingClientRect = () => ({ top: 540, bottom: 570 });
-    Object.defineProperty(dropdown, 'offsetHeight', { configurable: true, value: 180 });
+    const portal = table._openStatusPortal(wrapper);
+    expect(portal).not.toBeNull();
+    expect(document.querySelectorAll('.status-dropdown-portal').length).toBe(1);
+    expect(portal.dataset.kooperationId).toBe('k-1');
 
-    table.positionStatusDropdown(wrapper);
-
-    expect(wrapper.classList.contains('opens-up')).toBe(true);
+    table._closeStatusPortal();
+    expect(document.querySelectorAll('.status-dropdown-portal').length).toBe(0);
+    expect(wrapper.classList.contains('open')).toBe(false);
   });
 });

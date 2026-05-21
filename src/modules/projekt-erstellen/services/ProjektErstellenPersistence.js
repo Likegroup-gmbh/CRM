@@ -134,6 +134,7 @@ export class ProjektErstellenPersistence {
       ust_prozent: a.ust_prozent ?? null,
       ust_betrag: a.ust_betrag ?? null,
       bruttobetrag: a.bruttobetrag ?? null,
+      anzahl_teilrechnungen: a.anzahl_teilrechnungen ?? null,
       is_draft: false,
       status: 'Beauftragt'
     };
@@ -210,7 +211,7 @@ export class ProjektErstellenPersistence {
       `${prefix}_videographen_anzahl`
     ]);
     const WIZARD_OWNED_KEYS = [
-      'kampagnenname', 'unternehmen_id', 'marke_id', 'art_der_kampagne',
+      'kampagnenname', 'eigener_name', 'unternehmen_id', 'marke_id', 'art_der_kampagne',
       'start', 'deadline', 'deadline_post_produktion',
       'creatoranzahl', 'videoanzahl',
       ...campaignColumns
@@ -281,7 +282,9 @@ export class ProjektErstellenPersistence {
 
       const unternehmenId = auftragPayload.unternehmen_id;
       if (unternehmenId) {
-        const poResult = await generatePoNummer(unternehmenId);
+        const poResult = await generatePoNummer(unternehmenId, {
+          gesamtPoNummer: formData?.auftrag?.po_gesamt_nummer ?? null
+        });
         if (!poResult.success) return { success: false, error: poResult.error };
         auftragPayload.po = poResult.poNummer;
       }
@@ -572,7 +575,9 @@ export class ProjektErstellenPersistence {
 
       const unternehmenId = auftragPayload.unternehmen_id;
       if (unternehmenId) {
-        const poResult = await generatePoNummer(unternehmenId);
+        const poResult = await generatePoNummer(unternehmenId, {
+          gesamtPoNummer: formData?.auftrag?.po_gesamt_nummer ?? null
+        });
         if (!poResult.success) {
           return { success: false, error: poResult.error };
         }

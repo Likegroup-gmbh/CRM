@@ -10,6 +10,7 @@ import {
 } from './CreatorAuswahlTemplates.js';
 import { CreatorAuswahlKategorienDrawer } from './CreatorAuswahlKategorienDrawer.js';
 import { CreatorAuswahlAddDrawer } from './CreatorAuswahlAddDrawer.js';
+import { autoResizeTextarea } from '../feedback/FeedbackEventHandler.js';
 
 export class CreatorAuswahlDetail {
   constructor() {
@@ -288,6 +289,13 @@ export class CreatorAuswahlDetail {
     if (window.ActionsDropdown) {
       window.ActionsDropdown.init();
     }
+
+    document.querySelectorAll('.cp-col-feedback textarea.auto-resize-textarea').forEach(el => {
+      autoResizeTextarea(el);
+      const handler = () => autoResizeTextarea(el);
+      el.addEventListener('input', handler);
+      this._boundEventListeners.add(() => el.removeEventListener('input', handler));
+    });
   }
 
   // --- Drag & Drop ---
@@ -295,6 +303,23 @@ export class CreatorAuswahlDetail {
   bindDragAndDropEvents() {
     const rows = document.querySelectorAll('.item-row.draggable');
     const kategorieHeaders = document.querySelectorAll('.kategorie-header-row');
+
+    // Drag nur über Handle aktivieren
+    const handles = document.querySelectorAll('.drag-handle');
+    handles.forEach(handle => {
+      const mousedownHandler = () => {
+        const row = handle.closest('.item-row');
+        if (row) row.draggable = true;
+      };
+      handle.addEventListener('mousedown', mousedownHandler);
+      this._boundEventListeners.add(() => handle.removeEventListener('mousedown', mousedownHandler));
+    });
+
+    const globalMouseup = () => {
+      rows.forEach(row => { row.draggable = false; });
+    };
+    document.addEventListener('mouseup', globalMouseup);
+    this._boundEventListeners.add(() => document.removeEventListener('mouseup', globalMouseup));
 
     rows.forEach(row => {
       const dragstartHandler = (e) => {
@@ -309,6 +334,7 @@ export class CreatorAuswahlDetail {
 
       const dragendHandler = () => {
         row.style.opacity = '1';
+        row.draggable = false;
         this.draggedItem = null;
         this.draggedItemId = null;
         document.querySelectorAll('.kategorie-header-row.drag-over').forEach(h => h.classList.remove('drag-over'));

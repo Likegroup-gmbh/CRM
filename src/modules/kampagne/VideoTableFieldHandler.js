@@ -38,7 +38,10 @@ export class VideoTableFieldHandler {
     const kooperationId = field.getAttribute('data-kooperation-id');
     
     let value;
-    if (field.type === 'checkbox') {
+    if (field.classList?.contains('custom-date-picker__input')) {
+      const { CustomDatePicker } = await import('../../core/components/CustomDatePicker.js');
+      value = CustomDatePicker.getValue(field) || null;
+    } else if (field.type === 'checkbox') {
       value = field.checked;
     } else {
       value = field.value;
@@ -208,6 +211,10 @@ export class VideoTableFieldHandler {
 
       field.classList.add('save-success');
       setTimeout(() => field.classList.remove('save-success'), 1000);
+
+      if (field.classList?.contains('custom-date-picker__input')) {
+        field.dataset.previousValue = value || '';
+      }
 
     } catch (error) {
       console.error(`❌ Fehler beim Speichern von ${entity}.${fieldName}:`, error);

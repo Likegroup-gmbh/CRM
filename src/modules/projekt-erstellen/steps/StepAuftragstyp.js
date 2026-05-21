@@ -65,6 +65,7 @@ export class StepAuftragstyp {
 
         this.wizard.formData.auftrag.auftragtype = value;
         this.wizard.updateStepsForAuftragtype();
+        this.wizard.ensurePoReserved();
         this.wizard.updateFeedback();
 
         if (nextBtn) nextBtn.disabled = false;
@@ -73,6 +74,10 @@ export class StepAuftragstyp {
 
     if (nextBtn) {
       nextBtn.addEventListener('click', () => this.wizard.navigate(1));
+    }
+
+    if (this.wizard.formData.auftrag?.auftragtype) {
+      this.wizard.ensurePoReserved();
     }
   }
 

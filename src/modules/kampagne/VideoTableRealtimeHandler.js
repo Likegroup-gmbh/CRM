@@ -103,13 +103,22 @@ export class VideoTableRealtimeHandler {
       });
   }
 
-  _isOwnUpdate() {
+  _isOwnUpdate(koopId) {
+    // ID-basierter Guard (10s) - robust gegen langsame Realtime-Echos
+    if (koopId && this.table._pendingOwnUpdates) {
+      const pending = this.table._pendingOwnUpdates.get(koopId);
+      if (pending && (Date.now() - pending) < 10000) {
+        this.table._pendingOwnUpdates.delete(koopId);
+        return true;
+      }
+    }
+    // Legacy Timestamp-Guard fuer Updates ohne ID
     return this.table._lastUpdateBy === window.currentUser?.id &&
       Date.now() - this.table._lastUpdateTime < 2000;
   }
 
   async handleVideoUpdate(payload) {
-    if (this._isOwnUpdate()) return;
+    if (this._isOwnUpdate(payload.new?.id)) return;
 
     const updatedVideo = payload.new;
     if (this.table.store) {
@@ -130,7 +139,7 @@ export class VideoTableRealtimeHandler {
   }
 
   async handleNewVideo(payload) {
-    if (this._isOwnUpdate()) return;
+    if (this._isOwnUpdate(payload.new?.id)) return;
 
     const newVideo = payload.new;
     const koopId = newVideo.kooperation_id;
@@ -149,7 +158,7 @@ export class VideoTableRealtimeHandler {
   }
 
   async handleKooperationUpdate(payload) {
-    if (this._isOwnUpdate()) return;
+    if (this._isOwnUpdate(payload.new?.id)) return;
 
     const updated = payload.new;
     const linkFields = ['bilder_folder_url', 'folder_url', 'story_folder_url'];
@@ -160,14 +169,30 @@ export class VideoTableRealtimeHandler {
     } else {
       oldKoop = this.table.kooperationen.find(k => k.id === updated.id);
     }
-    const linkChanged = linkFields.some(f => (oldKoop?.[f] ?? null) !== (updated[f] ?? null));
+    // Robuster Vergleich: undefined (Feld nicht im initialen SELECT) darf nicht als Aenderung gewertet werden
+    const linkChanged = linkFields.some(f => {
+      const oldVal = oldKoop?.[f];
+      if (oldVal === undefined) return false;
+      const newVal = updated[f];
+      return (oldVal ?? null) !== (newVal ?? null);
+    });
+
+    // Status-Felder (status_ref/status_name) aus statusOptions neu bauen,
+    // da der rohe Postgres-Payload den JOIN-Alias nicht enthaelt.
+    const statusOptions = this.table.store?.statusOptions || this.table.statusOptions || [];
+    const statusOpt = updated.status_id ? statusOptions.find(s => s.id === updated.status_id) : null;
+    const computedStatus = {
+      status_ref: statusOpt ? { id: statusOpt.id, name: statusOpt.name } : null,
+      status_name: statusOpt?.name || updated.status || null
+    };
 
     if (this.table.store) {
       const existing = this.table.store.kooperationen.find(k => k.id === updated.id);
       this.table.store.updateKooperation(updated.id, {
         ...updated,
         creator: existing?.creator,
-        kampagne: existing?.kampagne
+        kampagne: existing?.kampagne,
+        ...computedStatus
       });
     } else {
       const idx = this.table.kooperationen.findIndex(k => k.id === updated.id);
@@ -176,9 +201,16 @@ export class VideoTableRealtimeHandler {
           ...this.table.kooperationen[idx],
           ...updated,
           creator: this.table.kooperationen[idx].creator,
-          kampagne: this.table.kooperationen[idx].kampagne
+          kampagne: this.table.kooperationen[idx].kampagne,
+          ...computedStatus
         };
       }
+    }
+
+    // Fremde Status-Aenderung: Status-Zelle visuell aktualisieren
+    const statusChanged = (oldKoop?.status_id ?? null) !== (updated.status_id ?? null);
+    if (statusChanged && typeof this.table._updateStatusInline === 'function') {
+      this.table._updateStatusInline(updated.id, updated.status_id, computedStatus.status_name);
     }
 
     if (linkChanged) this.table.refilter();
@@ -218,7 +250,7 @@ export class VideoTableRealtimeHandler {
   async handleCommentChange(payload) {
     const comment = payload.new || payload.old;
     if (!comment?.video_id) return;
-    if (this._isOwnUpdate()) return;
+    if (this._isOwnUpdate(comment.video_id)) return;
 
     const videoId = comment.video_id;
 
