@@ -312,79 +312,51 @@ export class FormSearchableSelect {
     const cleanFilterText = filterText.replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '').trim();
     const lowerFilter = cleanFilterText.toLowerCase();
 
-    const filteredOptions = options.filter(option =>
-      option.label.toLowerCase().includes(lowerFilter)
-    );
+    const filteredOptions = this._filterOptions(options, lowerFilter);
+    const renderEntries = this._buildRenderEntries(filteredOptions);
 
     const selectElement = dropdown.parentNode.parentNode.querySelector('select');
     const isPhoneField = selectElement?.dataset?.phoneField === 'true';
     const isCountryField = selectElement?.dataset?.countryField === 'true';
 
     const exactMatch = options.some(opt =>
-      opt.label.toLowerCase() === lowerFilter
+      this._optionSearchText(opt).trim() === lowerFilter
     );
 
     const BATCH_SIZE = 50;
-    const renderCount = Math.min(filteredOptions.length, BATCH_SIZE);
+    const renderCount = Math.min(renderEntries.length, BATCH_SIZE);
 
-    // DOM-Recycling: bestehende Items wiederverwenden statt innerHTML-Nuke
-    const existingItems = Array.from(dropdown.querySelectorAll('.searchable-select-item:not(.create-new)'));
-    let itemIndex = 0;
+    dropdown.querySelectorAll('.searchable-select-group-header, .searchable-select-item:not(.create-new)').forEach(el => el.remove());
 
+    const fragment = document.createDocumentFragment();
     for (let i = 0; i < renderCount; i++) {
-      const option = filteredOptions[i];
-      let item;
-
-      if (itemIndex < existingItems.length) {
-        item = existingItems[itemIndex];
-        item.style.display = '';
-      } else {
-        item = document.createElement('div');
-        item.className = 'searchable-select-item';
-        const createNew = dropdown.querySelector('.create-new');
-        if (createNew) {
-          dropdown.insertBefore(item, createNew);
-        } else {
-          dropdown.appendChild(item);
-        }
-      }
-
-      if ((isPhoneField || isCountryField) && option.isoCode) {
-        item.textContent = `${this.isoToFlagEmoji(option.isoCode)} ${option.label}`;
-      } else {
-        item.textContent = option.label;
-      }
-
-      item.onclick = () => this._selectOption(dropdown, option, isPhoneField, isCountryField);
-      item.onmouseenter = () => item.classList.add('hover');
-      item.onmouseleave = () => item.classList.remove('hover');
-
-      itemIndex++;
+      fragment.appendChild(this._createRenderEntryElement(
+        dropdown, renderEntries[i], isPhoneField, isCountryField
+      ));
+    }
+    const createNew = dropdown.querySelector('.create-new');
+    if (createNew) {
+      dropdown.insertBefore(fragment, createNew);
+    } else {
+      dropdown.appendChild(fragment);
     }
 
-    // Überschüssige Items entfernen
-    for (let i = itemIndex; i < existingItems.length; i++) {
-      existingItems[i].remove();
-    }
+    dropdown._lazyRenderEntries = renderEntries.length > BATCH_SIZE ? renderEntries : null;
+    dropdown._lazyOffset = renderCount;
+    dropdown._isPhoneField = isPhoneField;
+    dropdown._isCountryField = isCountryField;
 
-    // Bestehende create-new Items entfernen
-    dropdown.querySelectorAll('.create-new').forEach(el => el.remove());
-
-    // Lazy Rendering: Scroll-Nachladen für Listen > BATCH_SIZE
-    if (filteredOptions.length > BATCH_SIZE) {
-      dropdown._lazyOptions = filteredOptions;
-      dropdown._lazyOffset = BATCH_SIZE;
-      dropdown._isPhoneField = isPhoneField;
-      dropdown._isCountryField = isCountryField;
-
+    if (renderEntries.length > BATCH_SIZE) {
       if (!dropdown._scrollHandler) {
         dropdown._scrollHandler = () => this._loadMoreItems(dropdown);
         dropdown.addEventListener('scroll', dropdown._scrollHandler, { passive: true });
       }
     } else {
-      dropdown._lazyOptions = null;
+      dropdown._lazyRenderEntries = null;
       dropdown._lazyOffset = 0;
     }
+
+    dropdown.querySelectorAll('.create-new').forEach(el => el.remove());
 
     if (field?.allowCreate && cleanFilterText.length > 0 && !exactMatch) {
       const createItem = document.createElement('div');
@@ -402,38 +374,91 @@ export class FormSearchableSelect {
     }
   }
 
+  _optionSearchText(option) {
+    return [option.label, option.subtitle, option.group].filter(Boolean).join(' ').toLowerCase();
+  }
+
+  _filterOptions(options, lowerFilter) {
+    if (!lowerFilter) return options;
+    return options.filter(option => this._optionSearchText(option).includes(lowerFilter));
+  }
+
+  _buildRenderEntries(filteredOptions) {
+    const entries = [];
+    let lastGroup = null;
+
+    filteredOptions.forEach(option => {
+      const group = option.group || null;
+      if (group && group !== lastGroup) {
+        entries.push({ type: 'header', group });
+        lastGroup = group;
+      } else if (!group) {
+        lastGroup = null;
+      }
+      entries.push({ type: 'item', option });
+    });
+
+    return entries;
+  }
+
+  _createRenderEntryElement(dropdown, entry, isPhoneField, isCountryField) {
+    if (entry.type === 'header') {
+      const header = document.createElement('div');
+      header.className = 'searchable-select-group-header';
+      header.textContent = entry.group;
+      return header;
+    }
+
+    const item = document.createElement('div');
+    item.className = 'searchable-select-item';
+    this._fillItemContent(item, entry.option, isPhoneField, isCountryField);
+    item.onclick = () => this._selectOption(dropdown, entry.option, isPhoneField, isCountryField);
+    item.onmouseenter = () => item.classList.add('hover');
+    item.onmouseleave = () => item.classList.remove('hover');
+    return item;
+  }
+
+  _fillItemContent(item, option, isPhoneField, isCountryField) {
+    if ((isPhoneField || isCountryField) && option.isoCode) {
+      item.textContent = `${this.isoToFlagEmoji(option.isoCode)} ${option.label}`;
+      return;
+    }
+
+    if (option.subtitle) {
+      item.innerHTML = `
+        <div class="searchable-select-item-label">${this._escapeHtml(option.label)}</div>
+        <div class="searchable-select-item-subtitle">${this._escapeHtml(option.subtitle)}</div>
+      `;
+    } else {
+      item.textContent = option.label;
+    }
+  }
+
+  _escapeHtml(text) {
+    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+    return String(text || '').replace(/[&<>"']/g, m => map[m]);
+  }
+
   // Weitere Items beim Scrollen nachladen
   _loadMoreItems(dropdown) {
-    if (!dropdown._lazyOptions) return;
+    if (!dropdown._lazyRenderEntries) return;
     const { scrollTop, scrollHeight, clientHeight } = dropdown;
     if (scrollTop + clientHeight < scrollHeight - 40) return;
 
     const BATCH_SIZE = 50;
-    const options = dropdown._lazyOptions;
+    const entries = dropdown._lazyRenderEntries;
     const offset = dropdown._lazyOffset;
-    if (offset >= options.length) return;
+    if (offset >= entries.length) return;
 
-    const end = Math.min(offset + BATCH_SIZE, options.length);
+    const end = Math.min(offset + BATCH_SIZE, entries.length);
     const isPhoneField = dropdown._isPhoneField;
     const isCountryField = dropdown._isCountryField;
 
     const fragment = document.createDocumentFragment();
     for (let i = offset; i < end; i++) {
-      const option = options[i];
-      const item = document.createElement('div');
-      item.className = 'searchable-select-item';
-
-      if ((isPhoneField || isCountryField) && option.isoCode) {
-        item.textContent = `${this.isoToFlagEmoji(option.isoCode)} ${option.label}`;
-      } else {
-        item.textContent = option.label;
-      }
-
-      item.onclick = () => this._selectOption(dropdown, option, isPhoneField, isCountryField);
-      item.onmouseenter = () => item.classList.add('hover');
-      item.onmouseleave = () => item.classList.remove('hover');
-
-      fragment.appendChild(item);
+      fragment.appendChild(this._createRenderEntryElement(
+        dropdown, entries[i], isPhoneField, isCountryField
+      ));
     }
 
     const createNew = dropdown.querySelector('.create-new');

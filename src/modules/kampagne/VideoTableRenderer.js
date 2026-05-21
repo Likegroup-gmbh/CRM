@@ -241,16 +241,38 @@ export class VideoTableRenderer {
         </td>
         <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-thema') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => {
+            const canLink = !t.isKundeRole();
             if (video.strategie_item && video.strategie_item.screenshot_url) {
               const videoLink = video.strategie_item.video_link;
               const screenshotUrl = video.strategie_item.screenshot_url;
               const beschreibung = video.strategie_item.beschreibung || 'Strategie-Idee';
               const href = videoLink || `/strategie/${video.strategie_item.strategie_id}`;
               const targetAttr = videoLink ? ' target="_blank" rel="noopener noreferrer"' : '';
+              if (canLink) {
+                return `
+                  <button type="button" class="thema-link-btn thema-link-btn--linked"
+                    data-action="link-strategie-item"
+                    data-video-id="${video.id}"
+                    data-kooperation-id="${koop.id}"
+                    title="${this.escapeHtml(beschreibung)}">
+                    <img src="${screenshotUrl}" alt="Thema" class="thema-thumbnail" />
+                  </button>
+                `;
+              }
               return `
                 <a href="${href}" class="thema-thumbnail-link" title="${this.escapeHtml(beschreibung)}"${targetAttr}>
                   <img src="${screenshotUrl}" alt="Thema" class="thema-thumbnail" />
                 </a>
+              `;
+            }
+            if (canLink) {
+              return `
+                <button type="button" class="thema-link-btn"
+                  data-action="link-strategie-item"
+                  data-video-id="${video.id}"
+                  data-kooperation-id="${koop.id}">
+                  Idee verknüpfen
+                </button>
               `;
             }
             return `<span class="no-strategie-hint">Noch kein Thema/Strategie verknüpft</span>`;
