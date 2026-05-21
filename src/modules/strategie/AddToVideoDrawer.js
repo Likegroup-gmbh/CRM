@@ -1,5 +1,7 @@
 // AddToVideoDrawer.js - Drawer zum Verknüpfen von Strategie-Items mit bestehenden Videos
 
+import { buildVideoPickerOptions } from './VideoPickerOptions.js';
+
 export class AddToVideoDrawer {
   constructor() {
     this.drawerId = 'add-to-video-drawer';
@@ -110,7 +112,7 @@ export class AddToVideoDrawer {
       const koopIds = this.kooperationen.map(k => k.id);
       const { data: videos, error: videoError } = await window.supabase
         .from('kooperation_videos')
-        .select('id, titel, kooperation_id, position, strategie_item_id')
+        .select('id, titel, video_name, thema, content_art, kampagnenart, kooperation_id, position, strategie_item_id')
         .in('kooperation_id', koopIds)
         .is('strategie_item_id', null)
         .order('position', { ascending: true });
@@ -145,9 +147,8 @@ export class AddToVideoDrawer {
       ` : hasVideos ? `
         <div class="form-field">
           <label>Video auswählen</label>
-          <select id="select-video" class="form-input">
+          <select id="select-video" class="form-input" data-searchable="true">
             <option value="">– Video wählen –</option>
-            ${this.renderVideoOptions()}
           </select>
         </div>
         <div class="drawer-footer">
@@ -175,6 +176,18 @@ export class AddToVideoDrawer {
         </div>
       `}
     `;
+
+    this.initVideoSearchableSelect();
+  }
+
+  initVideoSearchableSelect() {
+    const selectVideo = document.getElementById('select-video');
+    if (!selectVideo || !window.formSystem) return;
+
+    const options = buildVideoPickerOptions(this.kooperationen, this.videos);
+    window.formSystem.createSimpleSearchableSelect(selectVideo, options, {
+      placeholder: 'Kooperation oder Video suchen…'
+    });
   }
 
   renderPreviewBox() {
@@ -211,36 +224,6 @@ export class AddToVideoDrawer {
         </div>
       </div>
     `;
-  }
-
-  renderVideoOptions() {
-    const grouped = {};
-    this.videos.forEach(video => {
-      if (!grouped[video.kooperation_id]) {
-        grouped[video.kooperation_id] = [];
-      }
-      grouped[video.kooperation_id].push(video);
-    });
-
-    let html = '';
-    this.kooperationen.forEach(koop => {
-      const koopVideos = grouped[koop.id];
-      if (!koopVideos || koopVideos.length === 0) return;
-
-      const creatorName = koop.creator 
-        ? `${koop.creator.vorname || ''} ${koop.creator.nachname || ''}`.trim()
-        : '';
-      const label = creatorName ? `${koop.name} (${creatorName})` : koop.name;
-
-      html += `<optgroup label="${this.escapeHtml(label)}">`;
-      koopVideos.forEach(video => {
-        const videoLabel = video.titel || `Video ${video.position}`;
-        html += `<option value="${video.id}">${this.escapeHtml(videoLabel)}</option>`;
-      });
-      html += '</optgroup>';
-    });
-
-    return html;
   }
 
   bindEvents() {
