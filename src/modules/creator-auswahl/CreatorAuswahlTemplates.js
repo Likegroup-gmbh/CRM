@@ -261,7 +261,7 @@ export function renderItemRow(ctx, item, index) {
   const isBooked = !!item.prio_1 && !item.nicht_umsetzen;
 
   return `
-    <tr class="item-row ${!ctx.isKunde ? 'draggable' : ''} ${isBooked ? 'item-gebucht' : ''} ${item.nicht_umsetzen ? 'item-nicht-umsetzen' : ''}" data-item-id="${item.id}" draggable="${!ctx.isKunde}">
+    <tr class="item-row ${!ctx.isKunde ? 'draggable' : ''} ${isBooked ? 'item-gebucht' : ''} ${item.nicht_umsetzen ? 'item-nicht-umsetzen' : ''}" data-item-id="${item.id}" draggable="false">
       ${!ctx.isKunde ? `
         <td class="col-drag drag-handle col-sticky-1">
           <div class="drag-cell-content">
@@ -274,8 +274,9 @@ export function renderItemRow(ctx, item, index) {
       ` : ''}
       <td class="cell-textarea cp-col-name ${ctx.isKunde ? 'col-sticky-1' : 'col-sticky-2'}">
         ${!ctx.isKunde ? `
-          <textarea class="strategie-textarea" data-field="name" data-item-id="${item.id}" placeholder="Name...">${item.name || ''}</textarea>
-          ${ctx.teilbereiche?.length > 0 && item.kategorie !== 'Nicht umsetzen' ? `<span class="kategorie-pill" data-item-id="${item.id}">${item.kategorie || 'Ohne Kategorie'}</span>` : ''}
+          <div class="cp-name-cell-inner">
+            <textarea class="strategie-textarea" data-field="name" data-item-id="${item.id}" placeholder="Name...">${item.name || ''}</textarea>
+          </div>
         ` : `<div class="cell-text-readonly">${item.name || '-'}</div>`}
       </td>
       <td class="cell-textarea cp-col-typ" style="${hide('cp-col-typ')}">
@@ -396,7 +397,7 @@ export function renderItemRow(ctx, item, index) {
       </td>
       <td class="cell-textarea cp-col-feedback" style="${hide('cp-col-feedback')}">
         <textarea
-          class="strategie-textarea ${ctx.isKunde ? '' : 'readonly-textarea'}"
+          class="strategie-textarea auto-resize-textarea ${ctx.isKunde ? '' : 'readonly-textarea'}"
           data-field="feedback_kunde"
           data-item-id="${item.id}"
           placeholder="${ctx.isKunde ? 'Ihr Feedback...' : 'Rückmeldung Kunde...'}"

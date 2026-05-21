@@ -192,10 +192,6 @@ export class FeedbackCard {
 
     const artLabel = AUFTRAG_TYPES.find(t => t.value === a.auftragtype)?.label || null;
 
-    const zeitraum = a.start || a.ende
-      ? `${formatDate(a.start)} – ${formatDate(a.ende)}`
-      : null;
-
     return this.renderSummaryGrid([
       [
         this.renderEntityMetric('Unternehmen', unternehmen, 'org'),
@@ -204,7 +200,7 @@ export class FeedbackCard {
       ],
       [
         this.renderSummaryMetric('Art des Auftrags', artLabel, !artLabel),
-        this.renderSummaryMetric('Zeitraum', zeitraum, !zeitraum),
+        this.renderSummaryMetric('Interne PO', this.escapeHtml(a.po || ''), !a.po),
         this.renderSummaryMetric('Titel', this.escapeHtml(a.titel || ''), !a.titel)
       ]
     ]);
@@ -298,13 +294,7 @@ export class FeedbackCard {
       .replace(/>/g, '&gt;');
   }
 
-  buildStep2(formData) {
-    const d = formData.details || {};
-    const a = formData.auftrag || {};
-    const creatorBudget = calculateCreatorBudget(a, d);
-
-    let agencyBlock = '';
-    let agencyLeft = [];
+  buildAgencyMetrics(d) {
     if (d.agency_services_enabled) {
       const retainer = RETAINER_TYPES.find(t => t.value === d.retainer_type)?.label || d.retainer_type;
       const retainerLine = d.retainer_type && d.retainer_type !== 'none'
@@ -327,27 +317,49 @@ export class FeedbackCard {
         ? formatCurrency(d.ksk_value)
         : null;
 
-      agencyLeft = [
+      return [
         this.renderSummaryMetric('Retainer', retainerLine, !retainerLine),
         this.renderSummaryMetric('Zusatzleistungen', extraLine, !extraLine),
         this.renderSummaryMetric('Agentur Fee', pctLine, !pctLine),
         this.renderSummaryMetric('KSK', kskLine, !kskLine)
       ];
-    } else {
-      agencyBlock = this.renderSummaryMetric('Agenturleistungen', 'Deaktiviert', false);
-      agencyLeft = [agencyBlock];
+    }
+    return [this.renderSummaryMetric('Agenturleistungen', 'Deaktiviert', false)];
+  }
+
+  buildStep2(formData) {
+    const d = formData.details || {};
+    const a = formData.auftrag || {};
+    const isContracting = a.auftragtype === 'Contracting';
+    const creatorBudget = calculateCreatorBudget(a, d);
+
+    const leistungszeitraum = a.start || a.ende
+      ? `${formatDate(a.start)} – ${formatDate(a.ende)}`
+      : null;
+
+    const teilrechnungen = a.anzahl_teilrechnungen != null && a.anzahl_teilrechnungen !== ''
+      ? String(a.anzahl_teilrechnungen)
+      : null;
+
+    const leftCol = [
+      this.renderSummaryMetric('Angebotsnummer', this.escapeHtml(a.angebotsnummer || ''), !a.angebotsnummer),
+      this.renderSummaryMetric('Leistungszeitraum', leistungszeitraum, !leistungszeitraum),
+      this.renderSummaryMetric('Teilrechnungen', teilrechnungen, !teilrechnungen),
+      this.renderSummaryMetric('Auftrag Netto', a.nettobetrag != null && a.nettobetrag !== '' ? formatCurrency(a.nettobetrag) : null, a.nettobetrag == null || a.nettobetrag === ''),
+      this.renderSummaryMetric('Gesamtbudget (netto)', creatorBudget != null ? formatCurrency(creatorBudget) : null, creatorBudget == null),
+      this.renderSummaryMetric('Brutto', a.bruttobetrag != null && a.bruttobetrag !== '' ? formatCurrency(a.bruttobetrag) : null, a.bruttobetrag == null || a.bruttobetrag === '')
+    ];
+
+    const rightCol = [
+      this.renderSummaryMetric('Rechnungsnummer', this.escapeHtml(a.re_nr || ''), !a.re_nr),
+      this.renderSummaryMetric('Externe PO', this.escapeHtml(a.externe_po || ''), !a.externe_po)
+    ];
+
+    if (isContracting) {
+      rightCol.push(...this.buildAgencyMetrics(d));
     }
 
-    return this.renderSummaryGrid([
-      agencyLeft,
-      [
-        this.renderSummaryMetric('Auftrag Netto', a.nettobetrag != null && a.nettobetrag !== '' ? formatCurrency(a.nettobetrag) : null, a.nettobetrag == null || a.nettobetrag === ''),
-        this.renderSummaryMetric('Gesamtbudget (netto)', creatorBudget != null ? formatCurrency(creatorBudget) : null, creatorBudget == null),
-        this.renderSummaryMetric('Brutto', a.bruttobetrag != null && a.bruttobetrag !== '' ? formatCurrency(a.bruttobetrag) : null, a.bruttobetrag == null || a.bruttobetrag === ''),
-        this.renderSummaryMetric('Angebotsnummer', this.escapeHtml(a.angebotsnummer || ''), !a.angebotsnummer),
-        this.renderSummaryMetric('Rechnungsnummer', this.escapeHtml(a.re_nr || ''), !a.re_nr)
-      ]
-    ]);
+    return this.renderSummaryGrid([leftCol, rightCol]);
   }
 
   buildStep3Kampagnenarten(formData) {
@@ -389,19 +401,20 @@ export class FeedbackCard {
     const a = formData.auftrag || {};
     const d = formData.details || {};
     const name = k.kampagnenname || null;
-    const dreh = a.start || a.ende
-      ? `${formatDate(a.start)} – ${formatDate(a.ende)}`
-      : null;
     const totals = this.calculateCampaignTotals(normalizeCampaignBlocks(d));
+
+    const agencyMetrics = this.buildAgencyMetrics(d);
 
     return `
       <div class="projekt-erstellen-summary-metrics">
         ${this.renderSummaryMetric('Kampagnenname', this.escapeHtml(name || ''), !name)}
-        ${this.renderSummaryMetric('Zeitraum', dreh, !dreh)}
         ${this.renderSummaryMetric('Creator gesamt', formatNumber(totals.creators), false)}
         ${this.renderSummaryMetric('Videos gesamt', formatNumber(totals.videos), false)}
       </div>
       ${this.buildStep3Kampagnenarten(formData)}
+      <div class="projekt-erstellen-summary-metrics">
+        ${agencyMetrics.join('')}
+      </div>
     `;
   }
 

@@ -126,7 +126,24 @@ export function destroyDragToScroll(detail) {
 export function bindDragAndDropEvents(detail) {
   const rows = document.querySelectorAll('.item-row.draggable');
   const categoryHeaders = document.querySelectorAll('.category-header-row');
-  
+
+  // Drag nur über Handle aktivieren
+  const handles = document.querySelectorAll('.drag-handle');
+  handles.forEach(handle => {
+    const mousedownHandler = () => {
+      const row = handle.closest('.item-row');
+      if (row) row.draggable = true;
+    };
+    handle.addEventListener('mousedown', mousedownHandler);
+    detail._tableEventListeners.add(() => handle.removeEventListener('mousedown', mousedownHandler));
+  });
+
+  const globalMouseup = () => {
+    rows.forEach(row => { row.draggable = false; });
+  };
+  document.addEventListener('mouseup', globalMouseup);
+  detail._tableEventListeners.add(() => document.removeEventListener('mouseup', globalMouseup));
+
   rows.forEach(row => {
     const dragstartHandler = (e) => {
       detail.draggedItem = row;
@@ -140,6 +157,7 @@ export function bindDragAndDropEvents(detail) {
 
     const dragendHandler = () => {
       row.style.opacity = '1';
+      row.draggable = false;
       detail.draggedItem = null;
       detail.draggedItemId = null;
       document.querySelectorAll('.category-header-row').forEach(h => {

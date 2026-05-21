@@ -45,11 +45,44 @@ export async function getMaxPoFromExistingData() {
 }
 
 /**
+ * Reserviert die globale GesamtPO-Nummer (atomarer DB-Zähler).
+ * @returns {Promise<{success: boolean, gesamtPoNummer?: number, error?: string}>}
+ */
+export async function reservePoGesamtNummer() {
+  try {
+    const { data: counterData, error: counterError } = await window.supabase
+      .rpc('increment_po_counter');
+
+    if (!counterError && counterData) {
+      return { success: true, gesamtPoNummer: counterData };
+    }
+
+    console.warn('⚠️ DB-Zähler nicht verfügbar, nutze Fallback:', counterError?.message);
+    const gesamtPoNummer = await getMaxPoFromExistingData();
+    return { success: true, gesamtPoNummer };
+  } catch (e) {
+    console.error('❌ Fehler bei PO-Reservierung:', e);
+    return { success: false, error: 'PO-Nummer konnte nicht reserviert werden.' };
+  }
+}
+
+/**
+ * Baut eine Vorschau-PO vor Unternehmenswahl.
+ * @param {number} gesamtPoNummer
+ * @returns {string}
+ */
+export function buildPartialPoPreview(gesamtPoNummer) {
+  const currentYear = new Date().getFullYear();
+  return `PO-…-${currentYear}-…-${gesamtPoNummer}`;
+}
+
+/**
  * Generiert eine PO-Nummer für einen neuen Auftrag.
  * @param {string} unternehmenId - ID des Unternehmens (für Kürzel + Zählung)
- * @returns {Promise<{success: boolean, poNummer?: string, error?: string}>}
+ * @param {{ gesamtPoNummer?: number|null }} [options] - Bereits reservierte GesamtPO (kein erneutes Inkrement)
+ * @returns {Promise<{success: boolean, poNummer?: string, gesamtPoNummer?: number, error?: string}>}
  */
-export async function generatePoNummer(unternehmenId) {
+export async function generatePoNummer(unternehmenId, { gesamtPoNummer = null } = {}) {
   const currentYear = new Date().getFullYear();
 
   try {
@@ -91,22 +124,19 @@ export async function generatePoNummer(unternehmenId) {
     const kundenAuftragNummer = (kundenAuftraegeCount || 0) + 1;
 
     // 3. GesamtPO-Nummer ermitteln (primär via atomarem DB-Zähler, Fallback Regex)
-    let gesamtPoNummer;
-    const { data: counterData, error: counterError } = await window.supabase
-      .rpc('increment_po_counter');
-
-    if (!counterError && counterData) {
-      gesamtPoNummer = counterData;
-      console.log(`✅ PO-Zähler aus DB: ${gesamtPoNummer}`);
-    } else {
-      console.warn('⚠️ DB-Zähler nicht verfügbar, nutze Fallback:', counterError?.message);
-      gesamtPoNummer = await getMaxPoFromExistingData();
+    let resolvedGesamtPoNummer = gesamtPoNummer;
+    if (resolvedGesamtPoNummer == null) {
+      const reserved = await reservePoGesamtNummer();
+      if (!reserved.success) {
+        return { success: false, error: reserved.error || 'PO-Nummer konnte nicht reserviert werden.' };
+      }
+      resolvedGesamtPoNummer = reserved.gesamtPoNummer;
     }
 
-    const poNummer = `PO-${kuerzel.trim()}-${currentYear}-${kundenAuftragNummer}-${gesamtPoNummer}`;
+    const poNummer = `PO-${kuerzel.trim()}-${currentYear}-${kundenAuftragNummer}-${resolvedGesamtPoNummer}`;
     console.log(`✅ Neue PO-Nummer generiert: ${poNummer}`);
 
-    return { success: true, poNummer };
+    return { success: true, poNummer, gesamtPoNummer: resolvedGesamtPoNummer };
   } catch (e) {
     console.error('❌ Fehler bei PO-Nummer Generierung:', e);
     return { success: false, error: 'Ein unerwarteter Fehler bei der PO-Generierung ist aufgetreten.' };

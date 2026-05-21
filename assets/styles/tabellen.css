@@ -33,6 +33,8 @@
 
 /* === KOOPERATION-VIDEO-TABELLE === */
 .kooperation-video-grid {
+  --grid-col-nr: 3ch;
+  --grid-col-creator: 18ch;
   border-collapse: separate;
   border-spacing: 0;
   min-width: 100%;
@@ -46,49 +48,63 @@
   font-weight: 400;
 }
 
-/* Standard-Spaltenbreiten für kooperation-video-grid */
-.kooperation-video-grid .col-nr { width: 25px; min-width: 25px; }
-.kooperation-video-grid .col-creator { width: 150px; min-width: 150px; }
-.kooperation-video-grid .col-videoanzahl { width: 70px; min-width: 70px; }
-.kooperation-video-grid .col-status { width: 120px; min-width: 120px; }
-.kooperation-video-grid .col-start-datum { width: 80px; min-width: 80px; }
-.kooperation-video-grid .col-video-script-deadline { width: 110px; min-width: 110px; }
-.kooperation-video-grid .col-video-content-deadline { width: 110px; min-width: 110px; }
-.kooperation-video-grid .col-typ { width: 120px; min-width: 120px; }
-.kooperation-video-grid .col-organic-paid { width: 120px; min-width: 120px; }
-.kooperation-video-grid .col-kampagne { width: 150px; min-width: 150px; }
-.kooperation-video-grid .col-posting-datum { width: 130px; min-width: 130px; }
-.kooperation-video-grid .col-vertrag { width: 70px; min-width: 70px; }
-.kooperation-video-grid .col-nutzungsrechte { width: 150px; min-width: 150px; }
-.kooperation-video-grid .col-lieferadresse { width: 200px; min-width: 200px; }
-.kooperation-video-grid .col-produkt { width: 200px; min-width: 200px; }
-.kooperation-video-grid .col-paket-tracking { width: 180px; min-width: 180px; }
-.kooperation-video-grid .col-thema { width: 150px; min-width: 150px; }
-.kooperation-video-grid .col-drehort { width: 150px; min-width: 150px; }
-.kooperation-video-grid .col-link-produkte { width: 130px; min-width: 130px; }
-.kooperation-video-grid .col-link-skript { width: 130px; min-width: 130px; }
-.kooperation-video-grid .col-skript-freigegeben { width: 130px; min-width: 130px; }
-.kooperation-video-grid .col-link-content { width: 130px; min-width: 130px; }
-.kooperation-video-grid .col-link-story { width: 130px; min-width: 130px; }
-.kooperation-video-grid .col-freigabe { width: 80px; min-width: 80px; }
-.kooperation-video-grid .col-caption { width: 400px; min-width: 400px; }
-.kooperation-video-grid .col-feedback-cj { width: 400px; min-width: 400px; }
-.kooperation-video-grid .col-feedback-kunde { width: 400px; min-width: 400px; }
+/* Standard-Spaltenbreiten für kooperation-video-grid (ch/rem, keine px) */
+.kooperation-video-grid .col-nr { width: var(--grid-col-nr); min-width: var(--grid-col-nr); }
+.kooperation-video-grid .col-creator { width: var(--grid-col-creator); min-width: var(--grid-col-creator); }
+.kooperation-video-grid .col-videoanzahl { width: 5ch; min-width: 5ch; }
+.kooperation-video-grid th.col-status,
+.kooperation-video-grid td.col-status {
+  width: 1%;
+  min-width: 18ch;
+  white-space: nowrap;
+  text-align: left;
+}
+.kooperation-video-grid .col-status .status-badge,
+.kooperation-video-grid .col-status .status-select-trigger {
+  white-space: nowrap;
+}
+.kooperation-video-grid .col-tags { width: 12ch; min-width: 12ch; }
+.kooperation-video-grid .col-extra-kosten { width: 12ch; min-width: 12ch; }
+.kooperation-video-grid .col-start-datum { width: 10ch; min-width: 10ch; }
+.kooperation-video-grid .col-video-script-deadline { width: 12ch; min-width: 12ch; }
+.kooperation-video-grid .col-video-content-deadline { width: 12ch; min-width: 12ch; }
+.kooperation-video-grid .col-video-typ { width: 14ch; min-width: 14ch; }
+.kooperation-video-grid .col-organic-paid { width: 14ch; min-width: 14ch; }
+.kooperation-video-grid .col-kampagne { width: 16ch; min-width: 16ch; }
+.kooperation-video-grid .col-posting-datum { width: 14ch; min-width: 14ch; }
+.kooperation-video-grid .col-vertrag { width: 4.5rem; min-width: 4.5rem; }
+.kooperation-video-grid .col-nutzungsrechte { width: 18ch; min-width: 18ch; }
+.kooperation-video-grid .col-lieferadresse { width: 24ch; min-width: 24ch; }
+.kooperation-video-grid .col-produkt { width: 24ch; min-width: 24ch; }
+.kooperation-video-grid .col-paket-tracking { width: 22ch; min-width: 22ch; }
+.kooperation-video-grid .col-thema { width: 18ch; min-width: 18ch; }
+.kooperation-video-grid .col-drehort { width: 18ch; min-width: 18ch; }
+.kooperation-video-grid .col-link-produkte,
+.kooperation-video-grid .col-link-skript,
+.kooperation-video-grid .col-skript-freigegeben,
+.kooperation-video-grid .col-link-content,
+.kooperation-video-grid .col-link-story { width: 13ch; min-width: 13ch; }
+.kooperation-video-grid .col-freigabe { width: 8ch; min-width: 8ch; }
+.kooperation-video-grid .col-caption { width: 25rem; min-width: 25rem; }
+.kooperation-video-grid .col-feedback-cj,
+.kooperation-video-grid .col-feedback-kunde { width: 25rem; min-width: 25rem; }
 .kooperation-video-grid .col-feedback-cj-1,
 .kooperation-video-grid .col-feedback-kunde-1,
 .kooperation-video-grid .col-feedback-cj-2,
 .kooperation-video-grid .col-feedback-kunde-2 {
-  width: 260px;
-  min-width: 260px;
+  width: 16rem;
+  min-width: 16rem;
 }
-.kooperation-video-grid .col-kosten { width: 100px; min-width: 100px; }
+.kooperation-video-grid .col-kosten,
+.kooperation-video-grid .col-vk-video { width: 12ch; min-width: 12ch; }
+.kooperation-video-grid .col-video-nr { width: 5ch; min-width: 5ch; }
 .kooperation-video-grid .col-video-name {
   --_col-base: 9.125rem;
   --_col-factor: 2.5;
   width: calc(var(--_col-base) * var(--_col-factor));
   min-width: calc(var(--_col-base) * var(--_col-factor));
 }
-.kooperation-video-grid .col-actions { width: 70px; min-width: 70px; }
+.kooperation-video-grid .col-actions { width: 4.5rem; min-width: 4.5rem; }
 
 /* Aktions-Spalte: sticky rechts */
 .kooperation-video-grid thead th.col-actions,
@@ -142,7 +158,7 @@
 /* Zweite Spalte (Creator): sticky links */
 .kooperation-video-grid tbody td:nth-child(2) {
   position: sticky !important;
-  left: 50px !important;
+  left: var(--grid-col-nr) !important;
   z-index: 10;
   background: white;
 }
@@ -157,7 +173,7 @@
 
 .kooperation-video-grid thead th.col-header.col-creator {
   position: sticky !important;
-  left: 50px !important;
+  left: var(--grid-col-nr) !important;
   z-index: 40 !important;
   background: var(--gray-50);
 }
@@ -168,18 +184,27 @@
   content: '';
   position: absolute;
   top: 0;
-  right: -10px;
+  right: -0.625rem;
   bottom: 0;
-  width: 10px;
+  width: 0.625rem;
   pointer-events: none;
   z-index: 1;
   background: linear-gradient(to right, rgba(0, 0, 0, 0.06), transparent);
 }
 
 .kooperation-video-grid .grid-cell {
-  padding: var(--space-xs);
+  padding: 0;
   vertical-align: top;
   background: white;
+}
+
+/* Anzeige-Zellen ohne direktes Eingabefeld */
+.kooperation-video-grid .grid-cell.read-only,
+.kooperation-video-grid .grid-cell.col-status,
+.kooperation-video-grid .grid-cell.col-tags,
+.kooperation-video-grid .grid-cell.col-actions,
+.kooperation-video-grid .grid-cell.cell-centered:not(.video-stack-cell) {
+  padding: var(--space-md);
 }
 
 /* Einheitliches Tabellenverhalten: weiße Rows, Hover hebt komplette Zeile hervor */
@@ -292,20 +317,54 @@
   padding-bottom: var(--space-sm);
 }
 
-/* Entferne Padding von Tabellenzellen mit gestapelten Videos */
-.video-stack-cell {
+.kooperation-video-grid .video-field-wrapper {
+  padding: 0;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.kooperation-video-grid .video-field-wrapper:last-child {
+  padding-bottom: 0;
+}
+
+.kooperation-video-grid .video-stack-cell {
   padding: 0 !important;
+  vertical-align: top !important;
 }
 
-.video-stack-cell .video-field-wrapper {
-  padding-left: var(--space-md);
-  padding-right: var(--space-md);
-}
-
-.video-stack-cell .video-field-wrapper:has([readonly]),
-.video-stack-cell .video-field-wrapper:has([disabled]) {
+.kooperation-video-grid .video-stack-cell .video-field-wrapper:has([readonly]),
+.kooperation-video-grid .video-stack-cell .video-field-wrapper:has([disabled]) {
   padding: 0;
   background: var(--readonly-bg);
+}
+
+/* Editierbare Felder: Padding im Control, nicht in der Zelle */
+.kooperation-video-grid .grid-input,
+.kooperation-video-grid .grid-textarea,
+.kooperation-video-grid .grid-select,
+.kooperation-video-grid .stacked-video-input,
+.kooperation-video-grid .stacked-video-textarea {
+  padding: var(--space-md);
+  box-sizing: border-box;
+}
+
+/* Anzeige-Inhalte in Stack-Zellen */
+.kooperation-video-grid .video-nr-text,
+.kooperation-video-grid .video-vk-text,
+.kooperation-video-grid .video-deadline-text,
+.kooperation-video-grid .video-typ-text,
+.kooperation-video-grid .address-text,
+.kooperation-video-grid .no-strategie-hint,
+.kooperation-video-grid .stacked-video-empty {
+  padding: var(--space-md);
+}
+
+.kooperation-video-grid .content-cell-actions {
+  padding: var(--space-md);
+}
+
+.kooperation-video-grid .thema-thumbnail-link {
+  padding: var(--space-md);
+  display: block;
 }
 
 /* Gestapelte Video-Inputs innerhalb einer Kooperation */
@@ -358,12 +417,6 @@
 .stacked-video-textarea {
   min-height: 60px; /* Einheitliche Höhe für alle Video-Textareas */
   flex: 1;
-}
-
-/* Video-Stack-Zellen */
-.video-stack-cell {
-  padding: var(--space-xs) !important;
-  vertical-align: top;
 }
 
 .grid-input.save-success,
@@ -424,12 +477,6 @@
   background: var(--gray-50);
 }
 
-/* Video Stack Cells - für gestapelte Inputs */
-.video-stack-cell {
-  padding: 0 !important;
-  vertical-align: top !important;
-}
-
 /* Gestapelte Video-Inputs */
 .stacked-video-input {
   display: block;
@@ -446,29 +493,16 @@
   box-sizing: border-box;
 }
 
-/* Produkte-Spalte: Padding entfernen - höhere Spezifität mit !important */
-.col-produkt .stacked-video-input,
-td.col-produkt .stacked-video-input,
-.video-stack-cell.col-produkt .stacked-video-input,
-.grid-cell.col-produkt .stacked-video-input {
-  padding: 0 var(--space-xs) 0 var(--space-xs) !important;
-}
-
-/* Produkte-Spalte: Auch video-field-wrapper Padding entfernen */
-.col-produkt .video-field-wrapper {
-  padding: 0 !important;
-}
-
 /* Video-Nr Spalte: Zentrierte Nummerierung */
-.col-video-nr .video-field-wrapper {
+.kooperation-video-grid .col-video-nr .video-field-wrapper {
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: var(--space-xs) var(--space-sm);
+  padding: 0;
 }
 
-.col-video-nr .video-nr-text {
+.kooperation-video-grid .col-video-nr .video-nr-text {
   font-weight: 500;
   color: var(--gray-700);
   font-size: var(--text-sm);
@@ -483,7 +517,7 @@ td.col-produkt .stacked-video-input,
   display: block;
   width: 100%;
   margin: 0;
-  padding: 8px;
+  padding: var(--space-md);
   min-height: 5rem; /* 80px */
   overflow-y: auto;
   font-size: inherit; /* Erbt von th/td */
@@ -505,7 +539,7 @@ td.col-produkt .stacked-video-input,
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px;
+  padding: var(--space-md);
   min-height: 60px;
   border-bottom: 1px solid var(--gray-300);
 }
@@ -524,7 +558,7 @@ td.col-produkt .stacked-video-input,
 .stacked-video-link {
   display: block;
   margin: 0;
-  padding: 8px;
+  padding: var(--space-md);
   min-height: 60px;
   text-decoration: none;
   color: var(--primary-600);
@@ -2163,13 +2197,13 @@ width: 18em;
 
 .skeleton-video-table-row {
   display: grid;
-  grid-template-columns: 50px 150px 70px 120px repeat(6, 100px);
+  grid-template-columns: 3ch 18ch 5ch 14ch repeat(6, 12ch);
   gap: 0;
   border-bottom: 1px solid var(--gray-200);
 }
 
 .skeleton-video-cell {
-  padding: var(--space-sm);
+  padding: var(--space-md);
   display: flex;
   align-items: center;
 }
@@ -2334,4 +2368,34 @@ width: 18em;
 .rechnung-bezahlt-toggle-wrapper input:disabled + .toggle-slider {
   opacity: 0.65;
   cursor: not-allowed;
+}
+
+/* Video-Grid: CustomDatePicker in Stack-Zellen */
+.kooperation-video-grid .video-field-wrapper .custom-date-picker {
+  width: 100%;
+  display: block;
+}
+
+.kooperation-video-grid .custom-date-picker__control {
+  width: 100%;
+  justify-content: flex-start;
+  padding: var(--space-md);
+}
+
+.kooperation-video-grid .video-date-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+}
+
+.kooperation-video-grid .video-date-cell .custom-date-picker__control {
+  padding: 0;
+  width: auto;
+}
+
+.kooperation-video-grid .video-date-display {
+  font-size: inherit;
+  color: var(--gray-700);
+  white-space: nowrap;
 }

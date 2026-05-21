@@ -116,6 +116,7 @@ export class ProjektErstellenEditLoader {
       ust_prozent: auftrag.ust_prozent ?? null,
       ust_betrag: auftrag.ust_betrag ?? null,
       bruttobetrag: auftrag.bruttobetrag ?? null,
+      anzahl_teilrechnungen: auftrag.anzahl_teilrechnungen ?? 1,
 
       auftragsbestaetigungen_files: [],
       rechnungen_files: []
@@ -231,14 +232,13 @@ export class ProjektErstellenEditLoader {
   }
 
   mapKampagne(kampagne, auftrag) {
+    const fallbackName = auftrag?.titel || auftrag?.auftragsname || '';
     if (!kampagne) {
-      return {
-        kampagnenname: auftrag?.titel || auftrag?.auftragsname || ''
-      };
+      return { kampagnenname: fallbackName };
     }
     return {
       id: kampagne.id,
-      kampagnenname: kampagne.kampagnenname || auftrag?.titel || auftrag?.auftragsname || ''
+      kampagnenname: kampagne.eigener_name || kampagne.kampagnenname || fallbackName
     };
   }
 }

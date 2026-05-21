@@ -1,6 +1,7 @@
 import { VideoTabHandler } from './VideoTabHandler.js';
 import { StorysTabHandler } from './StorysTabHandler.js';
 import { BilderTabHandler } from './BilderTabHandler.js';
+import { backgroundUploadService, UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
 
 export class VideoUploadDrawer {
   constructor() {
@@ -158,11 +159,31 @@ export class VideoUploadDrawer {
     if (!body) return;
 
     body.innerHTML = `
+      ${this._renderActiveJobsBanner()}
       ${this._renderTabNav()}
       ${this.videoTab.renderTab(this._activeTab)}
       ${this.storysTab.renderTab(this._activeTab)}
       ${this.bilderTab.renderTab(this._activeTab)}
     `;
+  }
+
+  _renderActiveJobsBanner() {
+    const active = backgroundUploadService.getActiveJobsForVideo(this.videoId);
+    if (!active.length) return '';
+    const types = new Set(active.map(j => j.kind));
+    const labels = [];
+    if (types.has('video') || types.has('video-replace')) labels.push('Video');
+    if (types.has('storys')) labels.push('Storys');
+    return `<div class="video-upload-active-banner">Es läuft bereits ein Upload im Hintergrund (${labels.join(' + ')}). Status siehst du im Panel links unten.</div>`;
+  }
+
+  _updateActiveJobsBanner() {
+    const body = document.getElementById(`${this.drawerId}-body`);
+    if (!body) return;
+    const existing = body.querySelector('.video-upload-active-banner');
+    const html = this._renderActiveJobsBanner();
+    if (existing) existing.remove();
+    if (html) body.insertAdjacentHTML('afterbegin', html);
   }
 
   // ─── Event Binding ─────────────────────────────────────────
@@ -182,12 +203,17 @@ export class VideoUploadDrawer {
     this.videoTab.bindEvents(panel);
     this.storysTab.bindEvents(panel);
     this.bilderTab.bindEvents(panel);
+
+    // Banner aktuell halten, falls sich Jobs ändern, während Drawer offen ist
+    this._onJobsChangedBound = () => this._updateActiveJobsBanner();
+    window.addEventListener(UPLOAD_EVENTS.QUEUE_CHANGED, this._onJobsChangedBound);
   }
 
   // ─── Shared State ──────────────────────────────────────────
 
   isAnyUploadActive() {
-    return this.videoTab.isUploading || this.storysTab.isUploading || this.bilderTab.isUploading;
+    // Nur Bilder-Tab blockiert noch das Drawer-Close (inline, nicht im Background-Service).
+    return this.bilderTab.isUploading;
   }
 
   // ─── Proxy methods for backwards compatibility (tests) ────
@@ -209,6 +235,11 @@ export class VideoUploadDrawer {
     const panel = document.getElementById(this.drawerId);
 
     panel?.classList.remove('show');
+
+    if (this._onJobsChangedBound) {
+      window.removeEventListener(UPLOAD_EVENTS.QUEUE_CHANGED, this._onJobsChangedBound);
+      this._onJobsChangedBound = null;
+    }
 
     setTimeout(() => this.removeDrawer(), 300);
   }

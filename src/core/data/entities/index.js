@@ -578,6 +578,7 @@ export const EntityRegistry = {
       rechnung_gestellt_am: 'date',
       ueberwiesen: 'boolean',
       ueberwiesen_am: 'date',
+      anzahl_teilrechnungen: 'number',
       agency_services_enabled: 'boolean',
       percentage_fee_enabled: 'boolean',
       percentage_fee_value: 'number',

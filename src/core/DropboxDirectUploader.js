@@ -1,0 +1,458 @@
+// DropboxDirectUploader.js
+// Direkter Binary-Upload via XHR ohne Netlify-Proxy-Hop.
+// - 8 MB Chunks, parallel (concurrency=4), Retry mit Backoff, Abort, 401 Auto-Refresh
+// - Fallback auf bestehenden Proxy-Pfad falls direct fehlschlägt (z.B. CORS-Block)
+
+import { proxyPost, readFileAsBase64 } from './VideoUploadUtils.js';
+
+const DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024;
+const DEFAULT_CONCURRENCY = 4;
+const MAX_RETRIES = 3;
+const RETRY_BACKOFF_MS = [1000, 2000, 4000];
+
+const CONTENT_BASE = 'https://content.dropboxapi.com/2/files';
+
+// Sichtbare Build-Version: aendert sich mit jedem Code-Push; hilft beim
+// Cache-Debugging (User-Console muss den hier gesetzten String zeigen, sonst
+// Browser/Netlify haben noch alten Build). Bei jeder neuen Aenderung am
+// Concurrent-Pfad bitte hochzaehlen oder Datum updaten.
+export const DROPBOX_DIRECT_UPLOAD_VERSION = 'v3-close-true-2026-05-20';
+
+const DEBUG = true; // Temporaer fuer Test-Phase, nach stabilem Betrieb zurueck auf false.
+function dbg(...args) { if (DEBUG) console.log(`[DirectUpload ${DROPBOX_DIRECT_UPLOAD_VERSION}]`, ...args); }
+
+// Dropbox verlangt \uXXXX-Escaping für Non-ASCII im API-Arg Header
+function httpHeaderSafeJson(obj) {
+  return JSON.stringify(obj).replace(/[\u007f-\uffff]/g, (c) =>
+    '\\u' + ('0000' + c.charCodeAt(0).toString(16)).slice(-4)
+  );
+}
+
+function sleep(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new DOMException('Aborted', 'AbortError'));
+    const t = setTimeout(resolve, ms);
+    if (signal) {
+      signal.addEventListener('abort', () => {
+        clearTimeout(t);
+        reject(new DOMException('Aborted', 'AbortError'));
+      }, { once: true });
+    }
+  });
+}
+
+class HttpError extends Error {
+  constructor(status, body) {
+    super(`HTTP ${status}: ${body}`);
+    this.status = status;
+    this.body = body;
+  }
+}
+
+// Liefert eine kurze, menschenlesbare Fehlermeldung; bevorzugt Dropbox' error_summary.
+function parseDropboxError(err) {
+  if (!err) return 'Unbekannter Fehler';
+  if (err instanceof HttpError) {
+    try {
+      const parsed = JSON.parse(err.body || '{}');
+      if (parsed.error_summary) {
+        return `HTTP ${err.status}: ${String(parsed.error_summary).replace(/\.+$/, '')}`;
+      }
+    } catch { /* body war kein JSON */ }
+    const snippet = (err.body || '').slice(0, 120);
+    return `HTTP ${err.status}${snippet ? `: ${snippet}` : ''}`;
+  }
+  return err.message || String(err);
+}
+
+/**
+ * Ein einzelner XHR-Request mit Progress-Callback, Abort und Timeout.
+ * Liefert das geparste JSON oder wirft HttpError.
+ */
+function xhrRequest({ url, method = 'POST', headers = {}, body, signal, onProgress }) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new DOMException('Aborted', 'AbortError'));
+
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, url, true);
+
+    for (const [k, v] of Object.entries(headers)) {
+      xhr.setRequestHeader(k, v);
+    }
+
+    if (onProgress && xhr.upload) {
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) onProgress(e.loaded, e.total);
+      });
+    }
+
+    const onAbort = () => xhr.abort();
+    if (signal) signal.addEventListener('abort', onAbort, { once: true });
+
+    xhr.onload = () => {
+      if (signal) signal.removeEventListener('abort', onAbort);
+      const status = xhr.status;
+      const text = xhr.responseText || '';
+      if (status >= 200 && status < 300) {
+        try { resolve(text ? JSON.parse(text) : {}); }
+        catch { resolve({}); }
+      } else {
+        reject(new HttpError(status, text));
+      }
+    };
+    xhr.onerror = () => {
+      if (signal) signal.removeEventListener('abort', onAbort);
+      reject(new Error('Network error'));
+    };
+    xhr.onabort = () => {
+      if (signal) signal.removeEventListener('abort', onAbort);
+      reject(new DOMException('Aborted', 'AbortError'));
+    };
+    xhr.ontimeout = () => {
+      if (signal) signal.removeEventListener('abort', onAbort);
+      reject(new Error('Timeout'));
+    };
+
+    xhr.send(body);
+  });
+}
+
+function isRetryable(err) {
+  if (err?.name === 'AbortError') return false;
+  if (err instanceof HttpError) {
+    return err.status >= 500 || err.status === 429 || err.status === 0;
+  }
+  return true;
+}
+
+function isAuthError(err) {
+  return err instanceof HttpError && err.status === 401;
+}
+
+/**
+ * Führt eine Operation mit Retry + 401-Auto-Refresh durch.
+ */
+async function withRetry(fn, { signal, getToken, currentToken }) {
+  let attempt = 0;
+  let token = currentToken;
+  while (true) {
+    try {
+      return await fn(token);
+    } catch (err) {
+      if (err?.name === 'AbortError') throw err;
+      if (isAuthError(err) && typeof getToken === 'function') {
+        dbg('401 → Token refresh');
+        token = await getToken({ forceRefresh: true });
+        continue;
+      }
+      if (!isRetryable(err) || attempt >= MAX_RETRIES) throw err;
+      const wait = RETRY_BACKOFF_MS[attempt] || RETRY_BACKOFF_MS[RETRY_BACKOFF_MS.length - 1];
+      dbg(`Retry ${attempt + 1}/${MAX_RETRIES} nach ${wait}ms (${err.message})`);
+      await sleep(wait, signal);
+      attempt++;
+    }
+  }
+}
+
+async function sessionStart({ token, signal }) {
+  // Concurrent-Session: leerer Body, session_type 'concurrent' ist Pflicht
+  // damit Dropbox parallele append_v2 erlaubt (default ist sequenziell).
+  const result = await xhrRequest({
+    url: `${CONTENT_BASE}/upload_session/start`,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/octet-stream',
+      'Dropbox-API-Arg': httpHeaderSafeJson({ close: false, session_type: 'concurrent' }),
+    },
+    body: new Blob(),
+    signal,
+  });
+  return result.session_id;
+}
+
+async function sessionAppend({ token, sessionId, offset, chunk, close = false, signal, onProgress }) {
+  await xhrRequest({
+    url: `${CONTENT_BASE}/upload_session/append_v2`,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/octet-stream',
+      'Dropbox-API-Arg': httpHeaderSafeJson({
+        cursor: { session_id: sessionId, offset },
+        close,
+      }),
+    },
+    body: chunk,
+    signal,
+    onProgress,
+  });
+}
+
+async function sessionFinish({ token, sessionId, offset, dropboxPath, signal }) {
+  // Concurrent-Session: finish ohne Body, Offset = totalSize.
+  return xhrRequest({
+    url: `${CONTENT_BASE}/upload_session/finish`,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/octet-stream',
+      'Dropbox-API-Arg': httpHeaderSafeJson({
+        cursor: { session_id: sessionId, offset },
+        commit: { path: dropboxPath, mode: 'overwrite', autorename: true, mute: false },
+      }),
+    },
+    body: new Blob(),
+    signal,
+  });
+}
+
+async function uploadSmallDirect({ token, dropboxPath, file, signal, onProgress, getToken }) {
+  return withRetry(async (t) => {
+    return xhrRequest({
+      url: `${CONTENT_BASE}/upload`,
+      headers: {
+        'Authorization': `Bearer ${t}`,
+        'Content-Type': 'application/octet-stream',
+        'Dropbox-API-Arg': httpHeaderSafeJson({
+          path: dropboxPath, mode: 'overwrite', autorename: true, mute: false,
+        }),
+      },
+      body: file,
+      signal,
+      onProgress: onProgress ? (loaded, total) => onProgress({ loaded, total, phase: 'upload' }) : undefined,
+    });
+  }, { signal, getToken, currentToken: token });
+}
+
+/**
+ * Haupt-Einstieg: lädt eine Datei direkt zu Dropbox hoch.
+ *
+ * @param {object} opts
+ * @param {File|Blob} opts.file
+ * @param {string} opts.dropboxPath
+ * @param {string} opts.token - initialer Access Token
+ * @param {function} [opts.getToken] - async ({ forceRefresh }) => string; für 401-Refresh
+ * @param {number} [opts.chunkSize]
+ * @param {number} [opts.concurrency]
+ * @param {AbortSignal} [opts.signal]
+ * @param {function} [opts.onProgress] - ({ loaded, total, phase }) => void
+ * @param {boolean} [opts.allowProxyFallback=true] - bei direktem Fehler (CORS/Network) Proxy nutzen
+ * @returns {Promise<object>} Dropbox finish-Response (path_display etc.)
+ */
+export async function uploadFileDirect({
+  file,
+  dropboxPath,
+  token,
+  getToken,
+  chunkSize = DEFAULT_CHUNK_SIZE,
+  concurrency = DEFAULT_CONCURRENCY,
+  signal,
+  onProgress,
+  allowProxyFallback = true,
+}) {
+  if (!file) throw new Error('file fehlt');
+  if (!dropboxPath) throw new Error('dropboxPath fehlt');
+  if (!token) throw new Error('token fehlt');
+
+  const totalSize = file.size;
+
+  try {
+    if (totalSize <= chunkSize) {
+      const result = await uploadSmallDirect({ token, dropboxPath, file, signal, onProgress, getToken });
+      onProgress?.({ loaded: totalSize, total: totalSize, phase: 'upload' });
+      return result;
+    }
+
+    return await uploadSessionParallel({
+      file, dropboxPath, token, getToken, chunkSize, concurrency, signal, onProgress, totalSize,
+    });
+  } catch (err) {
+    if (err?.name === 'AbortError') throw err;
+    if (!allowProxyFallback) throw err;
+
+    const reason = parseDropboxError(err);
+    console.warn(`[DirectUpload ${DROPBOX_DIRECT_UPLOAD_VERSION}] Direct fehlgeschlagen, Proxy-Fallback:`, reason);
+    onProgress?.({ loaded: 0, total: totalSize, phase: 'direct-failed', error: reason });
+    onProgress?.({ loaded: 0, total: totalSize, phase: 'proxy-fallback' });
+    return uploadViaProxyFallback({ file, dropboxPath, token, signal, onProgress });
+  }
+}
+
+/**
+ * Concurrent-Session: leerer Start, alle Chunks parallel via append_v2, leerer Finish.
+ * Dropbox erlaubt im concurrent-Mode beliebig viele parallele Appends auf dieselbe Session.
+ */
+async function uploadSessionParallel({
+  file, dropboxPath, token, getToken, chunkSize, concurrency, signal, onProgress, totalSize,
+}) {
+  let currentToken = token;
+  const refreshToken = async ({ forceRefresh } = {}) => {
+    if (typeof getToken === 'function') {
+      currentToken = await getToken({ forceRefresh });
+      return currentToken;
+    }
+    return currentToken;
+  };
+
+  // Dropbox concurrent-session: alle append_v2-Chunks muessen Vielfaches von 4 MB sein,
+  // ausser dem letzten Chunk wenn dieser mit close:true gesendet wird.
+  // chunkSize ist Vielfaches von 4 MB (Default 8 MB), die letzten size-Bytes
+  // sind der Rest und werden als close:true-Chunk gesendet.
+  // Asserts nur aktiv wenn chunkSize selbst ein 4-MB-Vielfaches ist
+  // (Tests verwenden teils kleinere Chunks gegen Mock-Server).
+  const CONCURRENT_BLOCK = 4 * 1024 * 1024;
+  const assertConcurrent = chunkSize % CONCURRENT_BLOCK === 0;
+  const chunks = [];
+  let off = 0;
+  while (off < totalSize) {
+    const end = Math.min(off + chunkSize, totalSize);
+    chunks.push({ offset: off, size: end - off });
+    off = end;
+  }
+  const lastIdx = chunks.length - 1;
+
+  const sessionId = await withRetry(
+    (t) => sessionStart({ token: t, signal }),
+    { signal, getToken: refreshToken, currentToken }
+  );
+  dbg('session-start OK (concurrent)', { sessionId, chunks: chunks.length, chunkSize, totalSize });
+
+  const chunkLoaded = new Array(chunks.length).fill(0);
+  const reportProgress = () => {
+    if (!onProgress) return;
+    let sum = 0;
+    for (const v of chunkLoaded) sum += v;
+    onProgress({ loaded: Math.min(sum, totalSize), total: totalSize, phase: 'upload' });
+  };
+
+  // Pool-Indizes: 0..lastIdx-1 (Vielfaches von 4 MB); letzter Chunk separat mit close:true.
+  let nextIdx = 0;
+  async function worker() {
+    while (true) {
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      const myIdx = nextIdx++;
+      if (myIdx >= lastIdx) return; // letzten Chunk macht der Finalizer
+
+      const meta = chunks[myIdx];
+
+      // Pre-Send-Assertion: ohne close:true MUSS sowohl size als auch offset
+      // ein Vielfaches von 4 MB sein. Schlaegt das hier zu, hat unser
+      // Chunk-Splitting einen Bug. Lokaler Throw statt 409 vom Server.
+      if (assertConcurrent && meta.size % CONCURRENT_BLOCK !== 0) {
+        throw new Error(`[DirectUpload ${DROPBOX_DIRECT_UPLOAD_VERSION}] BUG: append idx=${myIdx} close=false size=${meta.size} nicht 4MB-Vielfaches (totalSize=${totalSize} chunkSize=${chunkSize})`);
+      }
+      if (assertConcurrent && meta.offset % CONCURRENT_BLOCK !== 0) {
+        throw new Error(`[DirectUpload ${DROPBOX_DIRECT_UPLOAD_VERSION}] BUG: append idx=${myIdx} offset=${meta.offset} nicht 4MB-Vielfaches`);
+      }
+
+      const slice = file.slice(meta.offset, meta.offset + meta.size);
+
+      await withRetry(async (t) => {
+        chunkLoaded[myIdx] = 0;
+        await sessionAppend({
+          token: t,
+          sessionId,
+          offset: meta.offset,
+          chunk: slice,
+          close: false,
+          signal,
+          onProgress: (loaded) => {
+            chunkLoaded[myIdx] = Math.min(loaded, meta.size);
+            reportProgress();
+          },
+        });
+        chunkLoaded[myIdx] = meta.size;
+        reportProgress();
+      }, { signal, getToken: refreshToken, currentToken });
+    }
+  }
+
+  if (lastIdx > 0) {
+    const workerCount = Math.min(Math.max(1, concurrency), lastIdx);
+    const workers = [];
+    for (let i = 0; i < workerCount; i++) workers.push(worker());
+    await Promise.all(workers);
+  }
+
+  // Letzter Chunk mit close:true; darf beliebige Groesse haben (auch nicht 4-MB-Vielfaches).
+  // Offset muss aber dennoch Vielfaches von 4 MB sein.
+  const lastMeta = chunks[lastIdx];
+  if (assertConcurrent && lastMeta.offset % CONCURRENT_BLOCK !== 0) {
+    throw new Error(`[DirectUpload ${DROPBOX_DIRECT_UPLOAD_VERSION}] BUG: last chunk offset=${lastMeta.offset} nicht 4MB-Vielfaches`);
+  }
+  dbg('sending LAST chunk with close:true', {
+    idx: lastIdx,
+    offset: lastMeta.offset,
+    size: lastMeta.size,
+    totalSize,
+  });
+  const lastSlice = file.slice(lastMeta.offset, lastMeta.offset + lastMeta.size);
+  await withRetry(async (t) => {
+    chunkLoaded[lastIdx] = 0;
+    await sessionAppend({
+      token: t,
+      sessionId,
+      offset: lastMeta.offset,
+      chunk: lastSlice,
+      close: true,
+      signal,
+      onProgress: (loaded) => {
+        chunkLoaded[lastIdx] = Math.min(loaded, lastMeta.size);
+        reportProgress();
+      },
+    });
+    chunkLoaded[lastIdx] = lastMeta.size;
+    reportProgress();
+  }, { signal, getToken: refreshToken, currentToken });
+
+  dbg('all appends OK, calling finish', { totalSize });
+  const finishResult = await withRetry(
+    (t) => sessionFinish({ token: t, sessionId, offset: totalSize, dropboxPath, signal }),
+    { signal, getToken: refreshToken, currentToken }
+  );
+
+  return finishResult;
+}
+
+// ─── Proxy-Fallback (unverändert wie bisheriger Pfad) ───────────────────────
+
+async function uploadViaProxyFallback({ file, dropboxPath, token, signal, onProgress }) {
+  const SMALL = 2 * 1024 * 1024;
+  const CHUNK = 2 * 1024 * 1024;
+  const totalSize = file.size;
+
+  if (totalSize <= SMALL) {
+    const chunk = await readFileAsBase64(file);
+    onProgress?.({ loaded: totalSize * 0.5, total: totalSize, phase: 'upload' });
+    const result = await proxyPost({ action: 'upload-small', dropboxPath, chunk, token });
+    onProgress?.({ loaded: totalSize, total: totalSize, phase: 'upload' });
+    return result;
+  }
+
+  const readChunk = (start, end) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = () => reject(new Error('Chunk-Read fehlgeschlagen'));
+    reader.readAsDataURL(file.slice(start, end));
+  });
+
+  const firstChunkB64 = await readChunk(0, CHUNK);
+  const startResp = await proxyPost({ action: 'session-start', chunk: firstChunkB64, token });
+  const sessionId = startResp.session_id;
+  const sessionToken = startResp.token || token;
+  let offset = CHUNK;
+  onProgress?.({ loaded: offset, total: totalSize, phase: 'upload' });
+
+  while (offset + CHUNK < totalSize) {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    const b64 = await readChunk(offset, offset + CHUNK);
+    await proxyPost({ action: 'session-append', sessionId, offset, chunk: b64, token: sessionToken });
+    offset += CHUNK;
+    onProgress?.({ loaded: offset, total: totalSize, phase: 'upload' });
+  }
+
+  const lastB64 = await readChunk(offset, totalSize);
+  const finishResult = await proxyPost({
+    action: 'session-finish', sessionId, offset, dropboxPath, chunk: lastB64, token: sessionToken,
+  });
+  onProgress?.({ loaded: totalSize, total: totalSize, phase: 'upload' });
+  return finishResult;
+}

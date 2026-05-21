@@ -1,8 +1,9 @@
 import {
   getAvailableVersions, MAX_VERSIONS,
-  escapeHtml, readFileAsBase64, proxyPost, uploadLargeFile, createFolderSharedLink,
+  escapeHtml,
   VIDEO_EXTENSIONS, VIDEO_MIME_TYPES, MAX_STORY_SIZE
 } from '../../core/VideoUploadUtils.js';
+import { backgroundUploadService, UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
 
 export class StorysTabHandler {
   constructor(drawer) {
@@ -11,6 +12,7 @@ export class StorysTabHandler {
     this._storySlots = [];
     this._isUploadingStorys = false;
     this._initialized = false;
+    this._onStorysDoneBound = (e) => this._onStorysDoneEvent(e);
   }
 
   get isUploading() { return this._isUploadingStorys; }
@@ -29,6 +31,7 @@ export class StorysTabHandler {
     this._storySlots = [];
     this._isUploadingStorys = false;
     this._initialized = false;
+    window.removeEventListener(UPLOAD_EVENTS.STORYS_DONE, this._onStorysDoneBound);
   }
 
   async _loadStorySlots() {
@@ -323,198 +326,55 @@ export class StorysTabHandler {
 
   _updateSubmitState() {
     const btn = document.getElementById('storys-upload-submit-btn');
-    if (btn) btn.disabled = this._isUploadingStorys || this._queue.length === 0;
+    if (btn) btn.disabled = this._queue.length === 0;
   }
 
   // ─── Upload ────────────────────────────────────────────────
 
   async _handleStorysUpload() {
     if (this._queue.length === 0 || this._isUploadingStorys) return;
-    this._isUploadingStorys = true;
 
-    const submitBtn = document.getElementById('storys-upload-submit-btn');
-    const cancelBtn = document.getElementById('storys-upload-cancel-btn');
-    const progressContainer = document.getElementById('storys-upload-progress');
-    const progressFill = document.getElementById('storys-upload-progress-fill');
-    const progressText = document.getElementById('storys-upload-progress-text');
+    // Re-Entry-Schutz: läuft schon ein Job für dieses Video?
+    const active = backgroundUploadService.getActiveJobsForVideo(this.drawer.videoId)
+      .filter(j => j.kind === 'storys');
+    if (active.length > 0) {
+      this._showStorysError('Für dieses Video läuft bereits ein Storys-Upload im Hintergrund.');
+      return;
+    }
 
-    if (submitBtn) submitBtn.disabled = true;
-    if (cancelBtn) cancelBtn.disabled = true;
-    if (progressContainer) progressContainer.style.display = 'block';
     this._hideStorysError();
 
-    const total = this._queue.length;
-    let uploaded = 0;
-    let videoFolderUrl = null;
+    const queueSnapshot = this._queue.map(q => ({
+      file: q.file,
+      slotId: q.slotId,
+      versionNumber: q.versionNumber,
+      variantName: q.variantName,
+    }));
 
-    try {
-      const meta = this.drawer.metadaten;
-      const basePayload = {
-        unternehmen: meta.unternehmen || '',
-        marke: meta.marke || '',
-        kampagne: meta.kampagne || '',
-        kooperation: meta.kooperationName || '',
-        videoPosition: meta.videoPosition || 1,
-        videoThema: meta.videoThema || '',
-      };
+    window.removeEventListener(UPLOAD_EVENTS.STORYS_DONE, this._onStorysDoneBound);
+    window.addEventListener(UPLOAD_EVENTS.STORYS_DONE, this._onStorysDoneBound);
 
-      for (let i = 0; i < this._queue.length; i++) {
-        const item = this._queue[i];
-        const file = item.file;
-        const versionNumber = item.versionNumber;
-        let slotId = item.slotId;
-        let slotIndex;
+    const jobId = backgroundUploadService.enqueueStorysJob({
+      videoId: this.drawer.videoId,
+      metadaten: this.drawer.metadaten,
+      queue: queueSnapshot,
+      storySlots: this._storySlots,
+    });
 
-        const pct = Math.round((i / total) * 90);
-        if (progressFill) progressFill.style.width = `${pct}%`;
+    this._queue = [];
+    this._renderQueue();
+    this._updateSubmitState();
+    return jobId;
+  }
 
-        // Create new slot if needed
-        if (slotId === '__new__') {
-          if (progressText) progressText.textContent = `Erstelle Story-Slot ${i + 1}...`;
-          const maxIdx = this._storySlots.reduce((m, s) => Math.max(m, s.slot_index), 0);
-          slotIndex = maxIdx + 1;
-
-          const { data: newSlot, error: slotErr } = await window.supabase
-            .from('kooperation_story')
-            .insert({
-              video_id: this.drawer.videoId,
-              slot_index: slotIndex,
-              created_by: window.currentUser?.id || null,
-            })
-            .select('id, video_id, slot_index, slot_name, created_at')
-            .single();
-          if (slotErr) throw slotErr;
-
-          slotId = newSlot.id;
-          const enrichedSlot = { ...newSlot, assets: [], currentAsset: null, currentVersion: 0, existingVersions: [] };
-          this._storySlots.push(enrichedSlot);
-        } else {
-          const slot = this._storySlots.find(s => s.id === slotId);
-          slotIndex = slot?.slot_index || 1;
-        }
-
-        const variantName = item.variantName?.trim() || '';
-        const payload = { ...basePayload, slotIndex, versionNumber, variantName, fileName: file.name };
-
-        if (progressText) progressText.textContent = `Lade hoch... ${i + 1}/${total}: ${file.name}`;
-
-        const prepareResp = await fetch('/.netlify/functions/dropbox-upload-storys', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...payload, action: 'prepare' }),
-        });
-        if (!prepareResp.ok) {
-          const errData = await prepareResp.json().catch(() => ({}));
-          throw new Error(errData.error || `Vorbereitung fehlgeschlagen (${prepareResp.status})`);
-        }
-
-        const prepareData = await prepareResp.json();
-        const token = prepareData.token;
-        const dropboxPath = prepareData.dropboxPath;
-        if (prepareData.videoFolderPath) videoFolderUrl = prepareData.videoFolderPath;
-
-        const CHUNK_SIZE = 2 * 1024 * 1024;
-        if (file.size <= CHUNK_SIZE) {
-          const chunk = await readFileAsBase64(file);
-          await proxyPost({ action: 'upload-small', dropboxPath, chunk, token });
-        } else {
-          await uploadLargeFile(file, dropboxPath, token);
-        }
-
-        // Create shared link for file
-        let fileUrl = null;
-        try {
-          const linkResp = await fetch('/.netlify/functions/dropbox-proxy', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'shared-link', path: dropboxPath, token }),
-          });
-          if (linkResp.ok) {
-            const linkData = await linkResp.json();
-            fileUrl = linkData.url?.replace('?dl=0', '?raw=1') || null;
-          }
-        } catch (_) {}
-
-        const { error: insertErr } = await window.supabase
-          .from('kooperation_story_asset')
-          .insert({
-            story_id: slotId,
-            video_id: this.drawer.videoId,
-            file_url: fileUrl,
-            file_path: dropboxPath,
-            file_name: file.name,
-            file_size: file.size,
-            version_number: versionNumber,
-            variant_name: variantName || null,
-            is_current: true,
-            uploaded_by: window.currentUser?.id || null,
-            created_at: new Date().toISOString(),
-          });
-        if (insertErr) throw insertErr;
-
-        uploaded++;
-      }
-
-      await this._updateCurrentFlags();
-
-      if (progressFill) progressFill.style.width = '92%';
-      if (progressText) progressText.textContent = 'Erstelle Ordner-Links...';
-
-      let storysFolderUrl = null;
-      if (videoFolderUrl) {
-        const tokenResp = await fetch('/.netlify/functions/dropbox-upload-storys', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...{
-            unternehmen: meta.unternehmen || '',
-            marke: meta.marke || '',
-            kampagne: meta.kampagne || '',
-            kooperation: meta.kooperationName || '',
-            videoPosition: meta.videoPosition || 1,
-            videoThema: meta.videoThema || '',
-            slotIndex: 1,
-            versionNumber: 1,
-          }, action: 'prepare' }),
-        });
-        if (tokenResp.ok) {
-          const tokenData = await tokenResp.json();
-          storysFolderUrl = await createFolderSharedLink(tokenData.token, tokenData.videoFolderPath);
-        }
-      }
-
-      if (storysFolderUrl && this.drawer.videoId) {
-        await window.supabase
-          .from('kooperation_videos')
-          .update({ story_folder_url: storysFolderUrl })
-          .eq('id', this.drawer.videoId);
-      }
-
-      if (progressFill) progressFill.style.width = '100%';
-      if (progressText) progressText.textContent = `${uploaded} Story${uploaded !== 1 ? 's' : ''} hochgeladen!`;
-
-      this._isUploadingStorys = false;
-      this._queue = [];
-      this._renderQueue();
-
-      this._storySlots = await this._loadStorySlots();
-      this._renderExistingSlots();
-
-      if (typeof this.drawer.onStorysSuccess === 'function') {
-        this.drawer.onStorysSuccess(storysFolderUrl);
-      }
-
-      setTimeout(() => {
-        if (submitBtn) submitBtn.disabled = true;
-        if (cancelBtn) cancelBtn.disabled = false;
-        if (progressContainer) progressContainer.style.display = 'none';
-      }, 1500);
-
-    } catch (err) {
-      console.error('Storys-Upload fehlgeschlagen:', err);
-      this._showStorysError(err.message || 'Upload fehlgeschlagen');
-      if (submitBtn) submitBtn.disabled = false;
-      if (cancelBtn) cancelBtn.disabled = false;
-      this._isUploadingStorys = false;
+  _onStorysDoneEvent(e) {
+    const { videoId } = e.detail || {};
+    if (videoId !== this.drawer.videoId) return;
+    if (document.getElementById('existing-storys-list')) {
+      this._loadExistingStorys();
+    }
+    if (typeof this.drawer.onStorysSuccess === 'function') {
+      this.drawer.onStorysSuccess(e.detail?.result?.storysFolderUrl || null);
     }
   }
 
@@ -583,8 +443,6 @@ export class StorysTabHandler {
   }
 
   async _deleteSlot(slotId) {
-    if (this._isUploadingStorys) return;
-
     const slotEl = document.querySelector(`.existing-story-slot-delete[data-slot-id="${slotId}"]`)?.closest('.existing-storys-slot-item');
     if (slotEl) slotEl.style.opacity = '0.5';
 

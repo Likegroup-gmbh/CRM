@@ -5,8 +5,11 @@ import { VideoTableDataLoader } from './VideoTableDataLoader.js';
 import { VideoTableFieldHandler } from './VideoTableFieldHandler.js';
 import { VideoUploadDrawer } from './VideoUploadDrawer.js';
 import { VideoSettingsDrawer } from './VideoSettingsDrawer.js';
+import { LinkStrategieItemDrawer } from '../strategie/LinkStrategieItemDrawer.js';
 import { deleteVideoFile } from '../../core/VideoDeleteHelper.js';
 import { VIDEO_FEEDBACK_FIELDS } from '../../core/VideoFeedbackBuckets.js';
+import { UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
+import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 
 export class KampagneKooperationenVideoTable {
   constructor(kampagneId, store) {
@@ -46,6 +49,7 @@ export class KampagneKooperationenVideoTable {
     this.fieldHandler = new VideoTableFieldHandler(this);
     this._uploadDrawer = new VideoUploadDrawer();
     this._settingsDrawer = new VideoSettingsDrawer();
+    this._linkStrategieDrawer = new LinkStrategieItemDrawer();
   }
 
   // Store-backed getters (Proxy zum Store, Fallback auf lokale Daten für Kompatibilität)
@@ -94,7 +98,7 @@ export class KampagneKooperationenVideoTable {
         'kooperation': ['vertrag_unterschrieben', 'typ', 'nutzungsrechte'],
         'versand': ['versendet', 'tracking_nummer', 'produkt_name', 'produkt_link'],
         'video': [
-          'thema', 'link_produkte', 'link_skript', 'skript_freigegeben',
+          'thema', 'link_produkte', 'link_skript',
           ...VIDEO_FEEDBACK_FIELDS.filter(slot => slot.feedback_typ === 'cj').map(slot => slot.field),
           'caption', 'posting_datum', 'drehort', 'content_art', 'video_name'
         ]
@@ -212,6 +216,15 @@ export class KampagneKooperationenVideoTable {
     const container = document.querySelector('.kooperation-video-grid');
     if (!container) return;
 
+    CustomDatePicker.destroy(container);
+    CustomDatePicker.bind(container, signal);
+
+    container.addEventListener('change', async (e) => {
+      if (e.target.classList.contains('custom-date-picker__input') && e.target.dataset.entity === 'video') {
+        await this.handleFieldUpdate(e.target);
+      }
+    }, { signal });
+
     container.addEventListener('blur', async (e) => {
       if (e.target.classList.contains('grid-input') || e.target.classList.contains('grid-textarea')) {
         await this.handleFieldUpdate(e.target);
@@ -264,48 +277,59 @@ export class KampagneKooperationenVideoTable {
     });
 
     container.addEventListener('click', (e) => {
-      const trigger = e.target.closest('.status-select-trigger');
-      if (trigger) {
-        e.stopPropagation();
-        const wrapper = trigger.closest('.status-select-wrapper');
-        document.querySelectorAll('.status-select-wrapper.open').forEach(w => {
-          if (w !== wrapper) w.classList.remove('open', 'opens-up');
-        });
-        if (wrapper) {
-          const shouldOpen = !wrapper.classList.contains('open');
-          wrapper.classList.toggle('open', shouldOpen);
-          wrapper.classList.remove('opens-up');
-          if (shouldOpen) this.positionStatusDropdown(wrapper);
-        }
-        return;
-      }
-
-      const item = e.target.closest('.status-dropdown-item');
-      if (item) {
-        e.stopPropagation();
-        const wrapper = item.closest('.status-select-wrapper');
-        const koopId = wrapper?.dataset.kooperationId;
-        const newValue = item.dataset.value || null;
-        wrapper?.classList.remove('open', 'opens-up');
-        if (koopId) {
-          this._handleStatusDropdownChange(koopId, newValue);
-        }
+      const linkBtn = e.target.closest('[data-action="link-strategie-item"]');
+      if (linkBtn) {
+        e.preventDefault();
+        this._openLinkStrategieDrawer(linkBtn);
       }
     });
 
-    document.addEventListener('click', () => {
-      document.querySelectorAll('.status-select-wrapper.open').forEach(w => w.classList.remove('open', 'opens-up'));
+    container.addEventListener('click', (e) => {
+      const trigger = e.target.closest('.status-select-trigger');
+      if (trigger) {
+        e.preventDefault();
+        e.stopPropagation();
+        const wrapper = trigger.closest('.status-select-wrapper');
+        const isOpen = wrapper?.classList.contains('open');
+        this._closeStatusPortal();
+        if (wrapper && !isOpen) {
+          wrapper.classList.add('open');
+          this._openStatusPortal(wrapper);
+        }
+        return;
+      }
+    });
+
+    // Item-Click an document, da Portal an document.body haengt (nicht im container)
+    document.addEventListener('click', (e) => {
+      const item = e.target.closest('.status-dropdown-portal .status-dropdown-item, .status-select-wrapper .status-dropdown-item');
+      if (!item) return;
+      // preventDefault: <a href="#"> wuerde sonst zum Seiten-Anfang scrollen
+      e.preventDefault();
+      e.stopPropagation();
+      const portal = item.closest('.status-dropdown-portal');
+      const wrapper = item.closest('.status-select-wrapper');
+      const koopId = portal?.dataset.kooperationId || wrapper?.dataset.kooperationId;
+      const newValue = item.dataset.value || null;
+      this._closeStatusPortal();
+      if (koopId) {
+        this._handleStatusDropdownChange(koopId, newValue);
+      }
     }, { signal });
 
-    window.addEventListener('kooperationStatusChanged', (e) => {
-      const { kooperationId, statusId, statusName } = e.detail;
-      this._updateStatusInline(kooperationId, statusId, statusName);
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.status-select-wrapper') || e.target.closest('.status-dropdown-portal')) return;
+      this._closeStatusPortal();
     }, { signal });
+
+    window.addEventListener('resize', () => this._closeStatusPortal(), { signal });
+    window.addEventListener('scroll', () => this._closeStatusPortal(), { signal, capture: true });
 
     this.bindResizeEvents();
     this.bindDragToScroll();
   }
 
+  // Legacy-API fuer Tests/Kompatibilitaet -- delegiert auf Portal-Logik
   positionStatusDropdown(wrapper) {
     const dropdown = wrapper?.querySelector('.status-dropdown');
     const trigger = wrapper?.querySelector('.status-select-trigger');
@@ -318,6 +342,48 @@ export class KampagneKooperationenVideoTable {
     const shouldOpenUp = spaceBelow < dropdownHeight + 8 && spaceAbove > spaceBelow;
 
     wrapper.classList.toggle('opens-up', shouldOpenUp);
+  }
+
+  _closeStatusPortal() {
+    document.querySelectorAll('.status-dropdown-portal').forEach(p => p.remove());
+    document.querySelectorAll('.status-select-wrapper.open')
+      .forEach(w => w.classList.remove('open', 'opens-up'));
+  }
+
+  _openStatusPortal(wrapper) {
+    const sourceDropdown = wrapper?.querySelector('.status-dropdown');
+    const trigger = wrapper?.querySelector('.status-select-trigger');
+    if (!sourceDropdown || !trigger) return null;
+
+    const portal = sourceDropdown.cloneNode(true);
+    portal.classList.remove('status-dropdown');
+    portal.classList.add('status-dropdown-portal');
+    portal.dataset.kooperationId = wrapper.dataset.kooperationId || '';
+    portal._sourceWrapper = wrapper;
+
+    document.body.appendChild(portal);
+    this._positionStatusPortal(trigger, portal);
+    return portal;
+  }
+
+  _positionStatusPortal(trigger, portal) {
+    if (!trigger || !portal) return;
+    const triggerRect = trigger.getBoundingClientRect();
+    const portalHeight = portal.offsetHeight || portal.scrollHeight || 260;
+    const portalWidth = portal.offsetWidth || 180;
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+    const spaceBelow = viewportHeight - triggerRect.bottom;
+    const spaceAbove = triggerRect.top;
+    const openUp = spaceBelow < portalHeight + 8 && spaceAbove > spaceBelow;
+
+    if (openUp) {
+      portal.style.top = Math.max(8, triggerRect.top - portalHeight - 4) + 'px';
+    } else {
+      portal.style.top = (triggerRect.bottom + 4) + 'px';
+    }
+    const left = Math.min(triggerRect.left, viewportWidth - portalWidth - 8);
+    portal.style.left = Math.max(8, left) + 'px';
   }
 
   // ========================================
@@ -410,6 +476,31 @@ export class KampagneKooperationenVideoTable {
     });
   }
 
+  async _openLinkStrategieDrawer(btn) {
+    const videoId = btn.dataset.videoId;
+    const kooperationId = btn.dataset.kooperationId;
+    const koop = this.kooperationen.find(k => k.id === kooperationId);
+    const videos = this.videos[kooperationId] || [];
+    const video = videos.find(v => v.id === videoId);
+
+    if (!video || !koop) {
+      window.toastSystem?.show('Video nicht gefunden', 'error');
+      return;
+    }
+
+    await this._linkStrategieDrawer.open({
+      video,
+      kooperation: koop,
+      kampagneId: this.kampagneId,
+      onSuccess: () => this._reloadAfterStrategieLink()
+    });
+  }
+
+  async _reloadAfterStrategieLink() {
+    await this.dataLoader.loadData();
+    this.refilter();
+  }
+
   async _executeVideoDelete(videoId, kooperationId) {
     const { hasRemainingAssets } = await deleteVideoFile(videoId);
     const patch = { file_url: null, link_content: null, currentAsset: null };
@@ -451,6 +542,15 @@ export class KampagneKooperationenVideoTable {
 
   async init(containerId) {
     if (this._isLoading && this.containerId === containerId) return;
+
+    // Background-Upload-Done Listener registrieren (einmalig pro init)
+    if (!this._uploadDoneHandler) {
+      this._uploadDoneHandler = () => {
+        this._reloadAfterStrategieLink();
+      };
+      window.addEventListener(UPLOAD_EVENTS.VIDEO_DONE, this._uploadDoneHandler);
+      window.addEventListener(UPLOAD_EVENTS.STORYS_DONE, this._uploadDoneHandler);
+    }
 
     if (this._dataLoaded && this.containerId === containerId) {
       await this.refresh();
@@ -515,6 +615,21 @@ export class KampagneKooperationenVideoTable {
     const statusOptions = store?.statusOptions || this.statusOptions || [];
     const statusName = statusOptions.find(s => s.id === newStatusId)?.name || '';
 
+    // ID-basierter Guard: traegt den eigenen Update fuer 10s, robust gegen
+    // langsame Realtime-Echos (z.B. erster Klick mit Cold-Connection).
+    if (!this._pendingOwnUpdates) this._pendingOwnUpdates = new Map();
+    this._pendingOwnUpdates.set(kooperationId, Date.now());
+    this._lastUpdateBy = window.currentUser?.id;
+    this._lastUpdateTime = Date.now();
+
+    if (store) {
+      store.updateKooperation(kooperationId, {
+        status_id: newStatusId || null,
+        status_name: statusName || null,
+        status_ref: newStatusId ? { id: newStatusId, name: statusName } : null
+      });
+    }
+
     this._updateStatusInline(kooperationId, newStatusId, statusName);
 
     try {
@@ -525,6 +640,9 @@ export class KampagneKooperationenVideoTable {
 
       if (error) throw error;
 
+      this._lastUpdateTime = Date.now();
+      this._pendingOwnUpdates.set(kooperationId, Date.now());
+
       window.dispatchEvent(new CustomEvent('kooperationStatusChanged', {
         detail: { kooperationId, statusId: newStatusId, statusName }
       }));
@@ -533,17 +651,19 @@ export class KampagneKooperationenVideoTable {
       }));
     } catch (error) {
       console.error('❌ Fehler beim Status-Update:', error);
+      this._pendingOwnUpdates.delete(kooperationId);
     }
   }
 
   _updateStatusInline(kooperationId, statusId, statusName) {
+    // Fallback-Mutation: nur wenn Store-Update (im Aufrufer) noch nicht erfolgt ist
     const koop = this.kooperationen.find(k => k.id === kooperationId);
-    if (koop) {
+    if (koop && koop.status_id !== (statusId || null)) {
       koop.status_id = statusId || null;
       koop.status_name = statusName || null;
       koop.status_ref = statusId ? { id: statusId, name: statusName } : null;
     }
-    
+
     const row = document.querySelector(`tr[data-kooperation-id="${kooperationId}"]`);
     if (!row) return;
 
@@ -558,6 +678,8 @@ export class KampagneKooperationenVideoTable {
   refilter() {
     const container = this.containerId ? document.getElementById(this.containerId) : null;
     if (!container) return;
+
+    this._closeStatusPortal();
 
     const scrollY = window.scrollY;
     const containerScrollTop = container.scrollTop;
@@ -604,6 +726,11 @@ export class KampagneKooperationenVideoTable {
   }
 
   destroy() {
+    this._closeStatusPortal();
+
+    const container = document.querySelector('.kooperation-video-grid');
+    if (container) CustomDatePicker.destroy(container);
+
     if (this.dragScrollContainer) {
       this.dragScrollContainer.style.cursor = '';
       this.isDragging = false;
@@ -626,7 +753,13 @@ export class KampagneKooperationenVideoTable {
       window.removeEventListener('entityUpdated', this._entityUpdatedHandler);
       this._entityUpdatedHandler = null;
     }
-    
+
+    if (this._uploadDoneHandler) {
+      window.removeEventListener(UPLOAD_EVENTS.VIDEO_DONE, this._uploadDoneHandler);
+      window.removeEventListener(UPLOAD_EVENTS.STORYS_DONE, this._uploadDoneHandler);
+      this._uploadDoneHandler = null;
+    }
+
     this.store = null;
 
     const floatingScrollbar = document.getElementById('floating-scrollbar-kampagne');

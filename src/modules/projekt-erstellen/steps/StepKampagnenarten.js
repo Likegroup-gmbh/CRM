@@ -1,6 +1,6 @@
 // StepKampagnenarten.js
 // Step 3 des Projekt-Erstellen-Flows:
-// Kampagnenname + wiederholbare Kampagnenart-Bloecke.
+// Kampagnenname + wiederholbare Kampagnenart-Bloecke + Agenturleistungen (nur UGC/Vorort).
 
 import { CAMPAIGN_TYPES } from '../constants.js';
 import {
@@ -12,11 +12,13 @@ import {
   readBudgetValuesFromDom,
   CAMPAIGN_BLOCK_FIELD_SUFFIXES
 } from '../logic/CampaignBudgetFields.js';
+import { AgencyServicesBlock } from '../components/AgencyServicesBlock.js';
 
 export class StepKampagnenarten {
   constructor(wizard) {
     this.wizard = wizard;
     this.host = null;
+    this.agencyBlock = null;
   }
 
   render(host) {
@@ -50,6 +52,8 @@ export class StepKampagnenarten {
           </div>
           <div id="pe-campaign-budgets-host" class="projekt-erstellen-budget-host"></div>
         </div>
+
+        <div id="pe-agency-host"></div>
       </div>
     `;
   }
@@ -63,7 +67,50 @@ export class StepKampagnenarten {
       .replace(/>/g, '&gt;');
   }
 
-  async onEnter() {}
+  async onEnter() {
+    if (!document.getElementById('projekt-erstellen-shared-styles')) {
+      const style = document.createElement('style');
+      style.id = 'projekt-erstellen-shared-styles';
+      style.textContent = `
+        .projekt-erstellen-agency-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: var(--space-md);
+          margin-bottom: var(--space-sm);
+        }
+        .projekt-erstellen-subsection {
+          border-top: var(--border-xs) solid var(--gray-200);
+          padding-top: var(--space-md);
+          margin-top: var(--space-md);
+        }
+        .projekt-erstellen-subsection:first-child {
+          border-top: none;
+          padding-top: 0;
+          margin-top: 0;
+        }
+        .projekt-erstellen-subsection-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: var(--space-sm);
+          margin-bottom: var(--space-sm);
+        }
+        .section-subtitle {
+          font-size: var(--text-sm);
+          font-weight: 600;
+          color: var(--text-primary);
+          margin: 0 0 var(--space-xs) 0;
+        }
+        .projekt-erstellen-extras-toolbar {
+          display: flex;
+          justify-content: flex-end;
+          margin-bottom: var(--space-sm);
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  }
 
   bindEvents() {
     const kampagnennameInput = document.getElementById('field-pe-kampagnenname');
@@ -82,6 +129,17 @@ export class StepKampagnenarten {
 
     this.renderBudgetSections();
     this.bindBudgetEvents();
+
+    this.agencyBlock = new AgencyServicesBlock({
+      hostId: 'pe-agency-host',
+      data: this.wizard.formData.details,
+      mode: 'full',
+      onChange: (val) => {
+        this.wizard.formData.details = { ...this.wizard.formData.details, ...val };
+        this.wizard.updateFeedback();
+      }
+    });
+    this.agencyBlock.render();
   }
 
   attachLiveUpdate(handler) {
@@ -193,11 +251,17 @@ export class StepKampagnenarten {
   collectData() {
     this.collectBudgetsIntoState();
     const blocks = normalizeCampaignBlocks(this.wizard.formData.details);
+
+    const agencyData = this.agencyBlock
+      ? this.agencyBlock.getValue()
+      : {};
+
     return {
       kampagne: {
         kampagnenname: document.getElementById('field-pe-kampagnenname')?.value || ''
       },
       details: {
+        ...agencyData,
         campaign_blocks: blocks,
         campaign_type: getCampaignTypesFromBlocks(blocks),
         campaign_budgets: aggregateCampaignBlocksForLegacy(blocks)
@@ -205,5 +269,7 @@ export class StepKampagnenarten {
     };
   }
 
-  destroy() {}
+  destroy() {
+    this.agencyBlock = null;
+  }
 }

@@ -1,5 +1,6 @@
 import { renderVertragCell } from '../../core/VertragSyncHelper.js';
 import { formatVideoFeedbackValue, VIDEO_FEEDBACK_FIELDS } from '../../core/VideoFeedbackBuckets.js';
+import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 
 const EXTERNAL_LINK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>`;
 
@@ -10,6 +11,29 @@ const TIKTOK_ICON = `<svg class="platform-icon platform-icon--tiktok" viewBox="0
 export class VideoTableRenderer {
   constructor(table) {
     this.table = table;
+  }
+
+  _renderVideoDatePicker(video, fieldName, label) {
+    const t = this.table;
+    const formatDate = (d) => {
+      if (!d) return '—';
+      const date = new Date(d + 'T00:00:00');
+      if (isNaN(date)) return '—';
+      return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    };
+    if (t.isKundeRole() || !t.isFieldEditableForUser('video', fieldName)) {
+      return `<div class="video-deadline-text">${formatDate(video[fieldName])}</div>`;
+    }
+    const pickerHtml = CustomDatePicker.render({
+      id: video.id,
+      entity: 'video',
+      field: fieldName,
+      value: video[fieldName],
+      label,
+      inputClass: 'video-date-picker-input'
+    });
+    const displayText = formatDate(video[fieldName]);
+    return `<div class="video-date-cell">${pickerHtml}<span class="video-date-display">${displayText}</span></div>`;
   }
 
   renderSkeletonLoading() {
@@ -162,7 +186,7 @@ export class VideoTableRenderer {
             ${creator.tiktok ? `<a href="${creator.tiktok.startsWith('http') ? this.escapeHtml(creator.tiktok) : `https://tiktok.com/@${encodeURIComponent(creator.tiktok.replace('@', ''))}`}" target="_blank" rel="noopener" title="@${this.escapeHtml(creator.tiktok)}">${TIKTOK_ICON}</a>` : ''}
           </div>` : ''}
         </td>
-        <td class="grid-cell cell-centered col-status" ${!t.isColumnVisibleForCustomer('col-status') ? 'style="display:none;"' : ''}>
+        <td class="grid-cell col-status" ${!t.isColumnVisibleForCustomer('col-status') ? 'style="display:none;"' : ''}>
           ${this.renderStatusSelect(koop)}
         </td>
         <td class="grid-cell col-tags" ${!t.isColumnVisibleForCustomer('col-tags') ? 'style="display:none;"' : ''}>
@@ -205,22 +229,10 @@ export class VideoTableRenderer {
           })}
         </td>
         <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-video-script-deadline') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => {
-            if (t.isKundeRole()) return `<div class="video-deadline-text">${formatDate(video.skript_deadline)}</div>`;
-            return `<input type="date" class="grid-input stacked-video-input"
-              data-entity="video" data-id="${video.id}" data-field="skript_deadline"
-              value="${video.skript_deadline || ''}"
-              placeholder="TT.MM.JJJJ"/>`;
-          })}
+          ${this.renderVideoFieldStack(videos, (video) => this._renderVideoDatePicker(video, 'skript_deadline', 'Script Deadline'))}
         </td>
         <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-video-content-deadline') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => {
-            if (t.isKundeRole()) return `<div class="video-deadline-text">${formatDate(video.content_deadline)}</div>`;
-            return `<input type="date" class="grid-input stacked-video-input"
-              data-entity="video" data-id="${video.id}" data-field="content_deadline"
-              value="${video.content_deadline || ''}"
-              placeholder="TT.MM.JJJJ"/>`;
-          })}
+          ${this.renderVideoFieldStack(videos, (video) => this._renderVideoDatePicker(video, 'content_deadline', 'Content Deadline'))}
         </td>
         <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-video-typ') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => {
@@ -450,13 +462,7 @@ export class VideoTableRenderer {
           `)}
         </td>
         <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-posting-datum') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => `
-            <input type="date" class="grid-input stacked-video-input" 
-              data-entity="video" data-id="${video.id}" data-field="posting_datum"
-              ${!t.isFieldEditableForUser('video', 'posting_datum') ? 'readonly' : ''}
-              value="${video.posting_datum || ''}"
-              placeholder="TT.MM.JJJJ"/>
-          `)}
+          ${this.renderVideoFieldStack(videos, (video) => this._renderVideoDatePicker(video, 'posting_datum', 'Posting Datum'))}
         </td>
         <td class="grid-cell col-actions" ${!t.isColumnVisibleForCustomer('col-actions') ? 'style="display:none;"' : ''}>
           <div class="actions-dropdown-container" data-entity-type="kooperation">

@@ -167,4 +167,51 @@ describe('VideoUploadDrawer', () => {
       expect(updateOps.length).toBeGreaterThanOrEqual(1);
     });
   });
+
+  describe('Background Upload Integration', () => {
+    it('close() schließt den Drawer auch wenn ein Background-Job für das Video läuft', async () => {
+      const { backgroundUploadService } = await import('../core/BackgroundUploadService.js');
+      const { runVideoUploadJob } = await import('../core/uploadJobs/runVideoUploadJob.js');
+      const originalRunner = runVideoUploadJob;
+
+      window.supabase = createMockSupabase([]);
+      await drawer.open('video-1', defaultMetadaten, vi.fn());
+
+      // Einen "hängenden" Job einreihen — Drawer muss trotzdem schließbar bleiben
+      let resolveJob;
+      const enqueueSpy = vi.spyOn(backgroundUploadService, 'enqueueVideoJob')
+        .mockImplementation((payload) => {
+          // Realer Service ist gestubbt; wir simulieren ihn minimal
+          return 'fake-job-id';
+        });
+      vi.spyOn(backgroundUploadService, 'getActiveJobsForVideo').mockReturnValue([
+        { id: 'fake-job-id', videoId: 'video-1', kind: 'video', status: 'running', items: [] },
+      ]);
+
+      // isAnyUploadActive darf NICHT mehr blockieren
+      expect(drawer.isAnyUploadActive()).toBe(false);
+
+      // close() funktioniert
+      drawer.close();
+      // Nach 300ms ist der DOM weg
+      await new Promise(r => setTimeout(r, 350));
+      expect(document.getElementById('video-upload-drawer')).toBeNull();
+
+      enqueueSpy.mockRestore();
+    });
+
+    it('open() zeigt Banner wenn ein Job für die videoId läuft', async () => {
+      const { backgroundUploadService } = await import('../core/BackgroundUploadService.js');
+      vi.spyOn(backgroundUploadService, 'getActiveJobsForVideo').mockReturnValue([
+        { id: 'fake', videoId: 'video-1', kind: 'video', status: 'running', items: [] },
+      ]);
+
+      window.supabase = createMockSupabase([]);
+      await drawer.open('video-1', defaultMetadaten, vi.fn());
+
+      const banner = document.querySelector('.video-upload-active-banner');
+      expect(banner).not.toBeNull();
+      expect(banner.textContent).toContain('Upload');
+    });
+  });
 });
