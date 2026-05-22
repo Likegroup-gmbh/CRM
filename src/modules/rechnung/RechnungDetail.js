@@ -351,6 +351,7 @@ export class RechnungDetail {
 
       const result = await window.dataService.createEntity('rechnung', submitData);
       if (result.success) {
+        console.log('[ZusatzkostenSync] RechnungDetail-Create-Hook ausgeloest fuer rechnungId=', result.id);
         try {
           const { syncEkZusatzkostenAfterRechnungSave } = await import('../../core/RechnungZusatzkostenSync.js');
           await syncEkZusatzkostenAfterRechnungSave(result.id);
